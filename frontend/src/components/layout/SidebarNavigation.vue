@@ -117,6 +117,16 @@
             </span>
           </router-link>
           <router-link
+            v-if="showSupplierRepairsLink"
+            :to="supplierLink('/repair-templates')"
+            class="nav-item nav-item--sub"
+            :class="{ active: isSupplierRepairTemplatesActive }"
+          >
+            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
+              {{ t('sidebar.myCompanyRepairTemplates') }}
+            </span>
+          </router-link>
+          <router-link
             v-if="isCurrentSupplierAdmin"
             :to="supplierLink('/team')"
             class="nav-item nav-item--sub"
@@ -160,7 +170,7 @@
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext"
         :to="getLink('/activities')"
         class="nav-item"
-        :class="{ active: $route.path.includes('/activities') }"
+        :class="{ active: isDeptSectionNavActive('activities') }"
       >
         <v-icon icon="mdi-calendar" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
@@ -204,7 +214,7 @@
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
-        :class="{ active: $route.path.includes('/tasks') }"
+        :class="{ active: isDeptSectionNavActive('tasks') }"
       >
         <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
@@ -215,7 +225,7 @@
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/notifications')"
         class="nav-item"
-        :class="{ active: $route.path.includes('/notifications') }"
+        :class="{ active: isDeptSectionNavActive('notifications') }"
       >
         <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.notifications') }}</span>
@@ -232,7 +242,7 @@
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu && hasDepartmentContext"
         :to="getLink('/workshop')"
         class="nav-item"
-        :class="{ active: $route.path.includes('/workshop') }"
+        :class="{ active: isDeptSectionNavActive('workshop') }"
       >
         <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
@@ -408,7 +418,12 @@ const isSupplierTeamActive = computed(() => isSupplierRoute.value && route.path.
 const isSupplierCatalogActive = computed(() => isSupplierRoute.value && route.path.includes('/catalog'))
 const isSupplierDeliveriesActive = computed(() => isSupplierRoute.value && route.path.includes('/deliveries'))
 const isSupplierTemplatesActive = computed(() => isSupplierRoute.value && route.path.includes('/templates'))
-const isSupplierRepairsActive = computed(() => isSupplierRoute.value && route.path.includes('/repairs'))
+const isSupplierRepairsActive = computed(
+  () => isSupplierRoute.value && /\/repairs(\/|$)/.test(route.path) && !route.path.includes('/repair-templates'),
+)
+const isSupplierRepairTemplatesActive = computed(
+  () => isSupplierRoute.value && route.path.includes('/repair-templates'),
+)
 
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
@@ -516,6 +531,13 @@ const showSupplierShopLink = computed(() => {
 
 /** Sidebar: Buchhaltung aktiv bei allen Unterpfaden /accounting/… */
 const isAccountingNavActive = computed(() => route.path.includes('/accounting'))
+
+/** Hauptnav-Abschnitt aktiv — nicht wenn gleicher Name unter /settings/… (z. B. settings/workshop). */
+function isDeptSectionNavActive(section: string): boolean {
+  const path = route.path
+  if (path.includes('/settings')) return false
+  return path.includes(`/${section}`)
+}
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
 const isHelpOverviewNavActive = computed(() => route.path.includes('/help'))

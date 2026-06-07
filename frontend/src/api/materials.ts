@@ -211,6 +211,7 @@ export interface Material {
   batch_count: number
   is_container: boolean
   tent_type: string | null
+  repair_template_key?: string | null
   tent_capacity: number | null
   /** Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' */
   combo_status: 'draft' | 'ready'
@@ -495,6 +496,35 @@ export async function createComboFromContainerBatch(
   data: CreateComboFromContainerBatchRequest
 ): Promise<Material> {
   const response = await apiClient.post<Material>('/api/materials/create-combo-from-container-batch', data)
+  return response.data
+}
+
+export interface CreateComboManualComponentInput {
+  material_id: string
+  mode?: 'new' | 'existing'
+  qty?: number
+  serial_number?: string
+  unit_price?: string
+  batch_id?: string
+}
+
+export interface CreateComboManualRequest {
+  department_id: string
+  name: string
+  material_type?: 'physical_combo' | 'virtual_combo'
+  category_id?: string | null
+  storage_address_id?: string | null
+  purchase_date?: string
+  supplier_id?: string | null
+  initial_rack_id?: string
+  initial_slot_id?: string
+  initial_container_batch_id?: string
+  components: CreateComboManualComponentInput[]
+}
+
+/** Manuelle Combo (Stückliste ohne Vorlage/Kiste). */
+export async function createComboManual(data: CreateComboManualRequest): Promise<Material> {
+  const response = await apiClient.post<Material>('/api/materials/create-combo-manual', data)
   return response.data
 }
 

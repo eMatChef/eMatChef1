@@ -33,6 +33,15 @@
   gap: 8px;
 }
 
+.workshop-detail-tabs {
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.workshop-detail-tab-panel {
+  padding-top: 4px;
+}
+
 .workshop-detail-dialog-body .workshop-qr-header-actions {
   display: flex;
   align-items: center;
@@ -112,9 +121,10 @@
   letter-spacing: 0.5px;
 }
 
-.stat-card.open .stat-value { color: #f59e0b; }
-.stat-card.in-progress .stat-value { color: #3b82f6; }
-.stat-card.waiting .stat-value { color: #8b5cf6; }
+.stat-card.triage .stat-value { color: #f59e0b; }
+.stat-card.planning .stat-value { color: #d97706; }
+.stat-card.in_progress .stat-value { color: #3b82f6; }
+.stat-card.awaiting_quote .stat-value { color: #8b5cf6; }
 .stat-card.completed .stat-value { color: #10b981; }
 .stat-card.cancelled .stat-value { color: #6b7280; }
 
@@ -301,9 +311,12 @@
   border-radius: 10px;
 }
 
-.kanban-column.open .column-count { background: #fef3c7; color: #92400e; }
+.kanban-column.triage .column-count { background: #fef3c7; color: #92400e; }
+.kanban-column.planning .column-count { background: #ffedd5; color: #c2410c; }
+.kanban-column.ordered .column-count { background: #e0e7ff; color: #4338ca; }
+.kanban-column.ready .column-count { background: #cffafe; color: #0e7490; }
 .kanban-column.in_progress .column-count { background: #dbeafe; color: #1e40af; }
-.kanban-column.waiting_parts .column-count { background: #ede9fe; color: #5b21b6; }
+.kanban-column.awaiting_quote .column-count { background: #ede9fe; color: #5b21b6; }
 .kanban-column.completed .column-count { background: #d1fae5; color: #065f46; }
 
 .kanban-column-body {
@@ -450,6 +463,55 @@
   border: 1px solid #d1d5db;
 }
 
+.workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.workflow-badge.strategy {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.workflow-badge.strategy.triage {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.workflow-badge.strategy.writeoff {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.workflow-badge.strategy.internal_repair {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.workflow-badge.strategy.external_repair,
+.workflow-badge.strategy.external_cleaning {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.workflow-badge.phase {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+}
+
+.table-status-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
 /* === Assigned Avatar === */
 .assigned-avatar {
   width: 24px;
@@ -521,7 +583,8 @@
   border-bottom: none;
 }
 
-/* === Status Badge (Tabelle) === */
+/* === Phase Badge (Tabelle & Detail) === */
+.phase-badge,
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -532,13 +595,17 @@
   border-radius: 20px;
 }
 
-.status-badge.open { background: #fef3c7; color: #92400e; }
-.status-badge.in_progress { background: #dbeafe; color: #1e40af; }
-.status-badge.waiting_parts { background: #ede9fe; color: #5b21b6; }
-.status-badge.completed { background: #d1fae5; color: #065f46; }
-.status-badge.cancelled { background: #f3f4f6; color: #6b7280; }
+.phase-badge.triage { background: #fef3c7; color: #92400e; }
+.phase-badge.planning { background: #ffedd5; color: #c2410c; }
+.phase-badge.ordered { background: #e0e7ff; color: #4338ca; }
+.phase-badge.ready { background: #cffafe; color: #0e7490; }
+.phase-badge.in_progress { background: #dbeafe; color: #1e40af; }
+.phase-badge.awaiting_quote { background: #ede9fe; color: #5b21b6; }
+.phase-badge.completed { background: #d1fae5; color: #065f46; }
+.phase-badge.cancelled { background: #f3f4f6; color: #6b7280; }
 
-/* === Status Dot === */
+/* === Phase Dot === */
+.phase-dot,
 .status-dot {
   width: 6px;
   height: 6px;
@@ -546,11 +613,14 @@
   display: inline-block;
 }
 
-.status-dot.open { background: #f59e0b; }
-.status-dot.in_progress { background: #3b82f6; }
-.status-dot.waiting_parts { background: #8b5cf6; }
-.status-dot.completed { background: #10b981; }
-.status-dot.cancelled { background: #9ca3af; }
+.phase-dot.triage { background: #f59e0b; }
+.phase-dot.planning { background: #ea580c; }
+.phase-dot.ordered { background: #6366f1; }
+.phase-dot.ready { background: #06b6d4; }
+.phase-dot.in_progress { background: #3b82f6; }
+.phase-dot.awaiting_quote { background: #8b5cf6; }
+.phase-dot.completed { background: #10b981; }
+.phase-dot.cancelled { background: #9ca3af; }
 
 /* === Modal (Ticket Detail) === */
 .workshop-modal-overlay {
@@ -1010,6 +1080,34 @@
 }
 
 /* === Material-Auswahl (Create-Modal) === */
+.create-workflow-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+.workflow-next-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+}
+
+.workflow-next-hint .v-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #2563eb;
+}
+
 .ws-create-material-search {
   width: 100%;
 }
@@ -1226,4 +1324,118 @@
 .resolution-option .option-desc {
   font-size: 11px;
   color: #6b7280;
+}
+
+.completion-parts-warning {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+}
+
+.completion-parts-warning-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.completion-parts-warning-text {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #78350f;
+  line-height: 1.45;
+}
+
+.completion-parts-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: #78350f;
+}
+
+.completion-parts-cost-hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.completion-parts-writeoff-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.45;
+}
+
+.completion-part-source {
+  color: #9ca3af;
+  font-size: 12px;
+}
+
+.completion-surplus-block {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #fcd34d;
+}
+
+.completion-surplus-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.completion-surplus-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #78350f;
+}
+
+.completion-surplus-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.completion-surplus-input {
+  width: 88px;
+  padding: 6px 8px;
+}
+
+.workshop-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.workshop-detail-actions-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workshop-detail-actions-secondary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.workflow-waiting-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309;
+  padding: 6px 10px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
 }

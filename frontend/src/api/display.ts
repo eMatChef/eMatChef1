@@ -25,6 +25,10 @@ export interface DisplayWorkshopTicketRow {
   title: string
   priority: string
   priority_label: string
+  display_phase?: string
+  phase?: string | null
+  phase_label?: string | null
+  strategy?: string
   status: string
   status_label: string
   created_at: string
@@ -35,7 +39,7 @@ export interface DisplayWorkshopTicketRow {
 
 export interface DisplayStatistics {
   activities_by_status: Record<string, number>
-  workshop_by_status: Record<string, number>
+  workshop_by_phase: Record<string, number>
 }
 
 export interface DepartmentDisplayData {

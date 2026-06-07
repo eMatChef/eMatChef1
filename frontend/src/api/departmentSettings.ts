@@ -183,6 +183,45 @@ export async function saveActivityDefaults(departmentId: string, defaults: Activ
   })
 }
 
+export type WorkshopOrderReminderMode = 'days' | 'document_date'
+
+/** Werkstatt-Einstellungen (Materialwart-Workflow 2026) */
+export interface WorkshopSettings {
+  hourlyRateChf: string
+  orderReminderDays: number
+  orderReminderMode: WorkshopOrderReminderMode
+  sparePartsCategoryId: string
+}
+
+export const DEFAULT_WORKSHOP_SETTINGS: WorkshopSettings = {
+  hourlyRateChf: '45.00',
+  orderReminderDays: 7,
+  orderReminderMode: 'days',
+  sparePartsCategoryId: '',
+}
+
+export async function getWorkshopSettings(departmentId: string): Promise<WorkshopSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'workshop')
+  const mode = String(raw['workshop.order_reminder_mode'] || 'days').trim()
+  return {
+    hourlyRateChf: raw['workshop.hourly_rate_chf'] || DEFAULT_WORKSHOP_SETTINGS.hourlyRateChf,
+    orderReminderDays: parseInt(raw['workshop.order_reminder_days'] || '7', 10),
+    orderReminderMode: mode === 'document_date' ? 'document_date' : 'days',
+    sparePartsCategoryId: String(raw['workshop.spare_parts_category_id'] || '').trim(),
+  }
+}
+
+export async function saveWorkshopSettings(
+  departmentId: string,
+  settings: WorkshopSettings,
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'workshop.hourly_rate_chf': settings.hourlyRateChf,
+    'workshop.order_reminder_days': String(settings.orderReminderDays),
+    'workshop.order_reminder_mode': settings.orderReminderMode,
+  })
+}
+
 export async function getRentalAmortizationDefaults(departmentId: string): Promise<RentalAmortizationDefaults> {
   const raw = await getDepartmentSettingsGroup(departmentId, 'rental')
   return {

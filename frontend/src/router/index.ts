@@ -647,6 +647,16 @@ const routes: RouteRecordRaw[] = [
           ...routeHead('supplierRepairs'),
         },
       },
+      {
+        path: 'repair-templates',
+        name: 'SupplierRepairTemplates',
+        component: () => import('@/views/supplier/SupplierRepairTemplatesView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          requiresSupplierRepairs: true,
+          ...routeHead('supplierRepairTemplates'),
+        },
+      },
     ],
   },
   {
@@ -996,6 +1006,16 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'inventory',
+            name: 'TasksInventory',
+            component: () => import('@/views/TasksInventoryView.vue'),
+            meta: {
+              ...routeHead('tasksInventory'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'TasksGeneral' },
+            },
+          },
+          {
             path: 'druck',
             name: 'TasksPrint',
             component: () => import('@/views/TasksPrintView.vue'),
@@ -1187,6 +1207,16 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/ActivitySettingsView.vue'),
             meta: {
               ...routeHead('settingsActivities'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'workshop',
+            name: 'SettingsWorkshop',
+            component: () => import('@/views/settings/WorkshopSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsWorkshop'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }

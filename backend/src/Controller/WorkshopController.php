@@ -15,6 +15,15 @@ use App\Entity\User;
 use App\Service\ActivityAccountingCostService;
 use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
+use App\Service\Workshop\WorkshopOrderReminderService;
+use App\Service\Workshop\WorkshopPartsUsedValidator;
+use App\Service\Workshop\WorkshopPurchaseLineService;
+use App\Service\Workshop\WorkshopTicketCompletionException;
+use App\Service\Workshop\WorkshopTicketCompletionService;
+use App\Service\Inventory\InventoryTaskLinkService;
+use App\Service\Workshop\WorkshopExternalCleaningService;
+use App\Service\Workshop\WorkshopSendToSupplierService;
+use App\Service\Workshop\WorkshopTicketPhaseService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -31,6 +40,14 @@ class WorkshopController extends AbstractController
         private ActivityAccountingCostService $activityAccountingCost,
         private PublicCodeService $publicCodeService,
         private MediaPhotoNormalizer $photoNormalizer,
+        private WorkshopPartsUsedValidator $partsUsedValidator,
+        private WorkshopTicketCompletionService $ticketCompletionService,
+        private WorkshopPurchaseLineService $purchaseLineService,
+        private WorkshopTicketPhaseService $ticketPhaseService,
+        private WorkshopOrderReminderService $orderReminderService,
+        private WorkshopSendToSupplierService $sendToSupplierService,
+        private WorkshopExternalCleaningService $externalCleaningService,
+        private InventoryTaskLinkService $inventoryTaskLinkService,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -286,6 +303,10 @@ class WorkshopController extends AbstractController
                 $ticket->setCreatedByUser($currentUser);
             }
 
+            if (isset($data['repair_checklist']) && \is_array($data['repair_checklist'])) {
+                $ticket->setRepairChecklist($data['repair_checklist']);
+            }
+
             $this->applyRepairStateOnTicketCreate($ticket, $material, $materialBatch, $type);
 
             $this->entityManager->persist($ticket);
@@ -421,10 +442,25 @@ class WorkshopController extends AbstractController
                 $ticket->setActualCost($data['actual_cost']);
             }
 
-            // Ersatzteile
+            // Ersatzteile (Stückliste Nicht-Zelt)
             if (array_key_exists('parts_used', $data)) {
-                $ticket->setPartsUsed($data['parts_used']);
+                if ($ticket->getStrategy() === WorkshopTicket::STRATEGY_WRITEOFF) {
+                    return new JsonResponse(['error' => 'Stückliste ist bei Abschreibungs-Tickets nicht erlaubt'], 400);
+                }
+                $partsErrors = $this->partsUsedValidator->validate($data['parts_used'], $ticket->getDepartmentId());
+                if ($partsErrors !== []) {
+                    return new JsonResponse(['error' => $partsErrors[0]], 400);
+                }
+                $normalizedParts = $this->partsUsedValidator->normalize($data['parts_used']);
+                $ticket->setPartsUsed($normalizedParts);
+                $this->ticketPhaseService->syncFromPartsUsed($ticket);
+                $this->orderReminderService->syncForTicket($ticket);
                 $changes['parts_used'] = ['updated' => true];
+            }
+
+            if (array_key_exists('repair_checklist', $data)) {
+                $ticket->setRepairChecklist($data['repair_checklist']);
+                $changes['repair_checklist'] = ['updated' => true];
             }
 
             // Fotos
@@ -460,6 +496,222 @@ class WorkshopController extends AbstractController
             return new JsonResponse([
                 'error' => 'Fehler beim Aktualisieren des Tickets: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Workflow-Phase manuell weiterschalten (interne Reparatur).
+     */
+    #[Route('/{id}/phase', name: 'set_phase', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function setPhase(string $id, Request $request): JsonResponse
+    {
+        $ticket = $this->loadTicketForMutation($id);
+        if ($ticket instanceof JsonResponse) {
+            return $ticket;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $targetPhase = $data['phase'] ?? null;
+
+        if (!$targetPhase || !\is_string($targetPhase)) {
+            return new JsonResponse(['error' => 'phase ist erforderlich'], 400);
+        }
+
+        if (!\in_array($targetPhase, [
+            WorkshopTicket::PHASE_READY,
+            WorkshopTicket::PHASE_IN_PROGRESS,
+        ], true)) {
+            return new JsonResponse(['error' => 'Ungültige Ziel-Phase'], 400);
+        }
+
+        $validationError = $this->ticketPhaseService->validateAdvanceTo($ticket, $targetPhase);
+        if ($validationError !== null) {
+            return new JsonResponse(['error' => $validationError, 'code' => 'phase_advance_blocked'], 422);
+        }
+
+        $oldPhase = $ticket->getPhase();
+        $this->ticketPhaseService->advanceTo($ticket, $targetPhase);
+
+        $changes = [
+            'phase' => ['old' => $oldPhase, 'new' => $ticket->getPhase()],
+        ];
+        if ($ticket->getStartedAt() && $targetPhase === WorkshopTicket::PHASE_IN_PROGRESS) {
+            $changes['started_at'] = ['new' => $ticket->getStartedAt()->format('c')];
+        }
+
+        $this->createHistoryEntry($ticket, WorkshopTicketHistory::ACTION_STATUS_CHANGED, [], $changes);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeTicket($ticket));
+    }
+
+    /**
+     * Triage-Entscheidung: setzt strategy und initial phase (Workflow 2026).
+     */
+    #[Route('/{id}/triage', name: 'triage', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function triage(string $id, Request $request): JsonResponse
+    {
+        $ticket = $this->entityManager->getRepository(WorkshopTicket::class)
+            ->createQueryBuilder('t')
+            ->leftJoin('t.materialItem', 'm')
+            ->leftJoin('t.issueReport', 'ir')
+            ->addSelect('m', 'ir')
+            ->where('t.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$ticket) {
+            return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
+        }
+
+        if (!$ticket->isInTriage()) {
+            return new JsonResponse([
+                'error' => 'Triage ist nur möglich, solange strategy=triage ist.',
+                'code' => 'not_in_triage',
+            ], 409);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $strategy = $data['strategy'] ?? null;
+
+        if (!$strategy || !in_array($strategy, WorkshopTicket::ALL_STRATEGIES, true)) {
+            return new JsonResponse([
+                'error' => 'strategy ist erforderlich. Erlaubt: ' . implode(', ', WorkshopTicket::ALL_STRATEGIES),
+            ], 400);
+        }
+
+        if ($strategy === WorkshopTicket::STRATEGY_TRIAGE) {
+            return new JsonResponse(['error' => 'strategy darf nicht triage sein'], 400);
+        }
+
+        $requiresSupplier = in_array($strategy, [
+            WorkshopTicket::STRATEGY_EXTERNAL_REPAIR,
+            WorkshopTicket::STRATEGY_EXTERNAL_CLEANING,
+        ], true);
+
+        if ($requiresSupplier) {
+            $supplierId = $data['assigned_to_supplier_company_id'] ?? $ticket->getAssignedToSupplierCompanyId();
+            if (!$supplierId) {
+                return new JsonResponse([
+                    'error' => 'Für externe Strategien ist assigned_to_supplier_company_id erforderlich.',
+                    'code' => 'supplier_required',
+                ], 422);
+            }
+
+            $supplierCompany = $this->entityManager->getRepository(\App\Entity\SupplierCompany::class)
+                ->find($supplierId);
+            if (!$supplierCompany instanceof \App\Entity\SupplierCompany) {
+                return new JsonResponse(['error' => 'Lieferanten-Firma nicht gefunden'], 404);
+            }
+            if (!\in_array(\App\Entity\SupplierCompany::CAPABILITY_REPAIRS, $supplierCompany->getCapabilities(), true)) {
+                return new JsonResponse(['error' => 'Firma hat keine Repairs-Capability'], 400);
+            }
+            $ticket->setAssignedToSupplierCompany($supplierCompany);
+            $ticket->setAssignedToUser(null);
+        }
+
+        try {
+            $oldStrategy = $ticket->getStrategy();
+            $oldPhase = $ticket->getPhase();
+            $newPhase = WorkshopTicket::getInitialPhaseForStrategy($strategy);
+
+            $ticket->setStrategy($strategy);
+            $ticket->setPhase($newPhase);
+            $ticket->syncStatusFromPhase();
+
+            $historyChanges = [
+                'strategy' => ['old' => $oldStrategy, 'new' => $strategy],
+                'phase' => ['old' => $oldPhase, 'new' => $newPhase],
+            ];
+            if ($requiresSupplier) {
+                $historyChanges['assigned_to_supplier_company_id'] = $ticket->getAssignedToSupplierCompanyId();
+            }
+
+            if ($strategy === WorkshopTicket::STRATEGY_EXTERNAL_CLEANING) {
+                $historyChanges = array_merge(
+                    $historyChanges,
+                    $this->externalCleaningService->applyTriage($ticket, $data),
+                );
+            }
+
+            $ticket->updateTimestamps();
+
+            $this->createHistoryEntry($ticket, WorkshopTicketHistory::ACTION_UPDATED, [], $historyChanges);
+            $this->entityManager->flush();
+
+            return new JsonResponse($this->serializeTicket($ticket, true));
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'Fehler bei der Triage: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    #[Route('/{id}/send-to-supplier', name: 'send_to_supplier', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function sendToSupplier(string $id, Request $request): JsonResponse
+    {
+        $ticket = $this->loadTicketForMutation($id);
+        if ($ticket instanceof JsonResponse) {
+            return $ticket;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $changes = $this->sendToSupplierService->send($ticket, $data);
+            $filtered = array_filter($changes, static fn ($v) => $v !== null);
+            $this->createHistoryEntry($ticket, WorkshopTicketHistory::ACTION_UPDATED, [], $filtered);
+            $this->entityManager->flush();
+
+            return new JsonResponse($this->serializeTicket($ticket, true));
+        } catch (WorkshopTicketCompletionException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
+        }
+    }
+
+    #[Route('/{id}/parts-used/{lineId}/order', name: 'parts_order', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function orderPurchaseLine(string $id, string $lineId, Request $request): JsonResponse
+    {
+        $ticket = $this->loadTicketForMutation($id);
+        if ($ticket instanceof JsonResponse) {
+            return $ticket;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $this->purchaseLineService->markOrdered($ticket, $lineId, $data);
+            $this->entityManager->flush();
+
+            return new JsonResponse($this->serializeTicket($ticket));
+        } catch (WorkshopTicketCompletionException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
+        }
+    }
+
+    #[Route('/{id}/parts-used/{lineId}/receive', name: 'parts_receive', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function receivePurchaseLine(string $id, string $lineId, Request $request): JsonResponse
+    {
+        $ticket = $this->loadTicketForMutation($id);
+        if ($ticket instanceof JsonResponse) {
+            return $ticket;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $this->purchaseLineService->receivePurchase($ticket, $lineId, $data);
+            $this->entityManager->flush();
+
+            return new JsonResponse($this->serializeTicket($ticket));
+        } catch (WorkshopTicketCompletionException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
         }
     }
 
@@ -542,12 +794,25 @@ class WorkshopController extends AbstractController
             }
         }
 
+        if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+            $resolutionAction = $data['resolution_action'] ?? 'repaired';
+            $validationError = $this->ticketCompletionService->validateBeforeComplete($ticket, $resolutionAction);
+            if ($validationError !== null) {
+                return new JsonResponse(['error' => $validationError, 'code' => 'insufficient_stock'], 422);
+            }
+        }
+
         try {
             $oldStatus = $ticket->getStatus();
+            $oldPhase = $ticket->getPhase();
             $ticket->setStatus($newStatus);
+            $ticket->syncPhaseFromStatus($newStatus);
             $historyChanges = [
                 'status' => ['old' => $oldStatus, 'new' => $newStatus],
             ];
+            if ($oldPhase !== $ticket->getPhase()) {
+                $historyChanges['phase'] = ['old' => $oldPhase, 'new' => $ticket->getPhase()];
+            }
 
             // Timestamps basierend auf Status setzen
             $now = new \DateTime();
@@ -568,7 +833,6 @@ class WorkshopController extends AbstractController
                 $historyChanges['completed_at'] = ['new' => $now->format('c')];
                 $historyAction = WorkshopTicketHistory::ACTION_COMPLETED;
 
-                // Abschluss-Daten
                 $resolutionAction = $data['resolution_action'] ?? 'repaired';
                 $ticket->setResolutionAction($resolutionAction);
                 $historyChanges['resolution_action'] = $resolutionAction;
@@ -581,73 +845,33 @@ class WorkshopController extends AbstractController
                     $ticket->setActualCost($data['actual_cost']);
                     $historyChanges['actual_cost'] = $data['actual_cost'];
                 }
-
-                // Material-Zustand basierend auf resolution_action
-                $material = $ticket->getMaterialItem();
-
-                if ($resolutionAction === 'repaired' || $resolutionAction === 'ok') {
-                    $batchRepairHistory = $this->applyRepairedResolution($ticket, $material);
-                    if ($batchRepairHistory !== null) {
-                        $historyChanges = array_merge($historyChanges, $batchRepairHistory);
-                    } else {
-                        // Bulk: Material-Stamm wieder OK
-                        $oldCondition = $material->getCondition();
-                        $material->setCondition('ok');
-                        $material->updateTimestamps();
-                        $historyChanges['material_condition'] = ['old' => $oldCondition, 'new' => 'ok'];
-
-                        $this->createMaterialHistoryEntry($material, 'condition_changed', [
-                            'condition' => ['old' => $oldCondition, 'new' => 'ok'],
-                            'reason' => 'Workshop-Ticket #' . $ticket->getId() . ' abgeschlossen (repariert)',
-                        ]);
-                    }
-
-                } elseif ($resolutionAction === 'writeoff') {
-                    // Abschreibung → Writeoff-Batch erstellen (Bestand -1)
-                    $oldCondition = $material->getCondition();
-                    $material->setCondition('defect');
-                    $material->updateTimestamps();
-                    $historyChanges['material_condition'] = ['old' => $oldCondition, 'new' => 'defect'];
-
-                    // Writeoff-Batch: negative qty reduziert Bestand
-                    $writeoffQty = (int)($data['writeoff_qty'] ?? 1);
-                    $writeoffBatch = new MaterialBatch();
-                    $writeoffBatch->setId(IdGenerator::generate13('ba'));
-                    $writeoffBatch->setMaterialItem($material);
-                    $writeoffBatch->setQty(-$writeoffQty); // NEGATIV!
-                    $writeoffBatch->setBatchType('writeoff');
-                    $writeoffBatch->setStatus('active');
-                    $writeoffBatch->setLabel('Abschreibung');
-                    $writeoffBatch->setNotes(
-                        'Abgeschrieben via Workshop-Ticket #' . $ticket->getId()
-                        . ($data['resolution_notes'] ? ' – ' . $data['resolution_notes'] : '')
-                    );
-                    $writeoffBatch->setAcquiredOn($now);
-
-                    $this->entityManager->persist($writeoffBatch);
-
-                    $historyChanges['writeoff_batch_id'] = $writeoffBatch->getId();
-                    $historyChanges['writeoff_qty'] = $writeoffQty;
-
-                    // MaterialHistory-Eintrag
-                    $this->createMaterialHistoryEntry($material, 'writeoff', [
-                        'condition' => ['old' => $oldCondition, 'new' => 'defect'],
-                        'writeoff_qty' => $writeoffQty,
-                        'batch_id' => $writeoffBatch->getId(),
-                        'reason' => 'Workshop-Ticket #' . $ticket->getId() . ' – Abschreibung',
-                    ]);
+                if (isset($data['cost_breakdown']) && \is_array($data['cost_breakdown'])) {
+                    $historyChanges['cost_breakdown'] = $data['cost_breakdown'];
                 }
 
-                // Verknüpften IssueReport als resolved markieren
-                $issueReport = $ticket->getIssueReport();
-                if ($issueReport && !$issueReport->isResolved()) {
-                    $issueReport->setResolved(true);
-                    $issueReport->setResolvedAt($now);
-                    $currentUser = $this->getUser();
-                    if ($currentUser instanceof User) {
-                        $issueReport->setResolvedByUser($currentUser);
+                $actor = $this->getUser();
+                $completionChanges = $this->ticketCompletionService->applyCompletion(
+                    $ticket,
+                    $resolutionAction,
+                    $data,
+                    $now,
+                    $actor instanceof User ? $actor : null,
+                );
+                $historyChanges = array_merge($historyChanges, $completionChanges);
+
+                if (
+                    $ticket->getStrategy() === WorkshopTicket::STRATEGY_INSPECTION
+                    && !empty($data['inventory_task_id'])
+                ) {
+                    try {
+                        $linkChanges = $this->inventoryTaskLinkService->linkOnInspectionComplete(
+                            $ticket,
+                            (string) $data['inventory_task_id'],
+                        );
+                        $historyChanges = array_merge($historyChanges, $linkChanges);
+                    } catch (\InvalidArgumentException $e) {
+                        return new JsonResponse(['error' => $e->getMessage(), 'code' => 'inventory_task_link_failed'], 422);
                     }
-                    $historyChanges['issue_report_resolved'] = true;
                 }
             }
 
@@ -668,6 +892,8 @@ class WorkshopController extends AbstractController
 
             return new JsonResponse($this->serializeTicket($ticket));
 
+        } catch (WorkshopTicketCompletionException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'error' => 'Fehler beim Status-Übergang: ' . $e->getMessage()
@@ -763,33 +989,60 @@ class WorkshopController extends AbstractController
 
         $conn = $this->entityManager->getConnection();
 
-        // Tickets nach Status zählen
-        $statusCounts = $conn->executeQuery(
-            'SELECT status, COUNT(*) as count FROM workshop_ticket WHERE department_id = :deptId GROUP BY status',
-            ['deptId' => $departmentId]
-        )->fetchAllAssociative();
-
-        $stats = [
-            'open' => 0,
+        $phaseCounts = [
+            'triage' => 0,
+            'planning' => 0,
+            'ordered' => 0,
+            'ready' => 0,
             'in_progress' => 0,
-            'waiting_parts' => 0,
+            'awaiting_quote' => 0,
             'completed' => 0,
             'cancelled' => 0,
         ];
-        foreach ($statusCounts as $row) {
-            $stats[$row['status']] = (int)$row['count'];
+
+        $phaseRows = $conn->executeQuery(
+            "SELECT
+                CASE
+                    WHEN strategy = 'triage' AND (phase IS NULL OR phase NOT IN ('completed', 'cancelled')) THEN 'triage'
+                    WHEN phase IS NULL THEN 'triage'
+                    ELSE phase
+                END AS display_phase,
+                COUNT(*) AS count
+             FROM workshop_ticket
+             WHERE department_id = :deptId
+             GROUP BY display_phase",
+            ['deptId' => $departmentId]
+        )->fetchAllAssociative();
+
+        foreach ($phaseRows as $row) {
+            $key = (string) $row['display_phase'];
+            if (\array_key_exists($key, $phaseCounts)) {
+                $phaseCounts[$key] = (int) $row['count'];
+            }
         }
+
+        // Legacy status_counts (computed aus phase für API-Kompatibilität)
+        $statusCounts = [
+            'open' => $phaseCounts['triage'],
+            'in_progress' => $phaseCounts['planning'] + $phaseCounts['ordered'] + $phaseCounts['ready'] + $phaseCounts['in_progress'],
+            'waiting_parts' => $phaseCounts['awaiting_quote'],
+            'completed' => $phaseCounts['completed'],
+            'cancelled' => $phaseCounts['cancelled'],
+        ];
 
         // Diese Woche erledigt
         $weekStart = (new \DateTime())->modify('monday this week')->format('Y-m-d');
         $completedThisWeek = $conn->executeQuery(
-            'SELECT COUNT(*) FROM workshop_ticket WHERE department_id = :deptId AND status = \'completed\' AND completed_at >= :weekStart',
+            'SELECT COUNT(*) FROM workshop_ticket WHERE department_id = :deptId AND phase = \'completed\' AND completed_at >= :weekStart',
             ['deptId' => $departmentId, 'weekStart' => $weekStart]
         )->fetchOne();
 
         // Tickets nach Typ zählen (nur aktive)
         $typeCounts = $conn->executeQuery(
-            'SELECT type, COUNT(*) as count FROM workshop_ticket WHERE department_id = :deptId AND status NOT IN (\'completed\', \'cancelled\') GROUP BY type',
+            "SELECT type, COUNT(*) as count FROM workshop_ticket
+             WHERE department_id = :deptId
+               AND (phase IS NULL OR phase NOT IN ('completed', 'cancelled'))
+             GROUP BY type",
             ['deptId' => $departmentId]
         )->fetchAllAssociative();
 
@@ -800,7 +1053,10 @@ class WorkshopController extends AbstractController
 
         // Tickets nach Priorität zählen (nur aktive)
         $priorityCounts = $conn->executeQuery(
-            'SELECT priority, COUNT(*) as count FROM workshop_ticket WHERE department_id = :deptId AND status NOT IN (\'completed\', \'cancelled\') GROUP BY priority',
+            "SELECT priority, COUNT(*) as count FROM workshop_ticket
+             WHERE department_id = :deptId
+               AND (phase IS NULL OR phase NOT IN ('completed', 'cancelled'))
+             GROUP BY priority",
             ['deptId' => $departmentId]
         )->fetchAllAssociative();
 
@@ -814,7 +1070,7 @@ class WorkshopController extends AbstractController
              FROM workshop_ticket t
              INNER JOIN activity a ON a.id = t.activity_id
              WHERE t.department_id = :deptId
-               AND t.status = 'waiting_parts'
+               AND t.phase = 'awaiting_quote'
                AND a.type = 'external'",
             ['deptId' => $departmentId]
         )->fetchOne();
@@ -825,18 +1081,22 @@ class WorkshopController extends AbstractController
              INNER JOIN activity a ON a.id = t.activity_id
              WHERE t.department_id = :deptId
                AND a.type = 'external'
-               AND t.status IN ('open', 'in_progress', 'waiting_parts')
+               AND (t.phase IS NULL OR t.phase NOT IN ('completed', 'cancelled'))
                AND t.type IN ('repair', 'writeoff')
                AND t.estimated_cost IS NULL",
             ['deptId' => $departmentId]
         )->fetchOne();
 
+        $totalActive = $phaseCounts['triage'] + $phaseCounts['planning'] + $phaseCounts['ordered']
+            + $phaseCounts['ready'] + $phaseCounts['in_progress'] + $phaseCounts['awaiting_quote'];
+
         return new JsonResponse([
-            'status_counts' => $stats,
+            'phase_counts' => $phaseCounts,
+            'status_counts' => $statusCounts,
             'completed_this_week' => (int)$completedThisWeek,
             'type_counts' => $types,
             'priority_counts' => $priorities,
-            'total_active' => $stats['open'] + $stats['in_progress'] + $stats['waiting_parts'],
+            'total_active' => $totalActive,
             'pending_cost_tasks' => [
                 'waiting_quote' => $waitingQuoteCount,
                 'missing_estimated_cost' => $missingEstimatedCostCount,
@@ -983,21 +1243,22 @@ class WorkshopController extends AbstractController
         return $qty;
     }
 
-    /** @return array<string, mixed>|null */
-    private function applyRepairedResolution(WorkshopTicket $ticket, MaterialItem $material): ?array
+    private function loadTicketForMutation(string $id): WorkshopTicket|JsonResponse
     {
-        $batch = $ticket->getMaterialBatch();
-        if (!$batch instanceof MaterialBatch) {
-            return null;
+        $ticket = $this->entityManager->getRepository(WorkshopTicket::class)
+            ->createQueryBuilder('t')
+            ->leftJoin('t.materialItem', 'm')
+            ->addSelect('m')
+            ->where('t.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$ticket instanceof WorkshopTicket) {
+            return new JsonResponse(['error' => 'Ticket nicht gefunden'], 404);
         }
 
-        $oldStatus = $batch->getStatus();
-        $batch->setStatus('active');
-
-        return [
-            'material_batch_id' => $batch->getId(),
-            'material_batch_status' => ['old' => $oldStatus, 'new' => 'active'],
-        ];
+        return $ticket;
     }
 
     /** @return array<string, mixed>|null */
@@ -1056,6 +1317,10 @@ class WorkshopController extends AbstractController
             'priority_label' => $ticket->getPriorityLabel(),
             'status' => $ticket->getStatus(),
             'status_label' => $ticket->getStatusLabel(),
+            'strategy' => $ticket->getStrategy(),
+            'strategy_label' => $ticket->getStrategyLabel(),
+            'phase' => $ticket->getPhase(),
+            'phase_label' => $ticket->getPhaseLabel(),
             'title' => $ticket->getTitle(),
             'description' => $ticket->getDescription(),
             'estimated_cost' => $ticket->getEstimatedCost(),
@@ -1076,6 +1341,7 @@ class WorkshopController extends AbstractController
                 'total_stock' => $material->getTotalStock(),
                 'barcode_tag' => $material->getBarcodeTag(),
                 'sale_price' => $material->getSalePrice(),
+                'repair_template_key' => $material->getRepairTemplateKey(),
                 'category' => $material->getCategory() ? [
                     'id' => $material->getCategory()->getId(),
                     'name' => $material->getCategory()->getName(),
@@ -1120,6 +1386,7 @@ class WorkshopController extends AbstractController
 
         if ($detailed) {
             $result['parts_used'] = $ticket->getPartsUsed();
+            $result['repair_checklist'] = $ticket->getRepairChecklist();
             $result['photos'] = $this->photoNormalizer->normalizeOutgoing($ticket->getPhotos());
 
             // Activity-Info
@@ -1256,6 +1523,11 @@ class WorkshopController extends AbstractController
         $description = $issueReport->getDescription();
         if ($description) {
             $ticket->setDescription($description);
+        }
+
+        $checklist = $issueReport->getRepairChecklist();
+        if (\is_array($checklist) && $checklist !== []) {
+            $ticket->setRepairChecklist($checklist);
         }
 
         // Ersteller = der Reporter

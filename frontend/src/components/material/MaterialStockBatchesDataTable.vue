@@ -20,7 +20,7 @@
     </template>
     <template #header.qty>
       <SortHeaderButton
-        :label="t('components.materialDetail.thQty')"
+        :label="t('components.materialDetail.thQtyWithUnit', { unit: stockUnitLabel })"
         :title="t('components.materialDetail.sortByQty')"
         sort-key="qty"
         :active-key="sortKey"
@@ -40,7 +40,7 @@
     </template>
     <template #header.unit_price>
       <SortHeaderButton
-        :label="t('components.materialDetail.thPricePerPc')"
+        :label="t('components.materialDetail.thPricePerUnit', { unit: stockUnitLabel })"
         :title="t('components.materialDetail.sortByUnitPrice')"
         sort-key="unit_price"
         :active-key="sortKey"
@@ -83,7 +83,7 @@
       {{ formatDate(item.acquired_on) }}
     </template>
     <template #item.qty="{ item }">
-      <span class="qty-cell">{{ item.qty }}</span>
+      <span class="qty-cell">{{ formatBatchQty(item.qty) }}</span>
     </template>
     <template v-if="canManageMaterials" #item.qr="{ item }">
       <PublicQrTag
@@ -158,6 +158,7 @@ import type { MaterialBatch } from '@/api/materials'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import TableIconButton from '@/components/common/TableIconButton.vue'
 import SortHeaderButton from '@/components/material/SortHeaderButton.vue'
+import { formatStockQtyWithPackHint, getStockUnitLabel } from '@/utils/materialStockUnit'
 
 defineOptions({ name: 'MaterialStockBatchesDataTable' })
 
@@ -173,6 +174,8 @@ const props = defineProps<{
   canManageMaterials: boolean
   showMoveQty: boolean
   materialName: string
+  packUnit?: string | null
+  packSize?: number | null
   statusLabels: Record<string, string>
   sortKey: string | null
   sortDir: 'asc' | 'desc'
@@ -181,6 +184,14 @@ const props = defineProps<{
   formatDate: (value: string | null | undefined) => string
   locationEntries: (batch: MaterialBatch) => BatchLocationEntry[]
 }>()
+
+const stockUnitLabel = computed(() => getStockUnitLabel(props.packUnit))
+
+function formatBatchQty(qty: number | null | undefined): string {
+  const n = Number(qty)
+  if (!Number.isFinite(n)) return props.emDash
+  return formatStockQtyWithPackHint(n, props.packUnit, props.packSize)
+}
 
 defineEmits<{
   'toggle-sort': [key: string]

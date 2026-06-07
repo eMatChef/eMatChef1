@@ -191,16 +191,16 @@
         <h2 class="section-title">{{ t('dashboard.workshop') }}</h2>
         <div class="stat-cards workshop">
           <div class="stat-card open">
-            <span class="stat-value">{{ workshopStats.status_counts?.open || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.open') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.triage || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.triage') }}</span>
           </div>
           <div class="stat-card in-progress">
-            <span class="stat-value">{{ workshopStats.status_counts?.in_progress || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.inWork') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.in_progress || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.in_progress') }}</span>
           </div>
           <div class="stat-card waiting">
-            <span class="stat-value">{{ workshopStats.status_counts?.waiting_parts || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.waitingForParts') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.awaiting_quote || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.awaiting_quote') }}</span>
           </div>
           <router-link
             class="stat-card warning"

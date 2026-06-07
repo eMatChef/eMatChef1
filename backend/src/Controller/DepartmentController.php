@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Entity\Membership;
 use App\Repository\DepartmentRepository;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
@@ -34,6 +35,7 @@ class DepartmentController extends AbstractController
         private DepartmentResetService $departmentResetService,
         private DevEnvironmentService $devEnvironmentService,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
+        private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
         private VerificationEmailService $verificationEmailService,
         private AdminCapabilityChecker $adminCapabilityChecker,
     ) {}
@@ -357,7 +359,8 @@ class DepartmentController extends AbstractController
             $this->entityManager->flush();
 
             $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
-            
+            $this->workshopSparePartsCategoryBootstrap->ensure($department);
+
             // Prüfe ob ID generiert wurde
             if (!$department->getId()) {
                 return new JsonResponse(['error' => 'ID konnte nicht generiert werden'], 500);

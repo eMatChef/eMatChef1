@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="isOpen" class="damage-wizard-overlay">
-      <div class="damage-wizard-modal">
+      <div class="damage-wizard-modal" :class="{ 'damage-wizard-modal--wide': !!sheetTemplate }">
         <div class="wizard-header">
           <h2>{{ t('components.damageReportWizard.title') }}</h2>
           <button class="close-btn" @click="close" :title="t('components.damageReportWizard.closeTitle')">
@@ -89,6 +89,19 @@
                 <label>{{ t('common.description') }}</label>
                 <textarea v-model="form.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionPlaceholder')"></textarea>
               </div>
+              <div v-if="isLoadingTemplate" class="loading-row">
+                <div class="spinner"></div>
+                <span>{{ t('components.damageReportWizard.loadingRepairSheet') }}</span>
+              </div>
+              <div v-else-if="sheetTemplate" class="form-group repair-sheet-block">
+                <label>{{ t('components.damageReportWizard.repairSheetLabel') }}</label>
+                <p class="field-hint">{{ t('components.damageReportWizard.repairSheetHint') }}</p>
+                <RepairSheetEditor
+                  v-model="sheetChecklist"
+                  :template="sheetTemplate"
+                  mode="report"
+                />
+              </div>
               <div class="form-group">
                 <label>{{ t('components.damageReportWizard.photosLabel') }}</label>
                 <p class="field-hint">{{ t('components.damageReportWizard.photosHint', { max: maxIssuePhotos }) }}</p>
@@ -111,7 +124,10 @@
             <div class="form-fields">
               <div class="form-group">
                 <label>{{ t('common.material') }} <span class="required">*</span></label>
-                <div class="mat-search-wrap">
+                <div
+                  class="mat-search-wrap"
+                  :class="{ 'mat-search-wrap--open': formNoActivity.matSearch.length >= 2 && matSearchResults.length > 0 }"
+                >
                   <div v-if="selectedMaterial" class="mat-selected">
                     <span>{{ selectedMaterial.name }}</span>
                     <button type="button" class="mat-clear" @click="selectedMaterial = null">×</button>
@@ -167,6 +183,19 @@
                 <label>{{ t('common.description') }}</label>
                 <textarea v-model="formNoActivity.description" rows="3" class="form-input" :placeholder="t('components.damageReportWizard.descriptionNoActivityPlaceholder')"></textarea>
               </div>
+              <div v-if="isLoadingTemplate" class="loading-row">
+                <div class="spinner"></div>
+                <span>{{ t('components.damageReportWizard.loadingRepairSheet') }}</span>
+              </div>
+              <div v-else-if="sheetTemplate" class="form-group repair-sheet-block">
+                <label>{{ t('components.damageReportWizard.repairSheetLabel') }}</label>
+                <p class="field-hint">{{ t('components.damageReportWizard.repairSheetHint') }}</p>
+                <RepairSheetEditor
+                  v-model="sheetChecklist"
+                  :template="sheetTemplate"
+                  mode="report"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -197,12 +226,24 @@ import { useToast } from '@/composables/useToast'
 import apiClient from '@/api/apiClient'
 import { getActivity, type ActivityDetail } from '@/api/activities'
 import { getGroups, type Group } from '@/api/groups'
-import { getMaterials, type Material } from '@/api/materials'
-import { createWorkshopTicket } from '@/api/workshop'
+import { getMaterial, getMaterials, type Material } from '@/api/materials'
+import { createWorkshopTicket, ensureWorkshopPublicCode } from '@/api/workshop'
 import { createActivityIssue, uploadActivityIssuePhoto } from '@/api/activities'
 import { getActivityPackContainers } from '@/api/activityContainers'
 import { MAX_ISSUE_PHOTOS } from '@/api/media'
 import PhotoUpload from '@/components/media/PhotoUpload.vue'
+import RepairSheetEditor from '@/components/workshop/RepairSheetEditor.vue'
+import {
+  getDepartmentRepairTemplates,
+  getPlatformRepairTemplates,
+} from '@/api/repairTemplates'
+import {
+  createEmptyRepairChecklist,
+  departmentTemplateToSheetInput,
+  platformTemplateToSheetInput,
+  type RepairChecklist,
+  type RepairSheetTemplateInput,
+} from '@/types/repairChecklist'
 
 interface ActivityOption {
   id: string
@@ -244,6 +285,9 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
 const userId = computed(() => authStore.userId)
+const canManageWorkshopQr = computed(() =>
+  ['mw', 'dc', 'matwart', 'depchef'].includes(String(authStore.currentDepartmentRole || 'u').toLowerCase()),
+)
 
 const step = ref(1)
 const mode = ref<'with_activity' | 'no_activity'>('with_activity')
@@ -258,6 +302,9 @@ const isLoadingPackItems = ref(false)
 const isSubmitting = ref(false)
 const selectedPhotos = ref<File[]>([])
 const maxIssuePhotos = MAX_ISSUE_PHOTOS
+const sheetTemplate = ref<RepairSheetTemplateInput | null>(null)
+const sheetChecklist = ref<RepairChecklist>(createEmptyRepairChecklist())
+const isLoadingTemplate = ref(false)
 
 const selectedMaterial = ref<Material | null>(null)
 const matSearchResults = ref<Material[]>([])
@@ -461,11 +508,50 @@ function errMessage(err: any): string {
   return err.response?.data?.error || err.message || ''
 }
 
+function repairChecklistPayload(): Record<string, unknown> | undefined {
+  if (!sheetTemplate.value || !hasRepairChecklistContent(sheetChecklist.value)) return undefined
+  return sheetChecklist.value as unknown as Record<string, unknown>
+}
+
+function hasRepairChecklistContent(checklist: RepairChecklist): boolean {
+  if (checklist.scope === 'whole_unit') return true
+  if (checklist.marker_ids.length > 0) return true
+  if (checklist.notes.trim() !== '') return true
+  return Object.values(checklist.items).some((entry) => (entry?.quantity ?? 0) > 0)
+}
+
+async function loadReportTemplate(templateKey: string | null | undefined) {
+  const key = templateKey?.trim()
+  sheetTemplate.value = null
+  if (!key || !props.departmentId) return
+
+  isLoadingTemplate.value = true
+  try {
+    const deptTemplates = await getDepartmentRepairTemplates(props.departmentId)
+    const deptMatch = deptTemplates.find((tpl) => tpl.template_key === key)
+    if (deptMatch) {
+      sheetTemplate.value = departmentTemplateToSheetInput(deptMatch)
+    } else {
+      const platformTemplates = await getPlatformRepairTemplates()
+      const platformMatch = platformTemplates.find((tpl) => tpl.template_key === key)
+      if (platformMatch) {
+        sheetTemplate.value = platformTemplateToSheetInput(platformMatch)
+      }
+    }
+    sheetChecklist.value = createEmptyRepairChecklist(key)
+  } catch (err) {
+    console.error('Failed to load repair template for damage report:', err)
+    sheetTemplate.value = null
+  } finally {
+    isLoadingTemplate.value = false
+  }
+}
+
 async function submitNoActivity() {
   if (!selectedMaterial.value || !formNoActivity.value.title.trim() || isSubmitting.value) return
   isSubmitting.value = true
   try {
-    await createWorkshopTicket({
+    const created = await createWorkshopTicket({
       department_id: props.departmentId,
       material_item_id: selectedMaterial.value.id,
       title: formNoActivity.value.title.trim(),
@@ -474,8 +560,16 @@ async function submitNoActivity() {
         selectedMaterial.value.tracking_type === 'serialized'
           ? undefined
           : formNoActivity.value.affected_quantity,
-      description: formNoActivity.value.description || undefined
+      description: formNoActivity.value.description || undefined,
+      repair_checklist: repairChecklistPayload(),
     })
+    if (canManageWorkshopQr.value) {
+      try {
+        await ensureWorkshopPublicCode(created.id)
+      } catch {
+        // QR optional — Ticket bleibt nutzbar
+      }
+    }
     emit('success')
     close()
   } catch (err: any) {
@@ -494,6 +588,7 @@ async function submit() {
       type: form.value.type,
       quantity: isSelectedPackItemSerialized.value ? 1 : form.value.quantity,
       description: form.value.description || null,
+      repair_checklist: repairChecklistPayload(),
     })
     for (const file of selectedPhotos.value) {
       await uploadActivityIssuePhoto(selectedActivity.value.id, issue.id, file)
@@ -526,6 +621,8 @@ function reset() {
   form.value = { materialItemId: '', type: 'damage' as const, quantity: 1, description: '' }
   formNoActivity.value = { matSearch: '', title: '', type: 'repair', affected_quantity: 1, description: '' }
   selectedPhotos.value = []
+  sheetTemplate.value = null
+  sheetChecklist.value = createEmptyRepairChecklist()
 }
 
 async function applyPresetActivity(id: string) {
@@ -577,16 +674,43 @@ function applyMaterialAndTypePresets() {
 
 watch(
   () => form.value.materialItemId,
-  () => {
+  async (materialId) => {
     if (isSelectedPackItemSerialized.value) {
       form.value.quantity = 1
+    } else {
+      const max = maxReportableQuantity.value
+      if (max > 0 && form.value.quantity > max) {
+        form.value.quantity = max
+      } else if (form.value.quantity < 1) {
+        form.value.quantity = 1
+      }
+    }
+
+    if (!materialId || !props.departmentId) {
+      sheetTemplate.value = null
       return
     }
-    const max = maxReportableQuantity.value
-    if (max > 0 && form.value.quantity > max) {
-      form.value.quantity = max
-    } else if (form.value.quantity < 1) {
-      form.value.quantity = 1
+    try {
+      const material = await getMaterial(materialId)
+      await loadReportTemplate(material.repair_template_key)
+    } catch {
+      sheetTemplate.value = null
+    }
+  },
+)
+
+watch(
+  () => selectedMaterial.value?.id,
+  async (materialId) => {
+    if (!materialId) {
+      sheetTemplate.value = null
+      return
+    }
+    try {
+      const material = await getMaterial(materialId)
+      await loadReportTemplate(material.repair_template_key)
+    } catch {
+      sheetTemplate.value = null
     }
   },
 )
@@ -626,6 +750,14 @@ watch(
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+}
+
+.damage-wizard-modal--wide {
+  max-width: 860px;
+}
+
+.repair-sheet-block {
+  margin-top: 8px;
 }
 
 .wizard-header {
@@ -696,6 +828,10 @@ watch(
   position: relative;
 }
 
+.mat-search-wrap--open {
+  margin-bottom: 12rem;
+}
+
 .mat-selected {
   display: flex;
   align-items: center;
@@ -731,7 +867,7 @@ watch(
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   max-height: 200px;
   overflow-y: auto;
-  z-index: 10;
+  z-index: 50;
 }
 
 .mat-dropdown-item {

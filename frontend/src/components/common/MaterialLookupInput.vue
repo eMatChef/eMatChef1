@@ -120,6 +120,7 @@ const props = withDefaults(
     showEmptyWhenNoResults?: boolean
     inputClass?: string
     teleportDropdown?: boolean
+    dropdownMinWidth?: number
     dropdownMaxHeight?: string
     getResultKey?: (item: GenericItem, index: number) => string | number
     getResultLabel?: (item: GenericItem) => string
@@ -135,6 +136,7 @@ const props = withDefaults(
     showEmptyWhenNoResults: true,
     inputClass: '',
     teleportDropdown: true,
+    dropdownMinWidth: 280,
     dropdownMaxHeight: undefined,
   },
 )
@@ -210,7 +212,7 @@ function syncDropdownPosition() {
   const rect = el.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
-  const width = Math.min(rect.width, vw - 16)
+  const width = Math.min(Math.max(rect.width, props.dropdownMinWidth), vw - 16)
   const left = Math.max(8, Math.min(rect.left, vw - width - 8))
   const spaceBelow = vh - rect.bottom - 8
   const spaceAbove = rect.top - 8

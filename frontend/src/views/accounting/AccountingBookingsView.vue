@@ -442,6 +442,7 @@ import {
 import BookingReceiptAttachments from '@/components/accounting/BookingReceiptAttachments.vue'
 import type { MediaPhoto } from '@/api/media'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import '@/styles/views/accounting-tabs.css'
 

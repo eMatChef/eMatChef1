@@ -979,7 +979,151 @@
                 </div>
 
                 <!-- Hinzugefügte Materialien -->
-                <div v-if="selectedComboMaterials.length > 0" class="combo-list">
+                <div v-if="selectedComboMaterials.length > 0 && formData.material_type === 'physical_combo'" class="component-inputs-list">
+                  <div
+                    v-for="(mat, index) in selectedComboMaterials"
+                    :key="mat.id"
+                    class="component-input-card"
+                  >
+                    <div class="comp-card-header">
+                      <div class="comp-card-info">
+                        <span class="comp-card-name">{{ mat.name }}</span>
+                        <span class="comp-card-meta">
+                          <span v-if="mat.tracking === 'serialized'">{{ t('common.serialNumber') }}</span>
+                          <span v-else>{{ t('components.materialCreateWizard.compBulkMetaPcs', { n: mat.qty }) }}</span>
+                        </span>
+                      </div>
+                      <div class="comp-card-mode">
+                        <button
+                          type="button"
+                          :class="['comp-mode-btn', { active: mat.mode === 'new' }]"
+                          @click="setComboArticleMode(mat, 'new')"
+                        >{{ t('components.materialCreateWizard.compNewBuy') }}</button>
+                        <button
+                          type="button"
+                          :class="['comp-mode-btn', { active: mat.mode === 'existing' }]"
+                          @click="setComboArticleMode(mat, 'existing')"
+                        >{{ t('components.materialCreateWizard.compFromStock') }}</button>
+                      </div>
+                      <button type="button" class="combo-remove" @click="removeComboMaterial(index)">×</button>
+                    </div>
+
+                    <div class="comp-card-body">
+                      <template v-if="mat.tracking === 'serialized' && mat.mode === 'new'">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>{{ t('common.serialNumber') }}</label>
+                            <input
+                              v-model="mat.serial_number"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('components.materialCreateWizard.phSerialExample', { ex: 'SN-001' })"
+                            />
+                          </div>
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="mat.unit_price"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </template>
+
+                      <template v-else-if="mat.tracking === 'serialized' && mat.mode === 'existing'">
+                        <div v-if="mat._availableBatches?.length" class="comp-batch-select">
+                          <label>{{ t('components.materialCreateWizard.labelPickSerial') }}</label>
+                          <select v-model="mat.batch_id" class="form-select">
+                            <option value="">{{ t('components.materialCreateWizard.selectSerialPlaceholder') }}</option>
+                            <option
+                              v-for="batch in mat._availableBatches"
+                              :key="batch.id"
+                              :value="batch.id"
+                            >
+                              {{ t('components.materialCreateWizard.snDisplay') }}
+                              {{ batch.serial_number || batch.label || batch.id }}
+                            </option>
+                          </select>
+                        </div>
+                        <div v-else class="comp-no-batches">
+                          {{ t('components.materialCreateWizard.noFreeSerialsInStock') }}
+                        </div>
+                      </template>
+
+                      <template v-else-if="mat.tracking === 'bulk' && mat.mode === 'new'">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.qtyNewPurchase') }}</label>
+                            <input v-model.number="mat.qty" type="number" min="1" class="form-input" />
+                          </div>
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="mat.unit_price"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p class="comp-bulk-info">{{ t('components.materialCreateWizard.bulkInfoAddedToStock') }}</p>
+                      </template>
+
+                      <template v-else-if="mat.tracking === 'bulk' && mat.mode === 'existing'">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.labelQtyAssign') }}</label>
+                            <input
+                              v-model.number="mat.qty"
+                              type="number"
+                              min="1"
+                              :max="mat.free_stock ?? mat.total_stock"
+                              class="form-input"
+                            />
+                          </div>
+                          <div class="form-group comp-stock-info">
+                            <label>&nbsp;</label>
+                            <div class="comp-stock-display">
+                              <span
+                                class="comp-stock-value"
+                                :class="{ 'is-low': (mat.free_stock ?? mat.total_stock) < mat.qty }"
+                              >
+                                {{
+                                  t('components.materialCreateWizard.stockFreeVsNeeded', {
+                                    free: mat.free_stock ?? mat.total_stock,
+                                    need: mat.qty,
+                                  })
+                                }}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <p v-if="(mat.free_stock ?? mat.total_stock) < mat.qty" class="comp-stock-warning">
+                          {{
+                            t('components.materialCreateWizard.stockShortByPcs', {
+                              n: mat.qty - (mat.free_stock ?? mat.total_stock),
+                            })
+                          }}
+                        </p>
+                        <p v-else class="comp-bulk-info">{{ t('components.materialCreateWizard.bulkInfoFromStockToTent') }}</p>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else-if="selectedComboMaterials.length > 0" class="combo-list">
                   <div 
                     v-for="(mat, index) in selectedComboMaterials" 
                     :key="mat.id"
@@ -2429,9 +2573,12 @@ import {
   getMaterial,
   addBatch,
   createComboFromContainerBatch,
+  createComboManual,
   type CreateMaterialRequest,
   type AddBatchRequest,
   type CreateComboFromContainerBatchRequest,
+  type CreateComboManualRequest,
+  type CreateComboManualComponentInput,
   type MaterialBatch,
   type AddBatchMultiResponse,
   type ComponentSource,
@@ -2726,7 +2873,22 @@ const selectedSupplier = ref<Address | null>(null)
 const comboMaterialSearch = ref('')
 const allMaterials = ref<any[]>([])
 const filteredComboMaterials = ref<any[]>([])
-const selectedComboMaterials = ref<Array<{ id: string; name: string; category?: any; total_stock: number; qty: number }>>([])
+interface ComboArticleInput {
+  id: string
+  name: string
+  category?: { name?: string }
+  total_stock: number
+  free_stock?: number
+  tracking: 'serialized' | 'bulk'
+  qty: number
+  mode: 'new' | 'existing'
+  serial_number: string
+  unit_price: string
+  batch_id: string
+  _availableBatches?: MaterialBatch[]
+}
+
+const selectedComboMaterials = ref<ComboArticleInput[]>([])
 
 // ============ Template-Modus ============
 const isFromTemplate = ref(false)
@@ -3451,6 +3613,15 @@ const showTemplatePurchaseStep = computed(() => {
   ) {
     return true
   }
+  if (
+    !isFromTemplate.value &&
+    !isFromContainerBatchContents.value &&
+    creationMode.value === 'physical_combo' &&
+    selectedComboMaterials.value.length >= 2 &&
+    !!formData.category_id
+  ) {
+    return true
+  }
   return false
 })
 
@@ -3480,6 +3651,20 @@ const visibleStepIds = computed<StepId[]>(() => {
     steps.push('template_tent')
   }
 
+  const comboNameReady =
+    !!formData.name.trim() && !nameExists.value
+
+  if (
+    !isAddBatchMode.value &&
+    !isFromTemplate.value &&
+    !isFromContainerBatchContents.value &&
+    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
+    comboNameReady &&
+    !!formData.category_id
+  ) {
+    steps.push('combo_articles')
+  }
+
   if (showTemplatePurchaseStep.value) {
     steps.push('template_purchase')
   }
@@ -3493,20 +3678,6 @@ const visibleStepIds = computed<StepId[]>(() => {
     !!formData.category_id
   ) {
     steps.push('tracking')
-  }
-
-  const comboNameReady =
-    !!formData.name.trim() && !nameExists.value
-
-  if (
-    !isAddBatchMode.value &&
-    !isFromTemplate.value &&
-    !isFromContainerBatchContents.value &&
-    (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
-    comboNameReady &&
-    !!formData.category_id
-  ) {
-    steps.push('combo_articles')
   }
 
   // Details & Vermietung (optional) – vor Stock, wenn Material-Typ feststeht; bei Kombi wie Materialwahl erst nach Namen
@@ -3714,6 +3885,13 @@ const canSubmit = computed(() => {
 
   if (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') {
     if (selectedComboMaterials.value.length < 2) return false
+    if (formData.material_type === 'physical_combo' && !isFromTemplate.value && !isFromContainerBatchContents.value) {
+      for (const mat of selectedComboMaterials.value) {
+        if (!isComboArticleDone(mat)) return false
+      }
+      if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) return false
+      if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) return false
+    }
   }
   
   return true
@@ -3913,6 +4091,35 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     selectedComboMaterials.value.length < 2
   ) {
     push('combo_articles', `${m}.missingAddTwoArticles`)
+  } else if (
+    formData.material_type === 'physical_combo' &&
+    !isFromTemplate.value &&
+    !isFromContainerBatchContents.value
+  ) {
+    for (const mat of selectedComboMaterials.value) {
+      if (mat.mode === 'new') {
+        if (mat.tracking === 'serialized' && !mat.serial_number.trim()) {
+          push('combo_articles', `${m}.missingEnterSnForComp`, { name: mat.name })
+          break
+        }
+        if (mat.tracking === 'bulk' && mat.qty < 1) {
+          push('combo_articles', `${m}.missingEnterQtyForComp`, { name: mat.name })
+          break
+        }
+      } else if (mat.tracking === 'serialized' && !mat.batch_id) {
+        push('combo_articles', `${m}.missingPickSnForComp`, { name: mat.name })
+        break
+      } else if (mat.tracking === 'bulk' && mat.qty < 1) {
+        push('combo_articles', `${m}.missingEnterQtyForComp`, { name: mat.name })
+        break
+      }
+    }
+    if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
+      push('template_purchase', `${m}.missingPickBoxForCombo`)
+    }
+    if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
+      push('template_purchase', `${m}.missingPickRackSlotForCombo`)
+    }
   }
   return missing
 })
@@ -4800,6 +5007,36 @@ function hideSupplierDropdownDelayed() {
   setTimeout(() => { showSupplierDropdown.value = false }, 200)
 }
 
+function isComboArticleDone(mat: ComboArticleInput): boolean {
+  if (mat.mode === 'new') {
+    return mat.tracking === 'serialized' ? !!mat.serial_number.trim() : mat.qty > 0
+  }
+  if (mat.tracking === 'serialized') return !!mat.batch_id
+  return mat.qty > 0
+}
+
+async function loadComboArticleBatches(mat: ComboArticleInput) {
+  if (mat.tracking !== 'serialized') return
+  try {
+    const fullMaterial = await getMaterial(mat.id)
+    mat._availableBatches = (fullMaterial.batches || []).filter(
+      (b: MaterialBatch) => b.status === 'active' && b.serial_number,
+    )
+  } catch {
+    mat._availableBatches = []
+  }
+}
+
+async function setComboArticleMode(mat: ComboArticleInput, mode: 'new' | 'existing') {
+  mat.mode = mode
+  mat.serial_number = ''
+  mat.unit_price = ''
+  mat.batch_id = ''
+  if (mode === 'existing' && mat.tracking === 'serialized') {
+    await loadComboArticleBatches(mat)
+  }
+}
+
 // Kombinations-Material Suche (zentrale API wie MaterialLookup)
 let comboMaterialSearchToken = 0
 async function searchComboMaterials() {
@@ -4825,14 +5062,26 @@ async function searchComboMaterials() {
   }
 }
 
-function addComboMaterial(mat: any) {
-  selectedComboMaterials.value.push({
+async function addComboMaterial(mat: any) {
+  const tracking = (mat.tracking_type === 'serialized' ? 'serialized' : 'bulk') as 'serialized' | 'bulk'
+  const entry: ComboArticleInput = {
     id: mat.id,
     name: mat.name,
     category: mat.category,
-    total_stock: mat.total_stock,
-    qty: 1
-  })
+    total_stock: mat.total_stock ?? 0,
+    free_stock: mat.free_stock ?? mat.total_stock ?? 0,
+    tracking,
+    qty: 1,
+    mode: 'existing',
+    serial_number: '',
+    unit_price: '',
+    batch_id: '',
+    _availableBatches: [],
+  }
+  selectedComboMaterials.value.push(entry)
+  if (formData.material_type === 'physical_combo' && tracking === 'serialized') {
+    await loadComboArticleBatches(entry)
+  }
   comboMaterialSearch.value = ''
   filteredComboMaterials.value = []
 }
@@ -5501,47 +5750,56 @@ async function handleSubmit() {
       const result = await createComboFromContainerBatch(comboFromKistePayload)
       emit('created', result)
       successMessage = t('components.materialCreateWizard.successComboFromBox')
-    } else if (creationMode.value === 'virtual_combo' && !isFromTemplate.value) {
-      // Virtuelle Kombo ohne Vorlage → direkt als Material erstellen
-      const payload: CreateMaterialRequest = {
+    } else if (
+      (creationMode.value === 'physical_combo' || creationMode.value === 'virtual_combo') &&
+      !isFromTemplate.value &&
+      !isFromContainerBatchContents.value
+    ) {
+      if (creationMode.value === 'physical_combo' && formData.stock_location_mode === 'slot') {
+        await ensureStorageSelection()
+      }
+      const components: CreateComboManualComponentInput[] = selectedComboMaterials.value.map((mat) => {
+        const comp: CreateComboManualComponentInput = {
+          material_id: mat.id,
+          qty: mat.qty,
+        }
+        if (formData.material_type === 'physical_combo') {
+          comp.mode = mat.mode
+          if (mat.mode === 'new') {
+            if (mat.tracking === 'serialized') {
+              comp.serial_number = mat.serial_number.trim()
+            }
+            if (mat.unit_price) comp.unit_price = mat.unit_price
+          } else if (mat.tracking === 'serialized' && mat.batch_id) {
+            comp.batch_id = mat.batch_id
+          }
+        }
+        return comp
+      })
+      const comboPayload: CreateComboManualRequest = {
         department_id: props.departmentId,
         name: formData.name.trim(),
+        material_type: formData.material_type === 'virtual_combo' ? 'virtual_combo' : 'physical_combo',
         category_id: formData.category_id || null,
         storage_address_id: formData.storage_address_id || null,
-        location: combinedLocation,
-        material_type: 'virtual_combo',
-        description: formData.description || null,
-        barcode_tag: formData.barcode_tag || null,
-        manufacturer: formData.manufacturer || null,
-        model: formData.model || null,
-        ean: formData.ean || null,
-        weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
-        color: formData.color || null,
-        size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
-        size_width: normalizeMaterialMetricInput(formData.size_width, 'cm'),
-        size_height: normalizeMaterialMetricInput(formData.size_height, 'cm'),
-        warranty_until: formData.warranty_until || null,
-        pack_weight: normalizeMaterialMetricInput(formData.pack_weight, 'kg'),
-        pack_size_length: normalizeMaterialMetricInput(formData.pack_size_length, 'cm'),
-        pack_size_width: normalizeMaterialMetricInput(formData.pack_size_width, 'cm'),
-        pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
-        rental_price_day: formData.rental_price_day || null,
-        rental_price_week: formData.rental_price_week || null,
-        rental_price_month: formData.rental_price_month || null,
-        rental_deposit: formData.rental_deposit || null,
-        rental_lead_days: formData.rental_lead_days,
-        rental_max_days: formData.rental_max_days,
-        rental_external_allowed: formData.rental_external_allowed,
-        rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
-        rental_requires_approval: formData.rental_requires_approval,
-        rental_notes: formData.rental_notes || null,
-        rental_calc_params: formData.rental_calc_params,
-        is_js_material: formData.is_js_material,
-        external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
+        purchase_date: formData.purchase_date || undefined,
+        supplier_id: formData.supplier_id || undefined,
+        components,
       }
-      const result = await createMaterial(payload)
+      if (creationMode.value === 'physical_combo') {
+        if (formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id) {
+          comboPayload.initial_container_batch_id = formData.stock_container_batch_id
+        } else {
+          comboPayload.initial_rack_id = formData.rack_id || undefined
+          comboPayload.initial_slot_id = formData.slot_id || undefined
+        }
+      }
+      const result = await createComboManual(comboPayload)
       emit('created', result)
-      successMessage = t('components.materialCreateWizard.successVirtualCombo')
+      successMessage =
+        creationMode.value === 'physical_combo'
+          ? t('components.materialCreateWizard.successPhysComboFromTemplate')
+          : t('components.materialCreateWizard.successVirtComboFromTemplate')
     } else if (isFromTemplate.value && selectedTemplate.value) {
       // Template-Modus: Material aus Vorlage erstellen
       const mode = creationMode.value as 'individual' | 'physical_combo' | 'virtual_combo'

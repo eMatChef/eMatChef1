@@ -22,20 +22,24 @@ export const DEFAULT_DISPLAY_ACTIVITY_STATUSES: DisplayActivityStatus[] = [
   'at_event',
 ]
 
-/** Werkstatt-Status pro Infoscreen. */
+/** Werkstatt-Phasen pro Infoscreen (gespeichert in workshop_statuses). */
 export const DISPLAY_WORKSHOP_STATUSES = [
-  'open',
+  'triage',
+  'planning',
+  'ordered',
+  'ready',
   'in_progress',
-  'waiting_parts',
+  'awaiting_quote',
   'completed',
   'cancelled',
 ] as const
 export type DisplayWorkshopStatus = (typeof DISPLAY_WORKSHOP_STATUSES)[number]
 
 export const DEFAULT_DISPLAY_WORKSHOP_STATUSES: DisplayWorkshopStatus[] = [
-  'open',
+  'triage',
+  'planning',
   'in_progress',
-  'waiting_parts',
+  'awaiting_quote',
 ]
 
 function normalizeList<T extends string>(

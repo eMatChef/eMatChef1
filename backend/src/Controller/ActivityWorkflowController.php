@@ -707,6 +707,10 @@ class ActivityWorkflowController extends AbstractController
             }
             $report->setNotes($data['notes'] ?? null);
 
+            if (isset($data['repair_checklist']) && \is_array($data['repair_checklist'])) {
+                $report->setRepairChecklist($data['repair_checklist']);
+            }
+
             if (!empty($data['material_item_id'])) {
                 $materialItem = $this->entityManager->getRepository(MaterialItem::class)
                     ->find($data['material_item_id']);

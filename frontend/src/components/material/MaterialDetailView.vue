@@ -637,7 +637,7 @@
               
               <div class="stock-summary">
                 <div class="stock-stat">
-                  <span class="stock-number">{{ material.total_stock }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQty(material.total_stock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelTotal') }}</span>
                   <span v-if="material.pack_size && material.pack_unit" class="stock-pack-info">
                     {{ Math.floor(material.total_stock / material.pack_size) }} {{ material.pack_unit }}
@@ -645,7 +645,7 @@
                   </span>
                 </div>
                 <div class="stock-stat warehouse">
-                  <span class="stock-number">{{ material.in_warehouse ?? availableStock }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQty(material.in_warehouse ?? availableStock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelInWarehouse') }}</span>
                 </div>
                 <div class="stock-stat issued" v-if="material.issued_out > 0">
@@ -665,7 +665,7 @@
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelDefect') }}</span>
                 </div>
                 <div class="stock-stat available">
-                  <span class="stock-number">{{ material.available ?? availableStock }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQty(material.available ?? availableStock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 </div>
                 <div v-if="(material.combo_allocated || 0) > 0" class="stock-stat combo-alloc-stat">
@@ -714,6 +714,8 @@
                 :can-manage-materials="canManageMaterials"
                 :show-move-qty="material.tracking_type !== 'serialized'"
                 :material-name="material.name"
+                :pack-unit="material.pack_unit"
+                :pack-size="material.pack_size"
                 :status-labels="statusLabels"
                 :sort-key="stockSortKey"
                 :sort-dir="stockSortDir"
@@ -1791,6 +1793,8 @@
       :is-serialized="material?.tracking_type === 'serialized'"
       :material-name="material?.name || ''"
       :existing-batches="batches"
+      :pack-unit="material.pack_unit"
+      :pack-size="material.pack_size"
       @close="closeBatchModal"
       @saved="handleBatchSaved"
     />
@@ -2304,6 +2308,7 @@ import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
 import { AutoSaveField, useFormFieldBaselines } from '@/components/common/autoSave'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
+import { formatStockQty, getStockUnitLabel } from '@/utils/materialStockUnit'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -4557,6 +4562,12 @@ watch(isUserMaterialsBrowseOnly, (browseOnly) => {
 function formatDate(dateStr: string): string {
   if (!dateStr) return '-'
   return new Date(dateStr).toLocaleDateString(dateLocaleForIntl())
+}
+
+function formatMaterialStockQty(qty: number | null | undefined): string {
+  const n = Number(qty)
+  if (!Number.isFinite(n)) return `0 ${getStockUnitLabel(material.value?.pack_unit)}`
+  return formatStockQty(n, material.value?.pack_unit, material.value?.pack_size)
 }
 
 type BatchLocationEntry = {

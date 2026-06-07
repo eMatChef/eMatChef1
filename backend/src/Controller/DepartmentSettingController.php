@@ -5,6 +5,8 @@ namespace App\Controller;
 use App\Entity\DepartmentSetting;
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Workshop\WorkshopDepartmentSettingsValidator;
+use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -17,7 +19,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class DepartmentSettingController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private WorkshopDepartmentSettingsValidator $workshopSettingsValidator,
+        private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
     ) {}
 
     /**
@@ -42,20 +46,7 @@ class DepartmentSettingController extends AbstractController
             $result[$setting->getSettingKey()] = $setting->getSettingValue();
         }
 
-        // Defaults für fehlende Settings einfügen
-        $allDefaults = array_merge(
-            DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults(),
-            DepartmentSetting::getCalendarDefaults()
-        );
-        foreach ($allDefaults as $key => $defaultValue) {
-            if (!isset($result[$key])) {
-                $result[$key] = $defaultValue;
-            }
-        }
-
-        return new JsonResponse($result);
+        return new JsonResponse($this->mergeSettingDefaults($result));
     }
 
     /**
@@ -86,20 +77,21 @@ class DepartmentSettingController extends AbstractController
             $result[$setting->getSettingKey()] = $setting->getSettingValue();
         }
 
-        // Defaults einfügen
-        $allDefaults = array_merge(
-            DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults(),
-            DepartmentSetting::getCalendarDefaults()
-        );
-        foreach ($allDefaults as $key => $defaultValue) {
-            if (str_starts_with($key, $prefix . '.') && !isset($result[$key])) {
-                $result[$key] = $defaultValue;
+        $merged = $this->mergeSettingDefaults($result);
+
+        if ($prefix === 'workshop') {
+            $this->workshopSparePartsCategoryBootstrap->ensure($department);
+            $merged = $this->mergeSettingDefaults($this->loadStoredSettings($departmentId));
+        }
+
+        $filtered = [];
+        foreach ($merged as $key => $value) {
+            if (str_starts_with($key, $prefix . '.')) {
+                $filtered[$key] = $value;
             }
         }
 
-        return new JsonResponse($result);
+        return new JsonResponse($filtered);
     }
 
     /**
@@ -125,25 +117,26 @@ class DepartmentSettingController extends AbstractController
             return new JsonResponse(['error' => 'Keine Settings übergeben'], 400);
         }
 
-        // Erlaubte Setting-Keys validieren
-        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.'];
-        $validData = [];
-        foreach ($data as $key => $value) {
-            $isAllowed = false;
-            foreach ($allowedPrefixes as $prefix) {
-                if (str_starts_with($key, $prefix)) {
-                    $isAllowed = true;
-                    break;
-                }
-            }
-            if ($isAllowed) {
-                $validData[$key] = (string) $value;
-            }
-        }
-
+        $validData = $this->extractAllowedSettings($data);
         if (empty($validData)) {
             return new JsonResponse(['error' => 'Keine gültigen Settings'], 400);
         }
+
+        unset($validData[WorkshopSparePartsCategoryBootstrapService::SETTING_KEY]);
+
+        $workshopData = $this->workshopSettingsValidator->filterAllowed($validData);
+        if ($workshopData !== []) {
+            $errors = $this->workshopSettingsValidator->validate($workshopData, $departmentId);
+            if ($errors !== []) {
+                return new JsonResponse(['error' => $errors[0], 'errors' => $errors], 422);
+            }
+            $workshopData = $this->workshopSettingsValidator->normalize($workshopData);
+            foreach ($workshopData as $key => $value) {
+                $validData[$key] = $value;
+            }
+        }
+
+        $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         // Bestehende Settings für dieses Department laden
         $existing = $this->entityManager->getRepository(DepartmentSetting::class)
@@ -182,19 +175,64 @@ class DepartmentSettingController extends AbstractController
             $result[$s->getSettingKey()] = $s->getSettingValue();
         }
 
-        // Defaults ergänzen
-        $allDefaults = array_merge(
-            DepartmentSetting::getGeneralDefaults(),
-            DepartmentSetting::getActivityDefaults(),
-            DepartmentSetting::getRentalAmortizationDefaults(),
-            DepartmentSetting::getCalendarDefaults()
-        );
-        foreach ($allDefaults as $k => $v) {
-            if (!isset($result[$k])) {
-                $result[$k] = $v;
+        return new JsonResponse($this->mergeSettingDefaults($result));
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, string>
+     */
+    private function extractAllowedSettings(array $data): array
+    {
+        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.', 'workshop.'];
+        $validData = [];
+
+        foreach ($data as $key => $value) {
+            if (!\is_string($key)) {
+                continue;
+            }
+            foreach ($allowedPrefixes as $prefix) {
+                if (str_starts_with($key, $prefix)) {
+                    $validData[$key] = (string) $value;
+                    break;
+                }
             }
         }
 
-        return new JsonResponse($result);
+        return $validData;
+    }
+
+    /**
+     * @param array<string, string> $stored
+     *
+     * @return array<string, string>
+     */
+    /**
+     * @return array<string, string>
+     */
+    private function loadStoredSettings(string $departmentId): array
+    {
+        $settings = $this->entityManager->getRepository(DepartmentSetting::class)
+            ->findBy(['departmentId' => $departmentId]);
+
+        $result = [];
+        foreach ($settings as $setting) {
+            $result[$setting->getSettingKey()] = $setting->getSettingValue();
+        }
+
+        return $result;
+    }
+
+    private function mergeSettingDefaults(array $stored): array
+    {
+        $result = $stored;
+        foreach (DepartmentSetting::getAllDefaults() as $key => $defaultValue) {
+            if (!isset($result[$key])) {
+                $result[$key] = $defaultValue;
+            }
+        }
+
+        return $result;
     }
 }

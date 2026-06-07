@@ -2,7 +2,7 @@
 
 Zielbild für den **verbesserten Werkstatt-Workflow** aus Sicht des Materialwarts (MW). Ersetzt schrittweise den generischen Status-Flow (`open` → `in_progress` → `waiting_parts`).
 
-**Stand:** Juni 2026 · **Status:** Spezifikation (noch nicht implementiert)
+**Stand:** Juni 2026 · **Status:** Zielbild; **teilweise** umgesetzt (W1–W3 MVP) — siehe §9.4
 
 **Verwandt:** [README.md](./README.md) (Ist-Zustand) · **[plan.md](./plan.md)** (Umsetzungsplan) · [docs/accounting.md](../accounting.md) · [docs/supplier/supplier-portal.md](../supplier/supplier-portal.md)
 
@@ -156,7 +156,33 @@ Bei Meldung für Zelt-Material:
 | `status` | `planned` → `ordered` → `received` → `consumed` |
 | `unit_cost` | Einkaufspreis |
 
-Gespeichert in `workshop_ticket.parts_used` (JSON, Schema erweitern) oder eigenes Feld `repair_parts`.
+Gespeichert in `workshop_ticket.parts_used` (JSON-Array):
+
+```json
+[
+  {
+    "id": "uuid",
+    "material_item_id": "ma1234567890",
+    "material_name": "Schraube M6",
+    "quantity": 2,
+    "source": "stock",
+    "status": "planned",
+    "unit_cost": "1.50"
+  }
+]
+```
+
+| Feld | Typ | Pflicht |
+|------|-----|---------|
+| `id` | string | ja (Zeilen-ID) |
+| `material_item_id` | string (12) | ja |
+| `material_name` | string | nein (Anzeige) |
+| `quantity` | number (> 0) | ja |
+| `source` | `stock` \| `purchase` | ja |
+| `status` | `planned` → `ordered` → `received` → `consumed` | ja |
+| `unit_cost` | string (decimal) | nein (Referenz-EK) |
+
+Validierung: Material muss zum Department gehören und in `workshop.spare_parts_category_id` liegen (wenn gesetzt).
 
 ### 6.3 Beschaffung
 
@@ -233,8 +259,9 @@ Frontend: neuer Abschnitt in `MyDepartmentSettingsView` oder eigene `MyDepartmen
 
 ### 8.2 Ersatzteile-Kategorie
 
-- MW legt in **Kategorien** eine Hauptkategorie „Ersatzteile" an (oder nutzt bestehende)
-- ID wird in `workshop.spare_parts_category_id` gespeichert
+- Pro Department wird automatisch die Hauptkategorie **«Repair-Parts»** angelegt (idempotent)
+- `workshop.spare_parts_category_id` wird systemseitig gesetzt — nicht manuell wählbar
+- MW erfasst Ersatzteil-Material unter dieser Kategorie
 - Stücklisten-Suche filtert `material.category_id = spare_parts_category_id`
 
 Kein separates Flag am Material nötig — Zugehörigkeit über Kategorie.
@@ -303,6 +330,19 @@ Technisch: neue Spalten am `workshop_ticket` oder Mapping von altem `status` wä
 | `in_progress` | `phase=in_progress` |
 | `waiting_parts` | `phase=ordered` oder `awaiting_quote` |
 | `completed` | `phase=completed` |
+
+### 9.4 Implementierungsstand (Juni 2026)
+
+**Zielbild ≠ aktuelle MW-UI.** Bewusst zwei Spuren bis Paket 21:
+
+| Spezifikation | Code-Stand |
+|---------------|------------|
+| `strategy`/`phase` ersetzen MW-Labels | Felder + Triage-API ✅; Kanban/Aktionen noch `status` ❌ |
+| §6 Intern komplett | Zeltblatt + Stückliste UI ✅; Lagerentnahme/Einkauf Paket 11–12 |
+| Eine Pfad-UI nach Triage | Noch Legacy-Ticket-Detail ⚠️ |
+| Abschluss über `phase` | Noch Complete-Modal + `status` ⚠️ |
+
+`[x]` in [plan.md](./plan.md) markiert **Paket-Scope** (z. B. „API hat phase“), nicht „gesamter Abschnitt dieser Spezifikation live“.
 
 ---
 

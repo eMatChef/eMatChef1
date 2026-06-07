@@ -138,7 +138,7 @@
                           v-for="status in displayWorkshopStatuses"
                           :key="status"
                           v-model="drafts[screen.id].workshop_statuses[status]"
-                          :label="t(`workshop.status.${status}`)"
+                          :label="t(`workshop.phase.${status}`)"
                           hide-details
                         />
                       </div>

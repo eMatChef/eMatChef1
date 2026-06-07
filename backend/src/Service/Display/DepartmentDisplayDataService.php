@@ -306,9 +306,9 @@ final class DepartmentDisplayDataService
      *
      * @return list<array<string, mixed>>
      */
-    private function loadWorkshopTickets(string $departmentId, array $allowedStatuses): array
+    private function loadWorkshopTickets(string $departmentId, array $allowedPhases): array
     {
-        if ($allowedStatuses === []) {
+        if ($allowedPhases === []) {
             return [];
         }
 
@@ -316,14 +316,40 @@ final class DepartmentDisplayDataService
         $qb->select('t')
             ->from(WorkshopTicket::class, 't')
             ->where('t.departmentId = :departmentId')
-            ->andWhere('t.status IN (:statuses)')
             ->setParameter('departmentId', $departmentId)
-            ->setParameter('statuses', $allowedStatuses)
             ->orderBy('t.createdAt', 'DESC');
+
+        $phaseSet = array_values(array_filter(
+            $allowedPhases,
+            static fn (string $p) => $p !== 'triage',
+        ));
+        $includeTriage = \in_array('triage', $allowedPhases, true);
+
+        if ($includeTriage && $phaseSet !== []) {
+            $qb->andWhere(
+                '(t.strategy = :triageStrategy AND (t.phase IS NULL OR t.phase NOT IN (:terminalPhases))) OR t.phase IN (:phases)',
+            )
+                ->setParameter('triageStrategy', WorkshopTicket::STRATEGY_TRIAGE)
+                ->setParameter('terminalPhases', [WorkshopTicket::PHASE_COMPLETED, WorkshopTicket::PHASE_CANCELLED])
+                ->setParameter('phases', $phaseSet);
+        } elseif ($includeTriage) {
+            $qb->andWhere(
+                't.strategy = :triageStrategy AND (t.phase IS NULL OR t.phase NOT IN (:terminalPhases))',
+            )
+                ->setParameter('triageStrategy', WorkshopTicket::STRATEGY_TRIAGE)
+                ->setParameter('terminalPhases', [WorkshopTicket::PHASE_COMPLETED, WorkshopTicket::PHASE_CANCELLED]);
+        } else {
+            $qb->andWhere('t.phase IN (:phases)')
+                ->setParameter('phases', $phaseSet);
+        }
 
         $rows = [];
         foreach ($qb->getQuery()->getResult() as $ticket) {
             if (!$ticket instanceof WorkshopTicket) {
+                continue;
+            }
+            $displayPhase = $ticket->getDisplayPhase();
+            if (!\in_array($displayPhase, $allowedPhases, true)) {
                 continue;
             }
             $rows[] = $this->serializeWorkshopTicket($ticket);
@@ -339,7 +365,7 @@ final class DepartmentDisplayDataService
      * @param list<string> $activityStatuses
      * @param list<string> $workshopStatuses
      *
-     * @return array{activities_by_status: array<string, int>, workshop_by_status: array<string, int>}
+     * @return array{activities_by_status: array<string, int>, workshop_by_phase: array<string, int>}
      */
     private function buildStatistics(
         string $departmentId,
@@ -361,23 +387,23 @@ final class DepartmentDisplayDataService
             }
         }
 
-        $workshopByStatus = [];
-        foreach ($workshopStatuses as $status) {
-            $workshopByStatus[$status] = 0;
+        $workshopByPhase = [];
+        foreach ($workshopStatuses as $phase) {
+            $workshopByPhase[$phase] = 0;
         }
 
         if ($workshopStatuses !== []) {
             foreach ($this->loadWorkshopTickets($departmentId, $workshopStatuses) as $row) {
-                $status = (string) ($row['status'] ?? '');
-                if (\array_key_exists($status, $workshopByStatus)) {
-                    ++$workshopByStatus[$status];
+                $phase = (string) ($row['display_phase'] ?? '');
+                if (\array_key_exists($phase, $workshopByPhase)) {
+                    ++$workshopByPhase[$phase];
                 }
             }
         }
 
         return [
             'activities_by_status' => $activitiesByStatus,
-            'workshop_by_status' => $workshopByStatus,
+            'workshop_by_phase' => $workshopByPhase,
         ];
     }
 
@@ -429,6 +455,10 @@ final class DepartmentDisplayDataService
             'title' => $ticket->getTitle(),
             'priority' => $ticket->getPriority(),
             'priority_label' => $ticket->getPriorityLabel(),
+            'display_phase' => $ticket->getDisplayPhase(),
+            'phase' => $ticket->getPhase(),
+            'phase_label' => $ticket->getPhaseLabel() ?? ($ticket->getDisplayPhase() === 'triage' ? 'Triage' : null),
+            'strategy' => $ticket->getStrategy(),
             'status' => $ticket->getStatus(),
             'status_label' => $ticket->getStatusLabel(),
             'created_at' => $ticket->getCreatedAt()->format('c'),

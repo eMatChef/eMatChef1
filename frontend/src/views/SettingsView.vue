@@ -163,6 +163,7 @@ const allMenuItems = computed(() => [
   },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
   { id: 'activities', label: t('settings.nav.activities'), mdiIcon: 'mdi-calendar' },
+  { id: 'workshop', label: t('settings.nav.workshop'), mdiIcon: 'mdi-wrench' },
   { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), mdiIcon: 'mdi-map-marker' },
   { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), mdiIcon: 'mdi-receipt' },
   {

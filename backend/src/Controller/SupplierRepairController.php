@@ -10,6 +10,7 @@ use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\Supplier\SupplierRepairTicketService;
 use App\Service\Workshop\WorkshopPhotoAccessService;
 use App\Service\Workshop\WorkshopPhotoStorageService;
+use App\Service\Workshop\WorkshopTicketCompletionException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -148,12 +149,15 @@ class SupplierRepairController extends AbstractController
         $data = json_decode($request->getContent(), true) ?: [];
 
         try {
-            $this->accessService->requireRepairsAccess($this->requireUser(), $companyId);
-            $ticket = $this->repairTicketService->transitionTicket($companyId, $ticketId, $data);
+            $user = $this->requireUser();
+            $this->accessService->requireRepairsAccess($user, $companyId);
+            $ticket = $this->repairTicketService->transitionTicket($companyId, $ticketId, $data, $user);
 
             return new JsonResponse(['ticket' => $ticket, 'message' => 'Status aktualisiert']);
         } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (WorkshopTicketCompletionException $e) {
+            return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         }

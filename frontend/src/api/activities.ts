@@ -349,6 +349,7 @@ export interface ActivityIssueReportRow {
   reported_by?: string | null
   reported_by_display_name?: string | null
   is_js_material?: boolean
+  repair_checklist?: Record<string, unknown> | null
 }
 
 export async function getActivityIssues(activityId: string): Promise<ActivityIssueReportRow[]> {
@@ -387,6 +388,7 @@ export async function createActivityIssue(
     type: 'damage' | 'repair' | 'loss' | 'consumption' | 'not_taken'
     quantity: number
     description?: string | null
+    repair_checklist?: Record<string, unknown> | null
   },
 ): Promise<ActivityIssueReportRow & { workshop_ticket_id?: string }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)

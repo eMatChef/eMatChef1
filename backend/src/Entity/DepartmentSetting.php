@@ -176,4 +176,33 @@ class DepartmentSetting
             'rental.amortization_markup_percent' => '0',
         ];
     }
+
+    /**
+     * Standard-Werte für Werkstatt-Einstellungen (Materialwart-Workflow 2026)
+     */
+    public static function getWorkshopDefaults(): array
+    {
+        return [
+            'workshop.hourly_rate_chf' => '45.00',
+            'workshop.order_reminder_days' => '7',
+            'workshop.order_reminder_mode' => 'days',
+            'workshop.spare_parts_category_id' => '',
+        ];
+    }
+
+    /**
+     * Alle Department-Setting-Defaults (GET/PATCH-Fallbacks)
+     *
+     * @return array<string, string>
+     */
+    public static function getAllDefaults(): array
+    {
+        return array_merge(
+            self::getGeneralDefaults(),
+            self::getActivityDefaults(),
+            self::getRentalAmortizationDefaults(),
+            self::getCalendarDefaults(),
+            self::getWorkshopDefaults(),
+        );
+    }
 }

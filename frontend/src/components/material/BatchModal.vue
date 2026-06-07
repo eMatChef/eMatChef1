@@ -338,15 +338,45 @@
           <!-- Wie Material-Wizard „Initialer Bestand“: Menge, Kaufdatum, Preis in einer Zeile -->
           <div class="form-row mb-2">
             <div class="form-group">
-              <label>{{ t('components.batchModal.quantity') }} <span class="required" v-if="!isEditMode">*</span></label>
+              <label>{{ quantityLabel }} <span class="required" v-if="!isEditMode">*</span></label>
+              <div v-if="showQtyEntryModes" class="qty-entry-modes" role="tablist">
+                <button
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'base' }"
+                  @click="qtyEntryMode = 'base'"
+                >
+                  {{ stockUnitLabel }}
+                </button>
+                <button
+                  v-if="canUsePackEntry"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'pack' }"
+                  @click="qtyEntryMode = 'pack'"
+                >
+                  {{ props.packUnit }}
+                </button>
+                <button
+                  v-if="canUseContentEntry"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'content' }"
+                  @click="qtyEntryMode = 'content'"
+                >
+                  m
+                </button>
+              </div>
               <input
-                v-model.number="form.qty"
+                v-model.number="displayQty"
                 type="number"
-                min="1"
+                :min="qtyInputMin"
+                :step="qtyInputStep"
                 class="form-input"
                 :class="{ 'is-invalid': submitted && form.qty < 1 }"
-                :placeholder="t('components.batchModal.qtyPlaceholderMin')"
+                :placeholder="qtyPlaceholder"
               />
+              <p v-if="qtyEntryHint" class="batch-field-hint">{{ qtyEntryHint }}</p>
             </div>
             <div class="form-group">
               <label>{{ t('components.batchModal.purchaseDate') }} <span class="required" v-if="!isEditMode">*</span></label>
@@ -364,7 +394,7 @@
               </div>
             </div>
             <div class="form-group">
-              <label>{{ t('components.batchModal.unitPriceChf') }}</label>
+              <label>{{ unitPriceLabel }}</label>
               <div class="price-input">
                 <span class="currency">{{ t('components.batchModal.currency') }}</span>
                 <input v-model="form.unit_price" type="text" class="form-input" :placeholder="t('components.batchModal.pricePlaceholder')" />
@@ -417,7 +447,7 @@
           <div v-if="!isSerializedMaterial && form.split_allocations" class="batch-form-row">
             <div class="batch-form-group full-width">
               <div class="allocations-header">
-                <label>{{ t('components.batchModal.allocationsLabel', { qty: form.qty }) }}</label>
+                <label>{{ t('components.batchModal.allocationsLabel', { qty: form.qty, unit: stockUnitLabel }) }}</label>
                 <button type="button" class="add-serial-btn" @click="addAllocationRow">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"/>
@@ -506,7 +536,7 @@
                 </table>
               </div>
               <p v-if="allocationRows.length > 0 && !allocationSumValid" class="batch-field-hint is-invalid">
-                {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum }) }}
+                {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum, unit: stockUnitLabel }) }}
               </p>
             </div>
           </div>
@@ -677,6 +707,12 @@ import { useStorageStructure } from '@/composables/useStorageStructure'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import '@/styles/material-wizard.css'
 import type { ContainerBatch } from '@/api/storageLocations'
+import {
+  getStockUnitKind,
+  getStockUnitLabel,
+  hasContentPerPiece,
+  isPackagingUnit,
+} from '@/utils/materialStockUnit'
 
 interface Props {
   materialId: string
@@ -688,6 +724,8 @@ interface Props {
   isSerialized?: boolean
   materialName?: string
   existingBatches?: MaterialBatch[]
+  packUnit?: string | null
+  packSize?: number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -696,7 +734,9 @@ const props = withDefaults(defineProps<Props>(), {
   trackingType: undefined,
   isSerialized: false,
   materialName: '',
-  existingBatches: () => []
+  existingBatches: () => [],
+  packUnit: null,
+  packSize: null,
 })
 
 const emit = defineEmits<{
@@ -774,6 +814,97 @@ const form = reactive({
   supplier_id: '',
   notes: '',
   split_allocations: false
+})
+
+const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
+
+const stockUnitLabel = computed(() => getStockUnitLabel(props.packUnit))
+
+const canUsePackEntry = computed(
+  () => isPackagingUnit(props.packUnit) && !!props.packSize && props.packSize >= 2,
+)
+const canUseContentEntry = computed(() => hasContentPerPiece(props.packUnit, props.packSize))
+const showQtyEntryModes = computed(
+  () => !isEditMode.value && (canUsePackEntry.value || canUseContentEntry.value),
+)
+
+const quantityLabel = computed(() =>
+  t('components.batchModal.quantityWithUnit', { unit: stockUnitLabel.value }),
+)
+
+const unitPriceLabel = computed(() =>
+  t('components.batchModal.unitPricePerUnit', { unit: stockUnitLabel.value }),
+)
+
+const qtyInputMin = computed(() => (qtyEntryMode.value === 'content' ? 1 : 1))
+const qtyInputStep = computed(() =>
+  qtyEntryMode.value === 'content' || getStockUnitKind(props.packUnit) !== 'piece' ? 1 : 1,
+)
+
+const qtyPlaceholder = computed(() => {
+  if (qtyEntryMode.value === 'pack' && props.packUnit) {
+    return t('components.batchModal.qtyPlaceholderPack', { unit: props.packUnit })
+  }
+  if (qtyEntryMode.value === 'content') {
+    return t('components.batchModal.qtyPlaceholderMeters')
+  }
+  return t('components.batchModal.qtyPlaceholderMin')
+})
+
+const displayQty = computed({
+  get(): number {
+    const size = props.packSize || 0
+    if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && size > 0) {
+      return Math.max(1, Math.round(form.qty / size)) || 1
+    }
+    if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+      return form.qty * size
+    }
+    return form.qty
+  },
+  set(raw: number) {
+    const n = Number(raw)
+    const size = props.packSize || 0
+    if (!Number.isFinite(n) || n < 1) {
+      form.qty = 1
+      return
+    }
+    if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && size > 0) {
+      form.qty = Math.max(1, Math.round(n * size))
+      return
+    }
+    if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+      form.qty = Math.max(1, Math.round(n / size))
+      return
+    }
+    form.qty = Math.max(1, Math.round(n))
+  },
+})
+
+const qtyEntryHint = computed(() => {
+  const size = props.packSize || 0
+  if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && props.packUnit) {
+    return t('components.batchModal.qtyHintPack', {
+      count: displayQty.value,
+      unit: props.packUnit,
+      total: form.qty,
+      stockUnit: stockUnitLabel.value,
+    })
+  }
+  if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+    return t('components.batchModal.qtyHintContent', {
+      meters: displayQty.value,
+      per: size,
+      pieces: form.qty,
+    })
+  }
+  if (canUseContentEntry.value && qtyEntryMode.value === 'base') {
+    return t('components.batchModal.qtyHintPerPiece', { per: size, unit: 'm' })
+  }
+  if (canUsePackEntry.value && qtyEntryMode.value === 'base' && props.packUnit) {
+    return t('components.batchModal.qtyHintPackSize', { per: size, unit: props.packUnit })
+  }
+  return ''
 })
 
 /** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
@@ -1733,6 +1864,29 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+.qty-entry-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.qty-entry-mode-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.qty-entry-mode-btn.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .batch-modal-body--dialog {
   padding: 0;
 }

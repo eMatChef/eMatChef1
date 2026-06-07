@@ -458,6 +458,7 @@ defineExpose({
 .global-search.inline {
   width: 100%;
   min-width: 0;
+  overflow: visible;
 }
 
 .global-search__field {
@@ -468,6 +469,7 @@ defineExpose({
   width: 100%;
   min-width: 280px;
   max-width: 500px;
+  overflow: visible;
 }
 
 .global-search.inline .global-search__field {
@@ -531,7 +533,7 @@ defineExpose({
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   max-height: 240px;
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 2500;
 }
 
 .suggestions-dropdown--teleported {
