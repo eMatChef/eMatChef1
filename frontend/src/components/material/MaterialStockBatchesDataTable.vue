@@ -20,7 +20,7 @@
     </template>
     <template #header.qty>
       <SortHeaderButton
-        :label="t('components.materialDetail.thQtyWithUnit', { unit: stockUnitLabel })"
+        :label="qtyColumnLabel"
         :title="t('components.materialDetail.sortByQty')"
         sort-key="qty"
         :active-key="sortKey"
@@ -158,7 +158,11 @@ import type { MaterialBatch } from '@/api/materials'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import TableIconButton from '@/components/common/TableIconButton.vue'
 import SortHeaderButton from '@/components/material/SortHeaderButton.vue'
-import { formatStockQtyWithPackHint, getStockUnitLabel } from '@/utils/materialStockUnit'
+import {
+  canDisplayMeterStockAsPieces,
+  formatStockQtyWithPackHint,
+  getStockUnitLabel,
+} from '@/utils/materialStockUnit'
 
 defineOptions({ name: 'MaterialStockBatchesDataTable' })
 
@@ -176,6 +180,7 @@ const props = defineProps<{
   materialName: string
   packUnit?: string | null
   packSize?: number | null
+  sizeLengthCm?: string | number | null
   statusLabels: Record<string, string>
   sortKey: string | null
   sortDir: 'asc' | 'desc'
@@ -185,12 +190,32 @@ const props = defineProps<{
   locationEntries: (batch: MaterialBatch) => BatchLocationEntry[]
 }>()
 
+const { t } = useI18n()
+
 const stockUnitLabel = computed(() => getStockUnitLabel(props.packUnit))
+
+const qtyColumnLabel = computed(() => {
+  if (canDisplayMeterStockAsPieces(props.packUnit, props.sizeLengthCm)) {
+    return t('components.batchModal.quantityCountLabel')
+  }
+  return t('components.materialDetail.thQtyWithUnit', { unit: stockUnitLabel.value })
+})
+
+function formatPiecesAtLength(count: number, per: string, _total: string): string {
+  return t('components.materialDetail.stockQtyPiecesAtLength', { count, per })
+}
 
 function formatBatchQty(qty: number | null | undefined): string {
   const n = Number(qty)
   if (!Number.isFinite(n)) return props.emDash
-  return formatStockQtyWithPackHint(n, props.packUnit, props.packSize)
+  return formatStockQtyWithPackHint(
+    n,
+    props.packUnit,
+    props.packSize,
+    'm',
+    props.sizeLengthCm,
+    formatPiecesAtLength,
+  )
 }
 
 defineEmits<{
@@ -200,8 +225,6 @@ defineEmits<{
   'qr-activate': [batch: MaterialBatch]
   'open-container': [entry: BatchLocationEntry]
 }>()
-
-const { t } = useI18n()
 
 const headers = computed(() => {
   const h: { title: string; key: string; sortable: boolean; width?: string }[] = [

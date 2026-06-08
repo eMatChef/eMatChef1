@@ -1089,13 +1089,24 @@ async function runBatchAssign() {
   }
 }
 
-async function onDelete(row: AccountingBooking) {
-  const ok = await confirmDialog({
-    title: t('accounting.bookings.deleteConfirmTitle'),
-    message: t('accounting.bookings.deleteConfirmMessage', {
+function deleteConfirmMessage(row: AccountingBooking): string {
+  const parts = [
+    t('accounting.bookings.deleteConfirmMessage', {
       date: formatDate(row.booked_at),
       amount: formatMoney(row.amount),
     }),
+    t('accounting.bookings.deleteConfirmWarning'),
+  ]
+  if (row.source?.follow_up_id) {
+    parts.push(t('accounting.bookings.deleteConfirmFollowUpWarning'))
+  }
+  return parts.join(' ')
+}
+
+async function onDelete(row: AccountingBooking) {
+  const ok = await confirmDialog({
+    title: t('accounting.bookings.deleteConfirmTitle'),
+    message: deleteConfirmMessage(row),
     confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
@@ -1106,6 +1117,7 @@ async function onDelete(row: AccountingBooking) {
     toast.success(t('accounting.common.deleted'))
     await loadBookingYears()
     await load()
+    headerNotificationsStore.requestRefresh()
   } catch {
     toast.error(t('accounting.common.deleteFailed'))
   }
@@ -1151,10 +1163,34 @@ async function onDelete(row: AccountingBooking) {
 
 .bookings-table-wrap {
   overflow-x: auto;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 .bookings-table {
-  min-width: 960px;
+  min-width: 1100px;
+}
+
+.bookings-page {
+  max-width: none;
+}
+
+.bookings-table .col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  width: 108px;
+  min-width: 108px;
+  text-align: right;
+  white-space: nowrap;
+  background: #fff;
+  box-shadow: -6px 0 10px -8px rgba(15, 23, 42, 0.35);
+}
+
+.bookings-table thead .col-actions {
+  background: #f9fafb;
+  z-index: 3;
 }
 
 .batch-assign-panel {

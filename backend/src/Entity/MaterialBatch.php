@@ -375,6 +375,48 @@ class MaterialBatch
         return $this;
     }
 
+    /**
+     * Effektiver Gestell-Standort: direktes rack_id oder erster freistehender Allokationsplatz.
+     */
+    public function getEffectiveRackId(): ?string
+    {
+        if ($this->rackId !== null && $this->rackId !== '') {
+            return $this->rackId;
+        }
+        foreach ($this->allocations as $allocation) {
+            if ($allocation->getContainerBatchId() !== null) {
+                continue;
+            }
+            $rackId = $allocation->getRackId();
+            if ($rackId !== null && $rackId !== '') {
+                return $rackId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Effektiver Platz-Standort: direktes slot_id oder erster freistehender Allokationsplatz.
+     */
+    public function getEffectiveSlotId(): ?string
+    {
+        if ($this->slotId !== null && $this->slotId !== '') {
+            return $this->slotId;
+        }
+        foreach ($this->allocations as $allocation) {
+            if ($allocation->getContainerBatchId() !== null) {
+                continue;
+            }
+            $slotId = $allocation->getSlotId();
+            if ($slotId !== null && $slotId !== '') {
+                return $slotId;
+            }
+        }
+
+        return null;
+    }
+
     public function getIsContainer(): bool
     {
         return $this->isContainer;

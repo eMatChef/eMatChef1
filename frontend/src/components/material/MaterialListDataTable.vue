@@ -50,7 +50,7 @@
         </div>
         <div class="name-info">
           <span class="material-name">
-            {{ item.name }}
+            {{ formatMaterialDisplayName(item.name, item.pack_unit, item.pack_size, item.size_length) }}
             <span v-if="item.is_js_material" class="source-badge">J&amp;S</span>
             <span v-if="isComboDraft(item)" class="combo-draft-badge">{{ t('materialsView.comboDraftBadge') }}</span>
           </span>
@@ -86,9 +86,9 @@
 
     <template #item.total_stock="{ item }">
       <span class="stock-value" :class="getStockClass(item.total_stock)">
-        {{ item.total_stock }}
+        {{ formatListStockQty(item.total_stock, item) }}
       </span>
-      <span v-if="item.pack_size && item.pack_unit" class="pack-info">
+      <span v-if="item.pack_size && item.pack_unit && !isMeterStockUnit(item.pack_unit)" class="pack-info">
         {{ Math.floor(item.total_stock / item.pack_size) }} {{ item.pack_unit }}
       </span>
     </template>
@@ -113,7 +113,7 @@
         class="stock-badge available"
         :class="{ low: item.available < 3 && item.total_stock > 0, empty: item.available <= 0 && item.total_stock > 0 }"
       >
-        {{ item.available }}
+        {{ formatListStockQty(item.available, item) }}
       </span>
     </template>
 
@@ -191,6 +191,13 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ComboComponent, Material } from '@/api/materials'
 import { comboBadgeEmoji, isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
+import {
+  canDisplayMeterStockAsPieces,
+  formatMaterialDisplayName,
+  formatStockQty,
+  getMeterStockQtyParts,
+  isMeterStockUnit,
+} from '@/utils/materialStockUnit'
 import '@/styles/ui/tables.css'
 import '@/styles/materials-view.css'
 import '@/styles/components/material-list-data-table.css'
@@ -274,4 +281,30 @@ function getMaterialIconClass(material: Material) {
   if (material.is_consumable) return 'consumable'
   return ''
 }
+
+function formatPiecesAtLength(count: number, per: string, _total: string): string {
+  return t('components.materialDetail.stockQtyPiecesAtLength', { count, per })
+}
+
+function formatListStockQty(qty: number, item: Material): string {
+  if (canDisplayMeterStockAsPieces(item.pack_unit, item.size_length, item.name)) {
+    const parts = getMeterStockQtyParts(qty, item.size_length, item.name)
+    if (parts) {
+      return formatPiecesAtLength(
+        parts.count,
+        String(parts.perM).replace(/\.?0+$/, ''),
+        String(parts.totalM),
+      )
+    }
+  }
+  return formatStockQty(
+    qty,
+    item.pack_unit,
+    item.pack_size,
+    item.size_length,
+    formatPiecesAtLength,
+    item.name,
+  )
+}
+
 </script>

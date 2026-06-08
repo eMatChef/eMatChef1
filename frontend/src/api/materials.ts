@@ -87,6 +87,8 @@ export interface ComboComponent {
     label: string | null
     status: string
     qty: number
+    public_code?: string | null
+    public_url?: string | null
   } | null
   qty: number
   component_role: string | null
@@ -190,6 +192,8 @@ export interface Material {
     serial_number: string | null
     material_name: string
     display_label: string
+    public_code?: string | null
+    public_url?: string | null
   } | null
   total_stock: number
   defect_stock: number
@@ -500,12 +504,16 @@ export async function createComboFromContainerBatch(
 }
 
 export interface CreateComboManualComponentInput {
-  material_id: string
+  material_id?: string
+  name?: string
+  tracking_type?: 'serialized' | 'bulk'
   mode?: 'new' | 'existing'
   qty?: number
   serial_number?: string
   unit_price?: string
   batch_id?: string
+  /** Referenz-Sack/Kiste dieser physischen Kombination (neu oder aus Lager). */
+  is_linked_container?: boolean
 }
 
 export interface CreateComboManualRequest {
@@ -821,6 +829,7 @@ export interface MaterialStorageLocationRow {
   batch_label?: string | null
   container_batch_id?: string | null
   container_caption: string | null
+  container_material_name?: string | null
 }
 
 export interface MaterialStorageViaComboBlock {
@@ -887,6 +896,8 @@ export interface UpdateComboComponentRequest {
   sort_order?: number
   /** Phys. Kombi: Mehr-Menge in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean
+  /** Phys. Kombi: diese Komponenten-Charge als Referenz-Sack/Kiste der Kombination setzen */
+  set_as_linked_container?: boolean
 }
 
 // ============== Combo-Component API Functions ==============

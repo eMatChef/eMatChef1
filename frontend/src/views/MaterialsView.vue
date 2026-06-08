@@ -1,5 +1,5 @@
 <template>
-  <div class="materials-view">
+  <div class="materials-view" :class="{ 'materials-view--detail': showDetailView && selectedMaterialId }">
     <!-- Detail View (ersetzt Liste wenn Material ausgewählt) -->
     <MaterialDetailView
       v-if="showDetailView && selectedMaterialId"
@@ -187,6 +187,43 @@
         </template>
       </div>
     </PageShell>
+
+    <EDialog
+      v-model="showPostCreateComboGuideModal"
+      :max-width="520"
+      :title="t('materialsView.modalPostCreateComboTitle')"
+    >
+      <p class="text-muted materials-view-composition-intro">
+        {{
+          t('materialsView.modalPostCreateComboIntro', {
+            name: postCreateComboGuideMaterial?.name ?? '',
+          })
+        }}
+      </p>
+      <ul class="materials-view-combo-guide-steps">
+        <li v-if="postCreateComboGuideMaterial?.material_type === 'physical_combo'">
+          {{ t('materialsView.modalPostCreateComboStepFinalize') }}
+        </li>
+        <li v-else>
+          {{ t('materialsView.modalPostCreateComboStepVirtual') }}
+        </li>
+        <li v-if="postCreateComboGuideHasLinkedContainer">
+          {{ t('materialsView.modalPostCreateComboStepContainer') }}
+        </li>
+      </ul>
+      <template #actions>
+        <EButton
+          v-if="postCreateComboGuideHasLinkedContainer"
+          variant="secondary"
+          @click="openPostCreateComboStorageTab"
+        >
+          {{ t('materialsView.btnPostCreateComboOpenStorage') }}
+        </EButton>
+        <EButton variant="primary" @click="closePostCreateComboGuideModal">
+          {{ t('materialsView.btnPostCreateComboGotIt') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <EDialog
       v-model="showPostCreateCompositionModal"
@@ -393,6 +430,36 @@ const wizardOpenKey = computed(() => `${currentDepartmentId.value}-${wizardOpenN
 const materialJustCreated = ref(false)
 /** Nach Wizard: neuen Artikel als Komponente dieser Kombi verknüpfen */
 const pendingCompositionParentId = ref<string | null>(null)
+
+const showPostCreateComboGuideModal = ref(false)
+const postCreateComboGuideMaterial = ref<Material | null>(null)
+
+const postCreateComboGuideHasLinkedContainer = computed(
+  () =>
+    postCreateComboGuideMaterial.value?.material_type === 'physical_combo' &&
+    !!(
+      postCreateComboGuideMaterial.value.linked_container_batch_id ||
+      postCreateComboGuideMaterial.value.linked_container_batch?.id
+    ),
+)
+
+function closePostCreateComboGuideModal() {
+  showPostCreateComboGuideModal.value = false
+  postCreateComboGuideMaterial.value = null
+}
+
+function openPostCreateComboStorageTab() {
+  const m = postCreateComboGuideMaterial.value
+  if (!m?.id || !currentDepartmentId.value) {
+    closePostCreateComboGuideModal()
+    return
+  }
+  closePostCreateComboGuideModal()
+  router.push({
+    path: `/${currentDepartmentId.value}/materials/${m.id}`,
+    query: { tab: 'stored-in' },
+  })
+}
 
 const showPostCreateCompositionModal = ref(false)
 const postCreateCompositionContext = ref<{
@@ -631,6 +698,7 @@ useDepartmentLiveRefresh({
   isBusy: () =>
     showCreateWizard.value
     || showPostCreateCompositionModal.value
+    || showPostCreateComboGuideModal.value
     || (isLoading.value && materials.value.length === 0),
 })
 
@@ -769,6 +837,28 @@ async function handleMaterialCreated(material: Material) {
       console.error(err)
       toast.error(ax.response?.data?.error || t('materialsView.errLinkComponent'))
     }
+    if (route.query.from === 'dashboard') {
+      const q = { ...route.query }
+      delete q.from
+      router.replace({ path: route.path, query: q })
+    }
+    return
+  }
+
+  const mergedMaterial = materials.value.find((m) => m.id === material?.id) || material
+  const isCombo =
+    mergedMaterial?.material_type === 'physical_combo' ||
+    mergedMaterial?.material_type === 'virtual_combo'
+
+  if (isCombo && material?.id && currentDepartmentId.value) {
+    postCreateComboGuideMaterial.value = mergedMaterial
+    showPostCreateComboGuideModal.value = true
+    router.push({
+      path: `/${currentDepartmentId.value}/materials/${material.id}`,
+      query: { tab: 'composition' },
+    })
+  } else if (material?.id && currentDepartmentId.value) {
+    router.push(`/${currentDepartmentId.value}/materials/${material.id}`)
   }
 
   if (route.query.from === 'dashboard') {
@@ -930,9 +1020,35 @@ onMounted(() => {
 
 <style scoped src="@/styles/materials-view.css"></style>
 <style scoped>
+.materials-view--detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.materials-view--detail :deep(.material-detail-view) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .materials-view-composition-intro {
   margin: 0 0 12px;
   line-height: 1.45;
+}
+
+.materials-view-combo-guide-steps {
+  margin: 0 0 8px;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.materials-view-combo-guide-steps li + li {
+  margin-top: 8px;
 }
 
 .materials-view-error {

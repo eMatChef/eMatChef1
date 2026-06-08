@@ -14,7 +14,7 @@
         </EButton>
         <div class="header-title">
           <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
-          <h1>{{ material.name }}</h1>
+          <h1>{{ materialDisplayName }}</h1>
           <span v-if="isComboDraft" class="combo-draft-badge">
             {{ t('components.materialDetail.comboDraftBadge') }}
           </span>
@@ -25,8 +25,42 @@
       </div>
       <div class="header-actions">
         <template v-if="canManageMaterials">
+          <div
+            v-if="showLinkedContainerQrHeader"
+            class="header-linked-qr"
+            :title="t('components.materialDetail.qrTitleLinkedCombo')"
+          >
+            <PublicQrTag
+              :url="linkedContainerQrBatch?.public_url"
+              :code="linkedContainerQrBatch?.public_code"
+              :size="40"
+              :clickable="true"
+              :image-label="linkedContainerQrBatch?.material_name || material.name"
+              :image-entity-id="linkedContainerQrBatch?.id"
+              @activate="openLinkedContainerQrModal"
+            />
+            <EButton
+              variant="secondary"
+              size="small"
+              class="header-qr-serial-shortcut"
+              :title="t('components.materialDetail.titleOpenBatchQr')"
+              @click="openLinkedContainerQrModal"
+            >
+              {{ t('components.materialDetail.qrCodes') }}
+            </EButton>
+          </div>
           <EButton
-            v-if="showGenerateQrButton"
+            v-else-if="showEnsureLinkedContainerQrButton"
+            variant="secondary"
+            size="small"
+            :disabled="isGeneratingPublicCode"
+            :title="t('components.materialDetail.qrTitleLinkedCombo')"
+            @click="ensureLinkedContainerPublicCode"
+          >
+            {{ isGeneratingPublicCode ? t('components.materialDetail.qrGenLoading') : t('components.materialDetail.qrEnsureLinkedSack') }}
+          </EButton>
+          <EButton
+            v-else-if="showGenerateQrButton"
             variant="secondary"
             size="small"
             :disabled="isGeneratingPublicCode"
@@ -36,7 +70,7 @@
             {{ qrGenerateButtonLabel }}
           </EButton>
           <EButton
-            v-if="showHeaderQrShortcut"
+            v-else-if="showHeaderQrShortcut"
             variant="secondary"
             size="small"
             class="header-qr-serial-shortcut"
@@ -66,9 +100,8 @@
       <p>{{ t('components.materialDetail.loading') }}</p>
     </div>
 
-    <!-- Content -->
-    <div v-else class="detail-content">
-      <!-- Tab Navigation (User: nur Tab «Daten», ohne Leiste) -->
+    <!-- Content: Tabs fix, nur content-layout scrollt -->
+    <div v-else class="detail-body">
       <v-tabs
         v-if="!isUserMaterialsBrowseOnly"
         v-model="activeTab"
@@ -82,7 +115,7 @@
         </v-tab>
       </v-tabs>
 
-      <!-- Main Layout -->
+      <div class="detail-content">
       <div class="content-layout">
         <!-- Main Content (Left) -->
         <main class="content-main">
@@ -126,6 +159,69 @@
 
           <!-- Tab: Daten (Bearbeitung) -->
           <section v-else class="tab-content">
+            <div
+              v-if="isComboMaterialView && canManageMaterials && hasAnyQrForPrint"
+              class="stock-qr-collapsible section-card"
+            >
+              <button
+                type="button"
+                class="stock-qr-toggle"
+                :aria-expanded="stockQrPanelExpanded"
+                aria-controls="combo-qr-panel"
+                @click="stockQrPanelExpanded = !stockQrPanelExpanded"
+              >
+                <span class="stock-qr-toggle-label">{{ t('components.materialDetail.modalQrActionTitle') }}</span>
+                <span class="stock-qr-toggle-chevron" :class="{ 'is-open': stockQrPanelExpanded }" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </span>
+              </button>
+              <div
+                v-show="stockQrPanelExpanded"
+                id="combo-qr-panel"
+                class="stock-qr-panel"
+                role="region"
+              >
+                <p v-if="isPhysicalComboFromLinkedContainer" class="qr-panel-hint">
+                  {{ t('components.materialDetail.qrComboLinkedHint') }}
+                  <router-link
+                    v-if="material.linked_container_batch?.material_id"
+                    class="linked-kiste-link"
+                    :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                  >
+                    {{ material.linked_container_batch.display_label }}
+                  </router-link>
+                </p>
+                <p class="qr-panel-hint">{{ t('components.materialDetail.qrPrintAllHint') }}</p>
+                <div class="modal-actions stock-qr-panel-actions">
+                  <button type="button" class="btn-outline btn-sm" @click="handleQrAddAllToPrintCart">
+                    {{ t('components.materialDetail.btnAddToPrintCart') }}
+                  </button>
+                  <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
+                    {{ t('common.print') }}
+                  </button>
+                </div>
+                <ul v-if="printableQrRows.length" class="stock-qr-batch-list">
+                  <li v-for="batch in printableQrRows" :key="batch.id" class="stock-qr-batch-row">
+                    <PublicQrTag
+                      :url="batch.public_url"
+                      :code="batch.public_code"
+                      :size="48"
+                      :clickable="true"
+                      :image-label="material.name"
+                      :image-entity-id="batch.id"
+                      @activate="openQrActionModalForBatch(batch)"
+                    />
+                    <span class="stock-qr-batch-label">{{ batchPrintLine(batch) }}</span>
+                    <button type="button" class="btn-outline btn-sm" @click="openQrActionModalForBatch(batch)">
+                      {{ t('common.actions') }}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <div class="section-card">
               <h2 class="section-title">{{ t('common.material') }}</h2>
               
@@ -263,6 +359,9 @@
 
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionDetails') }}</h2>
+              <p v-if="isMeterStockMaterial" class="section-hint">
+                {{ t('components.materialDetail.lengthRequiredForMeterHint') }}
+              </p>
               
               <div class="form-grid">
                 <AutoSaveField
@@ -287,7 +386,7 @@
                 <AutoSaveField
                   v-model="formData.size_length"
                   :baseline="savedFormBaselines.size_length"
-                  :label="t('components.materialDetail.labelLengthCm')"
+                  :label="sizeLengthFieldLabel"
                   type="number"
                   :save="(v) => saveMaterialField('size_length', v)"
                 />
@@ -326,8 +425,27 @@
               />
             </div>
 
+            <div v-if="showDetailStockUnitSection" class="section-card section-card--stock-unit">
+              <h2 class="section-title">{{ t('components.materialDetail.sectionStockUnit') }}</h2>
+              <MaterialDetailStockUnitField
+                :show-label="false"
+                :material-id="props.materialId"
+                :material-name="formData.name"
+                :pack-unit="formData.pack_unit"
+                :pack-size="formData.pack_size"
+                :size-length-cm="formData.size_length"
+                :packaging-active="detailPackagingActive"
+                :tracking-type="material.tracking_type"
+                :disabled="!canManageMaterials"
+                @saved="onDetailStockUnitSaved"
+              />
+            </div>
+
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
-            <div v-if="!material.is_consumable && !material.is_food" class="section-card">
+            <div
+              v-if="!material.is_consumable && !material.is_food && !isMeterStockMaterial"
+              class="section-card"
+            >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
               
@@ -593,8 +711,8 @@
                     {{ t('common.print') }}
                   </button>
                 </div>
-                <ul v-if="batchesWithPrintableQr.length" class="stock-qr-batch-list">
-                  <li v-for="batch in batchesWithPrintableQr" :key="batch.id" class="stock-qr-batch-row">
+                <ul v-if="printableQrRows.length" class="stock-qr-batch-list">
+                  <li v-for="batch in printableQrRows" :key="batch.id" class="stock-qr-batch-row">
                     <PublicQrTag
                       :url="batch.public_url"
                       :code="batch.public_code"
@@ -637,15 +755,15 @@
               
               <div class="stock-summary">
                 <div class="stock-stat">
-                  <span class="stock-number">{{ formatMaterialStockQty(material.total_stock) }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQtyPrimary(material.total_stock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelTotal') }}</span>
-                  <span v-if="material.pack_size && material.pack_unit" class="stock-pack-info">
+                  <span v-if="material.pack_size && material.pack_unit && !isMeterStockMaterial" class="stock-pack-info">
                     {{ Math.floor(material.total_stock / material.pack_size) }} {{ material.pack_unit }}
                     <template v-if="material.total_stock % material.pack_size !== 0">{{ t('components.materialDetail.stockPackRemain', { n: material.total_stock % material.pack_size }) }}</template>
                   </span>
                 </div>
                 <div class="stock-stat warehouse">
-                  <span class="stock-number">{{ formatMaterialStockQty(material.in_warehouse ?? availableStock) }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQtyPrimary(material.in_warehouse ?? availableStock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelInWarehouse') }}</span>
                 </div>
                 <div class="stock-stat issued" v-if="material.issued_out > 0">
@@ -665,7 +783,7 @@
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelDefect') }}</span>
                 </div>
                 <div class="stock-stat available">
-                  <span class="stock-number">{{ formatMaterialStockQty(material.available ?? availableStock) }}</span>
+                  <span class="stock-number">{{ formatMaterialStockQtyPrimary(material.available ?? availableStock) }}</span>
                   <span class="stock-label">{{ t('components.materialDetail.stockLabelAvailable') }}</span>
                 </div>
                 <div v-if="(material.combo_allocated || 0) > 0" class="stock-stat combo-alloc-stat">
@@ -716,6 +834,7 @@
                 :material-name="material.name"
                 :pack-unit="material.pack_unit"
                 :pack-size="material.pack_size"
+                :size-length-cm="material.size_length"
                 :status-labels="statusLabels"
                 :sort-key="stockSortKey"
                 :sort-dir="stockSortDir"
@@ -794,6 +913,15 @@
                     {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
                   </button>
                   <button
+                    v-if="material.linked_container_batch"
+                    type="button"
+                    class="btn-outline-small"
+                    :title="linkedContainerLabelForRelease"
+                    @click="openLinkedContainerStoredInTab"
+                  >
+                    {{ t('components.materialDetail.btnOpenRefContainer') }}
+                  </button>
+                  <button
                     v-if="isVirtualComboView"
                     type="button"
                     class="btn-outline-small"
@@ -846,6 +974,13 @@
                       <button type="button" class="link-btn composition-comp-link" @click="openComponentMaterialDetail(comp.component_material.id)">
                         {{ comp.component_material.name }}
                       </button>
+                      <span
+                        v-if="isCompositionLinkedContainer(comp)"
+                        class="composition-ref-container-badge"
+                        :title="t('components.materialDetail.refContainerBadgeHint')"
+                      >
+                        {{ t('components.materialDetail.refContainerBadge') }}
+                      </span>
                       <span v-if="isVirtualComboView && comp.is_optional" class="composition-optional-badge">{{ t('components.materialDetail.optionalShortBadge') }}</span>
                       <span
                         v-if="isVirtualComboView && comp.component_source === 'self_provided'"
@@ -1780,6 +1915,7 @@
           </div>
         </aside>
       </div>
+      </div>
     </div>
 
     <!-- Batch Modal (Add / Edit) -->
@@ -1795,6 +1931,10 @@
       :existing-batches="batches"
       :pack-unit="material.pack_unit"
       :pack-size="material.pack_size"
+      :size-length-cm="material.size_length"
+      :reference-purchase-unit-chf="material.reference_purchase_unit_chf"
+      :unit-price-optional="isRepairPartMaterial"
+      :combo-storage-context="editingBatchComboContext"
       @close="closeBatchModal"
       @saved="handleBatchSaved"
     />
@@ -2108,7 +2248,56 @@
         </div>
       </template>
         <div class="composition-add-modal-body">
-        <div class="form-group">
+        <template v-if="isEditCompositionLinkedContainer">
+          <div class="form-group composition-ref-container-panel">
+            <p class="batch-field-hint">{{ t('components.materialDetail.editRefContainerIntro') }}</p>
+            <p class="batch-field-hint text-muted">{{ linkedContainerLabelForRelease }}</p>
+            <div class="composition-ref-container-actions">
+              <button type="button" class="btn-outline-small" @click="openLinkedContainerStoredInTab">
+                {{ t('components.materialDetail.btnOpenRefContainer') }}
+              </button>
+            </div>
+            <div v-if="editLinkedContainerContentsLoading" class="text-muted composition-ref-container-loading">
+              {{ t('components.materialDetail.editRefContainerLoading') }}
+            </div>
+            <div v-else-if="editLinkedContainerContentRows.length === 0" class="empty-used-in">
+              <p>{{ t('components.materialDetail.editRefContainerEmpty') }}</p>
+            </div>
+            <div v-else class="composition-table-wrapper">
+              <table class="used-in-table composition-table composition-ref-container-table">
+                <thead>
+                  <tr>
+                    <th>{{ t('components.materialDetail.thComponent') }}</th>
+                    <th>{{ t('components.materialDetail.editRefContainerThStored') }}</th>
+                    <th>{{ t('components.materialDetail.editRefContainerThPlanned') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in editLinkedContainerContentRows" :key="row.materialId">
+                    <td>{{ row.materialName }}</td>
+                    <td>{{ t('components.materialDetail.qtyPieces', { qty: row.storedQty }) }}</td>
+                    <td>
+                      <span v-if="row.plannedQty !== null">{{ t('components.materialDetail.qtyPieces', { qty: row.plannedQty }) }}</span>
+                      <span v-else class="text-muted">{{ t('components.materialDetail.emDash') }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="batch-field-hint">{{ t('components.materialDetail.editRefContainerHint') }}</p>
+          </div>
+          <div class="form-group">
+            <label>{{ t('components.materialDetail.thQty') }}</label>
+            <input
+              :value="1"
+              type="number"
+              class="form-input"
+              disabled
+            />
+            <p class="batch-field-hint">{{ t('components.materialDetail.editRefContainerQtyFixed') }}</p>
+          </div>
+        </template>
+        <div v-else class="form-group">
           <label>{{ t('components.materialDetail.thQty') }}</label>
           <input
             v-model.number="editCompositionQty"
@@ -2132,6 +2321,17 @@
             {{
               t('components.materialDetail.editCompositionFreeStockHint', {
                 n: editCompositionMaterialFreeStock,
+              })
+            }}
+          </p>
+          <p
+            v-if="addCompositionAllocatesToLinkedCrate && editComponentStoredInLinkedContainer !== null"
+            class="batch-field-hint composition-ref-container-stored-hint"
+          >
+            {{
+              t('components.materialDetail.editCompositionStoredInRefContainer', {
+                n: editComponentStoredInLinkedContainer,
+                label: linkedContainerLabelForRelease,
               })
             }}
           </p>
@@ -2209,6 +2409,24 @@
             <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchSerie') }}</p>
             <p class="batch-field-hint">{{ t('components.materialDetail.hintAssignedBatchInCombo') }}</p>
           </div>
+          <div v-if="canOfferSetAsLinkedContainer" class="form-group composition-set-ref-container-field">
+            <label class="checkbox-label">
+              <input v-model="editCompositionSetAsLinkedContainer" type="checkbox" />
+              {{ t('components.materialDetail.labelSetAsRefContainer') }}
+            </label>
+            <p class="batch-field-hint">{{ t('components.materialDetail.hintSetAsRefContainer') }}</p>
+            <p
+              v-if="editCompositionSetAsLinkedContainer && linkedContainerBatchIdForRelease"
+              class="batch-field-hint composition-set-ref-container-warn"
+            >
+              {{
+                t('components.materialDetail.hintReplaceRefContainerInline', {
+                  current: linkedContainerLabelForRelease,
+                  next: editCompositionLinkedContainerCandidateLabel,
+                })
+              }}
+            </p>
+          </div>
         </div>
       <template #actions>
         <div class="composition-add-modal-footer">
@@ -2284,7 +2502,14 @@ import {
 import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
-import { getContainerBatches, getStorageOverview, type ContainerBatch, type StorageOverviewResponse } from '@/api/storageLocations'
+import {
+  getContainerBatches,
+  getContainerBatchContents,
+  getStorageOverview,
+  type ContainerBatch,
+  type ContainerBatchContentsResponse,
+  type StorageOverviewResponse,
+} from '@/api/storageLocations'
 import {
   containerBatchFromLinkedRef,
   formatContainerBatchOptionFullLabel,
@@ -2301,6 +2526,7 @@ import {
 } from '@/utils/rentalPriceAmortization'
 import {
   getRentalAmortizationDefaults,
+  getWorkshopSettings,
   DEFAULT_RENTAL_AMORTIZATION,
   type RentalAmortizationDefaults,
 } from '@/api/departmentSettings'
@@ -2308,7 +2534,16 @@ import { getWorkshopTickets, type WorkshopTicket } from '@/api/workshop'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
 import { AutoSaveField, useFormFieldBaselines } from '@/components/common/autoSave'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
-import { formatStockQty, getStockUnitLabel } from '@/utils/materialStockUnit'
+import {
+  applyMaterialUnitSuffixToName,
+  formatMaterialDisplayName,
+  formatStockQty,
+  formatStockUnitSettingLabel,
+  getStockUnitLabel,
+  isMeterStockUnit,
+  isPackagingUnit,
+  parseSizeLengthCm,
+} from '@/utils/materialStockUnit'
 import SplitModal from '@/components/material/SplitModal.vue'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -2318,6 +2553,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useI18n } from 'vue-i18n'
 import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
+import MaterialDetailStockUnitField from '@/components/material/MaterialDetailStockUnitField.vue'
 import MaterialStockBatchesDataTable from '@/components/material/MaterialStockBatchesDataTable.vue'
 import MaterialSerialBatchesDataTable from '@/components/material/MaterialSerialBatchesDataTable.vue'
 import MaterialArchiveBatchesDataTable from '@/components/material/MaterialArchiveBatchesDataTable.vue'
@@ -2331,6 +2567,7 @@ import {
   formatStorageRowLabel,
   previewTakeForLinkedCrate,
 } from '@/utils/compositionStockLocations'
+import { resolveBatchComboStorageContext } from '@/utils/batchComboStorageContext'
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import ComboOptionsEditor from '@/components/material/ComboOptionsEditor.vue'
@@ -2392,6 +2629,33 @@ const packUnitSelectOptions = computed(() => [
   { value: PACK_UNIT_SET, label: t('components.materialDetail.packUnitSet') },
   { value: PACK_UNIT_PAKET, label: t('components.materialDetail.packUnitPaket') },
 ])
+
+const isMeterStockMaterial = computed(() => isMeterStockUnit(formData.pack_unit))
+
+const sizeLengthFieldLabel = computed(() => {
+  const base = t('components.materialDetail.labelLengthCm')
+  return isMeterStockMaterial.value ? `${base} *` : base
+})
+
+const materialDisplayName = computed(() => {
+  const m = material.value
+  if (!m?.name) return ''
+  return formatMaterialDisplayName(m.name, m.pack_unit, m.pack_size, m.size_length)
+})
+
+const showDetailStockUnitSection = computed(() => {
+  const m = material.value
+  if (!m || m.is_consumable || m.is_food) return false
+  if (m.material_type && m.material_type !== 'physical') return false
+  return m.tracking_type === 'bulk' || m.tracking_type === 'serialized'
+})
+
+const detailPackagingActive = computed(() => isPackagingUnit(formData.pack_unit))
+
+function onDetailStockUnitSaved(updated: Material) {
+  applyMaterialSoftUpdate(updated)
+  emit('updated', updated)
+}
 
 const rentalScopeOptions = computed(() => [
   { value: '', label: t('components.materialDetail.rentalScopeUnset') },
@@ -2500,6 +2764,11 @@ const editCompositionBaseQty = ref(1)
 const editCompositionMaterialFreeStock = ref(0)
 const editCompositionSourceDetail = ref<Material | null>(null)
 const editCompositionStockLocations = ref<MaterialStorageLocationsResponse | null>(null)
+const editLinkedContainerContents = ref<ContainerBatchContentsResponse | null>(null)
+const editLinkedContainerContentsLoading = ref(false)
+/** Beim Bearbeiten einer normalen Komponente: Menge dieses Artikels bereits im Referenz-Sack. */
+const editComponentStoredInLinkedContainer = ref<number | null>(null)
+const editCompositionSetAsLinkedContainer = ref(false)
 const editCompositionError = ref('')
 const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
@@ -2513,8 +2782,10 @@ const linkedContainerBatchIdForRelease = computed(() => {
 })
 
 const linkedContainerLabelForRelease = computed(() => {
-  const m = material.value
-  return m?.linked_container_batch?.display_label || m?.name || '–'
+  const linked = material.value?.linked_container_batch
+  if (!linked) return material.value?.name || '–'
+  const name = (linked.material_name || linked.label || linked.display_label || '').trim()
+  return name || '–'
 })
 
 const addCompositionStockCap = computed((): number | null => {
@@ -2538,6 +2809,104 @@ const addCompositionAllocatesToLinkedCrate = computed(
     !!(material.value?.linked_container_batch_id || material.value?.linked_container_batch?.id),
 )
 
+/** Bearbeitung der Referenz-Sack/Kiste-Zeile in der Stückliste (nicht Umbuchung in die Kiste selbst). */
+const editCompositionEffectiveBatchId = computed((): string => {
+  const bid = (editCompositionBatchId.value || '').trim()
+  if (bid) return bid
+  return (editCompositionComp.value?.component_batch?.id || '').trim()
+})
+
+const editCompositionEffectiveBatch = computed((): MaterialBatch | null => {
+  const bid = editCompositionEffectiveBatchId.value
+  if (!bid) return null
+  return editCompositionBatches.value.find((b) => b.id === bid) ?? null
+})
+
+/** Sack/Kiste mit zugewiesener Charge kann als Referenz-Behälter der physischen Kombo gesetzt werden. */
+const canOfferSetAsLinkedContainer = computed(() => {
+  if (material.value?.material_type !== 'physical_combo') return false
+  if (isEditCompositionLinkedContainer.value) return false
+  if (!editCompositionEffectiveBatchId.value) return false
+  const m = editCompositionSourceDetail.value
+  const batch = editCompositionEffectiveBatch.value
+  if (!m) return false
+  if (m.is_container || batch?.is_container) return true
+  return m.tracking_type === 'serialized'
+})
+
+const editCompositionLinkedContainerCandidateLabel = computed((): string => {
+  const comp = editCompositionComp.value
+  const batch = editCompositionEffectiveBatch.value
+  const name = (comp?.component_material.name || '').trim()
+  if (!batch) return name || '–'
+  const sn = (batch.serial_number || '').trim()
+  if (!name) return sn || '–'
+  if (sn && sn !== name) return `${name} (${sn})`
+  return name
+})
+
+const isEditCompositionLinkedContainer = computed(() => {
+  const comp = editCompositionComp.value
+  const linkedBatchId = (linkedContainerBatchIdForRelease.value || '').trim()
+  if (!comp || !linkedBatchId) return false
+  const compBatchId = (comp.component_batch?.id || '').trim()
+  if (compBatchId && compBatchId === linkedBatchId) return true
+  const linkedMatId = (material.value?.linked_container_batch?.material_id || '').trim()
+  return !!(
+    linkedMatId &&
+    comp.component_material.id === linkedMatId &&
+    compBatchId === linkedBatchId
+  )
+})
+
+type EditLinkedContainerContentRow = {
+  materialId: string
+  materialName: string
+  storedQty: number
+  plannedQty: number | null
+}
+
+const editLinkedContainerContentRows = computed((): EditLinkedContainerContentRow[] => {
+  if (!isEditCompositionLinkedContainer.value) return []
+  const linkedBatchId = (linkedContainerBatchIdForRelease.value || '').trim()
+  const storedByMat = new Map<string, { name: string; qty: number }>()
+  for (const line of editLinkedContainerContents.value?.contents || []) {
+    const mid = (line.material_id || '').trim()
+    if (!mid) continue
+    const prev = storedByMat.get(mid)
+    storedByMat.set(mid, {
+      name: line.material_name || prev?.name || mid,
+      qty: (prev?.qty ?? 0) + (line.qty ?? 0),
+    })
+  }
+  const rows: EditLinkedContainerContentRow[] = []
+  const seen = new Set<string>()
+  for (const comp of comboComponentsList.value) {
+    const mid = comp.component_material.id
+    const compBatchId = (comp.component_batch?.id || '').trim()
+    if (compBatchId && compBatchId === linkedBatchId) continue
+    if (comp.component_material.id === props.materialId) continue
+    seen.add(mid)
+    const stored = storedByMat.get(mid)
+    rows.push({
+      materialId: mid,
+      materialName: comp.component_material.name,
+      storedQty: stored?.qty ?? 0,
+      plannedQty: comp.qty,
+    })
+  }
+  for (const [mid, stored] of storedByMat) {
+    if (seen.has(mid) || mid === props.materialId) continue
+    rows.push({
+      materialId: mid,
+      materialName: stored.name,
+      storedQty: stored.qty,
+      plannedQty: null,
+    })
+  }
+  return rows.sort((a, b) => a.materialName.localeCompare(b.materialName, sortLocale()))
+})
+
 const addCompositionStockLocationRows = computed((): MaterialStorageLocationRow[] => {
   const rows = addCompositionStockLocations.value?.direct ?? []
   return rows.filter((r) => (r.qty || 0) > 0)
@@ -2559,6 +2928,7 @@ const addCompositionTakePreview = computed(() => {
 
 const editCompositionStockCap = computed((): number | null => {
   if (!editCompositionComp.value || !addCompositionAllocatesToLinkedCrate.value) return null
+  if (isEditCompositionLinkedContainer.value) return 1
   return Math.max(1, editCompositionBaseQty.value + Math.max(0, editCompositionMaterialFreeStock.value))
 })
 
@@ -2614,6 +2984,7 @@ const canSubmitAddComposition = computed(() => {
 
 const canSubmitEditComposition = computed(() => {
   if (!editCompositionComp.value) return false
+  if (isEditCompositionLinkedContainer.value) return (editCompositionQty.value ?? 0) === 1
   const q = editCompositionQty.value ?? 0
   if (editCompositionOptional.value && q === 0) return true
   if (q < 1) return false
@@ -2854,6 +3225,7 @@ const categories = ref<Category[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const isGeneratingPublicCode = ref(false)
+const isAutoEnsuringLinkedContainerQr = ref(false)
 const activeTab = ref('data')
 const containerContentBatchId = ref('')
 const containerContentSearch = ref('')
@@ -2901,6 +3273,22 @@ const qrActionEntityId = ref('')
 // Batch Modal State
 const showBatchModal = ref(false)
 const editingBatch = ref<MaterialBatch | null>(null)
+
+const editingBatchComboContext = computed(() => {
+  const batch = editingBatch.value
+  if (!batch) return null
+  return resolveBatchComboStorageContext(
+    batch,
+    materialStorageLocations.value,
+    containerBatches.value,
+  )
+})
+const sparePartsCategoryId = ref('')
+
+const isRepairPartMaterial = computed(() => {
+  const categoryId = material.value?.category?.id
+  return !!categoryId && categoryId === sparePartsCategoryId.value
+})
 const showSplitModal = ref(false)
 const showMoveModal = ref(false)
 const moveBatch = ref<MaterialBatch | null>(null)
@@ -3096,8 +3484,22 @@ async function saveMaterialField(field: MaterialFormField, value: unknown): Prom
   const payload = buildMaterialFieldPayload(field, value, m)
   if (Object.keys(payload).length === 0) return
 
+  if (field === 'size_length' && isMeterStockUnit(formData.pack_unit)) {
+    const cm = payload.size_length as string | null
+    if (!parseSizeLengthCm(cm)) {
+      throw new Error(t('components.materialDetail.stockUnitLengthRequired'))
+    }
+    const newName = applyMaterialUnitSuffixToName(formData.name, 'm', null, cm)
+    if (newName !== formData.name.trim()) payload.name = newName
+  }
+
   const updated = await updateMaterial(props.materialId, payload)
   applyMaterialSoftUpdate(updated, field)
+  if (payload.name) {
+    assignFormFieldFromMaterial('name', updated)
+    syncSavedFormBaselineFor('name')
+    patchOriginalFormField('name')
+  }
   emit('updated', updated)
 
   if (activeTab.value === 'history') {
@@ -3405,7 +3807,61 @@ const batchesWithPrintableQr = computed(() =>
   (batches.value || []).filter((batch: any) => isPrintableBatchPublicUrl(batch?.public_url))
 )
 
-const hasAnyQrForPrint = computed(() => batchesWithPrintableQr.value.length > 0)
+const linkedContainerQrBatch = computed((): MaterialBatch | null => {
+  const linked = material.value?.linked_container_batch
+  if (!linked?.id) return null
+  return {
+    id: linked.id,
+    qty: 1,
+    unit_price: null,
+    acquired_on: '',
+    expiry_date: null,
+    status: 'active',
+    batch_type: 'initial',
+    is_initial: false,
+    label: linked.label,
+    notes: null,
+    serial_number: linked.serial_number,
+    public_code: linked.public_code ?? null,
+    public_url: linked.public_url ?? null,
+  }
+})
+
+const hasLinkedContainerPrintableQr = computed(
+  () => isPrintableBatchPublicUrl(linkedContainerQrBatch.value?.public_url),
+)
+
+const printableQrRows = computed((): MaterialBatch[] => {
+  const rows = [...batchesWithPrintableQr.value]
+  const linked = linkedContainerQrBatch.value
+  if (
+    isPhysicalComboFromLinkedContainer.value &&
+    linked &&
+    isPrintableBatchPublicUrl(linked.public_url) &&
+    !rows.some((r) => r.id === linked.id)
+  ) {
+    rows.unshift(linked)
+  }
+  return rows
+})
+
+const hasAnyQrForPrint = computed(
+  () => batchesWithPrintableQr.value.length > 0 || hasLinkedContainerPrintableQr.value,
+)
+
+const showLinkedContainerQrHeader = computed(
+  () =>
+    !isLoading.value &&
+    isPhysicalComboFromLinkedContainer.value &&
+    hasLinkedContainerPrintableQr.value,
+)
+
+const showEnsureLinkedContainerQrButton = computed(
+  () =>
+    !isLoading.value &&
+    isPhysicalComboFromLinkedContainer.value &&
+    !hasLinkedContainerPrintableQr.value,
+)
 
 /** Physische Combo, die mit einer konkreten Kisten-Charge verknüpft ist (QR von der Kiste übernommen). */
 const isPhysicalComboFromLinkedContainer = computed(
@@ -3428,10 +3884,13 @@ const qrGenerateButtonTitle = computed(() => {
 })
 
 /** Einstieg „QR-Codes drucken“ im Header, wenn mindestens eine Charge eine Etiketten-URL hat. */
-const showHeaderQrShortcut = computed(() => !isLoading.value && hasAnyQrForPrint.value)
+const showHeaderQrShortcut = computed(
+  () => !isLoading.value && hasAnyQrForPrint.value && !showLinkedContainerQrHeader.value,
+)
 
 const showGenerateQrButton = computed(() => {
   if (isLoading.value) return false
+  if (isPhysicalComboFromLinkedContainer.value) return false
 
   const materialMissing = String(material.value?.public_code || '').trim() === ''
   if (material.value?.tracking_type !== 'serialized') {
@@ -3894,6 +4353,12 @@ function formatCompositionBatchOption(b: MaterialBatch) {
   return t('components.materialDetail.batchOptionWithDateQty', { date: datePart, label: head, qty })
 }
 
+function isCompositionLinkedContainer(comp: ComboComponent): boolean {
+  const linkedBatchId = (linkedContainerBatchIdForRelease.value || '').trim()
+  if (!linkedBatchId) return false
+  return (comp.component_batch?.id || '').trim() === linkedBatchId
+}
+
 async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionComp.value = comp
   editCompositionBaseQty.value = comp.qty
@@ -3907,8 +4372,17 @@ async function openEditCompositionModal(comp: ComboComponent) {
   editCompositionBatches.value = []
   editCompositionSourceDetail.value = null
   editCompositionStockLocations.value = null
+  editLinkedContainerContents.value = null
+  editComponentStoredInLinkedContainer.value = null
+  editCompositionSetAsLinkedContainer.value = false
   showEditCompositionModal.value = true
   editCompositionBatchesLoading.value = true
+  const linkedBatchId = (linkedContainerBatchIdForRelease.value || '').trim()
+  const compBatchId = (comp.component_batch?.id || '').trim()
+  const editingLinkedContainer =
+    !!linkedBatchId &&
+    (compBatchId === linkedBatchId ||
+      comp.component_material.id === (material.value?.linked_container_batch?.material_id || '').trim())
   try {
     const m = await getMaterial(comp.component_material.id)
     editCompositionSourceDetail.value = m
@@ -3916,21 +4390,49 @@ async function openEditCompositionModal(comp: ComboComponent) {
     editCompositionBatches.value = [...(m.batches || [])].sort((a, b) =>
       (b.acquired_on || '').localeCompare(a.acquired_on || '', sortLocale()),
     )
-    if (addCompositionAllocatesToLinkedCrate.value) {
+    if (editingLinkedContainer && linkedBatchId) {
+      editLinkedContainerContentsLoading.value = true
       try {
-        editCompositionStockLocations.value = await getMaterialStorageLocations(
-          comp.component_material.id,
-          props.departmentId,
-        )
+        editLinkedContainerContents.value = await getContainerBatchContents(linkedBatchId)
       } catch {
-        editCompositionStockLocations.value = null
+        editLinkedContainerContents.value = null
+      } finally {
+        editLinkedContainerContentsLoading.value = false
       }
+    } else if (addCompositionAllocatesToLinkedCrate.value) {
+      const loads: Promise<void>[] = []
+      loads.push(
+        getMaterialStorageLocations(comp.component_material.id, props.departmentId)
+          .then((res) => {
+            editCompositionStockLocations.value = res
+          })
+          .catch(() => {
+            editCompositionStockLocations.value = null
+          }),
+      )
+      if (linkedBatchId) {
+        loads.push(
+          getContainerBatchContents(linkedBatchId)
+            .then((res) => {
+              const line = (res.contents || []).find(
+                (c) => (c.material_id || '').trim() === comp.component_material.id,
+              )
+              editComponentStoredInLinkedContainer.value = line?.qty ?? 0
+            })
+            .catch(() => {
+              editComponentStoredInLinkedContainer.value = null
+            }),
+        )
+      }
+      await Promise.all(loads)
     }
   } catch {
     editCompositionMaterialFreeStock.value = 0
     editCompositionBatches.value = []
     editCompositionSourceDetail.value = null
     editCompositionStockLocations.value = null
+    editLinkedContainerContents.value = null
+    editComponentStoredInLinkedContainer.value = null
   } finally {
     editCompositionBatchesLoading.value = false
   }
@@ -3945,6 +4447,10 @@ watch(showEditCompositionModal, (open, prev) => {
   if (prev && !open) editCompositionComp.value = null
 })
 
+watch(editCompositionEffectiveBatchId, (bid) => {
+  if (!bid) editCompositionSetAsLinkedContainer.value = false
+})
+
 function mergeComboComponentInList(updated: ComboComponent) {
   comboComponentsList.value = comboComponentsList.value.map((c) => (c.id === updated.id ? updated : c))
 }
@@ -3952,6 +4458,29 @@ function mergeComboComponentInList(updated: ComboComponent) {
 async function submitEditComposition() {
   const comp = editCompositionComp.value
   if (!comp) return
+
+  if (editCompositionSetAsLinkedContainer.value) {
+    const existingId = (linkedContainerBatchIdForRelease.value || '').trim()
+    const newId = editCompositionEffectiveBatchId.value
+    if (!newId) {
+      editCompositionError.value = t('components.materialDetail.errSetRefContainerNeedsBatch')
+      return
+    }
+    if (existingId && existingId !== newId) {
+      const ok = await confirmDialog({
+        title: t('components.materialDetail.confirmReplaceRefContainerTitle'),
+        message: t('components.materialDetail.confirmReplaceRefContainerMessage', {
+          current: linkedContainerLabelForRelease.value,
+          next: editCompositionLinkedContainerCandidateLabel.value,
+        }),
+        confirmText: t('components.materialDetail.confirmReplaceRefContainerAction'),
+        cancelText: t('common.cancel'),
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
+  }
+
   editCompositionSubmitting.value = true
   editCompositionError.value = ''
   try {
@@ -3971,7 +4500,14 @@ async function submitEditComposition() {
       payload.component_batch_id =
         bid && editCompositionBatches.value.some((b) => b.id === bid) ? bid : null
     }
-    payload.allocate_to_linked_container = addCompositionAllocatesToLinkedCrate.value
+    if (editCompositionSetAsLinkedContainer.value) {
+      payload.set_as_linked_container = true
+      payload.qty = 1
+      payload.allocate_to_linked_container = false
+    } else {
+      payload.allocate_to_linked_container =
+        addCompositionAllocatesToLinkedCrate.value && !isEditCompositionLinkedContainer.value
+    }
     const updated = await updateComboComponent(props.materialId, comp.id, payload)
     mergeComboComponentInList(updated)
     toast.success(t('components.materialDetail.toastCompositionSaved'))
@@ -4102,10 +4638,37 @@ function onMaterialPhotoError(message: string) {
   toast.error(message || t('media.uploadError'))
 }
 
+async function maybeAutoEnsureComboPublicCodes(data: Material) {
+  if (data.material_type !== 'physical_combo' && data.material_type !== 'virtual_combo') return data
+  if (isAutoEnsuringLinkedContainerQr.value || isGeneratingPublicCode.value) return data
+
+  const linked = data.linked_container_batch
+  const missingLinkedSackQr =
+    data.material_type === 'physical_combo' &&
+    !!(linked?.material_id || '').trim() &&
+    !isPrintableBatchPublicUrl(linked?.public_url)
+  const missingComponentBatchQr = (data.combo_components ?? []).some(
+    (comp) => comp.component_batch?.id && !isPrintableBatchPublicUrl(comp.component_batch?.public_url),
+  )
+  if (!missingLinkedSackQr && !missingComponentBatchQr) return data
+
+  isAutoEnsuringLinkedContainerQr.value = true
+  try {
+    await ensureMaterialPublicCode(props.materialId)
+    return await getMaterial(props.materialId)
+  } catch (err) {
+    console.warn(t('components.materialDetail.logErrorPublicQr'), err)
+    return data
+  } finally {
+    isAutoEnsuringLinkedContainerQr.value = false
+  }
+}
+
 async function loadMaterial(opts?: { preserveComboComponents?: boolean; silent?: boolean }) {
   if (!opts?.silent) isLoading.value = true
   try {
-    const data = await getMaterial(props.materialId)
+    let data = await getMaterial(props.materialId)
+    data = await maybeAutoEnsureComboPublicCodes(data)
     material.value = data
     batches.value = data.batches || []
     if (!opts?.preserveComboComponents) {
@@ -4172,6 +4735,33 @@ async function generateMaterialPublicCode() {
   } finally {
     isGeneratingPublicCode.value = false
   }
+}
+
+async function ensureLinkedContainerPublicCode() {
+  const sackMaterialId = (material.value?.linked_container_batch?.material_id || '').trim()
+  if (!sackMaterialId || isGeneratingPublicCode.value) return
+  isGeneratingPublicCode.value = true
+  try {
+    await ensureMaterialPublicCode(sackMaterialId)
+    await loadMaterial()
+    emit('updated', material.value)
+    toast.success(t('components.materialDetail.toastQrLinkedSackCreated'))
+    if (hasLinkedContainerPrintableQr.value) {
+      openLinkedContainerQrModal()
+    }
+  } catch (err: unknown) {
+    const ax = err as { response?: { data?: { error?: string } } }
+    console.error(t('components.materialDetail.logErrorPublicQr'), err)
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errQrCreateLinked'))
+  } finally {
+    isGeneratingPublicCode.value = false
+  }
+}
+
+function openLinkedContainerQrModal() {
+  const batch = linkedContainerQrBatch.value
+  if (!batch) return
+  openQrActionModalForBatch(batch)
 }
 
 async function loadCategories() {
@@ -4514,7 +5104,28 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
     sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
   }
 
-  if (!m?.is_consumable && !m?.is_food && m?.pack_size && m?.pack_unit) {
+  if (
+    m &&
+    !m.is_consumable &&
+    !m.is_food &&
+    (m.tracking_type === 'bulk' || m.tracking_type === 'serialized') &&
+    (!m.material_type || m.material_type === 'physical')
+  ) {
+    const stockUnitFields: ReadOnlyField[] = []
+    pushReadOnlyField(
+      stockUnitFields,
+      t('components.materialDetail.labelStockUnitReadonly'),
+      formatStockUnitSettingLabel(m.pack_unit, m.pack_size),
+    )
+    pushReadOnlyField(
+      stockUnitFields,
+      t('components.materialDetail.labelNameDb'),
+      formatMaterialDisplayName(m.name, m.pack_unit, m.pack_size, m.size_length),
+    )
+    sections.push({ title: t('components.materialDetail.sectionStockUnit'), fields: stockUnitFields })
+  }
+
+  if (!m?.is_consumable && !m?.is_food && m?.pack_size && m?.pack_unit && isPackagingUnit(m.pack_unit)) {
     const packFields: ReadOnlyField[] = []
     pushReadOnlyField(packFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
     pushReadOnlyField(packFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
@@ -4564,10 +5175,25 @@ function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(dateLocaleForIntl())
 }
 
-function formatMaterialStockQty(qty: number | null | undefined): string {
+function formatPiecesAtLength(count: number, per: string, _total: string): string {
+  return t('components.materialDetail.stockQtyPiecesAtLength', { count, per })
+}
+
+function formatMaterialStockQtyPrimary(qty: number | null | undefined): string {
   const n = Number(qty)
   if (!Number.isFinite(n)) return `0 ${getStockUnitLabel(material.value?.pack_unit)}`
-  return formatStockQty(n, material.value?.pack_unit, material.value?.pack_size)
+  return formatStockQty(
+    n,
+    material.value?.pack_unit,
+    material.value?.pack_size,
+    material.value?.size_length,
+    formatPiecesAtLength,
+  )
+}
+
+/** @deprecated use formatMaterialStockQtyPrimary */
+function formatMaterialStockQty(qty: number | null | undefined): string {
+  return formatMaterialStockQtyPrimary(qty)
 }
 
 type BatchLocationEntry = {
@@ -4884,6 +5510,10 @@ async function onSerialBatchIsContainerChange(batch: MaterialBatch, value: boole
   }
 }
 
+function openLinkedContainerStoredInTab() {
+  mergeAndReplaceQuery({ [DETAIL_QUERY_KEYS.tab]: 'stored-in' })
+}
+
 function openContainerMaterial(materialId: string, containerBatchId?: string | null, containerSearchSeed?: string) {
   if (!materialId) return
   const query: Record<string, string> = {
@@ -5121,7 +5751,11 @@ function batchPrintLine(batch: any): string {
 
 function openStockTabWithQrPanel() {
   prepareQrActionAll()
-  setActiveTab('stock')
+  if (tabIds.value.includes('stock')) {
+    setActiveTab('stock')
+  } else if (isComboMaterialView.value) {
+    setActiveTab('data')
+  }
   stockQrPanelExpanded.value = true
 }
 
@@ -5165,7 +5799,7 @@ async function handleQrAddToPrintCart() {
       public_url: string
     }> = []
 
-    for (const batch of batchesWithPrintableQr.value) {
+    for (const batch of printableQrRows.value) {
       const url = String(batch?.public_url || '').trim()
       if (!isPrintableBatchPublicUrl(url)) continue
       payloads.push({
@@ -5236,7 +5870,7 @@ async function buildPrintRowsForAllQrs(): Promise<Array<{ line: string; code: st
   const rows: Array<{ line: string; code: string; qrDataUrl: string }> = []
   const tasks: Array<Promise<void>> = []
 
-  for (const batch of batchesWithPrintableQr.value) {
+  for (const batch of printableQrRows.value) {
     const url = String(batch?.public_url || '').trim()
     if (!isPrintableBatchPublicUrl(url)) continue
     const line = batchPrintLine(batch)
@@ -5573,6 +6207,8 @@ function openEditBatchModal(batch: any) {
   showSplitModal.value = false
   showMoveModal.value = false
   moveBatch.value = null
+  void loadMaterialStorageLocations()
+  void ensureContainerBatchesLoaded()
   editingBatch.value = batch
   showBatchModal.value = true
 }
@@ -5650,17 +6286,10 @@ async function handleBatchSaved(result: MaterialBatch | AddBatchMultiResponse) {
     return
   }
 
-  // Charge hinzufügen: Liste/Bestand aktualisieren (ohne Full-Reload)
-  if ('created_batches' in result) {
-    await loadMaterial()
-  } else {
-    const batch = result as MaterialBatch
-    batches.value.push(batch)
-    material.value.total_stock = (material.value.total_stock || 0) + batch.qty
-  }
   if (activeTab.value === 'container-content') {
     await loadContainerContentOverview()
   }
+  await loadMaterial()
   toast.success(t('components.materialDetail.toastBatchAdded'))
   closeBatchModal()
 }
@@ -5853,10 +6482,11 @@ watch(hasManualUnsavedChanges, (dirty) => {
 }, { immediate: true })
 
 watch(
-  () => (!isLoading.value && material.value?.name ? String(material.value.name).trim() : ''),
+  materialDisplayName,
   (name) => {
-    if (!name) return
-    pageHeadStore.setDynamic(`${name} · eMatChef`, `${name} – Materialdetails in eMatChef.`)
+    const label = String(name || '').trim()
+    if (!label) return
+    pageHeadStore.setDynamic(`${label} · eMatChef`, `${label} – Materialdetails in eMatChef.`)
   },
   { immediate: true }
 )
@@ -5925,8 +6555,17 @@ onDeactivated(() => {
   closeAllDetailModals()
 })
 
+async function loadSparePartsCategoryId() {
+  try {
+    const settings = await getWorkshopSettings(props.departmentId)
+    sparePartsCategoryId.value = settings.sparePartsCategoryId || ''
+  } catch {
+    sparePartsCategoryId.value = ''
+  }
+}
+
 onMounted(() => {
-  void Promise.all([loadMaterial(), loadCategories(), loadRentalDefaults()])
+  void Promise.all([loadMaterial(), loadCategories(), loadRentalDefaults(), loadSparePartsCategoryId()])
 })
 </script>
 

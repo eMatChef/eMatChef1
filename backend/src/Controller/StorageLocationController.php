@@ -59,18 +59,27 @@ class StorageLocationController extends AbstractController
         // Inhalt aus Allokationen (rack_id + slot_id oder container_batch_id → effektiver Standort aus Kiste)
         $allocSql = "
             SELECT a.id AS allocation_id, a.batch_id, a.container_batch_id,
-                   COALESCE(cb.rack_id, a.rack_id) AS rack_id,
-                   COALESCE(cb.slot_id, a.slot_id) AS slot_id,
+                   COALESCE(cb_loc.eff_rack_id, cb.rack_id, a.rack_id) AS rack_id,
+                   COALESCE(cb_loc.eff_slot_id, cb.slot_id, a.slot_id) AS slot_id,
                    a.qty,
                    mi.id AS material_id, mi.name AS material_name, mi.tracking_type,
                    cb.serial_number AS container_serial,
                    cb.label AS container_label,
-                   cb.rack_id AS container_rack_id,
-                   cb.slot_id AS container_slot_id
+                   COALESCE(cb_loc.eff_rack_id, cb.rack_id) AS container_rack_id,
+                   COALESCE(cb_loc.eff_slot_id, cb.slot_id) AS container_slot_id
             FROM batch_storage_allocation a
             INNER JOIN material_batch b ON a.batch_id = b.id
             INNER JOIN material_item mi ON b.material_item_id = mi.id
             LEFT JOIN material_batch cb ON a.container_batch_id = cb.id
+            LEFT JOIN LATERAL (
+                SELECT alloc.rack_id AS eff_rack_id, alloc.slot_id AS eff_slot_id
+                FROM batch_storage_allocation alloc
+                WHERE alloc.batch_id = cb.id
+                  AND alloc.container_batch_id IS NULL
+                  AND alloc.rack_id IS NOT NULL
+                ORDER BY alloc.qty DESC
+                LIMIT 1
+            ) cb_loc ON a.container_batch_id IS NOT NULL
             WHERE a.department_id = :departmentId
               AND (mi.deleted_at IS NULL)
               AND b.status = 'active'

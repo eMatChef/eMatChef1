@@ -414,6 +414,18 @@ class AccountingBookingController extends AbstractController
             return new JsonResponse(['error' => 'Buchung nicht gefunden'], 404);
         }
 
+        $linkedFollowUps = $this->entityManager->getRepository(AccountingAcquisitionFollowUp::class)
+            ->findBy(['accountingBooking' => $booking]);
+        foreach ($linkedFollowUps as $followUp) {
+            if (!$followUp instanceof AccountingAcquisitionFollowUp) {
+                continue;
+            }
+            $followUp->setStatus(AccountingAcquisitionFollowUp::STATUS_PENDING);
+            $followUp->setAccountingBooking(null);
+            $followUp->touchUpdatedAt();
+            $this->inboxMessages->syncAccountingFollowUp($followUp);
+        }
+
         $this->receiptStorage->deleteAllForBooking($booking);
         $this->entityManager->remove($booking);
         $this->entityManager->flush();

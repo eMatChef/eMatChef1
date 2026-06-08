@@ -696,6 +696,8 @@
       "toastCreated": "Écriture saisie.",
       "deleteConfirmTitle": "Supprimer l’écriture ?",
       "deleteConfirmMessage": "Supprimer vraiment l’écriture du {date} pour CHF {amount} ?",
+      "deleteConfirmWarning": "Cette action est irréversible. Les pièces jointes seront également supprimées.",
+      "deleteConfirmFollowUpWarning": "Les acquisitions liées réapparaîtront sous « Nouvelle écriture à affecter ».",
       "ccLoadError": "Impossible de charger les centres de coûts.",
       "listLoadError": "Impossible de charger les écritures."
     },

@@ -337,14 +337,46 @@
           <div v-else class="batch-wizard-stock">
           <!-- Wie Material-Wizard „Initialer Bestand“: Menge, Kaufdatum, Preis in einer Zeile -->
           <div class="form-row mb-2">
+            <div v-if="showBatchStockUnitReadonly" class="form-group span-full">
+              <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+              <div class="stock-unit-options stock-unit-options--readonly" role="group" aria-readonly="true">
+                <span
+                  v-for="opt in batchStockUnitOptions"
+                  :key="opt.value"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: readonlyStockUnit === opt.value }"
+                >
+                  {{ opt.label }}
+                </span>
+              </div>
+              <p class="batch-field-hint">{{ batchStockUnitDetailHint }}</p>
+              <p v-if="isEditMode" class="batch-field-hint">{{ t('components.batchModal.unitChangeInMaterialHint') }}</p>
+            </div>
+            <div v-else-if="showBatchStockUnitSelector" class="form-group span-full">
+              <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+              <div class="stock-unit-options" role="tablist">
+                <button
+                  v-for="opt in batchStockUnitOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: batchStockUnit === opt.value }"
+                  @click="setBatchStockUnit(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <p class="batch-field-hint">{{ batchStockUnitHint }}</p>
+            </div>
             <div class="form-group">
               <label>{{ quantityLabel }} <span class="required" v-if="!isEditMode">*</span></label>
+              <p v-if="batchMeterLengthHint" class="batch-field-hint">{{ batchMeterLengthHint }}</p>
               <div v-if="showQtyEntryModes" class="qty-entry-modes" role="tablist">
                 <button
                   type="button"
                   class="qty-entry-mode-btn"
                   :class="{ active: qtyEntryMode === 'base' }"
-                  @click="qtyEntryMode = 'base'"
+                  @click="setQtyEntryMode('base')"
                 >
                   {{ stockUnitLabel }}
                 </button>
@@ -353,16 +385,16 @@
                   type="button"
                   class="qty-entry-mode-btn"
                   :class="{ active: qtyEntryMode === 'pack' }"
-                  @click="qtyEntryMode = 'pack'"
+                  @click="setQtyEntryMode('pack')"
                 >
-                  {{ props.packUnit }}
+                  {{ effectivePackUnitName }}
                 </button>
                 <button
                   v-if="canUseContentEntry"
                   type="button"
                   class="qty-entry-mode-btn"
                   :class="{ active: qtyEntryMode === 'content' }"
-                  @click="qtyEntryMode = 'content'"
+                  @click="setQtyEntryMode('content')"
                 >
                   m
                 </button>
@@ -394,11 +426,15 @@
               </div>
             </div>
             <div class="form-group">
-              <label>{{ unitPriceLabel }}</label>
+              <label>
+                {{ unitPriceLabel }}
+                <span v-if="unitPriceOptional && !isEditMode" class="optional-label">({{ t('common.optional') }})</span>
+              </label>
               <div class="price-input">
                 <span class="currency">{{ t('components.batchModal.currency') }}</span>
                 <input v-model="form.unit_price" type="text" class="form-input" :placeholder="t('components.batchModal.pricePlaceholder')" />
               </div>
+              <p v-if="unitPriceOptional && !isEditMode" class="batch-field-hint">{{ unitPriceOptionalHint }}</p>
             </div>
           </div>
 
@@ -546,6 +582,26 @@
             v-if="!isSerializedAddMode && ((!isSerializedMaterial && !form.split_allocations) || (isSerializedMaterial && isEditMode))"
             class="batch-form-row"
           >
+            <div
+              v-if="isEditMode && comboStorageContext?.parentMaterialId"
+              class="batch-combo-storage-context"
+            >
+              <p class="batch-combo-storage-context-title">
+                {{ t('components.batchModal.comboStorageContextTitle') }}
+              </p>
+              <p class="batch-combo-storage-context-line">
+                <template v-if="comboStorageContext.containerDisplayName">
+                  {{ t('components.batchModal.comboStorageInContainer', { container: comboStorageContext.containerDisplayName }) }}
+                </template>
+                <template v-else>{{ t('components.batchModal.comboStoragePartOf') }}</template>
+                <RouterLink :to="comboDetailRoute" class="batch-combo-storage-link">
+                  {{ comboStorageContext.parentName }}
+                </RouterLink>
+              </p>
+              <p v-if="comboStorageContext.locationLabel" class="batch-field-hint">
+                {{ t('components.batchModal.comboStorageLocationDefault', { place: comboStorageContext.locationLabel }) }}
+              </p>
+            </div>
             <div class="batch-form-group full-width">
               <StorageLocationPicker
                 :show-storage-address="true"
@@ -678,10 +734,19 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
-import { addBatch, updateBatch, type MaterialBatch, type AddBatchRequest, type UpdateBatchRequest, type AddBatchMultiResponse } from '@/api/materials'
+import {
+  addBatch,
+  updateBatch,
+  updateMaterial,
+  type MaterialBatch,
+  type AddBatchRequest,
+  type UpdateBatchRequest,
+  type AddBatchMultiResponse,
+} from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
 import {
   getContainerBatches,
@@ -711,8 +776,11 @@ import {
   getStockUnitKind,
   getStockUnitLabel,
   hasContentPerPiece,
+  isMeterStockUnit,
   isPackagingUnit,
+  sizeLengthCmToMeters,
 } from '@/utils/materialStockUnit'
+import type { BatchComboStorageContext } from '@/utils/batchComboStorageContext'
 
 interface Props {
   materialId: string
@@ -726,17 +794,27 @@ interface Props {
   existingBatches?: MaterialBatch[]
   packUnit?: string | null
   packSize?: number | null
+  sizeLengthCm?: string | number | null
+  referencePurchaseUnitChf?: string | number | null
+  /** Reparaturteile / Abschreibung: Preis nicht erzwingen */
+  unitPriceOptional?: boolean
+  /** Physische Kombi: Sack/Kiste + Gestell der Kombination als Standard-Lagerort */
+  comboStorageContext?: BatchComboStorageContext | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   batch: null,
   initialContainerBatchId: '',
+  comboStorageContext: null,
   trackingType: undefined,
   isSerialized: false,
   materialName: '',
   existingBatches: () => [],
   packUnit: null,
   packSize: null,
+  sizeLengthCm: null,
+  referencePurchaseUnitChf: null,
+  unitPriceOptional: false,
 })
 
 const emit = defineEmits<{
@@ -749,6 +827,12 @@ const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
+
+const comboDetailRoute = computed(() => {
+  const id = props.comboStorageContext?.parentMaterialId
+  if (!id) return { path: '/' }
+  return { path: `/${props.departmentId}/materials/${id}` }
+})
 
 const dialogOpen = ref(true)
 const dialogMaxWidth = computed(() => (isEditMode.value ? 520 : 920))
@@ -817,35 +901,139 @@ const form = reactive({
 })
 
 const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
+const batchStockUnit = ref<'Stk' | 'm'>('Stk')
 
-const stockUnitLabel = computed(() => getStockUnitLabel(props.packUnit))
+const batchStockUnitOptions = computed(() => [
+  { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
+  { value: 'm' as const, label: 'm' },
+])
+
+const meterPieceLengthM = computed(() => sizeLengthCmToMeters(props.sizeLengthCm))
+
+const batchMeterLengthHint = computed(() => {
+  const per = meterPieceLengthM.value
+  if (!isMeterStockUnit(effectivePackUnit.value) || per == null) return ''
+  return t('components.batchModal.meterQtyByCountHint', { per })
+})
+
+function initBatchStockUnitFromProps() {
+  const pu = (props.packUnit || '').trim()
+  batchStockUnit.value = pu === 'm' ? 'm' : 'Stk'
+}
+
+function setBatchStockUnit(unit: 'Stk' | 'm') {
+  batchStockUnit.value = unit
+  qtyEntryMode.value = 'base'
+}
+
+function setQtyEntryMode(mode: 'base' | 'pack' | 'content') {
+  qtyEntryMode.value = mode
+}
+
+const effectivePackUnit = computed((): string | null => {
+  if (isEditMode.value) return props.packUnit ?? null
+  if (batchStockUnit.value === 'm') return 'm'
+  if (isPackagingUnit(props.packUnit)) return props.packUnit ?? 'Stk'
+  return 'Stk'
+})
+
+const effectivePackSize = computed((): number | null => {
+  if (isEditMode.value) {
+    return props.packSize && props.packSize >= 2 ? props.packSize : null
+  }
+  if (batchStockUnit.value === 'm') return null
+  if (isPackagingUnit(props.packUnit) && props.packSize && props.packSize >= 2) {
+    return props.packSize
+  }
+  return null
+})
+
+const useMeterQtyByCount = computed(
+  () => isMeterStockUnit(effectivePackUnit.value) && meterPieceLengthM.value != null,
+)
+
+const effectivePackUnitName = computed(() => effectivePackUnit.value || '')
+
+const materialHasFixedStockUnit = computed(() => {
+  const pu = (props.packUnit || '').trim()
+  return pu === 'm' || pu === 'm²'
+})
+
+const showBatchStockUnitSelector = computed(
+  () => !isEditMode.value && !isSerializedAddMode.value && !materialHasFixedStockUnit.value,
+)
+
+const showBatchStockUnitReadonly = computed(
+  () => (isEditMode.value || materialHasFixedStockUnit.value) && !isSerializedAddMode.value,
+)
+
+const readonlyStockUnit = computed((): 'Stk' | 'm' => {
+  const pu = (props.packUnit || '').trim()
+  if (pu === 'm') return 'm'
+  if (!isEditMode.value) return batchStockUnit.value
+  return 'Stk'
+})
+
+const batchStockUnitDetailHint = computed(() => {
+  const pu = props.packUnit
+  const ps = props.packSize
+  if (isMeterStockUnit(pu)) {
+    const per = meterPieceLengthM.value
+    if (per != null) {
+      return t('components.batchModal.unitHintMeterWithLength', { per })
+    }
+    return t('components.materialDetail.stockUnitLengthRequired')
+  }
+  if (isPackagingUnit(pu) && ps && ps >= 2) {
+    return t('components.batchModal.unitHintPackaging', { pack: pu, size: ps })
+  }
+  return t('components.materialCreateWizard.stockUnitHintStk')
+})
+
+const batchStockUnitHint = computed(() => {
+  if (!showBatchStockUnitSelector.value) return ''
+  if (batchStockUnit.value === 'm') return t('components.materialDetail.stockUnitHintMeterWithLength')
+  return t('components.materialCreateWizard.stockUnitHintStk')
+})
+
+const stockUnitLabel = computed(() => getStockUnitLabel(effectivePackUnit.value))
 
 const canUsePackEntry = computed(
-  () => isPackagingUnit(props.packUnit) && !!props.packSize && props.packSize >= 2,
+  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
 )
-const canUseContentEntry = computed(() => hasContentPerPiece(props.packUnit, props.packSize))
+const canUseContentEntry = computed(() =>
+  hasContentPerPiece(effectivePackUnit.value, effectivePackSize.value),
+)
 const showQtyEntryModes = computed(
-  () => !isEditMode.value && (canUsePackEntry.value || canUseContentEntry.value),
+  () => canUsePackEntry.value || canUseContentEntry.value,
 )
 
-const quantityLabel = computed(() =>
-  t('components.batchModal.quantityWithUnit', { unit: stockUnitLabel.value }),
-)
+const quantityLabel = computed(() => {
+  if (useMeterQtyByCount.value) return t('components.batchModal.quantityCountLabel')
+  return t('components.batchModal.quantityWithUnit', { unit: stockUnitLabel.value })
+})
 
 const unitPriceLabel = computed(() =>
   t('components.batchModal.unitPricePerUnit', { unit: stockUnitLabel.value }),
 )
 
+const unitPriceOptionalHint = computed(() =>
+  t('components.batchModal.unitPriceOptionalHint', { unit: stockUnitLabel.value }),
+)
+
 const qtyInputMin = computed(() => (qtyEntryMode.value === 'content' ? 1 : 1))
 const qtyInputStep = computed(() =>
-  qtyEntryMode.value === 'content' || getStockUnitKind(props.packUnit) !== 'piece' ? 1 : 1,
+  qtyEntryMode.value === 'content' || getStockUnitKind(effectivePackUnit.value) !== 'piece' ? 1 : 1,
 )
 
 const qtyPlaceholder = computed(() => {
-  if (qtyEntryMode.value === 'pack' && props.packUnit) {
-    return t('components.batchModal.qtyPlaceholderPack', { unit: props.packUnit })
+  if (useMeterQtyByCount.value) {
+    return t('components.batchModal.qtyPlaceholderCount')
   }
-  if (qtyEntryMode.value === 'content') {
+  if (qtyEntryMode.value === 'pack' && effectivePackUnitName.value) {
+    return t('components.batchModal.qtyPlaceholderPack', { unit: effectivePackUnitName.value })
+  }
+  if (qtyEntryMode.value === 'content' || isMeterStockUnit(effectivePackUnit.value)) {
     return t('components.batchModal.qtyPlaceholderMeters')
   }
   return t('components.batchModal.qtyPlaceholderMin')
@@ -853,7 +1041,11 @@ const qtyPlaceholder = computed(() => {
 
 const displayQty = computed({
   get(): number {
-    const size = props.packSize || 0
+    const per = meterPieceLengthM.value
+    if (useMeterQtyByCount.value && per) {
+      return form.qty > 0 ? Math.max(1, Math.round(form.qty / per)) : 1
+    }
+    const size = effectivePackSize.value || 0
     if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && size > 0) {
       return Math.max(1, Math.round(form.qty / size)) || 1
     }
@@ -864,7 +1056,16 @@ const displayQty = computed({
   },
   set(raw: number) {
     const n = Number(raw)
-    const size = props.packSize || 0
+    const per = meterPieceLengthM.value
+    if (useMeterQtyByCount.value && per) {
+      if (!Number.isFinite(n) || n < 1) {
+        form.qty = Math.max(1, Math.round(per))
+        return
+      }
+      form.qty = Math.max(1, Math.round(n * per))
+      return
+    }
+    const size = effectivePackSize.value || 0
     if (!Number.isFinite(n) || n < 1) {
       form.qty = 1
       return
@@ -882,11 +1083,20 @@ const displayQty = computed({
 })
 
 const qtyEntryHint = computed(() => {
-  const size = props.packSize || 0
-  if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && props.packUnit) {
+  const per = meterPieceLengthM.value
+  if (useMeterQtyByCount.value && per) {
+    return t('components.batchModal.meterQtyTotalHint', {
+      count: displayQty.value,
+      per,
+      total: form.qty,
+    })
+  }
+  const size = effectivePackSize.value || 0
+  const packName = effectivePackUnitName.value
+  if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && packName) {
     return t('components.batchModal.qtyHintPack', {
       count: displayQty.value,
-      unit: props.packUnit,
+      unit: packName,
       total: form.qty,
       stockUnit: stockUnitLabel.value,
     })
@@ -901,11 +1111,31 @@ const qtyEntryHint = computed(() => {
   if (canUseContentEntry.value && qtyEntryMode.value === 'base') {
     return t('components.batchModal.qtyHintPerPiece', { per: size, unit: 'm' })
   }
-  if (canUsePackEntry.value && qtyEntryMode.value === 'base' && props.packUnit) {
-    return t('components.batchModal.qtyHintPackSize', { per: size, unit: props.packUnit })
+  if (canUsePackEntry.value && qtyEntryMode.value === 'base' && packName) {
+    return t('components.batchModal.qtyHintPackSize', { per: size, unit: packName })
   }
   return ''
 })
+
+function resolveBatchPackFieldsForSave(): { pack_unit: string | null; pack_size: number | null } {
+  if (isEditMode.value) {
+    return { pack_unit: props.packUnit || null, pack_size: props.packSize ?? null }
+  }
+  if (batchStockUnit.value === 'm') {
+    return { pack_unit: 'm', pack_size: null }
+  }
+  if (isPackagingUnit(props.packUnit || '') && props.packSize && props.packSize >= 2) {
+    return { pack_unit: props.packUnit || null, pack_size: props.packSize }
+  }
+  return { pack_unit: 'Stk', pack_size: null }
+}
+
+function batchPackFieldsChanged(): boolean {
+  const next = resolveBatchPackFieldsForSave()
+  const curUnit = (props.packUnit || '').trim() || null
+  const curSize = props.packSize && props.packSize >= 2 ? props.packSize : null
+  return next.pack_unit !== curUnit || next.pack_size !== curSize
+}
 
 /** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
 const stockLocationMode = ref<'slot' | 'kiste'>('slot')
@@ -1178,6 +1408,17 @@ const allocationRows = ref<AllocationRow[]>([])
 const containerBatches = ref<ContainerBatch[]>([])
 const prefilledContainerMode = ref(false)
 
+function applyComboStorageDefaults(): void {
+  const ctx = props.comboStorageContext
+  if (!ctx?.rackId || form.rack_id) return
+  form.rack_id = ctx.rackId
+  form.slot_id = ctx.slotId || ''
+  const rack = racks.value.find((r) => r.id === ctx.rackId)
+  if (rack?.storage_address_id) {
+    form.storage_address_id = rack.storage_address_id
+  }
+}
+
 function getTodayIsoDate(): string {
   const now = new Date()
   const y = now.getFullYear()
@@ -1423,6 +1664,8 @@ onMounted(async () => {
     if (form.rack_id) {
       const selectedRack = racks.value.find((rack) => rack.id === form.rack_id)
       form.storage_address_id = selectedRack?.storage_address_id || ''
+    } else {
+      applyComboStorageDefaults()
     }
     // Lieferant aus Batch vorbelegen (wenn vorhanden)
     if ((props.batch as any).supplier_id) {
@@ -1436,6 +1679,11 @@ onMounted(async () => {
   } else {
     form.acquired_on = getTodayIsoDate()
     pickPreferredLocation()
+    initBatchStockUnitFromProps()
+    const refPrice = props.referencePurchaseUnitChf
+    if (refPrice != null && String(refPrice).trim() !== '') {
+      form.unit_price = String(refPrice)
+    }
   }
 
   if (isSerializedAddMode.value) {
@@ -1462,6 +1710,18 @@ onMounted(async () => {
     await prefetchSlotPreviewsForRack(form.rack_id)
   }
 })
+
+watch(
+  () => props.comboStorageContext,
+  async (ctx) => {
+    if (!isEditMode.value || !ctx || form.rack_id) return
+    applyComboStorageDefaults()
+    if (form.rack_id) {
+      await fetchSlotsEnsuringDefault(form.rack_id)
+      await prefetchSlotPreviewsForRack(form.rack_id)
+    }
+  },
+)
 
 watch(serialLocationSameForAll, async (same) => {
   if (same || !isSerializedAddMode.value) return
@@ -1593,11 +1853,16 @@ function batchAddUnitPricePositive(): boolean {
   return Number.isFinite(up) && up > 0
 }
 
+function batchAddUnitPriceValid(): boolean {
+  if (props.unitPriceOptional) return true
+  return batchAddUnitPricePositive()
+}
+
 const canSubmit = computed(() => {
   if (isEditMode.value) {
     return form.qty >= 1
   }
-  if (!batchAddUnitPricePositive()) return false
+  if (!batchAddUnitPriceValid()) return false
   if (!form.acquired_on) return false
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) return false
@@ -1616,7 +1881,7 @@ const canSubmit = computed(() => {
 
 const missingFields = computed(() => {
   const missing: string[] = []
-  if (!isEditMode.value && !batchAddUnitPricePositive()) {
+  if (!isEditMode.value && !props.unitPriceOptional && !batchAddUnitPricePositive()) {
     missing.push(t('components.batchModal.valUnitPrice'))
   }
   if (!isEditMode.value && !form.acquired_on) {
@@ -1833,6 +2098,14 @@ async function handleSubmit() {
         }
 
         result = await addBatch(props.materialId, payload)
+      }
+
+      if (batchPackFieldsChanged()) {
+        const packFields = resolveBatchPackFieldsForSave()
+        await updateMaterial(props.materialId, {
+          pack_unit: packFields.pack_unit,
+          pack_size: packFields.pack_size,
+        })
       }
     }
 
@@ -2340,5 +2613,37 @@ async function handleSubmit() {
 
 .batch-autocomplete-item.batch-ac-create .batch-ac-name {
   color: #059669;
+}
+
+.batch-combo-storage-context {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.batch-combo-storage-context-title {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0c4a6e;
+}
+
+.batch-combo-storage-context-line {
+  margin: 0 0 4px;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.batch-combo-storage-link {
+  margin-left: 0.25rem;
+  font-weight: 600;
+  color: #0369a1;
+  text-decoration: none;
+}
+
+.batch-combo-storage-link:hover {
+  text-decoration: underline;
 }
 </style>

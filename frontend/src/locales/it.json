@@ -600,6 +600,8 @@
       "toastCreated": "Registrazione registrata.",
       "deleteConfirmTitle": "Eliminare la registrazione?",
       "deleteConfirmMessage": "Eliminare davvero la voce del {date} per CHF {amount}?",
+      "deleteConfirmWarning": "Questa azione non può essere annullata. Anche i file delle ricevute verranno eliminati.",
+      "deleteConfirmFollowUpWarning": "Gli acquisti collegati compariranno di nuovo in «Assegna nuova registrazione».",
       "ccLoadError": "Impossibile caricare i centri di costo.",
       "listLoadError": "Impossibile caricare le registrazioni."
     },

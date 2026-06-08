@@ -772,12 +772,15 @@
 
                   <div v-if="creationMode === 'physical_combo'" class="form-group physical-combo-main-storage">
                     <label class="form-label-sm">{{ t('components.materialCreateWizard.labelMainStorageCombo') }}</label>
-                    <p class="field-hint">
+                    <p v-if="hasComboLinkedContainerFromComponent" class="field-hint">
+                      {{ t('components.materialCreateWizard.comboLinkedContainerStorageHint') }}
+                    </p>
+                    <p v-else class="field-hint">
                       {{ t('components.materialCreateWizard.physicalComboStorageHintA') }}<strong>{{
                         t('components.materialCreateWizard.wordOr')
                       }}</strong>{{ t('components.materialCreateWizard.physicalComboStorageHintB') }}
                     </p>
-                    <div class="stock-location-mode mb-2">
+                    <div v-if="!hasComboLinkedContainerFromComponent" class="stock-location-mode mb-2">
                       <div class="lagerung-switch" role="tablist">
                         <button
                           type="button"
@@ -797,7 +800,7 @@
                         </button>
                       </div>
                     </div>
-                    <template v-if="formData.stock_location_mode === 'slot'">
+                    <template v-if="formData.stock_location_mode === 'slot' || hasComboLinkedContainerFromComponent">
                       <StorageLocationPicker
                         variant="compact"
                         class="material-wizard-storage-picker"
@@ -946,48 +949,18 @@
               <div v-show="isStepOpen('combo_articles')" class="step-content">
                 <p class="step-hint">{{ t('components.materialCreateWizard.comboArticlesMinHint') }}</p>
                 
-                <!-- Material-Suche -->
-                <div class="combo-search">
-                  <input 
-                    v-model="comboMaterialSearch" 
-                    type="text" 
-                    class="form-input"
-                    :placeholder="t('components.materialCreateWizard.comboMaterialSearchPlaceholder')"
-                    @input="searchComboMaterials"
-                  />
-                  <div v-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length > 0" class="combo-dropdown">
-                    <div 
-                      v-for="mat in filteredComboMaterials" 
-                      :key="mat.id"
-                      class="combo-item"
-                      @click="addComboMaterial(mat)"
-                    >
-                      <div class="combo-item-info">
-                        <span class="combo-item-name">{{ mat.name }}</span>
-                        <span class="combo-item-cat">{{
-                          mat.category?.name || t('components.materialCreateWizard.noCategory')
-                        }}</span>
-                      </div>
-                      <span class="combo-item-stock">{{
-                        t('components.materialCreateWizard.comboStockPcs', { n: mat.total_stock })
-                      }}</span>
-                    </div>
-                  </div>
-                  <div v-else-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length === 0" class="combo-dropdown">
-                    <div class="combo-empty">{{ t('components.materialCreateWizard.comboNoMaterialsFound') }}</div>
-                  </div>
-                </div>
-
-                <!-- Hinzugefügte Materialien -->
-                <div v-if="selectedComboMaterials.length > 0 && formData.material_type === 'physical_combo'" class="component-inputs-list">
+                <!-- Physische Kombo: wie Vorlagen-Komponenten (Neu kaufen / Aus Lager) -->
+                <div v-if="formData.material_type === 'physical_combo'" class="component-inputs-list">
                   <div
                     v-for="(mat, index) in selectedComboMaterials"
-                    :key="mat.id"
+                    :key="mat.draftId"
                     class="component-input-card"
                   >
                     <div class="comp-card-header">
                       <div class="comp-card-info">
-                        <span class="comp-card-name">{{ mat.name }}</span>
+                        <span class="comp-card-name">{{
+                          mat.name.trim() || t('components.materialCreateWizard.comboArticleUnnamed')
+                        }}</span>
                         <span class="comp-card-meta">
                           <span v-if="mat.tracking === 'serialized'">{{ t('common.serialNumber') }}</span>
                           <span v-else>{{ t('components.materialCreateWizard.compBulkMetaPcs', { n: mat.qty }) }}</span>
@@ -1008,8 +981,98 @@
                       <button type="button" class="combo-remove" @click="removeComboMaterial(index)">×</button>
                     </div>
 
+                    <div
+                      v-if="mat.mode === 'existing' && !mat.id && mat.name.trim()"
+                      class="comp-resolve-status"
+                    >
+                      <p class="comp-resolve comp-resolve--missing">
+                        {{ t('components.materialCreateWizard.compResolveMissing', { name: mat.name.trim() }) }}
+                      </p>
+                    </div>
+
                     <div class="comp-card-body">
-                      <template v-if="mat.tracking === 'serialized' && mat.mode === 'new'">
+                      <template v-if="mat.mode === 'new'">
+                        <MaterialNameInput
+                          v-if="!mat.id"
+                          :model-value="mat.name"
+                          :label="t('components.materialCreateWizard.articleNameLabel')"
+                          :placeholder="t('components.materialCreateWizard.articleNamePlaceholder')"
+                          :is-checking-name="!!mat._isCheckingName"
+                          :name-exists="!!mat._nameExists"
+                          :show-suggestions="!!mat._showNameSuggestions"
+                          :name-suggestions="mat._nameSuggestions || []"
+                          @update:model-value="mat.name = $event"
+                          @input="checkComboArticleNameDebounced(mat)"
+                          @focus="handleComboArticleNameFocus(mat)"
+                          @blur="handleComboArticleNameBlur(mat)"
+                          @select-suggestion="selectComboArticleNameSuggestion(mat, $event)"
+                        />
+                        <div v-if="mat.id && mat.mode === 'new'" class="comp-existing-new-batch">
+                          <p class="comp-existing-new-batch__text">
+                            {{
+                              t('components.materialCreateWizard.comboArticleExistingNewBatchBanner', {
+                                name: mat.name,
+                                tracking: comboArticleTrackingLabel(mat.tracking),
+                              })
+                            }}
+                          </p>
+                          <button
+                            type="button"
+                            class="btn-secondary btn-sm"
+                            @click="clearComboArticleExistingLink(mat)"
+                          >
+                            {{ t('components.materialCreateWizard.comboArticleClearExistingLink') }}
+                          </button>
+                        </div>
+                        <div
+                          v-if="!mat.id && mat._nameExists && mat._duplicateMaterial"
+                          class="name-duplicate-hint name-duplicate-hint--compact"
+                        >
+                          <p class="name-duplicate-hint__text">
+                            {{
+                              t('components.materialCreateWizard.comboArticleDupHint', {
+                                name: mat._duplicateMaterial.name,
+                                tracking: comboArticleTrackingLabel(
+                                  mat._duplicateMaterial.tracking_type === 'serialized'
+                                    ? 'serialized'
+                                    : 'bulk',
+                                ),
+                              })
+                            }}
+                          </p>
+                          <div class="name-duplicate-hint__actions">
+                            <button
+                              type="button"
+                              class="btn-secondary btn-sm"
+                              @click="useExistingComboArticleForNewBatch(mat, mat._duplicateMaterial)"
+                            >
+                              {{ t('components.materialCreateWizard.comboArticleUseExistingNewBatch') }}
+                            </button>
+                            <RouterLink
+                              class="btn-secondary btn-sm name-duplicate-hint__link"
+                              :to="`/${departmentId}/materials/${mat._duplicateMaterial.id}`"
+                            >
+                              {{ t('components.materialCreateWizard.btnToMaterial') }}
+                            </RouterLink>
+                          </div>
+                        </div>
+                        <div v-if="!mat.id" class="form-group">
+                          <label>{{ t('components.materialCreateWizard.labelTracking') }}</label>
+                          <div class="comp-tracking-toggle">
+                            <button
+                              type="button"
+                              :class="['comp-mode-btn', { active: mat.tracking === 'serialized' }]"
+                              @click="setComboArticleTracking(mat, 'serialized')"
+                            >{{ t('components.materialCreateWizard.trackingSerializedShort') }}</button>
+                            <button
+                              type="button"
+                              :class="['comp-mode-btn', { active: mat.tracking === 'bulk' }]"
+                              @click="setComboArticleTracking(mat, 'bulk')"
+                            >{{ t('components.materialCreateWizard.trackingBulkShort') }}</button>
+                          </div>
+                        </div>
+
+                        <template v-if="mat.tracking === 'serialized'">
                         <div class="form-row">
                           <div class="form-group">
                             <label>{{ t('common.serialNumber') }}</label>
@@ -1017,7 +1080,9 @@
                               v-model="mat.serial_number"
                               type="text"
                               class="form-input"
-                              :placeholder="t('components.materialCreateWizard.phSerialExample', { ex: 'SN-001' })"
+                                :placeholder="
+                                  t('components.materialCreateWizard.phSerialExample', { ex: 'SN-001' })
+                                "
                             />
                           </div>
                           <div class="form-group">
@@ -1037,27 +1102,7 @@
                         </div>
                       </template>
 
-                      <template v-else-if="mat.tracking === 'serialized' && mat.mode === 'existing'">
-                        <div v-if="mat._availableBatches?.length" class="comp-batch-select">
-                          <label>{{ t('components.materialCreateWizard.labelPickSerial') }}</label>
-                          <select v-model="mat.batch_id" class="form-select">
-                            <option value="">{{ t('components.materialCreateWizard.selectSerialPlaceholder') }}</option>
-                            <option
-                              v-for="batch in mat._availableBatches"
-                              :key="batch.id"
-                              :value="batch.id"
-                            >
-                              {{ t('components.materialCreateWizard.snDisplay') }}
-                              {{ batch.serial_number || batch.label || batch.id }}
-                            </option>
-                          </select>
-                        </div>
-                        <div v-else class="comp-no-batches">
-                          {{ t('components.materialCreateWizard.noFreeSerialsInStock') }}
-                        </div>
-                      </template>
-
-                      <template v-else-if="mat.tracking === 'bulk' && mat.mode === 'new'">
+                        <template v-else>
                         <div class="form-row">
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.qtyNewPurchase') }}</label>
@@ -1079,10 +1124,89 @@
                           </div>
                         </div>
                         <p class="comp-bulk-info">{{ t('components.materialCreateWizard.bulkInfoAddedToStock') }}</p>
+                        </template>
+
+                        <div
+                          v-if="canMarkComboArticleAsLinkedContainer(mat)"
+                          class="form-row mb-2"
+                        >
+                          <label class="checkbox-label material-wizard-container-flag">
+                            <input
+                              type="checkbox"
+                              :checked="mat.is_linked_container"
+                              @change="setComboArticleLinkedContainer(mat, ($event.target as HTMLInputElement).checked)"
+                            />
+                            <span>{{ t('components.materialCreateWizard.comboLinkedContainerCheckbox') }}</span>
+                          </label>
+                        </div>
                       </template>
 
-                      <template v-else-if="mat.tracking === 'bulk' && mat.mode === 'existing'">
-                        <div class="form-row">
+                      <template v-else>
+                        <div v-if="!mat.id" class="comp-existing-search">
+                          <div class="form-group">
+                            <GlobalSearchInput
+                              v-model="mat._materialSearch"
+                              mode="inline"
+                              pick-on-select
+                              teleport-dropdown
+                              :department-id="departmentId"
+                              default-type="material"
+                              :placeholder="t('components.materialCreateWizard.searchArticle')"
+                              :pick-empty-text="
+                                t('components.materialCreateWizard.compSearchNoMatches', {
+                                  query: mat._materialSearch || '',
+                                })
+                              "
+                              class="material-wizard-comp-search"
+                              @select="onComboArticleSearchSelect(mat, $event)"
+                            />
+                          </div>
+                        </div>
+
+                        <div v-if="mat.id" class="comp-selected-material">
+                          <div class="comp-selected-header">
+                            <span class="comp-selected-check">✓</span>
+                            <span class="comp-selected-name">{{ mat.name }}</span>
+                            <button type="button" class="clear-selection" @click="clearComboArticleSelection(mat)">×</button>
+                          </div>
+                        </div>
+
+                        <template v-if="mat.id && mat.tracking === 'serialized'">
+                          <div v-if="mat._availableBatches?.length" class="comp-batch-select">
+                            <label>{{ t('components.materialCreateWizard.labelPickSerial') }}</label>
+                            <select v-model="mat.batch_id" class="form-select">
+                              <option value="">{{ t('components.materialCreateWizard.selectSerialPlaceholder') }}</option>
+                              <option
+                                v-for="batch in mat._availableBatches"
+                                :key="batch.id"
+                                :value="batch.id"
+                              >
+                                {{ t('components.materialCreateWizard.snDisplay') }}
+                                {{ batch.serial_number || batch.label || batch.id }}
+                              </option>
+                            </select>
+                          </div>
+                          <div v-else class="comp-no-batches">
+                            {{ t('components.materialCreateWizard.noFreeSerialsInStock') }}
+                          </div>
+                          <div
+                            v-if="canMarkComboArticleAsLinkedContainer(mat)"
+                            class="form-row mb-2"
+                          >
+                            <label class="checkbox-label material-wizard-container-flag">
+                              <input
+                                type="checkbox"
+                                :checked="mat.is_linked_container"
+                                :disabled="!mat.batch_id"
+                                @change="setComboArticleLinkedContainer(mat, ($event.target as HTMLInputElement).checked)"
+                              />
+                              <span>{{ t('components.materialCreateWizard.comboLinkedContainerCheckbox') }}</span>
+                            </label>
+                          </div>
+                        </template>
+
+                        <template v-else-if="mat.id && mat.tracking === 'bulk'">
+                          <div class="form-row" style="margin-top: 8px;">
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.labelQtyAssign') }}</label>
                             <input
@@ -1117,16 +1241,69 @@
                             })
                           }}
                         </p>
-                        <p v-else class="comp-bulk-info">{{ t('components.materialCreateWizard.bulkInfoFromStockToTent') }}</p>
+                          <p v-else class="comp-bulk-info">{{
+                            t('components.materialCreateWizard.bulkInfoFromStockToTent')
+                          }}</p>
+                          <div
+                            v-if="canMarkComboArticleAsLinkedContainer(mat)"
+                            class="form-row mb-2"
+                          >
+                            <label class="checkbox-label material-wizard-container-flag">
+                              <input
+                                type="checkbox"
+                                :checked="mat.is_linked_container"
+                                @change="setComboArticleLinkedContainer(mat, ($event.target as HTMLInputElement).checked)"
+                              />
+                              <span>{{ t('components.materialCreateWizard.comboLinkedContainerCheckbox') }}</span>
+                            </label>
+                          </div>
+                        </template>
                       </template>
                     </div>
                   </div>
+
+                  <button type="button" class="btn-outline-small combo-add-article-btn" @click="addEmptyComboArticle">
+                    + {{ t('components.materialCreateWizard.comboAddArticle') }}
+                  </button>
                 </div>
 
-                <div v-else-if="selectedComboMaterials.length > 0" class="combo-list">
+                <!-- Virtuelle Kombo: einfache Suche + Liste -->
+                <template v-else>
+                <div class="combo-search">
+                  <input
+                    v-model="comboMaterialSearch"
+                    type="text"
+                    class="form-input"
+                    :placeholder="t('components.materialCreateWizard.comboMaterialSearchPlaceholder')"
+                    @input="searchComboMaterials"
+                  />
+                  <div v-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length > 0" class="combo-dropdown">
+                    <div
+                      v-for="mat in filteredComboMaterials"
+                    :key="mat.id"
+                      class="combo-item"
+                      @click="addComboMaterial(mat)"
+                    >
+                      <div class="combo-item-info">
+                        <span class="combo-item-name">{{ mat.name }}</span>
+                        <span class="combo-item-cat">{{
+                          mat.category?.name || t('components.materialCreateWizard.noCategory')
+                        }}</span>
+                      </div>
+                      <span class="combo-item-stock">{{
+                        t('components.materialCreateWizard.comboStockPcs', { n: mat.total_stock })
+                      }}</span>
+                    </div>
+                  </div>
+                  <div v-else-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length === 0" class="combo-dropdown">
+                    <div class="combo-empty">{{ t('components.materialCreateWizard.comboNoMaterialsFound') }}</div>
+                  </div>
+                </div>
+
+                <div v-if="selectedComboMaterials.length > 0" class="combo-list">
                   <div 
                     v-for="(mat, index) in selectedComboMaterials" 
-                    :key="mat.id"
+                    :key="mat.draftId"
                     class="combo-list-item"
                   >
                     <span class="combo-list-num">{{ index + 1 }}.</span>
@@ -1147,8 +1324,9 @@
                   </div>
                 </div>
                 <p v-else class="combo-empty-hint">{{ t('components.materialCreateWizard.comboNoArticlesYet') }}</p>
+                </template>
 
-                <p v-if="selectedComboMaterials.length > 0 && selectedComboMaterials.length < 2" class="combo-warning">
+                <p v-if="selectedComboMaterials.filter(isComboArticleDone).length < 2" class="combo-warning">
                   ⚠️ {{ t('components.materialCreateWizard.comboMinTwoRequired') }}
                 </p>
               </div>
@@ -1168,15 +1346,60 @@
               <div v-show="isStepOpen('stock')" class="step-content">
                 <div class="batch-form">
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
+                    <div v-if="!isAddBatchMode" class="form-group span-full">
+                      <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+                      <div class="stock-unit-options" role="tablist">
+                        <button
+                          v-for="opt in stockUnitOptions"
+                          :key="opt.value"
+                          type="button"
+                          class="qty-entry-mode-btn"
+                          :class="{ active: stock_unit === opt.value }"
+                          @click="setStockUnit(opt.value)"
+                        >
+                          {{ opt.label }}
+                        </button>
+                      </div>
+                      <p class="field-hint">{{ wizardStockUnitHint }}</p>
+                    </div>
                     <div class="form-group">
-                      <label>{{ t('components.materialCreateWizard.labelQuantity') }}</label>
+                      <label>{{ wizardQuantityLabel }}</label>
+                      <div v-if="wizardShowQtyEntryModes" class="qty-entry-modes" role="tablist">
+                        <button
+                          type="button"
+                          class="qty-entry-mode-btn"
+                          :class="{ active: qtyEntryMode === 'base' }"
+                          @click="setQtyEntryMode('base')"
+                        >
+                          {{ wizardStockUnitLabel }}
+                        </button>
+                        <button
+                          v-if="wizardCanUsePackEntry"
+                          type="button"
+                          class="qty-entry-mode-btn"
+                          :class="{ active: qtyEntryMode === 'pack' }"
+                          @click="setQtyEntryMode('pack')"
+                        >
+                          {{ wizardPackUnitLabel }}
+                        </button>
+                        <button
+                          v-if="wizardCanUseContentEntry"
+                          type="button"
+                          class="qty-entry-mode-btn"
+                          :class="{ active: qtyEntryMode === 'content' }"
+                          @click="setQtyEntryMode('content')"
+                        >
+                          m
+                        </button>
+                      </div>
                       <input
-                        v-model.number="formData.initial_qty"
+                        v-model.number="wizardDisplayQty"
                         type="number"
                         min="0"
                         class="form-input"
-                        :placeholder="t('components.materialCreateWizard.phQtyPlaceholder')"
+                        :placeholder="wizardQtyPlaceholder"
                       />
+                      <p v-if="wizardQtyEntryHint" class="field-hint">{{ wizardQtyEntryHint }}</p>
                     </div>
                     <div class="form-group">
                       <label>
@@ -1828,7 +2051,7 @@
                   <!-- Massenartikel: Normale Mengen-Eingabe -->
                   <div v-else>
                     <!-- Verpackungseinheit – sobald eine Anzahl eingetragen wurde -->
-                    <div v-if="formData.initial_qty > 0" class="slider-toggle-group pack-toggle-inline">
+                    <div v-if="formData.initial_qty > 0 && stock_unit === 'Stk'" class="slider-toggle-group pack-toggle-inline">
                       <label class="toggle-label">
                         <span class="toggle-wrapper">
                           <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
@@ -2177,7 +2400,7 @@
                     </div>
                     <MaterialMetricInput
                       v-model="formData.size_length"
-                      :label="t('components.materialDetail.labelLengthCm')"
+                      :label="wizardSizeLengthLabel"
                       unit="cm"
                     />
                     <MaterialMetricInput
@@ -2539,6 +2762,9 @@
         >
           <span class="item-name">
             <span v-if="cat.parent_id" class="cat-indent">└ </span>{{ cat.name }}
+            <span v-if="isRepairPartsCategory(cat)" class="cat-system-hint">
+              — {{ t('components.materialCreateWizard.repairPartsCategoryHint') }}
+            </span>
           </span>
           <span class="item-count">{{
             t('components.materialCreateWizard.categoryMaterialCount', { n: cat.material_count ?? 0 })
@@ -2562,10 +2788,42 @@
       </template>
     </div>
   </Teleport>
+
+  <EDialog
+    v-model="stockLengthDialogOpen"
+    :max-width="400"
+    :title="t('components.materialDetail.stockUnitLengthDialogTitle')"
+  >
+    <p class="length-dialog-hint">{{ t('components.materialDetail.stockUnitLengthDialogHint') }}</p>
+    <ETextField
+      v-model="stockLengthMetersInput"
+      type="number"
+      min="0.01"
+      step="any"
+      class="mb-3"
+      :label="t('components.materialDetail.stockUnitLengthDialogLabel')"
+      :placeholder="t('components.materialDetail.stockUnitLengthDialogPlaceholder')"
+      hide-details="auto"
+      autofocus
+    />
+    <template #actions>
+      <EButton variant="secondary" size="small" @click="stockLengthDialogOpen = false">
+        {{ t('common.cancel') }}
+      </EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        :disabled="!wizardParsedLengthMeters"
+        @click="confirmStockLengthDialog"
+      >
+        {{ t('common.save') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, withDefaults } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   createMaterial,
@@ -2579,12 +2837,14 @@ import {
   type CreateComboFromContainerBatchRequest,
   type CreateComboManualRequest,
   type CreateComboManualComponentInput,
+  type Material,
   type MaterialBatch,
   type AddBatchMultiResponse,
   type ComponentSource,
 } from '@/api/materials'
 import { getAddresses, getMaterialWizardSuppliers, type Address } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
+import { getWorkshopSettings } from '@/api/departmentSettings'
 import {
   createStorageRack,
   getRackContents,
@@ -2622,6 +2882,19 @@ import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vu
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
 import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
+import { EButton, EDialog, ETextField } from '@/components/form/base'
+import {
+  applyMaterialUnitSuffixToName,
+  getStockUnitLabel,
+  hasContentPerPiece,
+  isPackagingUnit,
+  parseSizeLengthCm,
+  sizeLengthCmToMeters,
+} from '@/utils/materialStockUnit'
+import {
+  filterUserSelectableCategories,
+  isRepairPartsCategory,
+} from '@/utils/repairPartsCategory'
 import {
   getRentalAmortizationDefaults,
   DEFAULT_RENTAL_AMORTIZATION,
@@ -2638,10 +2911,17 @@ import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import '@/styles/material-wizard.css'
 
-const props = defineProps<{
+const props = withDefaults(
+  defineProps<{
   departmentId: string
   modelValue: boolean
-}>()
+    /** Onboarding: System-Kategorie «Repair-Parts» nicht anbieten */
+    excludeRepairPartsCategory?: boolean
+  }>(),
+  {
+    excludeRepairPartsCategory: false,
+  },
+)
 
 /** Zentrale Lagerstruktur: Gestelle + Fächer (gleiche Quelle wie BatchModal, Activities, …) */
 const {
@@ -2874,6 +3154,7 @@ const comboMaterialSearch = ref('')
 const allMaterials = ref<any[]>([])
 const filteredComboMaterials = ref<any[]>([])
 interface ComboArticleInput {
+  draftId: string
   id: string
   name: string
   category?: { name?: string }
@@ -2885,10 +3166,26 @@ interface ComboArticleInput {
   serial_number: string
   unit_price: string
   batch_id: string
+  is_linked_container: boolean
+  is_container_material?: boolean
+  _materialSearch?: string
   _availableBatches?: MaterialBatch[]
+  _nameExists?: boolean
+  _duplicateMaterial?: { id: string; name: string } | null
+  _nameSuggestions?: Array<{
+    id: string
+    name: string
+    category?: { name?: string }
+    total_stock: number
+    free_stock?: number
+    tracking_type?: string
+  }>
+  _showNameSuggestions?: boolean
+  _isCheckingName?: boolean
 }
 
 const selectedComboMaterials = ref<ComboArticleInput[]>([])
+let comboDraftCounter = 0
 
 // ============ Template-Modus ============
 const isFromTemplate = ref(false)
@@ -2903,18 +3200,232 @@ const hasTemplateConfigurator = computed(() => {
   return (tpl.option_groups?.length ?? 0) > 0 || (tpl.options?.length ?? 0) > 0
 })
 
-// Verpackungseinheit Toggle – setzt pack_size/pack_unit zurück wenn deaktiviert
+const stock_unit = ref<'Stk' | 'm'>('Stk')
+const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
+const stockLengthDialogOpen = ref(false)
+const stockLengthMetersInput = ref('')
+
+const stockUnitOptions = computed(() => [
+  { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
+  { value: 'm' as const, label: 'm' },
+])
+
+const wizardMeterPieceLengthM = computed(() => sizeLengthCmToMeters(formData.size_length))
+
+const wizardUseMeterQtyByCount = computed(
+  () => stock_unit.value === 'm' && wizardMeterPieceLengthM.value != null,
+)
+
+const wizardSizeLengthLabel = computed(() => {
+  const base = t('components.materialDetail.labelLengthCm')
+  return stock_unit.value === 'm' ? `${base} *` : base
+})
+
+const wizardParsedLengthMeters = computed((): number | null => {
+  const raw = stockLengthMetersInput.value.trim()
+  if (!raw) return null
+  const n = Number(raw.replace(',', '.'))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return n
+})
+
+const wizardEffectivePackUnit = computed((): string | null => {
+  if (isAddBatchMode.value && selectedExistingMaterial.value) {
+    return selectedExistingMaterial.value.pack_unit ?? null
+  }
+  if (stock_unit.value === 'm') return stock_unit.value
+  if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
+    return formData.pack_unit
+  }
+  return stock_unit.value
+})
+
+const wizardEffectivePackSize = computed((): number | null => {
+  if (isAddBatchMode.value && selectedExistingMaterial.value) {
+    const size = selectedExistingMaterial.value.pack_size
+    return size && size >= 2 ? size : null
+  }
+  if (stock_unit.value === 'm') return null
+  if (packUnitEnabled.value && isPackagingUnit(formData.pack_unit)) {
+    return formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null
+  }
+  return null
+})
+
+const wizardStockUnitLabel = computed(() => getStockUnitLabel(wizardEffectivePackUnit.value))
+
+const wizardQuantityLabel = computed(() => {
+  if (wizardUseMeterQtyByCount.value) return t('components.batchModal.quantityCountLabel')
+  return t('components.batchModal.quantityWithUnit', { unit: wizardStockUnitLabel.value })
+})
+
+const wizardStockUnitHint = computed(() => {
+  if (isAddBatchMode.value) return ''
+  if (stock_unit.value === 'm') return t('components.materialDetail.stockUnitHintMeterWithLength')
+  return t('components.materialCreateWizard.stockUnitHintStk')
+})
+
+function setStockUnit(unit: 'Stk' | 'm') {
+  if (unit === 'm' && !parseSizeLengthCm(formData.size_length)) {
+    stockLengthMetersInput.value = ''
+    stockLengthDialogOpen.value = true
+    return
+  }
+  stock_unit.value = unit
+  qtyEntryMode.value = 'base'
+}
+
+function confirmStockLengthDialog() {
+  const meters = wizardParsedLengthMeters.value
+  if (meters == null) return
+  formData.size_length = String(Math.round(meters * 100))
+  stock_unit.value = 'm'
+  qtyEntryMode.value = 'base'
+  stockLengthDialogOpen.value = false
+  stockLengthMetersInput.value = ''
+}
+
+function setQtyEntryMode(mode: 'base' | 'pack' | 'content') {
+  qtyEntryMode.value = mode
+}
+
+const wizardCanUsePackEntry = computed(
+  () => isPackagingUnit(wizardEffectivePackUnit.value) && !!wizardEffectivePackSize.value,
+)
+const wizardCanUseContentEntry = computed(() =>
+  hasContentPerPiece(wizardEffectivePackUnit.value, wizardEffectivePackSize.value),
+)
+const wizardShowQtyEntryModes = computed(
+  () => wizardCanUsePackEntry.value || wizardCanUseContentEntry.value,
+)
+
+const wizardPackUnitLabel = computed(() => wizardEffectivePackUnit.value || '')
+
+const wizardQtyPlaceholder = computed(() => {
+  if (qtyEntryMode.value === 'pack' && wizardPackUnitLabel.value) {
+    return t('components.batchModal.qtyPlaceholderPack', { unit: wizardPackUnitLabel.value })
+  }
+  if (wizardUseMeterQtyByCount.value) {
+    return t('components.batchModal.qtyPlaceholderCount')
+  }
+  if (qtyEntryMode.value === 'content' || stock_unit.value === 'm') {
+    return t('components.batchModal.qtyPlaceholderMeters')
+  }
+  return t('components.materialCreateWizard.phQtyPlaceholder')
+})
+
+const wizardDisplayQty = computed({
+  get(): number {
+    const per = wizardMeterPieceLengthM.value
+    if (wizardUseMeterQtyByCount.value && per) {
+      return formData.initial_qty > 0 ? Math.max(1, Math.round(formData.initial_qty / per)) : 0
+    }
+    const size = wizardEffectivePackSize.value || 0
+    if (qtyEntryMode.value === 'pack' && wizardCanUsePackEntry.value && size > 0) {
+      return formData.initial_qty > 0 ? Math.max(1, Math.round(formData.initial_qty / size)) : 0
+    }
+    if (qtyEntryMode.value === 'content' && wizardCanUseContentEntry.value && size > 0) {
+      return formData.initial_qty > 0 ? formData.initial_qty * size : 0
+    }
+    return formData.initial_qty
+  },
+  set(raw: number) {
+    const n = Number(raw)
+    const per = wizardMeterPieceLengthM.value
+    if (wizardUseMeterQtyByCount.value && per) {
+      if (!Number.isFinite(n) || n < 0) {
+        formData.initial_qty = 0
+        return
+      }
+      formData.initial_qty = n > 0 ? Math.max(1, Math.round(n * per)) : 0
+      return
+    }
+    const size = wizardEffectivePackSize.value || 0
+    if (!Number.isFinite(n) || n < 0) {
+      formData.initial_qty = 0
+      return
+    }
+    if (qtyEntryMode.value === 'pack' && wizardCanUsePackEntry.value && size > 0) {
+      formData.initial_qty = n > 0 ? Math.max(1, Math.round(n * size)) : 0
+      return
+    }
+    if (qtyEntryMode.value === 'content' && wizardCanUseContentEntry.value && size > 0) {
+      formData.initial_qty = n > 0 ? Math.max(1, Math.round(n / size)) : 0
+      return
+    }
+    formData.initial_qty = Math.max(0, Math.round(n))
+  },
+})
+
+const wizardQtyEntryHint = computed(() => {
+  const per = wizardMeterPieceLengthM.value
+  if (wizardUseMeterQtyByCount.value && per) {
+    return t('components.batchModal.meterQtyTotalHint', {
+      count: wizardDisplayQty.value,
+      per,
+      total: formData.initial_qty,
+    })
+  }
+  const size = wizardEffectivePackSize.value || 0
+  if (qtyEntryMode.value === 'pack' && wizardCanUsePackEntry.value && wizardPackUnitLabel.value) {
+    return t('components.batchModal.qtyHintPack', {
+      count: wizardDisplayQty.value,
+      unit: wizardPackUnitLabel.value,
+      total: formData.initial_qty,
+      stockUnit: wizardStockUnitLabel.value,
+    })
+  }
+  if (qtyEntryMode.value === 'content' && wizardCanUseContentEntry.value && size > 0) {
+    return t('components.batchModal.qtyHintContent', {
+      meters: wizardDisplayQty.value,
+      per: size,
+      pieces: formData.initial_qty,
+    })
+  }
+  if (wizardCanUseContentEntry.value && qtyEntryMode.value === 'base') {
+    return t('components.batchModal.qtyHintPerPiece', { per: size, unit: 'm' })
+  }
+  if (wizardCanUsePackEntry.value && qtyEntryMode.value === 'base' && wizardPackUnitLabel.value) {
+    return t('components.batchModal.qtyHintPackSize', { per: size, unit: wizardPackUnitLabel.value })
+  }
+  return ''
+})
+
+function resolveWizardPackFields(): { pack_unit: string | null; pack_size: number | null } {
+  if (stock_unit.value === 'm') {
+    return { pack_unit: 'm', pack_size: null }
+  }
+  if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
+    return {
+      pack_unit: formData.pack_unit,
+      pack_size: formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null,
+    }
+  }
+  return { pack_unit: stock_unit.value === 'Stk' ? 'Stk' : null, pack_size: null }
+}
+
+watch(stock_unit, () => {
+  qtyEntryMode.value = 'base'
+})
+
+// Verpackungseinheit Toggle – setzt Verpackungsfelder zurück wenn deaktiviert
 const packUnitEnabled = computed({
-  get: () => !!(formData.pack_size || formData.pack_unit),
+  get: () => {
+    if (stock_unit.value === 'm') return false
+    return !!(formData.pack_size && formData.pack_unit && isPackagingUnit(formData.pack_unit))
+  },
   set: (val: boolean) => {
     if (!val) {
+      if (isPackagingUnit(formData.pack_unit)) {
       formData.pack_size = null
       formData.pack_unit = ''
+      }
       formData.pack_sale_price_chf = null
     } else if (!formData.pack_size) {
       formData.pack_size = 10
+      if (!formData.pack_unit) formData.pack_unit = 'Rolle'
     }
-  }
+  },
 })
 
 /** Stückpreis aus Packungspreis ÷ Stück pro Einheit (Verbrauch/Essen, wenn beides gesetzt). */
@@ -3617,7 +4128,7 @@ const showTemplatePurchaseStep = computed(() => {
     !isFromTemplate.value &&
     !isFromContainerBatchContents.value &&
     creationMode.value === 'physical_combo' &&
-    selectedComboMaterials.value.length >= 2 &&
+    selectedComboMaterials.value.filter(isComboArticleDone).length >= 2 &&
     !!formData.category_id
   ) {
     return true
@@ -3855,6 +4366,7 @@ const canSubmit = computed(() => {
     return false
   }
   if (!formData.material_type) return false
+  if (stock_unit.value === 'm' && !parseSizeLengthCm(formData.size_length)) return false
   
   if (formData.material_type === 'physical') {
     if (!formData.tracking_type) return false
@@ -3884,10 +4396,11 @@ const canSubmit = computed(() => {
   }
 
   if (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') {
-    if (selectedComboMaterials.value.length < 2) return false
+    const completeCount = selectedComboMaterials.value.filter(isComboArticleDone).length
+    if (completeCount < 2) return false
     if (formData.material_type === 'physical_combo' && !isFromTemplate.value && !isFromContainerBatchContents.value) {
       for (const mat of selectedComboMaterials.value) {
-        if (!isComboArticleDone(mat)) return false
+        if (isComboArticlePartiallyFilled(mat) && !isComboArticleDone(mat)) return false
       }
       if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) return false
       if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) return false
@@ -3918,7 +4431,10 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     }
     if (formData.split_allocations) {
       if (!allocationSumValid.value || !hasRelevantAllocationRows.value || hasInvalidAllocationRows.value) {
-        push('stock', `${m}.missingAllocationsSum`, { qty: formData.initial_qty })
+        push('stock', `${m}.missingAllocationsSum`, {
+          qty: formData.initial_qty,
+          unit: wizardStockUnitLabel.value,
+        })
       }
     }
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) {
@@ -4088,7 +4604,7 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
 
   if (
     (formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') &&
-    selectedComboMaterials.value.length < 2
+    selectedComboMaterials.value.filter(isComboArticleDone).length < 2
   ) {
     push('combo_articles', `${m}.missingAddTwoArticles`)
   } else if (
@@ -4097,27 +4613,43 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     !isFromContainerBatchContents.value
   ) {
     for (const mat of selectedComboMaterials.value) {
+      if (!isComboArticlePartiallyFilled(mat) || isComboArticleDone(mat)) continue
+      const label = mat.name.trim() || t('components.materialCreateWizard.comboArticleUnnamed')
       if (mat.mode === 'new') {
+        if (!mat.id && !mat.name.trim()) {
+          push('combo_articles', `${m}.missingEnterArticleName`)
+          break
+        }
         if (mat.tracking === 'serialized' && !mat.serial_number.trim()) {
-          push('combo_articles', `${m}.missingEnterSnForComp`, { name: mat.name })
+          push('combo_articles', `${m}.missingEnterSnForComp`, { name: label })
           break
         }
         if (mat.tracking === 'bulk' && mat.qty < 1) {
-          push('combo_articles', `${m}.missingEnterQtyForComp`, { name: mat.name })
+          push('combo_articles', `${m}.missingEnterQtyForComp`, { name: label })
           break
         }
+      } else if (!mat.id) {
+        push('combo_articles', `${m}.missingPickArticleForComp`, { name: label })
+        break
       } else if (mat.tracking === 'serialized' && !mat.batch_id) {
-        push('combo_articles', `${m}.missingPickSnForComp`, { name: mat.name })
+        push('combo_articles', `${m}.missingPickSnForComp`, { name: label })
         break
       } else if (mat.tracking === 'bulk' && mat.qty < 1) {
-        push('combo_articles', `${m}.missingEnterQtyForComp`, { name: mat.name })
+        push('combo_articles', `${m}.missingEnterQtyForComp`, { name: label })
         break
       }
     }
-    if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
+    if (
+      !hasComboLinkedContainerFromComponent.value &&
+      formData.stock_location_mode === 'kiste' &&
+      !formData.stock_container_batch_id
+    ) {
       push('template_purchase', `${m}.missingPickBoxForCombo`)
     }
-    if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
+    if (
+      (hasComboLinkedContainerFromComponent.value || formData.stock_location_mode === 'slot') &&
+      (!formData.rack_id || !formData.slot_id)
+    ) {
       push('template_purchase', `${m}.missingPickRackSlotForCombo`)
     }
   }
@@ -4166,6 +4698,8 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   formData.pack_size_width = ''
   formData.pack_size_height = ''
   formData.initial_qty = 0
+  stock_unit.value = 'Stk'
+  qtyEntryMode.value = 'base'
   formData.purchase_date = getTodayIso()
   formData.expiry_date = ''
   showExpiryDateForNonFood.value = false
@@ -4481,10 +5015,14 @@ async function loadData() {
     const materialsResult = await getMaterials(props.departmentId).catch(() => [])
     allMaterials.value = materialsResult || []
     
-    // Kategorien laden
+    // Repair-Parts-Kategorie sicherstellen (Materialseite), dann Kategorien laden
+    if (!props.excludeRepairPartsCategory) {
+      await getWorkshopSettings(props.departmentId).catch(() => null)
+    }
     const categoriesResult = await getCategories(props.departmentId).catch(() => [])
     allCategories.value = categoriesResult || []
     applyFoodCategoryIfAvailable()
+    searchCategories()
 
     // Vorlagen laden
     const templatesResult = await getTemplates(props.departmentId, true).catch(() => [])
@@ -4629,23 +5167,41 @@ function onCategoryInputFocus() {
   })
 }
 
+function buildHierarchicalCategoryList(pool: Category[]): Category[] {
+  const sorted: Category[] = []
+  const mainCats = pool.filter((c) => !c.parent_id)
+  mainCats.forEach((main) => {
+    sorted.push(main)
+    sorted.push(...pool.filter((c) => c.parent_id === main.id))
+  })
+  return sorted
+}
+
+function wizardCategoryPool(): Category[] {
+  if (props.excludeRepairPartsCategory) {
+    return filterUserSelectableCategories(allCategories.value)
+  }
+  return allCategories.value
+}
+
 // Kategorie Suche
 function searchCategories() {
   const query = categorySearch.value.toLowerCase().trim()
+  const pool = wizardCategoryPool()
   if (!query) {
-    // Zeige hierarchisch sortiert: Hauptkategorien, dann Unterkategorien
-    const sorted: Category[] = []
-    const mainCats = allCategories.value.filter(c => !c.parent_id)
-    mainCats.forEach(main => {
-      sorted.push(main)
-      const children = allCategories.value.filter(c => c.parent_id === main.id)
-      sorted.push(...children)
-    })
-    filteredCategories.value = sorted.slice(0, 15)
+    let sorted = buildHierarchicalCategoryList(pool)
+    if (!props.excludeRepairPartsCategory) {
+      const repairIdx = sorted.findIndex((c) => isRepairPartsCategory(c))
+      if (repairIdx > 0) {
+        const [repairCat] = sorted.splice(repairIdx, 1)
+        sorted.unshift(repairCat)
+      }
+    }
+    filteredCategories.value = sorted.slice(0, 20)
   } else {
-    filteredCategories.value = allCategories.value
-      .filter(c => c.name.toLowerCase().includes(query))
-      .slice(0, 15)
+    filteredCategories.value = pool
+      .filter((c) => c.name.toLowerCase().includes(query))
+      .slice(0, 20)
   }
   nextTick(() => updateCategoryDropdownPosition(0))
 }
@@ -5008,15 +5564,242 @@ function hideSupplierDropdownDelayed() {
 }
 
 function isComboArticleDone(mat: ComboArticleInput): boolean {
+  const label = mat.name.trim()
   if (mat.mode === 'new') {
-    return mat.tracking === 'serialized' ? !!mat.serial_number.trim() : mat.qty > 0
+    if (!mat.id && !label) return false
+    if (mat.tracking === 'serialized') return !!mat.serial_number.trim()
+    return mat.qty > 0
   }
+  if (!mat.id) return false
   if (mat.tracking === 'serialized') return !!mat.batch_id
   return mat.qty > 0
 }
 
+function isComboArticlePartiallyFilled(mat: ComboArticleInput): boolean {
+  return !!(
+    mat.id ||
+    mat.name.trim() ||
+    mat.serial_number.trim() ||
+    mat.batch_id ||
+    mat.unit_price ||
+    (mat._materialSearch || '').trim()
+  )
+}
+
+function createEmptyComboArticle(mode: 'new' | 'existing' = 'new'): ComboArticleInput {
+  return {
+    draftId: `combo-draft-${++comboDraftCounter}`,
+    id: '',
+    name: '',
+    total_stock: 0,
+    free_stock: 0,
+    tracking: 'serialized',
+    qty: 1,
+    mode,
+    serial_number: '',
+    unit_price: '',
+    batch_id: '',
+    is_linked_container: false,
+    _materialSearch: '',
+    _availableBatches: [],
+    _nameExists: false,
+    _duplicateMaterial: null,
+    _nameSuggestions: [],
+    _showNameSuggestions: false,
+    _isCheckingName: false,
+  }
+}
+
+const comboArticleNameCheckTimeouts: Record<string, ReturnType<typeof setTimeout>> = {}
+
+function filterPhysicalMaterialsForComboLookup(materials: any[]): any[] {
+  return materials.filter((m) => m.material_type === 'physical')
+}
+
+async function refreshComboArticleNameSuggestions(mat: ComboArticleInput): Promise<void> {
+  const q = mat.name.trim()
+  if (q.length < NAME_SUGGEST_MIN_CHARS) {
+    mat._nameSuggestions = []
+    mat._showNameSuggestions = false
+    return
+  }
+  try {
+    const materials = filterPhysicalMaterialsForComboLookup(await materialNameLookupFetcher(q))
+    const ql = q.toLowerCase()
+    mat._nameSuggestions = materials
+      .filter((m) => m.name.toLowerCase().includes(ql))
+      .slice(0, NAME_SUGGEST_LIMIT)
+    mat._showNameSuggestions = (mat._nameSuggestions?.length ?? 0) > 0
+  } catch {
+    mat._nameSuggestions = []
+    mat._showNameSuggestions = false
+  }
+}
+
+function checkComboArticleNameDebounced(mat: ComboArticleInput): void {
+  const existing = comboArticleNameCheckTimeouts[mat.draftId]
+  if (existing) clearTimeout(existing)
+  const q = mat.name.trim()
+  if (!q) {
+    mat._nameExists = false
+    mat._duplicateMaterial = null
+    mat._nameSuggestions = []
+    mat._showNameSuggestions = false
+    return
+  }
+  if (q.length < NAME_SUGGEST_MIN_CHARS) {
+    mat._nameSuggestions = []
+    mat._showNameSuggestions = false
+    return
+  }
+  comboArticleNameCheckTimeouts[mat.draftId] = setTimeout(() => {
+    void refreshComboArticleNameSuggestions(mat)
+  }, 350)
+}
+
+async function performComboArticleNameDuplicateCheck(mat: ComboArticleInput): Promise<void> {
+  const q = mat.name.trim()
+  if (!q || mat.mode !== 'new' || mat.id) {
+    mat._nameExists = false
+    mat._duplicateMaterial = null
+    mat._isCheckingName = false
+    return
+  }
+  mat._isCheckingName = true
+  try {
+    const materials = filterPhysicalMaterialsForComboLookup(await materialNameLookupFetcher(q))
+    const exact = materials.find((m) => m.name.toLowerCase() === q.toLowerCase())
+    mat._nameExists = !!exact
+    mat._duplicateMaterial = exact ?? null
+    const ql = q.toLowerCase()
+    mat._nameSuggestions = materials
+      .filter((m) => m.name.toLowerCase().includes(ql))
+      .slice(0, NAME_SUGGEST_LIMIT)
+  } catch {
+    mat._nameExists = false
+    mat._duplicateMaterial = null
+    mat._nameSuggestions = []
+  } finally {
+    mat._isCheckingName = false
+  }
+}
+
+function handleComboArticleNameFocus(mat: ComboArticleInput): void {
+  mat._showNameSuggestions = (mat._nameSuggestions?.length ?? 0) > 0
+}
+
+function handleComboArticleNameBlur(mat: ComboArticleInput): void {
+  setTimeout(() => {
+    mat._showNameSuggestions = false
+  }, 200)
+  const pending = comboArticleNameCheckTimeouts[mat.draftId]
+  if (pending) {
+    clearTimeout(pending)
+    delete comboArticleNameCheckTimeouts[mat.draftId]
+  }
+  void performComboArticleNameDuplicateCheck(mat)
+}
+
+function comboArticleTrackingLabel(tracking: 'serialized' | 'bulk'): string {
+  return tracking === 'serialized'
+    ? t('components.materialCreateWizard.trackingSerializedShort')
+    : t('components.materialCreateWizard.trackingBulkShort')
+}
+
+function applyExistingComboArticleForNewBatch(mat: ComboArticleInput, material: any): void {
+  mat._showNameSuggestions = false
+  mat._nameExists = false
+  mat._duplicateMaterial = null
+  mat._nameSuggestions = []
+  mat.mode = 'new'
+  mat.id = material.id
+  mat.name = material.name
+  mat.tracking = material.tracking_type === 'serialized' ? 'serialized' : 'bulk'
+  mat.is_container_material = !!material.is_container
+  mat.category = material.category
+  mat.total_stock = material.total_stock ?? 0
+  mat.free_stock = material.free_stock ?? material.total_stock ?? 0
+  mat.serial_number = ''
+  mat.batch_id = ''
+  mat.unit_price = ''
+  mat._materialSearch = material.name
+  if (mat.tracking === 'bulk' && mat.qty < 1) mat.qty = 1
+}
+
+async function useExistingComboArticleForNewBatch(mat: ComboArticleInput, material: any): Promise<void> {
+  applyExistingComboArticleForNewBatch(mat, material)
+}
+
+function clearComboArticleExistingLink(mat: ComboArticleInput): void {
+  const keepName = mat.name
+  mat.id = ''
+  mat.batch_id = ''
+  mat.serial_number = ''
+  mat.is_container_material = undefined
+  mat.is_linked_container = false
+  mat.total_stock = 0
+  mat.free_stock = 0
+  mat._nameExists = false
+  mat._duplicateMaterial = null
+  mat.name = keepName
+}
+
+async function selectComboArticleNameSuggestion(mat: ComboArticleInput, material: any): Promise<void> {
+  applyExistingComboArticleForNewBatch(mat, material)
+}
+
+const comboLinkedContainerDraft = computed(() =>
+  selectedComboMaterials.value.find((mat) => mat.is_linked_container) ?? null,
+)
+
+const hasComboLinkedContainerFromComponent = computed(
+  () => comboLinkedContainerDraft.value !== null,
+)
+
+function canMarkComboArticleAsLinkedContainer(mat: ComboArticleInput): boolean {
+  if (formData.material_type !== 'physical_combo') return false
+  if (mat.mode === 'new') return true
+  if (mat.mode === 'existing' && mat.id) {
+    return mat.is_container_material === true || mat.tracking === 'serialized'
+  }
+  return false
+}
+
+function setComboArticleLinkedContainer(mat: ComboArticleInput, checked: boolean) {
+  if (!checked) {
+    mat.is_linked_container = false
+    return
+  }
+  for (const other of selectedComboMaterials.value) {
+    other.is_linked_container = other.draftId === mat.draftId
+  }
+  if (hasComboLinkedContainerFromComponent.value) {
+    formData.stock_location_mode = 'slot'
+    formData.stock_container_batch_id = ''
+  }
+}
+
+function addEmptyComboArticle() {
+  selectedComboMaterials.value.push(createEmptyComboArticle('new'))
+}
+
+function setComboArticleTracking(mat: ComboArticleInput, tracking: 'serialized' | 'bulk') {
+  if (mat.id) return
+  mat.tracking = tracking
+  mat.serial_number = ''
+  mat.batch_id = ''
+  if (tracking === 'bulk' && mat.qty < 1) mat.qty = 1
+}
+
+watch(hasComboLinkedContainerFromComponent, (hasLinked) => {
+  if (hasLinked) {
+    formData.stock_location_mode = 'slot'
+    formData.stock_container_batch_id = ''
+  }
+})
+
 async function loadComboArticleBatches(mat: ComboArticleInput) {
-  if (mat.tracking !== 'serialized') return
+  if (!mat.id || mat.tracking !== 'serialized') return
   try {
     const fullMaterial = await getMaterial(mat.id)
     mat._availableBatches = (fullMaterial.batches || []).filter(
@@ -5032,9 +5815,62 @@ async function setComboArticleMode(mat: ComboArticleInput, mode: 'new' | 'existi
   mat.serial_number = ''
   mat.unit_price = ''
   mat.batch_id = ''
-  if (mode === 'existing' && mat.tracking === 'serialized') {
+  mat.is_linked_container = false
+  mat.is_container_material = undefined
+  mat._nameExists = false
+  mat._duplicateMaterial = null
+  mat._nameSuggestions = []
+  mat._showNameSuggestions = false
+  mat._isCheckingName = false
+  if (mode === 'existing') {
+    if (mat.name.trim() && !mat._materialSearch) {
+      mat._materialSearch = mat.name.trim()
+    }
+    if (mat.id && mat.tracking === 'serialized') {
     await loadComboArticleBatches(mat)
   }
+  } else if (mat.id) {
+    clearComboArticleSelection(mat)
+  }
+}
+
+async function onComboArticleSearchSelect(mat: ComboArticleInput, suggestion: { type: string; id: string }) {
+  if (suggestion.type !== 'material') return
+  try {
+    const loaded = await getMaterial(suggestion.id)
+    if (loaded.material_type !== 'physical') {
+      toast.error(t('components.materialCreateWizard.compSearchOnlyPhysical'))
+      return
+    }
+    mat.id = loaded.id
+    mat.name = loaded.name
+    mat.category = loaded.category
+    mat.total_stock = loaded.total_stock ?? 0
+    mat.free_stock = loaded.free_stock ?? loaded.total_stock ?? 0
+    mat.tracking = loaded.tracking_type === 'serialized' ? 'serialized' : 'bulk'
+    mat.is_container_material = !!loaded.is_container
+    mat._materialSearch = loaded.name
+    mat.batch_id = ''
+    mat.is_linked_container = false
+    if (mat.tracking === 'serialized') {
+      await loadComboArticleBatches(mat)
+    }
+  } catch (err) {
+    console.error(t('components.materialCreateWizard.logErrorLoadMaterial'), err)
+    toast.error(t('components.materialCreateWizard.compSearchLoadFailed'))
+  }
+}
+
+function clearComboArticleSelection(mat: ComboArticleInput) {
+  const keepName = mat.name
+  mat.id = ''
+  mat.batch_id = ''
+  mat.is_linked_container = false
+  mat.is_container_material = undefined
+  mat._materialSearch = keepName
+  mat._availableBatches = []
+  mat.total_stock = 0
+  mat.free_stock = 0
 }
 
 // Kombinations-Material Suche (zentrale API wie MaterialLookup)
@@ -5065,25 +5901,33 @@ async function searchComboMaterials() {
 async function addComboMaterial(mat: any) {
   const tracking = (mat.tracking_type === 'serialized' ? 'serialized' : 'bulk') as 'serialized' | 'bulk'
   const entry: ComboArticleInput = {
+    ...createEmptyComboArticle('existing'),
     id: mat.id,
     name: mat.name,
     category: mat.category,
     total_stock: mat.total_stock ?? 0,
     free_stock: mat.free_stock ?? mat.total_stock ?? 0,
     tracking,
-    qty: 1,
-    mode: 'existing',
-    serial_number: '',
-    unit_price: '',
-    batch_id: '',
-    _availableBatches: [],
+    _materialSearch: mat.name,
   }
   selectedComboMaterials.value.push(entry)
-  if (formData.material_type === 'physical_combo' && tracking === 'serialized') {
+  if (tracking === 'serialized') {
     await loadComboArticleBatches(entry)
   }
   comboMaterialSearch.value = ''
   filteredComboMaterials.value = []
+}
+
+function ensureInitialComboArticleRow() {
+  if (
+    formData.material_type !== 'physical_combo' ||
+    isFromTemplate.value ||
+    isFromContainerBatchContents.value ||
+    selectedComboMaterials.value.length > 0
+  ) {
+    return
+  }
+  addEmptyComboArticle()
 }
 
 function removeComboMaterial(index: number) {
@@ -5387,6 +6231,7 @@ async function selectCreationMode(mode: 'individual' | 'physical_combo' | 'virtu
     formData.name = ''
   } else if (mode === 'physical_combo') {
     formData.material_type = 'physical_combo'
+    ensureInitialComboArticleRow()
   } else {
     formData.material_type = 'virtual_combo'
   }
@@ -5609,8 +6454,78 @@ async function ensureStorageSelection(): Promise<void> {
   formData.location_slot = slotName
 }
 
-/** CHF-Gesamtbetrag für Buchhaltungs-Hinweis (Stückpreis × Menge bzw. Serienzeilen). */
+function isPhysicalComboCreation(): boolean {
+  return creationMode.value === 'physical_combo' || formData.material_type === 'physical_combo'
+}
+
+/** Neukäufe in der Stückliste (mode=new mit Stückpreis) — Basis für Buchhaltungs-Follow-up. */
+function computeComboNewPurchaseTotalChf(): number {
+  let total = 0
+  if (
+    isPhysicalComboCreation() &&
+    !isFromTemplate.value &&
+    !isFromContainerBatchContents.value
+  ) {
+    for (const mat of selectedComboMaterials.value) {
+      if (!isComboArticleDone(mat) || mat.mode !== 'new') continue
+      const up = parseChfInput(String(mat.unit_price ?? ''))
+      if (up <= 0) continue
+      const qty = mat.tracking === 'serialized' ? 1 : Math.max(1, Math.floor(Number(mat.qty) || 1))
+      total += up * qty
+    }
+  } else if (isFromTemplate.value && creationMode.value === 'physical_combo') {
+    for (const ci of componentInputs.value) {
+      if (!includeTemplateComponentInPayload(ci)) continue
+      if (ci.mode !== 'new' || ci.component_source === 'self_provided') continue
+      const up = parseChfInput(String(ci.unit_price ?? ''))
+      if (up <= 0) continue
+      const qty = ci.tracking === 'serialized' ? 1 : Math.max(1, Math.floor(Number(ci.qty) || 1))
+      total += up * qty
+    }
+  }
+  return Math.round(total * 100) / 100
+}
+
+function resolveComboFollowUpBatchId(
+  result: Material,
+  wizardComponents?: ComboArticleInput[],
+): string | undefined {
+  const linkedId = (result.linked_container_batch_id || result.linked_container_batch?.id || '').trim()
+  if (wizardComponents?.length) {
+    const newLinked = wizardComponents.find(
+      (m) => m.mode === 'new' && m.is_linked_container && isComboArticleDone(m),
+    )
+    if (newLinked && linkedId) return linkedId
+    for (const mat of wizardComponents.filter((m) => m.mode === 'new' && isComboArticleDone(m))) {
+      const comp = result.combo_components?.find((c) => {
+        if (mat.id && c.component_material.id === mat.id) return true
+        const name = mat.name.trim()
+        return !!name && c.component_material.name.trim() === name
+      })
+      const batchId = comp?.component_batch?.id
+      if (batchId) return batchId
+    }
+  } else if (isFromTemplate.value) {
+    for (const ci of componentInputs.value) {
+      if (!includeTemplateComponentInPayload(ci) || ci.mode !== 'new') continue
+      const comp = result.combo_components?.find((c) => {
+        if (ci.material_id && c.component_material.id === ci.material_id) return true
+        const name = (ci.name || ci.component_type || '').trim()
+        return !!name && c.component_material.name.trim() === name
+      })
+      const batchId = comp?.component_batch?.id
+      if (batchId) return batchId
+    }
+  }
+  if (linkedId) return linkedId
+  return result.combo_components?.find((c) => c.component_batch?.id)?.component_batch?.id
+}
+
+/** CHF-Gesamtbetrag für Buchhaltungs-Hinweis (Stückpreis × Menge bzw. Serienzeilen / Combo-Neukäufe). */
 function computeWizardPurchaseTotalChf(): number {
+  if (isPhysicalComboCreation()) {
+    return computeComboNewPurchaseTotalChf()
+  }
   const up = Number(formData.unit_price)
   if (!Number.isFinite(up) || up <= 0) return 0
   if (formData.tracking_type === 'serialized') {
@@ -5653,6 +6568,9 @@ function buildWizardCostReceiptHint(): string {
     return t('components.materialCreateWizard.receiptLot', {
       name: selectedExistingMaterial.value.name || t('common.material'),
     })
+  }
+  if (isPhysicalComboCreation() && computeComboNewPurchaseTotalChf() > 0 && formData.name?.trim()) {
+    return t('components.materialCreateWizard.receiptComboPurchase', { name: formData.name.trim() })
   }
   if (formData.name?.trim()) {
     return t('components.materialCreateWizard.receiptPurchase', { name: formData.name.trim() })
@@ -5758,21 +6676,31 @@ async function handleSubmit() {
       if (creationMode.value === 'physical_combo' && formData.stock_location_mode === 'slot') {
         await ensureStorageSelection()
       }
-      const components: CreateComboManualComponentInput[] = selectedComboMaterials.value.map((mat) => {
+      const components: CreateComboManualComponentInput[] = selectedComboMaterials.value
+        .filter(isComboArticleDone)
+        .map((mat) => {
         const comp: CreateComboManualComponentInput = {
-          material_id: mat.id,
           qty: mat.qty,
         }
         if (formData.material_type === 'physical_combo') {
           comp.mode = mat.mode
-          if (mat.mode === 'new') {
+        }
+        if (mat.id) {
+          comp.material_id = mat.id
+        } else {
+          comp.name = mat.name.trim()
+          comp.tracking_type = mat.tracking
+        }
+        if (formData.material_type === 'physical_combo' && mat.mode === 'new') {
             if (mat.tracking === 'serialized') {
               comp.serial_number = mat.serial_number.trim()
             }
             if (mat.unit_price) comp.unit_price = mat.unit_price
-          } else if (mat.tracking === 'serialized' && mat.batch_id) {
+        } else if (formData.material_type === 'physical_combo' && mat.tracking === 'serialized' && mat.batch_id) {
             comp.batch_id = mat.batch_id
-          }
+        }
+        if (formData.material_type === 'physical_combo' && mat.is_linked_container) {
+          comp.is_linked_container = true
         }
         return comp
       })
@@ -5787,7 +6715,11 @@ async function handleSubmit() {
         components,
       }
       if (creationMode.value === 'physical_combo') {
-        if (formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id) {
+        if (
+          !hasComboLinkedContainerFromComponent.value &&
+          formData.stock_location_mode === 'kiste' &&
+          formData.stock_container_batch_id
+        ) {
           comboPayload.initial_container_batch_id = formData.stock_container_batch_id
         } else {
           comboPayload.initial_rack_id = formData.rack_id || undefined
@@ -5795,6 +6727,10 @@ async function handleSubmit() {
         }
       }
       const result = await createComboManual(comboPayload)
+      followUpBatchId = resolveComboFollowUpBatchId(
+        result,
+        selectedComboMaterials.value.filter(isComboArticleDone),
+      )
       emit('created', result)
       successMessage =
         creationMode.value === 'physical_combo'
@@ -5883,6 +6819,9 @@ async function handleSubmit() {
         } as any)
         successMessage = t('components.materialCreateWizard.successArticleFromTemplate')
       } else if (result.material) {
+        if (mode === 'physical_combo') {
+          followUpBatchId = resolveComboFollowUpBatchId(result.material as Material)
+        }
         emit('created', result.material as any)
         successMessage =
           mode === 'physical_combo'
@@ -5891,9 +6830,15 @@ async function handleSubmit() {
       }
     } else {
       // Normaler Modus: Neues Material erstellen
+      const resolvedPack = resolveWizardPackFields()
       const payload: CreateMaterialRequest = {
         department_id: props.departmentId,
-        name: formData.name.trim(),
+        name: applyMaterialUnitSuffixToName(
+          formData.name.trim(),
+          resolvedPack.pack_unit,
+          resolvedPack.pack_size,
+          stock_unit.value === 'm' ? parseSizeLengthCm(formData.size_length) : null,
+        ),
         category_id: formData.category_id || null,
         storage_address_id: formData.storage_address_id || null,
         location: combinedLocation,
@@ -5910,8 +6855,8 @@ async function handleSubmit() {
           ? String(formData.reference_purchase_unit_chf)
           : null,
         min_stock: formData.min_stock,
-        pack_size: formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null,
-        pack_unit: formData.pack_unit || null,
+        pack_size: resolvedPack.pack_size,
+        pack_unit: resolvedPack.pack_unit,
         pack_sale_price_chf:
           formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
             ? String(formData.pack_sale_price_chf)
@@ -6061,6 +7006,12 @@ async function initializeOnOpen(): Promise<void> {
 }
 
 // Accordion: nach Formular-Reset alle Schritte offen; nach Erstellmodus-Wahl oder Klick auf eine Kopfzeile nur noch ein Schritt.
+watch(activeStep, (step) => {
+  if (step === 'combo_articles') {
+    ensureInitialComboArticleRow()
+  }
+})
+
 watch(visibleStepIds, (steps) => {
   if (steps.length === 0) {
     activeStep.value = ''

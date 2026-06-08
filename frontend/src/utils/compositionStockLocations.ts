@@ -35,17 +35,24 @@ export interface StorageTargetSuggestion {
   storageAddressId: string | null
 }
 
+export function resolveContainerDisplayName(row: MaterialStorageLocationRow): string | null {
+  if (!row.container_batch_id && !row.container_caption) return null
+  const materialName = (row.container_material_name || '').trim()
+  if (materialName) return materialName
+  return (row.container_caption || '').trim() || null
+}
+
 export function formatStorageRowLabel(row: MaterialStorageLocationRow): string {
   const addr = (row.storage_address_name || '').trim()
   const loc = (row.location_label || '').trim()
   const rack = (row.rack_name || '').trim()
   const slot = (row.slot_name || '').trim()
-  const place = loc || [rack, slot].filter(Boolean).join(' · ')
-  const crate = (row.container_caption || '').trim()
+  const place = loc || (rack ? (slot ? `${rack} / ${slot}` : rack) : slot)
+  const containerName = resolveContainerDisplayName(row)
   const parts: string[] = []
   if (addr) parts.push(addr)
-  if (crate) parts.push(`Kiste ${crate}`)
-  else if (place) parts.push(place)
+  if (place) parts.push(place)
+  if (containerName) parts.push(`Kiste «${containerName}»`)
   return parts.length ? parts.join(' · ') : '–'
 }
 
@@ -57,20 +64,21 @@ function allocationLabel(
   if (cbId) {
     const fromAlloc = alloc.container_batch
     const fromList = containerBatches.find((c) => c.id === cbId)
-    const label =
-      fromAlloc?.label ||
-      fromAlloc?.serial_number ||
-      fromList?.label ||
-      fromList?.serial_number ||
-      fromList?.material_name ||
+    const materialName = (fromAlloc?.material_name || fromList?.material_name || '').trim()
+    const containerName =
+      materialName ||
+      (fromAlloc?.label || fromList?.label || '').trim() ||
+      (fromAlloc?.serial_number || fromList?.serial_number || '').trim() ||
       'Kiste'
-    const materialName = fromAlloc?.material_name || fromList?.material_name
-    const suffix = materialName && materialName !== label ? ` – ${materialName}` : ''
     const rack = fromAlloc?.rack?.name || fromList?.rack?.name
     const slot = fromAlloc?.slot?.name || fromList?.slot?.name
-    const loc = rack ? (slot ? `${rack} / ${slot}` : rack) : ''
-    const detail = loc ? ` (${loc})` : ''
-    return { label: `Kiste ${label}${suffix}${detail}`, kind: 'container', containerBatchId: cbId }
+    const addr = (fromAlloc?.storage_address_name || '').trim()
+    const parts: string[] = []
+    if (addr) parts.push(addr)
+    if (rack) parts.push(slot ? `${rack} / ${slot}` : rack)
+    else if (slot) parts.push(slot)
+    parts.push(`Kiste «${containerName}»`)
+    return { label: parts.join(' · '), kind: 'container', containerBatchId: cbId }
   }
   const addr = (alloc.storage_address_name || '').trim()
   const rack = (alloc.rack?.name || alloc.rack_name || '').trim()

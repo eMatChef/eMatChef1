@@ -390,6 +390,7 @@ import AddressModal from '@/components/AddressModal.vue'
 import { EButton, EDialog, ETextField } from '@/components/form/base'
 import { getAddresses } from '@/api/addresses'
 import { createCategory, getCategories, type Category } from '@/api/categories'
+import { filterUserSelectableCategories } from '@/utils/repairPartsCategory'
 import { getMaterials } from '@/api/materials'
 import { getStorageOverview } from '@/api/storageLocations'
 import {
@@ -752,8 +753,9 @@ async function loadCategoryStatus() {
   categoriesError.value = ''
   try {
     const categories = await getCategories(props.departmentId)
-    categoryCount.value = categories.length
-    onboardingState.value.completed.categoriesConfigured = categories.length > 0
+    const userCategories = filterUserSelectableCategories(categories)
+    categoryCount.value = userCategories.length
+    onboardingState.value.completed.categoriesConfigured = userCategories.length > 0
     persistState()
   } catch (err: any) {
     categoryCount.value = 0

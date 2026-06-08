@@ -935,7 +935,11 @@ class TemplateController extends AbstractController
             if (!$isIndividual && $comboMaterial) {
                 $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
             }
-            if ($isPhysicalCombo && $comboMainBatch) {
+            if (
+                $isPhysicalCombo
+                && $comboMainBatch
+                && trim((string) $comboMainBatch->getSerialNumber()) !== ''
+            ) {
                 $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
             }
             foreach ($comboComponentMaterialsForPublicCode as $mat) {

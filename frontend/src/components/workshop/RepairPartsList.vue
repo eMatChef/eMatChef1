@@ -207,7 +207,10 @@
                   {{ restStockLabel(line) }}
                 </span>
               </div>
-              <p class="parts-rest-hint">{{ t('workshop.repairPartsList.hintRestSource') }}</p>
+              <p class="parts-rest-hint">
+                {{ t('workshop.repairPartsList.hintRestSource') }}
+                {{ t('workshop.repairPartsList.hintRestSourcePrice') }}
+              </p>
             </template>
 
             <template v-else>

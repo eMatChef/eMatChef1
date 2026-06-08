@@ -901,12 +901,27 @@ class MaterialController extends AbstractController
                 $this->entityManager->persist($comp);
             }
 
-            if ($comboBatch !== null) {
-                $this->publicCodeService->reassignBatchPublicCode(
-                    (string) $containerBatch->getId(),
-                    (string) $comboBatch->getId()
+            $componentMaterialsForPublicCode = [];
+            $componentBatchesForPublicCode = [];
+            foreach ($rows as $row) {
+                $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)
+                    ->find($row['material_id']);
+                if (!$componentMaterial) {
+                    continue;
+                }
+                $componentMaterialsForPublicCode[$componentMaterial->getId()] = $componentMaterial;
+                $this->collectComponentBatchesFromLinkedContainer(
+                    $containerBatch,
+                    $componentMaterial,
+                    $componentBatchesForPublicCode,
                 );
             }
+
+            $actorId = $this->getActorUserId();
+            if ($materialType === 'physical_combo') {
+                $this->ensureLinkedContainerBatchPublicCodes($containerBatch, $actorId);
+            }
+            $this->ensureComboComponentPublicCodes($componentMaterialsForPublicCode, $componentBatchesForPublicCode, $actorId);
 
             $this->entityManager->flush();
             $this->entityManager->commit();
@@ -1009,7 +1024,6 @@ class MaterialController extends AbstractController
 
                     return new JsonResponse(['error' => 'initial_container_batch_id ist ungültig'], 400);
                 }
-                $comboMaterial->setLinkedContainerBatch($linkedContainerBatch);
             }
 
             $this->entityManager->persist($comboMaterial);
@@ -1027,43 +1041,72 @@ class MaterialController extends AbstractController
                     $comboMainBatch->setSupplier($supplier);
                 }
                 $this->entityManager->persist($comboMainBatch);
-
-                $allocRes = $this->allocateInitialPhysicalComboBatch($comboMainBatch, $departmentId, $data);
-                if ($allocRes instanceof JsonResponse) {
-                    $this->entityManager->rollback();
-
-                    return $allocRes;
-                }
             }
 
+            $linkedContainerFromComponent = null;
+            $pendingLinkedContainerAllocations = [];
+            $componentMaterialsForPublicCode = [];
+            $componentBatchesForPublicCode = [];
             $sortOrder = 0;
             foreach ($components as $input) {
                 if (!is_array($input)) {
                     continue;
                 }
                 $materialId = trim((string) ($input['material_id'] ?? ''));
-                if ($materialId === '') {
-                    $this->entityManager->rollback();
-
-                    return new JsonResponse(['error' => 'Jede Komponente benötigt material_id'], 422);
-                }
-
-                $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($materialId);
-                if (
-                    !$componentMaterial
-                    || $componentMaterial->getDepartmentId() !== $departmentId
-                    || $componentMaterial->getDeletedAt() !== null
-                    || $componentMaterial->getMaterialType() !== 'physical'
-                ) {
-                    $this->entityManager->rollback();
-
-                    return new JsonResponse([
-                        'error' => sprintf('Komponente "%s" ist ungültig oder kein physischer Artikel', $materialId),
-                    ], 422);
-                }
-
-                $tracking = $componentMaterial->getTrackingType() ?? 'bulk';
                 $mode = ($input['mode'] ?? 'existing') === 'new' ? 'new' : 'existing';
+                $isLinkedContainer = !empty($input['is_linked_container']);
+
+                if ($materialId === '') {
+                    if ($mode !== 'new') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => 'Komponente im Modus «Aus Lager» benötigt material_id',
+                        ], 422);
+                    }
+                    $compName = trim((string) ($input['name'] ?? ''));
+                    if ($compName === '') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse(['error' => 'Neue Komponente benötigt name'], 422);
+                    }
+                    $tracking = ($input['tracking_type'] ?? 'serialized') === 'serialized' ? 'serialized' : 'bulk';
+                    $componentMaterial = new MaterialItem();
+                    $componentMaterial->setId(IdGenerator::generate());
+                    $componentMaterial->setDepartment($department);
+                    $componentMaterial->setName($compName);
+                    $componentMaterial->setMaterialType('physical');
+                    $componentMaterial->setTrackingType($tracking);
+                    if ($isLinkedContainer) {
+                        $componentMaterial->setIsContainer(true);
+                    }
+                    if ($category) {
+                        $componentMaterial->setCategory($category);
+                    }
+                    if ($storageAddress) {
+                        $componentMaterial->setStorageAddress($storageAddress);
+                    }
+                    $this->entityManager->persist($componentMaterial);
+                } else {
+                    $componentMaterial = $this->entityManager->getRepository(MaterialItem::class)->find($materialId);
+                    if (
+                        !$componentMaterial
+                        || $componentMaterial->getDepartmentId() !== $departmentId
+                        || $componentMaterial->getDeletedAt() !== null
+                        || $componentMaterial->getMaterialType() !== 'physical'
+                    ) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf('Komponente "%s" ist ungültig oder kein physischer Artikel', $materialId),
+                        ], 422);
+                    }
+
+                    $tracking = $componentMaterial->getTrackingType() ?? 'bulk';
+                    if ($isLinkedContainer && !$componentMaterial->getIsContainer()) {
+                        $componentMaterial->setIsContainer(true);
+                    }
+                }
                 $componentBatch = null;
                 $qty = max(1, (int) ($input['qty'] ?? 1));
 
@@ -1160,36 +1203,140 @@ class MaterialController extends AbstractController
                 }
                 $this->entityManager->persist($comp);
 
-                if ($isPhysicalCombo && $linkedContainerBatch) {
+                $componentMaterialsForPublicCode[$componentMaterial->getId()] = $componentMaterial;
+                if ($componentBatch) {
+                    $componentBatchesForPublicCode[$componentBatch->getId()] = $componentBatch;
+                }
+
+                if ($isLinkedContainer) {
+                    if ($linkedContainerFromComponent !== null) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => 'Nur ein Artikel kann als Referenz-Sack/Kiste der Kombination markiert werden',
+                        ], 422);
+                    }
+                    if ($componentBatch) {
+                        $componentBatch->setIsContainer(true);
+                        $linkedContainerFromComponent = $componentBatch;
+                    } elseif ($mode === 'existing') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf(
+                                'Komponente "%s": Referenz-Sack/Kiste benötigt eine Seriennummer aus dem Lager',
+                                $componentMaterial->getName(),
+                            ),
+                        ], 422);
+                    } else {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => sprintf(
+                                'Komponente "%s": Referenz-Sack/Kiste konnte nicht erstellt werden',
+                                $componentMaterial->getName(),
+                            ),
+                        ], 422);
+                    }
+                } elseif ($isPhysicalCombo) {
+                    $pendingLinkedContainerAllocations[] = [
+                        'componentBatch' => $componentBatch,
+                        'componentMaterial' => $componentMaterial,
+                        'mode' => $mode,
+                        'qty' => $qty,
+                    ];
+                }
+            }
+
+            $effectiveLinkedContainerBatch = $linkedContainerFromComponent ?? $linkedContainerBatch;
+            if ($effectiveLinkedContainerBatch) {
+                $comboMaterial->setLinkedContainerBatch($effectiveLinkedContainerBatch);
+            }
+
+            if ($isPhysicalCombo && $comboMainBatch) {
+                if ($linkedContainerFromComponent) {
+                    $rackId = isset($data['initial_rack_id']) && $data['initial_rack_id'] !== ''
+                        ? (string) $data['initial_rack_id']
+                        : null;
+                    $slotId = isset($data['initial_slot_id']) && $data['initial_slot_id'] !== ''
+                        ? (string) $data['initial_slot_id']
+                        : null;
+                    if (!$rackId || !$slotId) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse([
+                            'error' => 'Für neuen Referenz-Sack/Kiste: Gestell und Fach sind erforderlich',
+                        ], 400);
+                    }
+                    $rack = $this->entityManager->getRepository(StorageRack::class)->find($rackId);
+                    $slot = $this->entityManager->getRepository(StorageSlot::class)->find($slotId);
+                    if (!$rack || $rack->getDepartmentId() !== $departmentId) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse(['error' => 'initial_rack_id ist ungültig'], 400);
+                    }
+                    if (!$slot || $slot->getRack()->getDepartmentId() !== $departmentId) {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse(['error' => 'initial_slot_id ist ungültig'], 400);
+                    }
+                    $linkedContainerFromComponent->setRack($rack);
+                    $linkedContainerFromComponent->setSlot($slot);
+                    $this->allocateBatchQtyToContainer(
+                        $comboMainBatch,
+                        $linkedContainerFromComponent,
+                        1,
+                        $departmentId,
+                    );
+                } else {
+                    $allocRes = $this->allocateInitialPhysicalComboBatch($comboMainBatch, $departmentId, $data);
+                    if ($allocRes instanceof JsonResponse) {
+                        $this->entityManager->rollback();
+
+                        return $allocRes;
+                    }
+                }
+            }
+
+            if ($isPhysicalCombo && $effectiveLinkedContainerBatch) {
+                foreach ($pendingLinkedContainerAllocations as $pending) {
+                    $componentBatch = $pending['componentBatch'];
+                    $componentMaterial = $pending['componentMaterial'];
+                    $mode = $pending['mode'];
+                    $qty = $pending['qty'];
                     if ($componentBatch) {
                         $this->allocateBatchQtyToContainer(
                             $componentBatch,
-                            $linkedContainerBatch,
+                            $effectiveLinkedContainerBatch,
                             $componentBatch->getQty(),
                             $departmentId,
                         );
                     } elseif ($mode === 'existing') {
-                        $firstBatchId = $this->allocateComponentStockToLinkedContainer(
+                        $this->allocateComponentStockToLinkedContainer(
                             $componentMaterial,
-                            $linkedContainerBatch,
+                            $effectiveLinkedContainerBatch,
                             $qty,
                             $departmentId,
                         );
-                        if ($firstBatchId !== null && $comp->getComponentBatchId() === null) {
-                            $movedBatch = $this->entityManager->getRepository(MaterialBatch::class)->find($firstBatchId);
-                            if ($movedBatch && $movedBatch->getMaterialItemId() === $componentMaterial->getId()) {
-                                $comp->setComponentBatch($movedBatch);
-                            }
-                        }
+                        $this->collectComponentBatchesFromLinkedContainer(
+                            $effectiveLinkedContainerBatch,
+                            $componentMaterial,
+                            $componentBatchesForPublicCode,
+                        );
                     }
                 }
             }
 
             $actorId = $this->getActorUserId();
-            $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
-            if ($comboMainBatch) {
-                $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
+            if ($effectiveLinkedContainerBatch) {
+                $this->ensureLinkedContainerBatchPublicCodes($effectiveLinkedContainerBatch, $actorId);
+            } else {
+                $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
+                if ($comboMainBatch && !$this->shouldSkipBatchPublicCode($comboMaterial, $comboMainBatch)) {
+                    $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
+                }
             }
+            $this->ensureComboComponentPublicCodes($componentMaterialsForPublicCode, $componentBatchesForPublicCode, $actorId);
 
             $this->entityManager->flush();
             $this->entityManager->commit();
@@ -3126,8 +3273,8 @@ class MaterialController extends AbstractController
         $out = [];
 
         $allocSql = "
-            SELECT COALESCE(cb.rack_id, a.rack_id) AS rack_id,
-                   COALESCE(cb.slot_id, a.slot_id) AS slot_id,
+            SELECT COALESCE(cb_loc.eff_rack_id, cb.rack_id, a.rack_id) AS rack_id,
+                   COALESCE(cb_loc.eff_slot_id, cb.slot_id, a.slot_id) AS slot_id,
                    a.qty,
                    b.id AS batch_id,
                    NULLIF(TRIM(b.serial_number), '') AS serial_number,
@@ -3136,13 +3283,24 @@ class MaterialController extends AbstractController
                    r.name AS rack_name,
                    s.name AS slot_name,
                    addr.name AS storage_address_name,
-                   COALESCE(NULLIF(TRIM(cb.label), ''), NULLIF(TRIM(cb.serial_number), '')) AS container_caption
+                   NULLIF(TRIM(cmi.name), '') AS container_material_name,
+                   COALESCE(NULLIF(TRIM(cb.label), ''), NULLIF(TRIM(cmi.name), ''), NULLIF(TRIM(cb.serial_number), '')) AS container_caption
             FROM batch_storage_allocation a
             INNER JOIN material_batch b ON a.batch_id = b.id
             INNER JOIN material_item mi ON b.material_item_id = mi.id
             LEFT JOIN material_batch cb ON a.container_batch_id = cb.id
-            LEFT JOIN storage_rack r ON r.id = COALESCE(cb.rack_id, a.rack_id)
-            LEFT JOIN storage_slot s ON s.id = COALESCE(cb.slot_id, a.slot_id)
+            LEFT JOIN material_item cmi ON cb.material_item_id = cmi.id
+            LEFT JOIN LATERAL (
+                SELECT alloc.rack_id AS eff_rack_id, alloc.slot_id AS eff_slot_id
+                FROM batch_storage_allocation alloc
+                WHERE alloc.batch_id = cb.id
+                  AND alloc.container_batch_id IS NULL
+                  AND alloc.rack_id IS NOT NULL
+                ORDER BY alloc.qty DESC
+                LIMIT 1
+            ) cb_loc ON a.container_batch_id IS NOT NULL
+            LEFT JOIN storage_rack r ON r.id = COALESCE(cb_loc.eff_rack_id, cb.rack_id, a.rack_id)
+            LEFT JOIN storage_slot s ON s.id = COALESCE(cb_loc.eff_slot_id, cb.slot_id, a.slot_id)
             LEFT JOIN address addr ON addr.id = r.storage_address_id
             WHERE a.department_id = :departmentId
               AND mi.id = :materialId
@@ -3223,6 +3381,9 @@ class MaterialController extends AbstractController
                 : null,
             'container_caption' => isset($row['container_caption']) && trim((string) $row['container_caption']) !== ''
                 ? trim((string) $row['container_caption'])
+                : null,
+            'container_material_name' => isset($row['container_material_name']) && trim((string) $row['container_material_name']) !== ''
+                ? trim((string) $row['container_material_name'])
                 : null,
         ];
     }
@@ -3345,6 +3506,12 @@ class MaterialController extends AbstractController
             return new JsonResponse(['error' => 'Komponente nicht gefunden'], 404);
         }
 
+        $parentMaterial = $comp->getParentMaterial();
+        $accessCheck = $this->assertDepartmentAccess($parentMaterial->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
         try {
             $data = $request->toArray();
         } catch (\JsonException) {
@@ -3352,6 +3519,7 @@ class MaterialController extends AbstractController
         }
 
         $allocateToContainer = ($data['allocate_to_linked_container'] ?? true) !== false;
+        $setAsLinkedContainer = !empty($data['set_as_linked_container']);
         $oldQty = $comp->getQty();
 
         $this->entityManager->beginTransaction();
@@ -3393,7 +3561,23 @@ class MaterialController extends AbstractController
                 }
             }
 
-            $parentMaterial = $comp->getParentMaterial();
+            if ($setAsLinkedContainer) {
+                if ($parentMaterial->getMaterialType() !== 'physical_combo') {
+                    throw new \RuntimeException('Referenz-Sack/Kiste nur für physische Kombinationen');
+                }
+                $refBatch = $comp->getComponentBatch();
+                if (!$refBatch) {
+                    throw new \RuntimeException('Referenz-Sack/Kiste benötigt eine zugewiesene Charge/Seriennummer');
+                }
+                $componentMaterial = $comp->getComponentMaterial();
+                $componentMaterial->setIsContainer(true);
+                $refBatch->setIsContainer(true);
+                $comp->setQty(1);
+                $parentMaterial->setLinkedContainerBatch($refBatch);
+                $this->ensureLinkedContainerBatchPublicCodes($refBatch, $this->getActorUserId());
+                $allocateToContainer = false;
+            }
+
             $qtyDelta = $comp->getQty() - $oldQty;
             if (
                 $allocateToContainer
@@ -3924,6 +4108,8 @@ class MaterialController extends AbstractController
                 'label' => $componentBatch->getLabel(),
                 'status' => $componentBatch->getStatus(),
                 'qty' => $componentBatch->getQty(),
+                'public_code' => $this->publicCodeService->getActiveBatchPublicCode((string) $componentBatch->getId())?->getPublicCode(),
+                'public_url' => $this->resolveBatchPublicUrlForApi($componentMaterial, $componentBatch),
             ] : null,
             'qty' => $comp->getQty(),
             'component_role' => $comp->getComponentRole(),
@@ -4063,9 +4249,13 @@ class MaterialController extends AbstractController
             return null;
         }
         $mi = $batch->getMaterialItem();
-        $sn = trim((string) ($batch->getSerialNumber() ?: ''));
-        $lb = trim((string) ($batch->getLabel() ?: $mi->getName()));
-        $display = $sn !== '' ? ($sn . ' – ' . $lb) : $lb;
+        $materialName = trim((string) $mi->getName());
+        $lb = trim((string) ($batch->getLabel() ?: $materialName));
+        $display = $lb !== '' ? $lb : $materialName;
+
+        $batchPublicCodeEntry = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId());
+        $batchPublicCode = $batchPublicCodeEntry?->getPublicCode();
+        $batchPublicUrl = $this->resolveBatchPublicUrlForApi($mi, $batch);
 
         return [
             'id' => $batch->getId(),
@@ -4074,6 +4264,8 @@ class MaterialController extends AbstractController
             'serial_number' => $batch->getSerialNumber(),
             'material_name' => $mi->getName(),
             'display_label' => $display,
+            'public_code' => $batchPublicCode,
+            'public_url' => $batchPublicUrl,
         ];
     }
 
@@ -4222,6 +4414,7 @@ class MaterialController extends AbstractController
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'size_length' => $material->getSizeLength(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'barcode_tag' => $material->getBarcodeTag(),
             'image_url' => $material->getPrimaryPhotoUrl(),
@@ -5086,27 +5279,135 @@ class MaterialController extends AbstractController
 
     /**
      * Öffentliche Codes für Etiketten: Material-Code (Segment {mat}) + pro Charge Batch-Code.
-     * Physische Combo aus Kiste: nur Batch-QR (von Kiste übernommen), kein separates Material-QR.
+     * Physische Combo mit Referenz-Sack/Kiste: QR am verknüpften Sack-Batch (Pflicht-Etikett).
      */
     private function ensurePublicCodesForMaterial(MaterialItem $material, ?string $actorUserId): void
     {
         if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
+            $linkedBatch = $material->getLinkedContainerBatch();
+            if ($linkedBatch !== null) {
+                $this->ensureLinkedContainerBatchPublicCodes($linkedBatch, $actorUserId);
+            }
+        } else {
+            $this->publicCodeService->ensureMaterialPublicCode($material, $actorUserId);
             foreach ($material->getBatches() as $batch) {
                 if ($this->shouldSkipBatchPublicCode($material, $batch)) {
                     continue;
                 }
                 $this->publicCodeService->ensureBatchPublicCode($batch, $actorUserId);
             }
-
-            return;
         }
 
-        $this->publicCodeService->ensureMaterialPublicCode($material, $actorUserId);
-        foreach ($material->getBatches() as $batch) {
-            if ($this->shouldSkipBatchPublicCode($material, $batch)) {
+        if (in_array($material->getMaterialType(), ['physical_combo', 'virtual_combo'], true)) {
+            $this->ensurePublicCodesForComboComponents($material, $actorUserId);
+        }
+    }
+
+    /**
+     * @param array<string, MaterialItem> $componentMaterials
+     * @param array<string, MaterialBatch> $componentBatches
+     */
+    private function ensureComboComponentPublicCodes(
+        array $componentMaterials,
+        array $componentBatches,
+        ?string $actorUserId,
+    ): void {
+        foreach ($componentMaterials as $mat) {
+            $this->publicCodeService->ensureMaterialPublicCode($mat, $actorUserId);
+        }
+        foreach ($componentBatches as $batch) {
+            $mat = $batch->getMaterialItem();
+            if ($mat === null || $this->shouldSkipBatchPublicCode($mat, $batch)) {
                 continue;
             }
             $this->publicCodeService->ensureBatchPublicCode($batch, $actorUserId);
+        }
+    }
+
+    private function ensurePublicCodesForComboComponents(MaterialItem $comboMaterial, ?string $actorUserId): void
+    {
+        $components = $this->entityManager->getRepository(MaterialComboComponent::class)
+            ->findBy(['parentMaterial' => $comboMaterial], ['sortOrder' => 'ASC']);
+
+        $componentMaterials = [];
+        $componentBatches = [];
+        foreach ($components as $comp) {
+            $mat = $comp->getComponentMaterial();
+            if ($mat !== null) {
+                $componentMaterials[$mat->getId()] = $mat;
+            }
+            $batch = $comp->getComponentBatch();
+            if ($batch !== null) {
+                $componentBatches[$batch->getId()] = $batch;
+            }
+        }
+
+        $linkedBatch = $comboMaterial->getLinkedContainerBatch();
+        if ($linkedBatch !== null) {
+            foreach ($componentMaterials as $mat) {
+                $this->collectComponentBatchesFromLinkedContainer($linkedBatch, $mat, $componentBatches);
+            }
+        }
+
+        $this->ensureComboComponentPublicCodes($componentMaterials, $componentBatches, $actorUserId);
+    }
+
+    /**
+     * @param array<string, MaterialBatch> $componentBatchesForPublicCode
+     */
+    private function collectComponentBatchesFromLinkedContainer(
+        MaterialBatch $containerBatch,
+        MaterialItem $componentMaterial,
+        array &$componentBatchesForPublicCode,
+    ): void {
+        foreach ($this->findComponentBatchEntitiesInContainer($containerBatch->getId(), $componentMaterial->getId()) as $batch) {
+            $componentBatchesForPublicCode[$batch->getId()] = $batch;
+        }
+    }
+
+    /**
+     * @return MaterialBatch[]
+     */
+    private function findComponentBatchEntitiesInContainer(string $containerBatchId, string $componentMaterialId): array
+    {
+        $conn = $this->entityManager->getConnection();
+        $sql = "
+            SELECT DISTINCT b.id
+            FROM batch_storage_allocation a
+            INNER JOIN material_batch b ON a.batch_id = b.id
+            WHERE a.container_batch_id = :containerId
+              AND b.material_item_id = :materialId
+              AND b.status = 'active'
+        ";
+        $ids = $conn->executeQuery($sql, [
+            'containerId' => $containerBatchId,
+            'materialId' => $componentMaterialId,
+        ])->fetchFirstColumn();
+
+        $repo = $this->entityManager->getRepository(MaterialBatch::class);
+        $result = [];
+        foreach ($ids as $id) {
+            $batch = $repo->find($id);
+            if ($batch !== null) {
+                $result[] = $batch;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Referenz-Sack/Kiste einer physischen Kombi: Material- + Batch-Public-Code (Etikett am Regal).
+     */
+    private function ensureLinkedContainerBatchPublicCodes(MaterialBatch $linkedBatch, ?string $actorUserId): void
+    {
+        $sackMaterial = $linkedBatch->getMaterialItem();
+        if ($sackMaterial === null) {
+            throw new \RuntimeException('Referenz-Sack/Kiste: Material nicht gefunden');
+        }
+        $this->publicCodeService->ensureMaterialPublicCode($sackMaterial, $actorUserId);
+        if (!$this->shouldSkipBatchPublicCode($sackMaterial, $linkedBatch)) {
+            $this->publicCodeService->ensureBatchPublicCode($linkedBatch, $actorUserId);
         }
     }
 

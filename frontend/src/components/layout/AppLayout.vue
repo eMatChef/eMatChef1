@@ -2,13 +2,25 @@
   <SidebarNavigation v-model="drawerOpen" />
   <TopHeader v-if="!isActivityDetailView" v-model:drawer-open="drawerOpen" />
 
-  <v-main class="page-main" :class="{ 'page-main--activity-detail': isActivityDetailView }">
+  <v-main
+    class="page-main"
+    :class="{
+      'page-main--activity-detail': isActivityDetailView,
+      'page-main--material-detail': isMaterialDetailView,
+    }"
+  >
     <TopHeader
       v-if="isActivityDetailView"
       v-model:drawer-open="drawerOpen"
       scroll-with-content
     />
-    <div class="page-content" :class="{ 'page-content--activity-detail': isActivityDetailView }">
+    <div
+      class="page-content"
+      :class="{
+        'page-content--activity-detail': isActivityDetailView,
+        'page-content--material-detail': isMaterialDetailView,
+      }"
+    >
       <router-view v-slot="{ Component }">
         <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
           <component :is="Component" :key="route.path" />
@@ -55,6 +67,12 @@ const authStore = useAuthStore()
 const isActivityDetailView = computed(() => {
   const name = route.name
   return name === 'ActivityDetail' || name === 'ActivityDetailTab'
+})
+
+/** Material-Detail: Header fix, nur Inhalt scrollt. */
+const isMaterialDetailView = computed(() => {
+  if (route.name === 'MaterialDetail') return true
+  return typeof route.params.materialId === 'string' && route.params.materialId.length > 0
 })
 
 useUnsavedChangesReminder()
@@ -199,6 +217,39 @@ watch(
 .page-content--activity-detail {
   padding: 0;
   padding-bottom: calc(12px + var(--emc-safe-bottom));
+}
+
+.page-main--material-detail {
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  min-height: 0 !important;
+}
+
+.page-main--material-detail :deep(.v-main__wrap) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.page-content--material-detail {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  padding-bottom: var(--emc-safe-bottom);
+}
+
+.page-content--material-detail > * {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .onboarding-resume-btn {
