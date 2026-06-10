@@ -1,5 +1,6 @@
 import type { ActivityPackItem, PackMoveStage } from '@/api/activityPackItems'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
+import { packWorkflowTabs } from '@/components/activities/packWorkflowRules'
 
 /** Bestätigt → Gepackt */
 export type PackStageConfirmed = 'confirmed_packed'
@@ -67,24 +68,14 @@ export const PACK_STAGE_KEYS_QUICK_MW: PackStageQuick[] = [
 ]
 
 export function packStageKeysForProfile(profile: PackWorkflowProfile): PackStage[] {
-  if (profile === 'quick') return PACK_STAGE_KEYS_QUICK_MEMBER
-  /** Extern: gleiche MW-Pipeline wie «Aktivität» (Pack → Event → Retour → Ausgepackt), nur MW bearbeitet. */
-  if (profile === 'external') return PACK_STAGE_KEYS_QUICK_MW
-  if (profile === 'logistics') return PACK_STAGE_KEYS_LOGISTICS_MEMBER
-  return []
+  return packWorkflowTabs(profile, false)
 }
 
 export function packStageKeysForProfileAndRole(
   profile: PackWorkflowProfile,
   canManageMaterials: boolean,
 ): PackStage[] {
-  if (profile === 'quick' && canManageMaterials) {
-    return PACK_STAGE_KEYS_QUICK_MW
-  }
-  if (profile === 'logistics' && canManageMaterials) {
-    return PACK_STAGE_KEYS_LOGISTICS_MW
-  }
-  return packStageKeysForProfile(profile)
+  return packWorkflowTabs(profile, canManageMaterials)
 }
 
 export function isPackConfirmedStage(stage: PackStage): boolean {

@@ -980,8 +980,8 @@ function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
-  color: #5b21b6;
-  background: #ede9fe;
+  color: var(--color-primary-dark, #047857);
+  background: var(--color-primary-subtle-bg, #d1fae5);
 }
 
 .activity-mat-result-row {

@@ -126,7 +126,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 **Verpackungseinheit** (`pack_size` / `pack_unit`, z. B. «2 Fackeln pro Sack») ist **unabhängig** von Pack-Behältern und Kombi-Set — nur Bestell-Bündelung.
 
-**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour bzw. Event→Transport zurück / Transport→Retour), `warehouse_store` (Einlagern). **Pro eingeloggtem Benutzer** je Etappe einmal (History `pack_crate_check` mit `user_id`); Checks anderer Personen gelten nicht. Einlagern (`warehouse_store`) und Rückweg (`return`) jeweils erneut.
+**Kistencheck** (beim Verschieben): BOM-Abgleich «alles da?» — Etappen `outbound` (bis Event), `return` (Event→Retour bzw. Event→Transport zurück / Transport→Retour), `warehouse_store` (Einlagern). **Pro eingeloggtem Benutzer** je Etappe einmal (History `pack_crate_check` mit `user_id`); Checks anderer Personen gelten nicht. Einlagern (`warehouse_store`) und Rückweg (`return`) jeweils erneut. Rollen, Modi (voll/leicht) und UI-Regeln: **[pack-workflow-rules.md](./pack-workflow-rules.md)**.
 
 ---
 
@@ -187,4 +187,6 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 ## Siehe auch
 
 - [Aktivitäts-Status](./status.md)
+- [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md)
+- [Pack-Step-UI](./pack-step-ui.md)
 - [Pack-Workflow Geräte](../devices/pack-workflow.md)

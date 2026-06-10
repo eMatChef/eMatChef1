@@ -1103,6 +1103,40 @@
   color: #6b7280;
 }
 
+.combo-search-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.combo-list-item--self-provided {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.combo-list-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.combo-list-name-input {
+  flex: 1;
+  min-width: 140px;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.combo-list-self-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #92400e;
+  line-height: 1.35;
+}
+
 .combo-list-qty {
   display: flex;
   align-items: center;

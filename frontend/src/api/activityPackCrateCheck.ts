@@ -29,6 +29,8 @@ export interface PackCrateCheckRequest {
   container_batch_id?: string | null
   /** Etappe: Hinweg (pack/event) | Rückweg | Einlagern */
   check_leg?: PackCrateCheckLeg
+  /** User/L1–L3: nur History, keine Issue-Reports / Workshop-Tickets */
+  lightweight?: boolean
   result: 'ok' | 'incomplete'
   lines: PackCrateCheckLinePayload[]
 }

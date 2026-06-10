@@ -1048,10 +1048,60 @@ class MaterialController extends AbstractController
             $componentMaterialsForPublicCode = [];
             $componentBatchesForPublicCode = [];
             $sortOrder = 0;
+            $virtualStockComponentCount = 0;
             foreach ($components as $input) {
                 if (!is_array($input)) {
                     continue;
                 }
+                $componentSource = (($input['component_source'] ?? null) === 'self_provided') ? 'self_provided' : 'stock';
+                if ($componentSource === 'self_provided' && $isPhysicalCombo) {
+                    $this->entityManager->rollback();
+
+                    return new JsonResponse([
+                        'error' => '«Selbst mitbringen» ist nur bei virtuellen Kombinationen erlaubt',
+                    ], 422);
+                }
+
+                if ($componentSource === 'self_provided') {
+                    $compName = trim((string) ($input['name'] ?? ''));
+                    if ($compName === '') {
+                        $this->entityManager->rollback();
+
+                        return new JsonResponse(['error' => 'Selbst-mitbringen-Teil benötigt einen Namen'], 422);
+                    }
+                    $qty = max(1, (int) ($input['qty'] ?? 1));
+                    $componentMaterial = new MaterialItem();
+                    $componentMaterial->setId(IdGenerator::generate());
+                    $componentMaterial->setDepartment($department);
+                    $componentMaterial->setName($compName);
+                    $componentMaterial->setMaterialType('physical');
+                    $componentMaterial->setTrackingType('bulk');
+                    if ($category) {
+                        $componentMaterial->setCategory($category);
+                    }
+                    if ($storageAddress) {
+                        $componentMaterial->setStorageAddress($storageAddress);
+                    }
+                    $this->entityManager->persist($componentMaterial);
+
+                    $comp = new MaterialComboComponent();
+                    $comp->setId(IdGenerator::generate13('cc'));
+                    $comp->setParentMaterial($comboMaterial);
+                    $comp->setComponentMaterial($componentMaterial);
+                    $comp->setQty($qty);
+                    $comp->setAssignmentMode('bulk');
+                    $comp->setComponentRole($compName);
+                    $comp->setComponentSource('self_provided');
+                    $comp->setSortOrder($sortOrder++);
+                    $this->entityManager->persist($comp);
+
+                    $componentMaterialsForPublicCode[$componentMaterial->getId()] = $componentMaterial;
+
+                    continue;
+                }
+
+                $virtualStockComponentCount++;
+
                 $materialId = trim((string) ($input['material_id'] ?? ''));
                 $mode = ($input['mode'] ?? 'existing') === 'new' ? 'new' : 'existing';
                 $isLinkedContainer = !empty($input['is_linked_container']);
@@ -1197,6 +1247,7 @@ class MaterialController extends AbstractController
                 $comp->setQty($qty);
                 $comp->setAssignmentMode($assignmentMode);
                 $comp->setComponentRole($componentMaterial->getName());
+                $comp->setComponentSource('stock');
                 $comp->setSortOrder($sortOrder++);
                 if ($componentBatch) {
                     $comp->setComponentBatch($componentBatch);
@@ -1246,6 +1297,14 @@ class MaterialController extends AbstractController
                         'qty' => $qty,
                     ];
                 }
+            }
+
+            if (!$isPhysicalCombo && $virtualStockComponentCount < 1) {
+                $this->entityManager->rollback();
+
+                return new JsonResponse([
+                    'error' => 'Mindestens ein Teil aus dem Lager ist erforderlich',
+                ], 422);
             }
 
             $effectiveLinkedContainerBatch = $linkedContainerFromComponent ?? $linkedContainerBatch;

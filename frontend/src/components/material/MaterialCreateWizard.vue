@@ -1267,9 +1267,11 @@
                   </button>
                 </div>
 
-                <!-- Virtuelle Kombo: einfache Suche + Liste -->
+                <!-- Virtuelle Kombo: Lager-Teile + selbst mitbringen -->
                 <template v-else>
+                <p class="step-hint">{{ t('components.materialCreateWizard.comboVirtualArticlesHint') }}</p>
                 <div class="combo-search">
+                  <label class="combo-search-label">{{ t('components.materialCreateWizard.comboSearchStockLabel') }}</label>
                   <input
                     v-model="comboMaterialSearch"
                     type="text"
@@ -1299,24 +1301,53 @@
                     <div class="combo-empty">{{ t('components.materialCreateWizard.comboNoMaterialsFound') }}</div>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  class="btn-outline-small combo-add-article-btn"
+                  @click="addEmptySelfProvidedComboArticle"
+                >
+                  + {{ t('components.materialCreateWizard.comboAddSelfProvided') }}
+                </button>
 
                 <div v-if="selectedComboMaterials.length > 0" class="combo-list">
-                  <div 
-                    v-for="(mat, index) in selectedComboMaterials" 
+                  <div
+                    v-for="(mat, index) in selectedComboMaterials"
                     :key="mat.draftId"
                     class="combo-list-item"
+                    :class="{ 'combo-list-item--self-provided': mat.component_source === 'self_provided' }"
                   >
                     <span class="combo-list-num">{{ index + 1 }}.</span>
                     <div class="combo-list-info">
-                      <span class="combo-list-name">{{ mat.name }}</span>
-                      <span class="combo-list-cat">{{ mat.category?.name || '' }}</span>
+                      <div class="combo-list-name-row">
+                        <input
+                          v-if="mat.component_source === 'self_provided'"
+                          v-model="mat.name"
+                          type="text"
+                          class="form-input combo-list-name-input"
+                          :placeholder="t('components.materialCreateWizard.comboSelfProvidedNamePlaceholder')"
+                        />
+                        <span v-else class="combo-list-name">{{ mat.name }}</span>
+                        <span
+                          v-if="mat.component_source === 'self_provided'"
+                          class="comp-optional-badge comp-selfprovided-badge"
+                        >{{ t('components.materialDetail.selfProvidedShortBadge') }}</span>
+                      </div>
+                      <span v-if="mat.component_source === 'stock' && mat.category?.name" class="combo-list-cat">{{
+                        mat.category?.name
+                      }}</span>
+                      <p
+                        v-if="mat.component_source === 'self_provided'"
+                        class="combo-list-self-hint"
+                      >
+                        {{ t('components.materialCreateWizard.compSelfProvidedDesc', { n: mat.qty || 1 }) }}
+                      </p>
                     </div>
                     <div class="combo-list-qty">
                       <label>{{ t('components.materialCreateWizard.labelQtyShort') }}</label>
-                      <input 
-                        v-model.number="mat.qty" 
-                        type="number" 
-                        min="1" 
+                      <input
+                        v-model.number="mat.qty"
+                        type="number"
+                        min="1"
                         class="qty-input"
                       />
                     </div>
@@ -1328,6 +1359,16 @@
 
                 <p v-if="selectedComboMaterials.filter(isComboArticleDone).length < 2" class="combo-warning">
                   ⚠️ {{ t('components.materialCreateWizard.comboMinTwoRequired') }}
+                </p>
+                <p
+                  v-if="
+                    formData.material_type === 'virtual_combo' &&
+                    selectedComboMaterials.filter(isComboArticleDone).length >= 2 &&
+                    !virtualComboHasStockArticle
+                  "
+                  class="combo-warning"
+                >
+                  ⚠️ {{ t('components.materialCreateWizard.comboMinOneStockRequired') }}
                 </p>
               </div>
             </div>
@@ -3249,6 +3290,7 @@ interface ComboArticleInput {
   tracking: 'serialized' | 'bulk'
   qty: number
   mode: 'new' | 'existing'
+  component_source: ComponentSource
   serial_number: string
   unit_price: string
   batch_id: string
@@ -4434,11 +4476,14 @@ const canSubmit = computed(() => {
     return true
   }
 
-  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie ──
+  // ── Virtuelle Kombo (ohne Vorlage): Name + Kategorie + Stückliste ──
   if (creationMode.value === 'virtual_combo') {
     if (!formData.name.trim()) return false
     if (nameExists.value) return false
     if (!formData.category_id) return false
+    const doneArticles = selectedComboMaterials.value.filter(isComboArticleDone)
+    if (doneArticles.length < 2) return false
+    if (!doneArticles.some((m) => m.component_source === 'stock')) return false
     return true
   }
 
@@ -4592,6 +4637,11 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     if (!formData.name.trim()) push('general', `${m}.missingEnterComboName`)
     else if (nameExists.value) push('general', `${m}.missingNameExists`)
     else if (!formData.category_id) push('category', `${m}.missingSelectCategory`)
+    else if (selectedComboMaterials.value.filter(isComboArticleDone).length < 2) {
+      push('combo_articles', `${m}.missingAddTwoArticles`)
+    } else if (!virtualComboHasStockArticle.value) {
+      push('combo_articles', `${m}.comboMinOneStockRequired`)
+    }
     return missing
   }
 
@@ -5684,7 +5734,16 @@ function hideSupplierDropdownDelayed() {
   setTimeout(() => { showSupplierDropdown.value = false }, 200)
 }
 
+const virtualComboHasStockArticle = computed(() =>
+  selectedComboMaterials.value
+    .filter(isComboArticleDone)
+    .some((m) => m.component_source === 'stock'),
+)
+
 function isComboArticleDone(mat: ComboArticleInput): boolean {
+  if (mat.component_source === 'self_provided') {
+    return !!mat.name.trim() && mat.qty > 0
+  }
   const label = mat.name.trim()
   if (mat.mode === 'new') {
     if (!mat.id && !label) return false
@@ -5717,6 +5776,7 @@ function createEmptyComboArticle(mode: 'new' | 'existing' = 'new'): ComboArticle
     tracking: 'serialized',
     qty: 1,
     mode,
+    component_source: 'stock',
     serial_number: '',
     unit_price: '',
     batch_id: '',
@@ -5904,6 +5964,15 @@ function addEmptyComboArticle() {
   selectedComboMaterials.value.push(createEmptyComboArticle('new'))
 }
 
+function addEmptySelfProvidedComboArticle() {
+  selectedComboMaterials.value.push({
+    ...createEmptyComboArticle('new'),
+    component_source: 'self_provided',
+    tracking: 'bulk',
+    mode: 'new',
+  })
+}
+
 function setComboArticleTracking(mat: ComboArticleInput, tracking: 'serialized' | 'bulk') {
   if (mat.id) return
   mat.tracking = tracking
@@ -6029,6 +6098,7 @@ async function addComboMaterial(mat: any) {
     total_stock: mat.total_stock ?? 0,
     free_stock: mat.free_stock ?? mat.total_stock ?? 0,
     tracking,
+    component_source: 'stock',
     _materialSearch: mat.name,
   }
   selectedComboMaterials.value.push(entry)
@@ -6812,13 +6882,18 @@ async function handleSubmit() {
         .map((mat) => {
         const comp: CreateComboManualComponentInput = {
           qty: mat.qty,
+          component_source: mat.component_source,
         }
         if (formData.material_type === 'physical_combo') {
           comp.mode = mat.mode
+        } else if (mat.component_source === 'self_provided') {
+          comp.mode = 'new'
+          comp.name = mat.name.trim()
+          comp.tracking_type = 'bulk'
         }
-        if (mat.id) {
+        if (mat.component_source === 'stock' && mat.id) {
           comp.material_id = mat.id
-        } else {
+        } else if (mat.component_source === 'stock' && !mat.id) {
           comp.name = mat.name.trim()
           comp.tracking_type = mat.tracking
         }

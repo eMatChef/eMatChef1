@@ -76,13 +76,13 @@
                 <span>{{ row.material_name }}</span>
                 <span
                   v-if="row.material_type === 'physical_combo'"
-                  class="activity-mat-combo-tag"
+                  class="activity-combo-badge"
                   :title="t('activities.detail.comboPhysicalTitle')"
                   ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span
                 >
                 <span
                   v-else-if="row.material_type === 'virtual_combo'"
-                  class="activity-mat-combo-tag activity-mat-combo-tag--virtual"
+                  class="activity-combo-badge activity-combo-badge--virtual"
                   :title="t('activities.detail.comboVirtualTitle')"
                   ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span
                 >
@@ -1084,21 +1084,6 @@ function applyAllSuggestedQuantities() {
   gap: 6px 8px;
 }
 
-.activity-mat-combo-tag {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
-  flex-shrink: 0;
-}
-
-.activity-mat-combo-tag--virtual {
-  background: #f3e8ff;
-  color: #7c3aed;
-}
-
 .activity-mat-combo-kiste {
   width: 100%;
   flex-basis: 100%;
@@ -1122,15 +1107,15 @@ function applyAllSuggestedQuantities() {
   font-weight: 600;
   line-height: 1.4;
   border-radius: 4px;
-  border: 1px solid #c4b5fd;
-  background: #f5f3ff;
-  color: #5b21b6;
+  border: 1px solid var(--color-primary-muted-border, #a7f3d0);
+  background: var(--color-primary-muted-bg, #ecfdf5);
+  color: var(--color-primary-dark, #047857);
   cursor: pointer;
   font-family: inherit;
 }
 
 .activity-mat-combo-content-toggle:hover {
-  background: #ede9fe;
+  background: var(--color-primary-subtle-bg, #d1fae5);
 }
 
 .activity-mat-combo-content-chev {
@@ -1141,8 +1126,8 @@ function applyAllSuggestedQuantities() {
 .activity-mat-combo-content-body {
   margin-top: 4px;
   padding: 6px 10px;
-  border-left: 2px solid #c4b5fd;
-  background: #faf5ff;
+  border-left: 2px solid var(--color-primary-light, #10b981);
+  background: var(--color-primary-muted-bg, #ecfdf5);
   border-radius: 0 6px 6px 0;
 }
 
@@ -1171,8 +1156,8 @@ function applyAllSuggestedQuantities() {
   flex-basis: 100%;
   margin-top: 4px;
   padding: 6px 10px;
-  border-left: 2px solid #d8b4fe;
-  background: #faf5ff;
+  border-left: 2px solid var(--color-primary-muted-border, #a7f3d0);
+  background: var(--color-primary-muted-bg, #ecfdf5);
   border-radius: 0 6px 6px 0;
 }
 

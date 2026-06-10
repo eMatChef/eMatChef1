@@ -672,12 +672,11 @@ class ActivityKisteMaterialLinker
             if ($excludePackContainerId !== null && $pc->getId() === $excludePackContainerId) {
                 continue;
             }
-            $batch = $pc->getContainerBatch();
-            if ($batch === null) {
+            $shellMid = $this->shellMaterialIdForPackContainer($pc);
+            if ($shellMid === null || $shellMid === '') {
                 continue;
             }
-            $mid = $batch->getMaterialItemId();
-            $map[$mid] = ($map[$mid] ?? 0) + 1;
+            $map[$shellMid] = ($map[$shellMid] ?? 0) + 1;
         }
 
         if ($includePendingContainerId !== null && !in_array($includePendingContainerId, $seenIds, true)) {
@@ -687,10 +686,9 @@ class ActivityKisteMaterialLinker
                 && $pending->getActivityId() === $activity->getId()
                 && ($excludePackContainerId === null || $pending->getId() !== $excludePackContainerId)
             ) {
-                $batch = $pending->getContainerBatch();
-                if ($batch !== null) {
-                    $mid = $batch->getMaterialItemId();
-                    $map[$mid] = ($map[$mid] ?? 0) + 1;
+                $shellMid = $this->shellMaterialIdForPackContainer($pending);
+                if ($shellMid !== null && $shellMid !== '') {
+                    $map[$shellMid] = ($map[$shellMid] ?? 0) + 1;
                 }
             }
         }
@@ -703,10 +701,66 @@ class ActivityKisteMaterialLinker
     {
         $batch = $pc->getContainerBatch();
         if ($batch !== null) {
+            $activityId = $pc->getActivityId();
+            if ($activityId !== null && $activityId !== '') {
+                $activity = $this->entityManager->find(Activity::class, $activityId);
+                if (
+                    $activity instanceof Activity
+                    && $this->isShellBatchForActivityPhysicalCombo($activity, $batch)
+                ) {
+                    $comboMid = $this->physicalComboMaterialIdForLinkedShellBatch(
+                        $activity,
+                        (string) $batch->getId(),
+                    );
+                    if ($comboMid !== null) {
+                        return $comboMid;
+                    }
+                }
+            }
+
             return $batch->getMaterialItemId();
         }
 
         return $this->shellMaterialIdFromVirtualContainer($pc);
+    }
+
+    /**
+     * Phys.-Kombi auf der Packliste, deren linked_container_batch diese Lager-Charge ist (Sack/Kiste).
+     */
+    private function physicalComboMaterialIdForLinkedShellBatch(Activity $activity, string $batchId): ?string
+    {
+        if ($batchId === '') {
+            return null;
+        }
+
+        $activityId = $activity->getId();
+        if ($activityId === null || $activityId === '') {
+            return null;
+        }
+
+        try {
+            $id = $this->entityManager->createQueryBuilder()
+                ->select('mi.id')
+                ->from(ActivityPackItem::class, 'pi')
+                ->innerJoin('pi.materialItem', 'mi')
+                ->where('pi.activityId = :aid')
+                ->andWhere('mi.materialType = :ptype')
+                ->andWhere('mi.linkedContainerBatchId = :batchId')
+                ->setParameter('aid', $activityId)
+                ->setParameter('ptype', 'physical_combo')
+                ->setParameter('batchId', $batchId)
+                ->setMaxResults(1)
+                ->getQuery()
+                ->getSingleScalarResult();
+        } catch (\Doctrine\ORM\NoResultException) {
+            return null;
+        }
+
+        if (!\is_string($id) || $id === '') {
+            return null;
+        }
+
+        return $id;
     }
 
     /**

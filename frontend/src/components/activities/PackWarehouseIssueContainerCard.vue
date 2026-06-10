@@ -95,6 +95,31 @@ const shellCanMoveForward = computed(() => {
   return fn ? fn(pi) > 0 : false
 })
 
+const shellCanMoveBack = computed(() => {
+  const pi = props.shellPackItem
+  if (!pi) return false
+  const fn = ctx.rightQtyForMoveBack as ((p: ActivityPackItem) => number) | undefined
+  return fn ? fn(pi) > 0 : false
+})
+
+const shellMoveBackMax = computed(() => {
+  const pi = props.shellPackItem
+  if (!pi) return 0
+  const fn = ctx.rightQtyForMoveBack as ((p: ActivityPackItem) => number) | undefined
+  return fn ? fn(pi) : 0
+})
+
+const shellMoveBackQty = computed(() => {
+  const pi = props.shellPackItem
+  if (!pi) return 0
+  const inputs = ctx.moveBackQtyInputs as unknown
+  const map =
+    inputs != null
+      ? (unref(inputs as Ref<Record<string, number>> | Record<string, number>) as Record<string, number>)
+      : {}
+  return map[pi.id] ?? shellMoveBackMax.value
+})
+
 function moveShellCrateForward(qtyFromControl?: number) {
   const pi = props.shellPackItem
   if (!pi) return
@@ -104,6 +129,18 @@ function moveShellCrateForward(qtyFromControl?: number) {
   const max = maxFn(pi)
   if (max < 1) return
   const raw = qtyFromControl ?? shellMoveQty.value
+  const moveQty = Math.min(max, Math.max(1, Math.floor(Number(raw) || max)))
+  void moveFn(pi, moveQty)
+}
+
+function moveShellCrateBack(qtyFromControl?: number) {
+  const pi = props.shellPackItem
+  if (!pi) return
+  const max = shellMoveBackMax.value
+  if (max < 1) return
+  const moveFn = ctx.moveToPrevStage as ((p: ActivityPackItem, qty?: number) => void | Promise<void>) | undefined
+  if (!moveFn) return
+  const raw = qtyFromControl ?? shellMoveBackQty.value
   const moveQty = Math.min(max, Math.max(1, Math.floor(Number(raw) || max)))
   void moveFn(pi, moveQty)
 }
@@ -310,12 +347,27 @@ function crateShellTakeTitle(): string {
           </div>
         </div>
         <div
-          v-if="packForwardEditable && shellCanMoveForward"
+          v-if="
+            (packBackwardEditable && shellCanMoveBack) ||
+            (packForwardEditable && shellCanMoveForward)
+          "
           class="pack-container-header-actions"
           @click.stop
         >
           <PackMoveControls
-            v-if="shellUseQtyMoveControls"
+            v-if="packBackwardEditable && shellCanMoveBack && shellUseQtyMoveControls"
+            direction="back"
+            :qty="shellMoveBackQty"
+            :max="shellMoveBackMax"
+            :disabled="ctx.movingId === shellPackItem.id"
+            :back-title="t('activities.common.backTitle')"
+            @update:qty="
+              (ctx.setMoveBackQtyForItem as (id: string, n: number) => void)(shellPackItem.id, $event)
+            "
+            @move="moveShellCrateBack"
+          />
+          <PackMoveControls
+            v-if="packForwardEditable && shellCanMoveForward && shellUseQtyMoveControls"
             direction="forward"
             :qty="shellMoveQty"
             :max="shellForwardLimits.max"

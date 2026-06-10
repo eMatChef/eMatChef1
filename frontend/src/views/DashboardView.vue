@@ -10,48 +10,6 @@
       </div>
     </header>
 
-    <!-- Offene Beitrittsanfragen (MW/DC) -->
-    <section
-      v-if="departmentId && !isLoading && canManageDepartmentJoinRequests && !hasSupportAdminRole"
-      class="dashboard-section join-requests-above-actions"
-    >
-      <h2 class="section-title">
-        <router-link :to="getLink('/settings/users')" class="section-title-link">
-          {{ t('dashboard.openDepartmentJoinRequests') }}
-        </router-link>
-      </h2>
-      <div class="stat-cards">
-        <router-link :to="getLink('/settings/users')" class="stat-card submitted join-request-stat-link">
-          <span class="stat-value">{{ pendingJoinRequests.length }}</span>
-          <span class="stat-label">{{ t('dashboard.openDepartmentJoinRequestsCount') }}</span>
-        </router-link>
-      </div>
-      <router-link :to="getLink('/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
-    </section>
-
-    <!-- Offene Support-/Admin-Anfragen (SA/OrgChef/SubOrgChef) -->
-    <section
-      v-if="departmentId && !isLoading && hasSupportAdminRole"
-      class="dashboard-section join-requests-above-actions"
-    >
-      <h2 class="section-title">
-        <router-link :to="getLink('/support-requests')" class="section-title-link">
-          {{ t('dashboard.openJoinRequests') }}
-        </router-link>
-      </h2>
-      <div class="stat-cards">
-        <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
-          <span class="stat-value">{{ totalOpenJoinRequests }}</span>
-          <span class="stat-label">{{ t('dashboard.openTotal') }}</span>
-        </router-link>
-        <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
-          <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
-          <span class="stat-label">{{ t('dashboard.adminRequests') }}</span>
-        </div>
-      </div>
-      <router-link :to="getLink('/support-requests')" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
-    </section>
-
     <!-- Schnellaktionen (nur mit Department) -->
     <div v-if="departmentId" class="quick-actions">
       <router-link
@@ -250,6 +208,45 @@
         <router-link :to="getLink('/settings/my-department/display-screens')" class="section-link">
           {{ t('dashboard.toDisplay') }}
         </router-link>
+      </section>
+
+      <!-- Offene Beitrittsanfragen (MW/DC) -->
+      <section
+        v-if="canManageDepartmentJoinRequests && !hasSupportAdminRole"
+        class="dashboard-section"
+      >
+        <h2 class="section-title">
+          <router-link :to="getLink('/settings/users')" class="section-title-link">
+            {{ t('dashboard.openDepartmentJoinRequests') }}
+          </router-link>
+        </h2>
+        <div class="stat-cards">
+          <router-link :to="getLink('/settings/users')" class="stat-card submitted join-request-stat-link">
+            <span class="stat-value">{{ pendingJoinRequests.length }}</span>
+            <span class="stat-label">{{ t('dashboard.openDepartmentJoinRequestsCount') }}</span>
+          </router-link>
+        </div>
+        <router-link :to="getLink('/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
+      </section>
+
+      <!-- Offene Support-/Admin-Anfragen (SA/OrgChef/SubOrgChef) -->
+      <section v-if="hasSupportAdminRole" class="dashboard-section">
+        <h2 class="section-title">
+          <router-link :to="getLink('/support-requests')" class="section-title-link">
+            {{ t('dashboard.openJoinRequests') }}
+          </router-link>
+        </h2>
+        <div class="stat-cards">
+          <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
+            <span class="stat-value">{{ totalOpenJoinRequests }}</span>
+            <span class="stat-label">{{ t('dashboard.openTotal') }}</span>
+          </router-link>
+          <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
+            <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
+            <span class="stat-label">{{ t('dashboard.adminRequests') }}</span>
+          </div>
+        </div>
+        <router-link :to="getLink('/support-requests')" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
       </section>
 
       <!-- MW: Pack-Queue heute -->
@@ -590,10 +587,6 @@ useDepartmentLiveRefresh({
 }
 
 .dashboard-header {
-  margin-bottom: 24px;
-}
-
-.join-requests-above-actions {
   margin-bottom: 24px;
 }
 

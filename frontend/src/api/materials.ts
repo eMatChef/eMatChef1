@@ -514,6 +514,8 @@ export interface CreateComboManualComponentInput {
   batch_id?: string
   /** Referenz-Sack/Kiste dieser physischen Kombination (neu oder aus Lager). */
   is_linked_container?: boolean
+  /** stock = aus Lager; self_provided = Leiter organisiert selbst (nur virtuelle Kombo). */
+  component_source?: 'stock' | 'self_provided'
 }
 
 export interface CreateComboManualRequest {
