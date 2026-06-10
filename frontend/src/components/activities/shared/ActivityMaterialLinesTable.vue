@@ -88,7 +88,7 @@
                 >
                 <span v-if="row.is_js_material" class="activity-mat-js-tag">J&amp;S</span>
                 <button
-                  v-if="row.is_container"
+                  v-if="row.is_container && row.material_type !== 'physical_combo'"
                   type="button"
                   class="activity-mat-container-tag"
                   disabled
@@ -106,8 +106,49 @@
                 <div v-if="row.linked_container_label" class="activity-mat-combo-kiste text-muted">
                   {{ t('activities.materialLinesTable.crateLine', { label: row.linked_container_label }) }}
                 </div>
+                <div
+                  v-if="row.material_type === 'physical_combo'"
+                  class="activity-mat-combo-content-dropdown"
+                >
+                  <button
+                    type="button"
+                    class="activity-mat-combo-content-toggle"
+                    :aria-expanded="isPhysicalComboContentOpen(row, originalIndex)"
+                    :aria-label="t('activities.materialLinesTable.comboContentToggleAria')"
+                    @click="togglePhysicalComboContent(row, originalIndex)"
+                  >
+                    <span class="activity-mat-combo-content-chev" aria-hidden="true">{{
+                      isPhysicalComboContentOpen(row, originalIndex) ? '▼' : '▶'
+                    }}</span>
+                    {{ t('activities.materialLinesTable.comboContentToggle') }}
+                  </button>
+                  <div
+                    v-show="isPhysicalComboContentOpen(row, originalIndex)"
+                    class="activity-mat-combo-content-body"
+                  >
+                    <p v-if="physicalComboContentLoading(row)" class="text-muted activity-mat-combo-content-empty">…</p>
+                    <p
+                      v-else-if="physicalComboContentLines(row).length === 0"
+                      class="text-muted activity-mat-combo-content-empty"
+                    >
+                      {{ t('activities.materialLinesTable.comboContentEmpty') }}
+                    </p>
+                    <ul v-else class="activity-mat-combo-content-list">
+                      <li
+                        v-for="line in physicalComboContentLines(row)"
+                        :key="line.id"
+                        :class="{ 'activity-mat-combo-content-self': line.selfProvided }"
+                      >
+                        {{ line.totalQty }}× {{ line.name }}
+                        <span v-if="line.selfProvided" class="text-muted">
+                          · {{ t('activities.detail.comboSetSelfProvided') }}
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
                 <!-- Set-Anzeige „wie Kiste": aufgelöste Teile der virtuellen Kombo -->
-                <div v-if="comboSetContent(row)" class="activity-mat-set-content">
+                <div v-if="row.material_type === 'virtual_combo' && comboSetContent(row)" class="activity-mat-set-content">
                   <span class="activity-mat-set-title text-muted">
                     <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
                     {{ t('activities.detail.comboSetContentTitle') }}
@@ -360,6 +401,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { getComboComponents, type ComboComponent } from '@/api/materials'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
@@ -486,13 +528,109 @@ function comboSetContent(row: ActivityMaterialLine): {
   resolved: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['resolved_components']>
   selfProvided: NonNullable<NonNullable<ActivityMaterialLine['config_snapshot']>['self_provided']>
 } | null {
-  if (row.material_type !== 'virtual_combo' && row.material_type !== 'physical_combo') return null
+  if (row.material_type !== 'virtual_combo') return null
   const snap = row.config_snapshot
   const resolved = snap?.resolved_components ?? []
   const selfProvided = snap?.self_provided ?? []
   if (resolved.length === 0 && selfProvided.length === 0) return null
   return { resolved, selfProvided }
 }
+
+interface PhysicalComboContentLine {
+  id: string
+  name: string
+  totalQty: number
+  selfProvided: boolean
+}
+
+const comboComponentsByMaterialId = ref<Record<string, ComboComponent[]>>({})
+const comboComponentsLoadStarted = ref<Record<string, boolean>>({})
+const physicalComboContentOpenKeys = ref<Set<string>>(new Set())
+
+function physicalComboContentKey(row: ActivityMaterialLine, originalIndex: number): string {
+  return rowKey(row, originalIndex)
+}
+
+function isPhysicalComboContentOpen(row: ActivityMaterialLine, originalIndex: number): boolean {
+  return physicalComboContentOpenKeys.value.has(physicalComboContentKey(row, originalIndex))
+}
+
+function togglePhysicalComboContent(row: ActivityMaterialLine, originalIndex: number): void {
+  const key = physicalComboContentKey(row, originalIndex)
+  const next = new Set(physicalComboContentOpenKeys.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+    void ensureComboComponentsLoaded(row.material_item_id)
+  }
+  physicalComboContentOpenKeys.value = next
+}
+
+function physicalComboContentLoading(row: ActivityMaterialLine): boolean {
+  const id = row.material_item_id
+  return !!comboComponentsLoadStarted.value[id] && comboComponentsByMaterialId.value[id] === undefined
+}
+
+async function ensureComboComponentsLoaded(materialItemId: string): Promise<void> {
+  if (comboComponentsByMaterialId.value[materialItemId] !== undefined) return
+  if (comboComponentsLoadStarted.value[materialItemId]) return
+  comboComponentsLoadStarted.value = { ...comboComponentsLoadStarted.value, [materialItemId]: true }
+  try {
+    const list = await getComboComponents(materialItemId)
+    comboComponentsByMaterialId.value = { ...comboComponentsByMaterialId.value, [materialItemId]: list }
+  } catch {
+    comboComponentsByMaterialId.value = { ...comboComponentsByMaterialId.value, [materialItemId]: [] }
+  }
+}
+
+function physicalComboContentLines(row: ActivityMaterialLine): PhysicalComboContentLine[] {
+  const snap = row.config_snapshot
+  const resolved = snap?.resolved_components ?? []
+  const selfProvided = snap?.self_provided ?? []
+  if (resolved.length > 0 || selfProvided.length > 0) {
+    const lines: PhysicalComboContentLine[] = []
+    for (const c of resolved) {
+      lines.push({
+        id: `r-${c.component_material_id}`,
+        name: c.name,
+        totalQty: c.total_qty,
+        selfProvided: false,
+      })
+    }
+    for (const c of selfProvided) {
+      lines.push({
+        id: `s-${c.component_material_id}`,
+        name: c.name,
+        totalQty: c.total_qty,
+        selfProvided: true,
+      })
+    }
+    return lines
+  }
+
+  const comboQty = Math.max(1, row.quantity)
+  const components = comboComponentsByMaterialId.value[row.material_item_id] ?? []
+  return components.map((cc) => ({
+    id: cc.id,
+    name: (cc.component_material?.name ?? '').trim() || row.material_name,
+    totalQty: comboQty * Math.max(0, Math.floor(Number(cc.qty)) || 0),
+    selfProvided: cc.component_source === 'self_provided',
+  }))
+}
+
+watch(
+  () =>
+    props.modelValue
+      .filter((r) => r.material_type === 'physical_combo')
+      .map((r) => r.material_item_id),
+  (ids) => {
+    for (const id of [...new Set(ids)]) {
+      void ensureComboComponentsLoaded(id)
+    }
+  },
+  { immediate: true },
+)
 
 function removeBusyFor(row: ActivityMaterialLine): boolean {
   return !!(row.activity_item_id && props.removingItemId === row.activity_item_id)
@@ -546,11 +684,15 @@ function adjustedFreePoolForMaterial(materialItemId: string): number | undefined
   return Math.max(0, raw + savedSum - draftSum)
 }
 
-/** Max. buchbare Menge für diese Zeile (eine Position); gleiches Material mehrfach: gemeinsamer Pool */
+/** Max. buchbare Menge im Zeitraum (API availableForPeriod; eigene Aktivität bereits ausgeschlossen). */
 function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
-  const free = adjustedFreePoolForMaterial(row.material_item_id)
-  if (free === undefined) return undefined
-  return row.quantity + free
+  const raw = rawFreePoolFromApi(row.material_item_id)
+  if (raw !== undefined) return raw
+  const anyRow = props.modelValue.find((r) => r.material_item_id === row.material_item_id)
+  if (anyRow && typeof anyRow.period_availability_cap === 'number') {
+    return anyRow.period_availability_cap
+  }
+  return undefined
 }
 
 function shortageForRow(row: ActivityMaterialLine): number {
@@ -577,11 +719,11 @@ function lineHasIssue(row: ActivityMaterialLine): boolean {
   return shortageForRow(row) > 0
 }
 
-/** Für Sortierung: verbleibender Spielraum (gleicher Wert pro Zeile bei gleichem Material) */
+/** Für Sortierung / +Buttons: verbleibender Spielraum bis zum erlaubten Maximum */
 function remainingAfterSelection(row: ActivityMaterialLine): number | null {
-  const free = adjustedFreePoolForMaterial(row.material_item_id)
-  if (free === undefined) return null
-  return free
+  const max = maxQtyForRow(row)
+  if (max === undefined) return null
+  return Math.max(0, max - row.quantity)
 }
 
 /** Anzeige: Menge / maximal im Zeitraum */
@@ -962,6 +1104,66 @@ function applyAllSuggestedQuantities() {
   flex-basis: 100%;
   font-size: 12px;
   margin: 0;
+}
+
+.activity-mat-combo-content-dropdown {
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: 2px;
+}
+
+.activity-mat-combo-content-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 4px;
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  color: #5b21b6;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.activity-mat-combo-content-toggle:hover {
+  background: #ede9fe;
+}
+
+.activity-mat-combo-content-chev {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.activity-mat-combo-content-body {
+  margin-top: 4px;
+  padding: 6px 10px;
+  border-left: 2px solid #c4b5fd;
+  background: #faf5ff;
+  border-radius: 0 6px 6px 0;
+}
+
+.activity-mat-combo-content-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.activity-mat-combo-content-list li {
+  line-height: 1.5;
+}
+
+.activity-mat-combo-content-self {
+  font-style: italic;
+}
+
+.activity-mat-combo-content-empty {
+  margin: 0;
+  font-size: 12px;
 }
 
 .activity-mat-set-content {

@@ -26,8 +26,10 @@ export interface DashboardData {
 }
 
 export interface GetDashboardDataOptions {
-  /** Nur für SA/OrgChef/SubOrgChef; join-request-Listen sonst leer lassen (keine unnötigen API-Calls). */
-  includeJoinRequests?: boolean
+  /** MW/DC: offene Beitrittsanfragen für dieses Department. */
+  includeDepartmentJoinRequests?: boolean
+  /** SA/OrgChef/SubOrgChef: Support-Anfragen inkl. Admin-Join-Requests. */
+  includeAdminJoinRequests?: boolean
 }
 
 /**
@@ -37,7 +39,8 @@ export async function getDashboardData(
   departmentId: string,
   options?: GetDashboardDataOptions
 ): Promise<DashboardData> {
-  const includeJoinRequests = options?.includeJoinRequests === true
+  const includeDepartmentJoinRequests = options?.includeDepartmentJoinRequests === true
+  const includeAdminJoinRequests = options?.includeAdminJoinRequests === true
   const [activitiesRes, upcomingRes, workshopStats, pendingJoinRequests, pendingAdminJoinRequests] = await Promise.all([
     apiClient.get<DashboardActivity[]>('/api/activities', {
       params: { department_id: departmentId }
@@ -49,8 +52,8 @@ export async function getDashboardData(
       }
     }),
     getWorkshopStats(departmentId).catch(() => null),
-    includeJoinRequests ? getPendingJoinRequests(departmentId).catch(() => []) : Promise.resolve([]),
-    includeJoinRequests ? getPendingAdminJoinRequests(departmentId).catch(() => []) : Promise.resolve([])
+    includeDepartmentJoinRequests ? getPendingJoinRequests(departmentId).catch(() => []) : Promise.resolve([]),
+    includeAdminJoinRequests ? getPendingAdminJoinRequests(departmentId).catch(() => []) : Promise.resolve([])
   ])
 
   const activities = activitiesRes.data || []

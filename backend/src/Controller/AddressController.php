@@ -6,6 +6,7 @@ use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
+use App\Service\ActivitySharedVenueService;
 use App\Service\MaterialWizardSupplierService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,6 +29,7 @@ class AddressController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private MaterialWizardSupplierService $materialWizardSupplierService,
+        private ActivitySharedVenueService $activitySharedVenueService,
     ) {}
 
     /**
@@ -206,6 +208,7 @@ class AddressController extends AbstractController
             $address->updateTimestamps();
             
             $this->entityManager->flush();
+            $this->activitySharedVenueService->syncSharedVenueFromAddressUpdate($address);
             
             return new JsonResponse([
                 'address' => $address->toArray(),

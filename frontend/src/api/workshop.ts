@@ -10,9 +10,11 @@ export interface WorkshopMaterialInfo {
   name: string
   condition: string
   tracking_type?: string | null
+  pack_unit?: string | null
   total_stock?: number | null
   barcode_tag: string | null
   sale_price?: string | null
+  reference_purchase_unit_chf?: string | null
   repair_template_key?: string | null
   category: {
     id: string
@@ -178,6 +180,8 @@ export interface TriageRequest {
   assigned_to_supplier_company_id?: string | null
   /** Pflicht bei strategy=external_cleaning */
   cleaning_service_key?: string
+  /** Materialwart setzt Priorität in der Triage */
+  priority?: TicketPriority
 }
 
 export interface WorkshopCostBreakdownPayload {
@@ -201,6 +205,13 @@ export interface TransitionRequest {
   actual_cost?: string | null
   estimated_cost?: string | null
   writeoff_qty?: number
+  writeoff_repurpose?: {
+    material_item_id: string
+    quantity?: number
+    quantity_unit?: string
+    stock_already_booked?: boolean
+    unit_cost?: string | null
+  }
   /** Restmengen pro Stücklisten-Zeile (line_id → qty) */
   parts_surplus?: Record<string, number>
   /** Kostenaufschlüsselung am Abschluss (Arbeitszeit / Pauschale / Material) */

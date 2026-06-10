@@ -148,8 +148,8 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 ## Regeln (Ziel)
 
-1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned) - quantity_stored` ab Status `packing` … `returned`, **ohne** Zeitraum-Overlap. Eingelagerte Menge ist sofort für andere Anlässe frei.
-2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed`. Nach `planning_end`: Sperre über offene Pipeline-Menge bis `stored`.
+1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned, quantity_issued) - quantity_stored` ab Status `packing` … `returned`. Bei **Zeitraum-Abfrage** nur wenn Planungszeitraum der blockierenden Aktivität überlappt (z. B. 5 draussen am 06.06. blockieren nicht die Buchung für 20.06., wenn die Planung nicht kollidiert). Ohne Zeitraum: alle offenen Pipeline-Mengen. Eingelagerte Menge ist sofort frei.
+2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed` im überlappenden Zeitraum.
 3. **Abschluss** (`returned` → `completed`) blockiert bei: offenem Einlagern (gleiche Logik wie `maxForwardQty` für Stufe `stored`, inkl. Verbrauchsmaterial: `ordered − Verbrauch − stored`), offenen Issue-Meldungen (Verlust/Reparatur/Schaden), offenen Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen der Aktivität (mehrere `activity_*`-Follow-ups, kein `activity_final`).
 4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss; Kosten laufen über die einzelnen Buchhaltungs-Aufträge ab Retour.
 5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
@@ -176,7 +176,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 - [x] `quantity_stored` (+ Backend-Stufe `stored`) in DB und Pipeline
 - [x] `returned_unpack` UI an Stufe `stored` gekoppelt (links: Retour offen, rechts: Ausgepackt / eingelagert)
-- [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; Zeitraum-Reservierung bis `approved` (`MaterialAvailabilityReservationQuery`)
+- [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; bei Zeitraum-Abfrage mit Planungs-Overlap; Zeitraum-Reservierung bis `approved`; Reparatur-Batches abgezogen (`MaterialAvailabilityReservationQuery`, `MaterialAvailabilityController`)
 - [x] Abschluss-Blocker: Einlagerung, Issues, Werkstatt, Buchhaltung (`ActivityController::getCompletionBlockers`)
 - [x] `activity_item.status`: Sync aus Pack-Pipeline (`ActivityItemPipelineStatusService`) bei Move, Kisten, Statuswechsel
 - [x] Abschluss-Blocker Einlagerung über `PackPipelineService::maxForwardQty(stored)` (+ Verbrauch pro Material)

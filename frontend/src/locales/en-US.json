@@ -4297,6 +4297,7 @@
       "placeholderNotesShort": "Kurztext",
       "placeholderMaterialSearch": "Material suchen…",
       "materialFieldHint": "Für Reparatur/Abschreibung oder manuelle Zuordnung; Einkäufe aus Anschaffung werden beim Speichern automatisch verknüpft.",
+      "materialAssignFromWizardHint": "Wird aus Material-Erfassung übernommen (Erstell-Wizard / Charge) — bei Bedarf anpassbar.",
       "clearMaterialLink": "Materialzuordnung entfernen",
       "saveAssign": "Buchung speichern",
       "saveAssignSaving": "Speichern…",

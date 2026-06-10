@@ -5,7 +5,7 @@
     :title="dialogTitle"
   >
     <p v-if="line" class="purchase-line-subtitle">
-      {{ line.material_name || line.material_item_id }} — {{ line.quantity }}×
+      {{ line.material_name || line.material_item_id }} — {{ formatRepairPartQuantity(line) }}
     </p>
 
     <ELoadingState
@@ -116,6 +116,7 @@ import {
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ETextField } from '@/components/form/base'
 import type { RepairPartLine } from '@/types/repairPartsList'
+import { formatRepairPartQuantity } from '@/utils/workshopPartsCompletion'
 
 const props = defineProps<{
   modelValue: boolean

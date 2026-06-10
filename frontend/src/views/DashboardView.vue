@@ -10,7 +10,26 @@
       </div>
     </header>
 
-    <!-- Offene Join-Requests (über Schnellaktionen, nur mit Department + Daten) -->
+    <!-- Offene Beitrittsanfragen (MW/DC) -->
+    <section
+      v-if="departmentId && !isLoading && canManageDepartmentJoinRequests && !hasSupportAdminRole"
+      class="dashboard-section join-requests-above-actions"
+    >
+      <h2 class="section-title">
+        <router-link :to="getLink('/settings/users')" class="section-title-link">
+          {{ t('dashboard.openDepartmentJoinRequests') }}
+        </router-link>
+      </h2>
+      <div class="stat-cards">
+        <router-link :to="getLink('/settings/users')" class="stat-card submitted join-request-stat-link">
+          <span class="stat-value">{{ pendingJoinRequests.length }}</span>
+          <span class="stat-label">{{ t('dashboard.openDepartmentJoinRequestsCount') }}</span>
+        </router-link>
+      </div>
+      <router-link :to="getLink('/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
+    </section>
+
+    <!-- Offene Support-/Admin-Anfragen (SA/OrgChef/SubOrgChef) -->
     <section
       v-if="departmentId && !isLoading && hasSupportAdminRole"
       class="dashboard-section join-requests-above-actions"
@@ -375,6 +394,7 @@ const showDisplayLink = computed(() => DC_ROLES.includes(role.value) || MW_DASHB
 const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 /** Join-Requests nur für globale Profil-Rollen SA/OrgChef/SubOrgChef — nicht für reine Abteilungsrollen (mw/dc/…). */
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
+const canManageDepartmentJoinRequests = computed(() => ['mw', 'dc'].includes(role.value))
 
 // === Data ===
 const activitiesUpcoming = computed(() => dashboardData.value?.activitiesUpcoming || [])
@@ -521,7 +541,10 @@ async function load(opts?: { silent?: boolean }) {
   }
   if (!opts?.silent) isLoading.value = true
   try {
-    dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
+    dashboardData.value = await getDashboardData(id, {
+      includeDepartmentJoinRequests: canManageDepartmentJoinRequests.value || hasSupportAdminRole.value,
+      includeAdminJoinRequests: hasSupportAdminRole.value,
+    })
   } catch (err) {
     console.error(t('dashboard.errors.load'), err)
   } finally {

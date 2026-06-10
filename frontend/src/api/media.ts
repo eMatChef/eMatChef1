@@ -71,6 +71,17 @@ export function isPdfMedia(photo: MediaPhoto): boolean {
   return photo.mime === 'application/pdf' || (photo.filename?.toLowerCase().endsWith('.pdf') ?? false)
 }
 
+/** API-Beleg-URL für iframe/img (berücksichtigt VITE_API_BASE). */
+export function resolveMediaPreviewUrl(url: string): string {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  const rel = import.meta.env.VITE_RELATIVE_API
+  if (rel === 'true' || rel === '1') return url
+  const base = String(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '')
+  if (!base) return url
+  return `${base}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 export function validateReceiptFile(file: File, maxBytes = MAX_RECEIPT_BYTES): 'tooLarge' | 'invalidType' | null {
   if (file.size > maxBytes) {
     return 'tooLarge'

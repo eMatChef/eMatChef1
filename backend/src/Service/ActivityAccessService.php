@@ -135,7 +135,7 @@ class ActivityAccessService
     }
 
     /**
-     * Lager/Event: nur Ersteller oder Gruppenchef der zugeordneten Gruppe.
+     * Lager/Event: Ersteller, Gruppenchef der Host-Gruppe oder Gruppenchef einer angenommenen Gast-Gruppe.
      */
     public function canUserSubmitCampOrEvent(User $user, Activity $activity): bool
     {
@@ -150,16 +150,31 @@ class ActivityAccessService
         }
 
         $groupId = $activity->getGroupId();
-        if ($groupId === null || $groupId === '') {
-            return false;
+        if ($groupId !== null && $groupId !== '') {
+            $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+                'userId' => $user->getId(),
+                'groupId' => $groupId,
+            ]);
+            if ($gMem !== null && $gMem->getRole() === 'leader') {
+                return true;
+            }
         }
 
-        $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
-            'userId' => $user->getId(),
-            'groupId' => $groupId,
-        ]);
+        foreach ($this->getAcceptedInviteEntriesForUser($user, $activity) as $entry) {
+            $inviteGroupId = trim((string) ($entry['invite']['group_id'] ?? ''));
+            if ($inviteGroupId === '') {
+                continue;
+            }
+            $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+                'userId' => $user->getId(),
+                'groupId' => $inviteGroupId,
+            ]);
+            if ($gMem !== null && $gMem->getRole() === 'leader') {
+                return true;
+            }
+        }
 
-        return $gMem !== null && $gMem->getRole() === 'leader';
+        return false;
     }
 
     private function departmentRoleForUser(User $user, string $departmentId): ?string
@@ -252,36 +267,171 @@ class ActivityAccessService
 
     public function isInvitedAcceptedMember(User $user, Activity $activity): bool
     {
-        $memberships = $this->entityManager->getRepository(Membership::class)
-            ->findBy(['userId' => $user->getId()]);
-        foreach ($memberships as $membership) {
-            $deptId = $membership->getDepartmentId();
-            if (!$this->isDepartmentInviteAccepted($activity, $deptId)) {
-                continue;
+        foreach ($this->getAcceptedInviteEntriesForUser($user, $activity) as $entry) {
+            $inviteGroupId = trim((string) ($entry['invite']['group_id'] ?? ''));
+            if ($inviteGroupId === '') {
+                return true;
             }
-            $invite = $this->findInviteEntryForDepartment($activity, $deptId);
-            $inviteGroupId = trim((string) ($invite['group_id'] ?? ''));
-            if ($inviteGroupId !== '') {
-                $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
-                    'userId' => $user->getId(),
-                    'groupId' => $inviteGroupId,
-                ]);
-                if ($gMem && $gMem->getRole() === 'leader') {
-                    return true;
-                }
-                continue;
+            if ($this->isUserMemberOfInviteGroup($user, $entry['department_id'], $inviteGroupId)) {
+                return true;
             }
-
-            return true;
         }
 
         return false;
     }
 
     /**
+     * @return list<array{department_id: string, invite: array<string, mixed>}>
+     */
+    public function getAcceptedInviteEntriesForUser(User $user, Activity $activity): array
+    {
+        $entries = [];
+        $memberships = $this->entityManager->getRepository(Membership::class)
+            ->findBy(['userId' => $user->getId()]);
+        foreach ($memberships as $membership) {
+            $deptId = trim((string) $membership->getDepartmentId());
+            if ($deptId === '' || !$this->isDepartmentInviteAccepted($activity, $deptId)) {
+                continue;
+            }
+            $entries[] = [
+                'department_id' => $deptId,
+                'invite' => $this->findInviteEntryForDepartment($activity, $deptId),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /** Department-Kontext des Betrachters (Host oder angenommene Gast-Einladung). */
+    public function resolveViewerDepartmentForActivity(
+        User $user,
+        Activity $activity,
+        ?string $preferredDepartmentId = null,
+    ): ?string {
+        $preferredDepartmentId = trim((string) $preferredDepartmentId);
+        $hostId = trim((string) $activity->getDepartmentId());
+
+        if ($preferredDepartmentId !== '') {
+            if ($preferredDepartmentId === $hostId && $this->userHasDepartmentMembership($user, $hostId)) {
+                return $hostId;
+            }
+            if (
+                $this->isDepartmentInviteAccepted($activity, $preferredDepartmentId)
+                && $this->userHasDepartmentMembership($user, $preferredDepartmentId)
+            ) {
+                return $preferredDepartmentId;
+            }
+        }
+
+        if ($hostId !== '' && $this->userHasDepartmentMembership($user, $hostId)) {
+            return $hostId;
+        }
+
+        $guestEntries = $this->getAcceptedInviteEntriesForUser($user, $activity);
+
+        return $guestEntries[0]['department_id'] ?? null;
+    }
+
+    private function userHasDepartmentMembership(User $user, string $departmentId): bool
+    {
+        $departmentId = trim($departmentId);
+        if ($departmentId === '') {
+            return false;
+        }
+
+        return $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]) !== null;
+    }
+
+    public function canInvitedDepartmentMwAssignGroup(User $user, Activity $activity, string $departmentId): bool
+    {
+        $departmentId = trim($departmentId);
+        if ($departmentId === '' || !$this->isDepartmentInviteAccepted($activity, $departmentId)) {
+            return false;
+        }
+        $mem = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+        if (!$mem) {
+            return false;
+        }
+
+        return \in_array((string) ($mem->getRole() ?? ''), ['mw', 'dc'], true);
+    }
+
+    /**
+     * Gast-Abteilung: Kontext für Gruppenzuordnung in der Detailansicht.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getGuestInviteContextForViewer(User $user, Activity $activity): ?array
+    {
+        foreach ($this->getAcceptedInviteEntriesForUser($user, $activity) as $entry) {
+            if (!$this->canInvitedDepartmentMwAssignGroup($user, $activity, $entry['department_id'])) {
+                continue;
+            }
+
+            return [
+                'department_id' => $entry['department_id'],
+                'group_id' => $entry['invite']['group_id'] ?? null,
+                'group_name' => $entry['invite']['group_name'] ?? null,
+                'can_assign_group' => true,
+            ];
+        }
+
+        return null;
+    }
+
+    public function canUserSeeInvitedActivityInList(
+        User $user,
+        Activity $activity,
+        string $viewerDepartmentId,
+        string $membershipRole,
+        bool $isRestrictedMember,
+    ): bool {
+        if ($activity->isExternal() && !$this->isDepartmentWideManager($membershipRole)) {
+            return false;
+        }
+        if (!$isRestrictedMember) {
+            return true;
+        }
+
+        $invite = $this->findInviteEntryForDepartment($activity, $viewerDepartmentId);
+        $inviteGroupId = trim((string) ($invite['group_id'] ?? ''));
+        if ($inviteGroupId === '') {
+            return false;
+        }
+
+        return $this->isUserMemberOfInviteGroup($user, $viewerDepartmentId, $inviteGroupId);
+    }
+
+    private function isUserMemberOfInviteGroup(User $user, string $departmentId, string $groupId): bool
+    {
+        $groupId = trim($groupId);
+        if ($groupId === '') {
+            return false;
+        }
+
+        $gMem = $this->entityManager->getRepository(GroupMembership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'groupId' => $groupId,
+        ]);
+        if ($gMem === null) {
+            return false;
+        }
+
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+
+        return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
+    }
+
+    /**
      * @return array<string, mixed>
      */
-    private function findInviteEntryForDepartment(Activity $activity, string $departmentId): array
+    public function findInviteEntryForDepartment(Activity $activity, string $departmentId): array
     {
         $sid = trim($departmentId);
         foreach ($activity->getInvitedDepartments() ?? [] as $invite) {
@@ -583,20 +733,33 @@ class ActivityAccessService
         }
 
         $groupId = $activity->getGroupId();
-        if ($groupId === null || $groupId === '') {
-            return false;
+        if ($groupId !== null && $groupId !== '') {
+            $departmentId = $activity->getDepartmentId();
+            $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+            if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+                if ($this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds)) {
+                    return true;
+                }
+            } else {
+                $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
+                    ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
+                if ($groupMembership !== null) {
+                    return true;
+                }
+            }
         }
 
-        $departmentId = $activity->getDepartmentId();
-        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
-        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
-            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
+        foreach ($this->getAcceptedInviteEntriesForUser($user, $activity) as $entry) {
+            $inviteGroupId = trim((string) ($entry['invite']['group_id'] ?? ''));
+            if ($inviteGroupId === '') {
+                continue;
+            }
+            if ($this->isUserMemberOfInviteGroup($user, $entry['department_id'], $inviteGroupId)) {
+                return true;
+            }
         }
 
-        $groupMembership = $this->entityManager->getRepository(GroupMembership::class)
-            ->findOneBy(['userId' => $user->getId(), 'groupId' => $groupId]);
-
-        return $groupMembership !== null;
+        return false;
     }
 
     /**
@@ -615,7 +778,7 @@ class ActivityAccessService
             return false;
         }
 
-        if ($this->isHostDepartmentMwOrDc($user, $activity)) {
+        if ($this->isHostDepartmentMwOrDc($user, $activity) || $this->isInvitedDepartmentMwOrDc($user, $activity)) {
             return true;
         }
 

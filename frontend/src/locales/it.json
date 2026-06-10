@@ -586,6 +586,7 @@
       "placeholderNotesShort": "Testo breve",
       "placeholderMaterialSearch": "Cerca materiale…",
       "materialFieldHint": "Per riparazione/ammortamento o assegnazione manuale; gli acquisti dall’acquisizione si collegano automaticamente al salvataggio.",
+      "materialAssignFromWizardHint": "Preso dalla registrazione materiale (wizard creazione / lotto) — modificabile se necessario.",
       "clearMaterialLink": "Rimuovi collegamento materiale",
       "saveAssign": "Salva registrazione",
       "saveAssignSaving": "Salvataggio…",

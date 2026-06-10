@@ -1491,9 +1491,12 @@
                   <!-- Allokations-Tabelle (Bulk, wenn Aufteilung aktiv) -->
                   <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations" class="allocations-section">
                     <div class="allocations-header">
-                      <label>{{
-                        t('components.materialCreateWizard.allocationsSumLabel', { n: formData.initial_qty })
-                      }}</label>
+                      <div>
+                        <label>{{
+                          t('components.materialCreateWizard.allocationsSumLabel', { n: formData.initial_qty })
+                        }}</label>
+                        <p class="field-hint">{{ t('components.materialCreateWizard.allocationsModeHint') }}</p>
+                      </div>
                       <button type="button" class="add-serial-btn" :disabled="!canAddAllocationRow" @click="addAllocationRow">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                           <line x1="12" y1="5" x2="12" y2="19"/>
@@ -1523,11 +1526,25 @@
                                 :placeholder="t('components.materialCreateWizard.phQtyPlaceholder')"
                               />
                             </td>
-                            <td>
-                              <select v-model="row.mode" class="form-select form-select--sm" @change="row.rack_id = ''; row.slot_id = ''; row.container_batch_id = ''">
-                                <option value="slot">{{ t('components.materialCreateWizard.allocModeBinShort') }}</option>
-                                <option value="kiste">{{ t('components.materialCreateWizard.allocModeBoxShort') }}</option>
-                              </select>
+                            <td class="alloc-mode-cell">
+                              <div class="lagerung-switch lagerung-switch--compact" role="tablist">
+                                <button
+                                  type="button"
+                                  class="lagerung-btn"
+                                  :class="{ active: row.mode === 'slot' }"
+                                  @click="setAllocationRowMode(row, 'slot')"
+                                >
+                                  {{ t('components.materialCreateWizard.tabGestellFach') }}
+                                </button>
+                                <button
+                                  type="button"
+                                  class="lagerung-btn"
+                                  :class="{ active: row.mode === 'kiste' }"
+                                  @click="setAllocationRowMode(row, 'kiste')"
+                                >
+                                  {{ t('components.materialCreateWizard.tabKisteTasche') }}
+                                </button>
+                              </div>
                             </td>
                             <td>
                               <template v-if="row.mode === 'slot'">
@@ -2265,31 +2282,54 @@
                       </span>
                     </label>
                     <transition name="slide-down">
-                      <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="form-row mt-2">
-                        <div class="form-group">
-                          <label>{{ t('components.materialCreateWizard.purchasePriceChfPerPc') }}</label>
-                          <div class="price-input">
-                            <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                            <input
-                              v-model.number="formData.unit_price"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              class="form-input"
-                              :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                            />
+                      <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="slider-details pack-details mt-2">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>{{ wizardPurchasePriceLabel }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model.number="formData.unit_price"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                            <p
+                              v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
+                              class="field-hint"
+                            >
+                              {{
+                                t('components.materialCreateWizard.packApproxPerPiece', {
+                                  price: packSaleToUnitSaleChf.toFixed(2),
+                                })
+                              }}
+                            </p>
                           </div>
-                          <p
-                            v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
-                            class="field-hint"
-                          >
-                            {{
-                              t('components.materialCreateWizard.packApproxPerPiece', {
-                                price: packSaleToUnitSaleChf.toFixed(2),
-                              })
-                            }}
-                          </p>
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="purchaseShippingChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
                         </div>
+                        <p v-if="purchasePriceContextQty > 0 && parseChfInput(purchaseShippingChf) > 0" class="field-hint">
+                          {{
+                            t('components.materialCreateWizard.hintShippingPerPiece', {
+                              price: effectivePurchaseUnitPrice.toFixed(2),
+                              qty: purchasePriceContextQty,
+                            })
+                          }}
+                        </p>
                       </div>
                       <div v-else key="pp-total" class="slider-details pack-details mt-2">
                         <div class="form-row">
@@ -2340,6 +2380,16 @@
                         type="text" 
                         class="form-input"
                         :placeholder="t('common.optional')"
+                      />
+                    </div>
+                  </div>
+
+                  <div v-if="purchasePriceRequired && departmentHasAccountingRole(props.departmentId)" class="form-row mt-2">
+                    <div class="form-group span-full">
+                      <PurchaseReceiptFileInput
+                        v-model="purchaseReceiptFile"
+                        :label="t('components.purchaseReceipt.label')"
+                        :hint="t('components.purchaseReceipt.hint')"
                       />
                     </div>
                   </div>
@@ -2519,7 +2569,11 @@
                     </div>
                     <div class="form-group">
                       <label>
-                        {{ t('components.materialDetail.labelRefPurchase') }}
+                        {{
+                          wizardUseMeterQtyByCount
+                            ? t('components.materialCreateWizard.labelRefPurchaseMeter')
+                            : t('components.materialDetail.labelRefPurchase')
+                        }}
                         <span class="field-required-star">*</span>
                       </label>
                       <div class="price-input">
@@ -2533,7 +2587,15 @@
                           :placeholder="t('components.materialCreateWizard.phPriceZero')"
                         />
                       </div>
-                      <p class="field-hint">{{ t('components.materialCreateWizard.hintRefPurchaseOverview') }}</p>
+                      <p class="field-hint">
+                        {{
+                          wizardUseMeterQtyByCount
+                            ? t('components.materialCreateWizard.hintRefPurchaseMeter', {
+                                per: wizardMeterPieceLengthM,
+                              })
+                            : t('components.materialCreateWizard.hintRefPurchaseOverview')
+                        }}
+                      </p>
                     </div>
                     <div v-if="formData.is_consumable" class="form-group">
                       <label>
@@ -2869,7 +2931,11 @@ import {
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
-import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
+import {
+  departmentHasAccountingRole,
+  enqueuePendingCostBookingAfterPurchase,
+} from '@/composables/useCostBookingFollowUp'
+import PurchaseReceiptFileInput from '@/components/material/PurchaseReceiptFileInput.vue'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import AddressModal from '@/components/AddressModal.vue'
 import CategoryModal from '@/components/CategoryModal.vue'
@@ -2888,7 +2954,10 @@ import {
   getStockUnitLabel,
   hasContentPerPiece,
   isPackagingUnit,
+  meterUnitPricePerMeterFromPerPiece,
+  parseMaterialChfInput,
   parseSizeLengthCm,
+  resolveStoredMeterStockUnitPrice,
   sizeLengthCmToMeters,
 } from '@/utils/materialStockUnit'
 import {
@@ -2909,6 +2978,7 @@ import type { SearchSuggestion } from '@/composables/useSearchNavigation'
 import { useStorageStructure } from '@/composables/useStorageStructure'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
+import { buildMaterialWizardPrefillFromMaterial } from '@/utils/materialWizardPrefill'
 import '@/styles/material-wizard.css'
 
 const props = withDefaults(
@@ -2917,9 +2987,16 @@ const props = withDefaults(
   modelValue: boolean
     /** Onboarding: System-Kategorie «Repair-Parts» nicht anbieten */
     excludeRepairPartsCategory?: boolean
+    /** Bestehendes Material als Vorlage (z. B. Werkstatt-Abschreibung → Ersatzteil) */
+    prefillFromMaterialId?: string | null
+    prefillForceTrackingType?: 'bulk' | 'serialized'
+    prefillSourceNote?: string
   }>(),
   {
     excludeRepairPartsCategory: false,
+    prefillFromMaterialId: null,
+    prefillForceTrackingType: undefined,
+    prefillSourceNote: '',
   },
 )
 
@@ -3063,12 +3140,21 @@ function normalizeAllocationRowsToTotal() {
   initialAllocations.value = sanitizedRows
 }
 
+function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
+  if (row.mode === mode) return
+  row.mode = mode
+  row.rack_id = ''
+  row.slot_id = ''
+  row.container_batch_id = ''
+}
+
 function addAllocationRow() {
   const remainingQty = Math.max(formData.initial_qty - allocationSum.value, 0)
   if (remainingQty <= 0) return
+  const lastMode = initialAllocations.value[initialAllocations.value.length - 1]?.mode ?? 'slot'
   initialAllocations.value.push({
     id: ++allocationIdCounter,
-    mode: 'slot',
+    mode: lastMode,
     storage_address_id: getPreferredStorageAddressId(),
     rack_id: '',
     slot_id: '',
@@ -3215,6 +3301,32 @@ const wizardMeterPieceLengthM = computed(() => sizeLengthCmToMeters(formData.siz
 const wizardUseMeterQtyByCount = computed(
   () => stock_unit.value === 'm' && wizardMeterPieceLengthM.value != null,
 )
+
+const wizardPurchasePriceLabel = computed(() => {
+  const per = wizardMeterPieceLengthM.value
+  if (wizardUseMeterQtyByCount.value && per != null) {
+    return t('components.batchModal.unitPricePerPiece', { per })
+  }
+  return t('components.materialCreateWizard.purchasePriceChfPerPc')
+})
+
+function resolveWizardStoredUnitPrice(): string | null {
+  return resolveStoredMeterStockUnitPrice(
+    formData.unit_price,
+    wizardUseMeterQtyByCount.value,
+    wizardMeterPieceLengthM.value,
+  )
+}
+
+function resolveWizardReferencePurchaseFromUnitPrice(uiUnitPrice: number): number {
+  if (!Number.isFinite(uiUnitPrice) || uiUnitPrice <= 0) return 0
+  const per = wizardMeterPieceLengthM.value
+  if (wizardUseMeterQtyByCount.value && per != null) {
+    const perM = meterUnitPricePerMeterFromPerPiece(uiUnitPrice, per)
+    return perM ?? uiUnitPrice
+  }
+  return uiUnitPrice
+}
 
 const wizardSizeLengthLabel = computed(() => {
   const base = t('components.materialDetail.labelLengthCm')
@@ -3481,7 +3593,7 @@ function syncPurchasePricesFromPackSale() {
         lastPackDerivedPurchaseUnitChf,
       )
     ) {
-      formData.reference_purchase_unit_chf = derived
+      formData.reference_purchase_unit_chf = resolveWizardReferencePurchaseFromUnitPrice(derived)
     }
   }
 
@@ -3937,6 +4049,7 @@ const stockInputReady = computed(() => {
 const purchasePriceInputMode = ref<'unit' | 'total'>('unit')
 const purchaseTotalWaresChf = ref('')
 const purchaseShippingChf = ref('')
+const purchaseReceiptFile = ref<File | null>(null)
 
 function parseChfInput(s: string): number {
   const n = parseFloat(String(s ?? '').replace(/\s/g, '').replace(',', '.'))
@@ -3944,6 +4057,9 @@ function parseChfInput(s: string): number {
 }
 
 const purchasePriceContextQty = computed(() => {
+  if (wizardUseMeterQtyByCount.value) {
+    return Math.max(0, wizardDisplayQty.value)
+  }
   if (isAddBatchMode.value) return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
   if (formData.material_type !== 'physical') return 0
   if (formData.tracking_type === 'serialized') return serializedQty.value
@@ -3961,11 +4077,14 @@ const purchasePriceRequired = computed(() => {
 const effectivePurchaseUnitPrice = computed(() => {
   const qty = purchasePriceContextQty.value
   if (qty <= 0) return 0
+  const shipping = parseChfInput(purchaseShippingChf.value)
   if (purchasePriceInputMode.value === 'unit') {
     const up = Number(formData.unit_price)
-    return Number.isFinite(up) && up > 0 ? up : 0
+    const base = Number.isFinite(up) && up > 0 ? up : 0
+    if (base <= 0 && shipping <= 0) return 0
+    return Math.round((base + shipping / qty) * 100) / 100
   }
-  const sum = parseChfInput(purchaseTotalWaresChf.value) + parseChfInput(purchaseShippingChf.value)
+  const sum = parseChfInput(purchaseTotalWaresChf.value) + shipping
   if (sum <= 0) return 0
   return Math.round((sum / qty) * 100) / 100
 })
@@ -3979,7 +4098,8 @@ watch(
     if (up <= 0) return
     const ref = formData.reference_purchase_unit_chf
     if (ref == null || Number(ref) <= 0) {
-      formData.reference_purchase_unit_chf = Math.round(up * 100) / 100
+      const perM = resolveWizardReferencePurchaseFromUnitPrice(up)
+      formData.reference_purchase_unit_chf = Math.round(perM * 100) / 100
     }
   }
 )
@@ -4710,6 +4830,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   purchasePriceInputMode.value = 'unit'
   purchaseTotalWaresChf.value = ''
   purchaseShippingChf.value = ''
+  purchaseReceiptFile.value = null
   formData.invoice_number = ''
   formData.notes = ''
   formData.barcode_tag = ''
@@ -6526,14 +6647,22 @@ function computeWizardPurchaseTotalChf(): number {
   if (isPhysicalComboCreation()) {
     return computeComboNewPurchaseTotalChf()
   }
-  const up = Number(formData.unit_price)
-  if (!Number.isFinite(up) || up <= 0) return 0
+  const shipping = parseChfInput(purchaseShippingChf.value)
+  if (purchasePriceInputMode.value === 'total') {
+    const sum = parseChfInput(purchaseTotalWaresChf.value) + shipping
+    return sum > 0 ? sum : 0
+  }
+  const up = parseMaterialChfInput(formData.unit_price)
+  if (up <= 0 && shipping <= 0) return 0
   if (formData.tracking_type === 'serialized') {
     const n = serialNumbers.value.filter((s) => (s.serial_number || '').trim()).length
-    return up * n
+    return up * n + shipping
+  }
+  if (wizardUseMeterQtyByCount.value) {
+    return up * wizardDisplayQty.value + shipping
   }
   const q = Number(formData.initial_qty) || 0
-  return up * q
+  return up * q + shipping
 }
 
 /** Für Vermiet-Amortisationsrechner: gleiche Basis wie Buchhaltungs-Hinweis (Stückpreis × Menge). */
@@ -6603,6 +6732,7 @@ async function handleSubmit() {
 
     let successMessage = t('components.materialCreateWizard.successMaterialCreated')
     let followUpBatchId: string | undefined
+    let followUpMaterialItemId: string | undefined
     const combinedLocation = buildCombinedLocation()
     const includeExpiryDate = formData.tracking_type !== 'serialized' && (formData.is_food || showExpiryDateForNonFood.value)
     const expiryDatePayload = includeExpiryDate ? (formData.expiry_date || undefined) : undefined
@@ -6616,7 +6746,7 @@ async function handleSubmit() {
         qty: formData.initial_qty,
         acquired_on: formData.purchase_date || undefined,
         expiry_date: expiryDatePayload || null,
-        unit_price: formData.unit_price > 0 ? String(formData.unit_price) : null,
+        unit_price: resolveWizardStoredUnitPrice(),
         supplier_id: formData.supplier_id || null,
         ...(formData.split_allocations && hasRelevantAllocationRows.value && allocationSumValid.value && !hasInvalidAllocationRows.value
           ? {
@@ -6636,6 +6766,7 @@ async function handleSubmit() {
       
       const batchRes = await addBatch(selectedExistingMaterial.value.id, batchPayload)
       followUpBatchId = batchIdFromAddBatchResult(batchRes)
+      followUpMaterialItemId = selectedExistingMaterial.value.id
 
       // Material mit neuen Daten emittieren
       emit('created', { 
@@ -6731,6 +6862,7 @@ async function handleSubmit() {
         result,
         selectedComboMaterials.value.filter(isComboArticleDone),
       )
+      followUpMaterialItemId = result.id
       emit('created', result)
       successMessage =
         creationMode.value === 'physical_combo'
@@ -6821,6 +6953,7 @@ async function handleSubmit() {
       } else if (result.material) {
         if (mode === 'physical_combo') {
           followUpBatchId = resolveComboFollowUpBatchId(result.material as Material)
+          followUpMaterialItemId = result.material.id
         }
         emit('created', result.material as any)
         successMessage =
@@ -6867,7 +7000,7 @@ async function handleSubmit() {
         pack_size_height: normalizeMaterialMetricInput(formData.pack_size_height, 'cm'),
         initial_acquired_on: formData.purchase_date,
         initial_expiry_date: expiryDatePayload,
-        initial_unit_price: formData.unit_price > 0 ? String(formData.unit_price) : undefined,
+        initial_unit_price: resolveWizardStoredUnitPrice() ?? undefined,
         initial_supplier_id: formData.supplier_id || undefined,
         ...(formData.split_allocations && hasRelevantAllocationRows.value && allocationSumValid.value && !hasInvalidAllocationRows.value
           ? {
@@ -6931,6 +7064,7 @@ async function handleSubmit() {
       }
       
       const material = await createMaterial(payload)
+      followUpMaterialItemId = material.id
       followUpBatchId =
         material.batches?.find((b) => b.is_initial)?.id ?? material.batches?.[0]?.id
       emit('created', material)
@@ -6946,6 +7080,8 @@ async function handleSubmit() {
         purchaseDateIso: formData.purchase_date || undefined,
         receiptHint: buildWizardCostReceiptHint() || undefined,
         materialBatchId: followUpBatchId ?? null,
+        materialItemId: followUpMaterialItemId ?? null,
+        receiptFile: purchaseReceiptFile.value,
       })
     ) {
       toast.info(t('components.batchModal.costBookingInfo'))
@@ -6991,6 +7127,68 @@ function scrollCreationModeIntoView(): void {
   formEl.scrollTop = 0
 }
 
+async function applyPrefillFromSourceMaterial(materialId: string): Promise<void> {
+  const material = await getMaterial(materialId)
+  const draft = buildMaterialWizardPrefillFromMaterial(material, {
+    skip: ['name', 'category'],
+    forceTrackingType: props.prefillForceTrackingType,
+    sourceNote: props.prefillSourceNote || undefined,
+  })
+
+  creationMode.value = draft.creationMode
+  formData.material_type = draft.material_type
+  formData.tracking_type = draft.tracking_type
+  formData.storage_address_id = draft.storage_address_id
+  formData.description = draft.description
+  formData.manufacturer = draft.manufacturer
+  formData.model = draft.model
+  formData.color = draft.color
+  formData.ean = draft.ean
+  formData.barcode_tag = draft.barcode_tag
+  formData.weight = draft.weight
+  formData.size_length = draft.size_length
+  formData.size_width = draft.size_width
+  formData.size_height = draft.size_height
+  formData.reference_purchase_unit_chf = draft.reference_purchase_unit_chf
+  formData.sale_price = draft.sale_price
+  formData.min_stock = draft.min_stock
+  formData.pack_size = draft.pack_size
+  formData.pack_unit = draft.pack_unit
+  formData.pack_sale_price_chf = draft.pack_sale_price_chf
+  formData.pack_weight = draft.pack_weight
+  formData.pack_size_length = draft.pack_size_length
+  formData.pack_size_width = draft.pack_size_width
+  formData.pack_size_height = draft.pack_size_height
+  formData.is_consumable = draft.is_consumable
+  formData.is_food = draft.is_food
+  formData.rental_price_day = draft.rental_price_day
+  formData.rental_price_week = draft.rental_price_week
+  formData.rental_price_month = draft.rental_price_month
+  formData.rental_deposit = draft.rental_deposit
+  formData.rental_lead_days = draft.rental_lead_days
+  formData.rental_max_days = draft.rental_max_days
+  formData.rental_external_allowed = draft.rental_external_allowed
+  formData.rental_scope = draft.rental_scope
+  formData.rental_requires_approval = draft.rental_requires_approval
+  formData.rental_notes = draft.rental_notes
+  formData.unit_price = draft.unit_price
+  formData.notes = draft.notes
+  stock_unit.value = draft.stock_unit
+  qtyEntryMode.value = 'base'
+  formData.initial_qty = 0
+
+  if (draft.manufacturer) {
+    manufacturerSearch.value = draft.manufacturer
+  }
+
+  expandAllVisibleSteps.value = false
+  accordionUserControlled.value = true
+  activeStep.value = 'general'
+
+  await nextTick()
+  articleNameInputRef.value?.focus()
+}
+
 async function initializeOnOpen(): Promise<void> {
   const runId = ++openInitRunId
   resetFormForNewMaterial()
@@ -7000,6 +7198,17 @@ async function initializeOnOpen(): Promise<void> {
 
   await loadData()
   if (runId !== openInitRunId) return
+
+  const prefillId = props.prefillFromMaterialId?.trim()
+  if (prefillId) {
+    try {
+      await applyPrefillFromSourceMaterial(prefillId)
+    } catch (err) {
+      console.error('Failed to prefill material wizard:', err)
+      toast.error(t('components.materialCreateWizard.errorCreateMaterial'))
+    }
+  }
+
   await nextTick()
   if (runId !== openInitRunId) return
   scrollCreationModeIntoView()

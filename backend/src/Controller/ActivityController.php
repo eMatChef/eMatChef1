@@ -26,6 +26,7 @@ use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
+use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
 use App\Service\ComboResolutionService;
@@ -58,6 +59,7 @@ class ActivityController extends AbstractController
         private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
+        private ActivitySharedVenueService $sharedVenueService,
     ) {}
 
     private function getActorUserId(): ?string
@@ -117,6 +119,10 @@ class ActivityController extends AbstractController
                     $row['group_id'] = $groupId;
                     $row['group_name'] = $group->getName();
                 }
+            }
+
+            if (isset($existingEntry['local_venue_address_id'])) {
+                $row['local_venue_address_id'] = $existingEntry['local_venue_address_id'];
             }
 
             $normalized[] = $row;
@@ -327,17 +333,20 @@ class ActivityController extends AbstractController
         }
 
         $invitedCandidates = $invitedQb->getQuery()->getResult();
-        if (!$isRestrictedMember) {
-            foreach ($invitedCandidates as $candidate) {
-                if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
-                    continue;
-                }
-                if (!$this->activityAccess->isDepartmentWideManager($membershipRole)
-                    && $candidate->isExternal()) {
-                    continue;
-                }
-                $activities[] = $candidate;
+        foreach ($invitedCandidates as $candidate) {
+            if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
+                continue;
             }
+            if (!$this->activityAccess->canUserSeeInvitedActivityInList(
+                $currentUser,
+                $candidate,
+                (string) $departmentId,
+                (string) $membershipRole,
+                $isRestrictedMember,
+            )) {
+                continue;
+            }
+            $activities[] = $candidate;
         }
 
         $result = [];
@@ -633,7 +642,7 @@ class ActivityController extends AbstractController
      */
     #[Route('/{id}', name: 'get', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
-    public function get(string $id): JsonResponse
+    public function get(string $id, Request $request): JsonResponse
     {
         $activity = $this->entityManager->getRepository(Activity::class)->find($id);
 
@@ -649,7 +658,28 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
+        $viewerDept = $this->activityAccess->resolveViewerDepartmentForActivity(
+            $currentUser,
+            $activity,
+            (string) $request->query->get('department_id', ''),
+        );
+
         $data = $this->serializeActivity($activity, true, $currentUser);
+        $invites = $data['invited_departments'] ?? [];
+        $data['is_shared_activity'] = \is_array($invites) && $invites !== [];
+        if ($viewerDept !== null) {
+            $data['viewer_department_id'] = $viewerDept;
+            try {
+                $viewerVenueId = $this->sharedVenueService->resolveViewerVenueAddressId($activity, $viewerDept);
+                $data['viewer_venue_address_id'] = $viewerVenueId;
+                if ($viewerVenueId !== null && $viewerVenueId !== $activity->getVenueAddressId()) {
+                    $this->entityManager->flush();
+                    $data['invited_departments'] = $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments());
+                }
+            } catch (\Throwable) {
+                $data['viewer_venue_address_id'] = $activity->getVenueAddressId();
+            }
+        }
         $draftMat = $this->activityAccess->canUserEditDraftActivityMaterial($currentUser, $activity);
         $data['can_edit_draft_material'] = $draftMat;
         $data['can_edit_activity_material'] = $activity->isDraft()
@@ -665,6 +695,7 @@ class ActivityController extends AbstractController
             $currentUser,
             $activity,
         );
+        $data['guest_invite_for_viewer'] = $this->activityAccess->getGuestInviteContextForViewer($currentUser, $activity);
 
         return new JsonResponse($data);
     }
@@ -1020,12 +1051,21 @@ class ActivityController extends AbstractController
                 }
             }
             if (array_key_exists('venue_address_id', $data)) {
-                if ($data['venue_address_id']) {
-                    $venueAddress = $this->entityManager->getRepository(Address::class)->find($data['venue_address_id']);
-                    $activity->setVenueAddress($venueAddress);
-                } else {
-                    $activity->setVenueAddress(null);
-                    $activity->setVenueAddressId(null);
+                $viewerDept = $this->activityAccess->resolveViewerDepartmentForActivity(
+                    $currentUser,
+                    $activity,
+                    trim((string) ($data['viewer_department_id'] ?? '')),
+                );
+                if ($viewerDept === null) {
+                    return new JsonResponse(['error' => 'Kein Department-Kontext'], 403);
+                }
+                try {
+                    $venueId = $data['venue_address_id'] !== null && $data['venue_address_id'] !== ''
+                        ? (string) $data['venue_address_id']
+                        : null;
+                    $this->sharedVenueService->applyVenuePatch($activity, $currentUser, $viewerDept, $venueId);
+                } catch (\InvalidArgumentException $e) {
+                    return new JsonResponse(['error' => $e->getMessage()], 400);
                 }
             }
             if (array_key_exists('responsible_user_id', $data)) {
@@ -1130,6 +1170,7 @@ class ActivityController extends AbstractController
         $data = json_decode($request->getContent(), true) ?: [];
         $departmentId = trim((string) ($data['department_id'] ?? ''));
         $decision = trim((string) ($data['decision'] ?? ''));
+        $groupId = trim((string) ($data['group_id'] ?? ''));
         if ($departmentId === '' || !in_array($decision, ['accepted', 'rejected'], true)) {
             return new JsonResponse(['error' => 'department_id und decision (accepted|rejected) sind erforderlich'], 400);
         }
@@ -1138,6 +1179,19 @@ class ActivityController extends AbstractController
             $this->assertDepartmentManager($currentUser, $departmentId);
         } catch (AccessDeniedException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        if ($decision === 'accepted' && $groupId === '') {
+            return new JsonResponse(['error' => 'group_id ist bei Annahme erforderlich'], 400);
+        }
+
+        $groupName = null;
+        if ($decision === 'accepted') {
+            $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+            if (!$group || $group->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'Gruppe gehört nicht zum Department'], 400);
+            }
+            $groupName = $group->getName();
         }
 
         $invites = $activity->getInvitedDepartments() ?? [];
@@ -1152,6 +1206,10 @@ class ActivityController extends AbstractController
             $invite['status'] = $decision;
             $invite['decided_at'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
             $invite['decided_by_user_id'] = $currentUser->getId();
+            if ($decision === 'accepted') {
+                $invite['group_id'] = $groupId;
+                $invite['group_name'] = $groupName;
+            }
             $updated = true;
             break;
         }
@@ -1172,6 +1230,74 @@ class ActivityController extends AbstractController
             'activity_id' => $activity->getId(),
             'department_id' => $departmentId,
             'decision' => $decision,
+            'group_id' => $decision === 'accepted' ? $groupId : null,
+            'group_name' => $groupName,
+        ]);
+    }
+
+    #[Route('/{id}/department-invites/group', name: 'department_invites_group', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function assignDepartmentInviteGroup(string $id, Request $request): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $departmentId = trim((string) ($data['department_id'] ?? ''));
+        $groupId = trim((string) ($data['group_id'] ?? ''));
+        if ($departmentId === '' || $groupId === '') {
+            return new JsonResponse(['error' => 'department_id und group_id sind erforderlich'], 400);
+        }
+
+        if (!$this->activityAccess->canInvitedDepartmentMwAssignGroup($currentUser, $activity, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if (!$group || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe gehört nicht zum Department'], 400);
+        }
+
+        $invites = $activity->getInvitedDepartments() ?? [];
+        $updated = false;
+        foreach ($invites as &$invite) {
+            if (!is_array($invite)) {
+                continue;
+            }
+            if (($invite['id'] ?? null) !== $departmentId) {
+                continue;
+            }
+            if (($invite['status'] ?? '') !== 'accepted') {
+                return new JsonResponse(['error' => 'Einladung ist nicht angenommen'], 400);
+            }
+            $invite['group_id'] = $groupId;
+            $invite['group_name'] = $group->getName();
+            $updated = true;
+            break;
+        }
+        unset($invite);
+
+        if (!$updated) {
+            return new JsonResponse(['error' => 'Keine passende Einladung gefunden'], 404);
+        }
+
+        $activity->setInvitedDepartments($invites);
+        $activity->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'activity_id' => $activity->getId(),
+            'department_id' => $departmentId,
+            'group_id' => $groupId,
+            'group_name' => $group->getName(),
         ]);
     }
 
@@ -1883,6 +2009,7 @@ class ActivityController extends AbstractController
         if ($this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($currentUser, $activity)) {
             try {
                 $this->kisteMaterialLinker->syncMissingActivityLinesFromPackContainers($activity, $currentUser);
+                $this->kisteMaterialLinker->removeRedundantShellContainerActivityLines($activity);
             } catch (\Throwable $e) {
                 // GET darf nicht abbrechen (z. B. parallele Pack-Sync-Kanten)
             }

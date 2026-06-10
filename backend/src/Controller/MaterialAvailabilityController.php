@@ -6,7 +6,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
 use App\Entity\MaterialComboOption;
-use App\Entity\MaterialComboOptionDelta;
+use App\Entity\WorkshopTicket;
 use App\Service\ComboResolutionService;
 use App\Service\MaterialAvailabilityReservationQuery;
 use App\Util\IdGenerator;
@@ -23,7 +23,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  * Liefert zeitraum-basierte Verfügbarkeit für Aktivitäts-Planung.
  * Berücksichtigt Gesamtbestand (Batches) minus Reservierungen:
  * - Bestellung (activity_item) bei Zeitraum-Overlap (Entwurf…Bestätigt)
- * - Physische Pipeline (activity_pack_item) ab «Wird gepackt» bis eingelagert (ohne Zeitraum-Overlap)
+ * - Physische Pipeline (activity_pack_item) ab «Wird gepackt» bis eingelagert;
+ *   bei Zeitraum-Abfrage nur bei Overlap mit Planungszeitraum der blockierenden Aktivität
  */
 class MaterialAvailabilityController extends AbstractController
 {
@@ -241,6 +242,7 @@ class MaterialAvailabilityController extends AbstractController
                         mi.department_id AS source_department_id,
                         d.name AS source_department_name,
                         COALESCE(batch_totals.total_qty, 0)::INT AS total_stock,
+                        COALESCE(repair_totals.qty_in_repair, 0)::INT AS stock_in_repair,
                         COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0)::INT AS stock_in_phys_combo_kisten,
                         COALESCE(stock_in_storage.qty_in_storage, 0)::INT AS stock_in_storage_containers,
                         COALESCE(reserved.reserved_qty, 0)::INT AS reserved_in_activities,
@@ -259,6 +261,12 @@ class MaterialAvailabilityController extends AbstractController
                             WHERE status = 'active'
                             GROUP BY material_item_id
                         ) batch_totals ON batch_totals.mid = mi.id
+                        LEFT JOIN (
+                            SELECT material_item_id AS mid, SUM(qty) AS qty_in_repair
+                            FROM material_batch
+                            WHERE status = 'repair'
+                            GROUP BY material_item_id
+                        ) repair_totals ON repair_totals.mid = mi.id
                         LEFT JOIN (
                             SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
                             FROM batch_storage_allocation a
@@ -298,6 +306,7 @@ class MaterialAvailabilityController extends AbstractController
                 // Ohne Zeitraum: Gesamtbestand minus physische Pipeline-Sperre (keine Bestell-Reservierung)
                 $sql = "SELECT mi.id AS material_item_id, mi.name, mi.category_id, mi.material_type, mi.department_id AS source_department_id, d.name AS source_department_name,
                         COALESCE(SUM(mb.qty), 0) AS total_stock,
+                        COALESCE(MAX(repair_totals.qty_in_repair), 0) AS stock_in_repair,
                         COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) AS stock_in_phys_combo_kisten,
                         COALESCE(MAX(stock_in_storage.qty_in_storage), 0) AS stock_in_storage_containers,
                         COALESCE(MAX(reserved.reserved_qty), 0) AS reserved_in_activities,
@@ -311,6 +320,12 @@ class MaterialAvailabilityController extends AbstractController
                         FROM material_item mi
                         JOIN department d ON d.id = mi.department_id
                         LEFT JOIN material_batch mb ON mb.material_item_id = mi.id AND mb.status = 'active'
+                        LEFT JOIN (
+                            SELECT material_item_id AS mid, SUM(qty) AS qty_in_repair
+                            FROM material_batch
+                            WHERE status = 'repair'
+                            GROUP BY material_item_id
+                        ) repair_totals ON repair_totals.mid = mi.id
                         LEFT JOIN (
                             SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
                             FROM batch_storage_allocation a
@@ -467,6 +482,7 @@ class MaterialAvailabilityController extends AbstractController
                     'sourceDepartmentId' => $item['source_department_id'] ?? null,
                     'sourceDepartmentName' => $item['source_department_name'] ?? null,
                     'totalStock' => (int) $item['total_stock'],
+                    'stockInRepair' => (int) ($item['stock_in_repair'] ?? 0),
                     'stockInPhysComboKisten' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
                     'stockInStorageContainers' => (int) ($item['stock_in_storage_containers'] ?? 0),
                     /** @deprecated use stockInPhysComboKisten / stockInStorageContainers */
@@ -491,6 +507,18 @@ class MaterialAvailabilityController extends AbstractController
             // Virtuelle Kombos: Verfügbarkeit = Flaschenhals min(floor(frei/menge)) über stock-Teile.
             $materials = $this->enrichVirtualComboAvailability(
                 $materials,
+                $hasPeriod ? $startDate : null,
+                $hasPeriod ? $endDate : null,
+                $excludeActivityId,
+            );
+
+            $materials = $this->enrichPhysicalComboComponentMembership($materials);
+
+            $materials = $this->enrichPhysicalComboOwnCrateCounts($materials);
+
+            $materials = $this->finalizeAvailabilityForPeriod(
+                $materials,
+                $departmentId,
                 $hasPeriod ? $startDate : null,
                 $hasPeriod ? $endDate : null,
                 $excludeActivityId,
@@ -872,6 +900,10 @@ class MaterialAvailabilityController extends AbstractController
                     FROM material_batch WHERE status = 'active' GROUP BY material_item_id
                 ) batch_totals ON batch_totals.mid = mi.id
                 LEFT JOIN (
+                    SELECT material_item_id AS mid, SUM(qty) AS qty_in_repair
+                    FROM material_batch WHERE status = 'repair' GROUP BY material_item_id
+                ) repair_totals ON repair_totals.mid = mi.id
+                LEFT JOIN (
                     SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_phys_combo
                     FROM batch_storage_allocation a
                     INNER JOIN material_batch b ON a.batch_id = b.id AND b.status = 'active'
@@ -895,6 +927,296 @@ class MaterialAvailabilityController extends AbstractController
         foreach ($rows as $r) {
             $map[(string) $r['material_item_id']] = (int) $r['available_for_period'];
         }
+        return $map;
+    }
+
+    /**
+     * Phys.-Kombo-Stückliste: Komponenten mit Zugehörigkeit zu Sets (für «Teil von …» in der Suche).
+     *
+     * @param list<array<string, mixed>> $materials
+     * @return list<array<string, mixed>>
+     */
+    private function enrichPhysicalComboComponentMembership(array $materials): array
+    {
+        $componentIds = [];
+        foreach ($materials as $row) {
+            $type = (string) ($row['materialType'] ?? '');
+            if ($type === 'physical_combo' || $type === 'virtual_combo') {
+                continue;
+            }
+            $componentIds[] = (string) $row['materialItemId'];
+        }
+        $componentIds = array_values(array_unique(array_filter($componentIds)));
+        if ($componentIds === []) {
+            return $materials;
+        }
+
+        $ph = [];
+        $params = [];
+        foreach ($componentIds as $i => $cid) {
+            $k = 'pcc_mid' . $i;
+            $ph[] = ':' . $k;
+            $params[$k] = $cid;
+        }
+        $inSql = implode(', ', $ph);
+        $sql = "SELECT cc.component_material_id AS component_id,
+                    combo.id AS combo_id,
+                    combo.name AS combo_name,
+                    COALESCE(comp.is_container, FALSE) AS is_container
+                FROM material_combo_component cc
+                INNER JOIN material_item combo ON combo.id = cc.parent_material_id
+                    AND combo.material_type = 'physical_combo'
+                    AND combo.deleted_at IS NULL
+                    AND combo.combo_status <> 'draft'
+                INNER JOIN material_item comp ON comp.id = cc.component_material_id
+                    AND comp.deleted_at IS NULL
+                WHERE cc.component_source = 'stock'
+                  AND cc.component_material_id IN ($inSql)
+                ORDER BY combo.name ASC";
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+
+        /** @var array<string, list<array{comboId: string, comboName: string, isContainer: bool}>> $map */
+        $map = [];
+        foreach ($rows as $r) {
+            $cid = (string) $r['component_id'];
+            $map[$cid][] = [
+                'comboId' => (string) $r['combo_id'],
+                'comboName' => (string) $r['combo_name'],
+                'isContainer' => filter_var($r['is_container'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ];
+        }
+
+        return array_map(static function (array $row) use ($map): array {
+            $mid = (string) ($row['materialItemId'] ?? '');
+            $memberships = $map[$mid] ?? [];
+            if ($memberships !== []) {
+                $row['partOfPhysicalCombos'] = $memberships;
+            }
+            return $row;
+        }, $materials);
+    }
+
+    /**
+     * Phys.-Kombo: wie viele Set-Einheiten (eigene Batches) in der Referenz-Kiste liegen.
+     *
+     * @param list<array<string, mixed>> $materials
+     * @return list<array<string, mixed>>
+     */
+    private function enrichPhysicalComboOwnCrateCounts(array $materials): array
+    {
+        $comboIds = [];
+        foreach ($materials as $row) {
+            if (($row['materialType'] ?? '') === 'physical_combo') {
+                $comboIds[] = (string) $row['materialItemId'];
+            }
+        }
+        $comboIds = array_values(array_unique(array_filter($comboIds)));
+        if ($comboIds === []) {
+            return $materials;
+        }
+
+        $ph = [];
+        $params = [];
+        foreach ($comboIds as $i => $cid) {
+            $k = 'own_crate_' . $i;
+            $ph[] = ':' . $k;
+            $params[$k] = $cid;
+        }
+        $inSql = implode(', ', $ph);
+        $sql = "SELECT combo.id AS combo_id, COALESCE(SUM(a.qty), 0)::INT AS sets_in_own_crate
+                FROM material_item combo
+                LEFT JOIN batch_storage_allocation a
+                    ON a.container_batch_id = combo.linked_container_batch_id
+                LEFT JOIN material_batch b
+                    ON b.id = a.batch_id
+                   AND b.status = 'active'
+                   AND b.material_item_id = combo.id
+                WHERE combo.id IN ($inSql)
+                  AND combo.material_type = 'physical_combo'
+                  AND combo.linked_container_batch_id IS NOT NULL
+                  AND combo.deleted_at IS NULL
+                GROUP BY combo.id";
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r['combo_id']] = (int) $r['sets_in_own_crate'];
+        }
+
+        return array_map(static function (array $row) use ($map): array {
+            if (($row['materialType'] ?? '') !== 'physical_combo') {
+                return $row;
+            }
+            $cid = (string) ($row['materialItemId'] ?? '');
+            $row['physicalComboSetsInOwnCrate'] = $map[$cid] ?? 0;
+            return $row;
+        }, $materials);
+    }
+
+    /**
+     * Verfügbarkeit an Bestandslogik angleichen.
+     *
+     * Reparatur = zwei Wege (wie Material-Bestandsansicht):
+     * - Charge mit Batch-Status «repair» (zählt nicht in totalStock, nur Anzeige)
+     * - Offenes Werkstatt-Ticket bei noch «active» Charge → von frei abziehen
+     *
+     * @param list<array<string, mixed>> $materials
+     * @return list<array<string, mixed>>
+     */
+    private function finalizeAvailabilityForPeriod(
+        array $materials,
+        string $departmentId,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        if ($materials === []) {
+            return $materials;
+        }
+
+        $materialIds = array_values(array_unique(array_map(
+            static fn (array $row): string => (string) ($row['materialItemId'] ?? ''),
+            $materials,
+        )));
+        $materialIds = array_values(array_filter($materialIds));
+
+        $workshopRepair = $this->workshopRepairQtyByMaterialIds($materialIds);
+        $issuedAtEvent = $this->issuedAtEventQtyByMaterialIds(
+            $departmentId,
+            $materialIds,
+            $startDate,
+            $endDate,
+            $excludeActivityId,
+        );
+
+        foreach ($materials as &$row) {
+            $mid = (string) ($row['materialItemId'] ?? '');
+            $type = (string) ($row['materialType'] ?? '');
+            $total = (int) ($row['totalStock'] ?? 0);
+            $repairBatchQty = (int) ($row['stockInRepair'] ?? 0);
+            $workshopQty = (int) ($workshopRepair[$mid] ?? 0);
+            $row['stockInRepair'] = $repairBatchQty + $workshopQty;
+            $row['stockInRepairFromWorkshop'] = $workshopQty;
+            /** Nur Werkstatt-Menge abziehen — Reparatur-Chargen sind nicht in totalStock. */
+            $subtractRepair = $workshopQty;
+
+            $reserved = (int) ($row['reservedInActivities'] ?? 0);
+            $issued = (int) ($issuedAtEvent[$mid] ?? 0);
+            $row['stockIssuedOut'] = $issued;
+
+            if ($type === 'virtual_combo') {
+                continue;
+            }
+
+            $lockQty = max($reserved, $issued);
+            if ($type === 'physical_combo') {
+                $row['availableForPeriod'] = max(0, $total - $subtractRepair - $lockQty);
+                continue;
+            }
+
+            $physKisten = (int) ($row['stockInPhysComboKisten'] ?? 0);
+            $row['availableForPeriod'] = max(0, $total - $subtractRepair - $physKisten - $lockQty);
+        }
+        unset($row);
+
+        return $materials;
+    }
+
+    /**
+     * @param list<string> $materialIds
+     * @return array<string, int>
+     */
+    private function workshopRepairQtyByMaterialIds(array $materialIds): array
+    {
+        if ($materialIds === []) {
+            return [];
+        }
+
+        $tickets = $this->entityManager->getRepository(WorkshopTicket::class)
+            ->createQueryBuilder('t')
+            ->leftJoin('t.issueReport', 'ir')
+            ->addSelect('ir')
+            ->where('t.materialItemId IN (:mids)')
+            ->andWhere('t.type = :type')
+            ->andWhere('t.status NOT IN (:done)')
+            ->setParameter('mids', $materialIds)
+            ->setParameter('type', WorkshopTicket::TYPE_REPAIR)
+            ->setParameter('done', [WorkshopTicket::STATUS_COMPLETED, WorkshopTicket::STATUS_CANCELLED])
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($tickets as $ticket) {
+            if (!$ticket instanceof WorkshopTicket) {
+                continue;
+            }
+            $mid = (string) $ticket->getMaterialItemId();
+            if ($mid === '') {
+                continue;
+            }
+            $report = $ticket->getIssueReport();
+            $qty = $report ? max(1, $report->getQuantity()) : 1;
+            $map[$mid] = ($map[$mid] ?? 0) + $qty;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Material «Am Event» (activity_item), optional nur bei Zeitraum-Overlap.
+     *
+     * @param list<string> $materialIds
+     * @return array<string, int>
+     */
+    private function issuedAtEventQtyByMaterialIds(
+        string $departmentId,
+        array $materialIds,
+        ?\DateTime $startDate,
+        ?\DateTime $endDate,
+        string $excludeActivityId,
+    ): array {
+        if ($materialIds === []) {
+            return [];
+        }
+
+        $ph = [];
+        $params = ['department_id' => $departmentId];
+        foreach ($materialIds as $i => $mid) {
+            $k = 'issued_mid_' . $i;
+            $ph[] = ':' . $k;
+            $params[$k] = $mid;
+        }
+        $inSql = implode(', ', $ph);
+
+        $periodSql = '';
+        if ($startDate !== null && $endDate !== null) {
+            $periodSql = 'AND (COALESCE(a.planning_start, a.usage_start) < :end_date)
+                          AND (COALESCE(a.planning_end, a.usage_end) > :start_date)';
+            $params['start_date'] = $startDate->format('Y-m-d H:i:s');
+            $params['end_date'] = $endDate->format('Y-m-d H:i:s');
+        }
+
+        $excludeSql = $excludeActivityId !== '' ? 'AND a.id != :exclude_activity_id' : '';
+        if ($excludeActivityId !== '') {
+            $params['exclude_activity_id'] = $excludeActivityId;
+        }
+
+        $sql = "SELECT ai.material_item_id AS mid, COALESCE(SUM(ai.quantity), 0)::INT AS issued
+                FROM activity_item ai
+                INNER JOIN activity a ON a.id = ai.activity_id
+                WHERE a.department_id = :department_id
+                  AND a.deleted_at IS NULL
+                  AND a.status = 'at_event'
+                  AND ai.material_item_id IN ($inSql)
+                  {$periodSql}
+                  {$excludeSql}
+                GROUP BY ai.material_item_id";
+
+        $rows = $this->connection->prepare($sql)->executeQuery($params)->fetchAllAssociative();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r['mid']] = (int) $r['issued'];
+        }
+
         return $map;
     }
 

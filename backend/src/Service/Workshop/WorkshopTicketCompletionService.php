@@ -19,6 +19,7 @@ final class WorkshopTicketCompletionService
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private WorkshopWriteoffRepurposeService $writeoffRepurposeService,
     ) {
     }
 
@@ -139,6 +140,14 @@ final class WorkshopTicketCompletionService
                 $historyChanges,
                 $this->applyWriteoffResolution($ticket, $material, $data, $now, $actor),
             );
+
+            $repurposeRaw = $data['writeoff_repurpose'] ?? null;
+            if (\is_array($repurposeRaw) && $repurposeRaw !== []) {
+                $historyChanges = array_merge(
+                    $historyChanges,
+                    $this->writeoffRepurposeService->apply($ticket, $repurposeRaw, $now, $actor),
+                );
+            }
         }
 
         $issueReport = $ticket->getIssueReport();

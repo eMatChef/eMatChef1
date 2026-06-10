@@ -9,19 +9,6 @@
       </EButton>
     </template>
 
-    <!-- Stats -->
-    <div class="workshop-stats" v-if="stats">
-      <div
-        v-for="phase in statsPhases"
-        :key="phase"
-        class="stat-card"
-        :class="phase"
-      >
-        <div class="stat-value">{{ stats.phase_counts?.[phase] || 0 }}</div>
-        <div class="stat-label">{{ phaseLabels[phase] }}</div>
-      </div>
-    </div>
-
     <template #filters>
     <div class="workshop-toolbar">
       <v-btn-toggle
@@ -104,111 +91,136 @@
     </div>
     </template>
 
-    <ELoadingState v-if="isLoading" variant="page" :message="t('workshop.loadingTickets')" />
-
-    <EEmptyState
-      v-else-if="tickets.length === 0 && !isLoading"
-      variant="create"
-      :title="t('workshop.emptyTitle')"
-      :description="t('workshop.emptyText')"
-    >
-      <template #actions>
-        <EButton variant="primary" @click="showCreateModal = true">
-          <v-icon icon="mdi-plus" start size="20" />
-          {{ t('workshop.createFirstTicket') }}
-        </EButton>
-      </template>
-    </EEmptyState>
-
-    <!-- Kanban Board -->
-    <div v-else-if="viewMode === 'kanban'" class="kanban-board">
-      <div
-        v-for="col in kanbanColumns"
-        :key="col.phase"
-        class="kanban-column"
-        :class="col.phase"
-      >
-        <div class="kanban-column-header">
-          <span class="column-title">{{ col.label }}</span>
-          <span class="column-count">{{ getColumnTickets(col.phase).length }}</span>
+    <div class="workshop-body">
+      <div v-if="stats" class="workshop-stats">
+        <div
+          v-for="phase in statsPhases"
+          :key="phase"
+          class="stat-card"
+          :class="phase"
+        >
+          <div class="stat-value">{{ stats.phase_counts?.[phase] || 0 }}</div>
+          <div class="stat-label">{{ phaseLabels[phase] }}</div>
         </div>
-        <div class="kanban-column-body">
+      </div>
+
+      <ELoadingState v-if="isLoading" variant="page" :message="t('workshop.loadingTickets')" />
+
+      <EEmptyState
+        v-else-if="tickets.length === 0 && !isLoading"
+        variant="create"
+        :title="t('workshop.emptyTitle')"
+        :description="t('workshop.emptyText')"
+      >
+        <template #actions>
+          <EButton variant="primary" @click="showCreateModal = true">
+            <v-icon icon="mdi-plus" start size="20" />
+            {{ t('workshop.createFirstTicket') }}
+          </EButton>
+        </template>
+      </EEmptyState>
+
+      <p
+        v-else-if="viewMode === 'kanban' && kanbanColumns.length === 0"
+        class="kanban-no-columns-hint"
+      >
+        {{ t('workshop.kanbanNoVisibleColumns') }}
+      </p>
+
+      <div v-else-if="viewMode === 'kanban'" class="kanban-board">
+        <div
+          v-for="col in kanbanColumns"
+          :key="col.phase"
+          class="kanban-column"
+          :class="col.phase"
+        >
+          <div class="kanban-column-header">
+            <span class="column-title">{{ col.label }}</span>
+            <span class="column-count">{{ col.count }}</span>
+          </div>
+          <div class="kanban-column-body">
+            <div
+              v-for="ticket in col.tickets"
+              :key="ticket.id"
+              class="kanban-card"
+              @click="openTicketDetail(ticket)"
+            >
+              <div class="card-header">
+                <span class="card-title">{{ ticket.title }}</span>
+                <span class="priority-badge" :class="ticket.priority">
+                  {{ priorityLabels[ticket.priority] }}
+                </span>
+              </div>
+              <div class="card-material">
+                <svg
+                  class="mat-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                </svg>
+                {{ ticket.material_item.name }}
+              </div>
+              <div class="card-footer">
+                <div class="card-meta">
+                  <span class="type-badge" :class="ticket.type">{{ typeLabels[ticket.type] }}</span>
+                  <span
+                    v-if="ticket.strategy_label"
+                    class="workflow-badge strategy"
+                    :class="ticket.strategy"
+                  >
+                    {{ ticket.strategy_label }}
+                  </span>
+                  <span v-if="ticket.phase_label" class="workflow-badge phase">
+                    {{ ticket.phase_label }}
+                  </span>
+                  <span
+                    v-if="ticket.origin_issue_type"
+                    class="origin-badge"
+                    :class="getIssueOriginBadgeClass(ticket.origin_issue_type)"
+                    :title="t('workshop.issueOriginCreatedTitle', { origin: getIssueOriginBadgeLabel(ticket.origin_issue_type) })"
+                  >
+                    {{ getIssueOriginBadgeLabel(ticket.origin_issue_type) }}
+                  </span>
+                </div>
+                <div class="card-meta">
+                  <span v-if="ticket.assigned_to" class="assigned-avatar" :title="ticket.assigned_to.name">
+                    {{ getInitials(ticket.assigned_to.name) }}
+                  </span>
+                  <span class="card-date">{{ formatDateShort(ticket.created_at) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="viewMode === 'kanban' && cancelledTickets.length > 0"
+        class="cancelled-section"
+      >
+        <div class="cancelled-section-header">
+          <span>{{ t('workshop.cancelledSection') }}</span>
+          <span class="cancelled-count">{{ cancelledTickets.length }}</span>
+        </div>
+        <div class="cancelled-list">
           <div
-            v-for="ticket in getColumnTickets(col.phase)"
+            v-for="ticket in cancelledTickets"
             :key="ticket.id"
-            class="kanban-card"
+            class="cancelled-item"
             @click="openTicketDetail(ticket)"
           >
-            <div class="card-header">
-              <span class="card-title">{{ ticket.title }}</span>
-              <span class="priority-badge" :class="ticket.priority">
-                {{ priorityLabels[ticket.priority] }}
-              </span>
-            </div>
-            <div class="card-material">
-              <svg class="mat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-              </svg>
-              {{ ticket.material_item.name }}
-            </div>
-            <div class="card-footer">
-              <div class="card-meta">
-                <span class="type-badge" :class="ticket.type">{{ typeLabels[ticket.type] }}</span>
-                <span
-                  v-if="ticket.strategy_label"
-                  class="workflow-badge strategy"
-                  :class="ticket.strategy"
-                >
-                  {{ ticket.strategy_label }}
-                </span>
-                <span v-if="ticket.phase_label" class="workflow-badge phase">
-                  {{ ticket.phase_label }}
-                </span>
-                <span
-                  v-if="ticket.origin_issue_type"
-                  class="origin-badge"
-                  :class="getIssueOriginBadgeClass(ticket.origin_issue_type)"
-                  :title="t('workshop.issueOriginCreatedTitle', { origin: getIssueOriginBadgeLabel(ticket.origin_issue_type) })"
-                >
-                  {{ getIssueOriginBadgeLabel(ticket.origin_issue_type) }}
-                </span>
-              </div>
-              <div class="card-meta">
-                <span v-if="ticket.assigned_to" class="assigned-avatar" :title="ticket.assigned_to.name">
-                  {{ getInitials(ticket.assigned_to.name) }}
-                </span>
-                <span class="card-date">{{ formatDateShort(ticket.created_at) }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Leere Spalte -->
-          <div v-if="getColumnTickets(col.phase).length === 0" style="text-align: center; padding: 24px 8px; color: #9ca3af; font-size: 12px;">
-            {{ t('workshop.noTicketsInColumn') }}
+            <span class="cancelled-title">{{ ticket.title }}</span>
+            <span class="cancelled-date">{{ formatDateShort(ticket.created_at) }}</span>
           </div>
         </div>
       </div>
-    </div>
-    <div v-if="viewMode === 'kanban' && cancelledTickets.length > 0" class="cancelled-section">
-      <div class="cancelled-section-header">
-        <span>{{ t('workshop.cancelledSection') }}</span>
-        <span class="cancelled-count">{{ cancelledTickets.length }}</span>
-      </div>
-      <div class="cancelled-list">
-        <div
-          v-for="ticket in cancelledTickets"
-          :key="ticket.id"
-          class="cancelled-item"
-          @click="openTicketDetail(ticket)"
-        >
-          <span class="cancelled-title">{{ ticket.title }}</span>
-          <span class="cancelled-date">{{ formatDateShort(ticket.created_at) }}</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- Table View -->
-    <div v-else class="table-wrapper">
+      <div v-else-if="viewMode === 'table'" class="table-wrapper">
       <table class="workshop-table">
         <thead>
           <tr>
@@ -274,6 +286,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <EDialog
@@ -284,7 +297,19 @@
     >
       <template v-if="selectedTicket" #title>
         <div class="workshop-detail-dialog-title">
-          <span>{{ selectedTicket.title }}</span>
+          <div class="workshop-detail-dialog-title-row">
+            <span class="workshop-detail-dialog-title-text">{{ selectedTicket.title }}</span>
+            <button
+              v-if="isTerminalPhase(selectedTicket)"
+              type="button"
+              class="workshop-detail-dialog-close"
+              :aria-label="t('common.close')"
+              @click="closeSelectedTicketDetail"
+            >
+              <v-icon icon="mdi-close" size="18" />
+              <span>{{ t('common.close') }}</span>
+            </button>
+          </div>
           <div class="modal-subtitle">
             <span class="phase-badge" :class="getTicketDisplayPhase(selectedTicket)">
               <span class="phase-dot" :class="getTicketDisplayPhase(selectedTicket)"></span>
@@ -438,14 +463,14 @@
           <WorkshopWorkflowStepper
             v-if="selectedTicket.strategy === 'internal_repair'"
             :ticket="selectedTicket"
+            :hint="workflowHintText(selectedTicket)"
           />
 
           <div
-            v-if="workflowHintKey(selectedTicket)"
+            v-else-if="workflowHintText(selectedTicket)"
             class="workflow-next-hint"
           >
-            <v-icon icon="mdi-arrow-right-circle-outline" size="20" />
-            <span>{{ t(workflowHintKey(selectedTicket)!) }}</span>
+            <span>{{ workflowHintText(selectedTicket) }}</span>
           </div>
 
           <div v-if="selectedTicket" ref="repairSheetSectionRef" class="modal-section">
@@ -465,6 +490,7 @@
 
           <div v-if="selectedTicket" ref="repairPartsSectionRef" class="modal-section">
             <RepairPartsList
+              ref="repairPartsListRef"
               :ticket="selectedTicket"
               :department-id="currentDepartmentId"
               @updated="onRepairSheetUpdated"
@@ -704,7 +730,7 @@
         <p class="completion-parts-warning-text">{{ t('workshop.completePartsWarningText') }}</p>
         <ul v-if="completionPartsLines.length" class="completion-parts-list">
           <li v-for="line in completionPartsLines" :key="line.id">
-            {{ line.material_name || line.material_item_id }} — {{ line.quantity }}×
+            {{ line.material_name || line.material_item_id }} — {{ formatRepairPartQuantity(line) }}
             <span class="completion-part-source">({{ line.source === 'purchase' ? t('workshop.repairPartsList.source.purchase') : t('workshop.repairPartsList.source.stock') }})</span>
             <span v-if="line.unit_cost">({{ t('workshop.completePartsLineCost', { amount: formatChfAmount(Number(line.unit_cost) * line.quantity) }) }})</span>
           </li>
@@ -739,12 +765,20 @@
       >
         {{ t('workshop.completePartsWriteoffHint') }}
       </p>
+      <WorkshopWriteoffRepurposePanel
+        v-if="selectedTicket && completeForm.resolution_action === 'writeoff'"
+        v-model="completeForm.writeoff_repurpose"
+        :department-id="currentDepartmentId"
+        :source-material="selectedTicket.material_item"
+        @create-material="openRepurposeMaterialWizard"
+      />
       <WorkshopCostSummary
         v-if="completionCostSummaryVisible"
         :ticket="selectedTicket!"
         :department-id="currentDepartmentId"
         :hourly-rate-chf="workshopHourlyRate"
         :parts-material-cost="completionMaterialCost"
+        :has-repair-parts="completionPartsLines.length > 0"
         @update:actual-cost="completeForm.actual_cost = $event"
         @update:cost-breakdown="completeCostBreakdown = $event"
       />
@@ -771,13 +805,23 @@
         <EButton
           variant="primary"
           size="small"
-          :disabled="!completeForm.resolution_action || completionCostMissing"
+          :disabled="!completeForm.resolution_action || completionCostMissing || completionRepurposeInvalid"
           @click="completeTicket"
         >
           {{ t('workshop.btnFinishComplete') }}
         </EButton>
       </template>
     </EDialog>
+
+    <MaterialCreateWizard
+      :key="repurposeWizardKey"
+      v-model="showRepurposeMaterialWizard"
+      :department-id="currentDepartmentId"
+      :prefill-from-material-id="selectedTicket?.material_item.id ?? null"
+      prefill-force-tracking-type="bulk"
+      :prefill-source-note="repurposeWizardSourceNote"
+      @created="onRepurposeMaterialCreated"
+    />
 
     <EDialog v-model="showLossAcceptModal" :max-width="520" :title="t('workshop.lossTitle')">
       <p v-if="selectedTicket" class="workshop-dialog-subtitle">{{ selectedTicket.title }}</p>
@@ -1013,6 +1057,10 @@ import WorkshopCostSummary from '@/components/workshop/WorkshopCostSummary.vue'
 import WorkshopExternalCleaningPanel from '@/components/workshop/WorkshopExternalCleaningPanel.vue'
 import RepairPartsList from '@/components/workshop/RepairPartsList.vue'
 import WorkshopWorkflowStepper from '@/components/workshop/WorkshopWorkflowStepper.vue'
+import WorkshopWriteoffRepurposePanel, {
+  type WriteoffRepurposeForm,
+} from '@/components/workshop/WorkshopWriteoffRepurposePanel.vue'
+import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue'
 import {
   getWorkflowPrimaryAction,
   hasOpenPurchase,
@@ -1032,6 +1080,7 @@ import {
 import {
   estimatePartsMaterialCost,
   formatChfAmount,
+  formatRepairPartQuantity,
   getCompletionPartsLines,
   getReceivedPurchasePartsForCompletion,
   getStockPartsForCompletion,
@@ -1086,6 +1135,7 @@ const showTriageDialog = ref(false)
 const triageTicket = ref<WorkshopTicket | null>(null)
 const repairSheetSectionRef = ref<HTMLElement | null>(null)
 const repairPartsSectionRef = ref<HTMLElement | null>(null)
+const repairPartsListRef = ref<InstanceType<typeof RepairPartsList> | null>(null)
 const detailDialogBodyRef = ref<HTMLElement | null>(null)
 
 const detailDialogOpen = computed({
@@ -1207,12 +1257,27 @@ const selectedSerialLabel = computed(() => {
   return batch ? formatBatchLabel(batch) : ''
 })
 
+function createEmptyWriteoffRepurpose(): WriteoffRepurposeForm {
+  return {
+    enabled: false,
+    material_item_id: '',
+    material_name: '',
+    quantity: null,
+    quantity_unit: 'Stk',
+    stock_already_booked: false,
+  }
+}
+
+const showRepurposeMaterialWizard = ref(false)
+const repurposeWizardKey = ref(0)
+
 // Complete Form
 const completeForm = ref({
   resolution_action: '' as string,
   actual_cost: '',
   resolution_notes: '',
   parts_surplus: {} as Record<string, number>,
+  writeoff_repurpose: createEmptyWriteoffRepurpose(),
 })
 const completeCostBreakdown = ref<WorkshopCostBreakdown | null>(null)
 const workshopHourlyRate = ref(DEFAULT_WORKSHOP_SETTINGS.hourlyRateChf)
@@ -1299,14 +1364,6 @@ function isLossOriginTicket(ticket: WorkshopTicket): boolean {
   return ticket.origin_issue_type === 'loss' || ticket.issue_report?.type === 'loss'
 }
 
-// === Kanban Columns ===
-const kanbanColumns = computed(() =>
-  KANBAN_PHASES.map((phase) => ({
-    phase,
-    label: phaseLabels.value[phase],
-  })),
-)
-
 // === Computed ===
 const filteredTickets = computed(() => {
   let result = [...tickets.value]
@@ -1356,6 +1413,18 @@ const filteredTickets = computed(() => {
 function getColumnTickets(phase: TicketDisplayPhase): WorkshopTicket[] {
   return filteredTickets.value.filter(t => getTicketDisplayPhase(t) === phase)
 }
+
+const kanbanColumns = computed(() =>
+  KANBAN_PHASES.map((phase) => {
+    const ticketsInPhase = getColumnTickets(phase)
+    return {
+      phase,
+      label: phaseLabels.value[phase],
+      tickets: ticketsInPhase,
+      count: ticketsInPhase.length,
+    }
+  }).filter((col) => col.count > 0),
+)
 
 const cancelledTickets = computed(() => {
   return filteredTickets.value.filter(t => getTicketDisplayPhase(t) === 'cancelled')
@@ -1442,6 +1511,15 @@ const completionWriteoffPartsHintVisible = computed(() => {
   if (selectedTicket.value.strategy !== 'internal_repair') return false
   if (completeForm.value.resolution_action !== 'writeoff') return false
   return (selectedTicket.value.parts_used?.length ?? 0) > 0
+})
+
+const completionRepurposeInvalid = computed(() => {
+  const repurpose = completeForm.value.writeoff_repurpose
+  if (completeForm.value.resolution_action !== 'writeoff' || !repurpose.enabled) return false
+  if (!repurpose.material_item_id) return true
+  if (repurpose.stock_already_booked) return false
+  const qty = Number(repurpose.quantity)
+  return !Number.isFinite(qty) || qty <= 0
 })
 
 const completionMaterialCostHint = computed(() => {
@@ -1644,6 +1722,11 @@ function workflowHintKey(ticket: WorkshopTicket): string | null {
   }
 }
 
+function workflowHintText(ticket: WorkshopTicket): string | null {
+  const key = workflowHintKey(ticket)
+  return key ? t(key) : null
+}
+
 async function focusRepairPartsSection() {
   detailTab.value = 'arbeit'
   await nextTick()
@@ -1655,11 +1738,14 @@ async function advanceTicketPhase(phase: 'ready' | 'in_progress') {
 
   isAdvancingPhase.value = true
   try {
+    const partsSaved = (await repairPartsListRef.value?.saveIfDirty?.()) ?? true
+    if (!partsSaved) return
+
     const updated = await setWorkshopTicketPhase(selectedTicket.value.id, { phase })
-    selectedTicket.value = updated
+    selectedTicket.value = mergeTicketDetailFields(updated, selectedTicket.value)
     const idx = tickets.value.findIndex((t) => t.id === updated.id)
     if (idx !== -1) {
-      tickets.value[idx] = { ...tickets.value[idx], ...updated }
+      tickets.value[idx] = mergeTicketDetailFields(updated, tickets.value[idx])
     }
     if (currentDepartmentId.value) {
       stats.value = await getWorkshopStats(currentDepartmentId.value)
@@ -1732,11 +1818,26 @@ async function onTriageResolveOk(ticket: WorkshopTicket) {
   }
 }
 
+function mergeTicketDetailFields(
+  incoming: WorkshopTicket,
+  previous?: WorkshopTicket | null,
+): WorkshopTicket {
+  if (!previous || previous.id !== incoming.id) return incoming
+  return {
+    ...incoming,
+    parts_used: incoming.parts_used ?? previous.parts_used,
+    repair_checklist: incoming.repair_checklist ?? previous.repair_checklist,
+    photos: incoming.photos ?? previous.photos,
+    activity: incoming.activity ?? previous.activity,
+    issue_report: incoming.issue_report ?? previous.issue_report,
+  }
+}
+
 function onRepairSheetUpdated(ticket: WorkshopTicket) {
-  selectedTicket.value = ticket
+  selectedTicket.value = mergeTicketDetailFields(ticket, selectedTicket.value)
   const idx = tickets.value.findIndex((t) => t.id === ticket.id)
   if (idx !== -1) {
-    tickets.value[idx] = { ...tickets.value[idx], ...ticket }
+    tickets.value[idx] = mergeTicketDetailFields(ticket, tickets.value[idx])
   }
 }
 
@@ -1751,6 +1852,7 @@ function onTriageWriteoff(ticket: WorkshopTicket) {
     actual_cost: '',
     resolution_notes: '',
     parts_surplus: {},
+    writeoff_repurpose: createEmptyWriteoffRepurpose(),
   }
   showCompleteModal.value = true
 }
@@ -1894,6 +1996,36 @@ async function transitionTicket(ticketId: string, newStatus: TicketStatus) {
   }
 }
 
+const repurposeWizardSourceNote = computed(() => {
+  if (!selectedTicket.value) return ''
+  return t('workshop.writeoffRepurpose.wizardSourceNote', {
+    title: selectedTicket.value.title,
+    id: selectedTicket.value.id,
+  })
+})
+
+function openRepurposeMaterialWizard() {
+  if (!selectedTicket.value) return
+  completeForm.value.writeoff_repurpose.enabled = true
+  repurposeWizardKey.value += 1
+  showRepurposeMaterialWizard.value = true
+}
+
+function onRepurposeMaterialCreated(material: Material) {
+  showRepurposeMaterialWizard.value = false
+  const bookedQty = Number(material.total_stock ?? material.available ?? material.in_warehouse ?? 0)
+  const packUnit = (material.pack_unit || '').trim()
+  completeForm.value.writeoff_repurpose = {
+    ...completeForm.value.writeoff_repurpose,
+    enabled: true,
+    material_item_id: material.id,
+    material_name: material.name,
+    stock_already_booked: bookedQty > 0,
+    quantity: bookedQty > 0 ? null : completeForm.value.writeoff_repurpose.quantity,
+    quantity_unit: packUnit || completeForm.value.writeoff_repurpose.quantity_unit || 'Stk',
+  }
+}
+
 function openCompleteModal() {
   if (!selectedTicket.value) return
   const partsCost = estimatePartsMaterialCost(getStockPartsForCompletion(selectedTicket.value))
@@ -1906,6 +2038,7 @@ function openCompleteModal() {
     actual_cost: partsCost > 0 ? formatChfAmount(partsCost) : '',
     resolution_notes: '',
     parts_surplus: surplus,
+    writeoff_repurpose: createEmptyWriteoffRepurpose(),
   }
   completeCostBreakdown.value = null
   showCompleteModal.value = true
@@ -1923,6 +2056,20 @@ async function completeTicket() {
       }
     }
 
+    const repurpose = completeForm.value.writeoff_repurpose
+    const writeoffRepurposePayload =
+      completeForm.value.resolution_action === 'writeoff'
+      && repurpose.enabled
+      && repurpose.material_item_id
+        ? {
+            material_item_id: repurpose.material_item_id,
+            quantity: repurpose.stock_already_booked ? undefined : Number(repurpose.quantity),
+            quantity_unit: repurpose.quantity_unit || undefined,
+            stock_already_booked: repurpose.stock_already_booked || undefined,
+            unit_cost: selectedTicket.value.material_item.reference_purchase_unit_chf || undefined,
+          }
+        : undefined
+
     await transitionWorkshopTicket(selectedTicket.value.id, {
       status: 'completed',
       resolution_action: completeForm.value.resolution_action as any,
@@ -1930,10 +2077,17 @@ async function completeTicket() {
       actual_cost: completeForm.value.actual_cost || undefined,
       cost_breakdown: completeCostBreakdown.value ?? undefined,
       parts_surplus: Object.keys(surplusPayload).length ? surplusPayload : undefined,
+      writeoff_repurpose: writeoffRepurposePayload,
     })
 
     showCompleteModal.value = false
-    completeForm.value = { resolution_action: '', actual_cost: '', resolution_notes: '', parts_surplus: {} }
+    completeForm.value = {
+      resolution_action: '',
+      actual_cost: '',
+      resolution_notes: '',
+      parts_surplus: {},
+      writeoff_repurpose: createEmptyWriteoffRepurpose(),
+    }
     completeCostBreakdown.value = null
 
     // Alles neu laden

@@ -7,6 +7,7 @@ use App\Entity\Activity;
 use App\Entity\Address;
 use App\Entity\User;
 use App\Entity\WorkshopTicket;
+use App\Service\Media\MediaPhotoNormalizer;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -16,6 +17,7 @@ class AccountingAcquisitionFollowUpSerializer
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private MediaPhotoNormalizer $photoNormalizer,
     ) {
     }
 
@@ -28,6 +30,9 @@ class AccountingAcquisitionFollowUpSerializer
         $booking = $f->getAccountingBooking();
         $activity = $f->getActivity();
         $material = $f->getMaterialItem();
+        if ($material === null && $batch !== null) {
+            $material = $batch->getMaterialItem();
+        }
         $sourceKind = $f->getSourceKind() ?? '';
 
         $materialDeptId = $material?->getDepartmentId();
@@ -82,6 +87,7 @@ class AccountingAcquisitionFollowUpSerializer
             'amount' => $f->getAmount(),
             'suggested_date' => $f->getSuggestedDate()->format('Y-m-d'),
             'receipt_label' => $f->getReceiptLabel(),
+            'receipts' => $this->photoNormalizer->normalizeOutgoing($f->getReceipts()),
             'status' => $f->getStatus(),
             'accounting_booking_id' => $booking?->getId(),
             'created_at' => $f->getCreatedAt()->format('c'),

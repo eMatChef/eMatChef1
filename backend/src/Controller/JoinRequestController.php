@@ -797,6 +797,7 @@ class JoinRequestController extends AbstractController
                 'id' => $jr->getId(),
                 'request_kind' => 'department_join',
                 'status' => $jr->getStatus(),
+                'auto_joined' => $jr->getStatus() === 'approved' && $jr->getReviewedById() === $jr->getUserId(),
                 'department_id' => $jr->getDepartmentId(),
                 'department_name' => $dept?->getName(),
                 'organisation_name' => $dept?->getOrganisation()?->getName(),

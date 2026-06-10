@@ -4,6 +4,8 @@ export interface MyJoinRequest {
   id: string
   request_kind?: 'admin' | 'department_join'
   status: 'pending' | 'approved' | 'rejected' | 'assigned'
+  /** Join-Code: sofort beigetreten, keine Freigabe durch MW/DC nötig. */
+  auto_joined?: boolean
   department_id?: string | null
   department_name: string
   organisation_name?: string | null
@@ -382,9 +384,14 @@ export async function decideDepartmentActivityInvite(payload: {
   activityId: string
   departmentId: string
   decision: 'accepted' | 'rejected'
+  groupId?: string
 }): Promise<void> {
-  await apiClient.patch(`/api/activities/${payload.activityId}/department-invites/decision`, {
+  const body: Record<string, string> = {
     department_id: payload.departmentId,
     decision: payload.decision,
-  })
+  }
+  if (payload.decision === 'accepted' && payload.groupId) {
+    body.group_id = payload.groupId
+  }
+  await apiClient.patch(`/api/activities/${payload.activityId}/department-invites/decision`, body)
 }

@@ -542,7 +542,7 @@ export function useActivityCreateWizard() {
         applyInvitedDepartmentsApiResponse(updated)
       }
       const id = draftActivityId.value
-      if (id && materialLines.value.length > 0) {
+      if (id) {
         await syncActivityItems(id, {
           items: materialLines.value.map((l) => ({
             material_item_id: l.material_item_id,

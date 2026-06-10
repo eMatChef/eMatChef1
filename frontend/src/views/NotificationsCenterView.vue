@@ -294,6 +294,14 @@
         @close="detailActivityInvite = null"
         @open-task="goToTaskForCampInvite"
       />
+
+      <ActivityDepartmentInviteDecisionModal
+        :visible="!!campInviteDecision"
+        :invite="campInviteDecision"
+        :department-id="departmentId || ''"
+        @close="campInviteDecision = null"
+        @decided="onCampInviteDecided"
+      />
     </template>
 
   </PageShell>
@@ -343,6 +351,7 @@ import {
 } from '@/api/inboxMessages'
 import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
 import {
+  ActivityDepartmentInviteDecisionModal,
   InboxComposeModal,
   InboxMessageDetailModal,
   InboxQrDetailModal,
@@ -381,6 +390,7 @@ const detailMessageMode = ref<'inbox' | 'sent'>('inbox')
 const detailQr = ref<PublicFoundItemMessage | null>(null)
 const detailDepartmentInvite = ref<ReceivedDepartmentInviteNotification | null>(null)
 const detailActivityInvite = ref<PendingDepartmentActivityInvite | null>(null)
+const campInviteDecision = ref<PendingDepartmentActivityInvite | null>(null)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
 const departmentInviteAll = ref<ReceivedDepartmentInviteNotification[]>([])
 const departmentInviteUnreadCount = ref(0)
@@ -606,7 +616,25 @@ async function openDepartmentInvite(inv: ReceivedDepartmentInviteNotification) {
 }
 
 function openActivityInvite(invite: PendingDepartmentActivityInvite) {
-  detailActivityInvite.value = invite
+  campInviteDecision.value = invite
+}
+
+async function onCampInviteDecided(decision: 'accepted' | 'rejected') {
+  inviteItems.value = inviteItems.value.filter(
+    (e) =>
+      !(
+        campInviteDecision.value &&
+        e.activity_id === campInviteDecision.value.activity_id &&
+        e.source_department_id === campInviteDecision.value.source_department_id
+      ),
+  )
+  toast.success(
+    decision === 'accepted'
+      ? t('notificationsCenter.toastInviteAccepted')
+      : t('notificationsCenter.toastInviteRejected'),
+  )
+  headerNotificationsStore.requestRefresh()
+  await load()
 }
 
 function goToTasksPage(query?: Record<string, string>) {

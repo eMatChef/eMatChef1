@@ -239,8 +239,43 @@
                     <span v-if="inv.organisation_name" class="text-muted">({{ inv.organisation_name }})</span>
                     <span class="invite-status" :class="inviteStatusClass(inv.status)">{{ inviteStatusLabel(inv.status) }}</span>
                     <span v-if="inv.group_name" class="text-muted">· {{ inv.group_name }}</span>
+                    <span
+                      v-else-if="inv.status === 'accepted'"
+                      class="text-muted"
+                    >· {{ t('activities.detail.inviteGroupNotSet') }}</span>
                   </li>
                 </ul>
+              </div>
+
+              <div
+                v-if="showGuestInviteGroupAssign"
+                class="section-card activity-tab-panel-card activity-guest-invite-group-card"
+              >
+                <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.guestInviteGroupTitle') }}</h2>
+                <p class="text-muted activity-guest-invite-group-hint">{{ t('activities.detail.guestInviteGroupHint') }}</p>
+                <div class="form-group">
+                  <label for="guest-invite-group-select">{{ t('common.group') }}</label>
+                  <select
+                    id="guest-invite-group-select"
+                    v-model="guestInviteGroupId"
+                    class="form-input"
+                    :disabled="guestInviteGroupSaving || guestInviteGroupsLoading"
+                  >
+                    <option value="">{{ t('activities.detail.guestInviteGroupPlaceholder') }}</option>
+                    <option v-for="g in guestInviteFlatGroups" :key="g.id" :value="g.id">
+                      {{ guestInviteGroupLabel(g) }}
+                    </option>
+                  </select>
+                </div>
+                <EButton
+                  variant="primary"
+                  size="small"
+                  :disabled="!guestInviteGroupId || guestInviteGroupSaving"
+                  :loading="guestInviteGroupSaving"
+                  @click="saveGuestInviteGroup"
+                >
+                  {{ t('activities.detail.guestInviteGroupSave') }}
+                </EButton>
               </div>
 
               <div v-if="activity.notes" class="section-card activity-tab-panel-card">
@@ -628,6 +663,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
   addActivityItem,
+  assignDepartmentInviteGroup,
   ensureActivityPublicCode,
   getActivity,
   getActivityIssues,
@@ -667,7 +703,9 @@ import type { ConsumptionModalPreset } from '@/components/activities/ActivityCon
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
+import { getGroups, type Group } from '@/api/groups'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { flattenGroupsWithLevel, type GroupWithLevel } from '@/utils/groupHierarchy'
 import {
   isDepartmentBasicMemberRole,
   useDepartmentMemberRole,
@@ -1098,6 +1136,81 @@ function onMaterialLookupScopeChange(payload: {
 const hasAcceptedPartnerDepts = computed(() =>
   (activity.value?.invited_departments ?? []).some((i) => (i.status ?? 'pending') === 'accepted'),
 )
+
+const guestInviteContext = computed(() => activity.value?.guest_invite_for_viewer ?? null)
+
+const showGuestInviteGroupAssign = computed(
+  () => !!guestInviteContext.value?.can_assign_group && !!guestInviteContext.value.department_id,
+)
+
+const guestInviteGroups = ref<Group[]>([])
+const guestInviteGroupsLoading = ref(false)
+const guestInviteGroupId = ref('')
+const guestInviteGroupSaving = ref(false)
+
+const guestInviteFlatGroups = computed(() => flattenGroupsWithLevel(guestInviteGroups.value))
+
+function guestInviteGroupLabel(g: GroupWithLevel): string {
+  const indent = g._level > 0 ? `${'— '.repeat(g._level)}` : ''
+  return `${indent}${g.name}`
+}
+
+async function loadGuestInviteGroups(deptId: string) {
+  guestInviteGroupsLoading.value = true
+  try {
+    guestInviteGroups.value = await getGroups(deptId)
+  } catch {
+    guestInviteGroups.value = []
+  } finally {
+    guestInviteGroupsLoading.value = false
+  }
+}
+
+watch(
+  () => [guestInviteContext.value?.department_id, guestInviteContext.value?.group_id] as const,
+  async ([deptId, groupId]) => {
+    guestInviteGroupId.value = groupId ?? ''
+    if (!deptId) {
+      guestInviteGroups.value = []
+      return
+    }
+    await loadGuestInviteGroups(deptId)
+  },
+  { immediate: true },
+)
+
+async function saveGuestInviteGroup() {
+  const ctx = guestInviteContext.value
+  const groupId = guestInviteGroupId.value.trim()
+  if (!ctx?.department_id || !groupId || !activity.value) return
+  guestInviteGroupSaving.value = true
+  try {
+    const result = await assignDepartmentInviteGroup(props.activityId, {
+      departmentId: ctx.department_id,
+      groupId,
+    })
+    const invites = [...(activity.value.invited_departments ?? [])]
+    const idx = invites.findIndex((inv) => inv.id === ctx.department_id)
+    if (idx >= 0) {
+      invites[idx] = {
+        ...invites[idx],
+        group_id: result.group_id,
+        group_name: result.group_name,
+      }
+      activity.value = { ...activity.value, invited_departments: invites, guest_invite_for_viewer: {
+        ...ctx,
+        group_id: result.group_id,
+        group_name: result.group_name,
+      } }
+    }
+    toast.success(t('activities.detail.guestInviteGroupSaved'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e?.response?.data?.error || t('activities.detail.guestInviteGroupSaveFailed'))
+  } finally {
+    guestInviteGroupSaving.value = false
+  }
+}
 
 /**
  * Entwurfs-Detail mit AutoSave: nur Lager / Event / extern (Typ «activity» ohne Entwurfmodus).
@@ -1544,7 +1657,7 @@ async function reloadActivityDetailSoft(): Promise<void> {
   try {
     const prevName = activity.value.name
     const [d, tr] = await Promise.all([
-      getActivity(props.activityId),
+      getActivity(props.activityId, props.departmentId),
       getActivityTransitions(props.activityId),
     ])
     applyActivityDetailPatch(d)
@@ -1692,7 +1805,7 @@ async function reload() {
   draftQuantities.value = {}
   try {
     const [detail, tr, items] = await Promise.all([
-      getActivity(props.activityId),
+      getActivity(props.activityId, props.departmentId),
       getActivityTransitions(props.activityId),
       getActivityItems(props.activityId).catch(() => [] as ActivityItemRow[]),
       loadGroupsForDepartment(props.departmentId),
@@ -1774,7 +1887,7 @@ async function onDamageReportSuccess() {
 }
 
 async function refreshActivityTotalsFromApi() {
-  const d = await getActivity(props.activityId)
+  const d = await getActivity(props.activityId, props.departmentId)
   if (!activity.value) return
   applyActivityDetailPatch(d)
 }
@@ -1820,7 +1933,7 @@ async function refreshActivityDetailSilent(): Promise<void> {
     const prevName = activity.value.name
 
     const [d, tr] = await Promise.all([
-      getActivity(props.activityId),
+      getActivity(props.activityId, props.departmentId),
       getActivityTransitions(props.activityId),
     ])
 
@@ -2019,7 +2132,7 @@ async function onTransition(
   isTransitioning.value = true
   try {
     await patchActivityStatus(props.activityId, { status: transition.status })
-    const detail = await getActivity(props.activityId)
+    const detail = await getActivity(props.activityId, props.departmentId)
     activity.value = detail
     pageHeadStore.setDynamic(
       t('activities.detail.pageTitleSuffix', { name: detail.name }),

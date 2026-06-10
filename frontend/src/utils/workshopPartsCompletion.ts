@@ -33,3 +33,16 @@ export function estimatePartsMaterialCost(lines: RepairPartLine[]): number {
 export function formatChfAmount(amount: number): string {
   return amount.toFixed(2)
 }
+
+function formatQtyValue(value: number): string {
+  if (!Number.isFinite(value)) return '0'
+  return Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+/** Verbrauch mit Einheit: «30 m», «1×» bei Stück. */
+export function formatRepairPartQuantity(line: RepairPartLine): string {
+  const unit = (line.quantity_unit || 'Stk').trim()
+  const qty = formatQtyValue(line.quantity)
+  if (!unit || unit.toLowerCase() === 'stk') return `${qty}×`
+  return `${qty} ${unit}`
+}

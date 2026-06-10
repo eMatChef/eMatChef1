@@ -44,7 +44,7 @@
           <tbody>
             <tr v-for="line in lines" :key="line.id">
               <td><span class="material-name">{{ line.material_name || line.material_item_id }}</span></td>
-              <td>{{ line.quantity }}</td>
+              <td>{{ formatRepairPartQuantity(line) }}</td>
               <td>{{ sourceLabel(line.source) }}</td>
               <td>
                 <template v-if="line.source === 'rest'">
@@ -327,11 +327,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { updateWorkshopTicket, type WorkshopTicket } from '@/api/workshop'
 import { getMaterial, getMaterials, type Material } from '@/api/materials'
+import { resolveRepairPartUnitCost } from '@/utils/repairPartUnitCost'
+import { formatRepairPartQuantity } from '@/utils/workshopPartsCompletion'
 import { getWorkshopSettings } from '@/api/departmentSettings'
 import { ticketUsesPartsList } from '@/composables/useWorkshopTriageOptions'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
@@ -386,6 +388,26 @@ const isReadonly = computed(
 
 const hasChanges = computed(() => JSON.stringify(lines.value) !== savedLinesJson.value)
 
+const AUTO_SAVE_DELAY_MS = 500
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleAutoSavePartsList() {
+  if (isReadonly.value) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    void autoSavePartsList()
+  }, AUTO_SAVE_DELAY_MS)
+}
+
+watch(hasChanges, (dirty) => {
+  if (dirty) scheduleAutoSavePartsList()
+})
+
+onBeforeUnmount(() => {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+})
+
 const sourceItems = computed(() =>
   REPAIR_PART_SOURCES.map((value) => ({
     value,
@@ -401,12 +423,28 @@ const statusItems = computed(() =>
 )
 
 watch(
-  () => [props.ticket.id, props.ticket.strategy, props.ticket.parts_used],
+  () => [props.ticket.id, props.ticket.strategy, props.departmentId],
   () => {
     void init()
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
+
+watch(
+  () => props.ticket.parts_used,
+  () => {
+    if (!visible.value || hasChanges.value) return
+    syncLinesFromTicket()
+    void refreshStockCache()
+  },
+  { deep: true },
+)
+
+function syncLinesFromTicket() {
+  lines.value = normalizeRepairPartsList(props.ticket.parts_used)
+  savedLinesJson.value = JSON.stringify(lines.value)
+  materialQueries.value = lines.value.map((line) => line.material_name || '')
+}
 
 async function init() {
   if (!visible.value || !props.departmentId) return
@@ -415,9 +453,7 @@ async function init() {
   try {
     const settings = await getWorkshopSettings(props.departmentId)
     sparePartsCategoryId.value = settings.sparePartsCategoryId
-    lines.value = normalizeRepairPartsList(props.ticket.parts_used)
-    savedLinesJson.value = JSON.stringify(lines.value)
-    materialQueries.value = lines.value.map((line) => line.material_name || '')
+    syncLinesFromTicket()
     await refreshStockCache()
   } catch (err) {
     console.error('Failed to load repair parts list:', err)
@@ -498,6 +534,8 @@ async function onQuickCreateMaterial(result: RepairPartQuickCreateResult) {
       line.quantity = 1
     }
   }
+
+  await autoSavePartsList()
 }
 
 function resolveQuantityUnit(material: Material): string {
@@ -553,13 +591,21 @@ function formatQty(value: number): string {
 }
 
 async function onMaterialSelected(index: number, item: Material | Record<string, unknown>) {
-  const material = item as Material
+  let material = item as Material
   const line = lines.value[index]
   if (!line) return
 
+  if (material.id) {
+    try {
+      material = await getMaterial(material.id)
+    } catch {
+      // Suche liefert oft weniger Felder — mit Teil-Daten weiter
+    }
+  }
+
   line.material_item_id = material.id
   line.material_name = material.name
-  line.unit_cost = material.reference_purchase_unit_chf || null
+  line.unit_cost = resolveRepairPartUnitCost(material)
   line.quantity_unit = resolveQuantityUnit(material)
   materialQueries.value[index] = material.name
   stockByMaterialId.value[material.id] = Number(material.available ?? material.total_stock ?? 0)
@@ -570,6 +616,8 @@ async function onMaterialSelected(index: number, item: Material | Record<string,
   if (!isSparePart && hasStock && line.source === 'rest') {
     line.source = 'stock'
   }
+
+  await autoSavePartsList()
 }
 
 async function refreshStockCache() {
@@ -599,6 +647,7 @@ function addLine() {
 function removeLine(index: number) {
   lines.value.splice(index, 1)
   materialQueries.value.splice(index, 1)
+  scheduleAutoSavePartsList()
 }
 
 function clearMaterialSelection(index: number) {
@@ -696,29 +745,63 @@ function onSourceChange(line: RepairPartLine, value: RepairPartSource) {
   } else if (value === 'stock' && (line.status === 'ordered' || line.status === 'received')) {
     line.status = 'planned'
   }
+
+  scheduleAutoSavePartsList()
 }
 
-async function savePartsList() {
-  if (!props.ticket.id || isReadonly.value) return
+async function savePartsList(options?: { silent?: boolean }): Promise<boolean> {
+  if (!props.ticket.id || isReadonly.value) return true
 
   const payload = repairPartsListToPayload(lines.value).filter((line) => line.material_item_id)
+  if (payload.length === 0 && !hasChanges.value) return true
+
   isSaving.value = true
   try {
     const updated = await updateWorkshopTicket(props.ticket.id, {
       parts_used: payload,
     })
-    lines.value = normalizeRepairPartsList(updated.parts_used)
-    savedLinesJson.value = JSON.stringify(lines.value)
-    materialQueries.value = lines.value.map((line) => line.material_name || '')
-    emit('updated', updated)
-    toast.success(t('workshop.repairPartsList.toastSaved'))
+    if (Array.isArray(updated.parts_used)) {
+      lines.value = normalizeRepairPartsList(updated.parts_used)
+      savedLinesJson.value = JSON.stringify(lines.value)
+      materialQueries.value = lines.value.map((line) => line.material_name || '')
+    } else {
+      savedLinesJson.value = JSON.stringify(lines.value)
+    }
+    const ticketForEmit = Array.isArray(updated.parts_used)
+      ? updated
+      : { ...updated, parts_used: payload }
+    emit('updated', ticketForEmit)
+    if (!options?.silent) {
+      toast.success(t('workshop.repairPartsList.toastSaved'))
+    }
+    return true
   } catch (err: unknown) {
     const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
     toast.error(message || t('workshop.repairPartsList.toastSaveError'))
+    return false
   } finally {
     isSaving.value = false
   }
 }
+
+async function autoSavePartsList(): Promise<void> {
+  if (!hasChanges.value || isReadonly.value) return
+  if (isSaving.value) {
+    scheduleAutoSavePartsList()
+    return
+  }
+  const hasMaterial = lines.value.some((line) => line.material_item_id)
+  if (!hasMaterial) return
+  await savePartsList({ silent: true })
+  if (hasChanges.value) scheduleAutoSavePartsList()
+}
+
+async function saveIfDirty(): Promise<boolean> {
+  if (!hasChanges.value || isReadonly.value) return true
+  return savePartsList({ silent: true })
+}
+
+defineExpose({ saveIfDirty })
 </script>
 
 <style scoped>

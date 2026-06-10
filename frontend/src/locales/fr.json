@@ -682,6 +682,7 @@
       "placeholderNotesShort": "Texte court",
       "placeholderMaterialSearch": "Rechercher du matériel…",
       "materialFieldHint": "Pour réparation/amortissement ou affectation manuelle ; les achats issus de l’acquisition sont liés automatiquement à l’enregistrement.",
+      "materialAssignFromWizardHint": "Reprise de la saisie matériel (assistant de création / lot) — modifiable si besoin.",
       "clearMaterialLink": "Retirer le lien matériel",
       "saveAssign": "Enregistrer l’écriture",
       "saveAssignSaving": "Enregistrement…",

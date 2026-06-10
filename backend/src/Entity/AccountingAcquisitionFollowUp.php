@@ -62,6 +62,10 @@ class AccountingAcquisitionFollowUp
     #[ORM\Column(name: 'receipt_label', type: 'string', length: 255, nullable: true)]
     private ?string $receiptLabel = null;
 
+    /** @var list<array<string, mixed>>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $receipts = null;
+
     #[ORM\Column(type: 'string', length: 16)]
     private string $status = self::STATUS_PENDING;
 
@@ -198,6 +202,20 @@ class AccountingAcquisitionFollowUp
     public function setReceiptLabel(?string $receiptLabel): self
     {
         $this->receiptLabel = $receiptLabel;
+
+        return $this;
+    }
+
+    /** @return list<array<string, mixed>>|null */
+    public function getReceipts(): ?array
+    {
+        return $this->receipts;
+    }
+
+    /** @param list<array<string, mixed>>|null $receipts */
+    public function setReceipts(?array $receipts): self
+    {
+        $this->receipts = $receipts;
 
         return $this;
     }

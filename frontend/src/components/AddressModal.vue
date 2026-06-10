@@ -112,10 +112,9 @@
         />
 
         <!-- Strasse + Nr -->
-        <div class="form-row two-cols-unequal">
+        <div class="form-row street-number-row">
           <ETextField
             v-model="formData.street"
-            class="flex-grow"
             :label="t('settings.addressForm.street')"
             :placeholder="t('settings.addressForm.streetPlaceholder')"
             hide-details="auto"
@@ -130,7 +129,7 @@
         </div>
 
         <!-- PLZ + Ort -->
-        <div class="form-row two-cols-unequal">
+        <div class="form-row postal-city-row">
           <ETextField
             v-model="formData.postal_code"
             class="postal-field"
@@ -140,7 +139,6 @@
           />
           <ETextField
             v-model="formData.city"
-            class="flex-grow"
             :label="t('settings.addressForm.city')"
             :placeholder="t('settings.addressForm.cityPlaceholder')"
             hide-details="auto"
@@ -1011,6 +1009,18 @@ function close() {
   display: flex;
 }
 
+/** Strasse nimmt Restbreite (wie Firma darüber), Nr. schmal rechts */
+.form-row.street-number-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5.75rem;
+  gap: 16px;
+  width: 100%;
+}
+
+.form-row.street-number-row > * {
+  min-width: 0;
+}
+
 /* Form group/input/select/textarea base uses shared ui/forms.css */
 
 .flex-grow {
@@ -1019,13 +1029,23 @@ function close() {
 }
 
 .street-number-field {
-  flex: 0 0 100px;
-  max-width: 120px;
+  max-width: 5.75rem;
+}
+
+/** PLZ schmal links, Ort Restbreite (wie Firma darüber) */
+.form-row.postal-city-row {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 16px;
+  width: 100%;
+}
+
+.form-row.postal-city-row > * {
+  min-width: 0;
 }
 
 .postal-field {
-  flex: 0 0 120px;
-  max-width: 140px;
+  max-width: 7rem;
 }
 
 .form-label {
@@ -1341,6 +1361,10 @@ function close() {
   }
   .form-row.two-cols-unequal {
     flex-direction: column;
+  }
+  .form-row.street-number-row,
+  .form-row.postal-city-row {
+    grid-template-columns: 1fr;
   }
   .street-number-field,
   .postal-field {

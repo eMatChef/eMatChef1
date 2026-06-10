@@ -62,7 +62,7 @@
             </EButton>
           </template>
           <template v-else-if="task.kind === 'activity_invite' && task.activityInvite">
-            <EButton variant="primary" size="small" @click="decideCamp(task.activityInvite, 'accepted')">
+            <EButton variant="primary" size="small" @click="openCampInviteDecision(task.activityInvite)">
               {{ t('notificationsCenter.accept') }}
             </EButton>
             <EButton variant="danger" size="small" @click="decideCamp(task.activityInvite, 'rejected')">
@@ -89,6 +89,14 @@
       @status-change="onQrStatusChange"
       @proceed-to-task="onQrProceedToTask"
     />
+
+    <ActivityDepartmentInviteDecisionModal
+      :visible="!!campInviteDecision"
+      :invite="campInviteDecision"
+      :department-id="departmentId || ''"
+      @close="campInviteDecision = null"
+      @decided="onCampInviteDecided"
+    />
   </div>
 </template>
 
@@ -112,7 +120,7 @@ import {
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
-import { InboxQrDetailModal } from '@/components/notifications'
+import { ActivityDepartmentInviteDecisionModal, InboxQrDetailModal } from '@/components/notifications'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
@@ -339,8 +347,28 @@ async function declineDeptInvite(inv: ReceivedDepartmentInviteNotification) {
   }
 }
 
+const campInviteDecision = ref<PendingDepartmentActivityInvite | null>(null)
+
+function openCampInviteDecision(invite: PendingDepartmentActivityInvite) {
+  campInviteDecision.value = invite
+}
+
+async function onCampInviteDecided(decision: 'accepted' | 'rejected') {
+  await reload()
+  headerNotificationsStore.requestRefresh()
+  toast.success(
+    decision === 'accepted'
+      ? t('notificationsCenter.toastInviteAccepted')
+      : t('notificationsCenter.toastInviteRejected'),
+  )
+}
+
 async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'accepted' | 'rejected') {
   if (!departmentId.value) return
+  if (decision === 'accepted') {
+    openCampInviteDecision(invite)
+    return
+  }
   try {
     await decideDepartmentActivityInvite({
       activityId: invite.activity_id,
@@ -349,11 +377,7 @@ async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'ac
     })
     await reload()
     headerNotificationsStore.requestRefresh()
-    toast.success(
-      decision === 'accepted'
-        ? t('notificationsCenter.toastInviteAccepted')
-        : t('notificationsCenter.toastInviteRejected'),
-    )
+    toast.success(t('notificationsCenter.toastInviteRejected'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e?.response?.data?.error || t('notificationsCenter.toastDecisionFailed'))
@@ -408,6 +432,8 @@ async function applyOpenQuery() {
         ? tasks.value.find((t) => t.kind === 'accounting_followup') ?? row
         : row
     if (target) openAccountingTask(target)
+  } else if (parsed.kind === 'activity_invite' && row.activityInvite) {
+    openCampInviteDecision(row.activityInvite)
   }
 
   const q = { ...route.query }

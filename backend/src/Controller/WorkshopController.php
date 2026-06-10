@@ -490,7 +490,7 @@ class WorkshopController extends AbstractController
 
             $this->entityManager->flush();
 
-            return new JsonResponse($this->serializeTicket($ticket));
+            return new JsonResponse($this->serializeTicket($ticket, true));
 
         } catch (\Exception $e) {
             return new JsonResponse([
@@ -543,7 +543,7 @@ class WorkshopController extends AbstractController
         $this->createHistoryEntry($ticket, WorkshopTicketHistory::ACTION_STATUS_CHANGED, [], $changes);
         $this->entityManager->flush();
 
-        return new JsonResponse($this->serializeTicket($ticket));
+        return new JsonResponse($this->serializeTicket($ticket, true));
     }
 
     /**
@@ -626,6 +626,17 @@ class WorkshopController extends AbstractController
                 'strategy' => ['old' => $oldStrategy, 'new' => $strategy],
                 'phase' => ['old' => $oldPhase, 'new' => $newPhase],
             ];
+
+            if (isset($data['priority'])) {
+                $newPriority = $data['priority'];
+                if (!\in_array($newPriority, WorkshopTicket::ALL_PRIORITIES, true)) {
+                    return new JsonResponse(['error' => 'Ungültige Priorität'], 400);
+                }
+                if ($newPriority !== $ticket->getPriority()) {
+                    $historyChanges['priority'] = ['old' => $ticket->getPriority(), 'new' => $newPriority];
+                    $ticket->setPriority($newPriority);
+                }
+            }
             if ($requiresSupplier) {
                 $historyChanges['assigned_to_supplier_company_id'] = $ticket->getAssignedToSupplierCompanyId();
             }
@@ -688,7 +699,7 @@ class WorkshopController extends AbstractController
             $this->purchaseLineService->markOrdered($ticket, $lineId, $data);
             $this->entityManager->flush();
 
-            return new JsonResponse($this->serializeTicket($ticket));
+            return new JsonResponse($this->serializeTicket($ticket, true));
         } catch (WorkshopTicketCompletionException $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
         }
@@ -709,7 +720,7 @@ class WorkshopController extends AbstractController
             $this->purchaseLineService->receivePurchase($ticket, $lineId, $data);
             $this->entityManager->flush();
 
-            return new JsonResponse($this->serializeTicket($ticket));
+            return new JsonResponse($this->serializeTicket($ticket, true));
         } catch (WorkshopTicketCompletionException $e) {
             return new JsonResponse(['error' => $e->getMessage(), 'code' => $e->errorCode], 422);
         }
@@ -1338,9 +1349,11 @@ class WorkshopController extends AbstractController
                 'name' => $material->getName(),
                 'condition' => $material->getCondition(),
                 'tracking_type' => $material->getTrackingType(),
+                'pack_unit' => $material->getPackUnit(),
                 'total_stock' => $material->getTotalStock(),
                 'barcode_tag' => $material->getBarcodeTag(),
                 'sale_price' => $material->getSalePrice(),
+                'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
                 'repair_template_key' => $material->getRepairTemplateKey(),
                 'category' => $material->getCategory() ? [
                     'id' => $material->getCategory()->getId(),
@@ -1505,11 +1518,8 @@ class WorkshopController extends AbstractController
         };
         $ticket->setType($type);
 
-        // Priorität basierend auf Typ
-        $priority = $issueReport->getType() === ActivityIssueReport::TYPE_DAMAGE
-            ? WorkshopTicket::PRIORITY_HIGH
-            : WorkshopTicket::PRIORITY_NORMAL;
-        $ticket->setPriority($priority);
+        // Priorität: Vorschlag normal — Materialwart setzt sie in der Triage
+        $ticket->setPriority(WorkshopTicket::PRIORITY_NORMAL);
 
         // Titel auto-generieren
         $title = sprintf(
@@ -1674,11 +1684,8 @@ class WorkshopController extends AbstractController
         $ticket->setActivity($activity);
         $ticket->setType(WorkshopTicket::TYPE_REPAIR);
 
-        // Priorität basierend auf condition
-        $priority = $returnItem->getConditionIn() === 'defekt'
-            ? WorkshopTicket::PRIORITY_HIGH
-            : WorkshopTicket::PRIORITY_NORMAL;
-        $ticket->setPriority($priority);
+        // Priorität: Vorschlag normal — Materialwart setzt sie in der Triage
+        $ticket->setPriority(WorkshopTicket::PRIORITY_NORMAL);
 
         // Titel auto-generieren
         $conditionLabel = match ($returnItem->getConditionIn()) {

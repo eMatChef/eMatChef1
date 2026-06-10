@@ -118,6 +118,7 @@ export function suggestDefaultCostFlags(
   partsMaterialCost: number,
   sheetTemplate: RepairSheetTemplateInput | null,
   repairChecklist: RepairChecklist | null,
+  hasRepairParts = false,
 ): { includeLabor: boolean; includeFlatRate: boolean; includeMaterial: boolean; flatRateOverride: string } {
   const { sheetPositionsCost, suggestedFlatRate, wholeUnitFlatRate } = resolveSheetMaterialCosts(
     sheetTemplate,
@@ -129,7 +130,7 @@ export function suggestDefaultCostFlags(
   return {
     includeLabor: false,
     includeFlatRate: flatRate > 0,
-    includeMaterial: partsMaterialCost > 0 || sheetPositionsCost > 0,
+    includeMaterial: partsMaterialCost > 0 || sheetPositionsCost > 0 || hasRepairParts,
     flatRateOverride: flatRate > 0 ? formatChfAmount(flatRate) : '',
   }
 }

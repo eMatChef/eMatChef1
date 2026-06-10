@@ -66,10 +66,21 @@
           <p v-if="partsMaterialCost > 0" class="cost-line-hint">
             {{ t('workshop.costSummary.materialParts', { amount: breakdown.material_parts_chf }) }}
           </p>
+          <template v-else-if="materialManualRequired">
+            <p class="cost-line-hint">{{ t('workshop.costSummary.materialManualHint') }}</p>
+            <ETextField
+              v-model="materialManualOverride"
+              type="number"
+              min="0"
+              step="0.05"
+              :label="t('workshop.costSummary.materialManual')"
+              hide-details="auto"
+            />
+          </template>
           <p v-if="sheetCosts.sheetPositionsCost > 0" class="cost-line-hint">
             {{ t('workshop.costSummary.materialSheet', { amount: breakdown.material_sheet_chf }) }}
           </p>
-          <p class="cost-line-total">
+          <p v-if="breakdown.material_total_chf !== '0.00'" class="cost-line-total">
             {{ t('workshop.costSummary.materialTotal', { amount: breakdown.material_total_chf }) }}
           </p>
         </div>
@@ -112,6 +123,8 @@ const props = defineProps<{
   departmentId: string
   hourlyRateChf: string
   partsMaterialCost: number
+  /** Stückliste vorhanden (auch ohne hinterlegte EK-Preise) */
+  hasRepairParts?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -130,6 +143,7 @@ const includeFlatRate = ref(false)
 const includeMaterial = ref(false)
 const laborHours = ref(0)
 const flatRateOverride = ref('')
+const materialManualOverride = ref('')
 
 const isExternalStrategy = computed(() =>
   ['external_repair', 'external_cleaning'].includes(props.ticket.strategy),
@@ -149,9 +163,21 @@ const flatRateAvailable = computed(
 const materialAvailable = computed(
   () =>
     props.partsMaterialCost > 0
+    || props.hasRepairParts
     || sheetCosts.value.sheetPositionsCost > 0
     || includeMaterial.value,
 )
+
+const materialManualRequired = computed(
+  () => props.hasRepairParts && props.partsMaterialCost <= 0,
+)
+
+const effectivePartsMaterialCost = computed(() => {
+  if (props.partsMaterialCost > 0) return props.partsMaterialCost
+  if (!includeMaterial.value) return 0
+  const manual = Number.parseFloat(String(materialManualOverride.value).replace(',', '.'))
+  return Number.isFinite(manual) && manual > 0 ? manual : 0
+})
 
 const laborHoursDisplay = computed(() => {
   const value = laborHours.value
@@ -162,7 +188,7 @@ const laborHoursDisplay = computed(() => {
 const breakdown = computed(() =>
   buildCostBreakdown({
     hourlyRateChf: props.hourlyRateChf,
-    partsMaterialCost: props.partsMaterialCost,
+    partsMaterialCost: effectivePartsMaterialCost.value,
     sheetTemplate: sheetTemplate.value,
     repairChecklist: repairChecklist.value,
     includeLabor: includeLabor.value,
@@ -195,11 +221,15 @@ function applyDefaultFlags() {
     props.partsMaterialCost,
     sheetTemplate.value,
     repairChecklist.value,
+    props.hasRepairParts,
   )
   includeLabor.value = defaults.includeLabor
   includeFlatRate.value = defaults.includeFlatRate
   includeMaterial.value = defaults.includeMaterial
   flatRateOverride.value = defaults.flatRateOverride
+  if (!props.hasRepairParts || props.partsMaterialCost > 0) {
+    materialManualOverride.value = ''
+  }
 }
 
 async function loadTemplate() {

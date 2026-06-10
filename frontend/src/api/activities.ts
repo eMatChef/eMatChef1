@@ -97,6 +97,19 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_submitted_activity_content?: boolean
   /** Im Entwurf: darf User «Einreichen» (typabhängig — API) */
   can_submit_activity?: boolean
+  /** Gast-Abteilung (angenommene Einladung): Gruppenzuordnung durch MW/DC */
+  guest_invite_for_viewer?: {
+    department_id: string
+    group_id?: string | null
+    group_name?: string | null
+    can_assign_group?: boolean
+  } | null
+  /** Mind. eine Partner-Einladung (Camp/Event geteilt) */
+  is_shared_activity?: boolean
+  /** Department-Kontext des Betrachters (Host oder Gast) */
+  viewer_department_id?: string | null
+  /** Eventstandort-ID im Adressbuch des Betrachters (Spiegel bei Gast) */
+  viewer_venue_address_id?: string | null
   /** false = Erstell-Wizard noch nicht abgeschlossen → Detail gesperrt, Wizard fortsetzen */
   create_wizard_completed?: boolean
   public_code?: string | null
@@ -225,8 +238,9 @@ export interface ComboConfigSnapshot {
   }>
 }
 
-export async function getActivity(activityId: string): Promise<ActivityDetail> {
-  const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`)
+export async function getActivity(activityId: string, departmentId?: string | null): Promise<ActivityDetail> {
+  const params = departmentId ? { department_id: departmentId } : undefined
+  const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`, { params })
   return data
 }
 
@@ -262,6 +276,8 @@ export async function createActivity(payload: CreateActivityPayload): Promise<Ac
 export type PatchActivityPayload = Partial<Omit<CreateActivityPayload, 'department_id' | 'notes'>> & {
   /** PATCH erlaubt explizites Leeren (null) wie im Backend setNotes */
   notes?: string | null
+  /** Department-Kontext für Eventstandort-Sync bei geteilten Aktivitäten */
+  viewer_department_id?: string | null
 }
 
 export async function patchActivity(
@@ -269,6 +285,20 @@ export async function patchActivity(
   payload: PatchActivityPayload,
 ): Promise<ActivityCreatedResponse> {
   const { data } = await apiClient.patch<ActivityCreatedResponse>(`/api/activities/${activityId}`, payload)
+  return data
+}
+
+export async function assignDepartmentInviteGroup(
+  activityId: string,
+  payload: { departmentId: string; groupId: string },
+): Promise<{ group_id: string; group_name: string }> {
+  const { data } = await apiClient.patch<{ group_id: string; group_name: string }>(
+    `/api/activities/${activityId}/department-invites/group`,
+    {
+      department_id: payload.departmentId,
+      group_id: payload.groupId,
+    },
+  )
   return data
 }
 

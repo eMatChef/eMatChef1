@@ -9,6 +9,7 @@ use App\Entity\AccountingCostCenter;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\MaterialItem;
+use App\Service\Accounting\AccountingAcquisitionFollowUpReceiptService;
 use App\Service\Accounting\AccountingBookingReceiptStorageService;
 use App\Service\Accounting\AccountingBookingSourceService;
 use App\Service\InboxMessageService;
@@ -34,6 +35,7 @@ class AccountingBookingController extends AbstractController
         private InboxMessageService $inboxMessages,
         private AccountingBookingSourceService $bookingSource,
         private AccountingBookingReceiptStorageService $receiptStorage,
+        private AccountingAcquisitionFollowUpReceiptService $followUpReceiptService,
         private MediaPhotoNormalizer $photoNormalizer,
     ) {
     }
@@ -264,17 +266,24 @@ class AccountingBookingController extends AbstractController
         }
 
         $this->entityManager->persist($booking);
+
+        if ($followUp !== null) {
+            try {
+                $this->followUpReceiptService->transferReceiptsToBooking($followUp, $booking);
+                $followUp->setAccountingBooking($booking);
+                $followUp->setStatus(AccountingAcquisitionFollowUp::STATUS_RECORDED);
+                $followUp->touchUpdatedAt();
+            } catch (\Throwable) {
+                // Buchung ist gespeichert; Verknüpfung/Belege fehlgeschlagen (z. B. Schema)
+            }
+        }
+
         $this->entityManager->flush();
 
         if ($followUp !== null) {
             try {
-                $followUp->setAccountingBooking($booking);
-                $followUp->setStatus(AccountingAcquisitionFollowUp::STATUS_RECORDED);
-                $followUp->touchUpdatedAt();
-                $this->entityManager->flush();
                 $this->inboxMessages->removeAccountingFollowUpInbox($followUp->getId());
             } catch (\Throwable) {
-                // Buchung ist gespeichert; Verknüpfung fehlgeschlagen (z. B. Schema)
             }
         }
 

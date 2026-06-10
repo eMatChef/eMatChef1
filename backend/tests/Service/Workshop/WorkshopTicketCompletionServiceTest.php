@@ -8,6 +8,7 @@ use App\Entity\MaterialItem;
 use App\Entity\WorkshopTicket;
 use App\Service\Workshop\WorkshopPartsUsedValidator;
 use App\Service\Workshop\WorkshopTicketCompletionService;
+use App\Service\Workshop\WorkshopWriteoffRepurposeService;
 use Doctrine\ORM\AbstractQuery;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -30,7 +31,7 @@ class WorkshopTicketCompletionServiceTest extends TestCase
             ],
         ]);
 
-        $service = new WorkshopTicketCompletionService($this->createMock(EntityManagerInterface::class));
+        $service = $this->createCompletionService($this->createMock(EntityManagerInterface::class));
 
         $this->assertNull($service->validateBeforeComplete($ticket, 'writeoff'));
     }
@@ -52,7 +53,7 @@ class WorkshopTicketCompletionServiceTest extends TestCase
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('createQueryBuilder')->willReturn($this->stockQueryBuilder(2));
 
-        $service = new WorkshopTicketCompletionService($em);
+        $service = $this->createCompletionService($em);
 
         $error = $service->validateBeforeComplete($ticket, 'repaired');
 
@@ -62,7 +63,7 @@ class WorkshopTicketCompletionServiceTest extends TestCase
 
     public function testCalculatePartsMaterialCostSumsStockLines(): void
     {
-        $service = new WorkshopTicketCompletionService($this->createMock(EntityManagerInterface::class));
+        $service = $this->createCompletionService($this->createMock(EntityManagerInterface::class));
 
         $result = $service->calculatePartsMaterialCost([
             [
@@ -125,11 +126,19 @@ class WorkshopTicketCompletionServiceTest extends TestCase
         $em->method('getRepository')->with(MaterialItem::class)->willReturn($materialRepo);
         $em->expects($this->atLeastOnce())->method('persist');
 
-        $service = new WorkshopTicketCompletionService($em);
+        $service = $this->createCompletionService($em);
         $changes = $service->applyCompletion($ticket, 'repaired', [], new \DateTime(), null);
 
         $this->assertArrayHasKey('parts_consumed', $changes);
         $this->assertSame('2.00', $changes['parts_material_cost']);
+    }
+
+    private function createCompletionService(EntityManagerInterface $em): WorkshopTicketCompletionService
+    {
+        return new WorkshopTicketCompletionService(
+            $em,
+            $this->createMock(WorkshopWriteoffRepurposeService::class),
+        );
     }
 
     private function stockQueryBuilder(int $stock): QueryBuilder

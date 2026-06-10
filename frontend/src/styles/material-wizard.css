@@ -424,6 +424,26 @@
   margin-bottom: 0;
 }
 
+.lagerung-switch--compact {
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 0;
+  min-width: 108px;
+}
+
+.lagerung-switch--compact .lagerung-btn {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.allocations-table .alloc-mode-cell {
+  vertical-align: top;
+  min-width: 116px;
+}
+
 .step-badge.optional {
   background: #f3f4f6;
   color: #6b7280;

@@ -9,8 +9,10 @@ use App\Entity\Activity;
  *
  * Zwei Ebenen (siehe docs/activities/material-pipeline.md):
  * 1. Bestell-Reservierung (draft…approved): activity_item.quantity, nur bei Zeitraum-Overlap
- * 2. Physische Sperre (packing…returned): GREATEST(packed, returned) − stored (ohne Zeitraum-Overlap).
- *    Frühes Packen vor planning_start: packed greift. Nach planning_end: stored-Rest sperrt weiter.
+ * 2. Physische Sperre (packing…returned): GREATEST(packed, returned, issued) − stored.
+ *    Bei Zeitraum-Abfrage nur wenn Planungszeitraum der blockierenden Aktivität überlappt
+ *    (Material von früherem Event zählt für spätere Events nicht, sobald Planung nicht kollidiert).
+ *    Ohne Zeitraum-Abfrage: alle offenen Pipeline-Mengen.
  *    Aktivitäts-Status «completed» beeinflusst die Verfügbarkeit nicht.
  */
 final class MaterialAvailabilityReservationQuery
@@ -51,6 +53,10 @@ final class MaterialAvailabilityReservationQuery
                AND (COALESCE(a.planning_end, a.usage_end) > :start_date)'
             : 'AND FALSE';
 
+        $pipelinePeriodOverlapSql = $withPeriodOverlap
+            ? $periodOverlapSql
+            : '';
+
         $pipelineLockQty = self::pipelineLockQtyCaseSql('pi');
 
         return <<<SQL
@@ -78,16 +84,18 @@ LEFT JOIN LATERAL (
           AND (
               pi.quantity_packed > 0
               OR pi.quantity_returned > 0
+              OR pi.quantity_issued > 0
               OR (a.status = 'packing' AND pi.quantity_ordered > 0)
           )
           AND ({$pipelineLockQty}) > 0
+          {$pipelinePeriodOverlapSql}
           {$excludeActivitySql}
     ) part
 ) reserved ON TRUE
 SQL;
     }
 
-    /** Gepackte/retournierte Menge minus eingelagert — frei sobald quantity_stored aufgeholt hat. */
+    /** Gepackte/retournierte/ausgegebene Menge minus eingelagert — frei sobald quantity_stored aufgeholt hat. */
     private static function pipelineLockQtyCaseSql(string $alias): string
     {
         return <<<SQL
@@ -97,7 +105,10 @@ CASE
          AND {$alias}.quantity_returned = 0
          AND {$alias}.quantity_ordered > 0
         THEN {$alias}.quantity_ordered
-    ELSE GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned) - COALESCE({$alias}.quantity_stored, 0)
+    ELSE GREATEST(
+        GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned),
+        {$alias}.quantity_issued
+    ) - COALESCE({$alias}.quantity_stored, 0)
 END
 SQL;
     }

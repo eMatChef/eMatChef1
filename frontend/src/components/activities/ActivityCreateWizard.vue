@@ -286,6 +286,33 @@ function onVenueAddressId(v: string | null) {
 }
 function onMaterialLines(v: ActivityMaterialLine[]) {
   materialLines.value = v
+  scheduleMaterialDraftSave()
+}
+
+let materialDraftSaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleMaterialDraftSave() {
+  if (layoutMode.value !== 'stepper' || !props.departmentId) return
+  if (materialDraftSaveTimer) clearTimeout(materialDraftSaveTimer)
+  materialDraftSaveTimer = setTimeout(() => {
+    materialDraftSaveTimer = null
+    void persistMaterialDraftQuietly()
+  }, 450)
+}
+
+async function persistMaterialDraftQuietly() {
+  if (!props.departmentId || materialLines.value.length === 0) return
+  isSavingDraft.value = true
+  try {
+    const result = await saveDraftStep(props.departmentId)
+    if (result.ok) {
+      lastDraftSavedAt.value = new Date()
+      if (draftActivityId.value) {
+        emit('draftSaved', draftActivityId.value)
+      }
+    }
+  } finally {
+    isSavingDraft.value = false
+  }
 }
 function onInvitedDepartments(v: InvitedDepartmentDraft[]) {
   invitedDepartments.value = v

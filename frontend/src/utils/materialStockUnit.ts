@@ -205,6 +205,61 @@ export function formatStockUnitSettingLabel(
   return getStockUnitLabel(packUnit)
 }
 
+export function parseMaterialChfInput(value: string | number | null | undefined): number {
+  const n = Number(String(value ?? '').replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/** UI: CHF pro Stück (à lengthM) → Lager/API: CHF pro m */
+export function meterUnitPricePerMeterFromPerPiece(
+  pricePerPiece: number,
+  lengthM: number,
+): number | null {
+  if (!Number.isFinite(pricePerPiece) || pricePerPiece <= 0) return null
+  if (!Number.isFinite(lengthM) || lengthM <= 0) return null
+  return Math.round((pricePerPiece / lengthM) * 100) / 100
+}
+
+/** Lager/API: CHF pro m → UI: CHF pro Stück (à lengthM) */
+export function meterUnitPricePerPieceFromPerMeter(
+  pricePerMeter: number,
+  lengthM: number,
+): number | null {
+  if (!Number.isFinite(pricePerMeter) || pricePerMeter <= 0) return null
+  if (!Number.isFinite(lengthM) || lengthM <= 0) return null
+  return Math.round(pricePerMeter * lengthM * 100) / 100
+}
+
+/** Anzeige-/Eingabepreis aus gespeichertem CHF/m (oder unverändert). */
+export function displayMeterStockUnitPrice(
+  storedUnitPrice: string | number | null | undefined,
+  useQtyByCount: boolean,
+  lengthM: number | null,
+): string {
+  const stored = parseMaterialChfInput(storedUnitPrice)
+  if (stored <= 0) return ''
+  if (useQtyByCount && lengthM != null && lengthM > 0) {
+    const perPiece = meterUnitPricePerPieceFromPerMeter(stored, lengthM)
+    return perPiece != null ? perPiece.toFixed(2) : stored.toFixed(2)
+  }
+  return stored.toFixed(2)
+}
+
+/** Gespeicherter CHF/m für API aus UI-Eingabe (Stück- oder m-Preis). */
+export function resolveStoredMeterStockUnitPrice(
+  enteredUnitPrice: string | number | null | undefined,
+  useQtyByCount: boolean,
+  lengthM: number | null,
+): string | null {
+  const entered = parseMaterialChfInput(enteredUnitPrice)
+  if (entered <= 0) return null
+  if (useQtyByCount && lengthM != null && lengthM > 0) {
+    const perM = meterUnitPricePerMeterFromPerPiece(entered, lengthM)
+    return perM != null ? perM.toFixed(2) : entered.toFixed(2)
+  }
+  return entered.toFixed(2)
+}
+
 export function formatStockQtyWithPackHint(
   qty: number,
   packUnit?: string | null,

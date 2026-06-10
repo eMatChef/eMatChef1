@@ -11,7 +11,6 @@
         <div class="context-header">
           <h3>{{ ticket.title }}</h3>
           <div class="context-badges">
-            <span class="priority-badge" :class="ticket.priority">{{ ticket.priority_label }}</span>
             <span class="type-badge" :class="ticket.type">{{ ticket.type_label }}</span>
             <span v-if="isExternalRental" class="external-badge">
               {{ t('workshop.triage.externalRental') }}
@@ -71,6 +70,16 @@
         variant="inline"
         :message="t('workshop.triage.loadingTemplate')"
       />
+
+      <div v-if="step === 'main'" class="triage-priority-block">
+        <ESelect
+          v-model="selectedPriority"
+          :items="prioritySelectItems"
+          :label="t('workshop.triage.priorityLabel')"
+          :hint="t('workshop.triage.priorityHint')"
+          hide-details="auto"
+        />
+      </div>
 
       <div v-if="step === 'main'" class="triage-actions">
         <p class="triage-question">{{ t('workshop.triage.question') }}</p>
@@ -167,6 +176,8 @@ import { useI18n } from 'vue-i18n'
 import {
   triageWorkshopTicket,
   transitionWorkshopTicket,
+  updateWorkshopTicket,
+  type TicketPriority,
   type WorkshopTicket,
 } from '@/api/workshop'
 import { getDepartmentRepairTemplates } from '@/api/repairTemplates'
@@ -207,6 +218,7 @@ const ticket = defineModel<WorkshopTicket | null>('ticket', { default: null })
 const { t } = useI18n()
 
 const step = ref<'main' | 'supplier' | 'cleaning_service'>('main')
+const selectedPriority = ref<TicketPriority>('normal')
 const pendingActionId = ref<string | null>(null)
 const pendingAction = ref<TriageActionOption | null>(null)
 const selectedSupplierId = ref('')
@@ -223,6 +235,13 @@ const sheetChecklist = ref<RepairChecklist>(createEmptyRepairChecklist())
 const triageOptions = computed(() =>
   ticket.value ? getWorkshopTriageOptions(ticket.value) : []
 )
+
+const prioritySelectItems = computed(() => [
+  { title: t('workshop.priority.urgent'), value: 'urgent' },
+  { title: t('workshop.priority.high'), value: 'high' },
+  { title: t('workshop.priority.normal'), value: 'normal' },
+  { title: t('workshop.priority.low'), value: 'low' },
+])
 
 const isExternalRental = computed(
   () => ticket.value?.activity?.type === 'external'
@@ -277,6 +296,7 @@ function resetState() {
   actionError.value = ''
   sheetTemplate.value = null
   sheetChecklist.value = createEmptyRepairChecklist(ticket.value?.material_item.repair_template_key ?? undefined)
+  selectedPriority.value = ticket.value?.priority ?? 'normal'
 }
 
 async function loadSupportingData() {
@@ -397,6 +417,7 @@ async function submitTriage(
       assigned_to_supplier_company_id: supplierId || undefined,
       cleaning_service_key:
         action.strategy === 'external_cleaning' ? cleaningServiceKey : undefined,
+      priority: selectedPriority.value,
     })
     ticket.value = updated
     emit('triaged', updated)
@@ -417,6 +438,9 @@ async function resolveOk() {
   actionError.value = ''
 
   try {
+    if (selectedPriority.value !== ticket.value.priority) {
+      await updateWorkshopTicket(ticket.value.id, { priority: selectedPriority.value })
+    }
     if (ticket.value.status === 'open') {
       await transitionWorkshopTicket(ticket.value.id, { status: 'in_progress' })
     }
@@ -518,6 +542,13 @@ async function resolveOk() {
   font-weight: 600;
   color: #111827;
   margin-bottom: 8px;
+}
+
+.triage-priority-block {
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .triage-question {
