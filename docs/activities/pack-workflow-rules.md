@@ -4,7 +4,7 @@ Ziel-Spezifikation für die **Packliste** (`ActivityPackListTab`): ein Kernmodel
 
 **Stand:** Juni 2026 · **Status:** Regel-Matrix und Kern-Flows umgesetzt; weitere Migration aus `ActivityPackListTab` läuft
 
-**Verwandt:** [material-pipeline.md](./material-pipeline.md) · [pack-step-ui.md](./pack-step-ui.md) · [status.md](./status.md)
+**Verwandt:** [material-pipeline.md](./material-pipeline.md) · [pack-step-ui.md](./pack-step-ui.md) · [status.md](./status.md) · [Virtuelle Kombo (Pack-Flow)](../material/combos/virtual-combo-activities.md)
 
 ---
 
@@ -17,7 +17,11 @@ Jeder Tab ist ein **Übergang A → B**:
 | **Links** | Noch nicht in B | Pfeil: qty **A → B** |
 | **Rechts** | Bereits in B | Pfeil: qty **B → A** (Retour / Zurück) |
 
-Mengenlogik zentral in `packStageQuantities.ts` (`getStageLeftQty` / `getStageRightQty`). Die UI-Regeln unten steuern nur **Anzeige**, **Kistencheck** und **Sonderfälle** — nicht die Bucket-Arithmetik.
+Mengenlogik zentral in `packStageQuantities.ts`:
+- **Buckets:** `getStageLeftQty` / `getStageRightQty` (Pipeline-Felder pro Tab)
+- **Schicht lose/Kiste/Spiegel:** `packStageQuantityLayer.ts` (`computeLooseQtyForPackItem`, `computePackIssueForwardMax`, …) — `ActivityPackListTab` liefert nur `PackQuantityContext`
+
+Die UI-Regeln in `packWorkflowRules.ts` steuern **Anzeige**, **Kistencheck** und **Sonderfälle**.
 
 ---
 
@@ -28,7 +32,12 @@ Mengenlogik zentral in `packStageQuantities.ts` (`getStageLeftQty` / `getStageRi
 | **Loses Material** | Kategorie-Zeile | — | Einzelstück ohne Behälter |
 | **Packkiste** | Rubrik Packkisten | ✓ | MW legt bei **Bestätigt → Gepackt** an (Rakokiste, Kochkiste, …) |
 | **Phys. Kombi** | Kategorie-Zeile + Badge | **nie** | Zelt/Set; Hülle (Kiste/Sack) gehört zum Set, nicht zur Packkisten-Rubrik |
-| **Virt. Kombi** | Kategorie-Zeile + Badge | **nie** | Meist lose Komponenten; **kann auch Phys.-Kombis enthalten** — verschachtelte Komponente wie eigene Art behandeln |
+| **Virt. Kombi** | siehe unten | **`together`:** logische Packkiste ✓ · **`loose`:** Kategorie (Einzelteile) | User wählt `pack_mode` beim Buchen — [virtual-combo-activities.md](../material/combos/virtual-combo-activities.md) |
+
+> **Virt. Kombi — Placement nach `pack_mode`:**
+> - **`together`:** Backend erzeugt logischen `activity_pack_container` (ohne Lager-Batch) → Anzeige **nur** unter Packkisten; stock-Komponenten nicht doppelt in der Kategorie.
+> - **`loose`:** Flache Pack-Zeilen wie loses Material → MW entscheidet ab Bestätigt→Gepackt selbst (Kiste ja/nein, eine oder mehrere Kisten).
+> - **`self_provided`:** nie in Container — Hinweis/Checkliste für Ersteller und MW.
 
 ### Einbuchen
 
@@ -40,10 +49,12 @@ Mengenlogik zentral in `packStageQuantities.ts` (`getStageLeftQty` / `getStageRi
 ### Platzierung (keine Doppelanzeige)
 
 ```
-Packkiste          → nur Rubrik «Packkisten»
-Phys. / Virt. Kombi → nur Kategorie-Zeile
-Loses Material     → nur Kategorie-Zeile
-Shell in Kategorie → dieselbe Einheit nicht nochmals unter Packkisten
+Packkiste                    → nur Rubrik «Packkisten»
+Phys. Kombi                  → nur Kategorie-Zeile (+ Badge)
+Virt. Kombi (pack_mode together) → logische Packkiste → nur Rubrik «Packkisten»
+Virt. Kombi (pack_mode loose)    → stock-Teile wie loses Material → Kategorie-Zeile
+Loses Material               → nur Kategorie-Zeile
+Shell in Kategorie           → dieselbe Einheit nicht nochmals unter Packkisten
 ```
 
 ---
@@ -53,8 +64,12 @@ Shell in Kategorie → dieselbe Einheit nicht nochmals unter Packkisten
 | Profil | Aktivitätstyp | MW / DC | User / L1 / L2 / L3 |
 |--------|---------------|---------|---------------------|
 | **quick** | `activity` | Bestätigt→Gepackt, Gepackt→Event, Event→Retour, Retour→Ausgepackt | Gepackt→Event, Event→Retour |
+
+Quick/External: Tab «Gepackt→Am Event» (`packed_at_event`) — Pipeline `quantity_packed → quantity_issued` (ohne Transport-Felder).
 | **logistics** | Camp / Event | wie quick + Transport (hin), Transport→Event, Event→Transport zurück | Transport hin … Retour (ohne Packen & Einlagern) |
 | **external** | Extern | wie quick (MW) | nur **lesen** — MW bearbeitet durchgehend |
+
+**MW/DC = Ersteller:** kein Gruppen-Notfallmodus — Material normal auf dem aktiven Tab verschieben (`packMwIsActivityCreator`).
 
 Rollen im Code: `canManageMaterials` (MW/DC vs. Rest). L1–L3 verhalten sich wie User.
 
@@ -169,9 +184,23 @@ shouldIncludePackItemOnStageLeft(p, ctx)
 shouldIncludePackItemOnRightLooseMirror(p, ctx)
 shouldIncludePackItemOnReturnedLoose / OnStoredLoose / OnReturnNotTaken / …
 shouldIncludePackItemInLooseOnlyGroup / InLoosePartialGroup(p, ctx)
+shouldShowContainerOnStageLeft(containerId, ctx)      // Kiste noch links (A)
+shouldShowContainerOnRightMirror(containerId, ctx)    // Kiste rechts im Spiegel (B)
 shouldShowPackContainerInWarehouseVisibleList(c, ctx, stageLeftItems)
 shouldShowPackContainerOnConfirmedPackedRight(c, ctx, stageLeftItems)
 shouldShowPackItemAsCategoryShellRow(p, ctx)
+packCrateTravelsWithShellAtForwardStage(containerId, ctx)
+containerLineBackwardMax / containerBackwardUnits / containerLineBackwardPatch  // ← Pfeil rechts
+packCrateTargetSelectable(stage)                    // Kiste wählbar (grüne Karte)
+packCrateAssignSource(stage)                        // 'packed-left' | 'loose-at-event' | null
+packShowCrateAssignUpControls(p, ctx, source)       // ↑-Pfeil + grün
+packCrateAssignUpMax(p, ctx, source)
+packCrateSectionShowsTargetSelect(stage, panel)     // grüner Kisten-Rahmen
+packMoveControlDirectionForCrateAssign(show)        // 'assign-up' | 'forward'
+packCrateContainerUseSubsections()                  // immer flach — kein Fix/Zusatz-Accordion
+packCrateContainerContentUseSubsections()         // Sortierung Packliste→Fix→Zusatz bleibt
+packCrateShowPullFromContainer(stage)               // ← aus Kiste (nur Bestätigt→Gepackt)
+packMwIsActivityCreator / packMwGroupHandoffActive  // Notfall nur wenn MW ≠ Ersteller
 
 // Sonderregeln
 check(leg, role)             // null | 'lightweight' | 'full'
@@ -213,7 +242,7 @@ flowchart LR
 | Phys.-Kombi Ausgepackt | Checkliste → Set-Button | ✓ `PackPhysComboStoreChecklistModal` |
 | Verlust/Reparatur Zeitraum | ab Transport→Event | ✓ `packIssuesVisibleForStage` |
 | External User | read-only | ✓ `packWorkflowCanEdit` + Member-Tabs |
-| Vollständige Migration UI-Filter | eine Matrix | ✓ `packListCtx` / `shouldInclude*` in `ActivityPackListTab` |
+| Vollständige Migration UI-Filter | eine Matrix | ✓ Listen + Kisten + Zurück-Pfeil + Kistenziel/↑ in `packWorkflowRules.ts` |
 
 ---
 
@@ -221,7 +250,7 @@ flowchart LR
 
 | Thema | Pfad |
 |-------|------|
-| Stufen & Mengen | `frontend/src/components/activities/packStageQuantities.ts` |
+| Stufen & Mengen | `packStageQuantities.ts` · `packStageQuantityLayer.ts` |
 | Profile & Tabs | `frontend/src/components/activities/packWorkflowProfile.ts` |
 | Kistencheck-Legs | `frontend/src/components/activities/packCrateCheckLeg.ts` |
 | Shell / Packkiste / Kombi | `frontend/src/components/activities/packShellCrateHelpers.ts` |

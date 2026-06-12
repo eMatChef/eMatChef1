@@ -250,6 +250,12 @@ class MaterialController extends AbstractController
             return $accessCheck;
         }
 
+        if ($material->getMaterialType() === 'virtual_combo') {
+            return new JsonResponse([
+                'error' => 'Virtuelle Kombinationen haben kein eigenes QR-Etikett',
+            ], 400);
+        }
+
         $this->ensurePublicCodesForMaterial($material, $this->getActorUserId());
 
         $this->entityManager->flush();
@@ -1389,7 +1395,7 @@ class MaterialController extends AbstractController
             $actorId = $this->getActorUserId();
             if ($effectiveLinkedContainerBatch) {
                 $this->ensureLinkedContainerBatchPublicCodes($effectiveLinkedContainerBatch, $actorId);
-            } else {
+            } elseif ($isPhysicalCombo) {
                 $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
                 if ($comboMainBatch && !$this->shouldSkipBatchPublicCode($comboMaterial, $comboMainBatch)) {
                     $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
@@ -5347,7 +5353,7 @@ class MaterialController extends AbstractController
             if ($linkedBatch !== null) {
                 $this->ensureLinkedContainerBatchPublicCodes($linkedBatch, $actorUserId);
             }
-        } else {
+        } elseif ($material->getMaterialType() !== 'virtual_combo') {
             $this->publicCodeService->ensureMaterialPublicCode($material, $actorUserId);
             foreach ($material->getBatches() as $batch) {
                 if ($this->shouldSkipBatchPublicCode($material, $batch)) {

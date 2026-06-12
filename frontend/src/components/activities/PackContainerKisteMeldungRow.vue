@@ -14,6 +14,10 @@ defineProps<{
 
 const { t } = useI18n()
 const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: unknown[]) => unknown>
+
+function onIssuePick(materialItemId: string, issueType: 'loss' | 'repair'): void {
+  ;(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(materialItemId, issueType)
+}
 </script>
 
 <template>
@@ -41,22 +45,22 @@ const ctx = inject(PACK_WAREHOUSE_ISSUE_INJECT_KEY) as Record<string, (...args: 
       </EButton>
     </template>
     <template v-else>
-      <EButton
-        variant="text"
-        size="x-small"
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-loss"
-        @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(materialItemId, 'loss')"
+        :title="t('activities.common.issueLoss')"
+        @click="onIssuePick(materialItemId, 'loss')"
       >
         {{ t('activities.common.issueLoss') }}
-      </EButton>
-      <EButton
-        variant="text"
-        size="x-small"
+      </button>
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-repair"
-        @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(materialItemId, 'repair')"
+        :title="t('activities.common.issueRepair')"
+        @click="onIssuePick(materialItemId, 'repair')"
       >
         {{ t('activities.common.issueRepair') }}
-      </EButton>
+      </button>
     </template>
   </div>
 </template>

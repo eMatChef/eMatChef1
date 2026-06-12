@@ -932,7 +932,7 @@ class TemplateController extends AbstractController
             }
 
             $actorId = $this->getActorUserId();
-            if (!$isIndividual && $comboMaterial) {
+            if (!$isIndividual && $comboMaterial && !$isVirtualCombo) {
                 $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
             }
             if (

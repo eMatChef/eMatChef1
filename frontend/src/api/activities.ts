@@ -57,6 +57,7 @@ export interface ActivityCreatedResponse {
 /** GET /api/activities/:id (serializeActivity detailed) */
 export interface ActivityDetail extends ActivityCreatedResponse {
   group_id?: string | null
+  created_by_user_id?: string | null
   department_name?: string
   color?: string | null
   item_count?: number

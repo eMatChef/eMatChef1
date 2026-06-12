@@ -13,6 +13,54 @@ import {
   type CrateCheckSnapshot,
 } from '@/components/activities/packCrateCheckReality'
 
+import type { PackStage } from '@/components/activities/packStageQuantities'
+import { isPackForwardWarehouseUiStage } from '@/components/activities/packStageQuantities'
+
+export type ComboPreviewLineStageQty = { done: number; total: number; rem: number }
+
+/** Phys.-Kombi-Vorschauzeile: Stückzahlen aus Shell-Pipeline (Set × Komponente pro Set). */
+export function comboPreviewLineShellDerivedStageQty(
+  ci: ActivityPackContainerItem,
+  shell: ActivityPackItem | undefined,
+  stage: PackStage,
+): ComboPreviewLineStageQty | null {
+  if (!isWarehousePreviewContainerLine(ci)) return null
+  if (!shell || shell.materialType !== 'physical_combo') return null
+  if (!isPackForwardWarehouseUiStage(stage)) return null
+
+  const perSet = Math.max(0, Math.floor(Number(ci.quantity_packed) || 0))
+  if (perSet < 1) return { done: 0, total: 0, rem: 0 }
+
+  let shellTotal = 0
+  let shellDone = 0
+  if (stage === 'at_event_transport_back') {
+    shellTotal = shell.quantityIssued ?? 0
+    shellDone = shell.quantityTransportBack ?? 0
+  } else if (stage === 'transport_to_at_event') {
+    shellTotal = shell.quantityTransportTo ?? 0
+    shellDone = shell.quantityIssued ?? 0
+  } else if (stage === 'packed_transport_to') {
+    shellTotal = shell.quantityPacked ?? 0
+    shellDone = shell.quantityTransportTo ?? 0
+  } else if (stage === 'packed_at_event') {
+    shellTotal = shell.quantityPacked ?? 0
+    shellDone = shell.quantityIssued ?? 0
+  } else {
+    return null
+  }
+
+  const total = shellTotal * perSet
+  const done = shellDone * perSet
+  return { done, total, rem: Math.max(0, total - done) }
+}
+
+export function isPhysicalComboPreviewContainerLine(
+  ci: ActivityPackContainerItem,
+  shell: ActivityPackItem | undefined,
+): boolean {
+  return isWarehousePreviewContainerLine(ci) && shell?.materialType === 'physical_combo'
+}
+
 export type ShellCrateBackDeviation = {
   id: string
   materialName: string

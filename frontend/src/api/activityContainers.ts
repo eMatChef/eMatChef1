@@ -129,9 +129,15 @@ export async function deleteActivityPackContainerItem(activityId: string, contai
   await apiClient.delete(`/api/activities/${activityId}/pack-containers/${containerId}/items/${itemId}`)
 }
 
-/** Stufe Gepackt → Am Event: alle Positionen im Behälter ausgeben */
-export async function issueAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
-  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/issue-all`)
+/** Behälter komplett zur nächsten Pipeline-Stufe buchen (stage = aktiver Tab). */
+export async function issueAllPackContainerItems(
+  activityId: string,
+  containerId: string,
+  stage?: import('@/api/activityPackItems').PackMoveStage,
+): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/issue-all`, {
+    ...(stage ? { stage } : {}),
+  })
 }
 
 /** Stufe Am Event → Retour: alles aus dem Behälter retournieren */
@@ -139,8 +145,14 @@ export async function returnAllPackContainerItems(activityId: string, containerI
   await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/return-all`)
 }
 
-/** Ausgabe des ganzen Behälters rückgängig (wieder «Gepackt») */
-export async function unissueAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
-  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/unissue-all`)
+/** Buchung des ganzen Behälters um eine Stufe zurück (stage = aktiver Tab). */
+export async function unissueAllPackContainerItems(
+  activityId: string,
+  containerId: string,
+  stage?: import('@/api/activityPackItems').PackMoveStage,
+): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/unissue-all`, {
+    ...(stage ? { stage } : {}),
+  })
 }
 

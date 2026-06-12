@@ -528,6 +528,7 @@
               v-if="activity"
               :activity-id="activityId"
               :department-id="departmentId"
+              :activity-created-by-user-id="activity.created_by_user_id ?? null"
               :status="activity.status"
               :activity-type="activity.type"
               :activity-name="activity.name"

@@ -1272,17 +1272,17 @@
                 <p class="step-hint">{{ t('components.materialCreateWizard.comboVirtualArticlesHint') }}</p>
                 <div class="combo-search">
                   <label class="combo-search-label">{{ t('components.materialCreateWizard.comboSearchStockLabel') }}</label>
-                  <input
-                    v-model="comboMaterialSearch"
-                    type="text"
+                  <input 
+                    v-model="comboMaterialSearch" 
+                    type="text" 
                     class="form-input"
                     :placeholder="t('components.materialCreateWizard.comboMaterialSearchPlaceholder')"
                     @input="searchComboMaterials"
                   />
                   <div v-if="comboMaterialSearch.trim().length >= 1 && filteredComboMaterials.length > 0" class="combo-dropdown">
-                    <div
-                      v-for="mat in filteredComboMaterials"
-                    :key="mat.id"
+                    <div 
+                      v-for="mat in filteredComboMaterials" 
+                      :key="mat.id"
                       class="combo-item"
                       @click="addComboMaterial(mat)"
                     >
@@ -1310,8 +1310,8 @@
                 </button>
 
                 <div v-if="selectedComboMaterials.length > 0" class="combo-list">
-                  <div
-                    v-for="(mat, index) in selectedComboMaterials"
+                  <div 
+                    v-for="(mat, index) in selectedComboMaterials" 
                     :key="mat.draftId"
                     class="combo-list-item"
                     :class="{ 'combo-list-item--self-provided': mat.component_source === 'self_provided' }"
@@ -1344,10 +1344,10 @@
                     </div>
                     <div class="combo-list-qty">
                       <label>{{ t('components.materialCreateWizard.labelQtyShort') }}</label>
-                      <input
-                        v-model.number="mat.qty"
-                        type="number"
-                        min="1"
+                      <input 
+                        v-model.number="mat.qty" 
+                        type="number" 
+                        min="1" 
                         class="qty-input"
                       />
                     </div>
@@ -1533,9 +1533,9 @@
                   <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations" class="allocations-section">
                     <div class="allocations-header">
                       <div>
-                        <label>{{
-                          t('components.materialCreateWizard.allocationsSumLabel', { n: formData.initial_qty })
-                        }}</label>
+                      <label>{{
+                        t('components.materialCreateWizard.allocationsSumLabel', { n: formData.initial_qty })
+                      }}</label>
                         <p class="field-hint">{{ t('components.materialCreateWizard.allocationsModeHint') }}</p>
                       </div>
                       <button type="button" class="add-serial-btn" :disabled="!canAddAllocationRow" @click="addAllocationRow">
@@ -2325,30 +2325,30 @@
                     <transition name="slide-down">
                       <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="slider-details pack-details mt-2">
                         <div class="form-row">
-                          <div class="form-group">
+                        <div class="form-group">
                             <label>{{ wizardPurchasePriceLabel }}</label>
-                            <div class="price-input">
-                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                              <input
-                                v-model.number="formData.unit_price"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                              />
-                            </div>
-                            <p
-                              v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
-                              class="field-hint"
-                            >
-                              {{
-                                t('components.materialCreateWizard.packApproxPerPiece', {
-                                  price: packSaleToUnitSaleChf.toFixed(2),
-                                })
-                              }}
-                            </p>
+                          <div class="price-input">
+                            <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                            <input
+                              v-model.number="formData.unit_price"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="form-input"
+                              :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                            />
                           </div>
+                          <p
+                            v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
+                            class="field-hint"
+                          >
+                            {{
+                              t('components.materialCreateWizard.packApproxPerPiece', {
+                                price: packSaleToUnitSaleChf.toFixed(2),
+                              })
+                            }}
+                          </p>
+                        </div>
                           <div class="form-group">
                             <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
                             <div class="price-input">

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, inject, unref, type Ref } from 'vue'
+import { computed, inject, unref, type MaybeRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { packCrateShowPullFromContainer, packCrateTargetSelectable } from '@/components/activities/packWorkflowRules'
+import { isPackReturnStage, type PackStage } from '@/components/activities/packStageQuantities'
 import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
@@ -37,7 +39,7 @@ const props = withDefaults(
     variant: 'list',
     shellPackItem: null,
     containerDomIdPrefix: 'pack-container-issue-',
-    useSubsections: true,
+    useSubsections: false,
     showStorageLocation: false,
   },
 )
@@ -71,16 +73,58 @@ const innerVisible = computed(
   () => !(ctx.isPackContainerCollapsed as (id: string) => boolean)(props.container.id),
 )
 
+const activePackStage = computed(
+  () => unref(ctx.activePackStage as MaybeRef<PackStage>) as PackStage,
+)
+
+const crateTargetSelectable = computed(() =>
+  packCrateTargetSelectable(activePackStage.value, true),
+)
+
+const activePackTarget = computed(() =>
+  unref(
+    ctx.activePackTarget as MaybeRef<{ kind: string; containerId?: string } | null>,
+  ),
+)
+
+const isTarget = computed(
+  () =>
+    activePackTarget.value?.kind === 'container' &&
+    activePackTarget.value.containerId === props.container.id,
+)
+
+function selectCrate() {
+  if (!packListEditable.value || !crateTargetSelectable.value) return
+  ;(ctx.toggleActiveContainer as (id: string) => void)(props.container.id)
+}
+
+function onCardClick(event: MouseEvent) {
+  if (!packListEditable.value || !crateTargetSelectable.value) return
+  const el = event.target as HTMLElement
+  if (el.closest('button, input, a, select, textarea, label')) return
+  selectCrate()
+}
+
 const flatContainerLines = computed((): ActivityPackContainerItem[] => {
   const sectionsFn = ctx.packContainerItemSections as
     | ((c: ActivityPackContainer) => { lines: ActivityPackContainerItem[] }[])
     | undefined
   const sections = sectionsFn?.(props.container) ?? []
+  let lines: ActivityPackContainerItem[]
   if (sections.length > 0) {
-    return sections.flatMap((s) => s.lines)
+    lines = sections.flatMap((s) => s.lines)
+  } else {
+    const map = ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>
+    lines = map[props.container.id] ?? []
   }
-  const map = ctx.containerItemsByContainerId as Record<string, ActivityPackContainerItem[]>
-  return map[props.container.id] ?? []
+  const mirrorFilter = ctx.containerMirrorLineVisible as
+    | ((ci: ActivityPackContainerItem) => boolean)
+    | undefined
+  if (mirrorFilter) {
+    const visible = lines.filter((ci) => mirrorFilter(ci))
+    if (visible.length > 0) return visible
+  }
+  return lines
 })
 
 const containerLineCount = computed(() => {
@@ -145,15 +189,40 @@ function moveShellCrateBack(qtyFromControl?: number) {
   void moveFn(pi, moveQty)
 }
 
-const activePackStage = computed(() => {
-  const raw = ctx.activePackStage as unknown
-  if (raw == null) return ''
-  return String(unref(raw as Ref<string> | string))
-})
+const shellUseQtyMoveControls = computed(() => isPackConfirmedStage(activePackStage.value))
 
-const shellUseQtyMoveControls = computed(() =>
-  isPackConfirmedStage(activePackStage.value as import('@/components/activities/packStageQuantities').PackStage),
-)
+function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean {
+  const fn = ctx.isVirtualWarehouseContainerLine as
+    | ((row: ActivityPackContainerItem) => boolean)
+    | undefined
+  return fn?.(ci) ?? false
+}
+
+/** Menge aus Kiste lösen — nur Bestätigt→Gepackt, nicht Retour-Spiegel */
+function canPullFromContainerLine(ci: ActivityPackContainerItem): boolean {
+  if (!packBackwardEditable.value) return false
+  if (isVirtualWarehouseContainerLine(ci)) return false
+  if (!packCrateShowPullFromContainer(activePackStage.value)) return false
+  return (ci.quantity_packed ?? 0) > 0
+}
+
+function lineMirrorQtyLabel(ci: ActivityPackContainerItem): string {
+  if (isPackReturnStage(activePackStage.value)) {
+    return t('activities.packList.lineReturnedForUnpack', { n: lineIssuedDisplayQty(ci) })
+  }
+  if (activePackStage.value === 'at_event_transport_back') {
+    return t('activities.packList.issuedFraction', {
+      issued: lineIssuedDisplayQty(ci),
+      packed: lineIssuedDisplayPacked(ci),
+      stage: props.stageRightLabel,
+    })
+  }
+  return t('activities.packList.issuedFraction', {
+    issued: lineIssuedDisplayQty(ci),
+    packed: lineIssuedDisplayPacked(ci),
+    stage: props.stageRightLabel,
+  })
+}
 
 const shellMoveQty = computed(() => {
   const pi = props.shellPackItem
@@ -308,16 +377,15 @@ function crateShellTakeTitle(): string {
     :id="variant === 'shell' ? 'pack-container-shell-' + container.id : containerDomIdPrefix + container.id"
     class="pack-container-card"
     :class="{
-      'pack-container-card--target':
-        (ctx.activePackTarget as { kind: string; containerId?: string } | null)?.kind === 'container' &&
-        (ctx.activePackTarget as { kind: string; containerId?: string }).containerId === container.id,
+      'pack-container-card--target': isTarget,
       'pack-container-card--filled':
         (ctx.containerHasAssignedContents as ((id: string) => boolean) | undefined)?.(container.id) ?? false,
-      'pack-container-card--selectable': packListEditable,
+      'pack-container-card--selectable': packListEditable && crateTargetSelectable,
       'pack-container-card--shell': variant === 'shell',
       'pack-container-card--at-event':
         (ctx.containerHasIssuedAtEvent as ((id: string) => boolean) | undefined)?.(container.id) ?? false,
     }"
+    @click="variant !== 'shell' ? onCardClick($event) : undefined"
   >
     <!-- Phys.-Kombi: eine Zeile wie Granatenkiste, Aufklappen für Inhalt + Zusatz-Buchung -->
     <template v-if="variant === 'shell' && shellPackItem">
@@ -329,7 +397,11 @@ function crateShellTakeTitle(): string {
           :aria-label="t('activities.packList.ariaToggleContainer')"
           @click.stop="(ctx.togglePackContainerCollapsed as (id: string) => void)(container.id)"
         >
-          <span class="pack-container-chevron" aria-hidden="true">{{ innerVisible ? '▼' : '▶' }}</span>
+          <span
+            class="pack-container-chevron"
+            :class="{ 'pack-container-chevron--open': innerVisible }"
+            aria-hidden="true"
+          >▶</span>
         </button>
         <div class="pack-container-header-main">
           <div class="pack-container-header-title-block pack-container-header-title-block--shell">
@@ -489,17 +561,14 @@ function crateShellTakeTitle(): string {
                   />
                 </div>
                 <div
-                  v-if="
-                    packBackwardEditable &&
-                    (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
-                    !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
-                  "
+                  v-if="canPullFromContainerLine(ci)"
                   class="pack-card-actions pack-card-actions-left"
                 >
                   <button
                     type="button"
                     class="btn-moveback-arrow"
                     :disabled="containerMutationLoading"
+                    :title="t('activities.packList.pullFromContainerTitle')"
                     @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
                   >
                     <v-icon icon="mdi-arrow-left" size="12" />
@@ -523,15 +592,14 @@ function crateShellTakeTitle(): string {
                       {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
                     </template>
                     <template v-else>
-                      {{
-                        t('activities.packList.issuedFraction', {
-                          issued: lineIssuedDisplayQty(ci),
-                          packed: lineIssuedDisplayPacked(ci),
-                          stage: stageRightLabel,
-                        })
-                      }}
+                      {{ lineMirrorQtyLabel(ci) }}
                     </template>
                   </span>
+                  <PackContainerLineIssueQuick
+                    v-if="!isVirtualWarehouseContainerLine(ci)"
+                    :line="ci"
+                    :visible="(ci.quantity_issued ?? 0) > 0"
+                  />
                 </div>
                 <div
                   v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
@@ -558,11 +626,6 @@ function crateShellTakeTitle(): string {
                     </button>
                   </div>
                 </div>
-                <PackContainerLineIssueQuick
-                  v-if="!(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)"
-                  :line="ci"
-                  :visible="(ci.quantity_issued ?? 0) > 0"
-                />
               </div>
             </div>
           </template>
@@ -590,8 +653,9 @@ function crateShellTakeTitle(): string {
               ? (ctx.useCrateRealityForPackItem as (id: string) => boolean)(shellPackItem.id)
               : true
           "
-          separate-section-rows
+          :separate-section-rows="useSubsections"
           :default-expanded="false"
+          :parent-expanded="innerVisible"
           @toggle-reality-view="
             shellPackItem &&
               (ctx.toggleCrateRealityView as ((p: ActivityPackItem) => void) | undefined) &&
@@ -611,20 +675,25 @@ function crateShellTakeTitle(): string {
           :aria-label="t('activities.packList.ariaToggleContainer')"
           @click.stop="(ctx.togglePackContainerCollapsed as (id: string) => void)(container.id)"
         >
-          <span class="pack-container-chevron" aria-hidden="true">{{ innerVisible ? '▼' : '▶' }}</span>
+          <span
+            class="pack-container-chevron"
+            :class="{ 'pack-container-chevron--open': innerVisible }"
+            aria-hidden="true"
+          >▶</span>
         </button>
         <div class="pack-container-header-main">
           <div class="pack-container-header-title-block">
             <button
               type="button"
               class="pack-container-select-main"
-              :aria-pressed="
-                (ctx.activePackTarget as { kind: string; containerId?: string } | null)?.kind === 'container' &&
-                (ctx.activePackTarget as { kind: string; containerId?: string }).containerId === container.id
-              "
-              @click="(ctx.toggleActiveContainer as (id: string) => void)(container.id)"
+              :aria-pressed="isTarget"
+              :title="crateTargetSelectable ? t('activities.packList.targetCrateSelectTitle') : undefined"
+              @click.stop="selectCrate"
             >
               <span class="pack-container-name">{{ container.label }}</span>
+              <span v-if="isTarget" class="pack-container-target-badge">{{
+                t('activities.packList.crateTargetBadge')
+              }}</span>
             </button>
             <span class="pack-container-chip text-muted">{{
               t('activities.common.itemsUnit', {
@@ -785,17 +854,14 @@ function crateShellTakeTitle(): string {
               />
             </div>
             <div
-              v-if="
-                packListEditable &&
-                (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
-                !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
-              "
+              v-if="canPullFromContainerLine(ci)"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
                 type="button"
                 class="btn-moveback-arrow"
                 :disabled="containerMutationLoading"
+                :title="t('activities.packList.pullFromContainerTitle')"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <v-icon icon="mdi-arrow-left" size="12" />
@@ -819,15 +885,14 @@ function crateShellTakeTitle(): string {
                   {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
                 </template>
                 <template v-else>
-                  {{
-                    t('activities.packList.issuedFraction', {
-                      issued: lineIssuedDisplayQty(ci),
-                      packed: lineIssuedDisplayPacked(ci),
-                      stage: stageRightLabel,
-                    })
-                  }}
+                  {{ lineMirrorQtyLabel(ci) }}
                 </template>
               </span>
+              <PackContainerLineIssueQuick
+                v-if="!isVirtualWarehouseContainerLine(ci)"
+                :line="ci"
+                :visible="(ci.quantity_issued ?? 0) > 0"
+              />
             </div>
             <div
               v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
@@ -854,11 +919,6 @@ function crateShellTakeTitle(): string {
                 </button>
               </div>
             </div>
-            <PackContainerLineIssueQuick
-              v-if="!(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)"
-              :line="ci"
-              :visible="(ci.quantity_issued ?? 0) > 0"
-            />
           </div>
           </div>
         </template>
@@ -892,17 +952,14 @@ function crateShellTakeTitle(): string {
               />
             </div>
             <div
-              v-if="
-                packListEditable &&
-                (ctx.activePackTarget as { kind: string } | null)?.kind === 'loose' &&
-                !(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)
-              "
+              v-if="canPullFromContainerLine(ci)"
               class="pack-card-actions pack-card-actions-left"
             >
               <button
                 type="button"
                 class="btn-moveback-arrow"
                 :disabled="containerMutationLoading"
+                :title="t('activities.packList.pullFromContainerTitle')"
                 @click="(ctx.pullFromContainer as (cid: string, ci: ActivityPackContainerItem) => void)(container.id, ci)"
               >
                 <v-icon icon="mdi-arrow-left" size="12" />
@@ -927,15 +984,14 @@ function crateShellTakeTitle(): string {
                   {{ t('activities.packList.packListNotYetAtStage', { stage: stageRightLabel }) }}
                 </template>
                 <template v-else>
-                  {{
-                    t('activities.packList.issuedFraction', {
-                      issued: lineIssuedDisplayQty(ci),
-                      packed: lineIssuedDisplayPacked(ci),
-                      stage: stageRightLabel,
-                    })
-                  }}
+                  {{ lineMirrorQtyLabel(ci) }}
                 </template>
               </span>
+              <PackContainerLineIssueQuick
+                v-if="!(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)"
+                :line="ci"
+                :visible="(ci.quantity_issued ?? 0) > 0"
+              />
             </div>
             <div
               v-if="packForwardEditable && (ctx.containerLineIssueableMax as (ci: ActivityPackContainerItem) => number)(ci) > 0"
@@ -962,11 +1018,6 @@ function crateShellTakeTitle(): string {
                 </button>
               </div>
             </div>
-            <PackContainerLineIssueQuick
-              v-if="!(ctx.isVirtualWarehouseContainerLine as (ci: ActivityPackContainerItem) => boolean)(ci)"
-              :line="ci"
-              :visible="(ci.quantity_issued ?? 0) > 0"
-            />
           </div>
         </template>
         <p

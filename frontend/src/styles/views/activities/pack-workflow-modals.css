@@ -289,9 +289,17 @@
 .pack-return-crate-line-row {
   flex-direction: column;
   align-items: stretch;
-  gap: 8px;
-  padding: 10px 0;
+  gap: 6px;
+  padding: 8px 0;
   border-bottom: 1px solid #e2e8f0;
+}
+
+.pack-return-crate-line-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+  width: 100%;
+  min-width: 0;
 }
 
 .pack-return-crate-line-row:last-child {
@@ -300,26 +308,44 @@
 
 .pack-return-crate-line-check {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .pack-return-crate-line-check input {
-  margin-top: 2px;
+  flex-shrink: 0;
 }
 
 .pack-return-crate-line-name {
   font-weight: 500;
+  white-space: nowrap;
+}
+
+.pack-return-crate-line-qty {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pack-return-crate-line-inline .pack-return-crate-badge {
+  flex-shrink: 0;
 }
 
 .pack-return-crate-line-controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px 12px;
-  padding-left: 22px;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 0;
 }
 
 .pack-return-crate-return-label {
@@ -343,7 +369,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  margin-left: 22px;
+  margin-left: 0;
   padding: 8px 10px;
   border-radius: 6px;
   border-left: 3px solid #f59e0b;

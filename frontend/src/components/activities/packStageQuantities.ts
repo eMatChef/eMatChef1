@@ -91,6 +91,11 @@ export function isPackForwardToEventStage(stage: PackStage): boolean {
   )
 }
 
+/** UI wie Gepackt→Am Event (Warehouse-Issue-Karten): Hinweg + Am Event→Transport zurück */
+export function isPackForwardWarehouseUiStage(stage: PackStage): boolean {
+  return isPackForwardToEventStage(stage) || stage === 'at_event_transport_back'
+}
+
 /**
  * Pack-Tab, auf dem der Aktivitäts-Status «Am Event» gesetzt werden darf
  * (Quick: Gepackt→Am Event; Camp/Event: nur Transport→Am Event).
@@ -161,7 +166,7 @@ export function isPackReturnPipelineStage(stage: PackStage): boolean {
 
 /** Rechtes Spiegel-Panel: bereits in dieser Pipeline-Stufe gebucht */
 export function isPackForwardMirrorStage(stage: PackStage): boolean {
-  return isPackForwardToEventStage(stage)
+  return isPackForwardWarehouseUiStage(stage)
 }
 
 export function isPackReturnMirrorStage(stage: PackStage): boolean {
@@ -382,6 +387,40 @@ export function resolvePackWorkflowTransitionStage(
   if (!next || next.targetStatus === 'returned') return null
   return next
 }
+
+export type {
+  ContainerQtyField,
+  PackQuantityContext,
+  PackQuantityEffectiveLeftContext,
+  PackQuantityForwardMaxContext,
+  PackQuantityMoveBackContext,
+} from '@/components/activities/packStageQuantityLayer'
+
+export {
+  computeConsumableQtyAlreadyBeyondCurrentStage,
+  computeContainerLineRemainingAtForwardStage,
+  computeContainerLineRemainingReturn,
+  computeContainerQtySumForMaterial,
+  computeContainerShellIssueableUnits,
+  computeContainerShellTakeMax,
+  computeContainerStillAtEventQtyForMaterial,
+  computeEffectiveStageLeftQty,
+  computeForwardRemainingInContainersForMaterial,
+  computeIssuedQtyInContainersForMaterial,
+  computeLooseIssuedAtEvent,
+  computeLooseQtyForPackItem,
+  computeLooseQtyOnRightMirror,
+  computeLooseQtyStillAtEventForReturn,
+  computeLooseQtyStillOnTransportBackForReturn,
+  computeLooseTransportBackOnRight,
+  computePackIssueForwardMax,
+  computePackItemRemainingAtForwardStage,
+  computePackedQtyBaseForContainerSplit,
+  computeQtyInContainersForItem,
+  computeRightQtyForMoveBack,
+  computeTransportBackQtyInContainersForMaterial,
+  computeTransportToQtyInContainersForMaterial,
+} from '@/components/activities/packStageQuantityLayer'
 
 export function groupActivityPackItemsByCategory(
   items: ActivityPackItem[],

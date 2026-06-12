@@ -323,6 +323,8 @@ Die gebuchte virtuelle Kombo wird **gruppiert wie eine Kiste** dargestellt (Hül
 
 > ✅ **Umgesetzt (Paket 7):** Kind-Zeilen werden aus der editierbaren/Read-only-Materialliste gefiltert und unter der Kombo-Eltern-Zeile als eingerückter „Set-Inhalt" (📦) gerendert — aus `config_snapshot.resolved_components` (Lager-Teile) + `self_provided` (Hinweis). Stellen: `ActivityMaterialLinesTable.vue` und die Read-only-Tabelle in `ActivityDetailView.vue`.
 
+**Pack-Flow (`pack_mode`, logische Packkiste, Ersteller-Bestätigung):** siehe **[virtual-combo-activities.md](./virtual-combo-activities.md)** — User wählt «zusammen packen» vs. «lose»; bei `together` erzeugt das System einen logischen `activity_pack_container` (Variante 1).
+
 ### Verwandtes Zubehör (separat, unabhängig)
 
 Eigene Empfehlungs-Verknüpfung (Kombo → andere Materialien), **getrennt** von der Stückliste, verwaltet im Zusammensetzungs-Tab (`MaterialDetailView`). Im Aktivitäts-Flow als Vorschlag „Zubehör dazu?" → **eigene Positionen** (nicht Teil des Sets). Auch für **physische** Kombos nutzbar.
@@ -468,6 +470,7 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 - **Bestellen:** virtuelle Kombo hinzufügen → Verfügbarkeit als Flaschenhals der `stock`-Komponenten; Zubehör-Teile wählbar; `self_provided`-Teile als Hinweis; Sperre kaskadiert auf Komponenten-Mengen × Zeitraum. Nur `ready`-Kombos buchbar.
 - **Anzeige:** „noch X× verfügbar" pro Kombo (statt X-mal klicken).
 - **Kombinieren:** Überlapp einer Kombo-Option mit vorhandener Position erkennen → User fragen, ob vorhandene Einheit verwendet wird (statt doppelt reservieren).
+- **Pack-Vorgabe (`pack_mode`):** User entscheidet «zusammen als Packkiste» vs. «lose — MW organisiert»; Details → [virtual-combo-activities.md](./virtual-combo-activities.md).
 - **Packen (MW):** Pick-/Scan-Liste pro `on_issue`-Komponente → konkrete Seriennummer zuweisen (`component_batch_id` setzen, `isAwaitingAssignment()` wird false).
 - **Pipeline:** Pack-/Sperr-Positionen pro Komponente führen.
 
@@ -491,7 +494,8 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 ## Siehe auch
 
-- [plan.md](./plan.md) — **Umbauplan / Checkliste** (Pakete 0–7)
+- [plan.md](./plan.md) — **Umbauplan / Checkliste** (Pakete 0–8)
+- [virtual-combo-activities.md](./virtual-combo-activities.md) — **Virtuelle Kombo in Aktivitäten** (Materialplanung, `pack_mode`, Pack-Container, `self_provided`)
 - [../templates/README.md](../templates/README.md) — Vorlagen-Editor, Hersteller-Picker, Start-Assistent
 - [../templates/plan.md](../templates/plan.md) — Paket 1–2 (Editor + Komponenten-Auflösung)
 - [Material-Pipeline (Aktivitäten)](../../activities/material-pipeline.md)

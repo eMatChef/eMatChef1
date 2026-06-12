@@ -160,7 +160,7 @@
           <!-- Tab: Daten (Bearbeitung) -->
           <section v-else class="tab-content">
             <div
-              v-if="isComboMaterialView && canManageMaterials && hasAnyQrForPrint"
+              v-if="isComboMaterialView && !isVirtualComboView && canManageMaterials && hasAnyQrForPrint"
               class="stock-qr-collapsible section-card"
             >
               <button
@@ -230,50 +230,52 @@
                   v-model="formData.name"
                   :baseline="savedFormBaselines.name"
                   :label="t('components.materialDetail.labelNameDb')"
-                  span-class="form-group span-2"
+                  :span-class="isVirtualComboView ? 'form-group span-full' : 'form-group span-2'"
                   :save="(v) => saveMaterialField('name', v)"
                 />
                 
-                <AutoSaveField
-                  v-model="formData.barcode_tag"
-                  :baseline="savedFormBaselines.barcode_tag"
-                  :label="`${t('components.materialDetail.labelCode')} (${t('components.materialDetail.optionalShort')})`"
-                  :placeholder="t('components.materialDetail.codePlaceholder')"
-                  :save="(v) => saveMaterialField('barcode_tag', v)"
-                />
-                
-                <AutoSaveField
-                  v-model="formData.category_id"
-                  :baseline="savedFormBaselines.category_id"
-                  :label="t('components.materialDetail.labelCategory')"
-                  :save="(v) => saveMaterialField('category_id', v)"
-                >
-                  <template #default="{ onFocus, onBlur, onChange }">
-                    <CategoryAutocompleteInput
-                      v-model="formData.category_id"
-                      :categories="categories"
-                      :department-id="departmentId"
-                      @focus="onFocus"
-                      @blur="onBlur"
-                      @change="onChange"
-                      @reload-categories="handleCategoryReloadFromPicker"
-                    />
-                  </template>
-                </AutoSaveField>
-                
-                <AutoSaveField
-                  v-model="formData.manufacturer"
-                  :baseline="savedFormBaselines.manufacturer"
-                  :label="t('common.manufacturer')"
-                  :save="(v) => saveMaterialField('manufacturer', v)"
-                />
-                
-                <AutoSaveField
-                  v-model="formData.model"
-                  :baseline="savedFormBaselines.model"
-                  :label="t('components.materialDetail.labelModel')"
-                  :save="(v) => saveMaterialField('model', v)"
-                />
+                <template v-if="!isVirtualComboView">
+                  <AutoSaveField
+                    v-model="formData.barcode_tag"
+                    :baseline="savedFormBaselines.barcode_tag"
+                    :label="`${t('components.materialDetail.labelCode')} (${t('components.materialDetail.optionalShort')})`"
+                    :placeholder="t('components.materialDetail.codePlaceholder')"
+                    :save="(v) => saveMaterialField('barcode_tag', v)"
+                  />
+                  
+                  <AutoSaveField
+                    v-model="formData.category_id"
+                    :baseline="savedFormBaselines.category_id"
+                    :label="t('components.materialDetail.labelCategory')"
+                    :save="(v) => saveMaterialField('category_id', v)"
+                  >
+                    <template #default="{ onFocus, onBlur, onChange }">
+                      <CategoryAutocompleteInput
+                        v-model="formData.category_id"
+                        :categories="categories"
+                        :department-id="departmentId"
+                        @focus="onFocus"
+                        @blur="onBlur"
+                        @change="onChange"
+                        @reload-categories="handleCategoryReloadFromPicker"
+                      />
+                    </template>
+                  </AutoSaveField>
+                  
+                  <AutoSaveField
+                    v-model="formData.manufacturer"
+                    :baseline="savedFormBaselines.manufacturer"
+                    :label="t('common.manufacturer')"
+                    :save="(v) => saveMaterialField('manufacturer', v)"
+                  />
+                  
+                  <AutoSaveField
+                    v-model="formData.model"
+                    :baseline="savedFormBaselines.model"
+                    :label="t('components.materialDetail.labelModel')"
+                    :save="(v) => saveMaterialField('model', v)"
+                  />
+                </template>
               </div>
             </div>
 
@@ -283,81 +285,97 @@
                 <span class="property-badge">{{ propertyBadgeText }}</span>
               </div>
               
-              <div class="properties-grid">
+              <div v-if="isVirtualComboView" class="properties-grid">
                 <div class="property-item">
                   <span class="property-label">{{ t('components.materialDetail.propPhysicalVirtual') }}</span>
-                  <span class="property-value">{{ t('components.materialDetail.propPhysicalMaterials') }}</span>
+                  <span class="property-value">{{ propertyBadgeText }}</span>
                 </div>
-                <div class="property-item">
-                  <span class="property-label">{{ t('components.materialDetail.propRentalSale') }}</span>
-                  <span class="property-value">{{ t('components.materialDetail.propRental') }}</span>
+                <div v-if="isComboDraft" class="property-item">
+                  <span class="property-label">{{ t('components.materialDetail.thCompositionState') }}</span>
+                  <span class="property-value">{{ t('components.materialDetail.comboDraftBadge') }}</span>
                 </div>
-                <div
-                  v-if="material.tracking_type === 'bulk'"
-                  class="property-item property-item--checkbox"
-                >
-                  <AutoSaveField
-                    v-model="formData.is_container"
-                    :baseline="savedFormBaselines.is_container"
-                    :label="t('components.materialDetail.containerCheckbox')"
-                    type="checkbox"
-                    :checkbox-label="t('components.materialDetail.containerCheckbox')"
-                    span-class="property-item property-item--checkbox autosave-checkbox-field"
-                    :save="(v) => saveMaterialField('is_container', v)"
-                  />
-                  <p class="form-hint text-muted mt-1">
-                    {{ t('components.materialDetail.containerCheckboxHint') }}
-                  </p>
-                </div>
-                <div class="property-item">
-                  <span class="property-label">{{ t('components.materialDetail.labelSource') }}</span>
-                  <span class="property-value">{{ formData.is_js_material ? t('components.materialDetail.sourceJs') : t('components.materialDetail.sourceInternal') }}</span>
+                <div v-else class="property-item">
+                  <span class="property-label">{{ t('components.materialDetail.thCompositionState') }}</span>
+                  <span class="property-value">{{ t('components.materialDetail.comboReadyBadge') }}</span>
                 </div>
               </div>
+              <template v-else>
+                <div class="properties-grid">
+                  <div class="property-item">
+                    <span class="property-label">{{ t('components.materialDetail.propPhysicalVirtual') }}</span>
+                    <span class="property-value">{{ t('components.materialDetail.propPhysicalMaterials') }}</span>
+                  </div>
+                  <div class="property-item">
+                    <span class="property-label">{{ t('components.materialDetail.propRentalSale') }}</span>
+                    <span class="property-value">{{ t('components.materialDetail.propRental') }}</span>
+                  </div>
+                  <div
+                    v-if="material.tracking_type === 'bulk'"
+                    class="property-item property-item--checkbox"
+                  >
+                    <AutoSaveField
+                      v-model="formData.is_container"
+                      :baseline="savedFormBaselines.is_container"
+                      :label="t('components.materialDetail.containerCheckbox')"
+                      type="checkbox"
+                      :checkbox-label="t('components.materialDetail.containerCheckbox')"
+                      span-class="property-item property-item--checkbox autosave-checkbox-field"
+                      :save="(v) => saveMaterialField('is_container', v)"
+                    />
+                    <p class="form-hint text-muted mt-1">
+                      {{ t('components.materialDetail.containerCheckboxHint') }}
+                    </p>
+                  </div>
+                  <div class="property-item">
+                    <span class="property-label">{{ t('components.materialDetail.labelSource') }}</span>
+                    <span class="property-value">{{ formData.is_js_material ? t('components.materialDetail.sourceJs') : t('components.materialDetail.sourceInternal') }}</span>
+                  </div>
+                </div>
 
-              <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
-                <AutoSaveField
-                  v-model="formData.is_js_material"
-                  :baseline="savedFormBaselines.is_js_material"
-                  :label="t('components.materialDetail.jsMaterialGlobal')"
-                  type="checkbox"
-                  :checkbox-label="t('components.materialDetail.jsMaterialGlobal')"
-                  span-class="autosave-checkbox-field"
-                  :save="(v) => saveMaterialField('is_js_material', v)"
-                />
-                <AutoSaveField
-                  v-if="formData.is_js_material"
-                  v-model="formData.external_source"
-                  :baseline="savedFormBaselines.external_source"
-                  :label="t('components.materialDetail.labelExternalSource')"
-                  :placeholder="t('components.materialDetail.externalSourcePlaceholder')"
-                  span-class="form-group mt-2"
-                  :save="(v) => saveMaterialField('external_source', v)"
-                />
-              </div>
-              <div v-else-if="formData.is_js_material" class="form-group mt-4">
-                <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
-                <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
-              </div>
-              
-              <div
-                v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
-                class="linked-kiste-banner mt-4"
-              >
-                <span class="linked-kiste-label">{{ t('components.materialDetail.refKisteLabel') }}</span>
-                <p class="linked-kiste-desc">
-                  {{ t('components.materialDetail.refKisteDesc') }}
-                </p>
-                <router-link
-                  class="linked-kiste-link"
-                  :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
+                  <AutoSaveField
+                    v-model="formData.is_js_material"
+                    :baseline="savedFormBaselines.is_js_material"
+                    :label="t('components.materialDetail.jsMaterialGlobal')"
+                    type="checkbox"
+                    :checkbox-label="t('components.materialDetail.jsMaterialGlobal')"
+                    span-class="autosave-checkbox-field"
+                    :save="(v) => saveMaterialField('is_js_material', v)"
+                  />
+                  <AutoSaveField
+                    v-if="formData.is_js_material"
+                    v-model="formData.external_source"
+                    :baseline="savedFormBaselines.external_source"
+                    :label="t('components.materialDetail.labelExternalSource')"
+                    :placeholder="t('components.materialDetail.externalSourcePlaceholder')"
+                    span-class="form-group mt-2"
+                    :save="(v) => saveMaterialField('external_source', v)"
+                  />
+                </div>
+                <div v-else-if="formData.is_js_material" class="form-group mt-4">
+                  <label>{{ t('components.materialDetail.labelExternalSource') }}</label>
+                  <input :value="formData.external_source || 'js_ch'" type="text" class="form-input" disabled />
+                </div>
+                
+                <div
+                  v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
+                  class="linked-kiste-banner mt-4"
                 >
-                  {{ material.linked_container_batch.display_label }}
-                </router-link>
-              </div>
+                  <span class="linked-kiste-label">{{ t('components.materialDetail.refKisteLabel') }}</span>
+                  <p class="linked-kiste-desc">
+                    {{ t('components.materialDetail.refKisteDesc') }}
+                  </p>
+                  <router-link
+                    class="linked-kiste-link"
+                    :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
+                  >
+                    {{ material.linked_container_batch.display_label }}
+                  </router-link>
+                </div>
+              </template>
             </div>
 
-            <div class="section-card">
+            <div v-if="!isVirtualComboView" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionDetails') }}</h2>
               <p v-if="isMeterStockMaterial" class="section-hint">
                 {{ t('components.materialDetail.lengthRequiredForMeterHint') }}
@@ -425,7 +443,7 @@
               />
             </div>
 
-            <div v-if="showDetailStockUnitSection" class="section-card section-card--stock-unit">
+            <div v-if="showDetailStockUnitSection && !isVirtualComboView" class="section-card section-card--stock-unit">
               <h2 class="section-title">{{ t('components.materialDetail.sectionStockUnit') }}</h2>
               <MaterialDetailStockUnitField
                 :show-label="false"
@@ -443,7 +461,7 @@
 
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
             <div
-              v-if="!material.is_consumable && !material.is_food && !isMeterStockMaterial"
+              v-if="!isVirtualComboView && !material.is_consumable && !material.is_food && !isMeterStockMaterial"
               class="section-card"
             >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
@@ -483,7 +501,7 @@
               </p>
             </div>
 
-            <div v-if="!material.is_consumable && !material.is_food" class="section-card">
+            <div v-if="!isVirtualComboView && !material.is_consumable && !material.is_food" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
@@ -518,7 +536,7 @@
               </div>
             </div>
 
-            <div v-if="material.is_consumable || material.is_food" class="section-card">
+            <div v-if="!isVirtualComboView && (material.is_consumable || material.is_food)" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionCosts') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.costsHint') }}</p>
               <div v-if="material.is_consumable" class="costs-hint-banner">
@@ -860,7 +878,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Gelagert in -->
-          <v-tabs-window-item value="stored-in" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!isVirtualComboView" value="stored-in" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
@@ -1311,7 +1329,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Werkstatt -->
-          <v-tabs-window-item value="workshop" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!isVirtualComboView" value="workshop" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionWorkshopTitle') }}</h2>
@@ -1355,7 +1373,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Vermietung -->
-          <v-tabs-window-item v-if="!material.is_consumable && !material.is_food" value="rental" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!isVirtualComboView && !material.is_consumable && !material.is_food" value="rental" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
@@ -1550,7 +1568,7 @@
           </section>
           </v-tabs-window-item>
           <!-- Tab: Archiv -->
-          <v-tabs-window-item value="archive" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!isVirtualComboView" value="archive" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
@@ -1831,17 +1849,17 @@
             />
           </div>
 
-          <!-- Bestand Quick View -->
-          <div class="sidebar-card">
+          <!-- Bestand Quick View (virtuelle Kombo: nur Link zur Stückliste) -->
+          <div v-if="!isVirtualComboView || canManageMaterials" class="sidebar-card">
             <div class="sidebar-header">
-              <h3>{{ t('components.materialDetail.sidebarStockQuick') }}</h3>
+              <h3>{{ isVirtualComboView ? t('components.materialDetail.tabComposition') : t('components.materialDetail.sidebarStockQuick') }}</h3>
               <button
                 v-if="canManageMaterials && isComboMaterialView"
                 type="button"
                 class="link-btn"
                 @click="activeTab = 'composition'"
               >
-                {{ t('components.materialDetail.tabComposition') }}
+                {{ isVirtualComboView ? t('components.materialDetail.linkOpenComposition') : t('components.materialDetail.tabComposition') }}
               </button>
               <button
                 v-else-if="canManageMaterials"
@@ -1852,7 +1870,12 @@
                 {{ t('components.materialDetail.linkChangeStock') }}
               </button>
             </div>
-            <div class="stock-quick">
+            <div v-if="isVirtualComboView" class="stock-quick stock-quick--virtual-combo">
+              <p class="text-muted virtual-combo-sidebar-hint">
+                {{ t('components.materialDetail.virtualComboSidebarHint') }}
+              </p>
+            </div>
+            <div v-else class="stock-quick">
               <div class="stock-row stock-row-total">
                 <span>{{ t('components.materialDetail.stockLabelTotal') }}</span>
                 <span class="stock-val">{{ material.total_stock }}</span>
@@ -3644,6 +3667,13 @@ const tabs = computed(() => {
   if (isUserMaterialsBrowseOnly.value) {
     return [{ id: 'data', label: t('components.materialDetail.tabData') }]
   }
+  if (isVirtualComboView.value) {
+    return [
+      { id: 'data', label: t('components.materialDetail.tabData') },
+      { id: 'composition', label: t('components.materialDetail.tabComposition') },
+      { id: 'history', label: t('components.materialDetail.tabHistory') },
+    ]
+  }
   if (isComboMaterialView.value) {
     const comboTabs = [
       { id: 'data', label: t('components.materialDetail.tabData') },
@@ -3885,11 +3915,16 @@ const qrGenerateButtonTitle = computed(() => {
 
 /** Einstieg „QR-Codes drucken“ im Header, wenn mindestens eine Charge eine Etiketten-URL hat. */
 const showHeaderQrShortcut = computed(
-  () => !isLoading.value && hasAnyQrForPrint.value && !showLinkedContainerQrHeader.value,
+  () =>
+    !isLoading.value &&
+    !isVirtualComboView.value &&
+    hasAnyQrForPrint.value &&
+    !showLinkedContainerQrHeader.value,
 )
 
 const showGenerateQrButton = computed(() => {
   if (isLoading.value) return false
+  if (isVirtualComboView.value) return false
   if (isPhysicalComboFromLinkedContainer.value) return false
 
   const materialMissing = String(material.value?.public_code || '').trim() === ''
@@ -4715,6 +4750,7 @@ async function loadMaterial(opts?: { preserveComboComponents?: boolean; silent?:
 
 async function generateMaterialPublicCode() {
   if (!props.materialId || isGeneratingPublicCode.value) return
+  if (isVirtualComboView.value) return
   const linkedKisteCombo = isPhysicalComboFromLinkedContainer.value
   isGeneratingPublicCode.value = true
   try {

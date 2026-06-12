@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · Pakete 0–7, von klein → groß. **Erledigt: 0–7** (Mini-Fixes; `combo_status` draft/ready inkl. Migration `Version20260529120000`; `reservation_mode` end-to-end entfernt inkl. Drop-Migration `Version20260529130000`; drei Typen im Wizard mit Klartext-Karten/Badges + Hülle-Hinweis; verwandtes Zubehör als separate Empfehlung inkl. Entities/Migration `Version20260529140000`/API, Detail-Tab, Vorlage + Aktivitäts-Vorschlag, „fertigstellen" für physische Kombo; **Paket 5**: virtuelle Kombo + vereinheitlichtes Options-/Delta-Fundament inkl. Migration `Version20260529150000`, `ComboResolutionService` (Flaschenhals/Klemmung), Zeilenmodell B in `ActivityController`, Pack-pro-Komponente; **Paket 6**: Konfigurator-UI — Options-/Gruppen-Editor in Material (`ComboOptionsEditor.vue`, CRUD in `MaterialController`) und Vorlage (`TemplateOptionsEditor.vue`, generisch, replace-all in `TemplateController`), 3-Zustands-Verfügbarkeit `MaterialAvailabilityController::configuratorAvailability`, interaktiver `ComboConfiguratorDialog.vue` in Lookup + Wizard mit Zeilenmodell-B-Durchreichung, i18n de/en; **Paket 7**: Cross-Cutting — „Kombinieren?"-Dialog (`CombineWithExistingDialog.vue`) bei Überlapp Kombo-Teil ↔ vorhandener Einzelposition, Set-Anzeige „wie Kiste" (Hülle + aufgelöste Kind-Teile aus `config_snapshot`) in Detail + Lines-Table, einheitliche Emoji-Badges 📦/🟦/🟪/🧩 über neuen Shared-Helfer `frontend/src/utils/comboDisplay.ts` (duplizierter `isComboMaterial` zusammengeführt), i18n de/en). **Paket 7 fertig — frontend `npm run build` (vue-tsc + vite) grün.** Kein neues DB-Schema in Paket 6/7 (Fundament steht aus Paket 5).
+**Stand:** Juni 2026 · Pakete 0–7 erledigt; **Paket 8** (virt. Kombo Pack-Flow) offen — Spezifikation [virtual-combo-activities.md](./virtual-combo-activities.md).
 
 ---
 
@@ -241,6 +241,32 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 
 ---
 
+## Paket 8 — Virtuelle Kombo: Pack-Flow & Ersteller-Vorgaben
+
+**Ziel:** User entscheidet beim Buchen, ob der MW das Set zusammen packen soll; `self_provided`-Teile werden dem Ersteller bestätigt.
+
+**Spezifikation:** [virtual-combo-activities.md](./virtual-combo-activities.md)
+
+**Betroffen:**
+- `frontend/src/components/activities/ComboConfiguratorDialog.vue`
+- `frontend/src/components/activities/shared/ActivityMaterialLinesTable.vue`
+- `frontend/src/components/activities/ActivityPackListTab.vue`
+- `frontend/src/components/activities/packWorkflowRules.ts`
+- `backend/src/Controller/ActivityController.php` (Container-Sync bei `pack_mode === "together"`)
+
+**Schritte:**
+- [ ] `pack_mode` (`together` \| `loose`) im Konfigurator + `config_snapshot`
+- [ ] Backend: logischer `activity_pack_container` bei `together` (Variante 1, kein Batch)
+- [ ] Pack-UI: Set unter Packkisten, stock-Teile nicht doppelt als lose Zeilen
+- [ ] `self_provided_acknowledged` — Pflicht-Checkbox beim Buchen, Hinweis Materialliste + Packliste
+- [ ] Floor Einzelzeilen vs. Kombo-Bedarf (Materialplanung)
+- [ ] Wizard-Übersicht: virt. Eltern-Zeile ausblenden
+- [ ] `pack-workflow-rules.md` §2: Placement Virt. Kombi aktualisieren
+
+**Definition of Done:** Blachenburg «Sarasani» buchbar mit «zusammen packen» → MW sieht Packkiste; «lose» → MW organisiert frei; Mast erscheint als Ersteller-Checkliste, nicht in der Kiste.
+
+---
+
 ## Offene Punkte (vor dem jeweiligen Paket entscheiden)
 
 Alle Grundsatzentscheidungen sind getroffen. Es bleiben nur **Implementierungs-Detailfragen** (im jeweiligen Schritt zu klären): Index-/Kaskaden-Details der neuen Tabellen, genaues JSON-Format des Konfig-Snapshots.
@@ -258,4 +284,5 @@ Alle Grundsatzentscheidungen sind getroffen. Es bleiben nur **Implementierungs-D
 ## Siehe auch
 
 - [README.md](./README.md) — Konzept & Zielmodell
+- [virtual-combo-activities.md](./virtual-combo-activities.md) — Pack-Flow & `pack_mode` (Paket 8)
 - [../../activities/material-pipeline.md](../../activities/material-pipeline.md) — Bestellung/Pack-Pipeline

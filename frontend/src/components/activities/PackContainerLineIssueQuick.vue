@@ -81,6 +81,12 @@ function showConsumptionOnLine(): boolean {
   if (fn) return fn(props.line.material_item_id)
   return showPackConsumptionAllowed()
 }
+
+function onIssuePick(issueType: 'loss' | 'repair'): void {
+  const mid = props.line.material_item_id
+  if (!mid) return
+  ;(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(mid, issueType)
+}
 </script>
 
 <template>
@@ -121,22 +127,22 @@ function showConsumptionOnLine(): boolean {
       </EButton>
     </template>
     <template v-else>
-      <EButton
-        variant="text"
-        size="x-small"
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-loss"
-        @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(line.material_item_id!, 'loss')"
+        :title="t('activities.common.issueLoss')"
+        @click="onIssuePick('loss')"
       >
         {{ t('activities.common.issueLoss') }}
-      </EButton>
-      <EButton
-        variant="text"
-        size="x-small"
+      </button>
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-repair"
-        @click="(ctx.emitIssueWizardByMaterialId as (id: string, t: 'loss' | 'repair') => void)(line.material_item_id!, 'repair')"
+        :title="t('activities.common.issueRepair')"
+        @click="onIssuePick('repair')"
       >
         {{ t('activities.common.issueRepair') }}
-      </EButton>
+      </button>
     </template>
   </div>
 </template>
