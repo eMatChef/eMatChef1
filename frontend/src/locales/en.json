@@ -1573,6 +1573,10 @@
       "comboVirtualShort": "Virt. combo",
       "comboSetContentTitle": "Set contents",
       "comboSetSelfProvided": "bring yourself",
+      "comboPackModeTogetherHint": "Pack instruction: together as crate «{name}»",
+      "comboPackModeLooseHint": "Pack instruction: loose — warehouse manager organises",
+      "comboSelfProvidedAcknowledged": "for you to organise (confirmed)",
+      "comboSelfProvidedAcknowledgedAt": "for you to organise (confirmed on {date})",
       "crateLine": "Crate: {label}",
       "replenishmentBadge": "Follow-up / purchase",
       "saveQtySaving": "Saving…",
@@ -1745,6 +1749,7 @@
       "removeLineTitle": "Remove line",
       "removeLineAria": "Remove line: {name}",
       "onlyNFree": "Only {n} free",
+      "comboFloorHint": "At least {min} (combo requirement)",
       "warnOverRestTitle": "Quantity exceeds available remainder",
       "packListRemoveTitle": "Assign via pack list (container)",
       "qtyPackingReadonlyHint": "While packing, adjust quantities in the pack list; add more from the collapsible block at the top of the pack list.",
@@ -2036,6 +2041,8 @@
       "hintReturnCratesOnRight": "Crate contents return with the crate to the warehouse — including crates that never went to the event.",
       "hintReturnCratesOnLeft": "Return crates at the event — contents travel back to the warehouse with the crate.",
       "sectionNotTakenForReturn": "Not taken",
+      "selfProvidedLeaderTitle": "Leader brings (self-provided)",
+      "selfProvidedLeaderIntro": "These parts are not packed from stock — the activity creator organises them.",
       "sectionConsumedForReturn": "Consumption",
       "hintConsumedForReturn": "Consumable material used at the event — not physically returned.",
       "consumedForReturnQty": "{n} pcs. consumed",
@@ -5329,7 +5336,11 @@
       "stateAvailable": "Available",
       "stateAvailableN": "{n} buildable",
       "availableN": "{n} free",
-      "loadError": "Availability could not be loaded."
+      "loadError": "Availability could not be loaded.",
+      "packModeTitle": "How should the warehouse manager pack?",
+      "packModeTogether": "Together as set (pack crate «{name}»)",
+      "packModeLoose": "Loose — warehouse manager organises",
+      "selfProvidedAck": "I will organise these parts myself and bring them to the event."
     }
   },
   "verwaltung": {

@@ -1751,6 +1751,10 @@
       "comboVirtualShort": "Virt. Kombi",
       "comboSetContentTitle": "Set-Inhalt",
       "comboSetSelfProvided": "selbst mitbringen",
+      "comboPackModeTogetherHint": "Pack-Vorgabe: zusammen als Packkiste «{name}»",
+      "comboPackModeLooseHint": "Pack-Vorgabe: lose — Materialwart organisiert selbst",
+      "comboSelfProvidedAcknowledged": "von dir zu organisieren (bestätigt)",
+      "comboSelfProvidedAcknowledgedAt": "von dir zu organisieren (bestätigt am {date})",
       "crateLine": "Kiste: {label}",
       "replenishmentBadge": "Nachlieferung / Zukauf",
       "saveQtySaving": "Speichern…",
@@ -1908,6 +1912,7 @@
       "removeLineTitle": "Position entfernen",
       "removeLineAria": "Position entfernen: {name}",
       "onlyNFree": "Nur {n} frei",
+      "comboFloorHint": "Mindestens {min} (Kombo-Bedarf)",
       "warnOverRestTitle": "Menge über verfügbaren Rest",
       "packListRemoveTitle": "Zuordnung über die Packliste (Behälter)",
       "qtyPackingReadonlyHint": "Menge während «Wird gepackt» in der Packliste; Zusatzmaterial unten in der Packliste.",
@@ -1978,6 +1983,72 @@
       "piecesShort": "{count} Stk.",
       "piecesWithUnit": "{count} Stk.",
       "jsBadge": "J&S"
+    },
+    "jsMaterial": {
+      "sectionLabel": "J+S-Leihmaterial",
+      "includeToggle": "J+S-Leihmaterial einbeziehen",
+      "includeHint": "Material wird separat bei J+S bestellt (nicht aus dem eigenen Lager). Das Bestellformular folgt in der Aktivität.",
+      "badgeIncluded": "J+S-Leihmaterial geplant",
+      "materialStepHint": "Eigenes Material hier planen. J+S-Positionen kommen später über das Bestellformular — nicht über die Material-Suche.",
+      "participantCountLabel": "Teilnehmerzahl",
+      "participantCountPlaceholder": "z. B. 24",
+      "participantCountHint": "Für die spätere J+S-Dotation (Anzahl Teilnehmende am Lager/Event).",
+      "participantCountSummary": "{count} Teilnehmende",
+      "order": {
+        "cardTitle": "J+S-Bestellung",
+        "cardHint": "Digitales Bestellformular für J+S-Leihmaterial (Blöcke 1–3). Materialpositionen folgen in Phase 4.",
+        "openFormButton": "Formular öffnen",
+        "modalTitle": "J+S-Bestellformular",
+        "modalIntro": "Felder werden aus Aktivität, Eventstandort und Abteilungs-Defaults vorausgefüllt. Manuelle Änderungen bleiben erhalten.",
+        "closeAria": "Bestellformular schliessen",
+        "loading": "Bestellformular wird geladen…",
+        "loadingShort": "…",
+        "loadError": "Bestellformular konnte nicht geladen werden.",
+        "saveButton": "Entwurf speichern",
+        "saveSuccess": "J+S-Bestellformular gespeichert",
+        "saveError": "Speichern fehlgeschlagen",
+        "prefillButton": "Aus Aktivität übernehmen",
+        "prefillSuccess": "Felder aus Aktivität übernommen",
+        "prefillError": "Vorbefüllung fehlgeschlagen",
+        "block4PhaseHint": "Leihmaterial-Positionen (Block 4) werden im nächsten Schritt ergänzt.",
+        "block1Title": "Block 1 — Kurs-/Lagerleitung",
+        "block2Title": "Block 2 — Kurs / Lager",
+        "block3Title": "Block 3 — Zustelladresse",
+        "courseTypeChoose": "— wählen —",
+        "courseTypeLager": "Lager",
+        "courseTypeKader": "Kaderbildung",
+        "statusNotStarted": "Noch nicht begonnen",
+        "status": {
+          "draft": "Entwurf",
+          "ready": "Bereit",
+          "ordered": "Bestellt",
+          "fulfilled": "Abgeschlossen",
+          "cancelled": "Storniert"
+        },
+        "fields": {
+          "firstName": "Vorname",
+          "lastName": "Nachname",
+          "email": "E-Mail",
+          "address": "Adresse",
+          "postalCode": "PLZ",
+          "city": "Ort",
+          "canton": "Kanton",
+          "phone": "Telefon",
+          "personNr": "Personen-Nr.",
+          "offerNumber": "Angebotsnummer",
+          "courseType": "Kursart",
+          "deliveryDate": "Lieferdatum",
+          "returnDate": "Rücklieferdatum",
+          "coachFirstName": "J+S-Coach Vorname",
+          "coachLastName": "J+S-Coach Nachname",
+          "coachPersonNr": "J+S-Coach Personen-Nr.",
+          "venueName": "Bezeichnung Lieferort",
+          "contactFirstName": "Kontakt Vorname",
+          "contactLastName": "Kontakt Nachname",
+          "deliveryPhone": "Tel. am Liefertag",
+          "campLeaderPhone": "Tel. Lagerleitung im Lager"
+        }
+      }
     },
     "packList": {
       "loading": "Packliste wird geladen…",
@@ -2240,6 +2311,8 @@
       "hintReturnCratesOnRight": "Inhalt in der Kiste (auch ohne lose Ausgabe ans Event) retourniert mit der Kiste ins Materiallager — auch Kisten, die nie ans Event gingen.",
       "hintReturnCratesOnLeft": "Kisten am Event retournieren — Inhalt reist mit der Kiste ins Materiallager.",
       "sectionNotTakenForReturn": "Nicht mitgenommen",
+      "selfProvidedLeaderTitle": "Vom Leiter mitzubringen",
+      "selfProvidedLeaderIntro": "Diese Teile werden nicht aus dem Lager gepackt — der Ersteller organisiert sie selbst.",
       "sectionConsumedForReturn": "Verbrauch",
       "hintConsumedForReturn": "Verbrauchsmaterial, das ans Event verbraucht wurde — nicht physisch retourniert.",
       "consumedForReturnQty": "{n} Stk. verbraucht",
@@ -2952,6 +3025,10 @@
         "materialDays": {
           "title": "Material-Zeiten (Lager / Events / Extern)",
           "description": "Wie viele Tage vor/nach dem Event wird Material geholt/zurückgebracht?"
+        },
+        "jsMaterial": {
+          "title": "J+S-Leihmaterial (Lager / Event)",
+          "description": "Standardwerte für das J+S-Bestellformular (Coach, Lieferart)"
         }
       },
       "fields": {
@@ -2960,7 +3037,18 @@
         "materialLeadMinutes": "Materialvorlaufzeit",
         "materialLagMinutes": "Materialnachlaufzeit",
         "campLeadDays": "Material-Vorlauf",
-        "campLagDays": "Material-Nachlauf"
+        "campLagDays": "Material-Nachlauf",
+        "jsCoachPersonNr": "Coach Personennummer",
+        "jsCoachFirstName": "Coach Vorname",
+        "jsCoachLastName": "Coach Nachname",
+        "jsDeliveryType": "Standard-Lieferart"
+      },
+      "placeholders": {
+        "jsCoachPersonNr": "z. B. 1234567"
+      },
+      "jsDeliveryOptions": {
+        "franko": "Franko (Lieferadresse = Eventstandort)",
+        "pickupThun": "Abholung Thun"
       },
       "units": {
         "minutes": "Minuten",
@@ -2973,7 +3061,9 @@
         "materialLeadMinutes": "Material steht X Minuten VOR Start bereit",
         "materialLagMinutes": "Material wird X Minuten NACH Ende zurückgebracht",
         "campLeadDays": "Material wird X Tage VOR Event-Start abgeholt",
-        "campLagDays": "Material wird X Tage NACH Event-Ende zurückgebracht"
+        "campLagDays": "Material wird X Tage NACH Event-Ende zurückgebracht",
+        "jsCoachPersonNr": "Wird im J+S-Bestellformular vorausgefüllt",
+        "jsDeliveryType": "Franko oder Abholung in Thun"
       },
       "preview": {
         "label": "Vorschau:",
@@ -5950,7 +6040,11 @@
       "stateAvailable": "Verfügbar",
       "stateAvailableN": "{n} baubar",
       "availableN": "{n} frei",
-      "loadError": "Verfügbarkeit konnte nicht geladen werden."
+      "loadError": "Verfügbarkeit konnte nicht geladen werden.",
+      "packModeTitle": "Wie soll der Materialwart packen?",
+      "packModeTogether": "Zusammen als Set (Packkiste «{name}»)",
+      "packModeLoose": "Lose — Materialwart organisiert selbst",
+      "selfProvidedAck": "Ich organisiere diese Teile selbst und bringe sie zum Anlass mit."
     },
     "activityCreateWizard": {
       "toastDraftLoadFailed": "Entwurf konnte nicht geladen werden."

@@ -160,6 +160,14 @@ class Activity
     #[ORM\Column(name: 'invited_departments', type: 'json', nullable: true)]
     private ?array $invitedDepartments = null;
 
+    /** Camp/Event: Leiter plant J+S-Leihmaterial (separates Bestellformular, nicht Material-Suche) */
+    #[ORM\Column(name: 'wants_js_material', type: 'boolean', options: ['default' => false])]
+    private bool $wantsJsMaterial = false;
+
+    /** Camp/Event: Teilnehmerzahl für J+S-Dotation (optional bis Formular) */
+    #[ORM\Column(name: 'participant_count', type: 'integer', nullable: true)]
+    private ?int $participantCount = null;
+
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -522,6 +530,28 @@ class Activity
     public function setInvitedDepartments(?array $invitedDepartments): self
     {
         $this->invitedDepartments = $invitedDepartments;
+        return $this;
+    }
+
+    public function getWantsJsMaterial(): bool
+    {
+        return $this->wantsJsMaterial;
+    }
+
+    public function setWantsJsMaterial(bool $wantsJsMaterial): self
+    {
+        $this->wantsJsMaterial = $wantsJsMaterial;
+        return $this;
+    }
+
+    public function getParticipantCount(): ?int
+    {
+        return $this->participantCount;
+    }
+
+    public function setParticipantCount(?int $participantCount): self
+    {
+        $this->participantCount = $participantCount;
         return $this;
     }
 

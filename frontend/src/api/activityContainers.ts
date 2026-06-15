@@ -6,6 +6,8 @@ export interface ActivityPackContainer {
   container_batch_id: string | null
   /** Material-ID der zugeordneten Kisten-Charge (wenn container_batch_id gesetzt) */
   container_material_item_id?: string | null
+  /** Virtuelle Kombo (pack_mode together): Eltern-activity_item.id */
+  source_activity_item_id?: string | null
   label: string
   status: string
 }

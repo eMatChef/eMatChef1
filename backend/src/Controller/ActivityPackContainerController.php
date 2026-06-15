@@ -781,6 +781,7 @@ class ActivityPackContainerController extends AbstractController
             'container_material_item_id' => $this->kisteMaterialLinker->shellMaterialIdForPackContainer($container),
             'label' => $container->getLabel(),
             'status' => $container->getStatus(),
+            'source_activity_item_id' => $container->getSourceActivityItemId(),
             'created_at' => $container->getCreatedAt()->format('c'),
             'updated_at' => $container->getUpdatedAt()->format('c'),
         ];

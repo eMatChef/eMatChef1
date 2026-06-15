@@ -191,6 +191,19 @@ class DepartmentSetting
     }
 
     /**
+     * Standard-Werte für J+S-Leihmaterial (Camp/Event-Bestellformular)
+     */
+    public static function getJsMaterialDefaults(): array
+    {
+        return [
+            'js.default_coach_person_nr' => '',
+            'js.default_coach_first_name' => '',
+            'js.default_coach_last_name' => '',
+            'js.default_delivery_type' => 'franko',
+        ];
+    }
+
+    /**
      * Alle Department-Setting-Defaults (GET/PATCH-Fallbacks)
      *
      * @return array<string, string>
@@ -203,6 +216,7 @@ class DepartmentSetting
             self::getRentalAmortizationDefaults(),
             self::getCalendarDefaults(),
             self::getWorkshopDefaults(),
+            self::getJsMaterialDefaults(),
         );
     }
 }

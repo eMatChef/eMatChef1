@@ -243,6 +243,11 @@ export function packItemPlacement(kind: PackMaterialKind): PackItemPlacement {
   return kind === 'pack_crate' ? 'pack_crates' : 'category'
 }
 
+/** Logische Packkiste einer virtuellen Kombo (pack_mode together, kein Lager-Batch). */
+export function isVirtualComboTogetherContainer(c: ActivityPackContainer): boolean {
+  return (c.source_activity_item_id ?? '').trim() !== '' && !(c.container_batch_id ?? '').trim()
+}
+
 export function isLooseCategoryPackItem(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],

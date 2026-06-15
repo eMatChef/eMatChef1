@@ -31,6 +31,10 @@ export interface CreateActivityPayload {
   notes?: string
   /** Stepper: false solange Wizard nicht final abgeschlossen; Detail erst danach */
   create_wizard_completed?: boolean
+  /** Camp/Event: J+S-Leihmaterial separat bestellen */
+  wants_js_material?: boolean
+  /** Camp/Event: Teilnehmerzahl für J+S-Dotation */
+  participant_count?: number | null
 }
 
 export interface ActivityInvitedDepartmentApi {
@@ -115,6 +119,10 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   create_wizard_completed?: boolean
   public_code?: string | null
   public_url?: string | null
+  /** Camp/Event: J+S-Leihmaterial geplant */
+  wants_js_material?: boolean
+  /** Camp/Event: Teilnehmerzahl (J+S-Dotation) */
+  participant_count?: number | null
 }
 
 export interface ActivityTransitionRow {
@@ -237,6 +245,11 @@ export interface ComboConfigSnapshot {
     name: string
     total_qty: number
   }>
+  /** Zusammen als Packkiste vs. lose — MW organisiert selbst. */
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
+  self_provided_acknowledged_at?: string | null
+  self_provided_acknowledged_by_user_id?: string | null
 }
 
 export async function getActivity(activityId: string, departmentId?: string | null): Promise<ActivityDetail> {
@@ -279,6 +292,8 @@ export type PatchActivityPayload = Partial<Omit<CreateActivityPayload, 'departme
   notes?: string | null
   /** Department-Kontext für Eventstandort-Sync bei geteilten Aktivitäten */
   viewer_department_id?: string | null
+  wants_js_material?: boolean
+  participant_count?: number | null
 }
 
 export async function patchActivity(
@@ -315,6 +330,8 @@ export interface SyncActivityItemPayload {
   priority?: string
   /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo (cc:<id> / opt:<id>). */
   selected_option_ids?: string[]
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
 }
 
 /**
@@ -343,6 +360,8 @@ export async function addActivityItem(
     price_type?: string
     /** Zeilenmodell B: gewählte Optionen einer virtuellen Kombo (Konfigurator). */
     selected_option_ids?: string[]
+    pack_mode?: 'together' | 'loose'
+    self_provided_acknowledged?: boolean
   },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)

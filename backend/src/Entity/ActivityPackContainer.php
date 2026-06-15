@@ -35,6 +35,14 @@ class ActivityPackContainer
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
+    /** Virtuelle Kombo (pack_mode together): Eltern-activity_item.id */
+    #[ORM\Column(name: 'source_activity_item_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $sourceActivityItemId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityItem::class)]
+    #[ORM\JoinColumn(name: 'source_activity_item_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?ActivityItem $sourceActivityItem = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -61,6 +69,15 @@ class ActivityPackContainer
     public function setLabel(string $label): self { $this->label = $label; return $this; }
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
+    public function getSourceActivityItemId(): ?string { return $this->sourceActivityItemId; }
+    public function setSourceActivityItemId(?string $sourceActivityItemId): self { $this->sourceActivityItemId = $sourceActivityItemId; return $this; }
+    public function getSourceActivityItem(): ?ActivityItem { return $this->sourceActivityItem; }
+    public function setSourceActivityItem(?ActivityItem $sourceActivityItem): self
+    {
+        $this->sourceActivityItem = $sourceActivityItem;
+        $this->sourceActivityItemId = $sourceActivityItem?->getId();
+        return $this;
+    }
     public function getCreatedAt(): \DateTime { return $this->createdAt; }
     public function getUpdatedAt(): \DateTime { return $this->updatedAt; }
     public function touch(): self { $this->updatedAt = new \DateTime(); return $this; }

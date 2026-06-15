@@ -25,6 +25,41 @@
           @saved="onAutoFieldSaved"
         />
 
+        <template v-if="showJsMaterialOption">
+          <AutoSaveField
+            v-model="wantsJsMaterialField"
+            :baseline="savedBaselines.wants_js_material"
+            type="checkbox"
+            :label="t('activities.jsMaterial.includeToggle')"
+            :checkbox-label="t('activities.jsMaterial.includeToggle')"
+            span-class="form-group span-2 activity-compact-autosave-field activity-js-include-autosave"
+            :save="saveWantsJsMaterial"
+            @saved="onAutoFieldSaved"
+          />
+          <p class="field-hint text-muted activity-js-include-hint span-2">
+            {{ t('activities.jsMaterial.includeHint') }}
+          </p>
+          <AutoSaveField
+            v-if="form.wants_js_material"
+            v-model="participantCountField"
+            :baseline="savedBaselines.participant_count"
+            type="number"
+            min="1"
+            step="1"
+            :label="t('activities.jsMaterial.participantCountLabel')"
+            :placeholder="t('activities.jsMaterial.participantCountPlaceholder')"
+            span-class="form-group activity-compact-autosave-field activity-js-participant-autosave"
+            :save="saveParticipantCount"
+            @saved="onAutoFieldSaved"
+          />
+          <p
+            v-if="form.wants_js_material"
+            class="field-hint text-muted activity-js-participant-hint span-2"
+          >
+            {{ t('activities.jsMaterial.participantCountHint') }}
+          </p>
+        </template>
+
         <div v-if="showVenue" class="form-group span-2 activity-external-address-wrap activity-venue-field-wrap">
           <p class="field-hint text-muted activity-venue-field-hint">
             {{ isSharedActivity ? t('activities.sharedBasics.venueHintShared') : t('activities.wizard.form.venueHint') }}
@@ -372,6 +407,8 @@ const savedBaselines = reactive({
   venue_address_id: '',
   address_id: '',
   notes: '',
+  wants_js_material: false,
+  participant_count: null as number | null,
 })
 
 const zeitraumBaseline = ref({
@@ -542,6 +579,8 @@ const form = ref({
   venue_address_id: null as string | null,
   address_id: null as string | null,
   notes: '' as string | null,
+  wants_js_material: false,
+  participant_count: null as number | null,
 })
 
 /** Typ „Aktivität“: ein Kalendertag für Nutzung */
@@ -574,6 +613,27 @@ const groupRequired = computed(() => activityType.value === 'activity' && groups
 const showVenue = computed(() => ['camp', 'event', 'external'].includes(activityType.value))
 
 const showCustomerAddress = computed(() => activityType.value === 'external')
+
+const showJsMaterialOption = computed(
+  () =>
+    (activityType.value === 'camp' || activityType.value === 'event') &&
+    props.activity.status === 'draft' &&
+    isHostViewer.value,
+)
+
+const wantsJsMaterialField = computed({
+  get: () => form.value.wants_js_material,
+  set(v: boolean) {
+    form.value.wants_js_material = v
+  },
+})
+
+const participantCountField = computed({
+  get: () => form.value.participant_count,
+  set(v: number | null) {
+    form.value.participant_count = v != null && v >= 1 ? v : null
+  },
+})
 
 function addressShort(a: Address): string {
   const line = a.full_address || a.street_line || a.name || a.id
@@ -820,6 +880,9 @@ function syncSavedBaselinesFromActivity() {
   savedBaselines.venue_address_id = effectiveVenueAddressId(a) ?? ''
   savedBaselines.address_id = a.address_id ?? ''
   savedBaselines.notes = a.notes ?? ''
+  savedBaselines.wants_js_material = a.wants_js_material === true
+  savedBaselines.participant_count =
+    a.participant_count != null && a.participant_count >= 1 ? a.participant_count : null
   syncGuestGroupStateFromActivity()
 }
 
@@ -852,6 +915,9 @@ function resetFromActivity() {
     venue_address_id: effectiveVenueAddressId(a),
     address_id: a.address_id ?? null,
     notes: a.notes ?? '',
+    wants_js_material: a.wants_js_material === true,
+    participant_count:
+      a.participant_count != null && a.participant_count >= 1 ? a.participant_count : null,
   }
   syncSavedBaselinesFromActivity()
 
@@ -909,7 +975,9 @@ const hasPendingAutoSaveFields = computed(() => {
     (f.group_id ?? '') !== savedBaselines.group_id ||
     (f.venue_address_id ?? '') !== savedBaselines.venue_address_id ||
     (f.address_id ?? '') !== savedBaselines.address_id ||
-    (f.notes ?? '') !== savedBaselines.notes
+    (f.notes ?? '') !== savedBaselines.notes ||
+    f.wants_js_material !== savedBaselines.wants_js_material ||
+    (f.participant_count ?? null) !== (savedBaselines.participant_count ?? null)
   )
 })
 
@@ -1009,6 +1077,34 @@ async function saveNotes(value: AutoSaveFieldValue) {
   await patchActivityFields({ notes })
   savedBaselines.notes = notes ?? ''
   form.value.notes = notes ?? ''
+}
+
+async function saveWantsJsMaterial(value: AutoSaveFieldValue) {
+  const wants = !!value
+  const payload: PatchActivityPayload = { wants_js_material: wants }
+  if (!wants) {
+    payload.participant_count = null
+  }
+  await patchActivityFields(payload)
+  savedBaselines.wants_js_material = wants
+  form.value.wants_js_material = wants
+  if (!wants) {
+    savedBaselines.participant_count = null
+    form.value.participant_count = null
+  }
+}
+
+async function saveParticipantCount(value: AutoSaveFieldValue) {
+  let count: number | null = null
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+    count = Math.trunc(value)
+  } else if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value.trim(), 10)
+    count = Number.isFinite(parsed) && parsed >= 1 ? parsed : null
+  }
+  await patchActivityFields({ participant_count: count })
+  savedBaselines.participant_count = count
+  form.value.participant_count = count
 }
 
 async function saveZeitraumIfDirty() {

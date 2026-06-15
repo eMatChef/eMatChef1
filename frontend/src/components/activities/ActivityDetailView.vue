@@ -225,6 +225,21 @@
                     <label>{{ t('activities.detail.labelTotalPrice') }}</label>
                     <p class="activity-readonly-value">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
                   </div>
+                  <div
+                    v-if="activity.wants_js_material && (activity.type === 'camp' || activity.type === 'event')"
+                    class="form-group span-2"
+                  >
+                    <label>{{ t('activities.jsMaterial.sectionLabel') }}</label>
+                    <p class="activity-readonly-value">
+                      <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
+                      {{ t('activities.jsMaterial.badgeIncluded') }}
+                      <template
+                        v-if="activity.participant_count != null && activity.participant_count >= 1"
+                      >
+                        · {{ t('activities.jsMaterial.participantCountSummary', { count: activity.participant_count }) }}
+                      </template>
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -394,6 +409,35 @@
               </p>
             </div>
 
+            <div
+              v-if="showJsOrderCard"
+              class="section-card activity-tab-panel-card activity-js-order-card"
+            >
+              <h2 class="section-title activity-tab-subsection-title">
+                {{ t('activities.jsMaterial.order.cardTitle') }}
+              </h2>
+              <p class="text-muted activity-js-order-card-hint">
+                {{ t('activities.jsMaterial.order.cardHint') }}
+              </p>
+              <div class="activity-js-order-card-meta">
+                <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
+                <span class="activity-js-order-status">
+                  {{ jsOrderStatusLabel }}
+                </span>
+                <span
+                  v-if="jsOrderSummary?.participant_count != null && jsOrderSummary.participant_count >= 1"
+                  class="text-muted"
+                >
+                  · {{ t('activities.jsMaterial.participantCountSummary', { count: jsOrderSummary.participant_count }) }}
+                </span>
+              </div>
+              <div class="activity-js-order-card-actions">
+                <EButton variant="primary" @click="openJsOrderModal">
+                  {{ t('activities.jsMaterial.order.openFormButton') }}
+                </EButton>
+              </div>
+            </div>
+
             <div class="section-card activity-tab-panel-card">
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
               <div v-if="itemsLoading" class="activity-items-loading">
@@ -425,6 +469,7 @@
                   :disabled="syncingQuantities || addingDraftMaterial"
                   :packing-stage-quantity-readonly="false"
                   :removing-item-id="removingItemId"
+                  :child-quantity-by-material-item-id="childQuantityByMaterialItemId"
                   :empty-text="t('activities.detail.noPositions')"
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
@@ -550,6 +595,7 @@
               :saved-quantity-by-material-item-id-for-add="savedQuantityByMaterialItemId"
               :invited-departments-for-add="activity.invited_departments ?? []"
               :adding-activity-material="addingDraftMaterial"
+              :virtual-combo-self-provided-hints="virtualComboSelfProvidedHints"
               @workflow-next="onPackListWorkflowNext"
               @activity-items-changed="onPackListActivityItemsChanged"
               @open-issue-wizard="onPackIssueWizard"
@@ -643,6 +689,13 @@
       @close="onNachbuchungModalClose"
       @success="onNachbuchungModalSuccess"
     />
+    <ActivityJsOrderModal
+      :is-open="jsOrderModalOpen"
+      :activity-id="activityId"
+      :read-only="!canEditJsOrder"
+      @close="onJsOrderModalClose"
+      @saved="onJsOrderSaved"
+    />
 
     <PublicQrActionModal
       :open="showActivityQrActionModal"
@@ -680,6 +733,11 @@ import {
   type ActivityCompletionBlockers,
   type ActivityTransitionRow,
 } from '@/api/activities'
+import {
+  getActivityJsOrder,
+  jsOrderStatusLabelKey,
+  type ActivityJsOrderApi,
+} from '@/api/activityJsOrder'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
@@ -692,6 +750,7 @@ import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesT
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
+import ActivityJsOrderModal from '@/components/activities/ActivityJsOrderModal.vue'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
@@ -1113,6 +1172,16 @@ const standaloneQuantityByMaterialItemId = computed(() => {
   return m
 })
 
+/** Aufgelöste Kind-Zeilen virtueller Kombos (Entwurf-Mengen) — für Kombo-Floor in der Tabelle. */
+const childQuantityByMaterialItemId = computed(() => {
+  const m: Record<string, number> = {}
+  for (const r of activityItems.value) {
+    if (!r.parent_activity_item_id) continue
+    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
+  }
+  return m
+})
+
 function parsePlanningDate(iso: string | undefined | null): Date | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -1232,6 +1301,19 @@ const showMaterialLookup = computed(() => {
   return !!a.can_edit_activity_material
 })
 
+const showJsOrderCard = computed(() => {
+  const a = activity.value
+  if (!a) return false
+  return a.wants_js_material === true && (a.type === 'camp' || a.type === 'event')
+})
+
+const canEditJsOrder = computed(() => showMaterialLookup.value)
+
+const jsOrderStatusLabel = computed(() => {
+  if (jsOrderSummaryLoading.value) return t('activities.jsMaterial.order.loadingShort')
+  return t(jsOrderStatusLabelKey(jsOrderSummary.value?.status))
+})
+
 /** Status ab «Annehmen & Packen» — Accordion «vergessen» ausblenden. */
 const STATUSES_AT_OR_AFTER_PACKING = [
   'packing',
@@ -1315,6 +1397,37 @@ function comboSetContent(row: ActivityItemRow): {
   return { resolved, selfProvided }
 }
 
+function virtualComboSyncExtras(r: ActivityItemRow): {
+  selected_option_ids?: string[]
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
+} {
+  if (r.material_type !== 'virtual_combo') return {}
+  const snap = r.config_snapshot
+  return {
+    ...(snap?.selected_option_ids ? { selected_option_ids: snap.selected_option_ids } : {}),
+    ...(snap?.pack_mode ? { pack_mode: snap.pack_mode } : {}),
+    ...(snap?.self_provided_acknowledged ? { self_provided_acknowledged: true } : {}),
+  }
+}
+
+const virtualComboSelfProvidedHints = computed(() => {
+  const out: Array<{
+    comboName: string
+    items: Array<{ name: string; total_qty: number }>
+  }> = []
+  for (const r of activityItems.value) {
+    if (r.material_type !== 'virtual_combo' || r.parent_activity_item_id) continue
+    const sp = r.config_snapshot?.self_provided ?? []
+    if (sp.length === 0) continue
+    out.push({
+      comboName: r.material_name,
+      items: sp.map((x) => ({ name: x.name, total_qty: x.total_qty })),
+    })
+  }
+  return out
+})
+
 const cancelTransition = computed(() => {
   const tr = transitions.value.find((t) => t.status === 'cancelled' && t.allowed)
   if (!tr) return undefined
@@ -1387,6 +1500,9 @@ watch(issuesReloadToken, () => {
 })
 
 const consumptionModalOpen = ref(false)
+const jsOrderModalOpen = ref(false)
+const jsOrderSummary = ref<ActivityJsOrderApi | null>(null)
+const jsOrderSummaryLoading = ref(false)
 const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
 const consumptionModalCancelledToken = ref(0)
 const consumptionModalReturnWithoutConsumptionToken = ref(0)
@@ -1456,6 +1572,33 @@ function onConsumptionModalClose() {
   skipNextConsumptionModalCloseCancel.value = false
   consumptionModalOpen.value = false
   consumptionModalPreset.value = null
+}
+
+async function refreshJsOrderSummary() {
+  if (!props.activityId || !showJsOrderCard.value) {
+    jsOrderSummary.value = null
+    return
+  }
+  jsOrderSummaryLoading.value = true
+  try {
+    jsOrderSummary.value = await getActivityJsOrder(props.activityId)
+  } catch {
+    jsOrderSummary.value = null
+  } finally {
+    jsOrderSummaryLoading.value = false
+  }
+}
+
+function openJsOrderModal() {
+  jsOrderModalOpen.value = true
+}
+
+function onJsOrderModalClose() {
+  jsOrderModalOpen.value = false
+}
+
+function onJsOrderSaved(order: ActivityJsOrderApi) {
+  jsOrderSummary.value = order
 }
 
 function onConsumptionModalReturnWithoutConsumption() {
@@ -1632,9 +1775,7 @@ async function saveDraftQuantities() {
           material_item_id: r.material_item_id,
           quantity: draftQty(r),
           priority: r.priority ?? undefined,
-          ...(r.material_type === 'virtual_combo' && r.config_snapshot?.selected_option_ids
-            ? { selected_option_ids: r.config_snapshot.selected_option_ids }
-            : {}),
+          ...virtualComboSyncExtras(r),
         })),
     })
     toast.success(t('activities.detail.toastQtySaved'))
@@ -1670,6 +1811,7 @@ async function reloadActivityDetailSoft(): Promise<void> {
         `${activityTypeLabelDetail(d.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
       )
     }
+    void refreshJsOrderSummary()
   } catch {
     /* stiller Refresh — kein Spinner, Fehler ignorieren */
   }
@@ -1826,6 +1968,7 @@ async function reload() {
     if (activeTab.value === 'material') {
       void loadItems()
     }
+    void refreshJsOrderSummary()
   } catch (err: unknown) {
     const e = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
     const msg =
@@ -1986,6 +2129,8 @@ async function onDraftAddQuantity(payload: {
   material: { materialItemId: string }
   quantity: number
   selectedOptionIds?: string[]
+  packMode?: 'together' | 'loose'
+  selfProvidedAcknowledged?: boolean
   combineParts?: Array<{ materialItemId: string; reduceBy: number }>
 }) {
   const mid = payload.material?.materialItemId
@@ -2002,6 +2147,8 @@ async function onDraftAddQuantity(payload: {
       material_item_id: mid,
       quantity: payload.quantity,
       ...(payload.selectedOptionIds ? { selected_option_ids: payload.selectedOptionIds } : {}),
+      ...(payload.packMode ? { pack_mode: payload.packMode } : {}),
+      ...(payload.selfProvidedAcknowledged ? { self_provided_acknowledged: true } : {}),
     })
     await loadItems()
     // „Kombinieren?": vorhandene Einzelpositionen um den genutzten Kombo-Bedarf reduzieren.
@@ -2034,7 +2181,14 @@ async function applyCombineReductions(
   }
   if (reduceMap.size === 0) return
 
-  const items: { material_item_id: string; quantity: number; priority?: string; selected_option_ids?: string[] }[] = []
+  const items: {
+    material_item_id: string
+    quantity: number
+    priority?: string
+    selected_option_ids?: string[]
+    pack_mode?: 'together' | 'loose'
+    self_provided_acknowledged?: boolean
+  }[] = []
   let changed = false
   for (const r of activityItems.value) {
     if (r.parent_activity_item_id) continue
@@ -2051,9 +2205,7 @@ async function applyCombineReductions(
       material_item_id: r.material_item_id,
       quantity: qty,
       priority: r.priority ?? undefined,
-      ...(r.material_type === 'virtual_combo' && r.config_snapshot?.selected_option_ids
-        ? { selected_option_ids: r.config_snapshot.selected_option_ids }
-        : {}),
+      ...virtualComboSyncExtras(r),
     })
   }
   if (!changed) return
@@ -2204,6 +2356,13 @@ async function onCancelActivity() {
 }
 
 watch(
+  () => [props.activityId, activity.value?.wants_js_material, activity.value?.type] as const,
+  () => {
+    void refreshJsOrderSummary()
+  },
+)
+
+watch(
   () => props.activityId,
   () => {
     void reload()
@@ -2287,5 +2446,18 @@ useBackgroundPoll({
 .activity-detail-view :deep(.detail-header) {
   position: static !important;
   top: auto !important;
+}
+
+.activity-js-order-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.activity-js-order-card-actions {
+  margin-top: 8px;
 }
 </style>

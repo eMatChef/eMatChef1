@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für den Umbau auf das bereinigte Combo-Modell. Das **Warum/Zielmodell** steht im [README.md](./README.md) (insb. Abschnitt 0 + 6). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Juni 2026 · Pakete 0–7 erledigt; **Paket 8** (virt. Kombo Pack-Flow) offen — Spezifikation [virtual-combo-activities.md](./virtual-combo-activities.md).
+**Stand:** Juni 2026 · Pakete 0–7 erledigt; **Paket 8** (virt. Kombo Pack-Flow) **erledigt** — Spezifikation [virtual-combo-activities.md](./virtual-combo-activities.md).
 
 ---
 
@@ -255,13 +255,13 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `backend/src/Controller/ActivityController.php` (Container-Sync bei `pack_mode === "together"`)
 
 **Schritte:**
-- [ ] `pack_mode` (`together` \| `loose`) im Konfigurator + `config_snapshot`
-- [ ] Backend: logischer `activity_pack_container` bei `together` (Variante 1, kein Batch)
-- [ ] Pack-UI: Set unter Packkisten, stock-Teile nicht doppelt als lose Zeilen
-- [ ] `self_provided_acknowledged` — Pflicht-Checkbox beim Buchen, Hinweis Materialliste + Packliste
-- [ ] Floor Einzelzeilen vs. Kombo-Bedarf (Materialplanung)
-- [ ] Wizard-Übersicht: virt. Eltern-Zeile ausblenden
-- [ ] `pack-workflow-rules.md` §2: Placement Virt. Kombi aktualisieren
+- [x] `pack_mode` (`together` \| `loose`) im Konfigurator + `config_snapshot`
+- [x] Backend: logischer `activity_pack_container` bei `together` (Variante 1, kein Batch)
+- [x] Pack-UI: Set unter Packkisten, stock-Teile nicht doppelt als lose Zeilen
+- [x] `self_provided_acknowledged` — Pflicht-Checkbox beim Buchen, Hinweis Materialliste + Packliste
+- [x] Floor Einzelzeilen vs. Kombo-Bedarf (Materialplanung)
+- [x] Wizard-Übersicht: virt. Eltern-Zeile ausblenden
+- [x] `pack-workflow-rules.md` §2: Placement Virt. Kombi aktualisieren
 
 **Definition of Done:** Blachenburg «Sarasani» buchbar mit «zusammen packen» → MW sieht Packkiste; «lose» → MW organisiert frei; Mast erscheint als Ersteller-Checkliste, nicht in der Kiste.
 

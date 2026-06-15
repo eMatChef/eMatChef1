@@ -129,6 +129,66 @@
         </div>
       </div>
 
+      <!-- Abschnitt 4: J+S-Leihmaterial (Camp/Event) -->
+      <div class="settings-section">
+        <div class="section-header">
+          <div class="section-icon js-material">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div>
+            <h3>{{ t('settings.activitySettings.sections.jsMaterial.title') }}</h3>
+            <p>{{ t('settings.activitySettings.sections.jsMaterial.description') }}</p>
+          </div>
+        </div>
+        <div class="setting-fields">
+          <div class="field-row">
+            <div class="field-group">
+              <label for="js-default-coach-person-nr">{{ t('settings.activitySettings.fields.jsCoachPersonNr') }}</label>
+              <input
+                id="js-default-coach-person-nr"
+                v-model="jsForm.defaultCoachPersonNr"
+                type="text"
+                class="form-input"
+                :placeholder="t('settings.activitySettings.placeholders.jsCoachPersonNr')"
+              />
+              <span class="field-hint">{{ t('settings.activitySettings.hints.jsCoachPersonNr') }}</span>
+            </div>
+            <div class="field-group">
+              <label for="js-default-delivery-type">{{ t('settings.activitySettings.fields.jsDeliveryType') }}</label>
+              <select id="js-default-delivery-type" v-model="jsForm.defaultDeliveryType" class="form-input">
+                <option value="franko">{{ t('settings.activitySettings.jsDeliveryOptions.franko') }}</option>
+                <option value="pickup_thun">{{ t('settings.activitySettings.jsDeliveryOptions.pickupThun') }}</option>
+              </select>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.jsDeliveryType') }}</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label for="js-default-coach-first-name">{{ t('settings.activitySettings.fields.jsCoachFirstName') }}</label>
+              <input
+                id="js-default-coach-first-name"
+                v-model="jsForm.defaultCoachFirstName"
+                type="text"
+                class="form-input"
+              />
+            </div>
+            <div class="field-group">
+              <label for="js-default-coach-last-name">{{ t('settings.activitySettings.fields.jsCoachLastName') }}</label>
+              <input
+                id="js-default-coach-last-name"
+                v-model="jsForm.defaultCoachLastName"
+                type="text"
+                class="form-input"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Save Button -->
       <div class="save-bar">
         <div v-if="hasChanges" class="unsaved-hint">
@@ -156,7 +216,15 @@ import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import { getActivityDefaults, saveActivityDefaults, type ActivityDefaults } from '@/api/departmentSettings'
+import {
+  getActivityDefaults,
+  saveActivityDefaults,
+  getJsMaterialDepartmentDefaults,
+  saveJsMaterialDepartmentDefaults,
+  type ActivityDefaults,
+  type JsMaterialDepartmentDefaults,
+  DEFAULT_JS_MATERIAL_SETTINGS,
+} from '@/api/departmentSettings'
 import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ETimeField } from '@/components/form/base'
@@ -189,14 +257,30 @@ const form = reactive<ActivityDefaults>({
   campMaterialLagDays: 1,
 })
 
+const savedJsForm = ref<JsMaterialDepartmentDefaults>({ ...DEFAULT_JS_MATERIAL_SETTINGS })
+
+const jsForm = reactive<JsMaterialDepartmentDefaults>({ ...DEFAULT_JS_MATERIAL_SETTINGS })
+
+function jsFormEquals(a: JsMaterialDepartmentDefaults, b: JsMaterialDepartmentDefaults): boolean {
+  return (
+    a.defaultCoachPersonNr === b.defaultCoachPersonNr &&
+    a.defaultCoachFirstName === b.defaultCoachFirstName &&
+    a.defaultCoachLastName === b.defaultCoachLastName &&
+    a.defaultDeliveryType === b.defaultDeliveryType
+  )
+}
+
 // Dirty-Check
 const hasChanges = computed(() => {
-  return form.defaultTimeStart !== savedForm.value.defaultTimeStart ||
+  return (
+    form.defaultTimeStart !== savedForm.value.defaultTimeStart ||
     form.defaultTimeEnd !== savedForm.value.defaultTimeEnd ||
     form.materialLeadMinutes !== savedForm.value.materialLeadMinutes ||
     form.materialLagMinutes !== savedForm.value.materialLagMinutes ||
     form.campMaterialLeadDays !== savedForm.value.campMaterialLeadDays ||
-    form.campMaterialLagDays !== savedForm.value.campMaterialLagDays
+    form.campMaterialLagDays !== savedForm.value.campMaterialLagDays ||
+    !jsFormEquals(jsForm, savedJsForm.value)
+  )
 })
 
 // Berechnete Vorschau: Material-Zeiten für Aktivität
@@ -231,7 +315,10 @@ const computeCampLagExample = computed(() => {
 async function loadSettings() {
   isLoading.value = true
   try {
-    const defaults = await getActivityDefaults(departmentId.value)
+    const [defaults, jsDefaults] = await Promise.all([
+      getActivityDefaults(departmentId.value),
+      getJsMaterialDepartmentDefaults(departmentId.value),
+    ])
     const normalized: ActivityDefaults = {
       ...defaults,
       defaultTimeStart: normalizeDepartmentTimeHHMM(defaults.defaultTimeStart),
@@ -239,6 +326,8 @@ async function loadSettings() {
     }
     Object.assign(form, normalized)
     savedForm.value = { ...normalized }
+    Object.assign(jsForm, jsDefaults)
+    savedJsForm.value = { ...jsDefaults }
   } catch (err) {
     console.error('Fehler beim Laden der Settings:', err)
   } finally {
@@ -256,8 +345,12 @@ async function saveSettings() {
       defaultTimeEnd: normalizeDepartmentTimeHHMM(form.defaultTimeEnd),
     }
     Object.assign(form, payload)
-    await saveActivityDefaults(departmentId.value, payload)
+    await Promise.all([
+      saveActivityDefaults(departmentId.value, payload),
+      saveJsMaterialDepartmentDefaults(departmentId.value, { ...jsForm }),
+    ])
     savedForm.value = { ...payload }
+    savedJsForm.value = { ...jsForm }
     toast.success(t('settings.activitySettings.toastSaved'))
   } catch (err) {
     console.error('Fehler beim Speichern:', err)
@@ -270,6 +363,7 @@ async function saveSettings() {
 // Zurücksetzen
 function resetForm() {
   Object.assign(form, savedForm.value)
+  Object.assign(jsForm, savedJsForm.value)
 }
 
 onMounted(() => {
@@ -328,6 +422,7 @@ onMounted(() => {
 .section-icon.activity { background: #dbeafe; color: #2563eb; }
 .section-icon.material { background: #fef3c7; color: #d97706; }
 .section-icon.camp { background: #d1fae5; color: #059669; }
+.section-icon.js-material { background: #ede9fe; color: #7c3aed; }
 
 
 .section-header h3 {

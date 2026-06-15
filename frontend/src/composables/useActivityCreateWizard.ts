@@ -79,6 +79,8 @@ export interface ActivityMaterialLine {
   is_container?: boolean
   /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo. */
   selected_option_ids?: string[]
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
   /** Set-Anzeige „wie Kiste": aufgelöste Teile der gebuchten virtuellen Kombo (nur Detail/gebucht). */
   config_snapshot?: ComboConfigSnapshot | null
 }
@@ -174,6 +176,12 @@ export function useActivityCreateWizard() {
   const customerAddressId = ref<string | null>(null)
   /** Lager, Event, extern: Eventstandort (Department-Adressen) */
   const venueAddressId = ref<string | null>(null)
+
+  /** Camp/Event: J+S-Leihmaterial einbeziehen */
+  const wantsJsMaterial = ref(false)
+
+  /** Camp/Event + J+S: Teilnehmerzahl für Dotation */
+  const participantCount = ref<number | null>(null)
 
   /** Gewählte Materialpositionen (nach Anlage per PUT /activities/:id/items) */
   const materialLines = ref<ActivityMaterialLine[]>([])
@@ -473,6 +481,8 @@ export function useActivityCreateWizard() {
     }
     customerAddressId.value = null
     venueAddressId.value = null
+    wantsJsMaterial.value = false
+    participantCount.value = null
     materialLines.value = []
     draftActivityId.value = null
     invitedDepartments.value = []
@@ -495,6 +505,8 @@ export function useActivityCreateWizard() {
     selectedGroupId.value = null
     customerAddressId.value = null
     venueAddressId.value = null
+    wantsJsMaterial.value = false
+    participantCount.value = null
     materialLines.value = []
     draftActivityId.value = null
     invitedDepartments.value = []
@@ -550,6 +562,12 @@ export function useActivityCreateWizard() {
             priority: 'normal' as const,
             ...(l.material_type === 'virtual_combo' && l.selected_option_ids
               ? { selected_option_ids: l.selected_option_ids }
+              : {}),
+            ...(l.material_type === 'virtual_combo' && l.pack_mode
+              ? { pack_mode: l.pack_mode }
+              : {}),
+            ...(l.material_type === 'virtual_combo' && l.self_provided_acknowledged
+              ? { self_provided_acknowledged: true }
               : {}),
           })),
         })
@@ -615,6 +633,8 @@ export function useActivityCreateWizard() {
       invited_departments?: { id: string; name: string; organisation_name: string; group_id?: string }[]
       notes?: string
       create_wizard_completed?: boolean
+      wants_js_material?: boolean
+      participant_count?: number | null
     } = {
       department_id: departmentId,
       name,
@@ -642,6 +662,11 @@ export function useActivityCreateWizard() {
       payload.venue_address_id = venueAddressId.value
     }
     if (selectedActivityType.value === 'camp' || selectedActivityType.value === 'event') {
+      payload.wants_js_material = wantsJsMaterial.value
+      if (wantsJsMaterial.value) {
+        payload.participant_count =
+          participantCount.value != null && participantCount.value >= 1 ? participantCount.value : null
+      }
       const rows = invitedDepartments.value
         .filter((d) => d.id !== departmentId)
         .map((d) => {
@@ -702,6 +727,9 @@ export function useActivityCreateWizard() {
     selectedGroupId.value = detail.group_id ?? null
     customerAddressId.value = detail.address_id ?? null
     venueAddressId.value = detail.venue_address_id ?? null
+    wantsJsMaterial.value = detail.wants_js_material === true
+    participantCount.value =
+      detail.participant_count != null && detail.participant_count >= 1 ? detail.participant_count : null
     activityNotes.value = (detail.notes ?? '').trim()
     draftActivityId.value = detail.id
     applyInvitedDepartmentsApiResponse(detail)
@@ -718,6 +746,9 @@ export function useActivityCreateWizard() {
         tracking_type: i.tracking_type ?? null,
         is_container: !!i.is_container,
         selected_option_ids: i.config_snapshot?.selected_option_ids ?? undefined,
+        pack_mode: i.config_snapshot?.pack_mode ?? undefined,
+        self_provided_acknowledged: i.config_snapshot?.self_provided_acknowledged ?? undefined,
+        config_snapshot: i.config_snapshot ?? undefined,
       }))
     planningSynced.value = true
     await nextTick()
@@ -735,6 +766,8 @@ export function useActivityCreateWizard() {
     selectedGroupId,
     customerAddressId,
     venueAddressId,
+    wantsJsMaterial,
+    participantCount,
     materialLines,
     invitedDepartments,
     activityNotes,

@@ -472,10 +472,10 @@ Berechtigung: `ActivityAccessService` — analog Material bearbeiten (Camp/Event
 
 | Phase | Inhalt | DoD |
 |-------|--------|-----|
-| **0** | Dieses Dokument | Spec reviewed |
-| **1** | `wants_js_material` + Wizard-Toggle + Übersicht | Flag speichern |
-| **2** | `participant_count` + Department J+S-Defaults | Dotation vorbereitet |
-| **3** | DB + API `activity_js_order` (+ items), Modal Blöcke 1–3, Prefill | Speichern/Laden |
+| **0** | Dieses Dokument | Spec reviewed ✓ |
+| **1** | `wants_js_material` + Wizard-Toggle + Übersicht | Flag speichern ✓ |
+| **2** | `participant_count` + Department J+S-Defaults | Dotation vorbereitet ✓ |
+| **3** | DB + API `activity_js_order` (+ items), Modal Blöcke 1–3, Prefill | Speichern/Laden ✓ |
 | **4** | Block 4: Katalog-Picker + Dotation | Positionen + Validierung |
 | **5** | PDF-Export + Ablage | Drucken |
 | **6** | Pack-API `source_department_*` + Oberreiter | Getrennte Listen |

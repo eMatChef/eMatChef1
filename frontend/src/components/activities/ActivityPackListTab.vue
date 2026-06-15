@@ -621,6 +621,30 @@
             </div>
 
 
+            <div
+              v-if="virtualComboSelfProvidedHints.length > 0"
+              class="pack-workflow-section pack-workflow-section--self-provided"
+            >
+              <h4 class="pack-workflow-section-title pack-workflow-section-title--static">
+                {{ t('activities.packList.selfProvidedLeaderTitle') }}
+              </h4>
+              <p class="pack-self-provided-intro text-muted">
+                {{ t('activities.packList.selfProvidedLeaderIntro') }}
+              </p>
+              <div
+                v-for="(hint, hintIdx) in virtualComboSelfProvidedHints"
+                :key="'sp-hint-' + hintIdx"
+                class="pack-self-provided-block"
+              >
+                <strong class="pack-self-provided-combo">{{ hint.comboName }}</strong>
+                <ul class="pack-self-provided-list">
+                  <li v-for="(item, itemIdx) in hint.items" :key="itemIdx">
+                    {{ item.total_qty }}× {{ item.name }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <PackStepCrateSection
               v-if="
                 showPackContainersUi &&
@@ -1750,6 +1774,11 @@ const props = withDefaults(
     savedQuantityByMaterialItemIdForAdd?: Record<string, number>
     invitedDepartmentsForAdd?: { id: string; name?: string | null; status?: string | null }[]
     addingActivityMaterial?: boolean
+    /** self_provided-Hinweise aus virtuellen Kombos (Ersteller organisiert selbst). */
+    virtualComboSelfProvidedHints?: Array<{
+      comboName: string
+      items: Array<{ name: string; total_qty: number }>
+    }>
   }>(),
   {
     departmentId: '',
@@ -1770,6 +1799,7 @@ const props = withDefaults(
     savedQuantityByMaterialItemIdForAdd: () => ({}),
     invitedDepartmentsForAdd: () => [],
     addingActivityMaterial: false,
+    virtualComboSelfProvidedHints: () => [],
   },
 )
 
@@ -9715,6 +9745,29 @@ defineExpose({
 
 .pack-list-error-alert {
   width: 100%;
+}
+
+.pack-workflow-section--self-provided {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed #d97706;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.pack-self-provided-intro {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.82rem;
+}
+
+.pack-self-provided-block + .pack-self-provided-block {
+  margin-top: 0.45rem;
+}
+
+.pack-self-provided-list {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
 }
 </style>
 

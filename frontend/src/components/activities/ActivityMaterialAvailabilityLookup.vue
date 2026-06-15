@@ -315,6 +315,7 @@ import { storageContainerIconFromPackUnit } from '@/utils/storageContainerDispla
 import { getRelatedAccessories } from '@/api/materials'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
+import { buildVirtualComboConfigSnapshot } from '@/utils/virtualComboMaterial'
 import CombineWithExistingDialog, {
   type CombineOverlap,
 } from '@/components/activities/CombineWithExistingDialog.vue'
@@ -379,7 +380,11 @@ const emit = defineEmits<{
       material: ActivityPeriodAvailabilityMaterial
       quantity: number
       selectedOptionIds?: string[]
-      /** „Kombinieren?": vorhandene Einzelpositionen um den Kombo-Bedarf reduzieren. */
+      packMode?: 'together' | 'loose'
+      selfProvidedAcknowledged?: boolean
+      resolvedStock?: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+      resolvedSelfProvided?: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+      configSnapshot?: import('@/api/activities').ComboConfigSnapshot
       combineParts?: Array<{ materialItemId: string; reduceBy: number }>
     },
   ]
@@ -648,11 +653,23 @@ function openConfigurator(m: ActivityPeriodAvailabilityMaterial, qty: number) {
 function onConfiguratorConfirm(payload: {
   selectedOptionIds: string[]
   quantity: number
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
   resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
 }) {
   const state = configuratorState.value
   configuratorState.value = null
   if (!state) return
+
+  const configSnapshot = buildVirtualComboConfigSnapshot({
+    quantity: payload.quantity,
+    selectedOptionIds: payload.selectedOptionIds,
+    resolvedStock: payload.resolvedStock,
+    resolvedSelfProvided: payload.resolvedSelfProvided,
+    packMode: payload.packMode,
+    selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+  })
 
   // „Kombinieren?": Überlapp der aufgelösten Teile mit vorhandenen Einzelpositionen erkennen.
   const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
@@ -661,6 +678,10 @@ function onConfiguratorConfirm(payload: {
       material: state.material,
       quantity: payload.quantity,
       selectedOptionIds: payload.selectedOptionIds,
+      packMode: payload.packMode,
+      selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+      resolvedStock: payload.resolvedStock,
+      resolvedSelfProvided: payload.resolvedSelfProvided,
       overlaps,
     }
     return
@@ -670,6 +691,11 @@ function onConfiguratorConfirm(payload: {
     material: state.material,
     quantity: payload.quantity,
     selectedOptionIds: payload.selectedOptionIds,
+    packMode: payload.packMode,
+    selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+    resolvedStock: payload.resolvedStock,
+    resolvedSelfProvided: payload.resolvedSelfProvided,
+    configSnapshot,
   })
   matSearch.value = ''
   void loadAccessorySuggestion(state.material)
@@ -684,6 +710,10 @@ const combineState = ref<{
   material: ActivityPeriodAvailabilityMaterial
   quantity: number
   selectedOptionIds: string[]
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
   overlaps: CombineOverlap[]
 } | null>(null)
 
@@ -724,6 +754,18 @@ function onCombineUseExisting() {
     material: state.material,
     quantity: state.quantity,
     selectedOptionIds: state.selectedOptionIds,
+    packMode: state.packMode,
+    selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    resolvedStock: state.resolvedStock,
+    resolvedSelfProvided: state.resolvedSelfProvided,
+    configSnapshot: buildVirtualComboConfigSnapshot({
+      quantity: state.quantity,
+      selectedOptionIds: state.selectedOptionIds,
+      resolvedStock: state.resolvedStock,
+      resolvedSelfProvided: state.resolvedSelfProvided,
+      packMode: state.packMode,
+      selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    }),
     combineParts,
   })
   matSearch.value = ''
@@ -738,6 +780,18 @@ function onCombineSeparate() {
     material: state.material,
     quantity: state.quantity,
     selectedOptionIds: state.selectedOptionIds,
+    packMode: state.packMode,
+    selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    resolvedStock: state.resolvedStock,
+    resolvedSelfProvided: state.resolvedSelfProvided,
+    configSnapshot: buildVirtualComboConfigSnapshot({
+      quantity: state.quantity,
+      selectedOptionIds: state.selectedOptionIds,
+      resolvedStock: state.resolvedStock,
+      resolvedSelfProvided: state.resolvedSelfProvided,
+      packMode: state.packMode,
+      selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    }),
   })
   matSearch.value = ''
   void loadAccessorySuggestion(state.material)

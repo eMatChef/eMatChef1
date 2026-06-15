@@ -361,6 +361,11 @@
   margin: 6px 0 0;
 }
 
+.activity-create-wizard-host .activity-preview-sidebar .preview-meta--js .activity-js-tag {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
 .activity-create-wizard-host .activity-preview-sidebar .preview-dates {
   margin: 6px 0 0;
   line-height: 1.35;

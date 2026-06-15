@@ -2,7 +2,7 @@
 
 Spezifikation für **Materialplanung**, **Buchung** und **Packen** virtueller Kombos in Aktivitäten — ergänzt das Stammdaten-Konzept in [README.md](./README.md) (Abschnitte 6–7) um den **Aktivitäts- und Pack-Flow**.
 
-**Stand:** Juni 2026 · **Status:** Material-Set-Anzeige umgesetzt; `pack_mode`, Pack-Container und Ersteller-Bestätigung für `self_provided` **geplant**
+**Stand:** Juni 2026 · **Status:** `pack_mode`, Pack-Container und Ersteller-Bestätigung **umgesetzt** (Paket 8)
 
 **Verwandt:** [README.md](./README.md) · [plan.md](./plan.md) · [material-pipeline.md](../../activities/material-pipeline.md) · [pack-workflow-rules.md](../../activities/pack-workflow-rules.md) · [pack-step-ui.md](../../activities/pack-step-ui.md)
 
@@ -60,7 +60,7 @@ Stellen: `ActivityMaterialLinesTable.vue`, Read-only in `ActivityDetailView.vue`
 - Mengenreduktion oder Entfernen einer Einzelzeile ist nur erlaubt, solange der **Gesamtbedarf der Kombo** (über Kind-Zeilen + explizite Einzelzeilen) gedeckt bleibt.
 - Beim «Kombinieren?»-Dialog wird Überlapp erkannt und Einzelmengen reduziert.
 
-**Status:** Teilweise (Kombinieren-Dialog ✅); expliziter Floor in der editierbaren Tabelle **offen**.
+**Status:** Umgesetzt (Floor in `ActivityMaterialLinesTable` via `virtualComboMaterial.ts`; Wizard mit impliziter Kind-Deckung).
 
 ### 3.3 Wizard-Übersicht
 
@@ -68,7 +68,7 @@ Stellen: `ActivityMaterialLinesTable.vue`, Read-only in `ActivityDetailView.vue`
 
 **Hinweis:** Bis Backend-Sync `config_snapshot` liefert, clientseitige Auflösung analog Phys.-Kombo-Fallback.
 
-**Status:** **Offen**
+**Status:** Umgesetzt (`expandMaterialLinesForSummary` in Wizard-Übersicht und Sidebar-Vorschau).
 
 ---
 
@@ -245,15 +245,15 @@ flowchart TB
 | 1 | Zeilenmodell B (Eltern + Kind-Reservierung) | ✅ |
 | 2 | Konfigurator + «Kombinieren?» | ✅ |
 | 3 | Set-Anzeige Materialliste | ✅ |
-| 4 | `pack_mode` im Konfigurator + Snapshot | ⬜ |
-| 5 | Backend: Container-Sync bei `together` | ⬜ |
-| 6 | Pack-UI: Set-Container unter Packkisten, keine Doppelzeilen | ⬜ |
-| 7 | `self_provided`-Bestätigung beim Buchen | ⬜ |
-| 8 | Ersteller-Hinweis Materialliste | ⬜ |
-| 9 | MW-Hinweis-Block Packliste (`self_provided`) | ⬜ |
-| 10 | Floor Einzelzeilen vs. Kombo-Bedarf | ⬜ |
-| 11 | Wizard: virt. Eltern in Übersicht ausblenden | ⬜ |
-| 12 | `pack-workflow-rules.ts`: Virt.-Kombo-Placement aktualisieren | ⬜ |
+| 4 | `pack_mode` im Konfigurator + Snapshot | ✅ |
+| 5 | Backend: Container-Sync bei `together` | ✅ |
+| 6 | Pack-UI: Set-Container unter Packkisten, keine Doppelzeilen | ✅ |
+| 7 | `self_provided`-Bestätigung beim Buchen | ✅ |
+| 8 | Ersteller-Hinweis Materialliste | ✅ |
+| 9 | MW-Hinweis-Block Packliste (`self_provided`) | ✅ |
+| 10 | Floor Einzelzeilen vs. Kombo-Bedarf | ✅ |
+| 11 | Wizard: virt. Eltern in Übersicht ausblenden | ✅ |
+| 12 | `pack-workflow-rules.ts`: Virt.-Kombo-Placement aktualisieren | ✅ |
 
 ---
 
@@ -268,6 +268,7 @@ flowchart TB
 | Pack-Container | `backend/src/Entity/ActivityPackContainer.php`, `ActivityPackContainerController.php` |
 | Pack-Regeln | `frontend/src/components/activities/packWorkflowRules.ts` |
 | Pack-Haupt-UI | `frontend/src/components/activities/ActivityPackListTab.vue` |
+| Floor / Übersicht | `frontend/src/utils/virtualComboMaterial.ts` |
 | Combo-Auflösung | `backend/src/Service/ComboResolutionService.php` |
 
 ---

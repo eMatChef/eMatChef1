@@ -183,6 +183,50 @@ export async function saveActivityDefaults(departmentId: string, defaults: Activ
   })
 }
 
+export type JsMaterialDeliveryType = 'franko' | 'pickup_thun'
+
+/** Department-Defaults für J+S-Bestellformular (Camp/Event) */
+export interface JsMaterialDepartmentDefaults {
+  defaultCoachPersonNr: string
+  defaultCoachFirstName: string
+  defaultCoachLastName: string
+  defaultDeliveryType: JsMaterialDeliveryType
+}
+
+export const DEFAULT_JS_MATERIAL_SETTINGS: JsMaterialDepartmentDefaults = {
+  defaultCoachPersonNr: '',
+  defaultCoachFirstName: '',
+  defaultCoachLastName: '',
+  defaultDeliveryType: 'franko',
+}
+
+export async function getJsMaterialDepartmentDefaults(
+  departmentId: string,
+): Promise<JsMaterialDepartmentDefaults> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'js')
+  const delivery = String(raw['js.default_delivery_type'] || 'franko').trim()
+  return {
+    defaultCoachPersonNr: String(raw['js.default_coach_person_nr'] || '').trim(),
+    defaultCoachFirstName: String(raw['js.default_coach_first_name'] || '').trim(),
+    defaultCoachLastName: String(raw['js.default_coach_last_name'] || '').trim(),
+    defaultDeliveryType: delivery === 'pickup_thun' ? 'pickup_thun' : 'franko',
+  }
+}
+
+export async function saveJsMaterialDepartmentDefaults(
+  departmentId: string,
+  settings: JsMaterialDepartmentDefaults,
+): Promise<Record<string, string>> {
+  const delivery: JsMaterialDeliveryType =
+    settings.defaultDeliveryType === 'pickup_thun' ? 'pickup_thun' : 'franko'
+  return updateDepartmentSettings(departmentId, {
+    'js.default_coach_person_nr': settings.defaultCoachPersonNr.trim(),
+    'js.default_coach_first_name': settings.defaultCoachFirstName.trim(),
+    'js.default_coach_last_name': settings.defaultCoachLastName.trim(),
+    'js.default_delivery_type': delivery,
+  })
+}
+
 export type WorkshopOrderReminderMode = 'days' | 'document_date'
 
 /** Werkstatt-Einstellungen (Materialwart-Workflow 2026) */

@@ -153,6 +153,12 @@
                     <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
                     {{ t('activities.detail.comboSetContentTitle') }}
                   </span>
+                  <span
+                    v-if="virtualComboPackModeLabel(row)"
+                    class="activity-mat-pack-mode-hint text-muted"
+                  >
+                    {{ virtualComboPackModeLabel(row) }}
+                  </span>
                   <ul class="activity-mat-set-list">
                     <li v-for="c in comboSetContent(row)!.resolved" :key="`r-${c.component_material_id}`">
                       {{ c.total_qty }}× {{ c.name }}
@@ -164,6 +170,12 @@
                     >
                       {{ c.total_qty }}× {{ c.name }}
                       <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
+                      <span
+                        v-if="row.config_snapshot?.self_provided_acknowledged"
+                        class="activity-mat-selfprovided-ack-badge"
+                      >
+                        {{ formatSelfProvidedAckBadge(row.config_snapshot) }}
+                      </span>
                     </li>
                   </ul>
                 </div>
@@ -268,7 +280,7 @@
                     <span class="sr-only">{{ t('activities.materialLinesTable.srOnlyQty') }}</span>
                     <input
                       type="number"
-                      :min="minQty"
+                      :min="minQtyForRow(row)"
                       class="form-input form-input--qty"
                       :value="row.quantity"
                       :disabled="disabled"
@@ -347,6 +359,12 @@
             </td>
             <td class="activity-mat-cell-warn">
               <span
+                v-if="comboFloorHint(row)"
+                class="activity-mat-floor-hint text-muted"
+              >
+                {{ comboFloorHint(row) }}
+              </span>
+              <span
                 v-if="!availabilityLoading && lineHasIssue(row) && variant !== 'detail-draft'"
                 class="activity-mat-warn-badge"
                 :title="t('activities.materialLinesTable.warnOverRestTitle')"
@@ -373,7 +391,7 @@
                   class="activity-material-remove"
                   :title="t('activities.materialLinesTable.removeLineTitle')"
                   :aria-label="t('activities.materialLinesTable.removeLineAria', { name: row.material_name })"
-                  :disabled="disabled"
+                  :disabled="disabled || !canRemoveLine(row)"
                   @click="emitRemove(originalIndex)"
                 >
                   ×
@@ -383,7 +401,7 @@
                   variant="secondary"
                   size="x-small"
                   class="activity-mat-remove-text"
-                  :disabled="disabled || removeBusyFor(row)"
+                  :disabled="disabled || removeBusyFor(row) || !canRemoveLine(row)"
                   @click="emitRemove(originalIndex)"
                 >
                   {{ t('common.remove') }}
@@ -407,6 +425,11 @@ import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
 import type { MaterialLookupAvailabilityContext } from '@/composables/useMaterialLookup'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
+import {
+  canRemoveStandaloneLine,
+  minStandaloneQtyForLine,
+  type VirtualComboFloorOptions,
+} from '@/utils/virtualComboMaterial'
 import { EButton } from '@/components/form/base'
 
 const props = withDefaults(
@@ -430,6 +453,8 @@ const props = withDefaults(
     materialScopeSinglePartnerId?: string | null
     /** Status packing + Nachbuch: Mengen/Entfernen nur Packliste / Packlisten-Hinzufügen */
     packingStageQuantityReadonly?: boolean
+    /** Kind-Zeilen aus API (Detail): Mengen pro Material für Kombo-Floor */
+    childQuantityByMaterialItemId?: Record<string, number>
   }>(),
   {
     activityId: null,
@@ -444,6 +469,7 @@ const props = withDefaults(
     materialScopeHasPartners: false,
     materialScopeSinglePartnerId: null,
     packingStageQuantityReadonly: false,
+    childQuantityByMaterialItemId: () => ({}),
   },
 )
 
@@ -457,6 +483,32 @@ const emit = defineEmits<{
 }>()
 
 const minQty = computed(() => (props.variant === 'wizard' ? 1 : 0))
+
+const floorOptions = computed((): VirtualComboFloorOptions => ({
+  childQuantityByMaterialItemId: props.childQuantityByMaterialItemId,
+  treatComboFloorAsChildCoverage: props.variant === 'wizard',
+  baseMinQty: minQty.value,
+}))
+
+function minQtyForRow(row: ActivityMaterialLine): number {
+  if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') {
+    return minQty.value
+  }
+  return minStandaloneQtyForLine(row, props.modelValue, floorOptions.value)
+}
+
+function comboFloorHint(row: ActivityMaterialLine): string | null {
+  if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') return null
+  const minQ = minQtyForRow(row)
+  if (minQ <= minQty.value) return null
+  return t('activities.materialLinesTable.comboFloorHint', { min: minQ })
+}
+
+function canRemoveLine(row: ActivityMaterialLine): boolean {
+  if (qtyRowLocked(row)) return false
+  if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') return true
+  return canRemoveStandaloneLine(row, props.modelValue, floorOptions.value)
+}
 
 function safeDateToIso(d: Date | null | undefined): string | null {
   if (!d) return null
@@ -534,6 +586,32 @@ function comboSetContent(row: ActivityMaterialLine): {
   const selfProvided = snap?.self_provided ?? []
   if (resolved.length === 0 && selfProvided.length === 0) return null
   return { resolved, selfProvided }
+}
+
+function virtualComboPackModeLabel(row: ActivityMaterialLine): string | null {
+  if (row.material_type !== 'virtual_combo') return null
+  const mode = row.config_snapshot?.pack_mode ?? row.pack_mode
+  if (mode === 'together') {
+    return t('activities.detail.comboPackModeTogetherHint', { name: row.material_name })
+  }
+  if (mode === 'loose') {
+    return t('activities.detail.comboPackModeLooseHint')
+  }
+  return null
+}
+
+function formatSelfProvidedAckBadge(snap: NonNullable<ActivityMaterialLine['config_snapshot']>): string {
+  const at = snap.self_provided_acknowledged_at
+  if (!at) return t('activities.detail.comboSelfProvidedAcknowledged')
+  try {
+    const d = new Date(at)
+    if (Number.isNaN(d.getTime())) return t('activities.detail.comboSelfProvidedAcknowledged')
+    return t('activities.detail.comboSelfProvidedAcknowledgedAt', {
+      date: d.toLocaleString(locale.value),
+    })
+  } catch {
+    return t('activities.detail.comboSelfProvidedAcknowledged')
+  }
 }
 
 interface PhysicalComboContentLine {
@@ -877,7 +955,7 @@ function canIncrementLine(row: ActivityMaterialLine, delta: number): boolean {
 
 function canDecrementLine(row: ActivityMaterialLine, delta: number): boolean {
   if (delta < 1 || props.disabled) return false
-  return row.quantity - delta >= minQty.value
+  return row.quantity - delta >= minQtyForRow(row)
 }
 
 function showQuickDecDivider(row: ActivityMaterialLine): boolean {
@@ -909,7 +987,7 @@ function incrementLine(idx: number, delta: number) {
 function decrementLine(idx: number, delta: number) {
   const row = props.modelValue[idx]
   if (!row || qtyRowLocked(row) || !canDecrementLine(row, delta)) return
-  const next = Math.max(minQty.value, row.quantity - delta)
+  const next = Math.max(minQtyForRow(row), row.quantity - delta)
   const lines = [...props.modelValue]
   lines[idx] = { ...lines[idx], quantity: next }
   emit('update:modelValue', lines)
@@ -919,7 +997,7 @@ function onQtyChange(idx: number, e: Event) {
   const row = props.modelValue[idx]
   if (!row || qtyRowLocked(row)) return
   const raw = parseInt((e.target as HTMLInputElement).value, 10)
-  let v = Number.isNaN(raw) ? minQty.value : Math.max(minQty.value, raw)
+  let v = Number.isNaN(raw) ? minQtyForRow(row) : Math.max(minQtyForRow(row), raw)
   const max = maxQtyForRow(row)
   if (max !== undefined && v > max) v = max
   const lines = [...props.modelValue]
@@ -929,7 +1007,7 @@ function onQtyChange(idx: number, e: Event) {
 
 function emitRemove(originalIndex: number) {
   const line = props.modelValue[originalIndex]
-  if (!line || qtyRowLocked(line)) return
+  if (!line || qtyRowLocked(line) || !canRemoveLine(line)) return
   emit('remove-line', { line, index: originalIndex })
 }
 
@@ -1183,6 +1261,23 @@ function applyAllSuggestedQuantities() {
   font-style: italic;
 }
 
+.activity-mat-pack-mode-hint {
+  display: block;
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.78rem;
+}
+
+.activity-mat-selfprovided-ack-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-style: normal;
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .activity-mat-col-source {
   width: 1%;
   max-width: 12rem;
@@ -1370,6 +1465,13 @@ function applyAllSuggestedQuantities() {
   max-width: 11rem;
   padding-left: 6px;
   padding-right: 6px;
+}
+
+.activity-mat-floor-hint {
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+  margin-bottom: 4px;
 }
 
 .activity-mat-warn-badge {
