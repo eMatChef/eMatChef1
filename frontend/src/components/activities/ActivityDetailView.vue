@@ -323,6 +323,7 @@
                 :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                 :invited-departments="activity.invited_departments ?? []"
                 :disabled="addingDraftMaterial"
+                :repeat-add-from-search="true"
                 hint-variant="draft"
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
@@ -366,6 +367,7 @@
                   :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                   :invited-departments="activity.invited_departments ?? []"
                   :disabled="addingDraftMaterial"
+                  :repeat-add-from-search="true"
                   hint-variant="draft"
                   @add-quantity="onDraftAddQuantity"
                   @scope-change="onMaterialLookupScopeChange"
@@ -389,6 +391,7 @@
                 :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
                 :invited-departments="activity.invited_departments ?? []"
                 :disabled="addingDraftMaterial"
+                :repeat-add-from-search="true"
                 hint-variant="draft"
                 @add-quantity="onDraftAddQuantity"
                 @scope-change="onMaterialLookupScopeChange"
@@ -425,15 +428,28 @@
                   {{ jsOrderStatusLabel }}
                 </span>
                 <span
-                  v-if="jsOrderSummary?.participant_count != null && jsOrderSummary.participant_count >= 1"
+                  v-if="jsParticipantCountForDisplay != null"
                   class="text-muted"
                 >
-                  · {{ t('activities.jsMaterial.participantCountSummary', { count: jsOrderSummary.participant_count }) }}
+                  · {{ t('activities.jsMaterial.participantCountSummary', { count: jsParticipantCountForDisplay }) }}
+                </span>
+                <span
+                  v-if="jsOrderSummary?.items?.length"
+                  class="text-muted"
+                >
+                  · {{ t('activities.jsMaterial.order.positionsCount', { count: jsOrderSummary.items.length }) }}
                 </span>
               </div>
               <div class="activity-js-order-card-actions">
                 <EButton variant="primary" @click="openJsOrderModal">
                   {{ t('activities.jsMaterial.order.openFormButton') }}
+                </EButton>
+                <EButton
+                  v-if="jsOrderSummary?.generated_pdf_url"
+                  variant="secondary"
+                  @click="openJsOrderPdf"
+                >
+                  {{ t('activities.jsMaterial.order.openPdfButton') }}
                 </EButton>
               </div>
             </div>
@@ -470,9 +486,11 @@
                   :packing-stage-quantity-readonly="false"
                   :removing-item-id="removingItemId"
                   :child-quantity-by-material-item-id="childQuantityByMaterialItemId"
+                  :virtual-combo-pack-mode-editable="virtualComboPackModeEditable"
                   :empty-text="t('activities.detail.noPositions')"
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
+                  @pack-mode-change="onVirtualComboPackModeChange"
                 />
                 <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
                   <EButton
@@ -692,6 +710,8 @@
     <ActivityJsOrderModal
       :is-open="jsOrderModalOpen"
       :activity-id="activityId"
+      :department-id="departmentId"
+      :activity-participant-count="activity?.participant_count ?? null"
       :read-only="!canEditJsOrder"
       @close="onJsOrderModalClose"
       @saved="onJsOrderSaved"
@@ -735,6 +755,7 @@ import {
 } from '@/api/activities'
 import {
   getActivityJsOrder,
+  fetchActivityJsOrderPdfBlob,
   jsOrderStatusLabelKey,
   type ActivityJsOrderApi,
 } from '@/api/activityJsOrder'
@@ -762,6 +783,10 @@ import { useAuthStore } from '@/stores/auth'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
+import {
+  isActivityItemVisibleInMaterialTable,
+  shouldIncludeTopLevelInVirtualComboSync,
+} from '@/utils/virtualComboMaterial'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { getGroups, type Group } from '@/api/groups'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
@@ -1077,6 +1102,7 @@ watch(showCostsTab, (show) => {
 const addingDraftMaterial = ref(false)
 const removingItemId = ref<string | null>(null)
 const draftQuantities = ref<Record<string, number>>({})
+const draftPackModes = ref<Record<string, 'together' | 'loose'>>({})
 const syncingQuantities = ref(false)
 const draftOverviewFormRef = ref<InstanceType<typeof ActivityDraftOverviewForm> | null>(null)
 
@@ -1161,13 +1187,13 @@ const savedQuantityByMaterialItemId = computed(() => {
   return m
 })
 
-/** Nur eigenständige Einzelpositionen (kein Kombo-Kind, keine Kombo-Hülle) — für „Kombinieren?". */
+/** Nur eigenständige Einzelpositionen (kein Kombo-Kind, keine Kombo-Hülle) — für Suche / „Kombinieren?". */
 const standaloneQuantityByMaterialItemId = computed(() => {
   const m: Record<string, number> = {}
   for (const r of activityItems.value) {
     if (r.parent_activity_item_id) continue
     if (r.material_type === 'physical_combo' || r.material_type === 'virtual_combo') continue
-    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + r.quantity
+    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
   }
   return m
 })
@@ -1179,7 +1205,32 @@ const childQuantityByMaterialItemId = computed(() => {
     if (!r.parent_activity_item_id) continue
     m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
   }
+  for (const r of activityItems.value) {
+    if (r.parent_activity_item_id || r.material_type !== 'virtual_combo') continue
+    if (draftPackMode(r) === 'loose') continue
+    const snap = r.config_snapshot
+    const comboQty = Math.max(1, draftQty(r))
+    for (const c of snap?.resolved_components ?? []) {
+      const mid = c.component_material_id
+      if (!mid) continue
+      const total =
+        typeof c.qty_per_combo === 'number'
+          ? c.qty_per_combo * comboQty
+          : typeof c.total_qty === 'number'
+            ? c.total_qty
+            : 0
+      if (total > 0) {
+        m[mid] = Math.max(m[mid] ?? 0, total)
+      }
+    }
+  }
   return m
+})
+
+/** pack_mode änderbar bis vor «gepackt» (draft / submitted / approved). */
+const virtualComboPackModeEditable = computed(() => {
+  const status = activity.value?.status ?? ''
+  return ['draft', 'submitted', 'approved'].includes(status) && showMaterialLookup.value
 })
 
 function parsePlanningDate(iso: string | undefined | null): Date | null {
@@ -1314,6 +1365,14 @@ const jsOrderStatusLabel = computed(() => {
   return t(jsOrderStatusLabelKey(jsOrderSummary.value?.status))
 })
 
+const jsParticipantCountForDisplay = computed(() => {
+  const fromActivity = activity.value?.participant_count
+  if (fromActivity != null && fromActivity >= 1) return fromActivity
+  const fromOrder = jsOrderSummary.value?.participant_count
+  if (fromOrder != null && fromOrder >= 1) return fromOrder
+  return null
+})
+
 /** Status ab «Annehmen & Packen» — Accordion «vergessen» ausblenden. */
 const STATUSES_AT_OR_AFTER_PACKING = [
   'packing',
@@ -1352,29 +1411,48 @@ const showMaterialAddOnMaterialTab = computed(
 
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []
-  // Zeilenmodell B / Set-Anzeige: Kind-Zeilen (aufgelöste stock-Teile) erscheinen nicht
-  // als eigene editierbare Zeile, sondern als Inhalt der Kombo-Eltern-Zeile („wie Kiste").
-  return activityItems.value
-    .filter((r) => !r.parent_activity_item_id)
-    .map((r) => ({
-      material_item_id: r.material_item_id,
-      material_name: r.material_name,
-      material_type: r.material_type ?? null,
-      linked_container_label: r.linked_container_label ?? null,
-      quantity: draftQty(r),
-      saved_quantity: r.quantity,
-      period_availability_cap: undefined,
-      pack_size: r.pack_size,
-      pack_unit: r.pack_unit,
-      activity_item_id: r.id,
-      source_department_name: r.source_department_name ?? null,
-      line_total: r.line_total,
-      is_js_material: r.is_js_material,
-      tracking_type: r.tracking_type ?? null,
-      is_container: !!r.is_container,
-      config_snapshot: r.config_snapshot ?? null,
-    }))
+  const items = activityItems.value
+  const packModes = draftPackModes.value
+  const seenLooseChild = new Set<string>()
+  return items
+    .filter((r) => {
+      if (!isActivityItemVisibleInMaterialTable(r, items, packModes)) return false
+      if (!r.parent_activity_item_id) return true
+      const key = `${r.parent_activity_item_id}:${r.material_item_id}`
+      if (seenLooseChild.has(key)) return false
+      seenLooseChild.add(key)
+      return true
+    })
+    .map((r) => activityItemToMaterialLine(r))
 })
+
+function activityItemToMaterialLine(r: ActivityItemRow): ActivityMaterialLine {
+  return {
+    material_item_id: r.material_item_id,
+    material_name: r.material_name,
+    material_type: r.material_type ?? null,
+    linked_container_label: r.linked_container_label ?? null,
+    quantity: draftQty(r),
+    saved_quantity: r.quantity,
+    period_availability_cap: undefined,
+    pack_size: r.pack_size,
+    pack_unit: r.pack_unit,
+    activity_item_id: r.id,
+    parent_activity_item_id: r.parent_activity_item_id ?? null,
+    source_department_name: r.source_department_name ?? null,
+    line_total: r.line_total,
+    is_js_material: r.is_js_material,
+    tracking_type: r.tracking_type ?? null,
+    is_container: !!r.is_container,
+    config_snapshot: r.config_snapshot
+      ? {
+          ...r.config_snapshot,
+          pack_mode: draftPackMode(r),
+        }
+      : null,
+    pack_mode: draftPackMode(r),
+  }
+}
 
 /** Read-only-Tabelle: nur Eltern-/Normalzeilen (Kombo-Inhalt wird verschachtelt gezeigt). */
 const topLevelActivityItems = computed((): ActivityItemRow[] =>
@@ -1397,6 +1475,13 @@ function comboSetContent(row: ActivityItemRow): {
   return { resolved, selfProvided }
 }
 
+function draftPackMode(row: ActivityItemRow): 'together' | 'loose' {
+  const d = draftPackModes.value[row.id]
+  if (d === 'together' || d === 'loose') return d
+  const snap = row.config_snapshot?.pack_mode
+  return snap === 'together' ? 'together' : 'loose'
+}
+
 function virtualComboSyncExtras(r: ActivityItemRow): {
   selected_option_ids?: string[]
   pack_mode?: 'together' | 'loose'
@@ -1406,7 +1491,7 @@ function virtualComboSyncExtras(r: ActivityItemRow): {
   const snap = r.config_snapshot
   return {
     ...(snap?.selected_option_ids ? { selected_option_ids: snap.selected_option_ids } : {}),
-    ...(snap?.pack_mode ? { pack_mode: snap.pack_mode } : {}),
+    pack_mode: draftPackMode(r),
     ...(snap?.self_provided_acknowledged ? { self_provided_acknowledged: true } : {}),
   }
 }
@@ -1601,6 +1686,20 @@ function onJsOrderSaved(order: ActivityJsOrderApi) {
   jsOrderSummary.value = order
 }
 
+async function openJsOrderPdf() {
+  const pdfUrl = jsOrderSummary.value?.generated_pdf_url
+  if (!pdfUrl) return
+  try {
+    const blob = await fetchActivityJsOrderPdfBlob(pdfUrl)
+    const blobUrl = URL.createObjectURL(blob)
+    window.open(blobUrl, '_blank', 'noopener,noreferrer')
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120000)
+  } catch (err) {
+    console.error(err)
+    toast.error(t('activities.jsMaterial.order.openPdfError'))
+  }
+}
+
 function onConsumptionModalReturnWithoutConsumption() {
   consumptionModalReturnWithoutConsumptionToken.value += 1
   consumptionModalOpen.value = false
@@ -1736,21 +1835,33 @@ function draftQty(row: ActivityItemRow): number {
 }
 
 function initDraftQuantitiesFromItems() {
-  const m: Record<string, number> = {}
+  const qty: Record<string, number> = {}
+  const pack: Record<string, 'together' | 'loose'> = {}
   for (const r of activityItems.value) {
-    m[r.id] = r.quantity
+    qty[r.id] = r.quantity
+    if (r.material_type === 'virtual_combo') {
+      pack[r.id] = r.config_snapshot?.pack_mode === 'together' ? 'together' : 'loose'
+    }
   }
-  draftQuantities.value = m
+  draftQuantities.value = qty
+  draftPackModes.value = pack
 }
 
 function onDraftLinesTableUpdate(lines: ActivityMaterialLine[]) {
-  const next = { ...draftQuantities.value }
+  const nextQty = { ...draftQuantities.value }
+  const nextPack = { ...draftPackModes.value }
   for (const line of lines) {
-    if (line.activity_item_id) {
-      next[line.activity_item_id] = line.quantity
+    if (!line.activity_item_id) continue
+    nextQty[line.activity_item_id] = line.quantity
+    if (line.material_type === 'virtual_combo') {
+      const mode = line.config_snapshot?.pack_mode ?? line.pack_mode
+      if (mode === 'together' || mode === 'loose') {
+        nextPack[line.activity_item_id] = mode
+      }
     }
   }
-  draftQuantities.value = next
+  draftQuantities.value = nextQty
+  draftPackModes.value = nextPack
 }
 
 function onDraftTableRemoveLine({ line }: { line: ActivityMaterialLine; index: number }) {
@@ -1758,19 +1869,21 @@ function onDraftTableRemoveLine({ line }: { line: ActivityMaterialLine; index: n
   if (row) void onRemoveDraftItem(row)
 }
 
-async function saveDraftQuantities() {
+async function saveDraftQuantities(options?: { successToastKey?: string | null }) {
   const a = activity.value
   if (!a) return
   const can =
     (a.status === 'draft' && a.can_edit_draft_material) ||
     (a.status !== 'draft' && a.can_edit_activity_material)
   if (!can) return
+  if (syncingQuantities.value) return
   syncingQuantities.value = true
   try {
     await syncActivityItems(props.activityId, {
-      // Zeilenmodell B: Kind-Zeilen sind abgeleitet -> nur Eltern-/Normalzeilen senden, Backend expandiert neu.
       items: activityItems.value
-        .filter((r) => !r.parent_activity_item_id)
+        .filter((r) =>
+          shouldIncludeTopLevelInVirtualComboSync(r, activityItems.value, draftPackModes.value),
+        )
         .map((r) => ({
           material_item_id: r.material_item_id,
           quantity: draftQty(r),
@@ -1778,15 +1891,36 @@ async function saveDraftQuantities() {
           ...virtualComboSyncExtras(r),
         })),
     })
-    toast.success(t('activities.detail.toastQtySaved'))
+    const toastKey = options?.successToastKey
+    if (toastKey !== null) {
+      toast.success(t(toastKey ?? 'activities.detail.toastQtySaved'))
+    }
     await loadItems()
     await refreshActivityTotalsFromApi()
+    if (
+      (STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(a.status || '')
+    ) {
+      packListReloadToken.value += 1
+    }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.detail.toastQtySaveFailed'))
+    await loadItems()
   } finally {
     syncingQuantities.value = false
   }
+}
+
+async function onVirtualComboPackModeChange(payload: {
+  line: ActivityMaterialLine
+  mode: 'together' | 'loose'
+}) {
+  if (!virtualComboPackModeEditable.value) return
+  const rowId = payload.line.activity_item_id
+  if (rowId) {
+    draftPackModes.value = { ...draftPackModes.value, [rowId]: payload.mode }
+  }
+  await saveDraftQuantities({ successToastKey: 'activities.detail.toastPackModeSaved' })
 }
 
 async function onDraftOverviewSaved() {
@@ -1946,6 +2080,7 @@ async function reload() {
   activityItems.value = []
   activityIssues.value = []
   draftQuantities.value = {}
+  draftPackModes.value = {}
   try {
     const [detail, tr, items] = await Promise.all([
       getActivity(props.activityId, props.departmentId),
@@ -1990,6 +2125,7 @@ async function loadItems() {
   } catch {
     activityItems.value = []
     draftQuantities.value = {}
+  draftPackModes.value = {}
     toast.error(t('activities.detail.toastItemsLoadFailed'))
   } finally {
     itemsLoading.value = false
@@ -2191,7 +2327,7 @@ async function applyCombineReductions(
   }[] = []
   let changed = false
   for (const r of activityItems.value) {
-    if (r.parent_activity_item_id) continue
+    if (!shouldIncludeTopLevelInVirtualComboSync(r, activityItems.value, draftPackModes.value)) continue
     let qty = draftQty(r)
     const isComboRow = r.material_type === 'physical_combo' || r.material_type === 'virtual_combo'
     const reduce = !isComboRow ? reduceMap.get(r.material_item_id) : undefined
@@ -2223,6 +2359,7 @@ function activityItemHasPackProgress(row: ActivityItemRow): boolean {
 async function onRemoveDraftItem(row: ActivityItemRow) {
   const a = activity.value
   if (!a) return
+  if (row.material_type === 'virtual_combo' && !row.parent_activity_item_id) return
   const can =
     (a.status === 'draft' && a.can_edit_draft_material) ||
     (a.status !== 'draft' && a.can_edit_activity_material)

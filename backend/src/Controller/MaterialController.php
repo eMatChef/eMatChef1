@@ -20,6 +20,8 @@ use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
+use App\Service\JsDotationRulesService;
+use App\Service\JsPdfCatalogSyncService;
 use App\Service\Material\MaterialItemPhotoService;
 use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Public\PublicCodeService;
@@ -39,6 +41,8 @@ class MaterialController extends AbstractController
         private PublicCodeService $publicCodeService,
         private MediaPhotoNormalizer $photoNormalizer,
         private MaterialItemPhotoService $materialItemPhotoService,
+        private JsDotationRulesService $jsDotationRules,
+        private JsPdfCatalogSyncService $jsPdfCatalogSync,
     ) {}
 
     /**
@@ -145,6 +149,104 @@ class MaterialController extends AbstractController
         }
 
         return new JsonResponse($result);
+    }
+
+    /**
+     * J+S-Leihkatalog für Bestell-Modal (Pagination + Dotations-Hinweise).
+     */
+    #[Route('/js-catalog', name: 'js_catalog', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function jsCatalog(Request $request): JsonResponse
+    {
+        $departmentId = (string) $request->query->get('department_id', '');
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $search = trim((string) $request->query->get('search', ''));
+        $page = max(1, (int) $request->query->get('page', 1));
+        $limit = min(100, max(10, (int) $request->query->get('limit', 40)));
+        $participantCount = (int) $request->query->get('participant_count', 0);
+        $courseType = trim((string) $request->query->get('course_type', ''));
+
+        $orderableIds = $this->jsPdfCatalogSync->orderableMaterialIds();
+        if ($orderableIds === []) {
+            return new JsonResponse(['items' => [], 'total' => 0, 'page' => 1, 'limit' => $limit]);
+        }
+
+        $sortIndex = $this->jsPdfCatalogSync->orderableMaterialSortIndex();
+
+        $countQb = $this->entityManager->createQueryBuilder()
+            ->select('COUNT(m.id)')
+            ->from(MaterialItem::class, 'm')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('m.isJsMaterial = true')
+            ->andWhere('m.id IN (:orderableIds)');
+
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(MaterialItem::class, 'm')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('m.isJsMaterial = true')
+            ->andWhere('m.id IN (:orderableIds)')
+            ->setParameter('orderableIds', $orderableIds);
+
+        $countQb->setParameter('orderableIds', $orderableIds);
+
+        if ($search !== '') {
+            $searchLike = '%' . mb_strtolower($search) . '%';
+            $searchExpr = 'LOWER(m.name) LIKE :search OR LOWER(COALESCE(m.description, \'\')) LIKE :search';
+            $qb->andWhere($searchExpr)->setParameter('search', $searchLike);
+            $countQb->andWhere($searchExpr)->setParameter('search', $searchLike);
+        }
+
+        $total = (int) $countQb->getQuery()->getSingleScalarResult();
+        $materials = $qb
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        $items = [];
+        foreach ($materials as $material) {
+            if (!$material instanceof MaterialItem) {
+                continue;
+            }
+            $suggested = $participantCount >= 1
+                ? $this->jsDotationRules->suggestQuantityForMaterial($material, $participantCount)
+                : null;
+            $limits = $this->jsDotationRules->limitsForMaterial($material);
+            $stockAvailable = $this->jsDotationRules->stockAvailableForMaterial($material);
+            $items[] = [
+                'id' => $material->getId(),
+                'name' => $material->getName(),
+                'description' => $material->getDescription(),
+                'dotation_hint' => $this->jsDotationRules->dotationHintForMaterial($material, $courseType !== '' ? $courseType : null),
+                'dotation_suggested' => $suggested,
+                'dotation_max' => $limits['max'],
+                'dotation_group' => $limits['group'],
+                'dotation_group_max' => $limits['group_max'],
+                'dotation_group_warn_max' => $limits['group_warn_max'],
+                'dotation_round_up' => $limits['round_up'],
+                'stock_available' => $stockAvailable,
+                'pdf_form_line' => $this->jsDotationRules->pdfFormLineForMaterial($material),
+                'pdf_line_order' => $sortIndex[$material->getId()] ?? 999,
+                'variant_group' => $this->jsDotationRules->variantGroupForMaterial($material),
+            ];
+        }
+
+        usort($items, static fn (array $a, array $b): int => ($a['pdf_line_order'] ?? 999) <=> ($b['pdf_line_order'] ?? 999));
+
+        return new JsonResponse([
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+        ]);
     }
 
     /**

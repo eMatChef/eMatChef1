@@ -83,6 +83,8 @@ export interface ActivityMaterialLine {
   self_provided_acknowledged?: boolean
   /** Set-Anzeige „wie Kiste": aufgelöste Teile der gebuchten virtuellen Kombo (nur Detail/gebucht). */
   config_snapshot?: ComboConfigSnapshot | null
+  /** Zeilenmodell B: abgeleitete Kind-Zeile einer virtuellen Kombo (lose). */
+  parent_activity_item_id?: string | null
 }
 
 function pickFirstRootGroup(groups: Group[]): string | null {

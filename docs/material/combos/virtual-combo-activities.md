@@ -38,7 +38,7 @@ activity_item (Kind) × N
   parent_activity_item_id = Eltern
 ```
 
-**Pack-Sync heute:** `ActivityController::resyncPackListFromActivityItems` überspringt die Eltern-Zeile und synchronisiert **flache** `activity_pack_item`-Zeilen pro Kind-Material — unabhängig von `pack_mode` (noch nicht implementiert).
+**Pack-Sync:** `ActivityController::resyncPackListFromActivityItems` überspringt die Eltern-Zeile; bei `pack_mode === "together"` synchronisiert `syncVirtualComboPackContainers` logische Pack-Behälter, bei `loose` flache Pack-Zeilen pro Kind-Material.
 
 ---
 
@@ -121,7 +121,7 @@ Bei `self_provided`-Teilen zusätzlich Pflicht-Checkbox:
 | `self_provided_acknowledged` | wenn `self_provided` nicht leer | Ersteller bestätigt Eigenorganisation |
 | `self_provided_acknowledged_*` | optional | Audit (wer/wann) |
 
-**Bearbeitbarkeit:** `pack_mode` änderbar solange die Aktivität noch nicht «gepackt» ist (`approved` / vor `packing`). Wechsel löst Container-Neusync aus.
+**Bearbeitbarkeit:** `pack_mode` in der Materialliste (Detail) änderbar in Status `draft` / `submitted` / `approved`; Speichern über `syncActivityItems`. Ab `packing` gesperrt (Backend `assertVirtualComboPackModeEditable`). Wechsel löst beim Pack-Resync Container-Neusync aus.
 
 ---
 

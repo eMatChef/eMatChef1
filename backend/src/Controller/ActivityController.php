@@ -2184,9 +2184,20 @@ class ActivityController extends AbstractController
         try {
             $materialBefore = $this->aggregateActivityMaterials($id);
 
-            // Alle bestehenden Items löschen
             $existingItems = $this->entityManager->getRepository(ActivityItem::class)
                 ->findBy(['activityId' => $id]);
+
+            $packModeError = $this->assertVirtualComboPackModeEditable($activity, $items, $existingItems);
+            if ($packModeError !== null) {
+                return new JsonResponse(['error' => $packModeError], 400);
+            }
+
+            $floorError = $this->validateVirtualComboStandaloneFloor($items);
+            if ($floorError !== null) {
+                return new JsonResponse(['error' => $floorError], 400);
+            }
+
+            // Alle bestehenden Items löschen
             foreach ($existingItems as $existing) {
                 $this->entityManager->remove($existing);
             }
@@ -3849,6 +3860,138 @@ class ActivityController extends AbstractController
         }
 
         return $data;
+    }
+
+    /**
+     * pack_mode nur bis vor «gepackt» änderbar (draft/submitted/approved).
+     *
+     * @param list<array<string, mixed>> $incomingItems
+     * @param list<ActivityItem> $existingItems
+     */
+    private function assertVirtualComboPackModeEditable(Activity $activity, array $incomingItems, array $existingItems): ?string
+    {
+        $lockedStatuses = [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ];
+        if (!\in_array($activity->getStatus(), $lockedStatuses, true)) {
+            return null;
+        }
+
+        $existingPackMode = [];
+        foreach ($existingItems as $ai) {
+            if (!$ai instanceof ActivityItem || $ai->getParentActivityItemId() !== null) {
+                continue;
+            }
+            if (!$ai->getMaterialItem()->isVirtualCombo()) {
+                continue;
+            }
+            $snap = $ai->getConfigSnapshot();
+            $existingPackMode[(string) $ai->getMaterialItemId()] = \is_array($snap)
+                ? (string) ($snap['pack_mode'] ?? 'loose')
+                : 'loose';
+        }
+
+        foreach ($incomingItems as $itemData) {
+            if (empty($itemData['material_item_id'])) {
+                continue;
+            }
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)
+                ->find($itemData['material_item_id']);
+            if ($materialItem === null || !$materialItem->isVirtualCombo()) {
+                continue;
+            }
+            $mid = (string) $materialItem->getId();
+            if (!isset($existingPackMode[$mid])) {
+                continue;
+            }
+            $newMode = 'loose';
+            if (isset($itemData['pack_mode']) && \in_array($itemData['pack_mode'], ['together', 'loose'], true)) {
+                $newMode = $itemData['pack_mode'];
+            }
+            if ($newMode !== $existingPackMode[$mid]) {
+                return 'Pack-Vorgabe (zusammen/lose) kann nach Beginn des Packens nicht mehr geändert werden';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Einzelzeilen nicht unter den offenen Kombo-Mindestbedarf senken (Zeilenmodell B).
+     *
+     * @param list<array<string, mixed>> $items
+     */
+    private function validateVirtualComboStandaloneFloor(array $items): ?string
+    {
+        $comboFloor = [];
+        $standaloneRows = [];
+
+        foreach ($items as $itemData) {
+            if (empty($itemData['material_item_id'])) {
+                continue;
+            }
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)
+                ->find($itemData['material_item_id']);
+            if ($materialItem === null) {
+                continue;
+            }
+            $qty = max(1, (int) ($itemData['quantity'] ?? 1));
+
+            if ($materialItem->isVirtualCombo()) {
+                $selectedOptionIds = isset($itemData['selected_option_ids']) && \is_array($itemData['selected_option_ids'])
+                    ? array_values(array_filter(array_map(
+                        static fn ($v) => trim((string) $v),
+                        $itemData['selected_option_ids'],
+                    ), static fn (string $v) => $v !== ''))
+                    : $this->comboResolution->defaultSelectedOptionIds((string) $materialItem->getId());
+                $resolved = $this->comboResolution->resolve((string) $materialItem->getId(), $selectedOptionIds);
+                foreach ($resolved['stock'] as $mid => $part) {
+                    $perCombo = (int) ($part['qty_per_combo'] ?? 0);
+                    if ($perCombo > 0) {
+                        $comboFloor[(string) $mid] = ($comboFloor[(string) $mid] ?? 0) + $qty * $perCombo;
+                    }
+                }
+            } elseif ($materialItem->getMaterialType() !== 'physical_combo') {
+                $standaloneRows[] = [
+                    'material_id' => (string) $materialItem->getId(),
+                    'qty' => $qty,
+                    'name' => (string) $materialItem->getName(),
+                ];
+            }
+        }
+
+        if ($comboFloor === []) {
+            return null;
+        }
+
+        $standaloneTotal = [];
+        foreach ($standaloneRows as $row) {
+            $standaloneTotal[$row['material_id']] = ($standaloneTotal[$row['material_id']] ?? 0) + $row['qty'];
+        }
+
+        foreach ($standaloneRows as $row) {
+            $mid = $row['material_id'];
+            $floor = $comboFloor[$mid] ?? 0;
+            if ($floor <= 0) {
+                continue;
+            }
+            $childQty = $floor;
+            $otherStandalone = ($standaloneTotal[$mid] ?? 0) - $row['qty'];
+            $minQty = max(0, $floor - $childQty - $otherStandalone);
+            if ($row['qty'] < $minQty) {
+                return \sprintf(
+                    'Menge für «%s» darf nicht unter %d gesenkt werden (Kombo-Mindestbedarf).',
+                    $row['name'],
+                    $minQty,
+                );
+            }
+        }
+
+        return null;
     }
 
     /**

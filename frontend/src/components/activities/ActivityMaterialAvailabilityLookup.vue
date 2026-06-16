@@ -56,6 +56,7 @@
     </p>
     <div class="activity-material-lookup">
       <MaterialLookupInput
+        ref="materialLookupRef"
         :key="`${materialLookupScopeKey}-s${searchResetKey}`"
         v-model="matSearch"
         :fetcher="materialLookupFetcher"
@@ -92,7 +93,9 @@
                   active: activeIndex === entry.index,
                   'already-added': isAlreadyAdded(entry.mat.materialItemId),
                   'combo-component-row': isFixedComboComponentRow(entry.mat),
+                  'activity-mat-result-row--clickable': canSelectRow(entry.mat),
                 }"
+                @click="onResultRowClick(entry.mat)"
                 @mouseenter="setActiveIndex(entry.index)"
               >
                 <div class="activity-mat-result-info">
@@ -138,7 +141,7 @@
                   </span>
                   <span class="activity-mat-result-meta">
                     <span class="activity-mat-stock">
-                      <span :class="effectiveStock(entry.mat) > 0 ? 'text-green' : 'text-red'">{{ effectiveStock(entry.mat) }}</span>
+                      <span :class="displayFreeStock(entry.mat) > 0 ? 'text-green' : 'text-red'">{{ displayFreeStock(entry.mat) }}</span>
                       <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
                       <span
                         v-if="secondaryStockHint(entry.mat)"
@@ -155,8 +158,8 @@
                   </template>
                   <template
                     v-else-if="
-                      effectiveStock(entry.mat) > 0 &&
-                      (!isAlreadyAdded(entry.mat.materialItemId) || repeatAddFromSearch)
+                      maxAddableQty(entry.mat) > 0 &&
+                      (!isAlreadyAdded(entry.mat.materialItemId) || canRepeatAddMaterial(entry.mat.materialItemId))
                     "
                   >
                     <span v-if="isAlreadyAdded(entry.mat.materialItemId)" class="mat-already-badge">{{
@@ -173,7 +176,8 @@
                           })
                         "
                         :disabled="disabled"
-                        @mousedown.prevent="addQty(entry.mat, entry.mat.packSize)"
+                        @mousedown.prevent
+                        @click.stop="addQty(entry.mat, entry.mat.packSize)"
                       >
                         1 {{ entry.mat.packUnit || t('activities.materialAvailability.packUnitSet') }}
                       </button>
@@ -187,7 +191,8 @@
                           })
                         "
                         :disabled="disabled"
-                        @mousedown.prevent="addQty(entry.mat, entry.mat.packSize * 5)"
+                        @mousedown.prevent
+                        @click.stop="addQty(entry.mat, entry.mat.packSize * 5)"
                       >
                         5 {{ entry.mat.packUnit || t('activities.materialAvailability.packUnitSets') }}
                       </button>
@@ -199,7 +204,8 @@
                       class="activity-mat-quick-btn"
                       title="+1"
                       :disabled="disabled"
-                      @mousedown.prevent="addQty(entry.mat, 1)"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 1)"
                     >
                       +1
                     </button>
@@ -209,7 +215,8 @@
                       class="activity-mat-quick-btn"
                       title="+5"
                       :disabled="disabled"
-                      @mousedown.prevent="addQty(entry.mat, 5)"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 5)"
                     >
                       +5
                     </button>
@@ -219,7 +226,8 @@
                       class="activity-mat-quick-btn"
                       title="+10"
                       :disabled="disabled"
-                      @mousedown.prevent="addQty(entry.mat, 10)"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 10)"
                     >
                       +10
                     </button>
@@ -273,6 +281,17 @@
       </ul>
     </div>
 
+    <!-- Mengen-Dialog (Zeilenklick bei >1 frei) -->
+    <ActivityMaterialQuantityDialog
+      v-if="quantityPickerState"
+      :material-name="quantityPickerState.material.name"
+      :max-quantity="quantityPickerState.maxQuantity"
+      :pack-size="quantityPickerState.material.packSize"
+      :pack-unit="quantityPickerState.material.packUnit"
+      @confirm="onQuantityPickerConfirm"
+      @cancel="onQuantityPickerCancel"
+    />
+
     <!-- Konfigurator-Dialog (virtuelle Kombo zusammenstellen) -->
     <ComboConfiguratorDialog
       v-if="configuratorState"
@@ -319,6 +338,7 @@ import { buildVirtualComboConfigSnapshot } from '@/utils/virtualComboMaterial'
 import CombineWithExistingDialog, {
   type CombineOverlap,
 } from '@/components/activities/CombineWithExistingDialog.vue'
+import ActivityMaterialQuantityDialog from '@/components/activities/ActivityMaterialQuantityDialog.vue'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -610,26 +630,92 @@ function savedQtyFor(materialId: string): number {
   return typeof s === 'number' ? s : 0
 }
 
+function standaloneQtyForMaterial(materialId: string): number {
+  const std = props.standaloneQuantityByMaterialItemId
+  if (std && Object.keys(std).length > 0) {
+    return std[materialId] ?? 0
+  }
+  return props.quantityByMaterialItemId[materialId] ?? 0
+}
+
 function isAlreadyAdded(materialId: string): boolean {
   return draftQtyFor(materialId) > 0
 }
 
-function canAdd(m: ActivityPeriodAvailabilityMaterial, qty: number): boolean {
-  if (props.disabled || qty < 1) return false
+/**
+ * Extra-Menge buchbar, obwohl Material schon auf der Aktivität steht
+ * (z. B. nur als lose Kombo-Teil — dann eigenständige Zusatzposition erlauben).
+ */
+function canRepeatAddMaterial(materialId: string): boolean {
+  if (props.repeatAddFromSearch) return true
+  const total = draftQtyFor(materialId)
+  if (total <= 0) return false
+  const standalone = standaloneQtyForMaterial(materialId)
+  // Zusatzmenge erlauben, wenn nicht ausschliesslich eigenständige Zeile(n) (z. B. nur Kombo-Kind/together).
+  return standalone < total
+}
+
+/** Verbleibend buchbar im Zeitraum (API schliesst eigene Aktivität aus → Entwurfsmenge abziehen). */
+function maxAddableQty(m: ActivityPeriodAvailabilityMaterial): number {
   const raw = effectiveStock(m)
   const draft = draftQtyFor(m.materialItemId)
+  if (props.activityId) {
+    return Math.max(0, raw - draft)
+  }
   const saved = savedQtyFor(m.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  return adjustedFree >= qty
+  return Math.max(0, raw + saved - draft)
+}
+
+/** Anzeige «X frei» — nach Abzug der bereits auf dieser Aktivität gebuchten Menge. */
+function displayFreeStock(m: ActivityPeriodAvailabilityMaterial): number {
+  return maxAddableQty(m)
+}
+
+function canSelectRow(m: ActivityPeriodAvailabilityMaterial): boolean {
+  if (props.disabled) return false
+  if (isFixedComboComponentRow(m)) return false
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return false
+  if (isAlreadyAdded(m.materialItemId) && !canRepeatAddMaterial(m.materialItemId)) return false
+  return maxAddableQty(m) >= 1
+}
+
+function onResultRowClick(m: ActivityPeriodAvailabilityMaterial) {
+  if (!canSelectRow(m)) return
+  const max = maxAddableQty(m)
+  dismissMaterialLookupDropdown()
+  if (max <= 1) {
+    addQty(m, 1)
+    return
+  }
+  quantityPickerState.value = { material: m, maxQuantity: max }
+}
+
+const quantityPickerState = ref<{
+  material: ActivityPeriodAvailabilityMaterial
+  maxQuantity: number
+} | null>(null)
+
+function onQuantityPickerConfirm(qty: number) {
+  const state = quantityPickerState.value
+  quantityPickerState.value = null
+  if (!state) return
+  addQty(state.material, qty)
+}
+
+function onQuantityPickerCancel() {
+  quantityPickerState.value = null
+}
+
+function canAdd(m: ActivityPeriodAvailabilityMaterial, qty: number): boolean {
+  if (props.disabled || qty < 1) return false
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return false
+  return maxAddableQty(m) >= qty
 }
 
 function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   if (props.disabled) return
-  const raw = effectiveStock(m)
-  const draft = draftQtyFor(m.materialItemId)
-  const saved = savedQtyFor(m.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  const add = Math.min(qty, adjustedFree)
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return
+  const add = Math.min(qty, maxAddableQty(m))
   if (add < 1) return
   // Virtuelle Kombo → Konfigurator-Dialog (Gruppen/Toggles wählen + live Verfügbarkeit), Zeilenmodell B.
   if (m.materialType === 'virtual_combo') {
@@ -645,8 +731,16 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
 
 // ── Konfigurator-Dialog (virtuelle Kombo) ──
 const configuratorState = ref<{ material: ActivityPeriodAvailabilityMaterial; quantity: number } | null>(null)
+const materialLookupRef = ref<InstanceType<typeof MaterialLookupInput> | null>(null)
+
+function dismissMaterialLookupDropdown() {
+  materialLookupRef.value?.closeDropdown()
+  materialLookupRef.value?.resetLookup()
+  matSearch.value = ''
+}
 
 function openConfigurator(m: ActivityPeriodAvailabilityMaterial, qty: number) {
+  dismissMaterialLookupDropdown()
   configuratorState.value = { material: m, quantity: qty }
 }
 
@@ -674,6 +768,7 @@ function onConfiguratorConfirm(payload: {
   // „Kombinieren?": Überlapp der aufgelösten Teile mit vorhandenen Einzelpositionen erkennen.
   const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
   if (overlaps.length > 0) {
+    dismissMaterialLookupDropdown()
     combineState.value = {
       material: state.material,
       quantity: payload.quantity,
@@ -861,11 +956,8 @@ async function loadAccessorySuggestion(combo: ActivityPeriodAvailabilityMaterial
 
 function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   if (props.disabled) return
-  const raw = effectiveStock(acc)
-  const draft = draftQtyFor(acc.materialItemId)
-  const saved = savedQtyFor(acc.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  if (adjustedFree < 1) return
+  const add = maxAddableQty(acc)
+  if (add < 1) return
   emit('add-quantity', { material: acc, quantity: 1 })
 }
 </script>
@@ -1046,6 +1138,14 @@ function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   gap: 8px 12px;
   padding: 10px 12px;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.activity-mat-result-row--clickable {
+  cursor: pointer;
+}
+
+.activity-mat-result-row--clickable:hover {
+  background: #f0fdf4;
 }
 
 .activity-mat-result-row:last-child {

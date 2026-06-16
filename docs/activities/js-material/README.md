@@ -8,6 +8,15 @@ Vollständige Spezifikation für **J+S-Leihmaterial** in eMatChef: frühe Entsch
 
 **Referenzformular (extern):** J+S «Leihmaterialbestellung Lagersport/Trekking» (BASPO/J+S, Formularstand 16.06.2021)
 
+### Zwei J+S-PDFs — nicht verwechseln
+
+| PDF | Datei (im Repo) | Bedeutung in eMatChef |
+|-----|-----------------|------------------------|
+| **Gesamtkatalog** | [`250821_JS_Leihmaterial_Katalog_DE.pdf`](./250821_JS_Leihmaterial_Katalog_DE.pdf) | Alles, was J+S an Leihmaterial **überhaupt** hat — **nur Referenz** («Katalog anzeigen» im Modal). **Nicht bestellbar** über unser Formular. |
+| **Bestellformular Lagersport/Trekking** | [`bestellformular_lagersport_trekking_d.pdf`](./bestellformular_lagersport_trekking_d.pdf) | Das, was Pfadi **für Lager/Event (Sportart Lagersport/Trekking)** bei J+S **bestellen** darf. eMatChef-Katalog `dept_js00000` + PDF-Export = **1:1 diese Zeilen**. |
+
+Andere Sportarten (z. B. Ski) haben **eigene** J+S-Bestellformulare — out of scope für eMatChef v1.
+
 ---
 
 ## Inhaltsverzeichnis
@@ -241,7 +250,9 @@ Versand an J+S: **manuell per E-Mail** (v1); kein automatischer Versand.
 - Vorschläge aus Teilnehmerzahl + §7
 - Validierung gegen Bezugsberechtigung
 
-**Katalog-Referenz:** `250821_JS_Leihmaterial_Katalog_DE.pdf` — Link «Katalog anzeigen» im Modal, nicht zum Ausfüllen.
+**Katalog-Referenz:** [`250821_JS_Leihmaterial_Katalog_DE.pdf`](./250821_JS_Leihmaterial_Katalog_DE.pdf) — Link «Gesamtkatalog (Referenz)» im Modal, **nicht** zum Ausfüllen/Bestellen.
+
+**Bestellbare Positionen:** nur Zeilen aus [`bestellformular_lagersport_trekking_d.pdf`](./bestellformular_lagersport_trekking_d.pdf) — Katalog-Picker Schritt Material.
 
 ---
 
@@ -476,7 +487,7 @@ Berechtigung: `ActivityAccessService` — analog Material bearbeiten (Camp/Event
 | **1** | `wants_js_material` + Wizard-Toggle + Übersicht | Flag speichern ✓ |
 | **2** | `participant_count` + Department J+S-Defaults | Dotation vorbereitet ✓ |
 | **3** | DB + API `activity_js_order` (+ items), Modal Blöcke 1–3, Prefill | Speichern/Laden ✓ |
-| **4** | Block 4: Katalog-Picker + Dotation | Positionen + Validierung |
+| **4** | Block 4: Katalog-Picker + Dotation | Positionen + Validierung ✓ |
 | **5** | PDF-Export + Ablage | Drucken |
 | **6** | Pack-API `source_department_*` + Oberreiter | Getrennte Listen |
 | **7** | J+S-Reiter Check-UI + Backend-Moves | Empfang/Retour |

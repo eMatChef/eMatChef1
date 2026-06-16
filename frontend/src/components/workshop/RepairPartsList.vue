@@ -484,7 +484,7 @@ async function materialFetcher(query: string) {
 }
 
 function materialResultSecondary(item: Record<string, unknown>) {
-  const material = item as Material
+  const material = item as unknown as Material
   const available = Number(material.available ?? material.total_stock ?? 0)
   const categoryName = material.category?.name
   const isSparePart =
@@ -734,9 +734,7 @@ function onSourceChange(line: RepairPartLine, value: RepairPartSource) {
     return
   }
 
-  if (value !== 'rest') {
-    line.available_qty = null
-  }
+  line.available_qty = null
 
   if (value === 'purchase' && line.status === 'consumed') {
     line.status = 'planned'

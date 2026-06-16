@@ -14,6 +14,7 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 | **[material-pipeline.md](./material-pipeline.md)** | Bestellung vs. Pack-Pipeline, Quick vs. Logistics, Zuordnung zu Aktivitäts-Status |
 | **[pack-step-ui.md](./pack-step-ui.md)** | Zentrale Pack-Step-UI (Dual-Panel, Kisten, Spiegel-Ansicht, Workflow-Confirm) |
 | **[pack-workflow-rules.md](./pack-workflow-rules.md)** | **Ziel-Spezifikation** Pack-Regeln — Code: `packWorkflowRules.ts` |
+| **[newUI/](./newUI/)** | **Material-Journey UI** (neu): Checkliste, Stepper, Scan — parallel zu Legacy-Packliste, Route `pack-journey` |
 | **[js-material/](./js-material/)** | J+S-Leihmaterial: Flag, Bestellformular, Dotation, Pack-Reiter, Check-Flow |
 | **[kala/](./kala/)** | KALA / Grossanlass: `is_grossanlass`-Department, Setup-Seite, Unterlager, Ressorts, Planungsrunden |
 | **[Virtuelle Kombo (Pack)](../material/combos/virtual-combo-activities.md)** | `pack_mode`, logische Packkiste, `self_provided`-Bestätigung |

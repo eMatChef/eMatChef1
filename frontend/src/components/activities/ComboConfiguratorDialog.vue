@@ -1,6 +1,7 @@
 <template>
-  <div class="modal-overlay" @click.self="cancel">
-    <div class="modal-dialog combo-config-dialog">
+  <Teleport to="body">
+    <div class="modal-overlay" @click.self="cancel">
+      <div class="modal-dialog combo-config-dialog">
       <div class="ccd-head">
         <h3>{{ t('components.comboConfigurator.title', { name: comboName }) }}</h3>
         <p class="ccd-intro">{{ t('components.comboConfigurator.intro') }}</p>
@@ -144,6 +145,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

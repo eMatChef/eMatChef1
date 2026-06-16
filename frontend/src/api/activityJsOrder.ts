@@ -61,6 +61,30 @@ export interface ActivityJsOrderItemApi {
   sort_order: number
 }
 
+export interface JsOrderItemSaveRow {
+  material_item_id: string
+  quantity_ordered: number
+  dotation_suggested?: number | null
+  notes?: string | null
+}
+
+export interface JsCatalogItem {
+  id: string
+  name: string
+  description?: string | null
+  dotation_hint?: string | null
+  dotation_suggested?: number | null
+  dotation_max?: number | null
+  dotation_group?: string | null
+  dotation_group_max?: number | null
+  dotation_group_warn_max?: number | null
+  dotation_round_up?: number | null
+  stock_available?: number | null
+  pdf_form_line?: string | null
+  pdf_line_order?: number | null
+  variant_group?: string | null
+}
+
 export interface ActivityJsOrderApi {
   id: string
   activity_id: string
@@ -71,6 +95,8 @@ export interface ActivityJsOrderApi {
   ordered_at?: string | null
   ordered_by_user_id?: string | null
   generated_pdf_media_id?: string | null
+  generated_pdf_url?: string | null
+  dotation_warnings?: string[]
   items: ActivityJsOrderItemApi[]
   created_at: string
   updated_at: string
@@ -199,6 +225,10 @@ function mapOrder(raw: Record<string, unknown>): ActivityJsOrderApi {
     ordered_by_user_id: raw.ordered_by_user_id != null ? str(raw.ordered_by_user_id) : null,
     generated_pdf_media_id:
       raw.generated_pdf_media_id != null ? str(raw.generated_pdf_media_id) : null,
+    generated_pdf_url: raw.generated_pdf_url != null ? str(raw.generated_pdf_url) : null,
+    dotation_warnings: Array.isArray(raw.dotation_warnings)
+      ? raw.dotation_warnings.map((w) => str(w)).filter(Boolean)
+      : [],
     items: itemsRaw.map((item) => {
       const i = item as Record<string, unknown>
       return {
@@ -234,6 +264,7 @@ export async function saveActivityJsOrder(
     participant_count?: number | null
     delivery_type?: JsOrderDeliveryType
     status?: 'draft' | 'ready'
+    items?: JsOrderItemSaveRow[]
   },
 ): Promise<ActivityJsOrderApi> {
   const response = await apiClient.put<{ order: Record<string, unknown> }>(
@@ -258,6 +289,91 @@ export async function loadOrCreateActivityJsOrder(activityId: string): Promise<A
   const existing = await getActivityJsOrder(activityId)
   if (existing) return existing
   return prefillActivityJsOrder(activityId)
+}
+
+export async function getJsMaterialCatalog(params: {
+  departmentId: string
+  search?: string
+  page?: number
+  limit?: number
+  participantCount?: number | null
+  courseType?: string | null
+}): Promise<{ items: JsCatalogItem[]; total: number; page: number; limit: number }> {
+  const response = await apiClient.get<{
+    items: Record<string, unknown>[]
+    total: number
+    page: number
+    limit: number
+  }>('/api/materials/js-catalog', {
+    params: {
+      department_id: params.departmentId,
+      search: params.search?.trim() || undefined,
+      page: params.page ?? 1,
+      limit: params.limit ?? 40,
+      participant_count:
+        params.participantCount != null && params.participantCount >= 1
+          ? params.participantCount
+          : undefined,
+      course_type: params.courseType?.trim() || undefined,
+    },
+  })
+  const items = (response.data.items ?? []).map((raw) => ({
+    id: str(raw.id),
+    name: str(raw.name),
+    description: raw.description != null ? str(raw.description) : null,
+    dotation_hint: raw.dotation_hint != null ? str(raw.dotation_hint) : null,
+    dotation_suggested: numOrNull(raw.dotation_suggested),
+    dotation_max: numOrNull(raw.dotation_max),
+    dotation_group: raw.dotation_group != null ? str(raw.dotation_group) : null,
+    dotation_group_max: numOrNull(raw.dotation_group_max),
+    dotation_group_warn_max: numOrNull(raw.dotation_group_warn_max),
+    dotation_round_up: numOrNull(raw.dotation_round_up),
+    stock_available: numOrNull(raw.stock_available),
+    pdf_form_line: raw.pdf_form_line != null ? str(raw.pdf_form_line) : null,
+    pdf_line_order: numOrNull(raw.pdf_line_order),
+    variant_group: raw.variant_group != null ? str(raw.variant_group) : null,
+  }))
+  return {
+    items,
+    total: Number(response.data.total ?? 0) || 0,
+    page: Number(response.data.page ?? 1) || 1,
+    limit: Number(response.data.limit ?? 40) || 40,
+  }
+}
+
+export async function applyJsOrderDotation(
+  activityId: string,
+  options?: { participantCount?: number | null },
+): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.post<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/apply-dotation`,
+    {
+      participant_count:
+        options?.participantCount != null && options.participantCount >= 1
+          ? options.participantCount
+          : undefined,
+    },
+  )
+  return mapOrder(response.data.order)
+}
+
+export async function generateActivityJsOrderPdf(
+  activityId: string,
+): Promise<{ order: ActivityJsOrderApi; pdf_url: string }> {
+  const response = await apiClient.post<{ order: Record<string, unknown>; pdf_url: string }>(
+    `/api/activities/${activityId}/js-order/generate-pdf`,
+    {},
+  )
+  return {
+    order: mapOrder(response.data.order),
+    pdf_url: str(response.data.pdf_url),
+  }
+}
+
+export async function fetchActivityJsOrderPdfBlob(pdfUrl: string): Promise<Blob> {
+  const path = pdfUrl.startsWith('/') ? pdfUrl : `/${pdfUrl}`
+  const response = await apiClient.get<Blob>(path, { responseType: 'blob' })
+  return response.data
 }
 
 export function jsOrderStatusLabelKey(status: JsOrderStatus | null | undefined): string {

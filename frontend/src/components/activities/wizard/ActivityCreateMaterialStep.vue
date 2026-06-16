@@ -125,9 +125,9 @@ const invitedDepartmentsForLookup = computed(() =>
 )
 
 function onRemoveLine({ line, index }: { line: ActivityMaterialLine; index: number }) {
+  if (line.material_type === 'virtual_combo') return
   if (
     line.material_type !== 'physical_combo' &&
-    line.material_type !== 'virtual_combo' &&
     !canRemoveStandaloneLine(line, props.modelValue, {
       treatComboFloorAsChildCoverage: true,
       baseMinQty: 1,

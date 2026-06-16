@@ -411,15 +411,15 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 ## 8. Implementierungs-Lücken (Ist-Zustand)
 
-- [ ] Verfügbarkeits-SQL löst virtuelle Kombo **nicht** in Komponenten auf → Buchung einer virtuellen Kombo reserviert faktisch nichts.
-- [ ] `reservation_mode` wird **nicht** konsumiert (nur gespeichert/angezeigt).
-- [ ] Kein `on_issue`-Auflösungs-Flow beim Packen (keine Pick-/Scan-Liste für serialisierte Teile der virtuellen Kombo).
+- [x] **Zeilenmodell B (Paket 5/7):** Virtuelle Kombo expandiert in Kind-`activity_item`-Zeilen → Reservierungs-SQL zählt Komponenten.
+- [x] **`reservation_mode` entfernt** (Paket 2).
+- [x] **`on_issue` / Packen:** Kind-Zeilen nutzen die reguläre Pack-Pipeline (Pick/Scan pro Komponente); virtuelle Eltern-Zeile erzeugt keine eigene Pack-Position.
 - [x] **Behoben (Paket 0):** `is_optional`-Haken bei physischen Kombos ausgeblendet.
-- [ ] Kein Varianten-/Konfigurator-BOM (abhängige Mengen, Entweder-Oder).
-- [x] **Umgesetzt (Paket 7):** „Kombinieren?"-Dialog (`CombineWithExistingDialog.vue`) bei Überlapp einer Kombo-Option mit vorhandener Einzelposition — fragt statt doppelt zu reservieren; „Vorhandene nutzen" reduziert die Einzelposition.
-- [x] **Umgesetzt (Paket 1):** Entwurfs-Flag `combo_status` (draft/ready) auf `MaterialItem` inkl. Migration, Create→draft, `finalize-combo`, Draft-Ausschluss in der Verfügbarkeit, Badge.
-- [ ] `reservation_mode` noch vorhanden (in Wizard/Detail/Vorlage), soll **entfernt** werden (Paket 2).
-- [x] **Behoben:** Wert-Inkonsistenz im Wizard – erster Reservationsmodus-Block nutzte `individual_parts` statt `individual` (jetzt einheitlich `individual`).
+- [x] **Varianten-/Konfigurator-BOM** (Options-Gruppen + Deltas, Paket 5/6).
+- [x] **Umgesetzt (Paket 7):** „Kombinieren?"-Dialog bei Überlapp.
+- [x] **Umgesetzt (Paket 1):** Entwurfs-Flag `combo_status` (draft/ready).
+- [x] **Umgesetzt (Paket 8):** `pack_mode`, Floor Einzelzeilen, Wizard-Übersicht, `self_provided_acknowledged`.
+- [x] **Behoben:** Wert-Inkonsistenz `individual` vs. `individual_parts` im Wizard.
 
 ---
 

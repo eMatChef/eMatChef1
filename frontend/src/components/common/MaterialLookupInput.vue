@@ -307,6 +307,8 @@ function selectResult(item: GenericItem) {
 defineExpose({
   focus: () => inputRef.value?.focus(),
   blur: () => inputRef.value?.blur(),
+  closeDropdown: () => lookup.closeNow(),
+  resetLookup: () => lookup.reset(),
 })
 </script>
 

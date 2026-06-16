@@ -203,9 +203,9 @@ export function parseDiagramJson(
   raw: RepairDiagramJson | Record<string, unknown> | null | undefined
 ): RepairDiagramJson | null {
   if (!raw || typeof raw !== 'object') return null
-  const markers = Array.isArray((raw as RepairDiagramJson).markers)
+  const markers = (Array.isArray((raw as RepairDiagramJson).markers)
     ? (raw as RepairDiagramJson).markers
-    : []
+    : []) ?? []
   return {
     viewBox: typeof (raw as RepairDiagramJson).viewBox === 'string'
       ? (raw as RepairDiagramJson).viewBox

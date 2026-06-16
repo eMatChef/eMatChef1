@@ -2926,7 +2926,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, withDefaults } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   createMaterial,
@@ -6034,7 +6034,7 @@ async function onComboArticleSearchSelect(mat: ComboArticleInput, suggestion: { 
     }
     mat.id = loaded.id
     mat.name = loaded.name
-    mat.category = loaded.category
+    mat.category = loaded.category ?? undefined
     mat.total_stock = loaded.total_stock ?? 0
     mat.free_stock = loaded.free_stock ?? loaded.total_stock ?? 0
     mat.tracking = loaded.tracking_type === 'serialized' ? 'serialized' : 'bulk'
@@ -7027,7 +7027,7 @@ async function handleSubmit() {
         successMessage = t('components.materialCreateWizard.successArticleFromTemplate')
       } else if (result.material) {
         if (mode === 'physical_combo') {
-          followUpBatchId = resolveComboFollowUpBatchId(result.material as Material)
+          followUpBatchId = resolveComboFollowUpBatchId(result.material as unknown as Material)
           followUpMaterialItemId = result.material.id
         }
         emit('created', result.material as any)

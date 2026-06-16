@@ -147,37 +147,78 @@
                     </ul>
                   </div>
                 </div>
-                <!-- Set-Anzeige „wie Kiste": aufgelöste Teile der virtuellen Kombo -->
-                <div v-if="row.material_type === 'virtual_combo' && comboSetContent(row)" class="activity-mat-set-content">
-                  <span class="activity-mat-set-title text-muted">
-                    <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
-                    {{ t('activities.detail.comboSetContentTitle') }}
-                  </span>
+                <!-- Virtuelle Kombo: Pack-Vorgabe + Set-Inhalt nur bei «zusammen» -->
+                <div
+                  v-if="row.material_type === 'virtual_combo'"
+                  class="activity-mat-set-content"
+                >
+                  <div
+                    v-if="virtualComboPackModeEditable"
+                    class="activity-mat-pack-mode-edit"
+                  >
+                    <span class="activity-mat-pack-mode-edit-label text-muted">
+                      {{ t('components.comboConfigurator.packModeTitle') }}
+                    </span>
+                    <label class="activity-mat-pack-mode-option">
+                      <input
+                        type="radio"
+                        :name="`pack-mode-${rowKey(row, originalIndex)}`"
+                        value="together"
+                        :checked="effectiveVirtualComboPackMode(row) === 'together'"
+                        :disabled="disabled"
+                        @change="setVirtualComboPackMode(originalIndex, 'together')"
+                      />
+                      <span>{{ t('components.comboConfigurator.packModeTogether', { name: row.material_name }) }}</span>
+                    </label>
+                    <label class="activity-mat-pack-mode-option">
+                      <input
+                        type="radio"
+                        :name="`pack-mode-${rowKey(row, originalIndex)}`"
+                        value="loose"
+                        :checked="effectiveVirtualComboPackMode(row) === 'loose'"
+                        :disabled="disabled"
+                        @change="setVirtualComboPackMode(originalIndex, 'loose')"
+                      />
+                      <span>{{ t('components.comboConfigurator.packModeLoose') }}</span>
+                    </label>
+                  </div>
                   <span
-                    v-if="virtualComboPackModeLabel(row)"
+                    v-else-if="virtualComboPackModeLabel(row)"
                     class="activity-mat-pack-mode-hint text-muted"
                   >
                     {{ virtualComboPackModeLabel(row) }}
                   </span>
-                  <ul class="activity-mat-set-list">
-                    <li v-for="c in comboSetContent(row)!.resolved" :key="`r-${c.component_material_id}`">
-                      {{ c.total_qty }}× {{ c.name }}
-                    </li>
-                    <li
-                      v-for="c in comboSetContent(row)!.selfProvided"
-                      :key="`s-${c.component_material_id}`"
-                      class="activity-mat-set-self"
-                    >
-                      {{ c.total_qty }}× {{ c.name }}
-                      <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
-                      <span
-                        v-if="row.config_snapshot?.self_provided_acknowledged"
-                        class="activity-mat-selfprovided-ack-badge"
+                  <template v-if="effectiveVirtualComboPackMode(row) === 'together' && comboSetContent(row)">
+                    <span class="activity-mat-set-title text-muted">
+                      <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
+                      {{ t('activities.detail.comboSetContentTitle') }}
+                    </span>
+                    <ul class="activity-mat-set-list">
+                      <li v-for="c in comboSetContent(row)!.resolved" :key="`r-${c.component_material_id}`">
+                        {{ c.total_qty }}× {{ c.name }}
+                      </li>
+                      <li
+                        v-for="c in comboSetContent(row)!.selfProvided"
+                        :key="`s-${c.component_material_id}`"
+                        class="activity-mat-set-self"
                       >
-                        {{ formatSelfProvidedAckBadge(row.config_snapshot) }}
-                      </span>
-                    </li>
-                  </ul>
+                        {{ c.total_qty }}× {{ c.name }}
+                        <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
+                        <span
+                          v-if="row.config_snapshot?.self_provided_acknowledged"
+                          class="activity-mat-selfprovided-ack-badge"
+                        >
+                          {{ formatSelfProvidedAckBadge(row.config_snapshot) }}
+                        </span>
+                      </li>
+                    </ul>
+                  </template>
+                  <p
+                    v-else-if="effectiveVirtualComboPackMode(row) === 'loose'"
+                    class="activity-mat-pack-mode-hint text-muted"
+                  >
+                    {{ t('activities.detail.virtualComboLoosePartsHint') }}
+                  </p>
                 </div>
               </div>
             </td>
@@ -215,9 +256,7 @@
                   row.quantity
                 }}</span>
                 <span class="activity-mat-pack-hint text-muted">{{
-                  lineLockedForPackListOnly(row)
-                    ? t('activities.materialLinesTable.packList')
-                    : t('activities.materialLinesTable.qtyPackingReadonlyHint')
+                  qtyLockedHint(row)
                 }}</span>
               </div>
               <div
@@ -373,14 +412,10 @@
               </span>
             </td>
             <td class="activity-mat-cell-remove">
-              <template v-if="qtyRowLocked(row)">
+              <template v-if="qtyRowLocked(row) || !canRemoveLine(row)">
                 <span
                   class="activity-mat-remove-na text-muted"
-                  :title="
-                    lineLockedForPackListOnly(row)
-                      ? t('activities.materialLinesTable.packListRemoveTitle')
-                      : t('activities.materialLinesTable.qtyPackingRemoveTitle')
-                  "
+                  :title="removeBlockedTitle(row)"
                   >{{ t('activities.wizard.form.summaryEmpty') }}</span
                 >
               </template>
@@ -391,7 +426,7 @@
                   class="activity-material-remove"
                   :title="t('activities.materialLinesTable.removeLineTitle')"
                   :aria-label="t('activities.materialLinesTable.removeLineAria', { name: row.material_name })"
-                  :disabled="disabled || !canRemoveLine(row)"
+                  :disabled="disabled"
                   @click="emitRemove(originalIndex)"
                 >
                   ×
@@ -401,7 +436,7 @@
                   variant="secondary"
                   size="x-small"
                   class="activity-mat-remove-text"
-                  :disabled="disabled || removeBusyFor(row) || !canRemoveLine(row)"
+                  :disabled="disabled || removeBusyFor(row)"
                   @click="emitRemove(originalIndex)"
                 >
                   {{ t('common.remove') }}
@@ -427,6 +462,7 @@ import type { MaterialLookupAvailabilityContext } from '@/composables/useMateria
 import { COMBO_BADGE } from '@/utils/comboDisplay'
 import {
   canRemoveStandaloneLine,
+  isVirtualComboChildLine,
   minStandaloneQtyForLine,
   type VirtualComboFloorOptions,
 } from '@/utils/virtualComboMaterial'
@@ -455,6 +491,8 @@ const props = withDefaults(
     packingStageQuantityReadonly?: boolean
     /** Kind-Zeilen aus API (Detail): Mengen pro Material für Kombo-Floor */
     childQuantityByMaterialItemId?: Record<string, number>
+    /** Virt. Kombo: pack_mode nachträglich änderbar (Detail vor «gepackt») */
+    virtualComboPackModeEditable?: boolean
   }>(),
   {
     activityId: null,
@@ -470,6 +508,7 @@ const props = withDefaults(
     materialScopeSinglePartnerId: null,
     packingStageQuantityReadonly: false,
     childQuantityByMaterialItemId: () => ({}),
+    virtualComboPackModeEditable: false,
   },
 )
 
@@ -480,6 +519,7 @@ const emptyTextDisplay = computed(() => props.emptyText ?? t('activities.materia
 const emit = defineEmits<{
   'update:modelValue': [value: ActivityMaterialLine[]]
   'remove-line': [payload: { line: ActivityMaterialLine; index: number }]
+  'pack-mode-change': [payload: { line: ActivityMaterialLine; mode: 'together' | 'loose' }]
 }>()
 
 const minQty = computed(() => (props.variant === 'wizard' ? 1 : 0))
@@ -490,8 +530,19 @@ const floorOptions = computed((): VirtualComboFloorOptions => ({
   baseMinQty: minQty.value,
 }))
 
+function isVirtualComboParentRow(row: ActivityMaterialLine): boolean {
+  return row.material_type === 'virtual_combo'
+}
+
+function isVirtualComboLooseChildRow(row: ActivityMaterialLine): boolean {
+  return isVirtualComboChildLine(row)
+}
+
 function minQtyForRow(row: ActivityMaterialLine): number {
-  if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') {
+  if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) {
+    return Math.max(1, row.quantity)
+  }
+  if (row.material_type === 'physical_combo') {
     return minQty.value
   }
   return minStandaloneQtyForLine(row, props.modelValue, floorOptions.value)
@@ -506,7 +557,8 @@ function comboFloorHint(row: ActivityMaterialLine): string | null {
 
 function canRemoveLine(row: ActivityMaterialLine): boolean {
   if (qtyRowLocked(row)) return false
-  if (row.material_type === 'physical_combo' || row.material_type === 'virtual_combo') return true
+  if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) return false
+  if (row.material_type === 'physical_combo') return true
   return canRemoveStandaloneLine(row, props.modelValue, floorOptions.value)
 }
 
@@ -586,6 +638,26 @@ function comboSetContent(row: ActivityMaterialLine): {
   const selfProvided = snap?.self_provided ?? []
   if (resolved.length === 0 && selfProvided.length === 0) return null
   return { resolved, selfProvided }
+}
+
+function effectiveVirtualComboPackMode(row: ActivityMaterialLine): 'together' | 'loose' {
+  const mode = row.config_snapshot?.pack_mode ?? row.pack_mode
+  return mode === 'together' ? 'together' : 'loose'
+}
+
+function setVirtualComboPackMode(originalIndex: number, mode: 'together' | 'loose') {
+  const row = props.modelValue[originalIndex]
+  if (!row || row.material_type !== 'virtual_combo' || props.disabled) return
+  if (effectiveVirtualComboPackMode(row) === mode) return
+  const snap = { ...(row.config_snapshot ?? {}), pack_mode: mode }
+  const lines = [...props.modelValue]
+  lines[originalIndex] = {
+    ...lines[originalIndex],
+    pack_mode: mode,
+    config_snapshot: snap as NonNullable<ActivityMaterialLine['config_snapshot']>,
+  }
+  emit('update:modelValue', lines)
+  emit('pack-mode-change', { line: lines[originalIndex], mode })
 }
 
 function virtualComboPackModeLabel(row: ActivityMaterialLine): string | null {
@@ -788,7 +860,43 @@ function lineLockedForPackListOnly(row: ActivityMaterialLine): boolean {
 }
 
 function qtyRowLocked(row: ActivityMaterialLine): boolean {
+  if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) return true
   return lineLockedForPackListOnly(row) || props.packingStageQuantityReadonly === true
+}
+
+function qtyLockedHint(row: ActivityMaterialLine): string {
+  if (isVirtualComboLooseChildRow(row)) {
+    return t('activities.materialLinesTable.virtualComboChildQtyHint')
+  }
+  if (isVirtualComboParentRow(row)) {
+    return t('activities.materialLinesTable.virtualComboQtyHint')
+  }
+  if (lineLockedForPackListOnly(row)) {
+    return t('activities.materialLinesTable.packList')
+  }
+  return t('activities.materialLinesTable.qtyPackingReadonlyHint')
+}
+
+function qtyLockedRemoveTitle(row: ActivityMaterialLine): string {
+  if (isVirtualComboLooseChildRow(row)) {
+    return t('activities.materialLinesTable.virtualComboChildRemoveTitle')
+  }
+  if (isVirtualComboParentRow(row)) {
+    return t('activities.materialLinesTable.virtualComboRemoveTitle')
+  }
+  if (lineLockedForPackListOnly(row)) {
+    return t('activities.materialLinesTable.packListRemoveTitle')
+  }
+  return t('activities.materialLinesTable.qtyPackingRemoveTitle')
+}
+
+function removeBlockedTitle(row: ActivityMaterialLine): string {
+  if (qtyRowLocked(row)) return qtyLockedRemoveTitle(row)
+  const minQ = minQtyForRow(row)
+  if (minQ > minQty.value) {
+    return t('activities.materialLinesTable.comboFloorRemoveTitle', { min: minQ })
+  }
+  return t('activities.materialLinesTable.removeLineTitle')
 }
 
 function lineHasIssue(row: ActivityMaterialLine): boolean {
@@ -1265,6 +1373,32 @@ function applyAllSuggestedQuantities() {
   display: block;
   margin: 0.15rem 0 0.35rem;
   font-size: 0.78rem;
+}
+
+.activity-mat-pack-mode-edit {
+  margin: 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.activity-mat-pack-mode-edit-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.activity-mat-pack-mode-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.activity-mat-pack-mode-option input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
 }
 
 .activity-mat-selfprovided-ack-badge {
