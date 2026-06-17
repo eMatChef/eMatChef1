@@ -302,8 +302,12 @@
           </v-tabs-window-item>
 
           <v-tabs-window-item value="material" class="activity-detail-window-item">
-            <div class="activity-detail-tab-panel tab-content">
-            <ActivityTabHeader :title="t('common.material')" />
+            <div class="activity-detail-tab-panel tab-content activity-material-tab">
+            <ActivityTabHeader :title="t('common.material')">
+              <p class="activity-material-tab-hint text-muted">
+                {{ t('activities.materialTab.planningHint') }}
+              </p>
+            </ActivityTabHeader>
             <div
               v-if="showDraftMaterialAddForGroup"
               class="section-card activity-tab-panel-card activity-draft-material-add-card"
@@ -2557,6 +2561,7 @@ useBackgroundPoll({
 <style scoped src="@/styles/material-detail-view.css"></style>
 <style scoped src="@/styles/views/activities/detail-panel.css"></style>
 <style scoped src="@/styles/views/activities/detail-workflow.css"></style>
+<style scoped src="@/styles/views/activities/activity-material-tab.css"></style>
 <style scoped>
 .activity-detail-view.material-detail-view {
   height: auto;

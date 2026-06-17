@@ -5,6 +5,7 @@
     :title="t('grossanlass.wizard.title')"
     scrollable
     persistent
+    :retain-focus="false"
     card-class="grossanlass-wizard-card"
   >
     <form id="grossanlass-wizard-form" class="grossanlass-wizard-body" @submit.prevent="handleSubmit">
@@ -17,8 +18,8 @@
         class="mb-1"
         required
       />
-      <p v-if="duplicateNameInOrganisation" class="field-error mb-3">
-        {{ t('grossanlass.wizard.nameDuplicate') }}
+      <p v-if="conflictingDepartmentName" class="field-error mb-3">
+        {{ t('grossanlass.wizard.nameDuplicate', { name: conflictingDepartmentName }) }}
       </p>
       <div v-else class="mb-3" />
 
@@ -83,7 +84,7 @@
         </div>
       </div>
 
-      <div v-if="formData.organisationId" class="form-group mb-3">
+      <div class="form-group mb-3">
         <label class="form-label">{{ t('grossanlass.wizard.chiefMwLabel') }}</label>
         <p class="form-hint mb-2">{{ t('grossanlass.wizard.chiefMwHint') }}</p>
         <div class="autocomplete-wrapper">
@@ -93,41 +94,38 @@
           </div>
           <div v-else>
             <input
+              ref="chiefMwInputRef"
               v-model="chiefMwSearchQuery"
               type="text"
               class="form-input"
               :placeholder="t('grossanlass.wizard.userSearchPlaceholder')"
-              @focus="showChiefMwDropdown = true"
+              autocomplete="off"
+              @focus="onChiefMwFocus"
               @blur="handleChiefMwBlur"
               @input="onChiefMwSearchInput"
             />
-            <div
-              v-if="showChiefMwDropdown && chiefMwSearchQuery.trim().length >= 2 && isSearchingChiefMw"
-              class="autocomplete-dropdown"
-            >
-              <div class="autocomplete-empty">{{ t('common.loading') }}</div>
-            </div>
-            <div
-              v-else-if="showChiefMwDropdown && chiefMwSearchQuery.trim().length >= 2 && chiefMwSearchResults.length > 0"
-              class="autocomplete-dropdown"
-            >
+            <Teleport to="body">
               <div
-                v-for="user in chiefMwSearchResults"
-                :key="user.id"
-                class="autocomplete-item"
-                @mousedown.prevent="selectChiefMw(user)"
+                v-if="chiefMwDropdownVisible"
+                class="autocomplete-dropdown autocomplete-dropdown--teleported"
+                :style="chiefMwDropdownStyle"
               >
-                <span class="ac-name">{{ formatUserName(user) }}</span>
-                <span class="ac-email">{{ user.email }}</span>
-                <span v-if="user.departments_label" class="ac-depts">{{ user.departments_label }}</span>
+                <div v-if="isSearchingChiefMw" class="autocomplete-empty">{{ t('common.loading') }}</div>
+                <template v-else-if="chiefMwSearchResults.length > 0">
+                  <div
+                    v-for="user in chiefMwSearchResults"
+                    :key="user.id"
+                    class="autocomplete-item"
+                    @mousedown.prevent="selectChiefMw(user)"
+                  >
+                    <span class="ac-name">{{ formatUserName(user) }}</span>
+                    <span class="ac-email">{{ user.email }}</span>
+                    <span v-if="user.departments_label" class="ac-depts">{{ user.departments_label }}</span>
+                  </div>
+                </template>
+                <div v-else class="autocomplete-empty">{{ t('grossanlass.wizard.noUserSearchResults') }}</div>
               </div>
-            </div>
-            <div
-              v-else-if="showChiefMwDropdown && chiefMwSearchQuery.trim().length >= 2 && !isSearchingChiefMw"
-              class="autocomplete-dropdown"
-            >
-              <div class="autocomplete-empty">{{ t('grossanlass.wizard.noUserSearchResults') }}</div>
-            </div>
+            </Teleport>
           </div>
         </div>
         <v-alert
@@ -151,7 +149,7 @@
         type="submit"
         form="grossanlass-wizard-form"
         :loading="isSubmitting"
-        :disabled="isSubmitting || duplicateNameInOrganisation"
+        :disabled="isSubmitting || Boolean(conflictingDepartmentName)"
       >
         {{ t('grossanlass.wizard.create') }}
       </EButton>
@@ -160,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -185,6 +183,7 @@ import {
 } from '@/utils/organisationUserPicker'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
 import { defaultUsageWindowFromDepartmentDefaults } from '@/utils/activityPlanningFromDefaults'
+import { departmentNamesConflict } from '@/utils/departmentNameMatcher'
 import '@/styles/components/activity-datetime-field.css'
 import '@/styles/components/activity-datetime-layout.css'
 
@@ -265,12 +264,48 @@ const allDepartments = ref<Department[]>([])
 const availableUsers = ref<AvailableUser[]>([])
 const chiefMwSearchQuery = ref('')
 const showChiefMwDropdown = ref(false)
+const chiefMwInputRef = ref<HTMLInputElement | null>(null)
+const chiefMwDropdownStyle = ref<Record<string, string>>({})
 const selectedChiefMw = ref<AvailableUser | null>(null)
 const showChiefMwWarning = ref(false)
 const isSearchingChiefMw = ref(false)
 let chiefMwSearchTimer: ReturnType<typeof setTimeout> | null = null
+let chiefMwPositionListenersBound = false
+
+const CHIEF_MW_DROPDOWN_Z_INDEX = 2700
+const CHIEF_MW_DROPDOWN_MAX_HEIGHT = 280
 
 const chiefMwSearchResults = computed(() => availableUsers.value)
+
+const chiefMwQueryTrimmed = computed(() => chiefMwSearchQuery.value.trim())
+
+const chiefMwDropdownVisible = computed(
+  () =>
+    showChiefMwDropdown.value &&
+    !selectedChiefMw.value &&
+    chiefMwQueryTrimmed.value.length >= 2,
+)
+
+watch(chiefMwDropdownVisible, async (open) => {
+  if (!open) {
+    unbindChiefMwPositionListeners()
+    return
+  }
+  await nextTick()
+  syncChiefMwDropdownPosition()
+  bindChiefMwPositionListeners()
+})
+
+watch([chiefMwSearchResults, isSearchingChiefMw], () => {
+  if (chiefMwDropdownVisible.value) {
+    void nextTick().then(syncChiefMwDropdownPosition)
+  }
+})
+
+onUnmounted(() => {
+  unbindChiefMwPositionListeners()
+  if (chiefMwSearchTimer) clearTimeout(chiefMwSearchTimer)
+})
 
 const formData = ref({
   name: '',
@@ -282,20 +317,19 @@ const organisationItems = computed(() =>
   organisations.value.map((org) => ({ title: org.name, value: org.id })),
 )
 
-function normalizeDepartmentName(name: string): string {
-  return name.trim().toLowerCase()
+function findConflictingDepartmentName(name: string, organisationId: string): string | null {
+  const trimmed = name.trim()
+  if (!trimmed || !organisationId) return null
+  const hit = allDepartments.value.find(
+    (dept) =>
+      dept.organisation_id === organisationId && departmentNamesConflict(trimmed, dept.name),
+  )
+  return hit?.name ?? null
 }
 
-const duplicateNameInOrganisation = computed(() => {
-  const name = formData.value.name.trim()
-  const orgId = formData.value.organisationId
-  if (!name || !orgId) return false
-  const normalized = normalizeDepartmentName(name)
-  return allDepartments.value.some(
-    (dept) =>
-      dept.organisation_id === orgId && normalizeDepartmentName(dept.name) === normalized,
-  )
-})
+const conflictingDepartmentName = computed(() =>
+  findConflictingDepartmentName(formData.value.name, formData.value.organisationId),
+)
 
 const availableParentDepartmentsTree = computed(() => {
   if (!formData.value.organisationId) return []
@@ -347,10 +381,68 @@ function onOrganisationChange() {
   }
 }
 
+function syncChiefMwDropdownPosition() {
+  const el = chiefMwInputRef.value
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(Math.max(rect.width, 320), vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+
+  if (openBelow) {
+    chiefMwDropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${Math.min(CHIEF_MW_DROPDOWN_MAX_HEIGHT, Math.max(spaceBelow - 4, 80))}px`,
+      zIndex: String(CHIEF_MW_DROPDOWN_Z_INDEX),
+    }
+    return
+  }
+
+  chiefMwDropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: `${Math.min(CHIEF_MW_DROPDOWN_MAX_HEIGHT, Math.max(spaceAbove - 4, 80))}px`,
+    zIndex: String(CHIEF_MW_DROPDOWN_Z_INDEX),
+  }
+}
+
+function onChiefMwPositionChange() {
+  if (chiefMwDropdownVisible.value) syncChiefMwDropdownPosition()
+}
+
+function bindChiefMwPositionListeners() {
+  if (chiefMwPositionListenersBound) return
+  chiefMwPositionListenersBound = true
+  window.addEventListener('resize', onChiefMwPositionChange)
+  window.addEventListener('scroll', onChiefMwPositionChange, true)
+}
+
+function unbindChiefMwPositionListeners() {
+  if (!chiefMwPositionListenersBound) return
+  chiefMwPositionListenersBound = false
+  window.removeEventListener('resize', onChiefMwPositionChange)
+  window.removeEventListener('scroll', onChiefMwPositionChange, true)
+}
+
+function onChiefMwFocus() {
+  showChiefMwDropdown.value = true
+  void nextTick().then(syncChiefMwDropdownPosition)
+}
+
 function onChiefMwSearchInput() {
   if (chiefMwSearchTimer) clearTimeout(chiefMwSearchTimer)
   const query = chiefMwSearchQuery.value.trim()
-  if (!formData.value.organisationId || query.length < 2) {
+  if (query.length < 2) {
     availableUsers.value = []
     isSearchingChiefMw.value = false
     return
@@ -363,13 +455,11 @@ function onChiefMwSearchInput() {
 }
 
 async function searchChiefMwUsers(query: string) {
-  if (!formData.value.organisationId) {
-    availableUsers.value = []
-    isSearchingChiefMw.value = false
-    return
-  }
   try {
-    availableUsers.value = await getGrossanlassAvailableUsers(formData.value.organisationId, query)
+    availableUsers.value = await getGrossanlassAvailableUsers(
+      query,
+      formData.value.organisationId || null,
+    )
   } catch {
     availableUsers.value = []
   } finally {
@@ -382,6 +472,7 @@ function selectChiefMw(user: AvailableUser) {
   chiefMwSearchQuery.value = ''
   showChiefMwDropdown.value = false
   showChiefMwWarning.value = false
+  unbindChiefMwPositionListeners()
 }
 
 function clearChiefMw() {
@@ -470,8 +561,8 @@ async function handleSubmit() {
     error.value = t('grossanlass.wizard.nameRequired')
     return
   }
-  if (duplicateNameInOrganisation.value) {
-    error.value = t('grossanlass.wizard.nameDuplicate')
+  if (conflictingDepartmentName.value) {
+    error.value = t('grossanlass.wizard.nameDuplicate', { name: conflictingDepartmentName.value })
     return
   }
   if (!formData.value.organisationId) {
@@ -631,19 +722,12 @@ async function handleSubmit() {
   color: #6b7280;
 }
 
-.autocomplete-dropdown {
-  position: absolute;
-  z-index: 10;
-  left: 0;
-  right: 0;
-  top: 100%;
-  margin-top: 4px;
-  background: white;
+.autocomplete-dropdown--teleported {
+  overflow-y: auto;
+  background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  max-height: 200px;
-  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
 }
 
 .autocomplete-item {

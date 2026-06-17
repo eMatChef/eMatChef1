@@ -13,12 +13,18 @@ import MaterialJourneyJsBanner from '@/components/activities/materialJourney/Mat
 import MaterialCrateCheckSheet from '@/components/activities/materialJourney/MaterialCrateCheckSheet.vue'
 import MaterialComboCheckSheet from '@/components/activities/materialJourney/MaterialComboCheckSheet.vue'
 import MaterialReturnCrateSheet from '@/components/activities/materialJourney/MaterialReturnCrateSheet.vue'
+import MaterialStoreShelveSheet from '@/components/activities/materialJourney/MaterialStoreShelveSheet.vue'
 import type { ReturnCrateLineEdit } from '@/components/activities/PackReturnCrateModal.vue'
 import MaterialJourneyScanBar from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
 import MaterialScanResultCard from '@/components/activities/materialJourney/MaterialScanResultCard.vue'
 import { useMaterialJourneyScan } from '@/composables/useMaterialJourneyScan'
 import { groupMaterialJourneyTasksByShelf } from '@/components/activities/materialJourneyRegalGroups'
+import MaterialJourneyTransportTours from '@/components/activities/materialJourney/MaterialJourneyTransportTours.vue'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import {
+  isJourneyTransportBackStep,
+  isJourneyTransportOutStep,
+} from '@/components/activities/materialJourneySteps'
 import { useMaterialJourneyData } from '@/composables/useMaterialJourneyData'
 import { useMaterialJourneyTasks } from '@/composables/useMaterialJourneyTasks'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
@@ -88,6 +94,16 @@ const {
   taskRowForScanResult,
   packListCtx,
   returnCrate,
+  storeShelveOpen,
+  activeStoreItem,
+  activeStoreMaxQty,
+  storeShelveQty,
+  storeShelveSubmitting,
+  storeShelveFeedback,
+  submitStoreShelve,
+  onStoreShelveNext,
+  onStoreShelveStay,
+  allTasks,
 } = useMaterialJourneyTasks({
   activity,
   packItems,
@@ -206,6 +222,16 @@ const showJsBanner = computed(() => showMaterialJourneyJsBanner(activity.value))
 
 const jsSummary = computed(() => computeMaterialJourneyJsSummary(packItems.value))
 
+const showTransportTours = computed(
+  () =>
+    isJourneyTransportOutStep(resolvedStep.value) ||
+    isJourneyTransportBackStep(resolvedStep.value),
+)
+
+const transportAssignableTasks = computed(() =>
+  allTasks.value.filter((row) => row.isOpen && (row.kind === 'crate' || row.kind === 'loose')),
+)
+
 function journeyRouteForStep(step: JourneyStep) {
   return {
     name: 'ActivityPackJourney' as const,
@@ -290,6 +316,15 @@ function goBackToActivity(): void {
         :summary="jsSummary"
       />
 
+      <MaterialJourneyTransportTours
+        v-if="showTransportTours && !isEarlyPackPreview"
+        :activity-id="activityId"
+        :department-id="departmentId"
+        :journey-step="resolvedStep"
+        :list-editable="listEditable"
+        :assignable-tasks="transportAssignableTasks"
+      />
+
       <div v-if="!isEarlyPackPreview" class="material-journey-scan-wrap">
         <MaterialJourneyScanBar
           v-model="scanQuery"
@@ -367,6 +402,19 @@ function goBackToActivity(): void {
         :submit-disabled="returnCrateSubmitDisabled"
         @update:lines="onReturnCrateLinesUpdate"
         @submit="submitReturnCrate()"
+      />
+
+      <MaterialStoreShelveSheet
+        v-model:open="storeShelveOpen"
+        v-model:qty="storeShelveQty"
+        :pack-item="activeStoreItem"
+        :max-qty="activeStoreMaxQty"
+        :department-id="departmentId"
+        :submitting="storeShelveSubmitting"
+        :feedback-visible="storeShelveFeedback"
+        @confirm="submitStoreShelve()"
+        @next="onStoreShelveNext()"
+        @stay="onStoreShelveStay()"
       />
 
       <MaterialJourneyStepFooter

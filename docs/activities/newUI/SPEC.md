@@ -823,13 +823,13 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 |-------|-------------|-----------|------------|--------|
 | **0** | README + SPEC | — | reviewed | ✓ |
 | **1** | Route `pack-journey`, Shell, Stepper, leere Liste | `materialJourneySteps`, pack-items GET, Link Legacy↔Beta | 375px: Stepper + Empty-State + Zurück-Link | ✓ |
-| **1b** | Tab `material`: UI refresh | Styles shared mit Journey | Mobile Lesbarkeit, kein Scan | offen |
+| **1b** | Tab `material`: UI refresh | Styles shared mit Journey | Mobile Lesbarkeit, kein Scan | ✓ |
 | **2** | Lose Zeilen: `pack` + `issue` (quick) | `packWorkflowRules`, `packStageQuantities`, `materialJourneyTaskList`, move-API | Tap Zeile, Primary unten, move funktioniert | ✓ |
 | **3** | `MaterialCrateCheckSheet` + Combo | `packShellCrateHelpers`, Container-API | Vollbild-Sheet, Accordion Fix/Zusatz | ✓ |
 | **4** | Scan-Bar + Resolve | `scanParser`, Scan-Composable, Feedback-Banner | Sticky Scan, Grün/Rot, Letzte Scans Session | ✓ |
 | **5** | Regal-Gruppierung MW | Filter «Nach Regal», `MaterialJourneyRegalGroup` | Filter-Chips touchbar | ✓ |
-| **6** | `return` + `store` + Retour-Sheet | `MaterialReturnCrateSheet`, store-Shelf-Flow | Retour-Stapel Vollbild | ✓ (ohne `MaterialStoreShelveSheet`) |
-| **7** | Logistics Steps + Transport | Touren, Dept-Fuhrpark §19.3 | Stepper logistics auf Mobile | ✓ Transport · Touren offen |
+| **6** | `return` + `store` + Retour-Sheet | `MaterialReturnCrateSheet`, `MaterialStoreShelveSheet` | Retour-Stapel Vollbild | ✓ |
+| **7** | Logistics Steps + Transport | Touren, Dept-Fuhrpark §19.3 | Stepper logistics auf Mobile | ✓ |
 | **8** | History-Audit UI | Pack-Events §20.2 | Aggregation lesbar auf Mobile | ✓ |
 | **8b** | Benachrichtigungen (Inbox) | §20.1 | Deep-Link → `pack-journey` | ✓ |
 | **9** | J+S eigener Tab | js-material Spec | — | ✓ |
@@ -877,12 +877,12 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 - [ ] Max. ein Info-Banner gleichzeitig
 - [ ] Stepper dynamisch pro Profil, keine grauen Transport-Platzhalter bei quick
 
-- [ ] Material-Tab: UI refresh, **ohne** Scan; Suche/Verfügbarkeit wie bisher
+- [x] Material-Tab: UI refresh, **ohne** Scan; Suche/Verfügbarkeit wie bisher
 - [x] Kein `plan`-Step im Stepper
 - [ ] Handoff-Banner gemäß [§19.1](#191-handoff-banner--readonly-matrix)
 - [ ] `not_taken` als eigene Zeile, Gruppe sichtbar
 - [ ] Material nachbuchen: Modal bei `packed`/`at_event` ([§5.2](#52-block-material-nachbuchen))
-- [ ] Einlagern: `MaterialStoreShelveSheet` mit Verräum-Feedback ([§7.6](#76-materialstoreshelvesheet-einlagern))
+- [x] Einlagern: `MaterialStoreShelveSheet` mit Verräum-Feedback ([§7.6](#76-materialstoreshelvesheet-einlagern))
 - [ ] Partner-Department readonly ([§8.1](#81-partner-departments))
 - [x] Deep Links Inbox → `pack-journey/:step` (ab Phase 8b)
 - [ ] `external`: MW-only Journey, PDF + Kosten-Tab — [§2.5](#25-profil-external-vermietung)
@@ -1269,7 +1269,7 @@ activity_pack_group_intent
 
 ### 19.3 Transport — Touren & Department-Fuhrpark
 
-**Scope:** Nice-to-have Phase 7+ (Logistics `camp`/`event`).
+**Scope:** Phase 7 (Logistics `camp`/`event`) — umgesetzt in `pack-journey` (`transport_out` / `transport_back`).
 
 #### Grundmodell
 

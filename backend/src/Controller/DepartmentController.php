@@ -349,9 +349,13 @@ class DepartmentController extends AbstractController
         if ($departmentName === '') {
             return new JsonResponse(['error' => 'Name ist erforderlich'], 400);
         }
-        if ($this->departmentRepository->findOneByOrganisationAndName($organisation->getId(), $departmentName) !== null) {
+        $conflict = $this->departmentRepository->findConflictingByOrganisationAndName(
+            $organisation->getId(),
+            $departmentName,
+        );
+        if ($conflict instanceof Department) {
             return new JsonResponse(
-                ['error' => 'Ein Department mit diesem Namen existiert bereits in dieser Organisation'],
+                ['error' => 'Ein Department mit diesem oder einem sehr ähnlichen Namen existiert bereits: «' . $conflict->getName() . '»'],
                 409,
             );
         }
@@ -437,7 +441,7 @@ class DepartmentController extends AbstractController
     }
 
     /**
-     * Org-User-Suche für Grossanlass-Wizard (Chief-MW)
+     * Globale User-Suche für Grossanlass-Wizard (Chief-MW) — alle aktiven User, org-übergreifend.
      */
     #[Route('/grossanlass/available-users', name: 'grossanlass_available_users', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
@@ -452,10 +456,7 @@ class DepartmentController extends AbstractController
         }
 
         $organisationId = trim((string) $request->query->get('organisation_id', ''));
-        if ($organisationId === '') {
-            return new JsonResponse(['error' => 'organisation_id ist erforderlich'], 400);
-        }
-        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisationId)) {
+        if ($organisationId !== '' && !$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisationId)) {
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
@@ -1219,7 +1220,25 @@ class DepartmentController extends AbstractController
         $data = json_decode($request->getContent(), true);
 
         if (isset($data['name'])) {
-            $department->setName($data['name']);
+            $newName = trim((string) $data['name']);
+            if ($newName === '') {
+                return new JsonResponse(['error' => 'Name ist erforderlich'], 400);
+            }
+            $targetOrganisationId = isset($data['organisation_id'])
+                ? (string) $data['organisation_id']
+                : $department->getOrganisationId();
+            $conflict = $this->departmentRepository->findConflictingByOrganisationAndName(
+                $targetOrganisationId,
+                $newName,
+                $department->getId(),
+            );
+            if ($conflict instanceof Department) {
+                return new JsonResponse(
+                    ['error' => 'Ein Department mit diesem oder einem sehr ähnlichen Namen existiert bereits: «' . $conflict->getName() . '»'],
+                    409,
+                );
+            }
+            $department->setName($newName);
         }
 
         if (isset($data['organisation_id'])) {

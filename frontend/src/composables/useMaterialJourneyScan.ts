@@ -190,7 +190,7 @@ export function useMaterialJourneyScan(options: {
         return t('activities.materialJourney.scan.actionBookReturn')
       }
       if (isJourneyStoreStep(options.journeyStep.value)) {
-        return t('activities.materialJourney.scan.actionBookStore')
+        return t('activities.materialJourney.scan.actionShelve')
       }
       if (isJourneyTransportOutStep(options.journeyStep.value)) {
         return t('activities.materialJourney.scan.actionBookTransportOut')

@@ -94,16 +94,16 @@ export async function createGrossanlassDepartment(
 }
 
 /**
- * Org-User-Suche für Grossanlass-Wizard (Chief-MW)
+ * Globale User-Suche für Grossanlass-Wizard (Chief-MW), org-übergreifend.
  */
 export async function getGrossanlassAvailableUsers(
-  organisationId: string,
-  query?: string
+  query: string,
+  organisationId?: string | null,
 ): Promise<AvailableUser[]> {
   const response = await apiClient.get<AvailableUser[]>('/api/departments/grossanlass/available-users', {
     params: {
-      organisation_id: organisationId,
-      ...(query ? { q: query } : {}),
+      q: query,
+      ...(organisationId ? { organisation_id: organisationId } : {}),
     },
   })
   return response.data

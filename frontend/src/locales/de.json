@@ -1966,14 +1966,14 @@
       "venueHintShared": "Vom Ersteller-Department übernommen — liegt auch in eurem Adressbuch. Änderungen gelten für alle beteiligten Abteilungen."
     },
     "venueLocations": {
-      "overviewHint": "Übersicht beider Standorte. Accordions öffnen, um Adresse und Detailkarte zu bearbeiten.",
+      "overviewHint": "Übersicht — Pins sind fix. Accordion öffnen, um Adresse zu ändern.",
       "accordionVenue": "Eventstandort",
-      "accordionDelivery": "J+S-Lieferadresse",
+      "accordionDelivery": "Lieferadresse",
       "deliveryPinLabel": "J+S-Lieferung",
-      "deliveryOptionalHint": "Optionaler zweiter Standort — z. B. Materialannahme. Bei J+S-Material wird diese Adresse für die Bestellung verwendet.",
-      "deliveryAddressOptionalLabel": "Zweiter Standort / Lieferadresse",
-      "noMapCoords": "Noch keine Standorte auf der Karte — Adressen in den Accordions wählen oder Koordinaten im Adressdialog setzen.",
-      "noCoordsForAddress": "Für diese Adresse fehlen Kartenkoordinaten. Adresse bearbeiten und Standort auf der Karte setzen."
+      "deliveryOptionalHint": "Optional: abweichender Ort für Materialzustellung (z. B. Hintereinfahrt).",
+      "deliveryAddressOptionalLabel": "Lieferadresse (optional)",
+      "noCoordsForAddress": "Für diese Adresse sind noch keine Koordinaten hinterlegt — in den Adresseinstellungen auf der Karte setzen.",
+      "noMapCoords": "Noch keine Standorte mit Koordinaten — Adresse wählen oder im Accordion bearbeiten."
     },
     "draftOverview": {
       "sectionBasics": "Grunddaten",
@@ -2175,6 +2175,9 @@
         }
       }
     },
+    "materialTab": {
+      "planningHint": "Material planen und einreichen — ohne Scan. Packen und Ausgabe erfolgen in der Packliste."
+    },
     "materialJourney": {
       "loading": "Packliste wird geladen…",
       "legacyPackLink": "Klassische Packliste",
@@ -2251,6 +2254,44 @@
         "empty": "Keine Komponenten für dieses Set.",
         "checkAllHint": "Alle Teile abhaken, um zu buchen."
       },
+      "storeSheet": {
+        "subtitle": "Regal und Fach prüfen, dann verräumen",
+        "suggestedLocation": "Soll-Standort (Material)",
+        "noLocation": "Kein Regal hinterlegt",
+        "rackLabel": "Regal",
+        "slotLabel": "Fach",
+        "noRacks": "Keine Regale gefunden",
+        "noSlots": "Kein Fach",
+        "qtyLabel": "Menge",
+        "qtyMax": "max. {max}",
+        "targetHint": "Ziel: {location}",
+        "confirm": "Verräumt",
+        "toastSuccess": "Artikel verräumt",
+        "feedbackTitle": "Artikel eingelagert",
+        "feedbackHint": "Nächsten Artikel verräumen?",
+        "nextYes": "Ja — nächster ({seconds}s)",
+        "nextNo": "Nein, schliessen"
+      },
+      "transportTours": {
+        "title": "Transport-Touren",
+        "hint": "Fahrzeug wählen und Kisten/Positionen zuordnen — Pipeline-Buchungen bleiben in der Checkliste.",
+        "empty": "Noch keine Tour — «+ Tour» legt eine Fahrt an.",
+        "addTour": "+ Tour",
+        "fitOk": "Passt",
+        "fitHeavy": "Zu schwer",
+        "fitUnknown": "Gewicht unbekannt",
+        "weightHint": "{weight} kg / max. {max} kg",
+        "noAssignable": "Keine offenen Kisten oder Positionen für diesen Schritt.",
+        "deleteTour": "Tour löschen",
+        "createTitle": "Neue Tour",
+        "vehicleLabel": "Fahrzeug",
+        "chooseVehicle": "Fahrzeug wählen…",
+        "quickAddHint": "Noch kein passendes Fahrzeug? Schnell anlegen (MW):",
+        "quickAddName": "Name, z. B. Blaustein",
+        "quickAddPayload": "kg max.",
+        "vehicleCreated": "Fahrzeug angelegt",
+        "createConfirm": "Tour anlegen"
+      },
       "scan": {
         "label": "Suchen oder scannen",
         "placeholder": "Name, Regal oder QR-Code…",
@@ -2273,6 +2314,7 @@
         "actionBookIssue": "Mitnehmen",
         "actionBookReturn": "Retournieren",
         "actionBookStore": "Einlagern",
+        "actionShelve": "Verräumen",
         "actionBookTransportOut": "Transport hin",
         "actionBookTransportBack": "Transport zurück",
         "actionOpenCratePack": "Kiste öffnen",
@@ -8139,7 +8181,6 @@
       "title": "Grossanlass hinzufügen",
       "nameLabel": "Name des Grossanlasses",
       "namePlaceholder": "z. B. PFF 2027",
-      "eventPeriodLabel": "Anlasszeitraum",
       "eventStartLabel": "Anlassdatum von",
       "eventEndLabel": "Anlassdatum bis (optional)",
       "organisationLabel": "Organisation",
@@ -8147,16 +8188,13 @@
       "parentPrompt": "Parent wählen",
       "noParent": "Kein Parent",
       "chiefMwLabel": "Chief-Materialwart",
-      "chiefMwHint": "Empfohlen: Materialchef für den Grossanlass. Erhält E-Mail und Inbox-Nachricht.",
+      "chiefMwHint": "Empfohlen: Materialchef für den Grossanlass. Suche über alle Organisationen (Name, E-Mail, Abteilung). Erhält E-Mail und Inbox-Nachricht.",
       "chiefMwWarning": "Ohne Chief-MW gibt es keinen Materialchef — du kannst ihn später in den Abteilungseinstellungen zuweisen.",
-      "userSearchPlaceholder": "Name, E-Mail oder Abteilung (min. 2 Zeichen)",
-      "noUserSearchResults": "Kein Nutzer gefunden",
+      "userSearchPlaceholder": "Name, E-Mail oder Abteilung (min. 2 Zeichen, org-übergreifend)",
       "create": "Erstellen",
       "nameRequired": "Name ist erforderlich",
-      "nameDuplicate": "In dieser Organisation existiert bereits ein Department mit diesem Namen.",
       "organisationRequired": "Organisation ist erforderlich",
-      "eventStartRequired": "Anlasszeitraum ist erforderlich",
-      "eventEndBeforeStart": "Ende muss am oder nach dem Start liegen",
+      "eventStartRequired": "Anlassdatum von ist erforderlich",
       "loadError": "Daten konnten nicht geladen werden",
       "createError": "Grossanlass konnte nicht erstellt werden",
       "createdSuccess": "«{name}» wurde erstellt"

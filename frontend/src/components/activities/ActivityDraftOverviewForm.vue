@@ -71,11 +71,11 @@
           :is-shared-activity="isSharedActivity"
           :save-venue-address-id="saveVenueAddressId"
           :save-js-delivery-address-id="saveJsDeliveryAddressId"
-          @update:venue-address-id="(id) => { form.venue_address_id = id }"
-          @update:delivery-address-id="(id) => { form.js_delivery_address_id = id }"
+          @update:venue-address-id="form.venue_address_id = $event"
+          @update:delivery-address-id="form.js_delivery_address_id = $event"
+          @saved="onAutoFieldSaved"
           @create-venue-address="openAddVenueAddressModal"
           @create-delivery-address="openAddJsDeliveryAddressModal"
-          @saved="onAutoFieldSaved"
         />
 
         <template v-if="isSharedActivity">

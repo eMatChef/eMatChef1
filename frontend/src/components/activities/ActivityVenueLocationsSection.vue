@@ -8,8 +8,40 @@
         ref="overviewMapRef"
         :pins="overviewPins"
         height="240px"
-        :interactive="true"
+        :interactive="false"
       />
+      <ul v-if="overviewPins.length > 0" class="activity-venue-locations-overview-links">
+        <li
+          v-for="pin in overviewPins"
+          :key="pin.id"
+          class="activity-venue-locations-overview-link-row"
+        >
+          <span
+            class="activity-venue-locations-overview-link-dot"
+            :class="`activity-venue-locations-overview-link-dot--${pin.variant ?? 'venue'}`"
+            aria-hidden="true"
+          />
+          <span class="activity-venue-locations-overview-link-label">{{ pin.label }}</span>
+          <span class="activity-venue-locations-overview-link-actions">
+            <a
+              :href="googleMapsLinkFor(pin)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-outline btn-sm"
+            >
+              {{ t('components.mapView.openGoogleMaps') }}
+            </a>
+            <a
+              :href="swisstopoLinkFor(pin)"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-outline btn-sm"
+            >
+              {{ t('components.mapView.openSwisstopoMap') }}
+            </a>
+          </span>
+        </li>
+      </ul>
       <p class="field-hint text-muted activity-venue-locations-overview-hint">
         {{ t('activities.venueLocations.overviewHint') }}
       </p>
@@ -142,6 +174,7 @@ import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import MapView from '@/components/MapView.vue'
 import ActivityDualLocationMap, { type ActivityLocationPin } from '@/components/activities/ActivityDualLocationMap.vue'
+import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
 
 const props = defineProps<{
   addresses: Address[]
@@ -163,7 +196,7 @@ const emit = defineEmits<{
   'create-delivery-address': [presetName: string]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const venueExpanded = ref(false)
 const deliveryExpanded = ref(false)
@@ -222,7 +255,11 @@ const overviewPins = computed((): ActivityLocationPin[] => {
     })
   }
   const delivery = deliveryAddress.value
-  if (delivery?.latitude != null && delivery.longitude != null) {
+  if (
+    delivery?.latitude != null &&
+    delivery.longitude != null &&
+    delivery.id !== venue?.id
+  ) {
     pins.push({
       id: 'delivery',
       label: props.wantsJsMaterial
@@ -235,6 +272,18 @@ const overviewPins = computed((): ActivityLocationPin[] => {
   }
   return pins
 })
+
+function mapLinkLang(): string {
+  return locale.value.split('-')[0] || 'de'
+}
+
+function googleMapsLinkFor(pin: ActivityLocationPin): string {
+  return googleMapsCoordinatesUrl(pin.latitude, pin.longitude)
+}
+
+function swisstopoLinkFor(pin: ActivityLocationPin): string {
+  return swisstopoMapUrl(pin.latitude, pin.longitude, { lang: mapLinkLang() })
+}
 
 function onVenueAddressId(id: string | null, onChange: () => void) {
   emit('update:venueAddressId', id)
@@ -283,6 +332,70 @@ watch(showOverviewMap, (visible) => {
 
 .activity-venue-locations-overview-hint {
   margin: 8px 0 0;
+}
+
+.activity-venue-locations-overview-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-venue-locations-overview-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.activity-venue-locations-overview-link-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.activity-venue-locations-overview-link-dot--venue {
+  background: #2563eb;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #2563eb;
+}
+
+.activity-venue-locations-overview-link-dot--delivery {
+  background: #ea580c;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ea580c;
+}
+
+.activity-venue-locations-overview-link-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  min-width: 6rem;
+}
+
+.activity-venue-locations-overview-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  .activity-venue-locations-overview-link-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .activity-venue-locations-overview-link-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .activity-venue-locations-overview-link-actions .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
 }
 
 .activity-venue-accordion {

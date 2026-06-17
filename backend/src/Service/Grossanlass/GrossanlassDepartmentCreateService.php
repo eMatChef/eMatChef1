@@ -89,9 +89,13 @@ class GrossanlassDepartmentCreateService
         if ($departmentName === '') {
             throw new \InvalidArgumentException('Name ist erforderlich');
         }
-        if ($this->departmentRepository->findOneByOrganisationAndName($organisation->getId(), $departmentName) !== null) {
+        $conflict = $this->departmentRepository->findConflictingByOrganisationAndName(
+            $organisation->getId(),
+            $departmentName,
+        );
+        if ($conflict instanceof Department) {
             throw new \InvalidArgumentException(
-                'Ein Department mit diesem Namen existiert bereits in dieser Organisation',
+                'Ein Department mit diesem oder einem sehr ähnlichen Namen existiert bereits: «' . $conflict->getName() . '»',
                 409,
             );
         }
@@ -115,6 +119,7 @@ class GrossanlassDepartmentCreateService
             $plannedStart,
             $plannedEnd,
             $chiefMwUser,
+            $departmentName,
         ) {
             $department = new Department();
             $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));

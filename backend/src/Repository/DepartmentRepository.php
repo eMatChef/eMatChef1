@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Department;
+use App\Util\DepartmentNameMatcher;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -16,28 +17,32 @@ class DepartmentRepository extends ServiceEntityRepository
         parent::__construct($registry, Department::class);
     }
 
-    public function findOneByOrganisationAndName(
+    public function findConflictingByOrganisationAndName(
         string $organisationId,
         string $name,
         ?string $excludeDepartmentId = null,
     ): ?Department {
-        $normalized = mb_strtolower(trim($name));
-        if ($normalized === '') {
+        if (trim($name) === '') {
             return null;
         }
 
         $qb = $this->createQueryBuilder('d')
             ->where('d.organisationId = :orgId')
-            ->andWhere('LOWER(TRIM(d.name)) = :name')
-            ->setParameter('orgId', $organisationId)
-            ->setParameter('name', $normalized)
-            ->setMaxResults(1);
+            ->setParameter('orgId', $organisationId);
 
         if ($excludeDepartmentId !== null && $excludeDepartmentId !== '') {
             $qb->andWhere('d.id != :excludeId')
                 ->setParameter('excludeId', $excludeDepartmentId);
         }
 
-        return $qb->getQuery()->getOneOrNullResult();
+        /** @var list<Department> $departments */
+        $departments = $qb->getQuery()->getResult();
+        foreach ($departments as $department) {
+            if (DepartmentNameMatcher::conflict($name, $department->getName())) {
+                return $department;
+            }
+        }
+
+        return null;
     }
 }

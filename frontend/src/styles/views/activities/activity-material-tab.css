@@ -1,0 +1,33 @@
+.activity-material-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.activity-material-tab .activity-tab-panel-card,
+.activity-material-tab .activity-tab-header-card {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  box-shadow: none;
+}
+
+.activity-material-tab-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.activity-material-tab .activity-js-order-card {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+@media (max-width: 767px) {
+  .activity-material-tab .activity-tab-subsection-title {
+    font-size: 0.9375rem;
+  }
+
+  .activity-material-tab .activity-tab-panel-card {
+    padding: 14px 12px;
+  }
+}

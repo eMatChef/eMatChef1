@@ -16,6 +16,7 @@ import {
   isJourneyLooseMovesEnabledForStep,
   isJourneyReturnStep,
   isJourneyStepAheadOfDefault,
+  isJourneyStoreStep,
   journeyStepToPackStage,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
@@ -49,6 +50,12 @@ export function useMaterialJourneyTasks(options: {
   const comboSheetOpen = ref(false)
   const activeCrate = ref<ActivityPackContainer | null>(null)
   const activeCombo = ref<ActivityPackItem | null>(null)
+  const storeShelveOpen = ref(false)
+  const activeStoreItem = ref<ActivityPackItem | null>(null)
+  const activeStoreMaxQty = ref(0)
+  const storeShelveQty = ref(1)
+  const storeShelveSubmitting = ref(false)
+  const storeShelveFeedback = ref(false)
 
   const packStage = computed(() => journeyStepToPackStage(options.journeyStep.value, options.profile.value))
 
@@ -195,6 +202,66 @@ export function useMaterialJourneyTasks(options: {
     }
   }
 
+  function openStoreShelve(pi: ActivityPackItem, maxQty: number): void {
+    activeStoreItem.value = pi
+    activeStoreMaxQty.value = maxQty
+    storeShelveQty.value = maxQty
+    storeShelveFeedback.value = false
+    storeShelveOpen.value = true
+  }
+
+  function closeStoreShelve(): void {
+    storeShelveOpen.value = false
+    storeShelveFeedback.value = false
+    activeStoreItem.value = null
+  }
+
+  function findNextOpenStoreRow(): MaterialJourneyTaskRow | undefined {
+    return allTasks.value.find(
+      (row) =>
+        row.kind === 'loose' &&
+        row.isOpen &&
+        row.canMove &&
+        row.packItem &&
+        row.packItem.id !== activeStoreItem.value?.id,
+    )
+  }
+
+  async function submitStoreShelve(): Promise<void> {
+    const pi = activeStoreItem.value
+    const activityId = options.activity.value?.id
+    const qty = storeShelveQty.value
+    if (!pi || !activityId || qty < 1) return
+
+    storeShelveSubmitting.value = true
+    try {
+      const updated = await postMovePackItem(activityId, pi.id, {
+        stage: getBackendStage(packStage.value),
+        quantity: qty,
+        source: 'tap',
+      })
+      applyUpdatedItem(updated)
+      toast.success(t('activities.materialJourney.storeSheet.toastSuccess'))
+    storeShelveFeedback.value = true
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      storeShelveSubmitting.value = false
+    }
+  }
+
+  function onStoreShelveNext(): void {
+    const next = findNextOpenStoreRow()
+    closeStoreShelve()
+    if (next?.packItem) {
+      openStoreShelve(next.packItem, next.maxForwardQty)
+    }
+  }
+
+  function onStoreShelveStay(): void {
+    closeStoreShelve()
+  }
+
   async function moveTaskRow(row: MaterialJourneyTaskRow, source: PackMoveSource = 'tap'): Promise<void> {
     if (!row.packItem || !row.canMove || row.maxForwardQty < 1) {
       showReadonlyToast(row)
@@ -251,6 +318,10 @@ export function useMaterialJourneyTasks(options: {
       comboSheetOpen.value = true
       return
     }
+    if (isJourneyStoreStep(options.journeyStep.value) && row.kind === 'loose' && row.packItem && row.canMove) {
+      openStoreShelve(row.packItem, row.maxForwardQty)
+      return
+    }
     void moveTaskRow(row, source)
   }
 
@@ -273,6 +344,13 @@ export function useMaterialJourneyTasks(options: {
   }
 
   function activateLoosePackItem(pi: ActivityPackItem, source: PackMoveSource = 'tap'): void {
+    if (isJourneyStoreStep(options.journeyStep.value)) {
+      const row = allTasks.value.find((r) => r.kind === 'loose' && r.packItem?.id === pi.id)
+      if (row?.canMove && row.maxForwardQty > 0) {
+        openStoreShelve(pi, row.maxForwardQty)
+        return
+      }
+    }
     const row = allTasks.value.find((r) => r.kind === 'loose' && r.packItem?.id === pi.id)
     if (row) void activateTaskRow(row, source)
   }
@@ -320,5 +398,14 @@ export function useMaterialJourneyTasks(options: {
     allTasks,
     packListCtx,
     returnCrate,
+    storeShelveOpen,
+    activeStoreItem,
+    activeStoreMaxQty,
+    storeShelveQty,
+    storeShelveSubmitting,
+    storeShelveFeedback,
+    submitStoreShelve,
+    onStoreShelveNext,
+    onStoreShelveStay,
   }
 }

@@ -347,13 +347,13 @@ Siehe [devices/concept.md](../../devices/concept.md).
 |-------|--------|--------|
 | **0** | README + SPEC | ✓ |
 | **1** | Route `pack-journey`, Shell, Stepper, leere Liste (Mobile 375px) | ✓ |
-| **1b** | Material-Tab: UI refresh (ohne Scan) | offen |
+| **1b** | Material-Tab: UI refresh (ohne Scan) | ✓ |
 | **2** | Lose: Packen + Ausgabe — `packWorkflowRules`, moves | ✓ |
 | **3** | Kisten-/Kombi-Sheets (Vollbild Mobile) | ✓ |
 | **4** | Scan-Resolve | ✓ |
 | **5** | Regal-Gruppierung MW | ✓ |
-| **6** | Retour + Einlagern | ✓ (Einlagern ohne `MaterialStoreShelveSheet`) |
-| **7** | Logistics Transport-Steps + Touren | ✓ Transport · Touren/Fuhrpark offen |
+| **6** | Retour + Einlagern | ✓ |
+| **7** | Logistics Transport-Steps + Touren | ✓ |
 | **8** | History-Audit (Pack-Events) | ✓ |
 | **8b** | Benachrichtigungen (Inbox → Deep-Link `pack-journey`) | ✓ |
 | **9** | J+S eigener Tab | ✓ |
