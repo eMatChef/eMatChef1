@@ -66,7 +66,7 @@ const authStore = useAuthStore()
 /** Aktivitäts-Detail: App-Bar scrollt mit (mehr Platz beim Scrollen). */
 const isActivityDetailView = computed(() => {
   const name = route.name
-  return name === 'ActivityDetail' || name === 'ActivityDetailTab'
+  return name === 'ActivityDetail' || name === 'ActivityDetailTab' || name === 'ActivityPackJourney'
 })
 
 /** Material-Detail: Header fix, nur Inhalt scrollt. */

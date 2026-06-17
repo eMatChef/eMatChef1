@@ -404,6 +404,15 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'js-leihkatalog',
+            name: 'AdminJsLeihkatalog',
+            component: () => import('@/views/JsLeihkatalogAdminView.vue'),
+            meta: {
+              requiredRoles: ['superadmin'],
+              ...routeHead('jsLeihkatalog'),
+            }
+          },
+          {
             path: 'dashboard',
             name: 'AdminDashboard',
             component: () => import('@/views/DashboardView.vue'),
@@ -783,7 +792,15 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
               ...routeHead('permissions'),
             }
-          }
+          },
+          {
+            path: 'supplier-global-review',
+            redirect: '/admin-dashboard/verwaltung/supplier-global-review',
+          },
+          {
+            path: 'js-leihkatalog',
+            redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
+          },
         ]
       },
       {
@@ -804,6 +821,14 @@ const routes: RouteRecordRaw[] = [
                 tab: 'packs',
               },
             }),
+          },
+          {
+            path: ':activityId/pack-journey/:step?',
+            name: 'ActivityPackJourney',
+            component: () => import('@/views/ActivityPackJourneyView.vue'),
+            meta: {
+              ...routeHead('activityPackJourney'),
+            },
           },
           {
             path: ':activityId',
@@ -1460,7 +1485,7 @@ router.beforeEach(async (to, from, next) => {
     // Primäre Department-ID ermitteln
     let primaryDepartmentId = authStore.activeDepartmentId
     
-    if (!primaryDepartmentId && authStore.departments.length > 0) {
+    if (!primaryDepartmentId && authStore.departments.length > 0 && !isSuperAdmin()) {
       const primaryDept = authStore.departments.find(d => d.is_primary) || authStore.departments[0]
       if (primaryDept) {
         primaryDepartmentId = primaryDept.department_id
@@ -1476,9 +1501,7 @@ router.beforeEach(async (to, from, next) => {
         }
         return next('/pending-assignment')
       }
-      if (primaryDepartmentId) {
-        return next(`/${primaryDepartmentId}`)
-      }
+      return next()
     }
 
     // SA ohne Department: Admin-„Übersicht“ unter /verwaltung/dashboard → schlankes /dashboard
@@ -1545,9 +1568,6 @@ router.beforeEach(async (to, from, next) => {
     // App-Login / App-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
     const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
     if (appLoginOrRoot && isSuperAdmin()) {
-      if (primaryDepartmentId) {
-        return next(`/${primaryDepartmentId}`)
-      }
       return next('/dashboard')
     }
 
@@ -1572,6 +1592,9 @@ router.beforeEach(async (to, from, next) => {
 
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
     if (to.path === '/pending-assignment' && primaryDepartmentId) {
+      if (isSuperAdmin()) {
+        return next('/dashboard')
+      }
       return next(`/${primaryDepartmentId}`)
     }
 
@@ -1632,9 +1655,30 @@ router.beforeEach(async (to, from, next) => {
   // Department-ID aus Route extrahieren
   if (to.params.departmentId && authStore.isLoggedIn) {
     const departmentId = to.params.departmentId as string
-    const hasDepartmentAccess = authStore.departments.some(d => d.department_id === departmentId)
+
+    // Superadmin: Dashboard/Verwaltung ohne Department-Präfix in der URL
+    if (isSuperAdmin()) {
+      const prefix = `/${departmentId}`
+      const suffix = to.path.length > prefix.length ? to.path.slice(prefix.length) : ''
+      if (suffix === '' || suffix === '/' || suffix === '/dashboard') {
+        return next('/dashboard')
+      }
+      if (suffix === '/verwaltung' || suffix.startsWith('/verwaltung/')) {
+        const tail = suffix.replace(/^\/verwaltung/, '') || ''
+        const target = `/admin-dashboard/verwaltung${tail}`
+        if (target !== to.path) {
+          return next(target)
+        }
+      }
+    }
+
+    const hasDepartmentAccess =
+      isSuperAdmin() || authStore.departments.some((d) => d.department_id === departmentId)
     if (!hasDepartmentAccess) {
       // Kein Zugriff auf fremdes Department
+      if (isSuperAdmin()) {
+        return next('/dashboard')
+      }
       const fallbackDept = authStore.activeDepartmentId || authStore.departments[0]?.department_id
       if (fallbackDept) {
         return next(`/${fallbackDept}`)

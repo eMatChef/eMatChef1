@@ -1,10 +1,5 @@
 {
   "description": "dept_js00000 = bestellbare Zeilen aus bestellformular_lagersport_trekking_d.pdf (Lagersport/Trekking). NICHT der volle 250821_JS_Leihmaterial_Katalog_DE.pdf.",
-  "remap_before_retire": {
-    "jsmat0000002": "jsmat0000001",
-    "jsmat0000023": "jsmat0000022"
-  },
-  "retire_ids": ["jsmat0000002", "jsmat0000023"],
   "items": [
     { "id": "jsmat0000001", "name": "Bindestrick" },
     { "id": "jsmat0000004", "name": "Wolldecke" },

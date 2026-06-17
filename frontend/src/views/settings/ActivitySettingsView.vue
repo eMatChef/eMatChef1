@@ -186,6 +186,19 @@
               />
             </div>
           </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label for="js-default-coach-email">{{ t('settings.activitySettings.fields.jsCoachEmail') }}</label>
+              <input
+                id="js-default-coach-email"
+                v-model="jsForm.defaultCoachEmail"
+                type="email"
+                class="form-input"
+                :placeholder="t('settings.activitySettings.placeholders.jsCoachEmail')"
+              />
+              <span class="field-hint">{{ t('settings.activitySettings.hints.jsCoachEmail') }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -266,6 +279,7 @@ function jsFormEquals(a: JsMaterialDepartmentDefaults, b: JsMaterialDepartmentDe
     a.defaultCoachPersonNr === b.defaultCoachPersonNr &&
     a.defaultCoachFirstName === b.defaultCoachFirstName &&
     a.defaultCoachLastName === b.defaultCoachLastName &&
+    a.defaultCoachEmail === b.defaultCoachEmail &&
     a.defaultDeliveryType === b.defaultDeliveryType
   )
 }

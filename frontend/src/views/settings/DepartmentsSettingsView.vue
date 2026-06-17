@@ -5,15 +5,34 @@
         <h1>{{ t('settings.departments.title') }}</h1>
         <p class="description">{{ t('settings.departments.description') }}</p>
       </div>
-      <EButton
-        v-if="canManageDepartments"
-        variant="primary"
-        :title="t('settings.departments.addTitle')"
-        @click="openAddModal"
-      >
-        <v-icon icon="mdi-plus" start size="20" />
-        {{ t('common.add') }}
-      </EButton>
+      <div v-if="canManageDepartments" class="header-actions">
+        <v-menu v-if="canCreateGrossanlass">
+          <template #activator="{ props: menuProps }">
+            <EButton
+              v-bind="menuProps"
+              variant="primary"
+              :title="t('settings.departments.addTitle')"
+            >
+              <v-icon icon="mdi-plus" start size="20" />
+              {{ t('common.add') }}
+              <v-icon icon="mdi-chevron-down" end size="18" />
+            </EButton>
+          </template>
+          <v-list density="compact">
+            <v-list-item :title="t('settings.departments.addDepartment')" @click="openAddModal" />
+            <v-list-item :title="t('settings.departments.addGrossanlass')" @click="openGrossanlassWizard" />
+          </v-list>
+        </v-menu>
+        <EButton
+          v-else
+          variant="primary"
+          :title="t('settings.departments.addTitle')"
+          @click="openAddModal"
+        >
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('common.add') }}
+        </EButton>
+      </div>
     </div>
 
     <ELoadingState
@@ -69,6 +88,14 @@
       @saved="handleDepartmentSaved"
     />
 
+    <GrossanlassCreateWizard
+      :is-open="isGrossanlassWizardOpen"
+      :preselected-organisation-id="preselectedOrganisationId"
+      :preselected-parent-id="preselectedParentId"
+      @close="closeGrossanlassWizard"
+      @created="handleGrossanlassCreated"
+    />
+
     <!-- Organisation Details Modal -->
     <OrganisationDetailsModal
       :is-open="isOrganisationDetailsModalOpen"
@@ -98,6 +125,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import TreeList, { type TreeItemData } from '@/components/TreeList.vue'
 import DepartmentModal from '@/components/DepartmentModal.vue'
+import GrossanlassCreateWizard from '@/components/GrossanlassCreateWizard.vue'
 import OrganisationModal from '@/components/OrganisationModal.vue'
 import OrganisationDetailsModal from '@/components/OrganisationDetailsModal.vue'
 import DepartmentDetailsModal from '@/components/DepartmentDetailsModal.vue'
@@ -124,6 +152,13 @@ const canManageDepartments = computed(() =>
   authStore.canAdmin('departments.create') || authStore.canAdmin('departments.edit')
 )
 
+/** Grossanlass anlegen: nur org / sub / sa (GL) */
+const canCreateGrossanlass = computed(() =>
+  authStore.userRoles.includes('ROLE_SUPERADMIN') ||
+  authStore.userRoles.includes('ROLE_ORGANISATIONSCHEF') ||
+  authStore.userRoles.includes('ROLE_SUBORGCHEF')
+)
+
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
 )
@@ -141,6 +176,7 @@ const expandedItems = ref<string[]>([])
 
 // Modal State
 const isModalOpen = ref(false)
+const isGrossanlassWizardOpen = ref(false)
 const editingDepartment = ref<Department | null>(null)
 const preselectedOrganisationId = ref<string | null>(null)
 const preselectedParentId = ref<string | null>(null)
@@ -431,6 +467,23 @@ function openAddModal() {
   isModalOpen.value = true
 }
 
+function openGrossanlassWizard() {
+  editingDepartment.value = null
+  preselectedOrganisationId.value = null
+  preselectedParentId.value = null
+  isGrossanlassWizardOpen.value = true
+}
+
+function closeGrossanlassWizard() {
+  isGrossanlassWizardOpen.value = false
+  preselectedOrganisationId.value = null
+  preselectedParentId.value = null
+}
+
+async function handleGrossanlassCreated() {
+  await loadDepartments()
+}
+
 async function handleAddDepartment(item: TreeItemData) {
   if (item.type === 'group' && item.id.startsWith('org-')) {
     // Organisation: Öffne Modal mit vorausgewählter Organisation
@@ -512,6 +565,10 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 24px;
+}
+
+.header-actions {
+  flex-shrink: 0;
 }
 
 h1 {

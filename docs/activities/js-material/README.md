@@ -2,7 +2,7 @@
 
 Vollständige Spezifikation für **J+S-Leihmaterial** in eMatChef: frühe Entscheidung, digitales Bestellformular, Packliste und Retour — **nur** für Aktivitäten vom Typ **`camp`** und **`event`**.
 
-**Stand:** Juni 2026 · **Status:** Spezifikation (Ziel); Umsetzung offen
+**Stand:** Juni 2026 · **Status:** Tab J+S + Coach-Workflow (Phase 7) implementiert; Pack-Reiter-Summary bleibt Legacy
 
 **Verwandt:** [status.md](../status.md) · [material-pipeline.md](../material-pipeline.md) · [pack-workflow-rules.md](../pack-workflow-rules.md) · [Supplier-Portal §1b](../../supplier/supplier-portal.md#1b-drei-produktlinien-nicht-vermischen)
 
@@ -213,6 +213,7 @@ Einmal pro Department pflegbar (MW / Depchef):
 | `js.default_coach_person_nr` | J+S-Coach Personen-Nr. |
 | `js.default_coach_first_name` | Vorname Coach |
 | `js.default_coach_last_name` | Nachname Coach |
+| `js.default_coach_email` | E-Mail Coach (für Versand aus eMatChef) |
 | `js.default_delivery_type` | `franko` \| `pickup_thun` |
 
 Leiter kann im Modal überschreiben.
@@ -238,8 +239,10 @@ Das Modal bildet das offizielle PDF **inhaltlich** ab (Web-Formular; PDF-Export 
 |--------|----------|
 | Speichern (Entwurf) | JSON in DB, noch kein PDF |
 | PDF erzeugen | Druck/PDF aus Formular + Positionen |
-| Als bestellt markieren | Status `ordered`, Zeitstempel; Packliste startet Checks |
-| Schliessen | Entwurf bleibt editierbar |
+| An Coach übergeben | `submitted_to_coach_at`; Accordion «Bestellung» klappt zu |
+| E-Mail an Coach | PDF-Anhang via eMatChef; setzt auch «übergeben» |
+| Als bestellt markieren | Status `ordered` (nach Coach-Übergabe) |
+| Schliessen | Entwurf bleibt editierbar (bis `ordered`) |
 
 Versand an J+S: **manuell per E-Mail** (v1); kein automatischer Versand.
 
@@ -349,18 +352,33 @@ Wie Buchhaltungsbelege über `MediaStorageService` → `activity_js_order.genera
 
 ---
 
-## 9. UI — Tab Material (Camp/Event)
+## 9. UI — Tab J+S (Camp/Event)
+
+Eigener Aktivitäts-Tab **«J+S»** (sichtbar wenn `wants_js_material`). Drei Accordions:
+
+| Accordion | Inhalt | Freischaltung |
+|-----------|--------|---------------|
+| **Bestellung** | Formular-Modal, PDF, «An Coach übergeben», «E-Mail an Coach», «Bei J+S bestellt» | immer (Camp/Event + Flag) |
+| **Empfang & Checkliste** | Zeilen: bestellt / erhalten / Notiz (fehlend, defekt) | nach Coach-Übergabe **und** `delivery_date ≤ heute` |
+| **Retour an J+S** | Zeilen: erhalten / retour; «Retourprobe abschliessen» | nach vollständigem Empfang |
+
+Liefer- und Rückgabedatum im Formular (Block 2) — manuell änderbar, unabhängig von `planning_start/end`.
+
+Tab **Material**: nur Hinweis-Karte «Tab J+S öffnen» — **kein** J+S in der Material-Suche.
+
+### 9.1 Tab Material (Kurz)
 
 | Element | Verhalten |
 |---------|-----------|
 | Material-Suche | **ohne J+S** |
-| Toggle «J+S einbeziehen» | siehe §4 (in Übersicht wiederholbar) |
-| Karte «J+S-Bestellung» | Status, Positionen, «Formular öffnen» |
-| Kein J+S in Suchergebnissen | — |
+| Toggle «J+S einbeziehen» | siehe §4 (in Übersicht) |
+| Karte «J+S-Bestellung» | Link zum Tab J+S + Status-Kurzinfo |
 
 ---
 
-## 10. UI — Packliste: Quellen-Oberreiter
+## 10. UI — Packliste: Quellen-Oberreiter (Legacy)
+
+**Hinweis:** Check-Flow liegt primär im **Tab J+S**. In der Legacy-Packliste bleibt `jsWorkflowSummary` als Kurzüberblick.
 
 Ab Camp/Event-Logistics (**Transport hin** … **Transport zurück**), **zusätzlich** zu den Etappen-Tabs:
 
@@ -376,40 +394,39 @@ Sichtbar nur wenn `wants_js_material === true` (oder J+S-Positionen existieren).
 
 ---
 
-## 11. J+S-Check-Flow in der Packliste
+## 11. J+S-Check-Flow (Tab J+S)
 
 J+S durchläuft **nicht** die normale Lager-Pipeline.
 
-### 11.1 Status pro Position
+### 11.1 Lebenszyklus Order
 
 ```
-geplant → bestellt → erhalten → am_event → retour_js
+draft/ready → submitted_to_coach → ordered → checks → fulfilled (Retourprobe)
 ```
 
-| UI-Schritt | Feld | Bedingung |
-|------------|------|-----------|
-| Geplant | `quantity_ordered` | aus Formular |
-| ☑ Bestellt | `order_confirmed` | nach E-Mail an J+S |
-| Erhalten | `quantity_received` | Eingabe ≤ `quantity_ordered` |
-| Am Event | `quantity_issued` | = `quantity_received` (Bestätigung) |
-| Retour an J+S | `quantity_returned` | Eingabe ≤ `quantity_issued` |
+| Feld (Order) | Bedeutung |
+|--------------|-----------|
+| `submitted_to_coach_at` | Materialliste an J+S-Coach übergeben |
+| `coach_email_sent_at` | E-Mail aus eMatChef versendet |
+| `ordered_at` / `status=ordered` | Bei J+S bestellt |
+| `return_confirmed_at` / `status=fulfilled` | Retourprobe — J+S für Aktivität abgeschlossen |
 
-### 11.2 UI pro Zeile (Reiter J+S)
+### 11.2 Status pro Position
 
-```
-Bindestrick Hanf blau/grau
-  Bestellt: 25          ☑ Bei J+S bestellt (Datum)
-  Erhalten: [ 25 ] / 25   [ Bestätigen ]
-  Am Event: 25
-  Retour:   [ 23 ] / 25   [ Rückgabe bestätigen ]
-```
+| UI-Schritt | Feld |
+|------------|------|
+| Geplant | `quantity_ordered` |
+| Erhalten | `quantity_received` ≤ bestellt |
+| Retour an J+S | `quantity_returned` ≤ erhalten |
+| Abweichung / Defekt | `notes` (MW-Rechnungsabgleich) |
+
+`workflow_summary` in der API: fehlende Mengen bei Empfang/Retour, Lieferdatum erreicht.
 
 ### 11.3 Regeln
 
-- **Kein** Kistencheck, **keine** Packkisten-Rubrik für J+S
-- **Kein** Einlagern (`quantity_stored` = 0) — Retour = Abgabe an J+S
-- Verlust: Differenz `quantity_issued − quantity_returned` → Issue-Meldung (optional)
-- `jsWorkflowSummary` (Ist in `ActivityPackListTab.vue`) → Header des J+S-Reiters
+- **Kein** Kistencheck, **kein** Einlagern für J+S
+- Checkliste **nicht** vor Coach-Übergabe + Lieferdatum
+- MW sieht Differenzen dauerhaft (auch nach `fulfilled`)
 
 ### 11.4 Pipeline-Mapping (J+S)
 
@@ -436,17 +453,20 @@ Bindestrick Hanf blau/grau
 
 ---
 
-## 13. API (Ziel)
+## 13. API
 
 | Methode | Pfad | Beschreibung |
 |---------|------|--------------|
 | PATCH | `/api/activities/{id}` | `wants_js_material`, `participant_count` |
-| GET | `/api/activities/{id}/js-order` | Bestellung + Positionen |
+| GET | `/api/activities/{id}/js-order` | Bestellung + Positionen + `workflow_summary` |
 | PUT | `/api/activities/{id}/js-order` | Formular + Positionen speichern |
+| POST | `/api/activities/{id}/js-order/submit-to-coach` | Coach-Übergabe |
+| POST | `/api/activities/{id}/js-order/send-coach-email` | E-Mail an Coach (PDF-Anhang) |
 | POST | `/api/activities/{id}/js-order/mark-ordered` | Status `ordered` |
 | POST | `/api/activities/{id}/js-order/generate-pdf` | PDF erzeugen |
 | POST | `/api/activities/{id}/js-order/prefill` | Felder aus Aktivität übernehmen |
-| PATCH | `/api/activities/{id}/js-order/items/{itemId}` | Check-Felder |
+| PATCH | `/api/activities/{id}/js-order/items/{itemId}` | Empfang/Retour/Notiz |
+| POST | `/api/activities/{id}/js-order/confirm-return` | Retourprobe → `fulfilled` |
 | GET | `/api/materials/js-catalog` | J+S-Katalog für Modal-Picker |
 
 Berechtigung: `ActivityAccessService` — analog Material bearbeiten (Camp/Event).
@@ -466,7 +486,16 @@ Berechtigung: `ActivityAccessService` — analog Material bearbeiten (Camp/Event
 | Venue / Zeitraum Wizard | `useActivityCreateWizard.ts`, `ActivityDraftOverviewForm.vue` |
 | Produktlinie | `docs/supplier/supplier-portal.md` §1b |
 
-### 14.2 Ziel (neu)
+### 14.2 Implementiert
+
+| Thema | Ort |
+|-------|-----|
+| Tab J+S + Accordions | `ActivityJsTabView.vue`, `ActivityDetailView.vue` |
+| Coach-Mail | `JsOrderCoachMailService.php` |
+| Admin-Katalog | `JsLeihkatalogAdminController.php`, `/admin-dashboard/verwaltung/js-leihkatalog` |
+| Modal + PDF | `ActivityJsOrderModal.vue`, `ActivityJsOrderPdfService.php` |
+
+### 14.3 Ziel (weitere)
 
 | Thema | Ort (Vorschlag) |
 |-------|-----------------|
@@ -490,7 +519,7 @@ Berechtigung: `ActivityAccessService` — analog Material bearbeiten (Camp/Event
 | **4** | Block 4: Katalog-Picker + Dotation | Positionen + Validierung ✓ |
 | **5** | PDF-Export + Ablage | Drucken |
 | **6** | Pack-API `source_department_*` + Oberreiter | Getrennte Listen |
-| **7** | J+S-Reiter Check-UI + Backend-Moves | Empfang/Retour |
+| **7** | Tab J+S Check-UI + Coach-Workflow | ✓ Empfang/Retour |
 | **8** | Optional: Abschluss-Blocker, Inbox-Reminder 5 Wochen | MW-Hinweis |
 
 ---

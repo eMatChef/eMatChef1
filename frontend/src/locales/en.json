@@ -30,6 +30,7 @@
         "permissions": "Permissions · eMatChef",
         "activities": "Activities · eMatChef",
         "activityDetail": "Activity · eMatChef",
+        "activityPackJourney": "Packing list (Beta) · eMatChef",
         "materials": "Materials · eMatChef",
         "supplierShop": "Supplier shop · eMatChef",
         "materialsAll": "All materials · eMatChef",
@@ -1183,6 +1184,7 @@
     "userMenu": {
       "editProfile": "Edit profile",
       "switchDepartment": "Switch department",
+      "departmentSettings": "Department settings",
       "switchSupplierCompany": "Switch company",
       "logout": "Log out"
     },
@@ -1834,6 +1836,141 @@
       "piecesShort": "{count} pcs.",
       "piecesWithUnit": "{count} pcs."
     },
+    "materialJourney": {
+      "loading": "Loading packing list…",
+      "legacyPackLink": "Classic packing list",
+      "historyLink": "View history",
+      "journeyBetaLink": "New packing list (Beta)",
+      "step": {
+        "pack": "Pack",
+        "transport_out": "Transport out",
+        "issue": "Issue",
+        "issueLogistics": "At event",
+        "transport_back": "Transport back",
+        "return": "Return",
+        "store": "Store"
+      },
+      "filter": {
+        "open": "Open",
+        "done": "Done",
+        "byShelf": "By shelf",
+        "aria": "Filter checklist"
+      },
+      "regalGroup": {
+        "noShelf": "No shelf",
+        "summary": "{count} open"
+      },
+      "toolbar": {
+        "progress": "{done} / {total} done"
+      },
+      "row": {
+        "openQty": "{count} open",
+        "doneQty": "{count} done",
+        "crateLineCount": "{count} line | {count} lines",
+        "crateDone": "Done"
+      },
+      "badge": {
+        "set": "Set",
+        "consumable": "Consumable",
+        "js": "J+S",
+        "crate": "Crate"
+      },
+      "footer": {
+        "progress": "{done} of {total} lines done",
+        "openHint": "{count} still open — tap a row to book all for this step",
+        "openHintReturn": "{count} still open — tap a row to return all for this line",
+        "openHintStore": "{count} still open — tap a row to store all items",
+        "openHintTransportOut": "{count} still open — tap a row to book all for outbound transport",
+        "openHintTransportBack": "{count} still open — tap a row to book all for return transport"
+      },
+      "readonlyFutureStep": "This step is ahead of the current activity status — view only.",
+      "toastViewOnly": "This step is read-only.",
+      "toastComboPhase3": "Physical sets will be supported with a set checklist in phase 3.",
+      "toastStepReadonly": "Moves for this step arrive in a later phase.",
+      "crateSheet": {
+        "subtitle": "Review contents and book everything for this step",
+        "primaryPack": "Pack all",
+        "primaryIssue": "Issue all",
+        "primaryReturn": "Return crate",
+        "primaryStore": "Store crate",
+        "empty": "No open lines in this crate.",
+        "sectionSummary": "{count} open",
+        "subtitleReturn": "Review contents and return the crate",
+        "subtitleStore": "Review contents and store the crate"
+      },
+      "comboSheet": {
+        "subtitle": "Check off all parts and book the set",
+        "primaryPack": "Pack set",
+        "primaryIssue": "Issue set",
+        "primaryReturn": "Return set",
+        "primaryStore": "Store set",
+        "loading": "Loading bill of materials…",
+        "empty": "No components for this set.",
+        "checkAllHint": "Check off all parts to book."
+      },
+      "scan": {
+        "label": "Search or scan",
+        "placeholder": "Name, shelf or QR code…",
+        "openCamera": "Open camera to scan",
+        "openMenu": "Search options",
+        "barcodeShortcutHint": "Scan without choosing: tap the scan icon on the left.",
+        "menuBarcodeHint": "Tip: The scan icon on the left opens the camera directly — no menu needed.",
+        "rememberForSession": "Remember for this session",
+        "resetSessionPref": "Reset choice",
+        "sessionPrefCamera": "Saved for this session: tap field → camera.",
+        "sessionPrefType": "Saved for this session: tap field → type to search.",
+        "chooseActionTitle": "How do you want to search?",
+        "chooseCamera": "Scan with camera",
+        "chooseType": "Type to search",
+        "cameraTitle": "Scan code",
+        "cameraHint": "Hold QR or barcode in the frame",
+        "bulkConfirm": "Book anyway",
+        "bulkConfirmHint": "Different batch than planned — book only after confirming.",
+        "actionBookPack": "Pack",
+        "actionBookIssue": "Take",
+        "actionBookReturn": "Return",
+        "actionBookStore": "Store",
+        "actionBookTransportOut": "Transport out",
+        "actionBookTransportBack": "Transport back",
+        "actionOpenCratePack": "Open crate",
+        "actionOpenCrateIssue": "Open crate",
+        "actionOpenCrateReturn": "Open return crate",
+        "actionOpenCrateStore": "Store crate",
+        "actionOpenCombo": "Check set",
+        "actionShow": "Show",
+        "result": {
+          "not_on_list": "Not on this packing list.",
+          "not_ready": "Material manager is still packing.",
+          "wrong_batch": "Different batch than planned.",
+          "serialized_mismatch": "Wrong batch — serialized items require an exact QR match.",
+          "bulk_wrong_batch": "Different batch than planned.",
+          "in_repair": "Item is in the workshop.",
+          "crate_shell": "Pack crate detected.",
+          "in_crate": "Item is inside a crate.",
+          "loose_ready": "Ready to book.",
+          "combo_open": "Physical set — open checklist.",
+          "already_done": "Already done for this step.",
+          "in_virtual_crate": "Belongs to set «{name}».",
+          "text_crate": "Crate found in the list.",
+          "text_combo": "Set found in the list.",
+          "text_loose": "Line found in the list.",
+          "unknown": "Code not recognized.",
+          "unsupported_scan": "This code type is not supported here."
+        }
+      },
+      "empty": {
+        "earlyPreviewTitle": "Material manager is still packing",
+        "earlyPreviewDescription": "{count} lines planned — actions unlock once marked as packed.",
+        "openTitle": "All done",
+        "openDescription": "No open lines in this step.",
+        "byShelfTitle": "All packed",
+        "byShelfDescription": "No open lines left — switch to «Done» or another step.",
+        "doneTitle": "Nothing done yet",
+        "doneDescription": "Completed lines appear here after booking.",
+        "listTitle": "Checklist coming soon",
+        "listDescription": "{count} lines loaded — rows and actions arrive in phase 2."
+      }
+    },
     "packList": {
       "loading": "Loading packing list…",
       "title": "Packing list",
@@ -2451,6 +2588,29 @@
       "action_material_changed": "Material changed",
       "action_material_items_changed": "Material changed",
       "action_pack_reset_cancel": "Pack list reset on cancellation",
+      "action_pack_move": "Material booked",
+      "action_pack_moveback": "Booking reversed",
+      "action_pack_container_bulk": "Crate booked",
+      "filterAll": "All",
+      "filterPack": "Packing & bookings",
+      "packAggregateTitle": "{step} · {count} lines",
+      "packAggregateTitleNoStep": "{count} bookings",
+      "packAggregateExpand": "Show individual bookings",
+      "packAggregateCollapse": "Hide individual bookings",
+      "packMoveLine": "{name} · ×{qty} · {step}",
+      "packMoveBackLine": "{name} · ×{qty} reversed · {step}",
+      "packContainerFallback": "Crate",
+      "packContainerIssueAll": "{label} · complete · {step}",
+      "packContainerReturnAll": "{label} · fully returned",
+      "packContainerUnissueAll": "{label} · issue reversed",
+      "packSourceScan": "(scan)",
+      "packSourceBulk": "(crate)",
+      "packStage_packed": "Pack",
+      "packStage_transport_to": "Transport out",
+      "packStage_at_event": "At event",
+      "packStage_transport_back": "Transport back",
+      "packStage_returned": "Return",
+      "packStage_stored": "Store",
       "packResetCancelPreviousStatus": "Previous status: {status}",
       "materialAdded": "{name}: added {n}×",
       "materialRemoved": "{name}: removed {n}×",
@@ -5528,6 +5688,44 @@
     },
     "comingSoon": {
       "description": "This section will be available soon."
+    }
+  },
+  "grossanlass": {
+    "label": "Major event",
+    "wizard": {
+      "title": "Add major event",
+      "nameLabel": "Event name",
+      "namePlaceholder": "e.g. PFF 2027",
+      "eventPeriodLabel": "Event period",
+      "eventStartLabel": "Event start date",
+      "eventEndLabel": "Event end date (optional)",
+      "organisationLabel": "Organisation",
+      "parentLabel": "Parent department (optional)",
+      "parentPrompt": "Select parent",
+      "noParent": "No parent",
+      "chiefMwLabel": "Chief material manager",
+      "chiefMwHint": "Recommended: receives email and inbox notification.",
+      "chiefMwWarning": "Without a chief MW you can assign one later in department settings.",
+      "userSearchPlaceholder": "Name, email or department (min. 2 characters)",
+      "noUserSearchResults": "No user found",
+      "create": "Create",
+      "nameRequired": "Name is required",
+      "nameDuplicate": "A department with this name already exists in this organisation.",
+      "organisationRequired": "Organisation is required",
+      "eventStartRequired": "Event period is required",
+      "eventEndBeforeStart": "End must be on or after start",
+      "loadError": "Could not load data",
+      "createError": "Could not create major event",
+      "createdSuccess": "«{name}» was created"
+    },
+    "dashboard": {
+      "draftBadge": "Draft",
+      "welcome": "Welcome to the major event workspace. Planning features will follow in upcoming phases."
+    },
+    "inbox": {
+      "category": "Major event",
+      "subject": "Material manager for «{name}»",
+      "preview": "You were assigned as material manager — open dashboard"
     }
   }
 }

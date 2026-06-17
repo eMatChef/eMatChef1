@@ -7,6 +7,7 @@ use App\Entity\Membership;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Event\AuthenticationSuccessEvent;
@@ -109,7 +110,8 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
             $memberships = $this->entityManager->getRepository(Membership::class)
                 ->createQueryBuilder('m')
                 ->innerJoin('m.department', 'd')
-                ->addSelect('d')
+                ->leftJoin('d.grossanlassConfig', 'gc')
+                ->addSelect('d', 'gc')
                 ->where('m.userId = :userId')
                 ->setParameter('userId', $user->getId())
                 ->getQuery()
@@ -121,13 +123,18 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
 
             foreach ($memberships as $m) {
                 $department = $m->getDepartment();
+                $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department);
                 $deptData = [
-                    'id' => $department->getId(),
-                    'name' => $department->getName(),
-                    'organisation_id' => $department->getOrganisationId(),
+                    'id' => $deptSerialized['id'],
+                    'name' => $deptSerialized['name'],
+                    'organisation_id' => $deptSerialized['organisation_id'],
                     'role' => $m->getRole(),
-                    'is_primary' => $m->getIsPrimary()
+                    'is_primary' => $m->getIsPrimary(),
+                    'is_grossanlass' => $deptSerialized['is_grossanlass'],
                 ];
+                if (isset($deptSerialized['grossanlass_config'])) {
+                    $deptData['grossanlass_config'] = $deptSerialized['grossanlass_config'];
+                }
                 $departments[] = $deptData;
 
                 // Primäres Department ermitteln

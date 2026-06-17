@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\Activity;
+use App\Entity\ActivityJsOrder;
 use App\Entity\ActivityHistory;
 use App\Entity\ActivityItem;
 use App\Entity\ActivityPackContainer;
@@ -349,9 +350,15 @@ class ActivityController extends AbstractController
             $activities[] = $candidate;
         }
 
+        $jsListPhases = $this->buildJsListPhaseMap($activities);
+
         $result = [];
         foreach ($activities as $activity) {
-            $result[] = $this->serializeActivity($activity);
+            $row = $this->serializeActivity($activity);
+            if ($activity->getWantsJsMaterial() && \in_array((string) $activity->getType(), ['camp', 'event'], true)) {
+                $row['js_list_phase'] = $jsListPhases[$activity->getId()] ?? 'draft';
+            }
+            $result[] = $row;
         }
 
         usort($result, static function (array $a, array $b): int {
@@ -1087,6 +1094,21 @@ class ActivityController extends AbstractController
                     return new JsonResponse(['error' => $e->getMessage()], 400);
                 }
             }
+            if (array_key_exists('js_delivery_address_id', $data)) {
+                $deliveryId = $data['js_delivery_address_id'] !== null && $data['js_delivery_address_id'] !== ''
+                    ? (string) $data['js_delivery_address_id']
+                    : null;
+                if ($deliveryId === null) {
+                    $activity->setJsDeliveryAddress(null);
+                    $activity->setJsDeliveryAddressId(null);
+                } else {
+                    $address = $this->entityManager->getRepository(Address::class)->find($deliveryId);
+                    if (!$address instanceof Address) {
+                        return new JsonResponse(['error' => 'Lieferadresse nicht gefunden'], 404);
+                    }
+                    $activity->setJsDeliveryAddress($address);
+                }
+            }
             if (array_key_exists('responsible_user_id', $data)) {
                 if ($data['responsible_user_id']) {
                     $user = $this->entityManager->getRepository(User::class)->find($data['responsible_user_id']);
@@ -1512,6 +1534,13 @@ class ActivityController extends AbstractController
 
         if ($newStatus === Activity::STATUS_PACKED && $oldStatus !== Activity::STATUS_PACKED) {
             $this->activityUserNotifications->notifyPacked($activity, $user);
+        }
+
+        if (
+            $newStatus === Activity::STATUS_AT_EVENT
+            && $oldStatus === Activity::STATUS_PACKED
+        ) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_at_event');
         }
 
         if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
@@ -4171,6 +4200,10 @@ class ActivityController extends AbstractController
 
         $activity->setWantsJsMaterial($requested);
 
+        if ($requested && $activity->getJsDeliveryAddressId() === null && $activity->getVenueAddressId() !== null) {
+            $activity->setJsDeliveryAddress($activity->getVenueAddress());
+        }
+
         return null;
     }
 
@@ -4225,6 +4258,7 @@ class ActivityController extends AbstractController
             'planning_end' => $activity->getPlanningEnd()?->format('Y-m-d'),
             'address_id' => $activity->getAddressId(),
             'venue_address_id' => $activity->getVenueAddressId(),
+            'js_delivery_address_id' => $activity->getJsDeliveryAddressId(),
             'responsible_user_id' => $activity->getResponsibleUserId(),
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice(),
@@ -4344,6 +4378,88 @@ class ActivityController extends AbstractController
         return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
     }
 
+    /**
+     * J+S-Phasen für Aktivitäten-Liste: draft (Entwurf) · coach (an Coach) · return (Retour).
+     *
+     * @param list<Activity> $activities
+     *
+     * @return array<string, string>
+     */
+    private function buildJsListPhaseMap(array $activities): array
+    {
+        $activityIds = [];
+        foreach ($activities as $activity) {
+            if (!$activity instanceof Activity) {
+                continue;
+            }
+            if (!$activity->getWantsJsMaterial()) {
+                continue;
+            }
+            if (!\in_array((string) $activity->getType(), ['camp', 'event'], true)) {
+                continue;
+            }
+            $activityIds[] = $activity->getId();
+        }
+
+        if ($activityIds === []) {
+            return [];
+        }
+
+        /** @var list<ActivityJsOrder> $orders */
+        $orders = $this->entityManager->getRepository(ActivityJsOrder::class)
+            ->createQueryBuilder('o')
+            ->where('o.activity IN (:ids)')
+            ->setParameter('ids', $activityIds)
+            ->getQuery()
+            ->getResult();
+
+        $ordersByActivity = [];
+        foreach ($orders as $order) {
+            if (!$order instanceof ActivityJsOrder) {
+                continue;
+            }
+            $ordersByActivity[$order->getActivityId()] = $order;
+        }
+
+        $phases = [];
+        foreach ($activityIds as $activityId) {
+            $order = $ordersByActivity[$activityId] ?? null;
+            $phases[$activityId] = $this->resolveJsListPhase($order);
+        }
+
+        return $phases;
+    }
+
+    private function resolveJsListPhase(?ActivityJsOrder $order): string
+    {
+        if (!$order instanceof ActivityJsOrder || $order->getSubmittedToCoachAt() === null) {
+            return 'draft';
+        }
+
+        if (
+            $order->getReturnConfirmedAt() !== null
+            || $order->getStatus() === ActivityJsOrder::STATUS_FULFILLED
+        ) {
+            return 'return';
+        }
+
+        $formData = $order->getFormData() ?? [];
+        $block2 = \is_array($formData['block2'] ?? null) ? $formData['block2'] : [];
+        $deliveryRaw = trim((string) ($block2['delivery_date'] ?? ''));
+        if ($deliveryRaw !== '') {
+            try {
+                $deliveryDate = new \DateTimeImmutable($deliveryRaw);
+                if ($deliveryDate <= new \DateTimeImmutable('today')) {
+                    return 'return';
+                }
+            } catch (\Throwable) {
+                // Ungültiges Datum — Coach-Phase beibehalten
+            }
+        }
+
+        return 'coach';
+    }
+
     private function serializeActivity(Activity $activity, bool $detailed = false, ?User $viewer = null): array
     {
         // Gruppenname ggf. laden
@@ -4397,6 +4513,7 @@ class ActivityController extends AbstractController
                 'planning_end' => $activity->getPlanningEnd()?->format('c'),
                 'address_id' => $activity->getAddressId(),
                 'venue_address_id' => $activity->getVenueAddressId(),
+                'js_delivery_address_id' => $activity->getJsDeliveryAddressId(),
                 'responsible_user_id' => $activity->getResponsibleUserId(),
                 'created_by_user_id' => $activity->getCreatedByUserId(),
                 'pricing_mode' => $activity->getPricingMode(),

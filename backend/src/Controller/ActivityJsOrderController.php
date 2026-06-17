@@ -9,6 +9,7 @@ use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Service\Activity\ActivityJsOrderPdfService;
 use App\Service\Activity\ActivityJsOrderPdfStorageService;
+use App\Service\Activity\JsOrderCoachMailService;
 use App\Service\ActivityAccessService;
 use App\Service\JsDotationRulesService;
 use App\Service\JsOrderPrefillService;
@@ -33,6 +34,7 @@ class ActivityJsOrderController extends AbstractController
         private JsDotationRulesService $dotationRules,
         private ActivityJsOrderPdfService $pdfService,
         private ActivityJsOrderPdfStorageService $pdfStorage,
+        private JsOrderCoachMailService $coachMailService,
     ) {}
 
     #[Route('/js-order', name: 'get', methods: ['GET'])]
@@ -95,8 +97,8 @@ class ActivityJsOrderController extends AbstractController
             $created = true;
         }
 
-        if ($order->getStatus() === ActivityJsOrder::STATUS_ORDERED) {
-            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert'], 422);
+        if (\in_array($order->getStatus(), [ActivityJsOrder::STATUS_ORDERED, ActivityJsOrder::STATUS_FULFILLED], true)) {
+            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert oder abgeschlossen'], 422);
         }
 
         if (\array_key_exists('form_data', $data)) {
@@ -172,8 +174,8 @@ class ActivityJsOrderController extends AbstractController
             $created = true;
         }
 
-        if ($order->getStatus() === ActivityJsOrder::STATUS_ORDERED) {
-            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert'], 422);
+        if (\in_array($order->getStatus(), [ActivityJsOrder::STATUS_ORDERED, ActivityJsOrder::STATUS_FULFILLED], true)) {
+            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert oder abgeschlossen'], 422);
         }
 
         $this->prefillService->applyPrefill($order, $activity, $user, !$forceAll);
@@ -215,8 +217,8 @@ class ActivityJsOrderController extends AbstractController
             return new JsonResponse(['error' => 'J+S-Bestellung existiert noch nicht — Formular zuerst öffnen'], 422);
         }
 
-        if ($order->getStatus() === ActivityJsOrder::STATUS_ORDERED) {
-            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert'], 422);
+        if (\in_array($order->getStatus(), [ActivityJsOrder::STATUS_ORDERED, ActivityJsOrder::STATUS_FULFILLED], true)) {
+            return new JsonResponse(['error' => 'Bestellung ist bereits als bestellt markiert oder abgeschlossen'], 422);
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
@@ -318,6 +320,11 @@ class ActivityJsOrderController extends AbstractController
             return new JsonResponse(['error' => 'J+S-Bestellung existiert noch nicht — Formular zuerst speichern'], 422);
         }
 
+        $block3Error = $this->validateBlock3FrankoDelivery($order);
+        if ($block3Error !== null) {
+            return new JsonResponse(['error' => $block3Error], 422);
+        }
+
         try {
             $pdfBinary = $this->pdfService->renderPdf($order);
             $stored = $this->pdfStorage->store($order, $user, $pdfBinary);
@@ -386,6 +393,298 @@ class ActivityJsOrderController extends AbstractController
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 404);
         }
+    }
+
+    #[Route('/js-order/submit-to-coach', name: 'submit_to_coach', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function submitToCoach(string $activityId): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertJsOrderContext($activity);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $editDeny = $this->assertCanEditJsOrder($user, $activity);
+        if ($editDeny !== null) {
+            return $editDeny;
+        }
+
+        $order = $this->findOrderForActivity($activityId);
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung existiert noch nicht — Formular zuerst speichern'], 422);
+        }
+
+        if ($order->getStatus() === ActivityJsOrder::STATUS_FULFILLED) {
+            return new JsonResponse(['error' => 'J+S-Bestellung ist bereits abgeschlossen'], 422);
+        }
+
+        if ($order->getItems()->count() < 1) {
+            return new JsonResponse(['error' => 'Mindestens eine J+S-Position erforderlich'], 422);
+        }
+
+        $block3Error = $this->validateBlock3FrankoDelivery($order);
+        if ($block3Error !== null) {
+            return new JsonResponse(['error' => $block3Error], 422);
+        }
+
+        $deliveryDate = $this->resolveDeliveryDateFromOrder($order);
+        if ($deliveryDate === null) {
+            return new JsonResponse(['error' => 'Lieferdatum im Formular (Block 2) erforderlich'], 422);
+        }
+
+        $now = new \DateTime();
+        $order->setSubmittedToCoachAt($now);
+        $order->setSubmittedByUser($user);
+        if ($order->getStatus() === ActivityJsOrder::STATUS_DRAFT) {
+            $order->setStatus(ActivityJsOrder::STATUS_READY);
+        }
+        $order->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return new JsonResponse(['order' => $this->serializeOrder($order)]);
+    }
+
+    #[Route('/js-order/send-coach-email', name: 'send_coach_email', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function sendCoachEmail(string $activityId): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertJsOrderContext($activity);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $editDeny = $this->assertCanEditJsOrder($user, $activity);
+        if ($editDeny !== null) {
+            return $editDeny;
+        }
+
+        $order = $this->findOrderForActivity($activityId);
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung existiert noch nicht'], 422);
+        }
+
+        $block3Error = $this->validateBlock3FrankoDelivery($order);
+        if ($block3Error !== null) {
+            return new JsonResponse(['error' => $block3Error], 422);
+        }
+
+        try {
+            $this->coachMailService->sendToCoach($order, $activity, $user);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 422);
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'MAILER_DSN')) {
+                return new JsonResponse([
+                    'error' => 'E-Mail-Versand ist nicht konfiguriert (MAILER_DSN fehlt). Bitte SendGrid/MAILER_DSN in der Server-Umgebung setzen.',
+                    'code' => 'mail_transport_missing',
+                ], 503);
+            }
+
+            return new JsonResponse(['error' => 'E-Mail konnte nicht gesendet werden: ' . $e->getMessage()], 500);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'E-Mail konnte nicht gesendet werden: ' . $e->getMessage()], 500);
+        }
+
+        $now = new \DateTime();
+        $order->setCoachEmailSentAt($now);
+        if ($order->getSubmittedToCoachAt() === null) {
+            $order->setSubmittedToCoachAt($now);
+            $order->setSubmittedByUser($user);
+        }
+        if ($order->getStatus() === ActivityJsOrder::STATUS_DRAFT) {
+            $order->setStatus(ActivityJsOrder::STATUS_READY);
+        }
+        $order->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return new JsonResponse(['order' => $this->serializeOrder($order)]);
+    }
+
+    #[Route('/js-order/mark-ordered', name: 'mark_ordered', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function markOrdered(string $activityId): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertJsOrderContext($activity);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $editDeny = $this->assertCanEditJsOrder($user, $activity);
+        if ($editDeny !== null) {
+            return $editDeny;
+        }
+
+        $order = $this->findOrderForActivity($activityId);
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung existiert noch nicht'], 422);
+        }
+
+        if ($order->getSubmittedToCoachAt() === null) {
+            return new JsonResponse(['error' => 'Zuerst an J+S-Coach übergeben'], 422);
+        }
+
+        if (\in_array($order->getStatus(), [ActivityJsOrder::STATUS_ORDERED, ActivityJsOrder::STATUS_FULFILLED], true)) {
+            return new JsonResponse(['order' => $this->serializeOrder($order)]);
+        }
+
+        $order->setStatus(ActivityJsOrder::STATUS_ORDERED);
+        $order->setOrderedAt(new \DateTime());
+        $order->setOrderedByUser($user);
+        $order->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return new JsonResponse(['order' => $this->serializeOrder($order)]);
+    }
+
+    #[Route('/js-order/items/{itemId}', name: 'patch_item', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function patchItem(string $activityId, string $itemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertJsOrderContext($activity);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $checkDeny = $this->assertCanUpdateJsChecks($user, $activity, $this->findOrderForActivity($activityId));
+        if ($checkDeny !== null) {
+            return $checkDeny;
+        }
+
+        $order = $this->findOrderForActivity($activityId);
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung nicht gefunden'], 404);
+        }
+
+        $item = null;
+        foreach ($order->getItems() as $candidate) {
+            if ($candidate->getId() === $itemId) {
+                $item = $candidate;
+                break;
+            }
+        }
+        if (!$item instanceof ActivityJsOrderItem) {
+            return new JsonResponse(['error' => 'Position nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        if (\array_key_exists('quantity_received', $data)) {
+            $received = max(0, (int) $data['quantity_received']);
+            if ($received > $item->getQuantityOrdered()) {
+                return new JsonResponse(['error' => 'Erhaltene Menge darf Bestellmenge nicht überschreiten'], 422);
+            }
+            $item->setQuantityReceived($received);
+        }
+
+        if (\array_key_exists('quantity_returned', $data)) {
+            $returned = max(0, (int) $data['quantity_returned']);
+            if ($returned > $item->getQuantityReceived()) {
+                return new JsonResponse(['error' => 'Retour darf erhaltene Menge nicht überschreiten'], 422);
+            }
+            $item->setQuantityReturned($returned);
+        }
+
+        if (\array_key_exists('order_confirmed', $data)) {
+            $item->setOrderConfirmed((bool) $data['order_confirmed']);
+        }
+
+        if (\array_key_exists('notes', $data)) {
+            $notes = trim((string) $data['notes']);
+            $item->setNotes($notes !== '' ? $notes : null);
+        }
+
+        $item->touchUpdatedAt();
+        $order->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return new JsonResponse(['order' => $this->serializeOrder($order)]);
+    }
+
+    #[Route('/js-order/confirm-return', name: 'confirm_return', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function confirmReturn(string $activityId): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $deny = $this->assertJsOrderContext($activity);
+        if ($deny !== null) {
+            return $deny;
+        }
+
+        $order = $this->findOrderForActivity($activityId);
+        $checkDeny = $this->assertCanUpdateJsChecks($user, $activity, $order);
+        if ($checkDeny !== null) {
+            return $checkDeny;
+        }
+
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung nicht gefunden'], 404);
+        }
+
+        if ($order->getReturnConfirmedAt() !== null) {
+            return new JsonResponse(['order' => $this->serializeOrder($order)]);
+        }
+
+        foreach ($order->getItems() as $item) {
+            if ($item->getQuantityReceived() < 1 && $item->getQuantityOrdered() > 0) {
+                return new JsonResponse(['error' => 'Empfang noch nicht für alle Positionen erfasst'], 422);
+            }
+        }
+
+        $order->setReturnConfirmedAt(new \DateTime());
+        $order->setStatus(ActivityJsOrder::STATUS_FULFILLED);
+        $order->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return new JsonResponse(['order' => $this->serializeOrder($order)]);
     }
 
     private function findOrderForActivity(string $activityId): ?ActivityJsOrder
@@ -549,6 +848,117 @@ class ActivityJsOrderController extends AbstractController
         return null;
     }
 
+    private function assertCanUpdateJsChecks(User $user, Activity $activity, ?ActivityJsOrder $order): ?JsonResponse
+    {
+        if (!$order instanceof ActivityJsOrder) {
+            return new JsonResponse(['error' => 'J+S-Bestellung nicht gefunden'], 404);
+        }
+
+        if ($order->getStatus() === ActivityJsOrder::STATUS_CANCELLED) {
+            return new JsonResponse(['error' => 'J+S-Bestellung ist storniert'], 422);
+        }
+
+        if ($order->getSubmittedToCoachAt() === null && $order->getStatus() !== ActivityJsOrder::STATUS_ORDERED) {
+            return new JsonResponse(['error' => 'Checkliste erst nach Übergabe an den Coach verfügbar'], 422);
+        }
+
+        if (!$this->activityAccess->canUserViewActivity($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        return null;
+    }
+
+    private function resolveDeliveryDateFromOrder(ActivityJsOrder $order): ?\DateTimeImmutable
+    {
+        $formData = $order->getFormData() ?? [];
+        $block2 = \is_array($formData['block2'] ?? null) ? $formData['block2'] : [];
+        $raw = trim((string) ($block2['delivery_date'] ?? ''));
+        if ($raw === '') {
+            return null;
+        }
+
+        $parsed = \DateTimeImmutable::createFromFormat('Y-m-d', $raw);
+        if ($parsed instanceof \DateTimeImmutable) {
+            return $parsed->setTime(0, 0);
+        }
+
+        return null;
+    }
+
+    private function validateBlock3FrankoDelivery(ActivityJsOrder $order): ?string
+    {
+        if ($order->getDeliveryType() === ActivityJsOrder::DELIVERY_PICKUP_THUN) {
+            return null;
+        }
+
+        $formData = $order->getFormData() ?? [];
+        $block3 = \is_array($formData['block3'] ?? null) ? $formData['block3'] : [];
+        $required = [
+            'venue_name' => 'Bezeichnung Lieferort',
+            'address' => 'Adresse',
+            'postal_code' => 'PLZ',
+            'city' => 'Ort',
+        ];
+        foreach ($required as $field => $label) {
+            if (trim((string) ($block3[$field] ?? '')) === '') {
+                return $label . ' in Block 3 (Zustelladresse) erforderlich.';
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array<string, mixed> */
+    private function buildWorkflowSummary(ActivityJsOrder $order): array
+    {
+        $itemsTotal = 0;
+        $missingOnReceive = 0;
+        $missingOnReturn = 0;
+        $receivedComplete = 0;
+        $returnComplete = 0;
+        $withNotes = 0;
+
+        foreach ($order->getItems() as $item) {
+            ++$itemsTotal;
+            $ordered = $item->getQuantityOrdered();
+            $received = $item->getQuantityReceived();
+            $returned = $item->getQuantityReturned();
+
+            if ($ordered > 0 && $received >= $ordered) {
+                ++$receivedComplete;
+            }
+            if ($received > 0 && $returned >= $received) {
+                ++$returnComplete;
+            }
+            $missingOnReceive += max(0, $ordered - $received);
+            $missingOnReturn += max(0, $received - $returned);
+            if (trim((string) ($item->getNotes() ?? '')) !== '') {
+                ++$withNotes;
+            }
+        }
+
+        $deliveryDate = $this->resolveDeliveryDateFromOrder($order);
+        $today = new \DateTimeImmutable('today');
+        $deliveryReached = $deliveryDate !== null && $deliveryDate <= $today;
+
+        $coachEmailReady = $this->coachMailService->resolveCoachEmail($order, $order->getActivity()) !== null;
+
+        return [
+            'items_total' => $itemsTotal,
+            'items_received_complete' => $receivedComplete,
+            'items_return_complete' => $returnComplete,
+            'missing_on_receive' => $missingOnReceive,
+            'missing_on_return' => $missingOnReturn,
+            'items_with_notes' => $withNotes,
+            'delivery_date' => $deliveryDate?->format('Y-m-d'),
+            'delivery_reached' => $deliveryReached,
+            'submitted_to_coach' => $order->getSubmittedToCoachAt() !== null,
+            'return_confirmed' => $order->getReturnConfirmedAt() !== null,
+            'coach_email_ready' => $coachEmailReady,
+        ];
+    }
+
     /** @return array<string, mixed> */
     private function serializeOrder(ActivityJsOrder $order): array
     {
@@ -577,9 +987,14 @@ class ActivityJsOrderController extends AbstractController
             'delivery_type' => $order->getDeliveryType(),
             'ordered_at' => $order->getOrderedAt()?->format(\DateTimeInterface::ATOM),
             'ordered_by_user_id' => $order->getOrderedByUserId(),
+            'submitted_to_coach_at' => $order->getSubmittedToCoachAt()?->format(\DateTimeInterface::ATOM),
+            'submitted_by_user_id' => $order->getSubmittedByUserId(),
+            'coach_email_sent_at' => $order->getCoachEmailSentAt()?->format(\DateTimeInterface::ATOM),
+            'return_confirmed_at' => $order->getReturnConfirmedAt()?->format(\DateTimeInterface::ATOM),
             'generated_pdf_media_id' => $order->getGeneratedPdfMediaId(),
             'generated_pdf_url' => $this->buildGeneratedPdfUrl($order),
             'items' => $items,
+            'workflow_summary' => $this->buildWorkflowSummary($order),
             'dotation_warnings' => $this->buildDotationWarnings($order),
             'created_at' => $order->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $order->getUpdatedAt()->format(\DateTimeInterface::ATOM),

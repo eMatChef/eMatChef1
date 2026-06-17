@@ -26,6 +26,7 @@ export interface JsOrderFormBlock2 {
   coach_first_name: string
   coach_last_name: string
   coach_person_nr: string
+  coach_email: string
   user_overridden: string[]
 }
 
@@ -61,6 +62,42 @@ export interface ActivityJsOrderItemApi {
   sort_order: number
 }
 
+export interface JsOrderWorkflowSummary {
+  items_total: number
+  items_received_complete: number
+  items_return_complete: number
+  missing_on_receive: number
+  missing_on_return: number
+  items_with_notes: number
+  delivery_date: string | null
+  delivery_reached: boolean
+  submitted_to_coach: boolean
+  return_confirmed: boolean
+  coach_email_ready: boolean
+}
+
+export interface ActivityJsOrderApi {
+  id: string
+  activity_id: string
+  status: JsOrderStatus
+  form_data: JsOrderFormData
+  participant_count: number | null
+  delivery_type: JsOrderDeliveryType
+  ordered_at?: string | null
+  ordered_by_user_id?: string | null
+  submitted_to_coach_at?: string | null
+  submitted_by_user_id?: string | null
+  coach_email_sent_at?: string | null
+  return_confirmed_at?: string | null
+  generated_pdf_media_id?: string | null
+  generated_pdf_url?: string | null
+  dotation_warnings?: string[]
+  workflow_summary?: JsOrderWorkflowSummary
+  items: ActivityJsOrderItemApi[]
+  created_at: string
+  updated_at: string
+}
+
 export interface JsOrderItemSaveRow {
   material_item_id: string
   quantity_ordered: number
@@ -85,23 +122,6 @@ export interface JsCatalogItem {
   variant_group?: string | null
 }
 
-export interface ActivityJsOrderApi {
-  id: string
-  activity_id: string
-  status: JsOrderStatus
-  form_data: JsOrderFormData
-  participant_count: number | null
-  delivery_type: JsOrderDeliveryType
-  ordered_at?: string | null
-  ordered_by_user_id?: string | null
-  generated_pdf_media_id?: string | null
-  generated_pdf_url?: string | null
-  dotation_warnings?: string[]
-  items: ActivityJsOrderItemApi[]
-  created_at: string
-  updated_at: string
-}
-
 export const EMPTY_JS_ORDER_FORM: JsOrderFormData = {
   block1: {
     first_name: '',
@@ -124,6 +144,7 @@ export const EMPTY_JS_ORDER_FORM: JsOrderFormData = {
     coach_first_name: '',
     coach_last_name: '',
     coach_person_nr: '',
+    coach_email: '',
     user_overridden: [],
   },
   block3: {
@@ -140,10 +161,22 @@ export const EMPTY_JS_ORDER_FORM: JsOrderFormData = {
   },
 }
 
+/** Deep clone für API-Payloads (kein structuredClone auf Vue-Reactive-Proxies). */
+export function cloneJsOrderFormData(source: JsOrderFormData): JsOrderFormData {
+  return JSON.parse(JSON.stringify(source)) as JsOrderFormData
+}
+
 function numOrNull(v: unknown): number | null {
   if (v == null || v === '') return null
   const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10)
   return Number.isFinite(n) && n >= 1 ? n : null
+}
+
+/** 0-basiert (z. B. pdf_line_order: 0 = erste PDF-Zeile) */
+function nonNegativeIntOrNull(v: unknown): number | null {
+  if (v == null || v === '') return null
+  const n = typeof v === 'number' ? v : Number.parseInt(String(v), 10)
+  return Number.isFinite(n) && n >= 0 ? n : null
 }
 
 function str(v: unknown, fallback = ''): string {
@@ -181,6 +214,7 @@ function mapFormBlock2(raw: Record<string, unknown>): JsOrderFormBlock2 {
     coach_first_name: str(raw.coach_first_name),
     coach_last_name: str(raw.coach_last_name),
     coach_person_nr: str(raw.coach_person_nr),
+    coach_email: str(raw.coach_email),
     user_overridden: strList(raw.user_overridden),
   }
 }
@@ -209,6 +243,24 @@ function mapFormData(raw: unknown): JsOrderFormData {
   }
 }
 
+function mapWorkflowSummary(raw: unknown): JsOrderWorkflowSummary | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const w = raw as Record<string, unknown>
+  return {
+    items_total: Number(w.items_total ?? 0) || 0,
+    items_received_complete: Number(w.items_received_complete ?? 0) || 0,
+    items_return_complete: Number(w.items_return_complete ?? 0) || 0,
+    missing_on_receive: Number(w.missing_on_receive ?? 0) || 0,
+    missing_on_return: Number(w.missing_on_return ?? 0) || 0,
+    items_with_notes: Number(w.items_with_notes ?? 0) || 0,
+    delivery_date: w.delivery_date != null ? str(w.delivery_date) : null,
+    delivery_reached: !!w.delivery_reached,
+    submitted_to_coach: !!w.submitted_to_coach,
+    return_confirmed: !!w.return_confirmed,
+    coach_email_ready: !!w.coach_email_ready,
+  }
+}
+
 function mapOrder(raw: Record<string, unknown>): ActivityJsOrderApi {
   const delivery = str(raw.delivery_type)
   const status = str(raw.status, 'draft') as JsOrderStatus
@@ -223,12 +275,17 @@ function mapOrder(raw: Record<string, unknown>): ActivityJsOrderApi {
     delivery_type: delivery === 'pickup_thun' ? 'pickup_thun' : 'franko',
     ordered_at: raw.ordered_at != null ? str(raw.ordered_at) : null,
     ordered_by_user_id: raw.ordered_by_user_id != null ? str(raw.ordered_by_user_id) : null,
+    submitted_to_coach_at: raw.submitted_to_coach_at != null ? str(raw.submitted_to_coach_at) : null,
+    submitted_by_user_id: raw.submitted_by_user_id != null ? str(raw.submitted_by_user_id) : null,
+    coach_email_sent_at: raw.coach_email_sent_at != null ? str(raw.coach_email_sent_at) : null,
+    return_confirmed_at: raw.return_confirmed_at != null ? str(raw.return_confirmed_at) : null,
     generated_pdf_media_id:
       raw.generated_pdf_media_id != null ? str(raw.generated_pdf_media_id) : null,
     generated_pdf_url: raw.generated_pdf_url != null ? str(raw.generated_pdf_url) : null,
     dotation_warnings: Array.isArray(raw.dotation_warnings)
       ? raw.dotation_warnings.map((w) => str(w)).filter(Boolean)
       : [],
+    workflow_summary: mapWorkflowSummary(raw.workflow_summary),
     items: itemsRaw.map((item) => {
       const i = item as Record<string, unknown>
       return {
@@ -330,7 +387,7 @@ export async function getJsMaterialCatalog(params: {
     dotation_round_up: numOrNull(raw.dotation_round_up),
     stock_available: numOrNull(raw.stock_available),
     pdf_form_line: raw.pdf_form_line != null ? str(raw.pdf_form_line) : null,
-    pdf_line_order: numOrNull(raw.pdf_line_order),
+    pdf_line_order: nonNegativeIntOrNull(raw.pdf_line_order),
     variant_group: raw.variant_group != null ? str(raw.variant_group) : null,
   }))
   return {
@@ -374,6 +431,55 @@ export async function fetchActivityJsOrderPdfBlob(pdfUrl: string): Promise<Blob>
   const path = pdfUrl.startsWith('/') ? pdfUrl : `/${pdfUrl}`
   const response = await apiClient.get<Blob>(path, { responseType: 'blob' })
   return response.data
+}
+
+export async function submitJsOrderToCoach(activityId: string): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.post<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/submit-to-coach`,
+    {},
+  )
+  return mapOrder(response.data.order)
+}
+
+export async function sendJsOrderCoachEmail(activityId: string): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.post<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/send-coach-email`,
+    {},
+  )
+  return mapOrder(response.data.order)
+}
+
+export async function markJsOrderOrdered(activityId: string): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.post<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/mark-ordered`,
+    {},
+  )
+  return mapOrder(response.data.order)
+}
+
+export async function patchJsOrderItem(
+  activityId: string,
+  itemId: string,
+  payload: Partial<{
+    quantity_received: number
+    quantity_returned: number
+    order_confirmed: boolean
+    notes: string | null
+  }>,
+): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.patch<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/items/${itemId}`,
+    payload,
+  )
+  return mapOrder(response.data.order)
+}
+
+export async function confirmJsOrderReturn(activityId: string): Promise<ActivityJsOrderApi> {
+  const response = await apiClient.post<{ order: Record<string, unknown> }>(
+    `/api/activities/${activityId}/js-order/confirm-return`,
+    {},
+  )
+  return mapOrder(response.data.order)
 }
 
 export function jsOrderStatusLabelKey(status: JsOrderStatus | null | undefined): string {

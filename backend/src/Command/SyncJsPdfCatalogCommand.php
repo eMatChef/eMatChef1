@@ -14,7 +14,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:js-catalog-sync-pdf',
-    description: 'J+S-Katalog dept_js00000 an PDF-Formularzeilen anpassen (Namen, Duplikate entfernen)',
+    description: 'J+S-Katalog dept_js00000 an PDF-Formularzeilen anpassen (Namen)',
 )]
 final class SyncJsPdfCatalogCommand extends Command
 {
@@ -41,10 +41,8 @@ final class SyncJsPdfCatalogCommand extends Command
         $stats = $this->syncService->sync($dryRun);
 
         $io->success(sprintf(
-            'J+S-Katalog sync: %d umbenannt, %d Bestellpositionen umgebucht, %d Varianten archiviert, %d übersprungen',
+            'J+S-Katalog sync: %d umbenannt, %d übersprungen',
             $stats['renamed'],
-            $stats['remapped'],
-            $stats['retired'],
             $stats['skipped'],
         ));
 

@@ -16,6 +16,8 @@ use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentResetService;
 use App\Service\DevEnvironmentService;
+use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
+use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,6 +40,7 @@ class DepartmentController extends AbstractController
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
         private VerificationEmailService $verificationEmailService,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private GrossanlassDepartmentCreateService $grossanlassDepartmentCreateService,
     ) {}
 
     /**
@@ -342,13 +345,24 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
         }
 
+        $departmentName = trim((string) $data['name']);
+        if ($departmentName === '') {
+            return new JsonResponse(['error' => 'Name ist erforderlich'], 400);
+        }
+        if ($this->departmentRepository->findOneByOrganisationAndName($organisation->getId(), $departmentName) !== null) {
+            return new JsonResponse(
+                ['error' => 'Ein Department mit diesem Namen existiert bereits in dieser Organisation'],
+                409,
+            );
+        }
+
         try {
             // Neues Department erstellen
             $department = new Department();
             
             // ID muss VOR persist() gesetzt werden (GeneratedValue strategy: 'NONE')
             $department->setId(IdGenerator::generateUnique($this->entityManager, Department::class));
-            $department->setName($data['name']);
+            $department->setName($departmentName);
             $department->setOrganisation($organisation);
             
             if ($parent) {
@@ -378,6 +392,175 @@ class DepartmentController extends AbstractController
             'parent_id' => $department->getParentId(),
             'users' => []
         ], 201);
+    }
+
+    /**
+     * Erstellt ein Grossanlass-Department (Phase 1)
+     */
+    #[Route('/grossanlass', name: 'create_grossanlass', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createGrossanlass(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger Request-Body'], 400);
+        }
+
+        try {
+            $result = $this->grossanlassDepartmentCreateService->create($currentUser, $data);
+        } catch (\InvalidArgumentException $e) {
+            $status = $e->getCode() === 409 ? 409 : 400;
+
+            return new JsonResponse(['error' => $e->getMessage()], $status);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'Fehler beim Erstellen: ' . $e->getMessage()], 500);
+        }
+
+        $department = $result['department'];
+        $config = $result['config'];
+        $chiefMw = $result['chief_mw_user'];
+        if ($chiefMw instanceof User) {
+            $this->grossanlassDepartmentCreateService->notifyChiefMw($currentUser, $department, $config, $chiefMw);
+        }
+
+        return new JsonResponse(
+            GrossanlassDepartmentSerializer::serializeCreateResponse($department, $config),
+            201
+        );
+    }
+
+    /**
+     * Org-User-Suche für Grossanlass-Wizard (Chief-MW)
+     */
+    #[Route('/grossanlass/available-users', name: 'grossanlass_available_users', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function grossanlassAvailableUsers(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+        if (!$this->adminCapabilityChecker->hasGlobalAdminRole($currentUser)) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+        }
+
+        $organisationId = trim((string) $request->query->get('organisation_id', ''));
+        if ($organisationId === '') {
+            return new JsonResponse(['error' => 'organisation_id ist erforderlich'], 400);
+        }
+        if (!$this->adminCapabilityChecker->canAccessOrganisation($currentUser, $organisationId)) {
+            return new JsonResponse(['error' => 'Zugriff verweigert'], 403);
+        }
+
+        $search = trim((string) $request->query->get('q', ''));
+        if ($search === '' || mb_strlen($search) < 2) {
+            return new JsonResponse([]);
+        }
+
+        $qb = $this->entityManager->getRepository(User::class)
+            ->createQueryBuilder('u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('p')
+            ->where('u.state = :state')
+            ->setParameter('state', 'active');
+
+        $tokens = preg_split('/\s+/u', mb_strtolower($search), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($tokens as $index => $token) {
+            $param = 'searchToken' . $index;
+            $qb->andWhere(
+                $qb->expr()->orX(
+                    "LOWER(p.email) LIKE :{$param}",
+                    "LOWER(p.firstName) LIKE :{$param}",
+                    "LOWER(p.lastName) LIKE :{$param}",
+                    "LOWER(p.nickname) LIKE :{$param}",
+                    "LOWER(CONCAT(COALESCE(p.firstName, ''), ' ', COALESCE(p.lastName, ''))) LIKE :{$param}",
+                    "LOWER(CONCAT(COALESCE(p.lastName, ''), ' ', COALESCE(p.firstName, ''))) LIKE :{$param}",
+                    "EXISTS (
+                        SELECT 1 FROM App\Entity\Membership ms
+                        INNER JOIN ms.department ds
+                        WHERE ms.userId = u.id AND LOWER(ds.name) LIKE :{$param}
+                    )"
+                )
+            )->setParameter($param, '%' . $token . '%');
+        }
+
+        $users = $qb->orderBy('p.lastName', 'ASC')
+            ->addOrderBy('p.firstName', 'ASC')
+            ->setMaxResults(50)
+            ->getQuery()
+            ->getResult();
+
+        $userIds = [];
+        foreach ($users as $user) {
+            if (!$user->hasSuperAdminProfile()) {
+                $userIds[] = $user->getId();
+            }
+        }
+
+        $membershipsByUser = [];
+        if ($userIds !== []) {
+            $memberships = $this->entityManager->getRepository(Membership::class)
+                ->createQueryBuilder('m')
+                ->innerJoin('m.department', 'd')
+                ->addSelect('d')
+                ->where('m.userId IN (:userIds)')
+                ->setParameter('userIds', $userIds)
+                ->orderBy('d.name', 'ASC')
+                ->getQuery()
+                ->getResult();
+
+            foreach ($memberships as $membership) {
+                if (!$membership instanceof Membership) {
+                    continue;
+                }
+                $uid = $membership->getUserId();
+                $membershipsByUser[$uid][] = $membership;
+            }
+        }
+
+        $result = [];
+        foreach ($users as $user) {
+            if (!$user instanceof User || $user->hasSuperAdminProfile()) {
+                continue;
+            }
+            $profile = $user->getProfile();
+            if (!$profile) {
+                continue;
+            }
+
+            $deptNames = [];
+            $primaryDepartmentName = null;
+            foreach ($membershipsByUser[$user->getId()] ?? [] as $membership) {
+                $deptName = $membership->getDepartment()->getName();
+                $deptNames[] = $deptName;
+                if ($membership->getIsPrimary()) {
+                    $primaryDepartmentName = $deptName;
+                }
+            }
+            if ($primaryDepartmentName === null && $deptNames !== []) {
+                $primaryDepartmentName = $deptNames[0];
+            }
+
+            $result[] = [
+                'id' => $user->getId(),
+                'name' => $profile->getDisplayName(),
+                'email' => $profile->getEmail(),
+                'first_name' => $profile->getFirstName(),
+                'last_name' => $profile->getLastName(),
+                'nickname' => $profile->getNickname(),
+                'primary_department_name' => $primaryDepartmentName,
+                'departments_label' => $deptNames !== [] ? implode(', ', $deptNames) : null,
+            ];
+        }
+
+        return new JsonResponse($result);
     }
 
     /**

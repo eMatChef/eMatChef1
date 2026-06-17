@@ -199,6 +199,7 @@ class DepartmentSetting
             'js.default_coach_person_nr' => '',
             'js.default_coach_first_name' => '',
             'js.default_coach_last_name' => '',
+            'js.default_coach_email' => '',
             'js.default_delivery_type' => 'franko',
         ];
     }

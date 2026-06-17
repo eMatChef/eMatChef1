@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Entity\Category;
 use App\Entity\MaterialItem;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -21,23 +22,21 @@ class JsPdfCatalogSyncService
     }
 
     /**
-     * @return array{renamed: int, remapped: int, retired: int, skipped: int}
+     * @return array{renamed: int, skipped: int}
      */
     public function sync(bool $dryRun = false): array
     {
         $manifest = $this->loadManifest();
-        $stats = ['renamed' => 0, 'remapped' => 0, 'retired' => 0, 'skipped' => 0];
+        $stats = ['renamed' => 0, 'skipped' => 0];
 
         if (!$dryRun) {
             $this->entityManager->beginTransaction();
         }
 
         try {
-            foreach ($manifest['remap_before_retire'] as $fromId => $toId) {
-                $stats['remapped'] += $this->remapOrderItems((string) $fromId, (string) $toId, $dryRun);
-            }
+            $category = $this->entityManager->find(Category::class, JsLeihkatalogCatalogService::ORDER_FORM_CATEGORY_ID);
 
-            foreach ($manifest['items'] as $row) {
+            foreach ($manifest['items'] as $rowIndex => $row) {
                 $id = (string) ($row['id'] ?? '');
                 $name = trim((string) ($row['name'] ?? ''));
                 if ($id === '' || $name === '') {
@@ -51,23 +50,27 @@ class JsPdfCatalogSyncService
                     continue;
                 }
 
+                $pdfLineNo = $rowIndex + 1;
+                if ($material->getNo() !== $pdfLineNo) {
+                    if (!$dryRun) {
+                        $material->setNo($pdfLineNo);
+                    }
+                    ++$stats['renamed'];
+                }
+
+                if ($category instanceof Category && $material->getCategoryId() !== $category->getId()) {
+                    if (!$dryRun) {
+                        $material->setCategory($category);
+                    }
+                    ++$stats['renamed'];
+                }
+
                 if ($material->getName() !== $name) {
                     if (!$dryRun) {
                         $material->setName($name);
                     }
                     ++$stats['renamed'];
                 }
-            }
-
-            foreach ($manifest['retire_ids'] as $retireId) {
-                $material = $this->entityManager->find(MaterialItem::class, (string) $retireId);
-                if (!$material instanceof MaterialItem || $material->getDeletedAt() !== null) {
-                    continue;
-                }
-                if (!$dryRun) {
-                    $material->setDeletedAt(new \DateTime());
-                }
-                ++$stats['retired'];
             }
 
             if (!$dryRun) {
@@ -84,7 +87,7 @@ class JsPdfCatalogSyncService
         return $stats;
     }
 
-    /** @return array{remap_before_retire: array<string, string>, retire_ids: list<string>, items: list<array{id: string, name: string}>} */
+    /** @return array{items: list<array{id: string, name: string}>} */
     public function loadManifest(): array
     {
         $path = $this->projectDir . '/data/js-order/pdf_catalog_manifest.json';
@@ -98,8 +101,6 @@ class JsPdfCatalogSyncService
         }
 
         return [
-            'remap_before_retire' => \is_array($data['remap_before_retire'] ?? null) ? $data['remap_before_retire'] : [],
-            'retire_ids' => \is_array($data['retire_ids'] ?? null) ? array_values($data['retire_ids']) : [],
             'items' => \is_array($data['items'] ?? null) ? $data['items'] : [],
         ];
     }
@@ -130,23 +131,5 @@ class JsPdfCatalogSyncService
         }
 
         return $index;
-    }
-
-    private function remapOrderItems(string $fromId, string $toId, bool $dryRun): int
-    {
-        $conn = $this->entityManager->getConnection();
-        $count = (int) $conn->fetchOne(
-            'SELECT COUNT(*) FROM activity_js_order_item WHERE material_item_id = :from',
-            ['from' => $fromId],
-        );
-
-        if ($count > 0 && !$dryRun) {
-            $conn->executeStatement(
-                'UPDATE activity_js_order_item SET material_item_id = :to WHERE material_item_id = :from',
-                ['from' => $fromId, 'to' => $toId],
-            );
-        }
-
-        return $count;
     }
 }

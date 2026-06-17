@@ -115,6 +115,14 @@ class Activity
     #[ORM\JoinColumn(name: 'venue_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $venueAddress = null;
 
+    /** J+S-Leihmaterial: Lieferadresse (kann vom Eventstandort abweichen) */
+    #[ORM\Column(name: 'js_delivery_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $jsDeliveryAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'js_delivery_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $jsDeliveryAddress = null;
+
     // Verantwortlicher User
     #[ORM\Column(name: 'responsible_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $responsibleUserId = null;
@@ -396,6 +404,29 @@ class Activity
     {
         $this->venueAddress = $venueAddress;
         $this->venueAddressId = $venueAddress?->getId();
+        return $this;
+    }
+
+    public function getJsDeliveryAddressId(): ?string
+    {
+        return $this->jsDeliveryAddressId;
+    }
+
+    public function setJsDeliveryAddressId(?string $jsDeliveryAddressId): self
+    {
+        $this->jsDeliveryAddressId = $jsDeliveryAddressId;
+        return $this;
+    }
+
+    public function getJsDeliveryAddress(): ?Address
+    {
+        return $this->jsDeliveryAddress;
+    }
+
+    public function setJsDeliveryAddress(?Address $jsDeliveryAddress): self
+    {
+        $this->jsDeliveryAddress = $jsDeliveryAddress;
+        $this->jsDeliveryAddressId = $jsDeliveryAddress?->getId();
         return $this;
     }
 

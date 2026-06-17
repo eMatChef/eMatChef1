@@ -34,6 +34,8 @@ class InboxMessage
 
     public const CATEGORY_INVITE_ACCEPTED = 'invite_accepted';
 
+    public const CATEGORY_GROSSANLASS_MW_ASSIGNED = 'grossanlass_mw_assigned';
+
     /** Kategorien, die bei completed/cancelled der Aktivität entfernt werden. */
     public const CATEGORIES_PURGE_ON_ACTIVITY_TERMINAL = [
         self::CATEGORY_ACTIVITY_MW,

@@ -53,7 +53,7 @@ Technische und UX-Spezifikation für die **neue Material-Oberfläche** in der Ak
 
 ### Nicht in Scope (v1 Journey-UI)
 
-- KALA ([kala/README.md](../kala/README.md))
+- Grossanlass ([grossanlass/README.md](../../grossanlass/README.md))
 - **Presence** — Phase 12 ([§15](#15-presence-mehrbenutzer-im-lager))
 - Vollständiger Ersatz `ActivityPackListTab` am Tag 1 — Legacy bleibt Standard im Tab `packs` bis **Rollout-Phase 13**
 - Inventur, Stammdaten
@@ -819,25 +819,25 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 
 **Strategie:** Legacy im Tab `packs` unangetastet · Journey auf Route `pack-journey` · **Mobile-First** · Bausteine schrittweise [§4.8](#48-zentrale-bausteine-integrationsreihenfolge).
 
-| Phase | Deliverable | Bausteine | Mobile-DoD |
-|-------|-------------|-----------|------------|
-| **0** | README + SPEC | — | reviewed |
-| **1** | Route `pack-journey`, Shell, Stepper, leere Liste | `materialJourneySteps`, pack-items GET, Link Legacy↔Beta | 375px: Stepper + Empty-State + Zurück-Link |
-| **1b** | Tab `material`: UI refresh | Styles shared mit Journey | Mobile Lesbarkeit, kein Scan |
-| **2** | Lose Zeilen: `pack` + `issue` (quick) | `packWorkflowRules`, `packStageQuantities`, `materialJourneyTaskList`, move-API | Tap Zeile, Primary unten, move funktioniert |
-| **3** | `MaterialCrateCheckSheet` + Combo | `packShellCrateHelpers`, Container-API | Vollbild-Sheet, Accordion Fix/Zusatz |
-| **4** | Scan-Bar + Resolve | `scanParser`, Scan-Composable, Feedback-Banner | Sticky Scan, Grün/Rot, Letzte Scans Session |
-| **5** | Regal-Gruppierung MW | Filter «Nach Regal», `MaterialJourneyRegalGroup` | Filter-Chips touchbar |
-| **6** | `return` + `store` + Retour-Sheet | `MaterialReturnCrateSheet`, store-Shelf-Flow | Retour-Stapel Vollbild |
-| **7** | Logistics Steps + Transport | Touren, Dept-Fuhrpark §19.3 | Stepper logistics auf Mobile |
-| **8** | History-Audit UI | Pack-Events §20.2 | Aggregation lesbar auf Mobile |
-| **8b** | Benachrichtigungen (Inbox) | §20.1 | Deep-Link → `pack-journey` |
-| **9** | J+S eigener Tab | js-material Spec | — |
-| **9b** | Nutzungs-Statistik (Moves) | §20.10 | — |
-| **10** | Nachlieferungs-Wunsch | §14 | Panel unter Scan-Bar |
-| **11** | Kisten-Intent «Zusammen» | §19.2 | — |
-| **12** | Presence light + Konflikt | §6.5, §15 | — |
-| **13** | **Rollout** | Tab `packs` → Journey default; Legacy «Klassische Packliste» | Toggle / `?packUi=legacy` |
+| Phase | Deliverable | Bausteine | Mobile-DoD | Status |
+|-------|-------------|-----------|------------|--------|
+| **0** | README + SPEC | — | reviewed | ✓ |
+| **1** | Route `pack-journey`, Shell, Stepper, leere Liste | `materialJourneySteps`, pack-items GET, Link Legacy↔Beta | 375px: Stepper + Empty-State + Zurück-Link | ✓ |
+| **1b** | Tab `material`: UI refresh | Styles shared mit Journey | Mobile Lesbarkeit, kein Scan | offen |
+| **2** | Lose Zeilen: `pack` + `issue` (quick) | `packWorkflowRules`, `packStageQuantities`, `materialJourneyTaskList`, move-API | Tap Zeile, Primary unten, move funktioniert | ✓ |
+| **3** | `MaterialCrateCheckSheet` + Combo | `packShellCrateHelpers`, Container-API | Vollbild-Sheet, Accordion Fix/Zusatz | ✓ |
+| **4** | Scan-Bar + Resolve | `scanParser`, Scan-Composable, Feedback-Banner | Sticky Scan, Grün/Rot, Letzte Scans Session | ✓ |
+| **5** | Regal-Gruppierung MW | Filter «Nach Regal», `MaterialJourneyRegalGroup` | Filter-Chips touchbar | ✓ |
+| **6** | `return` + `store` + Retour-Sheet | `MaterialReturnCrateSheet`, store-Shelf-Flow | Retour-Stapel Vollbild | ✓ (ohne `MaterialStoreShelveSheet`) |
+| **7** | Logistics Steps + Transport | Touren, Dept-Fuhrpark §19.3 | Stepper logistics auf Mobile | ✓ Transport · Touren offen |
+| **8** | History-Audit UI | Pack-Events §20.2 | Aggregation lesbar auf Mobile | ✓ |
+| **8b** | Benachrichtigungen (Inbox) | §20.1 | Deep-Link → `pack-journey` | ✓ |
+| **9** | J+S eigener Tab | js-material Spec | — | ✓ |
+| **9b** | Nutzungs-Statistik (Moves) | §20.10 | — | offen |
+| **10** | Nachlieferungs-Wunsch | §14 | Panel unter Scan-Bar | offen |
+| **11** | Kisten-Intent «Zusammen» | §19.2 | — | offen |
+| **12** | Presence light + Konflikt | §6.5, §15 | — | offen |
+| **13** | **Rollout** | Tab `packs` → Journey default; Legacy «Klassische Packliste» | Toggle / `?packUi=legacy` | offen |
 
 **Pro Phase:** nur die genannten Bausteine — keine Vorwegnahme späterer Sheets/Features.
 
@@ -868,7 +868,7 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 ### Parallel & Mobile
 
 - [ ] Tab `packs`: Legacy `ActivityPackListTab` unverändert funktionsfähig bis Rollout
-- [ ] Route `pack-journey`: Journey parallel erreichbar; Links Legacy ↔ Beta
+- [x] Route `pack-journey`: Journey parallel erreichbar; Links Legacy ↔ Beta
 - [ ] Jede Journey-Phase auf **375px** abgenommen vor Desktop
 
 ### UX
@@ -878,17 +878,17 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 - [ ] Stepper dynamisch pro Profil, keine grauen Transport-Platzhalter bei quick
 
 - [ ] Material-Tab: UI refresh, **ohne** Scan; Suche/Verfügbarkeit wie bisher
-- [ ] Kein `plan`-Step im Stepper
+- [x] Kein `plan`-Step im Stepper
 - [ ] Handoff-Banner gemäß [§19.1](#191-handoff-banner--readonly-matrix)
 - [ ] `not_taken` als eigene Zeile, Gruppe sichtbar
 - [ ] Material nachbuchen: Modal bei `packed`/`at_event` ([§5.2](#52-block-material-nachbuchen))
 - [ ] Einlagern: `MaterialStoreShelveSheet` mit Verräum-Feedback ([§7.6](#76-materialstoreshelvesheet-einlagern))
 - [ ] Partner-Department readonly ([§8.1](#81-partner-departments))
-- [ ] Deep Links Inbox → `pack-journey/:step` (ab Phase 8b)
+- [x] Deep Links Inbox → `pack-journey/:step` (ab Phase 8b)
 - [ ] `external`: MW-only Journey, PDF + Kosten-Tab — [§2.5](#25-profil-external-vermietung)
 - [ ] Completion-Blocker verlinken (kein Wizard) — [§20.3](#203-buchhaltung--abschluss--external)
 - [ ] Parität Legacy §22: Shell, Accordion Fix/Zusatz, QR/Charge, Retour-Stapel, Live-Sync
-- [ ] Pack-History: Moves loggen, UI-Aggregation, **kein** Scan-Log — §20.2
+- [x] Pack-History: Moves loggen, UI-Aggregation, **kein** Scan-Log — §20.2
 
 ---
 
@@ -1376,7 +1376,7 @@ Spiegelung der Hinfahrt empfohlen: gleiche Tour-Labels (Tour A zurück, Tour B z
 
 **Push (Zukunft):** gleiche Events wie Inbox — Web-Push oder native Wrapper; Opt-in pro User.
 
-**Deep Link:** Meldung öffnet `?tab=packs&step=issue` (o. ä.).
+**Deep Link:** Meldung öffnet Route `…/pack-journey/:step` (Inbox + Glocken-Dropdown).
 
 ### 20.2 History / Audit (Pack-Journey)
 

@@ -100,12 +100,30 @@ export interface ReceivedDepartmentInviteNotification {
   read: boolean
 }
 
+export interface GrossanlassMwAssignedNotification {
+  id: string
+  type: 'grossanlass_mw_assigned'
+  department_id: string
+  department_name: string
+  role: string
+  is_grossanlass: boolean
+  dashboard_url: string
+  planned_event_start: string
+  planned_event_end?: string | null
+  created_at: string
+  read: boolean
+}
+
+export type ReceivedUserInboxNotification =
+  | ReceivedDepartmentInviteNotification
+  | GrossanlassMwAssignedNotification
+
 export type DepartmentInviteInboxBucket = 'unread' | 'read' | 'all'
 
 export interface ReceivedDepartmentInvitesResponse {
   count: number
   unread_count: number
-  items: ReceivedDepartmentInviteNotification[]
+  items: ReceivedUserInboxNotification[]
 }
 
 export interface CreateJoinRequestResponse {

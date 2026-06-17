@@ -20,7 +20,14 @@
       </v-list-item-title>
 
       <v-list-item-subtitle class="activity-list-mobile__meta">
-        <span class="type-badge" :class="item.type">{{ typeLabel(item.type) }}</span>
+        <span class="activity-list-type-badges activity-list-type-badges--inline">
+          <span class="type-badge" :class="item.type">{{ typeLabel(item.type) }}</span>
+          <span
+            v-if="activityHasJsMaterial(item)"
+            class="type-badge js"
+            :class="item.jsListPhase ? `js-phase-${item.jsListPhase}` : undefined"
+          >{{ t('activities.common.jsBadge') }}</span>
+        </span>
         ·
         <span class="status-label" :class="activityStatusClass(item.status)">{{ statusLabel(item.status) }}</span>
       </v-list-item-subtitle>
@@ -67,6 +74,7 @@
 import { useI18n } from 'vue-i18n'
 import type { GroupPathLine } from '@/utils/groupHierarchy'
 import { activityStatusClass } from '@/utils/activityStatus'
+import { activityHasJsMaterial } from '@/utils/activityJsListStatus'
 import type { ActivityListItem } from './activityListItem'
 import '@/styles/components/activity-list-mobile.css'
 

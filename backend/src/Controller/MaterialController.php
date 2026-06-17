@@ -21,6 +21,7 @@ use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
 use App\Service\JsDotationRulesService;
+use App\Service\JsLeihkatalogCatalogService;
 use App\Service\JsPdfCatalogSyncService;
 use App\Service\Material\MaterialItemPhotoService;
 use App\Service\Media\MediaPhotoNormalizer;
@@ -43,6 +44,7 @@ class MaterialController extends AbstractController
         private MaterialItemPhotoService $materialItemPhotoService,
         private JsDotationRulesService $jsDotationRules,
         private JsPdfCatalogSyncService $jsPdfCatalogSync,
+        private JsLeihkatalogCatalogService $jsLeihkatalogCatalog,
     ) {}
 
     /**
@@ -174,28 +176,21 @@ class MaterialController extends AbstractController
         $courseType = trim((string) $request->query->get('course_type', ''));
 
         $orderableIds = $this->jsPdfCatalogSync->orderableMaterialIds();
-        if ($orderableIds === []) {
+        if ($orderableIds === [] && $this->jsLeihkatalogCatalog->findOrderFormCategory() === null) {
             return new JsonResponse(['items' => [], 'total' => 0, 'page' => 1, 'limit' => $limit]);
         }
 
-        $sortIndex = $this->jsPdfCatalogSync->orderableMaterialSortIndex();
-
         $countQb = $this->entityManager->createQueryBuilder()
             ->select('COUNT(m.id)')
-            ->from(MaterialItem::class, 'm')
-            ->andWhere('m.deletedAt IS NULL')
-            ->andWhere('m.isJsMaterial = true')
-            ->andWhere('m.id IN (:orderableIds)');
+            ->from(MaterialItem::class, 'm');
 
         $qb = $this->entityManager->createQueryBuilder()
             ->select('m')
-            ->from(MaterialItem::class, 'm')
-            ->andWhere('m.deletedAt IS NULL')
-            ->andWhere('m.isJsMaterial = true')
-            ->andWhere('m.id IN (:orderableIds)')
-            ->setParameter('orderableIds', $orderableIds);
+            ->from(MaterialItem::class, 'm');
 
-        $countQb->setParameter('orderableIds', $orderableIds);
+        $this->jsLeihkatalogCatalog->applyOrderFormFilters($countQb, 'm');
+        $this->jsLeihkatalogCatalog->applyOrderFormFilters($qb, 'm');
+        $this->jsLeihkatalogCatalog->applyOrderFormSort($qb, 'm');
 
         if ($search !== '') {
             $searchLike = '%' . mb_strtolower($search) . '%';
@@ -234,7 +229,7 @@ class MaterialController extends AbstractController
                 'dotation_round_up' => $limits['round_up'],
                 'stock_available' => $stockAvailable,
                 'pdf_form_line' => $this->jsDotationRules->pdfFormLineForMaterial($material),
-                'pdf_line_order' => $sortIndex[$material->getId()] ?? 999,
+                'pdf_line_order' => $this->jsLeihkatalogCatalog->pdfLineOrderForMaterial($material),
                 'variant_group' => $this->jsDotationRules->variantGroupForMaterial($material),
             ];
         }

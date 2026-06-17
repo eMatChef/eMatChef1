@@ -47,16 +47,26 @@ class UserDepartmentInviteNotificationService
      */
     public function listInboxForUser(string $userId, string $bucket = 'all', int $limit = 50): array
     {
-        return $this->inboxMessages->listDepartmentInvitesForUser($userId, $bucket, $limit);
+        $invites = $this->inboxMessages->listDepartmentInvitesForUser($userId, $bucket, $limit);
+        $grossanlass = $this->inboxMessages->listGrossanlassMwAssignedForUser($userId, $bucket, $limit);
+        $merged = array_merge($invites, $grossanlass);
+        usort($merged, static fn (array $a, array $b): int => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
+
+        return array_slice($merged, 0, max(1, min($limit, 200)));
     }
 
     public function countUnreadPending(string $userId): int
     {
-        return $this->inboxMessages->countUnreadDepartmentInvites($userId);
+        return $this->inboxMessages->countUnreadDepartmentInvites($userId)
+            + $this->inboxMessages->countUnreadGrossanlassMwAssigned($userId);
     }
 
     public function markRead(string $userId, string $notificationId): bool
     {
-        return $this->inboxMessages->markDepartmentInviteRead($userId, $notificationId);
+        if ($this->inboxMessages->markDepartmentInviteRead($userId, $notificationId)) {
+            return true;
+        }
+
+        return $this->inboxMessages->markGrossanlassMwAssignedRead($userId, $notificationId);
     }
 }

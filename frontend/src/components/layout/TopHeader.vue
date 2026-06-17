@@ -289,15 +289,37 @@
           </svg>
           {{ t('layout.userMenu.editProfile') }}
         </button>
-        <button v-if="authStore.departments.length > 1" class="dropdown-item" @click="switchDepartment">
-          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M3 7C3 5.89543 3.89543 5 5 5H9.58579C10.1162 5 10.6249 5.21071 11 5.58579L12.4142 7H19C20.1046 7 21 7.89543 21 9V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M8 13h8M12 9v8" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
+        <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
+          <span class="dropdown-section-label">{{ t('layout.userMenu.switchDepartment') }}</span>
+        </button>
+        <button
+          v-for="dept in departmentSwitchItems"
+          :key="dept.id"
+          type="button"
+          class="dropdown-item dropdown-item--dept"
+          :class="{ 'dropdown-item--active': dept.isActive }"
+          @click="selectDepartment(dept.id)"
+        >
           <span class="dept-switch-text">
-            {{ t('layout.userMenu.switchDepartment') }}
-            <span class="dept-switch-hint">{{ authStore.activeDepartmentName }}</span>
+            <span class="dept-switch-name">
+              {{ dept.name }}
+              <span v-if="dept.isGrossanlass" class="dept-switch-tag">{{ t('grossanlass.label') }}</span>
+            </span>
+            <span class="dept-switch-hint">{{ dept.roleLabel }}</span>
           </span>
+          <v-icon v-if="dept.isActive" icon="mdi-check" size="18" class="dept-switch-check" />
+        </button>
+        <button
+          v-if="authStore.departments.length > 1"
+          type="button"
+          class="dropdown-item dropdown-item--subtle"
+          @click="openDepartmentSettings"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke-width="2"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-width="2"/>
+          </svg>
+          {{ t('layout.userMenu.departmentSettings') }}
         </button>
         <button
           v-if="authStore.activeSupplierCompanies.length > 1"
@@ -552,6 +574,7 @@ import {
   type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
+  type ReceivedUserInboxNotification,
 } from '../../api/joinRequests'
 import {
   getPublicFoundMessages,
@@ -582,6 +605,8 @@ import {
 import { listAcquisitionFollowups } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
+import { departmentHomePath } from '@/utils/departmentSwitch'
+import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import {
   getUserDirectMessages,
   markUserDirectMessageRead,
@@ -591,7 +616,7 @@ import { NotificationSenderBlock } from '@/components/notifications'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitleAlert'
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
-const { t } = useI18n()
+const { t, te } = useI18n()
 const router = useRouter()
 const { mdAndUp, smAndUp } = useDisplay()
 
@@ -608,6 +633,22 @@ const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
+
+function departmentRoleLabel(role: string): string {
+  const normalized = String(role || '').toLowerCase().trim()
+  const key = `settings.adminUsers.roles.${normalized}`
+  return te(key) ? t(key) : role
+}
+
+const departmentSwitchItems = computed(() =>
+  authStore.departments.map((dept) => ({
+    id: dept.department_id,
+    name: dept.department?.name || dept.department_id,
+    isGrossanlass: Boolean(dept.department?.is_grossanlass),
+    isActive: dept.department_id === authStore.activeDepartmentId,
+    roleLabel: departmentRoleLabel(dept.role),
+  })),
+)
 const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
 const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromUserMessage } =
   useNotificationSender()
@@ -963,7 +1004,11 @@ async function openActivityBellEntry(entry: BellActivityEntry) {
   } catch {
     /* navigate anyway */
   }
-  void router.push(`/${deptId}/activities/${entry.activity_id}`)
+  void router.push(
+    routeForInboxActivityNotification(deptId, entry, {
+      canManageMaterials: entry.bellScope === 'mw' && canManageMaterials.value,
+    }),
+  )
 }
 
 function goToAccountingAssign() {
@@ -1042,7 +1087,7 @@ async function loadDepartmentInvites() {
     const receivedInvitesPromise = getReceivedDepartmentInvites({ bucket: 'unread', limit: 5 }).catch(() => ({
       count: 0,
       unread_count: 0,
-      items: [] as ReceivedDepartmentInviteNotification[],
+      items: [] as ReceivedUserInboxNotification[],
     }))
 
     const userMsgPromise = getUserDirectMessages(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
@@ -1112,7 +1157,9 @@ async function loadDepartmentInvites() {
         ? userMsg.unread_count
         : userMessagePreview.value.length
 
-    receivedDepartmentInvitePreview.value = (receivedInvites.items || []).slice(0, 5)
+    receivedDepartmentInvitePreview.value = (receivedInvites.items || [])
+      .filter((i): i is ReceivedDepartmentInviteNotification => i.type === 'department_invite')
+      .slice(0, 5)
     receivedDepartmentInviteUnread.value =
       typeof receivedInvites.unread_count === 'number'
         ? receivedInvites.unread_count
@@ -1271,12 +1318,19 @@ function editProfile() {
   showUserDropdown.value = false
 }
 
-function switchDepartment() {
+function openDepartmentSettings() {
   const deptId = authStore.activeDepartmentId
   if (deptId) {
     router.push(`/${deptId}/settings/my-department`)
   }
   showUserDropdown.value = false
+}
+
+async function selectDepartment(departmentId: string) {
+  showUserDropdown.value = false
+  if (!departmentId || departmentId === authStore.activeDepartmentId) return
+  await authStore.setActiveDepartment(departmentId)
+  window.location.assign(departmentHomePath(departmentId))
 }
 
 function switchSupplierCompany() {
@@ -2272,6 +2326,63 @@ button.notification-item--accounting:hover {
   font-size: 11px;
   color: #3b82f6;
   font-weight: 500;
+}
+
+.dropdown-item--section {
+  cursor: default;
+  opacity: 1;
+  padding-top: 4px;
+  padding-bottom: 2px;
+}
+
+.dropdown-item--section:hover {
+  background: transparent;
+}
+
+.dropdown-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.dropdown-item--dept {
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.dropdown-item--dept.dropdown-item--active {
+  background: #eff6ff;
+}
+
+.dropdown-item--subtle {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.dept-switch-name {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dept-switch-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #059669;
+  background: #ecfdf5;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.dept-switch-check {
+  color: #2563eb;
+  flex-shrink: 0;
 }
 
 .profile-modal-overlay {

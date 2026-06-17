@@ -15,6 +15,7 @@ use App\Service\ActivityAccessService;
 use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\ActivityPackEventHistoryService;
 use App\Service\ActivityPackCrateCheckService;
 use App\Service\InboxMessageService;
 use App\Service\Issue\IssuePhotoAccessService;
@@ -53,6 +54,7 @@ class ActivityWorkflowController extends AbstractController
         private IssueReportPhotoService $issueReportPhotoService,
         private IssuePhotoStorageService $issuePhotoStorage,
         private IssuePhotoAccessService $issuePhotoAccess,
+        private ActivityPackEventHistoryService $packEventHistory,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -384,6 +386,16 @@ class ActivityWorkflowController extends AbstractController
         $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
 
         $user = $this->getUser();
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+        $this->packEventHistory->logPackMove(
+            $activity,
+            $packItem,
+            $stage,
+            $qty,
+            $user instanceof User ? $user : null,
+            is_string($source) ? $source : null,
+        );
+
         if ($stage === PackPipelineService::STAGE_PACKED) {
             $packItem->setPackedAt(new \DateTime());
             if ($user instanceof User) {
@@ -448,6 +460,17 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $this->packPipeline->applyBackward($packItem, $stage, $qty);
+
+        $user = $this->getUser();
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+        $this->packEventHistory->logPackMoveBack(
+            $activity,
+            $packItem,
+            $stage,
+            $qty,
+            $user instanceof User ? $user : null,
+            is_string($source) ? $source : null,
+        );
 
         $packItem->setUpdatedAt(new \DateTime());
         $this->activityItemPipelineStatus->syncForActivity($activity);
@@ -541,6 +564,8 @@ class ActivityWorkflowController extends AbstractController
         $data = json_decode($request->getContent(), true);
         $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+        $sourceStr = is_string($source) ? $source : 'bulk';
 
         if (!in_array($stage, PackPipelineService::allForwardStages(), true)) {
             return new JsonResponse(['error' => 'Ungültige Stufe'], 400);
@@ -566,6 +591,15 @@ class ActivityWorkflowController extends AbstractController
             }
 
             $this->packPipeline->applyForward($packItem, $stage, $remaining, $profile);
+
+            $this->packEventHistory->logPackMove(
+                $activity,
+                $packItem,
+                $stage,
+                $remaining,
+                $user instanceof User ? $user : null,
+                $sourceStr,
+            );
 
             if ($stage === PackPipelineService::STAGE_PACKED) {
                 $packItem->setPackedAt(new \DateTime());

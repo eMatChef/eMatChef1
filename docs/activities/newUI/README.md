@@ -2,7 +2,7 @@
 
 Zielbild für eine **neue Oberfläche** für Packen, Ausgabe, Retour und Einlagern in der Aktivität: weg vom **Zweispalten-Board**, hin zu **einer Journey-Achse**, **Checklisten** und **Scan/Suche** als zentralem Werkzeug — für **Materialwart und Gruppenleiter** in derselben Shell.
 
-**Stand:** Juni 2026 · **Status:** Konzept / Spezifikation; Umsetzung Phase 1 offen (parallel zu Legacy)
+**Stand:** Juni 2026 · **Status:** Phasen 0–8b umgesetzt (Journey Beta auf Route `pack-journey`); Legacy Tab `packs` bleibt Standard bis Phase 13
 
 **Detail-Spec:** [SPEC.md](./SPEC.md)
 
@@ -103,9 +103,9 @@ Die Journey beantwortet:
 | **Zurück** | «Klassische Packliste» → Tab `packs` |
 | **Vor `packing`** | readonly Empty-State «MW packt noch» |
 
-### Tab J+S (camp/event)
+### Tab J+S (camp/event) — **implementiert**
 
-Eigenständiger Tab laut [js-material/README.md](../js-material/README.md) — nicht in Material-Suche, nicht in Packliste-Journey vermischen.
+Eigenständiger Tab `ActivityJsTabView.vue` — drei Accordions (Bestellung / Empfang / Retour). Siehe [js-material/README.md](../js-material/README.md) §9.
 
 ### Ablauf Ersteller → MW
 
@@ -343,25 +343,25 @@ Siehe [devices/concept.md](../../devices/concept.md).
 
 **Strategie:** Legacy unangetastet · Journey parallel · **Mobile-First** · Bausteine schrittweise.
 
-| Phase | Inhalt |
-|-------|--------|
-| **0** | README + SPEC |
-| **1** | Route `pack-journey`, Shell, Stepper, leere Liste (Mobile 375px) |
-| **1b** | Material-Tab: UI refresh (ohne Scan) |
-| **2** | Lose: Packen + Ausgabe — `packWorkflowRules`, moves |
-| **3** | Kisten-/Kombi-Sheets (Vollbild Mobile) |
-| **4** | Scan-Resolve |
-| **5** | Regal-Gruppierung MW |
-| **6** | Retour + Einlagern |
-| **7** | Logistics Transport-Steps + Touren |
-| **8** | History-Audit (Pack-Events) |
-| **8b** | Benachrichtigungen |
-| **9** | J+S eigener Tab |
-| **9b** | Nutzungs-Statistik aus Moves |
-| **10** | Nachlieferungs-Wunsch |
-| **11** | Kisten-Intent «Zusammen» |
-| **12** | Presence light |
-| **13** | **Rollout:** Tab `packs` → Journey; Legacy «Klassische Packliste» |
+| Phase | Inhalt | Status |
+|-------|--------|--------|
+| **0** | README + SPEC | ✓ |
+| **1** | Route `pack-journey`, Shell, Stepper, leere Liste (Mobile 375px) | ✓ |
+| **1b** | Material-Tab: UI refresh (ohne Scan) | offen |
+| **2** | Lose: Packen + Ausgabe — `packWorkflowRules`, moves | ✓ |
+| **3** | Kisten-/Kombi-Sheets (Vollbild Mobile) | ✓ |
+| **4** | Scan-Resolve | ✓ |
+| **5** | Regal-Gruppierung MW | ✓ |
+| **6** | Retour + Einlagern | ✓ (Einlagern ohne `MaterialStoreShelveSheet`) |
+| **7** | Logistics Transport-Steps + Touren | ✓ Transport · Touren/Fuhrpark offen |
+| **8** | History-Audit (Pack-Events) | ✓ |
+| **8b** | Benachrichtigungen (Inbox → Deep-Link `pack-journey`) | ✓ |
+| **9** | J+S eigener Tab | ✓ |
+| **9b** | Nutzungs-Statistik aus Moves | offen |
+| **10** | Nachlieferungs-Wunsch | offen |
+| **11** | Kisten-Intent «Zusammen» | offen |
+| **12** | Presence light | offen |
+| **13** | **Rollout:** Tab `packs` → Journey; Legacy «Klassische Packliste» | offen |
 
 Details + Bausteine pro Phase: [SPEC.md §4.8, §12](./SPEC.md#48-zentrale-bausteine-integrationsreihenfolge).
 

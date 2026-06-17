@@ -175,11 +175,36 @@
             <label>{{ t('activities.jsMaterial.order.fields.coachPersonNr') }}</label>
             <input v-model="form.block2.coach_person_nr" type="text" class="form-input" @input="markOverridden('block2', 'coach_person_nr')" />
           </div>
+          <div class="js-order-field span-2">
+            <label>{{ t('activities.jsMaterial.order.fields.coachEmail') }}</label>
+            <input v-model="form.block2.coach_email" type="email" class="form-input" @input="markOverridden('block2', 'coach_email')" />
+          </div>
         </div>
       </section>
 
       <section v-show="stepIndex === 2" class="js-order-block js-order-step-panel">
         <h4>{{ t('activities.jsMaterial.order.block3Title') }}</h4>
+        <p class="field-hint text-muted js-order-block3-hint">
+          {{ t('activities.jsMaterial.order.block3Hint') }}
+        </p>
+        <div v-if="!readOnly" class="js-order-block3-actions">
+          <EButton
+            size="small"
+            variant="secondary"
+            :disabled="!canApplyBlock3FromJsDelivery"
+            @click="applyBlock3FromJsDelivery"
+          >
+            {{ t('activities.jsMaterial.order.applyFromJsDelivery') }}
+          </EButton>
+          <EButton
+            size="small"
+            variant="secondary"
+            :disabled="!canApplyBlock3FromVenue"
+            @click="applyBlock3FromVenue"
+          >
+            {{ t('activities.jsMaterial.order.applyFromEventVenue') }}
+          </EButton>
+        </div>
         <div class="js-order-delivery-type">
           <label class="js-order-radio">
             <input v-model="deliveryType" type="radio" value="franko" />
@@ -228,6 +253,13 @@
             <input v-model="form.block3.camp_leader_phone" type="text" class="form-input" @input="markOverridden('block3', 'camp_leader_phone')" />
           </div>
         </div>
+        <p
+          v-if="deliveryType === 'franko' && !isBlock3Complete() && !readOnly"
+          class="js-order-block3-required"
+          role="alert"
+        >
+          {{ t('activities.jsMaterial.order.block3RequiredHint') }}
+        </p>
       </section>
 
       <section v-show="stepIndex === 3" class="js-order-block js-order-step-panel">
@@ -366,14 +398,14 @@
                 >
                   <div class="activity-mat-result-info">
                     <span class="activity-mat-result-name">
-                      <span v-if="cat.pdf_line_order != null" class="js-order-catalog-line-num">
+                      <span
+                        v-if="typeof cat.pdf_line_order === 'number'"
+                        class="js-order-catalog-line-num"
+                      >
                         {{ cat.pdf_line_order + 1 }}
                       </span>
                       <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
                       {{ cat.name }}
-                    </span>
-                    <span v-if="cat.pdf_form_line && cat.pdf_form_line !== cat.name" class="activity-mat-result-meta">
-                      {{ t('activities.jsMaterial.order.pdfFormLine', { line: cat.pdf_form_line }) }}
                     </span>
                   </div>
                   <div class="activity-mat-result-actions">
@@ -497,6 +529,8 @@ import {
   type JsOrderFormData,
   type JsOrderItemSaveRow,
 } from '@/api/activityJsOrder'
+import { getActivity, type ActivityDetail } from '@/api/activities'
+import { getAddresses, type Address } from '@/api/addresses'
 
 type JsOrderFormBlockKey = 'block1' | 'block2' | 'block3'
 
@@ -549,6 +583,8 @@ const savedSnapshot = ref('')
 const suppressAutoSave = ref(false)
 const loadError = ref('')
 const order = ref<ActivityJsOrderApi | null>(null)
+const activityDetail = ref<ActivityDetail | null>(null)
+const departmentAddresses = ref<Address[]>([])
 const form = reactive<JsOrderFormData>(structuredClone(EMPTY_JS_ORDER_FORM))
 const deliveryType = ref<JsOrderDeliveryType>('franko')
 const orderItems = ref<JsOrderItemDraft[]>([])
@@ -607,7 +643,80 @@ function isBlock2Complete(): boolean {
 }
 
 function isBlock3Complete(): boolean {
-  return !!(trimmed(form.block3.venue_name) || trimmed(form.block3.address))
+  if (deliveryType.value === 'pickup_thun') {
+    return true
+  }
+  return !!(
+    trimmed(form.block3.venue_name) &&
+    trimmed(form.block3.address) &&
+    trimmed(form.block3.postal_code) &&
+    trimmed(form.block3.city)
+  )
+}
+
+function effectiveVenueAddressId(activity: ActivityDetail | null): string | null {
+  if (!activity) return null
+  return activity.viewer_venue_address_id ?? activity.venue_address_id ?? null
+}
+
+function addressById(id: string | null | undefined): Address | undefined {
+  if (!id) return undefined
+  return departmentAddresses.value.find((row) => row.id === id)
+}
+
+const canApplyBlock3FromJsDelivery = computed(() => {
+  const id = activityDetail.value?.js_delivery_address_id
+  return !!id && !!addressById(id)
+})
+
+const canApplyBlock3FromVenue = computed(() => {
+  const id = effectiveVenueAddressId(activityDetail.value)
+  return !!id && !!addressById(id)
+})
+
+const BLOCK3_ADDRESS_FIELDS = [
+  'venue_name',
+  'address',
+  'postal_code',
+  'city',
+  'canton',
+  'delivery_phone',
+  'contact_first_name',
+  'contact_last_name',
+] as const
+
+function applyAddressToBlock3(addr: Address) {
+  form.block3.venue_name = (addr.name || addr.company || '').trim()
+  form.block3.address = addr.street_line.trim()
+  form.block3.postal_code = addr.postal_code.trim()
+  form.block3.city = addr.city.trim()
+  form.block3.canton = (addr.canton ?? '').trim()
+  form.block3.delivery_phone = (addr.phone ?? '').trim()
+  if (addr.contact_first_name) {
+    form.block3.contact_first_name = addr.contact_first_name.trim()
+  }
+  if (addr.contact_last_name) {
+    form.block3.contact_last_name = addr.contact_last_name.trim()
+  }
+  form.block3.user_overridden = form.block3.user_overridden.filter(
+    (field) => !BLOCK3_ADDRESS_FIELDS.includes(field as (typeof BLOCK3_ADDRESS_FIELDS)[number]),
+  )
+}
+
+function applyBlock3FromJsDelivery() {
+  const id = activityDetail.value?.js_delivery_address_id
+  const addr = addressById(id)
+  if (!addr) return
+  applyAddressToBlock3(addr)
+  toast.success(t('activities.jsMaterial.order.applyFromJsDeliverySuccess'))
+}
+
+function applyBlock3FromVenue() {
+  const id = effectiveVenueAddressId(activityDetail.value)
+  const addr = addressById(id)
+  if (!addr) return
+  applyAddressToBlock3(addr)
+  toast.success(t('activities.jsMaterial.order.applyFromEventVenueSuccess'))
 }
 
 function isStepComplete(idx: number): boolean {
@@ -1169,7 +1278,13 @@ async function loadOrder() {
   loading.value = true
   loadError.value = ''
   try {
-    const loaded = await loadOrCreateActivityJsOrder(props.activityId)
+    const [loaded, activity, addrRes] = await Promise.all([
+      loadOrCreateActivityJsOrder(props.activityId),
+      getActivity(props.activityId, props.departmentId),
+      getAddresses(props.departmentId),
+    ])
+    activityDetail.value = activity
+    departmentAddresses.value = addrRes.addresses
     applyOrderToForm(loaded)
     stepIndex.value = resolveInitialStepIndex()
   } catch (err) {
@@ -1602,6 +1717,23 @@ watch(
 
 .js-order-phase-hint {
   margin: 0;
+}
+
+.js-order-block3-hint {
+  margin: 0 0 0.75rem;
+}
+
+.js-order-block3-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.js-order-block3-required {
+  margin: 0.75rem 0 0;
+  color: var(--color-danger, #c0392b);
+  font-size: 0.875rem;
 }
 
 .js-order-block4-hint {

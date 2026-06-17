@@ -12,6 +12,7 @@ use App\Entity\User;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\ActivityPackEventHistoryService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +31,7 @@ class ActivityPackContainerController extends AbstractController
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private PackPipelineService $packPipeline,
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
+        private ActivityPackEventHistoryService $packEventHistory,
     ) {}
 
     private function flushWithPipelineSync(Activity $activity): void
@@ -469,7 +471,15 @@ class ActivityPackContainerController extends AbstractController
             (string) ($data['stage'] ?? PackPipelineService::STAGE_AT_EVENT),
         );
 
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'issue_all', $stage);
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'issue_all',
+            $stage,
+            is_string($source) ? $source : null,
+        );
     }
 
     /**
@@ -477,9 +487,18 @@ class ActivityPackContainerController extends AbstractController
      */
     #[Route('/pack-containers/{containerId}/return-all', name: 'container_return_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function returnAllInContainer(string $activityId, string $containerId): JsonResponse
+    public function returnAllInContainer(string $activityId, string $containerId, Request $request): JsonResponse
     {
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'return_all');
+        $data = json_decode($request->getContent(), true) ?? [];
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'return_all',
+            PackPipelineService::STAGE_RETURNED,
+            is_string($source) ? $source : null,
+        );
     }
 
     /**
@@ -493,8 +512,15 @@ class ActivityPackContainerController extends AbstractController
         $stage = $this->packPipeline->normalizeStage(
             (string) ($data['stage'] ?? PackPipelineService::STAGE_AT_EVENT),
         );
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
 
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'unissue_all', $stage);
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'unissue_all',
+            $stage,
+            is_string($source) ? $source : null,
+        );
     }
 
     private function bulkWorkflowContainer(
@@ -502,6 +528,7 @@ class ActivityPackContainerController extends AbstractController
         string $containerId,
         string $mode,
         string $pipelineStage = PackPipelineService::STAGE_AT_EVENT,
+        ?string $source = null,
     ): JsonResponse
     {
         $activity = $this->findActivityWithAccess($activityId);
@@ -600,6 +627,17 @@ class ActivityPackContainerController extends AbstractController
         $appliedTotal += $shell['units'];
 
         $this->flushWithPipelineSync($activity);
+
+        $this->packEventHistory->logContainerBulk(
+            $activity,
+            $container,
+            $mode,
+            $pipelineStage,
+            $appliedTotal,
+            $updatedLines,
+            $user,
+            $source,
+        );
 
         return new JsonResponse([
             'success' => true,

@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import vuetify from 'vite-plugin-vuetify'
 import { resolve } from 'path'
 import { canonicalizeLocalhostMain } from './vite-plugin-canonical-localhost'
+import { siteSeoPlugin } from './vite-plugin-site-seo'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -15,6 +16,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       canonicalizeLocalhostMain(),
+      siteSeoPlugin(),
       vue(),
       vuetify({ autoImport: true }),
     ],

@@ -12,6 +12,7 @@ use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
+use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
@@ -113,7 +114,8 @@ class AuthController extends AbstractController
         $memberships = $this->entityManager->getRepository(Membership::class)
             ->createQueryBuilder('m')
             ->innerJoin('m.department', 'd')
-            ->addSelect('d')
+            ->leftJoin('d.grossanlassConfig', 'gc')
+            ->addSelect('d', 'gc')
             ->where('m.userId = :userId')
             ->setParameter('userId', $user->getId())
             ->getQuery()
@@ -123,13 +125,18 @@ class AuthController extends AbstractController
         $primaryDepartment = null;
         foreach ($memberships as $m) {
             $department = $m->getDepartment();
+            $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department);
             $deptData = [
-                'id' => $department->getId(),
-                'name' => $department->getName(),
-                'organisation_id' => $department->getOrganisationId(),
+                'id' => $deptSerialized['id'],
+                'name' => $deptSerialized['name'],
+                'organisation_id' => $deptSerialized['organisation_id'],
                 'role' => $m->getRole(),
                 'is_primary' => $m->getIsPrimary(),
+                'is_grossanlass' => $deptSerialized['is_grossanlass'],
             ];
+            if (isset($deptSerialized['grossanlass_config'])) {
+                $deptData['grossanlass_config'] = $deptSerialized['grossanlass_config'];
+            }
             $departments[] = $deptData;
             if ($m->getIsPrimary() || !$primaryDepartment) {
                 $primaryDepartment = $deptData;

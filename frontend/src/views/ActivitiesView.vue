@@ -7,7 +7,10 @@
       @draft-saved="onActivityDraftSaved"
     />
 
-    <div v-if="activityRouteId" class="dept-page activities-detail-root">
+    <div v-if="isPackJourneyRoute" class="dept-page activities-detail-root activities-pack-journey-root">
+      <router-view />
+    </div>
+    <div v-else-if="activityRouteId" class="dept-page activities-detail-root">
       <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
     </div>
 
@@ -213,8 +216,9 @@ import {
   ActivityListMobile,
   type ActivityListItem,
 } from '@/components/activities'
-import { usePageHeadStore } from '@/stores/pageHead'
+import { formatPeriodCompact } from '@/utils/formatPeriod'
 import { syncDocumentHead } from '@/composables/usePageHead'
+import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useDetailTabsStore } from '@/stores/detailTabs'
@@ -234,7 +238,11 @@ const detailTabsStore = useDetailTabsStore()
 const pageHeadStore = usePageHeadStore()
 
 const departmentId = computed(() => route.params.departmentId as string)
-const activityRouteId = computed(() => (route.params.activityId as string | undefined) || undefined)
+const isPackJourneyRoute = computed(() => route.name === 'ActivityPackJourney')
+const activityRouteId = computed(() => {
+  if (isPackJourneyRoute.value) return undefined
+  return (route.params.activityId as string | undefined) || undefined
+})
 
 const activities = ref<ActivityListItem[]>([])
 const departmentGroups = ref<Group[]>([])
@@ -340,6 +348,11 @@ function mapActivityListItem(a: Record<string, unknown>): ActivityListItem {
     usageEnd: a.usage_end as string | undefined,
     itemCount: (a.item_count as number | undefined) ?? 0,
     totalPrice: a.total_price as number | undefined,
+    wantsJsMaterial: a.wants_js_material === true,
+    jsListPhase:
+      a.js_list_phase === 'draft' || a.js_list_phase === 'coach' || a.js_list_phase === 'return'
+        ? a.js_list_phase
+        : null,
     createdAt: String(a.created_at ?? ''),
     updatedAt: String(a.updated_at ?? ''),
   }
@@ -566,38 +579,6 @@ function getActivityShareStatus(activity: ActivityListItem): string | null {
   return parts.length > 0 ? `${t('activities.share.releasePrefix')} ${parts.join(' · ')}` : null
 }
 
-function isSameDay(date1: string, date2: string): boolean {
-  const d1 = new Date(date1)
-  const d2 = new Date(date2)
-  return d1.toDateString() === d2.toDateString()
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function formatDayMonthYear(d: Date): string {
-  return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)}`
-}
-
-/** z. B. 14.03.26 oder 14.–18.03.26 */
-function formatPeriodCompact(startStr?: string, endStr?: string): string {
-  if (!startStr) return ''
-  const start = new Date(startStr)
-  if (!endStr || isSameDay(startStr, endStr)) return formatDayMonthYear(start)
-  const end = new Date(endStr)
-  const d1 = pad2(start.getDate())
-  const m1 = pad2(start.getMonth() + 1)
-  const y1 = String(start.getFullYear()).slice(-2)
-  const d2 = pad2(end.getDate())
-  const m2 = pad2(end.getMonth() + 1)
-  const y2 = String(end.getFullYear()).slice(-2)
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-  if (sameMonth && y1 === y2) return `${d1}.–${d2}.${m1}.${y1}`
-  if (y1 === y2) return `${d1}.${m1}.–${d2}.${m2}.${y2}`
-  return `${d1}.${m1}.${y1}–${d2}.${m2}.${y2}`
-}
-
 function onTableSort(payload: { field: string; order: 'asc' | 'desc' }) {
   sortField.value = payload.field
   sortDir.value = payload.order
@@ -753,5 +734,9 @@ watch(
 .activities-detail-root {
   padding: 0;
   max-width: none;
+}
+
+.activities-pack-journey-root {
+  width: 100%;
 }
 </style>

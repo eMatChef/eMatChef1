@@ -137,15 +137,23 @@ export async function issueAllPackContainerItems(
   activityId: string,
   containerId: string,
   stage?: import('@/api/activityPackItems').PackMoveStage,
+  source?: import('@/api/activityPackItems').PackMoveSource,
 ): Promise<void> {
   await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/issue-all`, {
     ...(stage ? { stage } : {}),
+    ...(source ? { source } : {}),
   })
 }
 
 /** Stufe Am Event → Retour: alles aus dem Behälter retournieren */
-export async function returnAllPackContainerItems(activityId: string, containerId: string): Promise<void> {
-  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/return-all`)
+export async function returnAllPackContainerItems(
+  activityId: string,
+  containerId: string,
+  source?: import('@/api/activityPackItems').PackMoveSource,
+): Promise<void> {
+  await apiClient.post(`/api/activities/${activityId}/pack-containers/${containerId}/return-all`, {
+    ...(source ? { source } : {}),
+  })
 }
 
 /** Buchung des ganzen Behälters um eine Stufe zurück (stage = aktiver Tab). */

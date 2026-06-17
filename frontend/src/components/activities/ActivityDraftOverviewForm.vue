@@ -60,35 +60,23 @@
           </p>
         </template>
 
-        <div v-if="showVenue" class="form-group span-2 activity-external-address-wrap activity-venue-field-wrap">
-          <p class="field-hint text-muted activity-venue-field-hint">
-            {{ isSharedActivity ? t('activities.sharedBasics.venueHintShared') : t('activities.wizard.form.venueHint') }}
-          </p>
-          <AutoSaveField
-            v-model="venueField"
-            :baseline="savedBaselines.venue_address_id"
-            :label="t('activities.wizard.form.venueLabel')"
-            span-class="activity-compact-autosave-field activity-venue-autosave-field"
-            :save="saveVenueAddressId"
-            @saved="onAutoFieldSaved"
-          >
-            <template #default="{ inputId, onChange }">
-              <DepartmentAddressAutocomplete
-                ref="venueAddressAutocompleteRef"
-                :input-id="inputId"
-                :addresses="addresses"
-                :selected-id="form.venue_address_id"
-                primary-type="event"
-                :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
-                :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
-                :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
-                inline-create-label-key="addresses.search.createEventVenueInline"
-                @update:selected-id="(id) => onVenueAddressId(id, onChange)"
-                @create="openAddVenueAddressModal"
-              />
-            </template>
-          </AutoSaveField>
-        </div>
+        <ActivityVenueLocationsSection
+          v-if="showVenue"
+          :addresses="addresses"
+          :venue-address-id="form.venue_address_id"
+          :delivery-address-id="form.js_delivery_address_id"
+          :venue-baseline="savedBaselines.venue_address_id"
+          :delivery-baseline="savedBaselines.js_delivery_address_id"
+          :wants-js-material="form.wants_js_material === true"
+          :is-shared-activity="isSharedActivity"
+          :save-venue-address-id="saveVenueAddressId"
+          :save-js-delivery-address-id="saveJsDeliveryAddressId"
+          @update:venue-address-id="(id) => { form.venue_address_id = id }"
+          @update:delivery-address-id="(id) => { form.js_delivery_address_id = id }"
+          @create-venue-address="openAddVenueAddressModal"
+          @create-delivery-address="openAddJsDeliveryAddressModal"
+          @saved="onAutoFieldSaved"
+        />
 
         <template v-if="isSharedActivity">
           <div class="form-group span-2 activity-shared-participants-wrap">
@@ -333,6 +321,14 @@
       @close="closeVenueAddressModal"
       @saved="onVenueAddressModalSaved"
     />
+    <AddressModal
+      v-if="showJsDeliveryAddressModal"
+      :department-id="departmentId"
+      default-type="event"
+      :default-name="jsDeliveryAddressModalDefaultName"
+      @close="closeJsDeliveryAddressModal"
+      @saved="onJsDeliveryAddressModalSaved"
+    />
   </div>
 </template>
 
@@ -363,7 +359,7 @@ import AutoSaveField from '@/components/common/autoSave/AutoSaveField.vue'
 import AutoSaveFieldShell from '@/components/common/autoSave/AutoSaveFieldShell.vue'
 import { AUTO_SAVE_SUCCESS_ICON_MS } from '@/composables/useAutoSaveField'
 import type { AutoSaveFieldValue, AutoSaveSelectOption } from '@/components/common/autoSave/types'
-import { DepartmentAddressAutocomplete } from '@/components/addresses'
+import ActivityVenueLocationsSection from '@/components/activities/ActivityVenueLocationsSection.vue'
 import AddressModal from '@/components/AddressModal.vue'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 
@@ -391,8 +387,9 @@ const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)
 const showVenueAddressModal = ref(false)
+const showJsDeliveryAddressModal = ref(false)
 const venueAddressModalDefaultName = ref('')
-const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
+const jsDeliveryAddressModalDefaultName = ref('')
 const zeitraumSaving = ref(false)
 const zeitraumShowSaved = ref(false)
 const zeitraumFocused = ref(false)
@@ -405,6 +402,7 @@ const savedBaselines = reactive({
   name: '',
   group_id: '',
   venue_address_id: '',
+  js_delivery_address_id: '',
   address_id: '',
   notes: '',
   wants_js_material: false,
@@ -577,6 +575,7 @@ const form = ref({
   name: '',
   group_id: null as string | null,
   venue_address_id: null as string | null,
+  js_delivery_address_id: null as string | null,
   address_id: null as string | null,
   notes: '' as string | null,
   wants_js_material: false,
@@ -650,15 +649,6 @@ const groupField = computed({
   },
 })
 
-const venueField = computed({
-  get() {
-    return form.value.venue_address_id ?? ''
-  },
-  set(v: string) {
-    form.value.venue_address_id = v === '' ? null : v
-  },
-})
-
 const addressField = computed({
   get() {
     return form.value.address_id ?? ''
@@ -699,19 +689,24 @@ const addressSelectOptions = computed((): AutoSaveSelectOption[] => {
   return opts
 })
 
-function onVenueAddressId(id: string | null, onChange: () => void) {
-  form.value.venue_address_id = id
-  onChange()
-}
-
 function openAddVenueAddressModal(presetName = '') {
   venueAddressModalDefaultName.value = presetName.trim()
   showVenueAddressModal.value = true
 }
 
+function openAddJsDeliveryAddressModal(presetName = '') {
+  jsDeliveryAddressModalDefaultName.value = presetName.trim()
+  showJsDeliveryAddressModal.value = true
+}
+
 function closeVenueAddressModal() {
   showVenueAddressModal.value = false
   venueAddressModalDefaultName.value = ''
+}
+
+function closeJsDeliveryAddressModal() {
+  showJsDeliveryAddressModal.value = false
+  jsDeliveryAddressModalDefaultName.value = ''
 }
 
 async function reloadAddresses() {
@@ -731,6 +726,16 @@ async function onVenueAddressModalSaved(addr?: Address) {
   if (addr?.id) {
     form.value.venue_address_id = addr.id
     await saveVenueAddressId(addr.id)
+    onAutoFieldSaved()
+  }
+}
+
+async function onJsDeliveryAddressModalSaved(addr?: Address) {
+  closeJsDeliveryAddressModal()
+  await reloadAddresses()
+  if (addr?.id) {
+    form.value.js_delivery_address_id = addr.id
+    await saveJsDeliveryAddressId(addr.id)
     onAutoFieldSaved()
   }
 }
@@ -878,6 +883,7 @@ function syncSavedBaselinesFromActivity() {
   savedBaselines.name = a.name ?? ''
   savedBaselines.group_id = a.group_id ?? ''
   savedBaselines.venue_address_id = effectiveVenueAddressId(a) ?? ''
+  savedBaselines.js_delivery_address_id = a.js_delivery_address_id ?? ''
   savedBaselines.address_id = a.address_id ?? ''
   savedBaselines.notes = a.notes ?? ''
   savedBaselines.wants_js_material = a.wants_js_material === true
@@ -913,6 +919,7 @@ function resetFromActivity() {
     name: a.name ?? '',
     group_id: a.group_id ?? null,
     venue_address_id: effectiveVenueAddressId(a),
+    js_delivery_address_id: a.js_delivery_address_id ?? null,
     address_id: a.address_id ?? null,
     notes: a.notes ?? '',
     wants_js_material: a.wants_js_material === true,
@@ -974,6 +981,7 @@ const hasPendingAutoSaveFields = computed(() => {
     f.name !== savedBaselines.name ||
     (f.group_id ?? '') !== savedBaselines.group_id ||
     (f.venue_address_id ?? '') !== savedBaselines.venue_address_id ||
+    (f.js_delivery_address_id ?? '') !== savedBaselines.js_delivery_address_id ||
     (f.address_id ?? '') !== savedBaselines.address_id ||
     (f.notes ?? '') !== savedBaselines.notes ||
     f.wants_js_material !== savedBaselines.wants_js_material ||
@@ -1063,6 +1071,16 @@ async function saveVenueAddressId(value: AutoSaveFieldValue) {
   await patchActivityFields({ venue_address_id: id })
   savedBaselines.venue_address_id = id ?? ''
   form.value.venue_address_id = id
+}
+
+async function saveJsDeliveryAddressId(value: AutoSaveFieldValue) {
+  const id = value === '' || value == null ? null : String(value)
+  if (form.value.wants_js_material && !id) {
+    throw new Error(t('activities.jsMaterial.deliveryAddressRequired'))
+  }
+  await patchActivityFields({ js_delivery_address_id: id })
+  savedBaselines.js_delivery_address_id = id ?? ''
+  form.value.js_delivery_address_id = id
 }
 
 async function saveAddressId(value: AutoSaveFieldValue) {

@@ -1,5 +1,6 @@
 import type { ActivityHistoryEntryRow } from '@/api/activities'
 import type { Composer } from 'vue-i18n'
+import { packMoveSummaryLine } from '@/components/activities/activityPackHistoryDisplay'
 
 type Translate = Composer['t']
 type Te = Composer['te']
@@ -79,6 +80,14 @@ export function historyEntrySummaryLines(
       return [t('activities.history.packResetCancelPreviousStatus', { status: statusLabel(t, te, prev) })]
     }
     return []
+  }
+
+  if (
+    e.action === 'pack_move' ||
+    e.action === 'pack_moveback' ||
+    e.action === 'pack_container_bulk'
+  ) {
+    return [packMoveSummaryLine(e, t, te)]
   }
 
   const comment = e.changes?.comment

@@ -44,6 +44,7 @@ class JsOrderPrefillService
                 'coach_first_name' => '',
                 'coach_last_name' => '',
                 'coach_person_nr' => '',
+                'coach_email' => '',
                 'user_overridden' => [],
             ],
             'block3' => [
@@ -119,28 +120,36 @@ class JsOrderPrefillService
         $form['block2']['coach_first_name'] = trim($deptDefaults['js.default_coach_first_name'] ?? '');
         $form['block2']['coach_last_name'] = trim($deptDefaults['js.default_coach_last_name'] ?? '');
         $form['block2']['coach_person_nr'] = trim($deptDefaults['js.default_coach_person_nr'] ?? '');
+        $form['block2']['coach_email'] = trim($deptDefaults['js.default_coach_email'] ?? '');
 
-        $venue = $activity->getVenueAddress();
-        if ($venue instanceof Address) {
-            $form['block3']['venue_name'] = trim((string) ($venue->getName() ?? $venue->getCompany() ?? ''));
-            $form['block3']['address'] = trim($venue->getStreetLine());
-            $form['block3']['postal_code'] = trim((string) ($venue->getPostalCode() ?? ''));
-            $form['block3']['city'] = trim((string) ($venue->getCity() ?? ''));
-            $form['block3']['canton'] = trim((string) ($venue->getCanton() ?? ''));
-            $form['block3']['delivery_phone'] = trim((string) ($venue->getPhone() ?? ''));
-            $form['block1']['phone'] = trim((string) ($venue->getPhone() ?? ''));
+        $deliveryAddress = $activity->getJsDeliveryAddress() ?? $activity->getVenueAddress();
+        if ($deliveryAddress instanceof Address) {
+            $this->applyAddressToBlock3($form, $deliveryAddress, $profile, $leader);
         }
 
+        return $form;
+    }
+
+    /**
+     * @param array<string, mixed> $form
+     */
+    private function applyAddressToBlock3(array &$form, Address $venue, ?Profile $profile, User $leader): void
+    {
+        $form['block3']['venue_name'] = trim((string) ($venue->getName() ?? $venue->getCompany() ?? ''));
+        $form['block3']['address'] = trim($venue->getStreetLine());
+        $form['block3']['postal_code'] = trim((string) ($venue->getPostalCode() ?? ''));
+        $form['block3']['city'] = trim((string) ($venue->getCity() ?? ''));
+        $form['block3']['canton'] = trim((string) ($venue->getCanton() ?? ''));
+        $form['block3']['delivery_phone'] = trim((string) ($venue->getPhone() ?? ''));
+        $form['block1']['phone'] = trim((string) ($venue->getPhone() ?? ''));
         if ($profile instanceof Profile) {
             $form['block3']['contact_first_name'] = trim((string) ($profile->getFirstName() ?? ''));
             $form['block3']['contact_last_name'] = trim((string) ($profile->getLastName() ?? ''));
-            $leaderPhone = trim((string) ($venue?->getPhone() ?? ''));
+            $leaderPhone = trim((string) ($venue->getPhone() ?? ''));
             if ($leaderPhone !== '') {
                 $form['block3']['camp_leader_phone'] = $leaderPhone;
             }
         }
-
-        return $form;
     }
 
     public function resolveDefaultDeliveryType(Activity $activity): string

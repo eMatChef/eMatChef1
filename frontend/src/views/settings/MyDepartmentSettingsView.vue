@@ -299,6 +299,7 @@ import {
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
+import { departmentDisplayName, departmentHomePath, isGrossanlassDepartment } from '@/utils/departmentSwitch'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -376,7 +377,7 @@ const userDepartments = computed(() => authStore.departments || [])
 
 const departmentSelectItems = computed(() =>
   userDepartments.value.map((dept) => {
-    const name = dept.department?.name || dept.department_id
+    const name = departmentDisplayName(dept, t('grossanlass.label'))
     const primary = dept.is_primary ? ` ⭐ (${t('settings.myDepartment.primary')})` : ''
     return {
       title: `${name}${primary} – ${formatRole(dept.role)}`,
@@ -428,7 +429,13 @@ const onboardingStatusClass = computed(() => {
 async function onDepartmentChange() {
   if (!selectedDepartmentId.value) return
   const newDeptId = selectedDepartmentId.value
+  const newDept = userDepartments.value.find((d) => d.department_id === newDeptId)
   await authStore.setActiveDepartment(newDeptId)
+
+  if (newDept && isGrossanlassDepartment(newDept)) {
+    window.location.assign(departmentHomePath(newDeptId))
+    return
+  }
 
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {

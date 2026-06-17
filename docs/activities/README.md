@@ -16,7 +16,7 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 | **[pack-workflow-rules.md](./pack-workflow-rules.md)** | **Ziel-Spezifikation** Pack-Regeln — Code: `packWorkflowRules.ts` |
 | **[newUI/](./newUI/)** | **Material-Journey UI** (neu): Checkliste, Stepper, Scan — parallel zu Legacy-Packliste, Route `pack-journey` |
 | **[js-material/](./js-material/)** | J+S-Leihmaterial: Flag, Bestellformular, Dotation, Pack-Reiter, Check-Flow |
-| **[kala/](./kala/)** | KALA / Grossanlass: `is_grossanlass`-Department, Setup-Seite, Unterlager, Ressorts, Planungsrunden |
+| **[grossanlass/](../grossanlass/)** | Grossanlass (eigenes Produkt): Wizard, Ressorts, Planungsrunde Bedarf — [README](../grossanlass/README.md), [MVP](../grossanlass/MVP.md) |
 | **[Virtuelle Kombo (Pack)](../material/combos/virtual-combo-activities.md)** | `pack_mode`, logische Packkiste, `self_provided`-Bestätigung |
 
 ---

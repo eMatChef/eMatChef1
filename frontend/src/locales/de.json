@@ -32,6 +32,7 @@
         "dashboard": "Dashboard · eMatChef",
         "globalAddresses": "Globale Adressen · eMatChef",
         "supplierGlobalReview": "Lieferanten-Freigabe · eMatChef",
+        "jsLeihkatalog": "J+S-Leihkatalog · eMatChef",
         "supportRequests": "Support-Anfragen · eMatChef",
         "systemJobs": "System-Jobs · eMatChef",
         "integrations": "Integrationen · eMatChef",
@@ -48,6 +49,7 @@
         "permissions": "Berechtigungen · eMatChef",
         "activities": "Aktivitäten · eMatChef",
         "activityDetail": "Aktivität · eMatChef",
+        "activityPackJourney": "Packliste (Beta) · eMatChef",
         "materials": "Materialien · eMatChef",
         "supplierShop": "Lieferanten-Shop · eMatChef",
         "materialsAll": "Alle Materialien · eMatChef",
@@ -1335,6 +1337,7 @@
     "userMenu": {
       "editProfile": "Profil bearbeiten",
       "switchDepartment": "Department wechseln",
+      "departmentSettings": "Abteilungseinstellungen",
       "switchSupplierCompany": "Firma wechseln",
       "logout": "Abmelden"
     },
@@ -1962,6 +1965,16 @@
       "yourDepartment": "deine Abteilung",
       "venueHintShared": "Vom Ersteller-Department übernommen — liegt auch in eurem Adressbuch. Änderungen gelten für alle beteiligten Abteilungen."
     },
+    "venueLocations": {
+      "overviewHint": "Übersicht beider Standorte. Accordions öffnen, um Adresse und Detailkarte zu bearbeiten.",
+      "accordionVenue": "Eventstandort",
+      "accordionDelivery": "J+S-Lieferadresse",
+      "deliveryPinLabel": "J+S-Lieferung",
+      "deliveryOptionalHint": "Optionaler zweiter Standort — z. B. Materialannahme. Bei J+S-Material wird diese Adresse für die Bestellung verwendet.",
+      "deliveryAddressOptionalLabel": "Zweiter Standort / Lieferadresse",
+      "noMapCoords": "Noch keine Standorte auf der Karte — Adressen in den Accordions wählen oder Koordinaten im Adressdialog setzen.",
+      "noCoordsForAddress": "Für diese Adresse fehlen Kartenkoordinaten. Adresse bearbeiten und Standort auf der Karte setzen."
+    },
     "draftOverview": {
       "sectionBasics": "Grunddaten",
       "totalPriceCurrent": "Gesamtpreis (aktuell)",
@@ -1999,6 +2012,47 @@
     },
     "jsMaterial": {
       "sectionLabel": "J+S-Leihmaterial",
+      "tabTitle": "J+S",
+      "tab": {
+        "materialHint": "Bestellformular, Coach-Übergabe und Empfangs-/Retour-Checkliste findest du im Tab J+S.",
+        "openTab": "Tab J+S öffnen",
+        "accordionOrder": "Bestellung",
+        "accordionReceive": "Empfang & Checkliste",
+        "accordionReturn": "Retour an J+S",
+        "submittedBadge": "An Coach übergeben",
+        "submitToCoach": "An Coach übergeben",
+        "sendCoachEmail": "E-Mail an Coach",
+        "markOrdered": "Bei J+S bestellt markieren",
+        "confirmReturn": "Retourprobe abschliessen",
+        "submitSuccess": "An J+S-Coach übergeben",
+        "emailSuccess": "E-Mail an Coach gesendet",
+        "markOrderedSuccess": "Als bei J+S bestellt markiert",
+        "returnSuccess": "J+S abgeschlossen — Retourprobe gesetzt",
+        "coachEmailSentAt": "E-Mail gesendet am {date}",
+        "returnConfirmedAt": "Retour abgeschlossen am {date}",
+        "deliveryOn": "Lieferung am {date}",
+        "metrics": "Empfang: {received}/{total} · Retour: {returned}/{total}",
+        "discrepancyHint": "Abweichungen: {missingReceive} fehlend bei Empfang, {missingReturn} fehlend bei Retour (für J+S-Rechnung prüfen).",
+        "receiveNeedsSubmit": "Zuerst Bestellung an den J+S-Coach übergeben.",
+        "receiveNeedsDeliveryDate": "Checkliste ab Lieferdatum {date} verfügbar.",
+        "receiveNeedsDeliveryDateGeneric": "Lieferdatum im Formular erfassen.",
+        "returnLocked": "Retour nach vollständigem Empfang erfassen.",
+        "colOrdered": "Bestellt",
+        "colReceived": "Erhalten",
+        "colReturned": "Retour",
+        "colNotes": "Notiz (fehlend/defekt)",
+        "notesPlaceholder": "z. B. 2 defekt",
+        "coachEmailPromptTitle": "J+S-Coach E-Mail",
+        "coachEmailPromptHintUser": "Für den Versand brauchen wir die E-Mail des J+S-Coaches. Sie wird nur für diese Bestellung gespeichert.",
+        "coachEmailPromptHintMw": "Keine Coach-E-Mail hinterlegt. Trage sie hier für diese Bestellung ein — oder ",
+        "coachEmailPromptSettingsLink": "dauerhaft unter Einstellungen → Aktivitäten",
+        "coachEmailPromptConfirm": "Speichern & senden",
+        "coachEmailInvalid": "Bitte eine gültige E-Mail-Adresse eingeben.",
+        "coachEmailMailNotConfigured": "E-Mail-Versand ist auf dem Server nicht konfiguriert (MAILER_DSN). Bitte an den Materialwart oder Administrator wenden.",
+        "deliveryAddressLabel": "J+S-Lieferadresse *",
+        "deliveryAddressHint": "Wo J+S das Material hinstellt — kann vom Eventstandort abweichen (z. B. andere Zufahrt oder Lagerplatz).",
+        "deliveryAddressRequired": "J+S-Lieferadresse erforderlich, wenn J+S-Material aktiv ist."
+      },
       "includeToggle": "J+S-Leihmaterial einbeziehen",
       "includeHint": "Material wird separat bei J+S bestellt (nicht aus dem eigenen Lager). Das Bestellformular folgt in der Aktivität.",
       "badgeIncluded": "J+S-Leihmaterial geplant",
@@ -2078,6 +2132,12 @@
         "block1Title": "Block 1 — Kurs-/Lagerleitung",
         "block2Title": "Block 2 — Kurs / Lager",
         "block3Title": "Block 3 — Zustelladresse",
+        "block3Hint": "Lieferadresse für J+S — kann vom Eventstandort abweichen. Bei Franko-Domizil sind Bezeichnung, Adresse, PLZ und Ort Pflicht.",
+        "applyFromEventVenue": "Vom Eventstandort übernehmen",
+        "applyFromEventVenueSuccess": "Eventstandort in Block 3 übernommen.",
+        "applyFromJsDelivery": "Aus Aktivität (J+S-Lieferadresse)",
+        "applyFromJsDeliverySuccess": "J+S-Lieferadresse in Block 3 übernommen.",
+        "block3RequiredHint": "Bitte Bezeichnung Lieferort, Adresse, PLZ und Ort ausfüllen.",
         "courseTypeChoose": "— wählen —",
         "courseTypeLager": "Lager",
         "courseTypeKader": "Kaderbildung",
@@ -2106,12 +2166,153 @@
           "coachFirstName": "J+S-Coach Vorname",
           "coachLastName": "J+S-Coach Nachname",
           "coachPersonNr": "J+S-Coach Personen-Nr.",
+          "coachEmail": "J+S-Coach E-Mail",
           "venueName": "Bezeichnung Lieferort",
           "contactFirstName": "Kontakt Vorname",
           "contactLastName": "Kontakt Nachname",
           "deliveryPhone": "Tel. am Liefertag",
           "campLeaderPhone": "Tel. Lagerleitung im Lager"
         }
+      }
+    },
+    "materialJourney": {
+      "loading": "Packliste wird geladen…",
+      "legacyPackLink": "Klassische Packliste",
+      "historyLink": "Verlauf anzeigen",
+      "journeyBetaLink": "Neue Packliste (Beta)",
+      "step": {
+        "pack": "Packen",
+        "transport_out": "Transport hin",
+        "issue": "Ausgabe",
+        "issueLogistics": "Am Anlass",
+        "transport_back": "Transport zurück",
+        "return": "Retour",
+        "store": "Einlagern"
+      },
+      "filter": {
+        "open": "Offen",
+        "done": "Erledigt",
+        "byShelf": "Nach Regal",
+        "aria": "Checkliste filtern"
+      },
+      "regalGroup": {
+        "noShelf": "Ohne Regal",
+        "summary": "{count} offen"
+      },
+      "toolbar": {
+        "progress": "{done} / {total} erledigt"
+      },
+      "row": {
+        "openQty": "{count} offen",
+        "doneQty": "{count} erledigt",
+        "crateLineCount": "{count} Position | {count} Positionen",
+        "crateDone": "Erledigt"
+      },
+      "badge": {
+        "set": "Set",
+        "consumable": "Verbrauch",
+        "js": "J+S",
+        "crate": "Kiste"
+      },
+      "footer": {
+        "progress": "{done} von {total} Positionen erledigt",
+        "openHint": "Noch {count} offen — Tippen bucht alles für diesen Schritt",
+        "openHintReturn": "Noch {count} offen — Tippen retourniert alles für diese Position",
+        "openHintStore": "Noch {count} offen — Tippen lagert alles ein",
+        "openHintTransportOut": "Noch {count} offen — Tippen bucht alles für Transport hin",
+        "openHintTransportBack": "Noch {count} offen — Tippen bucht alles für Transport zurück"
+      },
+      "readonlyFutureStep": "Dieser Schritt liegt noch vor dem aktuellen Stand — nur Ansicht.",
+      "jsBanner": {
+        "hint": "J+S-Leihmaterial wird im Tab J+S bestellt und geprüft — nicht über diese Packliste.",
+        "noPositionsYet": "Noch keine J+S-Positionen — Bestellformular im Tab J+S ausfüllen."
+      },
+      "toastViewOnly": "In diesem Schritt ist die Packliste nur Ansicht.",
+      "toastComboPhase3": "Physische Sets werden in Phase 3 mit Set-Checkliste unterstützt.",
+      "toastStepReadonly": "Buchungen für diesen Schritt folgen in einer späteren Phase.",
+      "crateSheet": {
+        "subtitle": "Inhalt prüfen und alles für diesen Schritt buchen",
+        "primaryPack": "Alles packen",
+        "primaryIssue": "Alles ausgeben",
+        "primaryReturn": "Kiste retournieren",
+        "primaryStore": "Kiste einlagern",
+        "empty": "Keine offenen Positionen in dieser Kiste.",
+        "sectionSummary": "{count} offen",
+        "subtitleReturn": "Inhalt prüfen und Kiste retournieren",
+        "subtitleStore": "Inhalt prüfen und Kiste einlagern"
+      },
+      "comboSheet": {
+        "subtitle": "Alle Teile abhaken und Set buchen",
+        "primaryPack": "Set packen",
+        "primaryIssue": "Set ausgeben",
+        "primaryReturn": "Set retournieren",
+        "primaryStore": "Set einlagern",
+        "loading": "Stückliste wird geladen…",
+        "empty": "Keine Komponenten für dieses Set.",
+        "checkAllHint": "Alle Teile abhaken, um zu buchen."
+      },
+      "scan": {
+        "label": "Suchen oder scannen",
+        "placeholder": "Name, Regal oder QR-Code…",
+        "openCamera": "Kamera zum Scannen öffnen",
+        "openMenu": "Suchoptionen",
+        "barcodeShortcutHint": "Scannen ohne Auswahl: links auf das Scan-Symbol tippen.",
+        "menuBarcodeHint": "Tipp: Das Scan-Symbol links öffnet die Kamera direkt — ohne diese Auswahl.",
+        "rememberForSession": "Für diese Sitzung merken",
+        "resetSessionPref": "Auswahl zurücksetzen",
+        "sessionPrefCamera": "Gespeichert für diese Sitzung: Tipp ins Feld → Kamera.",
+        "sessionPrefType": "Gespeichert für diese Sitzung: Tipp ins Feld → Texteingabe.",
+        "chooseActionTitle": "Wie möchtest du suchen?",
+        "chooseCamera": "Kamera scannen",
+        "chooseType": "Text eingeben",
+        "cameraTitle": "Code scannen",
+        "cameraHint": "QR- oder Barcode in den Rahmen halten",
+        "bulkConfirm": "Trotzdem buchen",
+        "bulkConfirmHint": "Andere Charge als geplant — nur nach Bestätigung buchen.",
+        "actionBookPack": "Packen",
+        "actionBookIssue": "Mitnehmen",
+        "actionBookReturn": "Retournieren",
+        "actionBookStore": "Einlagern",
+        "actionBookTransportOut": "Transport hin",
+        "actionBookTransportBack": "Transport zurück",
+        "actionOpenCratePack": "Kiste öffnen",
+        "actionOpenCrateIssue": "Kiste öffnen",
+        "actionOpenCrateReturn": "Retour-Kiste öffnen",
+        "actionOpenCrateStore": "Kiste einlagern",
+        "actionOpenCombo": "Set prüfen",
+        "actionShow": "Anzeigen",
+        "result": {
+          "not_on_list": "Nicht auf dieser Packliste.",
+          "not_ready": "Materialwart packt noch.",
+          "wrong_batch": "Andere Charge als geplant.",
+          "serialized_mismatch": "Falsche Charge — bei Seriennummern muss der QR exakt passen.",
+          "bulk_wrong_batch": "Andere Charge als geplant.",
+          "in_repair": "Material ist in der Werkstatt.",
+          "crate_shell": "Packkiste erkannt.",
+          "in_crate": "Material liegt in einer Kiste.",
+          "loose_ready": "Bereit zum Buchen.",
+          "combo_open": "Physisches Set — Checkliste öffnen.",
+          "already_done": "Für diesen Schritt bereits erledigt.",
+          "in_virtual_crate": "Gehört zum Set «{name}».",
+          "text_crate": "Kiste in der Liste gefunden.",
+          "text_combo": "Set in der Liste gefunden.",
+          "text_loose": "Position in der Liste gefunden.",
+          "js_material": "J+S-Material — Empfang und Retour im Tab J+S.",
+          "unknown": "Code nicht erkannt.",
+          "unsupported_scan": "Dieser Code-Typ wird hier nicht unterstützt."
+        }
+      },
+      "empty": {
+        "earlyPreviewTitle": "MW packt noch",
+        "earlyPreviewDescription": "{count} Positionen geplant — Buchungen folgen, sobald «Gepackt» markiert ist.",
+        "openTitle": "Alles erledigt",
+        "openDescription": "Keine offenen Positionen in diesem Schritt.",
+        "byShelfTitle": "Alles gepackt",
+        "byShelfDescription": "Keine offenen Positionen mehr — wechsle zu «Erledigt» oder einem anderen Schritt.",
+        "doneTitle": "Noch nichts erledigt",
+        "doneDescription": "Erledigte Positionen erscheinen hier nach der Buchung.",
+        "listTitle": "Checkliste folgt",
+        "listDescription": "{count} Positionen geladen — Zeilen und Aktionen kommen in Phase 2."
       }
     },
     "packList": {
@@ -2762,6 +2963,29 @@
       "action_material_changed": "Material geändert",
       "action_material_items_changed": "Material geändert",
       "action_pack_reset_cancel": "Packliste bei Storno zurückgesetzt",
+      "action_pack_move": "Material gebucht",
+      "action_pack_moveback": "Buchung zurückgenommen",
+      "action_pack_container_bulk": "Kiste gebucht",
+      "filterAll": "Alles",
+      "filterPack": "Packen & Buchungen",
+      "packAggregateTitle": "{step} · {count} Positionen",
+      "packAggregateTitleNoStep": "{count} Buchungen",
+      "packAggregateExpand": "Einzelbuchungen anzeigen",
+      "packAggregateCollapse": "Einzelbuchungen ausblenden",
+      "packMoveLine": "{name} · ×{qty} · {step}",
+      "packMoveBackLine": "{name} · ×{qty} zurück · {step}",
+      "packContainerFallback": "Kiste",
+      "packContainerIssueAll": "{label} · komplett · {step}",
+      "packContainerReturnAll": "{label} · komplett retourniert",
+      "packContainerUnissueAll": "{label} · Ausgabe zurückgenommen",
+      "packSourceScan": "(Scan)",
+      "packSourceBulk": "(Kiste)",
+      "packStage_packed": "Packen",
+      "packStage_transport_to": "Transport hin",
+      "packStage_at_event": "Am Anlass",
+      "packStage_transport_back": "Transport zurück",
+      "packStage_returned": "Retour",
+      "packStage_stored": "Einlagern",
       "packResetCancelPreviousStatus": "Vorheriger Status: {status}",
       "materialAdded": "{name}: {n}× hinzugefügt",
       "materialRemoved": "{name}: {n}× entfernt",
@@ -3105,10 +3329,12 @@
         "jsCoachPersonNr": "Coach Personennummer",
         "jsCoachFirstName": "Coach Vorname",
         "jsCoachLastName": "Coach Nachname",
+        "jsCoachEmail": "Coach E-Mail",
         "jsDeliveryType": "Standard-Lieferart"
       },
       "placeholders": {
-        "jsCoachPersonNr": "z. B. 1234567"
+        "jsCoachPersonNr": "z. B. 1234567",
+        "jsCoachEmail": "coach@example.org"
       },
       "jsDeliveryOptions": {
         "franko": "Franko (Lieferadresse = Eventstandort)",
@@ -3127,6 +3353,7 @@
         "campLeadDays": "Material wird X Tage VOR Event-Start abgeholt",
         "campLagDays": "Material wird X Tage NACH Event-Ende zurückgebracht",
         "jsCoachPersonNr": "Wird im J+S-Bestellformular vorausgefüllt",
+        "jsCoachEmail": "Empfänger für «E-Mail an Coach» aus eMatChef",
         "jsDeliveryType": "Franko oder Abholung in Thun"
       },
       "preview": {
@@ -3294,6 +3521,8 @@
       "title": "Departments",
       "description": "Verwalten Sie Departments und deren Zuordnungen",
       "addTitle": "Neues Department hinzufügen",
+      "addDepartment": "Abteilung hinzufügen",
+      "addGrossanlass": "Grossanlass hinzufügen",
       "loading": "Lade Departments...",
       "empty": "Keine Departments gefunden.",
       "debugTitle": "Debug Info",
@@ -4176,6 +4405,7 @@
     "nav": {
       "globalAddresses": "Globale Adressen",
       "supplierGlobalReview": "Lieferanten-Freigabe",
+      "jsLeihkatalog": "J+S-Leihkatalog",
       "systemJobs": "System-Jobs",
       "supportRequests": "Supportanfragen",
       "organisations": "Organisationen",
@@ -4189,6 +4419,38 @@
       "mail": "E-Mail",
       "permissions": "Berechtigungen",
       "materialTemplates": "Material-Vorlagen"
+    }
+  },
+  "jsLeihkatalog": {
+    "title": "J+S-Leihkatalog",
+    "subtitle": "Bestellformular Lagersport & Trekking — Positionen für das Aktivitäts-Bestellmodal (dept_js00000).",
+    "categoryHint": "Kategorie: «{name}» — nur diese Artikel erscheinen im Dropdown (Block 4).",
+    "loading": "J+S-Katalog wird geladen…",
+    "loadError": "J+S-Katalog konnte nicht geladen werden.",
+    "empty": "Keine J+S-Positionen",
+    "emptyHint": "Seed importieren oder erste Position anlegen.",
+    "addButton": "Position hinzufügen",
+    "createTitle": "Neue J+S-Position",
+    "editTitle": "J+S-Position bearbeiten",
+    "createSuccess": "Position angelegt",
+    "saveSuccess": "Gespeichert",
+    "saveError": "Speichern fehlgeschlagen",
+    "syncManifest": "Namen aus Manifest syncen",
+    "syncSuccess": "Sync abgeschlossen ({count} Anpassungen)",
+    "syncError": "Sync fehlgeschlagen",
+    "validationName": "Name ist erforderlich",
+    "validationLineNo": "PDF-Zeilennummer muss mindestens 1 sein",
+    "unlimitedStock": "∞",
+    "footerHint": "{count} Positionen — dieselbe Liste wie im Bestellmodal.",
+    "columns": {
+      "pdfLine": "PDF #",
+      "dotation": "Dotation",
+      "stock": "Bestand J+S"
+    },
+    "fields": {
+      "pdfLineNo": "PDF-Zeile #",
+      "stockQty": "Bestand (Referenz)",
+      "stockQtyHint": "999999 = unbegrenzt (wie bisher im Seed)"
     }
   },
   "securityMonitoring": {
@@ -7571,6 +7833,7 @@
     "activityNotificationType": {
       "activity_submitted": "Neu eingereicht",
       "activity_packed": "Material gepackt",
+      "activity_at_event": "Material am Anlass",
       "activity_issue_reported": "Meldung (Verlust/Schaden)",
       "activity_approved": "Bestätigt",
       "activity_returned": "Retour eingetroffen",
@@ -7868,6 +8131,44 @@
     },
     "comingSoon": {
       "description": "Dieser Bereich wird in Kürze verfügbar sein."
+    }
+  },
+  "grossanlass": {
+    "label": "Grossanlass",
+    "wizard": {
+      "title": "Grossanlass hinzufügen",
+      "nameLabel": "Name des Grossanlasses",
+      "namePlaceholder": "z. B. PFF 2027",
+      "eventPeriodLabel": "Anlasszeitraum",
+      "eventStartLabel": "Anlassdatum von",
+      "eventEndLabel": "Anlassdatum bis (optional)",
+      "organisationLabel": "Organisation",
+      "parentLabel": "Übergeordnetes Department (optional)",
+      "parentPrompt": "Parent wählen",
+      "noParent": "Kein Parent",
+      "chiefMwLabel": "Chief-Materialwart",
+      "chiefMwHint": "Empfohlen: Materialchef für den Grossanlass. Erhält E-Mail und Inbox-Nachricht.",
+      "chiefMwWarning": "Ohne Chief-MW gibt es keinen Materialchef — du kannst ihn später in den Abteilungseinstellungen zuweisen.",
+      "userSearchPlaceholder": "Name, E-Mail oder Abteilung (min. 2 Zeichen)",
+      "noUserSearchResults": "Kein Nutzer gefunden",
+      "create": "Erstellen",
+      "nameRequired": "Name ist erforderlich",
+      "nameDuplicate": "In dieser Organisation existiert bereits ein Department mit diesem Namen.",
+      "organisationRequired": "Organisation ist erforderlich",
+      "eventStartRequired": "Anlasszeitraum ist erforderlich",
+      "eventEndBeforeStart": "Ende muss am oder nach dem Start liegen",
+      "loadError": "Daten konnten nicht geladen werden",
+      "createError": "Grossanlass konnte nicht erstellt werden",
+      "createdSuccess": "«{name}» wurde erstellt"
+    },
+    "dashboard": {
+      "draftBadge": "Entwurf",
+      "welcome": "Willkommen beim Grossanlass. Die Planung (Ressorts, Planungsrunden, Wünsche) folgt in den nächsten Phasen."
+    },
+    "inbox": {
+      "category": "Grossanlass",
+      "subject": "Materialchef von «{name}»",
+      "preview": "Du wurdest Materialchef ernannt — zum Dashboard wechseln"
     }
   }
 }

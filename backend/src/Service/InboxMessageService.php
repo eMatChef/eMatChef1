@@ -631,6 +631,8 @@ class InboxMessageService
         $row->setRecipientUserId($recipientUserId);
         $row->setSenderUserId($actor->getId());
         $row->setActivityId($activity->getId());
+        $forMwRecipient = $recipientScope === InboxMessage::RECIPIENT_DEPARTMENT_MW;
+        $journeyStep = $this->journeyStepForActivityNotification($type, $activity, $forMwRecipient);
         $row->setPayload([
             'activity_name' => $activity->getName(),
             'activity_type' => $activity->getType(),
@@ -646,9 +648,33 @@ class InboxMessageService
             'creator_avatar_initials' => $profile?->getAvatarInitials(),
             'creator_background_color' => $profile?->getBackgroundColor(),
             'creator_text_color' => $profile?->getTextColor(),
+            'journey_step' => $journeyStep,
+            'deeplink' => $journeyStep !== null ? 'pack-journey' : 'activity',
         ]);
 
         return $row;
+    }
+
+    private function journeyStepForActivityNotification(
+        string $type,
+        Activity $activity,
+        bool $forMwRecipient,
+    ): ?string {
+        $activityType = $activity->getType() ?? 'activity';
+        $isLogistics = \in_array($activityType, ['camp', 'event'], true);
+
+        return match ($type) {
+            'activity_submitted' => 'pack',
+            'activity_packed' => $isLogistics ? 'transport_out' : 'issue',
+            'activity_at_event' => $isLogistics ? 'transport_back' : 'return',
+            'activity_returned', 'activity_returned_mw' => $forMwRecipient ? 'store' : 'return',
+            'activity_pack_crate_check_incomplete' => match ($activity->getStatus()) {
+                Activity::STATUS_AT_EVENT => $isLogistics ? 'transport_back' : 'return',
+                Activity::STATUS_RETURNED => $forMwRecipient ? 'store' : 'return',
+                default => 'pack',
+            },
+            default => null,
+        };
     }
 
     private function removeUnreadActivityDuplicate(

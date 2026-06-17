@@ -1,5 +1,26 @@
 <template>
-  <div class="dashboard">
+  <PageShell v-if="isGrossanlassDept" class="grossanlass-dashboard">
+    <template #title>
+      <span class="grossanlass-dashboard__title">
+        {{ grossanlassDeptName }}
+        <span v-if="grossanlassStatus === 'draft'" class="status-label draft">
+          {{ t('grossanlass.dashboard.draftBadge') }}
+        </span>
+      </span>
+    </template>
+    <template v-if="grossanlassPeriodLabel" #subtitle>
+      <span class="period-label-row">
+        <v-icon icon="mdi-calendar-range" size="18" class="grossanlass-dashboard__period-icon" />
+        <span class="period-label">{{ grossanlassPeriodLabel }}</span>
+      </span>
+    </template>
+
+    <div class="section-card grossanlass-dashboard__welcome-card">
+      <p class="text-muted grossanlass-dashboard__welcome">{{ t('grossanlass.dashboard.welcome') }}</p>
+    </div>
+  </PageShell>
+
+  <div v-else class="dashboard">
     <!-- Header -->
     <header class="dashboard-header">
       <div class="header-content">
@@ -320,7 +341,9 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import PageShell from '@/components/layout/PageShell.vue'
 import { EButton } from '@/components/form/base'
+import { formatPeriodCompact } from '@/utils/formatPeriod'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -358,6 +381,21 @@ const departmentId = computed(() => {
   if (hasNoDeptMembership) return ''
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
+
+const activeMembership = computed(() => {
+  if (!departmentId.value) return null
+  return authStore.departments.find((d) => d.department_id === departmentId.value) ?? null
+})
+
+const isGrossanlassDept = computed(() => Boolean(activeMembership.value?.department?.is_grossanlass))
+
+const grossanlassDeptName = computed(
+  () => activeMembership.value?.department?.name || t('dashboard.title'),
+)
+
+const grossanlassStatus = computed(
+  () => activeMembership.value?.department?.grossanlass_config?.status || 'draft',
+)
 const showDamageWizard = ref(false)
 
 // === State ===
@@ -482,6 +520,12 @@ function formatDateShort(iso?: string | null): string {
   })
 }
 
+const grossanlassPeriodLabel = computed(() => {
+  const cfg = activeMembership.value?.department?.grossanlass_config
+  if (!cfg?.planned_event_start) return ''
+  return formatPeriodCompact(cfg.planned_event_start, cfg.planned_event_end)
+})
+
 function getRelativeDate(iso?: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -519,6 +563,11 @@ function getStatusLabel(status: string): string {
 // === Load ===
 async function load(opts?: { silent?: boolean }) {
   const id = departmentId.value
+  if (isGrossanlassDept.value) {
+    dashboardData.value = null
+    isLoading.value = false
+    return
+  }
   if (!id) {
     dashboardData.value = null
     if (hasSupportAdminRole.value) {
@@ -574,7 +623,7 @@ watch(
 /** Andere User: Dashboard-Widgets alle 30s (sichtbarer Tab). */
 useDepartmentLiveRefresh({
   departmentId,
-  enabled: () => route.name === 'Dashboard',
+  enabled: () => route.name === 'Dashboard' && !isGrossanlassDept.value,
   reload: load,
   isBusy: () => isLoading.value && !dashboardData.value,
 })
@@ -601,6 +650,29 @@ useDepartmentLiveRefresh({
   color: #6b7280;
   font-size: 0.95rem;
   margin: 0;
+}
+
+.grossanlass-dashboard__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.grossanlass-dashboard__period-icon {
+  color: var(--color-primary, #059669);
+  opacity: 0.9;
+}
+
+.grossanlass-dashboard__welcome-card {
+  margin-bottom: 0;
+}
+
+.grossanlass-dashboard__welcome {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 42rem;
 }
 
 .quick-actions {

@@ -1,10 +1,21 @@
 import { ref, type Ref } from 'vue'
-import { getPendingDepartmentActivityInvites, getReceivedDepartmentInvites, type PendingDepartmentActivityInvite, type ReceivedDepartmentInviteNotification } from '@/api/joinRequests'
+import {
+  getPendingDepartmentActivityInvites,
+  getReceivedDepartmentInvites,
+  type GrossanlassMwAssignedNotification,
+  type PendingDepartmentActivityInvite,
+  type ReceivedDepartmentInviteNotification,
+} from '@/api/joinRequests'
 import { getPublicFoundMessages, type PublicFoundItemMessage } from '@/api/publicFoundMessages'
 import { listAcquisitionFollowups, type AccountingAcquisitionFollowUp } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 
-export type DepartmentTaskKind = 'qr_found' | 'department_invite' | 'activity_invite' | 'accounting_followup'
+export type DepartmentTaskKind =
+  | 'qr_found'
+  | 'department_invite'
+  | 'grossanlass_mw_assigned'
+  | 'activity_invite'
+  | 'accounting_followup'
 export type DepartmentTaskStatus = 'open' | 'in_progress' | 'done'
 
 export interface DepartmentTaskItem {
@@ -16,6 +27,7 @@ export interface DepartmentTaskItem {
   preview: string
   qrFound?: PublicFoundItemMessage
   departmentInvite?: ReceivedDepartmentInviteNotification
+  grossanlassMwAssigned?: GrossanlassMwAssignedNotification
   activityInvite?: PendingDepartmentActivityInvite
   accounting?: AccountingAcquisitionFollowUp
 }
@@ -31,7 +43,7 @@ export function parseTaskOpenQuery(raw: unknown): { kind: DepartmentTaskKind; id
   const kind = s.slice(0, i) as DepartmentTaskKind
   const id = s.slice(i + 1)
   if (!id) return null
-  if (!['qr_found', 'department_invite', 'activity_invite', 'accounting_followup'].includes(kind)) {
+  if (!['qr_found', 'department_invite', 'grossanlass_mw_assigned', 'activity_invite', 'accounting_followup'].includes(kind)) {
     return null
   }
   return { kind, id }
@@ -87,6 +99,18 @@ export async function loadDepartmentTasks(
   }
 
   for (const inv of deptInv.items || []) {
+    if (inv.type === 'grossanlass_mw_assigned') {
+      items.push({
+        id: `ga-${inv.id}`,
+        kind: 'grossanlass_mw_assigned',
+        status: 'open',
+        createdAt: inv.created_at,
+        title: inv.department_name,
+        preview: inv.dashboard_url,
+        grossanlassMwAssigned: inv,
+      })
+      continue
+    }
     items.push({
       id: `dept-${inv.id}`,
       kind: 'department_invite',

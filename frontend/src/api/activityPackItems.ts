@@ -132,10 +132,12 @@ export async function getPackProgress(activityId: string): Promise<PackProgress>
   }
 }
 
+export type PackMoveSource = 'tap' | 'scan' | 'bulk'
+
 export async function postMovePackItem(
   activityId: string,
   packItemId: string,
-  body: { stage: PackMoveStage; quantity: number },
+  body: { stage: PackMoveStage; quantity: number; source?: PackMoveSource },
 ): Promise<ActivityPackItem> {
   const { data } = await apiClient.post<Record<string, unknown>>(
     `/api/activities/${activityId}/pack-items/${packItemId}/move`,

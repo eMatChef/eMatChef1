@@ -15,4 +15,29 @@ class DepartmentRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Department::class);
     }
+
+    public function findOneByOrganisationAndName(
+        string $organisationId,
+        string $name,
+        ?string $excludeDepartmentId = null,
+    ): ?Department {
+        $normalized = mb_strtolower(trim($name));
+        if ($normalized === '') {
+            return null;
+        }
+
+        $qb = $this->createQueryBuilder('d')
+            ->where('d.organisationId = :orgId')
+            ->andWhere('LOWER(TRIM(d.name)) = :name')
+            ->setParameter('orgId', $organisationId)
+            ->setParameter('name', $normalized)
+            ->setMaxResults(1);
+
+        if ($excludeDepartmentId !== null && $excludeDepartmentId !== '') {
+            $qb->andWhere('d.id != :excludeId')
+                ->setParameter('excludeId', $excludeDepartmentId);
+        }
+
+        return $qb->getQuery()->getOneOrNullResult();
+    }
 }

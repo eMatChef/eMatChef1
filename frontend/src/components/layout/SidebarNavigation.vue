@@ -167,7 +167,7 @@
 
       <!-- Aktivitäten -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showActivitiesMenu && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/activities')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('activities') }"
@@ -460,15 +460,15 @@ const isVerwaltungNavActive = computed(() => {
   return true
 })
 
-/** Home = Department-Dashboard; Supplier-only → Profil; Superadmin ohne Department → /dashboard */
+/** Home = Department-Dashboard; Supplier-only → Profil; Superadmin → /dashboard */
 const mainDashboardLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
   if (authStore.isSupplierOnly && supplierCompanyId.value) {
     return `/supplier/${supplierCompanyId.value}/profile`
   }
+  if (isSuperAdmin.value) return '/dashboard'
   const id = departmentId.value || authStore.activeDepartmentId
   if (id) return `/${id}`
-  if (isSuperAdmin.value) return '/dashboard'
   if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
   return '/pending-assignment'
 })
@@ -503,6 +503,13 @@ const hasGlobalAdminAccess = computed(() =>
 )
 
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
+
+const isGrossanlassDept = computed(() => {
+  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
+  if (!id) return false
+  const membership = authStore.departments.find((d) => d.department_id === id)
+  return Boolean(membership?.department?.is_grossanlass)
+})
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
 /** Werkstatt: nicht für Basissicht (u, l1–l3) — nur MW/DC */
 const showWorkshopMenu = computed(() => {

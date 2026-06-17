@@ -22,6 +22,8 @@ export interface CreateActivityPayload {
   address_id?: string | null
   /** Eventstandort (Lager, Event, extern) */
   venue_address_id?: string | null
+  /** J+S-Leihmaterial: Lieferadresse (kann vom Eventstandort abweichen) */
+  js_delivery_address_id?: string | null
   usage_start?: string
   usage_end?: string
   planning_start?: string
@@ -74,6 +76,7 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   planning_end?: string | null
   address_id?: string | null
   venue_address_id?: string | null
+  js_delivery_address_id?: string | null
   responsible_user_id?: string | null
   deposit_amount?: number | null
   deposit_paid?: boolean

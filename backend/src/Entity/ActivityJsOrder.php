@@ -48,6 +48,18 @@ class ActivityJsOrder
     #[ORM\Column(name: 'ordered_at', type: 'datetime', nullable: true)]
     private ?\DateTime $orderedAt = null;
 
+    #[ORM\Column(name: 'submitted_to_coach_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $submittedToCoachAt = null;
+
+    #[ORM\Column(name: 'submitted_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $submittedByUserId = null;
+
+    #[ORM\Column(name: 'coach_email_sent_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $coachEmailSentAt = null;
+
+    #[ORM\Column(name: 'return_confirmed_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $returnConfirmedAt = null;
+
     #[ORM\Column(name: 'ordered_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $orderedByUserId = null;
 
@@ -169,6 +181,54 @@ class ActivityJsOrder
     public function setOrderedAt(?\DateTime $orderedAt): self
     {
         $this->orderedAt = $orderedAt;
+
+        return $this;
+    }
+
+    public function getSubmittedToCoachAt(): ?\DateTime
+    {
+        return $this->submittedToCoachAt;
+    }
+
+    public function setSubmittedToCoachAt(?\DateTime $submittedToCoachAt): self
+    {
+        $this->submittedToCoachAt = $submittedToCoachAt;
+
+        return $this;
+    }
+
+    public function getSubmittedByUserId(): ?string
+    {
+        return $this->submittedByUserId;
+    }
+
+    public function setSubmittedByUser(?User $user): self
+    {
+        $this->submittedByUserId = $user?->getId();
+
+        return $this;
+    }
+
+    public function getCoachEmailSentAt(): ?\DateTime
+    {
+        return $this->coachEmailSentAt;
+    }
+
+    public function setCoachEmailSentAt(?\DateTime $coachEmailSentAt): self
+    {
+        $this->coachEmailSentAt = $coachEmailSentAt;
+
+        return $this;
+    }
+
+    public function getReturnConfirmedAt(): ?\DateTime
+    {
+        return $this->returnConfirmedAt;
+    }
+
+    public function setReturnConfirmedAt(?\DateTime $returnConfirmedAt): self
+    {
+        $this->returnConfirmedAt = $returnConfirmedAt;
 
         return $this;
     }

@@ -420,19 +420,11 @@
                 {{ t('activities.jsMaterial.order.cardTitle') }}
               </h2>
               <p class="text-muted activity-js-order-card-hint">
-                {{ t('activities.jsMaterial.order.cardHint') }}
+                {{ t('activities.jsMaterial.tab.materialHint') }}
               </p>
               <div class="activity-js-order-card-meta">
                 <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
-                <span class="activity-js-order-status">
-                  {{ jsOrderStatusLabel }}
-                </span>
-                <span
-                  v-if="jsParticipantCountForDisplay != null"
-                  class="text-muted"
-                >
-                  · {{ t('activities.jsMaterial.participantCountSummary', { count: jsParticipantCountForDisplay }) }}
-                </span>
+                <span class="activity-js-order-status">{{ jsOrderStatusLabel }}</span>
                 <span
                   v-if="jsOrderSummary?.items?.length"
                   class="text-muted"
@@ -441,15 +433,8 @@
                 </span>
               </div>
               <div class="activity-js-order-card-actions">
-                <EButton variant="primary" @click="openJsOrderModal">
-                  {{ t('activities.jsMaterial.order.openFormButton') }}
-                </EButton>
-                <EButton
-                  v-if="jsOrderSummary?.generated_pdf_url"
-                  variant="secondary"
-                  @click="openJsOrderPdf"
-                >
-                  {{ t('activities.jsMaterial.order.openPdfButton') }}
+                <EButton variant="primary" @click="goToJsTab">
+                  {{ t('activities.jsMaterial.tab.openTab') }}
                 </EButton>
               </div>
             </div>
@@ -584,8 +569,29 @@
           </div>
           </v-tabs-window-item>
 
+          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item">
+            <div class="activity-detail-tab-panel tab-content">
+              <ActivityJsTabView
+                :activity-id="activityId"
+                :department-id="departmentId"
+                :can-edit="canEditJsOrder"
+              />
+            </div>
+          </v-tabs-window-item>
+
           <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
             <div class="activity-detail-tab-panel tab-content">
+            <div v-if="canManageMaterials" class="activity-pack-journey-beta-link">
+              <RouterLink
+                :to="{
+                  name: 'ActivityPackJourney',
+                  params: { departmentId, activityId },
+                }"
+                class="activity-pack-journey-beta-link__anchor"
+              >
+                {{ t('activities.materialJourney.journeyBetaLink') }}
+              </RouterLink>
+            </div>
             <ActivityPackListTab
               ref="packListTabRef"
               v-if="activity"
@@ -707,15 +713,6 @@
       @close="onNachbuchungModalClose"
       @success="onNachbuchungModalSuccess"
     />
-    <ActivityJsOrderModal
-      :is-open="jsOrderModalOpen"
-      :activity-id="activityId"
-      :department-id="departmentId"
-      :activity-participant-count="activity?.participant_count ?? null"
-      :read-only="!canEditJsOrder"
-      @close="onJsOrderModalClose"
-      @saved="onJsOrderSaved"
-    />
 
     <PublicQrActionModal
       :open="showActivityQrActionModal"
@@ -755,7 +752,6 @@ import {
 } from '@/api/activities'
 import {
   getActivityJsOrder,
-  fetchActivityJsOrderPdfBlob,
   jsOrderStatusLabelKey,
   type ActivityJsOrderApi,
 } from '@/api/activityJsOrder'
@@ -771,7 +767,7 @@ import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesT
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
 import ActivityConsumableNachbuchungModal from '@/components/activities/ActivityConsumableNachbuchungModal.vue'
-import ActivityJsOrderModal from '@/components/activities/ActivityJsOrderModal.vue'
+import ActivityJsTabView from '@/components/activities/ActivityJsTabView.vue'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import DamageReportWizard from '@/components/DamageReportWizard.vue'
@@ -837,7 +833,7 @@ const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
 const authStore = useAuthStore()
 
-const ACTIVITY_TAB_IDS = ['overview', 'material', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
+const ACTIVITY_TAB_IDS = ['overview', 'material', 'js', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
 type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
 
 function mergeActivityQuery(updates: Record<string, string | undefined>) {
@@ -1008,6 +1004,9 @@ const tabs = computed(() => {
     { id: 'overview', label: t('activities.detail.tabOverview') },
     { id: 'material', label: t('common.material') },
   ]
+  if (showJsOrderCard.value) {
+    out.push({ id: 'js', label: t('activities.jsMaterial.tabTitle') })
+  }
   if (showPacksTab.value) {
     out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
   }
@@ -1360,6 +1359,13 @@ const showJsOrderCard = computed(() => {
 
 const canEditJsOrder = computed(() => showMaterialLookup.value)
 
+watch(showJsOrderCard, (show) => {
+  if (!show && activeTab.value === 'js') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: undefined })
+  }
+})
+
 const jsOrderStatusLabel = computed(() => {
   if (jsOrderSummaryLoading.value) return t('activities.jsMaterial.order.loadingShort')
   return t(jsOrderStatusLabelKey(jsOrderSummary.value?.status))
@@ -1585,7 +1591,6 @@ watch(issuesReloadToken, () => {
 })
 
 const consumptionModalOpen = ref(false)
-const jsOrderModalOpen = ref(false)
 const jsOrderSummary = ref<ActivityJsOrderApi | null>(null)
 const jsOrderSummaryLoading = ref(false)
 const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
@@ -1674,30 +1679,9 @@ async function refreshJsOrderSummary() {
   }
 }
 
-function openJsOrderModal() {
-  jsOrderModalOpen.value = true
-}
-
-function onJsOrderModalClose() {
-  jsOrderModalOpen.value = false
-}
-
-function onJsOrderSaved(order: ActivityJsOrderApi) {
-  jsOrderSummary.value = order
-}
-
-async function openJsOrderPdf() {
-  const pdfUrl = jsOrderSummary.value?.generated_pdf_url
-  if (!pdfUrl) return
-  try {
-    const blob = await fetchActivityJsOrderPdfBlob(pdfUrl)
-    const blobUrl = URL.createObjectURL(blob)
-    window.open(blobUrl, '_blank', 'noopener,noreferrer')
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 120000)
-  } catch (err) {
-    console.error(err)
-    toast.error(t('activities.jsMaterial.order.openPdfError'))
-  }
+function goToJsTab() {
+  activeTab.value = 'js'
+  mergeActivityQuery({ tab: 'js' })
 }
 
 function onConsumptionModalReturnWithoutConsumption() {

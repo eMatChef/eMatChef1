@@ -7,11 +7,13 @@
 | **Gesamtkatalog** | `docs/activities/js-material/250821_JS_Leihmaterial_Katalog_DE.pdf` | Alles J+S-Leihmaterial — **Referenz only** (Link im Modal) |
 | **Bestellformular Lagersport/Trekking** | `bestellformular_lagersport_trekking_d.pdf` | **Bestellbar** für Pfadi-Lager/Events dieser Sportart |
 
-Der eMatChef-Katalog `dept_js00000` und das Bestell-Modal enthalten **nur** die Zeilen des **Bestellformulars** — nicht den vollen Gesamtkatalog.
+Der eMatChef-Katalog `dept_js00000` und das Bestell-Modal filtern per **Kategorie «Lagersport & Trekking»** (`catjslagtr01`) — nicht den vollen Gesamtkatalog.
+
+Superadmin-Pflege: **Verwaltung → J+S-Leihkatalog** (`/admin-dashboard/verwaltung/js-leihkatalog`).
 
 ## Manifest
 
-`pdf_catalog_manifest.json` — kanonische Liste (28 Positionen = Formularzeilen inkl. 6 Schwimmwesten-Grössen).
+`pdf_catalog_manifest.json` — Bootstrap/Sync für Namen und PDF-Zeilennummer (`material_item.no`). **Dropdown zur Laufzeit: DB + Kategorie**, nicht JSON.
 
 ## Sync ausführen
 
