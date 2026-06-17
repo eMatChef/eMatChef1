@@ -1,17 +1,7 @@
 <template>
   <div class="activity-dual-location-map">
     <div ref="mapContainer" class="activity-dual-location-map__canvas" :style="{ height }" />
-    <ul v-if="pins.length > 0" class="activity-dual-location-map__legend">
-      <li v-for="pin in pins" :key="pin.id" class="activity-dual-location-map__legend-item">
-        <span
-          class="activity-dual-location-map__legend-dot"
-          :class="`activity-dual-location-map__legend-dot--${pin.variant ?? 'venue'}`"
-          aria-hidden="true"
-        />
-        <span>{{ pin.label }}</span>
-      </li>
-    </ul>
-    <p v-else class="activity-dual-location-map__empty field-hint text-muted">
+    <p v-if="pins.length === 0" class="activity-dual-location-map__empty field-hint text-muted">
       {{ t('activities.venueLocations.noMapCoords') }}
     </p>
   </div>
@@ -164,40 +154,6 @@ onUnmounted(() => {
   overflow: hidden;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
-}
-
-.activity-dual-location-map__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.8125rem;
-  color: #475569;
-}
-
-.activity-dual-location-map__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.activity-dual-location-map__legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.activity-dual-location-map__legend-dot--venue {
-  background: #2563eb;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #2563eb;
-}
-
-.activity-dual-location-map__legend-dot--delivery {
-  background: #ea580c;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ea580c;
 }
 
 .activity-dual-location-map__empty {

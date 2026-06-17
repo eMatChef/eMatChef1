@@ -149,6 +149,14 @@ export const useAuthStore = defineStore('auth', () => {
     return dept?.role || 'user'
   })
 
+  function isDepartmentGrossanlass(departmentId: string | null | undefined): boolean {
+    if (!departmentId) return false
+    const dept = departments.value.find((d) => d.department_id === departmentId)
+    return Boolean(dept?.department?.is_grossanlass)
+  }
+
+  const isActiveDepartmentGrossanlass = computed(() => isDepartmentGrossanlass(activeDepartmentId.value))
+
   const departmentTimezone = ref<string>(localStorage.getItem('department_timezone') || 'Europe/Zurich')
 
   async function loadDepartmentTimezone() {
@@ -531,6 +539,8 @@ export const useAuthStore = defineStore('auth', () => {
     canAccessDepartment,
     userColors,
     currentDepartmentRole,
+    isDepartmentGrossanlass,
+    isActiveDepartmentGrossanlass,
     activeDepartmentName,
     departmentTimezone,
     login,

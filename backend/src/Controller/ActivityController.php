@@ -1090,6 +1090,7 @@ class ActivityController extends AbstractController
                         ? (string) $data['venue_address_id']
                         : null;
                     $this->sharedVenueService->applyVenuePatch($activity, $currentUser, $viewerDept, $venueId);
+                    $this->syncJsDeliveryAddressFromVenue($activity);
                 } catch (\InvalidArgumentException $e) {
                     return new JsonResponse(['error' => $e->getMessage()], 400);
                 }
@@ -4201,10 +4202,32 @@ class ActivityController extends AbstractController
         $activity->setWantsJsMaterial($requested);
 
         if ($requested && $activity->getJsDeliveryAddressId() === null && $activity->getVenueAddressId() !== null) {
-            $activity->setJsDeliveryAddress($activity->getVenueAddress());
+            $this->syncJsDeliveryAddressFromVenue($activity);
         }
 
         return null;
+    }
+
+    private function syncJsDeliveryAddressFromVenue(Activity $activity): void
+    {
+        $venue = $activity->getVenueAddress();
+        if (!$venue instanceof Address) {
+            return;
+        }
+
+        /** @var Address|null $child */
+        $child = $this->entityManager->getRepository(Address::class)->findOneBy([
+            'parentId' => $venue->getId(),
+            'type' => Address::TYPE_EVENT_DELIVERY,
+        ]);
+
+        if ($child instanceof Address && !$child->isDeleted()) {
+            $activity->setJsDeliveryAddress($child);
+
+            return;
+        }
+
+        $activity->setJsDeliveryAddress($venue);
     }
 
     /**

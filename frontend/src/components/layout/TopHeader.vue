@@ -188,6 +188,21 @@
                 </div>
               </button>
               <button
+                v-for="note in grossanlassMwAssignedPreview"
+                :key="`ga-mw-${note.id}`"
+                type="button"
+                class="notification-item notification-item--grossanlass-mw"
+                :class="{ 'notification-item--unread': !note.read }"
+                @click="openGrossanlassMwFromBell(note)"
+              >
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">
+                    {{ t('grossanlass.inbox.subject', { name: note.department_name }) }}
+                  </div>
+                  <div class="notification-subtitle">{{ t('grossanlass.inbox.preview') }}</div>
+                </div>
+              </button>
+              <button
                 v-for="inv in receivedDepartmentInvitePreview"
                 :key="`dept-inv-${inv.id}`"
                 type="button"
@@ -562,6 +577,7 @@ import { useAuthStore } from '../../stores/auth'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
+import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
   getPendingDepartmentActivityInvites,
   decideDepartmentActivityInvite,
@@ -574,6 +590,7 @@ import {
   type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
+  type GrossanlassMwAssignedNotification,
   type ReceivedUserInboxNotification,
 } from '../../api/joinRequests'
 import {
@@ -659,6 +676,7 @@ type BellActivityEntry = ActivityMwNotification & { bellScope: 'user' | 'mw' }
 const globalSearchRef = ref<InstanceType<typeof GlobalSearchInput> | null>(null)
 const toast = useToast()
 const confirm = useConfirm()
+const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 
 function toggleDrawer() {
   drawerOpen.value = !drawerOpen.value
@@ -678,6 +696,7 @@ const showNotifications = ref(false)
 const isLoadingNotifications = ref(false)
 const pendingDepartmentInvites = ref<PendingDepartmentActivityInvite[]>([])
 const receivedDepartmentInvitePreview = ref<ReceivedDepartmentInviteNotification[]>([])
+const grossanlassMwAssignedPreview = ref<GrossanlassMwAssignedNotification[]>([])
 const receivedDepartmentInviteUnread = ref(0)
 const publicFoundPreview = ref<PublicFoundItemMessage[]>([])
 const activityMwPreview = ref<ActivityMwNotification[]>([])
@@ -809,6 +828,7 @@ const hasBellMessages = computed(
     inviteAcceptedPreview.value.length > 0 ||
     notificationPreviewFound.value.length > 0 ||
     receivedDepartmentInvitePreview.value.length > 0 ||
+    grossanlassMwAssignedPreview.value.length > 0 ||
     notificationPreviewInvites.value.length > 0,
 )
 
@@ -833,6 +853,8 @@ function departmentInviteRoleLabel(role: string): string {
 }
 
 async function acceptDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   showNotifications.value = false
   receivedDepartmentInvitePreview.value = receivedDepartmentInvitePreview.value.filter((e) => e.id !== inv.id)
   receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
@@ -964,8 +986,16 @@ async function closeTab(tab: DetailTab) {
   }
 }
 
-function toggleUserMenu() {
-  showUserDropdown.value = !showUserDropdown.value
+async function toggleUserMenu() {
+  const opening = !showUserDropdown.value
+  if (opening) {
+    try {
+      await authStore.loadDepartments()
+    } catch {
+      /* bestehende Liste beibehalten */
+    }
+  }
+  showUserDropdown.value = opening
 }
 
 async function toggleNotifications() {
@@ -1022,6 +1052,31 @@ function goToAccountingAssign() {
     path: `/${deptId}/tasks`,
     query: { open: 'accounting_followup:all' },
   })
+}
+
+async function openGrossanlassMwFromBell(note: GrossanlassMwAssignedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  showNotifications.value = false
+  grossanlassMwAssignedPreview.value = grossanlassMwAssignedPreview.value.filter((e) => e.id !== note.id)
+  if (!note.read) {
+    receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+    decrementUnreadCount()
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.dashboard_url || `/${note.department_id}/dashboard`
+  void router.push(path)
+  syncBellBadge()
 }
 
 async function openDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
@@ -1160,10 +1215,14 @@ async function loadDepartmentInvites() {
     receivedDepartmentInvitePreview.value = (receivedInvites.items || [])
       .filter((i): i is ReceivedDepartmentInviteNotification => i.type === 'department_invite')
       .slice(0, 5)
+    grossanlassMwAssignedPreview.value = (receivedInvites.items || [])
+      .filter((i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned')
+      .slice(0, 5)
     receivedDepartmentInviteUnread.value =
       typeof receivedInvites.unread_count === 'number'
         ? receivedInvites.unread_count
-        : receivedDepartmentInvitePreview.value.filter((e) => !e.read).length
+        : receivedDepartmentInvitePreview.value.filter((e) => !e.read).length +
+          grossanlassMwAssignedPreview.value.filter((e) => !e.read).length
 
     pendingDepartmentInvites.value = inviteResult.items || []
     publicFoundPreview.value = foundResult.items || []
@@ -1214,6 +1273,7 @@ async function loadDepartmentInvites() {
   } catch {
     pendingDepartmentInvites.value = []
     receivedDepartmentInvitePreview.value = []
+    grossanlassMwAssignedPreview.value = []
     receivedDepartmentInviteUnread.value = 0
     publicFoundPreview.value = []
     activityMwPreview.value = []
@@ -1327,8 +1387,13 @@ function openDepartmentSettings() {
 }
 
 async function selectDepartment(departmentId: string) {
+  if (!departmentId || departmentId === authStore.activeDepartmentId) {
+    showUserDropdown.value = false
+    return
+  }
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   showUserDropdown.value = false
-  if (!departmentId || departmentId === authStore.activeDepartmentId) return
   await authStore.setActiveDepartment(departmentId)
   window.location.assign(departmentHomePath(departmentId))
 }

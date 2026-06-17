@@ -201,6 +201,7 @@
       :read-only="!canEdit"
       @close="onModalClose"
       @saved="onOrderSaved"
+      @autosaved="onOrderAutosaved"
     />
   </div>
 </template>
@@ -344,10 +345,17 @@ function onModalClose() {
   showModal.value = false
 }
 
-function onOrderSaved(saved: ActivityJsOrderApi) {
+function syncOrderFromModal(saved: ActivityJsOrderApi) {
   order.value = saved
   syncDraftsFromOrder(saved)
-  showModal.value = false
+}
+
+function onOrderAutosaved(saved: ActivityJsOrderApi) {
+  syncOrderFromModal(saved)
+}
+
+function onOrderSaved(saved: ActivityJsOrderApi) {
+  syncOrderFromModal(saved)
 }
 
 async function openPdf() {

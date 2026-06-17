@@ -139,6 +139,7 @@ import {
   type DepartmentTaskKind,
   type DepartmentTaskStatus,
 } from '@/composables/useDepartmentTasks'
+import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 
 type StatusTab = DepartmentTaskStatus
 
@@ -148,6 +149,7 @@ const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -307,7 +309,15 @@ function goToMessageForQr(msg: PublicFoundItemMessage) {
   })
 }
 
-function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification) {
+async function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
   const path = note.dashboard_url || `/${note.department_id}/dashboard`
   void router.push(path)
 }
@@ -329,6 +339,8 @@ function goToMessageForCampInvite(inv: PendingDepartmentActivityInvite) {
 }
 
 async function acceptDeptInvite(inv: ReceivedDepartmentInviteNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   try {
     const result = await acceptDepartmentInvite({
       notificationId: inv.id,

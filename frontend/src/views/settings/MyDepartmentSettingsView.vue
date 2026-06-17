@@ -90,7 +90,7 @@
         </div>
       </div>
 
-      <div v-if="canManageJoinCode" class="info-card">
+      <div v-if="canManageJoinCode && !isSelectedDepartmentGrossanlass" class="info-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
             <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
@@ -397,6 +397,10 @@ const canManageJoinCode = computed(() => {
   const normalizedRole = String(currentRole.value || '').toLowerCase().trim()
   return ['dc', 'depchef', 'mw', 'matwart', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(normalizedRole)
 })
+
+const isSelectedDepartmentGrossanlass = computed(() =>
+  authStore.isDepartmentGrossanlass(selectedDepartmentId.value),
+)
 
 /** SA / Org / Sub — kein persönliches Onboarding; Anzeige im UI */
 const isHierarchyLeaderDeptRole = computed(() => {

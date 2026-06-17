@@ -192,6 +192,20 @@
             </div>
           </div>
 
+          <!-- Adresse + Karte (Eventstandort mit Zustellpunkt) -->
+          <div v-if="contact.type === 'event'" class="section-card section-card--location">
+            <EventVenueDetailLocations
+              v-if="contact"
+              :event-address="contact"
+              :delivery-address="deliveryAddress"
+              :read-only="isReadOnly"
+              @edit-venue="openEditModal"
+              @edit-delivery="openDeliveryEditModal"
+              @create-delivery="openDeliveryCreateModal"
+            />
+          </div>
+
+          <template v-else>
           <!-- Adresse -->
           <div class="section-card">
             <div class="section-header-row">
@@ -276,6 +290,7 @@
             />
             <p v-else class="map-no-coords">{{ t('contacts.detail.noCoordinates') }}</p>
           </div>
+          </template>
 
           <!-- Zusätzliche Informationen -->
           <div class="section-card">
@@ -316,6 +331,18 @@
       :allowed-types="editAllowedTypes"
       @close="showEditModal = false"
       @saved="handleEdited"
+    />
+
+    <AddressModal
+      v-if="showDeliveryModal"
+      :department-id="departmentId"
+      :address="deliveryModalAddress"
+      default-type="event_delivery"
+      :parent-id="contact?.id ?? null"
+      :default-name="deliveryDefaultName"
+      :allowed-types="['event_delivery']"
+      @close="closeDeliveryModal"
+      @saved="handleDeliverySaved"
     />
 
     <EDialog
@@ -366,6 +393,7 @@ import {
 } from '@/api/addresses'
 import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import EventVenueDetailLocations from '@/components/contacts/EventVenueDetailLocations.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog } from '@/components/form/base'
 import {
@@ -397,11 +425,19 @@ function addressTypeLabel(type: string): string {
   return te(path) ? t(path) : type
 }
 const contact = ref<Address | null>(null)
+const deliveryAddress = ref<Address | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 // Edit
 const showEditModal = ref(false)
+const showDeliveryModal = ref(false)
+const deliveryModalAddress = ref<Address | null>(null)
+
+const deliveryDefaultName = computed(() => {
+  const base = contact.value?.name || contact.value?.company || ''
+  return base ? `${base} – Zustellung` : ''
+})
 
 // Delete / restore
 const showDeleteConfirm = ref(false)
@@ -448,6 +484,7 @@ async function loadContact() {
   try {
     const data = await getAddress(props.contactId)
     contact.value = data.address
+    deliveryAddress.value = (data.child_addresses ?? [])[0] ?? null
     
     // Nach dem Laden: Karte initialisieren
     await nextTick()
@@ -487,6 +524,27 @@ function openEditModal() {
 
 async function handleEdited() {
   showEditModal.value = false
+  await loadContact()
+  emit('updated')
+}
+
+function openDeliveryCreateModal() {
+  deliveryModalAddress.value = null
+  showDeliveryModal.value = true
+}
+
+function openDeliveryEditModal() {
+  deliveryModalAddress.value = deliveryAddress.value
+  showDeliveryModal.value = true
+}
+
+function closeDeliveryModal() {
+  showDeliveryModal.value = false
+  deliveryModalAddress.value = null
+}
+
+async function handleDeliverySaved() {
+  closeDeliveryModal()
   await loadContact()
   emit('updated')
 }

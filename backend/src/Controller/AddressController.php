@@ -24,7 +24,7 @@ class AddressController extends AbstractController
     private const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting'];
 
     /** Kontakte: User-Rolle – anlegen/bearbeiten/löschen nur diese Typen. */
-    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event'];
+    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -65,6 +65,16 @@ class AddressController extends AbstractController
         if (!$includeDeleted) {
             $qb->andWhere('a.deletedAt IS NULL');
         }
+
+        $parentIdFilter = $request->query->get('parent_id');
+        $includeChildAddresses = $request->query->get('include_child_addresses') === '1';
+        if ($parentIdFilter) {
+            $qb->andWhere('a.parentId = :parentId')
+                ->setParameter('parentId', (string) $parentIdFilter);
+        } elseif (!$includeChildAddresses) {
+            $qb->andWhere('a.parentId IS NULL');
+        }
+
         if ($this->isUserContactReader($role)) {
             $qb->andWhere('a.type IN (:userContactTypes)')
                 ->setParameter('userContactTypes', self::USER_CONTACT_VIEW_TYPES);
@@ -112,11 +122,19 @@ class AddressController extends AbstractController
         }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         
-        return new JsonResponse([
+        $payload = [
             'address' => $address->toArray(),
             'types' => $this->filterTypesForRole(Address::getAvailableTypes(), $role),
             'cantons' => Address::getSwissCantons(),
-        ]);
+        ];
+        if ($address->getType() === Address::TYPE_EVENT) {
+            $payload['child_addresses'] = array_map(
+                fn (Address $child) => $child->toArray(),
+                $this->findEventDeliveryChildren($address->getId())
+            );
+        }
+
+        return new JsonResponse($payload);
     }
 
     /**
@@ -163,6 +181,10 @@ class AddressController extends AbstractController
             $address->setDepartmentId($data['department_id']);
             
             $this->updateAddressFromData($address, $data);
+            $parentError = $this->validateAddressParentLink($address);
+            if ($parentError !== null) {
+                return new JsonResponse(['error' => $parentError], 400);
+            }
             
             $this->entityManager->persist($address);
             $this->entityManager->flush();
@@ -205,6 +227,10 @@ class AddressController extends AbstractController
                 $this->assertCanCreateContact($address->getDepartmentId(), (string) $data['type']);
             }
             $this->updateAddressFromData($address, $data);
+            $parentError = $this->validateAddressParentLink($address);
+            if ($parentError !== null) {
+                return new JsonResponse(['error' => $parentError], 400);
+            }
             $address->updateTimestamps();
             
             $this->entityManager->flush();
@@ -468,6 +494,14 @@ class AddressController extends AbstractController
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
         }
+        if ($address->getType() === Address::TYPE_EVENT_DELIVERY && $address->getParentId() !== null) {
+            $parent = $this->entityManager->getRepository(Address::class)->find($address->getParentId());
+            if ($parent instanceof Address && !$parent->isDeleted()) {
+                $this->assertCanModifyContact($parent);
+
+                return;
+            }
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_CREATE_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung zum Bearbeiten dieses Kontakts');
@@ -479,10 +513,68 @@ class AddressController extends AbstractController
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
         }
+        if ($address->getType() === Address::TYPE_EVENT_DELIVERY && $address->getParentId() !== null) {
+            $parent = $this->entityManager->getRepository(Address::class)->find($address->getParentId());
+            if ($parent instanceof Address && !$parent->isDeleted()) {
+                $this->assertCanViewContact($parent);
+
+                return;
+            }
+        }
         $role = $this->resolveDepartmentRole($address->getDepartmentId());
         if ($this->isUserContactReader($role) && !in_array($address->getType(), self::USER_CONTACT_VIEW_TYPES, true)) {
             throw new AccessDeniedHttpException('Keine Berechtigung für diesen Kontakt');
         }
+    }
+
+    /** @return Address[] */
+    private function findEventDeliveryChildren(string $eventAddressId): array
+    {
+        /** @var Address[] $rows */
+        $rows = $this->entityManager->getRepository(Address::class)->findBy(
+            [
+                'parentId' => $eventAddressId,
+                'type' => Address::TYPE_EVENT_DELIVERY,
+            ],
+            ['name' => 'ASC']
+        );
+
+        return array_values(array_filter($rows, static fn (Address $a) => !$a->isDeleted()));
+    }
+
+    private function validateAddressParentLink(Address $address): ?string
+    {
+        $parentId = $address->getParentId();
+        $type = $address->getType();
+
+        if ($type === Address::TYPE_EVENT_DELIVERY) {
+            if ($parentId === null || $parentId === '') {
+                return 'Zustellpunkt braucht einen Eventstandort (parent_id).';
+            }
+            $parent = $this->entityManager->getRepository(Address::class)->find($parentId);
+            if (!$parent instanceof Address || $parent->isDeleted()) {
+                return 'Eventstandort (parent_id) nicht gefunden.';
+            }
+            if ($parent->getType() !== Address::TYPE_EVENT) {
+                return 'Zustellpunkt darf nur an einen Eventstandort gehängt werden.';
+            }
+            if ($parent->getDepartmentId() !== $address->getDepartmentId()) {
+                return 'Zustellpunkt muss im gleichen Department liegen wie der Eventstandort.';
+            }
+            foreach ($this->findEventDeliveryChildren($parentId) as $existing) {
+                if ($address->getId() === null || $existing->getId() !== $address->getId()) {
+                    return 'Für diesen Eventstandort existiert bereits ein Zustellpunkt.';
+                }
+            }
+
+            return null;
+        }
+
+        if ($parentId !== null && $parentId !== '') {
+            return 'parent_id ist nur für Typ event_delivery erlaubt.';
+        }
+
+        return null;
     }
 
     /** MW/DC: Papierkorb einsehen, wiederherstellen, endgültig löschen. */
@@ -572,6 +664,16 @@ class AddressController extends AbstractController
         }
         if (isset($data['is_primary'])) {
             $address->setIsPrimary((bool) $data['is_primary']);
+        }
+        if (array_key_exists('parent_id', $data)) {
+            $parentId = $data['parent_id'];
+            if ($parentId === null || $parentId === '') {
+                $address->setParentId(null);
+                $address->setParent(null);
+            } else {
+                $parent = $this->entityManager->getRepository(Address::class)->find((string) $parentId);
+                $address->setParent($parent instanceof Address ? $parent : null);
+            }
         }
     }
 }

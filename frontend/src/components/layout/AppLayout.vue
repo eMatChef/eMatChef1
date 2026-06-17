@@ -108,13 +108,16 @@ const skipsPersonalDepartmentOnboarding = computed(() => {
   return authStore.userRoles.includes('ROLE_SUPERADMIN')
 })
 
+const isGrossanlassDepartment = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
 const canUseOnboarding = computed(() => {
   return (
     authStore.isLoggedIn &&
     !!departmentId.value &&
     !!profileId.value &&
     hasOnboardingRole.value &&
-    !skipsPersonalDepartmentOnboarding.value
+    !skipsPersonalDepartmentOnboarding.value &&
+    !isGrossanlassDepartment.value
   )
 })
 
@@ -159,7 +162,8 @@ watch(
       !depId ||
       !profId ||
       !hasOnboardingRole.value ||
-      skipsPersonalDepartmentOnboarding.value
+      skipsPersonalDepartmentOnboarding.value ||
+      authStore.isDepartmentGrossanlass(depId)
     ) {
       backendOnboardingDone.value = null
       isOnboardingOpen.value = false

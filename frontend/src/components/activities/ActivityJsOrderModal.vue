@@ -4,6 +4,7 @@
     :max-width="920"
     scrollable
     persistent
+    :retain-focus="false"
     card-class="js-order-dialog-card"
     @update:model-value="onDialogOpenChange"
   >
@@ -91,44 +92,95 @@
         <h4>{{ t('activities.jsMaterial.order.block1Title') }}</h4>
         <div class="js-order-grid">
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.firstName') }}</label>
-            <input v-model="form.block1.first_name" type="text" class="form-input" @input="markOverridden('block1', 'first_name')" />
+            <ETextField
+              v-model="form.block1.first_name"
+              :label="t('activities.jsMaterial.order.fields.firstName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'first_name')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.lastName') }}</label>
-            <input v-model="form.block1.last_name" type="text" class="form-input" @input="markOverridden('block1', 'last_name')" />
+            <ETextField
+              v-model="form.block1.last_name"
+              :label="t('activities.jsMaterial.order.fields.lastName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'last_name')"
+            />
           </div>
           <div class="js-order-field span-2">
-            <label>{{ t('activities.jsMaterial.order.fields.email') }}</label>
-            <input v-model="form.block1.email" type="email" class="form-input" @input="markOverridden('block1', 'email')" />
+            <ETextField
+              v-model="form.block1.email"
+              type="email"
+              :label="t('activities.jsMaterial.order.fields.email')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'email')"
+            />
           </div>
           <div class="js-order-field span-2">
-            <label>{{ t('activities.jsMaterial.order.fields.address') }}</label>
-            <input v-model="form.block1.address" type="text" class="form-input" @input="markOverridden('block1', 'address')" />
+            <ETextField
+              v-model="form.block1.address"
+              :label="t('activities.jsMaterial.order.fields.address')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'address')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.postalCode') }}</label>
-            <input v-model="form.block1.postal_code" type="text" class="form-input" @input="markOverridden('block1', 'postal_code')" />
+            <ETextField
+              v-model="form.block1.postal_code"
+              :label="t('activities.jsMaterial.order.fields.postalCode')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'postal_code')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.city') }}</label>
-            <input v-model="form.block1.city" type="text" class="form-input" @input="markOverridden('block1', 'city')" />
+            <ETextField
+              v-model="form.block1.city"
+              :label="t('activities.jsMaterial.order.fields.city')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'city')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.canton') }}</label>
-            <input v-model="form.block1.canton" type="text" class="form-input" @input="markOverridden('block1', 'canton')" />
+            <ETextField
+              v-model="form.block1.canton"
+              :label="t('activities.jsMaterial.order.fields.canton')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'canton')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.phone') }}</label>
-            <input v-model="form.block1.phone" type="text" class="form-input" @input="markOverridden('block1', 'phone')" />
+            <ETextField
+              v-model="form.block1.phone"
+              :label="t('activities.jsMaterial.order.fields.phone')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'phone')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.personNr') }}</label>
-            <input v-model="form.block1.person_nr" type="text" class="form-input" @input="markOverridden('block1', 'person_nr')" />
+            <ETextField
+              v-model="form.block1.person_nr"
+              :label="t('activities.jsMaterial.order.fields.personNr')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'person_nr')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.offerNumber') }}</label>
-            <input v-model="form.block1.offer_number" type="text" class="form-input" @input="markOverridden('block1', 'offer_number')" />
+            <ETextField
+              v-model="form.block1.offer_number"
+              :label="t('activities.jsMaterial.order.fields.offerNumber')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block1', 'offer_number')"
+            />
           </div>
         </div>
       </section>
@@ -137,47 +189,77 @@
         <h4>{{ t('activities.jsMaterial.order.block2Title') }}</h4>
         <div class="js-order-grid">
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.courseType') }}</label>
-            <select v-model="form.block2.course_type" class="form-input" @change="markOverridden('block2', 'course_type')">
-              <option value="">{{ t('activities.jsMaterial.order.courseTypeChoose') }}</option>
-              <option value="lager">{{ t('activities.jsMaterial.order.courseTypeLager') }}</option>
-              <option value="kaderbildung">{{ t('activities.jsMaterial.order.courseTypeKader') }}</option>
-            </select>
-          </div>
-          <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.participantCountLabel') }}</label>
-            <input
-              v-model.number="participantCountField"
-              type="number"
-              min="1"
-              step="1"
-              class="form-input"
-              @input="markOverridden('block2', 'participant_count')"
+            <ESelect
+              v-model="form.block2.course_type"
+              :label="t('activities.jsMaterial.order.fields.courseType')"
+              :items="courseTypeItems"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'course_type')"
             />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.deliveryDate') }}</label>
-            <input v-model="form.block2.delivery_date" type="date" class="form-input" @input="markOverridden('block2', 'delivery_date')" />
-          </div>
-          <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.returnDate') }}</label>
-            <input v-model="form.block2.return_date" type="date" class="form-input" @input="markOverridden('block2', 'return_date')" />
-          </div>
-          <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.coachFirstName') }}</label>
-            <input v-model="form.block2.coach_first_name" type="text" class="form-input" @input="markOverridden('block2', 'coach_first_name')" />
-          </div>
-          <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.coachLastName') }}</label>
-            <input v-model="form.block2.coach_last_name" type="text" class="form-input" @input="markOverridden('block2', 'coach_last_name')" />
-          </div>
-          <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.coachPersonNr') }}</label>
-            <input v-model="form.block2.coach_person_nr" type="text" class="form-input" @input="markOverridden('block2', 'coach_person_nr')" />
+            <ETextField
+              v-model="participantCountField"
+              type="number"
+              :label="t('activities.jsMaterial.participantCountLabel')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'participant_count')"
+            />
           </div>
           <div class="js-order-field span-2">
-            <label>{{ t('activities.jsMaterial.order.fields.coachEmail') }}</label>
-            <input v-model="form.block2.coach_email" type="email" class="form-input" @input="markOverridden('block2', 'coach_email')" />
+            <EDateRangeField
+              v-model:start="form.block2.delivery_date"
+              v-model:end="form.block2.return_date"
+              :label="t('activities.jsMaterial.order.fields.deliveryReturnRange')"
+              :department-id="departmentId"
+              :disabled="readOnly"
+              :allow-past="false"
+              block-closed-dates
+              preset-mode="fixed-periods"
+              show-presets
+              show-markers
+              @update:start="markOverridden('block2', 'delivery_date')"
+              @update:end="markOverridden('block2', 'return_date')"
+            />
+          </div>
+          <div class="js-order-field">
+            <ETextField
+              v-model="form.block2.coach_first_name"
+              :label="t('activities.jsMaterial.order.fields.coachFirstName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'coach_first_name')"
+            />
+          </div>
+          <div class="js-order-field">
+            <ETextField
+              v-model="form.block2.coach_last_name"
+              :label="t('activities.jsMaterial.order.fields.coachLastName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'coach_last_name')"
+            />
+          </div>
+          <div class="js-order-field">
+            <ETextField
+              v-model="form.block2.coach_person_nr"
+              :label="t('activities.jsMaterial.order.fields.coachPersonNr')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'coach_person_nr')"
+            />
+          </div>
+          <div class="js-order-field span-2">
+            <ETextField
+              v-model="form.block2.coach_email"
+              type="email"
+              :label="t('activities.jsMaterial.order.fields.coachEmail')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block2', 'coach_email')"
+            />
           </div>
         </div>
       </section>
@@ -217,40 +299,85 @@
         </div>
         <div class="js-order-grid">
           <div class="js-order-field span-2">
-            <label>{{ t('activities.jsMaterial.order.fields.venueName') }}</label>
-            <input v-model="form.block3.venue_name" type="text" class="form-input" @input="markOverridden('block3', 'venue_name')" />
+            <ETextField
+              v-model="form.block3.venue_name"
+              :label="t('activities.jsMaterial.order.fields.venueName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'venue_name')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.contactFirstName') }}</label>
-            <input v-model="form.block3.contact_first_name" type="text" class="form-input" @input="markOverridden('block3', 'contact_first_name')" />
+            <ETextField
+              v-model="form.block3.contact_first_name"
+              :label="t('activities.jsMaterial.order.fields.contactFirstName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'contact_first_name')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.contactLastName') }}</label>
-            <input v-model="form.block3.contact_last_name" type="text" class="form-input" @input="markOverridden('block3', 'contact_last_name')" />
+            <ETextField
+              v-model="form.block3.contact_last_name"
+              :label="t('activities.jsMaterial.order.fields.contactLastName')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'contact_last_name')"
+            />
           </div>
           <div class="js-order-field span-2">
-            <label>{{ t('activities.jsMaterial.order.fields.address') }}</label>
-            <input v-model="form.block3.address" type="text" class="form-input" @input="markOverridden('block3', 'address')" />
+            <ETextField
+              v-model="form.block3.address"
+              :label="t('activities.jsMaterial.order.fields.address')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'address')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.postalCode') }}</label>
-            <input v-model="form.block3.postal_code" type="text" class="form-input" @input="markOverridden('block3', 'postal_code')" />
+            <ETextField
+              v-model="form.block3.postal_code"
+              :label="t('activities.jsMaterial.order.fields.postalCode')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'postal_code')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.city') }}</label>
-            <input v-model="form.block3.city" type="text" class="form-input" @input="markOverridden('block3', 'city')" />
+            <ETextField
+              v-model="form.block3.city"
+              :label="t('activities.jsMaterial.order.fields.city')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'city')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.canton') }}</label>
-            <input v-model="form.block3.canton" type="text" class="form-input" @input="markOverridden('block3', 'canton')" />
+            <ETextField
+              v-model="form.block3.canton"
+              :label="t('activities.jsMaterial.order.fields.canton')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'canton')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.deliveryPhone') }}</label>
-            <input v-model="form.block3.delivery_phone" type="text" class="form-input" @input="markOverridden('block3', 'delivery_phone')" />
+            <ETextField
+              v-model="form.block3.delivery_phone"
+              :label="t('activities.jsMaterial.order.fields.deliveryPhone')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'delivery_phone')"
+            />
           </div>
           <div class="js-order-field">
-            <label>{{ t('activities.jsMaterial.order.fields.campLeaderPhone') }}</label>
-            <input v-model="form.block3.camp_leader_phone" type="text" class="form-input" @input="markOverridden('block3', 'camp_leader_phone')" />
+            <ETextField
+              v-model="form.block3.camp_leader_phone"
+              :label="t('activities.jsMaterial.order.fields.campLeaderPhone')"
+              :disabled="readOnly"
+              hide-details
+              @update:model-value="markOverridden('block3', 'camp_leader_phone')"
+            />
           </div>
         </div>
         <p
@@ -340,13 +467,11 @@
         </table>
 
         <div v-if="!readOnly" class="js-order-catalog-toolbar">
-          <div class="js-order-catalog-search-wrap">
-            <input
-              ref="catalogSearchInputRef"
+          <div ref="catalogSearchWrapRef" class="js-order-catalog-search-wrap">
+            <ESearchField
               v-model="catalogSearch"
-              type="search"
-              class="form-input js-order-catalog-search"
               :placeholder="t('activities.jsMaterial.order.catalogSearchPlaceholder')"
+              :clearable="true"
               @focus="onCatalogSearchFocus"
               @blur="onCatalogSearchBlur"
             />
@@ -512,7 +637,7 @@ import { computed, nextTick, onBeforeUnmount, onUnmounted, reactive, ref, toRaw,
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { usePrompt } from '@/composables/usePrompt'
-import { EButton, EDialog } from '@/components/form/base'
+import { EButton, EDialog, ETextField, ESelect, EDateRangeField, ESearchField } from '@/components/form/base'
 import {
   EMPTY_JS_ORDER_FORM,
   applyJsOrderDotation,
@@ -530,7 +655,7 @@ import {
   type JsOrderItemSaveRow,
 } from '@/api/activityJsOrder'
 import { getActivity, type ActivityDetail } from '@/api/activities'
-import { getAddresses, type Address } from '@/api/addresses'
+import { getAddresses, getAddress, type Address } from '@/api/addresses'
 
 type JsOrderFormBlockKey = 'block1' | 'block2' | 'block3'
 
@@ -568,6 +693,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
   saved: [order: ActivityJsOrderApi]
+  autosaved: [order: ActivityJsOrderApi]
 }>()
 
 const { t } = useI18n()
@@ -605,7 +731,7 @@ const filteredCatalogItems = computed(() => {
   })
 })
 const catalogLoading = ref(false)
-const catalogSearchInputRef = ref<HTMLInputElement | null>(null)
+const catalogSearchWrapRef = ref<HTMLElement | null>(null)
 const catalogDropdownOpen = ref(false)
 const catalogDropdownStyle = ref<Record<string, string>>({})
 const dotationLoading = ref(false)
@@ -624,6 +750,12 @@ const stepLabels = computed(() => [
   t('activities.jsMaterial.order.steps.course'),
   t('activities.jsMaterial.order.steps.delivery'),
   t('activities.jsMaterial.order.steps.material'),
+])
+
+const courseTypeItems = computed(() => [
+  { title: t('activities.jsMaterial.order.courseTypeChoose'), value: '' },
+  { title: t('activities.jsMaterial.order.courseTypeLager'), value: 'lager' },
+  { title: t('activities.jsMaterial.order.courseTypeKader'), value: 'kaderbildung' },
 ])
 
 function trimmed(value: string | null | undefined): string {
@@ -665,9 +797,24 @@ function addressById(id: string | null | undefined): Address | undefined {
 }
 
 const canApplyBlock3FromJsDelivery = computed(() => {
-  const id = activityDetail.value?.js_delivery_address_id
-  return !!id && !!addressById(id)
+  const delivery = resolvedDeliveryAddress.value
+  return !!delivery?.latitude && delivery.longitude != null
 })
+
+const resolvedDeliveryAddress = computed(() => {
+  const id = activityDetail.value?.js_delivery_address_id
+  if (id) {
+    const fromList = addressById(id)
+    if (fromList) return fromList
+  }
+  const venueId = effectiveVenueAddressId(activityDetail.value)
+  if (!venueId) return undefined
+  const child = venueDeliveryChildByVenueId.value[venueId]
+  if (child) return child
+  return addressById(venueId)
+})
+
+const venueDeliveryChildByVenueId = ref<Record<string, Address>>({})
 
 const canApplyBlock3FromVenue = computed(() => {
   const id = effectiveVenueAddressId(activityDetail.value)
@@ -704,8 +851,7 @@ function applyAddressToBlock3(addr: Address) {
 }
 
 function applyBlock3FromJsDelivery() {
-  const id = activityDetail.value?.js_delivery_address_id
-  const addr = addressById(id)
+  const addr = resolvedDeliveryAddress.value
   if (!addr) return
   applyAddressToBlock3(addr)
   toast.success(t('activities.jsMaterial.order.applyFromJsDeliverySuccess'))
@@ -1166,7 +1312,7 @@ async function loadCatalog() {
 }
 
 function syncCatalogDropdownPosition() {
-  const el = catalogSearchInputRef.value
+  const el = catalogSearchWrapRef.value
   if (!el) return
 
   const rect = el.getBoundingClientRect()
@@ -1285,6 +1431,19 @@ async function loadOrder() {
     ])
     activityDetail.value = activity
     departmentAddresses.value = addrRes.addresses
+    venueDeliveryChildByVenueId.value = {}
+    const venueId = effectiveVenueAddressId(activity)
+    if (venueId) {
+      try {
+        const venueDetail = await getAddress(venueId)
+        const child = (venueDetail.child_addresses ?? [])[0]
+        if (child) {
+          venueDeliveryChildByVenueId.value = { [venueId]: child }
+        }
+      } catch {
+        // optional enrichment
+      }
+    }
     applyOrderToForm(loaded)
     stepIndex.value = resolveInitialStepIndex()
   } catch (err) {
@@ -1336,7 +1495,11 @@ async function persistOrder(options: { silent?: boolean } = {}): Promise<Activit
       items: orderItemsPayload(),
     })
     applyOrderToForm(saved)
-    emit('saved', saved)
+    if (silent) {
+      emit('autosaved', saved)
+    } else {
+      emit('saved', saved)
+    }
 
     if (silent) {
       autoSaveError.value = ''
@@ -1407,11 +1570,11 @@ async function onGeneratePdf() {
   if (!props.activityId || props.readOnly) return
   pdfGenerating.value = true
   try {
-    const saved = await onSave()
+    const saved = await persistOrder({ silent: true })
     if (!saved) return
     const result = await generateActivityJsOrderPdf(props.activityId)
     applyOrderToForm(result.order)
-    emit('saved', result.order)
+    emit('autosaved', result.order)
     toast.success(t('activities.jsMaterial.order.generatePdfSuccess'))
     if (result.pdf_url) {
       await openPdfUrl(result.pdf_url)
@@ -1680,6 +1843,15 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+
+.js-order-field :deep(.e-form-field) {
+  width: 100%;
+}
+
+.js-order-field :deep(.autosave-field-frame) {
+  width: 100%;
 }
 
 .js-order-field.span-2 {

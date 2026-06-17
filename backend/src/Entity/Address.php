@@ -30,6 +30,9 @@ class Address
     public const SCOPE_DEPARTMENT = 'department';
     public const SCOPE_SUPPLIER = 'supplier';
     public const SCOPE_GLOBAL = 'global';
+
+    public const TYPE_EVENT = 'event';
+    public const TYPE_EVENT_DELIVERY = 'event_delivery';
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
@@ -157,6 +160,16 @@ class Address
 
     #[ORM\Column(name: 'deleted_by_user_id', type: 'string', length: 12, nullable: true)]
     private ?string $deletedByUserId = null;
+
+    /**
+     * Übergeordnete Adresse (z. B. Eventstandort für Zustellpunkt event_delivery).
+     */
+    #[ORM\Column(name: 'parent_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $parentId = null;
+
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'parent_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
+    private ?Address $parent = null;
 
     public function __construct()
     {
@@ -493,6 +506,29 @@ class Address
         return $this;
     }
 
+    public function getParentId(): ?string
+    {
+        return $this->parentId;
+    }
+
+    public function setParentId(?string $parentId): self
+    {
+        $this->parentId = $parentId;
+        return $this;
+    }
+
+    public function getParent(): ?self
+    {
+        return $this->parent;
+    }
+
+    public function setParent(?self $parent): self
+    {
+        $this->parent = $parent;
+        $this->parentId = $parent?->getId();
+        return $this;
+    }
+
     public function isDeleted(): bool
     {
         return $this->deletedAt !== null;
@@ -575,6 +611,7 @@ class Address
             'supplier_company_id' => $this->supplierCompanyId,
             'type' => $this->type,
             'type_label' => self::getAvailableTypes()[$this->type] ?? $this->type,
+            'parent_id' => $this->parentId,
             'name' => $this->name,
             'company' => $this->company,
             'address_line2' => $this->addressLine2,
@@ -616,6 +653,7 @@ class Address
             'storage' => 'Lagerplatz',
             'customer' => 'Kundenadresse',
             'event' => 'Eventstandort',
+            'event_delivery' => 'Zustellpunkt (Event)',
             'meeting' => 'Treffpunkt',
             'office' => 'Büro',
             'private' => 'Privat',

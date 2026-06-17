@@ -127,6 +127,8 @@ const props = withDefaults(
     departmentId?: string | null
     disabled?: boolean
     showMarkers?: boolean
+    /** Schnellauswahl: range = Samstage + Fixe Daten; fixed-periods = nur Lagerwoche/Sonstiges */
+    presetMode?: 'range' | 'fixed-periods'
   }>(),
   {
     density: 'compact',
@@ -137,6 +139,7 @@ const props = withDefaults(
     departmentId: null,
     disabled: false,
     showMarkers: true,
+    presetMode: 'range',
   },
 )
 
@@ -161,7 +164,7 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets('range', calendarPeriods)
+const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods)
 
 const {
   displayRange,

@@ -161,7 +161,7 @@
       </router-link>
 
       <div
-        v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess && showStandardDeptSidebarLinks"
         class="nav-divider"
       />
 
@@ -178,7 +178,7 @@
 
       <!-- Materialien -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/materials')"
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
@@ -189,7 +189,7 @@
 
       <!-- Buchhaltung (nur Materialchef / Departmentchef) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showAccountingMenu && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/accounting')"
         class="nav-item"
         :class="{ active: isAccountingNavActive }"
@@ -200,7 +200,7 @@
 
       <!-- Kontakte -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         :to="getLink('/contacts')"
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
@@ -211,7 +211,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
@@ -222,7 +222,7 @@
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
@@ -233,13 +233,13 @@
 
       <!-- Horizontaler Balken (Divider) -->
       <div
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         class="nav-divider"
       />
 
       <!-- Werkstatt -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu && hasDepartmentContext"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showWorkshopMenu && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/workshop')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('workshop') }"
@@ -250,7 +250,7 @@
 
       <!-- Statistik -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && showStatisticsMenu"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks && showStatisticsMenu"
         :to="getLink('/statistics')"
         class="nav-item"
         :class="{ active: $route.path.includes('/statistics') }"
@@ -261,7 +261,7 @@
 
       <!-- Lieferanten-Shop (MW/DC, vor Konfiguration) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/supplier-shop')"
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
@@ -291,7 +291,7 @@
       </router-link>
 
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
         :to="getLink('/help/overview')"
         class="nav-item"
         :class="{ active: isHelpOverviewNavActive }"
@@ -504,12 +504,12 @@ const hasGlobalAdminAccess = computed(() =>
 
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
-const isGrossanlassDept = computed(() => {
-  const id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''
-  if (!id) return false
-  const membership = authStore.departments.find((d) => d.department_id === id)
-  return Boolean(membership?.department?.is_grossanlass)
-})
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — keine Standard-Dept-Module */
+const showStandardDeptSidebarLinks = computed(
+  () => showDeptContextSidebarLinks.value && !isGrossanlassDept.value,
+)
 const showMaterialsMenu = computed(() => !isSuperAdmin.value)
 /** Werkstatt: nicht für Basissicht (u, l1–l3) — nur MW/DC */
 const showWorkshopMenu = computed(() => {

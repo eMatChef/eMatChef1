@@ -392,9 +392,11 @@ import { taskOpenQuery } from '@/composables/useDepartmentTasks'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 import { getSenderPrimaryLine, type NotificationSenderDescriptor } from '@/utils/notificationSender'
 
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 
 const route = useRoute()
 const router = useRouter()
@@ -641,6 +643,8 @@ function inboxBadges(item: UnifiedInboxItem): string[] {
 }
 
 async function openGrossanlassMwAssigned(note: GrossanlassMwAssignedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   if (!note.read) {
     try {
       await markReceivedDepartmentInviteRead(note.id)
@@ -651,6 +655,12 @@ async function openGrossanlassMwAssigned(note: GrossanlassMwAssignedNotification
     } catch {
       /* navigate anyway */
     }
+  }
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
   }
   const path = note.dashboard_url || `/${note.department_id}/dashboard`
   await router.push(path)
@@ -922,6 +932,8 @@ async function openInviteAcceptedItem(note: InviteAcceptedNotification) {
 }
 
 async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   detailDepartmentInvite.value = null
   try {
     const result = await acceptDepartmentInvite({

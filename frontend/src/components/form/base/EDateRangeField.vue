@@ -16,6 +16,7 @@
           :block-closed-dates="blockClosedDates"
           :show-presets="showPresets"
           :show-markers="showMarkers"
+          :preset-mode="presetMode"
         />
       </div>
     </div>
@@ -40,6 +41,7 @@ const props = withDefaults(
     blockClosedDates?: boolean
     showPresets?: boolean
     showMarkers?: boolean
+    presetMode?: 'range' | 'fixed-periods'
     errorMessages?: string | readonly string[]
   }>(),
   {
@@ -49,6 +51,7 @@ const props = withDefaults(
     blockClosedDates: false,
     showPresets: false,
     showMarkers: true,
+    presetMode: 'range',
   },
 )
 

@@ -10,14 +10,23 @@ import {
 } from '@/utils/activityDatePresets'
 
 export function useActivityDatePresets(
-  mode: MaybeRefOrGetter<'single' | 'range'>,
+  mode: MaybeRefOrGetter<'single' | 'range' | 'fixed-periods'>,
   calendarPeriods: MaybeRefOrGetter<readonly DepartmentCalendarPeriod[]>,
 ) {
   const { t } = useI18n()
 
   return computed((): ActivityDatePresetItem[] => {
+    const resolvedMode = toValue(mode)
+    if (resolvedMode === 'fixed-periods') {
+      return filterValidActivityDatePresets(
+        calendarPeriodRangePresets(toValue(calendarPeriods), (label: CalendarPeriodLabel) =>
+          t(`settings.fixedDates.labels.${label}`),
+        ),
+      )
+    }
+
     const base =
-      toValue(mode) === 'single'
+      resolvedMode === 'single'
         ? activitySingleDayPresets({
             nextSaturday: t('activities.datePresets.nextSaturday'),
             secondSaturday: t('activities.datePresets.secondSaturday'),

@@ -323,6 +323,7 @@ interface Props {
   editAddressId?: string | null
   defaultType?: string
   defaultName?: string
+  parentId?: string | null
   apiMode?: 'department' | 'global'
   /** Wenn gesetzt: nur diese Adresstypen im Dropdown (z. B. User-Rolle). */
   allowedTypes?: string[] | null
@@ -333,6 +334,7 @@ const props = withDefaults(defineProps<Props>(), {
   editAddressId: null,
   defaultType: 'storage',
   defaultName: '',
+  parentId: null,
   apiMode: 'department'
 })
 
@@ -872,6 +874,7 @@ async function handleSubmit() {
       const payload: AddressFormData = {
         department_id: props.departmentId,
         type: formData.value.type,
+        parent_id: props.parentId ?? undefined,
         name: formData.value.name,
         company: formData.value.company,
         street: formData.value.street || '',

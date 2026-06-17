@@ -122,12 +122,45 @@ class JsOrderPrefillService
         $form['block2']['coach_person_nr'] = trim($deptDefaults['js.default_coach_person_nr'] ?? '');
         $form['block2']['coach_email'] = trim($deptDefaults['js.default_coach_email'] ?? '');
 
-        $deliveryAddress = $activity->getJsDeliveryAddress() ?? $activity->getVenueAddress();
+        $deliveryAddress = $this->resolveDeliveryAddressForActivity($activity);
         if ($deliveryAddress instanceof Address) {
             $this->applyAddressToBlock3($form, $deliveryAddress, $profile, $leader);
         }
 
         return $form;
+    }
+
+    private function resolveDeliveryAddressForActivity(Activity $activity): ?Address
+    {
+        $venue = $activity->getVenueAddress();
+        if ($venue instanceof Address) {
+            $child = $this->findEventDeliveryChild($venue);
+            if ($child instanceof Address) {
+                return $child;
+            }
+        }
+
+        $explicit = $activity->getJsDeliveryAddress();
+        if ($explicit instanceof Address) {
+            return $explicit;
+        }
+
+        return $venue;
+    }
+
+    private function findEventDeliveryChild(Address $venue): ?Address
+    {
+        if ($venue->getType() !== Address::TYPE_EVENT) {
+            return null;
+        }
+
+        /** @var Address|null $child */
+        $child = $this->entityManager->getRepository(Address::class)->findOneBy([
+            'parentId' => $venue->getId(),
+            'type' => Address::TYPE_EVENT_DELIVERY,
+        ]);
+
+        return ($child instanceof Address && !$child->isDeleted()) ? $child : null;
     }
 
     /**
