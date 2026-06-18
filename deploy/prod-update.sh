@@ -122,6 +122,20 @@ fix_backend_var_permissions() {
     sh -c "chown -R ${HOST_UID}:${HOST_GID} /var && chmod -R u+rwX /var"
 }
 
+# vendor/ liegt in benanntem Compose-Volume — nach root-Runs oder neuen composer.lock-Paketen
+# schlägt composer install sonst fehl („vendor/mikehaertl does not exist and could not be created“).
+fix_backend_vendor_volume_permissions() {
+  local vendor_volume="${PROJECT}_backend_vendor"
+  if ! docker volume inspect "$vendor_volume" >/dev/null 2>&1; then
+    return 0
+  fi
+  echo "==> backend/vendor-Volume (${vendor_volume}): Rechte auf ${HOST_UID}:${HOST_GID} …"
+  docker run --rm -u 0 \
+    -v "${vendor_volume}:/vendor" \
+    alpine:3.20 \
+    sh -c "chown -R ${HOST_UID}:${HOST_GID} /vendor && chmod -R u+rwX /vendor"
+}
+
 # Develop/Prod-Override setzen oft security_opt: no-new-privileges — exec -u 0 scheitert dann.
 # Cache daher bevorzugt auf dem Host (bind mount), nicht per root im laufenden Container.
 clear_symfony_prod_cache_dir() {
@@ -166,6 +180,7 @@ reset_symfony_prod_cache() {
 }
 
 fix_backend_var_permissions
+fix_backend_vendor_volume_permissions
 
 docker compose -p "$PROJECT" stop backend 2>/dev/null || true
 docker compose -p "$PROJECT" rm -f backend 2>/dev/null || true
