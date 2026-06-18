@@ -27,4 +27,7 @@ php bin/console doctrine:migrations:migrate --no-interaction
 echo "[backend] lexik:jwt:generate-keypair (skip-if-exists) …"
 php bin/console lexik:jwt:generate-keypair --skip-if-exists -n
 
+# Signal für deploy/prod-update.sh: Entrypoint fertig (Composer + Migrationen), bevor exec php -S.
+touch /tmp/backend-entrypoint-ready
+
 exec "$@"

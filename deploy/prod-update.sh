@@ -160,7 +160,8 @@ wait_for_backend_ready() {
   echo "==> Warten auf Backend (Composer/Migrationen im Entrypoint) …"
   while (( waited < max_wait )); do
     if docker compose -p "$PROJECT" ps --status running --services backend 2>/dev/null | grep -qx backend; then
-      if docker compose -p "$PROJECT" exec -T backend php bin/console about --env=prod >/dev/null 2>&1; then
+      if docker compose -p "$PROJECT" exec -T backend test -f /tmp/backend-entrypoint-ready 2>/dev/null \
+        && docker compose -p "$PROJECT" exec -T backend php bin/console about --env=prod >/dev/null 2>&1; then
         echo "==> Backend bereit (${waited}s)."
         return 0
       fi
@@ -193,10 +194,8 @@ fi
 
 fix_backend_var_permissions
 
-# Nach git reset: auf Entrypoint warten, dann Migrationen + Prod-Cache
+# Nach git reset: Entrypoint (Composer + Migrationen) abwarten, dann Prod-Cache
 if wait_for_backend_ready; then
-  echo "==> Doctrine-Migrationen …"
-  docker compose -p "$PROJECT" exec -T backend php bin/console doctrine:migrations:migrate --no-interaction --env=prod
   reset_symfony_prod_cache
 else
   exit 1
