@@ -184,7 +184,7 @@ class JwtAuthenticationSuccessSubscriber implements EventSubscriberInterface
             $event->setData($data);
             $this->authCookies->clearLogoutMarker($event->getResponse());
             $this->log('info', 'Successfully added user/profile data to response');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('error', 'Exception: ' . $e->getMessage() . ' | ' . $e->getTraceAsString());
             // Fehler nicht weiterwerfen, damit Login trotzdem funktioniert
         }
