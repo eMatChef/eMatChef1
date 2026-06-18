@@ -51,6 +51,13 @@ class Group
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
 
+    /** Grossanlass: ressort (Wurzel/Unterressort) | teilbereich (Bauprojekt); null bei Pfadi-Gruppen */
+    #[ORM\Column(name: 'grossanlass_kind', type: 'string', length: 20, nullable: true)]
+    private ?string $grossanlassKind = null;
+
+    public const GROSSANLASS_KIND_RESSORT = 'ressort';
+    public const GROSSANLASS_KIND_TEILBEREICH = 'teilbereich';
+
     // Mitgliedschaften
     #[ORM\OneToMany(mappedBy: 'group', targetEntity: GroupMembership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
@@ -175,6 +182,18 @@ class Group
     public function setSortOrder(int $sortOrder): self
     {
         $this->sortOrder = $sortOrder;
+        return $this;
+    }
+
+    public function getGrossanlassKind(): ?string
+    {
+        return $this->grossanlassKind;
+    }
+
+    public function setGrossanlassKind(?string $grossanlassKind): self
+    {
+        $this->grossanlassKind = $grossanlassKind;
+
         return $this;
     }
 

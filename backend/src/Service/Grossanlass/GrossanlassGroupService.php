@@ -84,6 +84,9 @@ class GrossanlassGroupService
         $group->setName(trim((string) $data['name']));
         if ($parent !== null) {
             $group->setParent($parent);
+            $group->setGrossanlassKind($this->resolveKindForCreate($parent, $data));
+        } else {
+            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
         }
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
@@ -141,6 +144,16 @@ class GrossanlassGroupService
 
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
+        }
+
+        if (array_key_exists('kind', $data)) {
+            $this->applyKindChange($group, $data['kind'] ?? null);
+        } elseif ($group->getGrossanlassKind() === null) {
+            $group->setGrossanlassKind(
+                $group->getParentId() === null
+                    ? Group::GROSSANLASS_KIND_RESSORT
+                    : Group::GROSSANLASS_KIND_TEILBEREICH,
+            );
         }
 
         $group->updateTimestamps();
@@ -361,6 +374,8 @@ class GrossanlassGroupService
     {
         $level = $this->hierarchy->computeDepth($department->getId(), $group->getId());
         $leaders = array_values(array_filter($members, static fn (array $m) => $m['is_leader']));
+        $kind = $this->resolveStoredKind($group);
+        $nodeType = $this->resolveNodeType($group, $kind);
 
         return [
             'id' => $group->getId(),
@@ -369,7 +384,8 @@ class GrossanlassGroupService
             'parent_id' => $group->getParentId(),
             'sort_order' => $group->getSortOrder(),
             'level' => $level,
-            'kind' => $group->getParentId() === null ? 'ressort' : 'teilbereich',
+            'kind' => $kind,
+            'node_type' => $nodeType,
             'member_count' => count($members),
             'leader_count' => count($leaders),
             'members' => array_values($members),
@@ -446,5 +462,54 @@ class GrossanlassGroupService
             }
         }
         $this->entityManager->flush();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function resolveKindForCreate(Group $parent, array $data): string
+    {
+        $kind = isset($data['kind']) ? strtolower(trim((string) $data['kind'])) : Group::GROSSANLASS_KIND_TEILBEREICH;
+        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
+            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
+        }
+
+        return $kind;
+    }
+
+    private function applyKindChange(Group $group, mixed $kindRaw): void
+    {
+        if ($group->getParentId() === null) {
+            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
+
+            return;
+        }
+
+        $kind = strtolower(trim((string) ($kindRaw ?? '')));
+        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
+            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
+        }
+        $group->setGrossanlassKind($kind);
+    }
+
+    private function resolveStoredKind(Group $group): string
+    {
+        $stored = $group->getGrossanlassKind();
+        if ($stored !== null && $stored !== '') {
+            return $stored;
+        }
+
+        return $group->getParentId() === null
+            ? Group::GROSSANLASS_KIND_RESSORT
+            : Group::GROSSANLASS_KIND_TEILBEREICH;
+    }
+
+    private function resolveNodeType(Group $group, string $kind): string
+    {
+        if ($group->getParentId() === null) {
+            return 'ressort';
+        }
+
+        return $kind === Group::GROSSANLASS_KIND_RESSORT ? 'unterressort' : 'bauprojekt';
     }
 }
