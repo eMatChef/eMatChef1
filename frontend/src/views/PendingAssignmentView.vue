@@ -219,11 +219,11 @@
       <h2 class="pending-subtitle">{{ t('pendingAssignment.myOpenRequests') }}</h2>
 
       <EEmptyState
-        v-if="requests.length === 0"
+        v-if="openRequests.length === 0"
         variant="generic"
         compact
         :heading-level="3"
-        :description="t('pendingAssignment.noRequestsYet')"
+        :description="t('pendingAssignment.noOpenRequests')"
       />
 
       <div v-else class="pending-requests-wrap">
@@ -237,7 +237,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in requests" :key="`${r.request_kind || 'join'}-${r.id}`">
+            <tr v-for="r in openRequests" :key="`${r.request_kind || 'join'}-${r.id}`">
               <td>{{ requestKindLabel(r) }}</td>
               <td>
                 <span>{{ r.department_name }}</span>
@@ -246,7 +246,38 @@
                   · {{ t('pendingAssignment.parentDept', { name: r.requested_parent_department_name }) }}
                 </span>
               </td>
-              <td>{{ statusLabel(r.status) }}</td>
+              <td>{{ statusLabel(r) }}</td>
+              <td>{{ formatDate(r.created_at) }}</td>
+            </tr>
+          </tbody>
+        </v-table>
+      </div>
+    </ECard>
+
+    <ECard v-if="requestHistory.length > 0" class="pending-card" variant="elevated">
+      <h2 class="pending-subtitle">{{ t('pendingAssignment.myRequestHistory') }}</h2>
+
+      <div class="pending-requests-wrap">
+        <v-table density="comfortable" class="pending-requests-table">
+          <thead>
+            <tr>
+              <th>{{ t('pendingAssignment.colType') }}</th>
+              <th>{{ t('pendingAssignment.colDepartment') }}</th>
+              <th>{{ t('common.status') }}</th>
+              <th>{{ t('pendingAssignment.colCreated') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="r in requestHistory" :key="`history-${r.request_kind || 'join'}-${r.id}`">
+              <td>{{ requestKindLabel(r) }}</td>
+              <td>
+                <span>{{ r.department_name }}</span>
+                <span v-if="r.organisation_name" class="pending-request-org">({{ r.organisation_name }})</span>
+                <span v-if="r.requested_parent_department_name" class="pending-request-org">
+                  · {{ t('pendingAssignment.parentDept', { name: r.requested_parent_department_name }) }}
+                </span>
+              </td>
+              <td>{{ statusLabel(r) }}</td>
               <td>{{ formatDate(r.created_at) }}</td>
             </tr>
           </tbody>
@@ -326,6 +357,8 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const requests = ref<MyJoinRequest[]>([])
+const openRequests = computed(() => requests.value.filter((r) => r.status === 'pending'))
+const requestHistory = computed(() => requests.value.filter((r) => r.status !== 'pending'))
 const scannerActive = ref(false)
 const displayedDepartmentResults = computed(() => departmentResults.value.slice(0, 4))
 const organisationsFiltered = computed(() => filterOrganisationsForUserPickers(organisations.value))
@@ -342,9 +375,10 @@ const showManualAdminRequest = computed(() => {
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 let autoJoinTriggered = false
 
-function statusLabel(status: string): string {
-  if (status === 'approved' || status === 'assigned') return t('pendingAssignment.statusApproved')
-  if (status === 'rejected') return t('pendingAssignment.statusRejected')
+function statusLabel(request: MyJoinRequest): string {
+  if (request.auto_joined) return t('pendingAssignment.statusAutoJoined')
+  if (request.status === 'approved' || request.status === 'assigned') return t('pendingAssignment.statusApproved')
+  if (request.status === 'rejected') return t('pendingAssignment.statusRejected')
   return t('pendingAssignment.statusOpen')
 }
 

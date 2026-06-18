@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getActivityHistory, type ActivityHistoryEntryRow } from '@/api/activities'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
@@ -8,6 +8,13 @@ import {
   historyEntryTitle,
   historyStatusChange,
 } from '@/components/activities/activityHistoryDisplay'
+import {
+  aggregatePackHistoryEntries,
+  aggregatedPackHistoryTitle,
+  formatHistoryTimeRange,
+  packMoveSummaryLine,
+  type ActivityHistoryDisplayRow,
+} from '@/components/activities/activityPackHistoryDisplay'
 import { formatUserNicknameFirstNameLastName } from '@/utils/userAvatar'
 
 defineOptions({ name: 'ActivityHistoryTab' })
@@ -20,6 +27,8 @@ const { t, te, locale } = useI18n()
 const loading = ref(true)
 const error = ref<string | null>(null)
 const entries = ref<ActivityHistoryEntryRow[]>([])
+const filterPackOnly = ref(false)
+const expandedGroupIds = ref<Set<string>>(new Set())
 
 async function load() {
   loading.value = true
@@ -38,6 +47,17 @@ async function load() {
 }
 
 watch(() => props.activityId, () => void load(), { immediate: true })
+
+const filteredEntries = computed(() => {
+  if (!filterPackOnly.value) return entries.value
+  return entries.value.filter((e) =>
+    ['pack_move', 'pack_moveback', 'pack_container_bulk', 'pack_crate_check'].includes(e.action),
+  )
+})
+
+const displayRows = computed((): ActivityHistoryDisplayRow[] =>
+  aggregatePackHistoryEntries(filteredEntries.value),
+)
 
 function formatWhen(iso: string): string {
   try {
@@ -63,39 +83,126 @@ function userLabel(e: ActivityHistoryEntryRow): string {
   if (!e.user) return ''
   return formatUserNicknameFirstNameLastName(e.user)
 }
+
+function groupId(row: ActivityHistoryDisplayRow & { kind: 'aggregated' }): string {
+  return row.entries.map((e) => e.id).join('-')
+}
+
+function isGroupExpanded(row: ActivityHistoryDisplayRow & { kind: 'aggregated' }): boolean {
+  return expandedGroupIds.value.has(groupId(row))
+}
+
+function toggleGroup(row: ActivityHistoryDisplayRow & { kind: 'aggregated' }): void {
+  const id = groupId(row)
+  const next = new Set(expandedGroupIds.value)
+  if (next.has(id)) {
+    next.delete(id)
+  } else {
+    next.add(id)
+  }
+  expandedGroupIds.value = next
+}
+
+function aggregatedUserLabel(row: ActivityHistoryDisplayRow & { kind: 'aggregated' }): string {
+  return userLabel(row.entries[0])
+}
 </script>
 
 <template>
   <div class="activity-history-tab">
     <ActivityTabHeader :title="t('activities.detail.sectionHistory')" />
     <div class="section-card activity-tab-panel-card">
+      <div v-if="!loading && !error && entries.length > 0" class="activity-history-filters">
+        <button
+          type="button"
+          class="activity-history-filter-chip"
+          :class="{ 'activity-history-filter-chip--active': !filterPackOnly }"
+          @click="filterPackOnly = false"
+        >
+          {{ t('activities.history.filterAll') }}
+        </button>
+        <button
+          type="button"
+          class="activity-history-filter-chip"
+          :class="{ 'activity-history-filter-chip--active': filterPackOnly }"
+          @click="filterPackOnly = true"
+        >
+          {{ t('activities.history.filterPack') }}
+        </button>
+      </div>
+
       <p v-if="loading" class="text-muted activity-inline-loading">
         <span class="spinner spinner-sm"></span>
         {{ t('activities.history.loading') }}
       </p>
       <p v-else-if="error" class="text-muted">{{ error }}</p>
-      <p v-else-if="entries.length === 0" class="text-muted">{{ t('activities.history.empty') }}</p>
+      <p v-else-if="displayRows.length === 0" class="text-muted">{{ t('activities.history.empty') }}</p>
       <ul v-else class="activity-history-list">
-        <li v-for="e in entries" :key="e.id" class="activity-history-item">
-          <div class="activity-history-item-head">
-            <span class="history-dot" :class="e.action" aria-hidden="true"></span>
-            <strong class="activity-history-action">{{ titleFor(e) }}</strong>
-            <span class="text-muted activity-history-when">{{ formatWhen(e.created_at) }}</span>
-          </div>
-          <p v-if="userLabel(e)" class="activity-history-user text-muted">
-            {{ t('activities.history.userBy', { name: userLabel(e) }) }}
-          </p>
-          <p v-if="statusChange(e)" class="activity-history-status-change text-muted">
-            <span class="activity-history-field">{{ t('common.status') }}:</span>
-            <span class="history-status-old">{{ statusChange(e)!.old }}</span>
-            <span class="history-status-arrow" aria-hidden="true">→</span>
-            <span class="history-status-new">{{ statusChange(e)!.new }}</span>
-          </p>
-          <ul v-else-if="summaryLines(e).length > 0" class="activity-history-lines">
-            <li v-for="(line, idx) in summaryLines(e)" :key="idx" class="text-muted">
-              {{ line }}
-            </li>
-          </ul>
+        <li
+          v-for="(row, rowIndex) in displayRows"
+          :key="row.kind === 'single' ? row.entry.id : `agg-${rowIndex}`"
+          class="activity-history-item"
+        >
+          <template v-if="row.kind === 'single'">
+            <div class="activity-history-item-head">
+              <span class="history-dot" :class="row.entry.action" aria-hidden="true"></span>
+              <strong class="activity-history-action">{{ titleFor(row.entry) }}</strong>
+              <span class="text-muted activity-history-when">{{ formatWhen(row.entry.created_at) }}</span>
+            </div>
+            <p v-if="userLabel(row.entry)" class="activity-history-user text-muted">
+              {{ t('activities.history.userBy', { name: userLabel(row.entry) }) }}
+            </p>
+            <p v-if="statusChange(row.entry)" class="activity-history-status-change text-muted">
+              <span class="activity-history-field">{{ t('common.status') }}:</span>
+              <span class="history-status-old">{{ statusChange(row.entry)!.old }}</span>
+              <span class="history-status-arrow" aria-hidden="true">→</span>
+              <span class="history-status-new">{{ statusChange(row.entry)!.new }}</span>
+            </p>
+            <ul v-else-if="summaryLines(row.entry).length > 0" class="activity-history-lines">
+              <li v-for="(line, idx) in summaryLines(row.entry)" :key="idx" class="text-muted">
+                {{ line }}
+              </li>
+            </ul>
+          </template>
+
+          <template v-else>
+            <button
+              type="button"
+              class="activity-history-aggregate"
+              :aria-expanded="isGroupExpanded(row)"
+              @click="toggleGroup(row)"
+            >
+              <div class="activity-history-item-head">
+                <span class="history-dot pack_move" aria-hidden="true"></span>
+                <strong class="activity-history-action">
+                  {{ aggregatedPackHistoryTitle(row.entries, t, te) }}
+                </strong>
+                <span class="text-muted activity-history-when">
+                  {{ formatHistoryTimeRange(row.entries, locale) }}
+                </span>
+              </div>
+              <p v-if="aggregatedUserLabel(row)" class="activity-history-user text-muted">
+                {{ t('activities.history.userBy', { name: aggregatedUserLabel(row) }) }}
+              </p>
+              <span class="activity-history-aggregate-hint text-muted">
+                {{
+                  isGroupExpanded(row)
+                    ? t('activities.history.packAggregateCollapse')
+                    : t('activities.history.packAggregateExpand')
+                }}
+              </span>
+            </button>
+            <ul v-if="isGroupExpanded(row)" class="activity-history-lines activity-history-lines--nested">
+              <li
+                v-for="entry in row.entries"
+                :key="entry.id"
+                class="text-muted activity-history-nested-line"
+              >
+                <span class="activity-history-nested-time">{{ formatWhen(entry.created_at) }}</span>
+                {{ packMoveSummaryLine(entry, t, te) }}
+              </li>
+            </ul>
+          </template>
         </li>
       </ul>
     </div>
@@ -113,6 +220,28 @@ function userLabel(e: ActivityHistoryEntryRow): string {
 
 .activity-history-tab {
   max-width: 720px;
+}
+
+.activity-history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.activity-history-filter-chip {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.activity-history-filter-chip--active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .activity-history-list {
@@ -163,6 +292,23 @@ function userLabel(e: ActivityHistoryEntryRow): string {
   margin-top: 4px;
 }
 
+.activity-history-lines--nested {
+  margin-top: 8px;
+  padding-left: 8px;
+  border-left: 2px solid #e2e8f0;
+}
+
+.activity-history-nested-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.activity-history-nested-time {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .history-dot {
   width: 9px;
   height: 9px;
@@ -176,7 +322,10 @@ function userLabel(e: ActivityHistoryEntryRow): string {
   background: #f59e0b;
 }
 
-.history-dot.pack_crate_check {
+.history-dot.pack_crate_check,
+.history-dot.pack_move,
+.history-dot.pack_moveback,
+.history-dot.pack_container_bulk {
   background: #3b82f6;
 }
 
@@ -214,5 +363,21 @@ function userLabel(e: ActivityHistoryEntryRow): string {
 .history-status-arrow {
   margin: 0 6px;
   color: #64748b;
+}
+
+.activity-history-aggregate {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.activity-history-aggregate-hint {
+  display: block;
+  margin: 4px 0 0 20px;
+  font-size: 12px;
 }
 </style>

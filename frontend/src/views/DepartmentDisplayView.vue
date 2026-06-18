@@ -132,7 +132,7 @@
                 <span class="display-row-name">{{ item.title }}</span>
                 <span class="display-row-meta">
                   <span class="priority-pill" :class="item.priority">{{ item.priority_label }}</span>
-                  <span class="status-pill workshop" :class="item.status">{{ item.status_label }}</span>
+                  <span class="status-pill workshop" :class="item.display_phase || item.phase || 'triage'">{{ item.phase_label || workshopPhaseLabel(item.display_phase || item.phase || 'triage') }}</span>
                   <span>{{ item.material_item.name }}</span>
                 </span>
               </div>
@@ -268,7 +268,7 @@ const displayWorkshopTickets = computed((): DisplayWorkshopItem[] => {
   const filterByStatus = statusSet.size > 0
 
   return workshopTickets.value
-    .filter((ticket) => !filterByStatus || statusSet.has(ticket.status))
+    .filter((ticket) => !filterByStatus || statusSet.has(ticket.display_phase || ticket.phase || 'triage'))
     .map((ticket) => ({
       ...ticket,
       publicUrl: resolveWorkshopPublicUrl(ticket.public_url, ticket.public_code),
@@ -292,18 +292,18 @@ const activityStatEntries = computed(() => {
 })
 
 const workshopStatEntries = computed(() => {
-  const counts = statistics.value?.workshop_by_status
+  const counts = statistics.value?.workshop_by_phase
   if (!counts) return []
-  return Object.entries(counts).map(([status, count]) => ({
-    status,
+  return Object.entries(counts).map(([phase, count]) => ({
+    status: phase,
     count,
-    label: workshopStatusLabel(status),
+    label: workshopPhaseLabel(phase),
   }))
 })
 
-function workshopStatusLabel(status: string): string {
-  const key = `workshop.status.${status}`
-  return te(key) ? t(key) : status
+function workshopPhaseLabel(phase: string): string {
+  const key = `workshop.phase.${phase}`
+  return te(key) ? t(key) : phase
 }
 
 function intlTag(): string {

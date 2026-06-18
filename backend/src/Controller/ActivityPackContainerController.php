@@ -12,6 +12,7 @@ use App\Entity\User;
 use App\Service\ActivityAccessService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
+use App\Service\ActivityPackEventHistoryService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +31,7 @@ class ActivityPackContainerController extends AbstractController
         private ActivityKisteMaterialLinker $kisteMaterialLinker,
         private PackPipelineService $packPipeline,
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
+        private ActivityPackEventHistoryService $packEventHistory,
     ) {}
 
     private function flushWithPipelineSync(Activity $activity): void
@@ -462,9 +464,22 @@ class ActivityPackContainerController extends AbstractController
      */
     #[Route('/pack-containers/{containerId}/issue-all', name: 'container_issue_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function issueAllInContainer(string $activityId, string $containerId): JsonResponse
+    public function issueAllInContainer(string $activityId, string $containerId, Request $request): JsonResponse
     {
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'issue_all');
+        $data = json_decode($request->getContent(), true) ?? [];
+        $stage = $this->packPipeline->normalizeStage(
+            (string) ($data['stage'] ?? PackPipelineService::STAGE_AT_EVENT),
+        );
+
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'issue_all',
+            $stage,
+            is_string($source) ? $source : null,
+        );
     }
 
     /**
@@ -472,9 +487,18 @@ class ActivityPackContainerController extends AbstractController
      */
     #[Route('/pack-containers/{containerId}/return-all', name: 'container_return_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function returnAllInContainer(string $activityId, string $containerId): JsonResponse
+    public function returnAllInContainer(string $activityId, string $containerId, Request $request): JsonResponse
     {
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'return_all');
+        $data = json_decode($request->getContent(), true) ?? [];
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'return_all',
+            PackPipelineService::STAGE_RETURNED,
+            is_string($source) ? $source : null,
+        );
     }
 
     /**
@@ -482,12 +506,30 @@ class ActivityPackContainerController extends AbstractController
      */
     #[Route('/pack-containers/{containerId}/unissue-all', name: 'container_unissue_all', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
-    public function unissueAllInContainer(string $activityId, string $containerId): JsonResponse
+    public function unissueAllInContainer(string $activityId, string $containerId, Request $request): JsonResponse
     {
-        return $this->bulkWorkflowContainer($activityId, $containerId, 'unissue_all');
+        $data = json_decode($request->getContent(), true) ?? [];
+        $stage = $this->packPipeline->normalizeStage(
+            (string) ($data['stage'] ?? PackPipelineService::STAGE_AT_EVENT),
+        );
+        $source = is_array($data) ? ($data['source'] ?? null) : null;
+
+        return $this->bulkWorkflowContainer(
+            $activityId,
+            $containerId,
+            'unissue_all',
+            $stage,
+            is_string($source) ? $source : null,
+        );
     }
 
-    private function bulkWorkflowContainer(string $activityId, string $containerId, string $mode): JsonResponse
+    private function bulkWorkflowContainer(
+        string $activityId,
+        string $containerId,
+        string $mode,
+        string $pipelineStage = PackPipelineService::STAGE_AT_EVENT,
+        ?string $source = null,
+    ): JsonResponse
     {
         $activity = $this->findActivityWithAccess($activityId);
         if ($activity instanceof JsonResponse) {
@@ -513,6 +555,7 @@ class ActivityPackContainerController extends AbstractController
             return new JsonResponse(['error' => 'Behälter nicht gefunden'], 404);
         }
 
+        $profile = $this->packPipeline->profileForActivityType($activity->getType());
         $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)->findBy(['packContainerId' => $containerId]);
         $updatedLines = 0;
         $appliedTotal = 0;
@@ -530,23 +573,12 @@ class ActivityPackContainerController extends AbstractController
             }
 
             if ($mode === 'issue_all') {
-                $p = $ci->getQuantityPacked();
-                $i = $ci->getQuantityIssued();
-                $delta = $p - $i;
-                $maxPack = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-                if ($delta <= 0 && $maxPack > 0 && $p > 0) {
-                    // Drift: Zeile wirkt voll ausgegeben, Packliste hat noch Rest — wie Einzelbuchung
-                    $delta = min($p, $maxPack);
-                }
-                if ($delta <= 0) {
-                    continue;
-                }
-                $apply = min($delta, $maxPack);
+                $apply = $this->bulkForwardApplyQty($ci, $packItem, $pipelineStage, $profile);
                 if ($apply <= 0) {
                     continue;
                 }
-                $ci->setQuantityIssued(min($p, $i + $apply));
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
+                $this->packPipeline->applyForwardContainer($ci, $pipelineStage, $apply, $profile);
+                $this->packPipeline->applyForward($packItem, $pipelineStage, $apply, $profile);
             } elseif ($mode === 'return_all') {
                 $delta = $ci->getQuantityIssued() - $ci->getQuantityReturned();
                 if ($delta <= 0 && $ci->getQuantityIssued() === 0 && $ci->getQuantityPacked() > $ci->getQuantityReturned()) {
@@ -570,17 +602,16 @@ class ActivityPackContainerController extends AbstractController
                 $ci->setQuantityReturned($ci->getQuantityReturned() + $apply);
                 $packItem->setQuantityReturned($packItem->getQuantityReturned() + $apply);
             } elseif ($mode === 'unissue_all') {
-                $delta = $ci->getQuantityIssued() - $ci->getQuantityReturned();
-                if ($delta <= 0) {
+                $shellMaterialId = $container->getContainerBatch()?->getMaterialItemId();
+                if ($shellMaterialId !== null && $ci->getMaterialItemId() === $shellMaterialId) {
                     continue;
                 }
-                $maxPack = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-                $apply = min($delta, $maxPack);
+                $apply = $this->bulkBackwardApplyQty($ci, $packItem, $pipelineStage, $profile);
                 if ($apply <= 0) {
                     continue;
                 }
-                $ci->setQuantityIssued($ci->getQuantityIssued() - $apply);
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() - $apply);
+                $this->packPipeline->applyBackward($packItem, $pipelineStage, $apply);
+                $this->packPipeline->applyBackwardContainer($ci, $pipelineStage, $apply);
             } else {
                 return new JsonResponse(['error' => 'Ungültiger Modus'], 400);
             }
@@ -591,11 +622,22 @@ class ActivityPackContainerController extends AbstractController
             $appliedTotal += $apply;
         }
 
-        $shell = $this->applyShellPackItemForBulkWorkflow($activityId, $container, $mode);
+        $shell = $this->applyShellPackItemForBulkWorkflow($activityId, $container, $mode, $pipelineStage, $profile);
         $updatedLines += $shell['lines'];
         $appliedTotal += $shell['units'];
 
         $this->flushWithPipelineSync($activity);
+
+        $this->packEventHistory->logContainerBulk(
+            $activity,
+            $container,
+            $mode,
+            $pipelineStage,
+            $appliedTotal,
+            $updatedLines,
+            $user,
+            $source,
+        );
 
         return new JsonResponse([
             'success' => true,
@@ -604,10 +646,78 @@ class ActivityPackContainerController extends AbstractController
         ]);
     }
 
+    private function bulkForwardApplyQty(
+        ActivityPackContainerItem $ci,
+        ActivityPackItem $packItem,
+        string $pipelineStage,
+        string $profile,
+    ): int {
+        $maxLine = $this->packPipeline->maxForwardContainerQty($ci, $pipelineStage, $profile);
+        $maxPack = $this->packPipeline->maxForwardQty($packItem, $pipelineStage, $profile);
+        $apply = min($maxLine, $maxPack);
+
+        if ($apply > 0) {
+            return $apply;
+        }
+
+        if ($pipelineStage !== PackPipelineService::STAGE_AT_EVENT) {
+            return 0;
+        }
+
+        $p = $ci->getQuantityPacked();
+        $i = $ci->getQuantityIssued();
+        $delta = $p - $i;
+        if ($delta <= 0 && $maxPack > 0 && $p > 0) {
+            $delta = min($p, $maxPack);
+        }
+        if ($delta <= 0) {
+            return 0;
+        }
+
+        return min($delta, $maxPack > 0 ? $maxPack : $delta);
+    }
+
+    private function bulkBackwardApplyQty(
+        ActivityPackContainerItem $ci,
+        ActivityPackItem $packItem,
+        string $pipelineStage,
+        string $profile,
+    ): int {
+        $maxLine = $this->packPipeline->maxBackwardQty($packItem, $pipelineStage, $profile);
+        if ($pipelineStage === PackPipelineService::STAGE_AT_EVENT) {
+            $lineIssued = max(0, $ci->getQuantityIssued() - $ci->getQuantityReturned());
+
+            return min($lineIssued, $maxLine);
+        }
+        if ($pipelineStage === PackPipelineService::STAGE_TRANSPORT_TO) {
+            $lineTransported = max(0, $ci->getQuantityTransportTo() - $ci->getQuantityIssued());
+
+            return min($lineTransported, $maxLine);
+        }
+        if ($pipelineStage === PackPipelineService::STAGE_TRANSPORT_BACK) {
+            $lineBack = max(0, $ci->getQuantityTransportBack() - $ci->getQuantityReturned());
+
+            return min($lineBack, $maxLine);
+        }
+        if ($pipelineStage === PackPipelineService::STAGE_RETURNED) {
+            $lineReturned = max(0, $ci->getQuantityReturned() - $ci->getQuantityStored());
+
+            return min($lineReturned, $maxLine);
+        }
+
+        return 0;
+    }
+
     /**
      * Die zugeordnete Lager-Kiste (Material der Container-Charge) ist eine eigene Pack-Position — mit ausgeben/retournieren.
      */
-    private function applyShellPackItemForBulkWorkflow(string $activityId, ActivityPackContainer $container, string $mode): array
+    private function applyShellPackItemForBulkWorkflow(
+        string $activityId,
+        ActivityPackContainer $container,
+        string $mode,
+        string $pipelineStage = PackPipelineService::STAGE_AT_EVENT,
+        string $profile = PackPipelineService::PROFILE_LOGISTICS,
+    ): array
     {
         $batch = $container->getContainerBatch();
         if ($batch === null) {
@@ -625,8 +735,8 @@ class ActivityPackContainerController extends AbstractController
         $apply = 0;
 
         if ($mode === 'issue_all') {
-            $delta = $packItem->getQuantityPacked() - $packItem->getQuantityIssued();
-            if ($delta <= 0) {
+            $apply = $this->packPipeline->maxForwardQty($packItem, $pipelineStage, $profile);
+            if ($apply <= 0 && $pipelineStage === PackPipelineService::STAGE_AT_EVENT) {
                 $containerItems = $this->entityManager->getRepository(ActivityPackContainerItem::class)
                     ->findBy(['packContainerId' => $container->getId()]);
                 $contentsIssued = false;
@@ -641,15 +751,18 @@ class ActivityPackContainerController extends AbstractController
                         $packItem->setQuantityPacked(1);
                     }
                     $apply = 1;
-                    $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
                 } else {
                     return ['lines' => 0, 'units' => 0];
                 }
-            } else {
-                $apply = $delta;
-                $packItem->setQuantityIssued($packItem->getQuantityIssued() + $apply);
             }
+            if ($apply <= 0) {
+                return ['lines' => 0, 'units' => 0];
+            }
+            $this->packPipeline->applyForward($packItem, $pipelineStage, $apply, $profile);
         } elseif ($mode === 'return_all') {
+            if ($this->containerHasInnerReturnPending($container)) {
+                return ['lines' => 0, 'units' => 0];
+            }
             $delta = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
             if ($delta <= 0) {
                 return ['lines' => 0, 'units' => 0];
@@ -657,12 +770,11 @@ class ActivityPackContainerController extends AbstractController
             $apply = $delta;
             $packItem->setQuantityReturned($packItem->getQuantityReturned() + $apply);
         } elseif ($mode === 'unissue_all') {
-            $delta = $packItem->getQuantityIssued() - $packItem->getQuantityReturned();
-            if ($delta <= 0) {
+            $apply = $this->packPipeline->maxBackwardQty($packItem, $pipelineStage, $profile);
+            if ($apply <= 0) {
                 return ['lines' => 0, 'units' => 0];
             }
-            $apply = $delta;
-            $packItem->setQuantityIssued($packItem->getQuantityIssued() - $apply);
+            $this->packPipeline->applyBackward($packItem, $pipelineStage, $apply);
         } else {
             return ['lines' => 0, 'units' => 0];
         }
@@ -670,6 +782,31 @@ class ActivityPackContainerController extends AbstractController
         $packItem->setUpdatedAt(new \DateTime());
 
         return ['lines' => 1, 'units' => $apply];
+    }
+
+    /** Packinhalt noch nicht retourniert — Behälter (Shell) erst danach. */
+    private function containerHasInnerReturnPending(ActivityPackContainer $container): bool
+    {
+        $shellMaterialId = $container->getContainerBatch()?->getMaterialItemId();
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $container->getId()]);
+        foreach ($items as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem) {
+                continue;
+            }
+            if ($shellMaterialId !== null && $ci->getMaterialItemId() === $shellMaterialId) {
+                continue;
+            }
+            $delta = $ci->getQuantityIssued() - $ci->getQuantityReturned();
+            if ($delta <= 0 && $ci->getQuantityIssued() === 0 && $ci->getQuantityPacked() > $ci->getQuantityReturned()) {
+                $delta = $ci->getQuantityPacked() - $ci->getQuantityReturned();
+            }
+            if ($delta > 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function serializeContainer(ActivityPackContainer $container): array
@@ -682,6 +819,7 @@ class ActivityPackContainerController extends AbstractController
             'container_material_item_id' => $this->kisteMaterialLinker->shellMaterialIdForPackContainer($container),
             'label' => $container->getLabel(),
             'status' => $container->getStatus(),
+            'source_activity_item_id' => $container->getSourceActivityItemId(),
             'created_at' => $container->getCreatedAt()->format('c'),
             'updated_at' => $container->getUpdatedAt()->format('c'),
         ];

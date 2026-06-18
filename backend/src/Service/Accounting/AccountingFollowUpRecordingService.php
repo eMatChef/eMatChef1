@@ -21,6 +21,7 @@ final class AccountingFollowUpRecordingService
         private EntityManagerInterface $entityManager,
         private InboxMessageService $inboxMessages,
         private AccountingBookingSourceService $bookingSource,
+        private AccountingAcquisitionFollowUpReceiptService $followUpReceiptService,
     ) {
     }
 
@@ -84,6 +85,7 @@ final class AccountingFollowUpRecordingService
         }
 
         $this->entityManager->persist($booking);
+        $this->followUpReceiptService->transferReceiptsToBooking($followUp, $booking);
         $followUp->setAccountingBooking($booking);
         $followUp->setStatus(AccountingAcquisitionFollowUp::STATUS_RECORDED);
         $followUp->touchUpdatedAt();

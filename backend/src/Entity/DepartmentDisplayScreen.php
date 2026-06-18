@@ -64,7 +64,7 @@ class DepartmentDisplayScreen
 
     /** @var list<string> */
     #[ORM\Column(name: 'workshop_statuses', type: 'json')]
-    private array $workshopStatuses = ['open', 'in_progress', 'waiting_parts'];
+    private array $workshopStatuses = ['triage', 'planning', 'in_progress', 'awaiting_quote'];
 
     #[ORM\Column(name: 'show_statistics', type: 'boolean')]
     private bool $showStatistics = false;

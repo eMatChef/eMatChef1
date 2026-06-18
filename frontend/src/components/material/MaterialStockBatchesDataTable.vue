@@ -20,7 +20,7 @@
     </template>
     <template #header.qty>
       <SortHeaderButton
-        :label="t('components.materialDetail.thQty')"
+        :label="qtyColumnLabel"
         :title="t('components.materialDetail.sortByQty')"
         sort-key="qty"
         :active-key="sortKey"
@@ -40,7 +40,7 @@
     </template>
     <template #header.unit_price>
       <SortHeaderButton
-        :label="t('components.materialDetail.thPricePerPc')"
+        :label="t('components.materialDetail.thPricePerUnit', { unit: stockUnitLabel })"
         :title="t('components.materialDetail.sortByUnitPrice')"
         sort-key="unit_price"
         :active-key="sortKey"
@@ -83,7 +83,7 @@
       {{ formatDate(item.acquired_on) }}
     </template>
     <template #item.qty="{ item }">
-      <span class="qty-cell">{{ item.qty }}</span>
+      <span class="qty-cell">{{ formatBatchQty(item.qty) }}</span>
     </template>
     <template v-if="canManageMaterials" #item.qr="{ item }">
       <PublicQrTag
@@ -158,6 +158,11 @@ import type { MaterialBatch } from '@/api/materials'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import TableIconButton from '@/components/common/TableIconButton.vue'
 import SortHeaderButton from '@/components/material/SortHeaderButton.vue'
+import {
+  canDisplayMeterStockAsPieces,
+  formatStockQtyWithPackHint,
+  getStockUnitLabel,
+} from '@/utils/materialStockUnit'
 
 defineOptions({ name: 'MaterialStockBatchesDataTable' })
 
@@ -173,6 +178,9 @@ const props = defineProps<{
   canManageMaterials: boolean
   showMoveQty: boolean
   materialName: string
+  packUnit?: string | null
+  packSize?: number | null
+  sizeLengthCm?: string | number | null
   statusLabels: Record<string, string>
   sortKey: string | null
   sortDir: 'asc' | 'desc'
@@ -182,6 +190,34 @@ const props = defineProps<{
   locationEntries: (batch: MaterialBatch) => BatchLocationEntry[]
 }>()
 
+const { t } = useI18n()
+
+const stockUnitLabel = computed(() => getStockUnitLabel(props.packUnit))
+
+const qtyColumnLabel = computed(() => {
+  if (canDisplayMeterStockAsPieces(props.packUnit, props.sizeLengthCm)) {
+    return t('components.batchModal.quantityCountLabel')
+  }
+  return t('components.materialDetail.thQtyWithUnit', { unit: stockUnitLabel.value })
+})
+
+function formatPiecesAtLength(count: number, per: string, _total: string): string {
+  return t('components.materialDetail.stockQtyPiecesAtLength', { count, per })
+}
+
+function formatBatchQty(qty: number | null | undefined): string {
+  const n = Number(qty)
+  if (!Number.isFinite(n)) return props.emDash
+  return formatStockQtyWithPackHint(
+    n,
+    props.packUnit,
+    props.packSize,
+    'm',
+    props.sizeLengthCm,
+    formatPiecesAtLength,
+  )
+}
+
 defineEmits<{
   'toggle-sort': [key: string]
   edit: [batch: MaterialBatch]
@@ -189,8 +225,6 @@ defineEmits<{
   'qr-activate': [batch: MaterialBatch]
   'open-container': [entry: BatchLocationEntry]
 }>()
-
-const { t } = useI18n()
 
 const headers = computed(() => {
   const h: { title: string; key: string; sortable: boolean; width?: string }[] = [

@@ -1,5 +1,8 @@
 import { useAuthStore } from '@/stores/auth'
-import { createAcquisitionFollowup } from '@/api/accountingAcquisitionFollowups'
+import {
+  createAcquisitionFollowup,
+  uploadAcquisitionFollowupReceipt,
+} from '@/api/accountingAcquisitionFollowups'
 
 /** Rollen mit Zugriff auf Buchhaltung (Router meta matwart/depchef → API-Kürzel mw/dc). */
 const ACCOUNTING_ROLES = new Set(['mw', 'dc', 'matwart', 'depchef'])
@@ -20,6 +23,10 @@ export type CostBookingFollowUpInput = {
   receiptHint?: string
   /** Optional: verknüpft mit Material-Batch in der DB */
   materialBatchId?: string | null
+  /** Optional: Material aus Erstell-Wizard / Charge */
+  materialItemId?: string | null
+  /** Optional: Rechnung/Beleg — wird am Anschaffungs-Auftrag gespeichert und bei Erfassung in die Buchung übernommen */
+  receiptFile?: File | null
 }
 
 /**
@@ -30,7 +37,7 @@ export type CostBookingFollowUpInput = {
 export async function enqueuePendingCostBookingAfterPurchase(
   input: CostBookingFollowUpInput
 ): Promise<boolean> {
-  const { departmentId, totalChf, purchaseDateIso, receiptHint, materialBatchId } = input
+  const { departmentId, totalChf, purchaseDateIso, receiptHint, materialBatchId, materialItemId, receiptFile } = input
   if (!departmentId || !Number.isFinite(totalChf) || totalChf <= 0) {
     return false
   }
@@ -45,12 +52,16 @@ export async function enqueuePendingCostBookingAfterPurchase(
       : new Date().toISOString().slice(0, 10)
 
   try {
-    await createAcquisitionFollowup(departmentId, {
+    const followUp = await createAcquisitionFollowup(departmentId, {
       amount: amountStr,
       suggested_date: dateStr,
       receipt_label: receiptHint?.trim() ? receiptHint.trim().slice(0, 255) : null,
       material_batch_id: materialBatchId || null,
+      material_item_id: materialItemId || null,
     })
+    if (receiptFile) {
+      await uploadAcquisitionFollowupReceipt(departmentId, followUp.id, receiptFile)
+    }
     return true
   } catch {
     return false

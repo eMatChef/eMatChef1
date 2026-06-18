@@ -53,6 +53,17 @@ export function parseScanInput(raw: string): ScanParseResult {
   return { type: 'unknown', raw: trimmed }
 }
 
+/** QR-/Scan-Strings sollen die Aufgabenliste nicht wie Textsuche filtern. */
+export function isScanLikeInput(raw: string): boolean {
+  const trimmed = raw.trim()
+  if (!trimmed) return false
+  const parsed = parseScanInput(trimmed)
+  if (parsed.type !== 'unknown') return true
+  if (/^https?:\/\//i.test(trimmed)) return true
+  if (/\/i\/(m|a|w)\//i.test(trimmed)) return true
+  return false
+}
+
 export function formatScanParseResult(result: ScanParseResult): string {
   switch (result.type) {
     case 'activity':

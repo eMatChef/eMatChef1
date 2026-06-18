@@ -15,25 +15,12 @@ export function packWorkflowProfileForActivityType(activityType: string): PackWo
 }
 
 export { packStageKeysForProfile, packStageKeysForProfileAndRole }
-
-export function showPackContainersForProfile(profile: PackWorkflowProfile, stage: PackStage): boolean {
-  if (profile === 'quick' || profile === 'external') {
-    return (
-      stage === 'confirmed_packed' ||
-      stage === 'packed_at_event' ||
-      stage === 'at_event_returned' ||
-      stage === 'returned_unpack'
-    )
-  }
-  return (
-    stage === 'confirmed_packed' ||
-    stage === 'packed_transport_to' ||
-    stage === 'transport_to_at_event' ||
-    stage === 'at_event_transport_back' ||
-    stage === 'transport_back_returned' ||
-    stage === 'returned_unpack'
-  )
-}
+export {
+  packWorkflowTabs,
+  packWorkflowCanEdit,
+  packWorkflowRole,
+  packShowContainersUi as showPackContainersForProfile,
+} from '@/components/activities/packWorkflowRules'
 
 export function autoPackStageForProfile(
   profile: PackWorkflowProfile,

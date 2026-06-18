@@ -22,6 +22,7 @@ FRONTEND="$ROOT/frontend"
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
 # Dev-Hauptdomain (dev.ematchef.ch) — npm --prefix: kein cd (CI-sicher)
+VITE_DEPLOY_VARIANT=home \
 VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
@@ -29,7 +30,8 @@ VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
-# Dev-App-Subdomain (app-dev.ematchef.ch), inkl. qr-dev.* und devices-dev.*
+# Dev nicht indexieren — keine Sitemap von der API holen
+VITE_DEPLOY_VARIANT=app \
 VITE_API_BASE=https://api-dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \

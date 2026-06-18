@@ -115,6 +115,8 @@ import ECard from '@/components/form/base/ECard.vue'
 import EDialog from '@/components/form/base/EDialog.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { useSiteContentStore } from '@/stores/siteContent'
+import { usePageHeadStore } from '@/stores/pageHead'
+import { syncDocumentHead } from '@/composables/usePageHead'
 import { sanitizePublicHtml } from '@/utils/sanitizeHtml'
 import {
   formatPublicBlogDate,
@@ -127,6 +129,7 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const site = useSiteContentStore()
+const pageHead = usePageHeadStore()
 
 const postDialogOpen = ref(false)
 const dialogCanScroll = ref(false)
@@ -206,6 +209,15 @@ const activePost = computed((): PublicBlogPost | null => {
   if (!slug) return null
   return posts.value.find((p) => p.slug === slug) ?? null
 })
+
+watch(activePost, (post) => {
+  if (post) {
+    pageHead.setDynamic(`${post.title} · Blog · eMatChef`, post.excerpt || post.title)
+  } else {
+    pageHead.clearDynamic()
+  }
+  syncDocumentHead(route)
+}, { immediate: true })
 
 watch(
   [routeSlug, posts],

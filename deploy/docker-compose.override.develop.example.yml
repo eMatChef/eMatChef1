@@ -27,6 +27,7 @@ services:
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       APP_FRONTEND_URL: "https://app-dev.ematchef.ch"
+      APP_MAIN_SITE_ORIGIN: "https://dev.ematchef.ch"
       APP_PUBLIC_QR_URL: "https://qr-dev.ematchef.ch"
       # Alle Develop-Frontends unter *.ematchef.ch (JWT/Refresh-Cookies)
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"

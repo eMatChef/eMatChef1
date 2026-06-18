@@ -6,8 +6,8 @@
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 4px;
-  background: #ede9fe;
-  color: #5b21b6;
+  background: var(--color-primary-subtle-bg, #d1fae5);
+  color: var(--color-primary-dark, #047857);
   flex-shrink: 0;
 }
 
@@ -19,8 +19,8 @@
 
 .activity-combo-badge--virtual,
 .pack-combo-badge--virtual {
-  background: #f3e8ff;
-  color: #7c3aed;
+  background: var(--color-primary-muted-bg, #ecfdf5);
+  color: var(--color-primary, #059669);
 }
 
 .pack-combo-badge--kiste {

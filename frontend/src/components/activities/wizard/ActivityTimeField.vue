@@ -2,7 +2,7 @@
   <VTextField
     class="activity-v-time-picker-field activity-time-field e-form-field"
     variant="outlined"
-    density="compact"
+    :density="density"
     hide-details
     readonly
     prepend-inner-icon="mdi-clock-outline"
@@ -49,12 +49,17 @@ import {
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
 
-const props = defineProps<{
-  modelValue: Date | null
-  ariaLabel?: string
-  locked?: boolean
-  blockedUsageRange?: { start: Date; end: Date } | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: Date | null
+    density?: 'default' | 'comfortable' | 'compact'
+    ariaLabel?: string
+    disabled?: boolean
+    locked?: boolean
+    blockedUsageRange?: { start: Date; end: Date } | null
+  }>(),
+  { density: 'compact', disabled: false, locked: false },
+)
 
 const emit = defineEmits<{
   'update:modelValue': [value: Date | null]
@@ -67,7 +72,7 @@ const draftHour = ref<number | null>(null)
 
 const QUARTER_MINUTES = [0, 15, 30, 45] as const
 
-const isFieldDisabled = computed(() => props.locked || !props.modelValue)
+const isFieldDisabled = computed(() => props.disabled || props.locked || !props.modelValue)
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0')

@@ -4,7 +4,9 @@ Zentrale Bausteine für die **Dual-Panel-Packliste** in `ActivityPackListTab.vue
 
 **Design-Vorlage:** Stufe **Gepackt → Am Event** — alle weiteren Material-Schritte (Retour, später Ausgepackt) sollen dasselbe Layout und dieselben Wrapper nutzen.
 
-**Stand:** Mai 2026
+**Stand:** Juni 2026
+
+Fachliche Regeln (Materialarten, Kistencheck, Retour, Ausgepackt): **[pack-workflow-rules.md](./pack-workflow-rules.md)** · Implementierung: `packWorkflowRules.ts`
 
 ---
 
@@ -215,5 +217,8 @@ State-Hilfen in `ActivityPackListTab.vue`: `returnCrateConsumableState`, `buildR
 | Thema | Datei |
 |--------|--------|
 | Material-Pipeline / Pack-Stufen | [material-pipeline.md](./material-pipeline.md) |
+| Einheitliche Pack-Regeln | [pack-workflow-rules.md](./pack-workflow-rules.md) |
+| Regel-Matrix (Code) | `frontend/src/components/activities/packWorkflowRules.ts` |
+| Phys.-Kombi Einlagern-Checkliste | `PackPhysComboStoreChecklistModal.vue` |
 | Aktivitäts-Status | [status.md](./status.md) |
 | Wiederverwendbare Bausteine | [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) |

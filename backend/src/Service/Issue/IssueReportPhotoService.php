@@ -73,6 +73,7 @@ class IssueReportPhotoService
             'photo_url' => $report->getPrimaryPhotoUrl(),
             'photos' => $photos,
             'notes' => $report->getNotes(),
+            'repair_checklist' => $report->getRepairChecklist(),
             'resolved' => $report->isResolved(),
             'resolved_at' => $report->getResolvedAt()?->format('c'),
             'resolved_by' => $resolver?->getId(),

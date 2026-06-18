@@ -149,6 +149,14 @@ export const useAuthStore = defineStore('auth', () => {
     return dept?.role || 'user'
   })
 
+  function isDepartmentGrossanlass(departmentId: string | null | undefined): boolean {
+    if (!departmentId) return false
+    const dept = departments.value.find((d) => d.department_id === departmentId)
+    return Boolean(dept?.department?.is_grossanlass)
+  }
+
+  const isActiveDepartmentGrossanlass = computed(() => isDepartmentGrossanlass(activeDepartmentId.value))
+
   const departmentTimezone = ref<string>(localStorage.getItem('department_timezone') || 'Europe/Zurich')
 
   async function loadDepartmentTimezone() {
@@ -201,8 +209,22 @@ export const useAuthStore = defineStore('auth', () => {
         id: d.id,
         name: d.name,
         organisation_id: d.organisation_id || '',
+        is_grossanlass: d.is_grossanlass,
+        grossanlass_config: d.grossanlass_config,
       },
     }))
+
+    applySupplierCompaniesFromSession(
+      session.supplier_companies,
+      session.last_used_supplier_company ?? session.user.last_used_supplier_company ?? null
+    )
+
+    const isSuperAdmin = (session.profile?.roles || []).includes('ROLE_SUPERADMIN')
+    if (isSuperAdmin) {
+      activeDepartmentId.value = null
+      localStorage.removeItem('active_department_id')
+      return
+    }
 
     const preferredDept =
       session.last_used_department ||
@@ -213,11 +235,6 @@ export const useAuthStore = defineStore('auth', () => {
     if (preferredDept) {
       localStorage.setItem('active_department_id', preferredDept)
     }
-
-    applySupplierCompaniesFromSession(
-      session.supplier_companies,
-      session.last_used_supplier_company ?? session.user.last_used_supplier_company ?? null
-    )
   }
 
   async function login(email: string, password: string): Promise<boolean> {
@@ -250,16 +267,20 @@ export const useAuthStore = defineStore('auth', () => {
             id: d.id,
             name: d.name,
             organisation_id: d.organisation_id || '',
+            is_grossanlass: d.is_grossanlass,
+            grossanlass_config: d.grossanlass_config,
           },
         }))
 
-        const newActiveDeptId =
-          response.last_used_department ||
-          response.primary_department ||
-          response.departments[0]?.id ||
-          null
-        activeDepartmentId.value = newActiveDeptId
-        if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
+        if (!response.profile?.roles?.includes('ROLE_SUPERADMIN')) {
+          const newActiveDeptId =
+            response.last_used_department ||
+            response.primary_department ||
+            response.departments[0]?.id ||
+            null
+          activeDepartmentId.value = newActiveDeptId
+          if (newActiveDeptId) localStorage.setItem('active_department_id', newActiveDeptId)
+        }
       } else {
         await loadDepartments()
       }
@@ -371,6 +392,10 @@ export const useAuthStore = defineStore('auth', () => {
         return
       }
 
+      if (userRoles.value.includes('ROLE_SUPERADMIN')) {
+        return
+      }
+
       const ids = new Set(memberships.departments.map((d) => d.department_id))
 
       if (activeDepartmentId.value && ids.has(activeDepartmentId.value)) {
@@ -447,7 +472,12 @@ export const useAuthStore = defineStore('auth', () => {
   const activeDepartmentName = computed(() => {
     if (!activeDepartmentId.value) return ''
     const dept = departments.value.find((d) => d.department_id === activeDepartmentId.value)
-    return dept?.department?.name || ''
+    if (!dept) return ''
+    const base = dept.department?.name || ''
+    if (dept.department?.is_grossanlass) {
+      return `${base} (Grossanlass)`
+    }
+    return base
   })
 
   const currentSupplierCompany = computed(() => {
@@ -509,6 +539,8 @@ export const useAuthStore = defineStore('auth', () => {
     canAccessDepartment,
     userColors,
     currentDepartmentRole,
+    isDepartmentGrossanlass,
+    isActiveDepartmentGrossanlass,
     activeDepartmentName,
     departmentTimezone,
     login,

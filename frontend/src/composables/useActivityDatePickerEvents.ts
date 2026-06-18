@@ -16,7 +16,11 @@ import { swissHolidayCalendarDays } from '@/utils/swissMovableFeasts'
 /** Feiertage, fcal, Fixe Daten — nur Hinweise (Punkte/Tooltip). Nur department_break sperrt Auswahl. */
 export function useActivityDatePickerEvents(
   departmentId: MaybeRefOrGetter<string | null | undefined>,
-  options?: { showMarkers?: MaybeRefOrGetter<boolean> },
+  options?: {
+    showMarkers?: MaybeRefOrGetter<boolean>
+    /** department_break-Tage nicht wählbar (Aktivitäten); in Fixe-Daten-Einstellungen false */
+    blockClosedDates?: MaybeRefOrGetter<boolean>
+  },
 ) {
   const { t } = useI18n()
   const adapter = useDate()
@@ -125,6 +129,7 @@ export function useActivityDatePickerEvents(
   )
 
   const allowedDates = computed(() => {
+    if (toValue(options?.blockClosedDates) === false) return () => true
     if (!markersEnabled()) return () => true
     const closed = departmentClosedDateKeys.value
     return (date: unknown) => {

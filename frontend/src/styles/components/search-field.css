@@ -112,6 +112,13 @@
   color: var(--color-text, #111827);
   outline: none;
   box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-field__input::-webkit-search-decoration,
+.search-field__input::-webkit-search-cancel-button {
+  display: none;
 }
 
 .search-field.has-clear .search-field__input {

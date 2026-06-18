@@ -1,5 +1,26 @@
 <template>
-  <div class="dashboard">
+  <PageShell v-if="isGrossanlassDept" class="grossanlass-dashboard">
+    <template #title>
+      <span class="grossanlass-dashboard__title">
+        {{ grossanlassDeptName }}
+        <span v-if="grossanlassStatus === 'draft'" class="status-label draft">
+          {{ t('grossanlass.dashboard.draftBadge') }}
+        </span>
+      </span>
+    </template>
+    <template v-if="grossanlassPeriodLabel" #subtitle>
+      <span class="period-label-row">
+        <v-icon icon="mdi-calendar-range" size="18" class="grossanlass-dashboard__period-icon" />
+        <span class="period-label">{{ grossanlassPeriodLabel }}</span>
+      </span>
+    </template>
+
+    <div class="section-card grossanlass-dashboard__welcome-card">
+      <p class="text-muted grossanlass-dashboard__welcome">{{ t('grossanlass.dashboard.welcome') }}</p>
+    </div>
+  </PageShell>
+
+  <div v-else class="dashboard">
     <!-- Header -->
     <header class="dashboard-header">
       <div class="header-content">
@@ -9,29 +30,6 @@
         </p>
       </div>
     </header>
-
-    <!-- Offene Join-Requests (über Schnellaktionen, nur mit Department + Daten) -->
-    <section
-      v-if="departmentId && !isLoading && hasSupportAdminRole"
-      class="dashboard-section join-requests-above-actions"
-    >
-      <h2 class="section-title">
-        <router-link :to="getLink('/support-requests')" class="section-title-link">
-          {{ t('dashboard.openJoinRequests') }}
-        </router-link>
-      </h2>
-      <div class="stat-cards">
-        <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
-          <span class="stat-value">{{ totalOpenJoinRequests }}</span>
-          <span class="stat-label">{{ t('dashboard.openTotal') }}</span>
-        </router-link>
-        <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
-          <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
-          <span class="stat-label">{{ t('dashboard.adminRequests') }}</span>
-        </div>
-      </div>
-      <router-link :to="getLink('/support-requests')" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
-    </section>
 
     <!-- Schnellaktionen (nur mit Department) -->
     <div v-if="departmentId" class="quick-actions">
@@ -191,16 +189,16 @@
         <h2 class="section-title">{{ t('dashboard.workshop') }}</h2>
         <div class="stat-cards workshop">
           <div class="stat-card open">
-            <span class="stat-value">{{ workshopStats.status_counts?.open || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.open') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.triage || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.triage') }}</span>
           </div>
           <div class="stat-card in-progress">
-            <span class="stat-value">{{ workshopStats.status_counts?.in_progress || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.inWork') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.in_progress || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.in_progress') }}</span>
           </div>
           <div class="stat-card waiting">
-            <span class="stat-value">{{ workshopStats.status_counts?.waiting_parts || 0 }}</span>
-            <span class="stat-label">{{ t('dashboard.waitingForParts') }}</span>
+            <span class="stat-value">{{ workshopStats.phase_counts?.awaiting_quote || 0 }}</span>
+            <span class="stat-label">{{ t('workshop.phase.awaiting_quote') }}</span>
           </div>
           <router-link
             class="stat-card warning"
@@ -231,6 +229,45 @@
         <router-link :to="getLink('/settings/my-department/display-screens')" class="section-link">
           {{ t('dashboard.toDisplay') }}
         </router-link>
+      </section>
+
+      <!-- Offene Beitrittsanfragen (MW/DC) -->
+      <section
+        v-if="canManageDepartmentJoinRequests && !hasSupportAdminRole"
+        class="dashboard-section"
+      >
+        <h2 class="section-title">
+          <router-link :to="getLink('/settings/users')" class="section-title-link">
+            {{ t('dashboard.openDepartmentJoinRequests') }}
+          </router-link>
+        </h2>
+        <div class="stat-cards">
+          <router-link :to="getLink('/settings/users')" class="stat-card submitted join-request-stat-link">
+            <span class="stat-value">{{ pendingJoinRequests.length }}</span>
+            <span class="stat-label">{{ t('dashboard.openDepartmentJoinRequestsCount') }}</span>
+          </router-link>
+        </div>
+        <router-link :to="getLink('/settings/users')" class="section-link">{{ t('dashboard.toDepartmentUsers') }}</router-link>
+      </section>
+
+      <!-- Offene Support-/Admin-Anfragen (SA/OrgChef/SubOrgChef) -->
+      <section v-if="hasSupportAdminRole" class="dashboard-section">
+        <h2 class="section-title">
+          <router-link :to="getLink('/support-requests')" class="section-title-link">
+            {{ t('dashboard.openJoinRequests') }}
+          </router-link>
+        </h2>
+        <div class="stat-cards">
+          <router-link :to="getLink('/support-requests')" class="stat-card submitted join-request-stat-link">
+            <span class="stat-value">{{ totalOpenJoinRequests }}</span>
+            <span class="stat-label">{{ t('dashboard.openTotal') }}</span>
+          </router-link>
+          <div v-if="showAdminJoinRequestsWidget" class="stat-card draft">
+            <span class="stat-value">{{ pendingAdminJoinRequests.length }}</span>
+            <span class="stat-label">{{ t('dashboard.adminRequests') }}</span>
+          </div>
+        </div>
+        <router-link :to="getLink('/support-requests')" class="section-link">{{ t('dashboard.toSupportRequests') }}</router-link>
       </section>
 
       <!-- MW: Pack-Queue heute -->
@@ -304,7 +341,9 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import PageShell from '@/components/layout/PageShell.vue'
 import { EButton } from '@/components/form/base'
+import { formatPeriodCompact } from '@/utils/formatPeriod'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -342,6 +381,21 @@ const departmentId = computed(() => {
   if (hasNoDeptMembership) return ''
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
+
+const activeMembership = computed(() => {
+  if (!departmentId.value) return null
+  return authStore.departments.find((d) => d.department_id === departmentId.value) ?? null
+})
+
+const isGrossanlassDept = computed(() => Boolean(activeMembership.value?.department?.is_grossanlass))
+
+const grossanlassDeptName = computed(
+  () => activeMembership.value?.department?.name || t('dashboard.title'),
+)
+
+const grossanlassStatus = computed(
+  () => activeMembership.value?.department?.grossanlass_config?.status || 'draft',
+)
 const showDamageWizard = ref(false)
 
 // === State ===
@@ -375,6 +429,7 @@ const showDisplayLink = computed(() => DC_ROLES.includes(role.value) || MW_DASHB
 const showPackQueueWidget = computed(() => MW_DASHBOARD_ROLES.includes(role.value))
 /** Join-Requests nur für globale Profil-Rollen SA/OrgChef/SubOrgChef — nicht für reine Abteilungsrollen (mw/dc/…). */
 const showAdminJoinRequestsWidget = computed(() => hasSupportAdminRole.value)
+const canManageDepartmentJoinRequests = computed(() => ['mw', 'dc'].includes(role.value))
 
 // === Data ===
 const activitiesUpcoming = computed(() => dashboardData.value?.activitiesUpcoming || [])
@@ -465,6 +520,12 @@ function formatDateShort(iso?: string | null): string {
   })
 }
 
+const grossanlassPeriodLabel = computed(() => {
+  const cfg = activeMembership.value?.department?.grossanlass_config
+  if (!cfg?.planned_event_start) return ''
+  return formatPeriodCompact(cfg.planned_event_start, cfg.planned_event_end)
+})
+
 function getRelativeDate(iso?: string | null): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -502,6 +563,11 @@ function getStatusLabel(status: string): string {
 // === Load ===
 async function load(opts?: { silent?: boolean }) {
   const id = departmentId.value
+  if (isGrossanlassDept.value) {
+    dashboardData.value = null
+    isLoading.value = false
+    return
+  }
   if (!id) {
     dashboardData.value = null
     if (hasSupportAdminRole.value) {
@@ -521,7 +587,10 @@ async function load(opts?: { silent?: boolean }) {
   }
   if (!opts?.silent) isLoading.value = true
   try {
-    dashboardData.value = await getDashboardData(id, { includeJoinRequests: hasSupportAdminRole.value })
+    dashboardData.value = await getDashboardData(id, {
+      includeDepartmentJoinRequests: canManageDepartmentJoinRequests.value || hasSupportAdminRole.value,
+      includeAdminJoinRequests: hasSupportAdminRole.value,
+    })
   } catch (err) {
     console.error(t('dashboard.errors.load'), err)
   } finally {
@@ -554,7 +623,7 @@ watch(
 /** Andere User: Dashboard-Widgets alle 30s (sichtbarer Tab). */
 useDepartmentLiveRefresh({
   departmentId,
-  enabled: () => route.name === 'Dashboard',
+  enabled: () => route.name === 'Dashboard' && !isGrossanlassDept.value,
   reload: load,
   isBusy: () => isLoading.value && !dashboardData.value,
 })
@@ -570,10 +639,6 @@ useDepartmentLiveRefresh({
   margin-bottom: 24px;
 }
 
-.join-requests-above-actions {
-  margin-bottom: 24px;
-}
-
 .dashboard-header h1 {
   font-size: 1.75rem;
   font-weight: 700;
@@ -585,6 +650,29 @@ useDepartmentLiveRefresh({
   color: #6b7280;
   font-size: 0.95rem;
   margin: 0;
+}
+
+.grossanlass-dashboard__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.grossanlass-dashboard__period-icon {
+  color: var(--color-primary, #059669);
+  opacity: 0.9;
+}
+
+.grossanlass-dashboard__welcome-card {
+  margin-bottom: 0;
+}
+
+.grossanlass-dashboard__welcome {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 42rem;
 }
 
 .quick-actions {

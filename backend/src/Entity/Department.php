@@ -52,6 +52,12 @@ class Department
     #[ORM\OneToMany(mappedBy: 'department', targetEntity: Membership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
 
+    #[ORM\Column(name: 'is_grossanlass', type: 'boolean', options: ['default' => false])]
+    private bool $isGrossanlass = false;
+
+    #[ORM\OneToOne(mappedBy: 'department', targetEntity: DepartmentGrossanlassConfig::class)]
+    private ?DepartmentGrossanlassConfig $grossanlassConfig = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -214,4 +220,28 @@ class Department
         return $this;
     }
 
+    public function isGrossanlass(): bool
+    {
+        return $this->isGrossanlass;
+    }
+
+    public function setIsGrossanlass(bool $isGrossanlass): self
+    {
+        $this->isGrossanlass = $isGrossanlass;
+
+        return $this;
+    }
+
+    public function getGrossanlassConfig(): ?DepartmentGrossanlassConfig
+    {
+        return $this->grossanlassConfig;
+    }
+
+    public function setGrossanlassConfig(?DepartmentGrossanlassConfig $grossanlassConfig): self
+    {
+        $this->grossanlassConfig = $grossanlassConfig;
+
+        return $this;
+    }
 }
+

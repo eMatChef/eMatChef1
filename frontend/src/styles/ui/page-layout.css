@@ -125,8 +125,17 @@
   transition: all 0.2s;
 }
 
-.reset-btn:hover {
-  background: #fee2e2;
+.period-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.period-label {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--color-text, #1f2937);
 }
 
 /* Shared filter chips (e.g. segmented filter toggles) */

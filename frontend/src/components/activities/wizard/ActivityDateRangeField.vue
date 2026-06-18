@@ -4,7 +4,7 @@
       :model-value="displayText"
       class="activity-date-range-field activity-v-date-input e-form-field"
       variant="outlined"
-      density="compact"
+      :density="density"
       hide-details
       readonly
       prepend-icon=""
@@ -42,6 +42,7 @@
               :pane-month="paneMonth"
               :pane-year="paneYear"
               @hover="onDayHover"
+              @confirm-same-day="onDayConfirmSameDay"
             />
           </template>
         </ActivityDateRangeDualPicker>
@@ -77,9 +78,11 @@
                 :btn-props="dayBtnProps"
                 :range="displayRange"
                 :range-anchor-count="rangeAnchorCount"
+                :range-anchor-date="rangeAnchorDate"
                 :markers="markersForIsoKey(item.isoDate)"
                 :department-closed-date-keys="departmentClosedDateKeys"
                 @hover="onDayHover"
+                @confirm-same-day="onDayConfirmSameDay"
               />
             </template>
           </VDatePicker>
@@ -112,6 +115,11 @@ import { activityDatePickerCommonProps } from '@/utils/activityDatePickerCommonP
 const props = withDefaults(
   defineProps<{
     modelValue: [Date, Date] | null
+    density?: 'default' | 'comfortable' | 'compact'
+    /** Vergangene Tage erlauben */
+    allowPast?: boolean
+    /** Mat-Büro-geschlossene Tage im Zeitraum nicht wählbar */
+    blockClosedDates?: boolean
     /** Schnellauswahl rechts/unten */
     showPresets?: boolean
     /** @deprecated — use showPresets */
@@ -119,13 +127,19 @@ const props = withDefaults(
     departmentId?: string | null
     disabled?: boolean
     showMarkers?: boolean
+    /** Schnellauswahl: range = Samstage + Fixe Daten; fixed-periods = nur Lagerwoche/Sonstiges */
+    presetMode?: 'range' | 'fixed-periods'
   }>(),
   {
+    density: 'compact',
+    allowPast: false,
+    blockClosedDates: true,
     showPresets: false,
     showPresetSidebar: undefined,
     departmentId: null,
     disabled: false,
     showMarkers: true,
+    presetMode: 'range',
   },
 )
 
@@ -144,18 +158,27 @@ const showPresetsResolved = computed(
   () => props.showPresetSidebar ?? props.showPresets,
 )
 
-const minDate = computed(() => startOfToday())
+const minDate = computed(() => (props.allowPast ? undefined : startOfToday()))
 const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =
   useActivityDatePickerEvents(() => props.departmentId, {
     showMarkers: () => props.showMarkers,
+    blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets('range', calendarPeriods)
+const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods)
 
-const { displayRange, rangeAnchorCount, onDayHover, onRangeUpdate } = useActivityDateRangePicker({
+const {
+  displayRange,
+  rangeAnchorCount,
+  rangeAnchorDate,
+  onDayHover,
+  onDayConfirmSameDay,
+  onRangeUpdate,
+} = useActivityDateRangePicker({
   pickerRange,
   menuOpen,
   onCommit: (range) => emit('update:modelValue', range),
   departmentClosedDateKeys,
+  blockClosedDates: () => props.blockClosedDates,
 })
 
 const {
@@ -193,7 +216,10 @@ function openMenu() {
 function applyPreset(preset: ActivityDatePresetItem) {
   const v = preset.value
   const range: [Date, Date] = v instanceof Date ? [v, v] : [v[0], v[1]]
-  if (rangeContainsDepartmentClosedDate(range[0], range[1], departmentClosedDateKeys.value)) {
+  if (
+    props.blockClosedDates &&
+    rangeContainsDepartmentClosedDate(range[0], range[1], departmentClosedDateKeys.value)
+  ) {
     toast.warning(t('activities.dateRangePicker.rangeBlockedByDepartmentBreak'))
     return
   }

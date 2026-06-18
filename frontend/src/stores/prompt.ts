@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import type { RouteLocationRaw } from 'vue-router'
 import { i18n } from '@/i18n'
 
 export interface PromptOptions {
@@ -9,6 +10,11 @@ export interface PromptOptions {
   confirmText?: string
   cancelText?: string
   required?: boolean
+  /** Optionaler Link (z. B. Einstellungen) — nur anzeigen wenn berechtigt. */
+  settingsLink?: {
+    to: RouteLocationRaw
+    label: string
+  }
 }
 
 interface PromptState {

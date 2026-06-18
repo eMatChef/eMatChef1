@@ -25,6 +25,8 @@ export interface ActivityMwNotification {
   material_name?: string | null
   shell_material_name?: string | null
   deviation_summary?: string | null
+  journey_step?: string | null
+  deeplink?: 'pack-journey' | 'activity' | string | null
 }
 
 export interface ActivityMwNotificationsResponse {

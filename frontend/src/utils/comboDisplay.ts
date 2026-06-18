@@ -14,9 +14,9 @@ export const COMBO_BADGE = {
   /** Generischer „Set/Inhalt"-Marker (Kiste, gebuchte Kombo „wie Kiste"). */
   crate: '📦',
   /** Physische Kombo (feste Einheit, zusammen gelagert & ausgegeben). */
-  physical: '🟦',
+  physical: '🟩',
   /** Virtuelle Kombo (Teile bleiben einzeln). */
-  virtual: '🟪',
+  virtual: '🟢',
   /** Konfigurierbar (virtuelle Kombo mit ≥ 1 Options-Gruppe). */
   configurable: '🧩',
 } as const

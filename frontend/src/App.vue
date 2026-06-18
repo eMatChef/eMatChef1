@@ -53,13 +53,15 @@ watch(
   flex-direction: column;
   height: 100%;
   min-height: 0;
-}
-
-/* Öffentliche Marketing-Seiten: eigener Scroll in .plt-shell (nicht overflow:hidden der App) */
-.emc-app :deep(.v-application__wrap > .plt-shell) {
-  flex: 1 1 auto;
-  min-height: 0;
+  /* Scroll auf dem Wrap: .plt-shell darf mit Inhalt wachsen (Footer nicht mitten auf der Seite) */
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Marketing: Shell mindestens Viewport hoch, wächst mit langem Inhalt; kein Scroll nur in main */
+.emc-app :deep(.v-application__wrap > .plt-shell) {
+  flex: 1 0 auto;
+  min-height: 100%;
+  overflow: visible;
 }
 </style>

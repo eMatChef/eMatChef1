@@ -30,7 +30,11 @@ class InboxMessage
 
     public const CATEGORY_ACCOUNTING_FOLLOWUP = 'accounting_followup';
 
+    public const CATEGORY_WORKSHOP_ORDER_REMINDER = 'workshop_order_reminder';
+
     public const CATEGORY_INVITE_ACCEPTED = 'invite_accepted';
+
+    public const CATEGORY_GROSSANLASS_MW_ASSIGNED = 'grossanlass_mw_assigned';
 
     /** Kategorien, die bei completed/cancelled der Aktivität entfernt werden. */
     public const CATEGORIES_PURGE_ON_ACTIVITY_TERMINAL = [

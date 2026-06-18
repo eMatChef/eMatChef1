@@ -41,17 +41,17 @@
             <th>{{ t('supplierRepairs.columns.title') }}</th>
             <th>{{ t('supplierRepairs.columns.department') }}</th>
             <th>{{ t('supplierRepairs.columns.material') }}</th>
-            <th>{{ t('supplierRepairs.columns.status') }}</th>
+            <th>{{ t('supplierRepairs.columns.phase') }}</th>
             <th>{{ t('supplierRepairs.columns.updated') }}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ticket in tickets" :key="ticket.id">
+          <tr v-for="ticket in tickets" :key="ticket.id" :class="{ 'row-awaiting-quote': ticket.phase === 'awaiting_quote' }">
             <td>{{ ticket.title }}</td>
             <td>{{ ticket.department.name }}</td>
             <td>{{ ticket.material_item.name }}</td>
-            <td>{{ ticket.status_label }}</td>
+            <td>{{ ticket.phase_label || supplierPhaseLabel(ticket.phase) }}</td>
             <td>{{ formatDate(ticket.updated_at) }}</td>
             <td>
               <EButton variant="secondary" size="small" @click="openTicket(ticket.id)">
@@ -65,13 +65,16 @@
 
     <EDialog
       v-model="detailOpen"
-      :max-width="560"
+      :max-width="sheetTemplate ? 900 : 560"
       :title="selectedTicket?.title || ''"
       scrollable
     >
       <template v-if="selectedTicket">
         <p><strong>{{ t('supplierRepairs.columns.department') }}:</strong> {{ selectedTicket.department.name }}</p>
         <p><strong>{{ t('supplierRepairs.columns.material') }}:</strong> {{ selectedTicket.material_item.name }}</p>
+        <p v-if="selectedTicket.phase_label">
+          <strong>{{ t('supplierRepairs.columns.phase') }}:</strong> {{ selectedTicket.phase_label }}
+        </p>
         <p v-if="selectedTicket.material_item.serial_number">
           <strong>{{ t('supplierRepairs.serial') }}:</strong> {{ selectedTicket.material_item.serial_number }}
         </p>
@@ -79,6 +82,7 @@
         <p v-if="selectedTicket.issue_report?.description" class="issue-desc">
           {{ selectedTicket.issue_report.description }}
         </p>
+
         <section v-if="issueReportPhotos.length" class="photos-section">
           <h4>{{ t('supplierRepairs.issuePhotosTitle') }}</h4>
           <PhotoGallery :photos="issueReportPhotos" :show-meta="false" />
@@ -86,10 +90,31 @@
 
         <section v-if="selectedTicket.photos?.length" class="photos-section">
           <h4>{{ t('supplierRepairs.photosTitle') }}</h4>
-          <PhotoGallery
-            :photos="selectedTicket.photos"
-            :format-date="formatDate"
+          <PhotoGallery :photos="selectedTicket.photos" :format-date="formatDate" />
+        </section>
+
+        <section v-if="isCleaningTicket && cleaningServiceLabel" class="sheet-section">
+          <h4>{{ t('supplierRepairs.cleaningServiceTitle') }}</h4>
+          <p class="cleaning-service-line">
+            {{ cleaningServiceLabel }}
+            <span v-if="cleaningServicePrice"> — CHF {{ cleaningServicePrice }}</span>
+          </p>
+        </section>
+
+        <section v-if="sheetLoading" class="sheet-section">
+          <ELoadingState variant="inline" :message="t('supplierRepairs.loadingSheet')" />
+        </section>
+        <section v-else-if="sheetTemplate && sheetChecklist && showRepairSheet" class="sheet-section">
+          <h4>{{ isCleaningTicket ? t('supplierRepairs.cleaningSheetTitle') : t('supplierRepairs.repairSheetTitle') }}</h4>
+          <RepairSheetEditor
+            :model-value="sheetChecklist"
+            :template="sheetTemplate"
+            mode="readonly"
+            price-source="supplier"
           />
+          <p v-if="sheetGrandTotal > 0" class="sheet-total-hint">
+            {{ t('supplierRepairs.sheetTotalHint', { amount: formatChfAmount(sheetGrandTotal) }) }}
+          </p>
         </section>
 
         <PhotoUpload
@@ -100,7 +125,30 @@
           @error="onUploadError"
         />
 
+        <div v-if="canSubmitQuote" class="quote-block">
+          <h4>{{ t('supplierRepairs.quoteTitle') }}</h4>
+          <p class="quote-hint">{{ t('supplierRepairs.quoteHint') }}</p>
+          <ETextField
+            v-model="formEstimatedCost"
+            type="number"
+            :label="t('supplierRepairs.estimatedCost')"
+            :hint="quoteCostHint"
+            hide-details="auto"
+          />
+          <EButton
+            variant="primary"
+            size="small"
+            class="quote-submit-btn"
+            :disabled="acting || !formEstimatedCost"
+            :loading="acting"
+            @click="submitQuote"
+          >
+            {{ t('supplierRepairs.submitQuote') }}
+          </EButton>
+        </div>
+
         <ETextField
+          v-else
           v-model="formEstimatedCost"
           :label="t('supplierRepairs.estimatedCost')"
           hide-details="auto"
@@ -139,18 +187,34 @@ import { useToast } from '@/composables/useToast'
 import {
   getSupplierRepair,
   listSupplierRepairs,
+  submitSupplierRepairQuote,
   transitionSupplierRepair,
   updateSupplierRepair,
   uploadSupplierRepairPhoto,
   type SupplierRepairStatus,
   type SupplierRepairTicket,
 } from '@/api/supplierRepairs'
+import { getSupplierRepairTemplates, supplierTemplateToSheetInput } from '@/api/supplierRepairTemplates'
+import {
+  estimateExternalCleaningCost,
+  getCleaningServiceKey,
+  resolveCleaningServiceOption,
+  supplierTemplateToCleaningSheetInput,
+} from '@/utils/workshopExternalCleaning'
 import { normalizeMediaPhotos } from '@/api/media'
 import PhotoGallery from '@/components/media/PhotoGallery.vue'
 import PhotoUpload from '@/components/media/PhotoUpload.vue'
+import RepairSheetEditor from '@/components/workshop/RepairSheetEditor.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import {
+  calcRepairSheetTotal,
+  formatChfAmount,
+  normalizeRepairChecklist,
+  type RepairChecklist,
+  type RepairSheetTemplateInput,
+} from '@/types/repairChecklist'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -165,16 +229,31 @@ const companyName = computed(() => {
 
 const statusFilterItems = computed(() => [
   { title: t('supplierRepairs.allStatuses'), value: '' },
-  { title: t('supplierRepairs.status.open'), value: 'open' },
-  { title: t('supplierRepairs.status.inProgress'), value: 'in_progress' },
-  { title: t('supplierRepairs.status.waitingParts'), value: 'waiting_parts' },
-  { title: t('supplierRepairs.status.completed'), value: 'completed' },
+  { title: t('workshop.phase.awaiting_quote'), value: 'waiting_parts' },
+  { title: t('workshop.phase.in_progress'), value: 'in_progress' },
+  { title: t('workshop.phase.completed'), value: 'completed' },
 ])
 
 const issueReportPhotos = computed(() => {
   const report = selectedTicket.value?.issue_report
   if (!report) return []
   return normalizeMediaPhotos(report.photos, report.photo_url)
+})
+
+const canSubmitQuote = computed(() => {
+  const ticket = selectedTicket.value
+  if (!ticket) return false
+  return ticket.phase === 'awaiting_quote' && ticket.allowed_transitions.includes('waiting_parts')
+})
+
+const sheetGrandTotal = computed(() => {
+  if (!sheetTemplate.value || !sheetChecklist.value) return 0
+  return calcRepairSheetTotal(sheetChecklist.value, sheetTemplate.value).grandTotal
+})
+
+const quoteCostHint = computed(() => {
+  if (sheetGrandTotal.value <= 0) return undefined
+  return t('supplierRepairs.quoteFromSheet', { amount: formatChfAmount(sheetGrandTotal.value) })
 })
 
 const loading = ref(true)
@@ -185,6 +264,18 @@ const detailOpen = ref(false)
 const selectedTicket = ref<SupplierRepairTicket | null>(null)
 const formEstimatedCost = ref('')
 const acting = ref(false)
+const sheetLoading = ref(false)
+const sheetTemplate = ref<RepairSheetTemplateInput | null>(null)
+const sheetChecklist = ref<RepairChecklist | null>(null)
+const cleaningServiceLabel = ref('')
+const cleaningServicePrice = ref('')
+
+const isCleaningTicket = computed(() => selectedTicket.value?.strategy === 'external_cleaning')
+
+const showRepairSheet = computed(() => {
+  if (!isCleaningTicket.value) return true
+  return !!selectedTicket.value?.material_item.repair_template_key
+})
 
 function formatDate(value: string): string {
   try {
@@ -194,9 +285,23 @@ function formatDate(value: string): string {
   }
 }
 
-function statusLabel(status: SupplierRepairStatus): string {
-  const key = `supplierRepairs.status.${status === 'in_progress' ? 'inProgress' : status === 'waiting_parts' ? 'waitingParts' : status}` as const
+function supplierPhaseLabel(phase: string | null | undefined): string {
+  if (!phase) return '—'
+  const key = `workshop.phase.${phase}`
   return t(key)
+}
+
+function statusLabel(status: SupplierRepairStatus): string {
+  const phaseKeyMap: Record<SupplierRepairStatus, string> = {
+    open: 'workshop.phase.triage',
+    in_progress: 'workshop.phase.in_progress',
+    waiting_parts: 'workshop.phase.awaiting_quote',
+    completed: 'workshop.phase.completed',
+    cancelled: 'workshop.phase.cancelled',
+  }
+  const key = phaseKeyMap[status]
+  if (key) return t(key)
+  return status
 }
 
 async function loadTickets() {
@@ -214,11 +319,79 @@ async function loadTickets() {
   }
 }
 
+async function loadRepairSheet(ticket: SupplierRepairTicket) {
+  sheetTemplate.value = null
+  sheetChecklist.value = null
+  cleaningServiceLabel.value = ''
+  cleaningServicePrice.value = ''
+
+  sheetLoading.value = true
+  try {
+    const templates = await getSupplierRepairTemplates(companyId.value)
+
+    if (ticket.strategy === 'external_cleaning') {
+      const serviceKey = getCleaningServiceKey(ticket.repair_checklist)
+      const service = resolveCleaningServiceOption(templates, serviceKey)
+      if (service) {
+        cleaningServiceLabel.value = service.label
+        cleaningServicePrice.value = service.unit_price_chf || ''
+      }
+
+      const templateKey = ticket.material_item.repair_template_key
+      if (!templateKey || !ticket.repair_checklist) return
+
+      const match = templates.find((tpl) => tpl.template_key === templateKey && tpl.is_active)
+      if (!match) return
+
+      sheetTemplate.value = supplierTemplateToCleaningSheetInput(match)
+      sheetChecklist.value = normalizeRepairChecklist(ticket.repair_checklist, sheetTemplate.value)
+      return
+    }
+
+    const templateKey = ticket.material_item.repair_template_key
+    if (!templateKey || !ticket.repair_checklist) return
+
+    const match = templates.find((tpl) => tpl.template_key === templateKey && tpl.is_active)
+    if (!match) return
+
+    sheetTemplate.value = supplierTemplateToSheetInput(match)
+    sheetChecklist.value = normalizeRepairChecklist(ticket.repair_checklist, sheetTemplate.value)
+  } catch (err) {
+    console.error('Failed to load repair sheet for supplier ticket:', err)
+  } finally {
+    sheetLoading.value = false
+  }
+}
+
 async function openTicket(ticketId: string) {
   try {
-    selectedTicket.value = await getSupplierRepair(companyId.value, ticketId)
-    formEstimatedCost.value = selectedTicket.value.estimated_cost || ''
+    const ticket = await getSupplierRepair(companyId.value, ticketId)
+    selectedTicket.value = ticket
+    formEstimatedCost.value = ticket.estimated_cost || ''
     detailOpen.value = true
+    await loadRepairSheet(ticket)
+    if (!formEstimatedCost.value) {
+      if (ticket.strategy === 'external_cleaning') {
+        const templates = await getSupplierRepairTemplates(companyId.value)
+        const service = resolveCleaningServiceOption(
+          templates,
+          getCleaningServiceKey(ticket.repair_checklist),
+        )
+        const total = estimateExternalCleaningCost(
+          service,
+          sheetTemplate.value,
+          sheetChecklist.value,
+        )
+        if (total > 0) {
+          formEstimatedCost.value = formatChfAmount(total)
+        }
+      } else if (sheetTemplate.value && sheetChecklist.value) {
+        const total = calcRepairSheetTotal(sheetChecklist.value, sheetTemplate.value).grandTotal
+        if (total > 0) {
+          formEstimatedCost.value = formatChfAmount(total)
+        }
+      }
+    }
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('supplierRepairs.errorLoad'))
   }
@@ -227,10 +400,20 @@ async function openTicket(ticketId: string) {
 function closeDetail() {
   detailOpen.value = false
   selectedTicket.value = null
+  sheetTemplate.value = null
+  sheetChecklist.value = null
+  cleaningServiceLabel.value = ''
+  cleaningServicePrice.value = ''
 }
 
 watch(detailOpen, (open) => {
-  if (!open) selectedTicket.value = null
+  if (!open) {
+    selectedTicket.value = null
+    sheetTemplate.value = null
+    sheetChecklist.value = null
+    cleaningServiceLabel.value = ''
+    cleaningServicePrice.value = ''
+  }
 })
 
 async function uploadRepairPhoto(file: File) {
@@ -248,6 +431,25 @@ async function onPhotoUploaded(ticket: unknown) {
 
 function onUploadError(message: string) {
   toast.error(message || t('media.uploadError'))
+}
+
+async function submitQuote() {
+  if (!selectedTicket.value || !formEstimatedCost.value) return
+  acting.value = true
+  try {
+    selectedTicket.value = await submitSupplierRepairQuote(
+      companyId.value,
+      selectedTicket.value.id,
+      formEstimatedCost.value,
+    )
+    formEstimatedCost.value = selectedTicket.value.estimated_cost || ''
+    toast.success(t('supplierRepairs.quoteSubmitted'))
+    await loadTickets()
+  } catch (err: any) {
+    toast.error(err?.response?.data?.error || t('supplierRepairs.quoteSubmitError'))
+  } finally {
+    acting.value = false
+  }
 }
 
 async function transitionTo(nextStatus: SupplierRepairStatus) {
@@ -332,15 +534,44 @@ onMounted(() => loadTickets())
   text-align: left;
 }
 
-.photos-section h4 {
-  margin: 0;
+.row-awaiting-quote {
+  background: #fffbeb;
+}
+
+.photos-section h4,
+.sheet-section h4,
+.quote-block h4 {
+  margin: 0 0 8px;
   font-size: 14px;
+}
+
+.sheet-section,
+.quote-block {
+  margin-top: 16px;
+}
+
+.sheet-total-hint,
+.quote-hint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.quote-block {
+  padding: 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+}
+
+.quote-submit-btn {
+  margin-top: 12px;
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 16px;
 }
 </style>

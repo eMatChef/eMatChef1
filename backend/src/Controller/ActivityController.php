@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\Activity;
+use App\Entity\ActivityJsOrder;
 use App\Entity\ActivityHistory;
 use App\Entity\ActivityItem;
 use App\Entity\ActivityPackContainer;
@@ -26,6 +27,7 @@ use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
+use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
 use App\Service\ComboResolutionService;
@@ -58,6 +60,7 @@ class ActivityController extends AbstractController
         private AccountingAcquisitionFollowUpSerializer $followUpSerializer,
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
+        private ActivitySharedVenueService $sharedVenueService,
     ) {}
 
     private function getActorUserId(): ?string
@@ -117,6 +120,10 @@ class ActivityController extends AbstractController
                     $row['group_id'] = $groupId;
                     $row['group_name'] = $group->getName();
                 }
+            }
+
+            if (isset($existingEntry['local_venue_address_id'])) {
+                $row['local_venue_address_id'] = $existingEntry['local_venue_address_id'];
             }
 
             $normalized[] = $row;
@@ -327,22 +334,31 @@ class ActivityController extends AbstractController
         }
 
         $invitedCandidates = $invitedQb->getQuery()->getResult();
-        if (!$isRestrictedMember) {
-            foreach ($invitedCandidates as $candidate) {
-                if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
-                    continue;
-                }
-                if (!$this->activityAccess->isDepartmentWideManager($membershipRole)
-                    && $candidate->isExternal()) {
-                    continue;
-                }
-                $activities[] = $candidate;
+        foreach ($invitedCandidates as $candidate) {
+            if (!$this->activityAccess->isDepartmentInviteAccepted($candidate, (string) $departmentId)) {
+                continue;
             }
+            if (!$this->activityAccess->canUserSeeInvitedActivityInList(
+                $currentUser,
+                $candidate,
+                (string) $departmentId,
+                (string) $membershipRole,
+                $isRestrictedMember,
+            )) {
+                continue;
+            }
+            $activities[] = $candidate;
         }
+
+        $jsListPhases = $this->buildJsListPhaseMap($activities);
 
         $result = [];
         foreach ($activities as $activity) {
-            $result[] = $this->serializeActivity($activity);
+            $row = $this->serializeActivity($activity);
+            if ($activity->getWantsJsMaterial() && \in_array((string) $activity->getType(), ['camp', 'event'], true)) {
+                $row['js_list_phase'] = $jsListPhases[$activity->getId()] ?? 'draft';
+            }
+            $result[] = $row;
         }
 
         usort($result, static function (array $a, array $b): int {
@@ -633,7 +649,7 @@ class ActivityController extends AbstractController
      */
     #[Route('/{id}', name: 'get', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
-    public function get(string $id): JsonResponse
+    public function get(string $id, Request $request): JsonResponse
     {
         $activity = $this->entityManager->getRepository(Activity::class)->find($id);
 
@@ -649,7 +665,28 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
         }
 
+        $viewerDept = $this->activityAccess->resolveViewerDepartmentForActivity(
+            $currentUser,
+            $activity,
+            (string) $request->query->get('department_id', ''),
+        );
+
         $data = $this->serializeActivity($activity, true, $currentUser);
+        $invites = $data['invited_departments'] ?? [];
+        $data['is_shared_activity'] = \is_array($invites) && $invites !== [];
+        if ($viewerDept !== null) {
+            $data['viewer_department_id'] = $viewerDept;
+            try {
+                $viewerVenueId = $this->sharedVenueService->resolveViewerVenueAddressId($activity, $viewerDept);
+                $data['viewer_venue_address_id'] = $viewerVenueId;
+                if ($viewerVenueId !== null && $viewerVenueId !== $activity->getVenueAddressId()) {
+                    $this->entityManager->flush();
+                    $data['invited_departments'] = $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments());
+                }
+            } catch (\Throwable) {
+                $data['viewer_venue_address_id'] = $activity->getVenueAddressId();
+            }
+        }
         $draftMat = $this->activityAccess->canUserEditDraftActivityMaterial($currentUser, $activity);
         $data['can_edit_draft_material'] = $draftMat;
         $data['can_edit_activity_material'] = $activity->isDraft()
@@ -665,6 +702,7 @@ class ActivityController extends AbstractController
             $currentUser,
             $activity,
         );
+        $data['guest_invite_for_viewer'] = $this->activityAccess->getGuestInviteContextForViewer($currentUser, $activity);
 
         return new JsonResponse($data);
     }
@@ -885,6 +923,21 @@ class ActivityController extends AbstractController
                 $activity->setInvitedDepartments($this->normalizeInvitedDepartmentsPayload($incoming));
             }
 
+            if (isset($data['wants_js_material'])) {
+                $wantsJs = (bool) $data['wants_js_material'];
+                if ($wantsJs && !\in_array($activity->getType(), ['camp', 'event'], true)) {
+                    return new JsonResponse(['error' => 'J+S-Material ist nur bei Lager oder Event verfügbar'], 400);
+                }
+                $activity->setWantsJsMaterial($wantsJs);
+            }
+
+            if (\array_key_exists('participant_count', $data)) {
+                $pcError = $this->applyParticipantCountValue($activity, $data['participant_count']);
+                if ($pcError !== null) {
+                    return $pcError;
+                }
+            }
+
             // Ersteller setzen
             if ($currentUser instanceof User) {
                 $activity->setCreatedByUser($currentUser);
@@ -971,6 +1024,10 @@ class ActivityController extends AbstractController
             }
             if (isset($data['type'])) {
                 $activity->setType($data['type']);
+                if (!\in_array($activity->getType(), ['camp', 'event'], true)) {
+                    $activity->setWantsJsMaterial(false);
+                    $activity->setParticipantCount(null);
+                }
             }
             if (array_key_exists('group_id', $data)) {
                 if ($data['group_id']) {
@@ -1020,12 +1077,37 @@ class ActivityController extends AbstractController
                 }
             }
             if (array_key_exists('venue_address_id', $data)) {
-                if ($data['venue_address_id']) {
-                    $venueAddress = $this->entityManager->getRepository(Address::class)->find($data['venue_address_id']);
-                    $activity->setVenueAddress($venueAddress);
+                $viewerDept = $this->activityAccess->resolveViewerDepartmentForActivity(
+                    $currentUser,
+                    $activity,
+                    trim((string) ($data['viewer_department_id'] ?? '')),
+                );
+                if ($viewerDept === null) {
+                    return new JsonResponse(['error' => 'Kein Department-Kontext'], 403);
+                }
+                try {
+                    $venueId = $data['venue_address_id'] !== null && $data['venue_address_id'] !== ''
+                        ? (string) $data['venue_address_id']
+                        : null;
+                    $this->sharedVenueService->applyVenuePatch($activity, $currentUser, $viewerDept, $venueId);
+                    $this->syncJsDeliveryAddressFromVenue($activity);
+                } catch (\InvalidArgumentException $e) {
+                    return new JsonResponse(['error' => $e->getMessage()], 400);
+                }
+            }
+            if (array_key_exists('js_delivery_address_id', $data)) {
+                $deliveryId = $data['js_delivery_address_id'] !== null && $data['js_delivery_address_id'] !== ''
+                    ? (string) $data['js_delivery_address_id']
+                    : null;
+                if ($deliveryId === null) {
+                    $activity->setJsDeliveryAddress(null);
+                    $activity->setJsDeliveryAddressId(null);
                 } else {
-                    $activity->setVenueAddress(null);
-                    $activity->setVenueAddressId(null);
+                    $address = $this->entityManager->getRepository(Address::class)->find($deliveryId);
+                    if (!$address instanceof Address) {
+                        return new JsonResponse(['error' => 'Lieferadresse nicht gefunden'], 404);
+                    }
+                    $activity->setJsDeliveryAddress($address);
                 }
             }
             if (array_key_exists('responsible_user_id', $data)) {
@@ -1062,6 +1144,18 @@ class ActivityController extends AbstractController
                 $incoming = is_array($data['invited_departments']) ? $data['invited_departments'] : [];
                 $existingInvites = $activity->getInvitedDepartments() ?? [];
                 $activity->setInvitedDepartments($this->normalizeInvitedDepartmentsPayload($incoming, $existingInvites));
+            }
+
+            $wantsJsError = $this->applyWantsJsMaterialPatch($activity, $data);
+            if ($wantsJsError !== null) {
+                return $wantsJsError;
+            }
+
+            if (\array_key_exists('participant_count', $data)) {
+                $pcError = $this->applyParticipantCountValue($activity, $data['participant_count']);
+                if ($pcError !== null) {
+                    return $pcError;
+                }
             }
 
             $activity->setUpdatedAt(new \DateTime());
@@ -1130,6 +1224,7 @@ class ActivityController extends AbstractController
         $data = json_decode($request->getContent(), true) ?: [];
         $departmentId = trim((string) ($data['department_id'] ?? ''));
         $decision = trim((string) ($data['decision'] ?? ''));
+        $groupId = trim((string) ($data['group_id'] ?? ''));
         if ($departmentId === '' || !in_array($decision, ['accepted', 'rejected'], true)) {
             return new JsonResponse(['error' => 'department_id und decision (accepted|rejected) sind erforderlich'], 400);
         }
@@ -1138,6 +1233,19 @@ class ActivityController extends AbstractController
             $this->assertDepartmentManager($currentUser, $departmentId);
         } catch (AccessDeniedException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        if ($decision === 'accepted' && $groupId === '') {
+            return new JsonResponse(['error' => 'group_id ist bei Annahme erforderlich'], 400);
+        }
+
+        $groupName = null;
+        if ($decision === 'accepted') {
+            $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+            if (!$group || $group->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'Gruppe gehört nicht zum Department'], 400);
+            }
+            $groupName = $group->getName();
         }
 
         $invites = $activity->getInvitedDepartments() ?? [];
@@ -1152,6 +1260,10 @@ class ActivityController extends AbstractController
             $invite['status'] = $decision;
             $invite['decided_at'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
             $invite['decided_by_user_id'] = $currentUser->getId();
+            if ($decision === 'accepted') {
+                $invite['group_id'] = $groupId;
+                $invite['group_name'] = $groupName;
+            }
             $updated = true;
             break;
         }
@@ -1172,6 +1284,74 @@ class ActivityController extends AbstractController
             'activity_id' => $activity->getId(),
             'department_id' => $departmentId,
             'decision' => $decision,
+            'group_id' => $decision === 'accepted' ? $groupId : null,
+            'group_name' => $groupName,
+        ]);
+    }
+
+    #[Route('/{id}/department-invites/group', name: 'department_invites_group', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function assignDepartmentInviteGroup(string $id, Request $request): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $data = json_decode($request->getContent(), true) ?: [];
+        $departmentId = trim((string) ($data['department_id'] ?? ''));
+        $groupId = trim((string) ($data['group_id'] ?? ''));
+        if ($departmentId === '' || $groupId === '') {
+            return new JsonResponse(['error' => 'department_id und group_id sind erforderlich'], 400);
+        }
+
+        if (!$this->activityAccess->canInvitedDepartmentMwAssignGroup($currentUser, $activity, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if (!$group || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe gehört nicht zum Department'], 400);
+        }
+
+        $invites = $activity->getInvitedDepartments() ?? [];
+        $updated = false;
+        foreach ($invites as &$invite) {
+            if (!is_array($invite)) {
+                continue;
+            }
+            if (($invite['id'] ?? null) !== $departmentId) {
+                continue;
+            }
+            if (($invite['status'] ?? '') !== 'accepted') {
+                return new JsonResponse(['error' => 'Einladung ist nicht angenommen'], 400);
+            }
+            $invite['group_id'] = $groupId;
+            $invite['group_name'] = $group->getName();
+            $updated = true;
+            break;
+        }
+        unset($invite);
+
+        if (!$updated) {
+            return new JsonResponse(['error' => 'Keine passende Einladung gefunden'], 404);
+        }
+
+        $activity->setInvitedDepartments($invites);
+        $activity->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'activity_id' => $activity->getId(),
+            'department_id' => $departmentId,
+            'group_id' => $groupId,
+            'group_name' => $group->getName(),
         ]);
     }
 
@@ -1355,6 +1535,13 @@ class ActivityController extends AbstractController
 
         if ($newStatus === Activity::STATUS_PACKED && $oldStatus !== Activity::STATUS_PACKED) {
             $this->activityUserNotifications->notifyPacked($activity, $user);
+        }
+
+        if (
+            $newStatus === Activity::STATUS_AT_EVENT
+            && $oldStatus === Activity::STATUS_PACKED
+        ) {
+            $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_at_event');
         }
 
         if ($newStatus === Activity::STATUS_RETURNED && $oldStatus !== Activity::STATUS_RETURNED) {
@@ -1883,6 +2070,7 @@ class ActivityController extends AbstractController
         if ($this->activityAccess->canHostMwOrDcEditActivityMaterialAfterDraft($currentUser, $activity)) {
             try {
                 $this->kisteMaterialLinker->syncMissingActivityLinesFromPackContainers($activity, $currentUser);
+                $this->kisteMaterialLinker->removeRedundantShellContainerActivityLines($activity);
             } catch (\Throwable $e) {
                 // GET darf nicht abbrechen (z. B. parallele Pack-Sync-Kanten)
             }
@@ -2026,9 +2214,20 @@ class ActivityController extends AbstractController
         try {
             $materialBefore = $this->aggregateActivityMaterials($id);
 
-            // Alle bestehenden Items löschen
             $existingItems = $this->entityManager->getRepository(ActivityItem::class)
                 ->findBy(['activityId' => $id]);
+
+            $packModeError = $this->assertVirtualComboPackModeEditable($activity, $items, $existingItems);
+            if ($packModeError !== null) {
+                return new JsonResponse(['error' => $packModeError], 400);
+            }
+
+            $floorError = $this->validateVirtualComboStandaloneFloor($items);
+            if ($floorError !== null) {
+                return new JsonResponse(['error' => $floorError], 400);
+            }
+
+            // Alle bestehenden Items löschen
             foreach ($existingItems as $existing) {
                 $this->entityManager->remove($existing);
             }
@@ -2074,7 +2273,24 @@ class ActivityController extends AbstractController
 
                 // Zeilenmodell B: virtuelle Kombo -> Eltern-Zeile (oben) + Kind-Zeilen je stock-Teil.
                 if ($materialItem->isVirtualCombo()) {
+                    $validationError = $this->validateVirtualComboBookingData(
+                        $materialItem,
+                        $itemData,
+                        isset($itemData['selected_option_ids']) && \is_array($itemData['selected_option_ids'])
+                            ? array_values(array_filter(array_map(
+                                static fn ($v) => trim((string) $v),
+                                $itemData['selected_option_ids'],
+                            ), static fn (string $v) => $v !== ''))
+                            : null,
+                        null,
+                    );
+                    if ($validationError !== null) {
+                        return new JsonResponse(['error' => $validationError], 400);
+                    }
+                    $itemData = $this->enrichVirtualComboBookingData($itemData, $currentUser);
                     $this->expandVirtualComboLine($activity, $activityItem, $materialItem, $itemData);
+                } elseif ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($activityItem, $materialItem, $itemData);
                 }
             }
 
@@ -2199,6 +2415,9 @@ class ActivityController extends AbstractController
             } elseif ($existing) {
                 // Menge erhöhen
                 $existing->setQuantity($existing->getQuantity() + max(1, (int)($data['quantity'] ?? 1)));
+                if ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($existing, $materialItem, $data);
+                }
                 $existing->setUpdatedAt(new \DateTime());
                 // Preis-Felder aktualisieren
                 if (isset($data['unit_price'])) {
@@ -2233,6 +2452,9 @@ class ActivityController extends AbstractController
                 }
                 $this->applyItemProvenance($activityItem, $currentUser, $activity, $data);
                 $this->entityManager->persist($activityItem);
+                if ($materialItem->getMaterialType() === 'physical_combo') {
+                    $this->attachPhysicalComboConfigSnapshot($activityItem, $materialItem, $data);
+                }
             }
 
             // ActivityItem zuerst schreiben: COUNT/SUM/recalculate lesen aus der DB —
@@ -2676,6 +2898,187 @@ class ActivityController extends AbstractController
                 $this->entityManager->remove($pi);
             }
         }
+
+        $this->syncVirtualComboPackContainers($activity);
+    }
+
+    /**
+     * Virtuelle Kombo pack_mode «together»: logische Pack-Behälter pro Set synchronisieren.
+     * Bei «loose» oder entfernter Eltern-Zeile: zugehörige Behälter auflösen.
+     */
+    private function syncVirtualComboPackContainers(Activity $activity): void
+    {
+        $activityId = $activity->getId();
+        if ($activityId === null || $activityId === '') {
+            return;
+        }
+
+        $activityItems = $this->entityManager->getRepository(ActivityItem::class)
+            ->findBy(['activityId' => $activityId]);
+
+        /** @var array<string, ActivityItem> $togetherParents */
+        $togetherParents = [];
+        foreach ($activityItems as $ai) {
+            if (!$ai instanceof ActivityItem || $ai->getParentActivityItemId() !== null) {
+                continue;
+            }
+            if (!$ai->getMaterialItem()->isVirtualCombo()) {
+                continue;
+            }
+            $snap = $ai->getConfigSnapshot();
+            $packMode = is_array($snap) ? (string) ($snap['pack_mode'] ?? 'loose') : 'loose';
+            if ($packMode === 'together') {
+                $parentId = $ai->getId();
+                if ($parentId !== null) {
+                    $togetherParents[$parentId] = $ai;
+                }
+            }
+        }
+
+        $allContainers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activityId]);
+        foreach ($allContainers as $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            $srcId = $container->getSourceActivityItemId();
+            if ($srcId === null || $srcId === '') {
+                continue;
+            }
+            if (!isset($togetherParents[$srcId])) {
+                $this->removePackContainerWithItems($container);
+            }
+        }
+
+        foreach ($togetherParents as $parent) {
+            $this->syncTogetherContainersForVirtualComboParent($activity, $parent);
+        }
+    }
+
+    private function removePackContainerWithItems(ActivityPackContainer $container): void
+    {
+        $items = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+            ->findBy(['packContainerId' => $container->getId()]);
+        foreach ($items as $ci) {
+            if ($ci instanceof ActivityPackContainerItem) {
+                $this->entityManager->remove($ci);
+            }
+        }
+        $this->entityManager->remove($container);
+    }
+
+    private function syncTogetherContainersForVirtualComboParent(Activity $activity, ActivityItem $parent): void
+    {
+        $combo = $parent->getMaterialItem();
+        $comboName = trim($combo->getName());
+        $comboQty = max(1, $parent->getQuantity());
+        $snap = $parent->getConfigSnapshot();
+        $resolved = is_array($snap) && is_array($snap['resolved_components'] ?? null)
+            ? $snap['resolved_components']
+            : [];
+
+        $perSetQtyByMid = [];
+        foreach ($resolved as $comp) {
+            if (!is_array($comp)) {
+                continue;
+            }
+            $mid = trim((string) ($comp['component_material_id'] ?? ''));
+            $qtyPer = (int) ($comp['qty_per_combo'] ?? 0);
+            if ($mid !== '' && $qtyPer > 0) {
+                $perSetQtyByMid[$mid] = $qtyPer;
+            }
+        }
+
+        if ($perSetQtyByMid === []) {
+            $children = $this->entityManager->getRepository(ActivityItem::class)
+                ->findBy(['parentActivityItemId' => $parent->getId()]);
+            foreach ($children as $child) {
+                if (!$child instanceof ActivityItem) {
+                    continue;
+                }
+                $mid = $child->getMaterialItemId();
+                $perSetQtyByMid[$mid] = (int) floor($child->getQuantity() / $comboQty);
+            }
+        }
+
+        $existing = array_values(array_filter(
+            $this->entityManager->getRepository(ActivityPackContainer::class)
+                ->findBy(['activityId' => $activity->getId(), 'sourceActivityItemId' => $parent->getId()]),
+            static fn ($c) => $c instanceof ActivityPackContainer,
+        ));
+        usort($existing, static fn (ActivityPackContainer $a, ActivityPackContainer $b) => $a->getCreatedAt() <=> $b->getCreatedAt());
+
+        while (\count($existing) < $comboQty) {
+            $setIndex = \count($existing) + 1;
+            $container = new ActivityPackContainer();
+            $container->setId(IdGenerator::generate13Unique($this->entityManager, ActivityPackContainer::class, 'pc'));
+            $container->setActivity($activity);
+            $container->setLabel($this->virtualComboContainerLabel($comboName, $setIndex, $comboQty));
+            $container->setStatus('draft');
+            $container->setSourceActivityItem($parent);
+            $this->entityManager->persist($container);
+            $existing[] = $container;
+        }
+
+        while (\count($existing) > $comboQty) {
+            $rm = array_pop($existing);
+            if ($rm instanceof ActivityPackContainer) {
+                $this->removePackContainerWithItems($rm);
+            }
+        }
+
+        foreach ($existing as $idx => $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            $setIndex = $idx + 1;
+            $container->setLabel($this->virtualComboContainerLabel($comboName, $setIndex, $comboQty));
+            $container->touch();
+
+            $existingItems = $this->entityManager->getRepository(ActivityPackContainerItem::class)
+                ->findBy(['packContainerId' => $container->getId()]);
+            /** @var array<string, ActivityPackContainerItem> $byMid */
+            $byMid = [];
+            foreach ($existingItems as $ci) {
+                if ($ci instanceof ActivityPackContainerItem) {
+                    $byMid[$ci->getMaterialItemId()] = $ci;
+                }
+            }
+
+            foreach ($perSetQtyByMid as $mid => $qtyPerSet) {
+                $material = $this->entityManager->getRepository(MaterialItem::class)->find($mid);
+                if ($material === null) {
+                    continue;
+                }
+                $ci = $byMid[$mid] ?? null;
+                if ($ci === null) {
+                    $ci = new ActivityPackContainerItem();
+                    $ci->setId(IdGenerator::generate13('pci'));
+                    $ci->setPackContainer($container);
+                    $ci->setMaterialItem($material);
+                    $this->entityManager->persist($ci);
+                }
+                $ci->setQuantityPacked(max(0, $qtyPerSet));
+                $ci->touch();
+                unset($byMid[$mid]);
+            }
+
+            foreach ($byMid as $stale) {
+                $this->entityManager->remove($stale);
+            }
+        }
+    }
+
+    private function virtualComboContainerLabel(string $comboName, int $setIndex, int $totalSets): string
+    {
+        $base = $comboName !== '' ? $comboName : 'Set';
+        if ($totalSets <= 1) {
+            return mb_substr($base, 0, 120);
+        }
+        $suffix = " ({$setIndex})";
+        $maxBase = 120 - mb_strlen($suffix);
+
+        return mb_substr($base, 0, max(1, $maxBase)) . $suffix;
     }
 
     /**
@@ -3261,6 +3664,12 @@ class ActivityController extends AbstractController
 
         $parent = $this->primaryActivityItemForMaterial($activityId, (string) $combo->getId());
 
+        $validationError = $this->validateVirtualComboBookingData($combo, $data, $selectedOptionIds, $parent);
+        if ($validationError !== null) {
+            return new JsonResponse(['error' => $validationError], 400);
+        }
+        $data = $this->enrichVirtualComboBookingData($data, $currentUser);
+
         if ($parent !== null) {
             $parent->setQuantity($parent->getQuantity() + $addQty);
             $parent->setUpdatedAt(new \DateTime());
@@ -3393,10 +3802,276 @@ class ActivityController extends AbstractController
             ];
         }
 
-        $parent->setConfigSnapshot([
+        $packMode = 'loose';
+        if (isset($itemData['pack_mode']) && \in_array($itemData['pack_mode'], ['together', 'loose'], true)) {
+            $packMode = $itemData['pack_mode'];
+        } else {
+            $prevSnap = $parent->getConfigSnapshot();
+            if (\is_array($prevSnap) && \in_array($prevSnap['pack_mode'] ?? '', ['together', 'loose'], true)) {
+                $packMode = $prevSnap['pack_mode'];
+            }
+        }
+
+        $snapshot = [
             'combo_qty' => $comboQty,
             'selected_option_ids' => $selectedOptionIds,
             'resolved_components' => $resolvedComponents,
+            'self_provided' => $selfProvided,
+            'pack_mode' => $packMode,
+        ];
+
+        if ($selfProvided !== []) {
+            if (!empty($itemData['self_provided_acknowledged'])) {
+                $snapshot['self_provided_acknowledged'] = true;
+                $snapshot['self_provided_acknowledged_at'] = $itemData['self_provided_acknowledged_at']
+                    ?? (new \DateTime())->format('c');
+                $snapshot['self_provided_acknowledged_by_user_id'] = $itemData['self_provided_acknowledged_by_user_id'] ?? null;
+            } else {
+                $prevSnap = $parent->getConfigSnapshot();
+                if (\is_array($prevSnap) && !empty($prevSnap['self_provided_acknowledged'])) {
+                    $snapshot['self_provided_acknowledged'] = true;
+                    $snapshot['self_provided_acknowledged_at'] = $prevSnap['self_provided_acknowledged_at'] ?? null;
+                    $snapshot['self_provided_acknowledged_by_user_id'] = $prevSnap['self_provided_acknowledged_by_user_id'] ?? null;
+                }
+            }
+        }
+
+        $parent->setConfigSnapshot($snapshot);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function validateVirtualComboBookingData(
+        MaterialItem $combo,
+        array $data,
+        ?array $selectedOptionIds,
+        ?ActivityItem $existingParent,
+    ): ?string {
+        $oids = $selectedOptionIds;
+        if ($oids === null && $existingParent !== null) {
+            $snap = $existingParent->getConfigSnapshot();
+            $oids = \is_array($snap['selected_option_ids'] ?? null)
+                ? array_values(array_map('strval', $snap['selected_option_ids']))
+                : null;
+        }
+        if ($oids === null) {
+            $oids = $this->comboResolution->defaultSelectedOptionIds((string) $combo->getId());
+        }
+        $resolved = $this->comboResolution->resolve((string) $combo->getId(), $oids);
+        if ($resolved['self_provided'] === []) {
+            return null;
+        }
+        $acked = filter_var($data['self_provided_acknowledged'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        if ($acked) {
+            return null;
+        }
+        $prev = $existingParent?->getConfigSnapshot();
+        if (\is_array($prev) && !empty($prev['self_provided_acknowledged'])) {
+            return null;
+        }
+
+        return 'Bestätigung für selbst mitzubringende Teile erforderlich';
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function enrichVirtualComboBookingData(array $data, User $user): array
+    {
+        if (!isset($data['pack_mode']) || !\in_array($data['pack_mode'], ['together', 'loose'], true)) {
+            $data['pack_mode'] = 'loose';
+        }
+        if (filter_var($data['self_provided_acknowledged'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $data['self_provided_acknowledged'] = true;
+            $data['self_provided_acknowledged_at'] = (new \DateTime())->format('c');
+            $data['self_provided_acknowledged_by_user_id'] = $user->getId();
+        }
+
+        return $data;
+    }
+
+    /**
+     * pack_mode nur bis vor «gepackt» änderbar (draft/submitted/approved).
+     *
+     * @param list<array<string, mixed>> $incomingItems
+     * @param list<ActivityItem> $existingItems
+     */
+    private function assertVirtualComboPackModeEditable(Activity $activity, array $incomingItems, array $existingItems): ?string
+    {
+        $lockedStatuses = [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ];
+        if (!\in_array($activity->getStatus(), $lockedStatuses, true)) {
+            return null;
+        }
+
+        $existingPackMode = [];
+        foreach ($existingItems as $ai) {
+            if (!$ai instanceof ActivityItem || $ai->getParentActivityItemId() !== null) {
+                continue;
+            }
+            if (!$ai->getMaterialItem()->isVirtualCombo()) {
+                continue;
+            }
+            $snap = $ai->getConfigSnapshot();
+            $existingPackMode[(string) $ai->getMaterialItemId()] = \is_array($snap)
+                ? (string) ($snap['pack_mode'] ?? 'loose')
+                : 'loose';
+        }
+
+        foreach ($incomingItems as $itemData) {
+            if (empty($itemData['material_item_id'])) {
+                continue;
+            }
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)
+                ->find($itemData['material_item_id']);
+            if ($materialItem === null || !$materialItem->isVirtualCombo()) {
+                continue;
+            }
+            $mid = (string) $materialItem->getId();
+            if (!isset($existingPackMode[$mid])) {
+                continue;
+            }
+            $newMode = 'loose';
+            if (isset($itemData['pack_mode']) && \in_array($itemData['pack_mode'], ['together', 'loose'], true)) {
+                $newMode = $itemData['pack_mode'];
+            }
+            if ($newMode !== $existingPackMode[$mid]) {
+                return 'Pack-Vorgabe (zusammen/lose) kann nach Beginn des Packens nicht mehr geändert werden';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Einzelzeilen nicht unter den offenen Kombo-Mindestbedarf senken (Zeilenmodell B).
+     *
+     * @param list<array<string, mixed>> $items
+     */
+    private function validateVirtualComboStandaloneFloor(array $items): ?string
+    {
+        $comboFloor = [];
+        $standaloneRows = [];
+
+        foreach ($items as $itemData) {
+            if (empty($itemData['material_item_id'])) {
+                continue;
+            }
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)
+                ->find($itemData['material_item_id']);
+            if ($materialItem === null) {
+                continue;
+            }
+            $qty = max(1, (int) ($itemData['quantity'] ?? 1));
+
+            if ($materialItem->isVirtualCombo()) {
+                $selectedOptionIds = isset($itemData['selected_option_ids']) && \is_array($itemData['selected_option_ids'])
+                    ? array_values(array_filter(array_map(
+                        static fn ($v) => trim((string) $v),
+                        $itemData['selected_option_ids'],
+                    ), static fn (string $v) => $v !== ''))
+                    : $this->comboResolution->defaultSelectedOptionIds((string) $materialItem->getId());
+                $resolved = $this->comboResolution->resolve((string) $materialItem->getId(), $selectedOptionIds);
+                foreach ($resolved['stock'] as $mid => $part) {
+                    $perCombo = (int) ($part['qty_per_combo'] ?? 0);
+                    if ($perCombo > 0) {
+                        $comboFloor[(string) $mid] = ($comboFloor[(string) $mid] ?? 0) + $qty * $perCombo;
+                    }
+                }
+            } elseif ($materialItem->getMaterialType() !== 'physical_combo') {
+                $standaloneRows[] = [
+                    'material_id' => (string) $materialItem->getId(),
+                    'qty' => $qty,
+                    'name' => (string) $materialItem->getName(),
+                ];
+            }
+        }
+
+        if ($comboFloor === []) {
+            return null;
+        }
+
+        $standaloneTotal = [];
+        foreach ($standaloneRows as $row) {
+            $standaloneTotal[$row['material_id']] = ($standaloneTotal[$row['material_id']] ?? 0) + $row['qty'];
+        }
+
+        foreach ($standaloneRows as $row) {
+            $mid = $row['material_id'];
+            $floor = $comboFloor[$mid] ?? 0;
+            if ($floor <= 0) {
+                continue;
+            }
+            $childQty = $floor;
+            $otherStandalone = ($standaloneTotal[$mid] ?? 0) - $row['qty'];
+            $minQty = max(0, $floor - $childQty - $otherStandalone);
+            if ($row['qty'] < $minQty) {
+                return \sprintf(
+                    'Menge für «%s» darf nicht unter %d gesenkt werden (Kombo-Mindestbedarf).',
+                    $row['name'],
+                    $minQty,
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Physische Kombo: self_provided-Teile als Hinweis für Besteller/Packliste (keine Kind-Zeilen).
+     *
+     * @param array<string, mixed> $itemData
+     */
+    private function attachPhysicalComboConfigSnapshot(
+        ActivityItem $parent,
+        MaterialItem $combo,
+        array $itemData,
+    ): void {
+        if ($combo->getMaterialType() !== 'physical_combo') {
+            return;
+        }
+
+        $comboQty = max(1, $parent->getQuantity());
+
+        $selectedOptionIds = [];
+        if (isset($itemData['selected_option_ids']) && \is_array($itemData['selected_option_ids'])) {
+            foreach ($itemData['selected_option_ids'] as $oid) {
+                $oid = trim((string) $oid);
+                if ($oid !== '') {
+                    $selectedOptionIds[] = $oid;
+                }
+            }
+        } else {
+            $selectedOptionIds = $this->comboResolution->defaultSelectedOptionIds((string) $combo->getId());
+        }
+        $selectedOptionIds = array_values(array_unique($selectedOptionIds));
+
+        $resolved = $this->comboResolution->resolve((string) $combo->getId(), $selectedOptionIds);
+
+        $selfProvided = [];
+        foreach ($resolved['self_provided'] as $mid => $part) {
+            $selfProvided[] = [
+                'component_material_id' => (string) $mid,
+                'name' => $part['name'],
+                'total_qty' => $comboQty * (int) $part['qty_per_combo'],
+            ];
+        }
+
+        if ($selfProvided === []) {
+            return;
+        }
+
+        $parent->setConfigSnapshot([
+            'combo_qty' => $comboQty,
+            'selected_option_ids' => $selectedOptionIds,
+            'resolved_components' => [],
             'self_provided' => $selfProvided,
         ]);
     }
@@ -3501,6 +4176,95 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * @param array<string, mixed> $data
+     */
+    private function applyWantsJsMaterialPatch(Activity $activity, array $data): ?JsonResponse
+    {
+        if (!\array_key_exists('wants_js_material', $data)) {
+            return null;
+        }
+
+        $requested = (bool) $data['wants_js_material'];
+        $current = $activity->getWantsJsMaterial();
+
+        if (!$activity->isDraft()) {
+            if ($requested !== $current) {
+                return new JsonResponse(['error' => 'J+S-Einstellung kann nur im Entwurf geändert werden'], 400);
+            }
+
+            return null;
+        }
+
+        if ($requested && !\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            return new JsonResponse(['error' => 'J+S-Material ist nur bei Lager oder Event verfügbar'], 400);
+        }
+
+        $activity->setWantsJsMaterial($requested);
+
+        if ($requested && $activity->getJsDeliveryAddressId() === null && $activity->getVenueAddressId() !== null) {
+            $this->syncJsDeliveryAddressFromVenue($activity);
+        }
+
+        return null;
+    }
+
+    private function syncJsDeliveryAddressFromVenue(Activity $activity): void
+    {
+        $venue = $activity->getVenueAddress();
+        if (!$venue instanceof Address) {
+            return;
+        }
+
+        /** @var Address|null $child */
+        $child = $this->entityManager->getRepository(Address::class)->findOneBy([
+            'parentId' => $venue->getId(),
+            'type' => Address::TYPE_EVENT_DELIVERY,
+        ]);
+
+        if ($child instanceof Address && !$child->isDeleted()) {
+            $activity->setJsDeliveryAddress($child);
+
+            return;
+        }
+
+        $activity->setJsDeliveryAddress($venue);
+    }
+
+    /**
+     * @param mixed $raw
+     */
+    private function applyParticipantCountValue(Activity $activity, mixed $raw): ?JsonResponse
+    {
+        if (!\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
+            if ($raw !== null && $raw !== '') {
+                return new JsonResponse(['error' => 'Teilnehmerzahl nur bei Lager oder Event'], 400);
+            }
+            $activity->setParticipantCount(null);
+
+            return null;
+        }
+
+        if ($raw === null || $raw === '') {
+            $activity->setParticipantCount(null);
+
+            return null;
+        }
+
+        if (!\is_numeric($raw)) {
+            return new JsonResponse(['error' => 'Ungültige Teilnehmerzahl'], 400);
+        }
+
+        $count = (int) $raw;
+        if ($count < 1) {
+            return new JsonResponse(['error' => 'Teilnehmerzahl muss mindestens 1 sein'], 400);
+        }
+
+        $activity->setParticipantCount($count);
+
+        return null;
+    }
+
+    /**
      * Erstellt einen Snapshot des aktuellen Aktivitäts-Zustands
      */
     private function buildSnapshot(Activity $activity): array
@@ -3517,11 +4281,14 @@ class ActivityController extends AbstractController
             'planning_end' => $activity->getPlanningEnd()?->format('Y-m-d'),
             'address_id' => $activity->getAddressId(),
             'venue_address_id' => $activity->getVenueAddressId(),
+            'js_delivery_address_id' => $activity->getJsDeliveryAddressId(),
             'responsible_user_id' => $activity->getResponsibleUserId(),
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice(),
             'deposit_amount' => $activity->getDepositAmount(),
             'notes' => $activity->getNotes(),
+            'wants_js_material' => $activity->getWantsJsMaterial(),
+            'participant_count' => $activity->getParticipantCount(),
             'invited_departments' => $activity->getInvitedDepartments(),
             'rejection_comment' => $activity->getRejectionComment(),
         ];
@@ -3634,6 +4401,88 @@ class ActivityController extends AbstractController
         return in_array((string) ($membership->getRole() ?? ''), ['mw', 'dc'], true);
     }
 
+    /**
+     * J+S-Phasen für Aktivitäten-Liste: draft (Entwurf) · coach (an Coach) · return (Retour).
+     *
+     * @param list<Activity> $activities
+     *
+     * @return array<string, string>
+     */
+    private function buildJsListPhaseMap(array $activities): array
+    {
+        $activityIds = [];
+        foreach ($activities as $activity) {
+            if (!$activity instanceof Activity) {
+                continue;
+            }
+            if (!$activity->getWantsJsMaterial()) {
+                continue;
+            }
+            if (!\in_array((string) $activity->getType(), ['camp', 'event'], true)) {
+                continue;
+            }
+            $activityIds[] = $activity->getId();
+        }
+
+        if ($activityIds === []) {
+            return [];
+        }
+
+        /** @var list<ActivityJsOrder> $orders */
+        $orders = $this->entityManager->getRepository(ActivityJsOrder::class)
+            ->createQueryBuilder('o')
+            ->where('o.activity IN (:ids)')
+            ->setParameter('ids', $activityIds)
+            ->getQuery()
+            ->getResult();
+
+        $ordersByActivity = [];
+        foreach ($orders as $order) {
+            if (!$order instanceof ActivityJsOrder) {
+                continue;
+            }
+            $ordersByActivity[$order->getActivityId()] = $order;
+        }
+
+        $phases = [];
+        foreach ($activityIds as $activityId) {
+            $order = $ordersByActivity[$activityId] ?? null;
+            $phases[$activityId] = $this->resolveJsListPhase($order);
+        }
+
+        return $phases;
+    }
+
+    private function resolveJsListPhase(?ActivityJsOrder $order): string
+    {
+        if (!$order instanceof ActivityJsOrder || $order->getSubmittedToCoachAt() === null) {
+            return 'draft';
+        }
+
+        if (
+            $order->getReturnConfirmedAt() !== null
+            || $order->getStatus() === ActivityJsOrder::STATUS_FULFILLED
+        ) {
+            return 'return';
+        }
+
+        $formData = $order->getFormData() ?? [];
+        $block2 = \is_array($formData['block2'] ?? null) ? $formData['block2'] : [];
+        $deliveryRaw = trim((string) ($block2['delivery_date'] ?? ''));
+        if ($deliveryRaw !== '') {
+            try {
+                $deliveryDate = new \DateTimeImmutable($deliveryRaw);
+                if ($deliveryDate <= new \DateTimeImmutable('today')) {
+                    return 'return';
+                }
+            } catch (\Throwable) {
+                // Ungültiges Datum — Coach-Phase beibehalten
+            }
+        }
+
+        return 'coach';
+    }
+
     private function serializeActivity(Activity $activity, bool $detailed = false, ?User $viewer = null): array
     {
         // Gruppenname ggf. laden
@@ -3668,6 +4517,8 @@ class ActivityController extends AbstractController
             'pricing_mode' => $activity->getPricingMode(),
             'total_price' => $activity->getTotalPrice() ? (float) $activity->getTotalPrice() : null,
             'invited_departments' => $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments()),
+            'wants_js_material' => $activity->getWantsJsMaterial(),
+            'participant_count' => $activity->getParticipantCount(),
             'created_at' => $activity->getCreatedAt()->format('c'),
             'updated_at' => $activity->getUpdatedAt()->format('c'),
         ];
@@ -3685,6 +4536,7 @@ class ActivityController extends AbstractController
                 'planning_end' => $activity->getPlanningEnd()?->format('c'),
                 'address_id' => $activity->getAddressId(),
                 'venue_address_id' => $activity->getVenueAddressId(),
+                'js_delivery_address_id' => $activity->getJsDeliveryAddressId(),
                 'responsible_user_id' => $activity->getResponsibleUserId(),
                 'created_by_user_id' => $activity->getCreatedByUserId(),
                 'pricing_mode' => $activity->getPricingMode(),
@@ -3727,27 +4579,11 @@ class ActivityController extends AbstractController
         $existingCount = $this->entityManager->getRepository(ActivityPackItem::class)
             ->count(['activityId' => $activity->getId()]);
 
-        if ($existingCount > 0) return;
-
-        $activityItems = $this->entityManager->getRepository(ActivityItem::class)
-            ->findBy(['activityId' => $activity->getId()]);
-
-        foreach ($activityItems as $ai) {
-            $packItem = new ActivityPackItem();
-            $packItem->setId(IdGenerator::generate13('pk'));
-            $packItem->setActivity($activity);
-            $packItem->setMaterialItem($ai->getMaterialItem());
-            $packItem->setQuantityOrdered($ai->getQuantity());
-            $packItem->setQuantityPacked(0);
-            $packItem->setConditionOut('ok');
-
-            $user = $this->getUser();
-            if ($user instanceof User) {
-                $packItem->setPackedByUser($user);
-            }
-
-            $this->entityManager->persist($packItem);
+        if ($existingCount > 0) {
+            return;
         }
+
+        $this->resyncPackListFromActivityItems($activity);
     }
 
     /**

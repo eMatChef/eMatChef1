@@ -10,6 +10,7 @@ defineOptions({ name: 'PackIssueQuickActions' })
 const props = defineProps<{
   isConsumable: boolean
   materialItemId?: string
+  materialName?: string
   /** Verbrauch buchen anzeigen (false = nur Nachlieferung) */
   showConsumption?: boolean
 }>()
@@ -70,22 +71,22 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
       </EButton>
     </template>
     <template v-else-if="!isConsumable">
-      <EButton
-        variant="text"
-        size="x-small"
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-loss"
+        :title="t('activities.common.issueLoss')"
         @click.stop="emit('loss')"
       >
         {{ t('activities.common.issueLoss') }}
-      </EButton>
-      <EButton
-        variant="text"
-        size="x-small"
+      </button>
+      <button
+        type="button"
         class="btn-issue-quick btn-issue-repair"
+        :title="t('activities.common.issueRepair')"
         @click.stop="emit('repair')"
       >
         {{ t('activities.common.issueRepair') }}
-      </EButton>
+      </button>
     </template>
   </div>
 </template>

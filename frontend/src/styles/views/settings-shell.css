@@ -237,6 +237,7 @@
   padding: 12px;
   min-height: 600px;
   overflow-x: hidden;
+  overflow-y: visible;
 }
 
 @media (min-width: 960px) {

@@ -22,7 +22,10 @@ const { t } = useI18n()
     <div class="pack-workflow-section-title">{{ t(preset.titleKey) }}</div>
     <div
       class="pack-containers-section"
-      :class="{ 'pack-containers-section--at-event-select': preset.atEventSelect }"
+      :class="{
+        'pack-containers-section--at-event-select':
+          preset.atEventSelect || preset.crateTargetSelect,
+      }"
     >
       <div v-if="preset.showContainersHeading" class="pack-containers-heading">
         <span class="pack-containers-title text-muted">{{

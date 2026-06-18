@@ -42,6 +42,7 @@ import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityM
 import type { ActivityPeriodAvailabilityMaterial } from '@/components/activities/shared/activityAvailabilityMaterial'
 import type { ActivityCreateType, ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
+import { canRemoveStandaloneLine } from '@/utils/virtualComboMaterial'
 
 /** Nur angenommene Einladungen — Tab „Partner“ und API single/both */
 interface InvitedPartnerDepartment {
@@ -123,7 +124,17 @@ const invitedDepartmentsForLookup = computed(() =>
   })),
 )
 
-function onRemoveLine({ index }: { line: ActivityMaterialLine; index: number }) {
+function onRemoveLine({ line, index }: { line: ActivityMaterialLine; index: number }) {
+  if (line.material_type === 'virtual_combo') return
+  if (
+    line.material_type !== 'physical_combo' &&
+    !canRemoveStandaloneLine(line, props.modelValue, {
+      treatComboFloorAsChildCoverage: true,
+      baseMinQty: 1,
+    })
+  ) {
+    return
+  }
   emit(
     'update:modelValue',
     props.modelValue.filter((_, i) => i !== index),
@@ -134,11 +145,22 @@ function onAvailabilityAddQuantity(payload: {
   material: ActivityPeriodAvailabilityMaterial
   quantity: number
   selectedOptionIds?: string[]
+  packMode?: 'together' | 'loose'
+  selfProvidedAcknowledged?: boolean
+  configSnapshot?: import('@/api/activities').ComboConfigSnapshot
   combineParts?: Array<{ materialItemId: string; reduceBy: number }>
 }) {
   // „Kombinieren?": Reduktion + Hinzufügen in EINEM emit (sonst überschreibt das zweite das erste).
   const base = applyCombineReductions(props.modelValue, payload.combineParts)
-  addQty(base, payload.material, payload.quantity, payload.selectedOptionIds)
+  addQty(
+    base,
+    payload.material,
+    payload.quantity,
+    payload.selectedOptionIds,
+    payload.packMode,
+    payload.selfProvidedAcknowledged,
+    payload.configSnapshot,
+  )
 }
 
 function applyCombineReductions(
@@ -175,6 +197,9 @@ function addQty(
   m: ActivityPeriodAvailabilityMaterial,
   qty: number,
   selectedOptionIds?: string[],
+  packMode?: 'together' | 'loose',
+  selfProvidedAcknowledged?: boolean,
+  configSnapshot?: import('@/api/activities').ComboConfigSnapshot,
 ) {
   const raw = effectiveStock(m)
   let draftSum = 0
@@ -206,6 +231,9 @@ function addQty(
       pack_unit: lines[i].pack_unit ?? m.packUnit ?? undefined,
       // Konfigurator: zuletzt gewählte Konfiguration übernehmen (eine Eltern-Zeile je Kombo).
       ...(selectedOptionIds ? { material_type: m.materialType ?? undefined, selected_option_ids: selectedOptionIds } : {}),
+      ...(packMode ? { pack_mode: packMode } : {}),
+      ...(selfProvidedAcknowledged ? { self_provided_acknowledged: true } : {}),
+      ...(configSnapshot ? { config_snapshot: configSnapshot } : {}),
     }
   } else {
     lines.push({
@@ -217,6 +245,9 @@ function addQty(
       pack_size: m.packSize ?? undefined,
       pack_unit: m.packUnit ?? undefined,
       ...(selectedOptionIds ? { selected_option_ids: selectedOptionIds } : {}),
+      ...(packMode ? { pack_mode: packMode } : {}),
+      ...(selfProvidedAcknowledged ? { self_provided_acknowledged: true } : {}),
+      ...(configSnapshot ? { config_snapshot: configSnapshot } : {}),
     })
   }
   emit('update:modelValue', lines)

@@ -685,6 +685,16 @@ class TemplateController extends AbstractController
 
                 $mode = $input['mode'] ?? 'new'; // new oder existing
 
+                // Selbst mitbringen: kein Lager — nur Stücklisten-Hinweis für Aktivitäts-Besteller
+                if ($componentSource === 'self_provided') {
+                    $mode = 'new';
+                    $input = \is_array($input) ? $input : [];
+                    $input['mode'] = 'new';
+                    if (!isset($input['qty'])) {
+                        $input['qty'] = $requiredQty;
+                    }
+                }
+
                 // Optionale Komponente mit Menge 0 bzw. ohne SN: nichts anlegen (kein Artikel, keine Charge mit 0)
                 if (!$isVirtualCombo && $isOptional && $input !== null) {
                     if ($tracking === 'bulk') {
@@ -756,7 +766,11 @@ class TemplateController extends AbstractController
                 $componentBatch = null;
                 $qty = $input['qty'] ?? $requiredQty;
 
-                if ($isVirtualCombo) {
+                if ($componentSource === 'self_provided') {
+                    // Kein Bestand — nur Verknüpfung in der Stückliste
+                    $componentBatch = null;
+                    $qty = (int) ($input['qty'] ?? $requiredQty);
+                } elseif ($isVirtualCombo) {
                     // Virtuelle Kombo: keine Batches erstellen, nur Verknüpfung
                     $qty = $requiredQty;
                 } elseif ($mode === 'existing' && isset($input['batch_id'])) {
@@ -918,10 +932,14 @@ class TemplateController extends AbstractController
             }
 
             $actorId = $this->getActorUserId();
-            if (!$isIndividual && $comboMaterial) {
+            if (!$isIndividual && $comboMaterial && !$isVirtualCombo) {
                 $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, $actorId);
             }
-            if ($isPhysicalCombo && $comboMainBatch) {
+            if (
+                $isPhysicalCombo
+                && $comboMainBatch
+                && trim((string) $comboMainBatch->getSerialNumber()) !== ''
+            ) {
                 $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, $actorId);
             }
             foreach ($comboComponentMaterialsForPublicCode as $mat) {

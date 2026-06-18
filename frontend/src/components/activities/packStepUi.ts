@@ -1,7 +1,8 @@
+import { packCrateSectionShowsTargetSelect } from '@/components/activities/packWorkflowRules'
 import {
   isPackConfirmedStage,
   isPackForwardToEventStage,
-  isPackReturnPipelineStage,
+  isPackForwardWarehouseUiStage,
   isPackReturnStage,
   isPackUnpackStage,
   type PackStage,
@@ -21,6 +22,8 @@ export interface PackCrateSectionPreset {
   hintKey?: string
   ariaKey: string
   atEventSelect?: boolean
+  /** Grüne Ziel-Kisten-Markierung — aus `packCrateSectionShowsTargetSelect`. */
+  crateTargetSelect?: boolean
   showContainersHeading?: boolean
   emptyHintKey?: string
   cardMode: PackContainerCardMode
@@ -104,7 +107,7 @@ export const PACK_MIRROR_SECTION_TRANSPORT_BACK_DONE: PackMirrorSectionPreset = 
   cratesAriaKey: 'activities.packList.ariaContainersTransportBackMirror',
   looseSectionClass: 'pack-workflow-section--transport-back-loose',
   looseTitleKey: 'activities.packList.sectionLoose',
-  cardMode: 'at_event_return_mirror',
+  cardMode: 'warehouse_issue_mirror',
   containerDomIdPrefix: 'pack-container-transport-back-',
 }
 
@@ -141,14 +144,24 @@ export const PACK_MIRROR_SECTION_RETURN_DONE: PackMirrorSectionPreset = {
 }
 
 export function packCrateSectionPresetForLeft(stage: PackStage): PackCrateSectionPreset | null {
-  if (isPackForwardToEventStage(stage)) return PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT
-  if (isPackReturnPipelineStage(stage)) return PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT
+  if (isPackForwardWarehouseUiStage(stage)) {
+    return {
+      ...PACK_CRATE_SECTION_FORWARD_WAREHOUSE_LEFT,
+      crateTargetSelect: packCrateSectionShowsTargetSelect(stage, 'left'),
+    }
+  }
+  if (isPackReturnStage(stage)) return PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT
   if (isPackUnpackStage(stage)) return PACK_CRATE_SECTION_UNPACK_WAREHOUSE_LEFT
   return null
 }
 
 export function packCrateSectionPresetForRight(stage: PackStage): PackCrateSectionPreset | null {
-  if (isPackConfirmedStage(stage)) return PACK_CRATE_SECTION_CONFIRMED_PACKED_RIGHT
+  if (isPackConfirmedStage(stage)) {
+    return {
+      ...PACK_CRATE_SECTION_CONFIRMED_PACKED_RIGHT,
+      crateTargetSelect: packCrateSectionShowsTargetSelect(stage, 'right'),
+    }
+  }
   return null
 }
 

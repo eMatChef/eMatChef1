@@ -163,7 +163,9 @@ class SupplierTemplateImportService
                 }
             }
 
-            $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, null);
+            if ($isPhysicalCombo) {
+                $this->publicCodeService->ensureMaterialPublicCode($comboMaterial, null);
+            }
             if ($comboMainBatch instanceof MaterialBatch && $comboMainBatch->getSerialNumber()) {
                 $this->publicCodeService->ensureBatchPublicCode($comboMainBatch, null);
             }

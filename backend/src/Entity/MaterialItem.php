@@ -89,6 +89,10 @@ class MaterialItem
     #[ORM\Column(name: 'tent_capacity', type: 'integer', nullable: true)]
     private ?int $tentCapacity = null;
 
+    /** Plattform-Zeltblatt-Vorlage (z. B. spatz, phoenix) */
+    #[ORM\Column(name: 'repair_template_key', type: 'string', length: 50, nullable: true)]
+    private ?string $repairTemplateKey = null;
+
     /**
      * Referenz-Kiste (MaterialBatch): bei physischer Kombination aus Kisten-Inhalt erzeugt –
      * für späteren Abgleich Plan (Komponenten) vs. Ist (Inhalt der Kiste).
@@ -401,6 +405,9 @@ class MaterialItem
 
     public function getTentCapacity(): ?int { return $this->tentCapacity; }
     public function setTentCapacity(?int $tentCapacity): self { $this->tentCapacity = $tentCapacity; return $this; }
+
+    public function getRepairTemplateKey(): ?string { return $this->repairTemplateKey; }
+    public function setRepairTemplateKey(?string $repairTemplateKey): self { $this->repairTemplateKey = $repairTemplateKey; return $this; }
 
     public function getLinkedContainerBatchId(): ?string
     {

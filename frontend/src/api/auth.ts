@@ -85,6 +85,13 @@ export interface LoginResponse {
     organisation_id: string
     role: string
     is_primary: boolean
+    is_grossanlass?: boolean
+    grossanlass_config?: {
+      status: string
+      planned_event_start: string
+      planned_event_end?: string | null
+      main_activity_id?: string | null
+    }
   }>
   primary_department: string | null
   last_used_department: string | null
@@ -174,6 +181,13 @@ export interface UserDepartmentResponse {
     id: string
     name: string
     organisation_id: string
+    is_grossanlass?: boolean
+    grossanlass_config?: {
+      status: string
+      planned_event_start: string
+      planned_event_end?: string | null
+      main_activity_id?: string | null
+    }
   }
 }
 

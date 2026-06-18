@@ -6,14 +6,15 @@
         <span class="public-brand-text">eMatChef</span>
       </a>
       <div class="public-header-actions">
-        <button
+        <EButton
           v-if="!isPublicLoggedIn"
-          type="button"
-          class="public-login-btn"
+          variant="secondary"
+          size="small"
+          class="public-header-btn"
           @click="goToMainSite"
         >
           {{ t('public.lookup.toApp') }}
-        </button>
+        </EButton>
         <button
           v-else
           type="button"
@@ -71,13 +72,9 @@
         </dl>
 
         <div v-if="isPublicLoggedIn" class="public-material-app-link">
-          <button
-            type="button"
-            class="public-login-btn public-login-btn--primary"
-            @click="goToApp"
-          >
+          <EButton variant="primary" class="public-header-btn public-header-btn--primary" @click="goToApp">
             {{ lookupLoggedInActionLabel }}
-          </button>
+          </EButton>
         </div>
 
         <div v-if="showPublicContactForm" class="contact-collapsible">
@@ -120,34 +117,49 @@
                   {{ t('public.lookup.websiteHoneyLabel') }}
                   <input v-model="foundForm.website" type="text" name="website" tabindex="-1" autocomplete="off" />
                 </label>
-                <label class="found-label">
-                  {{ t('public.lookup.yourName') }} <span class="optional">({{ t('common.optional') }})</span>
-                  <input v-model="foundForm.sender_name" type="text" maxlength="120" :placeholder="t('public.lookup.yourNamePlaceholder')" />
-                </label>
-                <label class="found-label">
-                  {{ t('public.lookup.yourEmail') }} <span class="optional">({{ t('public.lookup.optionalForQuestions') }})</span>
-                  <input
-                    v-model="foundForm.sender_email"
-                    type="email"
-                    maxlength="200"
-                    :placeholder="t('public.lookup.yourEmailPlaceholder')"
-                  />
-                </label>
-                <label class="found-label">
-                  {{ t('public.lookup.messageLabel') }} <span class="req">*</span>
-                  <textarea
-                    v-model="foundForm.message"
-                    rows="4"
-                    maxlength="4000"
-                    required
-                    :placeholder="t('public.lookup.messagePlaceholder')"
-                  />
-                </label>
-                <p v-if="foundFormError" class="error found-form-msg">{{ foundFormError }}</p>
-                <p v-else-if="foundFormSuccess" class="found-form-msg success">{{ t('public.lookup.messageSentSuccess') }}</p>
-                <button type="submit" class="found-submit" :disabled="foundFormSubmitting">
+                <ETextField
+                  v-model="foundForm.sender_name"
+                  :label="`${t('public.lookup.yourName')} (${t('common.optional')})`"
+                  :placeholder="t('public.lookup.yourNamePlaceholder')"
+                  maxlength="120"
+                  hide-details
+                />
+                <ETextField
+                  v-model="foundForm.sender_email"
+                  type="email"
+                  :label="`${t('public.lookup.yourEmail')} (${t('public.lookup.optionalForQuestions')})`"
+                  :placeholder="t('public.lookup.yourEmailPlaceholder')"
+                  maxlength="200"
+                  hide-details
+                />
+                <ETextarea
+                  v-model="foundForm.message"
+                  :label="t('public.lookup.messageLabel')"
+                  :placeholder="t('public.lookup.messagePlaceholder')"
+                  rows="4"
+                  maxlength="4000"
+                  required
+                  hide-details
+                />
+                <v-alert
+                  v-if="foundFormError"
+                  type="error"
+                  variant="tonal"
+                  density="compact"
+                  class="found-form-alert"
+                  :text="foundFormError"
+                />
+                <v-alert
+                  v-else-if="foundFormSuccess"
+                  type="success"
+                  variant="tonal"
+                  density="compact"
+                  class="found-form-alert"
+                  :text="t('public.lookup.messageSentSuccess')"
+                />
+                <EButton type="submit" variant="primary" :loading="foundFormSubmitting" :disabled="foundFormSubmitting">
                   {{ foundFormSubmitting ? t('public.lookup.sending') : t('public.lookup.sendToMaintainer') }}
-                </button>
+                </EButton>
               </form>
             </div>
             <div v-else class="found-form-box found-form-unavailable">
@@ -178,6 +190,7 @@ import { useAuthStore } from '../../stores/auth'
 import EmcLogoMark from '../../components/brand/EmcLogoMark.vue'
 import PublicSiteFooter from '../../components/public/PublicSiteFooter.vue'
 import PublicUserIdentityChip from '../../components/public/PublicUserIdentityChip.vue'
+import { EButton, ETextField, ETextarea } from '@/components/form/base'
 import { PAGE_HEAD_KEYS } from '../../composables/usePageHead'
 import { usePageHeadStore } from '../../stores/pageHead'
 import { getAppEntryTarget, resolvePublicLinkOrigin } from '../../utils/appLoginUrl'
@@ -721,38 +734,7 @@ watch([lookupKind, matCodeParam, batchCodeParam], loadData)
 .found-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.found-label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: #334155;
-}
-
-.found-label input,
-.found-label textarea {
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font: inherit;
-}
-
-.found-label textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.found-label .optional {
-  font-weight: 400;
-  color: #64748b;
-  font-size: 0.85rem;
-}
-
-.found-label .req {
-  color: #b91c1c;
+  gap: 8px;
 }
 
 .found-label.hp {
@@ -763,30 +745,13 @@ watch([lookupKind, matCodeParam, batchCodeParam], loadData)
   overflow: hidden;
 }
 
-.found-submit {
-  align-self: flex-start;
-  padding: 10px 18px;
-  border-radius: 8px;
-  border: none;
-  background: #0f172a;
-  color: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.found-submit:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.found-form-msg.success {
-  color: #15803d;
+.found-form-alert {
   margin: 0;
 }
 
-.found-form-msg {
-  margin: 0;
-  font-size: 0.9rem;
+.public-header-btn {
+  text-transform: none;
+  letter-spacing: normal;
 }
 </style>
 

@@ -337,16 +337,78 @@
           <div v-else class="batch-wizard-stock">
           <!-- Wie Material-Wizard „Initialer Bestand“: Menge, Kaufdatum, Preis in einer Zeile -->
           <div class="form-row mb-2">
+            <div v-if="showBatchStockUnitReadonly" class="form-group span-full">
+              <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+              <div class="stock-unit-options stock-unit-options--readonly" role="group" aria-readonly="true">
+                <span
+                  v-for="opt in batchStockUnitOptions"
+                  :key="opt.value"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: readonlyStockUnit === opt.value }"
+                >
+                  {{ opt.label }}
+                </span>
+              </div>
+              <p class="batch-field-hint">{{ batchStockUnitDetailHint }}</p>
+              <p v-if="isEditMode" class="batch-field-hint">{{ t('components.batchModal.unitChangeInMaterialHint') }}</p>
+            </div>
+            <div v-else-if="showBatchStockUnitSelector" class="form-group span-full">
+              <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+              <div class="stock-unit-options" role="tablist">
+                <button
+                  v-for="opt in batchStockUnitOptions"
+                  :key="opt.value"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: batchStockUnit === opt.value }"
+                  @click="setBatchStockUnit(opt.value)"
+                >
+                  {{ opt.label }}
+                </button>
+              </div>
+              <p class="batch-field-hint">{{ batchStockUnitHint }}</p>
+            </div>
             <div class="form-group">
-              <label>{{ t('components.batchModal.quantity') }} <span class="required" v-if="!isEditMode">*</span></label>
+              <label>{{ quantityLabel }} <span class="required" v-if="!isEditMode">*</span></label>
+              <p v-if="batchMeterLengthHint" class="batch-field-hint">{{ batchMeterLengthHint }}</p>
+              <div v-if="showQtyEntryModes" class="qty-entry-modes" role="tablist">
+                <button
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'base' }"
+                  @click="setQtyEntryMode('base')"
+                >
+                  {{ stockUnitLabel }}
+                </button>
+                <button
+                  v-if="canUsePackEntry"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'pack' }"
+                  @click="setQtyEntryMode('pack')"
+                >
+                  {{ effectivePackUnitName }}
+                </button>
+                <button
+                  v-if="canUseContentEntry"
+                  type="button"
+                  class="qty-entry-mode-btn"
+                  :class="{ active: qtyEntryMode === 'content' }"
+                  @click="setQtyEntryMode('content')"
+                >
+                  m
+                </button>
+              </div>
               <input
-                v-model.number="form.qty"
+                v-model.number="displayQty"
                 type="number"
-                min="1"
+                :min="qtyInputMin"
+                :step="qtyInputStep"
                 class="form-input"
                 :class="{ 'is-invalid': submitted && form.qty < 1 }"
-                :placeholder="t('components.batchModal.qtyPlaceholderMin')"
+                :placeholder="qtyPlaceholder"
               />
+              <p v-if="qtyEntryHint" class="batch-field-hint">{{ qtyEntryHint }}</p>
             </div>
             <div class="form-group">
               <label>{{ t('components.batchModal.purchaseDate') }} <span class="required" v-if="!isEditMode">*</span></label>
@@ -364,13 +426,114 @@
               </div>
             </div>
             <div class="form-group">
-              <label>{{ t('components.batchModal.unitPriceChf') }}</label>
+              <label>
+                {{ unitPriceLabel }}
+                <span v-if="unitPriceOptional && !isEditMode" class="optional-label">({{ t('common.optional') }})</span>
+              </label>
               <div class="price-input">
                 <span class="currency">{{ t('components.batchModal.currency') }}</span>
                 <input v-model="form.unit_price" type="text" class="form-input" :placeholder="t('components.batchModal.pricePlaceholder')" />
               </div>
+              <p v-if="unitPriceOptional && !isEditMode" class="batch-field-hint">{{ unitPriceOptionalHint }}</p>
             </div>
           </div>
+
+          <template v-if="!isEditMode && batchAddPurchasePriceVisible">
+            <div class="slider-toggle-group pack-toggle-inline mt-2 mb-2">
+              <label class="toggle-label">
+                <span class="toggle-wrapper">
+                  <input
+                    type="checkbox"
+                    class="toggle-input"
+                    :checked="purchasePriceInputMode === 'total'"
+                    @change="onBatchPurchasePriceModeToggle"
+                  />
+                  <span class="toggle-slider toggle-slider--blue"></span>
+                </span>
+                <span class="toggle-text">
+                  <span class="toggle-title">{{ t('components.materialCreateWizard.toggleDistributeTotalTitle') }}</span>
+                  <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleDistributeTotalDesc') }}</span>
+                </span>
+              </label>
+              <transition name="slide-down">
+                <div v-if="purchasePriceInputMode === 'unit'" key="batch-pp-unit" class="form-row mt-2">
+                  <div class="form-group">
+                    <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
+                    <div class="price-input">
+                      <span class="currency">{{ t('components.batchModal.currency') }}</span>
+                      <input
+                        v-model="purchaseShippingChf"
+                        type="text"
+                        inputmode="decimal"
+                        class="form-input"
+                        :placeholder="t('components.batchModal.pricePlaceholder')"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div v-else key="batch-pp-total" class="slider-details pack-details mt-2">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('components.materialCreateWizard.labelPurchaseTotalWaresChf') }}</label>
+                      <div class="price-input">
+                        <span class="currency">{{ t('components.batchModal.currency') }}</span>
+                        <input
+                          v-model="purchaseTotalWaresChf"
+                          type="text"
+                          inputmode="decimal"
+                          class="form-input"
+                          :placeholder="t('components.batchModal.pricePlaceholder')"
+                        />
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
+                      <div class="price-input">
+                        <span class="currency">{{ t('components.batchModal.currency') }}</span>
+                        <input
+                          v-model="purchaseShippingChf"
+                          type="text"
+                          inputmode="decimal"
+                          class="form-input"
+                          :placeholder="t('components.batchModal.pricePlaceholder')"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <p v-if="batchPurchasePriceContextQty > 0" class="batch-field-hint">
+                    {{
+                      t('components.materialCreateWizard.hintDerivedUnitPrice', {
+                        price: batchEffectivePurchaseUnitPrice.toFixed(2),
+                        qty: batchPurchasePriceContextQty,
+                      })
+                    }}
+                  </p>
+                </div>
+              </transition>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label>{{ t('components.materialCreateWizard.labelInvoiceNumber') }}</label>
+                <input
+                  v-model="form.invoice_number"
+                  type="text"
+                  class="form-input"
+                  :placeholder="t('common.optional')"
+                />
+              </div>
+            </div>
+
+            <div v-if="departmentHasAccountingRole(departmentId)" class="form-row mt-2">
+              <div class="form-group full-width">
+                <PurchaseReceiptFileInput
+                  v-model="purchaseReceiptFile"
+                  :label="t('components.purchaseReceipt.label')"
+                  :hint="t('components.purchaseReceipt.hint')"
+                />
+              </div>
+            </div>
+          </template>
 
           <!-- Seriennummer(n) bei serialisierten Materialien (nur Bearbeiten) -->
           <template v-if="isSerializedMaterial && isEditMode">
@@ -417,7 +580,10 @@
           <div v-if="!isSerializedMaterial && form.split_allocations" class="batch-form-row">
             <div class="batch-form-group full-width">
               <div class="allocations-header">
-                <label>{{ t('components.batchModal.allocationsLabel', { qty: form.qty }) }}</label>
+                <div>
+                  <label>{{ t('components.batchModal.allocationsLabel', { qty: form.qty, unit: stockUnitLabel }) }}</label>
+                  <p class="batch-field-hint">{{ t('components.materialCreateWizard.allocationsModeHint') }}</p>
+                </div>
                 <button type="button" class="add-serial-btn" @click="addAllocationRow">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="12" y1="5" x2="12" y2="19"/>
@@ -447,11 +613,25 @@
                           :placeholder="t('components.batchModal.allocPlaceholder0')"
                         />
                       </td>
-                      <td>
-                        <select v-model="row.mode" class="batch-form-input form-select--sm" @change="row.rack_id = ''; row.slot_id = ''; row.container_batch_id = ''">
-                          <option value="slot">{{ t('components.batchModal.allocModeSlot') }}</option>
-                          <option value="kiste">{{ t('components.batchModal.allocModeBox') }}</option>
-                        </select>
+                      <td class="alloc-mode-cell">
+                        <div class="lagerung-switch lagerung-switch--compact" role="tablist">
+                          <button
+                            type="button"
+                            class="lagerung-btn"
+                            :class="{ active: row.mode === 'slot' }"
+                            @click="setAllocationRowMode(row, 'slot')"
+                          >
+                            {{ t('components.batchModal.storageModeSlot') }}
+                          </button>
+                          <button
+                            type="button"
+                            class="lagerung-btn"
+                            :class="{ active: row.mode === 'kiste' }"
+                            @click="setAllocationRowMode(row, 'kiste')"
+                          >
+                            {{ t('components.batchModal.storageModeBox') }}
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <template v-if="row.mode === 'slot'">
@@ -506,7 +686,7 @@
                 </table>
               </div>
               <p v-if="allocationRows.length > 0 && !allocationSumValid" class="batch-field-hint is-invalid">
-                {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum }) }}
+                {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum, unit: stockUnitLabel }) }}
               </p>
             </div>
           </div>
@@ -516,6 +696,26 @@
             v-if="!isSerializedAddMode && ((!isSerializedMaterial && !form.split_allocations) || (isSerializedMaterial && isEditMode))"
             class="batch-form-row"
           >
+            <div
+              v-if="isEditMode && comboStorageContext?.parentMaterialId"
+              class="batch-combo-storage-context"
+            >
+              <p class="batch-combo-storage-context-title">
+                {{ t('components.batchModal.comboStorageContextTitle') }}
+              </p>
+              <p class="batch-combo-storage-context-line">
+                <template v-if="comboStorageContext.containerDisplayName">
+                  {{ t('components.batchModal.comboStorageInContainer', { container: comboStorageContext.containerDisplayName }) }}
+                </template>
+                <template v-else>{{ t('components.batchModal.comboStoragePartOf') }}</template>
+                <RouterLink :to="comboDetailRoute" class="batch-combo-storage-link">
+                  {{ comboStorageContext.parentName }}
+                </RouterLink>
+              </p>
+              <p v-if="comboStorageContext.locationLabel" class="batch-field-hint">
+                {{ t('components.batchModal.comboStorageLocationDefault', { place: comboStorageContext.locationLabel }) }}
+              </p>
+            </div>
             <div class="batch-form-group full-width">
               <StorageLocationPicker
                 :show-storage-address="true"
@@ -648,10 +848,23 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import { enqueuePendingCostBookingAfterPurchase } from '@/composables/useCostBookingFollowUp'
-import { addBatch, updateBatch, type MaterialBatch, type AddBatchRequest, type UpdateBatchRequest, type AddBatchMultiResponse } from '@/api/materials'
+import {
+  departmentHasAccountingRole,
+  enqueuePendingCostBookingAfterPurchase,
+} from '@/composables/useCostBookingFollowUp'
+import PurchaseReceiptFileInput from '@/components/material/PurchaseReceiptFileInput.vue'
+import {
+  addBatch,
+  updateBatch,
+  updateMaterial,
+  type MaterialBatch,
+  type AddBatchRequest,
+  type UpdateBatchRequest,
+  type AddBatchMultiResponse,
+} from '@/api/materials'
 import { getAddresses, type Address } from '@/api/addresses'
 import {
   getContainerBatches,
@@ -677,6 +890,18 @@ import { useStorageStructure } from '@/composables/useStorageStructure'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import '@/styles/material-wizard.css'
 import type { ContainerBatch } from '@/api/storageLocations'
+import {
+  displayMeterStockUnitPrice,
+  getStockUnitKind,
+  getStockUnitLabel,
+  hasContentPerPiece,
+  isMeterStockUnit,
+  isPackagingUnit,
+  parseMaterialChfInput,
+  resolveStoredMeterStockUnitPrice,
+  sizeLengthCmToMeters,
+} from '@/utils/materialStockUnit'
+import type { BatchComboStorageContext } from '@/utils/batchComboStorageContext'
 
 interface Props {
   materialId: string
@@ -688,15 +913,29 @@ interface Props {
   isSerialized?: boolean
   materialName?: string
   existingBatches?: MaterialBatch[]
+  packUnit?: string | null
+  packSize?: number | null
+  sizeLengthCm?: string | number | null
+  referencePurchaseUnitChf?: string | number | null
+  /** Reparaturteile / Abschreibung: Preis nicht erzwingen */
+  unitPriceOptional?: boolean
+  /** Physische Kombi: Sack/Kiste + Gestell der Kombination als Standard-Lagerort */
+  comboStorageContext?: BatchComboStorageContext | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   batch: null,
   initialContainerBatchId: '',
+  comboStorageContext: null,
   trackingType: undefined,
   isSerialized: false,
   materialName: '',
-  existingBatches: () => []
+  existingBatches: () => [],
+  packUnit: null,
+  packSize: null,
+  sizeLengthCm: null,
+  referencePurchaseUnitChf: null,
+  unitPriceOptional: false,
 })
 
 const emit = defineEmits<{
@@ -709,6 +948,12 @@ const toast = useToast()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
+
+const comboDetailRoute = computed(() => {
+  const id = props.comboStorageContext?.parentMaterialId
+  if (!id) return { path: '/' }
+  return { path: `/${props.departmentId}/materials/${id}` }
+})
 
 const dialogOpen = ref(true)
 const dialogMaxWidth = computed(() => (isEditMode.value ? 520 : 920))
@@ -765,6 +1010,7 @@ const form = reactive({
   acquired_on: '',
   qty: 1,
   unit_price: '',
+  invoice_number: '',
   serial_number: '',
   label: '',
   storage_address_id: '',
@@ -775,6 +1021,333 @@ const form = reactive({
   notes: '',
   split_allocations: false
 })
+
+const purchasePriceInputMode = ref<'unit' | 'total'>('unit')
+const purchaseTotalWaresChf = ref('')
+const purchaseShippingChf = ref('')
+const purchaseReceiptFile = ref<File | null>(null)
+
+function parseBatchChfInput(s: string): number {
+  const n = parseFloat(String(s ?? '').replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(n) ? n : 0
+}
+
+const batchAddPurchasePriceVisible = computed(() => {
+  if (isEditMode.value) return false
+  if (isSerializedAddMode.value) {
+    return serialRows.value.some((e) => (e.serial_number || '').trim())
+  }
+  return (form.qty || 0) > 0
+})
+
+const batchPurchasePriceContextQty = computed(() => {
+  if (useMeterQtyByCount.value) {
+    return Math.max(0, displayQty.value)
+  }
+  if (isSerializedAddMode.value) {
+    return serialRows.value.filter((e) => (e.serial_number || '').trim()).length
+  }
+  return Math.max(0, Math.floor(Number(form.qty) || 0))
+})
+
+const batchEffectivePurchaseUnitPrice = computed(() => {
+  const qty = batchPurchasePriceContextQty.value
+  if (qty <= 0) return 0
+  const shipping = parseBatchChfInput(purchaseShippingChf.value)
+  if (purchasePriceInputMode.value === 'unit') {
+    const up = parseMaterialChfInput(form.unit_price)
+    if (up <= 0 && shipping <= 0) return 0
+    return Math.round((up + shipping / qty) * 100) / 100
+  }
+  const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + shipping
+  if (sum <= 0) return 0
+  return Math.round((sum / qty) * 100) / 100
+})
+
+function onBatchPurchasePriceModeToggle(event: Event) {
+  const el = event.target as HTMLInputElement | null
+  purchasePriceInputMode.value = el?.checked ? 'total' : 'unit'
+}
+
+watch(
+  [purchasePriceInputMode, purchaseTotalWaresChf, purchaseShippingChf, batchPurchasePriceContextQty],
+  () => {
+    if (purchasePriceInputMode.value !== 'total') return
+    const qty = batchPurchasePriceContextQty.value
+    if (qty <= 0) return
+    const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + parseBatchChfInput(purchaseShippingChf.value)
+    if (sum > 0) {
+      form.unit_price = (sum / qty).toFixed(2)
+    }
+  },
+)
+
+watch(purchasePriceInputMode, (m, prev) => {
+  if (m === 'total' && prev === 'unit') {
+    const qty = batchPurchasePriceContextQty.value
+    const up = parseMaterialChfInput(form.unit_price)
+    if (qty > 0 && up > 0 && !purchaseTotalWaresChf.value.trim()) {
+      purchaseTotalWaresChf.value = (up * qty).toFixed(2)
+    }
+  }
+  if (m === 'unit' && prev === 'total') {
+    purchaseTotalWaresChf.value = ''
+    purchaseShippingChf.value = ''
+  }
+})
+
+const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
+const batchStockUnit = ref<'Stk' | 'm'>('Stk')
+
+const batchStockUnitOptions = computed(() => [
+  { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
+  { value: 'm' as const, label: 'm' },
+])
+
+const meterPieceLengthM = computed(() => sizeLengthCmToMeters(props.sizeLengthCm))
+
+const batchMeterLengthHint = computed(() => {
+  const per = meterPieceLengthM.value
+  if (!isMeterStockUnit(effectivePackUnit.value) || per == null) return ''
+  return t('components.batchModal.meterQtyByCountHint', { per })
+})
+
+function initBatchStockUnitFromProps() {
+  const pu = (props.packUnit || '').trim()
+  batchStockUnit.value = pu === 'm' ? 'm' : 'Stk'
+}
+
+function setBatchStockUnit(unit: 'Stk' | 'm') {
+  batchStockUnit.value = unit
+  qtyEntryMode.value = 'base'
+}
+
+function setQtyEntryMode(mode: 'base' | 'pack' | 'content') {
+  qtyEntryMode.value = mode
+}
+
+const effectivePackUnit = computed((): string | null => {
+  if (isEditMode.value) return props.packUnit ?? null
+  if (batchStockUnit.value === 'm') return 'm'
+  if (isPackagingUnit(props.packUnit)) return props.packUnit ?? 'Stk'
+  return 'Stk'
+})
+
+const effectivePackSize = computed((): number | null => {
+  if (isEditMode.value) {
+    return props.packSize && props.packSize >= 2 ? props.packSize : null
+  }
+  if (batchStockUnit.value === 'm') return null
+  if (isPackagingUnit(props.packUnit) && props.packSize && props.packSize >= 2) {
+    return props.packSize
+  }
+  return null
+})
+
+const useMeterQtyByCount = computed(
+  () => isMeterStockUnit(effectivePackUnit.value) && meterPieceLengthM.value != null,
+)
+
+const effectivePackUnitName = computed(() => effectivePackUnit.value || '')
+
+const materialHasFixedStockUnit = computed(() => {
+  const pu = (props.packUnit || '').trim()
+  return pu === 'm' || pu === 'm²'
+})
+
+const showBatchStockUnitSelector = computed(
+  () => !isEditMode.value && !isSerializedAddMode.value && !materialHasFixedStockUnit.value,
+)
+
+const showBatchStockUnitReadonly = computed(
+  () => (isEditMode.value || materialHasFixedStockUnit.value) && !isSerializedAddMode.value,
+)
+
+const readonlyStockUnit = computed((): 'Stk' | 'm' => {
+  const pu = (props.packUnit || '').trim()
+  if (pu === 'm') return 'm'
+  if (!isEditMode.value) return batchStockUnit.value
+  return 'Stk'
+})
+
+const batchStockUnitDetailHint = computed(() => {
+  const pu = props.packUnit
+  const ps = props.packSize
+  if (isMeterStockUnit(pu)) {
+    const per = meterPieceLengthM.value
+    if (per != null) {
+      return t('components.batchModal.unitHintMeterWithLength', { per })
+    }
+    return t('components.materialDetail.stockUnitLengthRequired')
+  }
+  if (isPackagingUnit(pu) && ps && ps >= 2) {
+    return t('components.batchModal.unitHintPackaging', { pack: pu, size: ps })
+  }
+  return t('components.materialCreateWizard.stockUnitHintStk')
+})
+
+const batchStockUnitHint = computed(() => {
+  if (!showBatchStockUnitSelector.value) return ''
+  if (batchStockUnit.value === 'm') return t('components.materialDetail.stockUnitHintMeterWithLength')
+  return t('components.materialCreateWizard.stockUnitHintStk')
+})
+
+const stockUnitLabel = computed(() => getStockUnitLabel(effectivePackUnit.value))
+
+const canUsePackEntry = computed(
+  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
+)
+const canUseContentEntry = computed(() =>
+  hasContentPerPiece(effectivePackUnit.value, effectivePackSize.value),
+)
+const showQtyEntryModes = computed(
+  () => canUsePackEntry.value || canUseContentEntry.value,
+)
+
+const quantityLabel = computed(() => {
+  if (useMeterQtyByCount.value) return t('components.batchModal.quantityCountLabel')
+  return t('components.batchModal.quantityWithUnit', { unit: stockUnitLabel.value })
+})
+
+const unitPriceLabel = computed(() => {
+  const per = meterPieceLengthM.value
+  if (useMeterQtyByCount.value && per != null) {
+    return t('components.batchModal.unitPricePerPiece', { per })
+  }
+  return t('components.batchModal.unitPricePerUnit', { unit: stockUnitLabel.value })
+})
+
+const unitPriceOptionalHint = computed(() => {
+  const per = meterPieceLengthM.value
+  if (useMeterQtyByCount.value && per != null) {
+    return t('components.batchModal.unitPricePerPieceHint', { per })
+  }
+  return t('components.batchModal.unitPriceOptionalHint', { unit: stockUnitLabel.value })
+})
+
+function resolveBatchUnitPriceForPayload(): string | null {
+  return resolveStoredMeterStockUnitPrice(
+    form.unit_price,
+    useMeterQtyByCount.value,
+    meterPieceLengthM.value,
+  )
+}
+
+const qtyInputMin = computed(() => (qtyEntryMode.value === 'content' ? 1 : 1))
+const qtyInputStep = computed(() =>
+  qtyEntryMode.value === 'content' || getStockUnitKind(effectivePackUnit.value) !== 'piece' ? 1 : 1,
+)
+
+const qtyPlaceholder = computed(() => {
+  if (useMeterQtyByCount.value) {
+    return t('components.batchModal.qtyPlaceholderCount')
+  }
+  if (qtyEntryMode.value === 'pack' && effectivePackUnitName.value) {
+    return t('components.batchModal.qtyPlaceholderPack', { unit: effectivePackUnitName.value })
+  }
+  if (qtyEntryMode.value === 'content' || isMeterStockUnit(effectivePackUnit.value)) {
+    return t('components.batchModal.qtyPlaceholderMeters')
+  }
+  return t('components.batchModal.qtyPlaceholderMin')
+})
+
+const displayQty = computed({
+  get(): number {
+    const per = meterPieceLengthM.value
+    if (useMeterQtyByCount.value && per) {
+      return form.qty > 0 ? Math.max(1, Math.round(form.qty / per)) : 1
+    }
+    const size = effectivePackSize.value || 0
+    if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && size > 0) {
+      return Math.max(1, Math.round(form.qty / size)) || 1
+    }
+    if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+      return form.qty * size
+    }
+    return form.qty
+  },
+  set(raw: number) {
+    const n = Number(raw)
+    const per = meterPieceLengthM.value
+    if (useMeterQtyByCount.value && per) {
+      if (!Number.isFinite(n) || n < 1) {
+        form.qty = Math.max(1, Math.round(per))
+        return
+      }
+      form.qty = Math.max(1, Math.round(n * per))
+      return
+    }
+    const size = effectivePackSize.value || 0
+    if (!Number.isFinite(n) || n < 1) {
+      form.qty = 1
+      return
+    }
+    if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && size > 0) {
+      form.qty = Math.max(1, Math.round(n * size))
+      return
+    }
+    if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+      form.qty = Math.max(1, Math.round(n / size))
+      return
+    }
+    form.qty = Math.max(1, Math.round(n))
+  },
+})
+
+const qtyEntryHint = computed(() => {
+  const per = meterPieceLengthM.value
+  if (useMeterQtyByCount.value && per) {
+    return t('components.batchModal.meterQtyTotalHint', {
+      count: displayQty.value,
+      per,
+      total: form.qty,
+    })
+  }
+  const size = effectivePackSize.value || 0
+  const packName = effectivePackUnitName.value
+  if (qtyEntryMode.value === 'pack' && canUsePackEntry.value && packName) {
+    return t('components.batchModal.qtyHintPack', {
+      count: displayQty.value,
+      unit: packName,
+      total: form.qty,
+      stockUnit: stockUnitLabel.value,
+    })
+  }
+  if (qtyEntryMode.value === 'content' && canUseContentEntry.value && size > 0) {
+    return t('components.batchModal.qtyHintContent', {
+      meters: displayQty.value,
+      per: size,
+      pieces: form.qty,
+    })
+  }
+  if (canUseContentEntry.value && qtyEntryMode.value === 'base') {
+    return t('components.batchModal.qtyHintPerPiece', { per: size, unit: 'm' })
+  }
+  if (canUsePackEntry.value && qtyEntryMode.value === 'base' && packName) {
+    return t('components.batchModal.qtyHintPackSize', { per: size, unit: packName })
+  }
+  return ''
+})
+
+function resolveBatchPackFieldsForSave(): { pack_unit: string | null; pack_size: number | null } {
+  if (isEditMode.value) {
+    return { pack_unit: props.packUnit || null, pack_size: props.packSize ?? null }
+  }
+  if (batchStockUnit.value === 'm') {
+    return { pack_unit: 'm', pack_size: null }
+  }
+  if (isPackagingUnit(props.packUnit || '') && props.packSize && props.packSize >= 2) {
+    return { pack_unit: props.packUnit || null, pack_size: props.packSize }
+  }
+  return { pack_unit: 'Stk', pack_size: null }
+}
+
+function batchPackFieldsChanged(): boolean {
+  const next = resolveBatchPackFieldsForSave()
+  const curUnit = (props.packUnit || '').trim() || null
+  const curSize = props.packSize && props.packSize >= 2 ? props.packSize : null
+  return next.pack_unit !== curUnit || next.pack_size !== curSize
+}
 
 /** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
 const stockLocationMode = ref<'slot' | 'kiste'>('slot')
@@ -1047,6 +1620,17 @@ const allocationRows = ref<AllocationRow[]>([])
 const containerBatches = ref<ContainerBatch[]>([])
 const prefilledContainerMode = ref(false)
 
+function applyComboStorageDefaults(): void {
+  const ctx = props.comboStorageContext
+  if (!ctx?.rackId || form.rack_id) return
+  form.rack_id = ctx.rackId
+  form.slot_id = ctx.slotId || ''
+  const rack = racks.value.find((r) => r.id === ctx.rackId)
+  if (rack?.storage_address_id) {
+    form.storage_address_id = rack.storage_address_id
+  }
+}
+
 function getTodayIsoDate(): string {
   const now = new Date()
   const y = now.getFullYear()
@@ -1134,10 +1718,19 @@ function pickPreferredLocation(): void {
   }
 }
 
+function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
+  if (row.mode === mode) return
+  row.mode = mode
+  row.rack_id = ''
+  row.slot_id = ''
+  row.container_batch_id = ''
+}
+
 function addAllocationRow() {
+  const lastMode = allocationRows.value[allocationRows.value.length - 1]?.mode ?? 'slot'
   allocationRows.value.push({
     id: ++allocationIdCounter,
-    mode: 'slot',
+    mode: lastMode,
     storage_address_id: '',
     rack_id: '',
     slot_id: '',
@@ -1283,7 +1876,11 @@ onMounted(async () => {
     // Edit-Modus: Werte aus bestehendem Batch übernehmen
     form.acquired_on = props.batch.acquired_on || ''
     form.qty = props.batch.qty
-    form.unit_price = props.batch.unit_price || ''
+    form.unit_price = displayMeterStockUnitPrice(
+      props.batch.unit_price,
+      useMeterQtyByCount.value,
+      meterPieceLengthM.value,
+    )
     form.serial_number = props.batch.serial_number || ''
     form.label = (props.batch as any).label || ''
     form.rack_id = props.batch.rack_id || ''
@@ -1292,6 +1889,8 @@ onMounted(async () => {
     if (form.rack_id) {
       const selectedRack = racks.value.find((rack) => rack.id === form.rack_id)
       form.storage_address_id = selectedRack?.storage_address_id || ''
+    } else {
+      applyComboStorageDefaults()
     }
     // Lieferant aus Batch vorbelegen (wenn vorhanden)
     if ((props.batch as any).supplier_id) {
@@ -1304,7 +1903,21 @@ onMounted(async () => {
     }
   } else {
     form.acquired_on = getTodayIsoDate()
+    form.invoice_number = ''
     pickPreferredLocation()
+    initBatchStockUnitFromProps()
+    purchasePriceInputMode.value = 'unit'
+    purchaseTotalWaresChf.value = ''
+    purchaseShippingChf.value = ''
+    purchaseReceiptFile.value = null
+    const refPrice = props.referencePurchaseUnitChf
+    if (refPrice != null && String(refPrice).trim() !== '') {
+      form.unit_price = displayMeterStockUnitPrice(
+        refPrice,
+        useMeterQtyByCount.value,
+        meterPieceLengthM.value,
+      )
+    }
   }
 
   if (isSerializedAddMode.value) {
@@ -1331,6 +1944,18 @@ onMounted(async () => {
     await prefetchSlotPreviewsForRack(form.rack_id)
   }
 })
+
+watch(
+  () => props.comboStorageContext,
+  async (ctx) => {
+    if (!isEditMode.value || !ctx || form.rack_id) return
+    applyComboStorageDefaults()
+    if (form.rack_id) {
+      await fetchSlotsEnsuringDefault(form.rack_id)
+      await prefetchSlotPreviewsForRack(form.rack_id)
+    }
+  },
+)
 
 watch(serialLocationSameForAll, async (same) => {
   if (same || !isSerializedAddMode.value) return
@@ -1457,16 +2082,19 @@ async function handleAddressSaved() {
 }
 
 function batchAddUnitPricePositive(): boolean {
-  const raw = String(form.unit_price || '').replace(/\s/g, '').replace(',', '.')
-  const up = parseFloat(raw)
-  return Number.isFinite(up) && up > 0
+  return parseMaterialChfInput(form.unit_price) > 0
+}
+
+function batchAddUnitPriceValid(): boolean {
+  if (props.unitPriceOptional) return true
+  return batchAddUnitPricePositive()
 }
 
 const canSubmit = computed(() => {
   if (isEditMode.value) {
     return form.qty >= 1
   }
-  if (!batchAddUnitPricePositive()) return false
+  if (!batchAddUnitPriceValid()) return false
   if (!form.acquired_on) return false
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) return false
@@ -1485,7 +2113,7 @@ const canSubmit = computed(() => {
 
 const missingFields = computed(() => {
   const missing: string[] = []
-  if (!isEditMode.value && !batchAddUnitPricePositive()) {
+  if (!isEditMode.value && !props.unitPriceOptional && !batchAddUnitPricePositive()) {
     missing.push(t('components.batchModal.valUnitPrice'))
   }
   if (!isEditMode.value && !form.acquired_on) {
@@ -1519,14 +2147,21 @@ function formatDate(dateStr: string): string {
 
 function computeBatchAddPurchaseTotalChf(): number {
   if (isEditMode.value) return 0
-  const raw = String(form.unit_price || '').replace(/\s/g, '').replace(',', '.')
-  const up = parseFloat(raw)
-  if (!Number.isFinite(up) || up <= 0) return 0
+  const shipping = parseBatchChfInput(purchaseShippingChf.value)
+  if (purchasePriceInputMode.value === 'total') {
+    const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + shipping
+    return sum > 0 ? sum : 0
+  }
+  const up = parseMaterialChfInput(form.unit_price)
+  if (up <= 0 && shipping <= 0) return 0
   if (isSerializedAddMode.value) {
     const n = serialRows.value.filter((e) => (e.serial_number || '').trim()).length
-    return up * n
+    return up * n + shipping
   }
-  return up * (form.qty || 0)
+  if (useMeterQtyByCount.value) {
+    return up * displayQty.value + shipping
+  }
+  return up * (form.qty || 0) + shipping
 }
 
 function batchIdFromAddBatchResult(r: MaterialBatch | AddBatchMultiResponse): string | undefined {
@@ -1601,7 +2236,8 @@ async function handleSubmit() {
       // Update
       const payload: UpdateBatchRequest = {}
       if (form.qty !== props.batch.qty) payload.qty = form.qty
-      if (form.unit_price !== (props.batch.unit_price || '')) payload.unit_price = form.unit_price || null
+      const resolvedUnitPrice = resolveBatchUnitPriceForPayload()
+      if (resolvedUnitPrice !== (props.batch.unit_price || '')) payload.unit_price = resolvedUnitPrice
       if (form.notes !== (props.batch.notes || '')) payload.notes = form.notes || null
       if (form.serial_number !== (props.batch.serial_number || '')) payload.serial_number = form.serial_number || null
       if (form.rack_id !== (props.batch.rack_id || '')) payload.rack_id = form.rack_id || null
@@ -1617,7 +2253,7 @@ async function handleSubmit() {
         const qty = rows.length
         const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes'> = {
           acquired_on: form.acquired_on,
-          unit_price: form.unit_price || null,
+          unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
         }
@@ -1678,7 +2314,7 @@ async function handleSubmit() {
         const payload: AddBatchRequest = {
           qty: form.qty,
           acquired_on: form.acquired_on,
-          unit_price: form.unit_price || null,
+          unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
           ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
@@ -1703,6 +2339,14 @@ async function handleSubmit() {
 
         result = await addBatch(props.materialId, payload)
       }
+
+      if (batchPackFieldsChanged()) {
+        const packFields = resolveBatchPackFieldsForSave()
+        await updateMaterial(props.materialId, {
+          pack_unit: packFields.pack_unit,
+          pack_size: packFields.pack_size,
+        })
+      }
     }
 
     if (!isEditMode.value) {
@@ -1714,6 +2358,8 @@ async function handleSubmit() {
           purchaseDateIso: form.acquired_on || undefined,
           receiptHint: props.materialName ? t('components.batchModal.receiptHint', { name: props.materialName }) : undefined,
           materialBatchId: batchId ?? null,
+          materialItemId: props.materialId,
+          receiptFile: purchaseReceiptFile.value,
         })
       ) {
         toast.info(t('components.batchModal.costBookingInfo'))
@@ -1733,6 +2379,29 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
+.qty-entry-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.qty-entry-mode-btn {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.qty-entry-mode-btn.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .batch-modal-body--dialog {
   padding: 0;
 }
@@ -2186,5 +2855,37 @@ async function handleSubmit() {
 
 .batch-autocomplete-item.batch-ac-create .batch-ac-name {
   color: #059669;
+}
+
+.batch-combo-storage-context {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.batch-combo-storage-context-title {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0c4a6e;
+}
+
+.batch-combo-storage-context-line {
+  margin: 0 0 4px;
+  font-size: 0.875rem;
+  color: #334155;
+}
+
+.batch-combo-storage-link {
+  margin-left: 0.25rem;
+  font-weight: 600;
+  color: #0369a1;
+  text-decoration: none;
+}
+
+.batch-combo-storage-link:hover {
+  text-decoration: underline;
 }
 </style>

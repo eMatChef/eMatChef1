@@ -245,6 +245,120 @@ trait InboxMessageKindsTrait
         $this->deleteDepartmentInviteByInviteId($departmentId, $userId, $inviteId);
     }
 
+    // --- Grossanlass Chief-MW assigned ---
+
+    public function notifyGrossanlassMwAssigned(
+        User $user,
+        Department $department,
+        \App\Entity\DepartmentGrossanlassConfig $config,
+        ?string $senderUserId = null,
+    ): void {
+        $deptId = $department->getId();
+        $dashboardUrl = '/' . $deptId . '/dashboard';
+
+        $row = new InboxMessage();
+        $row->setId(IdGenerator::generateUnique($this->entityManager, InboxMessage::class));
+        $row->setDepartment($department);
+        $row->setCategory(InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED);
+        $row->setType('grossanlass_mw_assigned');
+        $row->setRecipientScope(InboxMessage::RECIPIENT_USER);
+        $row->setRecipientUserId($user->getId());
+        $row->setSenderUserId($senderUserId);
+        $row->setSubject($department->getName());
+        $row->setPayload([
+            'department_id' => $deptId,
+            'department_name' => $department->getName(),
+            'role' => 'mw',
+            'is_grossanlass' => true,
+            'dashboard_url' => $dashboardUrl,
+            'planned_event_start' => $config->getPlannedEventStart()->format(\DateTimeInterface::ATOM),
+            'planned_event_end' => $config->getPlannedEventEnd()?->format(\DateTimeInterface::ATOM),
+        ]);
+
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listGrossanlassMwAssignedForUser(string $userId, string $bucket = 'all', int $limit = 50): array
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
+            ->orderBy('m.createdAt', 'DESC')
+            ->setMaxResults(max(1, min($limit, 100)));
+
+        if ($bucket === 'unread') {
+            $qb->andWhere('m.readAt IS NULL');
+        } elseif ($bucket === 'read') {
+            $qb->andWhere('m.readAt IS NOT NULL');
+        }
+
+        $rows = $qb->getQuery()->getResult();
+
+        return array_map(fn (InboxMessage $m) => $this->toGrossanlassMwAssignedArray($m), $rows);
+    }
+
+    public function countUnreadGrossanlassMwAssigned(string $userId): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->select('COUNT(m.id)')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->andWhere('m.readAt IS NULL')
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function markGrossanlassMwAssignedRead(string $userId, string $notificationId): bool
+    {
+        $row = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.id = :id')
+            ->andWhere('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('id', $notificationId)
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_MW_ASSIGNED)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$row) {
+            return false;
+        }
+        $row->setReadAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toGrossanlassMwAssignedArray(InboxMessage $m): array
+    {
+        $p = $m->getPayload();
+
+        return array_merge($p, [
+            'id' => $m->getId(),
+            'type' => 'grossanlass_mw_assigned',
+            'read' => $m->isRead(),
+            'read_at' => $m->getReadAt()?->format(\DateTimeInterface::ATOM),
+            'created_at' => $m->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ]);
+    }
+
     // --- Invite accepted (for inviter) ---
 
     /**
@@ -512,6 +626,100 @@ trait InboxMessageKindsTrait
             ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    // --- Workshop order reminders ---
+
+    public function syncWorkshopOrderReminder(
+        Department $department,
+        string $sourceRefId,
+        string $ticketId,
+        array $line,
+        \DateTime $reminderDate,
+    ): void {
+        $existing = $this->findWorkshopOrderReminderInbox($department->getId(), $sourceRefId);
+        $row = $existing ?? new InboxMessage();
+        if ($existing === null) {
+            $row->setId(IdGenerator::generateUnique($this->entityManager, InboxMessage::class));
+            $this->entityManager->persist($row);
+        }
+
+        $materialName = trim((string) ($line['material_name'] ?? 'Ersatzteil'));
+
+        $row->setDepartment($department);
+        $row->setCategory(InboxMessage::CATEGORY_WORKSHOP_ORDER_REMINDER);
+        $row->setType('workshop_purchase');
+        $row->setRecipientScope(InboxMessage::RECIPIENT_DEPARTMENT_MW);
+        $row->setSourceRefId($sourceRefId);
+        $row->setWorkflowStatus(InboxMessage::WORKFLOW_PENDING);
+        $row->setSubject('Bestellung: ' . $materialName);
+        $row->setPayload([
+            'ticket_id' => $ticketId,
+            'line_id' => $line['id'] ?? null,
+            'material_name' => $materialName,
+            'quantity' => $line['quantity'] ?? null,
+            'purchase_location' => $line['purchase_location'] ?? null,
+            'reminder_date' => $reminderDate->format('Y-m-d'),
+            'ordered_at' => $line['ordered_at'] ?? null,
+        ]);
+
+        $this->entityManager->flush();
+    }
+
+    public function removeWorkshopOrderReminderInbox(string $sourceRefId): void
+    {
+        $this->entityManager->createQueryBuilder()
+            ->delete(InboxMessage::class, 'm')
+            ->where('m.sourceRefId = :ref')
+            ->andWhere('m.category = :cat')
+            ->setParameter('ref', $sourceRefId)
+            ->setParameter('cat', InboxMessage::CATEGORY_WORKSHOP_ORDER_REMINDER)
+            ->getQuery()
+            ->execute();
+    }
+
+    public function ensureDueWorkshopOrderReminders(): int
+    {
+        $today = (new \DateTime())->format('Y-m-d');
+        $rows = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.category = :cat')
+            ->andWhere('m.workflowStatus = :pending')
+            ->setParameter('cat', InboxMessage::CATEGORY_WORKSHOP_ORDER_REMINDER)
+            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
+            ->getQuery()
+            ->getResult();
+
+        $due = 0;
+        foreach ($rows as $row) {
+            if (!$row instanceof InboxMessage) {
+                continue;
+            }
+            $payload = $row->getPayload();
+            $reminderDate = (string) ($payload['reminder_date'] ?? '');
+            if ($reminderDate !== '' && $reminderDate <= $today) {
+                ++$due;
+            }
+        }
+
+        return $due;
+    }
+
+    private function findWorkshopOrderReminderInbox(string $departmentId, string $sourceRefId): ?InboxMessage
+    {
+        return $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('IDENTITY(m.department) = :deptId')
+            ->andWhere('m.sourceRefId = :ref')
+            ->andWhere('m.category = :cat')
+            ->setParameter('deptId', $departmentId)
+            ->setParameter('ref', $sourceRefId)
+            ->setParameter('cat', InboxMessage::CATEGORY_WORKSHOP_ORDER_REMINDER)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     // --- Serializers ---

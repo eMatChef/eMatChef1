@@ -47,6 +47,27 @@
   margin: 6px 0 0;
 }
 
+.activity-pack-journey-beta-link {
+  margin-bottom: 8px;
+  text-align: right;
+}
+
+.activity-pack-journey-beta-link__anchor {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: rgb(var(--v-theme-primary));
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.activity-pack-journey-beta-link__anchor:hover {
+  text-decoration: underline;
+}
+
 .activity-pack-readonly-hint--handoff {
   max-width: 52rem;
   line-height: 1.45;
@@ -622,21 +643,16 @@
   border-color: var(--color-primary-dark);
 }
 
-/* Kiste als Ziel: Pfeil dreht sich, Position bleibt gleich */
+/* Kiste als Ziel: echter ↑-Pfeil in Kisten-Grün */
 .btn-move-arrow--into-crate {
-  background: var(--color-primary-light);
-  border-color: var(--color-primary);
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
 }
 
 .btn-move-arrow--into-crate:hover {
-  background: var(--color-primary);
-  border-color: var(--color-primary-dark);
-}
-
-.btn-move-arrow--into-crate .v-icon {
-  transform: rotate(-90deg);
-  transform-origin: center center;
-  transition: transform 0.15s ease;
+  background: #15803d;
+  border-color: #15803d;
 }
 
 .pack-card-actions-left {
@@ -719,9 +735,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  border-radius: 5px;
-  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s;
@@ -731,6 +747,7 @@
   letter-spacing: normal;
   min-width: auto !important;
   height: auto !important;
+  line-height: 1.25;
 }
 
 .btn-issue-loss {

@@ -183,6 +183,93 @@ export async function saveActivityDefaults(departmentId: string, defaults: Activ
   })
 }
 
+export type JsMaterialDeliveryType = 'franko' | 'pickup_thun'
+
+/** Department-Defaults für J+S-Bestellformular (Camp/Event) */
+export interface JsMaterialDepartmentDefaults {
+  defaultCoachPersonNr: string
+  defaultCoachFirstName: string
+  defaultCoachLastName: string
+  defaultCoachEmail: string
+  defaultDeliveryType: JsMaterialDeliveryType
+}
+
+export const DEFAULT_JS_MATERIAL_SETTINGS: JsMaterialDepartmentDefaults = {
+  defaultCoachPersonNr: '',
+  defaultCoachFirstName: '',
+  defaultCoachLastName: '',
+  defaultCoachEmail: '',
+  defaultDeliveryType: 'franko',
+}
+
+export async function getJsMaterialDepartmentDefaults(
+  departmentId: string,
+): Promise<JsMaterialDepartmentDefaults> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'js')
+  const delivery = String(raw['js.default_delivery_type'] || 'franko').trim()
+  return {
+    defaultCoachPersonNr: String(raw['js.default_coach_person_nr'] || '').trim(),
+    defaultCoachFirstName: String(raw['js.default_coach_first_name'] || '').trim(),
+    defaultCoachLastName: String(raw['js.default_coach_last_name'] || '').trim(),
+    defaultCoachEmail: String(raw['js.default_coach_email'] || '').trim(),
+    defaultDeliveryType: delivery === 'pickup_thun' ? 'pickup_thun' : 'franko',
+  }
+}
+
+export async function saveJsMaterialDepartmentDefaults(
+  departmentId: string,
+  settings: JsMaterialDepartmentDefaults,
+): Promise<Record<string, string>> {
+  const delivery: JsMaterialDeliveryType =
+    settings.defaultDeliveryType === 'pickup_thun' ? 'pickup_thun' : 'franko'
+  return updateDepartmentSettings(departmentId, {
+    'js.default_coach_person_nr': settings.defaultCoachPersonNr.trim(),
+    'js.default_coach_first_name': settings.defaultCoachFirstName.trim(),
+    'js.default_coach_last_name': settings.defaultCoachLastName.trim(),
+    'js.default_coach_email': settings.defaultCoachEmail.trim(),
+    'js.default_delivery_type': delivery,
+  })
+}
+
+export type WorkshopOrderReminderMode = 'days' | 'document_date'
+
+/** Werkstatt-Einstellungen (Materialwart-Workflow 2026) */
+export interface WorkshopSettings {
+  hourlyRateChf: string
+  orderReminderDays: number
+  orderReminderMode: WorkshopOrderReminderMode
+  sparePartsCategoryId: string
+}
+
+export const DEFAULT_WORKSHOP_SETTINGS: WorkshopSettings = {
+  hourlyRateChf: '45.00',
+  orderReminderDays: 7,
+  orderReminderMode: 'days',
+  sparePartsCategoryId: '',
+}
+
+export async function getWorkshopSettings(departmentId: string): Promise<WorkshopSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'workshop')
+  const mode = String(raw['workshop.order_reminder_mode'] || 'days').trim()
+  return {
+    hourlyRateChf: raw['workshop.hourly_rate_chf'] || DEFAULT_WORKSHOP_SETTINGS.hourlyRateChf,
+    orderReminderDays: parseInt(raw['workshop.order_reminder_days'] || '7', 10),
+    orderReminderMode: mode === 'document_date' ? 'document_date' : 'days',
+    sparePartsCategoryId: String(raw['workshop.spare_parts_category_id'] || '').trim(),
+  }
+}
+
+export async function saveWorkshopSettings(
+  departmentId: string,
+  settings: WorkshopSettings,
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'workshop.hourly_rate_chf': settings.hourlyRateChf,
+    'workshop.order_reminder_days': String(settings.orderReminderDays),
+    'workshop.order_reminder_mode': settings.orderReminderMode,
+  })
+}
+
 export async function getRentalAmortizationDefaults(departmentId: string): Promise<RentalAmortizationDefaults> {
   const raw = await getDepartmentSettingsGroup(departmentId, 'rental')
   return {

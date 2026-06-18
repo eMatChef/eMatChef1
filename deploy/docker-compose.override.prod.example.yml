@@ -39,6 +39,7 @@ services:
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
       APP_FRONTEND_URL: "https://app.ematchef.ch"
+      APP_MAIN_SITE_ORIGIN: "https://ematchef.ch"
       APP_PUBLIC_QR_URL: "https://qr.ematchef.ch"
       # HttpOnly JWT/Refresh für alle *.ematchef.ch-Frontends; Secure=1 nur mit HTTPS
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"

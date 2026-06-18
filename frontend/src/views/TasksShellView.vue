@@ -11,6 +11,7 @@
         @update:model-value="onShellTabChange"
       >
         <v-tab value="general">{{ t('tasksShell.tabGeneral') }}</v-tab>
+        <v-tab value="inventory">{{ t('tasksShell.tabInventory') }}</v-tab>
         <v-tab value="print">{{ t('common.print') }}</v-tab>
       </v-tabs>
     </template>
@@ -42,13 +43,19 @@ const subtitleText = computed(() =>
   isUserRole.value ? t('tasksShell.subtitleUser') : t('tasksShell.subtitleManager')
 )
 
-const activeShellTab = computed(() => (route.name === 'TasksPrint' ? 'print' : 'general'))
+const activeShellTab = computed(() => {
+  if (route.name === 'TasksPrint') return 'print'
+  if (route.name === 'TasksInventory') return 'inventory'
+  return 'general'
+})
 
 function onShellTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id) return
   if (tab === 'print') {
     void router.push({ name: 'TasksPrint', params: { departmentId: id } })
+  } else if (tab === 'inventory') {
+    void router.push({ name: 'TasksInventory', params: { departmentId: id } })
   } else {
     void router.push({ name: 'TasksGeneral', params: { departmentId: id } })
   }

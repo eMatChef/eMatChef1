@@ -33,4 +33,18 @@ export interface ActivityPeriodAvailabilityMaterial {
     qtyPerCombo: number
     availableForPeriod: number
   }>
+  /** In Reparatur (Batch-Status repair + offene Werkstatt-Tickets) — nicht buchbar */
+  stockInRepair?: number
+  /** Davon über Werkstatt-Ticket (Charge kann noch «active» sein) */
+  stockInRepairFromWorkshop?: number
+  /** Physisch «Am Event» (noch nicht retourniert/eingelagert) */
+  stockIssuedOut?: number
+  /** Komponente einer Phys.-Kombo-Stückliste (Anzeige «Teil von …») */
+  partOfPhysicalCombos?: Array<{
+    comboId: string
+    comboName: string
+    isContainer?: boolean
+  }>
+  /** Phys.-Kombo: Set-Einheiten in der eigenen Referenz-Kiste (nicht Stücklisten-Teile) */
+  physicalComboSetsInOwnCrate?: number
 }

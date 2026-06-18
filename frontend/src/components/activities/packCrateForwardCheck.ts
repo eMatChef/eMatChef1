@@ -507,3 +507,14 @@ export function buildPackCrateCheckLinesPayload(
     }
   })
 }
+
+/** Member/leicht: keine Workshop-Tickets oder Inspektionen aus Kistencheck. */
+export function applyLightweightCrateCheckPayload(
+  lines: PackCrateCheckLinePayload[],
+): PackCrateCheckLinePayload[] {
+  return lines.map((line) => ({
+    ...line,
+    status: line.status === 'ok' ? 'ok' : 'problem',
+    create_inspection_task: false,
+  }))
+}

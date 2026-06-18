@@ -16,8 +16,9 @@ RUN apt-get update && apt-get install -y \
     libxml2-dev \
     zip \
     unzip \
-    libpq-dev \
-    && docker-php-ext-configure gd --with-jpeg --with-webp \
+        libpq-dev \
+        pdftk-java \
+        && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd
 
 # Install Composer

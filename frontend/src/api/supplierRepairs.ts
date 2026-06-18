@@ -21,6 +21,9 @@ export interface SupplierRepairTicket {
   type_label: string
   priority: string
   priority_label: string
+  strategy?: string | null
+  phase?: string | null
+  phase_label?: string | null
   status: SupplierRepairStatus
   status_label: string
   title: string
@@ -39,7 +42,9 @@ export interface SupplierRepairTicket {
     name: string
     condition: string
     serial_number: string | null
+    repair_template_key?: string | null
   }
+  repair_checklist?: Record<string, unknown> | null
   department: {
     id: string
     name: string
@@ -112,6 +117,17 @@ export async function transitionSupplierRepair(
     payload,
   )
   return data.ticket
+}
+
+export async function submitSupplierRepairQuote(
+  companyId: string,
+  ticketId: string,
+  estimatedCost: string,
+): Promise<SupplierRepairTicket> {
+  return transitionSupplierRepair(companyId, ticketId, {
+    status: 'waiting_parts',
+    estimated_cost: estimatedCost,
+  })
 }
 
 export async function uploadSupplierRepairPhoto(

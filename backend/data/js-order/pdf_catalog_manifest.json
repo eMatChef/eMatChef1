@@ -1,0 +1,33 @@
+{
+  "description": "dept_js00000 = bestellbare Zeilen aus bestellformular_lagersport_trekking_d.pdf (Lagersport/Trekking). NICHT der volle 250821_JS_Leihmaterial_Katalog_DE.pdf.",
+  "items": [
+    { "id": "jsmat0000001", "name": "Bindestrick" },
+    { "id": "jsmat0000004", "name": "Wolldecke" },
+    { "id": "jsmat0000006", "name": "Kessel 15 l" },
+    { "id": "jsmat0000007", "name": "Kesselaufsatz nieder" },
+    { "id": "jsmat0000010", "name": "Handbeil" },
+    { "id": "jsmat0000008", "name": "Kochkessel 12 l (inkl. Deckel)" },
+    { "id": "jsmat0000013", "name": "Kompass Recta" },
+    { "id": "jsmat0000014", "name": "Kompass Silva" },
+    { "id": "jsmat0000003", "name": "Manipulierseil 10–15 m" },
+    { "id": "jsmat0000011", "name": "Pickel" },
+    { "id": "jsmat0000005", "name": "Beinstulpe refl. (Stück)" },
+    { "id": "jsmat0000025", "name": "Rettungsweste XXS (30–40 kg)" },
+    { "id": "jsmat0000026", "name": "Rettungsweste XS (40–50 kg)" },
+    { "id": "jsmat0000027", "name": "Rettungsweste S (50–60 kg)" },
+    { "id": "jsmat0000028", "name": "Rettungsweste M (60–70 kg)" },
+    { "id": "jsmat0000029", "name": "Rettungsweste L (70–90 kg)" },
+    { "id": "jsmat0000030", "name": "Rettungsweste XL (90 kg +)" },
+    { "id": "jsmat0000015", "name": "Schneeschaufel" },
+    { "id": "jsmat0000016", "name": "Sonnenbrille SUVASOL" },
+    { "id": "jsmat0000012", "name": "Spaten" },
+    { "id": "jsmat0000009", "name": "Speiseträger 20 l mit Schöpfkelle" },
+    { "id": "jsmat0000017", "name": "Badminton (Netz + 6 Schläger)" },
+    { "id": "jsmat0000018", "name": "Volleyball (Netz + 2 Bälle)" },
+    { "id": "jsmat0000019", "name": "Badminton/Volleyball Set kombiniert" },
+    { "id": "jsmat0000020", "name": "Ballset (6 Spielbälle)" },
+    { "id": "jsmat0000021", "name": "Zelttasche zu Zelttuch" },
+    { "id": "jsmat0000022", "name": "Zelttuch" },
+    { "id": "jsmat0000024", "name": "Ausschusszelttuch" }
+  ]
+}

@@ -28,7 +28,7 @@ export function useUnreadDocumentTitleAlert(unreadCount: Ref<number>) {
   function restoreTitle() {
     stopBlink()
     const { title, description } = baseHead()
-    applyPageHead(title, description)
+    applyPageHead(title, description, route)
   }
 
   function alertTitle(): string {
@@ -44,7 +44,7 @@ export function useUnreadDocumentTitleAlert(unreadCount: Ref<number>) {
     showingAlert = false
     intervalId = setInterval(() => {
       showingAlert = !showingAlert
-      applyPageHead(showingAlert ? alert : normalTitle, description)
+      applyPageHead(showingAlert ? alert : normalTitle, description, route)
     }, BLINK_MS)
   }
 

@@ -13,7 +13,12 @@ export function shouldShowDevEnvironmentBanner(): boolean {
   }
 
   const h = window.location.hostname.toLowerCase()
-  const devCheHosts = new Set(['dev.ematchef.ch', 'app-dev.ematchef.ch', 'qr-dev.ematchef.ch'])
+  const devCheHosts = new Set([
+    'dev.ematchef.ch',
+    'app-dev.ematchef.ch',
+    'qr-dev.ematchef.ch',
+    'devices-dev.ematchef.ch',
+  ])
   if (devCheHosts.has(h)) {
     return true
   }

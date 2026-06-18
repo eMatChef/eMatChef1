@@ -332,6 +332,7 @@ class PublicCodeService
                 'serial_number' => $batch->getSerialNumber(),
                 'label' => $batch->getLabel(),
                 'status' => $batch->getStatus(),
+                'is_container' => $batch->getIsContainer() || $material->getIsContainer(),
             ],
             'material' => [
                 'id' => $material->getId(),
@@ -339,6 +340,7 @@ class PublicCodeService
                 'description' => $material->getDescription(),
                 'manufacturer' => $material->getManufacturer(),
                 'model' => $material->getModel(),
+                'is_container' => $material->getIsContainer(),
             ],
             'department' => [
                 'id' => $department->getId(),
@@ -459,13 +461,8 @@ class PublicCodeService
             throw new \InvalidArgumentException('Material muss eine ID besitzen, bevor ein Public-Code erzeugt wird.');
         }
 
-        /** @var PublicCode|null $existing */
-        $existing = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
-            'entityType' => 'material',
-            'entityId' => $materialId,
-            'isActive' => true,
-        ]);
-        if ($existing) {
+        $existing = $this->findActivePublicCodeForEntity('material', $materialId);
+        if ($existing !== null) {
             return $existing;
         }
 
@@ -500,13 +497,8 @@ class PublicCodeService
             throw new \InvalidArgumentException('Batch muss eine ID besitzen, bevor ein Public-Code erzeugt wird.');
         }
 
-        /** @var PublicCode|null $existing */
-        $existing = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
-            'entityType' => 'batch',
-            'entityId' => $batchId,
-            'isActive' => true,
-        ]);
-        if ($existing) {
+        $existing = $this->findActivePublicCodeForEntity('batch', $batchId);
+        if ($existing !== null) {
             return $existing;
         }
 
@@ -549,13 +541,8 @@ class PublicCodeService
             throw new \InvalidArgumentException('Aktivität muss eine ID besitzen, bevor ein Public-Code erzeugt wird.');
         }
 
-        /** @var PublicCode|null $existing */
-        $existing = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
-            'entityType' => self::ENTITY_ACTIVITY,
-            'entityId' => $activityId,
-            'isActive' => true,
-        ]);
-        if ($existing) {
+        $existing = $this->findActivePublicCodeForEntity(self::ENTITY_ACTIVITY, $activityId);
+        if ($existing !== null) {
             return $existing;
         }
 
@@ -587,13 +574,8 @@ class PublicCodeService
             throw new \InvalidArgumentException('Werkstatt-Ticket muss eine ID besitzen, bevor ein Public-Code erzeugt wird.');
         }
 
-        /** @var PublicCode|null $existing */
-        $existing = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
-            'entityType' => self::ENTITY_WORKSHOP,
-            'entityId' => $ticketId,
-            'isActive' => true,
-        ]);
-        if ($existing) {
+        $existing = $this->findActivePublicCodeForEntity(self::ENTITY_WORKSHOP, $ticketId);
+        if ($existing !== null) {
             return $existing;
         }
 
@@ -613,6 +595,32 @@ class PublicCodeService
         $this->entityManager->persist($entry);
 
         return $entry;
+    }
+
+    /**
+     * Aktiven Public-Code laden — inkl. noch nicht geflusher persistierter Einträge derselben Transaktion.
+     */
+    private function findActivePublicCodeForEntity(string $entityType, string $entityId): ?PublicCode
+    {
+        foreach ($this->entityManager->getUnitOfWork()->getScheduledEntityInsertions() as $entity) {
+            if (
+                $entity instanceof PublicCode
+                && $entity->getEntityType() === $entityType
+                && $entity->getEntityId() === $entityId
+                && $entity->getIsActive()
+            ) {
+                return $entity;
+            }
+        }
+
+        /** @var PublicCode|null $existing */
+        $existing = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
+            'entityType' => $entityType,
+            'entityId' => $entityId,
+            'isActive' => true,
+        ]);
+
+        return $existing;
     }
 
     public function getActiveActivityPublicCode(string $activityId): ?PublicCode

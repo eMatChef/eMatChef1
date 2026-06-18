@@ -20,12 +20,10 @@
 }
 
 .plt-shell {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   background: var(--plt-surface);
   color: var(--plt-text);
 }
@@ -124,18 +122,10 @@
   flex-shrink: 0;
 }
 
+/* Kurze Seite: wächst, damit .plt-footer (margin-top: auto) am Shell-Ende andockt */
 .plt-main {
   flex: 1 1 auto;
   min-height: 0;
-}
-
-/* Marketing-Seiten: Copyright folgt dem Inhalt (erst nach Scrollen sichtbar) */
-.plt-shell--natural-footer {
-  min-height: 0;
-}
-
-.plt-main--natural {
-  flex: 0 1 auto;
 }
 
 /* Blog, FAQ, TOS, Impressum (Phase 5) */
@@ -688,13 +678,27 @@
   border-top: 1px solid var(--plt-border);
 }
 
-.plt-cta p {
+.plt-cta p,
+.plt-cta-text {
   font-size: 1.05rem;
   color: var(--plt-text-muted);
   margin: 0 0 1.25rem;
   max-width: 36rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+.plt-cta-faq-link {
+  color: var(--plt-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--plt-accent-soft);
+}
+
+.plt-cta-faq-link:hover {
+  color: #047857;
+  text-decoration-color: var(--plt-accent);
 }
 
 .plt-footer {

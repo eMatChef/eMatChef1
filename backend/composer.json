@@ -15,6 +15,7 @@
         "doctrine/orm": "^2.16",
         "gesdinet/jwt-refresh-token-bundle": "^1.5",
         "lexik/jwt-authentication-bundle": "^2.20",
+        "mikehaertl/php-pdftk": "^0.13",
         "nelmio/cors-bundle": "^2.6",
         "symfony/console": "^6.4",
         "symfony/dotenv": "^6.4",

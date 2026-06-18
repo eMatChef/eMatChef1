@@ -97,11 +97,7 @@ function isPreviewLine(ci: ActivityPackContainerItem): boolean {
 }
 
 function onToggleExpand() {
-  const wasOpen = innerVisible.value
   ;(ctx.togglePackContainerCollapsed as (id: string) => void)(collapseKey.value)
-  if (!wasOpen && shellLineCount.value > 0) {
-    // Subsection defaults applied via defaultExpanded on inline panel
-  }
 }
 
 const activePackStage = computed(() => {
@@ -292,8 +288,9 @@ function moveShellCrateForward(qtyFromControl?: number) {
           (ctx.useCrateRealityForPackItem as ((id: string) => boolean) | undefined)?.(shellPackItem.id) ??
           true
         "
-        separate-section-rows
+        :separate-section-rows="false"
         :default-expanded="false"
+        :parent-expanded="innerVisible"
         @toggle-reality-view="
           (ctx.toggleCrateRealityView as ((p: ActivityPackItem) => void) | undefined)?.(shellPackItem)
         "

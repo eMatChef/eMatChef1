@@ -95,6 +95,26 @@
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
+
+        <div
+          v-if="showJsMaterialOptionOnGrunddaten && wantsJsMaterial"
+          class="form-group activity-js-participant-wrap"
+        >
+          <label for="activity-js-participant-count-single">{{ t('activities.jsMaterial.participantCountLabel') }}</label>
+          <input
+            id="activity-js-participant-count-single"
+            :value="participantCount ?? ''"
+            type="number"
+            min="1"
+            step="1"
+            class="form-input activity-js-participant-input"
+            :placeholder="t('activities.jsMaterial.participantCountPlaceholder')"
+            @input="onParticipantCountInput"
+          />
+          <p class="field-hint text-muted">
+            {{ t('activities.jsMaterial.participantCountHint') }}
+          </p>
+        </div>
       </section>
 
       <section id="activity-create-material" class="activity-create-section">
@@ -173,6 +193,21 @@
             <button type="button" class="clear-selection" :title="t('activities.wizard.form.clearSelectionTitle')" @click="clearVenueAddress">
               ×
             </button>
+          </p>
+        </div>
+
+        <div
+          v-if="showJsMaterialOptionOnGrunddaten"
+          class="form-group span-2 activity-js-include-wrap"
+        >
+          <ECheckbox
+            :model-value="wantsJsMaterial"
+            :label="t('activities.jsMaterial.includeToggle')"
+            hide-details
+            @update:model-value="emit('update:wantsJsMaterial', !!$event)"
+          />
+          <p class="field-hint text-muted activity-js-include-hint">
+            {{ t('activities.jsMaterial.includeHint') }}
           </p>
         </div>
 
@@ -391,10 +426,33 @@
             </p>
           </template>
         </ActivityZeitraumDatetimeFields>
+
+        <div
+          v-if="showJsMaterialOptionOnGrunddaten && wantsJsMaterial"
+          class="form-group activity-js-participant-wrap"
+        >
+          <label for="activity-js-participant-count">{{ t('activities.jsMaterial.participantCountLabel') }}</label>
+          <input
+            id="activity-js-participant-count"
+            :value="participantCount ?? ''"
+            type="number"
+            min="1"
+            step="1"
+            class="form-input activity-js-participant-input"
+            :placeholder="t('activities.jsMaterial.participantCountPlaceholder')"
+            @input="onParticipantCountInput"
+          />
+          <p class="field-hint text-muted">
+            {{ t('activities.jsMaterial.participantCountHint') }}
+          </p>
+        </div>
       </section>
 
       <section v-show="currentStepKey === 'material'" id="activity-create-material" class="activity-create-section">
         <ActivityOutlinedSection :title="stepTitles.material" :required="true">
+          <p v-if="wantsJsMaterial" class="field-hint text-muted activity-js-material-step-hint">
+            {{ t('activities.jsMaterial.materialStepHint') }}
+          </p>
           <ActivityCreateMaterialStep
             :department-id="departmentId"
             :activity-type="selectedActivityType"
@@ -436,6 +494,17 @@
           <div v-if="showGroupInSummary" class="activity-summary-row">
             <dt>{{ t('common.group') }}</dt>
             <dd>{{ groupSummaryLabel }}</dd>
+          </div>
+          <div v-if="showJsMaterialOptionOnGrunddaten && wantsJsMaterial" class="activity-summary-row">
+            <dt>{{ t('activities.jsMaterial.sectionLabel') }}</dt>
+            <dd>{{ t('activities.jsMaterial.badgeIncluded') }}</dd>
+          </div>
+          <div
+            v-if="showJsMaterialOptionOnGrunddaten && wantsJsMaterial && participantCount != null && participantCount >= 1"
+            class="activity-summary-row"
+          >
+            <dt>{{ t('activities.jsMaterial.participantCountLabel') }}</dt>
+            <dd>{{ participantCount }}</dd>
           </div>
           <div class="activity-summary-row">
             <dt>{{ summaryUsageLabel }}</dt>
@@ -511,10 +580,14 @@ import {
   isInstantInsideClosedUsage,
   nearestAllowedQuarterOnDayOutsideUsage,
 } from '@/utils/activityPlanningUsageConstraint'
-import { EButton, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import { EButton, ECheckbox, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  expandMaterialLinesForSummary,
+  formatMaterialSummaryEntries,
+} from '@/utils/virtualComboMaterial'
 import {
   flattenGroupsWithLevel,
   pickUserHomeGroupId,
@@ -547,6 +620,10 @@ const props = withDefaults(
     customerAddressId: string | null
     /** Lager, Event, extern: Eventstandort */
     venueAddressId: string | null
+    /** Camp/Event: J+S-Leihmaterial einbeziehen */
+    wantsJsMaterial?: boolean
+    /** Camp/Event + J+S: Teilnehmerzahl für Dotation */
+    participantCount?: number | null
     /** Für Schulferien-Marker (fcal) im Datumsfeld */
     departmentId: string
     /** Oberste Option im Gruppen-Dropdown (Lager/Event) */
@@ -563,6 +640,8 @@ const props = withDefaults(
     selectedGroupId: null,
     customerAddressId: null,
     venueAddressId: null,
+    wantsJsMaterial: false,
+    participantCount: null,
     materialLines: () => [],
     draftActivityId: null,
     invitedDepartments: () => [],
@@ -576,6 +655,8 @@ const emit = defineEmits<{
   'update:selectedGroupId': [value: string | null]
   'update:customerAddressId': [value: string | null]
   'update:venueAddressId': [value: string | null]
+  'update:wantsJsMaterial': [value: boolean]
+  'update:participantCount': [value: number | null]
   'update:usageStartAt': [value: Date | null]
   'update:usageEndAt': [value: Date | null]
   'update:planningStartAt': [value: Date | null]
@@ -768,6 +849,20 @@ const showVenueOnGrunddatenStep = computed(
     props.selectedActivityType === 'external',
 )
 
+const showJsMaterialOptionOnGrunddaten = computed(
+  () => props.selectedActivityType === 'camp' || props.selectedActivityType === 'event',
+)
+
+function onParticipantCountInput(event: Event) {
+  const raw = (event.target as HTMLInputElement).value.trim()
+  if (raw === '') {
+    emit('update:participantCount', null)
+    return
+  }
+  const num = Number.parseInt(raw, 10)
+  emit('update:participantCount', Number.isFinite(num) && num >= 1 ? num : null)
+}
+
 const showGroupInSummary = computed(
   () =>
     props.selectedActivityType === 'camp' ||
@@ -781,8 +876,11 @@ const groupSummaryLabel = computed(() => displayGroupLabel.value)
 const materialSummaryLabel = computed(() => {
   const lines = props.materialLines
   if (!lines.length) return t('activities.wizard.form.summaryEmpty')
-  if (lines.length > 3) return t('activities.wizard.form.materialLinesCount', { n: lines.length })
-  return lines.map((l) => `${l.material_name} ×${l.quantity}`).join(', ')
+  const entries = expandMaterialLinesForSummary(lines)
+  return formatMaterialSummaryEntries(entries, {
+    maxItems: 3,
+    countLabel: (n) => t('activities.wizard.form.materialLinesCount', { n }),
+  })
 })
 
 const invitedDepartmentsSummary = computed(() => {

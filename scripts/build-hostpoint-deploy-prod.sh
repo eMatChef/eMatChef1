@@ -22,9 +22,13 @@ FRONTEND="$ROOT/frontend"
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
 # Hauptdomain (ematchef.ch)
+VITE_DEPLOY_VARIANT=home \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
+node "$ROOT/scripts/fetch-sitemap.mjs" "$OUT_BASE/home" "https://api.ematchef.ch"
+
 # App-Subdomain (app.ematchef.ch), inkl. qr.* und devices.* (gleicher Hostpoint-Ordner)
+VITE_DEPLOY_VARIANT=app \
 VITE_QR_PUBLIC_HOST=qr.ematchef.ch \
 VITE_DEVICES_HOST=devices.ematchef.ch \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir

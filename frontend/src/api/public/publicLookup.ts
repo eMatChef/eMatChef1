@@ -48,6 +48,7 @@ export interface PublicLookupBatchResponse {
     serial_number?: string | null
     label?: string | null
     status?: string | null
+    is_container?: boolean
   }
   material: {
     id: string
@@ -55,6 +56,7 @@ export interface PublicLookupBatchResponse {
     description?: string | null
     manufacturer?: string | null
     model?: string | null
+    is_container?: boolean
   }
   department: {
     id: string

@@ -1,4 +1,5 @@
 import apiClient from '@/api/apiClient'
+import { uploadMediaFile, type MediaPhoto } from '@/api/media'
 
 export type AccountingChargeTarget = 'group' | 'department' | 'external_customer'
 
@@ -20,6 +21,7 @@ export type AccountingAcquisitionFollowUp = {
   amount: string
   suggested_date: string
   receipt_label: string | null
+  receipts?: MediaPhoto[]
   status: 'pending' | 'recorded'
   accounting_booking_id: string | null
   created_at: string
@@ -36,6 +38,7 @@ export type AcquisitionFollowUpCreateBody = {
   suggested_date: string
   receipt_label?: string | null
   material_batch_id?: string | null
+  material_item_id?: string | null
 }
 
 export async function listActivityAcquisitionFollowups(
@@ -72,6 +75,30 @@ export async function createAcquisitionFollowup(
     body
   )
   return data
+}
+
+export async function uploadAcquisitionFollowupReceipt(
+  departmentId: string,
+  followUpId: string,
+  file: File,
+): Promise<MediaPhoto[]> {
+  const { data } = await uploadMediaFile<{ receipts: MediaPhoto[] }>(
+    `/api/departments/${departmentId}/accounting/acquisition-followups/${followUpId}/receipts`,
+    file,
+    { fieldName: 'receipt' },
+  )
+  return data.receipts
+}
+
+export async function deleteAcquisitionFollowupReceipt(
+  departmentId: string,
+  followUpId: string,
+  filename: string,
+): Promise<MediaPhoto[]> {
+  const { data } = await apiClient.delete<{ receipts: MediaPhoto[] }>(
+    `/api/departments/${departmentId}/accounting/acquisition-followups/${followUpId}/receipts/${encodeURIComponent(filename)}`,
+  )
+  return data.receipts
 }
 
 export type BatchRecordFollowUpsBody = {

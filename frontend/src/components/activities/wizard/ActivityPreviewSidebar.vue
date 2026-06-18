@@ -29,6 +29,11 @@
             <span class="preview-dates-label">{{ t('activities.wizard.previewMetaTenant') }}</span>
             {{ previewMieterLine }}
           </p>
+          <p v-if="previewJsMaterialLine" class="preview-meta preview-meta--js">
+            <span class="preview-dates-label">{{ t('activities.jsMaterial.sectionLabel') }}</span>
+            <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
+            {{ previewJsMaterialLine }}
+          </p>
           <p v-if="previewMaterialLine" class="preview-meta">
             <span class="preview-dates-label">{{ t('common.material') }}</span>
             {{ previewMaterialLine }}
@@ -69,6 +74,8 @@ const props = defineProps<{
   previewVenueLine?: string | null
   /** Name/Firma der Mieter-Adresse (extern) */
   previewMieterLine?: string | null
+  /** J+S-Leihmaterial einbeziehen (Camp/Event) */
+  previewJsMaterialLine?: string | null
   /** Kurzliste gewählter Materialpositionen */
   previewMaterialLine?: string | null
   /** Weitere Departments (Lager/Event) */

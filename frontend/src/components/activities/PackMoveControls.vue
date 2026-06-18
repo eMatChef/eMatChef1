@@ -4,7 +4,7 @@ defineOptions({ name: 'PackMoveControls' })
 const props = withDefaults(
   defineProps<{
     direction: 'forward' | 'back' | 'assign-up'
-    /** Kiste gewählt: gleicher Pfeil, 90° gedreht + grün — Position unverändert */
+    /** @deprecated Nutze direction="assign-up" — echter ↑-Pfeil, grün via --into-crate */
     intoCrate?: boolean
     qty: number
     /** Max. Menge beim Buchen (API / Pipeline) */
@@ -100,19 +100,20 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           @keyup.enter="onMoveClick"
         />
       </template>
-      <template v-else-if="direction === 'assign-up'">
+      <template v-else-if="direction === 'assign-up' || (direction === 'forward' && intoCrate)">
         <input
           :value="qty"
           type="number"
           min="1"
           :max="inputCap() || max"
           class="pack-move-input"
+          :class="{ 'pack-move-input--into-crate': intoCrate }"
           @input="onInput"
           @keyup.enter="onMoveClick"
         />
         <button
           type="button"
-          class="btn-move-arrow btn-move-arrow--up"
+          class="btn-move-arrow btn-move-arrow--up btn-move-arrow--into-crate"
           :disabled="disabled"
           :title="forwardTitle"
           @click="onMoveClick"
@@ -133,22 +134,14 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
         <button
           type="button"
           class="btn-move-arrow"
-          :class="{ 'btn-move-arrow--into-crate': intoCrate }"
           :disabled="disabled"
           :title="forwardTitle"
           @click="onMoveClick"
         >
-          <v-icon :icon="intoCrate ? 'mdi-arrow-up' : 'mdi-arrow-right'" size="12" />
+          <v-icon icon="mdi-arrow-right" size="12" />
         </button>
       </template>
     </div>
   </div>
 </template>
 
-<style scoped>
-.btn-move-arrow--into-crate :deep(.v-icon) {
-  transform: rotate(-90deg);
-  transform-origin: center center;
-  transition: transform 0.15s ease;
-}
-</style>

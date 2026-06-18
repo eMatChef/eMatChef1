@@ -9,6 +9,7 @@ use App\Service\Accounting\AccountingFollowUpRecordingService;
 use App\Service\InboxMessageService;
 use App\Entity\Department;
 use App\Entity\MaterialBatch;
+use App\Entity\MaterialItem;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -108,8 +109,10 @@ class AccountingAcquisitionFollowUpController extends AbstractController
 
         $receipt = isset($data['receipt_label']) ? trim((string) $data['receipt_label']) : '';
         $batchId = isset($data['material_batch_id']) ? trim((string) $data['material_batch_id']) : '';
+        $materialItemId = isset($data['material_item_id']) ? trim((string) $data['material_item_id']) : '';
 
         $materialBatch = null;
+        $materialItem = null;
         if ($batchId !== '') {
             $materialBatch = $this->entityManager->find(MaterialBatch::class, $batchId);
             if (!$materialBatch) {
@@ -117,6 +120,12 @@ class AccountingAcquisitionFollowUpController extends AbstractController
             }
             if ($materialBatch->getMaterialItem()->getDepartmentId() !== $departmentId) {
                 return new JsonResponse(['error' => 'Batch gehört nicht zu diesem Department'], 400);
+            }
+            $materialItem = $materialBatch->getMaterialItem();
+        } elseif ($materialItemId !== '') {
+            $materialItem = $this->entityManager->find(MaterialItem::class, $materialItemId);
+            if (!$materialItem || $materialItem->getDepartmentId() !== $departmentId) {
+                return new JsonResponse(['error' => 'Material nicht gefunden'], 400);
             }
         }
 
@@ -132,6 +141,10 @@ class AccountingAcquisitionFollowUpController extends AbstractController
 
             if ($materialBatch !== null) {
                 $followUp->setMaterialBatch($materialBatch);
+                $followUp->setMaterialItem($materialItem);
+                $followUp->setSourceKind(AccountingAcquisitionFollowUp::SOURCE_BATCH);
+            } elseif ($materialItem !== null) {
+                $followUp->setMaterialItem($materialItem);
                 $followUp->setSourceKind(AccountingAcquisitionFollowUp::SOURCE_BATCH);
             }
 

@@ -40,6 +40,8 @@ const props = withDefaults(
     emptyHint: string
     /** In eingebetteter Kiste: Inhalt sofort sichtbar */
     defaultExpanded?: boolean
+    /** Übergeordnete Kiste aufgeklappt — Unterabschnitte mit öffnen */
+    parentExpanded?: boolean
     /** Zusatz und Fix als eigene Zeilen (nicht ein gemeinsames «Kisteninhalt»-Panel) */
     separateSectionRows?: boolean
     /** Hinweis nach Kistencheck (Nachlegen, Umschalten, …) */
@@ -55,6 +57,7 @@ const props = withDefaults(
   }>(),
   {
     defaultExpanded: false,
+    parentExpanded: false,
     separateSectionRows: false,
     realityBanner: null,
     showTemplateToggle: false,
@@ -228,6 +231,14 @@ function applySubsectionDefaults() {
   }
 }
 
+function expandAllSubsections() {
+  for (const sec of props.sections) {
+    subsectionCollapsed[subCollapseKey(sec.subsectionKey)] = false
+    expandedByKey[sec.subsectionKey] = true
+  }
+  unifiedPeekOpen.value = true
+}
+
 watch(
   () => props.defaultExpanded,
   (exp) => {
@@ -239,6 +250,13 @@ watch(
   () => props.sections,
   () => {
     if (props.defaultExpanded) applySubsectionDefaults()
+  },
+)
+
+watch(
+  () => props.parentExpanded,
+  (open, prev) => {
+    if (open && prev === false) expandAllSubsections()
   },
 )
 </script>
@@ -266,68 +284,6 @@ watch(
     </div>
     <template v-if="sections.length === 0">
       <p class="pack-combo-crate-inline__empty text-muted">{{ emptyHint }}</p>
-    </template>
-    <template v-else-if="useUnifiedPeekPanel">
-      <div class="pack-combo-crate-inline__unified">
-        <button
-          type="button"
-          class="pack-combo-crate-inline__row-toggle"
-          :aria-expanded="unifiedPeekOpen"
-          :aria-label="unifiedPeekAriaLabel()"
-          @click.stop="unifiedPeekOpen = !unifiedPeekOpen"
-        >
-          <span class="pack-combo-crate-inline__chev" aria-hidden="true">{{
-            unifiedPeekOpen ? '▼' : '▶'
-          }}</span>
-          <span class="pack-combo-crate-inline__row-label">{{ t('activities.packList.cratePeekCombinedToggle') }}</span>
-        </button>
-        <div v-show="unifiedPeekOpen" class="pack-combo-crate-inline__body pack-combo-crate-inline__body--unified">
-          <template v-for="sec in displaySections" :key="'u-' + sec.subsectionKey">
-            <div class="pack-combo-crate-inline__subheading">{{ sec.title }}</div>
-            <ul v-if="sec.lines.length > 0" class="pack-combo-crate-inline__list">
-              <li
-                v-for="line in sec.lines"
-                :key="sec.subsectionKey + '-' + line.id"
-                class="pack-combo-crate-inline__line"
-              >
-                <span class="pack-combo-crate-inline__name">{{ line.materialName }}</span>
-                <span
-                  v-if="line.serialHint"
-                  class="pack-combo-crate-inline__serial text-muted"
-                  :title="t('activities.packList.shellForwardSerialCheckTitle')"
-                >
-                  {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
-                </span>
-                <span v-if="sec.subsectionKey === 'extra'" class="pack-combo-crate-inline__qty text-muted">
-                  {{ t('activities.packList.shellForwardExtraCountOnly') }}
-                </span>
-                <span v-else class="pack-combo-crate-inline__qty text-muted">
-                  {{ line.quantity }}×
-                  <span
-                    v-if="line.sollQty != null && line.sollQty !== line.quantity"
-                    class="pack-combo-crate-inline__soll-hint"
-                  >
-                    {{ t('activities.packList.crateCheckWasSoll', { n: line.sollQty }) }}
-                  </span>
-                  <span
-                    v-if="(line.replenishQty ?? 0) > 0"
-                    class="pack-combo-crate-inline__check-badge pack-combo-crate-inline__check-badge--replenish"
-                  >
-                    {{
-                      t('activities.packList.crateCheckReplenishedBadge', {
-                        n: line.replenishQty,
-                      })
-                    }}
-                  </span>
-                  <span v-if="statusBadgeKey(line)" class="pack-combo-crate-inline__check-badge">
-                    {{ t(`activities.packList.crateCheckStatus_${statusBadgeKey(line)}`) }}
-                  </span>
-                </span>
-              </li>
-            </ul>
-          </template>
-        </div>
-      </div>
     </template>
     <template v-else-if="separateSectionRows">
       <template v-if="totalLines <= 1">
@@ -493,63 +449,43 @@ watch(
       </template>
     </template>
     <template v-else>
-      <div
-        v-for="sec in displaySections"
-        :key="sec.subsectionKey"
-        class="pack-combo-crate-inline__block"
-      >
-        <button
-          type="button"
-          class="pack-combo-crate-inline__row-toggle"
-          :aria-expanded="isOpen(sec.subsectionKey)"
-          :aria-label="rowAriaLabel(sec)"
-          @click.stop="toggleKey(sec.subsectionKey)"
-        >
-          <span class="pack-combo-crate-inline__chev" aria-hidden="true">{{
-            isOpen(sec.subsectionKey) ? '▼' : '▶'
-          }}</span>
-          <span class="pack-combo-crate-inline__row-label">{{ sec.title }}</span>
-        </button>
-        <div v-show="isOpen(sec.subsectionKey)" class="pack-combo-crate-inline__body">
-          <ul v-if="sec.lines.length > 0" class="pack-combo-crate-inline__list">
-            <li
-              v-for="line in sec.lines"
-              :key="sec.subsectionKey + '-' + line.id"
-              class="pack-combo-crate-inline__line"
-            >
-              <span class="pack-combo-crate-inline__name">{{ line.materialName }}</span>
-              <span
-                v-if="line.serialHint"
-                class="pack-combo-crate-inline__serial text-muted"
-                :title="t('activities.packList.shellForwardSerialCheckTitle')"
-              >
-                {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
-              </span>
-              <span class="pack-combo-crate-inline__qty text-muted">
-                {{ line.quantity }}×
-                <span
-                  v-if="line.sollQty != null && line.sollQty !== line.quantity"
-                  class="pack-combo-crate-inline__soll-hint"
-                >
-                  {{ t('activities.packList.crateCheckWasSoll', { n: line.sollQty }) }}
+      <div v-if="flatLines.length > 0" class="pack-combo-crate-inline__flat-lines">
+        <template v-for="sec in displaySections" :key="'flat-' + sec.subsectionKey">
+          <template v-for="line in sec.lines" :key="sec.subsectionKey + '-' + line.id">
+            <PackCrateShellCheckLineActions
+              v-if="interactiveShellCheck"
+              :material-name="line.materialName"
+              :expected-qty="sec.subsectionKey === 'extra' ? 0 : line.quantity"
+              :serial-hint="line.serialHint"
+              :review="reviewForLine(sec.subsectionKey, line)"
+              :is-extra="sec.subsectionKey === 'extra'"
+              :minus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+              :plus-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+              :input-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+              :check-disabled="historyReplenishForLine(sec.subsectionKey, line.id)"
+              @update:counted-qty="onCountedChange(sec.subsectionKey, line, $event)"
+              @ok="onLineOk(sec.subsectionKey, line)"
+            />
+            <PackShellInlineLooseIssueRow
+              v-else-if="useLooseIssueRows"
+              :container-id="looseIssueContainerId!"
+              :line="line"
+              :crate-label="looseIssueCrateLabel ?? ''"
+              :stage-right-label="stageRightLabel"
+            />
+            <div v-else class="pack-container-line">
+              <div class="pack-container-line-main">
+                <span class="pack-container-line-name">{{ line.materialName }}</span>
+                <span v-if="line.serialHint" class="pack-combo-crate-inline__serial text-muted">
+                  {{ t('activities.packList.shellForwardSerialSn', { serial: line.serialHint }) }}
                 </span>
-                <span
-                  v-if="(line.replenishQty ?? 0) > 0"
-                  class="pack-combo-crate-inline__check-badge pack-combo-crate-inline__check-badge--replenish"
-                >
-                  {{
-                    t('activities.packList.crateCheckReplenishedBadge', {
-                      n: line.replenishQty,
-                    })
-                  }}
-                </span>
-                <span v-if="statusBadgeKey(line)" class="pack-combo-crate-inline__check-badge">
-                  {{ t(`activities.packList.crateCheckStatus_${statusBadgeKey(line)}`) }}
-                </span>
-              </span>
-            </li>
-          </ul>
-        </div>
+                <span class="pack-container-line-qty text-muted">{{
+                  t('activities.common.piecesShort', { count: line.quantity })
+                }}</span>
+              </div>
+            </div>
+          </template>
+        </template>
       </div>
     </template>
   </div>

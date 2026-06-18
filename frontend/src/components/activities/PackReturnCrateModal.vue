@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
@@ -15,20 +15,33 @@ export type ReturnCratePartitionView = {
   hasWarehouseTemplate: boolean
 }
 
+export type ReturnCrateSearchMaterial = {
+  id: string
+  name: string
+}
+
+export type ReturnCrateLinePlacement = 'in_crate' | 'loose' | 'shell' | 'added'
+
 export type ReturnCrateLineEdit = {
   id: string
   kind: 'shell' | 'line'
+  placement: ReturnCrateLinePlacement
   containerItemId?: string
   materialItemId: string | null
   materialName: string
+  /** Erwartete Menge in der Kiste (Lager-Vorlage / gepackt). */
+  expectedQty: number
   max: number
   issued: number
+  returnedAlready: number
   included: boolean
   qty: number
   isExtra: boolean
   isConsumable: boolean
   consumptionDone: boolean
   consumptionOpen: number
+  /** Bereits vollständig retourniert — nur Anzeige. */
+  isDone: boolean
 }
 
 type ReturnCrateLineSection = {
@@ -52,12 +65,14 @@ const props = defineProps<{
   canReportConsumption: boolean
   submitting: boolean
   submitDisabled: boolean
+  searchableMaterials: ReturnCrateSearchMaterial[]
 }>()
 
 const emit = defineEmits<{
   cancel: []
   submit: []
   'update:lines': [lines: ReturnCrateLineEdit[]]
+  'add-material': [materialItemId: string]
   'report-loss': [materialItemId: string, qty: number]
   'report-repair': [materialItemId: string, qty: number]
   'report-consumption': [materialItemId: string, materialName: string]
@@ -65,24 +80,38 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const materialSearch = ref('')
+
 const lineSections = computed((): ReturnCrateLineSection[] => {
   const sections: ReturnCrateLineSection[] = []
-  const shell = props.lines.filter((l) => l.kind === 'shell')
-  const extra = props.lines.filter((l) => l.kind === 'line' && l.isExtra)
-  const standard = props.lines.filter((l) => l.kind === 'line' && !l.isExtra)
-  if (extra.length > 0) {
+  const inCrate = props.lines.filter((l) => l.placement === 'in_crate')
+  const added = props.lines.filter((l) => l.placement === 'added')
+  const loose = props.lines.filter((l) => l.placement === 'loose')
+  const shell = props.lines.filter((l) => l.placement === 'shell')
+
+  if (inCrate.length > 0) {
     sections.push({
-      key: 'extra',
-      titleKey: 'activities.packList.returnCrateModalExtraSection',
-      noteKey: 'activities.packList.returnCrateModalExtraNote',
-      lines: extra,
+      key: 'in_crate',
+      titleKey: props.partition.hasWarehouseTemplate
+        ? 'activities.packList.returnCrateModalStandardSection'
+        : 'activities.packList.returnCrateModalInCrateSection',
+      lines: inCrate,
     })
   }
-  if (standard.length > 0) {
+  if (loose.length > 0) {
     sections.push({
-      key: 'standard',
-      titleKey: 'activities.packList.returnCrateModalStandardSection',
-      lines: standard,
+      key: 'loose',
+      titleKey: 'activities.packList.returnCrateModalLooseSection',
+      noteKey: 'activities.packList.returnCrateModalLooseNote',
+      lines: loose,
+    })
+  }
+  if (added.length > 0) {
+    sections.push({
+      key: 'added',
+      titleKey: 'activities.packList.returnCrateModalAddedSection',
+      noteKey: 'activities.packList.returnCrateModalAddedNote',
+      lines: added,
     })
   }
   if (shell.length > 0) {
@@ -94,6 +123,19 @@ const lineSections = computed((): ReturnCrateLineSection[] => {
   }
   return sections
 })
+
+const searchQuery = computed(() => materialSearch.value.trim().toLowerCase())
+
+const filteredSearchMaterials = computed(() => {
+  const q = searchQuery.value
+  const list = props.searchableMaterials
+  if (q.length < 1) return list
+  return list.filter((m) => m.name.toLowerCase().includes(q) || m.id.toLowerCase().includes(q))
+})
+
+const showMaterialSearch = computed(
+  () => props.searchableMaterials.length > 0 && !props.contentsLoading,
+)
 
 function patchLine(id: string, patch: Partial<ReturnCrateLineEdit>): void {
   emit(
@@ -127,18 +169,48 @@ function missingQty(line: ReturnCrateLineEdit): number {
 }
 
 function showMissingActions(line: ReturnCrateLineEdit): boolean {
+  if (line.placement === 'loose' || line.isDone) return false
   if (line.isConsumable || missingQty(line) < 1 || !line.materialItemId) return false
   return props.canReportIssues
 }
 
 function lineQtyHint(line: ReturnCrateLineEdit): string {
+  if (line.isDone) {
+    return t('activities.packList.returnCrateModalLineDone')
+  }
+  if (line.placement === 'loose') {
+    return t('activities.packList.returnCrateModalLooseQty', { n: line.max })
+  }
   if (line.kind === 'shell') {
     return t('activities.packList.returnCrateModalStillQty', { n: line.max })
   }
-  return t('activities.packList.returnCrateModalLineQty', {
-    still: line.max,
-    issued: line.issued,
-  })
+  const parts: string[] = []
+  if (line.expectedQty > 0) {
+    parts.push(t('activities.packList.returnCrateModalExpectedQty', { n: line.expectedQty }))
+  }
+  if (line.max > 0) {
+    parts.push(
+      t('activities.packList.returnCrateModalLineQty', {
+        still: line.max,
+        issued: line.issued,
+      }),
+    )
+  } else if (line.returnedAlready > 0) {
+    parts.push(t('activities.packList.returnCrateModalLineDone'))
+  }
+  return parts.join(' · ')
+}
+
+function pickSearchMaterial(materialId: string): void {
+  materialSearch.value = ''
+  emit('add-material', materialId)
+}
+
+function onAddMaterialSelect(event: Event): void {
+  const id = (event.target as HTMLSelectElement).value
+  if (!id) return
+  ;(event.target as HTMLSelectElement).value = ''
+  pickSearchMaterial(id)
 }
 
 function consumableLineHint(line: ReturnCrateLineEdit): string {
@@ -216,38 +288,50 @@ function consumableLineHint(line: ReturnCrateLineEdit): string {
                 {{ t('activities.packList.returnCrateModalBookConsumption') }}
               </button>
             </template>
-            <template v-else>
-              <label class="pack-return-crate-line-check">
-                <input
-                  :checked="line.included"
-                  type="checkbox"
-                  @change="onIncludedChange(line, ($event.target as HTMLInputElement).checked)"
-                />
+            <template v-else-if="line.isDone">
+              <div class="pack-return-crate-line-done">
                 <span class="pack-return-crate-line-name">{{ line.materialName }}</span>
-              </label>
-              <span class="pack-return-crate-line-qty text-muted">{{ lineQtyHint(line) }}</span>
-              <span v-if="line.isExtra" class="pack-return-crate-badge">{{
-                t('activities.packList.returnCrateModalBadgeExtra')
-              }}</span>
-              <div v-if="line.included" class="pack-return-crate-line-controls">
-                <span class="pack-return-crate-return-label text-muted">{{
-                  t('activities.packList.returnCrateModalReturnQty')
+                <span class="pack-return-crate-line-qty text-muted">{{ lineQtyHint(line) }}</span>
+                <span class="pack-return-crate-done-badge" role="status">{{
+                  t('activities.packList.returnCrateModalLineDone')
                 }}</span>
-                <div class="adjust-qty-row">
-                  <button type="button" class="btn-qty" :disabled="line.qty <= 0" @click="bumpQty(line, -1)">
-                    −
-                  </button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="pack-return-crate-line-inline">
+                <label class="pack-return-crate-line-check">
                   <input
-                    :value="line.qty"
-                    type="number"
-                    min="0"
-                    :max="line.max"
-                    class="form-input adjust-qty-input"
-                    @input="onQtyInput(line, $event)"
+                    :checked="line.included"
+                    type="checkbox"
+                    @change="onIncludedChange(line, ($event.target as HTMLInputElement).checked)"
                   />
-                  <button type="button" class="btn-qty" :disabled="line.qty >= line.max" @click="bumpQty(line, 1)">
-                    +
-                  </button>
+                  <span class="pack-return-crate-line-name">{{ line.materialName }}</span>
+                </label>
+                <span
+                  class="pack-return-crate-line-qty text-muted"
+                  :title="lineQtyHint(line)"
+                >{{ lineQtyHint(line) }}</span>
+                <span v-if="line.isExtra" class="pack-return-crate-badge">{{
+                  t('activities.packList.returnCrateModalBadgeExtra')
+                }}</span>
+                <div v-if="line.included && line.max > 0" class="pack-return-crate-line-controls">
+                  <div class="adjust-qty-row">
+                    <button type="button" class="btn-qty" :disabled="line.qty <= 0" @click="bumpQty(line, -1)">
+                      −
+                    </button>
+                    <input
+                      :value="line.qty"
+                      type="number"
+                      min="0"
+                      :max="line.max"
+                      class="form-input adjust-qty-input"
+                      :aria-label="t('activities.packList.returnCrateModalReturnQty')"
+                      @input="onQtyInput(line, $event)"
+                    />
+                    <button type="button" class="btn-qty" :disabled="line.qty >= line.max" @click="bumpQty(line, 1)">
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
               <div v-if="showMissingActions(line)" class="pack-return-crate-missing">
@@ -274,12 +358,37 @@ function consumableLineHint(line: ReturnCrateLineEdit): string {
         </ul>
       </div>
 
+      <div v-if="showMaterialSearch" class="pack-return-crate-search">
+        <p class="pack-modal-hint text-muted">{{ t('activities.packList.returnCrateModalSearchHint') }}</p>
+        <div class="pack-return-crate-add-row">
+          <input
+            v-model="materialSearch"
+            type="search"
+            class="form-input pack-return-crate-search-input"
+            :placeholder="t('activities.packList.returnCrateModalSearchPlaceholder')"
+            autocomplete="off"
+          />
+          <select
+            class="form-input pack-return-crate-add-select"
+            :aria-label="t('activities.packList.returnCrateModalAddPickPlaceholder')"
+            @change="onAddMaterialSelect"
+          >
+            <option value="">{{ t('activities.packList.returnCrateModalAddPickPlaceholder') }}</option>
+            <option v-for="m in filteredSearchMaterials" :key="'ret-pick-' + m.id" :value="m.id">
+              {{ m.name }}
+            </option>
+          </select>
+        </div>
+        <p
+          v-if="searchQuery.length > 0 && filteredSearchMaterials.length < 1"
+          class="pack-return-crate-search-empty text-muted"
+        >
+          {{ t('activities.packList.returnCrateModalSearchEmpty') }}
+        </p>
+      </div>
+
       <p
-        v-if="
-          partition.shellQty < 1 &&
-          partition.extraLines.length < 1 &&
-          partition.standardLines.length < 1
-        "
+        v-if="lineSections.length < 1 && !showMaterialSearch"
         class="pack-modal-hint text-muted"
       >
         {{ t('activities.packList.returnCrateModalEmptyLines') }}
@@ -301,4 +410,40 @@ function consumableLineHint(line: ReturnCrateLineEdit): string {
     </template>
   </PackWorkflowModal>
 </template>
+
+<style scoped>
+.pack-return-crate-search {
+  margin: 0.75rem 0 1rem;
+}
+
+.pack-return-crate-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.pack-return-crate-search-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.pack-return-crate-add-select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.pack-return-crate-search-empty {
+  margin: 0.35rem 0 0;
+  font-size: 12px;
+}
+
+.pack-return-crate-line-done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  opacity: 0.85;
+}
+</style>
 

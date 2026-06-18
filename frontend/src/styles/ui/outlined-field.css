@@ -12,14 +12,14 @@
   top: 0;
   left: 12px;
   transform: translateY(-50%);
-  padding: 0 6px;
+  padding: 2px 6px;
   margin: 0;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--color-primary-dark, #047857);
-  background: var(--outlined-label-bg, #fff);
-  z-index: 5;
+  background-color: var(--outlined-label-bg, #fff);
+  z-index: 10;
   pointer-events: none;
   transition: color 0.15s ease;
   max-width: calc(100% - 24px);
@@ -66,7 +66,7 @@
   padding-top: 0;
   gap: 0;
   margin-top: 0;
-  margin-bottom: 0;
+  margin-bottom: 12px;
 }
 
 .form-group:not(.autosave-field):where(
@@ -93,14 +93,14 @@
   top: 0;
   left: 12px;
   transform: translateY(-50%);
-  padding: 0 6px;
+  padding: 2px 6px;
   margin: 0;
   font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--color-primary-dark, #047857);
-  background: var(--outlined-label-bg, #fff);
-  z-index: 3;
+  background-color: var(--outlined-label-bg, #fff);
+  z-index: 11;
   pointer-events: none;
   max-width: calc(100% - 24px);
   white-space: nowrap;
@@ -215,9 +215,44 @@
   box-shadow: none;
 }
 
+.form-group:not(.autosave-field):has(> .autocomplete-wrapper) > .autocomplete-wrapper {
+  margin-top: 0;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 8px;
+  min-height: 48px;
+  background: var(--outlined-label-bg, #fff);
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.form-group:not(.autosave-field):has(> .autocomplete-wrapper):focus-within > .autocomplete-wrapper {
+  border-color: var(--color-primary-light, #10b981);
+  box-shadow: 0 0 0 3px var(--color-primary-ring, rgba(16, 185, 129, 0.1));
+}
+
 .form-group:not(.autosave-field):has(> .autocomplete-wrapper) .autocomplete-wrapper .form-input {
   min-height: 48px;
   padding: 16px 12px 10px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  background: transparent;
+}
+
+.form-group:not(.autosave-field):has(> .autocomplete-wrapper) .autocomplete-wrapper .form-input:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.form-group:not(.autosave-field):has(> .autocomplete-wrapper) .autocomplete-wrapper .selected-user-chip {
+  border: none;
+  border-radius: 0;
+  min-height: 34px;
+  margin: 0;
+  box-shadow: none;
 }
 
 .form-group:not(.autosave-field):where(

@@ -56,6 +56,7 @@
     </p>
     <div class="activity-material-lookup">
       <MaterialLookupInput
+        ref="materialLookupRef"
         :key="`${materialLookupScopeKey}-s${searchResetKey}`"
         v-model="matSearch"
         :fetcher="materialLookupFetcher"
@@ -77,157 +78,169 @@
             {{ emptySearchText }}
           </div>
           <div v-else class="mat-dropdown-list activity-mat-result-list">
-            <div
-              v-for="(mat, index) in results"
-              :key="mat.materialItemId"
-              class="activity-mat-result-row"
-              :class="{
-                active: activeIndex === index,
-                'already-added': isAlreadyAdded(mat.materialItemId),
-              }"
-              @mouseenter="setActiveIndex(index)"
-            >
-              <div class="activity-mat-result-info">
-                <span class="activity-mat-result-name">
-                  <span v-if="mat.isConsumable" class="mat-type-icon consumable" :title="t('activities.materialAvailability.titleConsumable')"
-                    >🔥</span
-                  >
-                  <span
-                    v-else-if="mat.materialType === 'physical_combo'"
-                    class="mat-type-icon rental"
-                    :title="t('activities.materialAvailability.titlePhysicalCombo')"
-                    >{{ physicalComboIcon(mat) }}</span
-                  >
-                  <span v-else class="mat-type-icon rental" :title="t('activities.materialAvailability.titleRental')">📦</span>
-                  {{ mat.name }}
-                  <span
-                    v-if="mat.sourceDepartmentId && mat.sourceDepartmentId !== departmentId && mat.sourceDepartmentName"
-                    class="mat-dept-badge"
-                    :title="t('activities.materialAvailability.titleSourceDept', { name: mat.sourceDepartmentName })"
-                  >
-                    {{ mat.sourceDepartmentName }}
-                  </span>
-                  <span v-if="mat.packSize && mat.packUnit" class="mat-pack-badge">
-                    {{ t('activities.materialAvailability.packPerShort', { n: mat.packSize, unit: mat.packUnit }) }}
-                  </span>
-                  <span
-                    v-if="mat.materialType === 'physical_combo'"
-                    class="activity-combo-badge"
-                    :title="t('activities.detail.comboPhysicalTitle')"
-                  ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span>
-                  <span
-                    v-else-if="mat.materialType === 'virtual_combo'"
-                    class="activity-combo-badge activity-combo-badge--virtual"
-                    :title="t('activities.detail.comboVirtualTitle')"
-                  ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span>
-                </span>
-                <span class="activity-mat-result-meta">
-                  <span class="activity-mat-stock">
-                    <span :class="effectiveStock(mat) > 0 ? 'text-green' : 'text-red'">{{ effectiveStock(mat) }}</span>
-                    <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
-                    <span
-                      v-if="(mat.stockInStorageContainers ?? 0) > 0"
-                      class="text-muted activity-mat-stock-in-crates"
-                    >
-                      {{
-                        t('activities.materialAvailability.inStorageContainersHint', {
-                          n: mat.stockInStorageContainers,
-                        })
-                      }}
-                    </span>
-                    <span
-                      v-else-if="(mat.stockInPhysComboKisten ?? mat.stockInContainers ?? 0) > 0"
-                      class="text-muted activity-mat-stock-in-crates"
-                    >
-                      {{
-                        t('activities.materialAvailability.inPhysComboKistenHint', {
-                          n: mat.stockInPhysComboKisten ?? mat.stockInContainers,
-                        })
-                      }}
-                    </span>
-                  </span>
-                </span>
+            <template v-for="(entry, flatIndex) in flattenLookupResults(results)" :key="lookupEntryKey(entry, flatIndex)">
+              <div
+                v-if="entry.kind === 'divider'"
+                class="activity-mat-combo-parts-divider"
+                role="separator"
+              >
+                {{ t('activities.materialAvailability.comboComponentDivider') }}
               </div>
-              <div class="activity-mat-result-actions">
-                <template
-                  v-if="
-                    effectiveStock(mat) > 0 &&
-                    (!isAlreadyAdded(mat.materialItemId) || repeatAddFromSearch)
-                  "
-                >
-                  <span v-if="isAlreadyAdded(mat.materialItemId)" class="mat-already-badge">{{
-                    t('activities.materialAvailability.inList')
-                  }}</span>
-                  <template v-if="mat.packSize && mat.packSize > 1">
-                    <button
-                      v-if="canAdd(mat, mat.packSize)"
-                      type="button"
-                      class="activity-mat-quick-btn activity-mat-set-btn"
-                      :title="
-                        t('activities.materialAvailability.titleAddOnePack', {
-                          unit: mat.packUnit || t('activities.materialAvailability.packUnitSet'),
-                        })
-                      "
-                      :disabled="disabled"
-                      @mousedown.prevent="addQty(mat, mat.packSize)"
+              <div
+                v-else
+                class="activity-mat-result-row"
+                :class="{
+                  active: activeIndex === entry.index,
+                  'already-added': isAlreadyAdded(entry.mat.materialItemId),
+                  'combo-component-row': isFixedComboComponentRow(entry.mat),
+                  'activity-mat-result-row--clickable': canSelectRow(entry.mat),
+                }"
+                @click="onResultRowClick(entry.mat)"
+                @mouseenter="setActiveIndex(entry.index)"
+              >
+                <div class="activity-mat-result-info">
+                  <span class="activity-mat-result-name">
+                    <span v-if="entry.mat.isConsumable" class="mat-type-icon consumable" :title="t('activities.materialAvailability.titleConsumable')"
+                      >🔥</span
                     >
-                      1 {{ mat.packUnit || t('activities.materialAvailability.packUnitSet') }}
-                    </button>
-                    <button
-                      v-if="canAdd(mat, mat.packSize * 5)"
-                      type="button"
-                      class="activity-mat-quick-btn activity-mat-set-btn"
-                      :title="
-                        t('activities.materialAvailability.titleAddFivePacks', {
-                          units: mat.packUnit || t('activities.materialAvailability.packUnitSets'),
-                        })
-                      "
-                      :disabled="disabled"
-                      @mousedown.prevent="addQty(mat, mat.packSize * 5)"
+                    <span
+                      v-else-if="entry.mat.materialType === 'physical_combo'"
+                      class="mat-type-icon rental"
+                      :title="t('activities.materialAvailability.titlePhysicalCombo')"
+                      >{{ physicalComboIcon(entry.mat) }}</span
                     >
-                      5 {{ mat.packUnit || t('activities.materialAvailability.packUnitSets') }}
-                    </button>
-                    <span class="activity-mat-btn-divider" aria-hidden="true">|</span>
+                    <span v-else class="mat-type-icon rental" :title="t('activities.materialAvailability.titleRental')">📦</span>
+                    {{ entry.mat.name }}
+                    <span
+                      v-if="entry.mat.sourceDepartmentId && entry.mat.sourceDepartmentId !== departmentId && entry.mat.sourceDepartmentName"
+                      class="mat-dept-badge"
+                      :title="t('activities.materialAvailability.titleSourceDept', { name: entry.mat.sourceDepartmentName })"
+                    >
+                      {{ entry.mat.sourceDepartmentName }}
+                    </span>
+                    <span v-if="entry.mat.packSize && entry.mat.packUnit" class="mat-pack-badge">
+                      {{ t('activities.materialAvailability.packPerShort', { n: entry.mat.packSize, unit: entry.mat.packUnit }) }}
+                    </span>
+                    <span
+                      v-if="entry.mat.materialType === 'physical_combo'"
+                      class="activity-combo-badge"
+                      :title="t('activities.detail.comboPhysicalTitle')"
+                    ><span aria-hidden="true">{{ COMBO_BADGE.physical }}</span> {{ t('activities.detail.comboPhysicalShort') }}</span>
+                    <span
+                      v-else-if="entry.mat.materialType === 'virtual_combo'"
+                      class="activity-combo-badge activity-combo-badge--virtual"
+                      :title="t('activities.detail.comboVirtualTitle')"
+                    ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span>
+                    <span
+                      v-if="isFixedComboComponentRow(entry.mat)"
+                      class="activity-mat-combo-part-badge"
+                      :title="partOfCombosLabel(entry.mat)"
+                    >
+                      {{ t('activities.materialAvailability.comboComponentPartOf', { names: partOfCombosLabel(entry.mat) }) }}
+                    </span>
+                  </span>
+                  <span class="activity-mat-result-meta">
+                    <span class="activity-mat-stock">
+                      <span :class="displayFreeStock(entry.mat) > 0 ? 'text-green' : 'text-red'">{{ displayFreeStock(entry.mat) }}</span>
+                      <span class="text-muted">&nbsp;{{ t('activities.materialAvailability.freeLabel') }}</span>
+                      <span
+                        v-if="secondaryStockHint(entry.mat)"
+                        class="text-muted activity-mat-stock-in-crates"
+                      >
+                        {{ secondaryStockHint(entry.mat) }}
+                      </span>
+                    </span>
+                  </span>
+                </div>
+                <div class="activity-mat-result-actions">
+                  <template v-if="isFixedComboComponentRow(entry.mat)">
+                    <span class="mat-unavailable-badge">{{ t('activities.materialAvailability.comboComponentBookViaCombo') }}</span>
                   </template>
-                  <button
-                    v-if="canAdd(mat, 1)"
-                    type="button"
-                    class="activity-mat-quick-btn"
-                    title="+1"
-                    :disabled="disabled"
-                    @mousedown.prevent="addQty(mat, 1)"
+                  <template
+                    v-else-if="
+                      maxAddableQty(entry.mat) > 0 &&
+                      (!isAlreadyAdded(entry.mat.materialItemId) || canRepeatAddMaterial(entry.mat.materialItemId))
+                    "
                   >
-                    +1
-                  </button>
-                  <button
-                    v-if="canAdd(mat, 5)"
-                    type="button"
-                    class="activity-mat-quick-btn"
-                    title="+5"
-                    :disabled="disabled"
-                    @mousedown.prevent="addQty(mat, 5)"
-                  >
-                    +5
-                  </button>
-                  <button
-                    v-if="canAdd(mat, 10)"
-                    type="button"
-                    class="activity-mat-quick-btn"
-                    title="+10"
-                    :disabled="disabled"
-                    @mousedown.prevent="addQty(mat, 10)"
-                  >
-                    +10
-                  </button>
-                </template>
-                <template v-else-if="isAlreadyAdded(mat.materialItemId)">
-                  <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
-                </template>
-                <template v-else>
-                  <span class="mat-unavailable-badge">{{ t('activities.materialAvailability.unavailable') }}</span>
-                </template>
+                    <span v-if="isAlreadyAdded(entry.mat.materialItemId)" class="mat-already-badge">{{
+                      t('activities.materialAvailability.inList')
+                    }}</span>
+                    <template v-if="entry.mat.packSize && entry.mat.packSize > 1">
+                      <button
+                        v-if="canAdd(entry.mat, entry.mat.packSize)"
+                        type="button"
+                        class="activity-mat-quick-btn activity-mat-set-btn"
+                        :title="
+                          t('activities.materialAvailability.titleAddOnePack', {
+                            unit: entry.mat.packUnit || t('activities.materialAvailability.packUnitSet'),
+                          })
+                        "
+                        :disabled="disabled"
+                        @mousedown.prevent
+                        @click.stop="addQty(entry.mat, entry.mat.packSize)"
+                      >
+                        1 {{ entry.mat.packUnit || t('activities.materialAvailability.packUnitSet') }}
+                      </button>
+                      <button
+                        v-if="canAdd(entry.mat, entry.mat.packSize * 5)"
+                        type="button"
+                        class="activity-mat-quick-btn activity-mat-set-btn"
+                        :title="
+                          t('activities.materialAvailability.titleAddFivePacks', {
+                            units: entry.mat.packUnit || t('activities.materialAvailability.packUnitSets'),
+                          })
+                        "
+                        :disabled="disabled"
+                        @mousedown.prevent
+                        @click.stop="addQty(entry.mat, entry.mat.packSize * 5)"
+                      >
+                        5 {{ entry.mat.packUnit || t('activities.materialAvailability.packUnitSets') }}
+                      </button>
+                      <span class="activity-mat-btn-divider" aria-hidden="true">|</span>
+                    </template>
+                    <button
+                      v-if="canAdd(entry.mat, 1)"
+                      type="button"
+                      class="activity-mat-quick-btn"
+                      title="+1"
+                      :disabled="disabled"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 1)"
+                    >
+                      +1
+                    </button>
+                    <button
+                      v-if="canAdd(entry.mat, 5)"
+                      type="button"
+                      class="activity-mat-quick-btn"
+                      title="+5"
+                      :disabled="disabled"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 5)"
+                    >
+                      +5
+                    </button>
+                    <button
+                      v-if="canAdd(entry.mat, 10)"
+                      type="button"
+                      class="activity-mat-quick-btn"
+                      title="+10"
+                      :disabled="disabled"
+                      @mousedown.prevent
+                      @click.stop="addQty(entry.mat, 10)"
+                    >
+                      +10
+                    </button>
+                  </template>
+                  <template v-else-if="isAlreadyAdded(entry.mat.materialItemId)">
+                    <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="mat-unavailable-badge">{{ t('activities.materialAvailability.unavailable') }}</span>
+                  </template>
+                </div>
               </div>
-            </div>
+            </template>
           </div>
         </template>
       </MaterialLookupInput>
@@ -267,6 +280,17 @@
         </li>
       </ul>
     </div>
+
+    <!-- Mengen-Dialog (Zeilenklick bei >1 frei) -->
+    <ActivityMaterialQuantityDialog
+      v-if="quantityPickerState"
+      :material-name="quantityPickerState.material.name"
+      :max-quantity="quantityPickerState.maxQuantity"
+      :pack-size="quantityPickerState.material.packSize"
+      :pack-unit="quantityPickerState.material.packUnit"
+      @confirm="onQuantityPickerConfirm"
+      @cancel="onQuantityPickerCancel"
+    />
 
     <!-- Konfigurator-Dialog (virtuelle Kombo zusammenstellen) -->
     <ComboConfiguratorDialog
@@ -310,9 +334,11 @@ import { storageContainerIconFromPackUnit } from '@/utils/storageContainerDispla
 import { getRelatedAccessories } from '@/api/materials'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
+import { buildVirtualComboConfigSnapshot } from '@/utils/virtualComboMaterial'
 import CombineWithExistingDialog, {
   type CombineOverlap,
 } from '@/components/activities/CombineWithExistingDialog.vue'
+import ActivityMaterialQuantityDialog from '@/components/activities/ActivityMaterialQuantityDialog.vue'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -374,7 +400,11 @@ const emit = defineEmits<{
       material: ActivityPeriodAvailabilityMaterial
       quantity: number
       selectedOptionIds?: string[]
-      /** „Kombinieren?": vorhandene Einzelpositionen um den Kombo-Bedarf reduzieren. */
+      packMode?: 'together' | 'loose'
+      selfProvidedAcknowledged?: boolean
+      resolvedStock?: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+      resolvedSelfProvided?: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+      configSnapshot?: import('@/api/activities').ComboConfigSnapshot
       combineParts?: Array<{ materialItemId: string; reduceBy: number }>
     },
   ]
@@ -504,6 +534,92 @@ function effectiveStock(m: ActivityPeriodAvailabilityMaterial): number {
   return typeof m.availableForPeriod === 'number' ? m.availableForPeriod : 0
 }
 
+type LookupResultEntry =
+  | { kind: 'material'; mat: ActivityPeriodAvailabilityMaterial; index: number }
+  | { kind: 'divider' }
+
+function isFixedComboComponentRow(m: ActivityPeriodAvailabilityMaterial): boolean {
+  const memberships = m.partOfPhysicalCombos ?? []
+  if (memberships.length === 0) return false
+  if (effectiveStock(m) > 0) return false
+  const inKiste = m.stockInPhysComboKisten ?? m.stockInContainers ?? 0
+  return inKiste > 0
+}
+
+function partOfCombosLabel(m: ActivityPeriodAvailabilityMaterial): string {
+  return (m.partOfPhysicalCombos ?? [])
+    .map((p) => p.comboName)
+    .filter((name) => !!name)
+    .join(', ')
+}
+
+function flattenLookupResults(results: ActivityPeriodAvailabilityMaterial[]): LookupResultEntry[] {
+  const primary: ActivityPeriodAvailabilityMaterial[] = []
+  const comboParts: ActivityPeriodAvailabilityMaterial[] = []
+  for (const mat of results) {
+    if (isFixedComboComponentRow(mat)) {
+      comboParts.push(mat)
+    } else {
+      primary.push(mat)
+    }
+  }
+  const out: LookupResultEntry[] = primary.map((mat, index) => ({ kind: 'material', mat, index }))
+  if (comboParts.length > 0) {
+    out.push({ kind: 'divider' })
+    comboParts.forEach((mat, i) => {
+      out.push({ kind: 'material', mat, index: primary.length + 1 + i })
+    })
+  }
+  return out
+}
+
+function lookupEntryKey(entry: LookupResultEntry, flatIndex: number): string {
+  if (entry.kind === 'divider') return `divider-${flatIndex}`
+  return entry.mat.materialItemId
+}
+
+/** Zusatzinfo unter «X frei» — bei Phys.-Kombos einheitlich, nicht Behälter vs. Phys.-Kombi-Kisten mischen. */
+function secondaryStockHint(m: ActivityPeriodAvailabilityMaterial): string | null {
+  if ((m.stockInRepair ?? 0) > 0) {
+    const ws = m.stockInRepairFromWorkshop ?? 0
+    const batchOnly = Math.max(0, (m.stockInRepair ?? 0) - ws)
+    if (ws > 0 && batchOnly === 0) {
+      return t('activities.materialAvailability.inRepairWorkshopHint', { n: ws })
+    }
+    return t('activities.materialAvailability.inRepairHint', { n: m.stockInRepair })
+  }
+  if ((m.stockIssuedOut ?? 0) > 0) {
+    return t('activities.materialAvailability.issuedOutHint', { n: m.stockIssuedOut })
+  }
+  if (m.materialType === 'physical_combo') {
+    const inOwn = m.physicalComboSetsInOwnCrate ?? 0
+    const total = m.totalStock ?? 0
+    if (inOwn > 0 && total > 0 && inOwn < total) {
+      return t('activities.materialAvailability.physicalComboSetsInCratesPartialHint', {
+        n: inOwn,
+        total,
+      })
+    }
+    if (inOwn > 0) {
+      return t('activities.materialAvailability.physicalComboSetsInCratesHint', { n: inOwn })
+    }
+    if (total > 1) {
+      return t('activities.materialAvailability.physicalComboTotalSetsHint', { total })
+    }
+    return null
+  }
+  if ((m.stockInStorageContainers ?? 0) > 0) {
+    return t('activities.materialAvailability.inStorageContainersHint', {
+      n: m.stockInStorageContainers,
+    })
+  }
+  const inPhys = m.stockInPhysComboKisten ?? m.stockInContainers ?? 0
+  if (inPhys > 0) {
+    return t('activities.materialAvailability.inPhysComboKistenHint', { n: inPhys })
+  }
+  return null
+}
+
 function draftQtyFor(materialId: string): number {
   return props.quantityByMaterialItemId[materialId] ?? 0
 }
@@ -514,26 +630,92 @@ function savedQtyFor(materialId: string): number {
   return typeof s === 'number' ? s : 0
 }
 
+function standaloneQtyForMaterial(materialId: string): number {
+  const std = props.standaloneQuantityByMaterialItemId
+  if (std && Object.keys(std).length > 0) {
+    return std[materialId] ?? 0
+  }
+  return props.quantityByMaterialItemId[materialId] ?? 0
+}
+
 function isAlreadyAdded(materialId: string): boolean {
   return draftQtyFor(materialId) > 0
 }
 
-function canAdd(m: ActivityPeriodAvailabilityMaterial, qty: number): boolean {
-  if (props.disabled || qty < 1) return false
+/**
+ * Extra-Menge buchbar, obwohl Material schon auf der Aktivität steht
+ * (z. B. nur als lose Kombo-Teil — dann eigenständige Zusatzposition erlauben).
+ */
+function canRepeatAddMaterial(materialId: string): boolean {
+  if (props.repeatAddFromSearch) return true
+  const total = draftQtyFor(materialId)
+  if (total <= 0) return false
+  const standalone = standaloneQtyForMaterial(materialId)
+  // Zusatzmenge erlauben, wenn nicht ausschliesslich eigenständige Zeile(n) (z. B. nur Kombo-Kind/together).
+  return standalone < total
+}
+
+/** Verbleibend buchbar im Zeitraum (API schliesst eigene Aktivität aus → Entwurfsmenge abziehen). */
+function maxAddableQty(m: ActivityPeriodAvailabilityMaterial): number {
   const raw = effectiveStock(m)
   const draft = draftQtyFor(m.materialItemId)
+  if (props.activityId) {
+    return Math.max(0, raw - draft)
+  }
   const saved = savedQtyFor(m.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  return adjustedFree >= qty
+  return Math.max(0, raw + saved - draft)
+}
+
+/** Anzeige «X frei» — nach Abzug der bereits auf dieser Aktivität gebuchten Menge. */
+function displayFreeStock(m: ActivityPeriodAvailabilityMaterial): number {
+  return maxAddableQty(m)
+}
+
+function canSelectRow(m: ActivityPeriodAvailabilityMaterial): boolean {
+  if (props.disabled) return false
+  if (isFixedComboComponentRow(m)) return false
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return false
+  if (isAlreadyAdded(m.materialItemId) && !canRepeatAddMaterial(m.materialItemId)) return false
+  return maxAddableQty(m) >= 1
+}
+
+function onResultRowClick(m: ActivityPeriodAvailabilityMaterial) {
+  if (!canSelectRow(m)) return
+  const max = maxAddableQty(m)
+  dismissMaterialLookupDropdown()
+  if (max <= 1) {
+    addQty(m, 1)
+    return
+  }
+  quantityPickerState.value = { material: m, maxQuantity: max }
+}
+
+const quantityPickerState = ref<{
+  material: ActivityPeriodAvailabilityMaterial
+  maxQuantity: number
+} | null>(null)
+
+function onQuantityPickerConfirm(qty: number) {
+  const state = quantityPickerState.value
+  quantityPickerState.value = null
+  if (!state) return
+  addQty(state.material, qty)
+}
+
+function onQuantityPickerCancel() {
+  quantityPickerState.value = null
+}
+
+function canAdd(m: ActivityPeriodAvailabilityMaterial, qty: number): boolean {
+  if (props.disabled || qty < 1) return false
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return false
+  return maxAddableQty(m) >= qty
 }
 
 function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   if (props.disabled) return
-  const raw = effectiveStock(m)
-  const draft = draftQtyFor(m.materialItemId)
-  const saved = savedQtyFor(m.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  const add = Math.min(qty, adjustedFree)
+  if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return
+  const add = Math.min(qty, maxAddableQty(m))
   if (add < 1) return
   // Virtuelle Kombo → Konfigurator-Dialog (Gruppen/Toggles wählen + live Verfügbarkeit), Zeilenmodell B.
   if (m.materialType === 'virtual_combo') {
@@ -549,27 +731,52 @@ function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
 
 // ── Konfigurator-Dialog (virtuelle Kombo) ──
 const configuratorState = ref<{ material: ActivityPeriodAvailabilityMaterial; quantity: number } | null>(null)
+const materialLookupRef = ref<InstanceType<typeof MaterialLookupInput> | null>(null)
+
+function dismissMaterialLookupDropdown() {
+  materialLookupRef.value?.closeDropdown()
+  materialLookupRef.value?.resetLookup()
+  matSearch.value = ''
+}
 
 function openConfigurator(m: ActivityPeriodAvailabilityMaterial, qty: number) {
+  dismissMaterialLookupDropdown()
   configuratorState.value = { material: m, quantity: qty }
 }
 
 function onConfiguratorConfirm(payload: {
   selectedOptionIds: string[]
   quantity: number
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
   resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
 }) {
   const state = configuratorState.value
   configuratorState.value = null
   if (!state) return
 
+  const configSnapshot = buildVirtualComboConfigSnapshot({
+    quantity: payload.quantity,
+    selectedOptionIds: payload.selectedOptionIds,
+    resolvedStock: payload.resolvedStock,
+    resolvedSelfProvided: payload.resolvedSelfProvided,
+    packMode: payload.packMode,
+    selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+  })
+
   // „Kombinieren?": Überlapp der aufgelösten Teile mit vorhandenen Einzelpositionen erkennen.
   const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
   if (overlaps.length > 0) {
+    dismissMaterialLookupDropdown()
     combineState.value = {
       material: state.material,
       quantity: payload.quantity,
       selectedOptionIds: payload.selectedOptionIds,
+      packMode: payload.packMode,
+      selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+      resolvedStock: payload.resolvedStock,
+      resolvedSelfProvided: payload.resolvedSelfProvided,
       overlaps,
     }
     return
@@ -579,6 +786,11 @@ function onConfiguratorConfirm(payload: {
     material: state.material,
     quantity: payload.quantity,
     selectedOptionIds: payload.selectedOptionIds,
+    packMode: payload.packMode,
+    selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
+    resolvedStock: payload.resolvedStock,
+    resolvedSelfProvided: payload.resolvedSelfProvided,
+    configSnapshot,
   })
   matSearch.value = ''
   void loadAccessorySuggestion(state.material)
@@ -593,6 +805,10 @@ const combineState = ref<{
   material: ActivityPeriodAvailabilityMaterial
   quantity: number
   selectedOptionIds: string[]
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
   overlaps: CombineOverlap[]
 } | null>(null)
 
@@ -633,6 +849,18 @@ function onCombineUseExisting() {
     material: state.material,
     quantity: state.quantity,
     selectedOptionIds: state.selectedOptionIds,
+    packMode: state.packMode,
+    selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    resolvedStock: state.resolvedStock,
+    resolvedSelfProvided: state.resolvedSelfProvided,
+    configSnapshot: buildVirtualComboConfigSnapshot({
+      quantity: state.quantity,
+      selectedOptionIds: state.selectedOptionIds,
+      resolvedStock: state.resolvedStock,
+      resolvedSelfProvided: state.resolvedSelfProvided,
+      packMode: state.packMode,
+      selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    }),
     combineParts,
   })
   matSearch.value = ''
@@ -647,6 +875,18 @@ function onCombineSeparate() {
     material: state.material,
     quantity: state.quantity,
     selectedOptionIds: state.selectedOptionIds,
+    packMode: state.packMode,
+    selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    resolvedStock: state.resolvedStock,
+    resolvedSelfProvided: state.resolvedSelfProvided,
+    configSnapshot: buildVirtualComboConfigSnapshot({
+      quantity: state.quantity,
+      selectedOptionIds: state.selectedOptionIds,
+      resolvedStock: state.resolvedStock,
+      resolvedSelfProvided: state.resolvedSelfProvided,
+      packMode: state.packMode,
+      selfProvidedAcknowledged: state.selfProvidedAcknowledged,
+    }),
   })
   matSearch.value = ''
   void loadAccessorySuggestion(state.material)
@@ -716,11 +956,8 @@ async function loadAccessorySuggestion(combo: ActivityPeriodAvailabilityMaterial
 
 function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   if (props.disabled) return
-  const raw = effectiveStock(acc)
-  const draft = draftQtyFor(acc.materialItemId)
-  const saved = savedQtyFor(acc.materialItemId)
-  const adjustedFree = Math.max(0, raw + saved - draft)
-  if (adjustedFree < 1) return
+  const add = maxAddableQty(acc)
+  if (add < 1) return
   emit('add-quantity', { material: acc, quantity: 1 })
 }
 </script>
@@ -867,6 +1104,32 @@ function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   flex-direction: column;
 }
 
+.activity-mat-result-row.combo-component-row {
+  background: #fafafa;
+}
+
+.activity-mat-combo-parts-divider {
+  padding: 8px 12px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #6b7280;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.activity-mat-combo-part-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-primary-dark, #047857);
+  background: var(--color-primary-subtle-bg, #d1fae5);
+}
+
 .activity-mat-result-row {
   display: flex;
   flex-wrap: wrap;
@@ -875,6 +1138,14 @@ function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
   gap: 8px 12px;
   padding: 10px 12px;
   border-bottom: 1px solid #f3f4f6;
+}
+
+.activity-mat-result-row--clickable {
+  cursor: pointer;
+}
+
+.activity-mat-result-row--clickable:hover {
+  background: #f0fdf4;
 }
 
 .activity-mat-result-row:last-child {

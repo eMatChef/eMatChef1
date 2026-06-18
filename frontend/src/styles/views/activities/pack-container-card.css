@@ -178,8 +178,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 10px;
-  padding: 8px 12px 8px 2.25rem;
+  gap: 4px 8px;
+  padding: 4px 12px 4px 2.25rem;
   border-top: 1px solid #e5e7eb;
   background: #fafafa;
 }
@@ -285,12 +285,12 @@
 }
 
 .pack-container-line-issue-quick {
-  flex: 1 1 100%;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  justify-content: flex-end;
-  padding-top: 2px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+  padding-top: 0;
 }
 
 .pack-container-empty {
@@ -398,20 +398,24 @@
   background: #ecfdf5;
 }
 
-.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow,
-.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow--into-crate {
+.pack-workflow--crate-target-active .btn-move-arrow.btn-move-arrow--into-crate,
+.pack-workflow--crate-target-active .btn-move-arrow.btn-move-arrow--up,
+.pack-workflow--crate-target-active .btn-moveback-arrow.btn-moveback-arrow--into-crate {
   background: #16a34a;
   border-color: #16a34a;
   color: #fff;
 }
 
-.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow:hover,
-.pack-workflow--crate-target-active .pack-panel-left .btn-move-arrow--into-crate:hover {
+.pack-workflow--crate-target-active .btn-move-arrow.btn-move-arrow--into-crate:hover,
+.pack-workflow--crate-target-active .btn-move-arrow.btn-move-arrow--up:hover,
+.pack-workflow--crate-target-active .btn-moveback-arrow.btn-moveback-arrow--into-crate:hover {
   background: #15803d;
   border-color: #15803d;
 }
 
-.pack-workflow--crate-target-active .pack-panel-left .pack-move-input:focus {
+.pack-workflow--crate-target-active .pack-move-input:focus,
+.pack-workflow--crate-target-active .pack-move-input.pack-move-input--into-crate:focus,
+.pack-workflow--crate-target-active .pack-moveback-input.pack-moveback-input--into-crate:focus {
   border-color: #16a34a;
   box-shadow: 0 0 0 2px #bbf7d0;
 }

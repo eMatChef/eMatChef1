@@ -4,6 +4,8 @@ export interface MyJoinRequest {
   id: string
   request_kind?: 'admin' | 'department_join'
   status: 'pending' | 'approved' | 'rejected' | 'assigned'
+  /** Join-Code: sofort beigetreten, keine Freigabe durch MW/DC nötig. */
+  auto_joined?: boolean
   department_id?: string | null
   department_name: string
   organisation_name?: string | null
@@ -98,12 +100,30 @@ export interface ReceivedDepartmentInviteNotification {
   read: boolean
 }
 
+export interface GrossanlassMwAssignedNotification {
+  id: string
+  type: 'grossanlass_mw_assigned'
+  department_id: string
+  department_name: string
+  role: string
+  is_grossanlass: boolean
+  dashboard_url: string
+  planned_event_start: string
+  planned_event_end?: string | null
+  created_at: string
+  read: boolean
+}
+
+export type ReceivedUserInboxNotification =
+  | ReceivedDepartmentInviteNotification
+  | GrossanlassMwAssignedNotification
+
 export type DepartmentInviteInboxBucket = 'unread' | 'read' | 'all'
 
 export interface ReceivedDepartmentInvitesResponse {
   count: number
   unread_count: number
-  items: ReceivedDepartmentInviteNotification[]
+  items: ReceivedUserInboxNotification[]
 }
 
 export interface CreateJoinRequestResponse {
@@ -382,9 +402,14 @@ export async function decideDepartmentActivityInvite(payload: {
   activityId: string
   departmentId: string
   decision: 'accepted' | 'rejected'
+  groupId?: string
 }): Promise<void> {
-  await apiClient.patch(`/api/activities/${payload.activityId}/department-invites/decision`, {
+  const body: Record<string, string> = {
     department_id: payload.departmentId,
     decision: payload.decision,
-  })
+  }
+  if (payload.decision === 'accepted' && payload.groupId) {
+    body.group_id = payload.groupId
+  }
+  await apiClient.patch(`/api/activities/${payload.activityId}/department-invites/decision`, body)
 }
