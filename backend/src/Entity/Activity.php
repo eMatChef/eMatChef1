@@ -115,6 +115,14 @@ class Activity
     #[ORM\JoinColumn(name: 'venue_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $venueAddress = null;
 
+    /** J+S-Leihmaterial: Lieferadresse (kann vom Eventstandort abweichen) */
+    #[ORM\Column(name: 'js_delivery_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $jsDeliveryAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'js_delivery_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $jsDeliveryAddress = null;
+
     // Verantwortlicher User
     #[ORM\Column(name: 'responsible_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $responsibleUserId = null;
@@ -159,6 +167,14 @@ class Activity
     // Eingeladene Departments (Camp/Event)
     #[ORM\Column(name: 'invited_departments', type: 'json', nullable: true)]
     private ?array $invitedDepartments = null;
+
+    /** Camp/Event: Leiter plant J+S-Leihmaterial (separates Bestellformular, nicht Material-Suche) */
+    #[ORM\Column(name: 'wants_js_material', type: 'boolean', options: ['default' => false])]
+    private bool $wantsJsMaterial = false;
+
+    /** Camp/Event: Teilnehmerzahl für J+S-Dotation (optional bis Formular) */
+    #[ORM\Column(name: 'participant_count', type: 'integer', nullable: true)]
+    private ?int $participantCount = null;
 
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
@@ -391,6 +407,29 @@ class Activity
         return $this;
     }
 
+    public function getJsDeliveryAddressId(): ?string
+    {
+        return $this->jsDeliveryAddressId;
+    }
+
+    public function setJsDeliveryAddressId(?string $jsDeliveryAddressId): self
+    {
+        $this->jsDeliveryAddressId = $jsDeliveryAddressId;
+        return $this;
+    }
+
+    public function getJsDeliveryAddress(): ?Address
+    {
+        return $this->jsDeliveryAddress;
+    }
+
+    public function setJsDeliveryAddress(?Address $jsDeliveryAddress): self
+    {
+        $this->jsDeliveryAddress = $jsDeliveryAddress;
+        $this->jsDeliveryAddressId = $jsDeliveryAddress?->getId();
+        return $this;
+    }
+
     public function getResponsibleUserId(): ?string
     {
         return $this->responsibleUserId;
@@ -522,6 +561,28 @@ class Activity
     public function setInvitedDepartments(?array $invitedDepartments): self
     {
         $this->invitedDepartments = $invitedDepartments;
+        return $this;
+    }
+
+    public function getWantsJsMaterial(): bool
+    {
+        return $this->wantsJsMaterial;
+    }
+
+    public function setWantsJsMaterial(bool $wantsJsMaterial): self
+    {
+        $this->wantsJsMaterial = $wantsJsMaterial;
+        return $this;
+    }
+
+    public function getParticipantCount(): ?int
+    {
+        return $this->participantCount;
+    }
+
+    public function setParticipantCount(?int $participantCount): self
+    {
+        $this->participantCount = $participantCount;
         return $this;
     }
 

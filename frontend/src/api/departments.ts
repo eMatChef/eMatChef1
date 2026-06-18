@@ -47,6 +47,28 @@ export interface CreateDepartmentRequest {
   parent_id?: string | null
 }
 
+export interface GrossanlassConfig {
+  status: string
+  struktur_modus?: string
+  planned_event_start: string
+  planned_event_end?: string | null
+  main_activity_id?: string | null
+}
+
+export interface CreateGrossanlassDepartmentRequest {
+  name: string
+  organisation_id: string
+  parent_id?: string | null
+  planned_event_start: string
+  planned_event_end?: string | null
+  chief_mw_user_id?: string | null
+}
+
+export interface GrossanlassDepartment extends Department {
+  is_grossanlass?: boolean
+  grossanlass_config?: GrossanlassConfig
+}
+
 export interface UpdateDepartmentRequest {
   name?: string
   organisation_id?: string
@@ -58,6 +80,32 @@ export interface UpdateDepartmentRequest {
  */
 export async function createDepartment(data: CreateDepartmentRequest): Promise<Department> {
   const response = await apiClient.post<Department>('/api/departments', data)
+  return response.data
+}
+
+/**
+ * Erstellt ein Grossanlass-Department (Phase 1)
+ */
+export async function createGrossanlassDepartment(
+  data: CreateGrossanlassDepartmentRequest
+): Promise<GrossanlassDepartment> {
+  const response = await apiClient.post<GrossanlassDepartment>('/api/departments/grossanlass', data)
+  return response.data
+}
+
+/**
+ * Globale User-Suche für Grossanlass-Wizard (Chief-MW), org-übergreifend.
+ */
+export async function getGrossanlassAvailableUsers(
+  query: string,
+  organisationId?: string | null,
+): Promise<AvailableUser[]> {
+  const response = await apiClient.get<AvailableUser[]>('/api/departments/grossanlass/available-users', {
+    params: {
+      q: query,
+      ...(organisationId ? { organisation_id: organisationId } : {}),
+    },
+  })
   return response.data
 }
 
@@ -96,6 +144,8 @@ export interface AvailableUser {
   first_name: string | null
   last_name: string | null
   nickname: string | null
+  primary_department_name?: string | null
+  departments_label?: string | null
 }
 
 /**

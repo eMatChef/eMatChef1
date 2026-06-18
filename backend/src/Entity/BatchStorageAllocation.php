@@ -146,7 +146,7 @@ class BatchStorageAllocation
     public function getEffectiveRackId(): ?string
     {
         if ($this->containerBatch !== null) {
-            return $this->containerBatch->getRackId();
+            return $this->containerBatch->getEffectiveRackId();
         }
         return $this->rackId;
     }
@@ -157,7 +157,7 @@ class BatchStorageAllocation
     public function getEffectiveSlotId(): ?string
     {
         if ($this->containerBatch !== null) {
-            return $this->containerBatch->getSlotId();
+            return $this->containerBatch->getEffectiveSlotId();
         }
         return $this->slotId;
     }

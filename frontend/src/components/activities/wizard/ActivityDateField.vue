@@ -4,7 +4,7 @@
       :model-value="displayText"
       class="activity-date-field activity-v-date-input e-form-field"
       variant="outlined"
-      density="compact"
+      :density="density"
       hide-details
       readonly
       prepend-icon=""
@@ -80,12 +80,25 @@ const props = withDefaults(
     modelValue: Date | null
     departmentId?: string | null
     disabled?: boolean
+    density?: 'default' | 'comfortable' | 'compact'
+    /** Vergangene Tage erlauben (z. B. Fixe Daten in Einstellungen) */
+    allowPast?: boolean
+    /** Mat-Büro-geschlossene Tage nicht wählbar */
+    blockClosedDates?: boolean
     /** Schnellauswahl (Samstage, …) */
     showPresets?: boolean
-    /** Kalender-Punkte (Feiertage, Fixe Daten, fcal); Mat-Büro geschlossen sperrt nur bei true */
+    /** Kalender-Punkte (Feiertage, Fixe Daten, fcal) */
     showMarkers?: boolean
   }>(),
-  { departmentId: null, disabled: false, showPresets: false, showMarkers: true },
+  {
+    departmentId: null,
+    disabled: false,
+    density: 'compact',
+    allowPast: false,
+    blockClosedDates: true,
+    showPresets: false,
+    showMarkers: true,
+  },
 )
 
 const emit = defineEmits<{
@@ -94,7 +107,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const menuOpen = ref(false)
-const minDate = computed(() => startOfToday())
+const minDate = computed(() => (props.allowPast ? undefined : startOfToday()))
 
 const {
   month: paneMonth,
@@ -113,6 +126,7 @@ const {
 const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =
   useActivityDatePickerEvents(() => props.departmentId, {
     showMarkers: () => props.showMarkers,
+    blockClosedDates: () => props.blockClosedDates,
   })
 const menuPresets = useActivityDatePresets('single', calendarPeriods)
 

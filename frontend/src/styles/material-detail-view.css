@@ -1,21 +1,26 @@
 .material-detail-view {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   height: 100%;
+  overflow: hidden;
   background: #f8fafc;
 }
 
-/* Header */
+/* Header — bleibt oben (nicht im Scroll-Bereich); sticky als Fallback */
 .detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-shrink: 0;
   padding: 16px 24px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 40;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
 }
 
 .header-left {
@@ -80,6 +85,12 @@
   margin-right: 2px;
 }
 
+.header-linked-qr {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Loading */
 .loading-container {
   display: flex;
@@ -89,21 +100,33 @@
   padding: 80px 20px;
 }
 
-/* Content */
-.detail-content {
+/* Tabs + Inhalt unter fixem Header */
+.detail-body {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-/* Tab Navigation (Vuetify v-tabs) — Marken-Grün wie frühere .material-tab-Leiste */
+/* Einziger Scroll-Bereich (unter Header + Tab-Leiste) */
+.detail-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Tab Navigation — fix unter Header, scrollt nicht mit */
 .material-detail-tabs {
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: white;
+  position: relative;
+  z-index: 20;
+  background: #fff;
   border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 16px;
+  margin-bottom: 0;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 }
 
 .material-detail-view :deep(.material-detail-tabs.v-tabs) {
@@ -1182,6 +1205,39 @@
   color: #64748b;
 }
 
+.composition-ref-container-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.composition-ref-container-panel {
+  margin-bottom: 4px;
+}
+
+.composition-ref-container-actions {
+  margin: 8px 0 12px;
+}
+
+.composition-ref-container-loading {
+  padding: 12px 0;
+}
+
+.composition-set-ref-container-field {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.composition-set-ref-container-warn {
+  color: #b45309;
+}
+
 .composition-status-cell {
   width: 36px;
   text-align: center;
@@ -1433,4 +1489,67 @@
   font-size: 11px;
   line-height: 1.35;
   color: #6b7280;
+}
+
+/* Bestandseinheit — :deep() weil Kind-Komponente (scoped) */
+.material-detail-view :deep(.detail-stock-unit-editor .stock-unit-options) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+.material-detail-view :deep(.detail-stock-unit-editor .qty-entry-mode-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  min-width: 44px;
+  line-height: 1.2;
+}
+
+.material-detail-view :deep(.detail-stock-unit-editor .qty-entry-mode-btn:hover:not(:disabled)) {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.material-detail-view :deep(.detail-stock-unit-editor .qty-entry-mode-btn.active) {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.material-detail-view :deep(.detail-stock-unit-editor .qty-entry-mode-btn:disabled) {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.material-detail-view :deep(.detail-stock-unit-editor .stk-length-toggle) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.material-detail-view .section-card--stock-unit .section-title {
+  margin-bottom: 12px;
+}
+
+.material-detail-view :deep(.detail-stock-unit-autosave .autosave-field-frame) {
+  padding-top: 0;
+  border: none;
+  box-shadow: none;
+}
+
+.material-detail-view :deep(.detail-stock-unit-autosave .section-hint) {
+  margin: 0 0 4px;
 }

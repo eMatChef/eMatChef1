@@ -10,8 +10,19 @@
         <v-icon icon="mdi-alert" size="28" />
       </div>
       <h3 class="global-prompt-dialog__title">{{ promptStore.options.title }}</h3>
-      <p v-if="promptStore.options.message" class="global-prompt-dialog__message">
-        {{ promptStore.options.message }}
+      <p
+        v-if="promptStore.options.message || promptStore.options.settingsLink"
+        class="global-prompt-dialog__message"
+      >
+        <template v-if="promptStore.options.message">{{ promptStore.options.message }}</template>
+        <router-link
+          v-if="promptStore.options.settingsLink"
+          class="global-prompt-dialog__settings-link"
+          :to="promptStore.options.settingsLink.to"
+          @click="promptStore.cancel()"
+        >
+          {{ promptStore.options.settingsLink.label }}
+        </router-link><template v-if="promptStore.options.settingsLink">.</template>
       </p>
       <ETextField
         ref="inputRef"

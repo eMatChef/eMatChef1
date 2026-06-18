@@ -1,6 +1,7 @@
 <template>
-  <div class="modal-overlay" @click.self="cancel">
-    <div class="modal-dialog combo-config-dialog">
+  <Teleport to="body">
+    <div class="modal-overlay" @click.self="cancel">
+      <div class="modal-dialog combo-config-dialog">
       <div class="ccd-head">
         <h3>{{ t('components.comboConfigurator.title', { name: comboName }) }}</h3>
         <p class="ccd-intro">{{ t('components.comboConfigurator.intro') }}</p>
@@ -99,14 +100,38 @@
               </li>
             </ul>
           </div>
-          <div v-if="availability.selected.selfProvided.length > 0" class="ccd-selfprovided">
+
+          <div v-if="resolvedSelfProvided.length > 0" class="ccd-selfprovided">
             <span class="ccd-resolved-title">{{ t('components.comboConfigurator.selfProvidedTitle') }}</span>
             <ul>
-              <li v-for="c in availability.selected.selfProvided" :key="c.materialItemId">
-                {{ c.qtyPerCombo }}× {{ c.name }}
+              <li v-for="c in resolvedSelfProvided" :key="c.materialItemId">
+                {{ (c.qtyPerCombo ?? 0) * quantity }}× {{ c.name }}
+                <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
               </li>
             </ul>
           </div>
+        </div>
+
+        <!-- Pack-Vorgabe + self_provided-Bestätigung -->
+        <div v-if="availability" class="ccd-pack-mode">
+          <span class="ccd-pack-mode-title">{{ t('components.comboConfigurator.packModeTitle') }}</span>
+          <label class="ccd-pack-mode-option">
+            <input v-model="packMode" type="radio" value="together" />
+            <span>{{ t('components.comboConfigurator.packModeTogether', { name: comboName }) }}</span>
+          </label>
+          <label class="ccd-pack-mode-option">
+            <input v-model="packMode" type="radio" value="loose" />
+            <span>{{ t('components.comboConfigurator.packModeLoose') }}</span>
+          </label>
+          <label v-if="resolvedSelfProvided.length > 0" class="ccd-selfprovided-ack">
+            <input v-model="selfProvidedAcknowledged" type="checkbox" />
+            <span>{{ t('components.comboConfigurator.selfProvidedAck') }}</span>
+          </label>
+          <ul v-if="resolvedSelfProvided.length > 0" class="ccd-selfprovided-ack-hint text-muted">
+            <li v-for="c in resolvedSelfProvided" :key="'ack-' + c.materialItemId">
+              {{ c.qtyPerCombo }}× {{ c.name }}
+            </li>
+          </ul>
         </div>
       </template>
 
@@ -120,6 +145,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -148,8 +174,10 @@ const emit = defineEmits<{
     payload: {
       selectedOptionIds: string[]
       quantity: number
-      /** Aufgelöste stock-Teile je Kombo (für „Kombinieren?"-Überlapperkennung). */
+      packMode: 'together' | 'loose'
+      selfProvidedAcknowledged: boolean
       resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+      resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
     },
   ): void
   (e: 'cancel'): void
@@ -162,6 +190,8 @@ const loading = ref(false)
 const error = ref('')
 const quantity = ref(Math.max(1, props.initialQuantity ?? 1))
 const selected = ref<Set<string>>(new Set())
+const packMode = ref<'together' | 'loose'>('loose')
+const selfProvidedAcknowledged = ref(false)
 
 const sortedGroups = computed(() => [...(availability.value?.groups ?? [])].sort((a, b) => a.sortOrder - b.sortOrder))
 
@@ -265,6 +295,12 @@ function deltaLabel(optionId: string): string {
 
 const resolvedStock = computed(() => availability.value?.selected.components ?? [])
 
+const resolvedSelfProvided = computed(
+  () => availability.value?.selected.selfProvided ?? [],
+)
+
+const needsSelfProvidedAck = computed(() => resolvedSelfProvided.value.length > 0)
+
 const buildable = computed(() => availability.value?.selected.buildable ?? 0)
 const selectedBlocked = computed(() => availability.value?.selected.blocked ?? true)
 
@@ -292,6 +328,7 @@ const canConfirm = computed(() => {
   if (selectedBlocked.value) return false
   if (quantity.value < 1) return false
   if ((buildable.value ?? 0) < quantity.value) return false
+  if (needsSelfProvidedAck.value && !selfProvidedAcknowledged.value) return false
   return groupsValid.value
 })
 
@@ -333,7 +370,18 @@ function confirm() {
     name: c.name,
     qtyPerCombo: c.qtyPerCombo ?? 0,
   }))
-  emit('confirm', { selectedOptionIds: [...selected.value], quantity: quantity.value, resolvedStock })
+  emit('confirm', {
+    selectedOptionIds: [...selected.value],
+    quantity: quantity.value,
+    packMode: packMode.value,
+    selfProvidedAcknowledged: needsSelfProvidedAck.value ? selfProvidedAcknowledged.value : false,
+    resolvedStock,
+    resolvedSelfProvided: (availability.value?.selected.selfProvided ?? []).map((c) => ({
+      materialItemId: c.materialItemId,
+      name: c.name,
+      qtyPerCombo: c.qtyPerCombo ?? 0,
+    })),
+  })
 }
 function cancel() {
   emit('cancel')
@@ -380,6 +428,11 @@ onMounted(async () => {
 .ccd-qty-input { width: 90px; }
 .ccd-avail { font-weight: 600; font-size: 0.9rem; }
 .ccd-resolved, .ccd-selfprovided { margin-top: 0.5rem; font-size: 0.8rem; }
+.ccd-pack-mode { margin-top: 0.75rem; padding-top: 0.6rem; border-top: 1px solid var(--border-color, #e5e7eb); }
+.ccd-pack-mode-title { display: block; font-weight: 600; font-size: 0.86rem; margin-bottom: 0.4rem; }
+.ccd-pack-mode-option { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0.3rem 0; font-size: 0.84rem; cursor: pointer; }
+.ccd-selfprovided-ack { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 0.6rem; font-size: 0.84rem; cursor: pointer; }
+.ccd-selfprovided-ack-hint { margin: 0.25rem 0 0 1.4rem; padding: 0; font-size: 0.78rem; }
 .ccd-resolved-title { font-weight: 600; }
 .ccd-resolved ul, .ccd-selfprovided ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
 .ccd-resolved-total { color: var(--text-muted, #6b7280); }

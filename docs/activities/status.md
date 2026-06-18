@@ -157,5 +157,6 @@ Verlauf: `GET /api/activities/{id}/history` (Einträge z. B. `status_changed`)
 ## Siehe auch
 
 - [Material-Pipeline](./material-pipeline.md) (Bestellung vs. Packliste, Quick vs. Logistics)
+- [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md) (Packliste: Tabs, Kistencheck, Rollen)
 - [Pack-Workflow (Geräte)](../devices/pack-workflow.md)
 - [Nachrichtenzentrale](../nachrichtenzentrale.md) (Benachrichtigungen bei Statuswechsel)

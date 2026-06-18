@@ -131,6 +131,24 @@ class PackPipelineService
         };
     }
 
+    public function applyBackwardContainer(ActivityPackContainerItem $item, string $stage, int $qty): void
+    {
+        $stage = $this->normalizeStage($stage);
+        if ($qty < 1) {
+            return;
+        }
+
+        match ($stage) {
+            self::STAGE_PACKED => $item->setQuantityPacked($item->getQuantityPacked() - $qty),
+            self::STAGE_TRANSPORT_TO => $item->setQuantityTransportTo($item->getQuantityTransportTo() - $qty),
+            self::STAGE_AT_EVENT => $item->setQuantityIssued($item->getQuantityIssued() - $qty),
+            self::STAGE_TRANSPORT_BACK => $item->setQuantityTransportBack($item->getQuantityTransportBack() - $qty),
+            self::STAGE_RETURNED => $item->setQuantityReturned($item->getQuantityReturned() - $qty),
+            self::STAGE_STORED => $item->setQuantityStored($item->getQuantityStored() - $qty),
+            default => null,
+        };
+    }
+
     public function applyForwardContainer(ActivityPackContainerItem $item, string $stage, int $qty, string $profile): void
     {
         $stage = $this->normalizeStage($stage);

@@ -1,0 +1,35 @@
+.activity-material-scope-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.activity-material-scope-tab {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.activity-material-scope-tab:hover:not(:disabled) {
+  border-color: #059669;
+  color: #059669;
+}
+
+.activity-material-scope-tab[aria-selected='true'] {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.activity-material-scope-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

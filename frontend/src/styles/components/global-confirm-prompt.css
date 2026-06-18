@@ -76,6 +76,17 @@
   white-space: pre-line;
 }
 
+.global-prompt-dialog__settings-link {
+  color: var(--color-primary, #059669);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.global-prompt-dialog__settings-link:hover {
+  color: var(--color-primary-dark, #047857);
+}
+
 .global-prompt-dialog__input {
   text-align: left;
   margin-top: 4px;

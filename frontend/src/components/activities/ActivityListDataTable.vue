@@ -26,7 +26,14 @@
     </template>
 
     <template #item.type="{ item }">
-      <span class="type-badge" :class="item.type">{{ typeLabel(item.type) }}</span>
+      <div class="activity-list-type-badges">
+        <span class="type-badge" :class="item.type">{{ typeLabel(item.type) }}</span>
+        <span
+          v-if="activityHasJsMaterial(item)"
+          class="type-badge js"
+          :class="item.jsListPhase ? `js-phase-${item.jsListPhase}` : undefined"
+        >{{ t('activities.common.jsBadge') }}</span>
+      </div>
     </template>
 
     <template #item.group="{ item }">
@@ -80,6 +87,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { GroupPathLine } from '@/utils/groupHierarchy'
 import { activityStatusClass } from '@/utils/activityStatus'
+import { activityHasJsMaterial } from '@/utils/activityJsListStatus'
 import type { ActivityListItem } from './activityListItem'
 import '@/styles/components/activity-list-data-table.css'
 

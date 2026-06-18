@@ -1,6 +1,7 @@
 <template>
-  <div class="modal-overlay" @click.self="onSeparate">
-    <div class="modal-dialog combine-dialog">
+  <Teleport to="body">
+    <div class="modal-overlay" @click.self="onSeparate">
+      <div class="modal-dialog combine-dialog">
       <div class="cwd-head">
         <h3>{{ t('activities.combineDialog.title') }}</h3>
         <p class="cwd-intro">{{ t('activities.combineDialog.intro', { name: comboName }) }}</p>
@@ -35,6 +36,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

@@ -191,6 +191,12 @@
             >
               {{ t(accountingFollowUpKindKey(fu.source_kind)) }}
               <span class="booking-assign-tab-meta">· CHF {{ formatMoney(fu.amount) }}</span>
+              <v-icon
+                v-if="fu.receipts?.length"
+                icon="mdi-paperclip"
+                size="14"
+                class="booking-assign-tab-receipt"
+              />
             </v-tab>
           </v-tabs>
           <div class="booking-assign-form">
@@ -261,6 +267,28 @@
               maxlength="255"
               hide-details="auto"
             />
+            <div class="mt-3">
+              <label class="booking-field-label">{{ t('accounting.bookings.labelMaterialOptional') }}</label>
+              <p class="acc-field-hint">{{ t('accounting.bookings.materialAssignFromWizardHint') }}</p>
+              <MaterialLookupInput
+                v-model="materialLookupDisplay"
+                :fetcher="bookingMaterialLookupFetcher"
+                :min-chars="1"
+                :max-suggestions="12"
+                :placeholder="t('accounting.bookings.placeholderMaterialSearch')"
+                :get-result-key="(item) => item.id"
+                @select="onBookingMaterialSelect"
+              />
+              <EButton
+                v-if="form.material_item_id"
+                variant="text"
+                size="small"
+                class="booking-clear-material"
+                @click="clearBookingMaterial"
+              >
+                {{ t('accounting.bookings.clearMaterialLink') }}
+              </EButton>
+            </div>
             <ETextarea
               v-model="form.notes"
               class="mt-3"
@@ -269,6 +297,17 @@
               rows="3"
               hide-details="auto"
             />
+            <div v-if="activeFollowUpId" class="mt-4 booking-receipts-section">
+              <label class="booking-field-label">{{ t('accounting.bookings.receiptAttachmentsLabel') }}</label>
+              <p class="acc-field-hint">{{ t('accounting.bookings.followUpReceiptHint') }}</p>
+              <BookingReceiptAttachments
+                :department-id="departmentId"
+                :follow-up-id="activeFollowUpId"
+                :receipts="assignFollowUpReceipts"
+                :show-empty="true"
+                @update:receipts="onAssignFollowUpReceiptsUpdate"
+              />
+            </div>
             <div class="booking-assign-actions">
               <EButton variant="primary" :loading="saving" @click="save(true)">
                 {{ saving ? t('accounting.bookings.saveAssignSaving') : t('accounting.bookings.saveAssign') }}
@@ -442,6 +481,7 @@ import {
 import BookingReceiptAttachments from '@/components/accounting/BookingReceiptAttachments.vue'
 import type { MediaPhoto } from '@/api/media'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import '@/styles/views/accounting-tabs.css'
 
@@ -559,6 +599,7 @@ const loadError = ref('')
 const modalOpen = ref(false)
 const editingId = ref<string | null>(null)
 const modalReceipts = ref<MediaPhoto[]>([])
+const assignFollowUpReceipts = ref<MediaPhoto[]>([])
 const saving = ref(false)
 
 const bookingsSubTab = ref<'list' | 'assign'>('list')
@@ -581,6 +622,8 @@ const assignDrafts = reactive<
       group_id: string
       receipt_label: string
       notes: string
+      material_item_id: string
+      material_lookup_display: string
     }
   >
 >({})
@@ -636,6 +679,8 @@ function persistCurrentAssignDraft() {
     group_id: form.group_id,
     receipt_label: form.receipt_label,
     notes: form.notes,
+    material_item_id: form.material_item_id,
+    material_lookup_display: materialLookupDisplay.value,
   }
 }
 
@@ -661,6 +706,8 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.group_id = draft.group_id
     form.receipt_label = draft.receipt_label
     form.notes = draft.notes
+    form.material_item_id = draft.material_item_id
+    materialLookupDisplay.value = draft.material_lookup_display
   } else {
     form.amount = p.amount
     form.booked_at = p.suggested_date
@@ -697,13 +744,25 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     if (chargeTarget === 'external_customer' && !form.receipt_label && p.external_customer_label) {
       form.receipt_label = p.external_customer_label
     }
+
+    if (p.material_item_id) {
+      form.material_item_id = p.material_item_id
+      materialLookupDisplay.value = p.material_name || ''
+    } else {
+      form.material_item_id = ''
+      materialLookupDisplay.value = ''
+    }
   }
-  if (p.material_item_id) {
-    form.material_item_id = p.material_item_id
-    materialLookupDisplay.value = p.material_name || ''
-  } else {
-    form.material_item_id = ''
-    materialLookupDisplay.value = ''
+  assignFollowUpReceipts.value = [...(p.receipts ?? [])]
+}
+
+function onAssignFollowUpReceiptsUpdate(receipts: MediaPhoto[]) {
+  assignFollowUpReceipts.value = receipts
+  const id = activeFollowUpId.value
+  if (!id) return
+  const idx = pendingFollowUps.value.findIndex((f) => f.id === id)
+  if (idx >= 0) {
+    pendingFollowUps.value[idx] = { ...pendingFollowUps.value[idx], receipts }
   }
 }
 
@@ -986,9 +1045,8 @@ async function save(fromAssignTab = false) {
     } else {
       let created: AccountingBooking
       if (fromAssignTab && activeFollowUpId.value) {
-        const { material_item_id: _omitMat, ...withoutMat } = payloadBase
         created = await createBooking(departmentId.value, {
-          ...withoutMat,
+          ...payloadBase,
           booked_at: form.booked_at,
           acquisition_follow_up_id: activeFollowUpId.value,
         })
@@ -1088,13 +1146,24 @@ async function runBatchAssign() {
   }
 }
 
-async function onDelete(row: AccountingBooking) {
-  const ok = await confirmDialog({
-    title: t('accounting.bookings.deleteConfirmTitle'),
-    message: t('accounting.bookings.deleteConfirmMessage', {
+function deleteConfirmMessage(row: AccountingBooking): string {
+  const parts = [
+    t('accounting.bookings.deleteConfirmMessage', {
       date: formatDate(row.booked_at),
       amount: formatMoney(row.amount),
     }),
+    t('accounting.bookings.deleteConfirmWarning'),
+  ]
+  if (row.source?.follow_up_id) {
+    parts.push(t('accounting.bookings.deleteConfirmFollowUpWarning'))
+  }
+  return parts.join(' ')
+}
+
+async function onDelete(row: AccountingBooking) {
+  const ok = await confirmDialog({
+    title: t('accounting.bookings.deleteConfirmTitle'),
+    message: deleteConfirmMessage(row),
     confirmText: t('common.delete'),
     cancelText: t('common.cancel'),
     variant: 'danger',
@@ -1105,6 +1174,7 @@ async function onDelete(row: AccountingBooking) {
     toast.success(t('accounting.common.deleted'))
     await loadBookingYears()
     await load()
+    headerNotificationsStore.requestRefresh()
   } catch {
     toast.error(t('accounting.common.deleteFailed'))
   }
@@ -1150,10 +1220,34 @@ async function onDelete(row: AccountingBooking) {
 
 .bookings-table-wrap {
   overflow-x: auto;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 .bookings-table {
-  min-width: 960px;
+  min-width: 1100px;
+}
+
+.bookings-page {
+  max-width: none;
+}
+
+.bookings-table .col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  width: 108px;
+  min-width: 108px;
+  text-align: right;
+  white-space: nowrap;
+  background: #fff;
+  box-shadow: -6px 0 10px -8px rgba(15, 23, 42, 0.35);
+}
+
+.bookings-table thead .col-actions {
+  background: #f9fafb;
+  z-index: 3;
 }
 
 .batch-assign-panel {
@@ -1252,6 +1346,11 @@ async function onDelete(row: AccountingBooking) {
   font-weight: 500;
   font-size: 12px;
   color: #6b7280;
+}
+
+.booking-assign-tab-receipt {
+  margin-left: 4px;
+  opacity: 0.85;
 }
 
 .booking-assign-empty {

@@ -23,6 +23,8 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_workshop_material', columns: ['material_item_id'])]
 #[ORM\Index(name: 'idx_workshop_type', columns: ['type'])]
 #[ORM\Index(name: 'idx_workshop_priority', columns: ['priority'])]
+#[ORM\Index(name: 'idx_workshop_strategy', columns: ['strategy'])]
+#[ORM\Index(name: 'idx_workshop_phase', columns: ['phase'])]
 class WorkshopTicket
 {
     // === Type Constants ===
@@ -75,6 +77,42 @@ class WorkshopTicket
         self::STATUS_CANCELLED      => [self::STATUS_OPEN], // Wiedereröffnen erlaubt
     ];
 
+    // === Strategy Constants (Workflow 2026) ===
+    public const STRATEGY_TRIAGE = 'triage';
+    public const STRATEGY_INTERNAL_REPAIR = 'internal_repair';
+    public const STRATEGY_EXTERNAL_REPAIR = 'external_repair';
+    public const STRATEGY_EXTERNAL_CLEANING = 'external_cleaning';
+    public const STRATEGY_WRITEOFF = 'writeoff';
+    public const STRATEGY_INSPECTION = 'inspection';
+
+    public const ALL_STRATEGIES = [
+        self::STRATEGY_TRIAGE,
+        self::STRATEGY_INTERNAL_REPAIR,
+        self::STRATEGY_EXTERNAL_REPAIR,
+        self::STRATEGY_EXTERNAL_CLEANING,
+        self::STRATEGY_WRITEOFF,
+        self::STRATEGY_INSPECTION,
+    ];
+
+    // === Phase Constants (Workflow 2026) ===
+    public const PHASE_PLANNING = 'planning';
+    public const PHASE_ORDERED = 'ordered';
+    public const PHASE_READY = 'ready';
+    public const PHASE_IN_PROGRESS = 'in_progress';
+    public const PHASE_AWAITING_QUOTE = 'awaiting_quote';
+    public const PHASE_COMPLETED = 'completed';
+    public const PHASE_CANCELLED = 'cancelled';
+
+    public const ALL_PHASES = [
+        self::PHASE_PLANNING,
+        self::PHASE_ORDERED,
+        self::PHASE_READY,
+        self::PHASE_IN_PROGRESS,
+        self::PHASE_AWAITING_QUOTE,
+        self::PHASE_COMPLETED,
+        self::PHASE_CANCELLED,
+    ];
+
     // === Fields ===
 
     #[ORM\Id]
@@ -95,6 +133,14 @@ class WorkshopTicket
     #[ORM\ManyToOne(targetEntity: MaterialItem::class)]
     #[ORM\JoinColumn(name: 'material_item_id', referencedColumnName: 'id', nullable: false, onDelete: 'CASCADE')]
     private MaterialItem $materialItem;
+
+    /** Bei serialisierten Artikeln: konkrete Instanz (Charge/Seriennummer) */
+    #[ORM\Column(name: 'material_batch_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $materialBatchId = null;
+
+    #[ORM\ManyToOne(targetEntity: MaterialBatch::class)]
+    #[ORM\JoinColumn(name: 'material_batch_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?MaterialBatch $materialBatch = null;
 
     #[ORM\Column(name: 'activity_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $activityId = null;
@@ -121,6 +167,22 @@ class WorkshopTicket
     /** Status: open, in_progress, waiting_parts, completed, cancelled */
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'open'])]
     private string $status = 'open';
+
+    /** Workflow-Entscheidung: triage, internal_repair, external_repair, … */
+    #[ORM\Column(type: 'string', length: 30, options: ['default' => 'triage'])]
+    private string $strategy = self::STRATEGY_TRIAGE;
+
+    /** Workflow-Fortschritt: planning, ordered, in_progress, … */
+    #[ORM\Column(type: 'string', length: 30, nullable: true)]
+    private ?string $phase = null;
+
+    /** Ausgefülltes Zeltblatt (JSON) */
+    #[ORM\Column(name: 'repair_checklist', type: 'json', nullable: true)]
+    private ?array $repairChecklist = null;
+
+    /** Betroffene Menge (Bulk); bei Serialisiertem implizit 1 */
+    #[ORM\Column(name: 'affected_quantity', type: 'integer', nullable: true)]
+    private ?int $affectedQuantity = null;
 
     /** Titel */
     #[ORM\Column(type: 'string', length: 200)]
@@ -224,6 +286,17 @@ class WorkshopTicket
         return $this;
     }
 
+    public function getMaterialBatchId(): ?string { return $this->materialBatchId; }
+    public function setMaterialBatchId(?string $materialBatchId): self { $this->materialBatchId = $materialBatchId; return $this; }
+
+    public function getMaterialBatch(): ?MaterialBatch { return $this->materialBatch; }
+    public function setMaterialBatch(?MaterialBatch $materialBatch): self
+    {
+        $this->materialBatch = $materialBatch;
+        $this->materialBatchId = $materialBatch?->getId();
+        return $this;
+    }
+
     public function getActivityId(): ?string { return $this->activityId; }
     public function setActivityId(?string $activityId): self { $this->activityId = $activityId; return $this; }
 
@@ -246,6 +319,9 @@ class WorkshopTicket
         return $this;
     }
 
+    public function getAffectedQuantity(): ?int { return $this->affectedQuantity; }
+    public function setAffectedQuantity(?int $affectedQuantity): self { $this->affectedQuantity = $affectedQuantity; return $this; }
+
     public function getType(): string { return $this->type; }
     public function setType(string $type): self { $this->type = $type; return $this; }
 
@@ -254,6 +330,15 @@ class WorkshopTicket
 
     public function getStatus(): string { return $this->status; }
     public function setStatus(string $status): self { $this->status = $status; return $this; }
+
+    public function getStrategy(): string { return $this->strategy; }
+    public function setStrategy(string $strategy): self { $this->strategy = $strategy; return $this; }
+
+    public function getPhase(): ?string { return $this->phase; }
+    public function setPhase(?string $phase): self { $this->phase = $phase; return $this; }
+
+    public function getRepairChecklist(): ?array { return $this->repairChecklist; }
+    public function setRepairChecklist(?array $repairChecklist): self { $this->repairChecklist = $repairChecklist; return $this; }
 
     public function getTitle(): string { return $this->title; }
     public function setTitle(string $title): self { $this->title = $title; return $this; }
@@ -383,8 +468,169 @@ class WorkshopTicket
         };
     }
 
+    public function getStrategyLabel(): string
+    {
+        return match ($this->strategy) {
+            self::STRATEGY_TRIAGE => 'Triage',
+            self::STRATEGY_INTERNAL_REPAIR => 'Intern',
+            self::STRATEGY_EXTERNAL_REPAIR => 'Extern',
+            self::STRATEGY_EXTERNAL_CLEANING => 'Extern reinigen',
+            self::STRATEGY_WRITEOFF => 'Abschreiben',
+            self::STRATEGY_INSPECTION => 'Inspektion',
+            default => $this->strategy,
+        };
+    }
+
+    public function getPhaseLabel(): ?string
+    {
+        if ($this->phase === null) {
+            return null;
+        }
+
+        return match ($this->phase) {
+            self::PHASE_PLANNING => 'Planung',
+            self::PHASE_ORDERED => 'Bestellt',
+            self::PHASE_READY => 'Bereit',
+            self::PHASE_IN_PROGRESS => 'In Arbeit',
+            self::PHASE_AWAITING_QUOTE => 'Offerte ausstehend',
+            self::PHASE_COMPLETED => 'Abgeschlossen',
+            self::PHASE_CANCELLED => 'Storniert',
+            default => $this->phase,
+        };
+    }
+
+    public function isInTriage(): bool
+    {
+        return $this->strategy === self::STRATEGY_TRIAGE;
+    }
+
+    public static function getInitialPhaseForStrategy(string $strategy): ?string
+    {
+        return match ($strategy) {
+            self::STRATEGY_INTERNAL_REPAIR,
+            self::STRATEGY_EXTERNAL_REPAIR,
+            self::STRATEGY_EXTERNAL_CLEANING,
+            self::STRATEGY_INSPECTION => self::PHASE_PLANNING,
+            self::STRATEGY_WRITEOFF => self::PHASE_READY,
+            default => null,
+        };
+    }
+
     public function isOpen(): bool { return $this->status === self::STATUS_OPEN; }
     public function isInProgress(): bool { return $this->status === self::STATUS_IN_PROGRESS; }
     public function isCompleted(): bool { return $this->status === self::STATUS_COMPLETED; }
     public function isCancelled(): bool { return $this->status === self::STATUS_CANCELLED; }
+
+    /**
+     * UI-/Kanban-Phase: Triage-Tickets ohne phase → "triage".
+     */
+    public function getDisplayPhase(): string
+    {
+        if (
+            $this->strategy === self::STRATEGY_TRIAGE
+            && $this->phase !== self::PHASE_COMPLETED
+            && $this->phase !== self::PHASE_CANCELLED
+        ) {
+            return 'triage';
+        }
+
+        return $this->phase ?? 'triage';
+    }
+
+    /**
+     * Legacy status → strategy/phase (nach Status-Übergang).
+     */
+    public function syncPhaseFromStatus(?string $status = null): void
+    {
+        $status = $status ?? $this->status;
+
+        if ($status === self::STATUS_COMPLETED) {
+            $this->phase = self::PHASE_COMPLETED;
+
+            return;
+        }
+
+        if ($status === self::STATUS_CANCELLED) {
+            $this->phase = self::PHASE_CANCELLED;
+
+            return;
+        }
+
+        if ($status === self::STATUS_OPEN) {
+            if ($this->strategy === self::STRATEGY_TRIAGE) {
+                $this->phase = null;
+            } elseif ($this->phase === self::PHASE_CANCELLED) {
+                $this->phase = self::getInitialPhaseForStrategy($this->strategy) ?? self::PHASE_PLANNING;
+            }
+
+            return;
+        }
+
+        if ($status === self::STATUS_WAITING_PARTS) {
+            if ($this->phase === self::PHASE_READY) {
+                return;
+            }
+            if (\in_array($this->strategy, [
+                self::STRATEGY_EXTERNAL_REPAIR,
+                self::STRATEGY_EXTERNAL_CLEANING,
+            ], true) || $this->getAssignedToSupplierCompanyId() !== null) {
+                $this->phase = self::PHASE_AWAITING_QUOTE;
+            } else {
+                $this->phase = self::PHASE_ORDERED;
+            }
+
+            return;
+        }
+
+        if ($status === self::STATUS_IN_PROGRESS) {
+            if ($this->phase === null && $this->strategy !== self::STRATEGY_TRIAGE) {
+                $this->phase = self::PHASE_IN_PROGRESS;
+            }
+        }
+    }
+
+    /**
+     * strategy/phase → Legacy status (Supplier-Portal, API-Kompatibilität).
+     */
+    public function syncStatusFromPhase(): void
+    {
+        if ($this->phase === self::PHASE_COMPLETED) {
+            $this->status = self::STATUS_COMPLETED;
+
+            return;
+        }
+
+        if ($this->phase === self::PHASE_CANCELLED) {
+            $this->status = self::STATUS_CANCELLED;
+
+            return;
+        }
+
+        if ($this->strategy === self::STRATEGY_TRIAGE && $this->phase === null) {
+            $this->status = self::STATUS_OPEN;
+
+            return;
+        }
+
+        if ($this->phase === self::PHASE_AWAITING_QUOTE) {
+            $this->status = self::STATUS_WAITING_PARTS;
+
+            return;
+        }
+
+        if (\in_array($this->phase, [
+            self::PHASE_PLANNING,
+            self::PHASE_ORDERED,
+            self::PHASE_READY,
+            self::PHASE_IN_PROGRESS,
+        ], true)) {
+            $this->status = self::STATUS_IN_PROGRESS;
+
+            return;
+        }
+
+        if ($this->phase === null) {
+            $this->status = self::STATUS_OPEN;
+        }
+    }
 }

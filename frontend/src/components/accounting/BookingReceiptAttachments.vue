@@ -6,29 +6,29 @@
         :key="mediaPhotoKey(item, index)"
         class="receipt-attachments-item"
       >
-        <a
+        <button
           v-if="isPdfMedia(item)"
-          :href="item.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="receipt-pdf-link"
+          type="button"
+          class="receipt-pdf-link receipt-open-btn"
+          :title="t('accounting.bookings.receiptPreviewOpen')"
+          @click="openPreview(item)"
         >
           <v-icon icon="mdi-file-pdf-box" size="28" color="error" />
           <span class="receipt-pdf-name">{{ item.original_filename || item.filename || 'PDF' }}</span>
-        </a>
-        <a
+        </button>
+        <button
           v-else
-          :href="item.url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="receipt-image-link"
+          type="button"
+          class="receipt-image-link receipt-open-btn"
+          :title="t('accounting.bookings.receiptPreviewOpen')"
+          @click="openPreview(item)"
         >
           <img
             :src="item.url"
             :alt="item.original_filename || ''"
             class="receipt-image-thumb"
           />
-        </a>
+        </button>
         <EButton
           v-if="!readonly"
           variant="text"
@@ -49,7 +49,7 @@
       <EButton
         variant="secondary"
         size="small"
-        :disabled="disabled || !bookingId || uploading"
+        :disabled="disabled || !hasUploadTarget || uploading"
         :loading="uploading"
         @click="fileInputRef?.click()"
       >
@@ -60,7 +60,7 @@
         ref="fileInputRef"
         type="file"
         :accept="RECEIPT_UPLOAD_ACCEPT"
-        :disabled="disabled || !bookingId || uploading"
+        :disabled="disabled || !hasUploadTarget || uploading"
         class="receipt-file-input"
         @change="onFileSelected"
       />
@@ -69,12 +69,15 @@
     <p v-else-if="!readonly && !canUploadMore" class="receipt-limit-hint">
       {{ t('accounting.bookings.receiptMax', { max: MAX_RECEIPTS_PER_BOOKING }) }}
     </p>
-    <p v-if="!bookingId && !readonly" class="receipt-hint">{{ t('accounting.bookings.receiptSaveFirst') }}</p>
+    <p v-if="!hasUploadTarget && !readonly" class="receipt-hint">{{ t('accounting.bookings.receiptSaveFirst') }}</p>
+
+    <ReceiptPreviewDialog v-model="previewOpen" :receipt="previewReceipt" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import ReceiptPreviewDialog from '@/components/accounting/ReceiptPreviewDialog.vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import {
@@ -87,19 +90,27 @@ import {
   validateReceiptFile,
   type MediaPhoto,
 } from '@/api/media'
+import {
+  deleteAcquisitionFollowupReceipt,
+  uploadAcquisitionFollowupReceipt,
+} from '@/api/accountingAcquisitionFollowups'
 import { deleteBookingReceipt, uploadBookingReceipt } from '@/api/accountingBookings'
 import { useToast } from '@/composables/useToast'
 
 const props = withDefaults(
   defineProps<{
     departmentId: string
-    bookingId: string | null
+    bookingId?: string | null
+    /** Ausstehender Anschaffungs-Auftrag (vor Erfassung der Buchung) */
+    followUpId?: string | null
     receipts: MediaPhoto[]
     readonly?: boolean
     disabled?: boolean
     showEmpty?: boolean
   }>(),
   {
+    bookingId: null,
+    followUpId: null,
     readonly: false,
     disabled: false,
     showEmpty: true,
@@ -115,14 +126,22 @@ const toast = useToast()
 const uploading = ref(false)
 const removing = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const previewOpen = ref(false)
+const previewReceipt = ref<MediaPhoto | null>(null)
+
+function openPreview(item: MediaPhoto) {
+  previewReceipt.value = item
+  previewOpen.value = true
+}
 
 const canUploadMore = computed(() => props.receipts.length < MAX_RECEIPTS_PER_BOOKING)
+const hasUploadTarget = computed(() => !!(props.bookingId || props.followUpId))
 
 async function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
-  if (!file || !props.bookingId) return
+  if (!file || !hasUploadTarget.value) return
 
   const validation = validateReceiptFile(file)
   if (validation === 'tooLarge') {
@@ -136,7 +155,9 @@ async function onFileSelected(event: Event) {
 
   uploading.value = true
   try {
-    const next = await uploadBookingReceipt(props.departmentId, props.bookingId, file)
+    const next = props.followUpId && !props.bookingId
+      ? await uploadAcquisitionFollowupReceipt(props.departmentId, props.followUpId, file)
+      : await uploadBookingReceipt(props.departmentId, props.bookingId as string, file)
     emit('update:receipts', next)
     toast.success(t('accounting.bookings.receiptUploaded'))
   } catch (err: unknown) {
@@ -147,10 +168,12 @@ async function onFileSelected(event: Event) {
 }
 
 async function onRemove(item: MediaPhoto) {
-  if (!props.bookingId || !item.filename) return
+  if (!hasUploadTarget.value || !item.filename) return
   removing.value = item.filename
   try {
-    const next = await deleteBookingReceipt(props.departmentId, props.bookingId, item.filename)
+    const next = props.followUpId && !props.bookingId
+      ? await deleteAcquisitionFollowupReceipt(props.departmentId, props.followUpId, item.filename)
+      : await deleteBookingReceipt(props.departmentId, props.bookingId as string, item.filename)
     emit('update:receipts', next)
     toast.success(t('accounting.bookings.receiptRemoved'))
   } catch {
@@ -186,12 +209,23 @@ async function onRemove(item: MediaPhoto) {
   border-radius: 4px;
 }
 
+.receipt-open-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.receipt-open-btn:hover {
+  opacity: 0.9;
+}
+
 .receipt-pdf-link {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  text-decoration: none;
   color: inherit;
   min-width: 100px;
 }

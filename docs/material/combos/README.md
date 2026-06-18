@@ -323,6 +323,8 @@ Die gebuchte virtuelle Kombo wird **gruppiert wie eine Kiste** dargestellt (Hül
 
 > ✅ **Umgesetzt (Paket 7):** Kind-Zeilen werden aus der editierbaren/Read-only-Materialliste gefiltert und unter der Kombo-Eltern-Zeile als eingerückter „Set-Inhalt" (📦) gerendert — aus `config_snapshot.resolved_components` (Lager-Teile) + `self_provided` (Hinweis). Stellen: `ActivityMaterialLinesTable.vue` und die Read-only-Tabelle in `ActivityDetailView.vue`.
 
+**Pack-Flow (`pack_mode`, logische Packkiste, Ersteller-Bestätigung):** siehe **[virtual-combo-activities.md](./virtual-combo-activities.md)** — User wählt «zusammen packen» vs. «lose»; bei `together` erzeugt das System einen logischen `activity_pack_container` (Variante 1).
+
 ### Verwandtes Zubehör (separat, unabhängig)
 
 Eigene Empfehlungs-Verknüpfung (Kombo → andere Materialien), **getrennt** von der Stückliste, verwaltet im Zusammensetzungs-Tab (`MaterialDetailView`). Im Aktivitäts-Flow als Vorschlag „Zubehör dazu?" → **eigene Positionen** (nicht Teil des Sets). Auch für **physische** Kombos nutzbar.
@@ -409,15 +411,15 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 ## 8. Implementierungs-Lücken (Ist-Zustand)
 
-- [ ] Verfügbarkeits-SQL löst virtuelle Kombo **nicht** in Komponenten auf → Buchung einer virtuellen Kombo reserviert faktisch nichts.
-- [ ] `reservation_mode` wird **nicht** konsumiert (nur gespeichert/angezeigt).
-- [ ] Kein `on_issue`-Auflösungs-Flow beim Packen (keine Pick-/Scan-Liste für serialisierte Teile der virtuellen Kombo).
+- [x] **Zeilenmodell B (Paket 5/7):** Virtuelle Kombo expandiert in Kind-`activity_item`-Zeilen → Reservierungs-SQL zählt Komponenten.
+- [x] **`reservation_mode` entfernt** (Paket 2).
+- [x] **`on_issue` / Packen:** Kind-Zeilen nutzen die reguläre Pack-Pipeline (Pick/Scan pro Komponente); virtuelle Eltern-Zeile erzeugt keine eigene Pack-Position.
 - [x] **Behoben (Paket 0):** `is_optional`-Haken bei physischen Kombos ausgeblendet.
-- [ ] Kein Varianten-/Konfigurator-BOM (abhängige Mengen, Entweder-Oder).
-- [x] **Umgesetzt (Paket 7):** „Kombinieren?"-Dialog (`CombineWithExistingDialog.vue`) bei Überlapp einer Kombo-Option mit vorhandener Einzelposition — fragt statt doppelt zu reservieren; „Vorhandene nutzen" reduziert die Einzelposition.
-- [x] **Umgesetzt (Paket 1):** Entwurfs-Flag `combo_status` (draft/ready) auf `MaterialItem` inkl. Migration, Create→draft, `finalize-combo`, Draft-Ausschluss in der Verfügbarkeit, Badge.
-- [ ] `reservation_mode` noch vorhanden (in Wizard/Detail/Vorlage), soll **entfernt** werden (Paket 2).
-- [x] **Behoben:** Wert-Inkonsistenz im Wizard – erster Reservationsmodus-Block nutzte `individual_parts` statt `individual` (jetzt einheitlich `individual`).
+- [x] **Varianten-/Konfigurator-BOM** (Options-Gruppen + Deltas, Paket 5/6).
+- [x] **Umgesetzt (Paket 7):** „Kombinieren?"-Dialog bei Überlapp.
+- [x] **Umgesetzt (Paket 1):** Entwurfs-Flag `combo_status` (draft/ready).
+- [x] **Umgesetzt (Paket 8):** `pack_mode`, Floor Einzelzeilen, Wizard-Übersicht, `self_provided_acknowledged`.
+- [x] **Behoben:** Wert-Inkonsistenz `individual` vs. `individual_parts` im Wizard.
 
 ---
 
@@ -468,6 +470,7 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 - **Bestellen:** virtuelle Kombo hinzufügen → Verfügbarkeit als Flaschenhals der `stock`-Komponenten; Zubehör-Teile wählbar; `self_provided`-Teile als Hinweis; Sperre kaskadiert auf Komponenten-Mengen × Zeitraum. Nur `ready`-Kombos buchbar.
 - **Anzeige:** „noch X× verfügbar" pro Kombo (statt X-mal klicken).
 - **Kombinieren:** Überlapp einer Kombo-Option mit vorhandener Position erkennen → User fragen, ob vorhandene Einheit verwendet wird (statt doppelt reservieren).
+- **Pack-Vorgabe (`pack_mode`):** User entscheidet «zusammen als Packkiste» vs. «lose — MW organisiert»; Details → [virtual-combo-activities.md](./virtual-combo-activities.md).
 - **Packen (MW):** Pick-/Scan-Liste pro `on_issue`-Komponente → konkrete Seriennummer zuweisen (`component_batch_id` setzen, `isAwaitingAssignment()` wird false).
 - **Pipeline:** Pack-/Sperr-Positionen pro Komponente führen.
 
@@ -491,7 +494,8 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 ## Siehe auch
 
-- [plan.md](./plan.md) — **Umbauplan / Checkliste** (Pakete 0–7)
+- [plan.md](./plan.md) — **Umbauplan / Checkliste** (Pakete 0–8)
+- [virtual-combo-activities.md](./virtual-combo-activities.md) — **Virtuelle Kombo in Aktivitäten** (Materialplanung, `pack_mode`, Pack-Container, `self_provided`)
 - [../templates/README.md](../templates/README.md) — Vorlagen-Editor, Hersteller-Picker, Start-Assistent
 - [../templates/plan.md](../templates/plan.md) — Paket 1–2 (Editor + Komponenten-Auflösung)
 - [Material-Pipeline (Aktivitäten)](../../activities/material-pipeline.md)

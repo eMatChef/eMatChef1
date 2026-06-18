@@ -1,3 +1,5 @@
+import type { JsListPhase } from '@/utils/activityJsListStatus'
+
 /** Listen-Zeile Aktivitäten-Übersicht (API → View). */
 export interface ActivityListItem {
   id: string
@@ -23,6 +25,8 @@ export interface ActivityListItem {
   usageEnd?: string
   itemCount?: number
   totalPrice?: number
+  wantsJsMaterial?: boolean
+  jsListPhase?: JsListPhase | null
   createdAt: string
   updatedAt: string
 }

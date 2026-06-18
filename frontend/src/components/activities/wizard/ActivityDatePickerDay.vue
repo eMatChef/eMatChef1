@@ -11,6 +11,7 @@
           :aria-current="item.isToday ? 'date' : undefined"
           :aria-label="dayTooltip"
           @mouseenter="onMouseEnter"
+          @click="onDayClick"
         >
           <span :class="{ 'activity-date-picker-day-btn--blocked-num': isDepartmentClosedDay }">{{
             item.localized
@@ -51,6 +52,8 @@ const props = withDefaults(
     btnProps: Record<string, unknown>
     range?: Date[] | null
     rangeAnchorCount?: number
+    /** Tatsächlicher Anker (nicht Hover-Vorschau in range). */
+    rangeAnchorDate?: Date | null
     markers?: ActivityDatePickerDayMarker[]
     departmentClosedDateKeys?: ReadonlySet<string> | null
     /** Doppelkalender: Range-Balken nur im angezeigten Monat des Panes */
@@ -61,6 +64,7 @@ const props = withDefaults(
   {
     range: null,
     rangeAnchorCount: 0,
+    rangeAnchorDate: null,
     markers: () => [],
     departmentClosedDateKeys: null,
     rangeInPaneMonthOnly: false,
@@ -71,6 +75,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   hover: [date: Date]
+  /** Zweiter Klick auf denselben Tag bei laufender Range-Auswahl (Vuetify sendet kein Update). */
+  confirmSameDay: [date: Date]
 }>()
 
 function startOfDay(d: Date): Date {
@@ -176,12 +182,18 @@ const dayTooltip = computed(() => {
   return props.markers.map((m) => m.label).join('\n')
 })
 
-/** icon:false — sonst 24px-Kreis und verschobene Range/Events (Vuetify-Default) */
-const mergedBtnProps = computed(() => ({
-  ...props.btnProps,
-  icon: false,
-  disabled: isDisabledDay.value,
-}))
+/** icon:false — onClick nur über onDayClick (Eintags-Bestätigung + Vuetify). */
+const mergedBtnProps = computed(() => {
+  const { onClick: _onClick, ...rest } = props.btnProps as {
+    onClick?: (e: MouseEvent) => void
+    [key: string]: unknown
+  }
+  return {
+    ...rest,
+    icon: false,
+    disabled: isDisabledDay.value,
+  }
+})
 
 const dayClasses = computed(() => ({
   'activity-date-picker-day-btn--today':
@@ -237,6 +249,23 @@ function onMouseEnter() {
   if (isDisabledDay.value) return
   const d = toDate(props.item.date)
   if (d) emit('hover', d)
+}
+
+function onDayClick(event: MouseEvent) {
+  if (isDisabledDay.value) return
+  const day = toDate(props.item.date)
+  if (!day) return
+
+  const anchor = props.rangeAnchorDate ? startOfDay(props.rangeAnchorDate) : null
+  if (props.rangeAnchorCount === 1 && anchor && sameDay(startOfDay(day), anchor)) {
+    event.preventDefault()
+    event.stopPropagation()
+    emit('confirmSameDay', day)
+    return
+  }
+
+  const vuetifyOnClick = props.btnProps.onClick as ((e: MouseEvent) => void) | undefined
+  vuetifyOnClick?.(event)
 }
 </script>
 

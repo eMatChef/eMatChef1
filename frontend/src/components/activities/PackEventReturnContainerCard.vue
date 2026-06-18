@@ -169,7 +169,13 @@ function showIssueQuick(ci: ActivityPackContainerItem): boolean {
     <div v-show="innerVisible" class="pack-container-inner">
       <PackContainerSubsectionsList :container="container">
         <template #line="{ ci }">
-          <div class="pack-container-line pack-container-line--issue-row pack-container-line--stacked">
+          <div
+            v-if="
+              !(ctx.isVirtualWarehouseContainerLine as (row: ActivityPackContainerItem) => boolean)(ci) &&
+              lineRemainingReturn(ci) > 0
+            "
+            class="pack-container-line pack-container-line--issue-row pack-container-line--stacked"
+          >
             <div class="pack-container-line-main">
               <span class="pack-container-line-name">{{ ci.material_name || t('common.material') }}</span>
               <span class="pack-container-line-qty text-muted">

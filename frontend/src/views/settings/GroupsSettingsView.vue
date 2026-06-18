@@ -158,7 +158,6 @@
       />
       <ESelect
         v-model="groupForm.parent_id"
-        class="mt-3"
         :items="parentGroupSelectItems"
         :label="t('settings.groups.parentGroupLabel')"
         hide-details

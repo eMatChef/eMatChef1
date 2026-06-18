@@ -25,14 +25,16 @@ withDefaults(
     <div class="pack-card-main">
       <slot name="leading" />
       <div class="pack-card-info">
-        <PackMaterialMeta
-          :item="item"
-          :show-storage-location="showStorageLocation"
-          :show-linked-kiste="showLinkedKiste"
-          :show-rack="showRack"
-        />
+        <div class="pack-card-info-top">
+          <PackMaterialMeta
+            :item="item"
+            :show-storage-location="showStorageLocation"
+            :show-linked-kiste="showLinkedKiste"
+            :show-rack="showRack"
+          />
+          <slot name="info-extra" />
+        </div>
         <slot name="detail" />
-        <slot name="info-extra" />
       </div>
       <slot name="trailing" />
     </div>

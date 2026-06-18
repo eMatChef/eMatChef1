@@ -246,6 +246,35 @@ export interface LandingDisplay {
 }
 
 /** Öffentliche Startseite: nur Inhalt aus site_page (keine de.json-Fallbacks). */
+/** Teilt CTA-Fliesstext, wenn eine FAQ-Phrase vorkommt (für RouterLink in der Landing). */
+export function parseLandingCtaFaqLink(
+  text: string,
+): { before: string; link: string; after: string } | null {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+
+  const patterns = [
+    /häufigen Fragen/i,
+    /häufige Fragen/i,
+    /frequently asked questions/i,
+    /questions\s*(?:&|and)\s*answers/i,
+    /\bFAQ\b/,
+  ]
+
+  for (const re of patterns) {
+    const match = trimmed.match(re)
+    if (match?.index !== undefined) {
+      return {
+        before: trimmed.slice(0, match.index),
+        link: match[0],
+        after: trimmed.slice(match.index + match[0].length),
+      }
+    }
+  }
+
+  return null
+}
+
 export function resolveLandingDisplay(
   siteRaw: Record<string, unknown>,
   localeValue: string,

@@ -22,6 +22,8 @@ export interface CreateActivityPayload {
   address_id?: string | null
   /** Eventstandort (Lager, Event, extern) */
   venue_address_id?: string | null
+  /** J+S-Leihmaterial: Lieferadresse (kann vom Eventstandort abweichen) */
+  js_delivery_address_id?: string | null
   usage_start?: string
   usage_end?: string
   planning_start?: string
@@ -31,6 +33,10 @@ export interface CreateActivityPayload {
   notes?: string
   /** Stepper: false solange Wizard nicht final abgeschlossen; Detail erst danach */
   create_wizard_completed?: boolean
+  /** Camp/Event: J+S-Leihmaterial separat bestellen */
+  wants_js_material?: boolean
+  /** Camp/Event: Teilnehmerzahl für J+S-Dotation */
+  participant_count?: number | null
 }
 
 export interface ActivityInvitedDepartmentApi {
@@ -57,6 +63,8 @@ export interface ActivityCreatedResponse {
 /** GET /api/activities/:id (serializeActivity detailed) */
 export interface ActivityDetail extends ActivityCreatedResponse {
   group_id?: string | null
+  group_name?: string | null
+  created_by_user_id?: string | null
   department_name?: string
   color?: string | null
   item_count?: number
@@ -68,6 +76,7 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   planning_end?: string | null
   address_id?: string | null
   venue_address_id?: string | null
+  js_delivery_address_id?: string | null
   responsible_user_id?: string | null
   deposit_amount?: number | null
   deposit_paid?: boolean
@@ -97,10 +106,27 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   can_edit_submitted_activity_content?: boolean
   /** Im Entwurf: darf User «Einreichen» (typabhängig — API) */
   can_submit_activity?: boolean
+  /** Gast-Abteilung (angenommene Einladung): Gruppenzuordnung durch MW/DC */
+  guest_invite_for_viewer?: {
+    department_id: string
+    group_id?: string | null
+    group_name?: string | null
+    can_assign_group?: boolean
+  } | null
+  /** Mind. eine Partner-Einladung (Camp/Event geteilt) */
+  is_shared_activity?: boolean
+  /** Department-Kontext des Betrachters (Host oder Gast) */
+  viewer_department_id?: string | null
+  /** Eventstandort-ID im Adressbuch des Betrachters (Spiegel bei Gast) */
+  viewer_venue_address_id?: string | null
   /** false = Erstell-Wizard noch nicht abgeschlossen → Detail gesperrt, Wizard fortsetzen */
   create_wizard_completed?: boolean
   public_code?: string | null
   public_url?: string | null
+  /** Camp/Event: J+S-Leihmaterial geplant */
+  wants_js_material?: boolean
+  /** Camp/Event: Teilnehmerzahl (J+S-Dotation) */
+  participant_count?: number | null
 }
 
 export interface ActivityTransitionRow {
@@ -223,10 +249,16 @@ export interface ComboConfigSnapshot {
     name: string
     total_qty: number
   }>
+  /** Zusammen als Packkiste vs. lose — MW organisiert selbst. */
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
+  self_provided_acknowledged_at?: string | null
+  self_provided_acknowledged_by_user_id?: string | null
 }
 
-export async function getActivity(activityId: string): Promise<ActivityDetail> {
-  const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`)
+export async function getActivity(activityId: string, departmentId?: string | null): Promise<ActivityDetail> {
+  const params = departmentId ? { department_id: departmentId } : undefined
+  const { data } = await apiClient.get<ActivityDetail>(`/api/activities/${activityId}`, { params })
   return data
 }
 
@@ -262,6 +294,10 @@ export async function createActivity(payload: CreateActivityPayload): Promise<Ac
 export type PatchActivityPayload = Partial<Omit<CreateActivityPayload, 'department_id' | 'notes'>> & {
   /** PATCH erlaubt explizites Leeren (null) wie im Backend setNotes */
   notes?: string | null
+  /** Department-Kontext für Eventstandort-Sync bei geteilten Aktivitäten */
+  viewer_department_id?: string | null
+  wants_js_material?: boolean
+  participant_count?: number | null
 }
 
 export async function patchActivity(
@@ -269,6 +305,20 @@ export async function patchActivity(
   payload: PatchActivityPayload,
 ): Promise<ActivityCreatedResponse> {
   const { data } = await apiClient.patch<ActivityCreatedResponse>(`/api/activities/${activityId}`, payload)
+  return data
+}
+
+export async function assignDepartmentInviteGroup(
+  activityId: string,
+  payload: { departmentId: string; groupId: string },
+): Promise<{ group_id: string; group_name: string }> {
+  const { data } = await apiClient.patch<{ group_id: string; group_name: string }>(
+    `/api/activities/${activityId}/department-invites/group`,
+    {
+      department_id: payload.departmentId,
+      group_id: payload.groupId,
+    },
+  )
   return data
 }
 
@@ -284,6 +334,8 @@ export interface SyncActivityItemPayload {
   priority?: string
   /** Zeilenmodell B: gewählte Toggle-Optionen einer virtuellen Kombo (cc:<id> / opt:<id>). */
   selected_option_ids?: string[]
+  pack_mode?: 'together' | 'loose'
+  self_provided_acknowledged?: boolean
 }
 
 /**
@@ -312,6 +364,8 @@ export async function addActivityItem(
     price_type?: string
     /** Zeilenmodell B: gewählte Optionen einer virtuellen Kombo (Konfigurator). */
     selected_option_ids?: string[]
+    pack_mode?: 'together' | 'loose'
+    self_provided_acknowledged?: boolean
   },
 ): Promise<{ message?: string; total_price?: string | null }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/items`, body)
@@ -349,6 +403,7 @@ export interface ActivityIssueReportRow {
   reported_by?: string | null
   reported_by_display_name?: string | null
   is_js_material?: boolean
+  repair_checklist?: Record<string, unknown> | null
 }
 
 export async function getActivityIssues(activityId: string): Promise<ActivityIssueReportRow[]> {
@@ -387,6 +442,7 @@ export async function createActivityIssue(
     type: 'damage' | 'repair' | 'loss' | 'consumption' | 'not_taken'
     quantity: number
     description?: string | null
+    repair_checklist?: Record<string, unknown> | null
   },
 ): Promise<ActivityIssueReportRow & { workshop_ticket_id?: string }> {
   const { data } = await apiClient.post(`/api/activities/${activityId}/issues`, body)

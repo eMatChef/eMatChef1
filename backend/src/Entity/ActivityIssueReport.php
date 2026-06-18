@@ -103,6 +103,10 @@ class ActivityIssueReport
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    /** Zeltblatt-Vorbelegung aus Schadensmeldung (JSON) */
+    #[ORM\Column(name: 'repair_checklist', type: 'json', nullable: true)]
+    private ?array $repairChecklist = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -220,6 +224,17 @@ class ActivityIssueReport
 
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $notes): self { $this->notes = $notes; return $this; }
+
+    /** @return array<string, mixed>|null */
+    public function getRepairChecklist(): ?array { return $this->repairChecklist; }
+
+    /** @param array<string, mixed>|null $repairChecklist */
+    public function setRepairChecklist(?array $repairChecklist): self
+    {
+        $this->repairChecklist = $repairChecklist;
+
+        return $this;
+    }
 
     public function getCreatedAt(): \DateTime { return $this->createdAt; }
     public function setCreatedAt(\DateTime $createdAt): self { $this->createdAt = $createdAt; return $this; }

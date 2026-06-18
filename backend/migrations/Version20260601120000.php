@@ -9,6 +9,8 @@ use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260601120000 extends AbstractMigration
 {
+    use CreatesTableUnlessExistsTrait;
+
     public function getDescription(): string
     {
         return 'Department calendar periods (Fixe Daten) for manual vacation/break ranges.';
@@ -16,6 +18,10 @@ final class Version20260601120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$this->prepareNewTable($schema, 'department_calendar_period')) {
+            return;
+        }
+
         $this->addSql(<<<'SQL'
 CREATE TABLE department_calendar_period (
     id CHAR(12) NOT NULL,

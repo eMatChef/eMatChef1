@@ -215,7 +215,7 @@
                 :reality-banner="null"
                 :show-template-toggle="false"
                 :use-reality-view="true"
-                separate-section-rows
+                :separate-section-rows="false"
                 :default-expanded="true"
               />
             </div>
@@ -495,7 +495,7 @@
               <span class="pack-panel-count">{{ stageLeftHeaderCount }}</span>
             </div>
             <p
-              v-if="hasActiveCrateTarget && isPackForwardToEventStage(activePackStage) && showPackOperateControls"
+              v-if="packCrateAssignHintOnLeft(activePackStage, hasActiveCrateTarget, showPackOperateControls)"
               class="pack-active-crate-banner"
               role="status"
             >
@@ -527,7 +527,9 @@
               <div v-if="!collapsedGroups['l-' + group.categoryName]" class="pack-group-items">
                 <template v-for="pi in group.items" :key="pi.id">
                 <PackCrateShellPackItemRow
-                  v-if="showPackContainersUi && isCrateShellPackItem(pi, packContainers) && !isOrphanShellWithoutPackContainer(pi)"
+                  v-if="
+                    showPackContainersUi && shouldShowPackItemAsCategoryShellRow(pi, packListCtx)
+                  "
                   :shell-pack-item="pi"
                   :stage-right-label="activeStageConfig.rightLabel"
                   :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
@@ -576,8 +578,9 @@
                           ? crateAssignUpMax(pi) >= 1
                           : !isPackForwardToEventStage(activePackStage) || packIssueForwardMax(pi) > 0)
                       "
-                      direction="forward"
-                      :into-crate="showCrateAssignUpControls(pi)"
+                      :direction="
+                        packMoveControlDirectionForCrateAssign(showCrateAssignUpControls(pi))
+                      "
                       :qty="
                         moveQtyInputs[pi.id] ??
                         (showCrateAssignUpControls(pi) ? crateAssignUpMax(pi) : packIssueForwardMax(pi))
@@ -605,6 +608,7 @@
                       v-if="showPackIssueForPackItem(pi)"
                       :is-consumable="pi.isConsumable"
                       :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                       :show-consumption="showConsumableConsumptionForPackItem(pi)"
                       @consumed="emitConsumptionFromPackItem(pi)"
                       @loss="emitIssueWizard(pi, 'loss')"
@@ -617,10 +621,34 @@
             </div>
 
 
+            <div
+              v-if="virtualComboSelfProvidedHints.length > 0"
+              class="pack-workflow-section pack-workflow-section--self-provided"
+            >
+              <h4 class="pack-workflow-section-title pack-workflow-section-title--static">
+                {{ t('activities.packList.selfProvidedLeaderTitle') }}
+              </h4>
+              <p class="pack-self-provided-intro text-muted">
+                {{ t('activities.packList.selfProvidedLeaderIntro') }}
+              </p>
+              <div
+                v-for="(hint, hintIdx) in virtualComboSelfProvidedHints"
+                :key="'sp-hint-' + hintIdx"
+                class="pack-self-provided-block"
+              >
+                <strong class="pack-self-provided-combo">{{ hint.comboName }}</strong>
+                <ul class="pack-self-provided-list">
+                  <li v-for="(item, itemIdx) in hint.items" :key="itemIdx">
+                    {{ item.total_qty }}× {{ item.name }}
+                  </li>
+                </ul>
+              </div>
+            </div>
+
             <PackStepCrateSection
               v-if="
                 showPackContainersUi &&
-                isPackForwardToEventStage(activePackStage) &&
+                isPackForwardWarehouseUiStage(activePackStage) &&
                 (packContainersSortedWarehouseOnlyVisible.length > 0 ||
                   (packContainers.length === 0 && canManageMaterials))
               "
@@ -633,7 +661,7 @@
                 :container="c"
                 mode="warehouse_issue"
                 :stage-right-label="activeStageConfig.rightLabel"
-                :use-subsections="false"
+                :use-subsections="packCrateContainerUseSubsections(activePackStage, packWorkflowProfile)"
                 :show-storage-location="showPackStorageLocation(activePackStage, 'left')"
               />
             </PackStepCrateSection>
@@ -641,7 +669,7 @@
             <PackStepCrateSection
               v-if="
                 showPackContainersUi &&
-                isPackReturnPipelineStage(activePackStage) &&
+                isPackReturnStage(activePackStage) &&
                 packContainersAtEventForReturnLeft.length > 0
               "
               :preset="PACK_CRATE_SECTION_RETURN_AT_EVENT_LEFT"
@@ -842,6 +870,7 @@
                       :key="'ret-mirror-' + c.id"
                       :container="c"
                       mode="at_event_return_mirror"
+                      :stage-right-label="activeStageConfig.rightLabel"
                       container-dom-id-prefix="pack-container-returned-"
                     />
               </template>
@@ -890,6 +919,7 @@
                             v-if="showPackIssueForPackItem(pi)"
                             :is-consumable="pi.isConsumable"
                             :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                             :show-consumption="showConsumableConsumptionForPackItem(pi)"
                             @consumed="emitConsumptionFromPackItem(pi)"
                             @loss="emitIssueWizard(pi, 'loss')"
@@ -947,6 +977,7 @@
                           v-if="showPackIssueForPackItem(pi) || consumableConsumptionRemaining(pi) > 0"
                           :is-consumable="true"
                           :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                           :show-consumption="showConsumableConsumptionForPackItem(pi)"
                           @consumed="emitConsumptionFromPackItem(pi)"
                         />
@@ -972,13 +1003,13 @@
                   mode="warehouse_issue_mirror"
                   :stage-right-label="activeStageConfig.rightLabel"
                   :container-dom-id-prefix="rightProgressMirrorPreset.containerDomIdPrefix"
-                  :use-subsections="false"
+                  :use-subsections="packCrateContainerUseSubsections(activePackStage, packWorkflowProfile)"
                   :show-storage-location="showPackStorageLocation(activePackStage, 'right')"
                 />
               </template>
               <template v-if="stageRightLooseMirrorItems.length > 0" #loose>
                 <p
-                  v-if="hasActiveCrateTarget && showPackOperateControls && isPackForwardToEventStage(activePackStage)"
+                  v-if="packCrateAssignHintOnRight(activePackStage, hasActiveCrateTarget, showPackOperateControls)"
                   class="pack-active-crate-banner pack-active-crate-banner--inline"
                   role="status"
                 >
@@ -1027,8 +1058,7 @@
                             !isPackUnpackStage(activePackStage) &&
                             showCrateAssignUpControlsLooseAtEvent(pi)
                           "
-                          direction="forward"
-                          :into-crate="true"
+                          direction="assign-up"
                           :qty="moveQtyInputs[pi.id] ?? crateAssignLooseAtEventMax(pi)"
                           :max="crateAssignLooseAtEventMax(pi)"
                           :disabled="movingId === pi.id || containerMutationLoading"
@@ -1045,15 +1075,25 @@
                           :stage-right-label="activeStageConfig.rightLabel"
                           side="right"
                           use-detail-stack
-                          :loose-issued-at-event="looseQtyOnRightMirror(pi)"
-                          :loose-qty="looseQtyOnRightMirror(pi)"
+                          :loose-issued-at-event="
+                            activePackStage === 'at_event_transport_back'
+                              ? looseTransportBackOnRight(pi)
+                              : looseQtyOnRightMirror(pi)
+                          "
+                          :loose-qty="
+                            activePackStage === 'at_event_transport_back'
+                              ? looseTransportBackOnRight(pi)
+                              : looseQtyOnRightMirror(pi)
+                          "
                           :consumed-at-event="
                             pi.isConsumable ? consumableBookedConsumptionQty(pi) : undefined
                           "
                           :qty-in-containers="
                             activePackStage === 'packed_transport_to'
                               ? transportToQtyInContainersForMaterial(pi.materialItemId)
-                              : issuedQtyInContainersForMaterial(pi.materialItemId)
+                              : activePackStage === 'at_event_transport_back'
+                                ? transportBackQtyInContainersForMaterial(pi.materialItemId)
+                                : issuedQtyInContainersForMaterial(pi.materialItemId)
                           "
                         />
                       </template>
@@ -1062,6 +1102,7 @@
                           v-if="showPackIssueForPackItem(pi)"
                           :is-consumable="pi.isConsumable"
                           :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                           :show-consumption="showConsumableConsumptionForPackItem(pi)"
                           @consumed="emitConsumptionFromPackItem(pi)"
                           @loss="emitIssueWizard(pi, 'loss')"
@@ -1167,6 +1208,7 @@
                                                 v-if="showPackIssueForPackItem(pi)"
                                                 :is-consumable="pi.isConsumable"
                                                 :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                                                 :show-consumption="showConsumableConsumptionForPackItem(pi)"
                                                 @consumed="emitConsumptionFromPackItem(pi)"
                                                 @loss="emitIssueWizard(pi, 'loss')"
@@ -1257,6 +1299,7 @@
                                             v-if="showPackIssueForPackItem(pi)"
                                             :is-consumable="pi.isConsumable"
                                             :material-item-id="pi.materialItemId"
+                      :material-name="pi.materialName"
                                             :show-consumption="showConsumableConsumptionForPackItem(pi)"
                                             @consumed="emitConsumptionFromPackItem(pi)"
                                             @loss="emitIssueWizard(pi, 'loss')"
@@ -1369,11 +1412,13 @@
       :lines="returnCrateModalLines"
       :not-taken-reminders="[]"
       :not-taken-line="() => ''"
-      :can-report-issues="showPackIssueActions"
+      :can-report-issues="showPackReturnCrateIssueActions"
       :can-report-consumption="showPackConsumptionActions"
       :submitting="returnCrateModalSubmitting"
       :submit-disabled="returnCrateModalSubmitDisabled"
+      :searchable-materials="returnCrateSearchableMaterials"
       @update:lines="returnCrateModalLines = $event"
+      @add-material="onReturnCrateAddMaterial"
       @report-loss="(mid, qty) => emitIssueWizardByMaterialId(mid, 'loss', qty)"
       @report-repair="(mid, qty) => emitIssueWizardByMaterialId(mid, 'repair', qty)"
       @report-consumption="
@@ -1381,6 +1426,17 @@
       "
       @cancel="closeReturnCrateModal"
       @submit="onReturnCrateModalSubmit"
+    />
+
+    <PackPhysComboStoreChecklistModal
+      v-if="physComboStoreModalContainer"
+      :open="physComboStoreModalOpen"
+      :label="physComboStoreModalLabel"
+      :sections="physComboStoreModalSections"
+      :open-issue-labels="physComboStoreOpenIssueLabels"
+      :submitting="physComboStoreSubmitting"
+      @cancel="closePhysComboStoreChecklistModal"
+      @confirm="onPhysComboStoreChecklistConfirm"
     />
   </div>
 </template>
@@ -1406,7 +1462,9 @@ import PackCrateShellBackModal from '@/components/activities/PackCrateShellBackM
 import PackReturnCrateModal, {
   type ReturnCrateLineEdit,
   type ReturnCratePartitionView,
+  type ReturnCrateSearchMaterial,
 } from '@/components/activities/PackReturnCrateModal.vue'
+import PackPhysComboStoreChecklistModal from '@/components/activities/PackPhysComboStoreChecklistModal.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import PackMaterialRow from '@/components/activities/PackMaterialRow.vue'
 import PackMaterialRowDetail from '@/components/activities/PackMaterialRowDetail.vue'
@@ -1414,7 +1472,32 @@ import PackMoveControls from '@/components/activities/PackMoveControls.vue'
 import PackUnpackStoreControls from '@/components/activities/PackUnpackStoreControls.vue'
 import PackUnpackUnstoreControls from '@/components/activities/PackUnpackUnstoreControls.vue'
 import {
+  type PackQuantityContext,
+  type PackQuantityForwardMaxContext,
+  type PackQuantityMoveBackContext,
   type PackStage,
+  computeConsumableQtyAlreadyBeyondCurrentStage,
+  computeContainerLineRemainingAtForwardStage,
+  computeContainerLineRemainingReturn,
+  computeContainerQtySumForMaterial,
+  computeContainerShellIssueableUnits,
+  computeContainerShellTakeMax,
+  computeContainerStillAtEventQtyForMaterial,
+  computeEffectiveStageLeftQty,
+  computeIssuedQtyInContainersForMaterial,
+  computeLooseIssuedAtEvent,
+  computeLooseQtyForPackItem,
+  computeLooseQtyOnRightMirror,
+  computeLooseQtyStillAtEventForReturn,
+  computeLooseQtyStillOnTransportBackForReturn,
+  computeLooseTransportBackOnRight,
+  computePackIssueForwardMax,
+  computePackItemRemainingAtForwardStage,
+  computePackedQtyBaseForContainerSplit,
+  computeQtyInContainersForItem,
+  computeRightQtyForMoveBack,
+  computeTransportBackQtyInContainersForMaterial,
+  computeTransportToQtyInContainersForMaterial,
   getBackendStage as computeBackendStage,
   getStageLeftQty as computeStageLeftQty,
   getStageRightQty as computeStageRightQty,
@@ -1422,6 +1505,7 @@ import {
   groupActivityPackItemsByCategory,
   isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackForwardWarehouseUiStage,
   isPackReturnStage,
   isPackReturnPipelineStage,
   isPackLogisticsReturnStage,
@@ -1494,17 +1578,56 @@ import {
   crateShellPeekSectionsForPackItem,
   isCrateShellPackItem,
   isNonActionableContainerLine,
-  isPackContainerMergedIntoStageLeftRow,
+  isWarehousePreviewContainerLine,
+  comboPreviewLineShellDerivedStageQty,
+  isPhysicalComboPreviewContainerLine,
   packContainerItemSectionsWithReality,
   packShellContainerForPackItem,
   isPhysicalComboAsSet,
-  isOrphanShellWithoutPackContainer as isOrphanShellWithoutPackContainerRow,
-  hideShellPackItemOnConfirmedPackedLeft,
-  packContainerVisibleOnConfirmedPackedRight,
   peekSectionsForShellContainer,
   linkedShellCombosNeedingPackContainer,
-  crateShellExcludedFromLooseForwardList,
 } from '@/components/activities/packShellCrateHelpers'
+import {
+  isOrphanShellWithoutPackContainer as isOrphanShellWithoutPackContainerRule,
+  packCrateCheckRequestLightweight,
+  packIssuesVisibleForStage,
+  packReturnCrateMode,
+  packStorePhysComboMode,
+  packUnpackContainerSortKey,
+  packWorkflowCanEdit,
+  packWorkflowRole,
+  shouldIncludePackItemInLooseOnlyGroup,
+  shouldIncludePackItemInLoosePartialGroup,
+  shouldIncludePackItemOnConsumableOverview,
+  shouldIncludePackItemOnReturnConsumed,
+  shouldIncludePackItemOnReturnedLoose,
+  shouldIncludePackItemOnReturnNotTaken,
+  shouldIncludePackItemOnRightLooseMirror,
+  shouldIncludePackItemOnStageLeft,
+  shouldIncludePackItemOnStoredLoose,
+  containerBackwardUnits,
+  containerLineBackwardMax,
+  containerLineBackwardPatch,
+  packCrateAssignHintOnLeft,
+  packCrateAssignHintOnRight,
+  packCrateAssignUpMax,
+  packAllowPastStageForwardForOpenIssue,
+  packCrateAssignUsesTargetInTitle,
+  packCrateContainerUseSubsections,
+  packHasActiveCrateTarget,
+  packMoveControlDirectionForCrateAssign,
+  packMwGroupHandoffActive,
+  packMwHandoffBannerVisible,
+  packMwIsActivityCreator,
+  packShowCrateAssignUpControls,
+  shouldShowContainerOnRightMirror,
+  shouldShowPackContainerInWarehouseVisibleList,
+  shouldShowPackContainerOnConfirmedPackedRight,
+  shouldShowPackItemAsCategoryShellRow,
+  type PackCrateAssignContext,
+  type PackWorkflowContainerContext,
+  type PackWorkflowListContext,
+} from '@/components/activities/packWorkflowRules'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
 import type { ComboComponent } from '@/api/materials'
 import { getComboComponents } from '@/api/materials'
@@ -1621,6 +1744,8 @@ const props = withDefaults(
     activityId: string
     /** Für Auswahl bestehender Lager-Kisten (GET /container-batches) */
     departmentId?: string
+    /** Ersteller der Aktivität — MW/DC-Ersteller: kein Notfallmodus */
+    activityCreatedByUserId?: string | null
     status: string
     /** activity | camp | event — steuert Quick- vs. Logistik-Packworkflow */
     activityType?: string
@@ -1649,9 +1774,15 @@ const props = withDefaults(
     savedQuantityByMaterialItemIdForAdd?: Record<string, number>
     invitedDepartmentsForAdd?: { id: string; name?: string | null; status?: string | null }[]
     addingActivityMaterial?: boolean
+    /** self_provided-Hinweise aus virtuellen Kombos (Ersteller organisiert selbst). */
+    virtualComboSelfProvidedHints?: Array<{
+      comboName: string
+      items: Array<{ name: string; total_qty: number }>
+    }>
   }>(),
   {
     departmentId: '',
+    activityCreatedByUserId: null,
     activityType: 'activity',
     activityName: '',
     canReportIssues: false,
@@ -1668,6 +1799,7 @@ const props = withDefaults(
     savedQuantityByMaterialItemIdForAdd: () => ({}),
     invitedDepartmentsForAdd: () => [],
     addingActivityMaterial: false,
+    virtualComboSelfProvidedHints: () => [],
   },
 )
 
@@ -1676,6 +1808,14 @@ const packWorkflowProfile = computed(() => packWorkflowProfileForActivityType(pr
 /** activity + camp/event: Gruppe/Ersteller ab «gepackt»; external: nur MW */
 const isGroupHandoffProfile = computed(
   () => packWorkflowProfile.value === 'quick' || packWorkflowProfile.value === 'logistics',
+)
+
+const isMwActivityCreator = computed(() =>
+  packMwIsActivityCreator(
+    canManageMaterials.value,
+    props.activityCreatedByUserId,
+    authStore.userId,
+  ),
 )
 
 function activityTypeLabel(): string {
@@ -1744,17 +1884,23 @@ const showPackStageProgress = computed(() => !isActivityCompleted.value)
 /** MW/DC: Material gepackt — Gruppe soll Transport/Event übernehmen (activity / camp / event) */
 const showMwHandoffBanner = computed(
   () =>
-    canManageMaterials.value &&
-    isGroupHandoffProfile.value &&
-    props.status === 'packed',
+    packMwHandoffBannerVisible(
+      canManageMaterials.value,
+      isGroupHandoffProfile.value,
+      props.status,
+      isMwActivityCreator.value,
+    ) && props.status === 'packed',
 )
 
 /** MW/DC: Am Event — Gruppe soll Retour/Transport zurück erfassen (activity / camp / event) */
 const showMwReturnHandoffBanner = computed(
   () =>
-    canManageMaterials.value &&
-    isGroupHandoffProfile.value &&
-    props.status === 'at_event',
+    packMwHandoffBannerVisible(
+      canManageMaterials.value,
+      isGroupHandoffProfile.value,
+      props.status,
+      isMwActivityCreator.value,
+    ) && props.status === 'at_event',
 )
 
 const showMwGroupHandoffBanner = computed(
@@ -1765,11 +1911,13 @@ const showMwGroupHandoffBanner = computed(
  * MW/DC: Gruppe ist für Ausgabe/Retour zuständig (Status packed / at_event) — activity / camp / event.
  * Bei «external» arbeitet der MW durchgehend.
  */
-const mwGroupHandoffActive = computed(
-  () =>
-    canManageMaterials.value &&
-    isGroupHandoffProfile.value &&
-    (props.status === 'packed' || props.status === 'at_event'),
+const mwGroupHandoffActive = computed(() =>
+  packMwGroupHandoffActive(
+    canManageMaterials.value,
+    isGroupHandoffProfile.value,
+    props.status,
+    isMwActivityCreator.value,
+  ),
 )
 
 /** Noch nicht vollständig gepackt (Nachlieferung / vergessenes Material / Zelt 0/1). */
@@ -1860,13 +2008,16 @@ const isViewingOneStepAheadWithWork = computed(() => {
 /**
  * Status schon «Am Event», aber Rest steht noch «Gepackt» — Tab Gepackt→Event bleibt für Vorwärtsbuchung offen.
  */
-const allowPastStageForwardForOpenIssue = computed(() => {
-  if (!props.packListEditable) return false
-  if (!isViewingPastPackStage.value) return false
-  if (!isPackForwardToEventStage(activePackStage.value)) return false
-  if (props.status !== 'at_event') return false
-  return stageLeftHeaderCount.value > 0
-})
+const allowPastStageForwardForOpenIssue = computed(() =>
+  packAllowPastStageForwardForOpenIssue({
+    packListEditable: props.packListEditable,
+    isViewingPastPackStage: isViewingPastPackStage.value,
+    isForwardToEventStage: isPackForwardToEventStage(activePackStage.value),
+    activityStatus: props.status,
+    stageLeftHeaderCount: stageLeftHeaderCount.value,
+    isMwActivityCreator: isMwActivityCreator.value,
+  }),
+)
 
 const showPackStageOpenIssueRemainderBanner = computed(() => allowPastStageForwardForOpenIssue.value)
 
@@ -1892,6 +2043,7 @@ const showPackStageViewOnlyBanner = computed(
 const showPackOperateControls = computed(
   () =>
     props.packListEditable &&
+    packWorkflowCanEdit(packWorkflowProfile.value, canManageMaterials.value, props.status) &&
     !memberReturnHandoffComplete.value &&
     (isActiveStatusPackStage.value ||
       isViewingOneStepAheadWithWork.value ||
@@ -1952,7 +2104,7 @@ async function confirmPackStageForwardAllowed(): Promise<boolean> {
     toast.info(t('activities.packList.toastPackStageViewOnly'))
     return false
   }
-  if (canManageMaterials.value && isViewingPastPackStage.value) {
+  if (canManageMaterials.value && isViewingPastPackStage.value && !isMwActivityCreator.value) {
     return confirmDialog({
       title: t('activities.packList.mwOffStageForwardConfirmTitle'),
       message: t('activities.packList.mwOffStageForwardConfirmMessage', {
@@ -1978,7 +2130,7 @@ async function confirmPackStageBackwardAllowed(): Promise<boolean> {
     return false
   }
   if (!isActiveStatusPackStage.value) {
-    if (canManageMaterials.value && isViewingPastPackStage.value) {
+    if (canManageMaterials.value && isViewingPastPackStage.value && !isMwActivityCreator.value) {
       return confirmDialog({
         title: t('activities.packList.mwOffStageBackConfirmTitle'),
         message: t('activities.packList.mwOffStageBackConfirmMessage', {
@@ -2080,17 +2232,25 @@ async function confirmPackedBackToConfirmed(): Promise<boolean> {
   })
 }
 
-/** Nur wenn Workflow «Am Event buchen» geklickt wurde (Status at_event), nicht bei «gepackt» + Packbuchungen. */
+/** Verlust/Reparatur: ab Transport→Event bis Transport zurück (pack-workflow-rules §7). */
 const activityStatusAllowsIssueReports = computed(() => {
+  if (packIssuesVisibleForStage(activePackStage.value)) return true
   const s = props.status
   return s === 'at_event' || s === 'returned'
 })
 
 const showPackIssueActions = computed(
   () =>
-    activityStatusAllowsIssueReports.value &&
+    packIssuesVisibleForStage(activePackStage.value) &&
     showPackOperateControls.value &&
     props.canReportIssues !== false,
+)
+
+/** Retour-Kiste: Member nur ☑/☐, ohne Verlust/Reparatur im Modal (§5). */
+const showPackReturnCrateIssueActions = computed(
+  () =>
+    showPackIssueActions.value &&
+    packReturnCrateMode(packWorkflowRole(canManageMaterials.value)) === 'full',
 )
 
 const showPackConsumptionActions = computed(
@@ -2126,24 +2286,7 @@ function consumableOnPackListFromPacked(pi: ActivityPackItem): boolean {
 
 /** Bereits in einer späteren Pipeline-Stufe als der aktuelle Tab (dann nicht mehr links mit «0»). */
 function consumableQtyAlreadyBeyondCurrentStage(pi: ActivityPackItem): boolean {
-  const stage = activePackStage.value
-  if (stage === 'confirmed_packed') {
-    return (pi.quantityPacked ?? 0) > 0
-  }
-  if (stage === 'packed_transport_to') {
-    return (
-      (pi.quantityTransportTo ?? 0) > 0 ||
-      (pi.quantityIssued ?? 0) > 0 ||
-      (pi.quantityTransportBack ?? 0) > 0
-    )
-  }
-  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-    return (pi.quantityTransportBack ?? 0) > 0 || (pi.quantityReturned ?? 0) > 0
-  }
-  if (stage === 'at_event_transport_back') {
-    return (pi.quantityReturned ?? 0) > 0
-  }
-  return false
+  return computeConsumableQtyAlreadyBeyondCurrentStage(pi, activePackStage.value)
 }
 
 /**
@@ -2326,7 +2469,7 @@ const pendingConsumableReturn = ref<PendingConsumableReturn | null>(null)
 const shellComboVirtualContainerByPackItemId = ref<Record<string, string>>({})
 
 function isOrphanShellWithoutPackContainer(pi: ActivityPackItem): boolean {
-  return isOrphanShellWithoutPackContainerRow(pi, packContainers.value, activePackStage.value)
+  return isOrphanShellWithoutPackContainerRule(pi, packContainers.value, activePackStage.value)
 }
 
 /** Kisten-Ziele fürs Einbuchen: Phys.-Kombi mit Kiste oder Pack-Behälter mit Lager-Batch */
@@ -3605,13 +3748,17 @@ async function onShellForwardSubmit(payload: PackCrateCheckRequest) {
   const item = shellForwardItem.value
   const qty = shellForwardMoveQty.value
   if (!item || qty < 1) return
+  const pendingAction = shellForwardPendingAction.value
+  const wasCheckOnly = pendingAction.kind === 'check_only'
   shellForwardSubmitting.value = true
   shellForwardSubmitError.value = null
   try {
     const leg = packCrateCheckLegForStage(activePackStage.value) ?? 'outbound'
+    const lightweight = packCrateCheckRequestLightweight(packWorkflowRole(canManageMaterials.value), leg)
     const res = await postPackCrateCheck(props.activityId, item.id, {
       ...payload,
       check_leg: payload.check_leg ?? leg,
+      lightweight: lightweight || undefined,
     })
     if (!res.ok) {
       shellForwardSubmitError.value = mapShellForwardSubmitError(
@@ -3623,10 +3770,18 @@ async function onShellForwardSubmit(payload: PackCrateCheckRequest) {
     const nextDrafts = { ...shellCheckDraftByPackItemId.value }
     delete nextDrafts[item.id]
     shellCheckDraftByPackItemId.value = nextDrafts
-    const wasCheckOnly = shellForwardPendingAction.value.kind === 'check_only'
+
+    if (!wasCheckOnly) {
+      const forwardOk = await executeShellForwardPendingAfterCheck(item, pendingAction, qty)
+      if (!forwardOk) {
+        shellForwardSubmitError.value = t('activities.packList.shellForwardMoveAfterCheckFailed')
+        return
+      }
+      await loadAll()
+    }
+
     closeShellForwardModal()
     initContainerIssueLineInputs()
-    await executeShellForwardPendingAfterCheck(item)
     if (wasCheckOnly) {
       toast.success(t('activities.packList.shellForwardCheckSavedToast'))
     } else if (payload.result === 'ok') {
@@ -3665,9 +3820,15 @@ const returnCrateModalSubmitting = ref(false)
 const returnCrateModalContentsLoading = ref(false)
 const returnCrateModalContentsError = ref(false)
 
+const physComboStoreModalOpen = ref(false)
+const physComboStoreModalContainer = ref<ActivityPackContainer | null>(null)
+const physComboStoreModalSections = ref<PackCrateShellPeekSection[]>([])
+const physComboStoreSubmitting = ref(false)
+
 type ReturnCrateBatchStep = {
-  kind: 'shell' | 'line'
+  kind: 'shell' | 'line' | 'loose'
   containerItemId?: string
+  materialItemId?: string
   qty: number
 }
 
@@ -3685,6 +3846,73 @@ const containerShellStoreInputs = ref<Record<string, number>>({})
 function returnProgressNotTakenQty(pi: ActivityPackItem): number {
   if (!isPackReturnStage(activePackStage.value)) return 0
   return notTakenQtyForReturn(pi)
+}
+
+function crateRelevantMaterialIds(containerId: string): Set<string> {
+  const mids = new Set<string>()
+  const wh = containerWarehouseTemplateByContainerId.value[containerId]
+  if (wh) {
+    for (const m of wh) mids.add(m)
+  }
+  for (const row of containerWarehouseContentsByContainerId.value[containerId] ?? []) {
+    const mid = (row.material_id ?? '').trim()
+    if (mid) mids.add(mid)
+  }
+  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isVirtualWarehouseContainerLine(ci)) continue
+    const mid = (ci.material_item_id ?? '').trim()
+    if (mid) mids.add(mid)
+  }
+  return mids
+}
+
+function returnCrateExpectedQty(containerId: string, ci: ActivityPackContainerItem): number {
+  const mid = (ci.material_item_id ?? '').trim()
+  const whRow = containerWarehouseContentsByContainerId.value[containerId]?.find((r) => r.material_id === mid)
+  if (whRow) return Math.max(0, whRow.qty)
+  return Math.max(ci.quantity_packed ?? 0, ci.quantity_issued ?? 0)
+}
+
+function buildReturnCrateLineFromContainerItem(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  isExtra: boolean,
+  placement: 'in_crate' | 'added' = 'in_crate',
+): ReturnCrateLineEdit | null {
+  if (isVirtualWarehouseContainerLine(ci)) return null
+  const actionable = resolveActionableContainerLine(containerId, ci)
+  const max = containerLineRemainingReturn(actionable, containerId)
+  const returnedAlready = actionable.quantity_returned ?? 0
+  const expectedQty = returnCrateExpectedQty(containerId, ci)
+  const materialItemId = actionable.material_item_id ?? null
+  if (!materialItemId && max < 1 && returnedAlready < 1 && expectedQty < 1) return null
+
+  const isConsumable = materialItemId ? isPackMaterialConsumable(materialItemId) : false
+  const consumption = isConsumable ? returnCrateConsumableState(materialItemId) : null
+  const isDone = max < 1 && returnedAlready > 0
+  const lineId = isNonActionableContainerLine(actionable)
+    ? `preview-${materialItemId ?? ci.id}`
+    : actionable.id
+
+  return {
+    id: lineId,
+    kind: 'line',
+    placement,
+    containerItemId: isNonActionableContainerLine(actionable) ? undefined : actionable.id,
+    materialItemId,
+    materialName: actionable.material_name || ci.material_name || t('common.material'),
+    expectedQty,
+    max,
+    issued: actionable.quantity_issued ?? 0,
+    returnedAlready,
+    included: isDone ? false : !isConsumable,
+    qty: isDone || isConsumable ? 0 : max,
+    isExtra,
+    isConsumable,
+    consumptionDone: consumption?.consumptionDone ?? false,
+    consumptionOpen: consumption?.consumptionOpen ?? 0,
+    isDone,
+  }
 }
 
 function buildReturnCratePartition(containerId: string): ReturnCratePartitionView {
@@ -3711,8 +3939,14 @@ function buildReturnCratePartition(containerId: string): ReturnCratePartitionVie
   const extraLines: ActivityPackContainerItem[] = []
   for (const sec of packContainerItemSectionsForContainer(c)) {
     for (const ci of sec.lines) {
-      if (isNonActionableContainerLine(ci)) continue
-      if (containerLineRemainingReturn(ci, containerId) <= 0) continue
+      if (isVirtualWarehouseContainerLine(ci)) continue
+      const actionable = resolveActionableContainerLine(containerId, ci)
+      const hasData =
+        (actionable.quantity_packed ?? 0) > 0 ||
+        (actionable.quantity_issued ?? 0) > 0 ||
+        (actionable.quantity_returned ?? 0) > 0 ||
+        isWarehousePreviewContainerLine(ci)
+      if (!hasData) continue
       if (sec.subsectionKey === 'extra') extraLines.push(ci)
       else standardLines.push(ci)
     }
@@ -3779,28 +4013,39 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
   const partition = buildReturnCratePartition(containerId)
   const container = packContainers.value.find((x) => x.id === containerId)
   const shellMaterialId = (container?.container_material_item_id ?? '').trim() || null
-  const extraIds = new Set(partition.extraLines.map((line) => line.id))
   const lines: ReturnCrateLineEdit[] = []
 
-  for (const ci of [...partition.extraLines, ...partition.standardLines]) {
-    const max = containerLineRemainingReturn(ci, containerId)
-    const materialItemId = ci.material_item_id ?? null
-    const isConsumable = materialItemId ? isPackMaterialConsumable(materialItemId) : false
-    const consumption = isConsumable ? returnCrateConsumableState(materialItemId) : null
+  for (const ci of partition.standardLines) {
+    const row = buildReturnCrateLineFromContainerItem(containerId, ci, false, 'in_crate')
+    if (row) lines.push(row)
+  }
+  for (const ci of partition.extraLines) {
+    const row = buildReturnCrateLineFromContainerItem(containerId, ci, true, 'in_crate')
+    if (row) lines.push(row)
+  }
+
+  for (const pi of packItems.value) {
+    if (!crateRelevantMaterialIds(containerId).has(pi.materialItemId)) continue
+    const looseQty = looseQtyStillAtEventForReturn(pi)
+    if (looseQty < 1) continue
+    const consumption = pi.isConsumable ? returnCrateConsumableState(pi.materialItemId) : null
     lines.push({
-      id: ci.id,
+      id: `loose-${pi.materialItemId}`,
       kind: 'line',
-      containerItemId: ci.id,
-      materialItemId,
-      materialName: ci.material_name || t('common.material'),
-      max,
-      issued: ci.quantity_issued ?? 0,
-      included: !isConsumable,
-      qty: isConsumable ? 0 : max,
-      isExtra: extraIds.has(ci.id),
-      isConsumable,
+      placement: 'loose',
+      materialItemId: pi.materialItemId,
+      materialName: pi.materialName,
+      expectedQty: 0,
+      max: looseQty,
+      issued: pi.quantityIssued ?? 0,
+      returnedAlready: pi.quantityReturned ?? 0,
+      included: !pi.isConsumable,
+      qty: pi.isConsumable ? 0 : looseQty,
+      isExtra: false,
+      isConsumable: Boolean(pi.isConsumable),
       consumptionDone: consumption?.consumptionDone ?? false,
       consumptionOpen: consumption?.consumptionOpen ?? 0,
+      isDone: false,
     })
   }
 
@@ -3810,27 +4055,85 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
     lines.push({
       id: 'shell',
       kind: 'shell',
+      placement: 'shell',
       materialItemId: shellMaterialId,
       materialName: partition.shellMaterialName || t('activities.packList.shellMaterialLine'),
+      expectedQty: 1,
       max: partition.shellQty,
       issued: partition.shellQty,
+      returnedAlready: 0,
       included: !shellConsumable,
       qty: shellConsumable ? 0 : partition.shellQty,
       isExtra: partition.shellIsExtra,
       isConsumable: shellConsumable,
       consumptionDone: shellConsumption?.consumptionDone ?? false,
       consumptionOpen: shellConsumption?.consumptionOpen ?? 0,
+      isDone: false,
     })
   }
 
   return lines
 }
 
+const returnCrateSearchableMaterials = computed((): ReturnCrateSearchMaterial[] => {
+  const containerId = returnCrateModalContainer.value?.id
+  if (!containerId) return []
+  const inLines = new Set(
+    returnCrateModalLines.value.map((l) => l.materialItemId).filter(Boolean) as string[],
+  )
+  return packItems.value
+    .filter((pi) => {
+      if (inLines.has(pi.materialItemId)) return false
+      if (isCrateShellPackItem(pi, packContainers.value)) return false
+      return true
+    })
+    .map((pi) => ({ id: pi.materialItemId, name: pi.materialName }))
+    .sort((a, b) => a.name.localeCompare(b.name, locale.value))
+})
+
+function onReturnCrateAddMaterial(materialItemId: string): void {
+  const container = returnCrateModalContainer.value
+  if (!container) return
+  if (returnCrateModalLines.value.some((l) => l.materialItemId === materialItemId)) return
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  if (!pi) return
+  const leftAtEvent = Math.max(0, (pi.quantityIssued ?? 0) - (pi.quantityReturned ?? 0))
+  const max = Math.max(1, leftAtEvent || getStageLeftQty(pi) || 1)
+  const isConsumable = Boolean(pi.isConsumable)
+  const consumption = isConsumable ? returnCrateConsumableState(materialItemId) : null
+  const containerLine = (containerItemsByContainerId.value[container.id] ?? []).find(
+    (row) => row.material_item_id === materialItemId && !isNonActionableContainerLine(row),
+  )
+  returnCrateModalLines.value = [
+    ...returnCrateModalLines.value,
+    {
+      id: `added-${materialItemId}`,
+      kind: 'line',
+      placement: containerLine ? 'in_crate' : 'added',
+      containerItemId: containerLine?.id,
+      materialItemId,
+      materialName: pi.materialName,
+      expectedQty: 0,
+      max,
+      issued: pi.quantityIssued ?? 0,
+      returnedAlready: pi.quantityReturned ?? 0,
+      included: !isConsumable,
+      qty: isConsumable ? 0 : max,
+      isExtra: true,
+      isConsumable,
+      consumptionDone: consumption?.consumptionDone ?? false,
+      consumptionOpen: consumption?.consumptionOpen ?? 0,
+      isDone: false,
+    },
+  ]
+}
+
 function syncReturnCrateModalLines(): void {
   const container = returnCrateModalContainer.value
   if (!container) return
   const prevById = new Map(returnCrateModalLines.value.map((line) => [line.id, line]))
-  returnCrateModalLines.value = buildReturnCrateModalLines(container.id).map((line) => {
+  const added = returnCrateModalLines.value.filter((l) => l.placement === 'added')
+  const rebuilt = buildReturnCrateModalLines(container.id).map((line) => {
     if (line.isConsumable) return line
     const prev = prevById.get(line.id)
     if (!prev) return line
@@ -3840,6 +4143,11 @@ function syncReturnCrateModalLines(): void {
       qty: Math.min(Math.max(0, prev.qty), line.max),
     }
   })
+  const rebuiltMids = new Set(rebuilt.map((l) => l.materialItemId).filter(Boolean))
+  returnCrateModalLines.value = [
+    ...rebuilt,
+    ...added.filter((a) => a.materialItemId && !rebuiltMids.has(a.materialItemId)),
+  ]
 }
 
 function closeReturnCrateModal(): void {
@@ -3876,6 +4184,21 @@ async function continueReturnCrateBatch(): Promise<void> {
     if (step.kind === 'shell') {
       job.remaining.shift()
       await returnContainerShellToWarehouse(job.containerId, step.qty)
+      continue
+    }
+
+    if (step.kind === 'loose') {
+      job.remaining.shift()
+      const pi = packItems.value.find((p) => p.materialItemId === step.materialItemId)
+      if (pi && step.qty > 0) {
+        await postMovePackItem(props.activityId, pi.id, { stage: 'returned', quantity: step.qty })
+        const items = await getPackItems(props.activityId)
+        packItems.value = items
+        initMoveQtyInputs()
+        initContainerReturnLineInputs()
+        await loadContainersData()
+        emit('activityItemsChanged')
+      }
       continue
     }
 
@@ -3917,15 +4240,20 @@ async function onReturnCrateModalSubmit(): Promise<void> {
   if (!c || returnCrateModalSubmitDisabled.value) return
 
   const steps: ReturnCrateBatchStep[] = returnCrateModalLines.value
-    .filter((line) => !line.isConsumable && line.included && line.qty > 0)
-    .map(
-      (line): ReturnCrateBatchStep => ({
-        kind: line.kind === 'shell' ? 'shell' : 'line',
-        containerItemId: line.containerItemId,
-        qty: line.qty,
-      }),
-    )
-    .sort((a, b) => (a.kind === 'shell' ? 1 : 0) - (b.kind === 'shell' ? 1 : 0))
+    .filter((line) => !line.isConsumable && !line.isDone && line.included && line.qty > 0)
+    .map((line): ReturnCrateBatchStep => {
+      if (line.kind === 'shell') {
+        return { kind: 'shell', qty: line.qty }
+      }
+      if (line.placement === 'loose' || (line.placement === 'added' && !line.containerItemId)) {
+        return { kind: 'loose', materialItemId: line.materialItemId ?? undefined, qty: line.qty }
+      }
+      return { kind: 'line', containerItemId: line.containerItemId, qty: line.qty }
+    })
+    .sort((a, b) => {
+      const rank = (k: ReturnCrateBatchStep['kind']) => (k === 'shell' ? 2 : k === 'loose' ? 1 : 0)
+      return rank(a.kind) - rank(b.kind)
+    })
 
   if (steps.length === 0) {
     if (!returnCrateModalCanCompleteWithoutMoves()) return
@@ -3950,6 +4278,7 @@ function initContainerReturnLineInputs(): void {
     for (const sec of packContainerItemSectionsForContainer(c)) {
       for (const ci of sec.lines) {
         if (isNonActionableContainerLine(ci)) continue
+        if (isVirtualWarehouseContainerLine(ci)) continue
         const max = containerLineRemainingReturn(ci, c.id)
         if (max < 1) continue
         const k = containerIssueLineKey(c.id, ci.id)
@@ -4101,6 +4430,7 @@ async function executeReturnContainerLineToWarehouse(
 async function returnContainerLineToWarehouse(containerId: string, ci: ActivityPackContainerItem): Promise<void> {
   if (!isPackReturnStage(activePackStage.value)) return
   if (isNonActionableContainerLine(ci)) return
+  if (isVirtualWarehouseContainerLine(ci)) return
   const max = containerLineRemainingReturn(ci, containerId)
   if (max < 1) return
 
@@ -4412,7 +4742,112 @@ async function storeContainerShellToWarehouse(containerId: string, qtyOverride?:
   }
 }
 
+const physComboStoreModalLabel = computed(() => {
+  const c = physComboStoreModalContainer.value
+  if (!c) return ''
+  const sh = shellPackItemForContainer(c.id)
+  return (c.label ?? sh?.materialName ?? '').trim() || t('common.material')
+})
+
+const physComboStoreOpenIssueLabels = computed(() => {
+  const c = physComboStoreModalContainer.value
+  if (!c) return []
+  const labels: string[] = []
+  for (const sec of packContainerItemSectionsForContainer(c)) {
+    for (const ci of sec.lines) {
+      const mid = ci.material_item_id
+      if (!mid) continue
+      const loss = lossQtyForMaterial(mid)
+      const repair = repairQtyForMaterial(mid)
+      if (loss > 0) {
+        labels.push(`${ci.material_name || t('common.material')}: ${t('activities.packList.issueLossShort', { n: loss })}`)
+      }
+      if (repair > 0) {
+        labels.push(`${ci.material_name || t('common.material')}: ${t('activities.packList.issueRepairShort', { n: repair })}`)
+      }
+    }
+  }
+  const sh = shellPackItemForContainer(c.id)
+  if (sh) {
+    const loss = lossQtyForMaterial(sh.materialItemId)
+    const repair = repairQtyForMaterial(sh.materialItemId)
+    if (loss > 0) labels.push(`${sh.materialName}: ${t('activities.packList.issueLossShort', { n: loss })}`)
+    if (repair > 0) labels.push(`${sh.materialName}: ${t('activities.packList.issueRepairShort', { n: repair })}`)
+  }
+  return labels
+})
+
+function closePhysComboStoreChecklistModal(): void {
+  physComboStoreModalOpen.value = false
+  physComboStoreModalContainer.value = null
+  physComboStoreModalSections.value = []
+}
+
+async function openPhysComboStoreChecklistModal(containerId: string): Promise<void> {
+  if (!isPackUnpackStage(activePackStage.value)) return
+  const shell = shellPackItemForContainer(containerId)
+  if (!shell || shell.materialType !== 'physical_combo') return
+  const container = packContainers.value.find((c) => c.id === containerId)
+  if (!container) return
+  physComboStoreModalContainer.value = container
+  physComboStoreModalSections.value = peekSectionsForShellPackItem(shell)
+  physComboStoreModalOpen.value = true
+}
+
+async function onPhysComboStoreChecklistConfirm(): Promise<void> {
+  const container = physComboStoreModalContainer.value
+  if (!container) return
+  const shell = shellPackItemForContainer(container.id)
+  if (!shell) return
+  physComboStoreSubmitting.value = true
+  try {
+    const lines: PackCrateCheckRequest['lines'] = []
+    for (const sec of physComboStoreModalSections.value) {
+      const isExtra = sec.subsectionKey === 'extra'
+      for (const line of sec.lines) {
+        const qty = shellForwardExpectedQty(isExtra, line.quantity)
+        lines.push({
+          line_key: shellForwardLineKey(sec.subsectionKey, line.id),
+          material_item_id: (line.materialItemId ?? '').trim() || null,
+          material_name: line.materialName,
+          expected_qty: qty,
+          counted_qty: qty,
+          status: 'ok',
+        })
+      }
+    }
+    const batchId = (container.container_batch_id ?? shell.linkedContainerBatchId ?? '').trim() || null
+    const checkRes = await postPackCrateCheck(props.activityId, shell.id, {
+      container_batch_id: batchId,
+      check_leg: 'warehouse_store',
+      result: 'ok',
+      lines,
+    })
+    if (!checkRes.ok) {
+      toast.error(t('activities.packList.physComboStoreCheckFailed'))
+      return
+    }
+    await refreshCrateCheckSnapshots()
+    closePhysComboStoreChecklistModal()
+    await executeStorePhysicalComboContainerWhole(container.id)
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.packList.physComboStoreCheckFailed'))
+  } finally {
+    physComboStoreSubmitting.value = false
+  }
+}
+
 async function storePhysicalComboContainerWhole(containerId: string): Promise<void> {
+  if (!isPackUnpackStage(activePackStage.value)) return
+  if (packStorePhysComboMode(packWorkflowRole(canManageMaterials.value)) === 'checklist') {
+    await openPhysComboStoreChecklistModal(containerId)
+    return
+  }
+  await executeStorePhysicalComboContainerWhole(containerId)
+}
+
+async function executeStorePhysicalComboContainerWhole(containerId: string): Promise<void> {
   if (!isPackUnpackStage(activePackStage.value)) return
   const shell = shellPackItemForContainer(containerId)
   if (!shell || shell.materialType !== 'physical_combo') return
@@ -4493,6 +4928,28 @@ function isPackContainerCollapsed(containerId: string): boolean {
   const explicit = collapsedPackContainers.value[containerId]
   if (explicit !== undefined) return explicit
   return true
+}
+
+function resolvePackContainerIdForCollapseKey(collapseKey: string): string | null {
+  if (collapseKey.startsWith('shell-pack-')) {
+    const packItemId = collapseKey.slice('shell-pack-'.length)
+    const pi = packItems.value.find((p) => p.id === packItemId)
+    if (!pi) return null
+    return packShellContainerForPackItem(pi, packContainers.value)?.id ?? null
+  }
+  return collapseKey
+}
+
+function expandPackContainerSubsections(containerId: string): void {
+  const c = packContainers.value.find((x) => x.id === containerId)
+  if (!c) return
+  const sections = packContainerItemSectionsForContainer(c)
+  if (sections.length === 0) return
+  const next = { ...collapsedPackContainerSubsections.value }
+  for (const sec of sections) {
+    next[`${containerId}:${sec.subsectionKey}`] = false
+  }
+  collapsedPackContainerSubsections.value = next
 }
 
 function hasAnyCrateCheckSnapForPackItem(packItemId: string): boolean {
@@ -4645,44 +5102,17 @@ async function onShellBackConfirm() {
   }
 }
 
-function isPackContainerMerged(c: ActivityPackContainer): boolean {
-  if (isPackForwardToEventStage(activePackStage.value) && containerHasIssuedAtEvent(c.id)) {
-    return false
-  }
-  return isPackContainerMergedIntoStageLeftRow(
-    c,
-    packContainers.value,
-    stageLeftItems.value,
-    activePackStage.value,
-    (p) => getStageLeftQty(p),
-  )
-}
-
 /** Noch in der aktuellen Hinweg-Stufe buchbar (Transport hin vs. Am Event). */
 function packItemRemainingAtForwardStage(pi: ActivityPackItem): number {
-  const stage = activePackStage.value
-  if (stage === 'packed_transport_to') {
-    return Math.max(0, (pi.quantityPacked ?? 0) - (pi.quantityTransportTo ?? 0))
-  }
-  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-    return Math.max(0, (pi.quantityTransportTo ?? 0) - (pi.quantityIssued ?? 0))
-  }
-  return Math.max(0, (pi.quantityPacked ?? 0) - (pi.quantityIssued ?? 0))
+  return computePackItemRemainingAtForwardStage(pi, activePackStage.value)
 }
 
 function containerLineRemainingAtForwardStage(ci: ActivityPackContainerItem): number {
-  if (isNonActionableContainerLine(ci)) return 0
-  const packed = ci.quantity_packed ?? 0
-  const transported = ci.quantity_transport_to ?? 0
-  const issued = ci.quantity_issued ?? 0
-  const stage = activePackStage.value
-  if (stage === 'packed_transport_to') {
-    return Math.max(0, packed - transported)
-  }
-  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-    return Math.max(0, transported - issued)
-  }
-  return Math.max(0, packed - issued)
+  return computeContainerLineRemainingAtForwardStage(
+    ci,
+    activePackStage.value,
+    isNonActionableContainerLine,
+  )
 }
 
 /** Behälter & lose/in-Behälter-Aufteilung auch bei «Gepackt → Am Event» (linkes «Gepackt» wie zuvor rechts) */
@@ -4691,100 +5121,26 @@ const showPackContainersUi = computed(() =>
 )
 
 function packedQtyBaseForContainerSplit(pi: ActivityPackItem): number {
-  const stage = activePackStage.value
-  if (stage === 'confirmed_packed') return getStageRightQty(pi)
-  if (stage === 'packed_transport_to') return Math.max(0, pi.quantityPacked ?? 0)
-  if (stage === 'transport_to_at_event') return Math.max(0, pi.quantityTransportTo ?? 0)
-  if (isPackForwardToEventStage(stage)) return Math.max(0, pi.quantityPacked ?? 0)
-  return 0
+  return computePackedQtyBaseForContainerSplit(
+    pi,
+    activePackStage.value,
+    packWorkflowProfile.value,
+  )
 }
 
 function containerQtySumForMaterial(
   materialItemId: string,
   field: 'packed' | 'transport_to' | 'issued' | 'transport_back' | 'returned',
 ): number {
-  let sum = 0
-  for (const c of packContainers.value) {
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
-      if (ci.material_item_id !== materialItemId) continue
-      switch (field) {
-        case 'packed':
-          sum += ci.quantity_packed ?? 0
-          break
-        case 'transport_to':
-          sum += ci.quantity_transport_to ?? 0
-          break
-        case 'issued':
-          sum += ci.quantity_issued ?? 0
-          break
-        case 'transport_back':
-          sum += ci.quantity_transport_back ?? 0
-          break
-        case 'returned':
-          sum += ci.quantity_returned ?? 0
-          break
-        default:
-          break
-      }
-    }
-    const sh = shellPackItemForContainer(c.id)
-    if (sh?.materialItemId === materialItemId) {
-      switch (field) {
-        case 'packed':
-          sum += sh.quantityPacked ?? 0
-          break
-        case 'transport_to':
-          sum += sh.quantityTransportTo ?? 0
-          break
-        case 'issued':
-          sum += sh.quantityIssued ?? 0
-          break
-        case 'transport_back':
-          sum += sh.quantityTransportBack ?? 0
-          break
-        case 'returned':
-          sum += sh.quantityReturned ?? 0
-          break
-        default:
-          break
-      }
-    }
-  }
-  return sum
+  return computeContainerQtySumForMaterial(packQuantityCtx.value, materialItemId, field)
 }
 
 function transportToQtyInContainersForMaterial(materialItemId: string): number {
-  return containerQtySumForMaterial(materialItemId, 'transport_to')
-}
-
-/** Rest in Kisten/Shell für Hinweg-Stufe (nicht lose) — z. B. noch zu transportieren. */
-function forwardRemainingInContainersForMaterial(materialItemId: string, stage: PackStage): number {
-  if (!isPackForwardToEventStage(stage)) return 0
-  let sum = 0
-  for (const c of packContainers.value) {
-    const shell = shellPackItemForContainer(c.id)
-    if (shell?.materialItemId === materialItemId) {
-      sum += Math.max(0, getStageLeftQtyForStage(shell, stage))
-      continue
-    }
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
-      if (ci.material_item_id !== materialItemId) continue
-      if (isNonActionableContainerLine(ci)) continue
-      const packed = ci.quantity_packed ?? 0
-      const transported = ci.quantity_transport_to ?? 0
-      const issued = ci.quantity_issued ?? 0
-      if (stage === 'packed_transport_to') {
-        sum += Math.max(0, packed - transported)
-      } else if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-        sum += Math.max(0, transported - issued)
-      }
-    }
-  }
-  return sum
+  return computeTransportToQtyInContainersForMaterial(packQuantityCtx.value, materialItemId)
 }
 
 function transportBackQtyInContainersForMaterial(materialItemId: string): number {
-  return containerQtySumForMaterial(materialItemId, 'transport_back')
+  return computeTransportBackQtyInContainersForMaterial(packQuantityCtx.value, materialItemId)
 }
 
 const assignedQtyByMaterialId = computed(() => {
@@ -4808,69 +5164,11 @@ function shellPackContainerForItem(pi: ActivityPackItem): ActivityPackContainer 
 }
 
 function looseQtyForPackItem(pi: ActivityPackItem, stageOverride?: PackStage): number {
-  const stage = stageOverride ?? activePackStage.value
-  if (isPackReturnStage(stage)) return getStageRightQtyForStage(pi, stage)
-  if (stage !== 'confirmed_packed' && !isPackForwardToEventStage(stage)) {
-    return getStageRightQtyForStage(pi, stage)
-  }
-  if (
-    isPackForwardToEventStage(stage) &&
-    crateShellExcludedFromLooseForwardList(
-      pi,
-      packContainers.value,
-      true,
-      shellVirtualContainerMap(),
-      stage,
-    )
-  ) {
-    return 0
-  }
-  if (stage === 'confirmed_packed' && isPhysicalComboAsSet(pi, packContainers.value, shellVirtualContainerMap())) {
-    const left = getStageLeftQtyForStage(pi, stage)
-    if (left > 0) return left
-    const inContainers = assignedQtyByMaterialId.value[pi.materialItemId] ?? 0
-    return Math.max(0, getStageRightQtyForStage(pi, stage) - inContainers)
-  }
-  const total =
-    stage === 'confirmed_packed'
-      ? getStageRightQtyForStage(pi, stage)
-      : stage === 'packed_transport_to'
-        ? Math.max(0, pi.quantityPacked ?? 0)
-        : stage === 'transport_to_at_event'
-          ? Math.max(0, pi.quantityTransportTo ?? 0)
-          : Math.max(0, pi.quantityPacked ?? 0)
-  const assigned = assignedQtyByMaterialId.value[pi.materialItemId] ?? 0
-  const gap = crateCheckGapForMaterial(pi.materialItemId)
-  const gapAdjust = gap > 0 && assigned > 0 ? gap : 0
-  const physicalLoose = Math.max(0, total - assigned - gapAdjust)
-  if (stage === 'packed_transport_to') {
-    const leftTotal = getStageLeftQtyForStage(pi, stage)
-    const inContainers = forwardRemainingInContainersForMaterial(pi.materialItemId, stage)
-    return Math.max(0, leftTotal - inContainers)
-  }
-  if (isPackForwardToEventStage(stage)) {
-    if (stage === 'transport_to_at_event') {
-      const issuedLoose = Math.max(
-        0,
-        (pi.quantityIssued ?? 0) - issuedQtyInContainersForMaterial(pi.materialItemId),
-      )
-      return Math.max(0, physicalLoose - issuedLoose)
-    }
-    return physicalLoose
-  }
-  return physicalLoose
+  return computeLooseQtyForPackItem(pi, packQuantityCtx.value, stageOverride)
 }
 
 function qtyInContainersForItem(pi: ActivityPackItem): number {
-  if (activePackStage.value !== 'confirmed_packed' && !isPackForwardToEventStage(activePackStage.value)) {
-    return 0
-  }
-  const total = packedQtyBaseForContainerSplit(pi)
-  const assigned = assignedQtyByMaterialId.value[pi.materialItemId] ?? 0
-  if (activePackStage.value === 'confirmed_packed') {
-    return Math.min(total, assigned)
-  }
-  return Math.max(0, getStageLeftQty(pi) - looseQtyForPackItem(pi))
+  return computeQtyInContainersForItem(pi, packQuantityCtx.value)
 }
 
 function containerItemCount(containerId: string): number {
@@ -4910,52 +5208,24 @@ function shellPackItemForContainer(containerId: string): ActivityPackItem | unde
   return undefined
 }
 
-const hasActiveCrateTarget = computed(() => {
-  const tgt = activePackTarget.value
-  return tgt?.kind === 'container' || tgt?.kind === 'combo'
-})
-
-/** Max. Stück in die gewählte Kiste einbuchen (links: lose «Gepackt») */
-function crateAssignUpMax(pi: ActivityPackItem): number {
-  if (!hasActiveCrateTarget.value) {
-    const fwd = packIssueForwardMax(pi)
-    if (fwd >= 1) return fwd
-    if (activePackStage.value === 'confirmed_packed') {
-      return looseQtyForPackItem(pi)
-    }
-    return 0
-  }
-  return Math.max(0, looseQtyForPackItem(pi))
-}
+const hasActiveCrateTarget = computed(() => packHasActiveCrateTarget(activePackTarget.value))
 
 /** Max. Stück von lose «Am Event» in die gewählte Kiste */
 function crateAssignLooseAtEventMax(pi: ActivityPackItem): number {
-  return Math.max(0, looseIssuedAtEvent(pi))
+  return packCrateAssignUpMax(pi, packCrateAssignCtx.value, 'loose-at-event')
 }
 
 function showCrateAssignUpControls(pi: ActivityPackItem): boolean {
-  if (!showPackForwardControls.value) return false
-  if (!hasActiveCrateTarget.value) return false
-  if (isPhysicalComboPackItem(pi)) return false
-  if (isPackForwardToEventStage(activePackStage.value)) {
-    if (!showPackContainersUi.value) return false
-    if (getStageLeftQty(pi) < 1) return false
-    return crateAssignUpMax(pi) >= 1
-  }
-  if (activePackStage.value === 'confirmed_packed') {
-    return crateAssignUpMax(pi) >= 1
-  }
-  return false
+  return packShowCrateAssignUpControls(pi, packCrateAssignCtx.value, 'packed-left')
 }
 
 /** Rechts unter «Lose»: lose «Am Event» in gewählte Kiste (grüner Pfeil nach oben) */
 function showCrateAssignUpControlsLooseAtEvent(pi: ActivityPackItem): boolean {
-  if (!showPackForwardControls.value) return false
-  if (!isPackForwardToEventStage(activePackStage.value)) return false
-  if (!showPackContainersUi.value) return false
-  if (!hasActiveCrateTarget.value) return false
-  if (isPhysicalComboPackItem(pi)) return false
-  return crateAssignLooseAtEventMax(pi) >= 1
+  return packShowCrateAssignUpControls(pi, packCrateAssignCtx.value, 'loose-at-event')
+}
+
+function crateAssignUpMax(pi: ActivityPackItem): number {
+  return packCrateAssignUpMax(pi, packCrateAssignCtx.value, 'packed-left')
 }
 
 function showPackUnpackStoredMoveBack(pi: ActivityPackItem): boolean {
@@ -5044,104 +5314,30 @@ function selectContainerTargetAfterIssueToEvent(containerId: string) {
 
 /** Summe «Am Event» über Behälterzeilen + Kisten-Shell (pro Material) — Aufteilung lose vs. Behälter rechts */
 function issuedQtyInContainersForMaterial(materialItemId: string): number {
-  let sum = 0
-  for (const c of packContainers.value) {
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
-      if (ci.material_item_id === materialItemId) {
-        sum += ci.quantity_issued ?? 0
-      }
-    }
-    if (c.container_material_item_id === materialItemId) {
-      const sh = shellPackItemForContainer(c.id)
-      if (sh?.materialItemId === materialItemId) {
-        sum += sh.quantityIssued ?? 0
-      }
-    }
-  }
-  return sum
+  return computeIssuedQtyInContainersForMaterial(packQuantityCtx.value, materialItemId)
 }
 
 /** Rechte Spalte: lose Menge der aktuellen Hinweg-Stufe (Transport / Am Event). */
 function looseQtyOnRightMirror(pi: ActivityPackItem): number {
-  const stage = activePackStage.value
-  if (stage === 'packed_transport_to') {
-    return Math.max(0, (pi.quantityTransportTo ?? 0) - transportToQtyInContainersForMaterial(pi.materialItemId))
-  }
-  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-    const inContainers = issuedQtyInContainersForMaterial(pi.materialItemId)
-    let loose = Math.max(0, (pi.quantityIssued ?? 0) - inContainers)
-    if (loose < 1) return 0
-    const gap = crateCheckGapForMaterial(pi.materialItemId)
-    if (gap > 0 && inContainers > 0) {
-      loose = Math.max(0, loose - gap)
-    }
-    return loose
-  }
-  return getStageRightQty(pi)
+  return computeLooseQtyOnRightMirror(pi, packQuantityCtx.value)
 }
 
 /** Lose Menge Retour-Transport (rechts «Transport zurück»). */
 function looseTransportBackOnRight(pi: ActivityPackItem): number {
-  const inContainers = transportBackQtyInContainersForMaterial(pi.materialItemId)
-  return Math.max(0, (pi.quantityTransportBack ?? 0) - inContainers)
+  return computeLooseTransportBackOnRight(pi, packQuantityCtx.value)
 }
 
 /** «Gepackt → Am Event»: nur lose ausgebene Menge (ohne Behälterbuchungen) */
 function looseIssuedAtEvent(pi: ActivityPackItem): number {
-  if (!isPackForwardToEventStage(activePackStage.value)) return getStageRightQty(pi)
-  return looseQtyOnRightMirror(pi)
+  return computeLooseIssuedAtEvent(pi, packQuantityCtx.value)
 }
 
 function containerHasProgressOnRightForStage(containerId: string): boolean {
-  const stage = activePackStage.value
-  const sh = shellPackItemForContainer(containerId)
-  if (stage === 'packed_transport_to') {
-    if (sh && (sh.quantityTransportTo ?? 0) > 0) return true
-    for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-      if ((ci.quantity_transport_to ?? 0) > 0) return true
-    }
-    return false
-  }
-  if (stage === 'transport_to_at_event' || stage === 'packed_at_event') {
-    return containerHasIssuedAtEvent(containerId)
-  }
-  if (stage === 'at_event_transport_back') {
-    if (sh && (sh.quantityTransportBack ?? 0) > 0) return true
-    for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-      if ((ci.quantity_transport_back ?? 0) > 0) return true
-    }
-    return false
-  }
-  if (stage === 'transport_back_returned' && packWorkflowProfile.value === 'logistics') {
-    return (
-      containerTransportBackReturnableUnits(containerId) <= 0 &&
-      containerReturnedAsWhole(containerId)
-    )
-  }
-  if (isPackReturnStage(stage)) {
-    return containerReturnedAsWhole(containerId)
-  }
-  return containerHasIssuedAtEvent(containerId)
+  return shouldShowContainerOnRightMirror(containerId, packContainerCtx.value)
 }
 
 function rightQtyForMoveBack(pi: ActivityPackItem): number {
-  if (isPackUnpackStage(activePackStage.value)) {
-    return storedLooseQtyForPackItem(pi)
-  }
-  if (isPackForwardToEventStage(activePackStage.value)) {
-    if (isCrateShellPackItem(pi, packContainers.value)) {
-      return getStageRightQty(pi)
-    }
-    return looseQtyOnRightMirror(pi)
-  }
-  if (activePackStage.value === 'at_event_transport_back') {
-    return looseTransportBackOnRight(pi)
-  }
-  if (isPackReturnStage(activePackStage.value)) {
-    const looseRet = returnedLooseQtyForPackItem(pi)
-    if (looseRet > 0) return looseRet
-  }
-  return getStageRightQty(pi)
+  return computeRightQtyForMoveBack(pi, packQuantityMoveBackCtx.value)
 }
 
 function crateCheckOverlayForContainerLine(ci: ActivityPackContainerItem): CrateCheckLineOverlay | undefined {
@@ -5154,17 +5350,28 @@ function crateCheckOverlayForContainerLine(ci: ActivityPackContainerItem): Crate
   return overlayForContainerMaterial(snap, ci.material_item_id ?? '')
 }
 
+function comboDerivedQtyForContainerLine(ci: ActivityPackContainerItem) {
+  const containerId = packContainerIdForContainerItem(ci)
+  if (!containerId) return null
+  const shell = shellPackItemForContainer(containerId)
+  return comboPreviewLineShellDerivedStageQty(ci, shell, activePackStage.value)
+}
+
 function containerLineIssueDisplay(ci: ActivityPackContainerItem): {
   rem: number
   packed: number
   missingFromPlan: number
 } {
+  const derived = comboDerivedQtyForContainerLine(ci)
+  if (derived) {
+    return { rem: derived.rem, packed: derived.total, missingFromPlan: 0 }
+  }
   const base = containerLineIssueFraction(ci, crateCheckOverlayForContainerLine(ci))
   const containerId = packContainerIdForContainerItem(ci)
   if (containerId && containerContentsTravelWithShellAtEvent(containerId)) {
     return { rem: 0, packed: base.packed, missingFromPlan: base.missingFromPlan }
   }
-  if (isPackForwardToEventStage(activePackStage.value)) {
+  if (isPackForwardWarehouseUiStage(activePackStage.value)) {
     return { ...base, rem: containerLineRemainingAtForwardStage(ci) }
   }
   return base
@@ -5182,6 +5389,9 @@ function containerLinePackRemaining(ci: ActivityPackContainerItem): number {
   if (containerId && containerContentsTravelWithShellAtEvent(containerId)) {
     return 0
   }
+  if (activePackStage.value === 'at_event_transport_back') {
+    return containerLineRemainingAtForwardStage(ci)
+  }
   const overlay = crateCheckOverlayForContainerLine(ci)
   if (overlay) {
     if (activePackStage.value === 'packed_transport_to') {
@@ -5195,6 +5405,14 @@ function containerLinePackRemaining(ci: ActivityPackContainerItem): number {
 
 /** Anzeige «Am Event»: bei mitgereister Kiste Ist aus Check, nicht nur quantity_issued. */
 function containerLineIssuedDisplayQty(ci: ActivityPackContainerItem): number {
+  const derived = comboDerivedQtyForContainerLine(ci)
+  if (derived) return derived.done
+  if (activePackStage.value === 'at_event_transport_back') {
+    return ci.quantity_transport_back ?? 0
+  }
+  if (isPackReturnStage(activePackStage.value)) {
+    return ci.quantity_returned ?? 0
+  }
   const issued = ci.quantity_issued ?? 0
   const containerId = packContainerIdForContainerItem(ci)
   if (containerId && containerContentsTravelWithShellAtEvent(containerId)) {
@@ -5204,6 +5422,11 @@ function containerLineIssuedDisplayQty(ci: ActivityPackContainerItem): number {
 }
 
 function containerLineIssuedDisplayPacked(ci: ActivityPackContainerItem): number {
+  const derived = comboDerivedQtyForContainerLine(ci)
+  if (derived) return derived.total
+  if (activePackStage.value === 'at_event_transport_back') {
+    return ci.quantity_issued ?? 0
+  }
   const packed = containerLineIssueDisplay(ci).packed
   return packed > 0 ? packed : ci.quantity_packed ?? 0
 }
@@ -5215,6 +5438,9 @@ function containerLineIssuedDisplayPacked(ci: ActivityPackContainerItem): number
 function containerLineIssueableMax(ci: ActivityPackContainerItem): number {
   if (isNonActionableContainerLine(ci)) return 0
   const containerId = packContainerIdForContainerItem(ci)
+  const shell = containerId ? shellPackItemForContainer(containerId) : undefined
+  if (isPhysicalComboPreviewContainerLine(ci, shell)) return 0
+  if (isPackReturnStage(activePackStage.value)) return 0
   if (containerId && containerContentsTravelWithShellAtEvent(containerId)) {
     return 0
   }
@@ -5229,7 +5455,7 @@ function containerLineIssueableMax(ci: ActivityPackContainerItem): number {
   }
   const p = ci.quantity_packed ?? 0
   const lineRem =
-    isPackForwardToEventStage(activePackStage.value)
+    isPackForwardWarehouseUiStage(activePackStage.value)
       ? containerLineRemainingAtForwardStage(ci)
       : containerLineRemainingIssue(ci)
   const packRem = containerLinePackRemaining(ci)
@@ -5259,9 +5485,7 @@ function containerIssueableUnits(containerId: string): number {
 
 /** Shell der Pack-Kiste: buchbar je nach Pipeline-Stufe (Transport hin / Am Event). */
 function containerShellIssueableUnits(containerId: string): number {
-  const shell = shellPackItemForContainer(containerId)
-  if (!shell) return 0
-  return packItemRemainingAtForwardStage(shell)
+  return computeContainerShellIssueableUnits(containerId, packQuantityCtx.value)
 }
 
 /**
@@ -5269,54 +5493,29 @@ function containerShellIssueableUnits(containerId: string): number {
  * Erlaubt 1× Shell auch wenn packed−issued = 0 (Shell noch nicht als «gepackt» gezählt).
  */
 function containerShellTakeMax(containerId: string): number {
-  if (!isPackForwardToEventStage(activePackStage.value)) return 0
-  if (containerHasProgressOnRightForStage(containerId)) return 0
-  const c = packContainers.value.find((x) => x.id === containerId)
-  if (!c?.container_batch_id && !c?.container_material_item_id) return 0
-  const shellRem = containerShellIssueableUnits(containerId)
-  if (shellRem > 0) return shellRem
-  if (containerLinesIssueableUnits(containerId) > 0) return 0
-  const shell = shellPackItemForContainer(containerId)
-  if (!shell) return 0
-  if (activePackStage.value === 'packed_transport_to') {
-    if ((shell.quantityTransportTo ?? 0) > 0) return 0
-  } else if ((shell.quantityIssued ?? 0) > 0) {
-    return 0
-  }
-  return 1
+  return computeContainerShellTakeMax(
+    containerId,
+    packQuantityCtx.value,
+    containerHasProgressOnRightForStage(containerId),
+  )
 }
 
-/** Bereits «Am Event» gebucht, zurück nach Gepackt (min Zeile, Packliste) */
+/** Zurück-Pfeil rechts: Zeile — Regel-Matrix `containerLineBackwardMax`. */
 function containerLineUnissueableMax(ci: ActivityPackContainerItem): number {
   if (isNonActionableContainerLine(ci)) return 0
-  const containerId = packContainerIdForContainerItem(ci)
-  const issued = ci.quantity_issued ?? 0
-  const pi = packItems.value.find((x) => x.materialItemId === ci.material_item_id)
-  const packCan = pi ? Math.max(0, pi.quantityIssued - (pi.quantityReturned ?? 0)) : 0
-  if (containerId && containerContentsTravelWithShellAtEvent(containerId)) {
-    const implied = Math.max(issued, containerLineInCrateQty(ci))
-    return Math.min(implied, packCan)
-  }
-  return Math.min(issued, packCan)
+  return containerLineBackwardMax(ci, packContainerCtx.value, packContainerIdForContainerItem(ci))
 }
 
-/** Ganzer Behälter: Stück zurücknehmbar (Zeilen + Shell) */
+/** Zurück-Pfeil rechts: ganze Kiste — Regel-Matrix `containerBackwardUnits`. */
 function containerUnissueableUnits(containerId: string): number {
-  let sum = 0
-  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-    sum += containerLineUnissueableMax(ci)
-  }
-  const shell = shellPackItemForContainer(containerId)
-  if (shell) {
-    sum += Math.max(0, shell.quantityIssued - (shell.quantityReturned ?? 0))
-  }
-  return sum
+  return containerBackwardUnits(containerId, packContainerCtx.value)
 }
 
-/** Packinhalt in der Kiste, noch nicht retourniert (ohne Leergehäuse). */
+/** Packinhalt in der Kiste, noch nicht retourniert (ohne Leergehäuse / Behälter-Vorschauzeile). */
 function containerInnerReturnableUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isVirtualWarehouseContainerLine(ci)) continue
     sum += containerLineRemainingReturn(ci, containerId)
   }
   return sum
@@ -5346,9 +5545,36 @@ function containerInnerTransportBackReturnableUnits(containerId: string): number
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
     if (isNonActionableContainerLine(ci)) continue
+    if (isVirtualWarehouseContainerLine(ci)) continue
     sum += Math.max(0, (ci.quantity_transport_back ?? 0) - (ci.quantity_returned ?? 0))
   }
   return sum
+}
+
+function shouldOpenReturnCrateModal(containerId: string): boolean {
+  if (containerNeedsReturnCrateModal(containerId)) return true
+  return packReturnCrateMode(packWorkflowRole(canManageMaterials.value)) === 'full'
+}
+
+/** Verbrauchsmaterial in der Kiste braucht Retour-Modal — sonst direkt return-all. */
+function containerNeedsReturnCrateModal(containerId: string): boolean {
+  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isNonActionableContainerLine(ci)) continue
+    if (isVirtualWarehouseContainerLine(ci)) continue
+    if (containerLineRemainingReturn(ci, containerId) < 1) continue
+    const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
+    if (shouldOpenConsumptionModalOnReturn(pi)) return true
+  }
+  const shell = shellPackItemForContainer(containerId)
+  if (
+    shell &&
+    containerInnerReturnableUnits(containerId) < 1 &&
+    containerShellStillAtEventQty(containerId) > 0 &&
+    shouldOpenConsumptionModalOnReturn(shell)
+  ) {
+    return true
+  }
+  return false
 }
 
 /** Camp/Event Tab «Transport (zurück) → Retour»: noch nicht retournierte Menge in der Kiste. */
@@ -5410,45 +5636,12 @@ function notTakenQtyForReturn(pi: ActivityPackItem): number {
 }
 
 function containerLineRemainingReturn(ci: ActivityPackContainerItem, containerId?: string): number {
-  if (isNonActionableContainerLine(ci)) return 0
-  if (
-    activePackStage.value === 'transport_back_returned' &&
-    packWorkflowProfile.value === 'logistics'
-  ) {
-    return Math.max(0, (ci.quantity_transport_back ?? 0) - (ci.quantity_returned ?? 0))
-  }
-  const i = ci.quantity_issued ?? 0
-  const r = ci.quantity_returned ?? 0
-  const issuedRemain = Math.max(0, i - r)
-  if (issuedRemain > 0) return issuedRemain
-  if (!isPackReturnStage(activePackStage.value)) return 0
-  const p = ci.quantity_packed ?? 0
-  if (p <= r || i > 0) return 0
-  // In Kiste gepackt, nie lose ans Event — Retour (Kiste am Event oder noch im Lager)
-  if (containerId && p > r) {
-    return p - r
-  }
-  return 0
+  return computeContainerLineRemainingReturn(ci, packQuantityCtx.value, containerId)
 }
 
 /** Stück dieses Materials noch in Behälterzeilen am Event (nicht lose) — für Aufteilung in Stufe Event→Retour */
 function containerStillAtEventQtyForMaterial(materialItemId: string): number {
-  let sum = 0
-  for (const c of packContainers.value) {
-    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
-      if (ci.material_item_id === materialItemId) {
-        sum += containerLineRemainingReturn(ci, c.id)
-      }
-    }
-  }
-  for (const c of packContainers.value) {
-    if (c.container_material_item_id !== materialItemId) continue
-    const sh = shellPackItemForContainer(c.id)
-    if (sh?.materialItemId === materialItemId) {
-      sum += Math.max(0, (sh.quantityIssued ?? 0) - (sh.quantityReturned ?? 0))
-    }
-  }
-  return sum
+  return computeContainerStillAtEventQtyForMaterial(packQuantityCtx.value, materialItemId)
 }
 
 function containerShellStillAtEventQty(containerId: string): number {
@@ -5459,27 +5652,18 @@ function containerShellStillAtEventQty(containerId: string): number {
 
 /** Lose Menge noch am Event (ohne Behälteranteil) — Stufe Event→Retour */
 function looseQtyStillAtEventForReturn(pi: ActivityPackItem): number {
-  if (!isPackReturnStage(activePackStage.value)) return getStageLeftQty(pi)
-  if (activePackStage.value === 'transport_back_returned' && packWorkflowProfile.value === 'logistics') {
-    return looseQtyStillOnTransportBackForReturn(pi)
-  }
-  if (packContainers.value.length === 0) return getStageLeftQty(pi)
-  return Math.max(0, getStageLeftQty(pi) - containerStillAtEventQtyForMaterial(pi.materialItemId))
+  return computeLooseQtyStillAtEventForReturn(pi, packQuantityCtx.value)
 }
 
 /** Lose Rest auf «Transport (zurück) → Retour» (ohne Kistenanteil). */
 function looseQtyStillOnTransportBackForReturn(pi: ActivityPackItem): number {
-  if (activePackStage.value !== 'transport_back_returned' || packWorkflowProfile.value !== 'logistics') {
-    return getStageLeftQty(pi)
-  }
-  if (packContainers.value.length === 0) return getStageLeftQty(pi)
-  return Math.max(0, getStageLeftQty(pi) - transportBackQtyInContainersForMaterial(pi.materialItemId))
+  return computeLooseQtyStillOnTransportBackForReturn(pi, packQuantityCtx.value)
 }
 
 async function executeIssueContainerToEvent(containerId: string) {
   containerBulkLoadingId.value = containerId
   try {
-    await issueAllPackContainerItems(props.activityId, containerId)
+    await issueAllPackContainerItems(props.activityId, containerId, getBackendStage())
     toast.success(t('activities.packList.toastIssueContainer'))
     await loadAll()
     selectContainerTargetAfterIssueToEvent(containerId)
@@ -5552,12 +5736,14 @@ async function issueContainerShellOnlyToEvent(c: ActivityPackContainer) {
   await executeIssueContainerShellOnlyToEvent(c.id)
 }
 
-async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
-  const pending = shellForwardPendingAction.value
-  if (pending.kind === 'check_only') return
-  const qty = shellForwardMoveQty.value
+async function executeShellForwardPendingAfterCheck(
+  item: ActivityPackItem,
+  pending: ShellForwardPendingAction,
+  qty: number,
+): Promise<boolean> {
+  if (pending.kind === 'check_only') return true
   if (pending.kind === 'pack_move') {
-    await executeMoveToNextStage(item, qty)
+    return executeMoveToNextStage(item, qty)
   } else if (pending.kind === 'issue_container') {
     await executeIssueContainerToEvent(pending.containerId)
   } else if (pending.kind === 'issue_container_shell') {
@@ -5571,7 +5757,13 @@ async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
     }
   } else if (pending.kind === 'return_container_modal') {
     const c = packContainers.value.find((x) => x.id === pending.containerId)
-    if (c) await openReturnCrateModal(c)
+    if (c) {
+      if (shouldOpenReturnCrateModal(c.id)) {
+        await openReturnCrateModal(c)
+      } else {
+        await executeReturnContainerToWarehouse(c.id)
+      }
+    }
   } else if (pending.kind === 'return_container_shell') {
     const shell = shellPackItemForContainer(pending.containerId)
     if (shell) {
@@ -5599,6 +5791,7 @@ async function executeShellForwardPendingAfterCheck(item: ActivityPackItem) {
   ) {
     await syncContainerContentsWithShellAtEvent(shellC.id)
   }
+  return true
 }
 
 async function unissueContainerToPacked(c: ActivityPackContainer) {
@@ -5607,7 +5800,7 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
   if (containerUnissueableUnits(c.id) < 1) return
   containerBulkLoadingId.value = c.id
   try {
-    await unissueAllPackContainerItems(props.activityId, c.id)
+    await unissueAllPackContainerItems(props.activityId, c.id, getBackendStage())
     toast.success(t('activities.packList.toastUnissueContainer'))
     await loadAll()
     emit('activityItemsChanged')
@@ -5621,13 +5814,18 @@ async function unissueContainerToPacked(c: ActivityPackContainer) {
 
 async function returnContainerToWarehouse(c: ActivityPackContainer) {
   if (containerBulkLoadingId.value) return
+  if (!(await confirmMwHandoffBeforeReturn())) return
   const shell = shellPackItemForContainer(c.id)
   if (shell && needsShellCratePresenceConfirm(shell)) {
     const max = Math.max(1, containerReturnableUnits(c.id))
     await openShellCrateForwardModal(shell, max, { kind: 'return_container_modal', containerId: c.id })
     return
   }
-  await openReturnCrateModal(c)
+  if (shouldOpenReturnCrateModal(c.id)) {
+    await openReturnCrateModal(c)
+    return
+  }
+  await executeReturnContainerToWarehouse(c.id)
 }
 
 async function executeReturnContainerToWarehouse(containerId: string) {
@@ -5647,9 +5845,14 @@ async function executeReturnContainerToWarehouse(containerId: string) {
 }
 
 function togglePackContainerCollapsed(containerId: string) {
+  const wasCollapsed = isPackContainerCollapsed(containerId)
   collapsedPackContainers.value = {
     ...collapsedPackContainers.value,
-    [containerId]: !collapsedPackContainers.value[containerId],
+    [containerId]: !wasCollapsed,
+  }
+  if (wasCollapsed) {
+    const resolvedId = resolvePackContainerIdForCollapseKey(containerId)
+    if (resolvedId) expandPackContainerSubsections(resolvedId)
   }
 }
 
@@ -5751,6 +5954,12 @@ function containerIssueLineLooseTitle(containerId: string, ci: ActivityPackConta
     return t('activities.packList.issueLineLooseTitleMw', { count })
   }
   const crate = (packContainers.value.find((c) => c.id === containerId)?.label ?? '').trim()
+  if (activePackStage.value === 'at_event_transport_back') {
+    if (crate) {
+      return t('activities.packList.issueLineLooseWithoutCrateTransportBackTitle', { count, crate })
+    }
+    return t('activities.packList.issueLineLooseTransportBackTitle', { count })
+  }
   if (crate) {
     return t('activities.packList.issueLineLooseWithoutCrateTitle', { count, crate })
   }
@@ -5758,11 +5967,25 @@ function containerIssueLineLooseTitle(containerId: string, ci: ActivityPackConta
 }
 
 async function confirmIssueLooseWithoutCrate(
-  _containerId: string,
+  containerId: string,
   ci: ActivityPackContainerItem,
   qty: number,
 ): Promise<boolean> {
   const material = (ci.material_name ?? '').trim() || t('common.material')
+  const crate = (packContainers.value.find((c) => c.id === containerId)?.label ?? '').trim()
+  if (activePackStage.value === 'at_event_transport_back') {
+    return confirmDialog({
+      title: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackTitle'),
+      message: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackMessage', {
+        qty,
+        material,
+        crate: crate || t('activities.common.crate'),
+      }),
+      confirmText: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackProceed'),
+      cancelText: t('common.cancel'),
+      variant: 'warning',
+    })
+  }
   return confirmDialog({
     title: t('activities.packList.confirmIssueLooseWithoutCrateTitle'),
     message: t('activities.packList.confirmIssueLooseWithoutCrateMessage', {
@@ -5988,10 +6211,6 @@ async function submitAddContainer() {
       emit('activityItemsChanged')
     }
     showAddContainerModal.value = false
-    collapsedPackContainers.value = {
-      ...collapsedPackContainers.value,
-      [created.id]: false,
-    }
     selectActiveContainer(created.id)
     await nextTick()
     const scrollId =
@@ -6013,6 +6232,11 @@ async function submitAddContainer() {
 
 function selectActiveContainer(containerId: string) {
   activePackTarget.value = { kind: 'container', containerId }
+  collapsedPackContainers.value = {
+    ...collapsedPackContainers.value,
+    [containerId]: false,
+  }
+  expandPackContainerSubsections(containerId)
 }
 
 function toggleActiveContainer(containerId: string) {
@@ -6074,11 +6298,7 @@ const activePackTargetCrateLabel = computed(() => {
 })
 
 function forwardMoveTitleForItem(_pi: ActivityPackItem): string {
-  const tgt = activePackTarget.value
-  if (
-    activePackStage.value === 'confirmed_packed' &&
-    (tgt?.kind === 'container' || tgt?.kind === 'combo')
-  ) {
+  if (packCrateAssignUsesTargetInTitle(activePackStage.value, hasActiveCrateTarget.value)) {
     const label = activePackTargetCrateLabel.value
     if (label) {
       return t('activities.packList.titleMoveToCrate', {
@@ -6232,7 +6452,10 @@ async function assignDirectToActiveContainer(
 }
 
 async function pullFromContainer(containerId: string, ci: ActivityPackContainerItem) {
-  if (!(await confirmPackStageBackwardAllowed())) return
+  if (!props.packListEditable) {
+    toast.info(t('activities.packList.toastPackStageViewOnly'))
+    return
+  }
   if (isNonActionableContainerLine(ci)) return
   const k = containerPullKey(containerId, ci.id)
   let qty = Math.floor(Number(containerPullQtyInputs.value[k] ?? ci.quantity_packed))
@@ -6277,15 +6500,22 @@ async function executeIssueContainerLineToEvent(
 
   containerMutationLoading.value = true
   try {
-    await postMovePackItem(props.activityId, pi.id, { stage: 'at_event', quantity: qty })
-    const packedBefore = ci.quantity_packed ?? 0
-    const newPacked = Math.max(0, packedBefore - qty)
-    if (newPacked <= 0) {
-      await deleteActivityPackContainerItem(props.activityId, containerId, ci.id)
-    } else {
+    const backendStage = getBackendStage()
+    await postMovePackItem(props.activityId, pi.id, { stage: backendStage, quantity: qty })
+    if (activePackStage.value === 'at_event_transport_back') {
       await updateActivityPackContainerItem(props.activityId, containerId, ci.id, {
-        quantity_packed: newPacked,
+        quantity_transport_back: (ci.quantity_transport_back ?? 0) + qty,
       })
+    } else {
+      const packedBefore = ci.quantity_packed ?? 0
+      const newPacked = Math.max(0, packedBefore - qty)
+      if (newPacked <= 0) {
+        await deleteActivityPackContainerItem(props.activityId, containerId, ci.id)
+      } else {
+        await updateActivityPackContainerItem(props.activityId, containerId, ci.id, {
+          quantity_packed: newPacked,
+        })
+      }
     }
     const items = await getPackItems(props.activityId)
     packItems.value = items
@@ -6311,7 +6541,7 @@ async function executeIssueContainerLineToEvent(
 
 async function issueContainerLineToEvent(containerId: string, ci: ActivityPackContainerItem) {
   if (!(await confirmPackStageForwardAllowed())) return
-  if (!isPackForwardToEventStage(activePackStage.value)) return
+  if (!isPackForwardWarehouseUiStage(activePackStage.value)) return
   if (isNonActionableContainerLine(ci)) return
   const max = containerLineIssueableMax(ci)
   if (max < 1) {
@@ -6342,7 +6572,12 @@ async function issueContainerLineToEvent(containerId: string, ci: ActivityPackCo
 
 async function unissueContainerLineToPacked(containerId: string, ci: ActivityPackContainerItem) {
   if (!(await confirmPackStageBackwardAllowed())) return
-  if (!isPackForwardToEventStage(activePackStage.value)) return
+  if (
+    !isPackForwardWarehouseUiStage(activePackStage.value) &&
+    !isPackReturnStage(activePackStage.value)
+  ) {
+    return
+  }
   if (isNonActionableContainerLine(ci)) return
   await syncContainerContentsWithShellAtEvent(containerId)
   const freshCi = (containerItemsByContainerId.value[containerId] ?? []).find((row) => row.id === ci.id) ?? ci
@@ -6368,9 +6603,12 @@ async function unissueContainerLineToPacked(containerId: string, ci: ActivityPac
   containerMutationLoading.value = true
   try {
     await postMoveBackPackItem(props.activityId, pi.id, { stage: getBackendStage(), quantity: qty })
-    await updateActivityPackContainerItem(props.activityId, containerId, freshCi.id, {
-      quantity_issued: Math.max(ret, (freshCi.quantity_issued ?? 0) - qty),
-    })
+    await updateActivityPackContainerItem(
+      props.activityId,
+      containerId,
+      freshCi.id,
+      containerLineBackwardPatch(freshCi, activePackStage.value, qty),
+    )
     const items = await getPackItems(props.activityId)
     packItems.value = items
     initMoveQtyInputs()
@@ -6775,22 +7013,7 @@ function getStageTotalQty(item: ActivityPackItem): number {
 
 /** Max. Stück die links per Pfeil buchbar sind (nur lose bei Gepackt→Event / Event→Retour) */
 function packIssueForwardMax(pi: ActivityPackItem): number {
-  if (isPackForwardToEventStage(activePackStage.value)) {
-    if (isCrateShellPackItem(pi, packContainers.value)) {
-      return getStageLeftQty(pi)
-    }
-    return Math.min(looseQtyForPackItem(pi), getStageLeftQty(pi))
-  }
-  if (isPackReturnStage(activePackStage.value)) {
-    if (activePackStage.value === 'transport_back_returned' && packWorkflowProfile.value === 'logistics') {
-      return Math.max(consumablePhysicalReturnMax(pi), looseQtyStillOnTransportBackForReturn(pi))
-    }
-    return consumablePhysicalReturnMax(pi)
-  }
-  if (isPackUnpackStage(activePackStage.value)) {
-    return pendingStoreLooseQtyForPackItem(pi)
-  }
-  return effectiveStageLeftQty(pi)
+  return computePackIssueForwardMax(pi, packQuantityForwardMaxCtx.value)
 }
 
 /** MW «Bestätigt → Gepackt»: Eingabe bis bestellte Menge (Teilpacken mit Hinweis). */
@@ -6847,101 +7070,131 @@ const packContainerBatchCountByMaterialItemId = computed(() => {
   return m
 })
 
-/** Sichtbare Restmenge links: Roh-Rest minus Einheiten, die bereits als Kisten-Batch am Behälter hängen. */
-function effectiveStageLeftQty(p: ActivityPackItem): number {
-  if (isPackUnpackStage(activePackStage.value)) {
-    const acct = retourAccountingForUnpackLoose(p)
-    return Math.max(0, acct.retourTotal - (p.quantityStored ?? 0))
-  }
-  if (activePackStage.value !== 'confirmed_packed') {
-    return getStageLeftQty(p)
-  }
-  const raw = getStageLeftQty(p)
-  if (isPhysicalComboAsSet(p, packContainers.value)) return raw
-  const shells = packContainerBatchCountByMaterialItemId.value[p.materialItemId] ?? 0
-  if (shells <= 0) return raw
-  return Math.max(0, raw - Math.min(shells, raw))
-}
-
-/**
- * Gepackt → Am Event: links nur Positionen mit noch lose ausgebbarer Restmenge.
- * Reine Behälter-Reste nur unter «Kisten», nicht doppelt als Karte oben.
- */
-const stageLeftItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (isOrphanShellWithoutPackContainer(p)) return false
-    if (
-      showPackContainersUi.value &&
-      isPackForwardToEventStage(activePackStage.value) &&
-      crateShellExcludedFromLooseForwardList(
-        p,
-        packContainers.value,
-        true,
-        shellVirtualContainerMap(),
-        activePackStage.value,
-      )
-    ) {
-      return false
-    }
-    if (
-      hideShellPackItemOnConfirmedPackedLeft(
-        p,
-        packContainers.value,
-        activePackStage.value,
-        showPackContainersUi.value,
-      )
-    ) {
-      return false
-    }
-    if (effectiveStageLeftQty(p) <= 0 && !consumableShowsZeroOnStageLeft(p)) return false
-    if (
-      isPackForwardToEventStage(activePackStage.value) &&
-      showPackContainersUi.value &&
-      getStageLeftQty(p) > 0 &&
-      looseQtyForPackItem(p) <= 0 &&
-      !isCrateShellPackItem(p, packContainers.value)
-    ) {
-      return false
-    }
-    if (isPackReturnStage(activePackStage.value) && p.isConsumable) {
-      if (consumableConsumptionRemaining(p) > 0) return false
-      if (consumablePhysicalReturnMax(p) <= 0 && !consumableShowsZeroOnStageLeft(p)) return false
-    }
-    if (
-      isPackReturnStage(activePackStage.value) &&
-      packContainers.value.length > 0 &&
-      getStageLeftQty(p) > 0
-    ) {
-      if (looseQtyStillAtEventForReturn(p) <= 0) return false
-    }
-    if (
-      isPackUnpackStage(activePackStage.value) &&
-      packContainers.value.length > 0 &&
-      getStageLeftQty(p) > 0
-    ) {
-      if (pendingStoreLooseQtyForPackItem(p) <= 0) return false
-    }
-    if (
-      isPackUnpackStage(activePackStage.value) &&
-      showPackContainersUi.value &&
-      isCrateShellPackItem(p, packContainers.value) &&
-      packShellContainerForPackItem(p, packContainers.value) != null
-    ) {
-      return false
-    }
-    return true
+const packQuantityCtx = computed(
+  (): PackQuantityContext => ({
+    stage: activePackStage.value,
+    profile: packWorkflowProfile.value,
+    packContainers: packContainers.value,
+    containerItemsByContainerId: containerItemsByContainerId.value,
+    assignedQtyByMaterialId: assignedQtyByMaterialId.value,
+    packContainerBatchCountByMaterialItemId: packContainerBatchCountByMaterialItemId.value,
+    virtualContainerIdByPackItemId: shellVirtualContainerMap(),
+    shellPackItemForContainer,
+    isNonActionableContainerLine,
+    crateCheckGapForMaterial,
   }),
 )
 
-const packContainersSortedWarehouseOnlyVisible = computed(() =>
-  packContainersSortedWarehouseOnly.value.filter((c) => !isPackContainerMerged(c)),
+const packQuantityForwardMaxCtx = computed(
+  (): PackQuantityForwardMaxContext => ({
+    ...packQuantityCtx.value,
+    retourAccountingForUnpackLoose,
+    isCrateShellPackItem: (pi) => isCrateShellPackItem(pi, packContainers.value),
+    consumablePhysicalReturnMax,
+    pendingStoreLooseQtyForPackItem,
+  }),
 )
 
+const packQuantityMoveBackCtx = computed(
+  (): PackQuantityMoveBackContext => ({
+    ...packQuantityCtx.value,
+    isCrateShellPackItem: (pi) => isCrateShellPackItem(pi, packContainers.value),
+    storedLooseQtyForPackItem,
+    returnedLooseQtyForPackItem,
+  }),
+)
+
+/** Sichtbare Restmenge links: Roh-Rest minus Einheiten, die bereits als Kisten-Batch am Behälter hängen. */
+function effectiveStageLeftQty(p: ActivityPackItem): number {
+  return computeEffectiveStageLeftQty(p, {
+    ...packQuantityCtx.value,
+    retourAccountingForUnpackLoose,
+  })
+}
+
+const packListCtx = computed(
+  (): PackWorkflowListContext => ({
+    stage: activePackStage.value,
+    profile: packWorkflowProfile.value,
+    showPackContainersUi: showPackContainersUi.value,
+    packContainers: packContainers.value,
+    virtualContainerIdByPackItemId: shellVirtualContainerMap(),
+    hasPackContainers: packContainers.value.length > 0,
+    effectiveStageLeftQty,
+    getStageLeftQty,
+    getStageRightQty,
+    looseQtyForPackItem,
+    consumableShowsZeroOnStageLeft,
+    consumableConsumptionRemaining,
+    consumablePhysicalReturnMax,
+    looseQtyStillAtEventForReturn,
+    pendingStoreLooseQtyForPackItem,
+    returnedLooseQtyForPackItem,
+    storedLooseQtyForPackItem,
+    storedShellLooseQtyForPackItem,
+    looseQtyOnRightMirror,
+    looseTransportBackOnRight,
+    notTakenQtyForReturn,
+    notTakenToEventQtyForMaterial,
+    consumableStillOnlyInCrateAtReturn,
+    consumableBookedConsumptionQty,
+    isIndividuallyStorableCrateShell,
+    containerReturnedAsWhole,
+    qtyInContainersForItem,
+    issuedQtyInContainersForMaterial,
+    transportToQtyInContainersForMaterial,
+    transportBackQtyInContainersForMaterial,
+    isConsumablePackLine,
+  }),
+)
+
+const packCrateAssignCtx = computed(
+  (): PackCrateAssignContext => ({
+    ...packListCtx.value,
+    hasActiveCrateTarget: hasActiveCrateTarget.value,
+    showPackForwardControls: showPackForwardControls.value,
+    looseIssuedAtEvent,
+    packIssueForwardMax,
+  }),
+)
+
+const stageLeftItems = computed(() =>
+  packItems.value.filter((p) => shouldIncludePackItemOnStageLeft(p, packListCtx.value)),
+)
+
+const packContainerCtx = computed(
+  (): PackWorkflowContainerContext => ({
+    ...packListCtx.value,
+    stageLeftItemIds: new Set(stageLeftItems.value.map((p) => p.id)),
+    getLeftQtyForMerge: getStageLeftQty,
+    shellPackItemForContainer,
+    containerHasPackedContent,
+    containerHasIssuedAtEvent,
+    containerLineRemainingAtForwardStage,
+    containerReturnableUnits,
+    containerTransportBackReturnableUnits,
+    containerContentsTravelWithShellAtEvent,
+    containerLineInCrateQty,
+    packItemForMaterial: (materialItemId) =>
+      packItems.value.find((p) => p.materialItemId === materialItemId),
+    containerItemsForContainer: (containerId) =>
+      containerItemsByContainerId.value[containerId] ?? [],
+  }),
+)
+
+const packContainersSortedWarehouseOnly = computed(() =>
+  packContainersSorted.value.filter((c) =>
+    shouldShowPackContainerInWarehouseVisibleList(c, packContainerCtx.value, stageLeftItems.value),
+  ),
+)
+
+const packContainersSortedWarehouseOnlyVisible = packContainersSortedWarehouseOnly
+
 const stageLeftHeaderCount = computed(() => {
-  if (isPackForwardToEventStage(activePackStage.value) && showPackContainersUi.value) {
+  if (isPackForwardWarehouseUiStage(activePackStage.value) && showPackContainersUi.value) {
     return stageLeftItems.value.length + packContainersSortedWarehouseOnlyVisible.value.length
   }
-  if (isPackReturnPipelineStage(activePackStage.value) && showPackContainersUi.value) {
+  if (isPackReturnStage(activePackStage.value) && showPackContainersUi.value) {
     return stageLeftItems.value.length + packContainersAtEventForReturnLeft.value.length
   }
   if (isPackUnpackStage(activePackStage.value) && showPackContainersUi.value) {
@@ -7337,10 +7590,6 @@ const stageRightCrateShellItems = computed(() =>
   stageRightItems.value.filter((p) => isCrateShellPackItem(p, packContainers.value)),
 )
 
-function isRightLooseListPackItem(p: ActivityPackItem): boolean {
-  return !isCrateShellPackItem(p, packContainers.value)
-}
-
 const groupsLeft = computed(() => {
   void locale.value
   return groupPackItems(stageLeftItems.value)
@@ -7369,6 +7618,8 @@ function containerContentsTravelWithShellAtEvent(containerId: string): boolean {
 }
 
 function packContainerIdForContainerItem(ci: ActivityPackContainerItem): string | null {
+  const fromField = (ci.pack_container_id ?? '').trim()
+  if (fromField) return fromField
   const shellPrefix = 'shell-'
   if (ci.id.startsWith(shellPrefix)) {
     return ci.id.slice(shellPrefix.length)
@@ -7415,16 +7666,7 @@ const rightProgressMirrorPreset = computed(
 )
 
 const stageRightLooseMirrorItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isRightLooseListPackItem(p)) return false
-    if (activePackStage.value === 'at_event_transport_back') {
-      return looseTransportBackOnRight(p) > 0
-    }
-    if (isPackForwardToEventStage(activePackStage.value)) {
-      return looseQtyOnRightMirror(p) > 0
-    }
-    return false
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnRightLooseMirror(p, packListCtx.value)),
 )
 
 const groupsRightMirrorLoose = computed(() => {
@@ -7481,10 +7723,24 @@ function returnedQtyInContainersForMaterial(materialItemId: string): number {
   return sum
 }
 
+/** Retournierte Menge in Kisten, die rechts als Ganzes (Kistenkarte) erscheinen. */
+function returnedQtyInWholeReturnedContainersForMaterial(materialItemId: string): number {
+  let sum = 0
+  for (const c of packContainers.value) {
+    if (!containerReturnedAsWhole(c.id)) continue
+    for (const ci of containerItemsByContainerId.value[c.id] ?? []) {
+      if (ci.material_item_id === materialItemId) {
+        sum += ci.quantity_returned ?? 0
+      }
+    }
+  }
+  return sum
+}
+
 function returnedLooseQtyForPackItem(pi: ActivityPackItem): number {
   const returned = pi.quantityReturned ?? 0
   if (returned <= 0) return 0
-  return Math.max(0, returned - returnedQtyInContainersForMaterial(pi.materialItemId))
+  return Math.max(0, returned - returnedQtyInWholeReturnedContainersForMaterial(pi.materialItemId))
 }
 
 function pendingStoreInContainersForMaterial(materialItemId: string): number {
@@ -7640,6 +7896,12 @@ function containerReturnedAsWhole(containerId: string): boolean {
   return shellReturned && innerReturned
 }
 
+function containerMirrorLineVisible(ci: ActivityPackContainerItem): boolean {
+  if (!isPackReturnStage(activePackStage.value)) return true
+  if (isVirtualWarehouseContainerLine(ci)) return false
+  return containerLineUnissueableMax(ci) > 0
+}
+
 function containerStoredContentUnits(containerId: string): number {
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
@@ -7691,10 +7953,35 @@ function containerShowsStoredShell(containerId: string): boolean {
   return isPhysicalComboPackItem(sh)
 }
 
-/** Stufe Retour → Ausgepackt: Kisten mit offenem Einlagern (links). */
+function containerInnerPendingStoreUnits(containerId: string): number {
+  let sum = 0
+  for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
+    if (isVirtualWarehouseContainerLine(ci)) continue
+    sum += containerLineRemainingStore(ci)
+  }
+  return sum
+}
+
+function containerShellOnlyPendingUnpack(containerId: string): boolean {
+  return containerInnerPendingStoreUnits(containerId) <= 0 && containerShellPendingStoreQty(containerId) > 0
+}
+
+/** Stufe Retour → Ausgepackt: Kisten mit offenem Einlagern (links); Inhalt vor Hülle. */
 const packContainersPendingUnpackLeft = computed(() => {
   if (!isPackUnpackStage(activePackStage.value)) return []
-  return packContainersSorted.value.filter((c) => containerPendingStoreUnits(c.id) > 0)
+  return packContainersSorted.value
+    .filter((c) => containerPendingStoreUnits(c.id) > 0)
+    .sort((a, b) => {
+      const sortOpts = {
+        isPhysicalComboContainer,
+        containerPendingInnerUnits: containerInnerPendingStoreUnits,
+        containerPendingShellOnly: containerShellOnlyPendingUnpack,
+      }
+      const ka = packUnpackContainerSortKey(a.id, sortOpts)
+      const kb = packUnpackContainerSortKey(b.id, sortOpts)
+      if (ka !== kb) return ka - kb
+      return a.label.localeCompare(b.label, locale.value)
+    })
 })
 
 /** Stufe Retour → Ausgepackt: nur Phys.-Kombi rechts als zusammengehörige Kiste. */
@@ -7717,33 +8004,21 @@ const packContainersWithReturnableAtEvent = computed(() => {
 
 /** Links Retour: Kisten mit offenem Bestand (Event→Retour oder Transport zurück→Retour). */
 const packContainersAtEventForReturnLeft = computed(() => {
-  if (!isPackReturnPipelineStage(activePackStage.value)) return []
+  if (!isPackReturnStage(activePackStage.value)) return []
   if (activePackStage.value === 'transport_back_returned' && packWorkflowProfile.value === 'logistics') {
     return packContainersSorted.value.filter((c) => containerTransportBackReturnableUnits(c.id) > 0)
   }
   return packContainersSorted.value.filter((c) => containerReturnableUnits(c.id) > 0)
 })
 
-/** Rechts Retour: als Ganzes retournierte Kisten unter «Bereits retourniert». */
+/** Rechts Retour: nur Kisten als Ganzes retourniert (s. pack-step-ui.md). */
 const packContainersReturnedForReturnRight = computed(() => {
   if (!isPackReturnStage(activePackStage.value)) return []
   return packContainersSorted.value.filter((c) => containerReturnedAsWhole(c.id))
 })
 
 const stageReturnNotTakenItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
-    if (isOrphanShellWithoutPackContainer(p)) return false
-    if (isCrateShellPackItem(p, packContainers.value)) return false
-    if (
-      isPackUnpackStage(activePackStage.value) &&
-      (pendingStoreLooseQtyForPackItem(p) > 0 || (p.quantityReturned ?? 0) > 0)
-    ) {
-      return false
-    }
-    if (notTakenQtyForReturn(p) > 0) return true
-    return notTakenToEventQtyForMaterial(p.materialItemId) > 0
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnReturnNotTaken(p, packListCtx.value)),
 )
 
 const groupsNotTakenForReturn = computed(() => {
@@ -7754,17 +8029,7 @@ const groupsNotTakenForReturn = computed(() => {
 const stageReturnNotTakenCount = computed(() => stageReturnNotTakenItems.value.length)
 
 const stageConsumableOverviewItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
-    if (!isConsumablePackLine(p)) return false
-    if (consumableStillOnlyInCrateAtReturn(p)) return false
-    if (consumableConsumptionRemaining(p) > 0) return true
-    if ((p.quantityReturned ?? 0) > 0 || (p.quantityStored ?? 0) > 0) return true
-    if (consumableBookedConsumptionQty(p) > 0 && consumableConsumptionRemaining(p) <= 0) {
-      return false
-    }
-    return consumableBookedConsumptionQty(p) > 0
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnConsumableOverview(p, packListCtx.value)),
 )
 
 const groupsConsumableOverview = computed(() => {
@@ -7775,13 +8040,7 @@ const groupsConsumableOverview = computed(() => {
 const stageConsumableOverviewCount = computed(() => stageConsumableOverviewItems.value.length)
 
 const stageReturnConsumedItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isPackReturnOrUnpackWarehouseStage(activePackStage.value)) return false
-    if (!p.isConsumable) return false
-    if (isOrphanShellWithoutPackContainer(p)) return false
-    if (isCrateShellPackItem(p, packContainers.value)) return false
-    return consumableBookedConsumptionQty(p) > 0
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnReturnConsumed(p, packListCtx.value)),
 )
 
 const groupsConsumedForReturn = computed(() => {
@@ -7793,46 +8052,12 @@ const stageReturnConsumedCount = computed(() => stageReturnConsumedItems.value.l
 
 const leftPanelHasKistenEventReturn = computed(
   () =>
-    isPackReturnPipelineStage(activePackStage.value) &&
+    isPackReturnStage(activePackStage.value) &&
     packContainersAtEventForReturnLeft.value.length > 0,
 )
 
 const leftPanelHasKistenUnpack = computed(
   () => isPackUnpackStage(activePackStage.value) && packContainersPendingUnpackLeft.value.length > 0,
-)
-
-/** Links: Kisten solange noch nicht in der rechten Ziel-Stufe dieser Pipeline-Phase. */
-function containerStillOnWarehouseForActiveStage(containerId: string): boolean {
-  const stage = activePackStage.value
-  if (stage === 'packed_transport_to') {
-    const sh = shellPackItemForContainer(containerId)
-    if (sh && getStageLeftQty(sh) > 0) return true
-    for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-      if (containerLineRemainingAtForwardStage(ci) > 0) return true
-    }
-    return false
-  }
-  if (stage === 'transport_to_at_event') {
-    const sh = shellPackItemForContainer(containerId)
-    if (sh && getStageLeftQty(sh) > 0) return true
-    for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-      if (containerLineRemainingAtForwardStage(ci) > 0) return true
-    }
-    return false
-  }
-  if (stage === 'at_event_transport_back') {
-    const sh = shellPackItemForContainer(containerId)
-    if (sh) return getStageLeftQty(sh) > 0
-    return containerReturnableUnits(containerId) > 0
-  }
-  if (stage === 'transport_back_returned') {
-    return containerTransportBackReturnableUnits(containerId) > 0
-  }
-  return !containerHasIssuedAtEvent(containerId)
-}
-
-const packContainersSortedWarehouseOnly = computed(() =>
-  packContainersSorted.value.filter((c) => containerStillOnWarehouseForActiveStage(c.id)),
 )
 
 function containerHasPackedContent(containerId: string): boolean {
@@ -7846,14 +8071,9 @@ function containerHasPackedContent(containerId: string): boolean {
 /** Rechts «Gepackt»: nur Kisten mit tatsächlich gepackter Shell / Inhalt (nicht leerer Auto-Behälter). */
 const packContainersForConfirmedPackedRight = computed(() => {
   if (activePackStage.value !== 'confirmed_packed') return []
-  return packContainersSortedWarehouseOnly.value.filter((c) => {
-    if (isPackContainerMerged(c)) return false
-    return packContainerVisibleOnConfirmedPackedRight(
-      c.id,
-      shellPackItemForContainer(c.id),
-      containerHasPackedContent(c.id),
-    )
-  })
+  return packContainersSortedWarehouseOnly.value.filter((c) =>
+    shouldShowPackContainerOnConfirmedPackedRight(c, packContainerCtx.value, stageLeftItems.value),
+  )
 })
 
 /** @deprecated alias — use stageRightLooseMirrorItems */
@@ -7862,29 +8082,11 @@ const stageRightItemsLooseIssued = stageRightLooseMirrorItems
 const groupsAtEventLoose = groupsRightMirrorLoose
 
 const stageReturnedLooseItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isPackReturnStage(activePackStage.value)) return false
-    if (isOrphanShellWithoutPackContainer(p)) return false
-    if (isCrateShellPackItem(p, packContainers.value)) {
-      const shellContainer = packShellContainerForPackItem(p, packContainers.value)
-      if (shellContainer && containerReturnedAsWhole(shellContainer.id)) return false
-      if (isIndividuallyStorableCrateShell(p)) {
-        return (p.quantityReturned ?? 0) > 0
-      }
-      return false
-    }
-    return returnedLooseQtyForPackItem(p) > 0
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnReturnedLoose(p, packListCtx.value)),
 )
 
 const stageStoredLooseItems = computed(() =>
-  packItems.value.filter((p) => {
-    if (!isPackUnpackStage(activePackStage.value)) return false
-    if (isOrphanShellWithoutPackContainer(p)) return false
-    if (storedShellLooseQtyForPackItem(p) > 0) return true
-    if (isCrateShellPackItem(p, packContainers.value)) return false
-    return storedLooseQtyForPackItem(p) > 0
-  }),
+  packItems.value.filter((p) => shouldIncludePackItemOnStoredLoose(p, packListCtx.value)),
 )
 
 const groupsReturned = computed(() => {
@@ -7902,66 +8104,14 @@ const groupsStoredLoose = computed(() => {
 /** «Ohne Behälter»: nur lose Gepackt-Menge, gruppiert nach Kategorie */
 const ohneBehaelterGroups = computed(() => {
   void locale.value
-  if (!showPackContainersUi.value) return []
-  if (activePackStage.value === 'confirmed_packed') {
-    const items = stageRightItems.value.filter(
-      (p) =>
-        isRightLooseListPackItem(p) && getStageRightQty(p) > 0 && qtyInContainersForItem(p) === 0,
-    )
-    return groupPackItems(items)
-  }
-  if (isPackForwardToEventStage(activePackStage.value)) {
-    const items = packItems.value.filter((p) => {
-      if (!isRightLooseListPackItem(p)) return false
-      if (activePackStage.value === 'packed_transport_to') {
-        return (
-          looseQtyOnRightMirror(p) > 0 && transportToQtyInContainersForMaterial(p.materialItemId) === 0
-        )
-      }
-      return looseQtyOnRightMirror(p) > 0 && issuedQtyInContainersForMaterial(p.materialItemId) === 0
-    })
-    return groupPackItems(items)
-  }
-  if (activePackStage.value === 'at_event_transport_back') {
-    const items = packItems.value.filter(
-      (p) =>
-        isRightLooseListPackItem(p) &&
-        looseTransportBackOnRight(p) > 0 &&
-        transportBackQtyInContainersForMaterial(p.materialItemId) === 0,
-    )
-    return groupPackItems(items)
-  }
-  return []
+  const items = packItems.value.filter((p) => shouldIncludePackItemInLooseOnlyGroup(p, packListCtx.value))
+  return groupPackItems(items)
 })
 
 /** Teilweise lose, teils schon in Behälter gelegt */
-const loosePackItemsPartial = computed(() => {
-  if (!showPackContainersUi.value) return []
-  if (activePackStage.value === 'confirmed_packed') {
-    return stageRightItems.value.filter(
-      (p) =>
-        isRightLooseListPackItem(p) && looseQtyForPackItem(p) > 0 && qtyInContainersForItem(p) > 0,
-    )
-  }
-  if (isPackForwardToEventStage(activePackStage.value)) {
-    return packItems.value.filter((p) => {
-      if (!isRightLooseListPackItem(p)) return false
-      if (activePackStage.value === 'packed_transport_to') {
-        return looseQtyOnRightMirror(p) > 0 && transportToQtyInContainersForMaterial(p.materialItemId) > 0
-      }
-      return looseQtyOnRightMirror(p) > 0 && issuedQtyInContainersForMaterial(p.materialItemId) > 0
-    })
-  }
-  if (activePackStage.value === 'at_event_transport_back') {
-    return packItems.value.filter(
-      (p) =>
-        isRightLooseListPackItem(p) &&
-        looseTransportBackOnRight(p) > 0 &&
-        transportBackQtyInContainersForMaterial(p.materialItemId) > 0,
-    )
-  }
-  return []
-})
+const loosePackItemsPartial = computed(() =>
+  packItems.value.filter((p) => shouldIncludePackItemInLoosePartialGroup(p, packListCtx.value)),
+)
 
 const rightLoseSectionHasItems = computed(
   () =>
@@ -7972,8 +8122,12 @@ function ohneCatCollapseKey(categoryName: string): string {
   return `r-ohne-cat-${categoryName}`
 }
 
+function isCategoryGroupCollapsed(key: string): boolean {
+  return collapsedGroups.value[key] === true
+}
+
 function toggleGroup(key: string) {
-  collapsedGroups.value[key] = !collapsedGroups.value[key]
+  collapsedGroups.value = { ...collapsedGroups.value, [key]: !isCategoryGroupCollapsed(key) }
 }
 
 function onPackStageTabChange(key: unknown) {
@@ -7982,6 +8136,7 @@ function onPackStageTabChange(key: unknown) {
 
 function setStage(key: PackStage) {
   activePackStage.value = key
+  activePackTarget.value = null
   const keys = packStageKeys.value
   const statusIdx = keys.indexOf(statusPackStage.value)
   const keyIdx = keys.indexOf(key)
@@ -8014,7 +8169,7 @@ function clampMoveQtyForPackItem(
     max = packForwardMoveControlLimits(pi).max
   }
   if (max > 0) return Math.min(qty, max)
-  return qty
+  return 0
 }
 
 function setMoveQtyForItem(itemId: string, qty: number) {
@@ -8095,7 +8250,7 @@ async function moveToNextStage(item: ActivityPackItem, qty?: number) {
   await executeMoveToNextStage(item, returnQty)
 }
 
-async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
+async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number): Promise<boolean> {
   movingId.value = item.id
   try {
     const updated = await postMovePackItem(props.activityId, item.id, {
@@ -8121,13 +8276,23 @@ async function executeMoveToNextStage(item: ActivityPackItem, moveQty: number) {
         }
       }
     }
-    if (isPackForwardToEventStage(activePackStage.value) && isCrateShellPackItem(updated, packContainers.value)) {
+    if (isCrateShellPackItem(updated, packContainers.value)) {
       const shellC = packShellContainerForPackItem(updated, packContainers.value)
-      if (shellC) await syncContainerContentsWithShellAtEvent(shellC.id)
+      if (shellC) {
+        const backendStage = getBackendStage()
+        if (backendStage === 'at_event') {
+          await syncContainerContentsWithShellAtEvent(shellC.id)
+        } else if (backendStage === 'transport_to' || backendStage === 'transport_back') {
+          await issueAllPackContainerItems(props.activityId, shellC.id, backendStage)
+          await loadContainersData()
+        }
+      }
     }
+    return true
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.packList.toastMoveFailed'))
+    return false
   } finally {
     movingId.value = null
   }
@@ -8187,6 +8352,28 @@ async function restoreContainerPackedAfterLooseUnissue(pi: ActivityPackItem, qty
   await assignMaterialToContainer(pi, containerId, qty, { successMessage: null })
 }
 
+/** Retour lose: Kistenzeilen quantity_returned mit zurücknehmen (Teilretour in Kiste). */
+async function restoreContainerReturnedAfterLooseUnreturn(pi: ActivityPackItem, qty: number) {
+  if (!isPackReturnStage(activePackStage.value) || qty < 1) return
+  let remaining = qty
+  for (const c of packContainers.value) {
+    if (containerReturnedAsWhole(c.id)) continue
+    const lines = (containerItemsByContainerId.value[c.id] ?? []).filter(
+      (ci) => ci.material_item_id === pi.materialItemId && !isNonActionableContainerLine(ci),
+    )
+    for (const ci of lines) {
+      if (remaining < 1) return
+      const lineRet = ci.quantity_returned ?? 0
+      if (lineRet < 1) continue
+      const undo = Math.min(remaining, lineRet)
+      await updateActivityPackContainerItem(props.activityId, c.id, ci.id, {
+        quantity_returned: lineRet - undo,
+      })
+      remaining -= undo
+    }
+  }
+}
+
 async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
   movingId.value = item.id
   try {
@@ -8201,6 +8388,13 @@ async function executeMoveToPrevStage(item: ActivityPackItem, moveQty: number) {
     if (restoreLooseToContainer) {
       try {
         await restoreContainerPackedAfterLooseUnissue(item, moveQty)
+        await loadContainersData()
+      } catch {
+        /* Packliste wurde zurückgebucht; Kisten-Zeile optional */
+      }
+    } else if (isPackReturnStage(activePackStage.value)) {
+      try {
+        await restoreContainerReturnedAfterLooseUnreturn(item, moveQty)
         await loadContainersData()
       } catch {
         /* Packliste wurde zurückgebucht; Kisten-Zeile optional */
@@ -8240,8 +8434,15 @@ async function executeMoveAllPackStageForward(): Promise<void> {
   }
   /** Nur «Transport→Am Event»: Kisten komplett ausgeben — nicht bei «Gepackt→Transport (hin)». */
   if (packIssueToEventCombined.value && packContainers.value.length > 0) {
+    const stage = getBackendStage()
     for (const c of packContainers.value) {
-      await issueAllPackContainerItems(props.activityId, c.id)
+      await issueAllPackContainerItems(props.activityId, c.id, stage)
+    }
+  }
+  /** Am Event → Retour: lose Mengen und Kisten-Inhalt gemeinsam retournieren. */
+  if (isPackReturnStage(activePackStage.value) && packContainersAtEventForReturnLeft.value.length > 0) {
+    for (const c of packContainersAtEventForReturnLeft.value) {
+      await returnAllPackContainerItems(props.activityId, c.id)
     }
   }
   await postMoveAllPackItems(props.activityId, getBackendStage())
@@ -8430,12 +8631,12 @@ async function loadAll() {
       packIssues.value = []
       activityItemsForAccounting.value = []
     }
-    applyActivePackStageAfterLoad()
-    initMoveQtyInputs()
     await loadComboComponentsForShellPackItems()
     await loadContainersData()
     await syncLinkedShellPackContainers()
     await refreshCrateCheckSnapshots()
+    applyActivePackStageAfterLoad()
+    initMoveQtyInputs()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     loadError.value = e.response?.data?.error || e.message || t('activities.packList.toastLoadFailed')
@@ -8446,6 +8647,7 @@ async function loadAll() {
 }
 
 provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
+  packWorkflowProfile,
   packListEditable: showPackOperateControls,
   packForwardEditable: showPackForwardControls,
   packBackwardEditable: showPackBackwardControls,
@@ -8496,6 +8698,10 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   packForwardWarnBelowOrdered,
   packForwardMoveControlLimits,
   moveToNextStage,
+  moveToPrevStage,
+  rightQtyForMoveBack,
+  moveBackQtyInputs,
+  setMoveBackQtyForItem,
   showShellCrateCheckButton,
   openShellCrateCheckOnlyModal,
   shellCrateCheckButtonLabel,
@@ -8515,6 +8721,7 @@ provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
   emitIssueWizardByMaterialId,
   packContainerItemSections: packContainerItemSectionsForContainer,
   containerLineUnissueableMax,
+  containerMirrorLineVisible,
   containerLineIssueableMax,
   unissueContainerLineToPacked,
   containerIssueLineKey,
@@ -8645,27 +8852,6 @@ watch(
   },
 )
 
-watch(hasMwLooseCrateAssignmentWork, (work, wasWork) => {
-  if (!work || wasWork) return
-  /** Nutzer hat Pipeline-Tab bewusst vorgezogen (z. B. «weiter zur Retour») — nicht zurückspringen. */
-  if (packStageTabOffset.value > 0) return
-  const st = props.status || ''
-  if (st === 'at_event' || st === 'returned') {
-    const stage = 'confirmed_packed'
-    if (packStageKeys.value.includes(stage) && activePackStage.value !== stage) {
-      activePackStage.value = stage
-      initMoveQtyInputs()
-      toast.info(t('activities.packList.mwLooseCrateAssignmentTabSwitchToast'))
-    }
-    return
-  }
-  if (!packStageKeys.value.includes('confirmed_packed')) return
-  if (activePackStage.value === 'confirmed_packed') return
-  activePackStage.value = 'confirmed_packed'
-  initMoveQtyInputs()
-  toast.info(t('activities.packList.mwLooseCrateAssignmentTabSwitchToast'))
-})
-
 watch(
   () => props.consumptionModalReturnWithoutConsumptionToken ?? 0,
   async (token, prev) => {
@@ -8748,11 +8934,24 @@ defineExpose({
 }
 
 .pack-card-issue-quick-row {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 0;
+}
+
+.pack-card-info-top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.pack-card-info-top .pack-card-name-block {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .pack-container-header-title-block {
@@ -9546,6 +9745,29 @@ defineExpose({
 
 .pack-list-error-alert {
   width: 100%;
+}
+
+.pack-workflow-section--self-provided {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed #d97706;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+
+.pack-self-provided-intro {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.82rem;
+}
+
+.pack-self-provided-block + .pack-self-provided-block {
+  margin-top: 0.45rem;
+}
+
+.pack-self-provided-list {
+  margin: 0.2rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
 }
 </style>
 

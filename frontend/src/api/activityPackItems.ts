@@ -39,6 +39,8 @@ export interface ActivityPackItem {
   materialType: string
   linkedContainerLabel: string | null
   linkedContainerBatchId: string | null
+  /** Pack-Gruppen-Intent (Phase 11 «Zusammen packen») */
+  intentId: string | null
 }
 
 export interface PackProgress {
@@ -106,6 +108,10 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
       raw.linked_container_batch_id != null && String(raw.linked_container_batch_id).trim() !== ''
         ? String(raw.linked_container_batch_id).trim()
         : null,
+    intentId:
+      raw.intent_id != null && String(raw.intent_id).trim() !== ''
+        ? String(raw.intent_id).trim()
+        : null,
   }
 }
 
@@ -132,10 +138,12 @@ export async function getPackProgress(activityId: string): Promise<PackProgress>
   }
 }
 
+export type PackMoveSource = 'tap' | 'scan' | 'bulk'
+
 export async function postMovePackItem(
   activityId: string,
   packItemId: string,
-  body: { stage: PackMoveStage; quantity: number },
+  body: { stage: PackMoveStage; quantity: number; source?: PackMoveSource },
 ): Promise<ActivityPackItem> {
   const { data } = await apiClient.post<Record<string, unknown>>(
     `/api/activities/${activityId}/pack-items/${packItemId}/move`,

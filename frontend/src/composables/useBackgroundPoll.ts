@@ -2,7 +2,7 @@ import { onMounted, onUnmounted, watch, type MaybeRefOrGetter, toValue } from 'v
 
 /** Intervall-Polling im Hintergrund; pausiert bei verstecktem Tab, optional bei Busy. */
 export function useBackgroundPoll(options: {
-  intervalMs: number
+  intervalMs: MaybeRefOrGetter<number>
   enabled: MaybeRefOrGetter<boolean>
   isBusy?: () => boolean
   poll: () => void | Promise<void>
@@ -18,7 +18,7 @@ export function useBackgroundPoll(options: {
   function start(): void {
     stop()
     if (!toValue(options.enabled)) return
-    timer = setInterval(tick, options.intervalMs)
+    timer = setInterval(tick, toValue(options.intervalMs))
   }
 
   function stop(): void {
@@ -39,6 +39,13 @@ export function useBackgroundPoll(options: {
       else stop()
     },
     { immediate: true },
+  )
+
+  watch(
+    () => toValue(options.intervalMs),
+    () => {
+      if (toValue(options.enabled)) start()
+    },
   )
 
   onMounted(() => {

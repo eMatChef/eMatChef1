@@ -1,6 +1,7 @@
 import apiClient from './apiClient'
 import type { MediaPhoto } from './media'
 import { uploadMediaFile } from './media'
+import type { RepairPartLine } from '@/types/repairPartsList'
 
 // ============== Types ==============
 
@@ -8,12 +9,24 @@ export interface WorkshopMaterialInfo {
   id: string
   name: string
   condition: string
+  tracking_type?: string | null
+  pack_unit?: string | null
+  total_stock?: number | null
   barcode_tag: string | null
   sale_price?: string | null
+  reference_purchase_unit_chf?: string | null
+  repair_template_key?: string | null
   category: {
     id: string
     name: string
   } | null
+}
+
+export interface WorkshopMaterialBatchInfo {
+  id: string
+  serial_number: string | null
+  label: string | null
+  status: string
 }
 
 export interface WorkshopUserInfo {
@@ -46,6 +59,23 @@ export type TicketType = 'repair' | 'inspection' | 'writeoff' | 'cleaning'
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent'
 export type TicketStatus = 'open' | 'in_progress' | 'waiting_parts' | 'completed' | 'cancelled'
 
+export type TicketStrategy =
+  | 'triage'
+  | 'internal_repair'
+  | 'external_repair'
+  | 'external_cleaning'
+  | 'writeoff'
+  | 'inspection'
+
+export type TicketPhase =
+  | 'planning'
+  | 'ordered'
+  | 'ready'
+  | 'in_progress'
+  | 'awaiting_quote'
+  | 'completed'
+  | 'cancelled'
+
 export interface WorkshopTicket {
   id: string
   department_id: string
@@ -55,6 +85,10 @@ export interface WorkshopTicket {
   priority_label: string
   status: TicketStatus
   status_label: string
+  strategy: TicketStrategy
+  strategy_label: string
+  phase: TicketPhase | null
+  phase_label: string | null
   title: string
   description: string | null
   estimated_cost: string | null
@@ -66,6 +100,8 @@ export interface WorkshopTicket {
   created_at: string
   updated_at: string
   material_item: WorkshopMaterialInfo
+  material_batch?: WorkshopMaterialBatchInfo | null
+  affected_quantity?: number | null
   assigned_to: WorkshopUserInfo | null
   assigned_to_supplier_company?: { id: string; name: string } | null
   created_by: WorkshopUserInfo | null
@@ -80,14 +116,19 @@ export interface WorkshopTicket {
   public_url?: string | null
 
   // Detail-Felder (nur bei get mit details)
-  parts_used?: any[] | null
+  parts_used?: RepairPartLine[] | null
+  repair_checklist?: Record<string, unknown> | null
   photos?: MediaPhoto[] | null
   activity?: WorkshopActivityInfo | null
   issue_report?: WorkshopIssueReportInfo | null
   allowed_transitions?: TicketStatus[]
 }
 
+export type TicketDisplayPhase = TicketPhase | 'triage'
+
 export interface WorkshopStats {
+  phase_counts: Record<TicketDisplayPhase, number>
+  /** @deprecated Legacy — computed aus phase_counts */
   status_counts: Record<TicketStatus, number>
   completed_this_week: number
   type_counts: Record<TicketType, number>
@@ -102,6 +143,8 @@ export interface WorkshopStats {
 export interface CreateTicketRequest {
   department_id: string
   material_item_id: string
+  material_batch_id?: string | null
+  affected_quantity?: number | null
   title: string
   type?: TicketType
   priority?: TicketPriority
@@ -110,6 +153,7 @@ export interface CreateTicketRequest {
   issue_report_id?: string | null
   assigned_to_user_id?: string | null
   estimated_cost?: string | null
+  repair_checklist?: Record<string, unknown> | null
 }
 
 export interface UpdateTicketRequest {
@@ -121,9 +165,37 @@ export interface UpdateTicketRequest {
   assigned_to_supplier_company_id?: string | null
   estimated_cost?: string | null
   actual_cost?: string | null
-  parts_used?: any[] | null
+  parts_used?: RepairPartLine[] | null
+  repair_checklist?: Record<string, unknown> | null
   photos?: string[] | null
   resolution_notes?: string | null
+}
+
+export interface SetTicketPhaseRequest {
+  phase: Extract<TicketPhase, 'ready' | 'in_progress'>
+}
+
+export interface TriageRequest {
+  strategy: Exclude<TicketStrategy, 'triage'>
+  assigned_to_supplier_company_id?: string | null
+  /** Pflicht bei strategy=external_cleaning */
+  cleaning_service_key?: string
+  /** Materialwart setzt Priorität in der Triage */
+  priority?: TicketPriority
+}
+
+export interface WorkshopCostBreakdownPayload {
+  labor_enabled: boolean
+  labor_hours: number
+  labor_rate_chf: string
+  labor_total_chf: string
+  flat_rate_enabled: boolean
+  flat_rate_chf: string
+  material_enabled: boolean
+  material_parts_chf: string
+  material_sheet_chf: string
+  material_total_chf: string
+  total_chf: string
 }
 
 export interface TransitionRequest {
@@ -133,6 +205,27 @@ export interface TransitionRequest {
   actual_cost?: string | null
   estimated_cost?: string | null
   writeoff_qty?: number
+  writeoff_repurpose?: {
+    material_item_id: string
+    quantity?: number
+    quantity_unit?: string
+    stock_already_booked?: boolean
+    unit_cost?: string | null
+  }
+  /** Restmengen pro Stücklisten-Zeile (line_id → qty) */
+  parts_surplus?: Record<string, number>
+  /** Kostenaufschlüsselung am Abschluss (Arbeitszeit / Pauschale / Material) */
+  cost_breakdown?: WorkshopCostBreakdownPayload
+  /** Inspektions-Ticket: Inventur-Aufgabe beim Abschluss verknüpfen */
+  inventory_task_id?: string
+}
+
+export interface PurchaseLineRequest {
+  supplier_id?: string | null
+  purchase_location?: string | null
+  purchase_total?: string | null
+  document_date?: string | null
+  receipt_url?: string | null
 }
 
 export interface WorkshopHistoryEntry {
@@ -213,6 +306,31 @@ export async function transitionWorkshopTicket(id: string, data: TransitionReque
   return response.data
 }
 
+export async function setWorkshopTicketPhase(
+  id: string,
+  data: SetTicketPhaseRequest,
+): Promise<WorkshopTicket> {
+  const response = await apiClient.patch<WorkshopTicket>(`/api/workshop/${id}/phase`, data)
+  return response.data
+}
+
+export async function triageWorkshopTicket(id: string, data: TriageRequest): Promise<WorkshopTicket> {
+  const response = await apiClient.post<WorkshopTicket>(`/api/workshop/${id}/triage`, data)
+  return response.data
+}
+
+export interface SendToSupplierRequest {
+  estimated_cost?: string | null
+}
+
+export async function sendWorkshopTicketToSupplier(
+  id: string,
+  data?: SendToSupplierRequest,
+): Promise<WorkshopTicket> {
+  const response = await apiClient.post<WorkshopTicket>(`/api/workshop/${id}/send-to-supplier`, data ?? {})
+  return response.data
+}
+
 /**
  * Löscht ein Ticket
  */
@@ -246,4 +364,28 @@ export async function uploadWorkshopTicketPhoto(
     file,
   )
   return data.photos
+}
+
+export async function orderWorkshopPurchaseLine(
+  ticketId: string,
+  lineId: string,
+  data: PurchaseLineRequest,
+): Promise<WorkshopTicket> {
+  const response = await apiClient.post<WorkshopTicket>(
+    `/api/workshop/${ticketId}/parts-used/${lineId}/order`,
+    data,
+  )
+  return response.data
+}
+
+export async function receiveWorkshopPurchaseLine(
+  ticketId: string,
+  lineId: string,
+  data: PurchaseLineRequest,
+): Promise<WorkshopTicket> {
+  const response = await apiClient.post<WorkshopTicket>(
+    `/api/workshop/${ticketId}/parts-used/${lineId}/receive`,
+    data,
+  )
+  return response.data
 }

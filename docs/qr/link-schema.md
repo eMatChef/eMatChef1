@@ -4,7 +4,7 @@ Zentrale Regeln für öffentliche QR-URLs, `public_code` und Scan-Auflösung. Gi
 
 **Stand:** Mai 2026 · **Status:** Umgesetzt (Material, Aktivität, Werkstatt, Display)
 
-Verwandte Doku: [Öffentliche QR-Seiten](./qr-public-pages.md) · Lager-Geräte: [../devices/README.md](../devices/README.md)
+Verwandte Doku: [Öffentliche QR-Seiten](./qr-public-pages.md) · [Scan- & URL-History](./scan-and-url-history.md) · Lager-Geräte: [../devices/README.md](../devices/README.md)
 
 ---
 

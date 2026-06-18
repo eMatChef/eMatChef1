@@ -807,12 +807,6 @@ async function handleSubmit() {
   }
 
   if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    const primaryDept =
-      authStore.departments.find(d => d.is_primary) || authStore.departments[0]
-    if (primaryDept?.department_id) {
-      router.replace(`/${primaryDept.department_id}`)
-      return
-    }
     router.replace('/dashboard')
     return
   }

@@ -58,6 +58,8 @@
                 :selected-group-id="selectedGroupId"
                 :customer-address-id="customerAddressId"
                 :venue-address-id="venueAddressId"
+                :wants-js-material="wantsJsMaterial"
+                :participant-count="participantCount"
                 :material-lines="materialLines"
                 :draft-activity-id="draftActivityId"
                 :invited-departments="invitedDepartments"
@@ -65,6 +67,8 @@
                 @update:selected-group-id="onSelectedGroupId"
                 @update:customer-address-id="onCustomerAddressId"
                 @update:venue-address-id="onVenueAddressId"
+                @update:wants-js-material="onWantsJsMaterial"
+                @update:participant-count="onParticipantCount"
                 @update:material-lines="onMaterialLines"
                 @update:invited-departments="onInvitedDepartments"
                 @update:activity-notes="onActivityNotes"
@@ -87,6 +91,7 @@
             :preview-group-line="previewGroupLine"
             :preview-venue-line="previewVenueLine"
             :preview-mieter-line="previewMieterLine"
+            :preview-js-material-line="previewJsMaterialLine"
             :preview-material-line="previewMaterialLine"
             :preview-invited-line="previewInvitedLine"
           />
@@ -156,6 +161,10 @@ import {
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  expandMaterialLinesForSummary,
+  formatMaterialSummaryEntries,
+} from '@/utils/virtualComboMaterial'
 import {
   ActivityCreateWizardForm,
   ActivityPreviewSidebar,
@@ -230,6 +239,8 @@ const {
   selectedGroupId,
   customerAddressId,
   venueAddressId,
+  wantsJsMaterial,
+  participantCount,
   materialLines,
   invitedDepartments,
   activityNotes,
@@ -284,8 +295,44 @@ function onCustomerAddressId(v: string | null) {
 function onVenueAddressId(v: string | null) {
   venueAddressId.value = v
 }
+function onWantsJsMaterial(v: boolean) {
+  wantsJsMaterial.value = v
+  if (!v) {
+    participantCount.value = null
+  }
+}
+function onParticipantCount(v: number | null) {
+  participantCount.value = v != null && v >= 1 ? v : null
+}
 function onMaterialLines(v: ActivityMaterialLine[]) {
   materialLines.value = v
+  scheduleMaterialDraftSave()
+}
+
+let materialDraftSaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleMaterialDraftSave() {
+  if (layoutMode.value !== 'stepper' || !props.departmentId) return
+  if (materialDraftSaveTimer) clearTimeout(materialDraftSaveTimer)
+  materialDraftSaveTimer = setTimeout(() => {
+    materialDraftSaveTimer = null
+    void persistMaterialDraftQuietly()
+  }, 450)
+}
+
+async function persistMaterialDraftQuietly() {
+  if (!props.departmentId || materialLines.value.length === 0) return
+  isSavingDraft.value = true
+  try {
+    const result = await saveDraftStep(props.departmentId)
+    if (result.ok) {
+      lastDraftSavedAt.value = new Date()
+      if (draftActivityId.value) {
+        emit('draftSaved', draftActivityId.value)
+      }
+    }
+  } finally {
+    isSavingDraft.value = false
+  }
 }
 function onInvitedDepartments(v: InvitedDepartmentDraft[]) {
   invitedDepartments.value = v
@@ -450,11 +497,24 @@ const previewMieterLine = computed(() => {
   return formatMieterPreviewLine(a)
 })
 
+const previewJsMaterialLine = computed(() => {
+  const typ = selectedActivityType.value
+  if (typ !== 'camp' && typ !== 'event') return null
+  if (!wantsJsMaterial.value) return null
+  const count = participantCount.value
+  if (count != null && count >= 1) {
+    return t('activities.jsMaterial.participantCountSummary', { count })
+  }
+  return t('activities.jsMaterial.badgeIncluded')
+})
+
 const previewMaterialLine = computed(() => {
   const lines = materialLines.value
   if (!lines.length) return null
-  if (lines.length > 2) return `${lines.length} Positionen`
-  return lines.map((l) => `${l.material_name} ×${l.quantity}`).join(', ')
+  const entries = expandMaterialLinesForSummary(lines)
+  const formatted = formatMaterialSummaryEntries(entries, { maxItems: 2 })
+  if (formatted) return formatted
+  return t('activities.wizard.form.materialLinesCount', { n: entries.length })
 })
 
 const previewInvitedLine = computed(() => {

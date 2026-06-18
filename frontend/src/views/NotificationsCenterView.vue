@@ -143,6 +143,29 @@
             </button>
 
             <button
+              v-else-if="item.kind === 'grossanlass_mw_assigned'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread }"
+              @click="openGrossanlassMwAssigned(item.grossanlassMwAssigned!)"
+            >
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ item.grossanlassMwAssigned!.department_name }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--message">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ t('grossanlass.inbox.subject', { name: item.grossanlassMwAssigned!.department_name }) }}</div>
+                <div class="nc-inbox-row__preview">{{ t('grossanlass.inbox.preview') }}</div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+            <button
               v-else-if="item.kind === 'department_invite'"
               :id="inboxItemDomId(item)"
               type="button"
@@ -294,6 +317,14 @@
         @close="detailActivityInvite = null"
         @open-task="goToTaskForCampInvite"
       />
+
+      <ActivityDepartmentInviteDecisionModal
+        :visible="!!campInviteDecision"
+        :invite="campInviteDecision"
+        :department-id="departmentId || ''"
+        @close="campInviteDecision = null"
+        @decided="onCampInviteDecided"
+      />
     </template>
 
   </PageShell>
@@ -316,6 +347,8 @@ import {
   type InviteAcceptedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
+  type GrossanlassMwAssignedNotification,
+  type ReceivedUserInboxNotification,
 } from '@/api/joinRequests'
 import { useAuthStore } from '@/stores/auth'
 import {
@@ -333,6 +366,7 @@ import {
   getUserActivityStatusNotifications,
   markUserActivityStatusNotificationRead,
 } from '@/api/activityUserNotifications'
+import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
 import {
   getUserDirectMessages,
@@ -343,6 +377,7 @@ import {
 } from '@/api/inboxMessages'
 import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
 import {
+  ActivityDepartmentInviteDecisionModal,
   InboxComposeModal,
   InboxMessageDetailModal,
   InboxQrDetailModal,
@@ -357,9 +392,11 @@ import { taskOpenQuery } from '@/composables/useDepartmentTasks'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
+import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 import { getSenderPrimaryLine, type NotificationSenderDescriptor } from '@/utils/notificationSender'
 
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 
 const route = useRoute()
 const router = useRouter()
@@ -381,8 +418,10 @@ const detailMessageMode = ref<'inbox' | 'sent'>('inbox')
 const detailQr = ref<PublicFoundItemMessage | null>(null)
 const detailDepartmentInvite = ref<ReceivedDepartmentInviteNotification | null>(null)
 const detailActivityInvite = ref<PendingDepartmentActivityInvite | null>(null)
+const campInviteDecision = ref<PendingDepartmentActivityInvite | null>(null)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
 const departmentInviteAll = ref<ReceivedDepartmentInviteNotification[]>([])
+const grossanlassMwAssignedAll = ref<GrossanlassMwAssignedNotification[]>([])
 const departmentInviteUnreadCount = ref(0)
 const activityMwAll = ref<ActivityMwNotification[]>([])
 const activityMwUnreadCount = ref(0)
@@ -395,6 +434,7 @@ type InboxItemKind =
   | 'activity_mw'
   | 'activity_status'
   | 'department_invite'
+  | 'grossanlass_mw_assigned'
   | 'invite_accepted'
   | 'qr_found'
   | 'activity_invite'
@@ -408,6 +448,7 @@ interface UnifiedInboxItem {
   activityMw?: ActivityMwNotification
   activityStatusUser?: boolean
   departmentInvite?: ReceivedDepartmentInviteNotification
+  grossanlassMwAssigned?: GrossanlassMwAssignedNotification
   qrFound?: PublicFoundItemMessage
   activityInvite?: PendingDepartmentActivityInvite
   inviteAccepted?: InviteAcceptedNotification
@@ -510,6 +551,15 @@ const allInboxItems = computed((): UnifiedInboxItem[] => {
         departmentInvite: inv,
       })
     }
+    for (const note of grossanlassMwAssignedAll.value) {
+      items.push({
+        id: `ga-mw-${note.id}`,
+        kind: 'grossanlass_mw_assigned',
+        createdAt: note.created_at,
+        unread: !note.read,
+        grossanlassMwAssigned: note,
+      })
+    }
   }
 
   if (canManageQrContact.value) {
@@ -565,6 +615,8 @@ function inboxCategoryLabel(item: UnifiedInboxItem): string {
       return t('notificationsCenter.inboxCategoryMessage')
     case 'department_invite':
       return t('notificationsCenter.inboxCategoryMessage')
+    case 'grossanlass_mw_assigned':
+      return t('grossanlass.inbox.category')
     case 'invite_accepted':
       return t('notificationsCenter.inboxCategoryInviteAccepted')
     case 'activity_invite':
@@ -590,6 +642,30 @@ function inboxBadges(item: UnifiedInboxItem): string[] {
   }
 }
 
+async function openGrossanlassMwAssigned(note: GrossanlassMwAssignedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  if (!note.read) {
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      grossanlassMwAssignedAll.value = grossanlassMwAssignedAll.value.map((e) =>
+        e.id === note.id ? { ...e, read: true } : e,
+      )
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.dashboard_url || `/${note.department_id}/dashboard`
+  await router.push(path)
+}
+
 async function openDepartmentInvite(inv: ReceivedDepartmentInviteNotification) {
   if (!inv.read) {
     try {
@@ -606,7 +682,25 @@ async function openDepartmentInvite(inv: ReceivedDepartmentInviteNotification) {
 }
 
 function openActivityInvite(invite: PendingDepartmentActivityInvite) {
-  detailActivityInvite.value = invite
+  campInviteDecision.value = invite
+}
+
+async function onCampInviteDecided(decision: 'accepted' | 'rejected') {
+  inviteItems.value = inviteItems.value.filter(
+    (e) =>
+      !(
+        campInviteDecision.value &&
+        e.activity_id === campInviteDecision.value.activity_id &&
+        e.source_department_id === campInviteDecision.value.source_department_id
+      ),
+  )
+  toast.success(
+    decision === 'accepted'
+      ? t('notificationsCenter.toastInviteAccepted')
+      : t('notificationsCenter.toastInviteRejected'),
+  )
+  headerNotificationsStore.requestRefresh()
+  await load()
 }
 
 function goToTasksPage(query?: Record<string, string>) {
@@ -693,7 +787,7 @@ async function load() {
     const deptInvPromise = getReceivedDepartmentInvites({ bucket: 'all', limit: 200 }).catch(() => ({
       count: 0,
       unread_count: 0,
-      items: [] as ReceivedDepartmentInviteNotification[],
+      items: [] as ReceivedUserInboxNotification[],
     }))
     const foundPromise = canManageQrContact.value
       ? getPublicFoundMessages(departmentId.value, { bucket: 'all', limit: 200 }).catch(() => ({
@@ -741,7 +835,13 @@ async function load() {
       inviteAcceptedPromise,
     ])
     inviteItems.value = inv.items || []
-    departmentInviteAll.value = deptInv.items || []
+    const receivedItems = deptInv.items || []
+    departmentInviteAll.value = receivedItems.filter(
+      (i): i is ReceivedDepartmentInviteNotification => i.type === 'department_invite',
+    )
+    grossanlassMwAssignedAll.value = receivedItems.filter(
+      (i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned',
+    )
     departmentInviteUnreadCount.value =
       typeof deptInv.unread_count === 'number' ? deptInv.unread_count : 0
     allFoundMessages.value = found.items || []
@@ -757,6 +857,7 @@ async function load() {
     inviteItems.value = []
     inviteAcceptedAll.value = []
     departmentInviteAll.value = []
+    grossanlassMwAssignedAll.value = []
     departmentInviteUnreadCount.value = 0
     allFoundMessages.value = []
     activityMwAll.value = []
@@ -796,7 +897,11 @@ async function openActivityMw(entry: ActivityMwNotification, forUserStatus = fal
       /* navigate anyway */
     }
   }
-  void router.push(`/${departmentId.value}/activities/${entry.activity_id}`)
+  void router.push(
+    routeForInboxActivityNotification(departmentId.value, entry, {
+      canManageMaterials: !forUserStatus,
+    }),
+  )
 }
 
 const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
@@ -827,6 +932,8 @@ async function openInviteAcceptedItem(note: InviteAcceptedNotification) {
 }
 
 async function acceptDepartmentInviteItem(inv: ReceivedDepartmentInviteNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   detailDepartmentInvite.value = null
   try {
     const result = await acceptDepartmentInvite({

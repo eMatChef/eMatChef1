@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\Supplier\SupplierImportService;
+use App\Service\Supplier\SupplierRepairTemplateService;
 use App\Service\Supplier\SupplierShopService;
 use App\Service\Supplier\SupplierTemplateImportService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -25,6 +26,7 @@ class DepartmentSupplierShopController extends AbstractController
         private SupplierShopService $shopService,
         private SupplierImportService $importService,
         private SupplierTemplateImportService $templateImportService,
+        private SupplierRepairTemplateService $repairTemplateService,
         private EntityManagerInterface $entityManager,
     ) {
     }
@@ -67,6 +69,24 @@ class DepartmentSupplierShopController extends AbstractController
 
         return new JsonResponse([
             'catalog_items' => $this->shopService->listShopCatalog($companyId !== '' ? $companyId : null),
+        ]);
+    }
+
+    #[Route('/repair-templates', name: 'repair_templates', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function repairTemplates(string $departmentId, Request $request): JsonResponse
+    {
+        if (!$this->canAccessShop($departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        $companyId = trim((string) $request->query->get('supplier_company_id', ''));
+        if ($companyId === '') {
+            return new JsonResponse(['error' => 'supplier_company_id ist erforderlich'], 400);
+        }
+
+        return new JsonResponse([
+            'repair_templates' => $this->repairTemplateService->listMergedForCompany($companyId, true, true),
         ]);
     }
 

@@ -1,12 +1,16 @@
 <template>
   <div class="verwaltung-view">
     <div class="verwaltung-container">
-      <aside
-        class="verwaltung-menu"
-        :class="{ 'verwaltung-menu--collapsed': !menuExpanded }"
-        @mouseenter="openMenu"
-        @mouseleave="closeMenu"
+      <div
+        class="verwaltung-menu-rail"
+        :class="{ 'verwaltung-menu-rail--expanded': menuExpanded }"
       >
+        <aside
+          class="verwaltung-menu"
+          :class="{ 'verwaltung-menu--collapsed': !menuExpanded }"
+          @mouseenter="openMenu"
+          @mouseleave="closeMenu"
+        >
         <div class="verwaltung-menu-header">
           <h2 class="verwaltung-menu-title" :class="{ 'verwaltung-menu-title--collapsed': !menuExpanded }">
             {{ t('verwaltung.menuTitle') }}
@@ -28,7 +32,8 @@
             <span class="nav-label" :class="{ 'nav-label--collapsed': !menuExpanded }">{{ item.label }}</span>
           </router-link>
         </nav>
-      </aside>
+        </aside>
+      </div>
 
       <main class="verwaltung-content">
         <router-view v-slot="{ Component }">
@@ -124,6 +129,13 @@ const visibleMenuItems = computed((): MenuItem[] => {
       id: 'supplier-global-review',
       label: t('verwaltung.nav.supplierGlobalReview'),
       mdiIcon: 'mdi-clipboard-check-outline',
+      to: '/admin-dashboard/verwaltung/supplier-global-review',
+    })
+    start.push({
+      id: 'js-leihkatalog',
+      label: t('verwaltung.nav.jsLeihkatalog'),
+      mdiIcon: 'mdi-tent',
+      to: '/admin-dashboard/verwaltung/js-leihkatalog',
     })
   }
   const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), mdiIcon: 'mdi-briefcase-outline' }
@@ -226,28 +238,56 @@ const visibleMenuItems = computed((): MenuItem[] => {
   height: 100%;
   max-width: none;
   margin: 0;
+  overflow-x: hidden;
+}
+
+.verwaltung-container:has(.verwaltung-menu-rail--expanded) {
+  overflow-x: visible;
+}
+
+/* Feste schmale Spalte — Hover klappt Panel nach rechts über den Inhalt */
+.verwaltung-menu-rail {
+  flex: 0 0 56px;
+  width: 56px;
+  max-width: 56px;
+  position: relative;
+  align-self: flex-start;
+  z-index: 20;
+  overflow-x: hidden;
+}
+
+.verwaltung-menu-rail--expanded {
+  overflow: visible;
 }
 
 .verwaltung-menu {
-  width: 260px;
+  width: 56px;
   flex-shrink: 0;
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 16px 0 20px;
   height: fit-content;
-  transition: width 0.2s ease;
+  overflow: hidden;
 }
 
-.verwaltung-menu--collapsed {
-  width: 56px;
-  padding-top: 12px;
+.verwaltung-menu-rail--expanded .verwaltung-menu {
+  width: 260px;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 32;
+  box-shadow:
+    0 4px 6px rgba(15, 23, 42, 0.06),
+    0 16px 40px rgba(15, 23, 42, 0.14);
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .verwaltung-menu-header {
   margin-bottom: 8px;
   padding: 0 12px;
-  min-height: 36px;
+  height: 36px;
   display: flex;
   align-items: flex-end;
 }
@@ -266,10 +306,15 @@ const visibleMenuItems = computed((): MenuItem[] => {
   flex: 1;
   min-width: 0;
   line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.15s ease;
 }
 
 .verwaltung-menu-title--collapsed {
-  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .verwaltung-nav {
@@ -279,15 +324,14 @@ const visibleMenuItems = computed((): MenuItem[] => {
 }
 
 .verwaltung-nav-item {
-  display: grid;
-  grid-template-columns: 40px 1fr;
+  display: flex;
   align-items: center;
-  column-gap: 8px;
-  min-height: 40px;
-  padding: 6px 12px 6px 8px;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 12px 4px 8px;
   color: #64748b;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
   border-left: 3px solid transparent;
 }
 
@@ -304,14 +348,13 @@ const visibleMenuItems = computed((): MenuItem[] => {
 }
 
 .verwaltung-menu--collapsed .verwaltung-nav-item {
-  grid-template-columns: 56px;
-  justify-items: center;
-  padding: 6px 0;
-  border-left-width: 3px;
+  padding: 4px 8px;
 }
 
 .verwaltung-nav-item__icon-wrap {
-  grid-column: 1;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -320,7 +363,7 @@ const visibleMenuItems = computed((): MenuItem[] => {
 .verwaltung-nav-item .nav-icon {
   width: 20px;
   height: 20px;
-  margin-right: 0;
+  margin: 0;
   flex-shrink: 0;
 }
 
@@ -329,19 +372,22 @@ const visibleMenuItems = computed((): MenuItem[] => {
 }
 
 .verwaltung-nav-item .nav-label {
-  grid-column: 2;
-  font-size: 14px;
+  flex: 1 1 auto;
   min-width: 0;
+  font-size: 14px;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  opacity: 1;
+  transition: opacity 0.15s ease;
 }
 
-.verwaltung-menu--collapsed .verwaltung-nav-item .nav-label {
-  grid-column: 1;
+.nav-label--collapsed {
+  flex: 0 0 0;
   width: 0;
-  overflow: hidden;
   opacity: 0;
+  overflow: hidden;
   pointer-events: none;
 }
 

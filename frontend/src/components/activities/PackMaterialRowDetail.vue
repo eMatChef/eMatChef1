@@ -10,6 +10,7 @@ import {
   getStageTotalQty,
   isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackForwardWarehouseUiStage,
   isPackReturnStage,
   isPackLogisticsReturnStage,
   isPackReturnPipelineStage,
@@ -64,7 +65,7 @@ function showLooseInContainersDetail(stage: PackStage, side: 'left' | 'right'): 
   <div :class="useDetailStack ? 'pack-card-detail-stack' : undefined">
     <span class="pack-card-detail">
       <template v-if="side === 'left'">
-        <template v-if="isPackForwardToEventStage(stage) && leftQty() > 0">
+        <template v-if="isPackForwardWarehouseUiStage(stage) && leftQty() > 0">
           <template v-if="(looseQty ?? 0) > 0">
             <span>{{ t('activities.packList.loosePieces', { n: looseQty }) }}</span>
             <span v-if="(qtyInContainers ?? 0) > 0" class="text-muted">

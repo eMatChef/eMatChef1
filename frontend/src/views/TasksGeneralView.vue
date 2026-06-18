@@ -50,6 +50,11 @@
               {{ t('tasksGeneral.actionReadMessage') }}
             </EButton>
           </template>
+          <template v-else-if="task.kind === 'grossanlass_mw_assigned' && task.grossanlassMwAssigned">
+            <EButton variant="primary" size="small" @click="openGrossanlassDashboard(task.grossanlassMwAssigned)">
+              {{ t('grossanlass.inbox.preview') }}
+            </EButton>
+          </template>
           <template v-else-if="task.kind === 'department_invite' && task.departmentInvite">
             <EButton variant="primary" size="small" @click="acceptDeptInvite(task.departmentInvite)">
               {{ t('notificationsCenter.accept') }}
@@ -62,7 +67,7 @@
             </EButton>
           </template>
           <template v-else-if="task.kind === 'activity_invite' && task.activityInvite">
-            <EButton variant="primary" size="small" @click="decideCamp(task.activityInvite, 'accepted')">
+            <EButton variant="primary" size="small" @click="openCampInviteDecision(task.activityInvite)">
               {{ t('notificationsCenter.accept') }}
             </EButton>
             <EButton variant="danger" size="small" @click="decideCamp(task.activityInvite, 'rejected')">
@@ -89,6 +94,14 @@
       @status-change="onQrStatusChange"
       @proceed-to-task="onQrProceedToTask"
     />
+
+    <ActivityDepartmentInviteDecisionModal
+      :visible="!!campInviteDecision"
+      :invite="campInviteDecision"
+      :department-id="departmentId || ''"
+      @close="campInviteDecision = null"
+      @decided="onCampInviteDecided"
+    />
   </div>
 </template>
 
@@ -104,6 +117,7 @@ import {
   acceptDepartmentInvite,
   declineDepartmentInvite,
   decideDepartmentActivityInvite,
+  type GrossanlassMwAssignedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
 } from '@/api/joinRequests'
@@ -112,7 +126,7 @@ import {
   type PublicFoundItemMessage,
   type PublicFoundMessageStatus,
 } from '@/api/publicFoundMessages'
-import { InboxQrDetailModal } from '@/components/notifications'
+import { ActivityDepartmentInviteDecisionModal, InboxQrDetailModal } from '@/components/notifications'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
@@ -125,6 +139,7 @@ import {
   type DepartmentTaskKind,
   type DepartmentTaskStatus,
 } from '@/composables/useDepartmentTasks'
+import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 
 type StatusTab = DepartmentTaskStatus
 
@@ -134,6 +149,7 @@ const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
+const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -212,6 +228,8 @@ function taskKindLabel(kind: DepartmentTaskKind): string {
       return t('tasksGeneral.kindQr')
     case 'department_invite':
       return t('tasksGeneral.kindDeptInvite')
+    case 'grossanlass_mw_assigned':
+      return t('grossanlass.inbox.category')
     case 'activity_invite':
       return t('tasksGeneral.kindCampInvite')
     case 'accounting_followup':
@@ -227,6 +245,9 @@ function departmentInviteRoleLabel(role: string): string {
 }
 
 function taskPreview(task: DepartmentTaskItem): string {
+  if (task.kind === 'grossanlass_mw_assigned' && task.grossanlassMwAssigned) {
+    return t('grossanlass.inbox.preview')
+  }
   if (task.kind === 'department_invite' && task.departmentInvite) {
     return t('notificationsCenter.departmentInvitePreview', {
       role: departmentInviteRoleLabel(task.departmentInvite.role),
@@ -288,6 +309,19 @@ function goToMessageForQr(msg: PublicFoundItemMessage) {
   })
 }
 
+async function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.dashboard_url || `/${note.department_id}/dashboard`
+  void router.push(path)
+}
+
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {
   void router.push({
     path: `/${departmentId.value}/notifications`,
@@ -305,6 +339,8 @@ function goToMessageForCampInvite(inv: PendingDepartmentActivityInvite) {
 }
 
 async function acceptDeptInvite(inv: ReceivedDepartmentInviteNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
   try {
     const result = await acceptDepartmentInvite({
       notificationId: inv.id,
@@ -339,8 +375,28 @@ async function declineDeptInvite(inv: ReceivedDepartmentInviteNotification) {
   }
 }
 
+const campInviteDecision = ref<PendingDepartmentActivityInvite | null>(null)
+
+function openCampInviteDecision(invite: PendingDepartmentActivityInvite) {
+  campInviteDecision.value = invite
+}
+
+async function onCampInviteDecided(decision: 'accepted' | 'rejected') {
+  await reload()
+  headerNotificationsStore.requestRefresh()
+  toast.success(
+    decision === 'accepted'
+      ? t('notificationsCenter.toastInviteAccepted')
+      : t('notificationsCenter.toastInviteRejected'),
+  )
+}
+
 async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'accepted' | 'rejected') {
   if (!departmentId.value) return
+  if (decision === 'accepted') {
+    openCampInviteDecision(invite)
+    return
+  }
   try {
     await decideDepartmentActivityInvite({
       activityId: invite.activity_id,
@@ -349,11 +405,7 @@ async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'ac
     })
     await reload()
     headerNotificationsStore.requestRefresh()
-    toast.success(
-      decision === 'accepted'
-        ? t('notificationsCenter.toastInviteAccepted')
-        : t('notificationsCenter.toastInviteRejected'),
-    )
+    toast.success(t('notificationsCenter.toastInviteRejected'))
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e?.response?.data?.error || t('notificationsCenter.toastDecisionFailed'))
@@ -372,6 +424,7 @@ function openAccountingTask(task: DepartmentTaskItem) {
 function findTaskByOpenQuery(parsed: { kind: DepartmentTaskKind; id: string }): DepartmentTaskItem | undefined {
   return tasks.value.find((row) => {
     if (parsed.kind === 'qr_found') return row.qrFound?.id === parsed.id
+    if (parsed.kind === 'grossanlass_mw_assigned') return row.grossanlassMwAssigned?.id === parsed.id
     if (parsed.kind === 'department_invite') return row.departmentInvite?.id === parsed.id
     if (parsed.kind === 'activity_invite') {
       const [actId, srcId] = parsed.id.split(':')
@@ -408,6 +461,8 @@ async function applyOpenQuery() {
         ? tasks.value.find((t) => t.kind === 'accounting_followup') ?? row
         : row
     if (target) openAccountingTask(target)
+  } else if (parsed.kind === 'activity_invite' && row.activityInvite) {
+    openCampInviteDecision(row.activityInvite)
   }
 
   const q = { ...route.query }

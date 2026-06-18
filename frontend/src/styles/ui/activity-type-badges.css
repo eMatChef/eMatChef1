@@ -26,3 +26,38 @@
   background: #fef3c7;
   color: #92400e;
 }
+
+.type-badge.js {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.type-badge.js.js-phase-draft {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.type-badge.js.js-phase-coach {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.type-badge.js.js-phase-return {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.activity-list-type-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.activity-list-type-badges--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}

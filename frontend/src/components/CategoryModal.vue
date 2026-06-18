@@ -192,7 +192,7 @@ onMounted(async () => {
 <style scoped>
 .form-hint {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--color-text-muted, #6b7280);
   margin: 4px 0 0;
 }
 </style>

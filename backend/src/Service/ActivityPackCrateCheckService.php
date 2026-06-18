@@ -92,6 +92,7 @@ class ActivityPackCrateCheckService
 
         $lines = $payload['lines'] ?? [];
         $result = (string) ($payload['result'] ?? 'incomplete');
+        $lightweight = !empty($payload['lightweight']);
         $actionsApplied = [];
         $errors = [];
 
@@ -107,6 +108,19 @@ class ActivityPackCrateCheckService
             $createInspection = !empty($line['create_inspection_task']);
 
             if ($status === 'ok') {
+                continue;
+            }
+
+            if ($lightweight) {
+                $actionsApplied[] = [
+                    'line_key' => $line['line_key'] ?? '',
+                    'status' => $status,
+                    'material_item_id' => $materialItemId,
+                    'skipped' => true,
+                    'reason' => 'lightweight_check',
+                    'missing_qty' => $missingQty,
+                    'note' => $note,
+                ];
                 continue;
             }
 

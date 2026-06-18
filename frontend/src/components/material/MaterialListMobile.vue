@@ -9,7 +9,7 @@
         </template>
 
         <v-list-item-title class="material-list-mobile__title">
-          {{ item.name }}
+          {{ formatMaterialDisplayName(item.name, item.pack_unit, item.pack_size, item.size_length) }}
           <span v-if="item.is_js_material" class="source-badge">J&amp;S</span>
           <span v-if="isComboDraft(item)" class="combo-draft-badge">{{ t('materialsView.comboDraftBadge') }}</span>
         </v-list-item-title>
@@ -19,7 +19,7 @@
         </v-list-item-subtitle>
 
         <v-list-item-subtitle class="material-list-mobile__stock">
-          {{ t('materialsView.colTotal') }} {{ item.total_stock }}
+          {{ t('materialsView.colTotal') }} {{ formatListStockQty(item.total_stock, item) }}
           <template v-if="showStockDetailColumns">
             · {{ t('materialsView.colAvailable') }}
             <span
@@ -29,7 +29,7 @@
                 empty: item.available <= 0 && item.total_stock > 0,
               }"
             >
-              {{ item.available }}
+              {{ formatListStockQty(item.available, item) }}
             </span>
           </template>
         </v-list-item-subtitle>
@@ -105,6 +105,12 @@
 import { useI18n } from 'vue-i18n'
 import type { ComboComponent, Material } from '@/api/materials'
 import { isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
+import {
+  canDisplayMeterStockAsPieces,
+  formatMaterialDisplayName,
+  formatStockQty,
+  getMeterStockQtyParts,
+} from '@/utils/materialStockUnit'
 import '@/styles/materials-view.css'
 import '@/styles/components/material-list-mobile.css'
 
@@ -159,4 +165,30 @@ function iconName(material: Material) {
   if (material.is_consumable) return 'mdi-minus-circle-outline'
   return 'mdi-cube-outline'
 }
+
+function formatPiecesAtLength(count: number, per: string, _total: string): string {
+  return t('components.materialDetail.stockQtyPiecesAtLength', { count, per })
+}
+
+function formatListStockQty(qty: number, item: Material): string {
+  if (canDisplayMeterStockAsPieces(item.pack_unit, item.size_length, item.name)) {
+    const parts = getMeterStockQtyParts(qty, item.size_length, item.name)
+    if (parts) {
+      return formatPiecesAtLength(
+        parts.count,
+        String(parts.perM).replace(/\.?0+$/, ''),
+        String(parts.totalM),
+      )
+    }
+  }
+  return formatStockQty(
+    qty,
+    item.pack_unit,
+    item.pack_size,
+    item.size_length,
+    formatPiecesAtLength,
+    item.name,
+  )
+}
+
 </script>

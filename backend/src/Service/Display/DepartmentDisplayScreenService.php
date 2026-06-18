@@ -22,10 +22,19 @@ final class DepartmentDisplayScreenService
     public const DEFAULT_DISPLAY_ACTIVITY_STATUSES = ['submitted', 'approved', 'packing', 'packed', 'at_event'];
 
     /** @var list<string> */
-    public const DISPLAY_WORKSHOP_STATUSES = ['open', 'in_progress', 'waiting_parts', 'completed', 'cancelled'];
+    public const DISPLAY_WORKSHOP_STATUSES = [
+        'triage',
+        'planning',
+        'ordered',
+        'ready',
+        'in_progress',
+        'awaiting_quote',
+        'completed',
+        'cancelled',
+    ];
 
     /** @var list<string> */
-    public const DEFAULT_DISPLAY_WORKSHOP_STATUSES = ['open', 'in_progress', 'waiting_parts'];
+    public const DEFAULT_DISPLAY_WORKSHOP_STATUSES = ['triage', 'planning', 'in_progress', 'awaiting_quote'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -171,7 +180,7 @@ final class DepartmentDisplayScreenService
         }
 
         if ($showWorkshop && $workshopStatuses === []) {
-            throw new \InvalidArgumentException('Mindestens ein Werkstatt-Status muss ausgewählt sein.');
+            throw new \InvalidArgumentException('Mindestens eine Werkstatt-Phase muss ausgewählt sein.');
         }
 
         $screen->setShowActivities($showActivities);

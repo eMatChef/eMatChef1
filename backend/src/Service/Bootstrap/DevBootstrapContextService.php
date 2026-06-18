@@ -7,6 +7,7 @@ namespace App\Service\Bootstrap;
 use App\Entity\Department;
 use App\Entity\Organisation;
 use App\Service\Accounting\AccountingCostCenterBootstrapService;
+use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Service\SystemScopeVisibility;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,6 +21,7 @@ final class DevBootstrapContextService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
+        private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
     ) {
     }
 
@@ -61,6 +63,7 @@ final class DevBootstrapContextService
         $this->entityManager->flush();
 
         $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
+        $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         return $department;
     }

@@ -17,6 +17,8 @@ class MediaStorageService
     public const CONTEXT_ISSUE_REPORT = 'issue_report';
     public const CONTEXT_MATERIAL_ITEM = 'material_item';
     public const CONTEXT_ACCOUNTING_BOOKING = 'accounting_booking';
+    public const CONTEXT_ACCOUNTING_FOLLOW_UP = 'accounting_follow_up';
+    public const CONTEXT_ACTIVITY_JS_ORDER = 'activity_js_order';
 
     /** @var array<string, string> context => uploads subfolder */
     private const CONTEXT_DIRS = [
@@ -24,6 +26,8 @@ class MediaStorageService
         self::CONTEXT_ISSUE_REPORT => 'issues',
         self::CONTEXT_MATERIAL_ITEM => 'material',
         self::CONTEXT_ACCOUNTING_BOOKING => 'accounting',
+        self::CONTEXT_ACCOUNTING_FOLLOW_UP => 'accounting-followup',
+        self::CONTEXT_ACTIVITY_JS_ORDER => 'activity-js-order',
     ];
 
     private string $uploadsBaseDir;

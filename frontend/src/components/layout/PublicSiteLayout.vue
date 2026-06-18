@@ -1,5 +1,5 @@
 <template>
-  <div class="plt-shell" :class="{ 'plt-shell--natural-footer': isPublicMarketing }">
+  <div class="plt-shell">
     <header class="plt-header" role="banner">
       <div class="plt-header-inner">
         <RouterLink to="/" class="plt-brand public-brand" :title="t('publicNav.brandTitle')">
@@ -43,7 +43,7 @@
       </div>
     </header>
 
-    <main class="plt-main" :class="{ 'plt-main--natural': isPublicMarketing }">
+    <main class="plt-main">
       <RouterView />
     </main>
 
@@ -53,7 +53,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import AppLoginLink from '@/components/public/AppLoginLink.vue'
@@ -63,11 +62,9 @@ import { setLocale } from '@/i18n'
 import { getAppEntryTarget } from '@/utils/appLoginUrl'
 import { useAuthStore } from '@/stores/auth'
 
-const route = useRoute()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 
-const isPublicMarketing = computed(() => Boolean(route.meta.publicMarketing))
 const PUBLIC_SESSION_POLL_MS = 10_000
 const sessionPollTimer = ref<number | null>(null)
 

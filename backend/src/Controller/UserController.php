@@ -7,6 +7,7 @@ use App\Entity\Membership;
 use App\Entity\Department;
 use App\Entity\Profile;
 use App\Repository\UserRepository;
+use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
 use App\Service\SystemScopeVisibility;
@@ -674,7 +675,8 @@ class UserController extends AbstractController
         $memberships = $this->entityManager->getRepository(Membership::class)
             ->createQueryBuilder('m')
             ->innerJoin('m.department', 'd')
-            ->addSelect('d')
+            ->leftJoin('d.grossanlassConfig', 'gc')
+            ->addSelect('d', 'gc')
             ->where('m.userId = :userId')
             ->setParameter('userId', $id)
             ->getQuery()
@@ -687,11 +689,7 @@ class UserController extends AbstractController
                 'department_id' => $department->getId(),
                 'role' => $m->getRole(),
                 'is_primary' => $m->getIsPrimary(),
-                'department' => [
-                    'id' => $department->getId(),
-                    'name' => $department->getName(),
-                    'organisation_id' => $department->getOrganisationId()
-                ]
+                'department' => GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department),
             ];
         }
 

@@ -8,9 +8,14 @@ use App\Entity\MaterialBatch;
 use App\Entity\SupplierCompany;
 use App\Entity\User;
 use App\Entity\WorkshopTicket;
+use App\Entity\WorkshopTicketHistory;
 use App\Repository\SupplierCompanyRepository;
+use App\Service\ActivityAccountingCostService;
 use App\Service\Media\MediaPhotoNormalizer;
 use App\Service\Workshop\WorkshopPhotoStorageService;
+use App\Service\Workshop\WorkshopTicketCompletionException;
+use App\Service\Workshop\WorkshopTicketCompletionService;
+use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -24,6 +29,8 @@ class SupplierRepairTicketService
         private SupplierCompanyRepository $companyRepository,
         private WorkshopPhotoStorageService $photoStorage,
         private MediaPhotoNormalizer $photoNormalizer,
+        private WorkshopTicketCompletionService $ticketCompletionService,
+        private ActivityAccountingCostService $activityAccountingCost,
     ) {
     }
 
@@ -106,7 +113,7 @@ class SupplierRepairTicketService
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
-    public function transitionTicket(string $companyId, string $ticketId, array $data): array
+    public function transitionTicket(string $companyId, string $ticketId, array $data, ?User $actor = null): array
     {
         $ticket = $this->requireAssignedTicket($companyId, $ticketId);
         $newStatus = trim((string) ($data['status'] ?? ''));
@@ -129,6 +136,9 @@ class SupplierRepairTicketService
                 throw new \InvalidArgumentException('estimated_cost ist für Kostenvoranschlag erforderlich');
             }
             $ticket->setEstimatedCost($cost);
+            if ($ticket->getPhase() === WorkshopTicket::PHASE_AWAITING_QUOTE) {
+                $ticket->setPhase(WorkshopTicket::PHASE_READY);
+            }
         }
 
         if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
@@ -142,25 +152,66 @@ class SupplierRepairTicketService
                 }
                 $ticket->setActualCost($actual);
             }
-            if (\array_key_exists('resolution_notes', $data)) {
-                $ticket->setResolutionNotes($this->nullableString($data['resolution_notes']));
-            }
-            if (isset($data['resolution_action'])) {
-                $ticket->setResolutionAction((string) $data['resolution_action']);
+
+            $validationError = $this->ticketCompletionService->validateBeforeComplete($ticket, $resolutionAction);
+            if ($validationError !== null) {
+                throw new \InvalidArgumentException($validationError);
             }
         }
 
+        $oldStatus = $ticket->getStatus();
         $now = new \DateTime();
+        $historyChanges = [
+            'status' => ['old' => $oldStatus, 'new' => $newStatus],
+        ];
+        $historyAction = WorkshopTicketHistory::ACTION_STATUS_CHANGED;
+
         if ($newStatus === WorkshopTicket::STATUS_IN_PROGRESS && !$ticket->getStartedAt()) {
             $ticket->setStartedAt($now);
-        }
-        if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
-            $ticket->setCompletedAt($now);
+            $historyChanges['started_at'] = ['new' => $now->format(\DateTimeInterface::ATOM)];
         }
 
+        if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+            $ticket->setCompletedAt($now);
+            $historyChanges['completed_at'] = ['new' => $now->format(\DateTimeInterface::ATOM)];
+            $historyAction = WorkshopTicketHistory::ACTION_COMPLETED;
+
+            $resolutionAction = (string) ($data['resolution_action'] ?? 'repaired');
+            $ticket->setResolutionAction($resolutionAction);
+            $historyChanges['resolution_action'] = $resolutionAction;
+
+            if (\array_key_exists('resolution_notes', $data)) {
+                $ticket->setResolutionNotes($this->nullableString($data['resolution_notes']));
+                $historyChanges['resolution_notes'] = $data['resolution_notes'];
+            }
+            if (\array_key_exists('actual_cost', $data)) {
+                $historyChanges['actual_cost'] = $data['actual_cost'];
+            }
+
+            $completionChanges = $this->ticketCompletionService->applyCompletion(
+                $ticket,
+                $resolutionAction,
+                $data,
+                $now,
+                $actor,
+            );
+            $historyChanges = array_merge($historyChanges, $completionChanges);
+        }
+
+        $oldPhase = $ticket->getPhase();
         $ticket->setStatus($newStatus);
+        $ticket->syncPhaseFromStatus($newStatus);
+        if ($oldPhase !== $ticket->getPhase()) {
+            $historyChanges['phase'] = ['old' => $oldPhase, 'new' => $ticket->getPhase()];
+        }
         $ticket->updateTimestamps();
+
+        $this->createHistoryEntry($ticket, $historyAction, [], $historyChanges, $actor);
         $this->entityManager->flush();
+
+        if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+            $this->activityAccountingCost->enqueueFromWorkshopTicket($ticket);
+        }
 
         return $this->serializeTicket($ticket, true);
     }
@@ -210,6 +261,9 @@ class SupplierRepairTicketService
             'type_label' => $ticket->getTypeLabel(),
             'priority' => $ticket->getPriority(),
             'priority_label' => $ticket->getPriorityLabel(),
+            'strategy' => $ticket->getStrategy(),
+            'phase' => $ticket->getPhase(),
+            'phase_label' => $ticket->getPhaseLabel(),
             'status' => $ticket->getStatus(),
             'status_label' => $ticket->getStatusLabel(),
             'title' => $ticket->getTitle(),
@@ -228,6 +282,7 @@ class SupplierRepairTicketService
                 'name' => $material->getName(),
                 'condition' => $material->getCondition(),
                 'serial_number' => $this->resolveMaterialSerial($material->getId()),
+                'repair_template_key' => $material->getRepairTemplateKey(),
             ],
             'department' => [
                 'id' => $department->getId(),
@@ -248,6 +303,7 @@ class SupplierRepairTicketService
         }
 
         if ($detailed) {
+            $result['repair_checklist'] = $ticket->getRepairChecklist();
             $result['photos'] = $this->photoNormalizer->normalizeOutgoing($ticket->getPhotos());
             $createdBy = $ticket->getCreatedByUser();
             if ($createdBy instanceof User) {
@@ -306,5 +362,40 @@ class SupplierRepairTicketService
         }
 
         return (string) $value;
+    }
+
+    /** @param array<string, mixed> $snapshot @param array<string, mixed> $changes */
+    private function createHistoryEntry(
+        WorkshopTicket $ticket,
+        string $action,
+        array $snapshot,
+        array $changes,
+        ?User $actor,
+    ): void {
+        $history = new WorkshopTicketHistory();
+        $history->setId(IdGenerator::generate13('wh'));
+        $history->setWorkshopTicket($ticket);
+        $history->setAction($action);
+
+        if ($snapshot === []) {
+            $snapshot = [
+                'status' => $ticket->getStatus(),
+                'type' => $ticket->getType(),
+                'priority' => $ticket->getPriority(),
+                'title' => $ticket->getTitle(),
+                'assigned_to_user_id' => $ticket->getAssignedToUserId(),
+                'estimated_cost' => $ticket->getEstimatedCost(),
+                'actual_cost' => $ticket->getActualCost(),
+                'resolution_action' => $ticket->getResolutionAction(),
+            ];
+        }
+        $history->setSnapshot($snapshot);
+        $history->setChanges($changes);
+
+        if ($actor instanceof User) {
+            $history->setUser($actor);
+        }
+
+        $this->entityManager->persist($history);
     }
 }

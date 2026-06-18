@@ -23,6 +23,7 @@
           :multiple="multiple"
           :clearable="clearable"
           :hide-details="hideDetails"
+          :menu-props="mergedMenuProps"
           class="e-select"
           @update:model-value="onUpdate"
         />
@@ -51,6 +52,7 @@ const props = withDefaults(
     multiple?: boolean
     clearable?: boolean
     hideDetails?: boolean | 'auto'
+    menuProps?: Record<string, unknown>
   }>(),
   {
     items: () => [],
@@ -67,6 +69,12 @@ const passthroughAttrs = computed(() => {
   const { variant: _variant, ...rest } = attrs
   return rest
 })
+
+const mergedMenuProps = computed(() => ({
+  maxHeight: 280,
+  zIndex: 2500,
+  ...(props.menuProps ?? {}),
+}))
 
 const hasError = computed(() => {
   if (props.errorMessages) {

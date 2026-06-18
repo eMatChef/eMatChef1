@@ -41,6 +41,11 @@
           <div class="suggestion-info">
             <span class="suggestion-name">{{ mat.name }}</span>
             <span class="suggestion-cat">{{ mat.category?.name || 'Ohne Kategorie' }}</span>
+            <span v-if="mat.tracking_type || mat.free_stock != null" class="suggestion-meta">
+              <template v-if="mat.tracking_type">{{ trackingLabel(mat.tracking_type) }}</template>
+              <template v-if="mat.tracking_type && mat.free_stock != null"> · </template>
+              <template v-if="mat.free_stock != null">{{ mat.free_stock }} frei</template>
+            </span>
           </div>
           <span class="suggestion-stock">{{ mat.total_stock }} Stk.</span>
         </div>
@@ -51,6 +56,9 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps<{
   modelValue: string
@@ -59,8 +67,21 @@ const props = defineProps<{
   isCheckingName: boolean
   nameExists: boolean
   showSuggestions: boolean
-  nameSuggestions: Array<{ id: string; name: string; category?: { name: string }; total_stock: number }>
+  nameSuggestions: Array<{
+    id: string
+    name: string
+    category?: { name: string }
+    total_stock: number
+    free_stock?: number
+    tracking_type?: string
+  }>
 }>()
+
+function trackingLabel(type: string): string {
+  return type === 'serialized'
+    ? t('components.materialCreateWizard.trackingSerializedShort')
+    : t('components.materialCreateWizard.trackingBulkShort')
+}
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

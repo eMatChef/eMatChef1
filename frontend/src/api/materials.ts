@@ -87,6 +87,8 @@ export interface ComboComponent {
     label: string | null
     status: string
     qty: number
+    public_code?: string | null
+    public_url?: string | null
   } | null
   qty: number
   component_role: string | null
@@ -190,6 +192,8 @@ export interface Material {
     serial_number: string | null
     material_name: string
     display_label: string
+    public_code?: string | null
+    public_url?: string | null
   } | null
   total_stock: number
   defect_stock: number
@@ -211,6 +215,7 @@ export interface Material {
   batch_count: number
   is_container: boolean
   tent_type: string | null
+  repair_template_key?: string | null
   tent_capacity: number | null
   /** Entwurfs-Status für Kombos: 'draft' (in Bearbeitung, nicht buchbar) | 'ready' */
   combo_status: 'draft' | 'ready'
@@ -495,6 +500,41 @@ export async function createComboFromContainerBatch(
   data: CreateComboFromContainerBatchRequest
 ): Promise<Material> {
   const response = await apiClient.post<Material>('/api/materials/create-combo-from-container-batch', data)
+  return response.data
+}
+
+export interface CreateComboManualComponentInput {
+  material_id?: string
+  name?: string
+  tracking_type?: 'serialized' | 'bulk'
+  mode?: 'new' | 'existing'
+  qty?: number
+  serial_number?: string
+  unit_price?: string
+  batch_id?: string
+  /** Referenz-Sack/Kiste dieser physischen Kombination (neu oder aus Lager). */
+  is_linked_container?: boolean
+  /** stock = aus Lager; self_provided = Leiter organisiert selbst (nur virtuelle Kombo). */
+  component_source?: 'stock' | 'self_provided'
+}
+
+export interface CreateComboManualRequest {
+  department_id: string
+  name: string
+  material_type?: 'physical_combo' | 'virtual_combo'
+  category_id?: string | null
+  storage_address_id?: string | null
+  purchase_date?: string
+  supplier_id?: string | null
+  initial_rack_id?: string
+  initial_slot_id?: string
+  initial_container_batch_id?: string
+  components: CreateComboManualComponentInput[]
+}
+
+/** Manuelle Combo (Stückliste ohne Vorlage/Kiste). */
+export async function createComboManual(data: CreateComboManualRequest): Promise<Material> {
+  const response = await apiClient.post<Material>('/api/materials/create-combo-manual', data)
   return response.data
 }
 
@@ -791,6 +831,7 @@ export interface MaterialStorageLocationRow {
   batch_label?: string | null
   container_batch_id?: string | null
   container_caption: string | null
+  container_material_name?: string | null
 }
 
 export interface MaterialStorageViaComboBlock {
@@ -857,6 +898,8 @@ export interface UpdateComboComponentRequest {
   sort_order?: number
   /** Phys. Kombi: Mehr-Menge in verknüpfte Kiste buchen (Standard: true) */
   allocate_to_linked_container?: boolean
+  /** Phys. Kombi: diese Komponenten-Charge als Referenz-Sack/Kiste der Kombination setzen */
+  set_as_linked_container?: boolean
 }
 
 // ============== Combo-Component API Functions ==============

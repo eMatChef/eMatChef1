@@ -5,6 +5,7 @@ export interface Address {
   department_id: string
   type: string
   type_label: string
+  parent_id?: string | null
   name: string | null
   company: string | null
   address_line2: string | null
@@ -35,6 +36,7 @@ export interface Address {
 export interface AddressFormData {
   department_id: string
   type?: string
+  parent_id?: string | null
   name?: string | null
   company?: string | null
   address_line2?: string | null
@@ -105,6 +107,7 @@ export async function getAddress(id: string): Promise<{
   address: Address
   types: AddressTypes
   cantons: SwissCantons
+  child_addresses?: Address[]
 }> {
   const { data } = await apiClient.get(`/api/addresses/${id}`)
   return data

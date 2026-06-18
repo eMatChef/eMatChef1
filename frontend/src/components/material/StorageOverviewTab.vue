@@ -137,7 +137,7 @@
                     <template v-if="row.type === 'container-group'">
                       <div class="content-main">
                         <div class="container-head">
-                          <span class="container-label">{{ row.container_label }}</span>
+                          <span class="container-label">{{ containerGroupDisplayLabel(row) }}</span>
                         </div>
                         <button
                           v-if="useContainerContentCollapse && containerGroupItemCount(row) > 0"
@@ -476,6 +476,8 @@ const materialStorageContext = ref<MaterialStorageLocationsResponse | null>(null
 const embeddedMaterialMeta = ref<{
   linkedContainerBatchId: string | null
   linkedContainerMaterialId: string | null
+  linkedContainerMaterialName: string | null
+  materialName: string
   materialType: string
 } | null>(null)
 /** Material-Detail phys. Kombi: Zusammensetzung für Kisten-Aufklappung */
@@ -702,9 +704,7 @@ function buildSlotDisplayRows(contents: StorageSlotContent[]): SlotDisplayRow[] 
       if (emittedContainers.has(cid)) continue
       emittedContainers.add(cid)
       const groupItems = groups.get(cid) || [item]
-      const label =
-        groupItems.find((i) => (i.container_label || '').trim())?.container_label?.trim() ||
-        t('settings.storage.containerBatchLabel', { id: cid })
+      const label = resolveContainerGroupPrimaryLabel(cid, groupItems)
       const rep = groupItems[0]
       /** Im Material-Detail alle Inhalte zeigen (inkl. des gerade angesehenen Artikels). */
       let { contentLines, previewLines, moreCount, totalQty } = aggregateContainerPreview(groupItems)
@@ -769,6 +769,13 @@ function filterSlotContentsForOverview(items: StorageSlotContent[]): StorageSlot
       return groupItems.some((i) => matchesSearch(i))
     }
     const cid = (groupItems[0]?.container_batch_id || '').trim()
+    if (
+      cid &&
+      embeddedMaterialMeta.value?.materialType === 'physical_combo' &&
+      cid === (embeddedMaterialMeta.value.linkedContainerBatchId || '').trim()
+    ) {
+      return !hasSearch || groupItems.some((i) => matchesSearch(i))
+    }
     const containerOwnerMaterialId = cid ? containerMaterialByBatchId.value.get(cid) : undefined
     /** Kisten-Artikel: Inhalt hat andere material_ids — Gruppe trotzdem anzeigen, wenn die Charge zur Kiste (diesem Material) gehört. */
     const candidates =
@@ -785,6 +792,14 @@ function filterSlotContentsForOverview(items: StorageSlotContent[]): StorageSlot
       return (item.container_batch_id || '') === byContainer
     }
     if (byMaterial && item.material_id !== byMaterial) {
+      const linked = (embeddedMaterialMeta.value?.linkedContainerBatchId || '').trim()
+      if (
+        embeddedMaterialMeta.value?.materialType === 'physical_combo' &&
+        linked &&
+        (item.batch_id || '').trim() === linked
+      ) {
+        return matchesSearch(item)
+      }
       return false
     }
     return matchesSearch(item)
@@ -1211,6 +1226,8 @@ async function loadEmbeddedMaterialMeta() {
       linkedContainerBatchId:
         (m.linked_container_batch_id || linkedBatch?.id || '').trim() || null,
       linkedContainerMaterialId: (linkedBatch?.material_id || '').trim() || null,
+      linkedContainerMaterialName: (linkedBatch?.material_name || '').trim() || null,
+      materialName: (m.name || '').trim(),
       materialType: m.material_type || '',
     }
     await loadEmbeddedComboComponents()
@@ -1329,6 +1346,68 @@ function containerGroupIsEmbeddedPhysicalComboShell(row: ContainerGroupRow): boo
 function containerGroupIsPhysicalComboLinkedShell(row: ContainerGroupRow): boolean {
   if (containerGroupIsEmbeddedPhysicalComboShell(row)) return true
   return !!physicalComboContextForContainerGroup(row)
+}
+
+function containerBatchMetaById(batchId: string): ContainerBatch | undefined {
+  const cid = batchId.trim()
+  if (!cid) return undefined
+  return containerBatches.value.find((b) => b.id === cid)
+}
+
+/** Primäre Überschrift einer Kisten-Gruppe: Artikelname (Kombo oder Kisten-Material), nicht Seriennummer. */
+function resolveContainerGroupPrimaryLabel(
+  containerBatchId: string,
+  groupItems?: StorageSlotContent[],
+): string {
+  const cid = containerBatchId.trim()
+  if (!cid) {
+    return t('settings.storage.containerGenericLabel')
+  }
+
+  const linkedId = (embeddedMaterialMeta.value?.linkedContainerBatchId || '').trim()
+  if (
+    linkedId &&
+    cid === linkedId &&
+    embeddedMaterialMeta.value?.materialType === 'physical_combo' &&
+    (embeddedMaterialMeta.value.materialName || '').trim()
+  ) {
+    return embeddedMaterialMeta.value.materialName.trim()
+  }
+
+  const shellCtx = physicalComboShellByContainerBatch.value.get(cid)
+  if ((shellCtx?.parentName || '').trim()) {
+    return shellCtx!.parentName.trim()
+  }
+
+  const fromList = containerBatchMetaById(cid)
+  if ((fromList?.physical_combo_name || '').trim()) {
+    return fromList!.physical_combo_name!.trim()
+  }
+  if ((fromList?.material_name || '').trim()) {
+    return fromList!.material_name.trim()
+  }
+
+  if (
+    linkedId &&
+    cid === linkedId &&
+    (embeddedMaterialMeta.value?.linkedContainerMaterialName || '').trim()
+  ) {
+    return embeddedMaterialMeta.value!.linkedContainerMaterialName!.trim()
+  }
+
+  const shellMatId = shellMaterialIdForContainerBatch(cid)
+  if (shellMatId && groupItems?.length) {
+    const shellItem = groupItems.find((i) => (i.material_id || '').trim() === shellMatId)
+    if ((shellItem?.material_name || '').trim()) {
+      return shellItem!.material_name.trim()
+    }
+  }
+
+  return t('settings.storage.containerBatchLabel', { id: cid })
+}
+
+function containerGroupDisplayLabel(row: ContainerGroupRow): string {
+  return resolveContainerGroupPrimaryLabel(row.container_batch_id)
 }
 
 function containerGroupQtyLabel(row: ContainerGroupRow): string {
@@ -1493,6 +1572,12 @@ function isContainerStoredItem(item: StorageSlotContent): boolean {
 }
 
 function getContainerDisplayLabel(item: StorageSlotContent): string {
+  if ((item.material_name || '').trim()) return item.material_name.trim()
+  if (item.container_batch_id) {
+    const fromList = containerBatchMetaById(item.container_batch_id)
+    if ((fromList?.physical_combo_name || '').trim()) return fromList!.physical_combo_name!.trim()
+    if ((fromList?.material_name || '').trim()) return fromList!.material_name.trim()
+  }
   if (item.container_label) return item.container_label
   if (item.container_batch_id) return t('settings.storage.containerBatchLabel', { id: item.container_batch_id })
   return t('settings.storage.containerGenericLabel')

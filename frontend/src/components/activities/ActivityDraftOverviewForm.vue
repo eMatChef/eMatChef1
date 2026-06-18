@@ -6,7 +6,7 @@
     <div class="section-card">
       <h2 class="section-title">{{ t('activities.draftOverview.sectionBasics') }}</h2>
       <div class="form-grid">
-        <div class="form-group">
+        <div v-if="!isSharedActivity" class="form-group">
           <label>{{ t('activities.detail.labelDepartment') }}</label>
           <p class="activity-readonly-inline">{{ activity.department_name ?? t('activities.wizard.form.summaryEmpty') }}</p>
         </div>
@@ -14,6 +14,7 @@
           <label>{{ t('activities.draftOverview.totalPriceCurrent') }}</label>
           <p class="activity-readonly-inline">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
         </div>
+
         <AutoSaveField
           v-model="form.name"
           :baseline="savedBaselines.name"
@@ -23,20 +24,45 @@
           :save="saveName"
           @saved="onAutoFieldSaved"
         />
-        <AutoSaveField
-          v-if="showGroup"
-          v-model="groupField"
-          :baseline="savedBaselines.group_id"
-          :label="groupFieldLabel"
-          type="select"
-          span-class="form-group span-2 activity-compact-autosave-field"
-          :options="groupSelectOptions"
-          :save="saveGroupId"
-          @saved="onAutoFieldSaved"
-        />
+
+        <template v-if="showJsMaterialOption">
+          <AutoSaveField
+            v-model="wantsJsMaterialField"
+            :baseline="savedBaselines.wants_js_material"
+            type="checkbox"
+            :label="t('activities.jsMaterial.includeToggle')"
+            :checkbox-label="t('activities.jsMaterial.includeToggle')"
+            span-class="form-group span-2 activity-compact-autosave-field activity-js-include-autosave"
+            :save="saveWantsJsMaterial"
+            @saved="onAutoFieldSaved"
+          />
+          <p class="field-hint text-muted activity-js-include-hint span-2">
+            {{ t('activities.jsMaterial.includeHint') }}
+          </p>
+          <AutoSaveField
+            v-if="form.wants_js_material"
+            v-model="participantCountField"
+            :baseline="savedBaselines.participant_count"
+            type="number"
+            :min="1"
+            :step="1"
+            :label="t('activities.jsMaterial.participantCountLabel')"
+            :placeholder="t('activities.jsMaterial.participantCountPlaceholder')"
+            span-class="form-group activity-compact-autosave-field activity-js-participant-autosave"
+            :save="saveParticipantCount"
+            @saved="onAutoFieldSaved"
+          />
+          <p
+            v-if="form.wants_js_material"
+            class="field-hint text-muted activity-js-participant-hint span-2"
+          >
+            {{ t('activities.jsMaterial.participantCountHint') }}
+          </p>
+        </template>
+
         <div v-if="showVenue" class="form-group span-2 activity-external-address-wrap activity-venue-field-wrap">
           <p class="field-hint text-muted activity-venue-field-hint">
-            {{ t('activities.wizard.form.venueHint') }}
+            {{ isSharedActivity ? t('activities.sharedBasics.venueHintShared') : t('activities.wizard.form.venueHint') }}
           </p>
           <AutoSaveField
             v-model="venueField"
@@ -62,7 +88,71 @@
               />
             </template>
           </AutoSaveField>
+          <ActivityVenueOverviewBlock
+            :venue-address-id="form.venue_address_id"
+            :show-js-hint="form.wants_js_material === true"
+          />
         </div>
+
+        <template v-if="isSharedActivity">
+          <div class="form-group span-2 activity-shared-participants-wrap">
+            <ActivitySharedParticipantsBasics
+              :host-department-id="activity.department_id ?? ''"
+              :host-department-name="activity.department_name ?? t('activities.wizard.form.summaryEmpty')"
+              :invited-departments="activity.invited_departments ?? []"
+              :viewer-department-id="departmentId"
+              :can-edit-host-group="canEditHostGroup"
+              :guest-assign-department-id="guestInviteContext?.department_id ?? null"
+              :guest-can-assign-group="!!guestInviteContext?.can_assign_group"
+            >
+              <template #host-group="{ canEdit }">
+                <AutoSaveField
+                  v-if="showGroup && canEdit"
+                  v-model="groupField"
+                  :baseline="savedBaselines.group_id"
+                  :label="groupFieldLabel"
+                  type="select"
+                  span-class="activity-compact-autosave-field"
+                  :options="groupSelectOptions"
+                  :save="saveGroupId"
+                  @saved="onAutoFieldSaved"
+                />
+                <p v-else-if="showGroup" class="activity-readonly-inline activity-shared-group-readonly">
+                  {{ hostGroupDisplay }}
+                </p>
+              </template>
+              <template #guest-group="{ invite, canEdit, departmentId: guestDeptId }">
+                <AutoSaveField
+                  v-if="canEdit"
+                  v-model="guestGroupFields[guestDeptId]"
+                  :baseline="guestGroupBaselines[guestDeptId] ?? ''"
+                  :label="t('common.group')"
+                  type="select"
+                  span-class="activity-compact-autosave-field"
+                  :options="guestGroupSelectOptions[guestDeptId] ?? []"
+                  :save="(v) => saveGuestGroupId(guestDeptId, v)"
+                  @saved="onGuestGroupSaved"
+                />
+                <p v-else class="activity-readonly-inline activity-shared-group-readonly">
+                  {{ invite.group_name || t('activities.detail.inviteGroupNotSet') }}
+                </p>
+              </template>
+            </ActivitySharedParticipantsBasics>
+          </div>
+        </template>
+
+        <AutoSaveField
+          v-else-if="showGroup"
+          v-model="groupField"
+          :baseline="savedBaselines.group_id"
+          :label="groupFieldLabel"
+          type="select"
+          span-class="form-group span-2 activity-compact-autosave-field"
+          :options="groupSelectOptions"
+          :save="saveGroupId"
+          @saved="onAutoFieldSaved"
+        />
+
         <AutoSaveField
           v-if="showCustomerAddress"
           v-model="addressField"
@@ -256,6 +346,7 @@ import { useI18n } from 'vue-i18n'
 import '@/styles/activity-create-wizard.css'
 import {
   patchActivity,
+  assignDepartmentInviteGroup,
   type ActivityApiType,
   type ActivityDetail,
   type InvitedDepartmentPayloadRow,
@@ -271,10 +362,12 @@ import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimePart
 import { getPlanningUsageViolation } from '@/utils/activityPlanningUsageConstraint'
 import { flattenGroupsWithLevel } from '@/utils/groupHierarchy'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
+import ActivitySharedParticipantsBasics from '@/components/activities/shared/ActivitySharedParticipantsBasics.vue'
 import AutoSaveField from '@/components/common/autoSave/AutoSaveField.vue'
 import AutoSaveFieldShell from '@/components/common/autoSave/AutoSaveFieldShell.vue'
 import { AUTO_SAVE_SUCCESS_ICON_MS } from '@/composables/useAutoSaveField'
 import type { AutoSaveFieldValue, AutoSaveSelectOption } from '@/components/common/autoSave/types'
+import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import AddressModal from '@/components/AddressModal.vue'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
@@ -317,8 +410,11 @@ const savedBaselines = reactive({
   name: '',
   group_id: '',
   venue_address_id: '',
+  js_delivery_address_id: '',
   address_id: '',
   notes: '',
+  wants_js_material: false,
+  participant_count: null as number | null,
 })
 
 const zeitraumBaseline = ref({
@@ -334,6 +430,32 @@ const showInviteDepartments = computed(() =>
 )
 
 const isSubmittedActivityEdit = computed(() => props.activity.status !== 'draft')
+
+const isSharedActivity = computed(
+  () =>
+    !!props.activity.is_shared_activity ||
+    ((props.activity.invited_departments?.length ?? 0) > 0 &&
+      (props.activity.invited_departments ?? []).some((i) => (i.status ?? 'pending') !== 'rejected')),
+)
+
+const guestInviteContext = computed(() => props.activity.guest_invite_for_viewer ?? null)
+
+const isHostViewer = computed(() => props.departmentId === props.activity.department_id)
+
+const canEditHostGroup = computed(() => isHostViewer.value)
+
+const hostGroupDisplay = computed(() => {
+  const g = props.activity.group_name
+  if (g) return g
+  if (activityType.value === 'camp' || activityType.value === 'event') {
+    return props.activity.department_name || t('activities.wizard.form.summaryEmpty')
+  }
+  return t('activities.detail.inviteGroupNotSet')
+})
+
+const guestGroupFields = reactive<Record<string, string>>({})
+const guestGroupBaselines = reactive<Record<string, string>>({})
+const guestGroupSelectOptions = ref<Record<string, AutoSaveSelectOption[]>>({})
 
 const invitedDraft = ref<InvitedDepartmentDraft[]>([])
 
@@ -461,8 +583,11 @@ const form = ref({
   name: '',
   group_id: null as string | null,
   venue_address_id: null as string | null,
+  js_delivery_address_id: null as string | null,
   address_id: null as string | null,
   notes: '' as string | null,
+  wants_js_material: false,
+  participant_count: null as number | null,
 })
 
 /** Typ „Aktivität“: ein Kalendertag für Nutzung */
@@ -495,6 +620,27 @@ const groupRequired = computed(() => activityType.value === 'activity' && groups
 const showVenue = computed(() => ['camp', 'event', 'external'].includes(activityType.value))
 
 const showCustomerAddress = computed(() => activityType.value === 'external')
+
+const showJsMaterialOption = computed(
+  () =>
+    (activityType.value === 'camp' || activityType.value === 'event') &&
+    props.activity.status === 'draft' &&
+    isHostViewer.value,
+)
+
+const wantsJsMaterialField = computed({
+  get: () => form.value.wants_js_material,
+  set(v: boolean) {
+    form.value.wants_js_material = v
+  },
+})
+
+const participantCountField = computed({
+  get: () => form.value.participant_count,
+  set(v: number | null) {
+    form.value.participant_count = v != null && v >= 1 ? v : null
+  },
+})
 
 function addressShort(a: Address): string {
   const line = a.full_address || a.street_line || a.name || a.id
@@ -681,13 +827,71 @@ const materialTimesBlockedUsage = computed((): { start: Date; end: Date } | null
   return { start: us, end: ue }
 })
 
+function syncGuestGroupStateFromActivity() {
+  const invites = props.activity.invited_departments ?? []
+  for (const inv of invites) {
+    if ((inv.status ?? 'pending') === 'rejected') continue
+    const gid = inv.group_id ?? ''
+    guestGroupFields[inv.id] = gid
+    guestGroupBaselines[inv.id] = gid
+  }
+}
+
+async function loadGuestGroupOptions(deptId: string) {
+  try {
+    const list = await getGroups(deptId)
+    const flat = flattenGroupsWithLevel(list)
+    guestGroupSelectOptions.value = {
+      ...guestGroupSelectOptions.value,
+      [deptId]: [
+        { value: '', label: t('activities.detail.guestInviteGroupPlaceholder') },
+        ...flat.map((g) => ({ value: g.id, label: `${'↳ '.repeat(g._level)}${g.name}` })),
+      ],
+    }
+  } catch {
+    guestGroupSelectOptions.value = { ...guestGroupSelectOptions.value, [deptId]: [] }
+  }
+}
+
+async function ensureGuestGroupOptionsLoaded() {
+  const ctx = guestInviteContext.value
+  if (!ctx?.department_id || !ctx.can_assign_group) return
+  await loadGuestGroupOptions(ctx.department_id)
+}
+
+async function saveGuestGroupId(deptId: string, value: AutoSaveFieldValue) {
+  const groupId = value === '' || value == null ? '' : String(value)
+  if (!groupId) {
+    throw new Error(t('activities.detail.guestInviteGroupPlaceholder'))
+  }
+  const result = await assignDepartmentInviteGroup(props.activity.id, {
+    departmentId: deptId,
+    groupId,
+  })
+  guestGroupBaselines[deptId] = result.group_id
+  guestGroupFields[deptId] = result.group_id
+}
+
+function onGuestGroupSaved() {
+  emit('saved')
+}
+
+function effectiveVenueAddressId(activity: ActivityDetail): string | null {
+  return activity.viewer_venue_address_id ?? activity.venue_address_id ?? null
+}
+
 function syncSavedBaselinesFromActivity() {
   const a = props.activity
   savedBaselines.name = a.name ?? ''
   savedBaselines.group_id = a.group_id ?? ''
-  savedBaselines.venue_address_id = a.venue_address_id ?? ''
+  savedBaselines.venue_address_id = effectiveVenueAddressId(a) ?? ''
+  savedBaselines.js_delivery_address_id = a.js_delivery_address_id ?? ''
   savedBaselines.address_id = a.address_id ?? ''
   savedBaselines.notes = a.notes ?? ''
+  savedBaselines.wants_js_material = a.wants_js_material === true
+  savedBaselines.participant_count =
+    a.participant_count != null && a.participant_count >= 1 ? a.participant_count : null
+  syncGuestGroupStateFromActivity()
 }
 
 function syncZeitraumBaselineFromActivity() {
@@ -716,9 +920,13 @@ function resetFromActivity() {
   form.value = {
     name: a.name ?? '',
     group_id: a.group_id ?? null,
-    venue_address_id: a.venue_address_id ?? null,
+    venue_address_id: effectiveVenueAddressId(a),
+    js_delivery_address_id: a.js_delivery_address_id ?? null,
     address_id: a.address_id ?? null,
     notes: a.notes ?? '',
+    wants_js_material: a.wants_js_material === true,
+    participant_count:
+      a.participant_count != null && a.participant_count >= 1 ? a.participant_count : null,
   }
   syncSavedBaselinesFromActivity()
 
@@ -776,7 +984,9 @@ const hasPendingAutoSaveFields = computed(() => {
     (f.group_id ?? '') !== savedBaselines.group_id ||
     (f.venue_address_id ?? '') !== savedBaselines.venue_address_id ||
     (f.address_id ?? '') !== savedBaselines.address_id ||
-    (f.notes ?? '') !== savedBaselines.notes
+    (f.notes ?? '') !== savedBaselines.notes ||
+    f.wants_js_material !== savedBaselines.wants_js_material ||
+    (f.participant_count ?? null) !== (savedBaselines.participant_count ?? null)
   )
 })
 
@@ -831,7 +1041,10 @@ function onZeitraumFocusOut(event: FocusEvent) {
 }
 
 async function patchActivityFields(payload: PatchActivityPayload): Promise<void> {
-  await patchActivity(props.activity.id, payload)
+  await patchActivity(props.activity.id, {
+    ...payload,
+    viewer_department_id: props.departmentId,
+  })
 }
 
 function onAutoFieldSaved() {
@@ -873,6 +1086,34 @@ async function saveNotes(value: AutoSaveFieldValue) {
   await patchActivityFields({ notes })
   savedBaselines.notes = notes ?? ''
   form.value.notes = notes ?? ''
+}
+
+async function saveWantsJsMaterial(value: AutoSaveFieldValue) {
+  const wants = !!value
+  const payload: PatchActivityPayload = { wants_js_material: wants }
+  if (!wants) {
+    payload.participant_count = null
+  }
+  await patchActivityFields(payload)
+  savedBaselines.wants_js_material = wants
+  form.value.wants_js_material = wants
+  if (!wants) {
+    savedBaselines.participant_count = null
+    form.value.participant_count = null
+  }
+}
+
+async function saveParticipantCount(value: AutoSaveFieldValue) {
+  let count: number | null = null
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+    count = Math.trunc(value)
+  } else if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value.trim(), 10)
+    count = Number.isFinite(parsed) && parsed >= 1 ? parsed : null
+  }
+  await patchActivityFields({ participant_count: count })
+  savedBaselines.participant_count = count
+  form.value.participant_count = count
 }
 
 async function saveZeitraumIfDirty() {
@@ -950,6 +1191,7 @@ onMounted(async () => {
     addresses.value = [...addrRes.addresses].sort((a, b) =>
       formatAddressOption(a).localeCompare(formatAddressOption(b), 'de'),
     )
+    await ensureGuestGroupOptionsLoaded()
   } catch {
     toast.error(t('activities.draftOverview.toastLoadMetaFailed'))
   }
@@ -1113,6 +1355,15 @@ defineExpose({
 
 .activity-zeitraum-autosave-status.is-saved {
   color: #059669;
+}
+
+.activity-shared-participants-wrap {
+  margin-top: 4px;
+}
+
+.activity-shared-group-readonly {
+  margin: 0;
+  font-size: 14px;
 }
 
 .activity-venue-field-wrap {
