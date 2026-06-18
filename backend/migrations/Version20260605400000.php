@@ -9,6 +9,8 @@ use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260605400000 extends AbstractMigration
 {
+    use CreatesTableUnlessExistsTrait;
+
     public function getDescription(): string
     {
         return 'Inventur-Aufgaben inventory_task (Paket 19).';
@@ -16,6 +18,10 @@ final class Version20260605400000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$this->prepareNewTable($schema, 'inventory_task')) {
+            return;
+        }
+
         $this->addSql(<<<'SQL'
             CREATE TABLE inventory_task (
                 id CHARACTER(12) NOT NULL,

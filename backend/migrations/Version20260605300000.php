@@ -9,6 +9,8 @@ use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260605300000 extends AbstractMigration
 {
+    use CreatesTableUnlessExistsTrait;
+
     public function getDescription(): string
     {
         return 'Supplier-Zeltblatt-Overrides supplier_repair_template (Paket 14).';
@@ -16,6 +18,10 @@ final class Version20260605300000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$this->prepareNewTable($schema, 'supplier_repair_template')) {
+            return;
+        }
+
         $this->addSql(<<<'SQL'
             CREATE TABLE supplier_repair_template (
                 id CHARACTER(12) NOT NULL,
