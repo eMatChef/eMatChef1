@@ -176,7 +176,6 @@ wait_for_backend_ready() {
 
 reset_symfony_prod_cache() {
   clear_symfony_prod_cache_dir
-  wait_for_backend_ready
   docker compose -p "$PROJECT" exec -T backend php bin/console cache:warmup --env=prod
 }
 

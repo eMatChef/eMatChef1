@@ -9,6 +9,8 @@ use Doctrine\Migrations\AbstractMigration;
 
 final class Version20260605160000 extends AbstractMigration
 {
+    use CreatesTableUnlessExistsTrait;
+
     public function getDescription(): string
     {
         return 'Department-Zeltblatt-Overrides department_repair_template.';
@@ -16,6 +18,10 @@ final class Version20260605160000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        if (!$this->prepareNewTable($schema, 'department_repair_template')) {
+            return;
+        }
+
         $this->addSql(<<<'SQL'
             CREATE TABLE department_repair_template (
                 id CHARACTER(12) NOT NULL,
