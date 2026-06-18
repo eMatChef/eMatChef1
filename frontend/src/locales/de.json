@@ -77,6 +77,15 @@
         "devicesHome": "Lager · eMatChef",
         "devicesPack": "Packen · Lager · eMatChef",
         "statistics": "Statistik · eMatChef",
+        "grossanlassPlanung": "Planung · Grossanlass · eMatChef",
+        "grossanlassPlanungRessorts": "Ressorts & Mitglieder · Planung · eMatChef",
+        "grossanlassPlanungRounds": "Planungsrunden · Planung · eMatChef",
+        "grossanlassBeschaffung": "Beschaffung · Grossanlass · eMatChef",
+        "grossanlassBeschaffungUebersicht": "Übersicht · Beschaffung · eMatChef",
+        "grossanlassBeschaffungBedarf": "Bedarf · Beschaffung · eMatChef",
+        "grossanlassBeschaffungOfferten": "Offerten · Beschaffung · eMatChef",
+        "grossanlassBeschaffungBestellungen": "Bestellungen · Beschaffung · eMatChef",
+        "grossanlassBeschaffungErhalten": "Erhalten · Beschaffung · eMatChef",
         "settingsTime": "Einstellungen · Zeit/Ort · eMatChef",
         "settingsCategories": "Einstellungen · Kategorien · eMatChef",
         "settingsMyDepartment": "Einstellungen · Mein Department · eMatChef",
@@ -786,6 +795,8 @@
     "myCompanyRepairs": "Reparaturen",
     "myCompanyRepairTemplates": "Reparatur-Vorlagen",
     "devUiPlayground": "UI Sandbox",
+    "planung": "Planung",
+    "beschaffung": "Beschaffung",
     "help": "Hilfe"
   },
   "statistics": {
@@ -4812,6 +4823,9 @@
       "toastMemberRemoveError": "Fehler beim Entfernen",
       "toastMemberAdded": "Benutzer hinzugefügt",
       "toastMemberAddError": "Fehler beim Hinzufügen",
+      "searchRunning": "Suche läuft…",
+      "pendingMemberHint": "Ausgewählter Benutzer wird mit «Hinzufügen» oder «Speichern» dem Department zugeordnet. Ressort-Zuweisung erfolgt später durch den Materialchef in der Planung.",
+      "grossanlassMemberHint": "Grossanlass: Nur Materialchef (MW) und Mitglied (U). Mitglieder werden vom Materialchef später den Ressorts in der Planung zugeordnet.",
       "validationFillAll": "Bitte füllen Sie alle Felder aus",
       "saveErrorFallback": "Fehler beim Speichern des Departments"
     },
@@ -8279,12 +8293,93 @@
     },
     "dashboard": {
       "draftBadge": "Entwurf",
-      "welcome": "Willkommen beim Grossanlass. Die Planung (Ressorts, Planungsrunden, Wünsche) folgt in den nächsten Phasen."
+      "welcome": "Willkommen beim Grossanlass. Starte die Planung in der Sidebar unter «Planung» — lege Ressorts an und strukturiere den Anlass."
+    },
+    "planung": {
+      "title": "Planung",
+      "subtitle": "Ressorts, Mitglieder und Planungsrunden für diesen Grossanlass.",
+      "menuTitle": "Planung",
+      "tabRessorts": "Ressorts & Mitglieder",
+      "tabRounds": "Planungsrunden",
+      "ressorts": {
+        "emptyTitle": "Noch keine Ressorts",
+        "emptyDescription": "Lege Ressorts und Bauprojekte an, weise Mitglieder zu und strukturiere den Grossanlass.",
+        "addAction": "Ressort hinzufügen",
+        "addChild": "Bauprojekt hinzufügen",
+        "manageMembers": "Mitglieder verwalten",
+        "loading": "Ressorts werden geladen…",
+        "subtitleMw": "Ressorts und Bauprojekte verwalten, Mitglieder zuweisen.",
+        "subtitleMember": "Bauprojekte in deinem Ressort anlegen und Mitglieder zuweisen.",
+        "subtitleReadOnly": "Übersicht der Ressort-Struktur.",
+        "statRessorts": "Ressorts",
+        "statNodes": "Knoten gesamt",
+        "statMembers": "Mitglieder",
+        "colName": "Ressort / Bauprojekt",
+        "colMembers": "Mitglieder",
+        "kindRessort": "Ressort",
+        "kindTeilbereich": "Bauprojekt",
+        "modalNewRessort": "Ressort anlegen",
+        "modalNewChild": "Bauprojekt anlegen",
+        "modalEdit": "Bearbeiten",
+        "nameLabelRessort": "Name des Ressorts",
+        "nameLabelChild": "Name des Bauprojekts",
+        "namePlaceholderRessort": "z. B. Bau, Verpflegung, Technik",
+        "namePlaceholderChild": "z. B. Bühne, Küche Nord",
+        "parentLabel": "Übergeordnet",
+        "parentNone": "Kein Parent (Ressort)",
+        "saving": "Speichern…",
+        "membersHeading": "Mitglieder —",
+        "sectionCurrentMembers": "Aktuelle Mitglieder ({count})",
+        "emptyNoMembers": "Noch keine Mitglieder in diesem Knoten.",
+        "addMemberHeading": "Mitglied hinzufügen",
+        "deleteTitle": "Ressort löschen",
+        "deleteMessage": "«{name}» und leere Unter-Bauprojekte wirklich löschen? Nur möglich ohne Mitglieder im gesamten Zweig.",
+        "errorLoad": "Ressorts konnten nicht geladen werden",
+        "errorSave": "Speichern fehlgeschlagen",
+        "errorDelete": "Löschen fehlgeschlagen",
+        "errorAddMember": "Mitglied konnte nicht hinzugefügt werden",
+        "errorRemoveMember": "Mitglied konnte nicht entfernt werden"
+      },
+      "rounds": {
+        "emptyTitle": "Noch keine Planungsrunden",
+        "emptyDescription": "Planungsrunden steuern die Bedarfserfassung pro Ressort — z. B. «Infrastruktur-Wünsche». (Phase 3)",
+        "addAction": "Runde anlegen"
+      }
     },
     "inbox": {
       "category": "Grossanlass",
       "subject": "Materialchef von «{name}»",
       "preview": "Du wurdest Materialchef ernannt — zum Dashboard wechseln"
+    },
+    "beschaffung": {
+      "title": "Beschaffung",
+      "subtitle": "Budget, Bedarf, Offerten und Bestellungen — Inhalt folgt nach Planungsrunden und Wünschen (Phase 5).",
+      "menuTitle": "Beschaffung",
+      "tabUebersicht": "Übersicht",
+      "tabBedarf": "Bedarf",
+      "tabOfferten": "Offerten",
+      "tabBestellungen": "Bestellungen",
+      "tabErhalten": "Erhalten",
+      "uebersicht": {
+        "emptyTitle": "Budget-Übersicht folgt",
+        "emptyDescription": "Soll/Ist gesamt und pro Ressort erscheint hier, sobald Planungsrunden abgeschlossen sind und Beschaffungspositionen aus Wünschen gebündelt werden (Phase 5)."
+      },
+      "bedarf": {
+        "emptyTitle": "Noch kein Bedarf",
+        "emptyDescription": "Material- und Infrastruktur-Wünsche werden hier zu Beschaffungspositionen gebündelt — nach Phase 4 (Wunschformular)."
+      },
+      "offerten": {
+        "emptyTitle": "Noch keine Offerten",
+        "emptyDescription": "Angebote von Lieferanten pro Position — folgt in Phase 5."
+      },
+      "bestellungen": {
+        "emptyTitle": "Noch keine Bestellungen",
+        "emptyDescription": "Bestellstatus, Beträge und Rechnungsreferenzen — folgt in Phase 5."
+      },
+      "erhalten": {
+        "emptyTitle": "Noch keine Lieferungen",
+        "emptyDescription": "Empfangene Ware und Teillieferungen — folgt in Phase 5."
+      }
     }
   }
 }
