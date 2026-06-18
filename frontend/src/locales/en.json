@@ -1908,6 +1908,13 @@
         "empty": "No components for this set.",
         "checkAllHint": "Check off all parts to book."
       },
+      "activeCrate": {
+        "selected": "Crate «{label}» selected",
+        "packTargetHint": "Pack material into «{label}»",
+        "deselect": "Deselect",
+        "empty": "Crate is empty — scan material above.",
+        "scanLabel": "Scan material into crate"
+      },
       "scan": {
         "label": "Search or scan",
         "placeholder": "Name, shelf or QR code…",
@@ -1937,9 +1944,13 @@
         "actionOpenCrateReturn": "Open return crate",
         "actionOpenCrateStore": "Store crate",
         "actionOpenCombo": "Check set",
+        "actionInCrate": "Into crate",
+        "actionUseAsPackCrate": "Yes, use as pack crate",
+        "actionDeclinePackCrate": "No",
         "actionShow": "Show",
         "result": {
           "not_on_list": "Not on this packing list.",
+          "unknown_crate": "Crate is not on the packing list yet. Use as pack crate?",
           "not_ready": "Material manager is still packing.",
           "wrong_batch": "Different batch than planned.",
           "serialized_mismatch": "Wrong batch — serialized items require an exact QR match.",
@@ -1965,6 +1976,8 @@
         "openDescription": "No open lines in this step.",
         "byShelfTitle": "All packed",
         "byShelfDescription": "No open lines left — switch to «Done» or another step.",
+        "filterTitle": "No matches",
+        "filterDescription": "Your search does not match any open line — adjust the term or clear the scan field.",
         "doneTitle": "Nothing done yet",
         "doneDescription": "Completed lines appear here after booking.",
         "listTitle": "Checklist coming soon",

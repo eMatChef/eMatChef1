@@ -11,10 +11,14 @@ const props = defineProps<{
   primaryEnabled: boolean
   showBulkConfirm: boolean
   bulkConfirmed: boolean
+  showInCrate?: boolean
+  inCrateLabel?: string
+  dismissLabel?: string
 }>()
 
 const emit = defineEmits<{
   primary: []
+  inCrate: []
   confirmBulk: []
   dismiss: []
 }>()
@@ -22,6 +26,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const toneClass = computed(() => `material-scan-result-card--${props.result.tone}`)
+
+const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
 </script>
 
 <template>
@@ -50,8 +56,16 @@ const toneClass = computed(() => `material-scan-result-card--${props.result.tone
       >
         {{ primaryLabel }}
       </EButton>
+      <EButton
+        v-if="showInCrate"
+        variant="secondary"
+        size="small"
+        @click="emit('inCrate')"
+      >
+        {{ inCrateLabel }}
+      </EButton>
       <EButton variant="secondary" size="small" @click="emit('dismiss')">
-        {{ t('common.close') }}
+        {{ closeLabel }}
       </EButton>
     </div>
   </section>

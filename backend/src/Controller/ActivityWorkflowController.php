@@ -1525,6 +1525,7 @@ class ActivityWorkflowController extends AbstractController
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),
             'notes' => $item->getNotes(),
+            'intent_id' => $item->getIntentId(),
             'is_fully_packed' => $item->isFullyPacked(),
             'is_fully_issued' => $item->isFullyIssued(),
             'is_fully_returned' => $item->isFullyReturned(),

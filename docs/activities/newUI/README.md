@@ -357,11 +357,11 @@ Siehe [devices/concept.md](../../devices/concept.md).
 | **8** | History-Audit (Pack-Events) | ✓ |
 | **8b** | Benachrichtigungen (Inbox → Deep-Link `pack-journey`) | ✓ |
 | **9** | J+S eigener Tab | ✓ |
-| **9b** | Nutzungs-Statistik aus Moves | offen |
-| **10** | Nachlieferungs-Wunsch | offen |
-| **11** | Kisten-Intent «Zusammen» | offen |
-| **12** | Presence light | offen |
-| **13** | **Rollout:** Tab `packs` → Journey; Legacy «Klassische Packliste» | offen |
+| **9b** | Nutzungs-Statistik aus Moves | ✓ |
+| **10** | Nachlieferungs-Wunsch | ✓ |
+| **11** | Kisten-Intent «Zusammen» | ✓ |
+| **12** | Presence light | ✓ |
+| **13** | **Rollout:** Tab `packs` → Journey; Legacy «Klassische Packliste» | ✓ |
 
 Details + Bausteine pro Phase: [SPEC.md §4.8, §12](./SPEC.md#48-zentrale-bausteine-integrationsreihenfolge).
 

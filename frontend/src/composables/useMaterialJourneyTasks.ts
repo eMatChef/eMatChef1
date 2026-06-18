@@ -2,6 +2,11 @@ import { computed, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityDetail } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
+import {
+  createActivityPackContainer,
+  createActivityPackContainerItem,
+  updateActivityPackContainerItem,
+} from '@/api/activityContainers'
 import { postMovePackItem, type ActivityPackItem, type PackMoveSource } from '@/api/activityPackItems'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
 import {
@@ -56,6 +61,14 @@ export function useMaterialJourneyTasks(options: {
   const storeShelveQty = ref(1)
   const storeShelveSubmitting = ref(false)
   const storeShelveFeedback = ref(false)
+  const lastFailedMove = ref<{ row: MaterialJourneyTaskRow; source: PackMoveSource } | null>(null)
+  const assignCrateSheetOpen = ref(false)
+  const assignCratePackItem = ref<ActivityPackItem | null>(null)
+  const assignCrateMaxQty = ref(1)
+  const assignCrateQty = ref(1)
+  const assignCrateSubmitting = ref(false)
+  const selectedPackCrateId = ref<string | null>(null)
+  const addingPackCrate = ref(false)
 
   const packStage = computed(() => journeyStepToPackStage(options.journeyStep.value, options.profile.value))
 
@@ -144,6 +157,8 @@ export function useMaterialJourneyTasks(options: {
     formatCrateLineCount: (count: number) =>
       t('activities.materialJourney.row.crateLineCount', { count }),
     shellPackItemForContainer,
+    intentMemberCount: (intentId: string) =>
+      options.packItems.value.filter((pi) => pi.intentId === intentId).length,
   }))
 
   const allTasks = computed(() => {
@@ -184,6 +199,34 @@ export function useMaterialJourneyTasks(options: {
   const activeComboMaxForwardQty = computed(() =>
     activeCombo.value ? packIssueForwardMax(activeCombo.value) : 0,
   )
+
+  const selectedPackCrate = computed(() => {
+    const id = selectedPackCrateId.value
+    if (!id) return null
+    return options.packContainers.value.find((c) => c.id === id) ?? null
+  })
+
+  const selectedPackCrateItems = computed(() => {
+    const id = selectedPackCrateId.value
+    if (!id) return []
+    return options.containerItemsByContainerId.value[id] ?? []
+  })
+
+  watch(
+    () => options.packContainers.value,
+    (containers) => {
+      const id = selectedPackCrateId.value
+      if (id && !containers.some((c) => c.id === id)) {
+        selectedPackCrateId.value = null
+      }
+    },
+  )
+
+  watch(options.journeyStep, (step) => {
+    if (step !== 'pack') {
+      selectedPackCrateId.value = null
+    }
+  })
 
   function applyUpdatedItem(updated: ActivityPackItem): void {
     const idx = options.packItems.value.findIndex((p) => p.id === updated.id)
@@ -271,6 +314,7 @@ export function useMaterialJourneyTasks(options: {
     if (!activityId) return
 
     movingId.value = row.id
+    lastFailedMove.value = null
     try {
       const updated = await postMovePackItem(activityId, row.packItem.id, {
         stage: getBackendStage(packStage.value),
@@ -279,10 +323,17 @@ export function useMaterialJourneyTasks(options: {
       })
       applyUpdatedItem(updated)
     } catch (e) {
+      lastFailedMove.value = { row, source }
       toast.error(e instanceof Error ? e.message : String(e))
     } finally {
       movingId.value = null
     }
+  }
+
+  async function retryMove(): Promise<void> {
+    const failed = lastFailedMove.value
+    if (!failed) return
+    await moveTaskRow(failed.row, failed.source)
   }
 
   function activateTaskRow(row: MaterialJourneyTaskRow, source: PackMoveSource = 'tap'): void {
@@ -338,6 +389,16 @@ export function useMaterialJourneyTasks(options: {
     crateSheetOpen.value = true
   }
 
+  function openCrateContainerWithIntentResolve(
+    container: ActivityPackContainer,
+    resolveIntent?: (container: ActivityPackContainer) => void | Promise<void>,
+  ): void {
+    openCrateContainer(container)
+    if (options.journeyStep.value === 'pack' && resolveIntent) {
+      void resolveIntent(container)
+    }
+  }
+
   function openComboPackItem(pi: ActivityPackItem): void {
     activeCombo.value = pi
     comboSheetOpen.value = true
@@ -353,6 +414,147 @@ export function useMaterialJourneyTasks(options: {
     }
     const row = allTasks.value.find((r) => r.kind === 'loose' && r.packItem?.id === pi.id)
     if (row) void activateTaskRow(row, source)
+  }
+
+  function selectPackCrate(containerId: string): void {
+    selectedPackCrateId.value = containerId
+  }
+
+  function clearSelectedPackCrate(): void {
+    selectedPackCrateId.value = null
+  }
+
+  async function submitAddScannedPackCrate(batchId: string, label: string): Promise<ActivityPackContainer | null> {
+    const activityId = options.activity.value?.id
+    if (!activityId || !batchId.trim()) return null
+
+    const raw = label.trim() || t('activities.packList.crateTargetFallback')
+    addingPackCrate.value = true
+    try {
+      const created = await createActivityPackContainer(activityId, {
+        label: raw.slice(0, 120),
+        container_batch_id: batchId,
+      })
+      await options.reload()
+      selectedPackCrateId.value = created.id
+      toast.success(t('activities.packList.toastContainerAdded'))
+      return created
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      return null
+    } finally {
+      addingPackCrate.value = false
+    }
+  }
+
+  async function assignPackItemToSelectedCrate(
+    pi: ActivityPackItem,
+    maxQty: number,
+    source: PackMoveSource = 'scan',
+  ): Promise<boolean> {
+    const containerId = selectedPackCrateId.value
+    const activityId = options.activity.value?.id
+    if (!containerId || !activityId) return false
+
+    const qty = Math.max(1, maxQty)
+    if (qty < 1) return false
+
+    assignCrateSubmitting.value = true
+    try {
+      if (options.journeyStep.value === 'pack') {
+        const left = packListCtx.value.effectiveStageLeftQty(pi)
+        if (left > 0) {
+          const moveQty = Math.min(qty, left)
+          const updated = await postMovePackItem(activityId, pi.id, {
+            stage: getBackendStage(packStage.value),
+            quantity: moveQty,
+            source,
+          })
+          applyUpdatedItem(updated)
+        }
+      }
+
+      const items = options.containerItemsByContainerId.value[containerId] ?? []
+      const existing = items.find((row) => row.material_item_id === pi.materialItemId)
+      if (existing) {
+        await updateActivityPackContainerItem(activityId, containerId, existing.id, {
+          quantity_packed: existing.quantity_packed + qty,
+        })
+      } else {
+        await createActivityPackContainerItem(activityId, containerId, {
+          material_item_id: pi.materialItemId,
+          quantity_packed: qty,
+        })
+      }
+
+      const label =
+        options.packContainers.value.find((c) => c.id === containerId)?.label ?? ''
+      await options.reload()
+      toast.success(t('activities.packList.toastMaterialAddedToCrate', { label }))
+      return true
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      return false
+    } finally {
+      assignCrateSubmitting.value = false
+    }
+  }
+
+  function openAssignCrateSheet(pi: ActivityPackItem, maxQty: number): void {
+    assignCratePackItem.value = pi
+    assignCrateMaxQty.value = Math.max(1, maxQty)
+    assignCrateQty.value = Math.max(1, maxQty)
+    assignCrateSheetOpen.value = true
+  }
+
+  async function submitAssignToCrate(containerId: string): Promise<void> {
+    const pi = assignCratePackItem.value
+    const activityId = options.activity.value?.id
+    if (!pi || !activityId) return
+
+    const qty = Math.min(assignCrateQty.value, assignCrateMaxQty.value)
+    if (qty < 1) return
+
+    assignCrateSubmitting.value = true
+    try {
+      if (options.journeyStep.value === 'pack') {
+        const left = packListCtx.value.effectiveStageLeftQty(pi)
+        if (left > 0) {
+          const moveQty = Math.min(qty, left)
+          const updated = await postMovePackItem(activityId, pi.id, {
+            stage: getBackendStage(packStage.value),
+            quantity: moveQty,
+            source: 'tap',
+          })
+          applyUpdatedItem(updated)
+        }
+      }
+
+      const items = options.containerItemsByContainerId.value[containerId] ?? []
+      const existing = items.find((row) => row.material_item_id === pi.materialItemId)
+      if (existing) {
+        await updateActivityPackContainerItem(activityId, containerId, existing.id, {
+          quantity_packed: existing.quantity_packed + qty,
+        })
+      } else {
+        await createActivityPackContainerItem(activityId, containerId, {
+          material_item_id: pi.materialItemId,
+          quantity_packed: qty,
+        })
+      }
+
+      const label =
+        options.packContainers.value.find((c) => c.id === containerId)?.label ?? ''
+      await options.reload()
+      assignCrateSheetOpen.value = false
+      toast.success(
+        t('activities.packList.toastMaterialAddedToCrate', { label }),
+      )
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      assignCrateSubmitting.value = false
+    }
   }
 
   function taskRowForScanResult(result: {
@@ -407,5 +609,23 @@ export function useMaterialJourneyTasks(options: {
     submitStoreShelve,
     onStoreShelveNext,
     onStoreShelveStay,
+    lastFailedMove,
+    retryMove,
+    openCrateContainerWithIntentResolve,
+    assignCrateSheetOpen,
+    assignCratePackItem,
+    assignCrateMaxQty,
+    assignCrateQty,
+    assignCrateSubmitting,
+    openAssignCrateSheet,
+    submitAssignToCrate,
+    selectedPackCrateId,
+    selectedPackCrate,
+    selectedPackCrateItems,
+    addingPackCrate,
+    selectPackCrate,
+    clearSelectedPackCrate,
+    submitAddScannedPackCrate,
+    assignPackItemToSelectedCrate,
   }
 }

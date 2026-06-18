@@ -6,6 +6,7 @@ defineProps<{
   doneCount: number
   totalCount: number
   showByShelfFilter: boolean
+  presenceLabels?: string[]
 }>()
 
 const filterTab = defineModel<MaterialJourneyFilterTab>('filterTab', { required: true })
@@ -55,7 +56,13 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
     <p v-if="totalCount > 0" class="material-journey-toolbar__progress text-muted">
       {{ t('activities.materialJourney.toolbar.progress', { done: doneCount, total: totalCount }) }}
     </p>
-    <div class="material-journey-toolbar__presence-slot" aria-hidden="true" />
+    <p
+      v-for="(label, idx) in presenceLabels ?? []"
+      :key="idx"
+      class="material-journey-toolbar__presence text-muted"
+    >
+      {{ label }}
+    </p>
   </div>
 </template>
 

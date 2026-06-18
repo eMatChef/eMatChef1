@@ -332,6 +332,7 @@ class PublicCodeService
                 'serial_number' => $batch->getSerialNumber(),
                 'label' => $batch->getLabel(),
                 'status' => $batch->getStatus(),
+                'is_container' => $batch->getIsContainer() || $material->getIsContainer(),
             ],
             'material' => [
                 'id' => $material->getId(),
@@ -339,6 +340,7 @@ class PublicCodeService
                 'description' => $material->getDescription(),
                 'manufacturer' => $material->getManufacturer(),
                 'model' => $material->getModel(),
+                'is_container' => $material->getIsContainer(),
             ],
             'department' => [
                 'id' => $department->getId(),

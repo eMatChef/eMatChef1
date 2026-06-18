@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import EButton from '@/components/form/base/EButton.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import MaterialJourneyTaskRow from '@/components/activities/materialJourney/MaterialJourneyTaskRow.vue'
 import MaterialJourneyRegalGroup from '@/components/activities/materialJourney/MaterialJourneyRegalGroup.vue'
@@ -18,23 +19,42 @@ const props = defineProps<{
   positionCount: number
   listEditable: boolean
   movingId: string | null
+  packMultiSelect?: boolean
+  isRowSelected?: (row: TaskRow) => boolean
+  canGroupSelected?: boolean
+  grouping?: boolean
+  selectedCount?: number
+  totalOpenCount?: number
+  listFilterActive?: boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
+  'toggle-select': [row: TaskRow]
+  'group-selected': []
 }>()
 
 const { t } = useI18n()
 
 const isByShelf = computed(() => props.filterTab === 'byShelf')
 
+const listIsEmpty = computed(() =>
+  isByShelf.value ? props.regalGroups.length === 0 : props.tasks.length === 0,
+)
+
+const isFilteredEmpty = computed(
+  () => listIsEmpty.value && (props.totalOpenCount ?? 0) > 0 && Boolean(props.listFilterActive),
+)
+
 const emptyTitle = computed(() => {
+  if (isFilteredEmpty.value) return t('activities.materialJourney.empty.filterTitle')
   if (props.filterTab === 'done') return t('activities.materialJourney.empty.doneTitle')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfTitle')
   return t('activities.materialJourney.empty.openTitle')
 })
 
 const emptyDescription = computed(() => {
+  if (isFilteredEmpty.value) return t('activities.materialJourney.empty.filterDescription')
   if (props.filterTab === 'done') return t('activities.materialJourney.empty.doneDescription')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfDescription')
   return t('activities.materialJourney.empty.openDescription')
@@ -43,6 +63,24 @@ const emptyDescription = computed(() => {
 
 <template>
   <div class="material-journey-task-list">
+    <div
+      v-if="packMultiSelect && (selectedCount ?? 0) > 0"
+      class="material-journey-pack-group-bar section-card"
+    >
+      <span class="text-muted">
+        {{ t('activities.materialJourney.packGroup.selected', { count: selectedCount ?? 0 }) }}
+      </span>
+      <EButton
+        variant="primary"
+        size="small"
+        :disabled="!canGroupSelected"
+        :loading="grouping"
+        @click="emit('group-selected')"
+      >
+        {{ t('activities.materialJourney.packGroup.groupButton') }}
+      </EButton>
+    </div>
+
     <EEmptyState
       v-if="isEarlyPackPreview"
       class="material-journey-task-list__empty"
@@ -52,7 +90,7 @@ const emptyDescription = computed(() => {
     />
 
     <EEmptyState
-      v-else-if="isByShelf ? regalGroups.length === 0 : tasks.length === 0"
+      v-else-if="listIsEmpty"
       class="material-journey-task-list__empty"
       icon="mdi-format-list-checks"
       :title="emptyTitle"
@@ -66,7 +104,10 @@ const emptyDescription = computed(() => {
         :group="group"
         :list-editable="listEditable"
         :moving-id="movingId"
+        :pack-multi-select="packMultiSelect"
+        :is-row-selected="isRowSelected"
         @activate="emit('activate', $event)"
+        @toggle-select="emit('toggle-select', $event)"
       />
     </div>
 
@@ -76,7 +117,10 @@ const emptyDescription = computed(() => {
           :row="row"
           :moving="movingId === row.id"
           :readonly="!listEditable"
+          :selectable="packMultiSelect"
+          :selected="isRowSelected?.(row)"
           @activate="emit('activate', row)"
+          @toggle-select="emit('toggle-select', row)"
         />
       </li>
     </ul>

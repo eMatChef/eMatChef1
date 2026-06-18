@@ -10,7 +10,7 @@ import {
   isJourneyTransportBackStep,
   isJourneyTransportOutStep,
 } from '@/components/activities/materialJourneySteps'
-import { packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
+import { isPhysicalComboPackItem, packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
 import {
   resolveMaterialBatchScan,
@@ -18,7 +18,7 @@ import {
   type MaterialScanResolveResult,
   type MaterialScanTone,
 } from '@/composables/materialScanResolve'
-import { parseScanInput } from '@/utils/scanParser'
+import { parseScanInput, isScanLikeInput } from '@/utils/scanParser'
 import { useToast } from '@/composables/useToast'
 
 export type MaterialScanSessionEntry = {
@@ -38,6 +38,7 @@ export function useMaterialJourneyScan(options: {
   packContainers: Ref<ActivityPackContainer[]>
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
   listEditable: Ref<boolean>
+  selectedPackCrateId?: Ref<string | null>
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -149,6 +150,7 @@ export function useMaterialJourneyScan(options: {
   ): T[] {
     const q = searchFilter.value
     if (q.length < 2) return rows
+    if (isScanLikeInput(query.value)) return rows
     return rows.filter(
       (row) =>
         row.title.toLowerCase().includes(q) ||
@@ -157,13 +159,43 @@ export function useMaterialJourneyScan(options: {
     )
   }
 
+  const listTextFilterActive = computed(() => {
+    const trimmed = query.value.trim()
+    if (trimmed.length < 2) return false
+    return !isScanLikeInput(trimmed)
+  })
+
   function primaryActionEnabled(result: MaterialScanResolveResult): boolean {
     if (!result.canAct) return false
     if (result.needsBulkConfirm && !bulkConfirmed.value) return false
     return true
   }
 
+  function showInCrateAction(result: MaterialScanResolveResult): boolean {
+    if (options.selectedPackCrateId?.value) return false
+    if (!options.listEditable.value) return false
+    if (options.journeyStep.value !== 'pack') return false
+    if (!result.canAct || !result.packItem) return false
+    if (result.type !== 'loose_ready' && result.type !== 'bulk_wrong_batch') return false
+    if (isPhysicalComboPackItem(result.packItem)) return false
+    if (result.needsBulkConfirm && !bulkConfirmed.value) return false
+    return true
+  }
+
+  function inCrateActionLabel(): string {
+    return t('activities.materialJourney.scan.actionInCrate')
+  }
+
   function primaryActionLabel(result: MaterialScanResolveResult): string {
+    if (
+      options.selectedPackCrateId?.value &&
+      (result.type === 'loose_ready' || result.type === 'bulk_wrong_batch')
+    ) {
+      return t('activities.materialJourney.scan.actionInCrate')
+    }
+    if (result.type === 'unknown_crate') {
+      return t('activities.materialJourney.scan.actionUseAsPackCrate')
+    }
     if (result.type === 'crate_shell' || result.type === 'in_crate') {
       if (options.journeyStep.value === 'pack') {
         return t('activities.materialJourney.scan.actionOpenCratePack')
@@ -211,6 +243,13 @@ export function useMaterialJourneyScan(options: {
     return t(key)
   }
 
+  function dismissLabelForResult(result: MaterialScanResolveResult): string {
+    if (result.type === 'unknown_crate') {
+      return t('activities.materialJourney.scan.actionDeclinePackCrate')
+    }
+    return t('common.close')
+  }
+
   function clearQuery(): void {
     query.value = ''
     dismissResult()
@@ -227,9 +266,13 @@ export function useMaterialJourneyScan(options: {
     dismissResult,
     confirmBulkBatch,
     filterTasks,
+    listTextFilterActive,
     primaryActionEnabled,
     primaryActionLabel,
+    showInCrateAction,
+    inCrateActionLabel,
     messageForResult,
+    dismissLabelForResult,
     clearQuery,
   }
 }

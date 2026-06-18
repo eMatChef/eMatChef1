@@ -17,11 +17,6 @@
   line-height: 1.45;
 }
 
-.activity-material-tab .activity-js-order-card {
-  border-color: #fde68a;
-  background: #fffbeb;
-}
-
 @media (max-width: 767px) {
   .activity-material-tab .activity-tab-subsection-title {
     font-size: 0.9375rem;

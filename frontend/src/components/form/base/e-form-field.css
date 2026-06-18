@@ -149,6 +149,27 @@
   opacity: 1;
 }
 
+/* Browser-Autofill: Chrome/Edge setzen sonst hellblau — auf E-Feld-Look zurückführen */
+.e-form-field .v-field__input input:-webkit-autofill,
+.e-form-field .v-field__input input:-webkit-autofill:hover,
+.e-form-field .v-field__input input:-webkit-autofill:focus,
+.e-form-field .v-field__input input:-webkit-autofill:active,
+.e-form-field .v-field__input textarea:-webkit-autofill,
+.e-form-field .v-field__input textarea:-webkit-autofill:hover,
+.e-form-field .v-field__input textarea:-webkit-autofill:focus,
+.e-form-field .v-field__input textarea:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
+  box-shadow: 0 0 0 1000px #fff inset !important;
+  -webkit-text-fill-color: var(--color-text, #111827) !important;
+  caret-color: var(--color-primary, #059669);
+  transition: background-color 9999s ease-out 0s;
+}
+
+.e-form-field .v-field:not(.v-field--focused) .v-field__input input:-webkit-autofill,
+.e-form-field .v-field:not(.v-field--focused) .v-field__input textarea:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-text-muted, #6b7280) !important;
+}
+
 .e-form-field .v-select .v-field__input,
 .e-form-field .v-autocomplete .v-field__input {
   padding-right: 28px;

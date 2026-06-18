@@ -833,11 +833,11 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 | **8** | History-Audit UI | Pack-Events §20.2 | Aggregation lesbar auf Mobile | ✓ |
 | **8b** | Benachrichtigungen (Inbox) | §20.1 | Deep-Link → `pack-journey` | ✓ |
 | **9** | J+S eigener Tab | js-material Spec | — | ✓ |
-| **9b** | Nutzungs-Statistik (Moves) | §20.10 | — | offen |
-| **10** | Nachlieferungs-Wunsch | §14 | Panel unter Scan-Bar | offen |
-| **11** | Kisten-Intent «Zusammen» | §19.2 | — | offen |
-| **12** | Presence light + Konflikt | §6.5, §15 | — | offen |
-| **13** | **Rollout** | Tab `packs` → Journey default; Legacy «Klassische Packliste» | Toggle / `?packUi=legacy` | offen |
+| **9b** | Nutzungs-Statistik (Moves) | §20.10 | — | ✓ |
+| **10** | Nachlieferungs-Wunsch | §14 | Panel unter Scan-Bar | ✓ |
+| **11** | Kisten-Intent «Zusammen» | §19.2 | — | ✓ |
+| **12** | Presence light + Konflikt | §6.5, §15 | — | ✓ |
+| **13** | **Rollout** | Tab `packs` → Journey default; Legacy «Klassische Packliste» | Toggle / `?packUi=legacy` | ✓ |
 
 **Pro Phase:** nur die genannten Bausteine — keine Vorwegnahme späterer Sheets/Features.
 

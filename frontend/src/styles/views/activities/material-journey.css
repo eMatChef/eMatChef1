@@ -175,6 +175,47 @@
   min-height: 0;
 }
 
+.material-journey-toolbar__presence {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.material-journey-pack-group-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.material-journey-task-row__checkbox {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+}
+
+.material-journey-task-row--selected {
+  border-color: rgb(var(--v-theme-primary));
+}
+
+.material-journey-retry-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.activity-material-journey-view--embedded {
+  gap: 8px;
+}
+
+.activity-material-journey-view--embedded .material-journey-stepper {
+  margin: 0;
+}
+
 /* Task list / empty */
 .material-journey-task-list__empty {
   padding: 8px 0 16px;
@@ -737,4 +778,78 @@
   .material-journey-toolbar__progress {
     margin-left: auto;
   }
+}
+
+.material-journey-scan-bar--crate-target .material-journey-scan-bar__row {
+  border: 2px solid rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.05);
+  box-shadow: 0 0 0 1px rgba(var(--v-theme-primary), 0.12);
+}
+
+.material-journey-scan-bar__target {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.material-journey-scan-bar__target-hint {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgb(var(--v-theme-primary));
+}
+
+.material-journey-scan-bar__deselect {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.35);
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-primary));
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.material-journey-active-crate-contents__items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.material-journey-active-crate-contents__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-primary), 0.06);
+  border: 1px solid rgba(var(--v-theme-primary), 0.12);
+}
+
+.material-journey-active-crate-contents__item-name {
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.material-journey-active-crate-contents__item-qty {
+  flex: 0 0 auto;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.75);
+}
+
+.material-journey-active-crate-contents__empty {
+  margin: 0;
+  font-size: 0.8125rem;
 }

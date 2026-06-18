@@ -98,7 +98,6 @@ function initMap() {
     boxZoom: props.interactive,
     keyboard: props.interactive,
     dragging: props.interactive,
-    tap: props.interactive,
   }).setView(DEFAULT_CENTER, DEFAULT_ZOOM)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

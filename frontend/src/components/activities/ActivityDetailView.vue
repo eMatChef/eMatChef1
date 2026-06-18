@@ -416,33 +416,6 @@
               </p>
             </div>
 
-            <div
-              v-if="showJsOrderCard"
-              class="section-card activity-tab-panel-card activity-js-order-card"
-            >
-              <h2 class="section-title activity-tab-subsection-title">
-                {{ t('activities.jsMaterial.order.cardTitle') }}
-              </h2>
-              <p class="text-muted activity-js-order-card-hint">
-                {{ t('activities.jsMaterial.tab.materialHint') }}
-              </p>
-              <div class="activity-js-order-card-meta">
-                <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
-                <span class="activity-js-order-status">{{ jsOrderStatusLabel }}</span>
-                <span
-                  v-if="jsOrderSummary?.items?.length"
-                  class="text-muted"
-                >
-                  · {{ t('activities.jsMaterial.order.positionsCount', { count: jsOrderSummary.items.length }) }}
-                </span>
-              </div>
-              <div class="activity-js-order-card-actions">
-                <EButton variant="primary" @click="goToJsTab">
-                  {{ t('activities.jsMaterial.tab.openTab') }}
-                </EButton>
-              </div>
-            </div>
-
             <div class="section-card activity-tab-panel-card">
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
               <div v-if="itemsLoading" class="activity-items-loading">
@@ -585,20 +558,27 @@
 
           <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
             <div class="activity-detail-tab-panel tab-content">
-            <div v-if="canManageMaterials" class="activity-pack-journey-beta-link">
+            <div v-if="canManageMaterials && !useLegacyPackUi" class="activity-pack-journey-beta-link">
               <RouterLink
                 :to="{
-                  name: 'ActivityPackJourney',
+                  name: 'ActivityDetail',
                   params: { departmentId, activityId },
+                  query: { tab: 'packs', ...legacyPackUiQuery() },
                 }"
                 class="activity-pack-journey-beta-link__anchor"
               >
-                {{ t('activities.materialJourney.journeyBetaLink') }}
+                {{ t('activities.materialJourney.legacyPackLink') }}
               </RouterLink>
             </div>
+            <ActivityMaterialJourneyView
+              v-if="activity && !useLegacyPackUi"
+              :department-id="departmentId"
+              :activity-id="activityId"
+              embedded
+            />
             <ActivityPackListTab
+              v-else-if="activity"
               ref="packListTabRef"
-              v-if="activity"
               :activity-id="activityId"
               :department-id="departmentId"
               :activity-created-by-user-id="activity.created_by_user_id ?? null"
@@ -754,11 +734,6 @@ import {
   type ActivityCompletionBlockers,
   type ActivityTransitionRow,
 } from '@/api/activities'
-import {
-  getActivityJsOrder,
-  jsOrderStatusLabelKey,
-  type ActivityJsOrderApi,
-} from '@/api/activityJsOrder'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
@@ -766,6 +741,7 @@ import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
+import ActivityMaterialJourneyView from '@/components/activities/ActivityMaterialJourneyView.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
@@ -803,6 +779,7 @@ import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
+import { resolvePackUiPreference, legacyPackUiQuery } from '@/utils/packUiPreference'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { EButton } from '@/components/form/base'
@@ -929,6 +906,8 @@ const showPacksTab = computed(() => {
   if ((STATUSES_WITH_PACKS_TAB as readonly string[]).includes(s)) return true
   return showMemberEarlyPackPreview.value
 })
+
+const useLegacyPackUi = computed(() => resolvePackUiPreference(route.query) === 'legacy')
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
 const STATUSES_WITH_ISSUES_TAB = ['at_event', 'returned', 'completed'] as const
@@ -1370,19 +1349,6 @@ watch(showJsOrderCard, (show) => {
   }
 })
 
-const jsOrderStatusLabel = computed(() => {
-  if (jsOrderSummaryLoading.value) return t('activities.jsMaterial.order.loadingShort')
-  return t(jsOrderStatusLabelKey(jsOrderSummary.value?.status))
-})
-
-const jsParticipantCountForDisplay = computed(() => {
-  const fromActivity = activity.value?.participant_count
-  if (fromActivity != null && fromActivity >= 1) return fromActivity
-  const fromOrder = jsOrderSummary.value?.participant_count
-  if (fromOrder != null && fromOrder >= 1) return fromOrder
-  return null
-})
-
 /** Status ab «Annehmen & Packen» — Accordion «vergessen» ausblenden. */
 const STATUSES_AT_OR_AFTER_PACKING = [
   'packing',
@@ -1595,8 +1561,6 @@ watch(issuesReloadToken, () => {
 })
 
 const consumptionModalOpen = ref(false)
-const jsOrderSummary = ref<ActivityJsOrderApi | null>(null)
-const jsOrderSummaryLoading = ref(false)
 const consumptionModalPreset = ref<ConsumptionModalPreset | null>(null)
 const consumptionModalCancelledToken = ref(0)
 const consumptionModalReturnWithoutConsumptionToken = ref(0)
@@ -1666,26 +1630,6 @@ function onConsumptionModalClose() {
   skipNextConsumptionModalCloseCancel.value = false
   consumptionModalOpen.value = false
   consumptionModalPreset.value = null
-}
-
-async function refreshJsOrderSummary() {
-  if (!props.activityId || !showJsOrderCard.value) {
-    jsOrderSummary.value = null
-    return
-  }
-  jsOrderSummaryLoading.value = true
-  try {
-    jsOrderSummary.value = await getActivityJsOrder(props.activityId)
-  } catch {
-    jsOrderSummary.value = null
-  } finally {
-    jsOrderSummaryLoading.value = false
-  }
-}
-
-function goToJsTab() {
-  activeTab.value = 'js'
-  mergeActivityQuery({ tab: 'js' })
 }
 
 function onConsumptionModalReturnWithoutConsumption() {
@@ -1933,7 +1877,6 @@ async function reloadActivityDetailSoft(): Promise<void> {
         `${activityTypeLabelDetail(d.type || '')} · ${activityStatusLabelDetail(d.status || '')}`,
       )
     }
-    void refreshJsOrderSummary()
   } catch {
     /* stiller Refresh — kein Spinner, Fehler ignorieren */
   }
@@ -2091,7 +2034,6 @@ async function reload() {
     if (activeTab.value === 'material') {
       void loadItems()
     }
-    void refreshJsOrderSummary()
   } catch (err: unknown) {
     const e = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
     const msg =
@@ -2481,13 +2423,6 @@ async function onCancelActivity() {
 }
 
 watch(
-  () => [props.activityId, activity.value?.wants_js_material, activity.value?.type] as const,
-  () => {
-    void refreshJsOrderSummary()
-  },
-)
-
-watch(
   () => props.activityId,
   () => {
     void reload()
@@ -2572,18 +2507,5 @@ useBackgroundPoll({
 .activity-detail-view :deep(.detail-header) {
   position: static !important;
   top: auto !important;
-}
-
-.activity-js-order-card-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  margin: 12px 0;
-  font-size: 14px;
-}
-
-.activity-js-order-card-actions {
-  margin-top: 8px;
 }
 </style>

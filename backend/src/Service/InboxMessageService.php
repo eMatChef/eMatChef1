@@ -366,6 +366,73 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
+    public function notifyReplenishmentWishCreated(
+        Activity $activity,
+        User $requester,
+        \App\Entity\ActivityReplenishmentWish $wish,
+    ): void {
+        $material = $wish->getMaterialItem();
+        $extra = [
+            'wish_id' => $wish->getId(),
+            'material_item_id' => $wish->getMaterialItemId(),
+            'material_name' => $material->getName(),
+            'quantity_requested' => $wish->getQuantityRequested(),
+            'notes' => $wish->getNotes(),
+        ];
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $requester,
+            'activity_replenishment_wish',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $payload = $row->getPayload();
+        $payload['journey_step'] = 'pack';
+        $payload['deeplink'] = 'pack-journey';
+        $row->setPayload(array_merge($payload, $extra));
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
+    public function notifyReplenishmentWishDecided(
+        Activity $activity,
+        User $decider,
+        \App\Entity\ActivityReplenishmentWish $wish,
+        bool $fulfilled,
+    ): void {
+        $recipient = $this->entityManager->getRepository(User::class)->find($wish->getRequestedByUserId());
+        if (!$recipient || $recipient->getId() === $decider->getId()) {
+            return;
+        }
+
+        $material = $wish->getMaterialItem();
+        $type = $fulfilled ? 'activity_replenishment_wish_fulfilled' : 'activity_replenishment_wish_rejected';
+        $extra = [
+            'wish_id' => $wish->getId(),
+            'material_item_id' => $wish->getMaterialItemId(),
+            'material_name' => $material->getName(),
+            'quantity_requested' => $wish->getQuantityRequested(),
+            'rejection_reason' => $wish->getRejectionReason(),
+        ];
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $decider,
+            $type,
+            InboxMessage::CATEGORY_ACTIVITY_USER,
+            InboxMessage::RECIPIENT_USER,
+            $recipient->getId(),
+        );
+        $payload = $row->getPayload();
+        $payload['journey_step'] = 'pack';
+        $payload['deeplink'] = 'pack-journey';
+        $row->setPayload(array_merge($payload, $extra));
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -668,6 +735,8 @@ class InboxMessageService
             'activity_packed' => $isLogistics ? 'transport_out' : 'issue',
             'activity_at_event' => $isLogistics ? 'transport_back' : 'return',
             'activity_returned', 'activity_returned_mw' => $forMwRecipient ? 'store' : 'return',
+            'activity_replenishment_wish' => 'pack',
+            'activity_replenishment_wish_fulfilled', 'activity_replenishment_wish_rejected' => 'pack',
             'activity_pack_crate_check_incomplete' => match ($activity->getStatus()) {
                 Activity::STATUS_AT_EVENT => $isLogistics ? 'transport_back' : 'return',
                 Activity::STATUS_RETURNED => $forMwRecipient ? 'store' : 'return',

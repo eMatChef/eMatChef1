@@ -788,6 +788,19 @@
     "devUiPlayground": "UI Sandbox",
     "help": "Hilfe"
   },
+  "statistics": {
+    "materialUsage": {
+      "title": "Material-Nutzung",
+      "subtitle": "Meistgebuchte Materialien aus Pack-Bewegungen",
+      "fromLabel": "Von",
+      "toLabel": "Bis",
+      "apply": "Aktualisieren",
+      "colMaterial": "Material",
+      "colMoves": "Buchungen",
+      "colQuantity": "Menge gesamt",
+      "empty": "Keine Bewegungen im gewählten Zeitraum."
+    }
+  },
   "supplierProfile": {
     "title": "Profil & Kontakt",
     "readOnlyHint": "Du kannst die Firmendaten einsehen, aber nicht bearbeiten.",
@@ -2277,6 +2290,22 @@
         "nextYes": "Ja — nächster ({seconds}s)",
         "nextNo": "Nein, schliessen"
       },
+      "assignCrate": {
+        "subtitle": "Kiste wählen und Material zuordnen",
+        "hint": "Das Material wird gepackt und in der gewählten Kiste gebucht.",
+        "empty": "Noch keine Kiste auf dieser Packliste. Zuerst eine Kiste per QR scannen oder in der klassischen Packliste «Kiste hinzufügen».",
+        "listAria": "Kisten auf dieser Packliste",
+        "qtyLabel": "Menge",
+        "qtyMax": "max. {max}",
+        "confirm": "In Kiste legen"
+      },
+      "activeCrate": {
+        "selected": "Kiste «{label}» ausgewählt",
+        "packTargetHint": "Material packen in «{label}»",
+        "deselect": "Abwählen",
+        "empty": "Kiste ist leer — Material oben scannen.",
+        "scanLabel": "Material in Kiste scannen"
+      },
       "transportTours": {
         "title": "Transport-Touren",
         "hint": "Fahrzeug wählen und Kisten/Positionen zuordnen — Pipeline-Buchungen bleiben in der Checkliste.",
@@ -2327,9 +2356,13 @@
         "actionOpenCrateReturn": "Retour-Kiste öffnen",
         "actionOpenCrateStore": "Kiste einlagern",
         "actionOpenCombo": "Set prüfen",
+        "actionInCrate": "In Kiste",
+        "actionUseAsPackCrate": "Ja, als Packkiste nutzen",
+        "actionDeclinePackCrate": "Nein",
         "actionShow": "Anzeigen",
         "result": {
           "not_on_list": "Nicht auf dieser Packliste.",
+          "unknown_crate": "Kiste ist noch nicht auf der Packliste. Als Packkiste nutzen?",
           "not_ready": "Materialwart packt noch.",
           "wrong_batch": "Andere Charge als geplant.",
           "serialized_mismatch": "Falsche Charge — bei Seriennummern muss der QR exakt passen.",
@@ -2356,10 +2389,49 @@
         "openDescription": "Keine offenen Positionen in diesem Schritt.",
         "byShelfTitle": "Alles gepackt",
         "byShelfDescription": "Keine offenen Positionen mehr — wechsle zu «Erledigt» oder einem anderen Schritt.",
+        "filterTitle": "Keine Treffer",
+        "filterDescription": "Die Suche passt zu keiner offenen Position — Suchbegriff anpassen oder Scan-Feld leeren.",
         "doneTitle": "Noch nichts erledigt",
         "doneDescription": "Erledigte Positionen erscheinen hier nach der Buchung.",
         "listTitle": "Checkliste folgt",
         "listDescription": "{count} Positionen geladen — Zeilen und Aktionen kommen in Phase 2."
+      },
+      "replenishmentWish": {
+        "title": "Nachlieferung wünschen",
+        "searchPlaceholder": "Material suchen…",
+        "quantityLabel": "Gewünschte Menge",
+        "notesLabel": "Notiz",
+        "notesPlaceholder": "Optional, z. B. Verwendungszweck",
+        "availability": "Im Lager (Zeitraum): {n} verfügbar",
+        "partialAvailability": "Nur {n} verfügbar — Wunsch trotzdem möglich",
+        "unavailable": "Aktuell nicht verfügbar — MW muss ggf. beschaffen",
+        "checkingAvailability": "Verfügbarkeit wird geprüft…",
+        "submit": "Wunsch an Materialwart senden",
+        "myWishes": "Meine Wünsche",
+        "mwQueue": "{count} offene Nachlieferungs-Wünsche",
+        "qtyBy": "{n} Stk.",
+        "requestedBy": "von {name}",
+        "availabilityAtRequest": "Zum Wunschzeitpunkt: {n} verfügbar",
+        "fulfill": "Erfüllen",
+        "reject": "Ablehnen",
+        "statusPending": "beim MW",
+        "statusFulfilled": "erfüllt",
+        "statusRejected": "abgelehnt",
+        "statusCancelled": "zurückgezogen",
+        "toastSubmitted": "Wunsch gesendet",
+        "toastFulfilled": "Nachlieferung erfüllt",
+        "toastRejected": "Wunsch abgelehnt"
+      },
+      "packGroup": {
+        "groupButton": "Zusammen packen",
+        "selected": "{count} ausgewählt",
+        "badge": "Zusammen ({n})",
+        "selectRow": "Zeile für Gruppe auswählen",
+        "toastCreated": "Gruppe angelegt — Kiste zuordnen zum Abschliessen"
+      },
+      "retryMove": {
+        "hint": "Letzte Buchung fehlgeschlagen.",
+        "action": "Erneut versuchen"
       }
     },
     "packList": {

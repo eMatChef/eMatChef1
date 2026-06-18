@@ -15,6 +15,7 @@ import { shouldIncludePackItemOnStageLeft } from '@/components/activities/packWo
 
 export type MaterialScanResultType =
   | 'not_on_list'
+  | 'unknown_crate'
   | 'not_ready'
   | 'wrong_batch'
   | 'serialized_mismatch'
@@ -43,6 +44,8 @@ export type MaterialScanResolveResult = {
   parentCombo?: ActivityPackItem
   canAct: boolean
   needsBulkConfirm?: boolean
+  scannedBatchId?: string
+  scannedBatchLabel?: string
 }
 
 export type MaterialScanResolveContext = {
@@ -120,6 +123,17 @@ function pickPrimaryPackItem(items: ActivityPackItem[], ctx: MaterialScanResolve
 function isBatchInRepair(lookup: PublicLookupBatchResponse): boolean {
   const status = (lookup.batch.status ?? '').trim().toLowerCase()
   return status === 'in_repair' || status === 'repair'
+}
+
+function isContainerBatchLookup(lookup: PublicLookupBatchResponse): boolean {
+  return Boolean(lookup.batch.is_container || lookup.material.is_container)
+}
+
+function scannedBatchDisplayLabel(lookup: PublicLookupBatchResponse, materialName: string): string {
+  const serial = (lookup.batch.serial_number ?? '').trim()
+  const batchLabel = (lookup.batch.label ?? '').trim()
+  const parts = [serial, batchLabel || materialName].filter(Boolean)
+  return parts.join(' – ') || materialName
 }
 
 function isNotReadyForJourneyStep(
@@ -244,6 +258,18 @@ export function resolveMaterialBatchScan(
         detail: 'in_crate',
         materialName: inCrate.item.material_name ?? materialName,
         container: inCrate.container,
+        canAct: ctx.listEditable,
+      }
+    }
+    if (isContainerBatchLookup(lookup) && ctx.journeyStep === 'pack') {
+      return {
+        type: 'unknown_crate',
+        tone: 'info',
+        title: materialName,
+        detail: 'unknown_crate',
+        materialName,
+        scannedBatchId: batchId,
+        scannedBatchLabel: scannedBatchDisplayLabel(lookup, materialName),
         canAct: ctx.listEditable,
       }
     }
@@ -439,6 +465,7 @@ export function toneForScanResult(type: MaterialScanResultType): MaterialScanTon
     case 'combo_check':
     case 'in_repair':
       return 'warning'
+    case 'unknown_crate':
     case 'crate_shell':
     case 'in_crate':
     case 'in_virtual_crate':

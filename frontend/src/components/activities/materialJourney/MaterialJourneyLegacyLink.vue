@@ -3,6 +3,8 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
+import { legacyPackUiQuery } from '@/utils/packUiPreference'
+
 const props = defineProps<{
   departmentId: string
   activityId: string
@@ -17,7 +19,7 @@ const legacyHref = computed(() => ({
     departmentId: props.departmentId,
     activityId: props.activityId,
   },
-  query: { tab: 'packs' },
+  query: { tab: 'packs', ...legacyPackUiQuery() },
 }))
 
 const historyHref = computed(() => ({

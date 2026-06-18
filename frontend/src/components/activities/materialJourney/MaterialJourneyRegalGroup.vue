@@ -8,10 +8,13 @@ defineProps<{
   group: MaterialJourneyRegalGroup
   listEditable: boolean
   movingId: string | null
+  packMultiSelect?: boolean
+  isRowSelected?: (row: TaskRow) => boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
+  'toggle-select': [row: TaskRow]
 }>()
 
 const { t } = useI18n()
@@ -31,7 +34,10 @@ const { t } = useI18n()
           :row="row"
           :moving="movingId === row.id"
           :readonly="!listEditable"
+          :selectable="packMultiSelect"
+          :selected="isRowSelected?.(row)"
           @activate="emit('activate', row)"
+          @toggle-select="emit('toggle-select', row)"
         />
       </li>
     </ul>

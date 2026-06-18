@@ -25,7 +25,7 @@ import { getStageRightQty } from '@/components/activities/packStageQuantities'
 
 export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'combo'
 
-export type MaterialJourneyTaskBadge = 'physical_combo' | 'consumable' | 'js' | 'crate'
+export type MaterialJourneyTaskBadge = 'physical_combo' | 'consumable' | 'js' | 'crate' | 'intent_group'
 
 export type MaterialJourneyTaskRow = {
   id: string
@@ -45,6 +45,8 @@ export type MaterialJourneyTaskRow = {
   categoryName: string | null
   shelfLabel: string
   shelfKey: string
+  intentId: string | null
+  intentMemberCount: number
 }
 
 export type MaterialJourneyFilterTab = 'open' | 'done' | 'byShelf'
@@ -62,10 +64,12 @@ export type MaterialJourneyTaskBuildContext = {
   canOpenSheet: boolean
   formatCrateLineCount: (count: number) => string
   shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
+  intentMemberCount?: (intentId: string) => number
 }
 
-function taskBadges(pi: ActivityPackItem): MaterialJourneyTaskBadge[] {
+function taskBadges(pi: ActivityPackItem, ctx: MaterialJourneyTaskBuildContext): MaterialJourneyTaskBadge[] {
   const badges: MaterialJourneyTaskBadge[] = []
+  if (pi.intentId) badges.push('intent_group')
   if (pi.isConsumable) badges.push('consumable')
   if (pi.isJsMaterial) badges.push('js')
   return badges
@@ -96,6 +100,8 @@ export function buildMaterialJourneyLooseTask(
 
   const shelfLabel = materialJourneyShelfLabel(pi)
   const shelfKey = materialJourneyShelfKey(shelfLabel)
+  const intentId = pi.intentId
+  const intentMemberCount = intentId ? (ctx.intentMemberCount?.(intentId) ?? 0) : 0
 
   return {
     id: pi.id,
@@ -108,12 +114,14 @@ export function buildMaterialJourneyLooseTask(
     maxForwardQty,
     isOpen,
     isDone,
-    badges: taskBadges(pi),
+    badges: taskBadges(pi, ctx),
     canMove,
     canOpenSheet: false,
     categoryName: pi.categoryName?.trim() || null,
     shelfLabel,
     shelfKey,
+    intentId,
+    intentMemberCount,
   }
 }
 
@@ -170,6 +178,8 @@ export function buildMaterialJourneyCrateTask(
     categoryName: null,
     shelfLabel,
     shelfKey,
+    intentId: null,
+    intentMemberCount: 0,
   }
 }
 

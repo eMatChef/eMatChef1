@@ -15,11 +15,20 @@ import {
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
+
+const POLL_ACTIVE_MS = 5_000
+const POLL_IDLE_MS = 20_000
 
 export function useMaterialJourneyData(
   departmentId: Ref<string>,
   activityId: Ref<string>,
   stepParam: Ref<string | undefined>,
+  options?: {
+    pollEnabled?: Ref<boolean>
+    pollFast?: Ref<boolean>
+    isPollBusy?: () => boolean
+  },
 ) {
   const { canManageMaterials } = useDepartmentMemberRole()
 
@@ -76,6 +85,21 @@ export function useMaterialJourneyData(
     containerItemsByContainerId.value = map
   }
 
+  async function reloadSilent(): Promise<void> {
+    if (!activityId.value) return
+    try {
+      const [act, items] = await Promise.all([
+        getActivity(activityId.value, departmentId.value),
+        getPackItems(activityId.value).catch(() => [] as ActivityPackItem[]),
+      ])
+      activity.value = act
+      packItems.value = items
+      await loadPackContainers(activityId.value)
+    } catch {
+      /* silent refresh */
+    }
+  }
+
   async function reload(): Promise<void> {
     if (!activityId.value) return
     loading.value = true
@@ -103,6 +127,24 @@ export function useMaterialJourneyData(
     void reload()
   }, { immediate: true })
 
+  const pollIntervalMs = computed(() =>
+    options?.pollFast?.value ? POLL_ACTIVE_MS : POLL_IDLE_MS,
+  )
+
+  const pollEnabled = computed(() => {
+    if (options?.pollEnabled?.value === false) return false
+    return !loading.value && !!activity.value && !error.value
+  })
+
+  if (options?.pollEnabled !== undefined || options?.pollFast !== undefined) {
+    useBackgroundPoll({
+      intervalMs: pollIntervalMs,
+      enabled: pollEnabled,
+      isBusy: options?.isPollBusy,
+      poll: reloadSilent,
+    })
+  }
+
   return {
     activity,
     packItems,
@@ -118,5 +160,6 @@ export function useMaterialJourneyData(
     isEarlyPackPreview,
     canManageMaterials,
     reload,
+    reloadSilent,
   }
 }

@@ -7,10 +7,13 @@ const props = defineProps<{
   row: MaterialJourneyTaskRow
   moving: boolean
   readonly: boolean
+  selectable?: boolean
+  selected?: boolean
 }>()
 
 const emit = defineEmits<{
   activate: []
+  'toggle-select': []
 }>()
 
 const { t } = useI18n()
@@ -46,6 +49,10 @@ const qtyLabel = computed(() => {
 const isInteractive = computed(() => props.row.canMove || props.row.canOpenSheet)
 
 function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
+  if (badge === 'intent_group') {
+    const n = props.row.intentMemberCount
+    return t('activities.materialJourney.packGroup.badge', { n })
+  }
   if (badge === 'physical_combo') return t('activities.materialJourney.badge.set')
   if (badge === 'crate') return t('activities.materialJourney.badge.crate')
   if (badge === 'consumable') return t('activities.materialJourney.badge.consumable')
@@ -54,6 +61,11 @@ function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
 
 function onActivate(): void {
   emit('activate')
+}
+
+function onCheckboxClick(event: Event): void {
+  event.stopPropagation()
+  emit('toggle-select')
 }
 </script>
 
@@ -66,10 +78,19 @@ function onActivate(): void {
       'material-journey-task-row--moving': moving,
       'material-journey-task-row--crate': row.kind === 'crate',
       'material-journey-task-row--combo': row.kind === 'combo',
+      'material-journey-task-row--selected': selected,
     }"
     :disabled="moving"
     @click="onActivate"
   >
+    <input
+      v-if="selectable && row.kind === 'loose'"
+      type="checkbox"
+      class="material-journey-task-row__checkbox"
+      :checked="selected"
+      :aria-label="t('activities.materialJourney.packGroup.selectRow')"
+      @click="onCheckboxClick"
+    />
     <span class="material-journey-task-row__status" :class="statusClass" aria-hidden="true">
       {{ statusIcon }}
     </span>
