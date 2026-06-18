@@ -214,6 +214,8 @@ class GrossanlassDepartmentCreateService
                     $adderName,
                     $department->getName(),
                     'Materialchef',
+                    $department->getId(),
+                    true,
                     $profile->getLanguage()
                 );
             } catch (\Throwable) {

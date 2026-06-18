@@ -176,6 +176,28 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
+      <!-- Planung (Grossanlass) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks"
+        :to="getLink('/planung')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('planung') }"
+      >
+        <v-icon icon="mdi-clipboard-text-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
+      </router-link>
+
+      <!-- Beschaffung (Grossanlass, MW/DC — Phase 2c Shell) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        :to="getLink('/beschaffung')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+      >
+        <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
+      </router-link>
+
       <!-- Materialien -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext && !isGrossanlassDept"
@@ -211,7 +233,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
@@ -222,7 +244,7 @@
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
@@ -233,7 +255,7 @@
 
       <!-- Horizontaler Balken (Divider) -->
       <div
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && (showStandardDeptSidebarLinks || (isGrossanlassDept && showDeptContextSidebarLinks))"
         class="nav-divider"
       />
 
@@ -506,7 +528,7 @@ const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
-/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — keine Standard-Dept-Module */
+/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Phase 2a: + Planung, Aufgaben, Nachrichten */
 const showStandardDeptSidebarLinks = computed(
   () => showDeptContextSidebarLinks.value && !isGrossanlassDept.value,
 )
@@ -527,6 +549,13 @@ const showAccountingMenu = computed(() => {
   if (r === 'mw' || r === 'dc') return true
   if (['l1', 'l2', 'l3'].includes(r)) return true
   return false
+})
+
+/** Grossanlass-Beschaffung (Shell): nur MW/DC — kein Pfadi-/accounting-Modul */
+const showGrossanlassBeschaffungMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r === 'mw' || r === 'dc'
 })
 
 /** Lieferanten-Shop: Materialwart / Departmentchef */

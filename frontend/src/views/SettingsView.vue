@@ -184,7 +184,18 @@ const allMenuItems = computed(() => [
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
 
+/** Grossanlass-Dept: nur Mein Department + Benutzer (+ Zeit/Ort für MW/DC) — README §3.6 */
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'users', 'zeit'])
+const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
+
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
 const visibleMenuItems = computed(() => {
+  if (isGrossanlassDept.value) {
+    const allowedIds = isUserRole.value ? GROSSANLASS_USER_MENU_IDS : GROSSANLASS_MW_MENU_IDS
+    return allMenuItems.value.filter((item) => allowedIds.has(item.id))
+  }
+
   let items = isUserRole.value
     ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
     : allMenuItems.value

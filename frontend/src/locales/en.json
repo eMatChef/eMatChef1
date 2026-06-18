@@ -54,6 +54,15 @@
         "departmentDisplay": "Info display · eMatChef",
         "displayEntry": "Info display · Access · eMatChef",
         "statistics": "Statistics · eMatChef",
+        "grossanlassPlanung": "Planning · Major event · eMatChef",
+        "grossanlassPlanungRessorts": "Departments & members · Planning · eMatChef",
+        "grossanlassPlanungRounds": "Planning rounds · Planning · eMatChef",
+        "grossanlassBeschaffung": "Procurement · Major event · eMatChef",
+        "grossanlassBeschaffungUebersicht": "Overview · Procurement · eMatChef",
+        "grossanlassBeschaffungBedarf": "Demand · Procurement · eMatChef",
+        "grossanlassBeschaffungOfferten": "Quotes · Procurement · eMatChef",
+        "grossanlassBeschaffungBestellungen": "Orders · Procurement · eMatChef",
+        "grossanlassBeschaffungErhalten": "Received · Procurement · eMatChef",
         "settingsTime": "Settings · Time/place · eMatChef",
         "settingsCategories": "Settings · Categories · eMatChef",
         "settingsMyDepartment": "Settings · My department · eMatChef",
@@ -648,6 +657,9 @@
     "myCompanyTemplates": "Templates",
     "myCompanyRepairs": "Repairs",
     "myCompanyRepairTemplates": "Repair templates",
+    "devUiPlayground": "UI Sandbox",
+    "planung": "Planning",
+    "beschaffung": "Procurement",
     "help": "Help"
   },
   "supplierProfile": {
@@ -3233,6 +3245,9 @@
       "toastMemberRemoveError": "Could not remove",
       "toastMemberAdded": "User added",
       "toastMemberAddError": "Could not add",
+      "searchRunning": "Searching…",
+      "pendingMemberHint": "The selected user will be added when you click «Add» or «Save». Department assignment to teams happens later in Planning by the material manager.",
+      "grossanlassMemberHint": "Major event: only material manager (MW) and member (U). The MW assigns members to departments in Planning later.",
       "validationFillAll": "Please fill in all fields",
       "saveErrorFallback": "Could not save department"
     },
@@ -5733,12 +5748,93 @@
     },
     "dashboard": {
       "draftBadge": "Draft",
-      "welcome": "Welcome to the major event workspace. Planning features will follow in upcoming phases."
+      "welcome": "Welcome to the major event workspace. Open «Planning» in the sidebar to create departments and structure the event."
+    },
+    "planung": {
+      "title": "Planning",
+      "subtitle": "Departments, members and planning rounds for this major event.",
+      "menuTitle": "Planning",
+      "tabRessorts": "Departments & members",
+      "tabRounds": "Planning rounds",
+      "ressorts": {
+        "emptyTitle": "No departments yet",
+        "emptyDescription": "Create departments and sub-projects, assign members and structure the event.",
+        "addAction": "Add department",
+        "addChild": "Add sub-project",
+        "manageMembers": "Manage members",
+        "loading": "Loading departments…",
+        "subtitleMw": "Manage departments and sub-projects, assign members.",
+        "subtitleMember": "Add sub-projects in your department and assign members.",
+        "subtitleReadOnly": "Overview of the department structure.",
+        "statRessorts": "Departments",
+        "statNodes": "Nodes total",
+        "statMembers": "Members",
+        "colName": "Department / sub-project",
+        "colMembers": "Members",
+        "kindRessort": "Department",
+        "kindTeilbereich": "Sub-project",
+        "modalNewRessort": "Create department",
+        "modalNewChild": "Create sub-project",
+        "modalEdit": "Edit",
+        "nameLabelRessort": "Department name",
+        "nameLabelChild": "Sub-project name",
+        "namePlaceholderRessort": "e.g. Construction, Catering, Tech",
+        "namePlaceholderChild": "e.g. Stage, Kitchen North",
+        "parentLabel": "Parent",
+        "parentNone": "No parent (department)",
+        "saving": "Saving…",
+        "membersHeading": "Members —",
+        "sectionCurrentMembers": "Current members ({count})",
+        "emptyNoMembers": "No members in this node yet.",
+        "addMemberHeading": "Add member",
+        "deleteTitle": "Delete department",
+        "deleteMessage": "Really delete «{name}» and empty sub-projects? Only possible without members in the entire branch.",
+        "errorLoad": "Could not load departments",
+        "errorSave": "Save failed",
+        "errorDelete": "Delete failed",
+        "errorAddMember": "Could not add member",
+        "errorRemoveMember": "Could not remove member"
+      },
+      "rounds": {
+        "emptyTitle": "No planning rounds yet",
+        "emptyDescription": "Planning rounds drive demand collection per department — e.g. infrastructure wishes. (Phase 3)",
+        "addAction": "Create round"
+      }
     },
     "inbox": {
       "category": "Major event",
       "subject": "Material manager for «{name}»",
       "preview": "You were assigned as material manager — open dashboard"
+    },
+    "beschaffung": {
+      "title": "Procurement",
+      "subtitle": "Budget, demand, quotes and orders — content follows after planning rounds and wishes (Phase 5).",
+      "menuTitle": "Procurement",
+      "tabUebersicht": "Overview",
+      "tabBedarf": "Demand",
+      "tabOfferten": "Quotes",
+      "tabBestellungen": "Orders",
+      "tabErhalten": "Received",
+      "uebersicht": {
+        "emptyTitle": "Budget overview coming soon",
+        "emptyDescription": "Target vs. actual totals and per-department breakdown will appear here after planning rounds and wish aggregation (Phase 5)."
+      },
+      "bedarf": {
+        "emptyTitle": "No demand yet",
+        "emptyDescription": "Material and infrastructure wishes will be bundled into procurement lines here — after Phase 4 (wish form)."
+      },
+      "offerten": {
+        "emptyTitle": "No quotes yet",
+        "emptyDescription": "Supplier quotes per line — coming in Phase 5."
+      },
+      "bestellungen": {
+        "emptyTitle": "No orders yet",
+        "emptyDescription": "Order status, amounts and invoice references — coming in Phase 5."
+      },
+      "erhalten": {
+        "emptyTitle": "No deliveries yet",
+        "emptyDescription": "Received goods and partial deliveries — coming in Phase 5."
+      }
     }
   }
 }

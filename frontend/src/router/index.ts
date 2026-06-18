@@ -5,6 +5,10 @@ import { usePermissionsStore } from '@/stores/permissions'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
+import {
+  parseInternalRedirectPath,
+  resolveAuthenticatedHomePath,
+} from '@/utils/appHomeRedirect'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
 import {
   applyDevicesHostRedirects,
@@ -692,6 +696,108 @@ const routes: RouteRecordRaw[] = [
         meta: {
           ...routeHead('dashboard'),
         }
+      },
+      {
+        path: 'planung',
+        component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassPlanung'),
+        },
+        children: [
+          {
+            path: '',
+            redirect: { name: 'GrossanlassPlanungRessorts' },
+          },
+          {
+            path: 'ressorts',
+            name: 'GrossanlassPlanungRessorts',
+            component: () => import('@/views/grossanlass/GrossanlassRessortsTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('grossanlassPlanungRessorts'),
+            },
+          },
+          {
+            path: 'rounds',
+            name: 'GrossanlassPlanungRounds',
+            component: () => import('@/views/grossanlass/GrossanlassRoundsTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              ...routeHead('grossanlassPlanungRounds'),
+            },
+          },
+        ],
+      },
+      {
+        path: 'beschaffung',
+        component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: ['matwart', 'depchef'],
+          ...routeHead('grossanlassBeschaffung'),
+        },
+        children: [
+          {
+            path: '',
+            redirect: { name: 'GrossanlassBeschaffungUebersicht' },
+          },
+          {
+            path: 'uebersicht',
+            name: 'GrossanlassBeschaffungUebersicht',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'uebersicht',
+              ...routeHead('grossanlassBeschaffungUebersicht'),
+            },
+          },
+          {
+            path: 'bedarf',
+            name: 'GrossanlassBeschaffungBedarf',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'bedarf',
+              ...routeHead('grossanlassBeschaffungBedarf'),
+            },
+          },
+          {
+            path: 'offerten',
+            name: 'GrossanlassBeschaffungOfferten',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'offerten',
+              ...routeHead('grossanlassBeschaffungOfferten'),
+            },
+          },
+          {
+            path: 'bestellungen',
+            name: 'GrossanlassBeschaffungBestellungen',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'bestellungen',
+              ...routeHead('grossanlassBeschaffungBestellungen'),
+            },
+          },
+          {
+            path: 'erhalten',
+            name: 'GrossanlassBeschaffungErhalten',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'erhalten',
+              ...routeHead('grossanlassBeschaffungErhalten'),
+            },
+          },
+        ],
       },
       {
         path: 'verwaltung',
@@ -1382,6 +1488,58 @@ function applyDevicesHostRouting(to: RouteLocationNormalized): boolean {
   return applyDevicesHostRedirects(to.path)
 }
 
+/** app.ematchef.ch: / und /login → Login oder App-Home; Marketing-Pfade → Hauptdomain. */
+async function handleAppOriginRouting(
+  to: RouteLocationNormalized,
+  authStore: ReturnType<typeof useAuthStore>,
+  next: NavigationGuardNext,
+): Promise<boolean> {
+  if (!isAppOrigin()) return false
+
+  const isEntryPath = to.path === '/' || to.path === '/login'
+
+  if (!isEntryPath && to.meta.publicMarketing && to.path !== '/login') {
+    const mainSiteOrigin = getMainSiteOrigin()
+    if (mainSiteOrigin) {
+      window.location.replace(mainSiteOrigin + to.fullPath)
+      next(false)
+      return true
+    }
+    return false
+  }
+
+  if (!isEntryPath) return false
+
+  if (!authStore.isLoggedIn) {
+    try {
+      await authStore.loadUserSessionFromCookie()
+    } catch {
+      // Kein gültiges Session-Cookie
+    }
+  }
+
+  if (authStore.isLoggedIn) {
+    const redirectQuery = parseInternalRedirectPath(to.query.redirect)
+    if (redirectQuery && to.path === '/login') {
+      next(redirectQuery)
+      return true
+    }
+    const home = resolveAuthenticatedHomePath(authStore)
+    if (to.path !== home) {
+      next({ path: home, replace: true })
+      return true
+    }
+    return false
+  }
+
+  if (to.path === '/') {
+    next({ path: '/login', query: to.query, replace: true })
+    return true
+  }
+
+  return false
+}
+
 // Navigation Guard
 router.beforeEach(async (to, from, next) => {
   if (applyQrHostRedirects(to)) {
@@ -1391,14 +1549,17 @@ router.beforeEach(async (to, from, next) => {
     return next(false)
   }
 
+  const authStore = useAuthStore()
+  if (await handleAppOriginRouting(to, authStore, next)) {
+    return
+  }
+
   // Infoscreen-Kiosk: kein App-Login, keine Session-Probe (Display-Cookie separat).
   if (!shouldProbeUserSession(to.path)) {
     return next()
   }
 
-  const authStore = useAuthStore()
   const permissionsStore = usePermissionsStore()
-  const mainSiteOrigin = getMainSiteOrigin()
   const isSuperAdmin = () => {
     const userRoles = authStore.userRoles || []
     return userRoles.includes('ROLE_SUPERADMIN')
@@ -1408,20 +1569,6 @@ router.beforeEach(async (to, from, next) => {
     return userRoles.includes('ROLE_WEBADMIN')
   }
   const canEditPublicSite = () => isSuperAdmin() || isWebAdmin()
-
-  // App-Origin: nur Login — Marketing unter Hauptdomain
-  if (isAppOrigin() && mainSiteOrigin) {
-    if (to.meta.publicMarketing && to.path !== '/login') {
-      if (to.path === '/') {
-        if (!authStore.isLoggedIn) {
-          return next({ path: '/login', query: to.query })
-        }
-      } else {
-        window.location.replace(mainSiteOrigin + to.fullPath)
-        return next(false)
-      }
-    }
-  }
 
   // Devices-Origin: Startseite ohne Login → Login (kein Marketing-Landing)
   if (isDevicesHost() && to.path === '/') {
@@ -1565,7 +1712,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
 
-    // App-Login / App-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
+    // App-/Devices-Login-Root: eingeloggt → Abteilung oder Dashboard (Hauptdomain-„/“ bleibt Landing)
     const appLoginOrRoot = (isAppOrigin() && to.path === '/') || to.path === '/login'
     if (appLoginOrRoot && isSuperAdmin()) {
       return next('/dashboard')
@@ -1732,6 +1879,39 @@ router.beforeEach(async (to, from, next) => {
       if (denyRedirectTo?.name && deptId) {
         return next({ name: denyRedirectTo.name, params: { departmentId: String(deptId) } })
       }
+      if (deptId) {
+        return next(`/${deptId}`)
+      }
+      return next('/login')
+    }
+  }
+
+  // Grossanlass: versteckte Settings-Routen blockieren (README §3.6)
+  const deptIdForSettings = to.params.departmentId as string | undefined
+  if (
+    deptIdForSettings &&
+    to.path.includes('/settings') &&
+    authStore.isDepartmentGrossanlass(deptIdForSettings)
+  ) {
+    const settingsTail = to.path
+      .replace(new RegExp(`^/${deptIdForSettings}/settings/?`), '')
+      .replace(/\/$/, '')
+    const isBasicUser = isDepartmentBasicMemberRole(
+      String(authStore.currentDepartmentRole || '').toLowerCase().trim(),
+    )
+    const allowed =
+      settingsTail === '' ||
+      settingsTail === 'my-department' ||
+      (!isBasicUser && (settingsTail === 'users' || settingsTail === 'zeit'))
+    if (!allowed) {
+      return next(`/${deptIdForSettings}/settings/my-department`)
+    }
+  }
+
+  // Grossanlass-only routes (Planung, Beschaffung)
+  if (to.meta.requiresGrossanlassDepartment) {
+    const deptId = (to.params.departmentId as string) || authStore.activeDepartmentId || ''
+    if (!deptId || !authStore.isDepartmentGrossanlass(deptId)) {
       if (deptId) {
         return next(`/${deptId}`)
       }

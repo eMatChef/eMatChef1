@@ -75,6 +75,10 @@
           <div v-if="isEdit && props.department?.id" class="form-group user-management-section">
             <label class="form-label">{{ t('components.departmentModal.usersSectionLabel') }}</label>
 
+            <p v-if="isGrossanlassDept" class="form-hint grossanlass-member-hint">
+              {{ t('components.departmentModal.grossanlassMemberHint') }}
+            </p>
+
             <div v-if="isMembersLoading" class="user-management-hint">{{ t('components.departmentModal.loadingUsers') }}</div>
 
             <template v-else>
@@ -98,7 +102,7 @@
                       <td>{{ member.email }}</td>
                       <td>
                         <select v-model="member.role" class="form-select small-select">
-                          <option v-for="role in roleOptions" :key="role.value" :value="role.value">
+                          <option v-for="role in memberRoleOptions(member)" :key="role.value" :value="role.value">
                             {{ role.label }}
                           </option>
                         </select>
@@ -148,11 +152,17 @@
                         @blur="handleAvailableBlur"
                       />
                       <div
-                        v-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && filteredAvailableUsers.length > 0"
+                        v-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && isSearchingAvailableUsers"
+                        class="autocomplete-dropdown"
+                      >
+                        <div class="autocomplete-empty">{{ t('components.departmentModal.searchRunning') }}</div>
+                      </div>
+                      <div
+                        v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && availableSearchResults.length > 0"
                         class="autocomplete-dropdown"
                       >
                         <div
-                          v-for="user in filteredAvailableUsers"
+                          v-for="user in availableSearchResults"
                           :key="user.id"
                           class="autocomplete-item"
                           @mousedown.prevent="selectAvailableUser(user)"
@@ -162,7 +172,7 @@
                         </div>
                       </div>
                       <div
-                        v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && filteredAvailableUsers.length === 0"
+                        v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && !isSearchingAvailableUsers"
                         class="autocomplete-dropdown"
                       >
                         <div class="autocomplete-empty">{{ t('components.departmentModal.noSearchResults') }}</div>
@@ -172,7 +182,7 @@
                 </div>
                 <div class="add-member-controls-row">
                   <select v-model="newMemberRole" class="form-select small-select">
-                    <option v-for="role in roleOptions" :key="role.value" :value="role.value">
+                    <option v-for="role in newMemberRoleOptions" :key="role.value" :value="role.value">
                       {{ role.label }}
                     </option>
                   </select>
@@ -189,6 +199,9 @@
                     {{ t('common.add') }}
                   </button>
                 </div>
+                <p v-if="newMemberUserId" class="form-hint pending-member-hint">
+                  {{ t('components.departmentModal.pendingMemberHint') }}
+                </p>
               </div>
             </template>
           </div>
@@ -213,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -267,6 +280,7 @@ const memberOrganisationIds = computed(() =>
   memberOrganisationIdsFromUserDepartments(authStore.departments)
 )
 const isEdit = computed(() => !!props.department)
+const isGrossanlassDept = computed(() => Boolean(props.department?.is_grossanlass))
 const dialogOpen = computed({
   get: () => props.isOpen,
   set: (value: boolean) => {
@@ -281,7 +295,8 @@ const error = ref<string | null>(null)
 const organisations = ref<Organisation[]>([])
 const allDepartments = ref<Department[]>([])
 const members = ref<DepartmentMember[]>([])
-const availableUsers = ref<AvailableUser[]>([])
+const availableSearchResults = ref<AvailableUser[]>([])
+const isSearchingAvailableUsers = ref(false)
 const isMembersLoading = ref(false)
 const memberActionLoading = ref(false)
 const newMemberUserId = ref('')
@@ -290,33 +305,40 @@ const newMemberPrimary = ref(false)
 const newMemberSearchQuery = ref('')
 const showAvailableDropdown = ref(false)
 const selectedAvailableUser = ref<AvailableUser | null>(null)
+let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const roleOrder = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'] as const
+const grossanlassRoleOrder = ['mw', 'u'] as const
+
+function roleLabel(value: string): string {
+  return t(`settings.adminUsers.roles.${value}`)
+}
+
+const hasMwMember = computed(() => members.value.some((m) => m.role === 'mw'))
+
 const roleOptions = computed(() =>
   roleOrder.map((value) => ({
     value,
-    label: t(`settings.adminUsers.roles.${value}`)
-  }))
+    label: roleLabel(value),
+  })),
 )
 
-const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
+function memberRoleOptions(member: DepartmentMember) {
+  if (!isGrossanlassDept.value) return roleOptions.value
+  const roles = [...grossanlassRoleOrder]
+  if (member.role === 'mw' && !roles.includes('mw')) {
+    roles.unshift('mw')
+  }
+  return roles.map((value) => ({ value, label: roleLabel(value) }))
+}
 
-const filteredAvailableUsers = computed(() => {
-  const query = newMemberSearchQuery.value.trim().toLowerCase()
-  if (query.length < 2) return []
-  return availableUsers.value
-    .filter((user) => !existingMemberUserIds.value.has(user.id))
-    .filter((user) => {
-      return (
-        user.name.toLowerCase().includes(query) ||
-        (user.first_name || '').toLowerCase().includes(query) ||
-        (user.last_name || '').toLowerCase().includes(query) ||
-        (user.nickname || '').toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
-      )
-    })
-    .slice(0, 10)
+const newMemberRoleOptions = computed(() => {
+  if (!isGrossanlassDept.value) return roleOptions.value
+  const roles = hasMwMember.value ? (['u'] as const) : grossanlassRoleOrder
+  return roles.map((value) => ({ value, label: roleLabel(value) }))
 })
+
+const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
 
 function joinNonEmpty(values: Array<string | null | undefined>, separator: string): string {
   return values.map((v) => (v || '').trim()).filter(Boolean).join(separator)
@@ -486,7 +508,7 @@ watch(() => props.isOpen, async (open) => {
     }
   } else {
     members.value = []
-    availableUsers.value = []
+    availableSearchResults.value = []
     newMemberUserId.value = ''
     newMemberRole.value = 'u'
     newMemberPrimary.value = false
@@ -496,33 +518,76 @@ watch(() => props.isOpen, async (open) => {
   }
 })
 
-watch(() => props.department?.id, async (departmentId) => {
-  if (!props.isOpen || !isEdit.value || !departmentId) return
-  await loadMembersData(departmentId)
+watch(
+  () => newMemberSearchQuery.value,
+  (query) => {
+    if (availableSearchTimer) clearTimeout(availableSearchTimer)
+    if (selectedAvailableUser.value) return
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      availableSearchResults.value = []
+      isSearchingAvailableUsers.value = false
+      return
+    }
+    if (!props.department?.id) return
+    isSearchingAvailableUsers.value = true
+    availableSearchTimer = setTimeout(() => {
+      void searchAvailableUsers(props.department!.id, trimmed)
+    }, 300)
+  },
+)
+
+watch(newMemberRoleOptions, (options) => {
+  if (!options.some((o) => o.value === newMemberRole.value)) {
+    newMemberRole.value = (options[0]?.value as typeof newMemberRole.value) || 'u'
+  }
 })
+
+watch(
+  () => props.department?.id,
+  async (departmentId) => {
+    if (!props.isOpen || !isEdit.value || !departmentId) return
+    await loadMembersData(departmentId)
+  },
+)
+
+async function searchAvailableUsers(departmentId: string, query: string) {
+  try {
+    const results = await getAvailableUsersForDepartment(departmentId, query)
+    availableSearchResults.value = results.filter((u) => !existingMemberUserIds.value.has(u.id))
+  } catch (err: any) {
+    availableSearchResults.value = []
+    toast.error(err.response?.data?.error || t('components.departmentModal.loadMembersError'))
+  } finally {
+    isSearchingAvailableUsers.value = false
+  }
+}
 
 async function loadMembersData(departmentId: string) {
   isMembersLoading.value = true
   try {
-    const [membersRes, availableRes] = await Promise.all([
-      getDepartmentMembers(departmentId),
-      getAvailableUsersForDepartment(departmentId)
-    ])
-    members.value = membersRes
-    const memberIds = new Set(membersRes.map((m) => m.user_id))
-    availableUsers.value = availableRes.filter((u) => !memberIds.has(u.id))
-    if (newMemberUserId.value) {
-      const selected = availableUsers.value.find((u) => u.id === newMemberUserId.value) || null
-      selectedAvailableUser.value = selected
-      if (!selected) {
-        newMemberUserId.value = ''
-      }
+    members.value = await getDepartmentMembers(departmentId)
+    if (newMemberUserId.value && existingMemberUserIds.value.has(newMemberUserId.value)) {
+      clearPendingMemberSelection()
+    }
+    if (isGrossanlassDept.value && hasMwMember.value && newMemberRole.value === 'mw') {
+      newMemberRole.value = 'u'
     }
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('components.departmentModal.loadMembersError'))
   } finally {
     isMembersLoading.value = false
   }
+}
+
+function clearPendingMemberSelection() {
+  newMemberUserId.value = ''
+  newMemberRole.value = isGrossanlassDept.value && hasMwMember.value ? 'u' : 'u'
+  newMemberPrimary.value = false
+  newMemberSearchQuery.value = ''
+  selectedAvailableUser.value = null
+  showAvailableDropdown.value = false
+  availableSearchResults.value = []
 }
 
 async function saveMember(member: DepartmentMember) {
@@ -562,28 +627,29 @@ async function deleteMember(member: DepartmentMember) {
   }
 }
 
-async function addMember() {
-  if (!props.department?.id || !newMemberUserId.value || memberActionLoading.value) return
+async function commitPendingMember(): Promise<boolean> {
+  if (!props.department?.id || !newMemberUserId.value || memberActionLoading.value) return true
   memberActionLoading.value = true
   try {
     await addDepartmentMember(props.department.id, {
       user_id: newMemberUserId.value,
       role: newMemberRole.value,
-      is_primary: newMemberPrimary.value
+      is_primary: newMemberPrimary.value,
     })
     toast.success(t('components.departmentModal.toastMemberAdded'))
-    newMemberUserId.value = ''
-    newMemberRole.value = 'u'
-    newMemberPrimary.value = false
-    newMemberSearchQuery.value = ''
-    selectedAvailableUser.value = null
-    showAvailableDropdown.value = false
+    clearPendingMemberSelection()
     await loadMembersData(props.department.id)
+    return true
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberAddError'))
+    return false
   } finally {
     memberActionLoading.value = false
   }
+}
+
+async function addMember() {
+  await commitPendingMember()
 }
 
 function selectAvailableUser(user: AvailableUser) {
@@ -597,6 +663,7 @@ function clearSelectedAvailableUser() {
   selectedAvailableUser.value = null
   newMemberUserId.value = ''
   newMemberSearchQuery.value = ''
+  availableSearchResults.value = []
 }
 
 function handleAvailableBlur() {
@@ -616,6 +683,10 @@ async function handleSubmit() {
     error.value = null
 
     if (isEdit.value && props.department) {
+      if (newMemberUserId.value) {
+        const added = await commitPendingMember()
+        if (!added) return
+      }
       await updateDepartment(props.department.id, {
         name: formData.value.name,
         organisation_id: formData.value.organisationId,
@@ -645,14 +716,13 @@ function close() {
   formData.value = { name: '', organisationId: '', parentId: null }
   error.value = null
   members.value = []
-  availableUsers.value = []
-  newMemberUserId.value = ''
-  newMemberRole.value = 'u'
-  newMemberPrimary.value = false
-  newMemberSearchQuery.value = ''
-  selectedAvailableUser.value = null
-  showAvailableDropdown.value = false
+  availableSearchResults.value = []
+  clearPendingMemberSelection()
 }
+
+onUnmounted(() => {
+  if (availableSearchTimer) clearTimeout(availableSearchTimer)
+})
 </script>
 
 <style scoped>
@@ -672,6 +742,16 @@ function close() {
   font-weight: 500;
   color: #374151;
   margin-bottom: 8px;
+}
+
+.grossanlass-member-hint,
+.pending-member-hint {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.pending-member-hint {
+  color: #2563eb;
 }
 
 .form-hint {
