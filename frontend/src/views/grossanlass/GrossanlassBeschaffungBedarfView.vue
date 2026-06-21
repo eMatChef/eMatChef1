@@ -21,6 +21,12 @@
         />
 
         <div v-else class="pool-actions">
+          <p v-if="selectedWishIds.length > 0" class="bundle-preview">
+            {{ t('grossanlass.beschaffung.bedarf.bundlePreview', {
+              count: selectedWishIds.length,
+              sum: selectedQuantitySum,
+            }) }}
+          </p>
           <EButton
             variant="primary"
             size="small"
@@ -51,31 +57,41 @@
         </div>
 
         <div v-if="pool.length > 0" class="wish-pool-list">
-          <label
+          <div
             v-for="wish in pool"
             :key="wish.id"
             class="pool-row"
             :class="{ 'is-selected': selectedWishIds.includes(wish.id) }"
           >
-            <input
-              type="checkbox"
-              :value="wish.id"
-              :checked="selectedWishIds.includes(wish.id)"
-              @change="toggleWish(wish.id)"
-            />
-            <div class="pool-row__body">
-              <div class="pool-row__main">
-                <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
-                <span class="kind-tag">{{ wishKindLabel(wish.wish_kind) }}</span>
+            <label class="pool-row__select">
+              <input
+                type="checkbox"
+                :value="wish.id"
+                :checked="selectedWishIds.includes(wish.id)"
+                @change="toggleWish(wish.id)"
+              />
+              <div class="pool-row__body">
+                <div class="pool-row__main">
+                  <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
+                  <span class="kind-tag">{{ wishKindLabel(wish.wish_kind) }}</span>
+                </div>
+                <div class="pool-row__meta">
+                  {{ wish.group_name }} · {{ wish.location }}
+                </div>
+                <div class="pool-row__meta">
+                  {{ wish.round_name }} · {{ wish.created_by_name }}
+                </div>
               </div>
-              <div class="pool-row__meta">
-                {{ wish.group_name }} · {{ wish.location }}
-              </div>
-              <div class="pool-row__meta">
-                {{ wish.round_name }} · {{ wish.created_by_name }}
-              </div>
-            </div>
-          </label>
+            </label>
+            <button
+              type="button"
+              class="icon-btn"
+              :title="t('common.edit')"
+              @click="openEditWish(wish)"
+            >
+              <v-icon icon="mdi-pencil-outline" size="16" />
+            </button>
+          </div>
         </div>
       </section>
 
@@ -101,26 +117,111 @@
                 <strong>{{ line.quantity }}× {{ line.label }}</strong>
                 <span class="status-chip">{{ statusLabel(line.status) }}</span>
               </div>
-              <button
-                v-if="line.status === 'bedarf'"
-                type="button"
-                class="icon-btn icon-btn--danger"
-                :title="t('common.delete')"
-                @click="removeLine(line)"
-              >
-                <v-icon icon="mdi-delete-outline" size="18" />
-              </button>
+              <div class="line-card__actions">
+                <button
+                  v-if="line.status === 'bedarf'"
+                  type="button"
+                  class="icon-btn"
+                  :title="t('common.edit')"
+                  @click="openEditLine(line)"
+                >
+                  <v-icon icon="mdi-pencil-outline" size="18" />
+                </button>
+                <button
+                  v-if="line.status === 'bedarf'"
+                  type="button"
+                  class="icon-btn icon-btn--danger"
+                  :title="t('common.delete')"
+                  @click="removeLine(line)"
+                >
+                  <v-icon icon="mdi-delete-outline" size="18" />
+                </button>
+              </div>
             </div>
             <div class="line-card__meta">
               {{ line.group_name }} · {{ line.location }}
             </div>
-            <div class="line-card__meta">
-              {{ t('grossanlass.beschaffung.bedarf.wishCount', { count: line.wish_count }) }}
+            <div class="line-card__total">
+              <span class="line-card__total-label">{{ t('grossanlass.beschaffung.bedarf.totalQuantity') }}</span>
+              <strong class="line-card__total-value">{{ line.quantity }}×</strong>
+              <span
+                v-if="line.source_quantity_sum != null && line.quantity !== line.source_quantity_sum"
+                class="quantity-adjusted-hint"
+              >
+                {{ t('grossanlass.beschaffung.bedarf.quantityAdjusted', { sum: line.source_quantity_sum }) }}
+              </span>
+            </div>
+            <div v-if="line.source_wishes?.length" class="line-card__sources">
+              <button
+                type="button"
+                class="sources-toggle"
+                @click="toggleLineSources(line.id)"
+              >
+                <v-icon
+                  :icon="expandedLineIds.includes(line.id) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                  size="16"
+                />
+                {{
+                  t('grossanlass.beschaffung.bedarf.sourceWishesToggle', {
+                    count: line.source_wishes.length,
+                    sum: line.source_quantity_sum ?? line.quantity,
+                  })
+                }}
+              </button>
+              <p v-if="expandedLineIds.includes(line.id)" class="sources-hint">
+                {{ t('grossanlass.beschaffung.bedarf.sourceWishesHint') }}
+              </p>
+              <ul v-if="expandedLineIds.includes(line.id)" class="sources-list">
+                <li v-for="source in line.source_wishes" :key="source.id" class="source-row">
+                  <div>
+                    <div class="source-row__main">
+                      <strong>{{ source.quantity }}× {{ source.label }}</strong>
+                    </div>
+                    <div class="source-row__meta">{{ source.group_name }} · {{ source.location }}</div>
+                    <div class="source-row__meta">{{ source.round_name }} · {{ source.created_by_name }}</div>
+                  </div>
+                  <div class="source-row__actions">
+                    <button
+                      v-if="line.status === 'bedarf'"
+                      type="button"
+                      class="icon-btn"
+                      :title="t('common.edit')"
+                      @click="openEditWish(source)"
+                    >
+                      <v-icon icon="mdi-pencil-outline" size="16" />
+                    </button>
+                    <button
+                      v-if="line.status === 'bedarf' && line.wish_count > 1"
+                      type="button"
+                      class="split-btn"
+                      @click="splitWish(line, source.id)"
+                    >
+                      {{ t('grossanlass.beschaffung.bedarf.splitWish') }}
+                    </button>
+                  </div>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
       </section>
     </div>
+
+    <GrossanlassProcurementLineEditDialog
+      v-if="editLine"
+      v-model="editDialogOpen"
+      :department-id="departmentId"
+      :line="editLine"
+      @saved="onLineEdited"
+    />
+
+    <GrossanlassProcurementWishEditDialog
+      v-if="editWish"
+      v-model="editWishDialogOpen"
+      :department-id="departmentId"
+      :wish="editWish"
+      @saved="onWishEdited"
+    />
   </div>
 </template>
 
@@ -132,15 +233,20 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import GrossanlassProcurementLineEditDialog from '@/components/grossanlass/GrossanlassProcurementLineEditDialog.vue'
+import GrossanlassProcurementWishEditDialog from '@/components/grossanlass/GrossanlassProcurementWishEditDialog.vue'
 import { EButton, ESelect } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,
   createGrossanlassProcurementLine,
   deleteGrossanlassProcurementLine,
   getGrossanlassBedarfOverview,
+  removeWishFromGrossanlassProcurementLine,
+  type GrossanlassBedarfOverview,
   type GrossanlassProcurementLine,
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
+import { procurementStatusLabel } from '@/utils/grossanlassProcurementStatus'
 import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
 
 const route = useRoute()
@@ -156,12 +262,34 @@ const isLoading = ref(true)
 const isSaving = ref(false)
 const selectedWishIds = ref<string[]>([])
 const mergeTargetLineId = ref<string | null>(null)
+const expandedLineIds = ref<string[]>([])
+const editDialogOpen = ref(false)
+const editLine = ref<GrossanlassProcurementLine | null>(null)
+const editWishDialogOpen = ref(false)
+const editWish = ref<GrossanlassProcurementPoolWish | null>(null)
+
+const selectedQuantitySum = computed(() =>
+  pool.value
+    .filter((w) => selectedWishIds.value.includes(w.id))
+    .reduce((sum, w) => sum + w.quantity, 0),
+)
 
 const lineSelectItems = computed(() =>
   lines.value
     .filter((l) => l.status === 'bedarf')
-    .map((l) => ({ title: `${l.quantity}× ${l.label}`, value: l.id })),
+    .map((l) => ({
+      title: `${l.quantity}× ${l.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: l.wish_count })})`,
+      value: l.id,
+    })),
 )
+
+function toggleLineSources(lineId: string) {
+  if (expandedLineIds.value.includes(lineId)) {
+    expandedLineIds.value = expandedLineIds.value.filter((id) => id !== lineId)
+  } else {
+    expandedLineIds.value = [...expandedLineIds.value, lineId]
+  }
+}
 
 function wishKindLabel(kind: GrossanlassWishKind): string {
   switch (kind) {
@@ -175,8 +303,7 @@ function wishKindLabel(kind: GrossanlassWishKind): string {
 }
 
 function statusLabel(status: string): string {
-  if (status === 'bedarf') return t('grossanlass.beschaffung.bedarf.statusBedarf')
-  return status
+  return procurementStatusLabel(status, t)
 }
 
 function toggleWish(id: string) {
@@ -192,8 +319,7 @@ async function load() {
   isLoading.value = true
   try {
     const data = await getGrossanlassBedarfOverview(departmentId.value)
-    pool.value = data.pool
-    lines.value = data.lines
+    applyBedarfOverview(data)
     selectedWishIds.value = []
     mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
   } catch (e: any) {
@@ -201,6 +327,11 @@ async function load() {
   } finally {
     isLoading.value = false
   }
+}
+
+function applyBedarfOverview(data: GrossanlassBedarfOverview) {
+  pool.value = data.pool
+  lines.value = data.lines
 }
 
 async function bundleSelected() {
@@ -233,6 +364,37 @@ async function mergeIntoLine() {
   } finally {
     isSaving.value = false
   }
+}
+
+async function splitWish(line: GrossanlassProcurementLine, wishLineId: string) {
+  if (!departmentId.value) return
+  try {
+    await removeWishFromGrossanlassProcurementLine(departmentId.value, line.id, wishLineId)
+    toast.success(t('grossanlass.beschaffung.bedarf.splitSuccess'))
+    await load()
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorSplit'))
+  }
+}
+
+function openEditLine(line: GrossanlassProcurementLine) {
+  editLine.value = line
+  editDialogOpen.value = true
+}
+
+function openEditWish(wish: GrossanlassProcurementPoolWish) {
+  editWish.value = wish
+  editWishDialogOpen.value = true
+}
+
+async function onLineEdited() {
+  toast.success(t('grossanlass.beschaffung.bedarf.editSuccess'))
+  await load()
+}
+
+async function onWishEdited(overview: GrossanlassBedarfOverview) {
+  applyBedarfOverview(overview)
+  toast.success(t('grossanlass.beschaffung.bedarf.editWishSuccess'))
 }
 
 async function removeLine(line: GrossanlassProcurementLine) {
@@ -336,10 +498,18 @@ onMounted(load)
 
 .pool-row {
   display: flex;
+  align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+}
+
+.pool-row__select {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
   cursor: pointer;
 }
 
@@ -390,6 +560,11 @@ onMounted(load)
   gap: 8px;
 }
 
+.line-card__actions {
+  display: flex;
+  gap: 6px;
+}
+
 .line-card__meta {
   font-size: 0.78rem;
   color: #64748b;
@@ -421,5 +596,120 @@ onMounted(load)
 
 .icon-btn--danger {
   color: #dc2626;
+}
+
+.bundle-preview {
+  flex: 1 1 100%;
+  margin: 0 0 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.line-card__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.line-card__total-label {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.line-card__total-value {
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.quantity-adjusted-hint {
+  font-size: 0.72rem;
+  color: #b45309;
+}
+
+.line-card__sources {
+  margin-top: 10px;
+}
+
+.sources-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sources-toggle:hover {
+  background: #f1f5f9;
+}
+
+.sources-hint {
+  margin: 8px 0 6px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.sources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.split-btn {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.72rem;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.split-btn:hover {
+  background: #f8fafc;
+}
+
+.source-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.source-row__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.source-row__meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 2px;
 }
 </style>

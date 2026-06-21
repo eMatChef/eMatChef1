@@ -6,20 +6,55 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
 import type { ActivityTransitionRow } from '@/api/activities'
 
-const props = defineProps<{
-  totalCount: number
-  transition: ActivityTransitionRow | null
-  loading?: boolean
-  currentStatus?: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    mode?: 'pack' | 'transport'
+    totalCount: number
+    doneCount?: number
+    unitsTransported?: number
+    transition?: ActivityTransitionRow | null
+    loading?: boolean
+    currentStatus?: string | null
+    actionDisabled?: boolean
+  }>(),
+  {
+    mode: 'pack',
+    doneCount: 0,
+    unitsTransported: 0,
+    transition: null,
+    loading: false,
+    actionDisabled: false,
+  },
+)
 
 const emit = defineEmits<{
-  markPacked: []
+  confirm: []
 }>()
 
 const { t, te } = useI18n()
 
+const isTransport = computed(() => props.mode === 'transport')
+
+const title = computed(() =>
+  isTransport.value
+    ? t('activities.materialJourney.transportComplete.title')
+    : t('activities.materialJourney.packComplete.title'),
+)
+
+const description = computed(() => {
+  if (isTransport.value) {
+    return t('activities.materialJourney.transportComplete.description', {
+      positions: props.totalCount,
+      units: props.unitsTransported,
+    })
+  }
+  return t('activities.materialJourney.packComplete.description', { count: props.totalCount })
+})
+
 const buttonLabel = computed(() => {
+  if (isTransport.value) {
+    return t('activities.materialJourney.transportComplete.markTransported')
+  }
   if (!props.transition) return t('activities.transitionActions.packed')
   return activityTransitionActionLabel(
     props.transition.status,
@@ -30,12 +65,32 @@ const buttonLabel = computed(() => {
   )
 })
 
-const showAction = computed(() => props.transition != null)
-const actionDisabled = computed(() => !props.transition?.allowed || props.loading)
+const showAction = computed(() => {
+  if (isTransport.value) return !props.actionDisabled
+  return props.transition != null
+})
+
+const actionDisabled = computed(() => {
+  if (isTransport.value) return props.actionDisabled || props.loading
+  return !props.transition?.allowed || props.loading
+})
+
 const actionTitle = computed(() => {
+  if (isTransport.value) return buttonLabel.value
   if (!props.transition) return undefined
   if (props.transition.allowed) return buttonLabel.value
   return props.transition.reason ?? buttonLabel.value
+})
+
+const hintText = computed(() => {
+  if (isTransport.value) {
+    return t('activities.materialJourney.transportComplete.markTransportedHint')
+  }
+  if (props.transition?.allowed) {
+    return t('activities.materialJourney.packComplete.markPackedHint')
+  }
+  if (props.transition?.reason) return props.transition.reason
+  return t('activities.materialJourney.packComplete.noPermission')
 })
 </script>
 
@@ -43,8 +98,8 @@ const actionTitle = computed(() => {
   <section class="material-journey-pack-complete section-card">
     <EEmptyState
       icon="mdi-check-circle-outline"
-      :title="t('activities.materialJourney.packComplete.title')"
-      :description="t('activities.materialJourney.packComplete.description', { count: totalCount })"
+      :title="title"
+      :description="description"
     >
       <template v-if="showAction" #actions>
         <EButton
@@ -54,20 +109,17 @@ const actionTitle = computed(() => {
           :disabled="actionDisabled"
           :loading="loading"
           :title="actionTitle"
-          @click="emit('markPacked')"
+          @click="emit('confirm')"
         >
           {{ buttonLabel }}
         </EButton>
-        <p v-if="transition?.allowed" class="material-journey-pack-complete__hint text-muted">
-          {{ t('activities.materialJourney.packComplete.markPackedHint') }}
-        </p>
-        <p v-else-if="transition?.reason" class="material-journey-pack-complete__hint text-muted">
-          {{ transition.reason }}
+        <p class="material-journey-pack-complete__hint text-muted">
+          {{ hintText }}
         </p>
       </template>
       <template v-else #actions>
         <p class="material-journey-pack-complete__hint text-muted">
-          {{ t('activities.materialJourney.packComplete.noPermission') }}
+          {{ hintText }}
         </p>
       </template>
     </EEmptyState>

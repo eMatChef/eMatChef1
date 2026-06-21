@@ -12,6 +12,8 @@ export interface DepartmentVehicle {
   max_volume_m3: number | null
   is_active: boolean
   notes: string | null
+  owner_address_id?: string | null
+  owner_label?: string | null
 }
 
 function mapVehicle(raw: Record<string, unknown>): DepartmentVehicle {
@@ -32,15 +34,18 @@ function mapVehicle(raw: Record<string, unknown>): DepartmentVehicle {
     max_volume_m3: num(raw.max_volume_m3),
     is_active: raw.is_active !== false,
     notes: raw.notes != null ? String(raw.notes) : null,
+    owner_address_id: raw.owner_address_id != null ? String(raw.owner_address_id) : null,
+    owner_label: raw.owner_label != null ? String(raw.owner_label) : null,
   }
 }
 
 export async function getDepartmentVehicles(
   departmentId: string,
-  options?: { activityId?: string },
+  options?: { activityId?: string; search?: string },
 ): Promise<DepartmentVehicle[]> {
   const params = new URLSearchParams()
   if (options?.activityId) params.set('activity_id', options.activityId)
+  if (options?.search) params.set('search', options.search)
   const qs = params.toString()
   const { data } = await apiClient.get<Record<string, unknown>[]>(
     `/api/departments/${departmentId}/vehicles${qs ? `?${qs}` : ''}`,
@@ -55,6 +60,7 @@ export async function createDepartmentVehicle(
     plate?: string
     max_payload_kg?: number
     notes?: string
+    owner_address_id?: string
   },
 ): Promise<DepartmentVehicle> {
   const { data } = await apiClient.post<Record<string, unknown>>(

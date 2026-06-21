@@ -90,6 +90,13 @@ class GrossanlassAccessService
 
     public function canSelectRessortForWish(User $user, Department $department, Group $group, bool $leaderOnly = false): bool
     {
+        if ($group->getParentId() !== null && $group->getParentId() !== '') {
+            $kind = $group->getGrossanlassKind();
+            if ($kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
+                return false;
+            }
+        }
+
         return $this->canSelectBauprojektForWish($user, $department, $group, $leaderOnly);
     }
 

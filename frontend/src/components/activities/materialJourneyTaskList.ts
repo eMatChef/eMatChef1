@@ -16,15 +16,53 @@ import { packItemsForMaterialJourney } from '@/components/activities/materialJou
 import {
   shouldIncludePackItemOnStageLeft,
   shouldShowContainerOnRightMirror,
+  shouldShowContainerOnStageLeft,
   shouldShowPackContainerInWarehouseVisibleList,
   shouldShowPackContainerOnConfirmedPackedRight,
   type PackWorkflowContainerContext,
   type PackWorkflowListContext,
 } from '@/components/activities/packWorkflowRules'
-import type { PackStage } from '@/components/activities/packStageQuantities'
-import { getStageRightQty } from '@/components/activities/packStageQuantities'
+import { getStageRightQty, isPackForwardToEventStage } from '@/components/activities/packStageQuantities'
+import { isCrateShellPackItem, packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import { comboComponentsForJourneyContainer } from '@/composables/useMaterialJourneyCrateSections'
 import type { ComboComponent } from '@/api/materials'
+import type { PackStage } from '@/components/activities/packStageQuantities'
+
+/** Packkiste als Karten-Zeile (nicht lose Shell) — v. a. Transport hin. */
+function shouldShowPackContainerInJourneyList(
+  container: ActivityPackContainer,
+  ctx: MaterialJourneyTaskBuildContext,
+): boolean {
+  if (
+    shouldShowPackContainerInWarehouseVisibleList(
+      container,
+      ctx.containerCtx,
+      ctx.stageLeftItems,
+    )
+  ) {
+    return true
+  }
+  if (!ctx.listCtx.showPackContainersUi || !isPackForwardToEventStage(ctx.packStage)) {
+    return false
+  }
+  const shell = ctx.shellPackItemForContainer(container.id)
+  if (!shell || !isCrateShellPackItem(shell, ctx.packContainers)) return false
+  if (!ctx.stageLeftItems.some((pi) => pi.id === shell.id)) return false
+  return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+}
+
+function shouldHideLooseShellForJourneyCrateRow(
+  pi: ActivityPackItem,
+  ctx: MaterialJourneyTaskBuildContext,
+): boolean {
+  if (!ctx.listCtx.showPackContainersUi || !isPackForwardToEventStage(ctx.packStage)) {
+    return false
+  }
+  if (!isCrateShellPackItem(pi, ctx.packContainers)) return false
+  const container = packShellContainerForPackItem(pi, ctx.packContainers)
+  if (!container) return false
+  return shouldShowPackContainerInJourneyList(container, ctx)
+}
 
 export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'combo'
 
@@ -44,6 +82,8 @@ export type MaterialJourneyTaskRow = {
   isDone: boolean
   badges: MaterialJourneyTaskBadge[]
   canMove: boolean
+  canMoveBack: boolean
+  maxMoveBackQty: number
   canOpenSheet: boolean
   categoryName: string | null
   shelfLabel: string
@@ -63,6 +103,8 @@ export type MaterialJourneyTaskBuildContext = {
   containerIssueableUnits: (containerId: string) => number
   containerActionableUnits: (containerId: string) => number
   canMoveItem: (pi: ActivityPackItem) => boolean
+  canMoveBackItem?: (pi: ActivityPackItem) => boolean
+  rightQtyForMoveBack?: (pi: ActivityPackItem) => number
   canOpenSheet: boolean
   formatCrateLineCount: (count: number) => string
   shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
@@ -119,14 +161,17 @@ export function buildMaterialJourneyLooseTask(
     getStageRightQty(pi, ctx.packStage, ctx.listCtx.profile) > 0
   const maxForwardQty = ctx.maxForwardQty(pi)
   const canMove = ctx.canMoveItem(pi) && maxForwardQty > 0 && isOpen
+  const maxMoveBackQty = ctx.rightQtyForMoveBack?.(pi) ?? 0
+  const canMoveBack =
+    Boolean(ctx.canMoveBackItem?.(pi)) && isDone && maxMoveBackQty > 0
 
   const subtitleParts: string[] = []
   if (ctx.showShelfLocation !== false) {
     const rack = packRackLabel(pi)
     if (rack) subtitleParts.push(rack)
     if (pi.storageSlotName?.trim()) subtitleParts.push(pi.storageSlotName.trim())
+    if (openQty > 0) subtitleParts.push(String(openQty))
   }
-  if (openQty > 0) subtitleParts.push(String(openQty))
 
   const shelfLabel = materialJourneyShelfLabel(pi)
   const shelfKey = materialJourneyShelfKey(shelfLabel)
@@ -144,6 +189,8 @@ export function buildMaterialJourneyLooseTask(
     isDone,
     badges: taskBadges(pi, ctx),
     canMove,
+    canMoveBack,
+    maxMoveBackQty,
     canOpenSheet: false,
     categoryName: pi.categoryName?.trim() || null,
     shelfLabel,
@@ -181,11 +228,7 @@ export function buildMaterialJourneyCrateTask(
     )
   const isOpen = onConfirmedPackedRight
     ? false
-    : shouldShowPackContainerInWarehouseVisibleList(
-        container,
-        ctx.containerCtx,
-        ctx.stageLeftItems,
-      )
+    : shouldShowPackContainerInJourneyList(container, ctx)
   const isDone =
     onConfirmedPackedRight ||
     (!isOpen && shouldShowContainerOnRightMirror(container.id, ctx.containerCtx))
@@ -214,6 +257,17 @@ export function buildMaterialJourneyCrateTask(
     container,
     ctx.shellPackItemForContainer,
   )
+  const maxMoveBackQty =
+    shellPackItem && ctx.rightQtyForMoveBack
+      ? Math.max(0, ctx.rightQtyForMoveBack(shellPackItem))
+      : isDone
+        ? 1
+        : 0
+  const canMoveBack =
+    isDone &&
+    shellPackItem != null &&
+    maxMoveBackQty > 0 &&
+    Boolean(ctx.canMoveBackItem?.(shellPackItem))
 
   return {
     id: `crate-${container.id}`,
@@ -228,6 +282,8 @@ export function buildMaterialJourneyCrateTask(
     isDone,
     badges: ['crate'],
     canMove: false,
+    canMoveBack,
+    maxMoveBackQty,
     canOpenSheet: ctx.canOpenSheet && isOpen,
     categoryName: null,
     shelfLabel,
@@ -244,6 +300,7 @@ export function buildMaterialJourneyTasks(
 
   const looseRows = journeyItems
     .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
+    .filter((pi) => !shouldHideLooseShellForJourneyCrateRow(pi, ctx))
     .map((pi) => buildMaterialJourneyLooseTask(pi, ctx))
     .filter((row) => row.isOpen || row.isDone)
 

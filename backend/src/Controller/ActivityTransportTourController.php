@@ -90,6 +90,9 @@ class ActivityTransportTourController extends AbstractController
         if (!$vehicle || !$vehicle->getIsActive()) {
             return new JsonResponse(['error' => 'Fahrzeug nicht gefunden'], 404);
         }
+        if (!$this->activityAccess->isVehicleAssignedToActivity($activityId, $vehicleId)) {
+            return new JsonResponse(['error' => 'Fahrzeug ist dieser Aktivität nicht zugeordnet — bitte im Tab Fahrzeuge hinzufügen'], 400);
+        }
 
         $label = trim((string) ($data['label'] ?? ''));
         if ($label === '') {

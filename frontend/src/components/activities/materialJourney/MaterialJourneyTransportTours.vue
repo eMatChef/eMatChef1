@@ -11,11 +11,7 @@ import {
   type TransportTourDirection,
   type TransportTourItemInput,
 } from '@/api/activityTransportTours'
-import {
-  createDepartmentVehicle,
-  getDepartmentVehicles,
-  type DepartmentVehicle,
-} from '@/api/departmentVehicles'
+import { getActivityVehicles, type ActivityVehicleAssignment } from '@/api/activityVehicles'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
 import EButton from '@/components/form/base/EButton.vue'
 import { useToast } from '@/composables/useToast'
@@ -37,13 +33,11 @@ const direction = computed((): TransportTourDirection | null =>
 
 const loading = ref(false)
 const tours = ref<ActivityTransportTour[]>([])
-const vehicles = ref<DepartmentVehicle[]>([])
+const activityVehicles = ref<ActivityVehicleAssignment[]>([])
 const expandedTourId = ref<string | null>(null)
 const createOpen = ref(false)
 const createVehicleId = ref('')
 const createBusy = ref(false)
-const quickVehicleName = ref('')
-const quickVehiclePayload = ref<number | null>(null)
 const savingTourId = ref<string | null>(null)
 
 const assignableRows = computed(() =>
@@ -62,12 +56,12 @@ async function loadAll(): Promise<void> {
   if (!direction.value) return
   loading.value = true
   try {
-    const [tourList, vehicleList] = await Promise.all([
+    const [tourList, vehicleAssignments] = await Promise.all([
       getActivityTransportTours(props.activityId, direction.value),
-      getDepartmentVehicles(props.departmentId, { activityId: props.activityId }),
+      getActivityVehicles(props.activityId),
     ])
     tours.value = tourList
-    vehicles.value = vehicleList
+    activityVehicles.value = vehicleAssignments
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -162,27 +156,6 @@ async function onCreateTour(): Promise<void> {
     expandedTourId.value = created.id
     createOpen.value = false
     createVehicleId.value = ''
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    createBusy.value = false
-  }
-}
-
-async function onQuickAddVehicle(): Promise<void> {
-  const name = quickVehicleName.value.trim()
-  if (!name) return
-  createBusy.value = true
-  try {
-    const created = await createDepartmentVehicle(props.departmentId, {
-      name,
-      max_payload_kg: quickVehiclePayload.value ?? undefined,
-    })
-    vehicles.value = [...vehicles.value, created]
-    createVehicleId.value = created.id
-    quickVehicleName.value = ''
-    quickVehiclePayload.value = null
-    toast.success(t('activities.materialJourney.transportTours.vehicleCreated'))
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -297,32 +270,14 @@ function toggleExpanded(tourId: string): void {
           <span>{{ t('activities.materialJourney.transportTours.vehicleLabel') }}</span>
           <select v-model="createVehicleId" class="material-journey-transport-tours__select">
             <option value="">{{ t('activities.materialJourney.transportTours.chooseVehicle') }}</option>
-            <option v-for="v in vehicles" :key="v.id" :value="v.id">
-              {{ v.name }}{{ v.plate ? ` (${v.plate})` : '' }}
+            <option v-for="av in activityVehicles" :key="av.id" :value="av.vehicle_id">
+              {{ av.vehicle.name }}{{ av.vehicle.plate ? ` (${av.vehicle.plate})` : '' }}
             </option>
           </select>
         </label>
-        <div v-if="listEditable" class="material-journey-transport-tours__quick-add">
-          <p class="text-muted">{{ t('activities.materialJourney.transportTours.quickAddHint') }}</p>
-          <div class="material-journey-transport-tours__quick-row">
-            <input
-              v-model="quickVehicleName"
-              type="text"
-              class="material-journey-transport-tours__input"
-              :placeholder="t('activities.materialJourney.transportTours.quickAddName')"
-            />
-            <input
-              v-model.number="quickVehiclePayload"
-              type="number"
-              min="0"
-              class="material-journey-transport-tours__input material-journey-transport-tours__input--short"
-              :placeholder="t('activities.materialJourney.transportTours.quickAddPayload')"
-            />
-            <EButton variant="secondary" size="small" :disabled="createBusy" @click="onQuickAddVehicle">
-              {{ t('common.add') }}
-            </EButton>
-          </div>
-        </div>
+        <p v-if="activityVehicles.length === 0" class="text-muted material-journey-transport-tours__no-vehicles">
+          {{ t('activities.materialJourney.transportTours.noActivityVehicles') }}
+        </p>
         <div class="material-journey-transport-tours__dialog-actions">
           <EButton variant="secondary" @click="createOpen = false">{{ t('common.cancel') }}</EButton>
           <EButton

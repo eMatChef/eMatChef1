@@ -13,10 +13,12 @@ import {
   computeLooseQtyStillAtEventForReturn,
   computePackIssueForwardMax,
   computeQtyInContainersForItem,
+  computeRightQtyForMoveBack,
   computeTransportBackQtyInContainersForMaterial,
   computeTransportToQtyInContainersForMaterial,
   type PackQuantityContext,
   type PackQuantityForwardMaxContext,
+  type PackQuantityMoveBackContext,
 } from '@/components/activities/packStageQuantityLayer'
 import { getStageLeftQty,
   getStageRightQty,
@@ -126,6 +128,19 @@ export function useMaterialJourneyPackContext(options: {
         Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
     }),
   )
+
+  const packQuantityMoveBackCtx = computed(
+    (): PackQuantityMoveBackContext => ({
+      ...packQuantityCtx.value,
+      isCrateShellPackItem: (pi) => isCrateShellPackItem(pi, options.packContainers.value),
+      storedLooseQtyForPackItem: (pi) => pi.quantityStored ?? 0,
+      returnedLooseQtyForPackItem: (pi) => pi.quantityReturned ?? 0,
+    }),
+  )
+
+  function rightQtyForMoveBack(pi: ActivityPackItem): number {
+    return computeRightQtyForMoveBack(pi, packQuantityMoveBackCtx.value)
+  }
 
   function effectiveStageLeftQty(p: ActivityPackItem): number {
     return computeEffectiveStageLeftQty(p, {
@@ -329,5 +344,6 @@ export function useMaterialJourneyPackContext(options: {
     packCrateLabelsForPackItem,
     qtyInPackCrateForPackItem,
     packCrateAssignQtyForItem,
+    rightQtyForMoveBack,
   }
 }

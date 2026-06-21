@@ -92,7 +92,7 @@ export const FIXED_INPUT_FIELD_DEFS: Array<{
   configurable?: boolean
 }> = [{ system_key: 'ressort_wahl', role: 'input', defaultLabel: 'Ressort', configurable: true }]
 
-/** Optional über «Feld hinzufügen» — ersetzt Ressort-Zuordnung. */
+/** Optional über «Feld hinzufügen» — ergänzt Ressort-Zuordnung (nicht Ersatz). */
 export const ADDABLE_SYSTEM_FIELD_DEFS: Array<{
   system_key: 'bauprojekt'
   role: 'input'
@@ -226,11 +226,6 @@ function ensureMetaFieldsOnly(fields: GrossanlassRoundFormField[]): GrossanlassR
 
 export function ensureFixedSystemFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
   let next = dedupeSystemInputFields(ensureMetaFieldsOnly(fields))
-  const hasBauprojekt = next.some((f) => f.system_key === 'bauprojekt')
-
-  if (hasBauprojekt) {
-    return next.filter((f) => f.system_key !== 'ressort_wahl')
-  }
 
   if (!next.some((f) => f.system_key === 'ressort_wahl')) {
     next = [
@@ -240,6 +235,19 @@ export function ensureFixedSystemFields(fields: GrossanlassRoundFormField[]): Gr
   }
 
   return next
+}
+
+/** Metadaten ans Ende; Eingabefelder in konfigurierter Reihenfolge. */
+export function orderFormFieldsForRound(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  const next = ensureFixedSystemFields(fields)
+  const sorted = sortFormFields(next)
+  const inputs = sorted.filter((f) => f.role === 'input')
+  const meta = sorted.filter((f) => f.role === 'meta')
+
+  return [...inputs, ...meta].map((f, i) => ({
+    ...f,
+    sort_order: (i + 1) * 10,
+  }))
 }
 
 /** @deprecated use ensureFixedSystemFields */

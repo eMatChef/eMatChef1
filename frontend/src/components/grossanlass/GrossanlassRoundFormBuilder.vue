@@ -67,7 +67,7 @@
       </div>
 
       <EEmptyState
-        v-if="orderedFields.length === 0"
+        v-if="orderedInputFields.length === 0"
         variant="compact"
         icon="mdi-form-select"
         :title="t('grossanlass.formBuilder.noFields')"
@@ -76,7 +76,7 @@
 
       <draggable
         v-else
-        v-model="orderedFieldsModel"
+        v-model="orderedInputFieldsModel"
         item-key="id"
         handle=".drag-handle"
         ghost-class="field-row--dragging"
@@ -86,7 +86,6 @@
         <template #item="{ element: field, index }">
           <div
             class="field-row"
-            :class="{ 'field-row--meta': field.role === 'meta' }"
           >
             <div class="field-row-order">
               <button type="button" class="drag-handle order-btn" :title="t('grossanlass.formBuilder.dragToSort')">
@@ -98,8 +97,7 @@
             <div class="field-row-body">
               <div class="field-row-head">
                 <span class="field-type-badge">{{ fieldTypeLabel(field) }}</span>
-                <span v-if="field.role === 'meta'" class="meta-hint">{{ t('grossanlass.formBuilder.metaHint') }}</span>
-                <span v-else-if="field.system_key === 'bauprojekt'" class="meta-hint">{{ t('grossanlass.formBuilder.systemFieldHint') }}</span>
+                <span v-if="field.system_key === 'bauprojekt'" class="meta-hint">{{ t('grossanlass.formBuilder.systemFieldHint') }}</span>
                 <span v-else-if="field.system_key === 'ressort_wahl'" class="meta-hint">{{ t('grossanlass.formBuilder.ressortWahlHint') }}</span>
                 <span v-else-if="isLegacySystemInputField(field)" class="meta-hint">{{ t('grossanlass.formBuilder.legacySystemHint') }}</span>
               </div>
@@ -112,6 +110,9 @@
                 hide-details="auto"
                 @blur="onFieldBlur"
               />
+              <div v-else-if="field.system_key === 'ressort_wahl' || field.system_key === 'bauprojekt'" class="system-field-label">
+                <strong>{{ field.label }}</strong>
+              </div>
               <div v-else class="meta-label">{{ fieldTypeLabel(field) }}</div>
 
               <div v-if="field.custom_type === 'select'" class="select-options mt-2">
@@ -208,6 +209,19 @@
         </template>
       </draggable>
 
+      <div v-if="metaFields.length > 0" class="meta-fields-section">
+        <h4 class="meta-fields-title">{{ t('grossanlass.formBuilder.metaFieldsTitle') }}</h4>
+        <p class="meta-fields-hint">{{ t('grossanlass.formBuilder.metaHint') }}</p>
+        <div v-for="field in metaFields" :key="field.id" class="field-row field-row--meta">
+          <div class="field-row-body">
+            <div class="field-row-head">
+              <span class="field-type-badge">{{ fieldTypeLabel(field) }}</span>
+            </div>
+            <div class="meta-label">{{ field.label }}</div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="showActions" class="form-builder-actions">
         <EButton variant="primary" :loading="saving" @click="save">
           {{ t('grossanlass.formBuilder.save') }}
@@ -218,7 +232,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import draggable from 'vuedraggable'
@@ -228,15 +242,14 @@ import { EButton, ETextField } from '@/components/form/base'
 import {
   availableFormBuilderAddOptions,
   createFormBuilderField,
-  ensureFixedSystemFields,
   normalizeSystemFieldLabels,
+  orderFormFieldsForRound,
   formBuilderFieldTypeLabel,
   getGrossanlassRoundForm,
   isEditableCustomField,
   isFixedSystemField,
   isLegacySystemInputField,
   nextFormFieldSortOrder,
-  sortFormFields,
   updateGrossanlassRoundForm,
   type FormBuilderAddKind,
   type GrossanlassRoundForm,
@@ -284,13 +297,19 @@ let localEditGeneration = 0
 
 const autoSaveEnabled = computed(() => props.autoSave !== false && !props.readonly)
 
-const orderedFields = computed(() => sortFormFields(draft.value?.fields || []))
+const orderedInputFields = computed(() =>
+  orderFormFieldsForRound(draft.value?.fields || []).filter((f) => f.role === 'input'),
+)
 
-const orderedFieldsModel = computed({
-  get: () => orderedFields.value,
+const metaFields = computed(() =>
+  orderFormFieldsForRound(draft.value?.fields || []).filter((f) => f.role === 'meta'),
+)
+
+const orderedInputFieldsModel = computed({
+  get: () => orderedInputFields.value,
   set: (list: GrossanlassRoundFormField[]) => {
     if (!draft.value) return
-    draft.value.fields = list.map((f, i) => ({ ...f, sort_order: (i + 1) * 10 }))
+    draft.value.fields = orderFormFieldsForRound([...list, ...metaFields.value])
   },
 })
 
@@ -397,14 +416,9 @@ function initSelectDrafts(fields: GrossanlassRoundFormField[], mergeLocal = fals
 
 function normalizeDraftFields() {
   if (!draft.value) return
-  draft.value.fields = normalizeSystemFieldLabels(
-    ensureFixedSystemFields(draft.value.fields),
+  draft.value.fields = normalizeSystemFieldLabels(orderFormFieldsForRound(draft.value.fields)).map(
+    (f) => ({ ...f, enabled: true }),
   )
-  draft.value.fields = sortFormFields(draft.value.fields).map((f, i) => ({
-    ...f,
-    sort_order: (i + 1) * 10,
-    enabled: true,
-  }))
   for (const f of draft.value.fields) {
     if (f.system_key === 'bauprojekt') {
       bauprojektConfig(f)
@@ -674,7 +688,6 @@ watch(
 )
 
 watch(() => [props.departmentId, props.roundId], load, { immediate: true })
-onMounted(load)
 onBeforeUnmount(() => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   if (autoSaveIndicatorTimer) clearTimeout(autoSaveIndicatorTimer)
@@ -852,6 +865,33 @@ onBeforeUnmount(() => {
   font-size: 0.9rem;
   color: #374151;
   font-weight: 500;
+}
+
+.system-field-label {
+  font-size: 0.95rem;
+  color: #111827;
+  margin-top: 4px;
+}
+
+.meta-fields-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.meta-fields-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.meta-fields-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #9ca3af;
 }
 
 .field-row-options {

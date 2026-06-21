@@ -7,6 +7,7 @@ namespace App\Service\Grossanlass;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassRoundForm;
 use App\Entity\ActivityGrossanlassRoundFormField;
+use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\User;
@@ -143,26 +144,65 @@ class GrossanlassRoundFormService
      */
     private function replaceFields(ActivityGrossanlassRoundForm $form, array $fieldPayloads): void
     {
-        $existing = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)
-            ->findBy(['formId' => $form->getId()]);
-        foreach ($existing as $field) {
-            $this->entityManager->remove($field);
+        /** @var array<string, ActivityGrossanlassRoundFormField> $existingById */
+        $existingById = [];
+        foreach ($this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)
+            ->findBy(['formId' => $form->getId()]) as $field) {
+            if ($field instanceof ActivityGrossanlassRoundFormField) {
+                $existingById[$field->getId()] = $field;
+            }
         }
-        $this->entityManager->flush();
 
+        $keepIds = [];
         $sort = 0;
         foreach ($fieldPayloads as $payload) {
             if (!is_array($payload)) {
                 continue;
             }
             $def = $this->normalizeFieldPayload($payload, $sort);
-            $field = $this->createFieldFromDefinition($form, $def);
-            if (isset($payload['id']) && is_string($payload['id']) && strlen($payload['id']) === 12) {
-                $field->setId($payload['id']);
+            $payloadId = isset($payload['id']) && is_string($payload['id']) && strlen($payload['id']) === 12
+                ? $payload['id']
+                : null;
+
+            if ($payloadId !== null && isset($existingById[$payloadId])) {
+                $field = $existingById[$payloadId];
+                $this->applyFieldDefinition($field, $def);
+            } else {
+                $field = $this->createFieldFromDefinition($form, $def);
+                if ($payloadId !== null) {
+                    $field->setId($payloadId);
+                }
+                $this->entityManager->persist($field);
             }
-            $this->entityManager->persist($field);
+
+            $keepIds[] = $field->getId();
             $sort += 10;
         }
+
+        foreach ($existingById as $id => $field) {
+            if (in_array($id, $keepIds, true)) {
+                continue;
+            }
+            if ($this->fieldHasResponseValues($id)) {
+                throw new \InvalidArgumentException(
+                    sprintf('Feld «%s» kann nicht entfernt werden, da bereits Antworten existieren', $field->getLabel()),
+                );
+            }
+            $this->entityManager->remove($field);
+        }
+    }
+
+    private function fieldHasResponseValues(string $fieldId): bool
+    {
+        $count = (int) $this->entityManager->getRepository(ActivityGrossanlassWishResponseValue::class)
+            ->createQueryBuilder('v')
+            ->select('COUNT(v.id)')
+            ->where('v.fieldId = :fieldId')
+            ->setParameter('fieldId', $fieldId)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return $count > 0;
     }
 
     /**
@@ -177,8 +217,8 @@ class GrossanlassRoundFormService
             throw new \InvalidArgumentException('Ungültige Feldrolle: ' . $role);
         }
 
-        $systemKey = isset($payload['system_key']) ? (string) $payload['system_key'] : null;
-        $customType = isset($payload['custom_type']) ? (string) $payload['custom_type'] : null;
+        $systemKey = $this->nullableString($payload['system_key'] ?? null);
+        $customType = $this->nullableString($payload['custom_type'] ?? null);
 
         if ($role === GrossanlassFormFieldCatalog::ROLE_META) {
             if ($systemKey === null || !in_array($systemKey, GrossanlassFormFieldCatalog::META_SYSTEM_KEYS, true)) {
@@ -226,9 +266,19 @@ class GrossanlassRoundFormService
         $field = new ActivityGrossanlassRoundFormField();
         $field->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassRoundFormField::class, 'ff'));
         $field->setForm($form);
+        $this->applyFieldDefinition($field, $def);
+
+        return $field;
+    }
+
+    /**
+     * @param array<string, mixed> $def
+     */
+    private function applyFieldDefinition(ActivityGrossanlassRoundFormField $field, array $def): void
+    {
         $field->setRole((string) $def['role']);
-        $field->setSystemKey(isset($def['system_key']) ? (string) $def['system_key'] : null);
-        $field->setCustomType(isset($def['custom_type']) ? (string) $def['custom_type'] : null);
+        $field->setSystemKey($this->nullableString($def['system_key'] ?? null));
+        $field->setCustomType($this->nullableString($def['custom_type'] ?? null));
         $field->setLabel((string) $def['label']);
         $help = $def['help_text'] ?? null;
         $field->setHelpText(is_string($help) && $help !== '' ? $help : null);
@@ -237,8 +287,16 @@ class GrossanlassRoundFormService
         $field->setSortOrder((int) ($def['sort_order'] ?? 0));
         $field->setOptionsJson(is_array($def['options'] ?? null) ? $def['options'] : null);
         $field->setConfigJson(is_array($def['config'] ?? null) ? $def['config'] : null);
+    }
 
-        return $field;
+    private function nullableString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

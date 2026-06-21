@@ -34,14 +34,22 @@ class DepartmentVehicleController extends AbstractController
         }
 
         $vehicles = $this->entityManager->getRepository(DepartmentVehicle::class)->createQueryBuilder('v')
+            ->leftJoin('v.ownerAddress', 'oa')
+            ->addSelect('oa')
             ->where('v.departmentId IN (:deptIds)')
             ->setParameter('deptIds', $departmentIds)
             ->andWhere('v.isActive = true')
-            ->orderBy('v.name', 'ASC')
-            ->getQuery()
-            ->getResult();
+            ->orderBy('v.name', 'ASC');
 
-        return new JsonResponse(array_map(fn (DepartmentVehicle $v) => $this->serializeVehicle($v), $vehicles));
+        $search = trim((string) $request->query->get('search', ''));
+        if ($search !== '') {
+            $vehicles->andWhere('LOWER(v.name) LIKE :search OR LOWER(v.plate) LIKE :search')
+                ->setParameter('search', '%' . strtolower($search) . '%');
+        }
+
+        $result = $vehicles->getQuery()->getResult();
+
+        return new JsonResponse(array_map(fn (DepartmentVehicle $v) => $this->serializeVehicle($v), $result));
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
@@ -68,7 +76,7 @@ class DepartmentVehicleController extends AbstractController
         $vehicle->setId(IdGenerator::generate());
         $vehicle->setDepartment($department);
         $vehicle->setName($name);
-        $this->applyVehicleFields($vehicle, $data);
+        $this->applyVehicleFields($vehicle, $data, $departmentId);
 
         $this->entityManager->persist($vehicle);
         $this->entityManager->flush();
@@ -98,7 +106,7 @@ class DepartmentVehicleController extends AbstractController
             }
             $vehicle->setName($name);
         }
-        $this->applyVehicleFields($vehicle, $data);
+        $this->applyVehicleFields($vehicle, $data, $departmentId);
         $vehicle->touch();
         $this->entityManager->flush();
 
@@ -176,7 +184,7 @@ class DepartmentVehicleController extends AbstractController
         return true;
     }
 
-    private function applyVehicleFields(DepartmentVehicle $vehicle, array $data): void
+    private function applyVehicleFields(DepartmentVehicle $vehicle, array $data, string $departmentId): void
     {
         if (array_key_exists('plate', $data)) {
             $vehicle->setPlate(trim((string) $data['plate']) ?: null);
@@ -200,10 +208,35 @@ class DepartmentVehicleController extends AbstractController
         if (array_key_exists('notes', $data)) {
             $vehicle->setNotes(trim((string) $data['notes']) ?: null);
         }
+        if (array_key_exists('owner_address_id', $data)) {
+            $ownerId = trim((string) $data['owner_address_id']);
+            if ($ownerId === '') {
+                $vehicle->setOwnerAddress(null);
+            } else {
+                $address = $this->entityManager->getRepository(\App\Entity\Address::class)->find($ownerId);
+                if ($address && $address->getDepartmentId() === $vehicle->getDepartmentId()) {
+                    $vehicle->setOwnerAddress($address);
+                }
+            }
+        }
     }
 
     private function serializeVehicle(DepartmentVehicle $vehicle): array
     {
+        $owner = $vehicle->getOwnerAddress();
+        $ownerLabel = null;
+        if ($owner) {
+            $company = trim((string) ($owner->getCompany() ?? ''));
+            $contact = trim($owner->getContactFullName());
+            if ($company !== '' && $contact !== '') {
+                $ownerLabel = $company . ' · ' . $contact;
+            } elseif ($company !== '') {
+                $ownerLabel = $company;
+            } elseif ($contact !== '') {
+                $ownerLabel = $contact;
+            }
+        }
+
         return [
             'id' => $vehicle->getId(),
             'department_id' => $vehicle->getDepartmentId(),
@@ -216,6 +249,8 @@ class DepartmentVehicleController extends AbstractController
             'max_volume_m3' => $vehicle->getMaxVolumeM3() !== null ? (float) $vehicle->getMaxVolumeM3() : null,
             'is_active' => $vehicle->getIsActive(),
             'notes' => $vehicle->getNotes(),
+            'owner_address_id' => $vehicle->getOwnerAddressId(),
+            'owner_label' => $ownerLabel,
         ];
     }
 }

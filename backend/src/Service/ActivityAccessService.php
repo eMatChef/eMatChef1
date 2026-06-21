@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Activity;
+use App\Entity\ActivityVehicle;
 use App\Entity\GroupMembership;
 use App\Entity\Membership;
 use App\Entity\User;
@@ -791,6 +792,44 @@ class ActivityAccessService
             Activity::STATUS_PACKED,
             Activity::STATUS_AT_EVENT,
         ], true);
+    }
+
+    /**
+     * Fuhrpark der Aktivität: Host-/Partner-MW/DC oder Ersteller (ab «Bestätigt»).
+     */
+    public function canUserManageActivityVehicles(User $user, Activity $activity): bool
+    {
+        $status = $activity->getStatus();
+        $allowedStatuses = [
+            Activity::STATUS_APPROVED,
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ];
+        if (!\in_array($status, $allowedStatuses, true)) {
+            return false;
+        }
+
+        if ($this->isHostDepartmentMwOrDc($user, $activity) || $this->isInvitedDepartmentMwOrDc($user, $activity)) {
+            return true;
+        }
+
+        return $activity->getCreatedByUserId() === $user->getId();
+    }
+
+    /**
+     * Ist das Fahrzeug dieser Aktivität zugeordnet?
+     */
+    public function isVehicleAssignedToActivity(string $activityId, string $vehicleId): bool
+    {
+        $row = $this->entityManager->getRepository(ActivityVehicle::class)->findOneBy([
+            'activityId' => $activityId,
+            'vehicleId' => $vehicleId,
+        ]);
+
+        return $row !== null;
     }
 
     /**
