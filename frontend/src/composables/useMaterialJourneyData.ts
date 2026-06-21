@@ -16,6 +16,11 @@ import {
 } from '@/components/activities/materialJourneySteps'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
+import {
+  emptyMaterialJourneyCratePeekMaps,
+  loadMaterialJourneyCratePeekData,
+  type MaterialJourneyCratePeekMaps,
+} from '@/composables/materialJourneyCratePeekLoad'
 
 const POLL_ACTIVE_MS = 5_000
 const POLL_IDLE_MS = 20_000
@@ -36,6 +41,7 @@ export function useMaterialJourneyData(
   const packItems = ref<ActivityPackItem[]>([])
   const packContainers = ref<ActivityPackContainer[]>([])
   const containerItemsByContainerId = ref<Record<string, ActivityPackContainerItem[]>>({})
+  const cratePeekMaps = ref<MaterialJourneyCratePeekMaps>(emptyMaterialJourneyCratePeekMaps())
   const loading = ref(true)
   const error = ref<string | null>(null)
 
@@ -83,6 +89,7 @@ export function useMaterialJourneyData(
       }),
     )
     containerItemsByContainerId.value = map
+    cratePeekMaps.value = await loadMaterialJourneyCratePeekData(containers, packItems.value)
   }
 
   async function reloadSilent(): Promise<void> {
@@ -118,6 +125,7 @@ export function useMaterialJourneyData(
       packItems.value = []
       packContainers.value = []
       containerItemsByContainerId.value = {}
+      cratePeekMaps.value = emptyMaterialJourneyCratePeekMaps()
     } finally {
       loading.value = false
     }
@@ -150,6 +158,7 @@ export function useMaterialJourneyData(
     packItems,
     packContainers,
     containerItemsByContainerId,
+    cratePeekMaps,
     loading,
     error,
     profile,

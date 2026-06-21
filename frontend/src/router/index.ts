@@ -702,36 +702,56 @@ const routes: RouteRecordRaw[] = [
         }
       },
       {
+        path: 'ressorts',
+        name: 'GrossanlassRessorts',
+        component: () => import('@/views/grossanlass/GrossanlassRessortsView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassRessorts'),
+        },
+      },
+      {
+        path: 'mein-ressort',
+        name: 'GrossanlassMeinRessort',
+        component: () => import('@/views/grossanlass/GrossanlassMeinRessortView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassMeinRessort'),
+        },
+      },
+      {
         path: 'planung',
-        component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
+        name: 'GrossanlassPlanung',
+        component: () => import('@/views/grossanlass/GrossanlassRoundsView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
           ...routeHead('grossanlassPlanung'),
         },
-        children: [
-          {
-            path: '',
-            redirect: { name: 'GrossanlassPlanungRessorts' },
-          },
-          {
-            path: 'ressorts',
-            name: 'GrossanlassPlanungRessorts',
-            component: () => import('@/views/grossanlass/GrossanlassRessortsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('grossanlassPlanungRessorts'),
-            },
-          },
-          {
-            path: 'rounds',
-            name: 'GrossanlassPlanungRounds',
-            component: () => import('@/views/grossanlass/GrossanlassRoundsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              ...routeHead('grossanlassPlanungRounds'),
-            },
-          },
-        ],
+      },
+      {
+        path: 'planung/runden/:roundId',
+        name: 'GrossanlassRoundDetail',
+        component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassRoundDetail'),
+        },
+      },
+      {
+        path: 'planungsrunden',
+        redirect: (to) => ({ path: `/${to.params.departmentId}/planung` }),
+      },
+      {
+        path: 'planung/ressorts',
+        redirect: (to) => ({ path: `/${to.params.departmentId}/ressorts` }),
+      },
+      {
+        path: 'planung/rounds',
+        redirect: (to) => ({ path: `/${to.params.departmentId}/planung` }),
+      },
+      {
+        path: 'planung/rounds/:roundId',
+        redirect: (to) => ({ path: `/${to.params.departmentId}/planung/runden/${to.params.roundId}` }),
       },
       {
         path: 'beschaffung',
@@ -1934,7 +1954,10 @@ router.beforeEach(async (to, from, next) => {
     const allowed =
       settingsTail === '' ||
       settingsTail === 'my-department' ||
-      (!isBasicUser && (settingsTail === 'users' || settingsTail === 'zeit'))
+      (!isBasicUser &&
+        (settingsTail === 'users' ||
+          settingsTail === 'zeit' ||
+          settingsTail === 'my-department/fixed-dates'))
     if (!allowed) {
       return next(`/${deptIdForSettings}/settings/my-department`)
     }

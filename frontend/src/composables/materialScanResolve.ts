@@ -12,6 +12,10 @@ import { isCrateShellPackItem } from '@/components/activities/packShellCrateHelp
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import { shouldIncludePackItemOnStageLeft } from '@/components/activities/packWorkflowRules'
+import {
+  packItemMatchesStorageLookup,
+  type StorageLookupResult,
+} from '@/utils/packStorageLocationMatch'
 
 export type MaterialScanResultType =
   | 'not_on_list'
@@ -29,9 +33,17 @@ export type MaterialScanResultType =
   | 'in_virtual_crate'
   | 'text_match'
   | 'js_material'
+  | 'shelf_location'
   | 'unknown'
 
 export type MaterialScanTone = 'success' | 'error' | 'warning' | 'info' | 'muted'
+
+export type MaterialScanShelfLine = {
+  packItem: ActivityPackItem
+  moveQty: number
+  doneQty: number
+  totalQty: number
+}
 
 export type MaterialScanResolveResult = {
   type: MaterialScanResultType
@@ -46,6 +58,10 @@ export type MaterialScanResolveResult = {
   needsBulkConfirm?: boolean
   scannedBatchId?: string
   scannedBatchLabel?: string
+  shelfLines?: MaterialScanShelfLine[]
+  storageLookup?: StorageLookupResult
+  shelfOpenCount?: number
+  shelfTotalCount?: number
 }
 
 export type MaterialScanResolveContext = {
@@ -400,6 +416,80 @@ export function resolveMaterialBatchScan(
   }
 }
 
+function sortShelfLinesByName(lines: MaterialScanShelfLine[]): MaterialScanShelfLine[] {
+  return [...lines].sort((a, b) =>
+    packMaterialDisplayName(a.packItem).localeCompare(
+      packMaterialDisplayName(b.packItem),
+      undefined,
+      { sensitivity: 'base' },
+    ),
+  )
+}
+
+export function resolveStorageLocationScan(
+  lookup: StorageLookupResult,
+  ctx: MaterialScanResolveContext,
+): MaterialScanResolveResult {
+  const matching = ctx.packItems.filter(
+    (pi) => !pi.isJsMaterial && packItemMatchesStorageLookup(pi, lookup),
+  )
+
+  const openLines: MaterialScanShelfLine[] = []
+  const doneLines: MaterialScanShelfLine[] = []
+  let shelfOpenCount = 0
+  let shelfTotalCount = 0
+
+  for (const pi of matching) {
+    const moveQty = Math.max(0, ctx.listCtx.effectiveStageLeftQty(pi))
+    const doneQty = Math.max(0, ctx.listCtx.getStageRightQty(pi))
+    const totalQty = moveQty + doneQty
+    const line: MaterialScanShelfLine = { packItem: pi, moveQty, doneQty, totalQty }
+    const onStage = shouldIncludePackItemOnStageLeft(pi, ctx.listCtx) || doneQty > 0
+
+    if (onStage) shelfTotalCount += 1
+    if (shouldIncludePackItemOnStageLeft(pi, ctx.listCtx) && moveQty > 0) {
+      openLines.push(line)
+      shelfOpenCount += 1
+    } else if (doneQty > 0) {
+      doneLines.push(line)
+    }
+  }
+
+  const base = {
+    type: 'shelf_location' as const,
+    title: lookup.label,
+    canAct: false,
+    storageLookup: lookup,
+    shelfOpenCount,
+    shelfTotalCount,
+  }
+
+  if (matching.length === 0) {
+    return {
+      ...base,
+      tone: 'muted',
+      detail: 'shelf_not_on_list',
+      shelfLines: [],
+    }
+  }
+
+  if (openLines.length === 0) {
+    return {
+      ...base,
+      tone: 'success',
+      detail: 'shelf_all_done',
+      shelfLines: sortShelfLinesByName(doneLines),
+    }
+  }
+
+  return {
+    ...base,
+    tone: 'info',
+    detail: 'shelf_open',
+    shelfLines: sortShelfLinesByName(openLines),
+  }
+}
+
 export function resolveMaterialTextSearch(
   query: string,
   ctx: MaterialScanResolveContext,
@@ -471,6 +561,7 @@ export function toneForScanResult(type: MaterialScanResultType): MaterialScanTon
     case 'in_virtual_crate':
     case 'text_match':
     case 'js_material':
+    case 'shelf_location':
       return 'info'
     case 'not_ready':
       return 'muted'

@@ -14,6 +14,7 @@
         :disabled="disabled"
         :show-presets="showPresets"
         :show-markers="showMarkers"
+        :preset-mode="presetMode === 'fixed-periods' ? 'fixed-periods' : 'single'"
       />
       <ActivityDateRangeField
         v-else
@@ -22,6 +23,7 @@
         :disabled="disabled"
         :show-presets="showPresets"
         :show-markers="showMarkers"
+        :preset-mode="presetMode"
       />
     </template>
     <template v-if="showTime" #timeFrom>
@@ -63,6 +65,8 @@ const props = withDefaults(
     timesLocked?: boolean
     /** Material-Uhrzeiten: Nutzungsintervall in der Uhr nicht wählbar */
     blockedUsageRange?: { start: Date; end: Date } | null
+    /** range = Samstage + Fixe Daten; fixed-periods = nur Fixe Daten */
+    presetMode?: 'range' | 'fixed-periods'
     label?: string
     labelFrom: string
     labelTo: string
@@ -77,6 +81,7 @@ const props = withDefaults(
     disabled: false,
     timesLocked: false,
     blockedUsageRange: null,
+    presetMode: 'range',
     layout: 'auto',
   },
 )

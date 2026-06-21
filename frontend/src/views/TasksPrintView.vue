@@ -15,10 +15,10 @@
         </button>
         <button
           class="btn-outline btn-sm"
-          :disabled="isLoading || isExportingPdf"
-          @click="exportMaterialQrPdf"
+          :disabled="isLoading"
+          @click="openMaterialQrPdfDialog"
         >
-          {{ isExportingPdf ? t('tasksPrint.exportMaterialQrPdfLoading') : t('tasksPrint.exportMaterialQrPdf') }}
+          {{ t('tasksPrint.exportMaterialQrPdf') }}
         </button>
         <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="printAll">
           {{ t('tasksPrint.bulkPrint') }}
@@ -72,6 +72,11 @@
       :department-id="departmentId"
       pick-location
     />
+
+    <MaterialCategoryQrPdfDialog
+      v-model="showMaterialQrPdfDialog"
+      :department-id="departmentId"
+    />
   </div>
 </template>
 
@@ -81,16 +86,17 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import { useToast } from '@/composables/useToast'
-import { clearPrintCart, deletePrintCartItem, downloadMaterialQrPdf, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
+import { clearPrintCart, deletePrintCartItem, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
 import { printHtmlDocument } from '@/utils/printHtml'
 import StorageLocationQrPdfDialog from '@/components/storage/StorageLocationQrPdfDialog.vue'
+import MaterialCategoryQrPdfDialog from '@/components/material/MaterialCategoryQrPdfDialog.vue'
 
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
 const isLoading = ref(false)
-const isExportingPdf = ref(false)
 const showStorageQrPdfDialog = ref(false)
+const showMaterialQrPdfDialog = ref(false)
 const items = ref<PrintCartItem[]>([])
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -160,23 +166,8 @@ function openStorageQrPdfDialog() {
   showStorageQrPdfDialog.value = true
 }
 
-async function exportMaterialQrPdf() {
-  if (!departmentId.value || isExportingPdf.value) return
-  isExportingPdf.value = true
-  try {
-    const blob = await downloadMaterialQrPdf(departmentId.value)
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = `material-qr-codes-${departmentId.value}.pdf`
-    anchor.click()
-    URL.revokeObjectURL(url)
-    toast.success(t('tasksPrint.exportMaterialQrPdfSuccess'))
-  } catch (err: any) {
-    toast.error(err?.message || err?.response?.data?.error || t('tasksPrint.errors.exportMaterialQrPdf'))
-  } finally {
-    isExportingPdf.value = false
-  }
+function openMaterialQrPdfDialog() {
+  showMaterialQrPdfDialog.value = true
 }
 
 async function markPrinted(id: string) {

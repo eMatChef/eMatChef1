@@ -27,6 +27,8 @@ import {
 } from '@/components/activities/materialJourneySteps'
 import { shouldOpenMaterialJourneyReturnCrateModal } from '@/components/activities/materialJourneyReturnCrate'
 import { useMaterialJourneyReturnCrate } from '@/composables/useMaterialJourneyReturnCrate'
+import { countCratePeekLines } from '@/composables/useMaterialJourneyCrateSections'
+import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
 import { getBackendStage } from '@/components/activities/packStageQuantities'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import { packWorkflowCanEdit } from '@/components/activities/packWorkflowRules'
@@ -40,6 +42,7 @@ export function useMaterialJourneyTasks(options: {
   packItems: Ref<ActivityPackItem[]>
   packContainers: Ref<ActivityPackContainer[]>
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
+  cratePeekMaps: Ref<MaterialJourneyCratePeekMaps>
   journeyStep: Ref<JourneyStep>
   profile: Ref<PackWorkflowProfile>
   canManageMaterials: Ref<boolean>
@@ -143,6 +146,11 @@ export function useMaterialJourneyTasks(options: {
 
   const canOpenSheet = computed(() => listEditable.value && sheetsEnabledForStep.value)
 
+  const cratePeekCtx = computed(() => ({
+    containerItemsByContainerId: options.containerItemsByContainerId.value,
+    ...options.cratePeekMaps.value,
+  }))
+
   const taskBuildCtx = computed(() => ({
     listCtx: packListCtx.value,
     containerCtx: packContainerCtx.value,
@@ -157,6 +165,18 @@ export function useMaterialJourneyTasks(options: {
     formatCrateLineCount: (count: number) =>
       t('activities.materialJourney.row.crateLineCount', { count }),
     shellPackItemForContainer,
+    cratePeekLineCount: (
+      container: ActivityPackContainer,
+      shellPackItem?: ActivityPackItem,
+    ) =>
+      countCratePeekLines(
+        container,
+        cratePeekCtx.value,
+        shellPackItem ?? null,
+        t,
+        options.packItems.value,
+        options.packContainers.value,
+      ),
     intentMemberCount: (intentId: string) =>
       options.packItems.value.filter((pi) => pi.intentId === intentId).length,
   }))
@@ -597,6 +617,7 @@ export function useMaterialJourneyTasks(options: {
     openComboPackItem,
     activateLoosePackItem,
     taskRowForScanResult,
+    moveTaskRow,
     allTasks,
     packListCtx,
     returnCrate,

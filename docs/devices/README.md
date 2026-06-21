@@ -4,9 +4,24 @@ Handheld (**Zebra TC700H**), Pistolen-Scanner (**Datalogic PowerScan 8530** am P
 
 **QR-URLs** (Etiketten, PDF, Display): [docs/qr/](../qr/)
 
-**Stand:** Mai 2026 · **Status:** D1–D3 im Frontend umgesetzt · D4 (Retour) offen
+**Stand:** Mai 2026 · **Status:** D1–D3 im Frontend umgesetzt · D4 (Retour) offen · **D5 geplant:** Universal-Scan-Hub
 
 ---
+
+## Universal-Scan-Hub (geplant, D5)
+
+Ein zentraler Scan-Einstieg auf `devices.ematchef.ch/{dept}/` — Parser erkennt den QR-Typ und schlägt die passende Aktion vor:
+
+| Scan | Vorgeschlagene Aktion |
+|------|------------------------|
+| Anlass `/i/a/…` | Pack-Session öffnen |
+| Material `/i/m/…/b/…` | +1 buchen (in aktiver Session) oder «Anlass zuerst scannen» |
+| Regal/Fach/Ort `/i/r/…` `/i/s/…` `/i/l/…` | Offene Positionen am Standort (+1 pro Scan) |
+| Werkstatt | Ticket öffnen / Status (später) |
+
+Die **App-Journey** bleibt für Kamera, Kisten, Sets und Regal-Übersicht; Link «Im Lager-Scanner öffnen» in der Pack-Journey führt direkt zur Pack-Session auf `devices.`.
+
+Siehe [rollout-plan.md](./rollout-plan.md) Phase D5.
 
 ## Dokumentation
 

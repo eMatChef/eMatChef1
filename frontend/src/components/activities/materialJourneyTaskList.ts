@@ -64,6 +64,10 @@ export type MaterialJourneyTaskBuildContext = {
   canOpenSheet: boolean
   formatCrateLineCount: (count: number) => string
   shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
+  cratePeekLineCount?: (
+    container: ActivityPackContainer,
+    shellPackItem?: ActivityPackItem,
+  ) => number
   intentMemberCount?: (intentId: string) => number
 }
 
@@ -155,7 +159,18 @@ export function buildMaterialJourneyCrateTask(
     shouldShowContainerOnRightMirror(container.id, ctx.containerCtx)
   const openQty = isOpen ? Math.max(1, issueable) : 0
   const doneQty = isDone ? 1 : 0
-  const lineCount = (ctx.containerCtx.containerItemsForContainer?.(container.id) ?? []).length
+  const shellPackItem = ctx.shellPackItemForContainer(container.id)
+  const lineCount = ctx.cratePeekLineCount
+    ? ctx.cratePeekLineCount(container, shellPackItem)
+    : (ctx.containerCtx.containerItemsForContainer?.(container.id) ?? []).length
+  const subtitleParts: string[] = []
+  if (lineCount > 0) {
+    subtitleParts.push(ctx.formatCrateLineCount(lineCount))
+  } else if ((shellPackItem?.linkedContainerLabel ?? '').trim()) {
+    subtitleParts.push((shellPackItem?.linkedContainerLabel ?? '').trim())
+  } else {
+    subtitleParts.push(ctx.formatCrateLineCount(0))
+  }
   const { shelfLabel, shelfKey } = materialJourneyShelfForContainer(
     container,
     ctx.shellPackItemForContainer,
@@ -166,7 +181,7 @@ export function buildMaterialJourneyCrateTask(
     kind: 'crate',
     container,
     title: container.label,
-    subtitle: buildSubtitleParts([ctx.formatCrateLineCount(lineCount)]),
+    subtitle: buildSubtitleParts(subtitleParts),
     openQty,
     doneQty,
     maxForwardQty: issueable,

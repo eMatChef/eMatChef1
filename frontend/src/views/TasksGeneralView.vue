@@ -55,6 +55,11 @@
               {{ t('grossanlass.inbox.preview') }}
             </EButton>
           </template>
+          <template v-else-if="task.kind === 'grossanlass_round_opened' && task.grossanlassRoundOpened">
+            <EButton variant="primary" size="small" @click="openGrossanlassPlanung(task.grossanlassRoundOpened)">
+              {{ t('grossanlass.inbox.roundOpenedPreview') }}
+            </EButton>
+          </template>
           <template v-else-if="task.kind === 'department_invite' && task.departmentInvite">
             <EButton variant="primary" size="small" @click="acceptDeptInvite(task.departmentInvite)">
               {{ t('notificationsCenter.accept') }}
@@ -118,6 +123,7 @@ import {
   declineDepartmentInvite,
   decideDepartmentActivityInvite,
   type GrossanlassMwAssignedNotification,
+  type GrossanlassRoundOpenedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
 } from '@/api/joinRequests'
@@ -230,6 +236,8 @@ function taskKindLabel(kind: DepartmentTaskKind): string {
       return t('tasksGeneral.kindDeptInvite')
     case 'grossanlass_mw_assigned':
       return t('grossanlass.inbox.category')
+    case 'grossanlass_round_opened':
+      return t('grossanlass.inbox.category')
     case 'activity_invite':
       return t('tasksGeneral.kindCampInvite')
     case 'accounting_followup':
@@ -247,6 +255,9 @@ function departmentInviteRoleLabel(role: string): string {
 function taskPreview(task: DepartmentTaskItem): string {
   if (task.kind === 'grossanlass_mw_assigned' && task.grossanlassMwAssigned) {
     return t('grossanlass.inbox.preview')
+  }
+  if (task.kind === 'grossanlass_round_opened' && task.grossanlassRoundOpened) {
+    return t('grossanlass.inbox.roundOpenedPreview')
   }
   if (task.kind === 'department_invite' && task.departmentInvite) {
     return t('notificationsCenter.departmentInvitePreview', {
@@ -319,6 +330,19 @@ async function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification)
     /* navigate anyway */
   }
   const path = note.dashboard_url || `/${note.department_id}/dashboard`
+  void router.push(path)
+}
+
+async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.planung_url || `/${note.department_id}/planung`
   void router.push(path)
 }
 
@@ -425,6 +449,7 @@ function findTaskByOpenQuery(parsed: { kind: DepartmentTaskKind; id: string }): 
   return tasks.value.find((row) => {
     if (parsed.kind === 'qr_found') return row.qrFound?.id === parsed.id
     if (parsed.kind === 'grossanlass_mw_assigned') return row.grossanlassMwAssigned?.id === parsed.id
+    if (parsed.kind === 'grossanlass_round_opened') return row.grossanlassRoundOpened?.id === parsed.id
     if (parsed.kind === 'department_invite') return row.departmentInvite?.id === parsed.id
     if (parsed.kind === 'activity_invite') {
       const [actId, srcId] = parsed.id.split(':')

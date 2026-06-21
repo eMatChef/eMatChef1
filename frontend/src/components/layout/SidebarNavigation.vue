@@ -176,14 +176,39 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
-      <!-- Planung (Grossanlass) -->
+      <!-- Grossanlass: Ressorts & Mitglieder (MW/DC — Name des Anlasses) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole"
+        :to="getLink('/ressorts')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('ressorts') }"
+        :title="grossanlassRessortsNavTitle"
+      >
+        <v-icon icon="mdi-sitemap" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label nav-label--grossanlass" :class="{ visible: showNavLabels }">{{ grossanlassNavLabel }}</span>
+      </router-link>
+
+      <!-- Mein Ressort (Ressort-Mitglieder: Bauprojekte & Materialwünsche) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && isUserRole"
+        :to="getLink('/mein-ressort')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('mein-ressort') }"
+        :title="t('sidebar.meinRessortHint')"
+      >
+        <v-icon icon="mdi-home-group" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meinRessort') }}</span>
+      </router-link>
+
+      <!-- Planung: Runden → Material sammeln → Beschaffung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks"
         :to="getLink('/planung')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('planung') }"
+        :class="{ active: isPlanungNavActive }"
+        :title="t('sidebar.planungHint')"
       >
-        <v-icon icon="mdi-clipboard-text-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <v-icon icon="mdi-calendar-clock" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
       </router-link>
 
@@ -193,6 +218,7 @@
         :to="getLink('/beschaffung')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :title="t('sidebar.beschaffungHint')"
       >
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
@@ -343,7 +369,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
-import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { canUseDepartmentOnboarding } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
@@ -355,6 +381,7 @@ import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const { isUserRole } = useDepartmentMemberRole()
 const { mdAndUp } = useDisplay()
 const drawerOpen = defineModel<boolean>({ default: false })
 const isHovered = ref(false)
@@ -540,7 +567,23 @@ const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
-/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Phase 2a: + Planung, Aufgaben, Nachrichten */
+const grossanlassNavLabel = computed(() => {
+  const id = departmentId.value
+  const dept = authStore.departments.find((d) => d.department_id === id)
+  return dept?.department?.name || t('grossanlass.label')
+})
+
+const grossanlassRessortsNavTitle = computed(() =>
+  t('sidebar.grossanlassRessortsHint', { name: grossanlassNavLabel.value }),
+)
+
+const isPlanungNavActive = computed(() => {
+  const path = route.path
+  if (path.includes('/settings')) return false
+  return path.includes('/planung')
+})
+
+/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Ressorts/Planung, Aufgaben, Nachrichten */
 const showStandardDeptSidebarLinks = computed(
   () => showDeptContextSidebarLinks.value && !isGrossanlassDept.value,
 )

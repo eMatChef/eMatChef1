@@ -3,6 +3,7 @@ import {
   getPendingDepartmentActivityInvites,
   getReceivedDepartmentInvites,
   type GrossanlassMwAssignedNotification,
+  type GrossanlassRoundOpenedNotification,
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
 } from '@/api/joinRequests'
@@ -14,6 +15,7 @@ export type DepartmentTaskKind =
   | 'qr_found'
   | 'department_invite'
   | 'grossanlass_mw_assigned'
+  | 'grossanlass_round_opened'
   | 'activity_invite'
   | 'accounting_followup'
 export type DepartmentTaskStatus = 'open' | 'in_progress' | 'done'
@@ -28,6 +30,7 @@ export interface DepartmentTaskItem {
   qrFound?: PublicFoundItemMessage
   departmentInvite?: ReceivedDepartmentInviteNotification
   grossanlassMwAssigned?: GrossanlassMwAssignedNotification
+  grossanlassRoundOpened?: GrossanlassRoundOpenedNotification
   activityInvite?: PendingDepartmentActivityInvite
   accounting?: AccountingAcquisitionFollowUp
 }
@@ -43,7 +46,7 @@ export function parseTaskOpenQuery(raw: unknown): { kind: DepartmentTaskKind; id
   const kind = s.slice(0, i) as DepartmentTaskKind
   const id = s.slice(i + 1)
   if (!id) return null
-  if (!['qr_found', 'department_invite', 'grossanlass_mw_assigned', 'activity_invite', 'accounting_followup'].includes(kind)) {
+  if (!['qr_found', 'department_invite', 'grossanlass_mw_assigned', 'grossanlass_round_opened', 'activity_invite', 'accounting_followup'].includes(kind)) {
     return null
   }
   return { kind, id }
@@ -108,6 +111,18 @@ export async function loadDepartmentTasks(
         title: inv.department_name,
         preview: inv.dashboard_url,
         grossanlassMwAssigned: inv,
+      })
+      continue
+    }
+    if (inv.type === 'grossanlass_round_opened') {
+      items.push({
+        id: `ga-round-${inv.id}`,
+        kind: 'grossanlass_round_opened',
+        status: 'open',
+        createdAt: inv.created_at,
+        title: inv.round_name,
+        preview: inv.planung_url,
+        grossanlassRoundOpened: inv,
       })
       continue
     }

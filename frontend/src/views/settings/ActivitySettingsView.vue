@@ -130,7 +130,7 @@
       </div>
 
       <!-- Abschnitt 4: J+S-Leihmaterial (Camp/Event) -->
-      <div class="settings-section">
+      <div class="settings-section" data-onboarding="settings-js-coach">
         <div class="section-header">
           <div class="section-icon js-material">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">

@@ -80,9 +80,10 @@
         "devicesHome": "Lager · eMatChef",
         "devicesPack": "Packen · Lager · eMatChef",
         "statistics": "Statistik · eMatChef",
+        "grossanlassRessorts": "Ressorts & Mitglieder · Grossanlass · eMatChef",
         "grossanlassPlanung": "Planung · Grossanlass · eMatChef",
-        "grossanlassPlanungRessorts": "Ressorts & Mitglieder · Planung · eMatChef",
-        "grossanlassPlanungRounds": "Planungsrunden · Planung · eMatChef",
+        "grossanlassRoundDetail": "Planungsrunde · Grossanlass · eMatChef",
+        "grossanlassMeinRessort": "Mein Ressort · Grossanlass · eMatChef",
         "grossanlassBeschaffung": "Beschaffung · Grossanlass · eMatChef",
         "grossanlassBeschaffungUebersicht": "Übersicht · Beschaffung · eMatChef",
         "grossanlassBeschaffungBedarf": "Bedarf · Beschaffung · eMatChef",
@@ -745,7 +746,15 @@
   },
   "tasksPrint": {
     "subtitle": "Druckkorb für QR-Etiketten (DB-basiert)",
-    "exportMaterialQrPdf": "PDF: alle Material-QRs",
+    "exportMaterialQrPdf": "PDF: Material-QRs…",
+    "exportMaterialQrPdfTitle": "Material-QR PDF",
+    "materialQrPdfIntro": "Wähle Material-Chargen für ein PDF (A4, 12 pro Seite). Codes werden bei Bedarf automatisch erzeugt.",
+    "materialQrPdfUncategorized": "Ohne Kategorie",
+    "materialQrPdfTypeCategory": "Kategorie",
+    "materialQrPdfTypeSubcategory": "Unterkategorie",
+    "materialQrPdfTypeMaterial": "Material",
+    "materialQrPdfTypeBatch": "Charge",
+    "materialQrPdfNoMaterials": "Kein druckbares Material vorhanden.",
     "exportStorageQrPdf": "PDF: Lager-QR…",
     "exportStorageQrPdfTitle": "Lager-QR PDF",
     "exportStorageQrPdfPickLocation": "Lagerstandort",
@@ -767,6 +776,7 @@
     },
     "errors": {
       "loadCart": "Druckkorb konnte nicht geladen werden.",
+      "loadMaterialQrTree": "Materialbaum konnte nicht geladen werden.",
       "exportMaterialQrPdf": "Material-QR-PDF konnte nicht erstellt werden."
     },
     "printHtml": {
@@ -814,6 +824,11 @@
     "myCompanyRepairTemplates": "Reparatur-Vorlagen",
     "devUiPlayground": "UI Sandbox",
     "planung": "Planung",
+    "planungHint": "Bedarf erfassen — Materialwünsche sammeln, später in Beschaffung bündeln",
+    "meinRessort": "Mein Ressort",
+    "meinRessortHint": "Deine Bauprojekte und Materialwünsche im Ressort",
+    "grossanlassRessortsHint": "{name} — Ressorts, Benutzer und Struktur verwalten",
+    "beschaffungHint": "Material aus Planungsrunden bündeln, offertieren und bestellen",
     "beschaffung": "Beschaffung",
     "help": "Hilfe"
   },
@@ -1416,19 +1431,46 @@
       "finish": "Fertig",
       "stepOf": "Schritt {current} von {total}",
       "statusDone": "Erledigt",
+      "clickTargetHint": "Klicke auf den markierten Bereich, um fortzufahren.",
+      "categoryDone": "{done}/{total} erledigt",
+      "categories": {
+        "material": "Material",
+        "activities": "Aktivitäten",
+        "settings": "Einstellungen"
+      },
       "materialCreate": {
         "title": "Material erfassen",
-        "description": "Lerne, wie du ein neues Materialstück anlegst.",
+        "description": "Einzelartikel Schritt für Schritt anlegen.",
         "step1Title": "Neues Material",
-        "step1Body": "Hier startest du den Assistenten zum Erfassen von Material.",
-        "step2Title": "Assistent ausfüllen",
-        "step2Body": "Im Assistenten gibst du Name, Kategorie und Lagerplatz an. Speichern — fertig."
+        "step1Body": "Starte den Assistenten zum Erfassen von Material.",
+        "step2Title": "Einzelartikel wählen",
+        "step2Body": "Für den Einstieg eignet sich «Einzelartikel» — ein physisches Stück Material.",
+        "step3Title": "Name & Details",
+        "step3Body": "Gib einen Namen ein und ergänze bei Bedarf Beschreibung oder Hersteller.",
+        "step4Title": "Kategorie zuordnen",
+        "step4Body": "Wähle eine passende Kategorie — danach kannst du Bestand und Lagerplatz erfassen."
       },
       "activityCreate": {
         "title": "Aktivität anlegen",
-        "description": "Erstelle deine erste Aktivität für eine Gruppe oder ein Event.",
+        "description": "Eine einfache Aktivität (z. B. Samstagsmeeting) erstellen.",
         "step1Title": "Neue Aktivität",
-        "step1Body": "Über diesen Button öffnest du den Assistenten für eine neue Aktivität."
+        "step1Body": "Öffne den Assistenten für eine neue Aktivität.",
+        "step2Title": "Typ «Aktivität»",
+        "step2Body": "Wähle «Aktivität» für kurze, ein-Tages-Aktivitäten deiner Gruppe.",
+        "step3Title": "Grunddaten",
+        "step3Body": "Name, Gruppe und Zeitraum — Material kannst du im nächsten Schritt hinzufügen."
+      },
+      "activityCampCreate": {
+        "title": "Lager (Camp) anlegen",
+        "description": "Mehrtägiges Camp mit Zeitraum, Ort und optional J+S-Material.",
+        "step1Title": "Neue Aktivität",
+        "step1Body": "Starte den Assistenten — Camps legst du wie andere Aktivitäten an.",
+        "step2Title": "Typ «Lager»",
+        "step2Body": "Wähle «Lager» für mehrtägige Camps mit Material-Vor- und Nachlauf.",
+        "step3Title": "Camp-Grunddaten",
+        "step3Body": "Name, Gruppe, Eventstandort und optional J+S-Leihmaterial für Camp/Event.",
+        "step4Title": "Zeitraum & Material",
+        "step4Body": "Trage Nutzungs- und Materialzeitraum ein. Bei Bedarf Partner-Departments einladen und Material packen."
       },
       "issueReturn": {
         "title": "Ausgabe & Rückgabe",
@@ -1436,17 +1478,27 @@
         "step1Title": "Über Aktivitäten",
         "step1Body": "Öffne eine Aktivität und nutze Packen/Ausgeben, um Material zu bewegen."
       },
-      "categories": {
+      "categoriesTour": {
         "title": "Kategorien verwalten",
-        "description": "Strukturiere dein Material mit Kategorien.",
-        "step1Title": "Kategorien",
-        "step1Body": "Lege Haupt- und Unterkategorien an oder nutze die Standard-Vorlagen."
+        "description": "Material-Struktur mit Haupt- und Unterkategorien aufbauen.",
+        "step1Title": "Neue Kategorie",
+        "step1Body": "Lege Haupt- oder Unterkategorien an — oder passe Vorlagen an.",
+        "step2Title": "Kategorien-Übersicht",
+        "step2Body": "Hier siehst du die Hierarchie. Kategorien steuern Filter, Auswertungen und Material-Zuordnung."
       },
       "inviteUsers": {
         "title": "Team einladen",
-        "description": "Lade weitere Leiter in dein Department ein.",
-        "step1Title": "Einladungen",
-        "step1Body": "Sende persönliche Links oder teile den Beitrittscode mit deinem Team."
+        "description": "Weitere Leiter in dein Department holen.",
+        "step1Title": "Nutzer hinzufügen",
+        "step1Body": "Lade Personen per E-Mail ein oder teile den Beitrittscode unter «Mein Department»."
+      },
+      "defaultCoach": {
+        "title": "Standard-Coach hinterlegen",
+        "description": "J+S-Bestellungen mit vorausgefüllten Coach-Daten beschleunigen.",
+        "step1Title": "J+S-Einstellungen",
+        "step1Body": "Unter Einstellungen → Aktivitäten hinterlegst du Defaults für Camp- und Event-Bestellungen.",
+        "step2Title": "Coach-Daten",
+        "step2Body": "Personennummer, Name und E-Mail des Coaches — werden bei neuen J+S-Bestellungen vorausgefüllt."
       }
     },
     "settings": {
@@ -1516,6 +1568,8 @@
     },
     "userMenu": {
       "editProfile": "Profil bearbeiten",
+      "devicesScanner": "Lager-Scanner",
+      "devicesScannerHint": "Handheld oder Pistole — Stück für Stück scannen",
       "switchDepartment": "Department wechseln",
       "departmentSettings": "Abteilungseinstellungen",
       "switchSupplierCompany": "Firma wechseln",
@@ -2512,6 +2566,11 @@
         "cameraHint": "QR- oder Barcode in den Rahmen halten",
         "bulkConfirm": "Trotzdem buchen",
         "bulkConfirmHint": "Andere Charge als geplant — nur nach Bestätigung buchen.",
+        "quantityHintPieces": "{count} {unit} packen",
+        "quantityHintPacksOnly": "{packs}× {unit} à {per} Stk. ({total} gesamt) packen",
+        "quantityHintPacksPlusLoose": "{packs}× {unit} à {per} Stk. + {loose} lose ({total} gesamt) packen",
+        "quantityProgress": "Bisher {done} von {total} erledigt",
+        "quantityUnitStk": "Stk.",
         "actionBookPack": "Packen",
         "actionBookIssue": "Mitnehmen",
         "actionBookReturn": "Retournieren",
@@ -2546,6 +2605,13 @@
           "text_combo": "Set in der Liste gefunden.",
           "text_loose": "Position in der Liste gefunden.",
           "js_material": "J+S-Material — Empfang und Retour im Tab J+S.",
+          "shelf_open": "Hier packen — Position antippen zum Buchen.",
+          "shelf_all_done": "An diesem Standort ist für diesen Schritt nichts mehr offen.",
+          "shelf_not_on_list": "Keine Packpositionen an diesem Standort auf der Liste.",
+          "shelf_session_hint": "Material-QR scannen — wird gebucht und von der Liste abgehakt.",
+          "shelf_session_crate_hint": "Material scannen — landet in der aktiven Packkiste.",
+          "shelf_session_progress": "{done} von {total} erledigt.",
+          "storage_not_found": "Lagerstandort nicht gefunden.",
           "unknown": "Code nicht erkannt.",
           "unsupported_scan": "Dieser Code-Typ wird hier nicht unterstützt."
         }
@@ -4674,21 +4740,28 @@
     "fixedDates": {
       "title": "Fixe Daten",
       "description": "Manuell gepflegte Zeiträume (Ferien, Lagerwoche, Mat-Büro geschlossen) für den Aktivitäten-Kalender.",
+      "descriptionGrossanlass": "Zeiträume für diesen Grossanlass — z. B. Anlasswoche, Aufbau, Abbau.",
+      "grossanlassHint": "Beim Anlegen wird der Anlass-Zeitraum automatisch erfasst. «Lagerwoche» und «Sonstiges» erscheinen als Schnellauswahl in Planung und Materialwünschen.",
+      "quickSelectHint": "Nur «Lagerwoche» und «Sonstiges» erscheinen in der Datums-Schnellauswahl. Andere Arten sind Kalender-Hinweise.",
       "noPermission": "Nur Materialwart und Departmentchef können Fixe Daten verwalten.",
       "createTitle": "Zeitraum anlegen",
       "editTitle": "Zeitraum bearbeiten",
+      "editingBadge": "In Bearbeitung",
       "period": "Zeitraum",
       "startDate": "Von",
       "endDate": "Bis",
       "typeLabel": "Art",
       "name": "Name",
       "namePlaceholder": "z. B. Herbstferien, Sommerlager Matra",
+      "namePlaceholderGrossanlass": "z. B. Aufbauphase, Hauptwoche, Abbau",
       "colFrom": "Von",
       "colTo": "Bis",
       "colType": "Art",
       "colName": "Name",
       "loading": "Lade Zeiträume…",
       "empty": "Noch keine Zeiträume erfasst.",
+      "emptyGrossanlassTitle": "Noch keine Fixen Daten",
+      "emptyGrossanlassDescription": "Lege oben den Anlass-Zeitraum oder weitere Phasen an — sie erscheinen dann in der Planung als Schnellauswahl.",
       "confirmDeleteTitle": "Zeitraum löschen?",
       "confirmDeleteMessage": "Der Eintrag wird dauerhaft entfernt.",
       "toastLoadError": "Zeiträume konnten nicht geladen werden.",
@@ -8476,7 +8549,7 @@
     },
     "dashboard": {
       "draftBadge": "Entwurf",
-      "welcome": "Willkommen beim Grossanlass. Starte die Planung in der Sidebar unter «Planung» — lege Ressorts an und strukturiere den Anlass."
+      "welcome": "Willkommen beim Grossanlass. Lege unter dem Anlass-Namen in der Sidebar Ressorts an und starte unter «Planungsrunden» die Bedarfserfassung."
     },
     "planung": {
       "title": "Planung",
@@ -8484,6 +8557,12 @@
       "menuTitle": "Planung",
       "tabRessorts": "Ressorts & Mitglieder",
       "tabRounds": "Planungsrunden",
+      "keyDates": {
+        "title": "Wichtige Zeiträume",
+        "hint": "Fixe Daten dieses Grossanlasses — erscheinen in der Schnellauswahl der Datumsfelder.",
+        "empty": "Noch keine Fixen Daten. Beim Anlegen wird der Anlass-Zeitraum automatisch erfasst; weitere Zeiträume unter Einstellungen → Fixe Daten.",
+        "openFixedDates": "Fixe Daten verwalten"
+      },
       "ressorts": {
         "emptyTitle": "Noch keine Ressorts",
         "emptyDescription": "Lege Ressorts und Bauprojekte an, weise Mitglieder zu und strukturiere den Grossanlass.",
@@ -8529,15 +8608,106 @@
         "errorRemoveMember": "Mitglied konnte nicht entfernt werden"
       },
       "rounds": {
+        "pageTitle": "Planungsrunden",
         "emptyTitle": "Noch keine Planungsrunden",
-        "emptyDescription": "Planungsrunden steuern die Bedarfserfassung pro Ressort — z. B. «Infrastruktur-Wünsche». (Phase 3)",
-        "addAction": "Runde anlegen"
+        "emptyDescription": "Planungsrunden sammeln Materialwünsche pro Bauprojekt — Grundlage für Beschaffung.",
+        "backToList": "Zurück zur Übersicht",
+        "addAction": "Runde anlegen",
+        "loading": "Planungsrunden werden geladen…",
+        "subtitleMw": "Planungsrunden steuern die Bedarfserfassung — Wünsche werden später in Beschaffung gebündelt.",
+        "subtitleMember": "Übersicht der Planungsrunden — Wünsche einreichen, sobald eine Runde offen ist (Phase 4).",
+        "colName": "Name",
+        "colStatus": "Status",
+        "colWindow": "Zeitfenster",
+        "colAuto": "Auto",
+        "typeRessortWuensche": "Ressort-Wünsche",
+        "statusScheduled": "Geplant",
+        "statusOpen": "Offen",
+        "statusClosed": "Geschlossen",
+        "windowManual": "Manuell",
+        "windowRange": "{open} – {close}",
+        "autoEnabled": "Automatisches Öffnen/Schliessen aktiv",
+        "openAction": "Runde öffnen",
+        "closeAction": "Runde schliessen",
+        "modalNew": "Planungsrunde anlegen",
+        "modalEdit": "Planungsrunde bearbeiten",
+        "nameLabel": "Name der Runde",
+        "namePlaceholder": "z. B. Infrastruktur Bedarf 2026",
+        "nameRequired": "Name ist erforderlich",
+        "opensAtLabel": "Öffnet am (optional)",
+        "closesAtLabel": "Schliesst am (optional)",
+        "autoScheduleLabel": "Automatisch öffnen und schliessen",
+        "autoScheduleHint": "Bei gesetztem Zeitfenster öffnet/schliesst das System die Runde automatisch.",
+        "saving": "Speichern…",
+        "saved": "Planungsrunde gespeichert",
+        "created": "Planungsrunde angelegt",
+        "opened": "«{name}» ist jetzt offen — Ressort-Mitglieder wurden benachrichtigt",
+        "closed": "«{name}» wurde geschlossen",
+        "errorLoad": "Planungsrunden konnten nicht geladen werden",
+        "errorSave": "Speichern fehlgeschlagen",
+        "errorOpen": "Runde konnte nicht geöffnet werden",
+        "errorClose": "Runde konnte nicht geschlossen werden"
       }
     },
     "inbox": {
       "category": "Grossanlass",
       "subject": "Materialchef von «{name}»",
-      "preview": "Du wurdest Materialchef ernannt — zum Dashboard wechseln"
+      "preview": "Du wurdest Materialchef ernannt — zum Dashboard wechseln",
+      "roundOpenedSubject": "Planungsrunde «{name}» offen",
+      "roundOpenedPreview": "Bedarf einreichen — zur Planung wechseln"
+    },
+    "meinRessort": {
+      "title": "Mein Ressort",
+      "subtitle": "Deine Bauprojekte und eingereichte Materialwünsche — Übersicht für deinen Ressort-Zweig.",
+      "loading": "Ressort wird geladen…",
+      "emptyTitle": "Noch kein Ressort zugewiesen",
+      "emptyDescription": "Du bist noch keinem Ressort zugeordnet. Bitte den Materialchef oder Ressort-Leiter.",
+      "noWishesYet": "Noch keine Materialwünsche für dieses Bauprojekt.",
+      "openRoundsHint": "Es gibt offene Planungsrunden — Bedarf dort einreichen:",
+      "errorLoad": "Ressort-Übersicht konnte nicht geladen werden"
+    },
+    "wishes": {
+      "formTitle": "Materialwunsch einreichen",
+      "formHint": "Wunsch einem Bauprojekt zuordnen — oder gleich ein neues Bauprojekt anlegen.",
+      "bauprojektLabel": "Bauprojekt",
+      "modeExisting": "Bestehendes Bauprojekt",
+      "modeNewBauprojekt": "Neues Bauprojekt anlegen",
+      "existingBauprojekt": "Bauprojekt wählen",
+      "parentRessort": "Übergeordnetes Ressort",
+      "newBauprojektName": "Name des neuen Bauprojekts",
+      "newBauprojektPlaceholder": "z. B. Bühne, Wasserstelle",
+      "kindLabel": "Art",
+      "kindMaterial": "Material",
+      "kindFahrzeug": "Fahrzeug",
+      "kindBeides": "Beides",
+      "labelField": "Bezeichnung",
+      "quantity": "Anzahl",
+      "location": "Ort («Wo brauchst du es?»)",
+      "periodLabel": "Benötigungszeitraum",
+      "validFrom": "Benötigt ab",
+      "validTo": "Benötigt bis",
+      "notes": "Notizen (optional)",
+      "submit": "Wunsch speichern",
+      "listTitle": "Eingereichte Wünsche",
+      "emptyTitle": "Noch keine Wünsche",
+      "emptyDescription": "In offenen Runden können Ressort-Mitglieder Materialwünsche pro Bauprojekt erfassen.",
+      "roundNotOpen": "Diese Runde ist nicht offen — Wünsche können nicht mehr eingereicht werden.",
+      "roundOpenSubtitle": "Materialwünsche erfassen — werden später in Beschaffung gebündelt.",
+      "roundClosedSubtitle": "Abgeschlossene Runde — Wünsche nur noch lesen.",
+      "colLabel": "Bezeichnung",
+      "colQty": "Anzahl",
+      "colLocation": "Ort",
+      "colPeriod": "Zeitraum",
+      "created": "Wunsch gespeichert",
+      "errorBauprojekt": "Ressort und Name für neues Bauprojekt erforderlich",
+      "errorGroup": "Bauprojekt wählen",
+      "errorRequired": "Bitte alle Pflichtfelder ausfüllen",
+      "errorSave": "Wunsch konnte nicht gespeichert werden",
+      "errorDelete": "Wunsch konnte nicht gelöscht werden"
+    },
+    "settings": {
+      "meinRessortNav": "Mein Ressort",
+      "meinRessortNavHint": "Bauprojekte und Materialwünsche in deinem Ressort-Zweig"
     },
     "beschaffung": {
       "title": "Beschaffung",

@@ -443,8 +443,17 @@ class GrossanlassGroupService
      */
     private function hasWishReferences(array $groupIds): bool
     {
-        // Phase 4: activity_grossanlass_wish_line — noch nicht implementiert
-        return false;
+        if ($groupIds === []) {
+            return false;
+        }
+
+        return (int) $this->entityManager->getRepository(\App\Entity\ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->select('COUNT(w.id)')
+            ->where('w.groupId IN (:groupIds)')
+            ->setParameter('groupIds', $groupIds)
+            ->getQuery()
+            ->getSingleScalarResult() > 0;
     }
 
     private function deleteSubtreeGroups(string $departmentId, string $rootGroupId): void

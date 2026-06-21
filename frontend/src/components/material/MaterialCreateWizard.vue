@@ -70,7 +70,7 @@
               </div>
               <div class="step-content">
                 <div class="creation-mode-cards">
-                  <div class="creation-mode-card" @click="selectCreationMode('individual')">
+                  <div class="creation-mode-card" data-onboarding="material-creation-individual" @click="selectCreationMode('individual')">
                     <div class="mode-card-icon individual">
                       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
@@ -122,7 +122,7 @@
             </div>
 
             <!-- Step: Allgemeine Informationen (sichtbar wenn Modus gewählt); Banner + Vorlage innerhalb des Schritts -->
-            <div v-if="!isAddBatchMode && creationMode" class="step-section" data-step="general">
+            <div v-if="!isAddBatchMode && creationMode" class="step-section" data-step="general" data-onboarding="material-wizard-general">
               <div class="step-header step-header--clickable" @click="toggleStep('general')">
                 <span class="step-title">{{
                   creationMode === 'virtual_combo'
@@ -262,6 +262,7 @@
               "
               class="step-section"
               data-step="category"
+              data-onboarding="material-wizard-category"
             >
               <div class="step-header step-header--clickable" @click="toggleStep('category')">
                 <span class="step-title">{{ t('components.materialCreateWizard.stepCategory') }}</span>
