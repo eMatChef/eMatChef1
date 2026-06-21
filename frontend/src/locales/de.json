@@ -30,6 +30,9 @@
         "verifyEmail": "E-Mail bestätigen · eMatChef",
         "pendingAssignment": "Abteilung zuweisen · eMatChef",
         "dashboard": "Dashboard · eMatChef",
+        "onboardingWelcome": "Einrichtung · Willkommen · eMatChef",
+        "onboardingSetup": "Einrichtung · Setup · eMatChef",
+        "helpEinrichtung": "Hilfe · Einrichtung · eMatChef",
         "globalAddresses": "Globale Adressen · eMatChef",
         "supplierGlobalReview": "Lieferanten-Freigabe · eMatChef",
         "jsLeihkatalog": "J+S-Leihkatalog · eMatChef",
@@ -742,6 +745,12 @@
   },
   "tasksPrint": {
     "subtitle": "Druckkorb für QR-Etiketten (DB-basiert)",
+    "exportMaterialQrPdf": "PDF: alle Material-QRs",
+    "exportStorageQrPdf": "PDF: Lager-QR…",
+    "exportStorageQrPdfTitle": "Lager-QR PDF",
+    "exportStorageQrPdfPickLocation": "Lagerstandort",
+    "exportMaterialQrPdfLoading": "PDF wird erstellt…",
+    "exportMaterialQrPdfSuccess": "PDF wurde heruntergeladen.",
     "bulkPrint": "Sammeldruck",
     "markAllAsPrinted": "Alle als gedruckt markieren",
     "clearAll": "Leeren",
@@ -757,11 +766,20 @@
       "action": "Aktion"
     },
     "errors": {
-      "loadCart": "Druckkorb konnte nicht geladen werden."
+      "loadCart": "Druckkorb konnte nicht geladen werden.",
+      "exportMaterialQrPdf": "Material-QR-PDF konnte nicht erstellt werden."
     },
     "printHtml": {
       "bulkTitle": "Druckkorb - QR-Codes",
       "qrAlt": "QR"
+    },
+    "entityTypes": {
+      "batch": "Material / Charge",
+      "activity": "Aktivität",
+      "workshop": "Werkstatt",
+      "storage_address": "Lagerstandort",
+      "storage_rack": "Regal",
+      "storage_slot": "Fach"
     }
   },
   "errors": {
@@ -1297,6 +1315,144 @@
       "materialType": "Typ",
       "components": "Komponenten",
       "updated": "Aktualisiert"
+    }
+  },
+  "onboarding": {
+    "welcome": {
+      "eyebrow": "Willkommen an Bord",
+      "title": "Willkommen bei eMatChef",
+      "lead": "Schön, dass du dabei bist. In wenigen Schritten richten wir dein Material-Department ein — danach kannst du sofort loslegen.",
+      "phase1Title": "Dein Department",
+      "phase1Sub": "Adresse und Grundeinstellungen",
+      "phase2Title": "Dein Team",
+      "phase2Sub": "Gruppen, Einladungen, Rollen",
+      "phase3Title": "Dein Lager",
+      "phase3Sub": "Kategorien, Standort, Regale",
+      "phase4Title": "Los geht's",
+      "phase4Sub": "Erstes Material erfassen",
+      "startCta": "Einrichtung starten",
+      "laterCta": "Später",
+      "durationHint": "Dauert ungefähr 5 Minuten — du kannst jederzeit pausieren."
+    },
+    "setup": {
+      "phaseLabel": "Phase {current} von {total}",
+      "phase1Heading": "Dein Department",
+      "subStepOf": "Schritt {current} von {total}",
+      "laterToDashboard": "Später — zum Dashboard",
+      "phase1DoneTitle": "Grundlagen erledigt",
+      "phase1DoneLead": "Department-Adresse und Einstellungen sind eingerichtet. Du kannst weitermachen oder erst ins Dashboard.",
+      "continueSetup": "Weiter einrichten (Team & Lager)",
+      "toDashboard": "Zum Dashboard"
+    },
+    "hub": {
+      "title": "Einrichtung",
+      "subtitle": "Checkliste und geführte Touren für dein Material-Department.",
+      "progressLabel": "{done} von {total} erledigt",
+      "checklistTitle": "Einrichtungs-Checkliste",
+      "setupTitle": "Einrichtungsassistent",
+      "toursLead": "Kurze geführte Touren direkt in der App — starte eine Tour und folge den Hervorhebungen.",
+      "openCountBadge": "{count} offen",
+      "openItem": "Öffnen",
+      "reviewItem": "In Einstellungen öffnen",
+      "continueSetup": "Einrichtung fortsetzen",
+      "toursTitle": "Geführte Touren",
+      "tierRecommended": "Empfohlen",
+      "tierOptional": "Optional",
+      "skipItem": "Nicht nötig",
+      "skipConfirmTitle": "Schritt überspringen?",
+      "skipConfirmMessage": "«{item}» wird als nicht nötig markiert und zählt als erledigt.",
+      "skipSuccess": "Schritt wurde übersprungen.",
+      "skippedHint": "Als nicht nötig markiert",
+      "detectedDoneHint": "Bereits erledigt",
+      "configureHint": "Voreinstellungen aktiv — bei Bedarf anpassen",
+      "items": {
+        "departmentAddress": {
+          "label": "Rechnungsadresse & Lagerstandort",
+          "description": "Erfasse die Rechnungsadresse deines Vereins (Name, Strasse, PLZ/Ort) und mindestens einen Lagerstandort, an dem das Material liegt. Damit sind die wichtigsten Vereinsdaten hinterlegt."
+        },
+        "settingsInitialized": {
+          "label": "Zeit & Formate",
+          "description": "Zeitzone, Datums- und Zeitformat sowie Standardzeiten für Aktivitäten. Sinnvolle Voreinstellungen sind bereits aktiv — nur anpassen, wenn du abweichen möchtest."
+        },
+        "createGroup": {
+          "label": "Gruppe erstellen",
+          "description": "Lege mindestens eine Gruppe an (z. B. Wolf, Pfadistufe), damit du Material und Aktivitäten zuordnen kannst."
+        },
+        "inviteUsers": {
+          "label": "Nutzer einladen",
+          "description": "Lade weitere Leiterinnen und Leiter per Link oder Einladungscode in dein Department ein."
+        },
+        "assignRoles": {
+          "label": "User zur Gruppe hinzufügen",
+          "description": "Ordne eingeladene Nutzer einer Gruppe zu und vergebe Gruppenrollen."
+        },
+        "categoriesConfigured": {
+          "label": "Kategorien anlegen",
+          "description": "Strukturiere dein Material mit Kategorien — z. B. über die Standard-Vorlagen oder eigene Kategorien."
+        },
+        "storageAddress": {
+          "label": "Weiterer Lagerstandort",
+          "description": "Optional: zusätzliche Adressen, falls Material an mehreren Orten lagert."
+        },
+        "storageConfigured": {
+          "label": "Regale & Fächer",
+          "description": "Richte Regale und Fächer ein, damit du Material im Lager zuweisen kannst."
+        },
+        "materialCaptured": {
+          "label": "Material erfassen",
+          "description": "Optional: erfasse dein erstes Materialstück, um die Materialverwaltung auszuprobieren."
+        },
+        "miniIssueReturn": {
+          "label": "Mini-Ausgabe & Rückgabe",
+          "description": "Optional: lege eine kleine Aktivität an und teste Ausgabe und Rückgabe von Material."
+        }
+      }
+    },
+    "tours": {
+      "start": "Tour starten",
+      "restart": "Tour wiederholen",
+      "next": "Weiter",
+      "skip": "Tour beenden",
+      "finish": "Fertig",
+      "stepOf": "Schritt {current} von {total}",
+      "statusDone": "Erledigt",
+      "materialCreate": {
+        "title": "Material erfassen",
+        "description": "Lerne, wie du ein neues Materialstück anlegst.",
+        "step1Title": "Neues Material",
+        "step1Body": "Hier startest du den Assistenten zum Erfassen von Material.",
+        "step2Title": "Assistent ausfüllen",
+        "step2Body": "Im Assistenten gibst du Name, Kategorie und Lagerplatz an. Speichern — fertig."
+      },
+      "activityCreate": {
+        "title": "Aktivität anlegen",
+        "description": "Erstelle deine erste Aktivität für eine Gruppe oder ein Event.",
+        "step1Title": "Neue Aktivität",
+        "step1Body": "Über diesen Button öffnest du den Assistenten für eine neue Aktivität."
+      },
+      "issueReturn": {
+        "title": "Ausgabe & Rückgabe",
+        "description": "Material für eine Aktivität ausgeben und zurücknehmen.",
+        "step1Title": "Über Aktivitäten",
+        "step1Body": "Öffne eine Aktivität und nutze Packen/Ausgeben, um Material zu bewegen."
+      },
+      "categories": {
+        "title": "Kategorien verwalten",
+        "description": "Strukturiere dein Material mit Kategorien.",
+        "step1Title": "Kategorien",
+        "step1Body": "Lege Haupt- und Unterkategorien an oder nutze die Standard-Vorlagen."
+      },
+      "inviteUsers": {
+        "title": "Team einladen",
+        "description": "Lade weitere Leiter in dein Department ein.",
+        "step1Title": "Einladungen",
+        "step1Body": "Sende persönliche Links oder teile den Beitrittscode mit deinem Team."
+      }
+    },
+    "settings": {
+      "title": "Einrichtung",
+      "progress": "{done} von {total} Schritte erledigt",
+      "openHub": "Hilfe → Einrichtung öffnen"
     }
   },
   "layout": {
@@ -1889,6 +2045,7 @@
       "inCratesHint": " ({n} in Kisten)",
       "inStorageContainersHint": " ({n} in Behältern)",
       "inPhysComboKistenHint": " ({n} in Phys.-Kombi-Kisten)",
+      "inLinkedRefContainerHint": " ({n} als Referenz-Sack/Kiste an Phys.-Kombo)",
       "physicalComboSetsInCratesHint": " ({n}× Set in Kombo-Kiste)",
       "physicalComboSetsInCratesPartialHint": " ({n} von {total} Sets in Kombo-Kiste)",
       "physicalComboTotalSetsHint": " ({total} Sets gesamt)",
@@ -4489,7 +4646,30 @@
       "overviewOpenMoveLoadError": "Fehler beim Laden",
       "deleteRackMessage": "Regal «{name}» mit {count} Fächern wirklich löschen?",
       "overviewComboStoredInCrate": "{qty} Stk. in Kiste",
-      "overviewComboNotInCrate": "Nicht in Kiste"
+      "overviewComboNotInCrate": "Nicht in Kiste",
+      "qrPrintAll": "Alle QR drucken",
+      "qrPrintLocation": "Standort-QR",
+      "qrPrintRack": "Regal-QR",
+      "qrPrintSlot": "Fach-QR",
+      "qrQueueOnCreate": "QR-Etiketten beim Anlegen in Druckkorb legen",
+      "qrQueueSuccess": "{created} Etikett(e) in Druckkorb — {skipped} bereits vorhanden.",
+      "qrQueueSuccessCreatedOnly": "{count} Etikett(e) in Druckkorb gelegt.",
+      "qrQueueError": "QR-Etiketten konnten nicht in den Druckkorb gelegt werden.",
+      "qrQueuePrinting": "Druckkorb wird befüllt…",
+      "qrPdfOpen": "PDF mit Auswahl…",
+      "qrPdfTitle": "Lager-QR PDF — {location}",
+      "qrPdfIntro": "Wähle die Etiketten für ein PDF (A4, 12 pro Seite). Codes werden bei Bedarf automatisch erzeugt.",
+      "qrPdfSelectAll": "Alle",
+      "qrPdfSelectNone": "Keine",
+      "qrPdfSelectedCount": "{count} ausgewählt",
+      "qrPdfTypeLocation": "Standort",
+      "qrPdfTypeRack": "Regal",
+      "qrPdfTypeSlot": "Fach",
+      "qrPdfNoRacks": "Keine Regale an diesem Standort.",
+      "qrPdfDownload": "PDF herunterladen",
+      "qrPdfExporting": "PDF wird erstellt…",
+      "qrPdfSuccess": "PDF wurde heruntergeladen.",
+      "qrPdfError": "PDF konnte nicht erstellt werden."
     },
     "fixedDates": {
       "title": "Fixe Daten",
@@ -4951,7 +5131,7 @@
       "historicalLineBatches": "Historische Anschaffung (aktive Chargen, Summe Menge × Stückpreis):",
       "piecesLine": "Stück: {n} · Anschaffung pro Stück:",
       "labelInflationPct": "Preissteigerung / Jahr für Schätzung (%)",
-      "estimateLabelHtml": "Geschätzter Neupreis bei Neukauf (Anschaffung × (1+r)<sup>n</sup>):",
+      "estimateLabel": "Geschätzter Neupreis bei Neukauf (Anschaffung × (1+r)ⁿ):",
       "perPieceMuted": " (Fr. {amount} pro Stück)",
       "btnApplyEstimate": "Als Kalkulationsbasis übernehmen",
       "labelManualBasis": "Kalkulationsbasis (manuell)",
@@ -5725,7 +5905,8 @@
       "emptyAddFirstBatch": "Erste Charge hinzufügen",
       "sectionStoredInTitle": "Gelagert in",
       "compositionIntro": "Welche Artikel und Chargen zu dieser Kombination gehören. Den Status der zugewiesenen Komponenten-Charge (z. B. defekt) sehen Sie in der Spalte „Charge-Status“. Werkstatt-Tickets zur Kombination finden Sie unter „Werkstatt“.",
-      "compositionIntroPhysical": "Stückliste der physischen Kombo: Was in der verknüpften Kiste liegt. Beim Hinzufügen oder Erhöhen der Menge zeigt das System, woher der Bestand kommt und ob genug da ist — Buchung in die Kiste. Beim Entfernen wählen Sie das Ziel (Regal/Fach oder andere Kiste).",
+      "compositionIntroPhysical": "Stückliste der physischen Kombo: Was in «{refContainer}» liegt. Beim Hinzufügen oder Erhöhen der Menge zeigt das System, woher der Bestand kommt und ob genug da ist — Buchung in {refContainer}. Beim Entfernen wählen Sie das Ziel (Regal/Fach oder anderen Behälter).",
+      "compositionIntroPhysicalGeneric": "Stückliste der physischen Kombo: Was im verknüpften Referenz-Sack/Kiste liegt. Beim Hinzufügen oder Erhöhen der Menge zeigt das System, woher der Bestand kommt und ob genug da ist — Buchung in den Referenz-Behälter. Beim Entfernen wählen Sie das Ziel (Regal/Fach oder anderen Behälter).",
       "compositionIntroVirtual": "Virtuelle Planungs-Stückliste: welche Artikel zum Set gehören — ohne Lagerbewegungen. Der Bestand der Komponenten bleibt an den physischen Lagerplätzen.",
       "hintAddCompositionToCrate": "Der Bestand wird aus freiem Lager und anderen Kisten in die verknüpfte Kiste der Kombo gebucht (siehe Vorschau unten).",
       "hintEditCompositionToCrate": "Erhöhung der Menge: zusätzlicher Bestand wird wie beim Hinzufügen in die verknüpfte Kiste gebucht. Verringern Sie nur die Stückliste — physischer Abgang über „Entfernen“.",
@@ -8258,13 +8439,15 @@
   "help": {
     "menuTitle": "Hilfe",
     "nav": {
+      "einrichtung": "Einrichtung",
+      "dokumentation": "Dokumentation",
       "overview": "Dokumentation"
     },
     "overview": {
-      "title": "Hilfe & Dokumentation"
+      "title": "Dokumentation"
     },
     "comingSoon": {
-      "description": "Dieser Bereich wird in Kürze verfügbar sein."
+      "description": "Handbuch, FAQ und Anleitungen folgen in Kürze."
     }
   },
   "grossanlass": {

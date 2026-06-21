@@ -5,6 +5,9 @@
 export type ScanParseResult =
   | { type: 'activity'; activityCode: string; raw: string }
   | { type: 'material_batch'; materialCode: string; batchCode: string; raw: string }
+  | { type: 'storage_address'; locationCode: string; raw: string }
+  | { type: 'storage_rack'; rackCode: string; raw: string }
+  | { type: 'storage_slot'; slotCode: string; raw: string }
   | { type: 'unknown'; raw: string }
 
 function extractPath(input: string): string {
@@ -50,6 +53,33 @@ export function parseScanInput(raw: string): ScanParseResult {
     }
   }
 
+  const locationMatch = path.match(/\/i\/l\/([^/]+)\/?$/i) || path.match(/^i\/l\/([^/]+)\/?$/i)
+  if (locationMatch?.[1]) {
+    return {
+      type: 'storage_address',
+      locationCode: decodeURIComponent(locationMatch[1]),
+      raw: trimmed,
+    }
+  }
+
+  const rackMatch = path.match(/\/i\/r\/([^/]+)\/?$/i) || path.match(/^i\/r\/([^/]+)\/?$/i)
+  if (rackMatch?.[1]) {
+    return {
+      type: 'storage_rack',
+      rackCode: decodeURIComponent(rackMatch[1]),
+      raw: trimmed,
+    }
+  }
+
+  const slotMatch = path.match(/\/i\/s\/([^/]+)\/?$/i) || path.match(/^i\/s\/([^/]+)\/?$/i)
+  if (slotMatch?.[1]) {
+    return {
+      type: 'storage_slot',
+      slotCode: decodeURIComponent(slotMatch[1]),
+      raw: trimmed,
+    }
+  }
+
   return { type: 'unknown', raw: trimmed }
 }
 
@@ -60,7 +90,7 @@ export function isScanLikeInput(raw: string): boolean {
   const parsed = parseScanInput(trimmed)
   if (parsed.type !== 'unknown') return true
   if (/^https?:\/\//i.test(trimmed)) return true
-  if (/\/i\/(m|a|w)\//i.test(trimmed)) return true
+  if (/\/i\/(m|a|w|l|r|s)\//i.test(trimmed)) return true
   return false
 }
 
@@ -70,6 +100,12 @@ export function formatScanParseResult(result: ScanParseResult): string {
       return `activity:${result.activityCode}`
     case 'material_batch':
       return `batch:${result.materialCode}/${result.batchCode}`
+    case 'storage_address':
+      return `storage_address:${result.locationCode}`
+    case 'storage_rack':
+      return `storage_rack:${result.rackCode}`
+    case 'storage_slot':
+      return `storage_slot:${result.slotCode}`
     default:
       return result.raw ? `unknown:${result.raw.slice(0, 80)}` : 'empty'
   }

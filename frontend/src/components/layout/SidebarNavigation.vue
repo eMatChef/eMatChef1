@@ -314,12 +314,18 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
-        :to="getLink('/help/overview')"
+        :to="helpNavLink"
         class="nav-item"
-        :class="{ active: isHelpOverviewNavActive }"
+        :class="{ active: isHelpNavActive }"
       >
         <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
+        <span
+          v-if="helpOnboardingBadgeCount > 0 && showNavLabels"
+          class="nav-badge"
+        >
+          {{ helpOnboardingBadgeCount }}
+        </span>
       </router-link>
 
     </nav>
@@ -338,6 +344,12 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import { canUseDepartmentOnboarding } from '@/utils/onboardingGate'
+import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
+import {
+  isOnboardingDone,
+  readOnboardingState,
+} from '@/utils/departmentOnboarding'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 const route = useRoute()
@@ -565,6 +577,27 @@ const showSupplierShopLink = computed(() => {
   return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
 })
 
+const helpNavLink = computed(() => {
+  const depId = departmentId.value
+  if (!depId) return getLink('/help/dokumentation')
+  if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
+    return getLink('/help/einrichtung')
+  }
+  return getLink('/help/dokumentation')
+})
+
+const isHelpNavActive = computed(() => route.path.includes('/help'))
+
+const helpOnboardingBadgeCount = computed(() => {
+  const depId = departmentId.value
+  if (!depId || !canUseDepartmentOnboarding(authStore, depId)) return 0
+  const profId = authStore.profileId
+  if (!profId) return 0
+  if (isOnboardingDone(profId, depId)) return 0
+  const state = readOnboardingState(profId, depId)
+  return countOpenChecklistItems(state.completed, state.skipped || {})
+})
+
 /** Sidebar: Buchhaltung aktiv bei allen Unterpfaden /accounting/… */
 const isAccountingNavActive = computed(() => route.path.includes('/accounting'))
 
@@ -576,7 +609,6 @@ function isDeptSectionNavActive(section: string): boolean {
 }
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
-const isHelpOverviewNavActive = computed(() => route.path.includes('/help'))
 
 function getLink(path: string): string {
   let id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''

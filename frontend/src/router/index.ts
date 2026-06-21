@@ -22,6 +22,10 @@ import {
   isDepartmentBasicMemberRole,
 } from '@/composables/useDepartmentMemberRole'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
+import {
+  canUseDepartmentOnboarding,
+  isHelpEinrichtungPath,
+} from '@/utils/onboardingGate'
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
@@ -1395,14 +1399,32 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'help',
         component: () => import('@/views/HelpView.vue'),
+        meta: {
+          ...routeHead('helpOverview'),
+        },
         children: [
           {
             path: '',
-            redirect: { name: 'HelpOverview' },
+            name: 'HelpRoot',
+            redirect: (to) => ({
+              name: 'HelpDokumentation',
+              params: { departmentId: to.params.departmentId },
+            }),
           },
           {
-            path: 'overview',
-            name: 'HelpOverview',
+            path: 'einrichtung',
+            name: 'HelpEinrichtung',
+            component: () => import('@/views/onboarding/OnboardingHubView.vue'),
+            meta: {
+              requireDepartmentRoles: ['mw', 'matwart', 'dc', 'depchef'],
+              denyRedirectTo: { name: 'HelpDokumentation' },
+              ...routeHead('helpEinrichtung'),
+            },
+          },
+          {
+            path: 'dokumentation',
+            name: 'HelpDokumentation',
+            alias: 'overview',
             component: () => import('@/views/help/HelpComingSoonView.vue'),
             meta: routeHead('helpOverview'),
           },
@@ -1850,7 +1872,17 @@ router.beforeEach(async (to, from, next) => {
   if (to.meta.requireDepartmentRoles && Array.isArray(to.meta.requireDepartmentRoles)) {
     const allowedRoles = (to.meta.requireDepartmentRoles as string[]).map((r) => r.toLowerCase())
     const currentRole = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-    if (!allowedRoles.includes(currentRole)) {
+    const roleAliasByAllowed: Record<string, string[]> = {
+      mw: ['matwart'],
+      matwart: ['mw'],
+      dc: ['depchef'],
+      depchef: ['dc'],
+    }
+    const hasAllowedRole = allowedRoles.some((allowed) => {
+      if (currentRole === allowed) return true
+      return (roleAliasByAllowed[allowed] || []).includes(currentRole)
+    })
+    if (!hasAllowedRole) {
       const deptId = to.params.departmentId || authStore.activeDepartmentId
       const denyRedirectTo = to.meta.denyRedirectTo as { name?: string } | undefined
       if (denyRedirectTo?.name && deptId) {
@@ -1955,6 +1987,19 @@ router.beforeEach(async (to, from, next) => {
         return next(`/${deptId}/settings`)
       }
       return next('/login')
+    }
+  }
+
+  const deptIdForOnboarding = to.params.departmentId as string | undefined
+  if (deptIdForOnboarding && authStore.isLoggedIn && !isSuperAdmin()) {
+    const onHelpEinrichtung = isHelpEinrichtungPath(to.path, deptIdForOnboarding)
+
+    if (onHelpEinrichtung && !canUseDepartmentOnboarding(authStore, deptIdForOnboarding)) {
+      return next({
+        name: 'HelpDokumentation',
+        params: { departmentId: deptIdForOnboarding },
+        replace: true,
+      })
     }
   }
 

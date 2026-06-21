@@ -1,17 +1,23 @@
+export interface DepartmentOnboardingCompleted {
+  departmentAddress: boolean
+  storageAddress: boolean
+  settingsInitialized: boolean
+  inviteUsers: boolean
+  createGroup: boolean
+  assignRoles: boolean
+  categoriesConfigured: boolean
+  storageConfigured: boolean
+  materialCaptured: boolean
+  miniIssueReturn: boolean
+}
+
+export type DepartmentOnboardingSkipped = Partial<Record<keyof DepartmentOnboardingCompleted, boolean>>
+
 export interface DepartmentOnboardingState {
   currentStep: number
-  completed: {
-    departmentAddress: boolean
-    storageAddress: boolean
-    settingsInitialized: boolean
-    inviteUsers: boolean
-    createGroup: boolean
-    assignRoles: boolean
-    categoriesConfigured: boolean
-    storageConfigured: boolean
-    materialCaptured: boolean
-    miniIssueReturn: boolean
-  }
+  completed: DepartmentOnboardingCompleted
+  /** Vom Nutzer als «nicht nötig» markiert (nur empfohlene/optionale Schritte). */
+  skipped?: DepartmentOnboardingSkipped
   updatedAt: string
 }
 
@@ -21,8 +27,8 @@ export function buildOnboardingDoneKey(profileId: string, departmentId: string):
   return `onboarding_done_${profileId}_${departmentId}`
 }
 
-export function buildOnboardingDismissedKey(profileId: string, departmentId: string): string {
-  return `onboarding_dismissed_${profileId}_${departmentId}`
+export function buildOnboardingPausedKey(profileId: string, departmentId: string): string {
+  return `onboarding_paused_${profileId}_${departmentId}`
 }
 
 export function buildOnboardingStateKey(profileId: string, departmentId: string): string {
@@ -72,6 +78,9 @@ export function readOnboardingState(profileId: string, departmentId: string): De
           ? false
           : (parsedCompleted.miniIssueReturn ?? false),
       },
+      skipped: {
+        ...(parsed.skipped || {}),
+      },
       currentStep: Math.min(Math.max(Number(parsed.currentStep || 1), 1), ONBOARDING_TOTAL_STEPS),
       updatedAt: parsed.updatedAt || new Date().toISOString(),
     }
@@ -99,10 +108,14 @@ export function markOnboardingDone(profileId: string, departmentId: string): voi
   localStorage.setItem(buildOnboardingDoneKey(profileId, departmentId), '1')
 }
 
-export function isOnboardingDismissed(profileId: string, departmentId: string): boolean {
-  return localStorage.getItem(buildOnboardingDismissedKey(profileId, departmentId)) === '1'
+export function isOnboardingPaused(profileId: string, departmentId: string): boolean {
+  return localStorage.getItem(buildOnboardingPausedKey(profileId, departmentId)) === '1'
 }
 
-export function markOnboardingDismissed(profileId: string, departmentId: string): void {
-  localStorage.setItem(buildOnboardingDismissedKey(profileId, departmentId), '1')
+export function markOnboardingPaused(profileId: string, departmentId: string): void {
+  localStorage.setItem(buildOnboardingPausedKey(profileId, departmentId), '1')
+}
+
+export function clearOnboardingPaused(profileId: string, departmentId: string): void {
+  localStorage.removeItem(buildOnboardingPausedKey(profileId, departmentId))
 }

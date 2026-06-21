@@ -500,7 +500,7 @@
                             :title="t('activities.detail.replenishmentBadge')"
                           >{{ t('activities.detail.replenishmentBadge') }}</span>
                           <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
-                            {{ t('activities.detail.crateLine', { label: row.linked_container_label }) }}
+                            {{ row.linked_container_label }}
                           </div>
                           <!-- Set-Anzeige „wie Kiste": Hülle + aufgelöste Teile als Inhalt -->
                           <div

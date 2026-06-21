@@ -1495,12 +1495,7 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $linkCb = $mi->getLinkedContainerBatch();
-        $linkedContainerLabel = null;
-        if ($linkCb !== null) {
-            $lb = $linkCb->getLabel();
-            $sn = $linkCb->getSerialNumber();
-            $linkedContainerLabel = ($lb !== null && $lb !== '') ? $lb : (($sn !== null && $sn !== '') ? $sn : null);
-        }
+        $linkedContainerLabel = \App\Service\LinkedContainerDisplay::labelFromBatch($linkCb);
 
         return [
             'id' => $item->getId(),

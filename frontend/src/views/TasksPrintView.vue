@@ -6,6 +6,20 @@
         <span class="subtitle">{{ t('tasksPrint.subtitle') }}</span>
       </div>
       <div class="header-right">
+        <button
+          class="btn-outline btn-sm"
+          :disabled="isLoading"
+          @click="openStorageQrPdfDialog"
+        >
+          {{ t('tasksPrint.exportStorageQrPdf') }}
+        </button>
+        <button
+          class="btn-outline btn-sm"
+          :disabled="isLoading || isExportingPdf"
+          @click="exportMaterialQrPdf"
+        >
+          {{ isExportingPdf ? t('tasksPrint.exportMaterialQrPdfLoading') : t('tasksPrint.exportMaterialQrPdf') }}
+        </button>
         <button class="btn-outline btn-sm" :disabled="isLoading || items.length === 0" @click="printAll">
           {{ t('tasksPrint.bulkPrint') }}
         </button>
@@ -52,6 +66,12 @@
         </tbody>
       </table>
     </div>
+
+    <StorageLocationQrPdfDialog
+      v-model="showStorageQrPdfDialog"
+      :department-id="departmentId"
+      pick-location
+    />
   </div>
 </template>
 
@@ -61,13 +81,16 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import QRCode from 'qrcode'
 import { useToast } from '@/composables/useToast'
-import { clearPrintCart, deletePrintCartItem, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
+import { clearPrintCart, deletePrintCartItem, downloadMaterialQrPdf, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
 import { printHtmlDocument } from '@/utils/printHtml'
+import StorageLocationQrPdfDialog from '@/components/storage/StorageLocationQrPdfDialog.vue'
 
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
 const isLoading = ref(false)
+const isExportingPdf = ref(false)
+const showStorageQrPdfDialog = ref(false)
 const items = ref<PrintCartItem[]>([])
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -131,6 +154,29 @@ async function printAll() {
   printHtmlDocument(`<!doctype html><html><head><meta charset="utf-8" />
   <style>body{font-family:Arial,sans-serif;margin:18px}h1{margin:0 0 14px;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}.card{border:1px solid #d1d5db;border-radius:10px;padding:10px;text-align:center;page-break-inside:avoid}img{width:160px;height:160px;object-fit:contain}.title{margin-top:8px;font-weight:700;font-size:13px}.code{margin-top:4px;font-family:monospace;color:#4b5563;font-size:12px}</style>
   </head><body><h1>${escapeHtml(t('tasksPrint.printHtml.bulkTitle'))}</h1><div class="grid">${cards}</div></body></html>`)
+}
+
+function openStorageQrPdfDialog() {
+  showStorageQrPdfDialog.value = true
+}
+
+async function exportMaterialQrPdf() {
+  if (!departmentId.value || isExportingPdf.value) return
+  isExportingPdf.value = true
+  try {
+    const blob = await downloadMaterialQrPdf(departmentId.value)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `material-qr-codes-${departmentId.value}.pdf`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('tasksPrint.exportMaterialQrPdfSuccess'))
+  } catch (err: any) {
+    toast.error(err?.message || err?.response?.data?.error || t('tasksPrint.errors.exportMaterialQrPdf'))
+  } finally {
+    isExportingPdf.value = false
+  }
 }
 
 async function markPrinted(id: string) {

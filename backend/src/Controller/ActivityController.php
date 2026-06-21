@@ -2133,12 +2133,7 @@ class ActivityController extends AbstractController
             $mi = $item->getMaterialItem();
             $sourceDepartment = $mi->getDepartment();
             $linkCb = $mi->getLinkedContainerBatch();
-            $linkedContainerLabel = null;
-            if ($linkCb !== null) {
-                $lb = $linkCb->getLabel();
-                $sn = $linkCb->getSerialNumber();
-                $linkedContainerLabel = ($lb !== null && $lb !== '') ? $lb : (($sn !== null && $sn !== '') ? $sn : null);
-            }
+            $linkedContainerLabel = \App\Service\LinkedContainerDisplay::labelFromBatch($linkCb);
             $rawTracking = $mi->getTrackingType();
             $trackingType = ($rawTracking === 'serialized')
                 ? 'serialized'

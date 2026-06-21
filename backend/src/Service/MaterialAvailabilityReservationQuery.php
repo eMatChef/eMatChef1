@@ -118,4 +118,24 @@ SQL;
     {
         return implode(', ', array_map(static fn (string $v): string => "'" . $v . "'", $values));
     }
+
+    /**
+     * LEFT JOIN: Chargen, die als linked_container_batch einer phys. Kombo dienen (Referenz-Sack/Kiste).
+     * Nicht lose buchbar — gehört zum Set, nicht zum freien Bestand.
+     */
+    public static function stockAsLinkedRefContainerJoinSql(string $alias = 'stock_as_linked_ref'): string
+    {
+        return <<<SQL
+LEFT JOIN (
+    SELECT b.material_item_id AS mid, SUM(b.qty) AS qty_as_linked_ref
+    FROM material_batch b
+    INNER JOIN material_item combo ON combo.linked_container_batch_id = b.id
+        AND combo.material_type = 'physical_combo'
+        AND combo.deleted_at IS NULL
+        AND combo.combo_status <> 'draft'
+    WHERE b.status = 'active'
+    GROUP BY b.material_item_id
+) {$alias} ON {$alias}.mid = mi.id
+SQL;
+    }
 }

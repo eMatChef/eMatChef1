@@ -37,6 +37,143 @@
   overflow: hidden;
 }
 
+/* Mobile Bottom Sheet: volle Breite, Presets + Kalender in einem Scroll-Bereich */
+.activity-date-picker-menu__shell--stacked,
+.activity-date-picker-menu__shell--sheet {
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.activity-date-picker-bottom-sheet__content .activity-date-picker-menu__shell--sheet {
+  display: flex;
+  flex-direction: column;
+  max-height: min(78dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 48px));
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  box-shadow:
+    0 -8px 24px -4px rgb(15 23 42 / 14%),
+    0 -2px 8px -2px rgb(15 23 42 / 8%);
+}
+
+.activity-date-picker-bottom-sheet__content .activity-date-picker-menu__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.activity-date-picker-menu__shell--stacked .activity-date-picker-menu__divider,
+.activity-date-picker-menu__shell--sheet .activity-date-picker-menu__divider {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 1px;
+  border: none;
+}
+
+.activity-date-picker-menu__shell--stacked .activity-date-picker-menu__presets,
+.activity-date-picker-menu__shell--sheet .activity-date-picker-menu__presets {
+  width: 100%;
+  max-width: none;
+  flex: 0 0 auto;
+}
+
+.activity-date-picker-menu__shell--stacked .activity-date-picker-menu__picker,
+.activity-date-picker-menu__shell--sheet .activity-date-picker-menu__picker {
+  width: 100%;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.activity-date-picker-bottom-sheet.v-bottom-sheet {
+  pointer-events: none;
+}
+
+.activity-date-picker-bottom-sheet.v-bottom-sheet > .v-overlay__content {
+  pointer-events: auto;
+  width: 100% !important;
+  max-width: 100vw !important;
+  overflow: hidden !important;
+}
+
+.activity-date-picker-bottom-sheet__content {
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  overflow: hidden !important;
+}
+
+/* Bottom Sheet: VDatePicker — Breite + kein internes Abschneiden (Vuetify: 328px, overflow:hidden) */
+.activity-date-picker-bottom-sheet__content .v-date-picker,
+.activity-date-picker-bottom-sheet__content .v-picker,
+.activity-date-picker-bottom-sheet__content .v-picker__body,
+.activity-date-picker-bottom-sheet__content .activity-date-picker-pane-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box;
+}
+
+.activity-date-picker-bottom-sheet__content .v-date-picker-month,
+.activity-date-picker-bottom-sheet__content .v-date-picker-month__weekdays,
+.activity-date-picker-bottom-sheet__content .v-date-picker-month__days {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.activity-date-picker-bottom-sheet__content .activity-date-picker-controls-bar {
+  width: 100%;
+  box-sizing: border-box;
+  padding-inline: 2px;
+}
+
+.activity-date-picker-bottom-sheet__content .activity-date-picker-day-btn {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 2rem;
+  aspect-ratio: 1;
+}
+
+.activity-date-picker-bottom-sheet__content .activity-date-picker-day-btn--selected,
+.activity-date-picker-bottom-sheet__content .activity-date-picker-day-btn--range-start,
+.activity-date-picker-bottom-sheet__content .activity-date-picker-day-btn--range-end {
+  width: min(100%, 2rem) !important;
+  height: min(100%, 2rem) !important;
+  min-width: 0 !important;
+  max-width: 2rem !important;
+  max-height: 2rem !important;
+  margin-inline: auto;
+}
+
+.activity-date-picker-bottom-sheet__content
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-middle)::before,
+.activity-date-picker-bottom-sheet__content
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-start):not(
+    :has(.activity-date-picker-day-btn--range-end)
+  )::before,
+.activity-date-picker-bottom-sheet__content
+  .v-date-picker-month__day--selected:has(.activity-date-picker-day-btn--range-end):not(
+    :has(.activity-date-picker-day-btn--range-start)
+  )::before,
+.activity-date-picker-bottom-sheet__content
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-middle)::before,
+.activity-date-picker-bottom-sheet__content
+  .v-date-picker-month__day:has(.activity-date-picker-day-btn--range-preview.activity-date-picker-day-btn--range-end)::before {
+  height: min(2rem, 100%);
+}
+
 .activity-date-picker-menu__picker {
   flex: 0 0 auto;
 }

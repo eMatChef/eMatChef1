@@ -13,6 +13,8 @@
         "doctrine/doctrine-bundle": "^2.11",
         "doctrine/doctrine-migrations-bundle": "^3.3",
         "doctrine/orm": "^2.16",
+        "dompdf/dompdf": "^3.1",
+        "endroid/qr-code": "^6.1",
         "gesdinet/jwt-refresh-token-bundle": "^1.5",
         "lexik/jwt-authentication-bundle": "^2.20",
         "mikehaertl/php-pdftk": "^0.13",

@@ -104,7 +104,7 @@
                   {{ row.tracking_type === 'serialized' ? t('activities.materialLinesTable.trackSerialized') : t('activities.materialLinesTable.trackBulk') }}
                 </span>
                 <div v-if="row.linked_container_label" class="activity-mat-combo-kiste text-muted">
-                  {{ t('activities.materialLinesTable.crateLine', { label: row.linked_container_label }) }}
+                  {{ row.linked_container_label }}
                 </div>
                 <div
                   v-if="row.material_type === 'physical_combo'"
@@ -971,13 +971,32 @@ const orderedLines = computed(() => {
 })
 
 let refreshDebounce: ReturnType<typeof setTimeout> | null = null
+let availabilityRefreshGeneration = 0
+let lastAvailabilityFetchKey = ''
 
-async function refreshLineAvailability() {
+const availabilityFetchKey = computed(() =>
+  [
+    props.departmentId,
+    props.activityId ?? '',
+    planningStartIso.value,
+    planningEndIso.value,
+    props.materialScopeTab ?? 'own',
+    props.materialScopeHasPartners ?? false,
+    props.materialScopeSinglePartnerId ?? '',
+    props.modelValue.map((r) => r.material_item_id).join('|'),
+    props.modelValue.map((r) => r.saved_quantity ?? '').join('|'),
+  ].join('\0'),
+)
+
+async function refreshLineAvailability(fetchKey: string) {
+  const generation = ++availabilityRefreshGeneration
   const ids = [...new Set(props.modelValue.map((r) => r.material_item_id))]
   if (ids.length === 0) {
+    if (generation !== availabilityRefreshGeneration) return
     availabilityMap.value = {}
     availabilityError.value = null
     availabilityFirstFetchDone.value = false
+    lastAvailabilityFetchKey = fetchKey
     return
   }
   const showLoadingUi = !availabilityFirstFetchDone.value
@@ -992,6 +1011,7 @@ async function refreshLineAvailability() {
       materialItemIds: ids,
       scope: scopeForAvailabilityFetch.value,
     })
+    if (generation !== availabilityRefreshGeneration) return
     const m: Record<string, number> = { ...availabilityMap.value }
     for (const id of ids) {
       delete m[id]
@@ -1011,13 +1031,17 @@ async function refreshLineAvailability() {
     })
     if (capsChanged) emit('update:modelValue', nextLines)
     availabilityFirstFetchDone.value = true
+    lastAvailabilityFetchKey = fetchKey
   } catch (e: unknown) {
+    if (generation !== availabilityRefreshGeneration) return
     availabilityError.value =
       e && typeof e === 'object' && 'message' in e && typeof (e as Error).message === 'string'
         ? (e as Error).message
         : t('activities.materialLinesTable.availabilityLoadFailed')
   } finally {
-    if (showLoadingUi) availabilityLoading.value = false
+    if (generation === availabilityRefreshGeneration && showLoadingUi) {
+      availabilityLoading.value = false
+    }
   }
 }
 
@@ -1026,22 +1050,15 @@ async function refreshLineAvailability() {
  * Frei-Menge bei Typing kommt aus Rohwert + (saved−draft) im Client.
  */
 watch(
-  () =>
-    [
-      props.departmentId,
-      props.activityId ?? '',
-      planningStartIso.value,
-      planningEndIso.value,
-      props.materialScopeTab ?? 'own',
-      props.materialScopeHasPartners ?? false,
-      props.materialScopeSinglePartnerId ?? '',
-      props.modelValue.map((r) => r.material_item_id).join('|'),
-      props.modelValue.map((r) => r.saved_quantity ?? '').join('|'),
-    ] as const,
-  () => {
+  availabilityFetchKey,
+  (fetchKey) => {
+    if (fetchKey === lastAvailabilityFetchKey && availabilityFirstFetchDone.value) return
     if (refreshDebounce) clearTimeout(refreshDebounce)
     refreshDebounce = setTimeout(() => {
-      void refreshLineAvailability()
+      refreshDebounce = null
+      queueMicrotask(() => {
+        void refreshLineAvailability(fetchKey)
+      })
     }, 320)
   },
   { immediate: true },
@@ -1051,6 +1068,7 @@ watch(
   () => [props.departmentId, props.activityId ?? ''] as const,
   () => {
     availabilityFirstFetchDone.value = false
+    lastAvailabilityFetchKey = ''
   },
 )
 

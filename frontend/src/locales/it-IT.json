@@ -2302,7 +2302,7 @@
       "historicalLineBatches": "Historische Anschaffung (aktive Chargen, Summe Menge × Stückpreis):",
       "piecesLine": "Stück: {n} · Anschaffung pro Stück:",
       "labelInflationPct": "Preissteigerung / Jahr für Schätzung (%)",
-      "estimateLabelHtml": "Geschätzter Neupreis bei Neukauf (Anschaffung × (1+r)<sup>n</sup>):",
+      "estimateLabel": "Geschätzter Neupreis bei Neukauf (Anschaffung × (1+r)ⁿ):",
       "perPieceMuted": " (Fr. {amount} pro Stück)",
       "btnApplyEstimate": "Als Kalkulationsbasis übernehmen",
       "labelManualBasis": "Kalkulationsbasis (manuell)",
