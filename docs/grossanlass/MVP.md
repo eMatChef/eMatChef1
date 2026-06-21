@@ -81,11 +81,11 @@ Details: README §3.4–§3.7, §4, §9, §15.
 | # | Feature |
 |---|---------|
 | 1 | Tab **«Ressorts & Mitglieder»** — Inhalt statt Empty State |
-| 2 | Baum-Editor: Ressort + Bauprojekte, **max. 10** Ebenen — Orientierung [`GroupsSettingsView`](../../frontend/src/views/settings/GroupsSettingsView.vue) |
+| 2 | Baum-Editor: Ressort, **Unterressort** und **Bauprojekt** (`grossanlass_kind`), **max. 10** Ebenen — Orientierung [`GroupsSettingsView`](../../frontend/src/views/settings/GroupsSettingsView.vue) |
 | 3 | Mitglieder pro Knoten (`GroupMembership`) |
 | 4 | **Löschen:** nur ohne Members im **gesamten Subtree**; leere Kinder rekursiv; blockiert bei Wunsch-Referenzen |
-| 5 | Bauprojekte: **CM + Mitglieder** im Ressort — **jederzeit** §4.2 |
-| 6 | API: `/api/departments/{id}/grossanlass/groups` (+ members) |
+| 5 | **Unterressort / Bauprojekt:** CM + Mitglieder im Ressort — **jederzeit** §4.2; beim Anlegen **Art wählen** |
+| 6 | API: `/api/departments/{id}/grossanlass/groups` (+ members); Felder `kind`, `node_type` |
 
 ### Phase 2c — Beschaffung Shell (PR2c)
 
@@ -184,7 +184,7 @@ Details: README §3.4–§3.7, §4, §9, §15.
 - [ ] Alle DoD Phase 1
 - [ ] Grossanlass-Settings: nur Mein Department + Benutzer (MW/DC); **kein** Gruppen/Material/Werkstatt
 - [ ] Beschaffung: Route `/beschaffung` erreichbar, Tabs mit Empty State — **ohne** Backend
-- [ ] CM/MW und Ressort-Mitglieder können Baum pflegen (max. 10); Löschen nur ohne Members im Subtree
+- [ ] CM/MW und Ressort-Mitglieder können Baum pflegen (max. 10): **Unterressort** oder **Bauprojekt** unter jedem Knoten wählbar; Löschen nur ohne Members im Subtree
 - [ ] CM/MW kann benannte Runde `ressort_wuensche` anlegen, open/close, Auto-Schedule
 - [ ] Bei Runden-Start: betroffene Mitglieder erhalten Inbox (optional E-Mail)
 - [ ] User trägt Wünsche ein (Google-Form-Felder); Autor editiert/löscht eigene Zeilen in `open`-Runde
@@ -204,7 +204,7 @@ Details: README §3.4–§3.7, §4, §9, §15.
 
 | Methode | Pfad |
 |---------|------|
-| GET/POST/PUT/DELETE | `/api/departments/{id}/grossanlass/groups` |
+| GET/POST/PUT/DELETE | `/api/departments/{id}/grossanlass/groups` | Ressort-Baum; POST/PUT: `kind` = `ressort` \| `teilbereich` §4 |
 | POST/DELETE | `…/grossanlass/groups/{groupId}/members` |
 | GET/POST/PUT | `…/grossanlass/planung/rounds` |
 | POST | `…/planung/rounds/{roundId}/open` |

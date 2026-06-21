@@ -67,12 +67,12 @@
             <td class="col-name">
               <div class="name-cell" :style="{ paddingLeft: group._level * 24 + 'px' }">
                 <span v-if="group._level > 0" class="indent-icon">↳</span>
-                <div class="group-icon" :class="'kind-' + group.kind">
-                  <v-icon :icon="group.kind === 'ressort' ? 'mdi-sitemap' : 'mdi-hammer-wrench'" size="18" />
+                <div class="group-icon" :class="'node-' + group.node_type">
+                  <v-icon :icon="nodeIcon(group.node_type)" size="18" />
                 </div>
                 <div class="name-stack">
                   <span class="group-name">{{ group.name }}</span>
-                  <span class="kind-badge">{{ kindLabel(group.kind) }}</span>
+                  <span class="kind-badge">{{ kindLabel(group) }}</span>
                 </div>
               </div>
             </td>
@@ -141,6 +141,13 @@
         :label="groupNameLabel"
         :placeholder="groupNamePlaceholder"
         hide-details="auto"
+      />
+      <ESelect
+        v-if="showChildKindSelect"
+        v-model="groupForm.kind"
+        :items="childKindSelectItems"
+        :label="t('grossanlass.planung.ressorts.childKindLabel')"
+        hide-details
       />
       <ESelect
         v-if="canEditGroup()"
@@ -287,6 +294,7 @@ import {
   removeGrossanlassGroupMember,
   type GrossanlassGroup,
   type GrossanlassGroupKind,
+  type GrossanlassNodeType,
 } from '@/api/grossanlassGroups'
 import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
 import type { GroupMember } from '@/api/groups'
@@ -310,6 +318,7 @@ const groupNameInput = ref<{ focus?: () => void } | null>(null)
 const groupForm = ref({
   name: '',
   parent_id: null as string | null,
+  kind: 'ressort' as GrossanlassGroupKind,
 })
 
 const showMembersModal = ref(false)
@@ -385,21 +394,49 @@ const parentGroupSelectItems = computed(() => [
 
 const groupModalTitle = computed(() => {
   if (editingGroup.value) return t('grossanlass.planung.ressorts.modalEdit')
-  if (fixedParentId.value) return t('grossanlass.planung.ressorts.modalNewChild')
+  if (fixedParentId.value || groupForm.value.parent_id) {
+    return groupForm.value.kind === 'ressort'
+      ? t('grossanlass.planung.ressorts.modalNewUnterressort')
+      : t('grossanlass.planung.ressorts.modalNewBauprojekt')
+  }
   return t('grossanlass.planung.ressorts.modalNewRessort')
 })
 
-const groupNameLabel = computed(() =>
-  fixedParentId.value || groupForm.value.parent_id
-    ? t('grossanlass.planung.ressorts.nameLabelChild')
-    : t('grossanlass.planung.ressorts.nameLabelRessort'),
-)
+const showChildKindSelect = computed(() => {
+  if (editingGroup.value) {
+    return !!editingGroup.value.parent_id && canEditGroup()
+  }
+  return !!(fixedParentId.value || groupForm.value.parent_id)
+})
 
-const groupNamePlaceholder = computed(() =>
-  fixedParentId.value || groupForm.value.parent_id
-    ? t('grossanlass.planung.ressorts.namePlaceholderChild')
-    : t('grossanlass.planung.ressorts.namePlaceholderRessort'),
-)
+const childKindSelectItems = computed(() => [
+  {
+    title: t('grossanlass.planung.ressorts.kindUnterressort'),
+    value: 'ressort' as GrossanlassGroupKind,
+  },
+  {
+    title: t('grossanlass.planung.ressorts.kindBauprojekt'),
+    value: 'teilbereich' as GrossanlassGroupKind,
+  },
+])
+
+const groupNameLabel = computed(() => {
+  if (!fixedParentId.value && !groupForm.value.parent_id && !editingGroup.value?.parent_id) {
+    return t('grossanlass.planung.ressorts.nameLabelRessort')
+  }
+  return groupForm.value.kind === 'ressort' || editingGroup.value?.kind === 'ressort'
+    ? t('grossanlass.planung.ressorts.nameLabelUnterressort')
+    : t('grossanlass.planung.ressorts.nameLabelBauprojekt')
+})
+
+const groupNamePlaceholder = computed(() => {
+  if (!fixedParentId.value && !groupForm.value.parent_id && !editingGroup.value?.parent_id) {
+    return t('grossanlass.planung.ressorts.namePlaceholderRessort')
+  }
+  return groupForm.value.kind === 'ressort' || editingGroup.value?.kind === 'ressort'
+    ? t('grossanlass.planung.ressorts.namePlaceholderUnterressort')
+    : t('grossanlass.planung.ressorts.namePlaceholderBauprojekt')
+})
 
 const unassignedUsers = computed(() => {
   if (!selectedGroup.value) return []
@@ -407,10 +444,20 @@ const unassignedUsers = computed(() => {
   return departmentMembers.value.filter((u) => !assignedIds.has(u.user_id))
 })
 
-function kindLabel(kind: GrossanlassGroupKind): string {
-  return kind === 'ressort'
-    ? t('grossanlass.planung.ressorts.kindRessort')
-    : t('grossanlass.planung.ressorts.kindTeilbereich')
+function nodeIcon(nodeType: GrossanlassNodeType): string {
+  if (nodeType === 'bauprojekt') return 'mdi-hammer-wrench'
+  if (nodeType === 'unterressort') return 'mdi-source-branch'
+  return 'mdi-sitemap'
+}
+
+function kindLabel(group: GrossanlassGroup): string {
+  if (group.node_type === 'bauprojekt') {
+    return t('grossanlass.planung.ressorts.kindBauprojekt')
+  }
+  if (group.node_type === 'unterressort') {
+    return t('grossanlass.planung.ressorts.kindUnterressort')
+  }
+  return t('grossanlass.planung.ressorts.kindRessort')
 }
 
 function getGroupMembersForDisplay(group: GrossanlassGroup): GroupMember[] {
@@ -448,7 +495,7 @@ async function loadDepartmentMembers() {
 function openCreateModal(parentId: string | null = null) {
   editingGroup.value = null
   fixedParentId.value = parentId
-  groupForm.value = { name: '', parent_id: parentId }
+  groupForm.value = { name: '', parent_id: parentId, kind: 'ressort' }
   showGroupModal.value = true
   nextTick(() => groupNameInput.value?.focus?.())
 }
@@ -456,7 +503,11 @@ function openCreateModal(parentId: string | null = null) {
 function openEditModal(group: GrossanlassGroup) {
   editingGroup.value = group
   fixedParentId.value = null
-  groupForm.value = { name: group.name, parent_id: group.parent_id }
+  groupForm.value = {
+    name: group.name,
+    parent_id: group.parent_id,
+    kind: group.kind,
+  }
   showGroupModal.value = true
   nextTick(() => groupNameInput.value?.focus?.())
 }
@@ -475,11 +526,13 @@ async function saveGroup() {
       await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
+        kind: editingGroup.value.parent_id ? groupForm.value.kind : undefined,
       })
     } else {
       await createGrossanlassGroup(departmentId.value, {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
+        kind: groupForm.value.parent_id ? groupForm.value.kind : undefined,
       })
     }
     closeGroupModal()
@@ -689,12 +742,17 @@ onMounted(() => loadGroups())
   flex-shrink: 0;
 }
 
-.group-icon.kind-ressort {
+.group-icon.node-ressort {
   background: #eef2ff;
   color: var(--color-primary, #4f46e5);
 }
 
-.group-icon.kind-teilbereich {
+.group-icon.node-unterressort {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.group-icon.node-bauprojekt {
   background: #fef3c7;
   color: #b45309;
 }
