@@ -1,14 +1,9 @@
 <template>
   <div class="fixed-dates-settings">
     <div class="page-header">
-      <div>
-        <h2 class="settings-title">{{ t('settings.fixedDates.title') }}</h2>
-        <p class="settings-description">{{ pageDescription }}</p>
-      </div>
-      <div v-if="isGrossanlassDept" class="page-banner">
-        <v-icon icon="mdi-calendar-star" size="20" class="page-banner__icon" />
-        <p>{{ t('settings.fixedDates.grossanlassHint') }}</p>
-      </div>
+      <h2 class="settings-title">{{ t('settings.fixedDates.title') }}</h2>
+      <p class="settings-description">{{ pageDescription }}</p>
+      <p v-if="isGrossanlassDept" class="settings-hint">{{ t('settings.fixedDates.grossanlassHint') }}</p>
     </div>
 
     <ECard v-if="!canManage">
@@ -17,93 +12,88 @@
 
     <template v-else>
       <ECard class="create-card">
-        <form class="create-form" @submit.prevent="submitForm">
-          <div class="create-form__header">
-            <h3 class="section-heading">
-              {{ editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle') }}
-            </h3>
-            <span v-if="editingId" class="edit-badge">{{ t('settings.fixedDates.editingBadge') }}</span>
-          </div>
-
-          <div class="create-form__body">
-            <div class="create-form__period">
-              <EDateRangeField
-                id="fd-period"
-                v-model:start="form.start_date"
-                v-model:end="form.end_date"
-                :label="t('settings.fixedDates.period')"
-                :department-id="departmentId"
-                :allow-past="true"
-                :block-closed-dates="false"
-                :show-presets="false"
-                :show-markers="true"
-              />
-            </div>
-
-            <div class="create-form__meta">
-              <ESelect
-                id="fd-label"
-                v-model="form.label"
-                class="create-form__type"
-                :label="t('settings.fixedDates.typeLabel')"
-                :items="labelOptions"
-                item-title="text"
-                item-value="value"
-                hide-details
-              />
-              <ETextField
-                id="fd-name"
-                v-model="form.name"
-                class="create-form__name"
-                :label="t('settings.fixedDates.name')"
-                :placeholder="namePlaceholder"
-                maxlength="120"
-                hide-details
-              />
-            </div>
-
-            <div class="info-callout">
-              <v-icon icon="mdi-information-outline" size="18" class="info-callout__icon" />
-              <span>{{ t('settings.fixedDates.quickSelectHint') }}</span>
-            </div>
-          </div>
-
-          <div class="create-form__actions">
-            <EButton v-if="editingId" type="button" variant="secondary" :disabled="saving" @click="cancelEdit">
-              {{ t('common.cancel') }}
-            </EButton>
-            <EButton type="submit" variant="primary" :disabled="saving || !canSubmit" :loading="saving">
-              {{ saving ? t('common.saving') : (editingId ? t('common.save') : t('common.create')) }}
-            </EButton>
-          </div>
-        </form>
+        <h3 class="section-heading">
+          {{ editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle') }}
+        </h3>
+        <div class="form-grid">
+          <EDateRangeField
+            id="fd-period"
+            v-model:start="form.start_date"
+            v-model:end="form.end_date"
+            class="field-period"
+            :label="t('settings.fixedDates.period')"
+            :department-id="departmentId"
+            :allow-past="true"
+            :block-closed-dates="false"
+            :show-presets="false"
+            :show-markers="true"
+          />
+          <ESelect
+            id="fd-label"
+            v-model="form.label"
+            :label="t('settings.fixedDates.typeLabel')"
+            :items="labelOptions"
+            item-title="text"
+            item-value="value"
+            hide-details
+          />
+          <ETextField
+            id="fd-name"
+            v-model="form.name"
+            class="field-name"
+            :label="t('settings.fixedDates.name')"
+            :placeholder="namePlaceholder"
+            maxlength="120"
+            hide-details
+          />
+        </div>
+        <p class="type-hint muted">{{ quickSelectHint }}</p>
+        <div class="form-actions">
+          <EButton v-if="editingId" variant="secondary" :disabled="saving" @click="cancelEdit">
+            {{ t('common.cancel') }}
+          </EButton>
+          <EButton variant="primary" :disabled="saving || !canSubmit" :loading="saving" @click="submitForm">
+            {{ saving ? t('common.saving') : (editingId ? t('common.save') : t('common.create')) }}
+          </EButton>
+        </div>
       </ECard>
 
       <ELoadingState v-if="loading" variant="inline" :message="t('settings.fixedDates.loading')" />
 
       <ECard v-else-if="periods.length === 0" class="empty-card">
-        <v-icon icon="mdi-calendar-range" size="40" class="empty-icon" />
         <p class="empty-title">{{ emptyTitle }}</p>
         <p v-if="emptyDescription" class="muted">{{ emptyDescription }}</p>
       </ECard>
 
-      <div v-else class="period-list">
-        <ECard v-for="row in periods" :key="row.id" class="period-row" :class="{ 'period-row--active': editingId === row.id }">
-          <div class="period-row__main">
-            <span class="type-tag" :class="'type-tag--' + row.label">{{ labelText(row.label) }}</span>
-            <span class="period-row__name">{{ row.name }}</span>
-            <span class="period-row__range">
-              {{ formatDisplayDate(row.start_date) }} – {{ formatDisplayDate(row.end_date) }}
-            </span>
-          </div>
-          <div class="period-row__actions">
-            <EButton variant="text" size="small" @click="startEdit(row)">{{ t('common.edit') }}</EButton>
-            <EButton variant="text" size="small" class="btn-danger-text" @click="removePeriod(row.id)">
-              {{ t('common.delete') }}
-            </EButton>
-          </div>
-        </ECard>
-      </div>
+      <ECard v-else class="table-card">
+        <table class="period-table">
+          <thead>
+            <tr>
+              <th>{{ t('settings.fixedDates.colFrom') }}</th>
+              <th>{{ t('settings.fixedDates.colTo') }}</th>
+              <th>{{ t('settings.fixedDates.colType') }}</th>
+              <th>{{ t('settings.fixedDates.colName') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in periods" :key="row.id" :class="{ 'period-row--active': editingId === row.id }">
+              <td>{{ formatDisplayDate(row.start_date) }}</td>
+              <td>{{ formatDisplayDate(row.end_date) }}</td>
+              <td>
+                <span class="type-tag" :class="'type-tag--' + row.label">{{ labelText(row.label) }}</span>
+              </td>
+              <td>{{ row.name }}</td>
+              <td class="actions">
+                <button type="button" class="btn-link" @click="startEdit(row)">{{ t('common.edit') }}</button>
+                <button type="button" class="btn-link danger" @click="removePeriod(row.id)">
+                  {{ t('common.delete') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </ECard>
     </template>
   </div>
 </template>
@@ -133,6 +123,9 @@ import {
   type DepartmentCalendarPeriod,
 } from '@/api/calendarPeriods'
 
+const GROSSANLASS_LABELS: CalendarPeriodLabel[] = ['grossanlass', 'other', 'department_break']
+const MATERIAL_LABELS: CalendarPeriodLabel[] = ['school_vacation', 'department_break', 'camp_week', 'other']
+
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -152,6 +145,12 @@ const pageDescription = computed(() =>
   isGrossanlassDept.value
     ? t('settings.fixedDates.descriptionGrossanlass')
     : t('settings.fixedDates.description'),
+)
+
+const quickSelectHint = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.fixedDates.quickSelectHintGrossanlass')
+    : t('settings.fixedDates.quickSelectHint'),
 )
 
 const namePlaceholder = computed(() =>
@@ -176,7 +175,7 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 
 const defaultLabel = (): CalendarPeriodLabel =>
-  isGrossanlassDept.value ? 'other' : 'school_vacation'
+  isGrossanlassDept.value ? 'grossanlass' : 'school_vacation'
 
 const emptyForm = () => ({
   label: defaultLabel(),
@@ -187,17 +186,9 @@ const emptyForm = () => ({
 
 const form = reactive(emptyForm())
 
-const grossanlassLabelOrder: CalendarPeriodLabel[] = ['camp_week', 'other', 'school_vacation', 'department_break']
-const standardLabelOrder: CalendarPeriodLabel[] = [
-  'school_vacation',
-  'department_break',
-  'camp_week',
-  'other',
-]
-
 const labelOptions = computed(() => {
-  const order = isGrossanlassDept.value ? grossanlassLabelOrder : standardLabelOrder
-  return order.map((value) => ({
+  const labels = isGrossanlassDept.value ? GROSSANLASS_LABELS : MATERIAL_LABELS
+  return labels.map((value) => ({
     value,
     text: labelText(value),
   }))
@@ -323,14 +314,15 @@ watch(
 .fixed-dates-settings {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: 720px;
+  gap: 16px;
+  width: 100%;
+  max-width: 960px;
+  padding: 4px 8px 16px;
+  box-sizing: border-box;
 }
 
 .page-header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  padding: 0 4px;
 }
 
 .settings-title {
@@ -341,6 +333,7 @@ watch(
 }
 
 .settings-description,
+.settings-hint,
 .muted {
   color: var(--color-text-muted, #6b7280);
   margin: 0;
@@ -348,190 +341,114 @@ watch(
 
 .settings-description {
   margin-top: 6px;
-  line-height: 1.5;
 }
 
-.page-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  color: #1e40af;
+.settings-hint {
+  margin-top: 10px;
   font-size: 0.88rem;
-  line-height: 1.45;
+  padding: 8px 12px;
+  background: #eff6ff;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
 }
 
-.page-banner p {
-  margin: 0;
-}
-
-.page-banner__icon {
-  flex-shrink: 0;
-  margin-top: 1px;
-  opacity: 0.85;
-}
-
-.create-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.create-form__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
+.create-card,
+.table-card,
+.empty-card {
+  padding: 4px;
 }
 
 .section-heading {
-  margin: 0;
+  margin: 0 0 14px;
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text, #111827);
 }
 
-.edit-badge {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 999px;
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.create-form__body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.create-form__period {
-  max-width: 320px;
-}
-
-.create-form__meta {
+.form-grid {
   display: grid;
-  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
 }
 
-.create-form__type,
-.create-form__name {
-  min-width: 0;
+.field-period {
+  grid-column: 1 / -1;
 }
 
-.info-callout {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+.field-name {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+
+  .field-period {
+    grid-column: 1 / -1;
+  }
+
+  .field-name {
+    grid-column: 2;
+  }
+}
+
+.type-hint {
+  margin: 12px 0 0;
   font-size: 0.82rem;
-  line-height: 1.45;
-  color: #6b7280;
 }
 
-.info-callout__icon {
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: #9ca3af;
-}
-
-.create-form__actions {
+.form-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f3f4f6;
+  margin-top: 14px;
 }
 
 .empty-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   text-align: center;
-  padding: 32px 20px;
-  gap: 8px;
-}
-
-.empty-icon {
-  color: #d1d5db;
-  margin-bottom: 4px;
+  padding: 24px 16px;
 }
 
 .empty-title {
-  margin: 0;
+  margin: 0 0 6px;
   font-weight: 500;
   color: var(--color-text, #111827);
 }
 
-.period-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.period-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
 }
 
-.period-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+.period-table th {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+  color: var(--color-text-muted, #6b7280);
+  font-weight: 500;
 }
 
-.period-row--active {
-  border-color: #fcd34d !important;
-  box-shadow: 0 0 0 1px #fcd34d;
+.period-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--color-border, #f3f4f6);
+  vertical-align: middle;
 }
 
-.period-row__main {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  min-width: 0;
-}
-
-.period-row__name {
-  font-weight: 600;
-  color: #111827;
-}
-
-.period-row__range {
-  font-size: 0.85rem;
-  color: #6b7280;
-}
-
-.period-row__actions {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.btn-danger-text :deep(.v-btn) {
-  color: #dc2626 !important;
+.period-row--active td {
+  background: #fffbeb;
 }
 
 .type-tag {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   background: #f3f4f6;
   color: #374151;
-  white-space: nowrap;
 }
 
 .type-tag--camp_week {
@@ -544,32 +461,26 @@ watch(
   color: #3730a3;
 }
 
-.type-tag--school_vacation {
-  background: #fef3c7;
-  color: #92400e;
+.type-tag--grossanlass {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
-.type-tag--department_break {
-  background: #fee2e2;
-  color: #991b1b;
+.actions {
+  white-space: nowrap;
+  text-align: right;
 }
 
-@media (max-width: 600px) {
-  .create-form__meta {
-    grid-template-columns: 1fr;
-  }
+.btn-link {
+  border: none;
+  background: none;
+  color: var(--color-primary, #059669);
+  cursor: pointer;
+  padding: 0 6px;
+  font-size: 14px;
+}
 
-  .create-form__period {
-    max-width: none;
-  }
-
-  .period-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .period-row__actions {
-    justify-content: flex-end;
-  }
+.btn-link.danger {
+  color: var(--color-error, #dc2626);
 }
 </style>

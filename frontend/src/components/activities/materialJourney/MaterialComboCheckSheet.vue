@@ -1,30 +1,29 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
+import { toRef, watch, type Ref } from 'vue'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
-import { postMovePackItem, type ActivityPackItem } from '@/api/activityPackItems'
-import { getComboComponents, type ComboComponent } from '@/api/materials'
-import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import type { ActivityPackItem } from '@/api/activityPackItems'
+import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
-import { isJourneyReturnStep, isJourneyStoreStep } from '@/components/activities/materialJourneySteps'
-import { getBackendStage, type PackStage } from '@/components/activities/packStageQuantities'
-import { packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
-import EButton from '@/components/form/base/EButton.vue'
-import { peekSectionsForJourneyCombo } from '@/composables/useMaterialJourneyCrateSections'
+import type { PackStage } from '@/components/activities/packStageQuantities'
+import { useMaterialJourneyShellForward } from '@/composables/useMaterialJourneyShellForward'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
-import { emptyMaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
 
 const props = defineProps<{
   open: boolean
   packItem: ActivityPackItem | null
+  packItems: ActivityPackItem[]
   packContainers: ActivityPackContainer[]
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>
   cratePeekMaps?: MaterialJourneyCratePeekMaps
   journeyStep: JourneyStep
   packStage: PackStage
   activityId: string
+  departmentId: string
+  canManageMaterials: boolean
   canSubmit: boolean
   maxForwardQty: number
+  applyUpdatedItem: (item: ActivityPackItem) => void
+  packMoveQtyCap?: (item: ActivityPackItem) => number
 }>()
 
 const emit = defineEmits<{
@@ -32,183 +31,96 @@ const emit = defineEmits<{
   completed: [item: ActivityPackItem]
 }>()
 
-const { t } = useI18n()
-const submitting = ref(false)
-const loading = ref(false)
-const expandedPanels = ref<string[]>([])
-const comboComponentsByMaterialId = ref<Record<string, ComboComponent[]>>({})
-const checkedLineIds = ref<Set<string>>(new Set())
-
-const sections = computed((): PackCrateShellPeekSection[] => {
-  if (!props.packItem) return []
-  const peekMaps = props.cratePeekMaps ?? emptyMaterialJourneyCratePeekMaps()
-  const comboMaps = {
-    ...peekMaps,
-    comboComponentsByMaterialId: {
-      ...peekMaps.comboComponentsByMaterialId,
-      ...comboComponentsByMaterialId.value,
-    },
-  }
-  return peekSectionsForJourneyCombo(
-    props.packItem,
-    props.packContainers,
-    {
-      containerItemsByContainerId: props.containerItemsByContainerId,
-      ...comboMaps,
-    },
-    t,
-  )
+const {
+  modalOpen,
+  label,
+  moveQty,
+  sections,
+  containerBatchId,
+  looseStockByMid,
+  stockLoading,
+  historyReplenishByKey,
+  historyPrefillHint,
+  groupMode,
+  checkOnly,
+  submitError,
+  submitting,
+  emptyHint,
+  initialLineReviews,
+  close,
+  openForPackItem,
+  submit,
+} = useMaterialJourneyShellForward({
+  activityId: toRef(props, 'activityId'),
+  departmentId: toRef(props, 'departmentId'),
+  packItems: toRef(props, 'packItems'),
+  packContainers: toRef(props, 'packContainers'),
+  containerItemsByContainerId: toRef(props, 'containerItemsByContainerId'),
+  cratePeekMaps: toRef(props, 'cratePeekMaps') as unknown as Ref<MaterialJourneyCratePeekMaps>,
+  journeyStep: toRef(props, 'journeyStep'),
+  packStage: toRef(props, 'packStage'),
+  canManageMaterials: toRef(props, 'canManageMaterials'),
+  applyUpdatedItem: (item) => props.applyUpdatedItem(item),
+  packMoveQtyCap: props.packMoveQtyCap ? (item) => props.packMoveQtyCap!(item) : undefined,
 })
 
-const allLineIds = computed(() =>
-  sections.value.flatMap((sec) => sec.lines.map((line) => `${sec.subsectionKey}:${line.id}`)),
-)
-
-const allChecked = computed(
-  () => allLineIds.value.length > 0 && allLineIds.value.every((id) => checkedLineIds.value.has(id)),
-)
-
-const primaryLabel = computed(() => {
-  if (props.journeyStep === 'pack') {
-    return t('activities.materialJourney.comboSheet.primaryPack')
-  }
-  if (isJourneyReturnStep(props.journeyStep)) {
-    return t('activities.materialJourney.comboSheet.primaryReturn')
-  }
-  if (isJourneyStoreStep(props.journeyStep)) {
-    return t('activities.materialJourney.comboSheet.primaryStore')
-  }
-  return t('activities.materialJourney.comboSheet.primaryIssue')
-})
-
-const canPrimary = computed(
-  () => props.canSubmit && props.maxForwardQty > 0 && allChecked.value && !submitting.value,
-)
+let openGeneration = 0
 
 watch(
-  () => [props.open, props.packItem?.id] as const,
-  async ([isOpen, packItemId]) => {
-    if (!isOpen || !packItemId || !props.packItem) return
-    checkedLineIds.value = new Set()
-    expandedPanels.value = []
-    loading.value = true
-    try {
-      const mid = props.packItem.materialItemId
-      if (!comboComponentsByMaterialId.value[mid]) {
-        const list = await getComboComponents(mid).catch(() => [] as ComboComponent[])
-        comboComponentsByMaterialId.value = {
-          ...comboComponentsByMaterialId.value,
-          [mid]: list,
-        }
-      }
-    } finally {
-      loading.value = false
+  () => [props.open, props.packItem?.id, props.maxForwardQty] as const,
+  async ([isOpen, packItemId, maxQty]) => {
+    if (!isOpen || !packItemId || !props.packItem) {
+      openGeneration += 1
+      close()
+      return
+    }
+    const gen = ++openGeneration
+    await openForPackItem(props.packItem, maxQty, { kind: 'pack_move' })
+    if (gen !== openGeneration) return
+    if (!props.open || props.packItem?.id !== packItemId) {
+      close()
     }
   },
 )
 
-function close(): void {
+function onCancel(): void {
+  close()
   emit('update:open', false)
 }
 
-function toggleLine(key: string): void {
-  const next = new Set(checkedLineIds.value)
-  if (next.has(key)) next.delete(key)
-  else next.add(key)
-  checkedLineIds.value = next
-}
-
-async function onPrimary(): Promise<void> {
-  if (!props.packItem || !canPrimary.value) return
-  submitting.value = true
-  try {
-    const updated = await postMovePackItem(props.activityId, props.packItem.id, {
-      stage: getBackendStage(props.packStage),
-      quantity: props.maxForwardQty,
-      source: 'tap',
-    })
+async function onSubmit(payload: Parameters<typeof submit>[0]): Promise<void> {
+  const updated = await submit(payload)
+  if (updated) {
     emit('completed', updated)
-    close()
-  } finally {
-    submitting.value = false
+    emit('update:open', false)
   }
 }
 </script>
 
 <template>
-  <v-dialog
-    :model-value="open"
-    fullscreen
-    scrollable
-    transition="dialog-bottom-transition"
-    @update:model-value="emit('update:open', $event)"
-  >
-    <div v-if="packItem" class="material-journey-sheet">
-      <header class="material-journey-sheet__header">
-        <EButton variant="secondary" size="small" @click="close">
-          {{ t('common.close') }}
-        </EButton>
-        <div class="material-journey-sheet__headline">
-          <h2 class="material-journey-sheet__title">{{ packMaterialDisplayName(packItem) }}</h2>
-          <p class="material-journey-sheet__subtitle text-muted">
-            {{ t('activities.materialJourney.comboSheet.subtitle') }}
-          </p>
-        </div>
-      </header>
-
-      <div class="material-journey-sheet__body">
-        <p v-if="loading" class="text-muted material-journey-sheet__empty">
-          {{ t('activities.materialJourney.comboSheet.loading') }}
-        </p>
-        <p v-else-if="sections.length === 0" class="text-muted material-journey-sheet__empty">
-          {{ t('activities.materialJourney.comboSheet.empty') }}
-        </p>
-        <v-expansion-panels v-else v-model="expandedPanels" multiple class="material-journey-sheet__accordion">
-          <v-expansion-panel
-            v-for="sec in sections"
-            :key="sec.subsectionKey"
-            :value="sec.subsectionKey"
-          >
-            <v-expansion-panel-title>{{ sec.title }}</v-expansion-panel-title>
-            <v-expansion-panel-text>
-              <ul class="material-journey-sheet__lines">
-                <li v-for="line in sec.lines" :key="line.id" class="material-journey-sheet__line">
-                  <label class="material-journey-sheet__check-row">
-                    <input
-                      type="checkbox"
-                      class="material-journey-sheet__checkbox"
-                      :checked="checkedLineIds.has(`${sec.subsectionKey}:${line.id}`)"
-                      :disabled="!canSubmit"
-                      @change="toggleLine(`${sec.subsectionKey}:${line.id}`)"
-                    />
-                    <span class="material-journey-sheet__line-name">{{ line.materialName }}</span>
-                    <span class="material-journey-sheet__line-qty">{{ line.quantity }}</span>
-                  </label>
-                </li>
-              </ul>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
-      </div>
-
-      <footer class="material-journey-sheet__footer">
-        <p v-if="!allChecked && sections.length > 0" class="material-journey-sheet__hint text-muted">
-          {{ t('activities.materialJourney.comboSheet.checkAllHint') }}
-        </p>
-        <EButton
-          variant="primary"
-          class="material-journey-sheet__primary"
-          :disabled="!canPrimary"
-          :loading="submitting"
-          @click="onPrimary"
-        >
-          {{ primaryLabel }}
-        </EButton>
-      </footer>
-    </div>
-  </v-dialog>
+  <PackCrateShellForwardModal
+    :open="open && modalOpen"
+    :label="label"
+    :move-qty="moveQty"
+    :sections="sections"
+    :department-id="departmentId"
+    :container-batch-id="containerBatchId"
+    :loose-stock-by-mid="looseStockByMid"
+    :stock-loading="stockLoading"
+    :history-replenish-by-key="historyReplenishByKey"
+    :history-prefill-hint="historyPrefillHint"
+    :can-report-issues="false"
+    :group-mode="groupMode"
+    :check-only="checkOnly"
+    :submit-error="submitError"
+    :submitting="submitting"
+    :empty-hint="emptyHint"
+    :embedded-issues-by-line-key="{}"
+    :repack-issue-reviews="{}"
+    :orphan-issues="[]"
+    :initial-line-reviews="initialLineReviews"
+    :pack-item-id="packItem?.id ?? null"
+    @cancel="onCancel"
+    @submit="onSubmit"
+  />
 </template>
-
-<style scoped>
-@import '@/styles/views/activities/material-journey-sheet.css';
-</style>

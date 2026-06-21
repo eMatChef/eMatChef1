@@ -764,7 +764,7 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
-            redirect: { name: 'GrossanlassBeschaffungUebersicht' },
+            redirect: { name: 'GrossanlassBeschaffungBedarf' },
           },
           {
             path: 'uebersicht',
@@ -780,7 +780,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'bedarf',
             name: 'GrossanlassBeschaffungBedarf',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungBedarfView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],

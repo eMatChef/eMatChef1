@@ -2432,6 +2432,9 @@
         "return": "Retour",
         "store": "Einlagern"
       },
+      "stepper": {
+        "progress": "Fortschritt {percent} Prozent"
+      },
       "filter": {
         "open": "Offen",
         "done": "Erledigt",
@@ -2449,13 +2452,16 @@
         "openQty": "{count} offen",
         "doneQty": "{count} erledigt",
         "crateLineCount": "{count} Position | {count} Positionen",
-        "crateDone": "Erledigt"
+        "crateDone": "Erledigt",
+        "inPackCrate": "In Packkiste «{label}»",
+        "inPackCrates": "In Packkiste: {labels}"
       },
       "badge": {
-        "set": "Set",
+        "set": "Physis combo",
         "consumable": "Verbrauch",
         "js": "J+S",
-        "crate": "Kiste"
+        "crate": "Packkiste",
+        "packCrate": "Packkiste"
       },
       "footer": {
         "progress": "{done} von {total} Positionen erledigt",
@@ -2464,6 +2470,12 @@
         "openHintStore": "Noch {count} offen — Tippen lagert alles ein",
         "openHintTransportOut": "Noch {count} offen — Tippen bucht alles für Transport hin",
         "openHintTransportBack": "Noch {count} offen — Tippen bucht alles für Transport zurück"
+      },
+      "packComplete": {
+        "title": "Alles gepackt",
+        "description": "{count} Positionen — die Packliste ist bereit.",
+        "markPackedHint": "Die Gruppe wird informiert, dass Material abholbereit ist.",
+        "noPermission": "Der Materialwart markiert die Aktivität als «Gepackt», sobald alles gepackt ist."
       },
       "readonlyFutureStep": "Dieser Schritt liegt noch vor dem aktuellen Stand — nur Ansicht.",
       "jsBanner": {
@@ -2609,6 +2621,9 @@
           "shelf_all_done": "An diesem Standort ist für diesen Schritt nichts mehr offen.",
           "shelf_not_on_list": "Keine Packpositionen an diesem Standort auf der Liste.",
           "shelf_session_hint": "Material-QR scannen — wird gebucht und von der Liste abgehakt.",
+          "shelf_session_hint_grouped": "Noch offen nach Fach — Material-QR scannen oder Position antippen.",
+          "shelf_group_slot": "Fach {slot}",
+          "shelf_group_no_slot": "Ohne Fach",
           "shelf_session_crate_hint": "Material scannen — landet in der aktiven Packkiste.",
           "shelf_session_progress": "{done} von {total} erledigt.",
           "storage_not_found": "Lagerstandort nicht gefunden.",
@@ -2655,13 +2670,6 @@
         "toastSubmitted": "Wunsch gesendet",
         "toastFulfilled": "Nachlieferung erfüllt",
         "toastRejected": "Wunsch abgelehnt"
-      },
-      "packGroup": {
-        "groupButton": "Zusammen packen",
-        "selected": "{count} ausgewählt",
-        "badge": "Zusammen ({n})",
-        "selectRow": "Zeile für Gruppe auswählen",
-        "toastCreated": "Gruppe angelegt — Kiste zuordnen zum Abschliessen"
       },
       "retryMove": {
         "hint": "Letzte Buchung fehlgeschlagen.",
@@ -4741,8 +4749,9 @@
       "title": "Fixe Daten",
       "description": "Manuell gepflegte Zeiträume (Ferien, Lagerwoche, Mat-Büro geschlossen) für den Aktivitäten-Kalender.",
       "descriptionGrossanlass": "Zeiträume für diesen Grossanlass — z. B. Anlasswoche, Aufbau, Abbau.",
-      "grossanlassHint": "Beim Anlegen wird der Anlass-Zeitraum automatisch erfasst. «Lagerwoche» und «Sonstiges» erscheinen als Schnellauswahl in Planung und Materialwünschen.",
+      "grossanlassHint": "Beim Anlegen wird der Anlass-Zeitraum automatisch als «Grossanlass» erfasst. «Grossanlass» und «Sonstiges» erscheinen als Schnellauswahl in Planung und Materialwünschen.",
       "quickSelectHint": "Nur «Lagerwoche» und «Sonstiges» erscheinen in der Datums-Schnellauswahl. Andere Arten sind Kalender-Hinweise.",
+      "quickSelectHintGrossanlass": "Nur «Grossanlass» und «Sonstiges» erscheinen in der Datums-Schnellauswahl. Andere Arten sind Kalender-Hinweise.",
       "noPermission": "Nur Materialwart und Departmentchef können Fixe Daten verwalten.",
       "createTitle": "Zeitraum anlegen",
       "editTitle": "Zeitraum bearbeiten",
@@ -4774,7 +4783,8 @@
         "school_vacation": "Schulferien",
         "department_break": "Mat-Büro geschlossen",
         "camp_week": "Lagerwoche",
-        "other": "Sonstiges"
+        "other": "Sonstiges",
+        "grossanlass": "Grossanlass"
       }
     }
   },
@@ -8646,7 +8656,12 @@
         "errorLoad": "Planungsrunden konnten nicht geladen werden",
         "errorSave": "Speichern fehlgeschlagen",
         "errorOpen": "Runde konnte nicht geöffnet werden",
-        "errorClose": "Runde konnte nicht geschlossen werden"
+        "errorClose": "Runde konnte nicht geschlossen werden",
+        "wizardStepRound": "1. Runde",
+        "wizardStepForm": "2. Formular",
+        "wizardNext": "Weiter zum Formular",
+        "wizardBack": "Zurück",
+        "wizardFinish": "Fertig"
       }
     },
     "inbox": {
@@ -8661,10 +8676,79 @@
       "subtitle": "Deine Bauprojekte und eingereichte Materialwünsche — Übersicht für deinen Ressort-Zweig.",
       "loading": "Ressort wird geladen…",
       "emptyTitle": "Noch kein Ressort zugewiesen",
-      "emptyDescription": "Du bist noch keinem Ressort zugeordnet. Bitte den Materialchef oder Ressort-Leiter.",
+      "emptyDescription": "Du bist noch keinem Ressort zugewiesen. Bitte den Materialchef oder Ressort-Leiter.",
       "noWishesYet": "Noch keine Materialwünsche für dieses Bauprojekt.",
       "openRoundsHint": "Es gibt offene Planungsrunden — Bedarf dort einreichen:",
       "errorLoad": "Ressort-Übersicht konnte nicht geladen werden"
+    },
+    "formBuilder": {
+      "title": "Formular konfigurieren",
+      "hint": "Ressort-Zuordnung ist vorgegeben. Bauprojekt optional. Eigene Fragen unter «Zusatzfragen».",
+      "show": "Formular bearbeiten",
+      "hide": "Formular ausblenden",
+      "editFormAction": "Formular bearbeiten",
+      "introLabel": "Einleitungstext (optional)",
+      "introPlaceholder": "Kurze Anweisung für Ressort-Mitglieder",
+      "fieldsTitle": "Formularfelder",
+      "addField": "Feld hinzufügen",
+      "systemFieldsGroup": "Systemfeld",
+      "customFieldsGroup": "Zusatzfragen",
+      "noFields": "Noch keine Felder",
+      "noFieldsHint": "Über «Feld hinzufügen» Zusatzfragen ergänzen. Metadaten sind immer enthalten.",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "dragToSort": "Ziehen zum Sortieren",
+      "metaHint": "Nur Anzeige in der Liste",
+      "systemFieldHint": "Löst Systemlogik aus (Bauprojekt-Zuordnung)",
+      "ressortWahlHint": "Ressort aus Systembaum wählen (inkl. Unterressorts & Bauprojekte)",
+      "ressortWahlOptionsTitle": "Ressort-Optionen",
+      "ressortWahlOptionsHint": "Materialwart sieht alle Ressorts. Mit «Nur Ressorts, die ich leite» nur eigene Führungsbereiche inkl. Kinder. Ressort-Ersteller sehen ihre Ressorts mit Untereinträgen.",
+      "legacySystemHint": "Veraltetes Systemfeld — als Zusatzfrage neu anlegen",
+      "systemFields": "Systemfelder",
+      "customFields": "Zusatzfragen",
+      "fieldLabel": "Beschriftung",
+      "enabled": "Im Formular",
+      "required": "Pflicht",
+      "allowNewBauprojekt": "Neues Bauprojekt erlauben",
+      "leaderScope": "Nur Ressorts, die ich leite",
+      "bauprojektOptionsTitle": "Bauprojekt-Optionen",
+      "bauprojektOptionsHint": "Mit «Neues Bauprojekt» können Ressort-Chefs beim Einreichen ein Bauprojekt anlegen. «Nur Ressorts, die ich leite» schränkt Auswahl und Parent-Ressort auf Gruppenchef-Rollen ein (Materialwart sieht alles).",
+      "addCustom": "Frage hinzufügen",
+      "noCustom": "Noch keine Zusatzfragen",
+      "selectOptions": "Auswahloptionen",
+      "selectOptionsHint": "Eine Option pro Zeile",
+      "selectOptionLabel": "Option {n}",
+      "addOption": "Option hinzufügen",
+      "removeOption": "Option entfernen",
+      "allowMultiple": "Mehrfachauswahl (Checkboxen)",
+      "selectDisplayHint": "Ohne Mehrfachauswahl: Dropdown (eine Option). Mit Mehrfachauswahl: Checkboxen.",
+      "autoSaving": "Speichern…",
+      "autoSaved": "Gespeichert",
+      "autoSavePending": "Änderungen…",
+      "save": "Formular speichern",
+      "saved": "Formular gespeichert",
+      "errorLoad": "Formular konnte nicht geladen werden",
+      "errorSave": "Formular konnte nicht gespeichert werden",
+      "systemKeys": {
+        "bauprojekt": "Bauprojekt",
+        "ressort_wahl": "Ressort",
+        "wish_kind": "Art",
+        "label": "Bezeichnung",
+        "quantity": "Anzahl",
+        "location": "Ort",
+        "period": "Zeitraum",
+        "notes": "Notizen",
+        "submitter": "Eingereicht von",
+        "ressort": "Ressort",
+        "created_at": "Erstellt",
+        "updated_at": "Zuletzt bearbeitet"
+      },
+      "customTypes": {
+        "text": "Text",
+        "number": "Zahl",
+        "select": "Auswahl",
+        "date_range": "Zeitraum"
+      }
     },
     "wishes": {
       "formTitle": "Materialwunsch einreichen",
@@ -8705,6 +8789,46 @@
       "errorSave": "Wunsch konnte nicht gespeichert werden",
       "errorDelete": "Wunsch konnte nicht gelöscht werden"
     },
+    "roundDetail": {
+      "tabForm": "Formular",
+      "tabInput": "Eingabe",
+      "tabResponses": "Antworten",
+      "formHintMw": "Nur Materialwart kann das Formular bearbeiten. Felder und Zusatzfragen gelten für alle Eingaben in dieser Runde."
+    },
+    "responses": {
+      "search": "Suchen (Bezeichnung, Ort, Ressort, Name)",
+      "filter": "Filtern",
+      "filterStatus": "Status",
+      "filterRessort": "Ressort",
+      "statusAll": "Alle",
+      "statusSubmitted": "Eingereicht",
+      "statusInProcurement": "In Beschaffung",
+      "allRessorts": "Alle Ressorts",
+      "statTotal": "{count} Antworten gesamt",
+      "statSubmitted": "{count} eingereicht",
+      "statInProcurement": "{count} in Beschaffung",
+      "emptyTitle": "Noch keine Antworten",
+      "emptyDescription": "Eingereichte Formulare erscheinen hier — gruppiert und filterbar.",
+      "colRessort": "Ressort",
+      "colLabel": "Bezeichnung",
+      "colQty": "Anzahl",
+      "colLocation": "Ort",
+      "colPeriod": "Zeitraum",
+      "colSubmitter": "Eingereicht von",
+      "colStatus": "Status",
+      "colActions": "Aktionen",
+      "editTitle": "Eingabe bearbeiten",
+      "updated": "Eingabe gespeichert",
+      "deleted": "Eingabe gelöscht",
+      "deleteTitle": "Eingabe löschen",
+      "deleteMessage": "Diese Eingabe wirklich löschen?",
+      "errorUpdate": "Speichern fehlgeschlagen",
+      "errorDelete": "Löschen fehlgeschlagen",
+      "errorEditBauprojekt": "Beim Bearbeiten kann kein neues Bauprojekt angelegt werden",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "pageInfo": "Seite {page} von {total}"
+    },
     "settings": {
       "meinRessortNav": "Mein Ressort",
       "meinRessortNavHint": "Bauprojekte und Materialwünsche in deinem Ressort-Zweig"
@@ -8724,7 +8848,30 @@
       },
       "bedarf": {
         "emptyTitle": "Noch kein Bedarf",
-        "emptyDescription": "Material- und Infrastruktur-Wünsche werden hier zu Beschaffungspositionen gebündelt — nach Phase 4 (Wunschformular)."
+        "emptyDescription": "Material- und Infrastruktur-Wünsche werden hier zu Beschaffungspositionen gebündelt.",
+        "intro": "Eingereichte Wünsche aus Planungsrunden links auswählen und rechts zu Beschaffungspositionen bündeln — das übernimmt sie in die Beschaffung.",
+        "poolTitle": "Offene Wünsche",
+        "poolHint": "Eingereichte Wünsche, die noch keiner Beschaffungsposition zugeordnet sind.",
+        "poolEmptyTitle": "Keine offenen Wünsche",
+        "poolEmptyDescription": "Alle Wünsche sind bereits gebündelt — oder es gibt noch keine Eingaben.",
+        "linesTitle": "Beschaffungspositionen",
+        "linesHint": "Gebündelte Bedarfspositionen — Basis für Offerten (folgt).",
+        "linesEmptyTitle": "Noch keine Positionen",
+        "linesEmptyDescription": "Wähle links Wünsche aus und klicke «Bündeln».",
+        "bundleAction": "{count} Wunsch/Wünsche bündeln",
+        "mergeIntoLine": "Zu Position hinzufügen",
+        "mergeTarget": "Ziel-Position",
+        "wishCount": "{count} Wunsch/Wünsche",
+        "statusBedarf": "Bedarf",
+        "bundleSuccess": "Position erstellt",
+        "mergeSuccess": "Wünsche zur Position hinzugefügt",
+        "deleteTitle": "Position löschen",
+        "deleteMessage": "«{label}» wirklich löschen? Die Wünsche werden wieder freigegeben.",
+        "deleteSuccess": "Position gelöscht",
+        "errorLoad": "Bedarf konnte nicht geladen werden",
+        "errorBundle": "Bündeln fehlgeschlagen",
+        "errorMerge": "Hinzufügen fehlgeschlagen",
+        "errorDelete": "Löschen fehlgeschlagen"
       },
       "offerten": {
         "emptyTitle": "Noch keine Offerten",

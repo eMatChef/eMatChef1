@@ -281,6 +281,37 @@ export function useMaterialJourneyPackContext(options: {
     }),
   )
 
+  function packCrateLabelsForPackItem(pi: ActivityPackItem): string[] {
+    const labels: string[] = []
+    const seen = new Set<string>()
+    for (const c of options.packContainers.value) {
+      const items = options.containerItemsByContainerId.value[c.id] ?? []
+      const hasMaterial = items.some(
+        (row) =>
+          row.material_item_id === pi.materialItemId &&
+          (row.quantity_packed ?? 0) > 0,
+      )
+      if (hasMaterial && !seen.has(c.id)) {
+        seen.add(c.id)
+        labels.push(c.label)
+      }
+    }
+    return labels
+  }
+
+  function qtyInPackCrateForPackItem(pi: ActivityPackItem): number {
+    return packListCtx.value.qtyInContainersForItem(pi)
+  }
+
+  /** Menge, die in die gewählte Packkiste gelegt werden kann (offen oder bereits erledigt, noch nicht in Kiste). */
+  function packCrateAssignQtyForItem(pi: ActivityPackItem): number {
+    const forward = packIssueForwardMax(pi)
+    if (forward > 0) return forward
+    const packed = stageRightQty(pi)
+    const inCrate = qtyInPackCrateForPackItem(pi)
+    return Math.max(0, packed - inCrate)
+  }
+
   return {
     packListCtx,
     packContainerCtx,
@@ -295,5 +326,8 @@ export function useMaterialJourneyPackContext(options: {
     containerStoreUnits,
     containerActionableUnits,
     packQuantityCtx,
+    packCrateLabelsForPackItem,
+    qtyInPackCrateForPackItem,
+    packCrateAssignQtyForItem,
   }
 }

@@ -53,14 +53,14 @@ class MaterialQrExportCollector
         }
 
         $rows = [];
-        /** @var array<string, true> $seenBatchIds */
-        $seenBatchIds = [];
+        /** @var array<string, true> $seenRowKeys material+batch — gleicher QR darf unter Kombi- und Sack-Name vorkommen */
+        $seenRowKeys = [];
 
         foreach ($materials as $material) {
             if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
                 $linked = $material->getLinkedContainerBatch();
                 if ($linked !== null) {
-                    $this->appendBatchRow($rows, $seenBatchIds, $material, $linked);
+                    $this->appendBatchRow($rows, $seenRowKeys, $material, $linked);
                 }
                 continue;
             }
@@ -69,7 +69,7 @@ class MaterialQrExportCollector
                 if ($batch->getStatus() !== 'active') {
                     continue;
                 }
-                $this->appendBatchRow($rows, $seenBatchIds, $material, $batch);
+                $this->appendBatchRow($rows, $seenRowKeys, $material, $batch);
             }
         }
 
@@ -159,8 +159,8 @@ class MaterialQrExportCollector
         ], $categories);
 
         $materialPayload = [];
-        /** @var array<string, true> $seenBatchIds */
-        $seenBatchIds = [];
+        /** @var array<string, true> $seenRowKeys */
+        $seenRowKeys = [];
 
         foreach ($materials as $material) {
             $batches = [];
@@ -168,7 +168,7 @@ class MaterialQrExportCollector
             if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
                 $linked = $material->getLinkedContainerBatch();
                 if ($linked !== null) {
-                    $batchNode = $this->buildBatchTreeNode($material, $linked, $seenBatchIds);
+                    $batchNode = $this->buildBatchTreeNode($material, $linked, $seenRowKeys);
                     if ($batchNode !== null) {
                         $batches[] = $batchNode;
                     }
@@ -178,7 +178,7 @@ class MaterialQrExportCollector
                     if ($batch->getStatus() !== 'active') {
                         continue;
                     }
-                    $batchNode = $this->buildBatchTreeNode($material, $batch, $seenBatchIds);
+                    $batchNode = $this->buildBatchTreeNode($material, $batch, $seenRowKeys);
                     if ($batchNode !== null) {
                         $batches[] = $batchNode;
                     }
@@ -204,17 +204,18 @@ class MaterialQrExportCollector
     }
 
     /**
-     * @param array<string, true> $seenBatchIds
+     * @param array<string, true> $seenRowKeys
      *
      * @return array{id: string, line_label: string}|null
      */
     private function buildBatchTreeNode(
         MaterialItem $displayMaterial,
         MaterialBatch $batch,
-        array &$seenBatchIds,
+        array &$seenRowKeys,
     ): ?array {
         $batchId = (string) $batch->getId();
-        if ($batchId === '' || isset($seenBatchIds[$batchId])) {
+        $rowKey = $this->exportRowKey($displayMaterial, $batchId);
+        if ($batchId === '' || isset($seenRowKeys[$rowKey])) {
             return null;
         }
 
@@ -235,7 +236,7 @@ class MaterialQrExportCollector
             return null;
         }
 
-        $seenBatchIds[$batchId] = true;
+        $seenRowKeys[$rowKey] = true;
 
         return [
             'id' => $batchId,
@@ -245,16 +246,17 @@ class MaterialQrExportCollector
 
     /**
      * @param MaterialQrExportRow[] $rows
-     * @param array<string, true>   $seenBatchIds
+     * @param array<string, true>   $seenRowKeys
      */
     private function appendBatchRow(
         array &$rows,
-        array &$seenBatchIds,
+        array &$seenRowKeys,
         MaterialItem $displayMaterial,
         MaterialBatch $batch,
     ): void {
         $batchId = (string) $batch->getId();
-        if ($batchId === '' || isset($seenBatchIds[$batchId])) {
+        $rowKey = $this->exportRowKey($displayMaterial, $batchId);
+        if ($batchId === '' || isset($seenRowKeys[$rowKey])) {
             return;
         }
 
@@ -275,7 +277,7 @@ class MaterialQrExportCollector
             return;
         }
 
-        $seenBatchIds[$batchId] = true;
+        $seenRowKeys[$rowKey] = true;
         $rows[] = new MaterialQrExportRow(
             materialName: $displayMaterial->getName(),
             lineLabel: $this->batchLineLabel($batch),
@@ -283,6 +285,12 @@ class MaterialQrExportCollector
             publicUrl: $publicUrl,
             batchId: $batchId,
         );
+    }
+
+    /** Pro Anzeige-Material und Charge — Referenz-Kiste kann für mehrere Kombis gelten. */
+    private function exportRowKey(MaterialItem $displayMaterial, string $batchId): string
+    {
+        return (string) $displayMaterial->getId() . ':' . $batchId;
     }
 
     private function shouldSkipBatchPublicCode(MaterialItem $material, MaterialBatch $batch): bool

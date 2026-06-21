@@ -1,23 +1,43 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import MaterialJourneyTaskRow from '@/components/activities/materialJourney/MaterialJourneyTaskRow.vue'
+import MaterialJourneyCrateTaskRow from '@/components/activities/materialJourney/MaterialJourneyCrateTaskRow.vue'
 import type { MaterialJourneyRegalGroup } from '@/components/activities/materialJourneyRegalGroups'
 import type { MaterialJourneyTaskRow as TaskRow } from '@/components/activities/materialJourneyTaskList'
+import type { ActivityPackContainerItem } from '@/api/activityContainers'
 
-defineProps<{
+const props = defineProps<{
   group: MaterialJourneyRegalGroup
   listEditable: boolean
   movingId: string | null
-  packMultiSelect?: boolean
-  isRowSelected?: (row: TaskRow) => boolean
+  packCrateSelectMode?: boolean
+  packTargetCrateId?: string | null
+  containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
-  'toggle-select': [row: TaskRow]
 }>()
 
 const { t } = useI18n()
+
+function crateContentsFor(row: TaskRow): ActivityPackContainerItem[] {
+  if (row.kind !== 'crate' || !row.container) return []
+  const items = props.containerItemsByContainerId?.[row.container.id] ?? []
+  return items.filter((item) => (item.quantity_packed ?? 0) > 0)
+}
+
+function isPackTargetActive(row: TaskRow): boolean {
+  return (
+    Boolean(props.packCrateSelectMode) &&
+    row.kind === 'crate' &&
+    row.container?.id === props.packTargetCrateId
+  )
+}
+
+function useCrateTaskRow(row: TaskRow): boolean {
+  return Boolean(props.packCrateSelectMode) && row.kind === 'crate'
+}
 </script>
 
 <template>
@@ -30,14 +50,21 @@ const { t } = useI18n()
     </header>
     <ul class="material-journey-regal-group__items">
       <li v-for="row in group.rows" :key="row.id">
-        <MaterialJourneyTaskRow
+        <MaterialJourneyCrateTaskRow
+          v-if="useCrateTaskRow(row)"
           :row="row"
           :moving="movingId === row.id"
           :readonly="!listEditable"
-          :selectable="packMultiSelect"
-          :selected="isRowSelected?.(row)"
+          :pack-target-active="isPackTargetActive(row)"
+          :contents="crateContentsFor(row)"
           @activate="emit('activate', row)"
-          @toggle-select="emit('toggle-select', row)"
+        />
+        <MaterialJourneyTaskRow
+          v-else
+          :row="row"
+          :moving="movingId === row.id"
+          :readonly="!listEditable"
+          @activate="emit('activate', row)"
         />
       </li>
     </ul>

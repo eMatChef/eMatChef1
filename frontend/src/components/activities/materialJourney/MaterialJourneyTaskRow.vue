@@ -7,13 +7,10 @@ const props = defineProps<{
   row: MaterialJourneyTaskRow
   moving: boolean
   readonly: boolean
-  selectable?: boolean
-  selected?: boolean
 }>()
 
 const emit = defineEmits<{
   activate: []
-  'toggle-select': []
 }>()
 
 const { t } = useI18n()
@@ -49,23 +46,15 @@ const qtyLabel = computed(() => {
 const isInteractive = computed(() => props.row.canMove || props.row.canOpenSheet)
 
 function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
-  if (badge === 'intent_group') {
-    const n = props.row.intentMemberCount
-    return t('activities.materialJourney.packGroup.badge', { n })
-  }
   if (badge === 'physical_combo') return t('activities.materialJourney.badge.set')
   if (badge === 'crate') return t('activities.materialJourney.badge.crate')
+  if (badge === 'pack_crate') return t('activities.materialJourney.badge.packCrate')
   if (badge === 'consumable') return t('activities.materialJourney.badge.consumable')
   return t('activities.materialJourney.badge.js')
 }
 
 function onActivate(): void {
   emit('activate')
-}
-
-function onCheckboxClick(event: Event): void {
-  event.stopPropagation()
-  emit('toggle-select')
 }
 </script>
 
@@ -78,19 +67,10 @@ function onCheckboxClick(event: Event): void {
       'material-journey-task-row--moving': moving,
       'material-journey-task-row--crate': row.kind === 'crate',
       'material-journey-task-row--combo': row.kind === 'combo',
-      'material-journey-task-row--selected': selected,
     }"
     :disabled="moving"
     @click="onActivate"
   >
-    <input
-      v-if="selectable && row.kind === 'loose'"
-      type="checkbox"
-      class="material-journey-task-row__checkbox"
-      :checked="selected"
-      :aria-label="t('activities.materialJourney.packGroup.selectRow')"
-      @click="onCheckboxClick"
-    />
     <span class="material-journey-task-row__status" :class="statusClass" aria-hidden="true">
       {{ statusIcon }}
     </span>
@@ -103,9 +83,20 @@ function onCheckboxClick(event: Event): void {
         {{ row.subtitle }}
       </span>
       <span v-if="row.badges.length" class="material-journey-task-row__badges">
-        <span v-for="badge in row.badges" :key="badge" class="material-journey-task-row__badge">
+        <span
+          v-for="badge in row.badges"
+          :key="badge"
+          class="material-journey-task-row__badge"
+          :class="{ 'material-journey-task-row__badge--pack-crate': badge === 'pack_crate' }"
+        >
           {{ badgeLabel(badge) }}
         </span>
+      </span>
+      <span
+        v-if="row.packCrateHint"
+        class="material-journey-task-row__crate-flag"
+      >
+        {{ row.packCrateHint }}
       </span>
     </span>
     <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>

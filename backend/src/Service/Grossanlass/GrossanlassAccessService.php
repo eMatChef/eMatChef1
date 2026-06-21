@@ -37,12 +37,43 @@ class GrossanlassAccessService
         return $this->groupAccess->canFullyManageDepartmentGroups($user, $department->getId());
     }
 
+    /** Nur Materialwart (nicht DC): Formular-Builder bearbeiten. */
+    public function canManageGrossanlassForm(User $user, Department $department): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+
+        return $this->isDepartmentMaterialwart($user, $department->getId());
+    }
+
+    /** Nur Materialwart: eingereichte Antworten annehmen. */
+    public function canAcceptWishResponses(User $user, Department $department): bool
+    {
+        return $this->canManageGrossanlassForm($user, $department);
+    }
+
+    private function isDepartmentMaterialwart(User $user, string $departmentId): bool
+    {
+        $membership = $this->entityManager->getRepository(\App\Entity\Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $departmentId,
+        ]);
+        if ($membership === null) {
+            return false;
+        }
+
+        $role = strtolower(trim((string) ($membership->getRole() ?? '')));
+
+        return \in_array($role, ['mw', 'matwart'], true);
+    }
+
     public function canCreateRootRessort(User $user, Department $department): bool
     {
         return $this->canManagePlanung($user, $department);
     }
 
-    public function canCreateChildGroup(User $user, Department $department, Group $parent): bool
+    public function canCreateChildGroup(User $user, Department $department, Group $parent, bool $leaderOnly = false): bool
     {
         if (!$department->isGrossanlass()) {
             return false;
@@ -50,8 +81,36 @@ class GrossanlassAccessService
         if ($this->canManagePlanung($user, $department)) {
             return true;
         }
+        if ($leaderOnly) {
+            return $this->groupAccess->isGroupLeaderOfGroup($user, $parent->getId());
+        }
 
         return $this->userIsMemberInRessortBranch($user, $department->getId(), $parent);
+    }
+
+    public function canSelectRessortForWish(User $user, Department $department, Group $group, bool $leaderOnly = false): bool
+    {
+        return $this->canSelectBauprojektForWish($user, $department, $group, $leaderOnly);
+    }
+
+    public function canSelectBauprojektForWish(User $user, Department $department, Group $group, bool $leaderOnly = false): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+        if ($this->canManagePlanung($user, $department)) {
+            return true;
+        }
+        if (!$leaderOnly) {
+            return $this->userIsMemberInRessortBranch($user, $department->getId(), $group);
+        }
+
+        $rootId = $this->findRootRessortId($group);
+        if ($this->groupAccess->isGroupLeaderOfGroup($user, $rootId)) {
+            return $this->userIsMemberInRessortBranch($user, $department->getId(), $group);
+        }
+
+        return $this->groupAccess->isGroupLeaderOfGroup($user, $group->getId());
     }
 
     public function canEditGroup(User $user, Department $department): bool

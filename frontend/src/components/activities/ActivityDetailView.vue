@@ -562,7 +562,9 @@
               v-if="activity && !useLegacyPackUi"
               :department-id="departmentId"
               :activity-id="activityId"
+              :transitions="transitions"
               embedded
+              @status-changed="onJourneyStatusChanged"
             />
             <ActivityPackListTab
               v-else-if="activity"
@@ -2317,6 +2319,24 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
 
 async function onPackListWorkflowNext(transition: ActivityTransitionRow) {
   await onTransition(transition, { skipPackConfirm: true })
+}
+
+async function onJourneyStatusChanged(): Promise<void> {
+  try {
+    const detail = await getActivity(props.activityId, props.departmentId)
+    activity.value = detail
+    pageHeadStore.setDynamic(
+      t('activities.detail.pageTitleSuffix', { name: detail.name }),
+      `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
+    )
+    headerNotificationsStore.requestRefresh()
+    const trNext = await getActivityTransitions(props.activityId)
+    transitions.value = trNext.transitions || []
+    completionBlockers.value = trNext.completion_blockers ?? null
+    packListReloadToken.value += 1
+  } catch {
+    /* Journey hat bereits lokal aktualisiert — Kopfzeile best-effort nachziehen */
+  }
 }
 
 async function onTransition(

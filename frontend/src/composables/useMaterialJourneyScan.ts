@@ -328,6 +328,11 @@ export function useMaterialJourneyScan(options: {
       ]
       if (options.selectedPackCrateId?.value) {
         parts.push(t('activities.materialJourney.scan.result.shelf_session_crate_hint'))
+      } else if (
+        result.storageLookup?.entity_type === 'storage_rack' ||
+        result.storageLookup?.entity_type === 'storage_address'
+      ) {
+        parts.push(t('activities.materialJourney.scan.result.shelf_session_hint_grouped'))
       } else {
         parts.push(t('activities.materialJourney.scan.result.shelf_session_hint'))
       }

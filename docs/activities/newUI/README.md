@@ -359,7 +359,7 @@ Siehe [devices/concept.md](../../devices/concept.md).
 | **9** | J+S eigener Tab | ✓ |
 | **9b** | Nutzungs-Statistik aus Moves | ✓ |
 | **10** | Nachlieferungs-Wunsch | ✓ |
-| **11** | Kisten-Intent «Zusammen» | ✓ |
+| **11** | ~~Kisten-Intent «Zusammen»~~ | entfernt — Zielkiste §19.2 |
 | **12** | Presence light | ✓ |
 | **13** | **Rollout:** Tab `packs` → Journey; Legacy «Klassische Packliste» | ✓ |
 
@@ -404,7 +404,7 @@ Vollständig in [SPEC §17–§19](./SPEC.md#17-detailregeln-produkt).
 |-------|--------------|
 | **Kopfzeile vs. Journey** | Status in Kopfzeile; Mengen/Pipeline in Packliste |
 | **Material nachbuchen** | MW-Block ab `pack`; Gruppe ab `at_event`; bei `packed`/`at_event` Modal (Wer holt? + Pipeline-Step) |
-| **Kisten** | «In Kiste?» optional beim Regal-Wechsel; Toolbar-Scan; «Zusammen» = Intent-Gruppe → später Kiste ([§19.2](./SPEC.md#192-zusammen-packen-ohne-kiste--datenmodell)) |
+| **Kisten** | «In Kiste?» optional beim Regal-Wechsel; Toolbar-Scan; **Zielkiste** (grün) → Material antippen/scannen ([§19.2](./SPEC.md#192-packkiste-als-ziel--ohne-intent-gruppe)) |
 | **`not_taken`** | Eigene Zeile «Nicht mitgenommen», Gruppe sichtbar |
 | **Einlagern** | Scan/Tap → Regal/Fach → «Verräumt»; Toast + Ja/Nein-Countdown |
 | **`moveback`** | Eine Packstufe zurück |
@@ -457,7 +457,7 @@ Vollständig: [SPEC §20–§22](./SPEC.md#20-integration--erweiterungen).
 | 10 | Nachlieferungs-Wunsch | **spezifiziert** — [SPEC §14](./SPEC.md#14-nachlieferungs-wunsch-ersteller--mw) |
 | 11 | J+S eigener Tab | **tendenz:** ja — [js-material](../js-material/README.md) |
 | 12 | Handoff-Banner | **entschieden** — [SPEC §19.1](./SPEC.md#191-handoff-banner--readonly-matrix) |
-| 13 | «Zusammen packen» ohne Kiste | **entschieden** — Intent-Modell [§19.2](./SPEC.md#192-zusammen-packen-ohne-kiste--datenmodell) |
+| 13 | «Zusammen packen» ohne Kiste | **entfällt** — direkte Zielkiste [§19.2](./SPEC.md#192-packkiste-als-ziel--ohne-intent-gruppe) |
 | 14 | Transport / Touren | **entschieden** (Phase 7+) — [§19.3](./SPEC.md#193-transport--touren--department-fuhrpark) |
 | 15 | Unberechtigter Zugriff | **entschieden** — Audit + Inbox [§19.4](./SPEC.md#194-unberechtigter-zugriff--audit-vs-benachrichtigung) |
 | 16 | Benachrichtigungen | **entschieden** — Inbox + Push, kein SMS [§20.1](./SPEC.md#201-benachrichtigungen) |

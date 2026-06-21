@@ -139,7 +139,7 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods)
+const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))
 

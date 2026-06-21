@@ -97,8 +97,8 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed<SettingsNavItem[]>(() => [
-  { id: 'uebersicht', label: t('grossanlass.beschaffung.tabUebersicht'), mdiIcon: 'mdi-chart-box-outline' },
   { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), mdiIcon: 'mdi-clipboard-list-outline' },
+  { id: 'uebersicht', label: t('grossanlass.beschaffung.tabUebersicht'), mdiIcon: 'mdi-chart-box-outline' },
   { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), mdiIcon: 'mdi-file-document-outline' },
   { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), mdiIcon: 'mdi-cart-outline' },
   { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), mdiIcon: 'mdi-package-check' },
@@ -126,8 +126,11 @@ function navLinkForTab(tabId: string): string {
 function isTabActive(tabId: string): boolean {
   const base = departmentId.value ? `/${departmentId.value}/beschaffung` : ''
   const path = (route.path || '').replace(/\/$/, '')
+  if (tabId === 'bedarf') {
+    return path === `${base}/bedarf` || path === base
+  }
   if (tabId === 'uebersicht') {
-    return path === `${base}/uebersicht` || path === base
+    return path === `${base}/uebersicht`
   }
   return path === `${base}/${tabId}`
 }

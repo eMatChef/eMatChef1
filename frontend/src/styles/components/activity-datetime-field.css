@@ -340,6 +340,10 @@
   --activity-preset-accent: var(--activity-preset-accent-warning);
 }
 
+.activity-date-preset-list__item--grossanlass {
+  --activity-preset-accent: var(--activity-preset-accent-primary);
+}
+
 .activity-date-preset-list__item--other {
   --activity-preset-accent: var(--activity-preset-accent-grey-darken-1);
 }

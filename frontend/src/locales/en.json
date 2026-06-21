@@ -2097,6 +2097,9 @@
         "return": "Return",
         "store": "Store"
       },
+      "stepper": {
+        "progress": "Progress {percent} percent"
+      },
       "filter": {
         "open": "Open",
         "done": "Done",
@@ -2114,13 +2117,16 @@
         "openQty": "{count} open",
         "doneQty": "{count} done",
         "crateLineCount": "{count} line | {count} lines",
-        "crateDone": "Done"
+        "crateDone": "Done",
+        "inPackCrate": "In pack crate «{label}»",
+        "inPackCrates": "In pack crate: {labels}"
       },
       "badge": {
-        "set": "Set",
+        "set": "Physical combo",
         "consumable": "Consumable",
         "js": "J+S",
-        "crate": "Crate"
+        "crate": "Pack crate",
+        "packCrate": "Pack crate"
       },
       "footer": {
         "progress": "{done} of {total} lines done",
@@ -2129,6 +2135,12 @@
         "openHintStore": "{count} still open — tap a row to store all items",
         "openHintTransportOut": "{count} still open — tap a row to book all for outbound transport",
         "openHintTransportBack": "{count} still open — tap a row to book all for return transport"
+      },
+      "packComplete": {
+        "title": "All packed",
+        "description": "{count} lines — the packing list is ready.",
+        "markPackedHint": "The group will be notified that material is ready for pickup.",
+        "noPermission": "The quartermaster marks the activity as «Packed» once everything is packed."
       },
       "readonlyFutureStep": "This step is ahead of the current activity status — view only.",
       "toastViewOnly": "This step is read-only.",
@@ -2222,6 +2234,9 @@
           "shelf_all_done": "Nothing left open at this location for this step.",
           "shelf_not_on_list": "No packing lines at this location on the list.",
           "shelf_session_hint": "Scan material QR — books and checks off the list.",
+          "shelf_session_hint_grouped": "Still open by slot — scan material QR or tap a row.",
+          "shelf_group_slot": "Slot {slot}",
+          "shelf_group_no_slot": "No slot",
           "shelf_session_crate_hint": "Scan material — goes into the active pack crate.",
           "shelf_session_progress": "{done} of {total} done.",
           "storage_not_found": "Storage location not found.",
@@ -3399,8 +3414,9 @@
       "title": "Fixed dates",
       "description": "Manually maintained date ranges (holidays, camp week, closure) for the activity calendar.",
       "descriptionGrossanlass": "Date ranges for this major event — e.g. event week, setup, teardown.",
-      "grossanlassHint": "The event period is created automatically on setup. «Camp week» and «Other» appear as quick selection in planning and material wishes.",
+      "grossanlassHint": "The event period is created automatically as «Major event» on setup. «Major event» and «Other» appear as quick selection in planning and material wishes.",
       "quickSelectHint": "Only «Camp week» and «Other» appear in date quick selection. Other types are calendar markers only.",
+      "quickSelectHintGrossanlass": "Only «Major event» and «Other» appear in date quick selection. Other types are calendar markers only.",
       "noPermission": "Only materials lead and department lead can manage fixed dates.",
       "createTitle": "Add period",
       "editTitle": "Edit period",
@@ -3432,7 +3448,8 @@
         "school_vacation": "School holidays",
         "department_break": "Material office closed",
         "camp_week": "Camp week",
-        "other": "Other"
+        "other": "Other",
+        "grossanlass": "Major event"
       }
     }
   },
@@ -6126,7 +6143,12 @@
         "errorLoad": "Could not load planning rounds",
         "errorSave": "Save failed",
         "errorOpen": "Could not open round",
-        "errorClose": "Could not close round"
+        "errorClose": "Could not close round",
+        "wizardStepRound": "1. Round",
+        "wizardStepForm": "2. Form",
+        "wizardNext": "Continue to form",
+        "wizardBack": "Back",
+        "wizardFinish": "Done"
       }
     },
     "inbox": {
@@ -6145,6 +6167,75 @@
       "noWishesYet": "No material wishes for this sub-project yet.",
       "openRoundsHint": "Planning rounds are open — submit demand there:",
       "errorLoad": "Could not load department overview"
+    },
+    "formBuilder": {
+      "title": "Configure form",
+      "hint": "Department assignment and metadata are fixed. Sub-project is optional. Custom questions under «Custom questions».",
+      "show": "Edit form",
+      "hide": "Hide form editor",
+      "editFormAction": "Edit form",
+      "introLabel": "Introduction (optional)",
+      "introPlaceholder": "Short instructions for department members",
+      "fieldsTitle": "Form fields",
+      "addField": "Add field",
+      "systemFieldsGroup": "System field",
+      "customFieldsGroup": "Custom questions",
+      "noFields": "No fields yet",
+      "noFieldsHint": "Use «Add field» for custom questions. Metadata is always included.",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "dragToSort": "Drag to reorder",
+      "metaHint": "List display only",
+      "systemFieldHint": "Triggers system logic (sub-project assignment)",
+      "ressortWahlHint": "Pick a department from the system tree (incl. sub-departments & sub-projects)",
+      "ressortWahlOptionsTitle": "Department options",
+      "ressortWahlOptionsHint": "Material manager sees all departments. «Only departments I lead» limits to your lead scope incl. children. Department creators see their departments with descendants.",
+      "legacySystemHint": "Legacy system field — recreate as a custom question",
+      "systemFields": "System fields",
+      "customFields": "Custom questions",
+      "fieldLabel": "Label",
+      "enabled": "In form",
+      "required": "Required",
+      "allowNewBauprojekt": "Allow new sub-project",
+      "leaderScope": "Only departments I lead",
+      "bauprojektOptionsTitle": "Sub-project options",
+      "bauprojektOptionsHint": "«Allow new sub-project» lets department leads create a sub-project when submitting. «Only departments I lead» limits selection and parent department to groups where the user is group lead (material manager sees all).",
+      "addCustom": "Add question",
+      "noCustom": "No custom questions yet",
+      "selectOptions": "Choices",
+      "selectOptionsHint": "One option per line",
+      "selectOptionLabel": "Option {n}",
+      "addOption": "Add option",
+      "removeOption": "Remove option",
+      "allowMultiple": "Allow multiple selection (checkboxes)",
+      "selectDisplayHint": "Single select: dropdown. Multiple select: checkboxes.",
+      "autoSaving": "Saving…",
+      "autoSaved": "Saved",
+      "autoSavePending": "Unsaved changes…",
+      "save": "Save form",
+      "saved": "Form saved",
+      "errorLoad": "Could not load form",
+      "errorSave": "Could not save form",
+      "systemKeys": {
+        "bauprojekt": "Sub-project",
+        "ressort_wahl": "Assign department",
+        "wish_kind": "Type",
+        "label": "Label",
+        "quantity": "Quantity",
+        "location": "Location",
+        "period": "Period",
+        "notes": "Notes",
+        "submitter": "Submitted by",
+        "ressort": "Department",
+        "created_at": "Created",
+        "updated_at": "Last updated"
+      },
+      "customTypes": {
+        "text": "Text",
+        "number": "Number",
+        "select": "Select",
+        "date_range": "Date range"
+      }
     },
     "wishes": {
       "formTitle": "Submit material wish",
@@ -6185,6 +6276,46 @@
       "errorSave": "Could not save wish",
       "errorDelete": "Could not delete wish"
     },
+    "roundDetail": {
+      "tabForm": "Form",
+      "tabInput": "Submit",
+      "tabResponses": "Responses",
+      "formHintMw": "Only the material manager can edit the form. Fields apply to all submissions in this round."
+    },
+    "responses": {
+      "search": "Search (label, location, department, name)",
+      "filter": "Filter",
+      "filterStatus": "Status",
+      "filterRessort": "Department",
+      "statusAll": "All",
+      "statusSubmitted": "Submitted",
+      "statusInProcurement": "In procurement",
+      "allRessorts": "All departments",
+      "statTotal": "{count} responses total",
+      "statSubmitted": "{count} submitted",
+      "statInProcurement": "{count} in procurement",
+      "emptyTitle": "No responses yet",
+      "emptyDescription": "Submitted forms appear here — filterable and paginated.",
+      "colRessort": "Department",
+      "colLabel": "Label",
+      "colQty": "Qty",
+      "colLocation": "Location",
+      "colPeriod": "Period",
+      "colSubmitter": "Submitted by",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "editTitle": "Edit response",
+      "updated": "Response saved",
+      "deleted": "Response deleted",
+      "deleteTitle": "Delete response",
+      "deleteMessage": "Really delete this response?",
+      "errorUpdate": "Save failed",
+      "errorDelete": "Delete failed",
+      "errorEditBauprojekt": "Cannot create a new sub-project while editing",
+      "previous": "Previous",
+      "next": "Next",
+      "pageInfo": "Page {page} of {total}"
+    },
     "settings": {
       "meinRessortNav": "My department",
       "meinRessortNavHint": "Sub-projects and material wishes in your department branch"
@@ -6204,7 +6335,30 @@
       },
       "bedarf": {
         "emptyTitle": "No demand yet",
-        "emptyDescription": "Material and infrastructure wishes will be bundled into procurement lines here — after Phase 4 (wish form)."
+        "emptyDescription": "Material and infrastructure wishes will be bundled into procurement lines here.",
+        "intro": "Select accepted wishes from planning rounds on the left and bundle them into procurement lines on the right.",
+        "poolTitle": "Open wishes",
+        "poolHint": "Submitted wishes not yet assigned to a procurement line.",
+        "poolEmptyTitle": "No open wishes",
+        "poolEmptyDescription": "All wishes are bundled — or there are no submissions yet.",
+        "linesTitle": "Procurement lines",
+        "linesHint": "Bundled demand lines — basis for quotes (coming next).",
+        "linesEmptyTitle": "No lines yet",
+        "linesEmptyDescription": "Select wishes on the left and click «Bundle».",
+        "bundleAction": "Bundle {count} wish(es)",
+        "mergeIntoLine": "Add to line",
+        "mergeTarget": "Target line",
+        "wishCount": "{count} wish(es)",
+        "statusBedarf": "Demand",
+        "bundleSuccess": "Line created",
+        "mergeSuccess": "Wishes added to line",
+        "deleteTitle": "Delete line",
+        "deleteMessage": "Really delete «{label}»? Wishes will be released back to the pool.",
+        "deleteSuccess": "Line deleted",
+        "errorLoad": "Could not load demand overview",
+        "errorBundle": "Bundling failed",
+        "errorMerge": "Add to line failed",
+        "errorDelete": "Delete failed"
       },
       "offerten": {
         "emptyTitle": "No quotes yet",

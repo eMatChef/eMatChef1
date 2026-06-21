@@ -17,15 +17,18 @@ import {
   shouldIncludePackItemOnStageLeft,
   shouldShowContainerOnRightMirror,
   shouldShowPackContainerInWarehouseVisibleList,
+  shouldShowPackContainerOnConfirmedPackedRight,
   type PackWorkflowContainerContext,
   type PackWorkflowListContext,
 } from '@/components/activities/packWorkflowRules'
 import type { PackStage } from '@/components/activities/packStageQuantities'
 import { getStageRightQty } from '@/components/activities/packStageQuantities'
+import { comboComponentsForJourneyContainer } from '@/composables/useMaterialJourneyCrateSections'
+import type { ComboComponent } from '@/api/materials'
 
 export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'combo'
 
-export type MaterialJourneyTaskBadge = 'physical_combo' | 'consumable' | 'js' | 'crate' | 'intent_group'
+export type MaterialJourneyTaskBadge = 'physical_combo' | 'consumable' | 'js' | 'crate' | 'pack_crate'
 
 export type MaterialJourneyTaskRow = {
   id: string
@@ -45,8 +48,7 @@ export type MaterialJourneyTaskRow = {
   categoryName: string | null
   shelfLabel: string
   shelfKey: string
-  intentId: string | null
-  intentMemberCount: number
+  packCrateHint: string | null
 }
 
 export type MaterialJourneyFilterTab = 'open' | 'done' | 'byShelf'
@@ -68,15 +70,37 @@ export type MaterialJourneyTaskBuildContext = {
     container: ActivityPackContainer,
     shellPackItem?: ActivityPackItem,
   ) => number
-  intentMemberCount?: (intentId: string) => number
+  qtyInPackCrateForItem?: (pi: ActivityPackItem) => number
+  packCrateLabelsForItem?: (pi: ActivityPackItem) => string[]
+  formatPackCrateHint?: (labels: string[]) => string
+  comboComponentsByMaterialId?: Record<string, ComboComponent[]>
+  comboMaterialIdByContainerId?: Record<string, string>
+  /** Regal/Fach in Zeilen-Untertitel (false ab Transport hin bis vor Retour). */
+  showShelfLocation?: boolean
 }
 
 function taskBadges(pi: ActivityPackItem, ctx: MaterialJourneyTaskBuildContext): MaterialJourneyTaskBadge[] {
   const badges: MaterialJourneyTaskBadge[] = []
-  if (pi.intentId) badges.push('intent_group')
   if (pi.isConsumable) badges.push('consumable')
   if (pi.isJsMaterial) badges.push('js')
+  const labels = ctx.packCrateLabelsForItem?.(pi) ?? []
+  if ((ctx.qtyInPackCrateForItem?.(pi) ?? 0) > 0 && labels.length === 0) {
+    badges.push('pack_crate')
+  }
   return badges
+}
+
+function packCrateHintForItem(
+  pi: ActivityPackItem,
+  ctx: MaterialJourneyTaskBuildContext,
+  isDone: boolean,
+  doneQty: number,
+): string | null {
+  const labels = ctx.packCrateLabelsForItem?.(pi) ?? []
+  if (labels.length === 0 || !ctx.formatPackCrateHint) return null
+  const inCrate = (ctx.qtyInPackCrateForItem?.(pi) ?? 0) > 0
+  if (isDone || inCrate || doneQty > 0) return ctx.formatPackCrateHint(labels)
+  return null
 }
 
 function buildSubtitleParts(parts: string[]): string | null {
@@ -97,15 +121,15 @@ export function buildMaterialJourneyLooseTask(
   const canMove = ctx.canMoveItem(pi) && maxForwardQty > 0 && isOpen
 
   const subtitleParts: string[] = []
-  const rack = packRackLabel(pi)
-  if (rack) subtitleParts.push(rack)
-  if (pi.storageSlotName?.trim()) subtitleParts.push(pi.storageSlotName.trim())
+  if (ctx.showShelfLocation !== false) {
+    const rack = packRackLabel(pi)
+    if (rack) subtitleParts.push(rack)
+    if (pi.storageSlotName?.trim()) subtitleParts.push(pi.storageSlotName.trim())
+  }
   if (openQty > 0) subtitleParts.push(String(openQty))
 
   const shelfLabel = materialJourneyShelfLabel(pi)
   const shelfKey = materialJourneyShelfKey(shelfLabel)
-  const intentId = pi.intentId
-  const intentMemberCount = intentId ? (ctx.intentMemberCount?.(intentId) ?? 0) : 0
 
   return {
     id: pi.id,
@@ -124,8 +148,7 @@ export function buildMaterialJourneyLooseTask(
     categoryName: pi.categoryName?.trim() || null,
     shelfLabel,
     shelfKey,
-    intentId,
-    intentMemberCount,
+    packCrateHint: packCrateHintForItem(pi, ctx, isDone, doneQty),
   }
 }
 
@@ -149,20 +172,36 @@ export function buildMaterialJourneyCrateTask(
   ctx: MaterialJourneyTaskBuildContext,
 ): MaterialJourneyTaskRow {
   const issueable = ctx.containerActionableUnits(container.id)
-  const isOpen = shouldShowPackContainerInWarehouseVisibleList(
-    container,
-    ctx.containerCtx,
-    ctx.stageLeftItems,
-  )
+  const onConfirmedPackedRight =
+    ctx.packStage === 'confirmed_packed' &&
+    shouldShowPackContainerOnConfirmedPackedRight(
+      container,
+      ctx.containerCtx,
+      ctx.stageLeftItems,
+    )
+  const isOpen = onConfirmedPackedRight
+    ? false
+    : shouldShowPackContainerInWarehouseVisibleList(
+        container,
+        ctx.containerCtx,
+        ctx.stageLeftItems,
+      )
   const isDone =
-    !isOpen &&
-    shouldShowContainerOnRightMirror(container.id, ctx.containerCtx)
+    onConfirmedPackedRight ||
+    (!isOpen && shouldShowContainerOnRightMirror(container.id, ctx.containerCtx))
   const openQty = isOpen ? Math.max(1, issueable) : 0
   const doneQty = isDone ? 1 : 0
   const shellPackItem = ctx.shellPackItemForContainer(container.id)
-  const lineCount = ctx.cratePeekLineCount
+  let lineCount = ctx.cratePeekLineCount
     ? ctx.cratePeekLineCount(container, shellPackItem)
     : (ctx.containerCtx.containerItemsForContainer?.(container.id) ?? []).length
+  if (lineCount < 1) {
+    const combo = comboComponentsForJourneyContainer(container, shellPackItem, {
+      comboComponentsByMaterialId: ctx.comboComponentsByMaterialId ?? {},
+      comboMaterialIdByContainerId: ctx.comboMaterialIdByContainerId,
+    })
+    if (combo.length > 0) lineCount = combo.length
+  }
   const subtitleParts: string[] = []
   if (lineCount > 0) {
     subtitleParts.push(ctx.formatCrateLineCount(lineCount))
@@ -189,12 +228,11 @@ export function buildMaterialJourneyCrateTask(
     isDone,
     badges: ['crate'],
     canMove: false,
-    canOpenSheet: ctx.canOpenSheet && isOpen && issueable > 0,
+    canOpenSheet: ctx.canOpenSheet && isOpen,
     categoryName: null,
     shelfLabel,
     shelfKey,
-    intentId: null,
-    intentMemberCount: 0,
+    packCrateHint: null,
   }
 }
 

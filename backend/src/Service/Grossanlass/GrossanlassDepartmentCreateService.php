@@ -242,7 +242,7 @@ class GrossanlassDepartmentCreateService
         $period = new DepartmentCalendarPeriod();
         $period->setId(IdGenerator::generate());
         $period->setDepartmentId($department->getId());
-        $period->setLabel(DepartmentCalendarPeriod::LABEL_OTHER);
+        $period->setLabel(DepartmentCalendarPeriod::LABEL_GROSSANLASS);
         $period->setName($department->getName());
         $period->setStartDate((clone $plannedStart)->setTime(0, 0, 0));
         $period->setEndDate((clone $plannedEnd)->setTime(0, 0, 0));

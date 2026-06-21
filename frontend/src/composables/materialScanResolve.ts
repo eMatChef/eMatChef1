@@ -14,6 +14,7 @@ import type { PackWorkflowProfile } from '@/components/activities/packWorkflowPr
 import { shouldIncludePackItemOnStageLeft } from '@/components/activities/packWorkflowRules'
 import {
   packItemMatchesStorageLookup,
+  packItemShelfLineLocationLabel,
   type StorageLookupResult,
 } from '@/utils/packStorageLocationMatch'
 
@@ -43,6 +44,8 @@ export type MaterialScanShelfLine = {
   moveQty: number
   doneQty: number
   totalQty: number
+  /** Fach oder «Regal · Fach» — abhängig vom Scan-Typ */
+  locationLabel: string
 }
 
 export type MaterialScanResolveResult = {
@@ -416,14 +419,86 @@ export function resolveMaterialBatchScan(
   }
 }
 
-function sortShelfLinesByName(lines: MaterialScanShelfLine[]): MaterialScanShelfLine[] {
-  return [...lines].sort((a, b) =>
-    packMaterialDisplayName(a.packItem).localeCompare(
+/** Inline-Aktionen in der Regal-Karte (Zeile antippen, ohne erneuten QR-Scan). */
+export function resolvePackItemShelfAction(
+  pi: ActivityPackItem,
+  ctx: MaterialScanResolveContext,
+): MaterialScanResolveResult {
+  const materialName = packMaterialDisplayName(pi)
+
+  if (isNotReadyForJourneyStep(pi, ctx.journeyStep, ctx.listCtx.profile)) {
+    return {
+      type: 'not_ready',
+      tone: 'muted',
+      title: materialName,
+      detail: 'not_ready',
+      materialName,
+      packItem: pi,
+      canAct: false,
+    }
+  }
+
+  const isOpen = shouldIncludePackItemOnStageLeft(pi, ctx.listCtx)
+  const doneQty = ctx.listCtx.getStageRightQty(pi)
+
+  if (!isOpen && doneQty > 0) {
+    return {
+      type: 'already_done',
+      tone: 'success',
+      title: materialName,
+      detail: 'already_done',
+      materialName,
+      packItem: pi,
+      canAct: false,
+    }
+  }
+
+  if (isPhysicalComboPackItem(pi)) {
+    return {
+      type: 'combo_check',
+      tone: isOpen ? 'warning' : 'muted',
+      title: materialName,
+      detail: isOpen ? 'combo_open' : 'already_done',
+      materialName,
+      packItem: pi,
+      canAct: isOpen && ctx.listEditable,
+    }
+  }
+
+  if (isOpen) {
+    return {
+      type: 'loose_ready',
+      tone: 'success',
+      title: materialName,
+      detail: 'loose_ready',
+      materialName,
+      packItem: pi,
+      canAct: ctx.listEditable,
+    }
+  }
+
+  return {
+    type: 'not_on_list',
+    tone: 'error',
+    title: materialName,
+    detail: 'not_on_list',
+    materialName,
+    canAct: false,
+  }
+}
+
+function sortShelfLines(lines: MaterialScanShelfLine[]): MaterialScanShelfLine[] {
+  return [...lines].sort((a, b) => {
+    const byLocation = a.locationLabel.localeCompare(b.locationLabel, undefined, {
+      sensitivity: 'base',
+    })
+    if (byLocation !== 0) return byLocation
+    return packMaterialDisplayName(a.packItem).localeCompare(
       packMaterialDisplayName(b.packItem),
       undefined,
       { sensitivity: 'base' },
-    ),
-  )
+    )
+  })
 }
 
 export function resolveStorageLocationScan(
@@ -443,7 +518,13 @@ export function resolveStorageLocationScan(
     const moveQty = Math.max(0, ctx.listCtx.effectiveStageLeftQty(pi))
     const doneQty = Math.max(0, ctx.listCtx.getStageRightQty(pi))
     const totalQty = moveQty + doneQty
-    const line: MaterialScanShelfLine = { packItem: pi, moveQty, doneQty, totalQty }
+    const line: MaterialScanShelfLine = {
+      packItem: pi,
+      moveQty,
+      doneQty,
+      totalQty,
+      locationLabel: packItemShelfLineLocationLabel(pi, lookup),
+    }
     const onStage = shouldIncludePackItemOnStageLeft(pi, ctx.listCtx) || doneQty > 0
 
     if (onStage) shelfTotalCount += 1
@@ -478,7 +559,7 @@ export function resolveStorageLocationScan(
       ...base,
       tone: 'success',
       detail: 'shelf_all_done',
-      shelfLines: sortShelfLinesByName(doneLines),
+      shelfLines: sortShelfLines(doneLines),
     }
   }
 
@@ -486,7 +567,7 @@ export function resolveStorageLocationScan(
     ...base,
     tone: 'info',
     detail: 'shelf_open',
-    shelfLines: sortShelfLinesByName(openLines),
+    shelfLines: sortShelfLines(openLines),
   }
 }
 

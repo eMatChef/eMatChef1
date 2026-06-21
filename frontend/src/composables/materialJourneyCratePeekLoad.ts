@@ -1,7 +1,7 @@
 import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import { resolvePackContainerWarehouseBatchId } from '@/components/activities/packShellCrateHelpers'
-import { getComboComponents, type ComboComponent } from '@/api/materials'
+import { getComboComponents, getLinkedPhysicalComboForContainerBatch, type ComboComponent } from '@/api/materials'
 import { getContainerBatchContents } from '@/api/storageLocations'
 import type { RackContentsItem } from '@/api/storageLocations'
 
@@ -9,13 +9,25 @@ export type MaterialJourneyCratePeekMaps = {
   containerWarehouseTemplateByContainerId: Record<string, Set<string>>
   containerWarehouseContentsByContainerId: Record<string, RackContentsItem[]>
   comboComponentsByMaterialId: Record<string, ComboComponent[]>
+  /** Phys.-Kombi-Material-ID pro Pack-Behälter (aus Charge / Shell aufgelöst). */
+  comboMaterialIdByContainerId: Record<string, string>
 }
 
 export const emptyMaterialJourneyCratePeekMaps = (): MaterialJourneyCratePeekMaps => ({
   containerWarehouseTemplateByContainerId: {},
   containerWarehouseContentsByContainerId: {},
   comboComponentsByMaterialId: {},
+  comboMaterialIdByContainerId: {},
 })
+
+function physicalComboPackItemForMaterialId(
+  materialId: string,
+  packItems: ActivityPackItem[],
+): ActivityPackItem | undefined {
+  const mid = materialId.trim()
+  if (!mid) return undefined
+  return packItems.find((p) => p.materialItemId === mid && p.materialType === 'physical_combo')
+}
 
 export async function loadMaterialJourneyCratePeekData(
   packContainers: ActivityPackContainer[],
@@ -45,20 +57,35 @@ export async function loadMaterialJourneyCratePeekData(
     }),
   )
 
+  const linkedComboIdByBatchId: Record<string, string> = {}
+  await Promise.all(
+    packContainers.map(async (c) => {
+      const batchId = resolvePackContainerWarehouseBatchId(c, packItems, packContainers)
+      if (!batchId || linkedComboIdByBatchId[batchId]) return
+      try {
+        const linked = await getLinkedPhysicalComboForContainerBatch(batchId)
+        if (linked?.id) linkedComboIdByBatchId[batchId] = linked.id
+      } catch {
+        /* optional */
+      }
+    }),
+  )
+
   const comboMids = new Set<string>()
   for (const pi of packItems) {
     if (pi.materialType === 'physical_combo') comboMids.add(pi.materialItemId)
   }
   for (const c of packContainers) {
-    const mid = (c.container_material_item_id ?? '').trim()
-    if (mid) {
-      // Backend setzt Shell-Material auch ohne Pack-Zeile — BOM trotzdem laden
-      comboMids.add(mid)
+    const containerMid = (c.container_material_item_id ?? '').trim()
+    if (physicalComboPackItemForMaterialId(containerMid, packItems)) {
+      comboMids.add(containerMid)
     }
-    const bid = resolvePackContainerWarehouseBatchId(c, packItems, packContainers)
-    if (bid) {
-      const shell = packItems.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
+    const batchId = resolvePackContainerWarehouseBatchId(c, packItems, packContainers)
+    if (batchId) {
+      const shell = packItems.find((p) => (p.linkedContainerBatchId ?? '').trim() === batchId)
       if (shell?.materialType === 'physical_combo') comboMids.add(shell.materialItemId)
+      const linkedId = linkedComboIdByBatchId[batchId]
+      if (linkedId) comboMids.add(linkedId)
     }
   }
 
@@ -73,9 +100,32 @@ export async function loadMaterialJourneyCratePeekData(
     }),
   )
 
+  const comboMaterialIdByContainerId: Record<string, string> = {}
+  for (const c of packContainers) {
+    const candidates: string[] = []
+    const batchId = resolvePackContainerWarehouseBatchId(c, packItems, packContainers)
+    if (batchId) {
+      const shell = packItems.find((p) => (p.linkedContainerBatchId ?? '').trim() === batchId)
+      if (shell?.materialType === 'physical_combo') candidates.push(shell.materialItemId)
+      const linkedId = linkedComboIdByBatchId[batchId]
+      if (linkedId) candidates.push(linkedId)
+    }
+    const containerMid = (c.container_material_item_id ?? '').trim()
+    if (physicalComboPackItemForMaterialId(containerMid, packItems)) {
+      candidates.push(containerMid)
+    }
+    for (const mid of candidates) {
+      if ((comboNext[mid] ?? []).length > 0) {
+        comboMaterialIdByContainerId[c.id] = mid
+        break
+      }
+    }
+  }
+
   return {
     containerWarehouseTemplateByContainerId: templateNext,
     containerWarehouseContentsByContainerId: contentsNext,
     comboComponentsByMaterialId: comboNext,
+    comboMaterialIdByContainerId,
   }
 }

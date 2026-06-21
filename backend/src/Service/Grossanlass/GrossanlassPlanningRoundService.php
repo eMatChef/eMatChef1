@@ -19,6 +19,7 @@ class GrossanlassPlanningRoundService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private InboxMessageService $inboxMessages,
+        private GrossanlassRoundFormService $formService,
     ) {}
 
     /**
@@ -78,6 +79,7 @@ class GrossanlassPlanningRoundService
         $round->setCreatedByUser($user);
 
         $this->entityManager->persist($round);
+        $this->formService->createDefaultFormForRound($round);
         $this->entityManager->flush();
 
         return $this->toArray($round);
