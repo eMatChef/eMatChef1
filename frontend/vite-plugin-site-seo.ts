@@ -1,7 +1,5 @@
 import type { Plugin } from 'vite'
 import { loadEnv } from 'vite'
-import { writeFileSync } from 'fs'
-import { resolve } from 'path'
 
 const DEFAULT_DESCRIPTION =
   'eMatChef – Materialverwaltung für Vermietungen und Abteilungen: Bestände, Lager, Buchungen und Aktivitäten im Browser.'
@@ -113,13 +111,11 @@ function headInjection(env: Record<string, string>, marketing: boolean, indexabl
 
 export function siteSeoPlugin(): Plugin {
   let env: Record<string, string> = {}
-  let outDir = 'dist'
 
   return {
     name: 'ematchef-site-seo',
-    config(config, { mode }) {
+    config(_config, { mode }) {
       env = loadEnv(mode, process.cwd(), '')
-      outDir = config.build?.outDir ?? 'dist'
     },
     transformIndexHtml(html) {
       const marketing = isMarketingVariant(env)
@@ -130,15 +126,26 @@ export function siteSeoPlugin(): Plugin {
       }
       return html
     },
-    closeBundle() {
+    generateBundle() {
       const marketing = isMarketingVariant(env)
       const indexable = shouldIndexMarketing(env)
       const origin = siteOrigin(env)
-      const root = resolve(process.cwd(), outDir)
-      writeFileSync(resolve(root, 'robots.txt'), robotsTxt(origin, marketing, indexable), 'utf8')
+      this.emitFile({
+        type: 'asset',
+        fileName: 'robots.txt',
+        source: robotsTxt(origin, marketing, indexable),
+      })
       if (marketing && indexable) {
-        writeFileSync(resolve(root, 'llms.txt'), llmsTxt(origin), 'utf8')
-        writeFileSync(resolve(root, 'sitemap.xml'), staticSitemapXml(origin), 'utf8')
+        this.emitFile({
+          type: 'asset',
+          fileName: 'llms.txt',
+          source: llmsTxt(origin),
+        })
+        this.emitFile({
+          type: 'asset',
+          fileName: 'sitemap.xml',
+          source: staticSitemapXml(origin),
+        })
       }
     },
     configureServer(server) {
