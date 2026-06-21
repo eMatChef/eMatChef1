@@ -4,6 +4,7 @@ export type GrossanlassWishKind = 'material' | 'fahrzeug' | 'beides'
 
 export interface CreateGrossanlassWishPayload {
   group_id?: string
+  ressort_group_id?: string
   new_bauprojekt?: { name: string; parent_id: string }
   wish_kind?: GrossanlassWishKind
   label?: string

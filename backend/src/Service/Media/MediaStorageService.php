@@ -19,6 +19,7 @@ class MediaStorageService
     public const CONTEXT_ACCOUNTING_BOOKING = 'accounting_booking';
     public const CONTEXT_ACCOUNTING_FOLLOW_UP = 'accounting_follow_up';
     public const CONTEXT_ACTIVITY_JS_ORDER = 'activity_js_order';
+    public const CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE = 'grossanlass_procurement_quote';
 
     /** @var array<string, string> context => uploads subfolder */
     private const CONTEXT_DIRS = [
@@ -28,6 +29,7 @@ class MediaStorageService
         self::CONTEXT_ACCOUNTING_BOOKING => 'accounting',
         self::CONTEXT_ACCOUNTING_FOLLOW_UP => 'accounting-followup',
         self::CONTEXT_ACTIVITY_JS_ORDER => 'activity-js-order',
+        self::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => 'grossanlass-procurement-quote',
     ];
 
     private string $uploadsBaseDir;

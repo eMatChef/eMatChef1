@@ -769,7 +769,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'uebersicht',
             name: 'GrossanlassBeschaffungUebersicht',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungUebersichtView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],
@@ -791,7 +791,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'offerten',
             name: 'GrossanlassBeschaffungOfferten',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungOffertenView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],
@@ -802,7 +802,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'bestellungen',
             name: 'GrossanlassBeschaffungBestellungen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungBestellungenView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],
@@ -813,7 +813,7 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'erhalten',
             name: 'GrossanlassBeschaffungErhalten',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungTab.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungErhaltenView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],

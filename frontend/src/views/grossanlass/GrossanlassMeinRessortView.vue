@@ -12,7 +12,7 @@
     </div>
 
     <EEmptyState
-      v-else-if="myGroups.length === 0"
+      v-else-if="myGroupsTree.length === 0"
       variant="default"
       icon="mdi-home-group"
       :title="t('grossanlass.meinRessort.emptyTitle')"
@@ -20,8 +20,14 @@
     />
 
     <div v-else class="mein-ressort-content">
-      <div v-for="group in myGroups" :key="group.id" class="ressort-card">
-        <div class="ressort-card__head">
+      <div
+        v-for="group in myGroupsTree"
+        :key="group.id"
+        class="ressort-card"
+        :class="{ 'is-child': group._level > 0 }"
+      >
+        <div class="ressort-card__head" :style="{ paddingLeft: group._level * 24 + 'px' }">
+          <span v-if="group._level > 0" class="indent-icon">↳</span>
           <v-icon :icon="nodeIcon(group.node_type)" size="20" />
           <div>
             <h3>{{ group.name }}</h3>
@@ -58,6 +64,9 @@ import { getGrossanlassGroups, type GrossanlassGroup, type GrossanlassNodeType }
 import { getMyRessortWishes, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassPlanningRounds, type GrossanlassPlanningRound } from '@/api/grossanlassRounds'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
+import {
+  flattenGrossanlassGroupsFiltered,
+} from '@/utils/grossanlassGroupHierarchy'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,8 +83,8 @@ const error = ref('')
 const groupsRef = computed(() => groups.value)
 const { isMemberInRessortBranch } = useGrossanlassRessortScope(groupsRef)
 
-const myGroups = computed(() =>
-  groups.value.filter((g) => isMemberInRessortBranch(g)).sort((a, b) => a.level - b.level || a.name.localeCompare(b.name)),
+const myGroupsTree = computed(() =>
+  flattenGrossanlassGroupsFiltered(groups.value, (g) => isMemberInRessortBranch(g)),
 )
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
@@ -141,6 +150,16 @@ onMounted(load)
   align-items: flex-start;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.ressort-card.is-child {
+  background: #fafbfc;
+}
+
+.indent-icon {
+  color: #94a3b8;
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .ressort-card__head h3 {

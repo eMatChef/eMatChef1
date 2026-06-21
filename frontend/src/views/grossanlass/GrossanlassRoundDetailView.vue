@@ -94,7 +94,7 @@ import {
   getGrossanlassRoundWishes,
   type GrossanlassWishListResult,
 } from '@/api/grossanlassWishes'
-import { getGrossanlassRoundForm, type GrossanlassRoundForm } from '@/api/grossanlassRoundForm'
+import { getGrossanlassRoundForm, orderFormFieldsForRound, type GrossanlassRoundForm } from '@/api/grossanlassRoundForm'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 
@@ -175,7 +175,8 @@ async function loadPendingCount() {
 async function loadForm() {
   if (!departmentId.value || !roundId.value) return
   try {
-    roundForm.value = await getGrossanlassRoundForm(departmentId.value, roundId.value)
+    const form = await getGrossanlassRoundForm(departmentId.value, roundId.value)
+    roundForm.value = { ...form, fields: orderFormFieldsForRound(form.fields) }
   } catch {
     roundForm.value = null
   }
@@ -215,7 +216,7 @@ async function submitWish() {
       toast.error(t('grossanlass.wishes.errorBauprojekt'))
       return
     }
-  } else if (!payload.group_id) {
+  } else if (!payload.group_id && !payload.ressort_group_id) {
     toast.error(t('grossanlass.wishes.errorGroup'))
     return
   }

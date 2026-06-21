@@ -40,6 +40,8 @@ const props = defineProps<{
   deleting?: boolean
   applyUpdatedItem: (item: ActivityPackItem) => void
   packMoveQtyCap?: (item: ActivityPackItem) => number
+  /** Kistencheck mit Fokus «lose mitnehmen» (Transport … Retour). */
+  focusLooseIssue?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -53,6 +55,7 @@ const { sheetFullscreen, sheetMaxWidth } = useMaterialJourneySheetDialog()
 const submitting = ref(false)
 
 const usesShellCheck = computed(() => {
+  if (props.focusLooseIssue) return false
   const pi = props.shellPackItem
   if (!pi) return false
   if (pi.materialType === 'physical_combo') return true
@@ -93,9 +96,9 @@ const {
 })
 
 watch(
-  () => [props.open, props.container?.id, props.shellPackItem?.id, props.issueableUnits] as const,
-  async ([isOpen, containerId, shellId, units]) => {
-    if (!isOpen || !usesShellCheck.value || !props.container || !props.shellPackItem || !containerId || !shellId) {
+  () => [props.open, props.container?.id, props.shellPackItem?.id, props.issueableUnits, props.focusLooseIssue] as const,
+  async ([isOpen, containerId, shellId, units, looseFocus]) => {
+    if (looseFocus || !isOpen || !usesShellCheck.value || !props.container || !props.shellPackItem || !containerId || !shellId) {
       closeShellForward()
       return
     }
@@ -253,6 +256,8 @@ async function onShellSubmit(payload: Parameters<typeof submitShellForward>[0]):
           :parent-expanded="true"
           :use-reality-view="false"
           :show-template-toggle="false"
+          :loose-issue-container-id="focusLooseIssue ? container?.id ?? null : null"
+          :loose-issue-crate-label="focusLooseIssue ? container?.label ?? null : null"
         />
       </div>
 

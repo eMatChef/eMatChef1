@@ -27,6 +27,9 @@ class ActivityGrossanlassProcurementLineWish
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
+    #[ORM\Column(name: 'received_quantity', type: 'integer')]
+    private int $receivedQuantity = 0;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -71,5 +74,17 @@ class ActivityGrossanlassProcurementLineWish
     public function getCreatedAt(): \DateTime
     {
         return $this->createdAt;
+    }
+
+    public function getReceivedQuantity(): int
+    {
+        return $this->receivedQuantity;
+    }
+
+    public function setReceivedQuantity(int $receivedQuantity): self
+    {
+        $this->receivedQuantity = max(0, $receivedQuantity);
+
+        return $this;
     }
 }

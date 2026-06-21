@@ -317,26 +317,51 @@
             hide-details
           />
           <div class="add-user-groups-block">
-            <p class="add-user-groups-block__label">{{ t('settings.departmentUsers.labelGroups') }}</p>
-            <p class="groups-hint">{{ t('settings.departmentUsers.groupsHint') }}</p>
+            <p class="add-user-groups-block__label">{{ addUserUnitLabels.label }}</p>
+            <p class="groups-hint">{{ addUserUnitLabels.hint }}</p>
             <div v-if="isLoadingGroups" class="loading-inline">
               <div class="spinner-sm"></div>
-              <span>{{ t('settings.departmentUsers.loadingGroups') }}</span>
+              <span>{{ addUserUnitLabels.loading }}</span>
             </div>
             <p v-else-if="hierarchicalGroupsForAdd.length === 0" class="groups-empty">
-              {{ t('settings.departmentUsers.noGroups') }}
+              {{ addUserUnitLabels.empty }}
             </p>
             <div v-else class="group-picker">
-              <ECheckbox
+              <div
                 v-for="group in hierarchicalGroupsForAdd"
                 :key="group.id"
                 class="group-picker-item"
-                :class="`group-picker-item--level-${group._level}`"
-                :model-value="selectedGroupIds.includes(group.id)"
-                :label="group.name"
-                hide-details
-                @update:model-value="(checked: boolean | null) => setGroupSelected(group.id, !!checked)"
-              />
+                :class="[
+                  `group-picker-item--level-${group._level}`,
+                  isGrossanlassBauprojekt(group) ? 'group-picker-item--bauprojekt' : '',
+                ]"
+              >
+                <ECheckbox
+                  v-if="!isGrossanlassDept"
+                  :model-value="selectedGroupIds.includes(group.id)"
+                  :label="group.name"
+                  hide-details
+                  @update:model-value="(checked: boolean | null) => setGroupSelected(group.id, !!checked)"
+                />
+                <v-checkbox
+                  v-else
+                  :model-value="selectedGroupIds.includes(group.id)"
+                  hide-details
+                  density="compact"
+                  color="primary"
+                  class="group-picker-checkbox"
+                  @update:model-value="(checked: boolean | null) => setGroupSelected(group.id, !!checked)"
+                >
+                  <template #label>
+                    <span class="group-picker-row">
+                      <span class="group-picker-name">{{ group.name }}</span>
+                      <span v-if="isGrossanlassBauprojekt(group)" class="kind-badge kind-badge--bauprojekt">
+                        {{ t('grossanlass.planung.ressorts.kindBauprojekt') }}
+                      </span>
+                    </span>
+                  </template>
+                </v-checkbox>
+              </div>
             </div>
           </div>
         </template>
@@ -432,6 +457,13 @@ import {
   type AvailableUser
 } from '@/api/departments'
 import { getGroups, type Group } from '@/api/groups'
+import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import {
+  flattenGrossanlassGroupsWithLevel,
+  grossanlassGroupSelectTitle,
+  isBauprojektGroup,
+  type GrossanlassGroupWithLevel,
+} from '@/utils/grossanlassGroupHierarchy'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 
 const route = useRoute()
@@ -440,6 +472,24 @@ const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+const addUserUnitLabels = computed(() => {
+  if (isGrossanlassDept.value) {
+    return {
+      label: t('settings.departmentUsers.labelRessorts'),
+      hint: t('settings.departmentUsers.ressortsHint'),
+      loading: t('settings.departmentUsers.loadingRessorts'),
+      empty: t('settings.departmentUsers.noRessorts'),
+    }
+  }
+  return {
+    label: t('settings.departmentUsers.labelGroups'),
+    hint: t('settings.departmentUsers.groupsHint'),
+    loading: t('settings.departmentUsers.loadingGroups'),
+    empty: t('settings.departmentUsers.noGroups'),
+  }
+})
 
 // === Department Rollen-Konfiguration ===
 
@@ -549,7 +599,7 @@ const userSearchQuery = ref('')
 const selectedAvailableUser = ref<AvailableUser | null>(null)
 let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
 
-const departmentGroups = ref<Group[]>([])
+const departmentGroups = ref<(Group | GrossanlassGroup)[]>([])
 const isLoadingGroups = ref(false)
 const selectedGroupIds = ref<string[]>([])
 const inviteEmail = ref('')
@@ -585,7 +635,11 @@ function isInviteOpen(invite: PendingInvite): boolean {
 }
 
 const hierarchicalGroupsForAdd = computed(() => {
-  const all = departmentGroups.value
+  if (isGrossanlassDept.value) {
+    return flattenGrossanlassGroupsWithLevel(departmentGroups.value as GrossanlassGroup[])
+  }
+
+  const all = departmentGroups.value as Group[]
   const rootGroups = all.filter((g) => !g.parent_id)
 
   function flatten(nodes: Group[], level: number): (Group & { _level: number })[] {
@@ -602,6 +656,10 @@ const hierarchicalGroupsForAdd = computed(() => {
 
   return flatten(rootGroups, 0)
 })
+
+function isGrossanlassBauprojekt(group: Group & { _level: number } | GrossanlassGroupWithLevel): boolean {
+  return isGrossanlassDept.value && isBauprojektGroup(group as GrossanlassGroup)
+}
 
 const filteredMembers = computed(() => {
   let result = [...members.value]
@@ -788,7 +846,9 @@ async function loadDepartmentGroups() {
   if (!departmentId.value) return
   isLoadingGroups.value = true
   try {
-    departmentGroups.value = await getGroups(departmentId.value)
+    departmentGroups.value = isGrossanlassDept.value
+      ? await getGrossanlassGroups(departmentId.value)
+      : await getGroups(departmentId.value)
   } catch {
     departmentGroups.value = []
   } finally {
@@ -1518,6 +1578,36 @@ onUnmounted(() => {
 
 .group-picker-item:last-child {
   border-bottom: none;
+}
+
+.group-picker-checkbox {
+  width: 100%;
+}
+
+.group-picker-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.group-picker-name {
+  font-size: 14px;
+  color: #374151;
+}
+
+.kind-badge {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.kind-badge--bauprojekt {
+  background: #fef3c7;
+  color: #b45309;
 }
 
 .invite-by-email-box {

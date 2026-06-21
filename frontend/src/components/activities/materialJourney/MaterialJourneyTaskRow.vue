@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import PackMoveControls from '@/components/activities/PackMoveControls.vue'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
 
 const props = defineProps<{
   row: MaterialJourneyTaskRow
   moving: boolean
   readonly: boolean
+  showMoveBack?: boolean
+  moveBackQty?: number
+  showMoveForward?: boolean
+  moveForwardQty?: number
 }>()
 
 const emit = defineEmits<{
   activate: []
+  moveBack: [qty: number]
+  'update:moveBackQty': [qty: number]
+  moveForward: [qty: number]
+  'update:moveForwardQty': [qty: number]
 }>()
 
 const { t } = useI18n()
@@ -27,15 +36,9 @@ const statusClass = computed(() => {
   return 'material-journey-task-row__status--open'
 })
 
-const kindIcon = computed(() => {
-  if (props.row.kind === 'crate') return 'mdi-package-variant'
-  if (props.row.kind === 'combo') return 'mdi-set-merge'
-  return null
-})
-
 const qtyLabel = computed(() => {
-  if (props.row.kind === 'crate' && props.row.isDone) {
-    return t('activities.materialJourney.row.crateDone')
+  if (props.showMoveBack && props.row.isDone) {
+    return t('activities.materialJourney.row.transportedQty', { count: props.row.doneQty })
   }
   if (props.row.isOpen) {
     return t('activities.materialJourney.row.openQty', { count: props.row.openQty })
@@ -43,40 +46,58 @@ const qtyLabel = computed(() => {
   return t('activities.materialJourney.row.doneQty', { count: props.row.doneQty })
 })
 
-const isInteractive = computed(() => props.row.canMove || props.row.canOpenSheet)
+const showMoveBackControls = computed(
+  () => Boolean(props.showMoveBack) && props.row.canMoveBack && !props.readonly,
+)
 
-function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
-  if (badge === 'physical_combo') return t('activities.materialJourney.badge.set')
-  if (badge === 'crate') return t('activities.materialJourney.badge.crate')
-  if (badge === 'pack_crate') return t('activities.materialJourney.badge.packCrate')
-  if (badge === 'consumable') return t('activities.materialJourney.badge.consumable')
-  return t('activities.materialJourney.badge.js')
-}
+const showMoveForwardControls = computed(
+  () =>
+    Boolean(props.showMoveForward) &&
+    props.row.kind === 'loose' &&
+    props.row.canMove &&
+    props.row.isOpen &&
+    !props.readonly,
+)
 
-function onActivate(): void {
+const effectiveMoveBackQty = computed(
+  () => props.moveBackQty ?? props.row.maxMoveBackQty,
+)
+
+const effectiveMoveForwardQty = computed(
+  () => props.moveForwardQty ?? props.row.maxForwardQty,
+)
+
+const hasInlineControls = computed(
+  () => showMoveForwardControls.value || showMoveBackControls.value,
+)
+
+const isRowClickable = computed(
+  () => !props.readonly && !hasInlineControls.value && props.row.canMove,
+)
+
+function onRowClick(): void {
+  if (!isRowClickable.value) return
   emit('activate')
 }
 </script>
 
 <template>
-  <button
-    type="button"
+  <div
     class="material-journey-task-row section-card"
     :class="{
-      'material-journey-task-row--readonly': readonly || !isInteractive,
+      'material-journey-task-row--readonly': readonly || !isRowClickable,
       'material-journey-task-row--moving': moving,
-      'material-journey-task-row--crate': row.kind === 'crate',
-      'material-journey-task-row--combo': row.kind === 'combo',
+      'material-journey-task-row--inline-actions': hasInlineControls,
     }"
-    :disabled="moving"
-    @click="onActivate"
+    :role="isRowClickable ? 'button' : undefined"
+    :tabindex="isRowClickable ? 0 : undefined"
+    @click="onRowClick"
+    @keyup.enter="onRowClick"
   >
     <span class="material-journey-task-row__status" :class="statusClass" aria-hidden="true">
       {{ statusIcon }}
     </span>
-    <span v-if="kindIcon" class="material-journey-task-row__kind-icon" aria-hidden="true">
-      <v-icon :icon="kindIcon" size="20" />
-    </span>
+
     <span class="material-journey-task-row__body">
       <span class="material-journey-task-row__title">{{ row.title }}</span>
       <span v-if="row.subtitle" class="material-journey-task-row__subtitle text-muted">
@@ -89,18 +110,48 @@ function onActivate(): void {
           class="material-journey-task-row__badge"
           :class="{ 'material-journey-task-row__badge--pack-crate': badge === 'pack_crate' }"
         >
-          {{ badgeLabel(badge) }}
+          {{
+            badge === 'physical_combo'
+              ? t('activities.materialJourney.badge.set')
+              : badge === 'crate'
+                ? t('activities.materialJourney.badge.crate')
+                : badge === 'pack_crate'
+                  ? t('activities.materialJourney.badge.packCrate')
+                  : badge === 'consumable'
+                    ? t('activities.materialJourney.badge.consumable')
+                    : t('activities.materialJourney.badge.js')
+          }}
         </span>
       </span>
-      <span
-        v-if="row.packCrateHint"
-        class="material-journey-task-row__crate-flag"
-      >
+      <span v-if="row.packCrateHint" class="material-journey-task-row__crate-flag">
         {{ row.packCrateHint }}
       </span>
     </span>
-    <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>
-  </button>
+
+    <div class="material-journey-task-row__trailing" @click.stop>
+      <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>
+      <PackMoveControls
+        v-if="showMoveForwardControls"
+        direction="forward"
+        :qty="effectiveMoveForwardQty"
+        :max="row.maxForwardQty"
+        :disabled="moving"
+        :forward-title="t('activities.materialJourney.moveForward.action')"
+        @update:qty="emit('update:moveForwardQty', $event)"
+        @move="emit('moveForward', $event)"
+      />
+      <PackMoveControls
+        v-if="showMoveBackControls"
+        direction="back"
+        :qty="effectiveMoveBackQty"
+        :max="row.maxMoveBackQty"
+        :disabled="moving"
+        :back-title="t('activities.materialJourney.moveBack.action')"
+        @update:qty="emit('update:moveBackQty', $event)"
+        @move="emit('moveBack', $event)"
+      />
+    </div>
+  </div>
 </template>
 
 <style scoped>

@@ -10,11 +10,11 @@ import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import {
   defaultJourneyStepForStatus,
-  isJourneyStepBehindDefault,
   isValidJourneyStep,
   journeyStepsForProfile,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
+import { isTransportOutAcknowledged, clearTransportOutAck } from '@/utils/materialJourneyTransportAck'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import {
@@ -52,10 +52,15 @@ export function useMaterialJourneyData(
 
   const defaultJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
+    const status = activity.value.status ?? 'packing'
+    if (status !== 'packed') {
+      clearTransportOutAck(activityId.value)
+    }
     return defaultJourneyStepForStatus(
-      activity.value.status ?? 'packing',
+      status,
       profile.value,
       canManageMaterials.value,
+      { transportOutAcknowledged: isTransportOutAcknowledged(activityId.value) },
     )
   })
 
@@ -64,11 +69,7 @@ export function useMaterialJourneyData(
     const defaultStep = defaultJourneyStep.value
 
     if (param && isValidJourneyStep(param, profile.value)) {
-      const step = param as JourneyStep
-      if (isJourneyStepBehindDefault(step, defaultStep, profile.value)) {
-        return defaultStep
-      }
-      return step
+      return param as JourneyStep
     }
     if (!activity.value) return 'pack'
     return defaultStep
@@ -79,8 +80,7 @@ export function useMaterialJourneyData(
     const defaultStep = defaultJourneyStep.value
 
     if (!param) return true
-    if (!isValidJourneyStep(param, profile.value)) return true
-    return isJourneyStepBehindDefault(param as JourneyStep, defaultStep, profile.value)
+    return !isValidJourneyStep(param, profile.value)
   })
 
   const positionCount = computed(() => {

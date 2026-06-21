@@ -556,6 +556,17 @@
             </div>
           </v-tabs-window-item>
 
+          <v-tabs-window-item v-if="showVehiclesTab" value="vehicles" class="activity-detail-window-item" :transition="false">
+            <div class="activity-detail-tab-panel tab-content">
+              <ActivityVehiclesTab
+                v-if="activity"
+                :activity-id="activityId"
+                :department-id="departmentId"
+                :can-manage="canManageActivityVehicles"
+              />
+            </div>
+          </v-tabs-window-item>
+
           <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
@@ -729,6 +740,7 @@ import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityM
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
+import ActivityVehiclesTab from '@/components/activities/ActivityVehiclesTab.vue'
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityMaterialJourneyView from '@/components/activities/ActivityMaterialJourneyView.vue'
@@ -804,7 +816,7 @@ const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
 const authStore = useAuthStore()
 
-const ACTIVITY_TAB_IDS = ['overview', 'material', 'js', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
+const ACTIVITY_TAB_IDS = ['overview', 'material', 'js', 'vehicles', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
 type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
 
 function mergeActivityQuery(updates: Record<string, string | undefined>) {
@@ -897,6 +909,25 @@ const showPacksTab = computed(() => {
   return showMemberEarlyPackPreview.value
 })
 
+/** Fuhrpark-Planung ab «Bestätigt» (MW/DC/Ersteller) bzw. ab Packliste für alle. */
+const showVehiclesTab = computed(() => {
+  const act = activity.value
+  if (!act) return false
+  const s = act.status
+  const logisticsType = ['camp', 'event', 'activity', 'external'].includes(act.type || '')
+  if (!logisticsType) return false
+  if (showPacksTab.value) return true
+  if (s !== 'approved') return false
+  return canManageActivityVehicles.value
+})
+
+const canManageActivityVehicles = computed(() => {
+  const act = activity.value
+  if (!act) return false
+  if (canManageMaterials.value) return true
+  return act.created_by_user_id === authStore.userId
+})
+
 const useLegacyPackUi = computed(() => resolvePackUiPreference(route.query) === 'legacy')
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
@@ -980,6 +1011,9 @@ const tabs = computed(() => {
   if (showJsOrderCard.value) {
     out.push({ id: 'js', label: t('activities.jsMaterial.tabTitle') })
   }
+  if (showVehiclesTab.value) {
+    out.push({ id: 'vehicles', label: t('activities.detail.tabVehicles') })
+  }
   if (showPacksTab.value) {
     out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
   }
@@ -1046,6 +1080,13 @@ const activeTab = ref<ActivityTabId>('overview')
 
 watch(showPacksTab, (show) => {
   if (!show && activeTab.value === 'packs') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: 'overview' })
+  }
+})
+
+watch(showVehiclesTab, (show) => {
+  if (!show && activeTab.value === 'vehicles') {
     activeTab.value = 'overview'
     mergeActivityQuery({ tab: 'overview' })
   }

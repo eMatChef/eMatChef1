@@ -50,27 +50,13 @@
       <table class="responses-table">
         <thead>
           <tr>
+            <th v-if="showActionsColumn">{{ t('grossanlass.responses.colActions') }}</th>
             <th v-for="col in tableColumns" :key="col.id">{{ col.label }}</th>
             <th>{{ t('grossanlass.responses.colStatus') }}</th>
-            <th v-if="showActionsColumn">{{ t('grossanlass.responses.colActions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="item in items" :key="item.id">
-            <td v-for="col in tableColumns" :key="col.id">
-              <template v-if="col.field?.system_key === 'label'">
-                {{ cellValue(item, col.field) }}
-                <span v-if="item.wish_kind" class="kind-tag">{{ wishKindLabel(item.wish_kind) }}</span>
-              </template>
-              <template v-else>
-                {{ col.field ? cellValue(item, col.field) : '–' }}
-              </template>
-            </td>
-            <td>
-              <span class="status-chip" :class="'status-' + item.status">
-                {{ statusLabel(item.status) }}
-              </span>
-            </td>
             <td v-if="showActionsColumn" class="col-actions">
               <div class="row-actions">
                 <button
@@ -93,6 +79,20 @@
                   <v-icon icon="mdi-delete-outline" size="18" />
                 </button>
               </div>
+            </td>
+            <td v-for="col in tableColumns" :key="col.id">
+              <template v-if="col.field?.system_key === 'label'">
+                {{ cellValue(item, col.field) }}
+                <span v-if="item.wish_kind" class="kind-tag">{{ wishKindLabel(item.wish_kind) }}</span>
+              </template>
+              <template v-else>
+                {{ col.field ? cellValue(item, col.field) : '–' }}
+              </template>
+            </td>
+            <td>
+              <span class="status-chip" :class="'status-' + item.status">
+                {{ statusLabel(item.status) }}
+              </span>
             </td>
           </tr>
         </tbody>
@@ -163,6 +163,12 @@ import {
   buildGrossanlassWishTableColumns,
   formatGrossanlassWishCellValue,
 } from '@/utils/grossanlassWishDisplay'
+import {
+  flattenGrossanlassGroupsWithLevel,
+  grossanlassGroupIndentTitle,
+  isBauprojektGroup,
+  ressortPathForBauprojekt,
+} from '@/utils/grossanlassGroupHierarchy'
 
 const props = defineProps<{
   departmentId: string
@@ -210,7 +216,12 @@ const statusItems = computed(() => [
 
 const groupItems = computed(() => [
   { title: t('grossanlass.responses.allRessorts'), value: null },
-  ...props.groups.map((g) => ({ title: g.name, value: g.id })),
+  ...flattenGrossanlassGroupsWithLevel(props.groups).map((g) => ({
+    title: isBauprojektGroup(g)
+      ? `${g.name} (${ressortPathForBauprojekt(g, props.groups)})`
+      : grossanlassGroupIndentTitle(g),
+    value: g.id,
+  })),
 ])
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
@@ -309,6 +320,10 @@ async function saveEdit() {
 
   if (payload.new_bauprojekt) {
     toast.error(t('grossanlass.responses.errorEditBauprojekt'))
+    return
+  }
+  if (!payload.group_id && !payload.ressort_group_id) {
+    toast.error(t('grossanlass.wishes.errorGroup'))
     return
   }
 

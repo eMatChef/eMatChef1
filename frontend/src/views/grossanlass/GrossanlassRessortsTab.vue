@@ -298,6 +298,10 @@ import {
 } from '@/api/grossanlassGroups'
 import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
 import type { GroupMember } from '@/api/groups'
+import {
+  flattenGrossanlassGroupsWithLevel,
+  grossanlassGroupSelectTitle,
+} from '@/utils/grossanlassGroupHierarchy'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -347,24 +351,7 @@ const ressortsSubtitle = computed(() => {
 const rootCount = computed(() => groups.value.filter((g) => !g.parent_id).length)
 const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
 
-const hierarchicalGroups = computed(() => {
-  const all = groups.value
-  const rootGroups = all.filter((g) => !g.parent_id)
-
-  function flatten(nodes: GrossanlassGroup[], level: number): (GrossanlassGroup & { _level: number })[] {
-    const result: (GrossanlassGroup & { _level: number })[] = []
-    for (const node of nodes) {
-      result.push({ ...node, _level: level })
-      const children = all.filter((g) => g.parent_id === node.id)
-      if (children.length > 0) {
-        result.push(...flatten(children, level + 1))
-      }
-    }
-    return result
-  }
-
-  return flatten(rootGroups, 0)
-})
+const hierarchicalGroups = computed(() => flattenGrossanlassGroupsWithLevel(groups.value))
 
 const availableParents = computed(() => {
   if (!editingGroup.value) {
@@ -387,7 +374,7 @@ const availableParents = computed(() => {
 const parentGroupSelectItems = computed(() => [
   { title: t('grossanlass.planung.ressorts.parentNone'), value: null },
   ...availableParents.value.map((g) => ({
-    title: `${'↳ '.repeat(g._level)}${g.name}`,
+    title: grossanlassGroupSelectTitle(g, t('grossanlass.planung.ressorts.kindBauprojekt')),
     value: g.id,
   })),
 ])

@@ -355,27 +355,44 @@ class GrossanlassWishService
 
         $bauprojektEnabled = false;
         $ressortWahlEnabled = false;
+        $bauprojektFieldRequired = false;
+        $ressortFieldRequired = false;
         /** @var array<string, true> $enabledSystemKeys */
         $enabledSystemKeys = [];
         foreach ($fields as $field) {
             $key = $field->getSystemKey();
             if ($key === GrossanlassFormFieldCatalog::SYSTEM_BAUPROJEKT) {
                 $bauprojektEnabled = true;
+                $bauprojektFieldRequired = $field->isRequired();
             }
             if ($key === GrossanlassFormFieldCatalog::SYSTEM_RESSORT_WAHL) {
                 $ressortWahlEnabled = true;
+                $ressortFieldRequired = $field->isRequired();
             }
             if ($key !== null) {
                 $enabledSystemKeys[$key] = true;
             }
         }
 
+        $resolvedBauprojektGroup = null;
+        $resolvedRessortGroup = null;
+
         foreach ($fields as $field) {
             $systemKey = $field->getSystemKey();
             if ($systemKey !== null) {
                 match ($systemKey) {
-                    GrossanlassFormFieldCatalog::SYSTEM_BAUPROJEKT => $group = $this->resolveGroupForCreate($department, $user, $data, $field),
-                    GrossanlassFormFieldCatalog::SYSTEM_RESSORT_WAHL => $group = $this->resolveGroupForRessortWahl($department, $user, $data, $field),
+                    GrossanlassFormFieldCatalog::SYSTEM_BAUPROJEKT => $resolvedBauprojektGroup = $this->tryResolveGroupForCreate(
+                        $department,
+                        $user,
+                        $data,
+                        $field,
+                    ),
+                    GrossanlassFormFieldCatalog::SYSTEM_RESSORT_WAHL => $resolvedRessortGroup = $this->tryResolveGroupForRessortWahl(
+                        $department,
+                        $user,
+                        $data,
+                        $field,
+                    ),
                     GrossanlassFormFieldCatalog::SYSTEM_WISH_KIND => $wishKind = $this->parseWishKind($data, $field),
                     GrossanlassFormFieldCatalog::SYSTEM_LABEL => $label = $this->parseRequiredString($data, 'label', $field),
                     GrossanlassFormFieldCatalog::SYSTEM_QUANTITY => $quantity = $this->parseQuantity($data, $field),
@@ -397,8 +414,20 @@ class GrossanlassWishService
             $customValues[$fieldId] = $this->parseCustomValue($field, $raw);
         }
 
+        if ($resolvedBauprojektGroup !== null) {
+            $group = $resolvedBauprojektGroup;
+        } elseif ($resolvedRessortGroup !== null) {
+            $group = $resolvedRessortGroup;
+        }
+
         if (!$bauprojektEnabled && !$ressortWahlEnabled && $group === null && $defaultGroup !== null) {
             $group = $defaultGroup;
+        }
+        if ($bauprojektEnabled && $bauprojektFieldRequired && $resolvedBauprojektGroup === null && $resolvedRessortGroup === null) {
+            throw new \InvalidArgumentException('Bauprojekt ist erforderlich');
+        }
+        if ($ressortWahlEnabled && $ressortFieldRequired && $resolvedRessortGroup === null && $resolvedBauprojektGroup === null) {
+            throw new \InvalidArgumentException('Ressort ist erforderlich');
         }
         if (($bauprojektEnabled || $ressortWahlEnabled) && $group === null) {
             throw new \InvalidArgumentException('Bauprojekt/Ressort ist erforderlich');
@@ -786,6 +815,44 @@ class GrossanlassWishService
     /**
      * @param array<string, mixed> $data
      */
+    private function tryResolveGroupForCreate(
+        Department $department,
+        User $user,
+        array $data,
+        ActivityGrossanlassRoundFormField $field,
+    ): ?Group {
+        try {
+            return $this->resolveGroupForCreate($department, $user, $data, $field);
+        } catch (\InvalidArgumentException $e) {
+            if (!$field->isRequired()) {
+                return null;
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function tryResolveGroupForRessortWahl(
+        Department $department,
+        User $user,
+        array $data,
+        ActivityGrossanlassRoundFormField $field,
+    ): ?Group {
+        try {
+            return $this->resolveGroupForRessortWahl($department, $user, $data, $field);
+        } catch (\InvalidArgumentException $e) {
+            if (!$field->isRequired()) {
+                return null;
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
     private function resolveGroupForCreate(
         Department $department,
         User $user,
@@ -842,6 +909,9 @@ class GrossanlassWishService
         if (!$this->access->canSelectBauprojektForWish($user, $department, $group, $leaderScope)) {
             throw new \RuntimeException('Keine Berechtigung für dieses Bauprojekt');
         }
+        if (!$this->groupIsBauprojekt($group)) {
+            throw new \InvalidArgumentException('Bitte ein Bauprojekt wählen');
+        }
 
         return $group;
     }
@@ -858,23 +928,36 @@ class GrossanlassWishService
         $config = $field->getConfigJson() ?? [];
         $leaderScope = (bool) ($config['leader_scope'] ?? false);
 
-        $groupId = (string) ($data['group_id'] ?? '');
+        $groupId = (string) ($data['ressort_group_id'] ?? '');
         if ($groupId === '') {
             if ($field->isRequired()) {
                 throw new \InvalidArgumentException('Ressort ist erforderlich');
             }
-            throw new \InvalidArgumentException('group_id erforderlich');
+            throw new \InvalidArgumentException('ressort_group_id erforderlich');
         }
 
         $group = $this->entityManager->getRepository(Group::class)->find($groupId);
         if ($group === null || $group->getDepartmentId() !== $department->getId()) {
             throw new \InvalidArgumentException('Ressort nicht gefunden');
         }
+        if ($this->groupIsBauprojekt($group)) {
+            throw new \InvalidArgumentException('Bitte ein Ressort wählen, kein Bauprojekt');
+        }
         if (!$this->access->canSelectRessortForWish($user, $department, $group, $leaderScope)) {
             throw new \RuntimeException('Keine Berechtigung für dieses Ressort');
         }
 
         return $group;
+    }
+
+    private function groupIsBauprojekt(Group $group): bool
+    {
+        if ($group->getParentId() === null || $group->getParentId() === '') {
+            return false;
+        }
+        $kind = $group->getGrossanlassKind();
+
+        return $kind === null || $kind === '' || $kind === Group::GROSSANLASS_KIND_TEILBEREICH;
     }
 
     private function findWishInRound(Department $department, string $roundId, string $wishId): ActivityGrossanlassWishLine

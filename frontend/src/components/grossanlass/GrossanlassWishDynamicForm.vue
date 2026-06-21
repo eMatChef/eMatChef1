@@ -13,11 +13,19 @@
           hide-details="auto"
           class="mb-3"
         />
-        <ESelect
+        <EAutocomplete
           v-if="local.groupMode === 'existing'"
           v-model="local.groupId"
-          :items="groupSelectItems"
-          :label="t('grossanlass.wishes.existingBauprojekt')"
+          v-model:search="bauprojektSearch"
+          :items="bauprojektAutocompleteItems"
+          item-title="title"
+          item-value="value"
+          item-subtitle="subtitle"
+          :label="t('grossanlass.wishes.searchBauprojekt')"
+          :placeholder="t('grossanlass.wishes.searchBauprojektPlaceholder')"
+          :hint="field.help_text || undefined"
+          :menu="bauprojektMenuOpen"
+          open-on-focus="false"
           hide-details="auto"
           class="mb-3"
         />
@@ -160,11 +168,23 @@
 import { computed, reactive, ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { ESelect, ETextField, ETextarea } from '@/components/form/base'
+import { ESelect, ETextField, ETextarea, EAutocomplete } from '@/components/form/base'
 import GrossanlassWishPeriodField from '@/components/grossanlass/GrossanlassWishPeriodField.vue'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
-import type { GrossanlassRoundForm, GrossanlassRoundFormField } from '@/api/grossanlassRoundForm'
+import {
+  orderFormFieldsForRound,
+  type GrossanlassRoundForm,
+  type GrossanlassRoundFormField,
+} from '@/api/grossanlassRoundForm'
 import type { CreateGrossanlassWishPayload, GrossanlassWishKind, GrossanlassWishLine } from '@/api/grossanlassWishes'
+import {
+  flattenGrossanlassGroupsFiltered,
+  flattenGrossanlassGroupsWithLevel,
+  grossanlassGroupIndentTitle,
+  isBauprojektGroup,
+  isRessortNodeGroup,
+  ressortPathForBauprojekt,
+} from '@/utils/grossanlassGroupHierarchy'
 
 const props = defineProps<{
   form: GrossanlassRoundForm | null
@@ -196,11 +216,10 @@ const customValues = reactive<Record<string, string>>({})
 const customMultiValues = reactive<Record<string, string[]>>({})
 const periodRef = ref<InstanceType<typeof GrossanlassWishPeriodField> | null>(null)
 const customPeriodRefs = reactive<Record<string, InstanceType<typeof GrossanlassWishPeriodField> | null>>({})
+const bauprojektSearch = ref('')
 
 const inputFields = computed(() =>
-  [...(props.form?.fields || [])]
-    .filter((f) => f.role === 'input' && f.enabled)
-    .sort((a, b) => a.sort_order - b.sort_order),
+  orderFormFieldsForRound(props.form?.fields || []).filter((f) => f.role === 'input' && f.enabled),
 )
 
 const groupModeItems = computed(() => {
@@ -298,22 +317,54 @@ const selectableGroupsForRessort = computed(() => {
 
 const selectableGroups = computed(() => selectableGroupsForBauprojekt.value)
 
-const bauprojekte = computed(() =>
-  selectableGroupsForBauprojekt.value.filter((g) => g.node_type === 'bauprojekt' || g.kind === 'teilbereich'),
-)
+const bauprojekte = computed(() => {
+  const allowed = new Set(
+    selectableGroupsForBauprojekt.value.filter(isBauprojektGroup).map((g) => g.id),
+  )
+  return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
+})
 
-const ressortTreeGroups = computed(() =>
-  selectableGroupsForRessort.value.filter(
-    (g) => g.node_type === 'ressort' || g.node_type === 'unterressort' || g.node_type === 'bauprojekt' || g.kind === 'ressort' || g.kind === 'teilbereich',
-  ),
-)
+const ressortTreeGroups = computed(() => {
+  const allowed = new Set(selectableGroupsForRessort.value.filter(isRessortNodeGroup).map((g) => g.id))
+  return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
+})
 
-const groupSelectItems = computed(() =>
-  bauprojekte.value.map((g) => ({ title: indentLabel(g), value: g.id })),
-)
+const bauprojektAutocompleteItems = computed(() => {
+  const q = bauprojektSearch.value.trim().toLowerCase()
+  if (!q) return []
 
-function ressortSelectItems(field: GrossanlassRoundFormField) {
-  return ressortTreeGroups.value.map((g) => ({ title: indentLabel(g), value: g.id }))
+  let list = bauprojekte.value
+  if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
+    const branchIds = collectBranchIds(local.ressortGroupId)
+    list = list.filter((g) => branchIds.has(g.id))
+  }
+  list = list.filter((g) => {
+    const path = ressortPathForBauprojekt(g, props.groups).toLowerCase()
+    return g.name.toLowerCase().includes(q) || path.toLowerCase().includes(q)
+  })
+  return list.map((g) => ({
+    title: g.name,
+    subtitle: ressortPathForBauprojekt(g, props.groups),
+    value: g.id,
+  }))
+})
+
+/** Dropdown erst bei aktiver Suche — kein leeres «Keine Daten» beim Fokus. */
+const bauprojektMenuOpen = computed(() => {
+  const q = bauprojektSearch.value.trim()
+  if (q.length === 0) return false
+  if (local.groupId) {
+    const selected = props.groups.find((g) => g.id === local.groupId)
+    if (selected && q === selected.name) return false
+  }
+  return true
+})
+
+function ressortSelectItems(_field: GrossanlassRoundFormField) {
+  return ressortTreeGroups.value.map((g) => ({
+    title: grossanlassGroupIndentTitle(g),
+    value: g.id,
+  }))
 }
 
 function findDefaultRessortGroupId(): string | null {
@@ -335,7 +386,7 @@ function findDefaultRessortGroupId(): string | null {
     if (primaryGroup) return primaryGroup.id
 
     const sorted = [...directMembershipGroups].sort(
-      (a, b) => b.level - a.level || a.name.localeCompare(b.name),
+      (a, b) => b._level - a._level || a.name.localeCompare(b.name),
     )
     return sorted[0]?.id ?? null
   }
@@ -350,6 +401,14 @@ function findDefaultRessortGroupId(): string | null {
   return null
 }
 
+function findRessortAncestorId(groupId: string): string | null {
+  const group = props.groups.find((g) => g.id === groupId)
+  if (!group) return groupId
+  if (isRessortNodeGroup(group)) return group.id
+  if (group.parent_id) return findRessortAncestorId(group.parent_id)
+  return group.id
+}
+
 function applyDefaultRessortSelection(force = false) {
   if (!hasSystemField('ressort_wahl')) return
   if (!force && local.ressortGroupId) return
@@ -359,23 +418,23 @@ function applyDefaultRessortSelection(force = false) {
   }
 }
 
-const parentSelectItems = computed(() => {
-  const field = bauprojektField.value
-  return selectableGroups.value
-    .filter((g) => g.node_type !== 'bauprojekt')
-    .filter((g) => !field || !usesLeaderScope(field) || props.canFullyManage || props.isLeaderOfGroup(g))
-    .map((g) => ({ title: indentLabel(g), value: g.id }))
-})
+const parentSelectItems = computed(() =>
+  flattenGrossanlassGroupsFiltered(props.groups, (g) => {
+    if (g.node_type === 'bauprojekt') return false
+    const field = bauprojektField.value
+    if (!selectableGroups.value.some((sg) => sg.id === g.id)) return false
+    if (!field || !usesLeaderScope(field) || props.canFullyManage || props.isLeaderOfGroup(g)) {
+      return true
+    }
+    return false
+  }).map((g) => ({ title: grossanlassGroupIndentTitle(g), value: g.id })),
+)
 
 const wishKindItems = computed(() => [
   { title: t('grossanlass.wishes.kindMaterial'), value: 'material' },
   { title: t('grossanlass.wishes.kindFahrzeug'), value: 'fahrzeug' },
   { title: t('grossanlass.wishes.kindBeides'), value: 'beides' },
 ])
-
-function indentLabel(g: GrossanlassGroup): string {
-  return `${'  '.repeat(Math.max(0, g.level))}${g.name}`
-}
 
 function fieldLabel(field: GrossanlassRoundFormField): string {
   return field.required ? `${field.label} *` : field.label
@@ -417,17 +476,21 @@ function hasSystemField(key: string): boolean {
 function buildPayload(): CreateGrossanlassWishPayload {
   const payload: CreateGrossanlassWishPayload = { custom_values: {} }
 
+  if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
+    payload.ressort_group_id = local.ressortGroupId
+  }
+
   if (hasSystemField('bauprojekt')) {
     if (local.groupMode === 'new') {
       payload.new_bauprojekt = {
         name: local.newBauprojektName.trim(),
-        parent_id: local.parentId || '',
+        parent_id: local.parentId || local.ressortGroupId || '',
       }
-    } else {
-      payload.group_id = local.groupId || undefined
+    } else if (local.groupId) {
+      payload.group_id = local.groupId
     }
-  } else if (hasSystemField('ressort_wahl')) {
-    payload.group_id = local.ressortGroupId || undefined
+  } else if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
+    payload.group_id = local.ressortGroupId
   }
 
   if (hasSystemField('wish_kind')) {
@@ -472,11 +535,17 @@ function buildPayload(): CreateGrossanlassWishPayload {
 }
 
 async function loadFromWish(wish: GrossanlassWishLine) {
+  const group = props.groups.find((g) => g.id === wish.group_id)
+  const isBauprojekt = group ? isBauprojektGroup(group) : false
+
   local.groupMode = 'existing'
-  local.groupId = wish.group_id
-  local.ressortGroupId = wish.group_id
+  local.groupId = isBauprojekt ? wish.group_id : null
+  local.ressortGroupId = isBauprojekt && group?.parent_id
+    ? findRessortAncestorId(group.parent_id)
+    : wish.group_id
   local.parentId = null
   local.newBauprojektName = ''
+  bauprojektSearch.value = isBauprojekt && group ? group.name : ''
   local.wishKind = wish.wish_kind
   local.label = wish.label
   local.quantity = String(wish.quantity)
@@ -522,6 +591,10 @@ function resetAfterSubmit() {
   if (local.groupMode === 'new') {
     local.newBauprojektName = ''
   }
+  if (!hasSystemField('bauprojekt')) {
+    local.groupId = null
+  }
+  bauprojektSearch.value = ''
   applyDefaultRessortSelection(true)
   for (const field of inputFields.value) {
     if (field.custom_type === 'date_range') {
@@ -533,6 +606,18 @@ function resetAfterSubmit() {
     }
   }
 }
+
+watch(
+  () => local.ressortGroupId,
+  (ressortId) => {
+    if (!ressortId || !local.groupId) return
+    const branchIds = collectBranchIds(ressortId)
+    if (!branchIds.has(local.groupId)) {
+      local.groupId = null
+      bauprojektSearch.value = ''
+    }
+  },
+)
 
 watch(
   () => [props.form, props.groups] as const,

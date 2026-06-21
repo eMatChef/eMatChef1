@@ -345,18 +345,81 @@
   gap: 0;
 }
 
-.material-journey-crate-row__chevron-btn {
+.material-journey-crate-row__status-static,
+.material-journey-crate-row__status-btn {
   flex: 0 0 auto;
+  align-self: center;
+  margin-left: 4px;
+}
+
+.material-journey-crate-row__status-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  min-height: 44px;
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: 0;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   background: transparent;
   cursor: pointer;
+  font: inherit;
+}
+
+.material-journey-crate-row__chevron-btn {
+  display: none;
+}
+
+.material-journey-crate-row__content-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-on-surface), 0.03);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.material-journey-crate-row__content-toggle-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.material-journey-crate-row__content-toggle-meta {
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+
+.material-journey-crate-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px 0;
+}
+
+.material-journey-crate-row__content-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.material-journey-crate-row__content-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.material-journey-crate-row--expanded .material-journey-crate-row__content-toggle {
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .material-journey-crate-row__chevron {
@@ -375,8 +438,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   border: 0;
   background: transparent;
   text-align: left;
@@ -423,9 +487,10 @@
 
 .material-journey-crate-row__content-line {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.72);
@@ -441,6 +506,16 @@
   flex: 0 0 auto;
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+.material-journey-crate-row__content-empty {
+  margin: 0;
+  padding: 8px 12px 12px;
+  font-size: 0.875rem;
+}
+
+.material-journey-crate-row--combo:not(.material-journey-crate-row--target) {
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
 }
 
 .material-journey-retry-banner {
@@ -1130,6 +1205,38 @@
   white-space: nowrap;
 }
 
+.material-journey-task-row__trailing {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  align-self: center;
+}
+
+.material-journey-task-row--inline-actions {
+  cursor: default;
+}
+
+.material-journey-task-row--inline-actions:hover {
+  border-color: rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgb(var(--v-theme-surface));
+}
+
+.material-journey-crate-row__trailing {
+  padding-right: 10px;
+  align-self: center;
+}
+
+.material-journey-crate-row--inline-actions .material-journey-crate-row__main {
+  cursor: default;
+}
+
+.material-journey-crate-row__main .material-journey-task-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Pack step complete — inline «Gepackt markieren» */
 .material-journey-pack-complete {
   padding: 20px 16px 24px;
@@ -1146,6 +1253,29 @@
   margin-inline: auto;
   font-size: 0.875rem;
   line-height: 1.45;
+}
+
+.material-journey-pack-complete--with-list {
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.material-journey-pack-complete--with-list :deep(.e-empty-state) {
+  padding: 0;
+}
+
+.material-journey-pack-complete--with-list :deep(.e-empty-state__icon) {
+  display: none;
+}
+
+.material-journey-pack-complete--with-list :deep(.e-empty-state__title) {
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+
+.material-journey-pack-complete--with-list :deep(.e-empty-state__description) {
+  font-size: 0.875rem;
+  margin-bottom: 12px;
 }
 
 /* Step footer */
