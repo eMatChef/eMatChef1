@@ -76,6 +76,7 @@ class DepartmentCalendarPeriodController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         try {
             [$label, $name, $start, $end] = $this->parsePayload($data, true);
+            $this->assertLabelAllowedForDepartment($department, $label);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         }
@@ -110,6 +111,11 @@ class DepartmentCalendarPeriodController extends AbstractController
             return $period;
         }
 
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
         $data = json_decode($request->getContent(), true) ?? [];
         try {
             [$label, $name, $start, $end] = $this->parsePayload(
@@ -121,6 +127,7 @@ class DepartmentCalendarPeriodController extends AbstractController
                 ], $data),
                 true,
             );
+            $this->assertLabelAllowedForDepartment($department, $label);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         }
@@ -206,6 +213,20 @@ class DepartmentCalendarPeriodController extends AbstractController
         }
 
         return [$label, $name, $start, $end];
+    }
+
+    private function assertLabelAllowedForDepartment(Department $department, string $label): void
+    {
+        if ($label === DepartmentCalendarPeriod::LABEL_GROSSANLASS && !$department->isGrossanlass()) {
+            throw new \InvalidArgumentException('Art «Grossanlass» ist nur in Grossanlass-Departments erlaubt');
+        }
+        if ($department->isGrossanlass()) {
+            if (\in_array($label, [DepartmentCalendarPeriod::LABEL_SCHOOL_VACATION, DepartmentCalendarPeriod::LABEL_CAMP_WEEK], true)) {
+                throw new \InvalidArgumentException('Schulferien und Lagerwoche sind in Grossanlass-Departments nicht verfügbar');
+            }
+        } elseif ($label === DepartmentCalendarPeriod::LABEL_GROSSANLASS) {
+            throw new \InvalidArgumentException('Art «Grossanlass» ist nur in Grossanlass-Departments erlaubt');
+        }
     }
 
     private function parseDate(string $raw, string $field): \DateTimeImmutable

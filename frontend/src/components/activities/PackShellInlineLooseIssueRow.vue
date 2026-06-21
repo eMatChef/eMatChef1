@@ -262,4 +262,3 @@ const lineIssuedDisplayPacked = computed(() => {
 </template>
 
 <style src="@/styles/views/activities/pack-container-card.css"></style>
-<style src="@/styles/views/activities/pack-shell-combo.css"></style>

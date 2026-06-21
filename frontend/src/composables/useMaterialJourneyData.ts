@@ -10,6 +10,7 @@ import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import {
   defaultJourneyStepForStatus,
+  isJourneyStepBehindDefault,
   isValidJourneyStep,
   journeyStepsForProfile,
   type JourneyStep,
@@ -49,9 +50,7 @@ export function useMaterialJourneyData(
 
   const steps = computed(() => journeyStepsForProfile(profile.value))
 
-  const resolvedStep = computed((): JourneyStep => {
-    const param = stepParam.value
-    if (param && isValidJourneyStep(param, profile.value)) return param
+  const defaultJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
     return defaultJourneyStepForStatus(
       activity.value.status ?? 'packing',
@@ -60,10 +59,28 @@ export function useMaterialJourneyData(
     )
   })
 
+  const resolvedStep = computed((): JourneyStep => {
+    const param = stepParam.value
+    const defaultStep = defaultJourneyStep.value
+
+    if (param && isValidJourneyStep(param, profile.value)) {
+      const step = param as JourneyStep
+      if (isJourneyStepBehindDefault(step, defaultStep, profile.value)) {
+        return defaultStep
+      }
+      return step
+    }
+    if (!activity.value) return 'pack'
+    return defaultStep
+  })
+
   const needsStepRedirect = computed(() => {
     const param = stepParam.value
+    const defaultStep = defaultJourneyStep.value
+
     if (!param) return true
-    return !isValidJourneyStep(param, profile.value)
+    if (!isValidJourneyStep(param, profile.value)) return true
+    return isJourneyStepBehindDefault(param as JourneyStep, defaultStep, profile.value)
   })
 
   const positionCount = computed(() => {
@@ -79,17 +96,30 @@ export function useMaterialJourneyData(
     return false
   })
 
-  async function loadPackContainers(activityId: string): Promise<void> {
-    const containers = await getActivityPackContainers(activityId).catch(() => [] as ActivityPackContainer[])
+  async function loadPackContainers(id: string): Promise<void> {
+    const containers = await getActivityPackContainers(id).catch(() => [] as ActivityPackContainer[])
     packContainers.value = containers
     const map: Record<string, ActivityPackContainerItem[]> = {}
     await Promise.all(
       containers.map(async (c) => {
-        map[c.id] = await getActivityPackContainerItems(activityId, c.id).catch(() => [])
+        map[c.id] = await getActivityPackContainerItems(id, c.id).catch(() => [])
       }),
     )
     containerItemsByContainerId.value = map
     cratePeekMaps.value = await loadMaterialJourneyCratePeekData(containers, packItems.value)
+  }
+
+  function applyContainerItem(containerId: string, item: ActivityPackContainerItem): void {
+    const items = containerItemsByContainerId.value[containerId] ?? []
+    const idx = items.findIndex((row) => row.id === item.id)
+    const next =
+      idx >= 0
+        ? items.map((row, i) => (i === idx ? item : row))
+        : [...items, item]
+    containerItemsByContainerId.value = {
+      ...containerItemsByContainerId.value,
+      [containerId]: next,
+    }
   }
 
   async function reloadSilent(): Promise<void> {
@@ -170,5 +200,6 @@ export function useMaterialJourneyData(
     canManageMaterials,
     reload,
     reloadSilent,
+    applyContainerItem,
   }
 }

@@ -79,6 +79,10 @@
 }
 
 .pack-crate-shell-check-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
   padding: 10px 8px;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
@@ -88,9 +92,4 @@
 
 .pack-crate-shell-check-line:last-child {
   margin-bottom: 0;
-}
-
-.pack-crate-shell-check-line--ok {
-  border-color: #86efac;
-  background: #f0fdf4;
 }

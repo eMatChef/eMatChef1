@@ -34,19 +34,24 @@ function parseIsoDateLocal(iso: string): Date {
   return startOfLocalDay(new Date(y, m - 1, d))
 }
 
-/** Fixe Daten in der Schnellauswahl — keine Schulferien, kein Mat-Büro geschlossen. */
-export const CALENDAR_PERIOD_LABELS_IN_QUICK_SELECT = ['camp_week', 'other'] as const
+/** Schnellauswahl: Material-Department */
+export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_MATERIAL = ['camp_week', 'other'] as const
 
-/** Fixe Daten (Lagerwoche, Sonstiges) — nur wenn noch nicht vorbei. */
+/** Schnellauswahl: Grossanlass-Department */
+export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_GROSSANLASS = ['grossanlass', 'other'] as const
+
+/** Fixe Daten (Lagerwoche, Sonstiges, Grossanlass) — nur wenn noch nicht vorbei. */
 export function calendarPeriodRangePresets(
   periods: readonly DepartmentCalendarPeriod[],
   labelForType: (label: CalendarPeriodLabel) => string,
+  quickSelectLabels: readonly CalendarPeriodLabel[] = CALENDAR_PERIOD_LABELS_QUICK_SELECT_MATERIAL,
 ): ActivityDatePresetItem[] {
   const today = startOfToday()
   const items: ActivityDatePresetItem[] = []
+  const allowed = new Set<string>(quickSelectLabels)
 
   for (const row of periods) {
-    if (row.label !== 'camp_week' && row.label !== 'other') continue
+    if (!allowed.has(row.label)) continue
     const end = parseIsoDateLocal(row.end_date)
     if (end.getTime() < today.getTime()) continue
     const start = parseIsoDateLocal(row.start_date)

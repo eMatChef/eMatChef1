@@ -37,35 +37,40 @@ function onStepClick(step: JourneyStep): void {
 </script>
 
 <template>
-  <nav class="material-journey-stepper section-card" aria-label="Material-Journey">
+  <nav class="material-journey-stepper" aria-label="Material-Journey">
     <div
       class="material-journey-stepper__track"
       role="progressbar"
       :aria-valuenow="progressPercent"
       aria-valuemin="0"
       aria-valuemax="100"
+      :aria-label="t('activities.materialJourney.stepper.progress', { percent: progressPercent })"
     >
       <div class="material-journey-stepper__track-fill" :style="{ width: `${progressPercent}%` }" />
     </div>
 
-    <ol class="material-journey-stepper__list">
+    <ol class="material-journey-stepper__pipeline">
       <li
         v-for="(step, index) in steps"
         :key="step"
-        class="material-journey-stepper__item"
+        class="material-journey-stepper__seg"
         :class="{
-          'material-journey-stepper__item--active': step === currentStep,
-          'material-journey-stepper__item--done': index < currentIndex,
-          'material-journey-stepper__item--future': index > currentIndex,
+          'material-journey-stepper__seg--first': index === 0,
+          'material-journey-stepper__seg--last': index === steps.length - 1,
+          'material-journey-stepper__seg--active': step === currentStep,
+          'material-journey-stepper__seg--done': index < currentIndex,
+          'material-journey-stepper__seg--future': index > currentIndex,
         }"
       >
         <button
           type="button"
-          class="material-journey-stepper__btn"
+          class="material-journey-stepper__seg-btn"
           :aria-current="step === currentStep ? 'step' : undefined"
+          :aria-label="stepLabel(step)"
+          :title="stepLabel(step)"
           @click="onStepClick(step)"
         >
-          <span class="material-journey-stepper__index" aria-hidden="true">
+          <span class="material-journey-stepper__seg-icon" aria-hidden="true">
             <v-icon
               v-if="index < currentIndex"
               icon="mdi-check"
@@ -74,7 +79,10 @@ function onStepClick(step: JourneyStep): void {
             />
             <span v-else class="material-journey-stepper__num">{{ index + 1 }}</span>
           </span>
-          <span class="material-journey-stepper__label">{{ stepLabel(step) }}</span>
+          <span class="material-journey-stepper__seg-label">
+            <span class="material-journey-stepper__seg-label-num">{{ index + 1 }}.</span>
+            {{ stepLabel(step) }}
+          </span>
         </button>
       </li>
     </ol>

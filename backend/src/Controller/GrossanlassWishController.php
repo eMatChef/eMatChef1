@@ -37,8 +37,25 @@ class GrossanlassWishController extends AbstractController
         }
 
         $groupId = $request->query->get('group_id');
+        $paginated = $request->query->has('page') || $request->query->has('limit')
+            || $request->query->has('status') || $request->query->has('q');
 
         try {
+            if ($paginated) {
+                return new JsonResponse($this->wishService->listWishesPaginated(
+                    $department,
+                    $currentUser,
+                    $roundId,
+                    [
+                        'group_id' => is_string($groupId) ? $groupId : null,
+                        'status' => $request->query->get('status'),
+                        'q' => $request->query->get('q'),
+                        'page' => $request->query->get('page'),
+                        'limit' => $request->query->get('limit'),
+                    ],
+                ));
+            }
+
             return new JsonResponse($this->wishService->listWishes(
                 $department,
                 $currentUser,
@@ -103,6 +120,33 @@ class GrossanlassWishController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler beim Aktualisieren: ' . $e->getMessage()], 500);
+        }
+
+        return new JsonResponse($wish);
+    }
+
+    #[Route('/planung/rounds/{roundId}/wishes/{wishId}/accept', name: 'accept', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function accept(string $departmentId, string $roundId, string $wishId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            $wish = $this->wishService->acceptWish($department, $currentUser, $roundId, $wishId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Fehler beim Annehmen: ' . $e->getMessage()], 500);
         }
 
         return new JsonResponse($wish);

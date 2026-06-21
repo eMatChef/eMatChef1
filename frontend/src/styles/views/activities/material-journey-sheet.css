@@ -99,9 +99,17 @@
 .material-journey-sheet__footer {
   position: sticky;
   bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
   background: rgb(var(--v-theme-surface));
+}
+
+.material-journey-sheet__delete {
+  width: 100%;
+  min-height: 44px;
 }
 
 .material-journey-sheet__hint {
@@ -117,4 +125,20 @@
 .material-journey-task-row--crate .material-journey-task-row__kind-icon,
 .material-journey-task-row--combo .material-journey-task-row__kind-icon {
   font-size: 1rem;
+}
+
+.material-journey-sheet-dialog:not(.v-dialog--fullscreen) .v-overlay__content {
+  border-radius: var(--radius-lg, 12px);
+}
+
+.material-journey-sheet-dialog:not(.v-dialog--fullscreen) .material-journey-sheet {
+  max-height: min(85vh, 720px);
+}
+
+.material-journey-sheet__body--crate {
+  padding-top: 0;
+}
+
+.material-journey-sheet__body--crate .pack-combo-crate-inline {
+  margin: 0;
 }

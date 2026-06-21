@@ -79,10 +79,6 @@ class ActivityPackItem
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
-    /** Intent-Gruppe «Zusammen packen» (Phase 11) */
-    #[ORM\Column(name: 'intent_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
-    private ?string $intentId = null;
-
     /** Gepackt von */
     #[ORM\Column(name: 'packed_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $packedByUserId = null;
@@ -233,7 +229,4 @@ class ActivityPackItem
     {
         return $this->quantityStored >= $this->quantityReturned && $this->quantityReturned > 0;
     }
-
-    public function getIntentId(): ?string { return $this->intentId; }
-    public function setIntentId(?string $intentId): self { $this->intentId = $intentId; return $this; }
 }

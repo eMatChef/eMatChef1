@@ -479,17 +479,14 @@ class ActivityKisteMaterialLinker
     }
 
     /**
-     * Phys.-Kombi als Set (ohne Referenz-Lager-Charge): quantity_packed nur über Pack-Pipeline,
-     * nicht über Anzahl Pack-Behälter. Mit linked_container_batch oder Batch-Behälter: wie Kiste.
+     * Phys.-Kombi: quantity_packed über Pack-Pipeline (Kistencheck + Weiterbuchen), solange
+     * kein Pack-Behälter auf der Aktivität zugewiesen ist. Die Referenz-Lager-Charge (z. B. Zeltsack)
+     * ist bereits der physische Behälter — kein zusätzlicher Activity-Container nötig.
+     * Sobald Pack-Behälter existieren: Sync wie bei Kisten (Anzahl Behälter ↔ gepackt).
      */
     public function usesContainerDrivenPackedSync(Activity $activity, MaterialItem $materialItem): bool
     {
         if ($materialItem->getMaterialType() !== 'physical_combo') {
-            return true;
-        }
-
-        $linkedBatchId = trim((string) ($materialItem->getLinkedContainerBatchId() ?? ''));
-        if ($linkedBatchId !== '') {
             return true;
         }
 

@@ -71,6 +71,14 @@
             <td v-if="canManage" class="col-actions" @click="stopRowClick">
               <div class="action-buttons">
                 <button
+                  v-if="canEditForm && round.status !== 'closed'"
+                  class="action-btn"
+                  :title="t('grossanlass.formBuilder.editFormAction')"
+                  @click="openFormModal(round)"
+                >
+                  <v-icon icon="mdi-form-select" size="16" />
+                </button>
+                <button
                   v-if="round.status !== 'closed'"
                   class="action-btn"
                   :title="t('common.edit')"
@@ -101,71 +109,119 @@
       </table>
     </div>
 
-    <EDialog v-model="showModal" :max-width="720" :title="modalTitle">
-      <ETextField
-        v-model="form.name"
-        :label="t('grossanlass.planung.rounds.nameLabel')"
-        :placeholder="t('grossanlass.planung.rounds.namePlaceholder')"
-        hide-details="auto"
-        class="mb-3"
-      />
-
-      <div
-        v-if="!editingRound || editingRound.status === 'scheduled'"
-        class="activity-datetime-host round-single-time mb-3"
-      >
-        <ActivityOutlinedDatetimeSection
-          :title="t('grossanlass.planung.rounds.opensAtLabel')"
-          icon="calendar"
-        >
-          <ActivityDateTimeFields
-            v-model:day="opensDay"
-            v-model:time-from="opensAt"
-            v-model:time-to="opensAtTimeToDummy"
-            date-mode="single"
-            :department-id="departmentId"
-            :show-presets="true"
-            :show-markers="true"
-            preset-mode="fixed-periods"
-            :label-from="t('activities.zeitraum.timeFrom')"
-            :label-to="t('activities.zeitraum.timeTo')"
-            :aria-label="t('grossanlass.planung.rounds.opensAtLabel')"
-          />
-        </ActivityOutlinedDatetimeSection>
+    <EDialog v-model="showModal" :max-width="wizardStep === 2 ? 920 : 720" :title="modalTitle" scrollable>
+      <div v-if="showWizardSteps && !formOnlyModal" class="wizard-steps">
+        <span class="wizard-step" :class="{ active: wizardStep === 1 }">{{ t('grossanlass.planung.rounds.wizardStepRound') }}</span>
+        <v-icon icon="mdi-chevron-right" size="16" class="wizard-step-sep" />
+        <span class="wizard-step" :class="{ active: wizardStep === 2 }">{{ t('grossanlass.planung.rounds.wizardStepForm') }}</span>
       </div>
 
-      <div class="activity-datetime-host round-single-time mb-3">
-        <ActivityOutlinedDatetimeSection
-          :title="t('grossanlass.planung.rounds.closesAtLabel')"
-          icon="calendar"
-        >
-          <ActivityDateTimeFields
-            v-model:day="closesDay"
-            v-model:time-from="closesAt"
-            v-model:time-to="closesAtTimeToDummy"
-            date-mode="single"
-            :department-id="departmentId"
-            :show-presets="true"
-            :show-markers="true"
-            preset-mode="fixed-periods"
-            :label-from="t('activities.zeitraum.timeFrom')"
-            :label-to="t('activities.zeitraum.timeTo')"
-            :aria-label="t('grossanlass.planung.rounds.closesAtLabel')"
-          />
-        </ActivityOutlinedDatetimeSection>
-      </div>
+      <template v-if="wizardStep === 1">
+        <ETextField
+          v-model="form.name"
+          :label="t('grossanlass.planung.rounds.nameLabel')"
+          :placeholder="t('grossanlass.planung.rounds.namePlaceholder')"
+          hide-details="auto"
+          class="mb-3"
+        />
 
-      <ECheckbox
-        v-model="form.useAutoSchedule"
-        :label="t('grossanlass.planung.rounds.autoScheduleLabel')"
-        :hint="t('grossanlass.planung.rounds.autoScheduleHint')"
-        hide-details="auto"
+        <div
+          v-if="!editingRound || editingRound.status === 'scheduled'"
+          class="activity-datetime-host round-single-time mb-3"
+        >
+          <ActivityOutlinedDatetimeSection
+            :title="t('grossanlass.planung.rounds.opensAtLabel')"
+            icon="calendar"
+          >
+            <ActivityDateTimeFields
+              v-model:day="opensDay"
+              v-model:time-from="opensAt"
+              v-model:time-to="opensAtTimeToDummy"
+              date-mode="single"
+              :department-id="departmentId"
+              :show-presets="true"
+              :show-markers="true"
+              preset-mode="fixed-periods"
+              :label-from="t('activities.zeitraum.timeFrom')"
+              :label-to="t('activities.zeitraum.timeTo')"
+              :aria-label="t('grossanlass.planung.rounds.opensAtLabel')"
+            />
+          </ActivityOutlinedDatetimeSection>
+        </div>
+
+        <div class="activity-datetime-host round-single-time mb-3">
+          <ActivityOutlinedDatetimeSection
+            :title="t('grossanlass.planung.rounds.closesAtLabel')"
+            icon="calendar"
+          >
+            <ActivityDateTimeFields
+              v-model:day="closesDay"
+              v-model:time-from="closesAt"
+              v-model:time-to="closesAtTimeToDummy"
+              date-mode="single"
+              :department-id="departmentId"
+              :show-presets="true"
+              :show-markers="true"
+              preset-mode="fixed-periods"
+              :label-from="t('activities.zeitraum.timeFrom')"
+              :label-to="t('activities.zeitraum.timeTo')"
+              :aria-label="t('grossanlass.planung.rounds.closesAtLabel')"
+            />
+          </ActivityOutlinedDatetimeSection>
+        </div>
+
+        <ECheckbox
+          v-model="form.useAutoSchedule"
+          :label="t('grossanlass.planung.rounds.autoScheduleLabel')"
+          :hint="t('grossanlass.planung.rounds.autoScheduleHint')"
+          hide-details="auto"
+        />
+      </template>
+
+      <GrossanlassRoundFormBuilder
+        v-else-if="wizardRoundId"
+        ref="formBuilderRef"
+        :department-id="departmentId"
+        :round-id="wizardRoundId"
+        embedded
+        :show-actions="false"
+        silent-save
       />
+
       <template #actions>
-        <EButton variant="secondary" @click="showModal = false">{{ t('common.cancel') }}</EButton>
-        <EButton variant="primary" :loading="isSaving" @click="saveRound">
-          {{ isSaving ? t('grossanlass.planung.rounds.saving') : (editingRound ? t('common.save') : t('common.create')) }}
-        </EButton>
+        <EButton variant="secondary" @click="closeModal">{{ t('common.cancel') }}</EButton>
+        <template v-if="wizardStep === 1">
+          <EButton
+            v-if="editingRound && showWizardSteps"
+            variant="secondary"
+            :loading="isSaving"
+            @click="saveRoundAndClose"
+          >
+            {{ t('common.save') }}
+          </EButton>
+          <EButton
+            v-if="showWizardSteps"
+            variant="primary"
+            :loading="isSaving"
+            @click="goToFormStep"
+          >
+            {{ t('grossanlass.planung.rounds.wizardNext') }}
+          </EButton>
+          <EButton
+            v-else
+            variant="primary"
+            :loading="isSaving"
+            @click="saveRoundAndClose"
+          >
+            {{ isSaving ? t('grossanlass.planung.rounds.saving') : t('common.save') }}
+          </EButton>
+        </template>
+        <template v-else>
+          <EButton v-if="!formOnlyModal" variant="secondary" @click="wizardStep = 1">{{ t('grossanlass.planung.rounds.wizardBack') }}</EButton>
+          <EButton variant="primary" :loading="isSavingForm" @click="finishWizard">
+            {{ formOnlyModal ? t('common.save') : t('grossanlass.planung.rounds.wizardFinish') }}
+          </EButton>
+        </template>
       </template>
     </EDialog>
   </div>
@@ -183,6 +239,7 @@ import { EButton, ECheckbox, EDialog, ETextField } from '@/components/form/base'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
 import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
+import GrossanlassRoundFormBuilder from '@/components/grossanlass/GrossanlassRoundFormBuilder.vue'
 import {
   closeGrossanlassPlanningRound,
   createGrossanlassPlanningRound,
@@ -197,10 +254,11 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, isMaterialwart } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const canManage = computed(() => !isUserRole.value)
+const canEditForm = computed(() => isMaterialwart.value)
 
 const rounds = ref<GrossanlassPlanningRound[]>([])
 const isLoading = ref(false)
@@ -208,6 +266,11 @@ const isSaving = ref(false)
 const error = ref('')
 const showModal = ref(false)
 const editingRound = ref<GrossanlassPlanningRound | null>(null)
+const wizardStep = ref<1 | 2>(1)
+const wizardRoundId = ref<string | null>(null)
+const formBuilderRef = ref<InstanceType<typeof GrossanlassRoundFormBuilder> | null>(null)
+const isSavingForm = ref(false)
+const formOnlyModal = ref(false)
 
 const form = ref({
   name: '',
@@ -257,11 +320,20 @@ const roundsSubtitle = computed(() =>
     : t('grossanlass.planung.rounds.subtitleMember'),
 )
 
-const modalTitle = computed(() =>
-  editingRound.value
+const modalTitle = computed(() => {
+  if (wizardStep.value === 2) {
+    return t('grossanlass.formBuilder.title')
+  }
+  return editingRound.value
     ? t('grossanlass.planung.rounds.modalEdit')
-    : t('grossanlass.planung.rounds.modalNew'),
-)
+    : t('grossanlass.planung.rounds.modalNew')
+})
+
+const showWizardSteps = computed(() => {
+  if (!canEditForm.value) return false
+  if (editingRound.value?.status === 'closed') return false
+  return true
+})
 
 function statusLabel(status: GrossanlassRoundStatus): string {
   switch (status) {
@@ -301,12 +373,18 @@ function resetForm() {
 
 function openCreateModal() {
   editingRound.value = null
+  wizardStep.value = 1
+  wizardRoundId.value = null
+  formOnlyModal.value = false
   resetForm()
   showModal.value = true
 }
 
 function openEditModal(round: GrossanlassPlanningRound) {
   editingRound.value = round
+  wizardStep.value = 1
+  wizardRoundId.value = round.id
+  formOnlyModal.value = false
   form.value = {
     name: round.name,
     useAutoSchedule: round.use_auto_schedule,
@@ -314,6 +392,97 @@ function openEditModal(round: GrossanlassPlanningRound) {
   opensAt.value = parseIsoDate(round.opens_at)
   closesAt.value = parseIsoDate(round.closes_at)
   showModal.value = true
+}
+
+function openFormModal(round: GrossanlassPlanningRound) {
+  editingRound.value = round
+  wizardStep.value = 2
+  wizardRoundId.value = round.id
+  formOnlyModal.value = true
+  showModal.value = true
+}
+
+function closeModal() {
+  showModal.value = false
+  wizardStep.value = 1
+  wizardRoundId.value = null
+  editingRound.value = null
+  formOnlyModal.value = false
+}
+
+function buildRoundPayload() {
+  return {
+    name: form.value.name.trim(),
+    opens_at: opensAt.value?.toISOString() ?? null,
+    closes_at: closesAt.value?.toISOString() ?? null,
+    use_auto_schedule: form.value.useAutoSchedule,
+  }
+}
+
+async function persistRoundStep(): Promise<GrossanlassPlanningRound | null> {
+  if (!departmentId.value) return null
+  const name = form.value.name.trim()
+  if (!name) {
+    toast.error(t('grossanlass.planung.rounds.nameRequired'))
+    return null
+  }
+
+  isSaving.value = true
+  try {
+    const payload = buildRoundPayload()
+    if (editingRound.value) {
+      const updatePayload = { ...payload }
+      if (editingRound.value.status === 'open') {
+        delete (updatePayload as { opens_at?: string | null }).opens_at
+      }
+      const updated = await updateGrossanlassPlanningRound(departmentId.value, editingRound.value.id, updatePayload)
+      editingRound.value = updated
+      wizardRoundId.value = updated.id
+      return updated
+    }
+    const created = await createGrossanlassPlanningRound(departmentId.value, payload)
+    editingRound.value = created
+    wizardRoundId.value = created.id
+    return created
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || t('grossanlass.planung.rounds.errorSave'))
+    return null
+  } finally {
+    isSaving.value = false
+  }
+}
+
+async function saveRoundAndClose() {
+  const wasCreate = !editingRound.value
+  const saved = await persistRoundStep()
+  if (!saved) return
+  toast.success(wasCreate ? t('grossanlass.planung.rounds.created') : t('grossanlass.planung.rounds.saved'))
+  closeModal()
+  await loadRounds()
+}
+
+async function goToFormStep() {
+  const wasCreate = !editingRound.value
+  const saved = await persistRoundStep()
+  if (!saved) return
+  if (wasCreate) {
+    toast.success(t('grossanlass.planung.rounds.created'))
+  }
+  wizardStep.value = 2
+}
+
+async function finishWizard() {
+  isSavingForm.value = true
+  try {
+    if (formBuilderRef.value) {
+      const ok = await formBuilderRef.value.flushAutoSave()
+      if (!ok) return
+    }
+    closeModal()
+    await loadRounds()
+  } finally {
+    isSavingForm.value = false
+  }
 }
 
 async function loadRounds() {
@@ -327,43 +496,6 @@ async function loadRounds() {
     rounds.value = []
   } finally {
     isLoading.value = false
-  }
-}
-
-async function saveRound() {
-  if (!departmentId.value) return
-  const name = form.value.name.trim()
-  if (!name) {
-    toast.error(t('grossanlass.planung.rounds.nameRequired'))
-    return
-  }
-
-  isSaving.value = true
-  try {
-    const payload = {
-      name,
-      opens_at: opensAt.value?.toISOString() ?? null,
-      closes_at: closesAt.value?.toISOString() ?? null,
-      use_auto_schedule: form.value.useAutoSchedule,
-    }
-
-    if (editingRound.value) {
-      const updatePayload = { ...payload }
-      if (editingRound.value.status === 'open') {
-        delete (updatePayload as { opens_at?: string | null }).opens_at
-      }
-      await updateGrossanlassPlanningRound(departmentId.value, editingRound.value.id, updatePayload)
-      toast.success(t('grossanlass.planung.rounds.saved'))
-    } else {
-      await createGrossanlassPlanningRound(departmentId.value, payload)
-      toast.success(t('grossanlass.planung.rounds.created'))
-    }
-    showModal.value = false
-    await loadRounds()
-  } catch (e: any) {
-    toast.error(e.response?.data?.error || t('grossanlass.planung.rounds.errorSave'))
-  } finally {
-    isSaving.value = false
   }
 }
 
@@ -540,7 +672,7 @@ onMounted(loadRounds)
 }
 
 .col-actions {
-  width: 120px;
+  width: 156px;
 }
 
 .col-auto {
@@ -555,6 +687,28 @@ onMounted(loadRounds)
 .round-single-time :deep(.activity-datetime-mobile__time-slot:last-child),
 .round-single-time :deep(.activity-pill-cell--time:last-child) {
   display: none;
+}
+
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 0.82rem;
+}
+
+.wizard-step {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.wizard-step.active {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.wizard-step-sep {
+  color: #d1d5db;
 }
 </style>
 

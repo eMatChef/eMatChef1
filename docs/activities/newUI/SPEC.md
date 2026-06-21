@@ -654,7 +654,7 @@ MW, Step `pack` — Toolbar **«In Kiste»** ([§17.3](#173-kisten--anlegen-zuor
 | **Aus Liste** | `addContainerBatchOptions` / `GET container-batches` |
 | **Neue Kiste** | wenn Dept-Regel erlaubt |
 
-Danach Material zuordnen (Scan, Intent-Gruppe §19.2). Mehrere Chargen: **Batch-Picker** vor Zuordnung.
+Danach Material zuordnen (Scan oder Antippen bei gewählter Zielkiste). Mehrere Chargen: **Batch-Picker** vor Zuordnung.
 
 ---
 
@@ -835,7 +835,7 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 | **9** | J+S eigener Tab | js-material Spec | — | ✓ |
 | **9b** | Nutzungs-Statistik (Moves) | §20.10 | — | ✓ |
 | **10** | Nachlieferungs-Wunsch | §14 | Panel unter Scan-Bar | ✓ |
-| **11** | Kisten-Intent «Zusammen» | §19.2 | — | ✓ |
+| **11** | ~~Kisten-Intent «Zusammen»~~ | — | entfernt — stattdessen Zielkiste §19.2 | — |
 | **12** | Presence light + Konflikt | §6.5, §15 | — | ✓ |
 | **13** | **Rollout** | Tab `packs` → Journey default; Legacy «Klassische Packliste» | Toggle / `?packUi=legacy` | ✓ |
 
@@ -1025,7 +1025,7 @@ Bei Filter «Nach Regal» (MW): später Heartbeat mit `shelf` senden.
 | 13 | J+S Tab | **tendenz** | eigener Tab, Phase 9 |
 | 14 | Kopfzeile vs. Journey | **entschieden** | Status Kopfzeile, Mengen Journey — §4.4 |
 | 15 | Material nachbuchen | **entschieden** | §5.2, §17.2 |
-| 16 | Kisten-Workflow | **entschieden** | §17.3, Intent §19.2 |
+| 16 | Kisten-Workflow | **entschieden** | §17.3, Zielkiste §19.2 |
 | 17 | `not_taken` | **entschieden** | eigene Zeile §5.1 |
 | 18 | Einlagern UX | **entschieden** | §7.6 |
 | 19 | `moveback` | **entschieden** | eine Packstufe zurück §17.7 |
@@ -1069,14 +1069,15 @@ Siehe [§4.4](#44-status-vs-journey--entschieden). Kurz: **keine** Status-Button
 
 API: bestehende Add-Material + `replenishment: true` / `replenishment_pack_stage` — kein neuer Endpoint v1.
 
-### 17.3 Kisten — anlegen, zuordnen, «zusammen»
+### 17.3 Kisten — anlegen, zuordnen, Zielkiste
 
 | Trigger | Verhalten |
 |---------|-----------|
 | MW packt vom **Regal** | Optional «In Kiste packen?» — **nicht** bei jedem Artikel |
 | **Regal-Wechsel** | Frage erneut anbieten (Session-Flag `lastPromptedShelf`) |
-| **Toolbar-Button** «In Kiste» | Modal: Kiste scannen → aktive Buchungen in Container |
-| **«Zusammen packen»** ohne Kiste | Intent-Gruppe — [§19.2](#192-zusammen-packen-ohne-kiste--datenmodell) |
+| **Toolbar-Button** «In Kiste» / **Kiste hinzufügen** | Modal: Kiste scannen oder aus Liste — dann als **Zielkiste** (grün) wählen |
+| **Material antippen/scannen** mit gewählter Zielkiste | Packen + Container-Zuordnung; bei bereits erledigten Positionen nur Zuordnung — [§19.2](#192-packkiste-als-ziel--ohne-intent-gruppe) |
+| **Erledigt ohne Kiste** | Position normal abschliessen — kein Container-Zwang |
 
 ### 17.4 «Nicht mitgenommen» (`not_taken`)
 
@@ -1233,39 +1234,27 @@ Bedingung: `packMwHandoffBannerVisible` = `canManageMaterials` && `isGroupHandof
 
 **i18n-Keys** (bestehend): `mwHandoffBannerTitle/Body`, `mwReturnHandoffBannerTitle/Body`, `readonlyHintReturnedHandoff`.
 
-### 19.2 «Zusammen packen» ohne Kiste — Datenmodell
+### 19.2 Packkiste als Ziel — ohne Intent-Gruppe
 
-**Problem:** MW will mehrere lose Positionen **zusammen** packen, ohne sofort eine physische Kiste zu scannen.
+**Entscheidung (Juni 2026):** Kein separates «Zusammen packen» / Intent-Modell. MW arbeitet direkt mit **Packkisten als Ziel**.
 
-**Entscheidung:** **Zwei-Phasen-Modell** — Intent zuerst, Container später. **Kein** sofortiger logischer Container (das ist `virtual_combo` / `pack_mode together`).
+| Aktion | Verhalten |
+|--------|-----------|
+| **Kiste wählen** | Antippen in der Packliste → grüne Zielkiste («Ziel»-Badge) |
+| **Offenes Material** | Antippen oder scannen → packen + in gewählte Kiste legen |
+| **Erledigt ohne Kiste** | Normal abschliessen — lose gepackt |
+| **Erledigt nachträglich** | Zielkiste wählen → erledigte Zeile antippen → nur Container-Zuordnung (Badge «In Packkiste …») |
+| **Kiste hinzufügen** | Button unter Offen/Erledigt — ohne Scan, wie Legacy |
 
-| Phase | Speicher | UI |
-|-------|----------|-----|
-| **1 — Intent** | `activity_pack_group_intent` (neu, Phase 11) | MW wählt Zeilen → «Zusammen packen» → Badge «Zusammen (n)» an Zeilen, optional eingeckelte Gruppe |
-| **2 — Materialisierung** | bestehende `activity_pack_container` | MW scannt Kiste **oder** «Neue Kiste» → alle Items mit gleichem `intent_id` werden `container_id` zugewiesen |
+**Technik:** `activity_pack_container` + `activity_pack_container_item` — keine `intent_id`, keine `activity_pack_group_intent`.
 
-**Entität (Ziel):**
+**Abgrenzung virt. Kombi `together`:**
 
-```
-activity_pack_group_intent
-  id
-  activity_id
-  label              nullable  — z.B. «Küche», «Zelt 3»
-  created_by_user_id
-  created_at
-  resolved_at        nullable
-  resolved_container_id  nullable FK → activity_pack_container
-```
-
-**Client-only Fallback (Phase 3):** Session-`Map<intentId, packItemIds[]>` bis API existiert — beim Kisten-Scan Bulk-Assign.
-
-**Abgrenzung:**
-
-| | Intent-Gruppe | Virt. Kombi `together` |
-|--|---------------|------------------------|
+| | Packkiste (Ziel) | Virt. Kombi `together` |
+|--|------------------|------------------------|
 | Auslöser | MW beim Packen | Ersteller in Planung |
-| Zeile | lose Zeilen + Badge | eine «logische Kiste» |
-| Backend | optional `intent_id` auf `pack_item` | `activity_pack_container` virt. |
+| Zeile | lose Zeile + Kisten-Badge | eine «logische Kiste» |
+| Backend | `activity_pack_container` | `activity_pack_container` virt. |
 
 ### 19.3 Transport — Touren & Department-Fuhrpark
 

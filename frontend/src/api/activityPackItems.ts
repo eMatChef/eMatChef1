@@ -39,8 +39,6 @@ export interface ActivityPackItem {
   materialType: string
   linkedContainerLabel: string | null
   linkedContainerBatchId: string | null
-  /** Pack-Gruppen-Intent (Phase 11 «Zusammen packen») */
-  intentId: string | null
 }
 
 export interface PackProgress {
@@ -107,10 +105,6 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     linkedContainerBatchId:
       raw.linked_container_batch_id != null && String(raw.linked_container_batch_id).trim() !== ''
         ? String(raw.linked_container_batch_id).trim()
-        : null,
-    intentId:
-      raw.intent_id != null && String(raw.intent_id).trim() !== ''
-        ? String(raw.intent_id).trim()
         : null,
   }
 }

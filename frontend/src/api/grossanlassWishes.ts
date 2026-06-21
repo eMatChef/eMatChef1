@@ -2,9 +2,24 @@ import apiClient from './apiClient'
 
 export type GrossanlassWishKind = 'material' | 'fahrzeug' | 'beides'
 
+export interface CreateGrossanlassWishPayload {
+  group_id?: string
+  new_bauprojekt?: { name: string; parent_id: string }
+  wish_kind?: GrossanlassWishKind
+  label?: string
+  quantity?: number
+  location?: string
+  valid_from?: string
+  valid_to?: string
+  timeframe_notes?: string | null
+  notes?: string | null
+  custom_values?: Record<string, unknown>
+}
+
 export interface GrossanlassWishLine {
   id: string
   round_id: string
+  response_id?: string | null
   group_id: string
   group_name: string
   wish_kind: GrossanlassWishKind
@@ -15,21 +30,48 @@ export interface GrossanlassWishLine {
   valid_to: string
   timeframe_notes: string | null
   notes: string | null
-  status: string
+  status: 'requested' | 'accepted' | string
   created_by_user_id: string
+  created_by_name?: string
   created_at: string
   updated_at: string
+  custom_values?: Record<string, unknown>
+}
+
+export interface GrossanlassWishListResult {
+  items: GrossanlassWishLine[]
+  total: number
+  page: number
+  limit: number
+  counts: { requested: number; accepted: number }
+}
+
+export interface GrossanlassWishListFilters {
+  group_id?: string
+  status?: string
+  q?: string
+  page?: number
+  limit?: number
 }
 
 export async function getGrossanlassRoundWishes(
   departmentId: string,
   roundId: string,
-  groupId?: string,
-): Promise<GrossanlassWishLine[]> {
-  const params = groupId ? { group_id: groupId } : undefined
-  const response = await apiClient.get<GrossanlassWishLine[]>(
+  filters?: GrossanlassWishListFilters,
+): Promise<GrossanlassWishLine[] | GrossanlassWishListResult> {
+  const params: Record<string, string | number> = {}
+  if (filters?.group_id) params.group_id = filters.group_id
+  if (filters?.status) params.status = filters.status
+  if (filters?.q) params.q = filters.q
+  if (filters?.page) params.page = filters.page
+  if (filters?.limit) params.limit = filters.limit
+
+  const paginated = filters?.page !== undefined || filters?.limit !== undefined
+    || filters?.status !== undefined || filters?.q !== undefined
+
+  const response = await apiClient.get<GrossanlassWishLine[] | GrossanlassWishListResult>(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes`,
-    { params },
+    { params: Object.keys(params).length ? params : undefined },
   )
   return response.data
 }
@@ -37,18 +79,7 @@ export async function getGrossanlassRoundWishes(
 export async function createGrossanlassWish(
   departmentId: string,
   roundId: string,
-  data: {
-    group_id?: string
-    new_bauprojekt?: { name: string; parent_id: string }
-    wish_kind: GrossanlassWishKind
-    label: string
-    quantity: number
-    location: string
-    valid_from: string
-    valid_to: string
-    timeframe_notes?: string | null
-    notes?: string | null
-  },
+  data: CreateGrossanlassWishPayload,
 ): Promise<GrossanlassWishLine> {
   const response = await apiClient.post<GrossanlassWishLine>(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes`,
@@ -61,16 +92,7 @@ export async function updateGrossanlassWish(
   departmentId: string,
   roundId: string,
   wishId: string,
-  data: Partial<{
-    wish_kind: GrossanlassWishKind
-    label: string
-    quantity: number
-    location: string
-    valid_from: string
-    valid_to: string
-    timeframe_notes: string | null
-    notes: string | null
-  }>,
+  data: Partial<CreateGrossanlassWishPayload>,
 ): Promise<GrossanlassWishLine> {
   const response = await apiClient.put<GrossanlassWishLine>(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes/${wishId}`,
@@ -87,6 +109,17 @@ export async function deleteGrossanlassWish(
   await apiClient.delete(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes/${wishId}`,
   )
+}
+
+export async function acceptGrossanlassWish(
+  departmentId: string,
+  roundId: string,
+  wishId: string,
+): Promise<GrossanlassWishLine> {
+  const response = await apiClient.post<GrossanlassWishLine>(
+    `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes/${wishId}/accept`,
+  )
+  return response.data
 }
 
 export async function getMyRessortWishes(departmentId: string): Promise<GrossanlassWishLine[]> {

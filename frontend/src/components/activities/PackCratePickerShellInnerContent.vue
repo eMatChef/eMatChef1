@@ -163,5 +163,4 @@ watch(
 
 <style src="@/styles/views/activities/detail-workflow.css"></style>
 <style src="@/styles/views/activities/pack-container-card.css"></style>
-<style src="@/styles/views/activities/pack-shell-combo.css"></style>
 <style scoped src="@/styles/views/activities/pack-crate-picker.css"></style>

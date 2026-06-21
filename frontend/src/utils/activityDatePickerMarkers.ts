@@ -7,6 +7,7 @@ export type ActivityDatePickerMarkerKind =
   | 'department_break'
   | 'camp_week'
   | 'other'
+  | 'grossanlass'
 
 export interface ActivityDatePickerDayMarker {
   kind: ActivityDatePickerMarkerKind
@@ -23,6 +24,7 @@ export const ACTIVITY_DATE_PICKER_MARKER_BADGE_COLORS: Record<ActivityDatePicker
   department_break: 'error',
   camp_week: 'warning',
   other: 'grey-darken-1',
+  grossanlass: 'primary',
 }
 
 export function periodLabelToMarkerKind(label: CalendarPeriodLabel): ActivityDatePickerMarkerKind {

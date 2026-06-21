@@ -15,6 +15,7 @@ class ActivityGrossanlassWishLine
     public const KIND_BEIDES = 'beides';
 
     public const STATUS_REQUESTED = 'requested';
+    public const STATUS_ACCEPTED = 'accepted';
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
@@ -67,6 +68,13 @@ class ActivityGrossanlassWishLine
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'created_by_user_id', referencedColumnName: 'id', nullable: false, onDelete: 'RESTRICT')]
     private User $createdByUser;
+
+    #[ORM\Column(name: 'response_id', type: 'string', length: 12, nullable: true, unique: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $responseId = null;
+
+    #[ORM\OneToOne(targetEntity: ActivityGrossanlassWishResponse::class)]
+    #[ORM\JoinColumn(name: 'response_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassWishResponse $response = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -250,6 +258,24 @@ class ActivityGrossanlassWishLine
     {
         $this->createdByUser = $user;
         $this->createdByUserId = $user->getId();
+
+        return $this;
+    }
+
+    public function getResponseId(): ?string
+    {
+        return $this->responseId;
+    }
+
+    public function getResponse(): ?ActivityGrossanlassWishResponse
+    {
+        return $this->response;
+    }
+
+    public function setResponse(?ActivityGrossanlassWishResponse $response): self
+    {
+        $this->response = $response;
+        $this->responseId = $response?->getId();
 
         return $this;
     }

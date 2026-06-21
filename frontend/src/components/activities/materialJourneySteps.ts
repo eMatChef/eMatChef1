@@ -125,6 +125,11 @@ export function isJourneyStoreStep(step: JourneyStep): boolean {
   return step === 'store'
 }
 
+/** Regal/Fach in Checkliste — nur Packen, Retour und Einlagern (§ Journey UX). */
+export function materialJourneyShowsShelfLocation(step: JourneyStep): boolean {
+  return step === 'pack' || step === 'return' || step === 'store'
+}
+
 export function isJourneyStepAheadOfDefault(
   step: JourneyStep,
   defaultStep: JourneyStep,
@@ -132,4 +137,14 @@ export function isJourneyStepAheadOfDefault(
 ): boolean {
   const steps = journeyStepsForProfile(profile)
   return steps.indexOf(step) > steps.indexOf(defaultStep)
+}
+
+/** URL-Schritt liegt hinter dem Status (z. B. pack bei Status packed) — auf Default weiterleiten. */
+export function isJourneyStepBehindDefault(
+  step: JourneyStep,
+  defaultStep: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  const steps = journeyStepsForProfile(profile)
+  return steps.indexOf(step) < steps.indexOf(defaultStep)
 }

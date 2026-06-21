@@ -56,7 +56,7 @@ function formatRange(startIso: string, endIso: string): string {
 
 const fixedPeriods = computed(() =>
   periods.value
-    .filter((p) => p.label === 'camp_week' || p.label === 'other')
+    .filter((p) => p.label === 'grossanlass' || p.label === 'other')
     .map((p) => ({
       id: p.id,
       name: p.name,

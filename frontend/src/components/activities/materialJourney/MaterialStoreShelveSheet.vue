@@ -287,9 +287,8 @@ function onConfirm(): void {
   </v-dialog>
 </template>
 
+<style src="@/styles/views/activities/material-journey-sheet.css"></style>
 <style scoped>
-@import '@/styles/views/activities/material-journey-sheet.css';
-
 .material-store-shelve-sheet__field {
   margin-bottom: 16px;
 }

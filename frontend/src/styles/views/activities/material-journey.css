@@ -65,19 +65,19 @@
   gap: 12px;
 }
 
-/* Stepper */
+/* Stepper — Chevron-Pipeline + aktiver Schritt expandiert (Mobile) / alle Labels (Desktop) */
 .material-journey-stepper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
   margin: 0;
-  padding: 14px 12px 12px;
+  padding: 12px 10px 10px;
   border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 14px;
   background: rgb(var(--v-theme-surface));
+  overflow: hidden;
 }
 
 .material-journey-stepper__track {
-  height: 4px;
-  margin: 0 8px 14px;
+  height: 3px;
+  margin: 0 6px 10px;
   border-radius: 999px;
   background: rgba(var(--v-theme-on-surface), 0.08);
   overflow: hidden;
@@ -94,58 +94,104 @@
   transition: width 0.25s ease;
 }
 
-.material-journey-stepper__list {
+.material-journey-stepper__pipeline {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  align-items: stretch;
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   list-style: none;
-  min-width: min-content;
-}
-
-.material-journey-stepper__item {
-  flex: 1 1 0;
-  min-width: 72px;
-  max-width: 140px;
-}
-
-.material-journey-stepper__btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
   min-height: 44px;
-  padding: 4px 6px 2px;
-  border: none;
   border-radius: 10px;
-  background: transparent;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-on-surface), 0.03);
+}
+
+.material-journey-stepper__pipeline::-webkit-scrollbar {
+  display: none;
+}
+
+.material-journey-stepper__seg {
+  flex: 0 0 36px;
+  min-width: 36px;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.material-journey-stepper__seg:not(.material-journey-stepper__seg--first) {
+  margin-left: -10px;
+}
+
+.material-journey-stepper__seg--active {
+  flex: 1 1 auto;
+  min-width: 0;
+  z-index: 3;
+}
+
+.material-journey-stepper__seg--done {
+  z-index: 1;
+}
+
+.material-journey-stepper__seg--future {
+  z-index: 0;
+}
+
+.material-journey-stepper__seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  padding: 0 12px 0 16px;
+  border: none;
+  background: rgb(var(--v-theme-surface));
   color: rgba(var(--v-theme-on-surface), 0.55);
   font: inherit;
-  font-size: 0.75rem;
-  line-height: 1.25;
-  text-align: center;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.material-journey-stepper__btn:hover {
-  background: rgba(var(--v-theme-on-surface), 0.04);
+.material-journey-stepper__seg--first .material-journey-stepper__seg-btn {
+  padding-left: 12px;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+  border-radius: 9px 0 0 9px;
+}
+
+.material-journey-stepper__seg--last .material-journey-stepper__seg-btn {
+  padding-right: 12px;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 12px 50%);
+  border-radius: 0 9px 9px 0;
+}
+
+.material-journey-stepper__seg--first.material-journey-stepper__seg--last .material-journey-stepper__seg-btn {
+  clip-path: none;
+  border-radius: 9px;
+}
+
+.material-journey-stepper__seg-btn:hover:not(:disabled) {
   color: rgb(var(--v-theme-on-surface));
+  background: rgba(var(--v-theme-on-surface), 0.06);
 }
 
-.material-journey-stepper__index {
+.material-journey-stepper__seg-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2px solid rgba(var(--v-theme-on-surface), 0.18);
-  background: rgb(var(--v-theme-surface));
   flex-shrink: 0;
-  transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
+  width: 22px;
+  height: 22px;
 }
 
 .material-journey-stepper__num {
@@ -155,49 +201,56 @@
 }
 
 .material-journey-stepper__check {
-  color: rgb(var(--v-theme-on-primary));
-}
-
-.material-journey-stepper__label {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.material-journey-stepper__item--done .material-journey-stepper__btn {
   color: rgb(var(--v-theme-success));
 }
 
-.material-journey-stepper__item--done .material-journey-stepper__index {
-  border-color: rgb(var(--v-theme-success));
-  background: rgb(var(--v-theme-success));
+.material-journey-stepper__seg-label {
+  display: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
-.material-journey-stepper__item--active .material-journey-stepper__btn {
-  color: rgb(var(--v-theme-primary));
-}
-
-.material-journey-stepper__item--active .material-journey-stepper__index {
-  border-color: rgb(var(--v-theme-primary));
-  background: rgb(var(--v-theme-primary));
-  color: rgb(var(--v-theme-on-primary));
-  box-shadow: 0 0 0 3px rgb(var(--v-theme-primary), 0.18);
-}
-
-.material-journey-stepper__item--active .material-journey-stepper__num {
-  color: rgb(var(--v-theme-on-primary));
-}
-
-.material-journey-stepper__item--active .material-journey-stepper__label {
+.material-journey-stepper__seg-label-num {
+  margin-right: 0.25em;
   font-weight: 700;
 }
 
-.material-journey-stepper__item--future .material-journey-stepper__index {
-  border-color: rgba(var(--v-theme-on-surface), 0.12);
-  background: rgba(var(--v-theme-on-surface), 0.04);
+.material-journey-stepper__seg--active .material-journey-stepper__seg-btn {
+  justify-content: flex-start;
+  padding-right: 14px;
+  background: rgb(var(--v-theme-primary));
+  color: rgb(var(--v-theme-on-primary));
+  box-shadow: 0 2px 8px rgb(var(--v-theme-primary), 0.28);
+}
+
+.material-journey-stepper__seg--active .material-journey-stepper__seg-label {
+  display: block;
+  flex: 1 1 auto;
+}
+
+.material-journey-stepper__seg--active .material-journey-stepper__seg-icon {
+  display: none;
+}
+
+.material-journey-stepper__seg--active .material-journey-stepper__num {
+  color: rgb(var(--v-theme-on-primary));
+}
+
+.material-journey-stepper__seg--done .material-journey-stepper__seg-btn {
+  background: rgba(var(--v-theme-success), 0.12);
+  color: rgb(var(--v-theme-success));
+}
+
+.material-journey-stepper__seg--future .material-journey-stepper__seg-btn {
+  background: rgb(var(--v-theme-surface));
+  color: rgba(var(--v-theme-on-surface), 0.45);
+}
+
+.material-journey-stepper__seg--future .material-journey-stepper__seg-icon {
+  opacity: 0.85;
 }
 
 /* Toolbar placeholder */
@@ -212,6 +265,16 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.material-journey-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.material-journey-toolbar__add-crate {
+  min-height: 44px;
 }
 
 .material-journey-toolbar__chip {
@@ -249,24 +312,135 @@
   font-size: 0.875rem;
 }
 
-.material-journey-pack-group-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 12px;
-}
-
-.material-journey-task-row__checkbox {
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  margin-right: 4px;
-}
-
 .material-journey-task-row--selected {
   border-color: rgb(var(--v-theme-primary));
+}
+
+/* Packkiste in der Liste — Ziel-Markierung + Inhalt-Akkordeon */
+.material-journey-crate-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  border-radius: 12px;
+  background: rgb(var(--v-theme-surface));
+}
+
+.material-journey-crate-row--target {
+  border: 2px solid #16a34a;
+  box-shadow: 0 0 0 2px #86efac;
+  background: #ecfdf5;
+}
+
+.material-journey-crate-row--filled:not(.material-journey-crate-row--target) {
+  border-color: #22c55e;
+  background: #f0fdf4;
+}
+
+.material-journey-crate-row__header {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.material-journey-crate-row__chevron-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: transparent;
+  cursor: pointer;
+}
+
+.material-journey-crate-row__chevron {
+  display: inline-block;
+  font-size: 0.65rem;
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  transition: transform 0.15s ease;
+}
+
+.material-journey-crate-row__chevron--open {
+  transform: rotate(90deg);
+}
+
+.material-journey-crate-row__main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.material-journey-crate-row--readonly .material-journey-crate-row__main {
+  cursor: default;
+}
+
+.material-journey-crate-row__target-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.material-journey-crate-row__contents {
+  border-top: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  background: rgba(var(--v-theme-surface), 0.6);
+}
+
+.material-journey-crate-row--target .material-journey-crate-row__contents {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.material-journey-crate-row__content-list {
+  margin: 0;
+  padding: 8px 12px 10px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.material-journey-crate-row__content-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+}
+
+.material-journey-crate-row__content-name {
+  min-width: 0;
+  font-size: 0.875rem;
+}
+
+.material-journey-crate-row__content-qty {
+  flex: 0 0 auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }
 
 .material-journey-retry-banner {
@@ -699,6 +873,27 @@
   font-size: 0.875rem;
 }
 
+.material-scan-shelf-card__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.material-scan-shelf-card__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.material-scan-shelf-card__group-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+
 .material-scan-shelf-card__list {
   margin: 0;
   padding: 0;
@@ -706,6 +901,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.material-scan-shelf-card__line-wrap--focused {
+  border-radius: 8px;
 }
 
 .material-scan-shelf-card__line {
@@ -726,6 +925,36 @@
 .material-scan-shelf-card__line:hover {
   border-color: rgb(var(--v-theme-primary), 0.35);
   background: rgb(var(--v-theme-primary), 0.04);
+}
+
+.material-scan-shelf-card__line--expanded {
+  cursor: default;
+  border-color: rgb(var(--v-theme-primary), 0.45);
+  background: rgb(var(--v-theme-surface));
+}
+
+.material-scan-shelf-card__line--expanded:hover {
+  border-color: rgb(var(--v-theme-primary), 0.45);
+  background: rgb(var(--v-theme-surface));
+}
+
+.material-scan-shelf-card__line-detail {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+}
+
+.material-scan-shelf-card__line-hint {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+}
+
+.material-scan-shelf-card__line-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
 }
 
 .material-scan-shelf-card__line-title {
@@ -866,6 +1095,32 @@
   font-size: 0.75rem;
   font-weight: 600;
 }
+.material-journey-task-row__badge--pack-crate {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+}
+
+.material-journey-task-row__pack-crate-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
+}
+
+.material-journey-task-row__crate-flag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid #16a34a;
+  background: #ecfdf5;
+  color: #166534;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
 
 .material-journey-task-row__qty {
   flex: 0 0 auto;
@@ -873,6 +1128,24 @@
   font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
+}
+
+/* Pack step complete — inline «Gepackt markieren» */
+.material-journey-pack-complete {
+  padding: 20px 16px 24px;
+  text-align: center;
+}
+
+.material-journey-pack-complete__action {
+  min-width: min(100%, 280px);
+}
+
+.material-journey-pack-complete__hint {
+  margin: 12px 0 0;
+  max-width: 28rem;
+  margin-inline: auto;
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 
 /* Step footer */
@@ -921,29 +1194,47 @@
 
 @media (min-width: 768px) {
   .material-journey-stepper {
-    padding: 16px 16px 14px;
+    padding: 14px 14px 12px;
   }
 
-  .material-journey-stepper__list {
-    gap: 10px;
+  .material-journey-stepper__pipeline {
+    min-height: 48px;
   }
 
-  .material-journey-stepper__item {
-    max-width: none;
+  .material-journey-stepper__seg {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
-  .material-journey-stepper__btn {
-    flex-direction: row;
+  .material-journey-stepper__seg--active {
+    flex: 1.35 1 0;
+  }
+
+  .material-journey-stepper__seg-btn {
     justify-content: center;
-    gap: 10px;
-    padding: 8px 10px;
+    padding: 0 18px 0 20px;
     font-size: 0.875rem;
   }
 
-  .material-journey-stepper__label {
-    white-space: normal;
-    text-overflow: unset;
-    overflow: visible;
+  .material-journey-stepper__seg--active .material-journey-stepper__seg-btn {
+    justify-content: center;
+  }
+
+  .material-journey-stepper__seg-label {
+    display: block;
+    white-space: nowrap;
+  }
+
+  .material-journey-stepper__seg-label-num {
+    display: none;
+  }
+
+  .material-journey-stepper__seg--active .material-journey-stepper__seg-icon {
+    display: inline-flex;
+  }
+
+  .material-journey-stepper__seg--active .material-journey-stepper__check {
+    color: rgb(var(--v-theme-on-primary));
   }
 
   .material-journey-header {
