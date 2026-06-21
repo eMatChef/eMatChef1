@@ -26,7 +26,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 | **Erster Schnitt (MVP gesamt)** | Phase 1 + Ressorts + Planungsrunde Bedarf — [MVP.md](./MVP.md) |
 | Planungsrunden (MVP) | `ressort_wuensche` — wie [Google Form PFF 27](https://docs.google.com/forms/d/e/1FAIpQLSfbk4Cvu7fLpnvW_Upu89BziYJlhd6rDF917xGasM1LEq3kGg/viewform); später `detailplanung` §9.2 |
 | **Entwurf → Freigabe** | CM plant alles; **Erst bei Freigabe** Einladungen an Gast-Depts |
-| Ressort-Hierarchie | **Teilbereiche / Bauprojekte** via `group.parent_id` (CM im MVP; RL ergänzt später) |
+| Ressort-Hierarchie | **Ressort → Unterressort / Bauprojekt** via `group.parent_id` + `group.grossanlass_kind` (CM im MVP; Mitglieder §4.2) |
 | Gast-Pfadi-Dept | Weiter **`/activities`** — sichtbar **erst nach Freigabe** |
 | **Keine Doppelspur** | Bestehende Layout-, UI-, API- und Inbox-Patterns erweitern — [§20](#20-implementierungsprinzipien--keine-doppelspur) |
 
@@ -506,26 +506,38 @@ Ressorts = **`Group`** im Grossanlass-Department + `GroupMembership`.
 
 | Ebene | Department | Bedeutung |
 |-------|------------|-----------|
-| **Ressort** | Grossanlass-Dept | Organisatoren, Material-Wünsche, Ausgabe |
-| **Teilbereich / Bauprojekt** | Grossanlass-Dept (`group.parent_id`) | Untergliederung z. B. Bau → Bühne, Wasserstelle |
+| **Ressort** | Grossanlass-Dept (`parent_id: null`) | Organisatoren, Material-Wünsche, Ausgabe |
+| **Unterressort** | Grossanlass-Dept (`parent_id` gesetzt, `grossanlass_kind: ressort`) | Weitere Struktur unter einem Ressort (kann wieder Kinder haben) |
+| **Bauprojekt** | Grossanlass-Dept (`parent_id` gesetzt, `grossanlass_kind: teilbereich`) | Feine Untergliederung z. B. Bau → Bühne, Wasserstelle |
 | **Teilnehmer-Gruppe** | Pfadi-Dept (Gast) | Lokale Stufe bei Annahme (`guest_group_id`) |
 
-### 4.1 Hierarchie — Ressort → Teilbereich
+### 4.1 Hierarchie — Ressort → Unterressort / Bauprojekt
 
-Keine extra Tabelle — **`Group.parent_id`**:
+Keine extra Tabelle — **`Group.parent_id`** + **`Group.grossanlass_kind`**:
 
 ```
-Group «Bau»                         ← Ressort (parent_id: null)
-  Group «Bühne»                     ← Teilbereich / Bauprojekt
+Group «Bau»                         ← Ressort (parent_id: null, kind: ressort)
+  Group «Sanitär»                   ← Unterressort (kind: ressort)
+    Group «WC-Block»                ← Bauprojekt (kind: teilbereich)
+  Group «Bühne»                     ← Bauprojekt (kind: teilbereich)
   Group «Wasserstelle»
-  Group «Sanitär»
 
 Group «Verpflegung»
-  Group «Küche Nord»
+  Group «Küche Nord»                ← Unterressort oder Bauprojekt (User wählt beim Anlegen)
   Group «Küche Süd»
 ```
 
-Optional `group.kind`: `ressort` | `teilbereich` (UI-Label «Bauprojekt» bei Bau-Ressorts).
+**Speicherung (`group.grossanlass_kind`):**
+
+| Wert | `parent_id` | UI (`node_type`) |
+|------|-------------|------------------|
+| `ressort` | `null` | **Ressort** (Wurzel) |
+| `ressort` | gesetzt | **Unterressort** |
+| `teilbereich` | gesetzt | **Bauprojekt** |
+
+Migration: `Version20260625120000` — Spalte `grossanlass_kind`; Bestand bei Grossanlass-Depts: Wurzel → `ressort`, Kinder → `teilbereich`.
+
+**Anlegen unter einem Knoten:** Dialog «Art» — **Unterressort** oder **Bauprojekt** (Phase 2b, [`GrossanlassRessortsTab.vue`](../../frontend/src/views/grossanlass/GrossanlassRessortsTab.vue)).
 
 **Tiefe:** max. **10** Ebenen (`parent_id`-Kette) — Validierung beim Anlegen/Verschieben.
 
@@ -536,11 +548,12 @@ Optional `group.kind`: `ressort` | `teilbereich` (UI-Label «Bauprojekt» bei Ba
 | Aktion | CM/MW | Mitglied im Ressort (RL/User) |
 |--------|-------|-------------------------------|
 | **Ressort** (Wurzel) anlegen | ✓ | — |
-| **Teilbereich / Bauprojekt** anlegen | ✓ | ✓ — **immer**, auch im Entwurf; **nicht** an Gast-Freigabe gebunden |
+| **Unterressort** anlegen (unter beliebigem Knoten) | ✓ | ✓ — **immer**, auch im Entwurf |
+| **Bauprojekt** anlegen (unter beliebigem Knoten) | ✓ | ✓ — **immer**, auch im Entwurf; **nicht** an Gast-Freigabe gebunden |
 | **Mitglieder** zuweisen | ✓ | ✓ im **eigenen** Ressort-Baum |
 | **Löschen** | ✓ | — |
 
-**Teilbereiche / Bauprojekte:** jederzeit für berechtigte User — kein Warten auf `published`.
+**Unterressorts / Bauprojekte:** jederzeit für berechtigte User — kein Warten auf `published`.
 
 `group.allow_rl_structure` (Default `true`): Mitglieder dürfen Kinder-Groups unter ihrem Knoten anlegen.
 
@@ -562,6 +575,16 @@ Intern weiterhin `Group` + `GroupMembership` — **API-Fassade** unter Grossanla
 GET/POST/PUT/DELETE  /api/departments/{id}/grossanlass/groups
 POST/DELETE          …/groups/{groupId}/members
 ```
+
+**Groups — Request/Response (Phase 2b):**
+
+| Feld | POST/PUT | Response | Beschreibung |
+|------|----------|----------|--------------|
+| `name` | ✓ | ✓ | Anzeigename |
+| `parent_id` | ✓ | ✓ | `null` = Wurzel-Ressort |
+| `kind` | ✓ (Kinder) | ✓ | `ressort` (Unterressort) \| `teilbereich` (Bauprojekt); Wurzel immer `ressort` |
+| `node_type` | — | ✓ | `ressort` \| `unterressort` \| `bauprojekt` — abgeleitet für UI |
+| `level` | — | ✓ | Tiefe 1…10 |
 
 Optional Link von **Einstellungen → Gruppen** für Grossanlass-Dept — Haupt-UX bleibt Planung-Tab.
 
@@ -976,10 +999,15 @@ department_grossanlass_config
 Group-Erweiterung (Ressorts):
 
 ```
-group.parent_id             nullable → Teilbereich unter Ressort
-group.kind                  ressort | teilbereich  (optional)
-group.allow_rl_structure    boolean DEFAULT true
+group.parent_id             nullable → Hierarchie (Wurzel = Ressort)
+group.grossanlass_kind      ressort | teilbereich  (nullable; nur Grossanlass-Dept)
+                            — Wurzel: immer ressort
+                            — Kind mit ressort → Unterressort (UI node_type)
+                            — Kind mit teilbereich → Bauprojekt (UI node_type)
+group.allow_rl_structure    boolean DEFAULT true  (geplant; Mitglieder dürfen Kinder anlegen §4.2)
 ```
+
+Migration `Version20260625120000`: Spalte `grossanlass_kind`.
 
 ### 14.3 Activity
 

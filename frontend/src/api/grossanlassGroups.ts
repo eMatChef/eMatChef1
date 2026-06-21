@@ -2,6 +2,7 @@ import apiClient from './apiClient'
 import type { GroupMember } from './groups'
 
 export type GrossanlassGroupKind = 'ressort' | 'teilbereich'
+export type GrossanlassNodeType = 'ressort' | 'unterressort' | 'bauprojekt'
 
 export interface GrossanlassGroup {
   id: string
@@ -11,6 +12,7 @@ export interface GrossanlassGroup {
   sort_order: number
   level: number
   kind: GrossanlassGroupKind
+  node_type: GrossanlassNodeType
   member_count: number
   leader_count: number
   members: GroupMember[]
@@ -31,6 +33,7 @@ export async function createGrossanlassGroup(
   data: {
     name: string
     parent_id?: string | null
+    kind?: GrossanlassGroupKind
     sort_order?: number
   },
 ): Promise<GrossanlassGroup> {
@@ -47,6 +50,7 @@ export async function updateGrossanlassGroup(
   data: {
     name?: string
     parent_id?: string | null
+    kind?: GrossanlassGroupKind
     sort_order?: number
   },
 ): Promise<GrossanlassGroup> {
