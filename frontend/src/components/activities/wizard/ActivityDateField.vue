@@ -93,6 +93,8 @@ const props = withDefaults(
     showPresets?: boolean
     /** Kalender-Punkte (Feiertage, Fixe Daten, fcal) */
     showMarkers?: boolean
+    /** single = Samstage + Fixe Daten; fixed-periods = nur Fixe Daten (Lagerwoche, …) */
+    presetMode?: 'single' | 'fixed-periods'
   }>(),
   {
     departmentId: null,
@@ -102,6 +104,7 @@ const props = withDefaults(
     blockClosedDates: true,
     showPresets: false,
     showMarkers: true,
+    presetMode: 'single',
   },
 )
 
@@ -136,7 +139,7 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets('single', calendarPeriods)
+const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods)
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))
 

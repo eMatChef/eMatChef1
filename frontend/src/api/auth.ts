@@ -86,6 +86,7 @@ export interface LoginResponse {
     role: string
     is_primary: boolean
     is_grossanlass?: boolean
+    parent_id?: string | null
     grossanlass_config?: {
       status: string
       planned_event_start: string
@@ -181,6 +182,7 @@ export interface UserDepartmentResponse {
     id: string
     name: string
     organisation_id: string
+    parent_id?: string | null
     is_grossanlass?: boolean
     grossanlass_config?: {
       status: string

@@ -9,7 +9,6 @@ import MaterialJourneyToolbar from '@/components/activities/materialJourney/Mate
 import MaterialJourneyTaskList from '@/components/activities/materialJourney/MaterialJourneyTaskList.vue'
 import MaterialJourneyStepFooter from '@/components/activities/materialJourney/MaterialJourneyStepFooter.vue'
 import MaterialJourneyLegacyLink from '@/components/activities/materialJourney/MaterialJourneyLegacyLink.vue'
-import MaterialJourneyJsBanner from '@/components/activities/materialJourney/MaterialJourneyJsBanner.vue'
 import MaterialAssignCrateSheet from '@/components/activities/materialJourney/MaterialAssignCrateSheet.vue'
 import MaterialCrateCheckSheet from '@/components/activities/materialJourney/MaterialCrateCheckSheet.vue'
 import MaterialComboCheckSheet from '@/components/activities/materialJourney/MaterialComboCheckSheet.vue'
@@ -19,6 +18,7 @@ import type { ReturnCrateLineEdit } from '@/components/activities/PackReturnCrat
 import MaterialJourneyScanBar from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
 import MaterialJourneyActiveCratePanel from '@/components/activities/materialJourney/MaterialJourneyActiveCratePanel.vue'
 import MaterialScanResultCard from '@/components/activities/materialJourney/MaterialScanResultCard.vue'
+import MaterialScanShelfResultCard from '@/components/activities/materialJourney/MaterialScanShelfResultCard.vue'
 import MaterialReplenishmentWishPanel from '@/components/activities/materialJourney/MaterialReplenishmentWishPanel.vue'
 import MaterialReplenishmentWishList from '@/components/activities/materialJourney/MaterialReplenishmentWishList.vue'
 import { useMaterialJourneyScan } from '@/composables/useMaterialJourneyScan'
@@ -35,13 +35,15 @@ import { useMaterialJourneyPresence } from '@/composables/useMaterialJourneyPres
 import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
 import { usePackGroupIntents } from '@/composables/usePackGroupIntents'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
-import {
-  computeMaterialJourneyJsSummary,
-  showMaterialJourneyJsBanner,
-} from '@/components/activities/materialJourneyJsSummary'
 import { useToast } from '@/composables/useToast'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { MaterialScanResolveResult, MaterialScanShelfLine } from '@/composables/materialScanResolve'
+import {
+  formatPackScanProgressHint,
+  formatPackScanQuantityHint,
+} from '@/utils/packScanQuantityHint'
+import { packItemMatchesStorageLookup } from '@/utils/packStorageLocationMatch'
 
 const props = withDefaults(
   defineProps<{
@@ -73,6 +75,7 @@ const {
   packItems,
   packContainers,
   containerItemsByContainerId,
+  cratePeekMaps,
   loading,
   error,
   profile,
@@ -113,6 +116,7 @@ const {
   openComboPackItem,
   activateLoosePackItem,
   taskRowForScanResult,
+  moveTaskRow,
   packListCtx,
   returnCrate,
   storeShelveOpen,
@@ -148,6 +152,7 @@ const {
   packItems,
   packContainers,
   containerItemsByContainerId,
+  cratePeekMaps,
   journeyStep: resolvedStep,
   profile,
   canManageMaterials,
@@ -156,6 +161,7 @@ const {
 })
 
 const scan = useMaterialJourneyScan({
+  departmentId: toRef(props, 'departmentId'),
   activityId: toRef(props, 'activityId'),
   journeyStep: resolvedStep,
   listCtx: packListCtx,
@@ -170,10 +176,13 @@ const {
   query: scanQuery,
   resolving: scanResolving,
   activeResult: scanResult,
+  activeShelfResult,
   bulkConfirmed: scanBulkConfirmed,
   sessionLog: scanSessionLog,
   submitQuery,
   dismissResult,
+  dismissShelfSession,
+  clearScanInput,
   confirmBulkBatch,
   filterTasks,
   listTextFilterActive,
@@ -182,6 +191,7 @@ const {
   showInCrateAction,
   inCrateActionLabel,
   messageForResult,
+  messageForShelfResult,
   dismissLabelForResult,
   clearQuery,
 } = scan
@@ -325,12 +335,87 @@ const displayedRegalGroups = computed(() => {
   )
 })
 
+function scanQuantityMoveQty(result: MaterialScanResolveResult): number {
+  if (result.type !== 'loose_ready' && result.type !== 'bulk_wrong_batch') return 0
+  const row = taskRowForScanResult(result)
+  return row?.maxForwardQty ?? 0
+}
+
+function scanQuantityHint(result: MaterialScanResolveResult | null): string {
+  if (!result?.packItem) return ''
+  const moveQty = scanQuantityMoveQty(result)
+  if (moveQty <= 0) return ''
+  return formatPackScanQuantityHint(result.packItem, moveQty, t)
+}
+
+function scanQuantityProgress(result: MaterialScanResolveResult | null): string {
+  if (!result?.packItem) return ''
+  if (scanQuantityMoveQty(result) <= 0) return ''
+  const row = taskRowForScanResult(result)
+  if (!row) return ''
+  return formatPackScanProgressHint(row.doneQty, row.openQty + row.doneQty, t)
+}
+
+async function tryAutoBookShelfScan(result: MaterialScanResolveResult): Promise<boolean> {
+  const shelf = activeShelfResult.value
+  if (!shelf?.storageLookup || !result.packItem) return false
+  if (!packItemMatchesStorageLookup(result.packItem, shelf.storageLookup)) return false
+  if (result.type === 'bulk_wrong_batch') {
+    if (!scanBulkConfirmed.value) return false
+  } else if (result.type !== 'loose_ready') {
+    return false
+  }
+  if (!primaryActionEnabled(result)) return false
+
+  if (
+    selectedPackCrateId.value &&
+    (result.type === 'loose_ready' || result.type === 'bulk_wrong_batch')
+  ) {
+    await handleScanAssignToSelectedCrate(result, 'scan')
+    dismissResult()
+    clearScanInput()
+    return true
+  }
+
+  const row = taskRowForScanResult(result)
+  if (row?.canMove) {
+    await moveTaskRow(row, 'scan')
+    dismissResult()
+    clearScanInput()
+    return true
+  }
+
+  return false
+}
+
 async function onScanSubmit(): Promise<void> {
-  await submitQuery(scanQuery.value)
+  const result = await submitQuery(scanQuery.value)
+  if (result?.type === 'shelf_location') {
+    if ((result.shelfLines?.length ?? 0) > 0) filterTab.value = 'byShelf'
+    return
+  }
+  if (activeShelfResult.value && result) {
+    const booked = await tryAutoBookShelfScan(result)
+    if (booked) return
+  }
+}
+
+function onScanShelfLineActivate(line: MaterialScanShelfLine): void {
+  const row = taskRowForScanResult({ packItem: line.packItem })
+  if (row) {
+    activateTaskRow(row, 'scan')
+    clearScanInput()
+    return
+  }
+  if (line.packItem) {
+    openComboPackItem(line.packItem)
+    clearScanInput()
+  }
 }
 
 function onScanClear(): void {
-  clearQuery()
+  clearScanInput()
+  dismissResult()
 }
 
 async function handleScanAssignToSelectedCrate(
@@ -355,7 +440,7 @@ async function onScanPrimary(): Promise<void> {
     const label = result.scannedBatchLabel ?? result.title
     await submitAddScannedPackCrate(batchId, label)
     dismissResult()
-    clearQuery()
+    clearScanInput()
     return
   }
 
@@ -366,14 +451,14 @@ async function onScanPrimary(): Promise<void> {
   ) {
     await handleScanAssignToSelectedCrate(result, 'scan')
     dismissResult()
-    clearQuery()
+    clearScanInput()
     return
   }
 
   if (result.container && resolvedStep.value === 'pack' && result.type === 'crate_shell') {
     selectPackCrate(result.container.id)
     dismissResult()
-    clearQuery()
+    clearScanInput()
     return
   }
 
@@ -398,7 +483,7 @@ async function onScanPrimary(): Promise<void> {
   }
 
   dismissResult()
-  clearQuery()
+  clearScanInput()
 }
 
 function onScanInCrate(): void {
@@ -408,7 +493,7 @@ function onScanInCrate(): void {
   const maxQty = row?.maxForwardQty ?? 1
   openAssignCrateSheet(result.packItem, maxQty)
   dismissResult()
-  clearQuery()
+  clearScanInput()
 }
 
 async function onAssignCrateConfirm(containerId: string): Promise<void> {
@@ -436,10 +521,6 @@ const activityStatusLabel = computed(() => {
 const activityStatusCss = computed(() =>
   activity.value ? activityStatusClass(activity.value.status ?? '') : '',
 )
-
-const showJsBanner = computed(() => showMaterialJourneyJsBanner(activity.value))
-
-const jsSummary = computed(() => computeMaterialJourneyJsSummary(packItems.value))
 
 const showTransportTours = computed(
   () =>
@@ -562,13 +643,6 @@ function goBackToActivity(): void {
         {{ t('activities.materialJourney.readonlyFutureStep') }}
       </p>
 
-      <MaterialJourneyJsBanner
-        v-if="showJsBanner"
-        :department-id="departmentId"
-        :activity-id="activityId"
-        :summary="jsSummary"
-      />
-
       <MaterialJourneyTransportTours
         v-if="showTransportTours && !isEarlyPackPreview"
         :activity-id="activityId"
@@ -589,10 +663,20 @@ function goBackToActivity(): void {
           @deselect="clearSelectedPackCrate()"
         />
 
+        <MaterialScanShelfResultCard
+          v-if="activeShelfResult"
+          :result="activeShelfResult"
+          :message="messageForShelfResult(activeShelfResult)"
+          @activate-line="onScanShelfLineActivate"
+          @dismiss="dismissShelfSession()"
+        />
+
         <MaterialScanResultCard
           v-if="scanResult"
           :result="scanResult"
           :message="messageForResult(scanResult)"
+          :quantity-hint="scanQuantityHint(scanResult)"
+          :quantity-progress="scanQuantityProgress(scanResult)"
           :primary-label="primaryActionLabel(scanResult)"
           :primary-enabled="primaryActionEnabled(scanResult) && !addingPackCrate"
           :dismiss-label="dismissLabelForResult(scanResult)"
@@ -683,7 +767,10 @@ function goBackToActivity(): void {
         v-model:open="crateSheetOpen"
         :container="activeCrate"
         :shell-pack-item="activeCrateShellPackItem"
+        :pack-items="packItems"
+        :pack-containers="packContainers"
         :container-items-by-container-id="containerItemsByContainerId"
+        :crate-peek-maps="cratePeekMaps"
         :journey-step="resolvedStep"
         :pack-stage="packStage"
         :activity-id="activityId"
@@ -697,6 +784,7 @@ function goBackToActivity(): void {
         :pack-item="activeCombo"
         :pack-containers="packContainers"
         :container-items-by-container-id="containerItemsByContainerId"
+        :crate-peek-maps="cratePeekMaps"
         :journey-step="resolvedStep"
         :pack-stage="packStage"
         :activity-id="activityId"
@@ -741,7 +829,6 @@ function goBackToActivity(): void {
         v-if="!embedded"
         :department-id="departmentId"
         :activity-id="activityId"
-        :show-legacy-link="canManageMaterials"
       />
     </template>
   </div>

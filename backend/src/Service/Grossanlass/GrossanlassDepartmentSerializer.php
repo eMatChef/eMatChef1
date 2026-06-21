@@ -16,6 +16,7 @@ final class GrossanlassDepartmentSerializer
             'id' => $department->getId(),
             'name' => $department->getName(),
             'organisation_id' => $department->getOrganisationId(),
+            'parent_id' => $department->getParentId(),
             'is_grossanlass' => $department->isGrossanlass(),
         ];
 

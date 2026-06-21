@@ -14,12 +14,17 @@ import { isJourneyReturnStep, isJourneyStoreStep } from '@/components/activities
 import { getBackendStage, type PackStage } from '@/components/activities/packStageQuantities'
 import EButton from '@/components/form/base/EButton.vue'
 import { peekSectionsForJourneyContainer } from '@/composables/useMaterialJourneyCrateSections'
+import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
+import { emptyMaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
 
 const props = defineProps<{
   open: boolean
   container: ActivityPackContainer | null
   shellPackItem: ActivityPackItem | null
+  packItems: ActivityPackItem[]
+  packContainers: ActivityPackContainer[]
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>
+  cratePeekMaps?: MaterialJourneyCratePeekMaps
   journeyStep: JourneyStep
   packStage: PackStage
   activityId: string
@@ -38,11 +43,17 @@ const expandedPanels = ref<string[]>([])
 
 const sections = computed((): PackCrateShellPeekSection[] => {
   if (!props.container) return []
+  const peekMaps = props.cratePeekMaps ?? emptyMaterialJourneyCratePeekMaps()
   return peekSectionsForJourneyContainer(
     props.container,
-    props.containerItemsByContainerId,
+    {
+      containerItemsByContainerId: props.containerItemsByContainerId,
+      ...peekMaps,
+    },
     props.shellPackItem,
     t,
+    props.packItems,
+    props.packContainers,
   )
 })
 

@@ -166,6 +166,29 @@
             </button>
 
             <button
+              v-else-if="item.kind === 'grossanlass_round_opened'"
+              :id="inboxItemDomId(item)"
+              type="button"
+              role="listitem"
+              class="nc-inbox-row"
+              :class="{ 'nc-inbox-row--unread': item.unread }"
+              @click="openGrossanlassRoundOpened(item.grossanlassRoundOpened!)"
+            >
+              <div class="nc-inbox-row__body">
+                <div class="nc-inbox-row__top">
+                  <span class="nc-inbox-row__from">{{ item.grossanlassRoundOpened!.department_name }}</span>
+                  <time class="nc-inbox-row__date">{{ formatDate(item.createdAt) }}</time>
+                </div>
+                <div class="nc-inbox-row__meta">
+                  <span class="nc-inbox-category nc-inbox-category--message">{{ inboxCategoryLabel(item) }}</span>
+                </div>
+                <div class="nc-inbox-row__subject">{{ t('grossanlass.inbox.roundOpenedSubject', { name: item.grossanlassRoundOpened!.round_name }) }}</div>
+                <div class="nc-inbox-row__preview">{{ t('grossanlass.inbox.roundOpenedPreview') }}</div>
+              </div>
+              <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
+            </button>
+
+            <button
               v-else-if="item.kind === 'department_invite'"
               :id="inboxItemDomId(item)"
               type="button"
@@ -348,6 +371,7 @@ import {
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
   type GrossanlassMwAssignedNotification,
+  type GrossanlassRoundOpenedNotification,
   type ReceivedUserInboxNotification,
 } from '@/api/joinRequests'
 import { useAuthStore } from '@/stores/auth'
@@ -422,6 +446,7 @@ const campInviteDecision = ref<PendingDepartmentActivityInvite | null>(null)
 const inviteItems = ref<PendingDepartmentActivityInvite[]>([])
 const departmentInviteAll = ref<ReceivedDepartmentInviteNotification[]>([])
 const grossanlassMwAssignedAll = ref<GrossanlassMwAssignedNotification[]>([])
+const grossanlassRoundOpenedAll = ref<GrossanlassRoundOpenedNotification[]>([])
 const departmentInviteUnreadCount = ref(0)
 const activityMwAll = ref<ActivityMwNotification[]>([])
 const activityMwUnreadCount = ref(0)
@@ -435,6 +460,7 @@ type InboxItemKind =
   | 'activity_status'
   | 'department_invite'
   | 'grossanlass_mw_assigned'
+  | 'grossanlass_round_opened'
   | 'invite_accepted'
   | 'qr_found'
   | 'activity_invite'
@@ -449,6 +475,7 @@ interface UnifiedInboxItem {
   activityStatusUser?: boolean
   departmentInvite?: ReceivedDepartmentInviteNotification
   grossanlassMwAssigned?: GrossanlassMwAssignedNotification
+  grossanlassRoundOpened?: GrossanlassRoundOpenedNotification
   qrFound?: PublicFoundItemMessage
   activityInvite?: PendingDepartmentActivityInvite
   inviteAccepted?: InviteAcceptedNotification
@@ -560,6 +587,15 @@ const allInboxItems = computed((): UnifiedInboxItem[] => {
         grossanlassMwAssigned: note,
       })
     }
+    for (const note of grossanlassRoundOpenedAll.value) {
+      items.push({
+        id: `ga-round-${note.id}`,
+        kind: 'grossanlass_round_opened',
+        createdAt: note.created_at,
+        unread: !note.read,
+        grossanlassRoundOpened: note,
+      })
+    }
   }
 
   if (canManageQrContact.value) {
@@ -617,6 +653,8 @@ function inboxCategoryLabel(item: UnifiedInboxItem): string {
       return t('notificationsCenter.inboxCategoryMessage')
     case 'grossanlass_mw_assigned':
       return t('grossanlass.inbox.category')
+    case 'grossanlass_round_opened':
+      return t('grossanlass.inbox.category')
     case 'invite_accepted':
       return t('notificationsCenter.inboxCategoryInviteAccepted')
     case 'activity_invite':
@@ -640,6 +678,30 @@ function inboxBadges(item: UnifiedInboxItem): string[] {
     default:
       return [inboxCategoryLabel(item)].filter(Boolean)
   }
+}
+
+async function openGrossanlassRoundOpened(note: GrossanlassRoundOpenedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  if (!note.read) {
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      grossanlassRoundOpenedAll.value = grossanlassRoundOpenedAll.value.map((e) =>
+        e.id === note.id ? { ...e, read: true } : e,
+      )
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.planung_url || `/${note.department_id}/planung`
+  await router.push(path)
 }
 
 async function openGrossanlassMwAssigned(note: GrossanlassMwAssignedNotification) {
@@ -842,6 +904,9 @@ async function load() {
     grossanlassMwAssignedAll.value = receivedItems.filter(
       (i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned',
     )
+    grossanlassRoundOpenedAll.value = receivedItems.filter(
+      (i): i is GrossanlassRoundOpenedNotification => i.type === 'grossanlass_round_opened',
+    )
     departmentInviteUnreadCount.value =
       typeof deptInv.unread_count === 'number' ? deptInv.unread_count : 0
     allFoundMessages.value = found.items || []
@@ -858,6 +923,7 @@ async function load() {
     inviteAcceptedAll.value = []
     departmentInviteAll.value = []
     grossanlassMwAssignedAll.value = []
+    grossanlassRoundOpenedAll.value = []
     departmentInviteUnreadCount.value = 0
     allFoundMessages.value = []
     activityMwAll.value = []

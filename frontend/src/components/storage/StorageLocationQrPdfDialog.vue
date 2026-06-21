@@ -43,33 +43,57 @@
         </label>
 
         <div v-for="rack in effectiveRacks" :key="rack.id" class="storage-qr-pdf-rack">
-          <label class="storage-qr-pdf-node">
-            <input
-              type="checkbox"
-              :checked="isChecked('storage_rack', rack.id)"
-              @change="toggle('storage_rack', rack.id, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="storage-qr-pdf-node-label">
-              <span class="storage-qr-pdf-type">{{ t('settings.storage.qrPdfTypeRack') }}</span>
-              {{ rack.name }}
-            </span>
-          </label>
+          <div class="storage-qr-pdf-accordion-header">
+            <button
+              type="button"
+              class="storage-qr-pdf-accordion-toggle"
+              :aria-expanded="isRackExpanded(rack.id)"
+              @click="toggleRackExpanded(rack.id)"
+            >
+              <span class="storage-qr-pdf-accordion-chevron" aria-hidden="true">
+                {{ isRackExpanded(rack.id) ? '▾' : '▸' }}
+              </span>
+            </button>
+            <label class="storage-qr-pdf-node storage-qr-pdf-node--rack">
+              <input
+                type="checkbox"
+                :checked="isChecked('storage_rack', rack.id)"
+                @change="toggle('storage_rack', rack.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="storage-qr-pdf-node-label">
+                <span class="storage-qr-pdf-type">{{ t('settings.storage.qrPdfTypeRack') }}</span>
+                {{ rack.name }}
+                <span
+                  v-if="rackSelectionTotal(rack) > 0"
+                  class="storage-qr-pdf-selection-badge"
+                  :class="{
+                    'storage-qr-pdf-selection-badge--partial': rackSelectedCount(rack) > 0 && rackSelectedCount(rack) < rackSelectionTotal(rack),
+                    'storage-qr-pdf-selection-badge--full': rackSelectedCount(rack) === rackSelectionTotal(rack),
+                  }"
+                >
+                  {{ rackSelectedCount(rack) }}/{{ rackSelectionTotal(rack) }}
+                </span>
+              </span>
+            </label>
+          </div>
 
-          <label
-            v-for="slot in rack.slots"
-            :key="slot.id"
-            class="storage-qr-pdf-node storage-qr-pdf-node--slot"
-          >
-            <input
-              type="checkbox"
-              :checked="isChecked('storage_slot', slot.id)"
-              @change="toggle('storage_slot', slot.id, ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="storage-qr-pdf-node-label">
-              <span class="storage-qr-pdf-type">{{ t('settings.storage.qrPdfTypeSlot') }}</span>
-              {{ slot.name }}
-            </span>
-          </label>
+          <div v-show="isRackExpanded(rack.id)" class="storage-qr-pdf-accordion-body">
+            <label
+              v-for="slot in rack.slots"
+              :key="slot.id"
+              class="storage-qr-pdf-node storage-qr-pdf-node--slot"
+            >
+              <input
+                type="checkbox"
+                :checked="isChecked('storage_slot', slot.id)"
+                @change="toggle('storage_slot', slot.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="storage-qr-pdf-node-label">
+                <span class="storage-qr-pdf-type">{{ t('settings.storage.qrPdfTypeSlot') }}</span>
+                {{ slot.name }}
+              </span>
+            </label>
+          </div>
         </div>
 
         <p v-if="effectiveRacks.length === 0" class="storage-qr-pdf-empty">{{ t('settings.storage.qrPdfNoRacks') }}</p>
@@ -134,6 +158,7 @@ const internalAddressId = ref('')
 const internalLocationName = ref('')
 const internalRacks = ref<StorageQrPdfRack[]>([])
 const storageAddresses = ref<Address[]>([])
+const expandedRackIds = ref<Set<string>>(new Set())
 
 const open = computed({
   get: () => props.modelValue,
@@ -164,6 +189,34 @@ function addressLabel(address: Address): string {
 
 function selectionKey(entityType: string, entityId: string): string {
   return `${entityType}|${entityId}`
+}
+
+function syncExpandedRacks() {
+  expandedRackIds.value = new Set()
+}
+
+function rackSelectedCount(rack: StorageQrPdfRack): number {
+  let count = 0
+  if (isChecked('storage_rack', rack.id)) count += 1
+  for (const slot of rack.slots) {
+    if (isChecked('storage_slot', slot.id)) count += 1
+  }
+  return count
+}
+
+function rackSelectionTotal(rack: StorageQrPdfRack): number {
+  return 1 + rack.slots.length
+}
+
+function isRackExpanded(rackId: string): boolean {
+  return expandedRackIds.value.has(rackId)
+}
+
+function toggleRackExpanded(rackId: string) {
+  const next = new Set(expandedRackIds.value)
+  if (next.has(rackId)) next.delete(rackId)
+  else next.add(rackId)
+  expandedRackIds.value = next
 }
 
 function buildDefaultSelection(): Set<string> {
@@ -245,6 +298,7 @@ watch(
   (visible) => {
     if (!visible) return
     selectedKeys.value = buildDefaultSelection()
+    syncExpandedRacks()
     if (props.pickLocation) {
       void initializePicker()
     }
@@ -256,6 +310,7 @@ watch(
   ([visible]) => {
     if (visible) {
       selectedKeys.value = buildDefaultSelection()
+      syncExpandedRacks()
     }
   },
   { deep: true },
@@ -386,7 +441,7 @@ async function exportPdf() {
 }
 
 .storage-qr-pdf-node--slot {
-  margin-left: 28px;
+  margin-left: 4px;
 }
 
 .storage-qr-pdf-node input {
@@ -416,6 +471,68 @@ async function exportPdf() {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px dashed #f3f4f6;
+}
+
+.storage-qr-pdf-accordion-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.storage-qr-pdf-accordion-toggle {
+  flex-shrink: 0;
+  width: 24px;
+  height: 28px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.storage-qr-pdf-accordion-toggle:hover {
+  color: #374151;
+}
+
+.storage-qr-pdf-accordion-chevron {
+  font-size: 12px;
+}
+
+.storage-qr-pdf-node--rack {
+  flex: 1;
+}
+
+.storage-qr-pdf-accordion-body {
+  margin-left: 24px;
+}
+
+.storage-qr-pdf-child-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.storage-qr-pdf-selection-badge {
+  margin-left: 2px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #6b7280;
+  background: #f3f4f6;
+}
+
+.storage-qr-pdf-selection-badge--partial {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.storage-qr-pdf-selection-badge--full {
+  color: #065f46;
+  background: #a7f3d0;
 }
 
 .storage-qr-pdf-empty {

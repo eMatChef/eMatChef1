@@ -89,11 +89,45 @@
 }
 
 .activity-detail-tabs-window {
+  overflow: visible;
+}
+
+/* v-window: inherit-Höhe / transitionHeight kollabiert sonst — Inhalt muss mitwachsen */
+.activity-detail-view :deep(.activity-detail-tabs-window.v-window) {
+  height: auto !important;
+  max-height: none !important;
   min-height: 0;
+  overflow: visible !important;
 }
 
 .activity-detail-view :deep(.activity-detail-tabs-window .v-window__container) {
   height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+}
+
+.activity-detail-view :deep(.activity-detail-tabs-window .v-window-item) {
+  overflow: visible;
+  position: relative !important;
+  height: auto !important;
+}
+
+.activity-detail-view :deep(.activity-detail-tabs-window .v-window-item--active) {
+  position: relative !important;
+  height: auto !important;
+  width: 100% !important;
+}
+
+.activity-detail-tab-panel--packs {
+  padding-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .activity-detail-tab-panel--packs {
+    padding-inline: 12px;
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .activity-detail-tab-panel {

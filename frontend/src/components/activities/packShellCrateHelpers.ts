@@ -102,6 +102,32 @@ export function packShellContainerForPackItem(
   return undefined
 }
 
+/** Lager-Charge für Kisten-Vorschau: container_batch_id oder linkedContainerBatchId der Shell-Position. */
+export function resolvePackContainerWarehouseBatchId(
+  container: ActivityPackContainer,
+  packItems: ActivityPackItem[],
+  packContainers?: ActivityPackContainer[],
+): string {
+  const direct = (container.container_batch_id ?? '').trim()
+  if (direct) return direct
+
+  const containerMatId = (container.container_material_item_id ?? '').trim()
+  if (containerMatId) {
+    const shell = packItems.find((p) => p.materialItemId === containerMatId)
+    const fromShell = (shell?.linkedContainerBatchId ?? '').trim()
+    if (fromShell) return fromShell
+  }
+
+  const containers = packContainers ?? [container]
+  for (const pi of packItems) {
+    if (packShellContainerForPackItem(pi, containers)?.id !== container.id) continue
+    const fromLink = (pi.linkedContainerBatchId ?? '').trim()
+    if (fromLink) return fromLink
+  }
+
+  return ''
+}
+
 export {
   crateShellExcludedFromLooseForwardList,
   isOrphanShellWithoutPackContainer,

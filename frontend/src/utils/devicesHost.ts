@@ -27,6 +27,25 @@ export function getDevicesOrigin(): string {
   return `${protocol}//${host}${port ? `:${port}` : ''}`
 }
 
+/** Vollständige URL auf devices.-Host (Pfad mit führendem Slash). */
+export function buildDevicesUrl(path: string): string {
+  const origin = getDevicesOrigin()
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  if (!origin) return normalized
+  return `${origin}${normalized}`
+}
+
+export function getDevicesHomeUrl(departmentId: string): string {
+  const dept = departmentId.trim()
+  return buildDevicesUrl(`/${encodeURIComponent(dept)}`)
+}
+
+export function getDevicesPackSessionUrl(departmentId: string, activityId: string): string {
+  const dept = departmentId.trim()
+  const act = activityId.trim()
+  return buildDevicesUrl(`/${encodeURIComponent(dept)}/pack/${encodeURIComponent(act)}`)
+}
+
 /** Abteilungsrollen mit Lager-/Pack-Zugriff auf devices. */
 export const DEVICES_WAREHOUSE_ROLES = [
   'dc',

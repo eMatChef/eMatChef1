@@ -11,6 +11,7 @@ final class MaterialQrExportRow
         public readonly string $lineLabel,
         public readonly string $publicCode,
         public readonly string $publicUrl,
+        public readonly string $batchId = '',
     ) {
     }
 }

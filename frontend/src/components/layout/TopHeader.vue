@@ -191,6 +191,21 @@
                 </div>
               </button>
               <button
+                v-for="note in grossanlassRoundOpenedPreview"
+                :key="`ga-round-${note.id}`"
+                type="button"
+                class="notification-item notification-item--grossanlass-round"
+                :class="{ 'notification-item--unread': !note.read }"
+                @click="openGrossanlassRoundFromBell(note)"
+              >
+                <div class="notification-item__body notification-item__body--full">
+                  <div class="notification-title">
+                    {{ t('grossanlass.inbox.roundOpenedSubject', { name: note.round_name }) }}
+                  </div>
+                  <div class="notification-subtitle">{{ t('grossanlass.inbox.roundOpenedPreview') }}</div>
+                </div>
+              </button>
+              <button
                 v-for="note in grossanlassMwAssignedPreview"
                 :key="`ga-mw-${note.id}`"
                 type="button"
@@ -307,6 +322,20 @@
           </svg>
           {{ t('layout.userMenu.editProfile') }}
         </button>
+        <a
+          v-if="showDevicesScannerLink && devicesHomeUrl"
+          :href="devicesHomeUrl"
+          class="dropdown-item dropdown-item--link"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click="showUserDropdown = false"
+        >
+          <v-icon icon="mdi-barcode-scan" class="item-icon item-icon--mdi" size="18" />
+          <span class="dept-switch-text">
+            {{ t('layout.userMenu.devicesScanner') }}
+            <span class="dept-switch-hint">{{ t('layout.userMenu.devicesScannerHint') }}</span>
+          </span>
+        </a>
         <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
           <span class="dropdown-section-label">{{ t('layout.userMenu.switchDepartment') }}</span>
         </button>
@@ -326,18 +355,6 @@
             <span class="dept-switch-hint">{{ dept.roleLabel }}</span>
           </span>
           <v-icon v-if="dept.isActive" icon="mdi-check" size="18" class="dept-switch-check" />
-        </button>
-        <button
-          v-if="authStore.departments.length > 1"
-          type="button"
-          class="dropdown-item dropdown-item--subtle"
-          @click="openDepartmentSettings"
-        >
-          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" stroke-width="2"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke-width="2"/>
-          </svg>
-          {{ t('layout.userMenu.departmentSettings') }}
         </button>
         <button
           v-if="authStore.activeSupplierCompanies.length > 1"
@@ -594,6 +611,7 @@ import {
   type PendingDepartmentActivityInvite,
   type ReceivedDepartmentInviteNotification,
   type GrossanlassMwAssignedNotification,
+  type GrossanlassRoundOpenedNotification,
   type ReceivedUserInboxNotification,
 } from '../../api/joinRequests'
 import {
@@ -636,6 +654,11 @@ import { NotificationSenderBlock } from '@/components/notifications'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitleAlert'
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
+import {
+  canAccessDevicesWarehouse,
+  getDevicesHomeUrl,
+  isDevicesHost,
+} from '@/utils/devicesHost'
 const { t, te } = useI18n()
 const router = useRouter()
 const { mdAndUp, smAndUp } = useDisplay()
@@ -669,6 +692,20 @@ const departmentSwitchItems = computed(() =>
     roleLabel: departmentRoleLabel(dept.role),
   })),
 )
+
+const showDevicesScannerLink = computed(() => {
+  if (isDevicesHost()) return false
+  if (authStore.isSupplierOnly) return false
+  if (!authStore.activeDepartmentId) return false
+  return canAccessDevicesWarehouse(authStore.currentDepartmentRole)
+})
+
+const devicesHomeUrl = computed(() => {
+  const id = authStore.activeDepartmentId || ''
+  if (!id) return ''
+  const url = getDevicesHomeUrl(id)
+  return url.startsWith('http') ? url : ''
+})
 const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
 const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromUserMessage } =
   useNotificationSender()
@@ -700,6 +737,7 @@ const isLoadingNotifications = ref(false)
 const pendingDepartmentInvites = ref<PendingDepartmentActivityInvite[]>([])
 const receivedDepartmentInvitePreview = ref<ReceivedDepartmentInviteNotification[]>([])
 const grossanlassMwAssignedPreview = ref<GrossanlassMwAssignedNotification[]>([])
+const grossanlassRoundOpenedPreview = ref<GrossanlassRoundOpenedNotification[]>([])
 const receivedDepartmentInviteUnread = ref(0)
 const publicFoundPreview = ref<PublicFoundItemMessage[]>([])
 const activityMwPreview = ref<ActivityMwNotification[]>([])
@@ -832,6 +870,7 @@ const hasBellMessages = computed(
     notificationPreviewFound.value.length > 0 ||
     receivedDepartmentInvitePreview.value.length > 0 ||
     grossanlassMwAssignedPreview.value.length > 0 ||
+    grossanlassRoundOpenedPreview.value.length > 0 ||
     notificationPreviewInvites.value.length > 0,
 )
 
@@ -1057,6 +1096,31 @@ function goToAccountingAssign() {
   })
 }
 
+async function openGrossanlassRoundFromBell(note: GrossanlassRoundOpenedNotification) {
+  const canLeave = await confirmLeaveIfDirty(t)
+  if (!canLeave) return
+  showNotifications.value = false
+  grossanlassRoundOpenedPreview.value = grossanlassRoundOpenedPreview.value.filter((e) => e.id !== note.id)
+  if (!note.read) {
+    receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+    decrementUnreadCount()
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+    } catch {
+      /* navigate anyway */
+    }
+  }
+  try {
+    await authStore.loadDepartments()
+    await authStore.setActiveDepartment(note.department_id)
+  } catch {
+    /* navigate anyway */
+  }
+  const path = note.planung_url || `/${note.department_id}/planung`
+  void router.push(path)
+  syncBellBadge()
+}
+
 async function openGrossanlassMwFromBell(note: GrossanlassMwAssignedNotification) {
   const canLeave = await confirmLeaveIfDirty(t)
   if (!canLeave) return
@@ -1221,11 +1285,15 @@ async function loadDepartmentInvites() {
     grossanlassMwAssignedPreview.value = (receivedInvites.items || [])
       .filter((i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned')
       .slice(0, 5)
+    grossanlassRoundOpenedPreview.value = (receivedInvites.items || [])
+      .filter((i): i is GrossanlassRoundOpenedNotification => i.type === 'grossanlass_round_opened')
+      .slice(0, 5)
     receivedDepartmentInviteUnread.value =
       typeof receivedInvites.unread_count === 'number'
         ? receivedInvites.unread_count
         : receivedDepartmentInvitePreview.value.filter((e) => !e.read).length +
-          grossanlassMwAssignedPreview.value.filter((e) => !e.read).length
+          grossanlassMwAssignedPreview.value.filter((e) => !e.read).length +
+          grossanlassRoundOpenedPreview.value.filter((e) => !e.read).length
 
     pendingDepartmentInvites.value = inviteResult.items || []
     publicFoundPreview.value = foundResult.items || []
@@ -1277,6 +1345,7 @@ async function loadDepartmentInvites() {
     pendingDepartmentInvites.value = []
     receivedDepartmentInvitePreview.value = []
     grossanlassMwAssignedPreview.value = []
+    grossanlassRoundOpenedPreview.value = []
     receivedDepartmentInviteUnread.value = 0
     publicFoundPreview.value = []
     activityMwPreview.value = []
@@ -1378,14 +1447,6 @@ function editProfile() {
   resetPasswordForm()
   isEmailEditEnabled.value = false
   showEditProfileModal.value = true
-  showUserDropdown.value = false
-}
-
-function openDepartmentSettings() {
-  const deptId = authStore.activeDepartmentId
-  if (deptId) {
-    router.push(`/${deptId}/settings/my-department`)
-  }
   showUserDropdown.value = false
 }
 
@@ -2392,6 +2453,20 @@ button.notification-item--accounting:hover {
 
 .dropdown-item:hover {
   background-color: #f5f5f5;
+}
+
+.dropdown-item--link {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.dropdown-item--link .dept-switch-hint {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.item-icon--mdi {
+  color: #64748b;
 }
 
 .dropdown-item.logout {

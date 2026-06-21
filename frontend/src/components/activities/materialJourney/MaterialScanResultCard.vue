@@ -7,6 +7,8 @@ import type { MaterialScanResolveResult } from '@/composables/materialScanResolv
 const props = defineProps<{
   result: MaterialScanResolveResult
   message: string
+  quantityHint?: string
+  quantityProgress?: string
   primaryLabel: string
   primaryEnabled: boolean
   showBulkConfirm: boolean
@@ -34,6 +36,10 @@ const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
   <section class="material-scan-result-card section-card" :class="toneClass" aria-live="polite">
     <div class="material-scan-result-card__body">
       <p class="material-scan-result-card__title">{{ result.title }}</p>
+      <p v-if="quantityHint" class="material-scan-result-card__quantity">{{ quantityHint }}</p>
+      <p v-if="quantityProgress" class="material-scan-result-card__progress text-muted">
+        {{ quantityProgress }}
+      </p>
       <p class="material-scan-result-card__message text-muted">{{ message }}</p>
       <p v-if="showBulkConfirm && !bulkConfirmed" class="material-scan-result-card__hint">
         {{ t('activities.materialJourney.scan.bulkConfirmHint') }}

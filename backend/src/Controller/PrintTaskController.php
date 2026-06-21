@@ -204,11 +204,15 @@ class PrintTaskController extends AbstractController
      * PDF-Export aller Material-QR-Codes (Bulk, Chargen, physische Kombis).
      * A4-Raster: 12 QR-Codes pro Seite (3×4).
      */
-    #[Route('/material-qr-pdf', name: 'material_qr_pdf', methods: ['GET'])]
+    #[Route('/material-qr-pdf', name: 'material_qr_pdf', methods: ['GET', 'POST'])]
     #[IsGranted('ROLE_USER')]
     public function materialQrPdf(Request $request): Response
     {
-        $departmentId = trim((string) $request->query->get('department_id', ''));
+        $data = $request->getMethod() === 'POST'
+            ? (json_decode($request->getContent(), true) ?? [])
+            : [];
+
+        $departmentId = trim((string) ($data['department_id'] ?? $request->query->get('department_id', '')));
         if ($departmentId === '') {
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
         }
@@ -220,8 +224,18 @@ class PrintTaskController extends AbstractController
         $currentUser = $this->getUser();
         $actorUserId = $currentUser instanceof User ? $currentUser->getId() : null;
 
+        $batchIds = $data['batch_ids'] ?? null;
         try {
-            $rows = $this->materialQrExportCollector->collectForDepartment($departmentId, $actorUserId, true);
+            if (is_array($batchIds)) {
+                $rows = $this->materialQrExportCollector->collectForBatchIds(
+                    $departmentId,
+                    $batchIds,
+                    $actorUserId,
+                    true,
+                );
+            } else {
+                $rows = $this->materialQrExportCollector->collectForDepartment($departmentId, $actorUserId, true);
+            }
         } catch (\Throwable $e) {
             return new JsonResponse(['error' => 'QR-Codes konnten nicht gesammelt werden: ' . $e->getMessage()], 500);
         }
@@ -247,6 +261,34 @@ class PrintTaskController extends AbstractController
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
             'Cache-Control' => 'private, no-store',
         ]);
+    }
+
+    /**
+     * Kategorien + Materialien mit Chargen für den Material-QR-PDF-Dialog.
+     */
+    #[Route('/material-qr-tree', name: 'material_qr_tree', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function materialQrTree(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $currentUser = $this->getUser();
+        $actorUserId = $currentUser instanceof User ? $currentUser->getId() : null;
+
+        try {
+            $tree = $this->materialQrExportCollector->buildTreeForDepartment($departmentId, $actorUserId);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'Materialbaum konnte nicht geladen werden: ' . $e->getMessage()], 500);
+        }
+
+        return new JsonResponse($tree);
     }
 
     #[Route('', name: 'clear', methods: ['DELETE'])]

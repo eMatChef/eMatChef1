@@ -49,7 +49,8 @@ class UserDepartmentInviteNotificationService
     {
         $invites = $this->inboxMessages->listDepartmentInvitesForUser($userId, $bucket, $limit);
         $grossanlass = $this->inboxMessages->listGrossanlassMwAssignedForUser($userId, $bucket, $limit);
-        $merged = array_merge($invites, $grossanlass);
+        $roundOpened = $this->inboxMessages->listGrossanlassRoundOpenedForUser($userId, $bucket, $limit);
+        $merged = array_merge($invites, $grossanlass, $roundOpened);
         usort($merged, static fn (array $a, array $b): int => strcmp((string) ($b['created_at'] ?? ''), (string) ($a['created_at'] ?? '')));
 
         return array_slice($merged, 0, max(1, min($limit, 200)));
@@ -58,7 +59,8 @@ class UserDepartmentInviteNotificationService
     public function countUnreadPending(string $userId): int
     {
         return $this->inboxMessages->countUnreadDepartmentInvites($userId)
-            + $this->inboxMessages->countUnreadGrossanlassMwAssigned($userId);
+            + $this->inboxMessages->countUnreadGrossanlassMwAssigned($userId)
+            + $this->inboxMessages->countUnreadGrossanlassRoundOpened($userId);
     }
 
     public function markRead(string $userId, string $notificationId): bool
@@ -67,6 +69,10 @@ class UserDepartmentInviteNotificationService
             return true;
         }
 
-        return $this->inboxMessages->markGrossanlassMwAssignedRead($userId, $notificationId);
+        if ($this->inboxMessages->markGrossanlassMwAssignedRead($userId, $notificationId)) {
+            return true;
+        }
+
+        return $this->inboxMessages->markGrossanlassRoundOpenedRead($userId, $notificationId);
     }
 }

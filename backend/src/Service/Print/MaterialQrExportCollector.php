@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Print;
 
+use App\Entity\Category;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Service\Public\PublicCodeService;
@@ -76,6 +77,173 @@ class MaterialQrExportCollector
     }
 
     /**
+     * @param list<string> $batchIds
+     *
+     * @return MaterialQrExportRow[]
+     */
+    public function collectForBatchIds(
+        string $departmentId,
+        array $batchIds,
+        ?string $actorUserId,
+        bool $ensureMissingCodes = true,
+    ): array {
+        $wanted = [];
+        foreach ($batchIds as $batchId) {
+            $id = trim((string) $batchId);
+            if ($id !== '') {
+                $wanted[$id] = true;
+            }
+        }
+        if ($wanted === []) {
+            return [];
+        }
+
+        $allRows = $this->collectForDepartment($departmentId, $actorUserId, $ensureMissingCodes);
+
+        return array_values(array_filter(
+            $allRows,
+            static fn (MaterialQrExportRow $row): bool => $row->batchId !== '' && isset($wanted[$row->batchId]),
+        ));
+    }
+
+    /**
+     * Kategorien + Materialien mit druckbaren Chargen für den Auswahl-Dialog.
+     *
+     * @return array{
+     *     categories: list<array{id: string, name: string, parent_id: string|null, sort_order: int}>,
+     *     materials: list<array{id: string, name: string, category_id: string|null, batches: list<array{id: string, line_label: string}>}>
+     * }
+     */
+    public function buildTreeForDepartment(string $departmentId, ?string $actorUserId): array
+    {
+        /** @var Category[] $categories */
+        $categories = $this->entityManager->getRepository(Category::class)
+            ->createQueryBuilder('c')
+            ->where('c.departmentId = :departmentId')
+            ->setParameter('departmentId', $departmentId)
+            ->orderBy('c.sortOrder', 'ASC')
+            ->addOrderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        /** @var MaterialItem[] $materials */
+        $materials = $this->entityManager->getRepository(MaterialItem::class)
+            ->createQueryBuilder('m')
+            ->leftJoin('m.batches', 'b')
+            ->addSelect('b')
+            ->leftJoin('m.linkedContainerBatch', 'lb')
+            ->addSelect('lb')
+            ->where('m.departmentId = :departmentId')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('m.materialType != :virtualCombo')
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('virtualCombo', 'virtual_combo')
+            ->orderBy('m.name', 'ASC')
+            ->addOrderBy('b.serialNumber', 'ASC')
+            ->addOrderBy('b.label', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        if ($materials !== []) {
+            foreach ($materials as $material) {
+                $this->ensurePublicCodesForMaterial($material, $actorUserId);
+            }
+            $this->entityManager->flush();
+        }
+
+        $categoryPayload = array_map(static fn (Category $category): array => [
+            'id' => (string) $category->getId(),
+            'name' => $category->getName(),
+            'parent_id' => $category->getParentId(),
+            'sort_order' => $category->getSortOrder(),
+        ], $categories);
+
+        $materialPayload = [];
+        /** @var array<string, true> $seenBatchIds */
+        $seenBatchIds = [];
+
+        foreach ($materials as $material) {
+            $batches = [];
+
+            if ($material->getMaterialType() === 'physical_combo' && $material->getLinkedContainerBatchId()) {
+                $linked = $material->getLinkedContainerBatch();
+                if ($linked !== null) {
+                    $batchNode = $this->buildBatchTreeNode($material, $linked, $seenBatchIds);
+                    if ($batchNode !== null) {
+                        $batches[] = $batchNode;
+                    }
+                }
+            } else {
+                foreach ($material->getBatches() as $batch) {
+                    if ($batch->getStatus() !== 'active') {
+                        continue;
+                    }
+                    $batchNode = $this->buildBatchTreeNode($material, $batch, $seenBatchIds);
+                    if ($batchNode !== null) {
+                        $batches[] = $batchNode;
+                    }
+                }
+            }
+
+            if ($batches === []) {
+                continue;
+            }
+
+            $materialPayload[] = [
+                'id' => (string) $material->getId(),
+                'name' => $material->getName(),
+                'category_id' => $material->getCategoryId(),
+                'batches' => $batches,
+            ];
+        }
+
+        return [
+            'categories' => $categoryPayload,
+            'materials' => $materialPayload,
+        ];
+    }
+
+    /**
+     * @param array<string, true> $seenBatchIds
+     *
+     * @return array{id: string, line_label: string}|null
+     */
+    private function buildBatchTreeNode(
+        MaterialItem $displayMaterial,
+        MaterialBatch $batch,
+        array &$seenBatchIds,
+    ): ?array {
+        $batchId = (string) $batch->getId();
+        if ($batchId === '' || isset($seenBatchIds[$batchId])) {
+            return null;
+        }
+
+        $batchMaterial = $batch->getMaterialItem();
+        if ($batchMaterial === null) {
+            return null;
+        }
+
+        if ($this->shouldSkipBatchPublicCode($batchMaterial, $batch)) {
+            return null;
+        }
+
+        $publicUrl = $this->publicCodeService->buildCanonicalMaterialBatchPublicUrlForIds(
+            (string) $batchMaterial->getId(),
+            $batchId,
+        );
+        if ($publicUrl === null || $publicUrl === '') {
+            return null;
+        }
+
+        $seenBatchIds[$batchId] = true;
+
+        return [
+            'id' => $batchId,
+            'line_label' => $this->batchLineLabel($batch),
+        ];
+    }
+
+    /**
      * @param MaterialQrExportRow[] $rows
      * @param array<string, true>   $seenBatchIds
      */
@@ -113,6 +281,7 @@ class MaterialQrExportCollector
             lineLabel: $this->batchLineLabel($batch),
             publicCode: (string) ($this->publicCodeService->getActiveBatchPublicCode($batchId)?->getPublicCode() ?? ''),
             publicUrl: $publicUrl,
+            batchId: $batchId,
         );
     }
 

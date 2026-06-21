@@ -6,7 +6,7 @@
         <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
         <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
       </div>
-      <EButton variant="primary" @click="openAddModal()">
+      <EButton variant="primary" data-onboarding="settings-user-add" @click="openAddModal()">
         <v-icon icon="mdi-account-plus" start size="20" />
         {{ t('settings.departmentUsers.addUser') }}
       </EButton>

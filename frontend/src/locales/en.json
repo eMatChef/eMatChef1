@@ -57,9 +57,10 @@
         "departmentDisplay": "Info display · eMatChef",
         "displayEntry": "Info display · Access · eMatChef",
         "statistics": "Statistics · eMatChef",
+        "grossanlassRessorts": "Ressorts & Mitglieder · Grossanlass · eMatChef",
         "grossanlassPlanung": "Planning · Major event · eMatChef",
-        "grossanlassPlanungRessorts": "Departments & members · Planning · eMatChef",
-        "grossanlassPlanungRounds": "Planning rounds · Planning · eMatChef",
+        "grossanlassRoundDetail": "Planning round · Major event · eMatChef",
+        "grossanlassMeinRessort": "My department · Major event · eMatChef",
         "grossanlassBeschaffung": "Procurement · Major event · eMatChef",
         "grossanlassBeschaffungUebersicht": "Overview · Procurement · eMatChef",
         "grossanlassBeschaffungBedarf": "Demand · Procurement · eMatChef",
@@ -633,7 +634,15 @@
   },
   "tasksPrint": {
     "subtitle": "Print queue for QR labels (database-backed)",
-    "exportMaterialQrPdf": "PDF: all material QRs",
+    "exportMaterialQrPdf": "PDF: material QRs…",
+    "exportMaterialQrPdfTitle": "Material QR PDF",
+    "materialQrPdfIntro": "Choose material batches for one PDF (A4, 12 per page). Codes are created automatically if missing.",
+    "materialQrPdfUncategorized": "Uncategorized",
+    "materialQrPdfTypeCategory": "Category",
+    "materialQrPdfTypeSubcategory": "Subcategory",
+    "materialQrPdfTypeMaterial": "Material",
+    "materialQrPdfTypeBatch": "Batch",
+    "materialQrPdfNoMaterials": "No printable material available.",
     "exportStorageQrPdf": "PDF: storage QRs…",
     "exportStorageQrPdfTitle": "Storage QR PDF",
     "exportStorageQrPdfPickLocation": "Storage location",
@@ -655,6 +664,7 @@
     },
     "errors": {
       "loadCart": "Could not load print queue.",
+      "loadMaterialQrTree": "Could not load material tree.",
       "exportMaterialQrPdf": "Could not create material QR PDF."
     },
     "printHtml": {
@@ -701,6 +711,11 @@
     "myCompanyRepairTemplates": "Repair templates",
     "devUiPlayground": "UI Sandbox",
     "planung": "Planning",
+    "planungHint": "Collect demand — material wishes, then bundle in procurement",
+    "meinRessort": "My department",
+    "meinRessortHint": "Your sub-projects and material wishes in your department branch",
+    "grossanlassRessortsHint": "{name} — manage departments, users and structure",
+    "beschaffungHint": "Bundle material from planning rounds, quotes and orders",
     "beschaffung": "Procurement",
     "help": "Help"
   },
@@ -1290,19 +1305,46 @@
       "finish": "Done",
       "stepOf": "Step {current} of {total}",
       "statusDone": "Done",
+      "clickTargetHint": "Click the highlighted area to continue.",
+      "categoryDone": "{done}/{total} done",
+      "categories": {
+        "material": "Material",
+        "activities": "Activities",
+        "settings": "Settings"
+      },
       "materialCreate": {
         "title": "Capture material",
-        "description": "Learn how to add a new material item.",
+        "description": "Add a single material item step by step.",
         "step1Title": "New material",
-        "step1Body": "Start the wizard to capture material here.",
-        "step2Title": "Complete the wizard",
-        "step2Body": "Enter name, category and storage location in the wizard, then save."
+        "step1Body": "Start the wizard to capture material.",
+        "step2Title": "Choose single item",
+        "step2Body": "For getting started, pick «Single item» — one physical piece of material.",
+        "step3Title": "Name & details",
+        "step3Body": "Enter a name and optionally description or manufacturer.",
+        "step4Title": "Assign category",
+        "step4Body": "Pick a category — then you can add stock and storage location."
       },
       "activityCreate": {
         "title": "Create activity",
-        "description": "Create your first activity for a group or event.",
+        "description": "Create a simple activity (e.g. Saturday meeting).",
         "step1Title": "New activity",
-        "step1Body": "Open the wizard for a new activity with this button."
+        "step1Body": "Open the wizard for a new activity.",
+        "step2Title": "Type «Activity»",
+        "step2Body": "Choose «Activity» for short, single-day group activities.",
+        "step3Title": "Basic data",
+        "step3Body": "Name, group and dates — you can add material in the next step."
+      },
+      "activityCampCreate": {
+        "title": "Create camp",
+        "description": "Multi-day camp with dates, venue and optional J+S material.",
+        "step1Title": "New activity",
+        "step1Body": "Start the wizard — camps are created like other activities.",
+        "step2Title": "Type «Camp»",
+        "step2Body": "Choose «Camp» for multi-day camps with material lead/lag times.",
+        "step3Title": "Camp basics",
+        "step3Body": "Name, group, event venue and optional J+S rental material for camp/event.",
+        "step4Title": "Dates & material",
+        "step4Body": "Enter usage and material windows. Invite partner departments and pack material as needed."
       },
       "issueReturn": {
         "title": "Issue & return",
@@ -1310,17 +1352,27 @@
         "step1Title": "Via activities",
         "step1Body": "Open an activity and use pack/issue flows to move material."
       },
-      "categories": {
+      "categoriesTour": {
         "title": "Manage categories",
-        "description": "Structure your material with categories.",
-        "step1Title": "Categories",
-        "step1Body": "Create main and subcategories or use standard templates."
+        "description": "Build your material structure with main and subcategories.",
+        "step1Title": "New category",
+        "step1Body": "Create main or subcategories — or adjust templates.",
+        "step2Title": "Category overview",
+        "step2Body": "See the hierarchy here. Categories drive filters, reports and material assignment."
       },
       "inviteUsers": {
         "title": "Invite team",
-        "description": "Invite other leaders to your department.",
-        "step1Title": "Invitations",
-        "step1Body": "Send personal links or share the join code with your team."
+        "description": "Bring more leaders into your department.",
+        "step1Title": "Add user",
+        "step1Body": "Invite people by email or share the join code under «My department»."
+      },
+      "defaultCoach": {
+        "title": "Set default coach",
+        "description": "Speed up J+S orders with pre-filled coach data.",
+        "step1Title": "J+S settings",
+        "step1Body": "Under Settings → Activities you set defaults for camp and event orders.",
+        "step2Title": "Coach data",
+        "step2Body": "Coach person number, name and email — pre-filled on new J+S orders."
       }
     },
     "settings": {
@@ -1375,6 +1427,8 @@
     },
     "userMenu": {
       "editProfile": "Edit profile",
+      "devicesScanner": "Warehouse scanner",
+      "devicesScannerHint": "Handheld or gun scanner — piece by piece",
       "switchDepartment": "Switch department",
       "departmentSettings": "Department settings",
       "switchSupplierCompany": "Switch company",
@@ -2126,6 +2180,11 @@
         "cameraHint": "Hold QR or barcode in the frame",
         "bulkConfirm": "Book anyway",
         "bulkConfirmHint": "Different batch than planned — book only after confirming.",
+        "quantityHintPieces": "Pack {count} {unit}",
+        "quantityHintPacksOnly": "Pack {packs}× {unit} of {per} pcs ({total} total)",
+        "quantityHintPacksPlusLoose": "Pack {packs}× {unit} of {per} pcs + {loose} loose ({total} total)",
+        "quantityProgress": "{done} of {total} done so far",
+        "quantityUnitStk": "pcs",
         "actionBookPack": "Pack",
         "actionBookIssue": "Take",
         "actionBookReturn": "Return",
@@ -2158,6 +2217,14 @@
           "text_crate": "Crate found in the list.",
           "text_combo": "Set found in the list.",
           "text_loose": "Line found in the list.",
+          "js_material": "J+S material — receive and return in the J+S tab.",
+          "shelf_open": "Pack here — tap a line to book.",
+          "shelf_all_done": "Nothing left open at this location for this step.",
+          "shelf_not_on_list": "No packing lines at this location on the list.",
+          "shelf_session_hint": "Scan material QR — books and checks off the list.",
+          "shelf_session_crate_hint": "Scan material — goes into the active pack crate.",
+          "shelf_session_progress": "{done} of {total} done.",
+          "storage_not_found": "Storage location not found.",
           "unknown": "Code not recognized.",
           "unsupported_scan": "This code type is not supported here."
         }
@@ -3331,21 +3398,28 @@
     "fixedDates": {
       "title": "Fixed dates",
       "description": "Manually maintained date ranges (holidays, camp week, closure) for the activity calendar.",
+      "descriptionGrossanlass": "Date ranges for this major event — e.g. event week, setup, teardown.",
+      "grossanlassHint": "The event period is created automatically on setup. «Camp week» and «Other» appear as quick selection in planning and material wishes.",
+      "quickSelectHint": "Only «Camp week» and «Other» appear in date quick selection. Other types are calendar markers only.",
       "noPermission": "Only materials lead and department lead can manage fixed dates.",
       "createTitle": "Add period",
       "editTitle": "Edit period",
+      "editingBadge": "Editing",
       "period": "Period",
       "startDate": "From",
       "endDate": "To",
       "typeLabel": "Type",
       "name": "Name",
       "namePlaceholder": "e.g. autumn break, summer camp",
+      "namePlaceholderGrossanlass": "e.g. setup phase, main week, teardown",
       "colFrom": "From",
       "colTo": "To",
       "colType": "Type",
       "colName": "Name",
       "loading": "Loading periods…",
       "empty": "No periods yet.",
+      "emptyGrossanlassTitle": "No fixed dates yet",
+      "emptyGrossanlassDescription": "Add the event period or further phases above — they will then appear as quick selection in planning.",
       "confirmDeleteTitle": "Delete period?",
       "confirmDeleteMessage": "This entry will be removed permanently.",
       "toastLoadError": "Could not load periods.",
@@ -5955,7 +6029,7 @@
     },
     "dashboard": {
       "draftBadge": "Draft",
-      "welcome": "Welcome to the major event workspace. Open «Planning» in the sidebar to create departments and structure the event."
+      "welcome": "Welcome to the major event workspace. Use the event name in the sidebar to manage departments and members, and «Planning rounds» to collect demand."
     },
     "planung": {
       "title": "Planning",
@@ -5963,6 +6037,12 @@
       "menuTitle": "Planning",
       "tabRessorts": "Departments & members",
       "tabRounds": "Planning rounds",
+      "keyDates": {
+        "title": "Key date ranges",
+        "hint": "Fixed dates for this major event — shown as quick selection in date fields.",
+        "empty": "No fixed dates yet. The event period is created automatically on setup; add more under Settings → Fixed dates.",
+        "openFixedDates": "Manage fixed dates"
+      },
       "ressorts": {
         "emptyTitle": "No departments yet",
         "emptyDescription": "Create departments and sub-projects, assign members and structure the event.",
@@ -6008,15 +6088,106 @@
         "errorRemoveMember": "Could not remove member"
       },
       "rounds": {
+        "pageTitle": "Planning",
         "emptyTitle": "No planning rounds yet",
-        "emptyDescription": "Planning rounds drive demand collection per department — e.g. infrastructure wishes. (Phase 3)",
-        "addAction": "Create round"
+        "emptyDescription": "Planning rounds collect material wishes per sub-project — basis for procurement.",
+        "backToList": "Back to overview",
+        "addAction": "Create round",
+        "loading": "Loading planning rounds…",
+        "subtitleMw": "Planning rounds collect demand — wishes are bundled into procurement later.",
+        "subtitleMember": "Overview of planning rounds — submit wishes when a round is open (Phase 4).",
+        "colName": "Name",
+        "colStatus": "Status",
+        "colWindow": "Time window",
+        "colAuto": "Auto",
+        "typeRessortWuensche": "Department wishes",
+        "statusScheduled": "Scheduled",
+        "statusOpen": "Open",
+        "statusClosed": "Closed",
+        "windowManual": "Manual",
+        "windowRange": "{open} – {close}",
+        "autoEnabled": "Automatic open/close enabled",
+        "openAction": "Open round",
+        "closeAction": "Close round",
+        "modalNew": "Create planning round",
+        "modalEdit": "Edit planning round",
+        "nameLabel": "Round name",
+        "namePlaceholder": "e.g. Infrastructure demand 2026",
+        "nameRequired": "Name is required",
+        "opensAtLabel": "Opens at (optional)",
+        "closesAtLabel": "Closes at (optional)",
+        "autoScheduleLabel": "Open and close automatically",
+        "autoScheduleHint": "When a time window is set, the system opens/closes the round automatically.",
+        "saving": "Saving…",
+        "saved": "Planning round saved",
+        "created": "Planning round created",
+        "opened": "«{name}» is now open — department members were notified",
+        "closed": "«{name}» was closed",
+        "errorLoad": "Could not load planning rounds",
+        "errorSave": "Save failed",
+        "errorOpen": "Could not open round",
+        "errorClose": "Could not close round"
       }
     },
     "inbox": {
       "category": "Major event",
       "subject": "Material manager for «{name}»",
-      "preview": "You were assigned as material manager — open dashboard"
+      "preview": "You were assigned as material manager — open dashboard",
+      "roundOpenedSubject": "Planning round «{name}» open",
+      "roundOpenedPreview": "Submit demand — go to planning"
+    },
+    "meinRessort": {
+      "title": "My department",
+      "subtitle": "Your sub-projects and submitted material wishes in your department branch.",
+      "loading": "Loading department…",
+      "emptyTitle": "No department assigned yet",
+      "emptyDescription": "You are not assigned to a department yet. Contact the material manager or department lead.",
+      "noWishesYet": "No material wishes for this sub-project yet.",
+      "openRoundsHint": "Planning rounds are open — submit demand there:",
+      "errorLoad": "Could not load department overview"
+    },
+    "wishes": {
+      "formTitle": "Submit material wish",
+      "formHint": "Assign to a sub-project — or create a new sub-project inline.",
+      "bauprojektLabel": "Sub-project",
+      "modeExisting": "Existing sub-project",
+      "modeNewBauprojekt": "Create new sub-project",
+      "existingBauprojekt": "Select sub-project",
+      "parentRessort": "Parent department",
+      "newBauprojektName": "New sub-project name",
+      "newBauprojektPlaceholder": "e.g. Stage, water station",
+      "kindLabel": "Type",
+      "kindMaterial": "Material",
+      "kindFahrzeug": "Vehicle",
+      "kindBeides": "Both",
+      "labelField": "Description",
+      "quantity": "Quantity",
+      "location": "Location (where do you need it?)",
+      "periodLabel": "Required period",
+      "validFrom": "Needed from",
+      "validTo": "Needed until",
+      "notes": "Notes (optional)",
+      "submit": "Save wish",
+      "listTitle": "Submitted wishes",
+      "emptyTitle": "No wishes yet",
+      "emptyDescription": "In open rounds, department members can record material wishes per sub-project.",
+      "roundNotOpen": "This round is not open — wishes can no longer be submitted.",
+      "roundOpenSubtitle": "Record material wishes — bundled into procurement later.",
+      "roundClosedSubtitle": "Closed round — wishes are read-only.",
+      "colLabel": "Description",
+      "colQty": "Qty",
+      "colLocation": "Location",
+      "colPeriod": "Period",
+      "created": "Wish saved",
+      "errorBauprojekt": "Parent and name required for new sub-project",
+      "errorGroup": "Select a sub-project",
+      "errorRequired": "Please fill all required fields",
+      "errorSave": "Could not save wish",
+      "errorDelete": "Could not delete wish"
+    },
+    "settings": {
+      "meinRessortNav": "My department",
+      "meinRessortNavHint": "Sub-projects and material wishes in your department branch"
     },
     "beschaffung": {
       "title": "Procurement",

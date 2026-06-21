@@ -114,9 +114,24 @@ export interface GrossanlassMwAssignedNotification {
   read: boolean
 }
 
+export interface GrossanlassRoundOpenedNotification {
+  id: string
+  type: 'grossanlass_round_opened'
+  department_id: string
+  department_name: string
+  round_id: string
+  round_name: string
+  round_type: string
+  planung_url: string
+  closes_at?: string | null
+  created_at: string
+  read: boolean
+}
+
 export type ReceivedUserInboxNotification =
   | ReceivedDepartmentInviteNotification
   | GrossanlassMwAssignedNotification
+  | GrossanlassRoundOpenedNotification
 
 export type DepartmentInviteInboxBucket = 'unread' | 'read' | 'all'
 

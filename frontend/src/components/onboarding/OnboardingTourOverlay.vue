@@ -1,7 +1,11 @@
 <template>
   <Teleport to="body">
     <div v-if="isActive && activeStep" class="onboarding-tour" role="dialog" aria-modal="true">
-      <div class="onboarding-tour__backdrop" @click="skip" />
+      <div
+        class="onboarding-tour__backdrop"
+        :class="{ 'onboarding-tour__backdrop--passive': expectsTargetClick }"
+        @click="onBackdropClick"
+      />
 
       <div
         v-if="targetRect"
@@ -17,11 +21,14 @@
         </p>
         <h2 class="onboarding-tour__title">{{ t(activeStep.titleKey) }}</h2>
         <p class="onboarding-tour__body">{{ t(activeStep.bodyKey) }}</p>
+        <p v-if="expectsTargetClick" class="onboarding-tour__hint">
+          {{ t('onboarding.tours.clickTargetHint') }}
+        </p>
         <div class="onboarding-tour__actions">
           <EButton variant="text" size="small" @click="skip">
             {{ t('onboarding.tours.skip') }}
           </EButton>
-          <EButton variant="primary" size="small" @click="next">
+          <EButton v-if="!expectsTargetClick" variant="primary" size="small" @click="next">
             {{ isLastStep ? t('onboarding.tours.finish') : t('onboarding.tours.next') }}
           </EButton>
         </div>
@@ -37,8 +44,17 @@ import { EButton } from '@/components/form/base'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 
 const { t } = useI18n()
-const { activeTour, activeStep, activeStepIndex, isActive, isLastStep, targetRect, next, skip } =
-  useOnboardingTour()
+const {
+  activeTour,
+  activeStep,
+  activeStepIndex,
+  isActive,
+  isLastStep,
+  expectsTargetClick,
+  targetRect,
+  next,
+  skip,
+} = useOnboardingTour()
 
 const CARD_WIDTH = 320
 const CARD_GAP = 16
@@ -71,8 +87,8 @@ const cardStyle = computed(() => {
   let top = rect.bottom + CARD_GAP
   let left = rect.left
 
-  if (top + 180 > viewportH) {
-    top = Math.max(CARD_GAP, rect.top - 180 - CARD_GAP)
+  if (top + 200 > viewportH) {
+    top = Math.max(CARD_GAP, rect.top - 200 - CARD_GAP)
   }
   if (left + CARD_WIDTH > viewportW - CARD_GAP) {
     left = viewportW - CARD_WIDTH - CARD_GAP
@@ -85,6 +101,11 @@ const cardStyle = computed(() => {
     width: `${Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)}px`,
   }
 })
+
+function onBackdropClick() {
+  if (expectsTargetClick.value) return
+  skip()
+}
 </script>
 
 <style scoped>
@@ -100,6 +121,10 @@ const cardStyle = computed(() => {
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
   pointer-events: auto;
+}
+
+.onboarding-tour__backdrop--passive {
+  pointer-events: none;
 }
 
 .onboarding-tour__spotlight {
@@ -134,15 +159,31 @@ const cardStyle = computed(() => {
 }
 
 .onboarding-tour__body {
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   font-size: 14px;
   line-height: 1.45;
   color: #475569;
+}
+
+.onboarding-tour__hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #0284c7;
+  font-weight: 500;
 }
 
 .onboarding-tour__actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+</style>
+
+<style>
+.onboarding-tour-target-active {
+  position: relative;
+  z-index: 2405 !important;
+  pointer-events: auto;
 }
 </style>

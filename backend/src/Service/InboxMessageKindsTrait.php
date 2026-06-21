@@ -245,6 +245,131 @@ trait InboxMessageKindsTrait
         $this->deleteDepartmentInviteByInviteId($departmentId, $userId, $inviteId);
     }
 
+    // --- Grossanlass planning round opened ---
+
+    /**
+     * @param list<string> $recipientUserIds
+     */
+    public function notifyGrossanlassRoundOpened(
+        Department $department,
+        \App\Entity\ActivityGrossanlassRound $round,
+        array $recipientUserIds,
+        ?string $senderUserId = null,
+    ): void {
+        $deptId = $department->getId();
+        $planungUrl = '/' . $deptId . '/planung';
+
+        foreach ($recipientUserIds as $userId) {
+            if ($senderUserId !== null && $userId === $senderUserId) {
+                continue;
+            }
+
+            $row = new InboxMessage();
+            $row->setId(IdGenerator::generateUnique($this->entityManager, InboxMessage::class));
+            $row->setDepartment($department);
+            $row->setCategory(InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED);
+            $row->setType('grossanlass_round_opened');
+            $row->setRecipientScope(InboxMessage::RECIPIENT_USER);
+            $row->setRecipientUserId($userId);
+            $row->setSenderUserId($senderUserId);
+            $row->setSourceRefId($round->getId());
+            $row->setSubject($round->getName());
+            $row->setPayload([
+                'department_id' => $deptId,
+                'department_name' => $department->getName(),
+                'round_id' => $round->getId(),
+                'round_name' => $round->getName(),
+                'round_type' => $round->getRoundType(),
+                'planung_url' => $planungUrl,
+                'closes_at' => $round->getClosesAt()?->format(\DateTimeInterface::ATOM),
+            ]);
+
+            $this->entityManager->persist($row);
+        }
+
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listGrossanlassRoundOpenedForUser(string $userId, string $bucket = 'all', int $limit = 50): array
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
+            ->orderBy('m.createdAt', 'DESC')
+            ->setMaxResults(max(1, min($limit, 100)));
+
+        if ($bucket === 'unread') {
+            $qb->andWhere('m.readAt IS NULL');
+        } elseif ($bucket === 'read') {
+            $qb->andWhere('m.readAt IS NOT NULL');
+        }
+
+        $rows = $qb->getQuery()->getResult();
+
+        return array_map(fn (InboxMessage $m) => $this->toGrossanlassRoundOpenedArray($m), $rows);
+    }
+
+    public function countUnreadGrossanlassRoundOpened(string $userId): int
+    {
+        return (int) $this->entityManager->createQueryBuilder()
+            ->select('COUNT(m.id)')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->andWhere('m.readAt IS NULL')
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function markGrossanlassRoundOpenedRead(string $userId, string $notificationId): bool
+    {
+        $row = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.id = :id')
+            ->andWhere('m.recipientUserId = :userId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('id', $notificationId)
+            ->setParameter('userId', $userId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_ROUND_OPENED)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if (!$row) {
+            return false;
+        }
+        $row->setReadAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toGrossanlassRoundOpenedArray(InboxMessage $m): array
+    {
+        $p = $m->getPayload();
+
+        return array_merge($p, [
+            'id' => $m->getId(),
+            'type' => 'grossanlass_round_opened',
+            'read' => $m->isRead(),
+            'read_at' => $m->getReadAt()?->format(\DateTimeInterface::ATOM),
+            'created_at' => $m->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ]);
+    }
+
     // --- Grossanlass Chief-MW assigned ---
 
     public function notifyGrossanlassMwAssigned(

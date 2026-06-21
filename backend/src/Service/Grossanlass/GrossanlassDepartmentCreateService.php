@@ -5,6 +5,7 @@ namespace App\Service\Grossanlass;
 use App\Entity\Activity;
 use App\Entity\ActivityGrossanlassConfig;
 use App\Entity\Department;
+use App\Entity\DepartmentCalendarPeriod;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\Membership;
 use App\Entity\Organisation;
@@ -140,6 +141,8 @@ class GrossanlassDepartmentCreateService
             $this->entityManager->persist($config);
             $department->setGrossanlassConfig($config);
 
+            $this->seedEventCalendarPeriod($department, $plannedStart, $plannedEnd, $currentUser->getId());
+
             $activity = new Activity();
             $activity->setId(IdGenerator::generate());
             $activity->setDepartment($department);
@@ -228,6 +231,23 @@ class GrossanlassDepartmentCreateService
             $config,
             $adder->getId()
         );
+    }
+
+    private function seedEventCalendarPeriod(
+        Department $department,
+        \DateTime $plannedStart,
+        \DateTime $plannedEnd,
+        string $createdByUserId,
+    ): void {
+        $period = new DepartmentCalendarPeriod();
+        $period->setId(IdGenerator::generate());
+        $period->setDepartmentId($department->getId());
+        $period->setLabel(DepartmentCalendarPeriod::LABEL_OTHER);
+        $period->setName($department->getName());
+        $period->setStartDate((clone $plannedStart)->setTime(0, 0, 0));
+        $period->setEndDate((clone $plannedEnd)->setTime(0, 0, 0));
+        $period->setCreatedByUserId($createdByUserId);
+        $this->entityManager->persist($period);
     }
 
     private function parseDate(string $value, bool $endOfDay): \DateTime

@@ -175,7 +175,7 @@
       </v-alert>
 
       <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
-          <v-tabs-window-item value="overview" class="activity-detail-window-item">
+          <v-tabs-window-item value="overview" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
@@ -301,7 +301,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item value="material" class="activity-detail-window-item">
+          <v-tabs-window-item value="material" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content activity-material-tab">
             <ActivityTabHeader :title="t('common.material')">
               <p class="activity-material-tab-hint text-muted">
@@ -546,7 +546,7 @@
           </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
               <ActivityJsTabView
                 :activity-id="activityId"
@@ -556,20 +556,8 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
-            <div class="activity-detail-tab-panel tab-content">
-            <div v-if="canManageMaterials && !useLegacyPackUi" class="activity-pack-journey-beta-link">
-              <RouterLink
-                :to="{
-                  name: 'ActivityDetail',
-                  params: { departmentId, activityId },
-                  query: { tab: 'packs', ...legacyPackUiQuery() },
-                }"
-                class="activity-pack-journey-beta-link__anchor"
-              >
-                {{ t('activities.materialJourney.legacyPackLink') }}
-              </RouterLink>
-            </div>
+          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item" :transition="false">
+            <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
               v-if="activity && !useLegacyPackUi"
               :department-id="departmentId"
@@ -615,7 +603,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
@@ -627,7 +615,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
@@ -642,7 +630,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
@@ -655,7 +643,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item value="history" class="activity-detail-window-item">
+          <v-tabs-window-item value="history" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
               <ActivityHistoryTab :activity-id="activityId" />
             </div>
@@ -779,7 +767,7 @@ import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
-import { resolvePackUiPreference, legacyPackUiQuery } from '@/utils/packUiPreference'
+import { resolvePackUiPreference } from '@/utils/packUiPreference'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { EButton } from '@/components/form/base'

@@ -2,27 +2,23 @@
   <PageShell
     :title="t('onboarding.hub.title')"
     :subtitle="t('onboarding.hub.subtitle')"
-    max-width="720px"
+    max-width="1200px"
   >
     <div v-if="isLoading" class="hub-muted">{{ t('common.loading') }}</div>
 
     <template v-else>
+      <section class="hub-tours-section">
+        <h2 class="hub-section-heading">{{ t('onboarding.hub.toursTitle') }}</h2>
+        <p class="hub-muted hub-panel-lead">{{ t('onboarding.hub.toursLead') }}</p>
+        <OnboardingTourList />
+      </section>
+
       <v-expansion-panels
         v-model="expandedPanels"
         multiple
         variant="accordion"
-        class="hub-accordion"
+        class="hub-accordion hub-accordion--setup"
       >
-        <v-expansion-panel value="tours" readonly>
-          <v-expansion-panel-title>
-            <span class="hub-panel-title">{{ t('onboarding.hub.toursTitle') }}</span>
-          </v-expansion-panel-title>
-          <v-expansion-panel-text>
-            <p class="hub-muted hub-panel-lead">{{ t('onboarding.hub.toursLead') }}</p>
-            <OnboardingTourList />
-          </v-expansion-panel-text>
-        </v-expansion-panel>
-
         <v-expansion-panel value="setup">
           <v-expansion-panel-title>
             <span class="hub-panel-title">{{ t('onboarding.hub.setupTitle') }}</span>
@@ -143,20 +139,13 @@ const {
   markItemSkipped,
 } = useOnboardingChecklist()
 
-const expandedPanels = ref<Array<'tours' | 'setup'>>(['tours', 'setup'])
+const expandedPanels = ref<Array<'setup'>>(['setup'])
 
 watch(
   [isFullyDone, isLoading],
   ([done, loading]) => {
     if (loading) return
-    const panels = new Set(expandedPanels.value)
-    panels.add('tours')
-    if (!done) {
-      panels.add('setup')
-    } else {
-      panels.delete('setup')
-    }
-    expandedPanels.value = [...panels]
+    expandedPanels.value = done ? [] : ['setup']
   },
   { immediate: true },
 )
@@ -212,8 +201,23 @@ async function skipChecklistItem(item: OnboardingChecklistRow) {
 </script>
 
 <style scoped>
+.hub-tours-section {
+  margin-bottom: 20px;
+}
+
+.hub-section-heading {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
 .hub-accordion {
   margin-bottom: 24px;
+}
+
+.hub-accordion--setup {
+  margin-top: 4px;
 }
 
 .hub-accordion :deep(.v-expansion-panel) {

@@ -74,11 +74,20 @@ export function useMaterialJourneyPackContext(options: {
     if (!c) return undefined
     const mid = (c.container_material_item_id ?? '').trim()
     if (mid) {
-      return options.packItems.value.find((p) => p.materialItemId === mid)
+      const byMid = options.packItems.value.find((p) => p.materialItemId === mid)
+      if (byMid) return byMid
     }
     const bid = (c.container_batch_id ?? '').trim()
     if (bid) {
-      return options.packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
+      const byBatch = options.packItems.value.find(
+        (p) => (p.linkedContainerBatchId ?? '').trim() === bid,
+      )
+      if (byBatch) return byBatch
+    }
+    for (const pi of options.packItems.value) {
+      if (packShellContainerForPackItem(pi, options.packContainers.value)?.id === containerId) {
+        return pi
+      }
     }
     return undefined
   }

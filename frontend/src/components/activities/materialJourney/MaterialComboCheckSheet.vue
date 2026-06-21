@@ -11,12 +11,15 @@ import { getBackendStage, type PackStage } from '@/components/activities/packSta
 import { packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
 import EButton from '@/components/form/base/EButton.vue'
 import { peekSectionsForJourneyCombo } from '@/composables/useMaterialJourneyCrateSections'
+import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
+import { emptyMaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
 
 const props = defineProps<{
   open: boolean
   packItem: ActivityPackItem | null
   packContainers: ActivityPackContainer[]
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>
+  cratePeekMaps?: MaterialJourneyCratePeekMaps
   journeyStep: JourneyStep
   packStage: PackStage
   activityId: string
@@ -38,11 +41,21 @@ const checkedLineIds = ref<Set<string>>(new Set())
 
 const sections = computed((): PackCrateShellPeekSection[] => {
   if (!props.packItem) return []
+  const peekMaps = props.cratePeekMaps ?? emptyMaterialJourneyCratePeekMaps()
+  const comboMaps = {
+    ...peekMaps,
+    comboComponentsByMaterialId: {
+      ...peekMaps.comboComponentsByMaterialId,
+      ...comboComponentsByMaterialId.value,
+    },
+  }
   return peekSectionsForJourneyCombo(
     props.packItem,
     props.packContainers,
-    props.containerItemsByContainerId,
-    comboComponentsByMaterialId.value,
+    {
+      containerItemsByContainerId: props.containerItemsByContainerId,
+      ...comboMaps,
+    },
     t,
   )
 })

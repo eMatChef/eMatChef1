@@ -133,6 +133,13 @@
   width: auto;
 }
 
+.nav-label--grossanlass.visible {
+  max-width: 148px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-divider {
   height: 1px;
   background-color: rgba(255, 255, 255, 0.1);
