@@ -102,8 +102,11 @@ export async function createActivityPackContainerItem(
     notes?: string | null
   }
 ): Promise<ActivityPackContainerItem> {
-  const response = await apiClient.post<ActivityPackContainerItem>(`/api/activities/${activityId}/pack-containers/${containerId}/items`, data)
-  return response.data
+  const response = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/pack-containers/${containerId}/items`,
+    data,
+  )
+  return mapPackContainerItem(response.data)
 }
 
 export async function updateActivityPackContainerItem(
@@ -121,11 +124,11 @@ export async function updateActivityPackContainerItem(
     notes: string | null
   }>
 ): Promise<ActivityPackContainerItem> {
-  const response = await apiClient.patch<ActivityPackContainerItem>(
+  const response = await apiClient.patch<Record<string, unknown>>(
     `/api/activities/${activityId}/pack-containers/${containerId}/items/${itemId}`,
     data
   )
-  return response.data
+  return mapPackContainerItem(response.data)
 }
 
 export async function deleteActivityPackContainerItem(activityId: string, containerId: string, itemId: string): Promise<void> {

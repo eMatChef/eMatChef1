@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, toRef, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
@@ -8,42 +8,125 @@ import {
   issueAllPackContainerItems,
   returnAllPackContainerItems,
 } from '@/api/activityContainers'
-import type { PackCrateShellPeekSection } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
+import PackCrateShellInlinePanel from '@/components/activities/PackCrateShellInlinePanel.vue'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import { isJourneyReturnStep, isJourneyStoreStep } from '@/components/activities/materialJourneySteps'
 import { getBackendStage, type PackStage } from '@/components/activities/packStageQuantities'
+import { packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import EButton from '@/components/form/base/EButton.vue'
+import { useMaterialJourneySheetDialog } from '@/composables/useMaterialJourneySheetDialog'
 import { peekSectionsForJourneyContainer } from '@/composables/useMaterialJourneyCrateSections'
+import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
+import { emptyMaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
+import { useMaterialJourneyShellForward } from '@/composables/useMaterialJourneyShellForward'
 
 const props = defineProps<{
   open: boolean
   container: ActivityPackContainer | null
   shellPackItem: ActivityPackItem | null
+  packItems: ActivityPackItem[]
+  packContainers: ActivityPackContainer[]
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>
+  cratePeekMaps?: MaterialJourneyCratePeekMaps
   journeyStep: JourneyStep
   packStage: PackStage
   activityId: string
+  departmentId: string
+  canManageMaterials: boolean
   canSubmit: boolean
+  canDelete?: boolean
   issueableUnits: number
+  deleting?: boolean
+  applyUpdatedItem: (item: ActivityPackItem) => void
+  packMoveQtyCap?: (item: ActivityPackItem) => number
+  /** Kistencheck mit Fokus «lose mitnehmen» (Transport … Retour). */
+  focusLooseIssue?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   completed: []
+  delete: []
 }>()
 
 const { t } = useI18n()
+const { sheetFullscreen, sheetMaxWidth } = useMaterialJourneySheetDialog()
 const submitting = ref(false)
-const expandedPanels = ref<string[]>([])
 
-const sections = computed((): PackCrateShellPeekSection[] => {
+const usesShellCheck = computed(() => {
+  if (props.focusLooseIssue) return false
+  const pi = props.shellPackItem
+  if (!pi) return false
+  if (pi.materialType === 'physical_combo') return true
+  return packShellContainerForPackItem(pi, props.packContainers) != null
+})
+
+const {
+  modalOpen: shellModalOpen,
+  label: shellLabel,
+  moveQty: shellMoveQty,
+  sections: shellSections,
+  containerBatchId: shellContainerBatchId,
+  looseStockByMid: shellLooseStockByMid,
+  stockLoading: shellStockLoading,
+  historyReplenishByKey: shellHistoryReplenishByKey,
+  historyPrefillHint: shellHistoryPrefillHint,
+  groupMode: shellGroupMode,
+  checkOnly: shellCheckOnly,
+  submitError: shellSubmitError,
+  submitting: shellSubmitting,
+  emptyHint: shellEmptyHint,
+  initialLineReviews: shellInitialLineReviews,
+  close: closeShellForward,
+  openForContainerShell,
+  submit: submitShellForward,
+} = useMaterialJourneyShellForward({
+  activityId: toRef(props, 'activityId'),
+  departmentId: toRef(props, 'departmentId'),
+  packItems: toRef(props, 'packItems'),
+  packContainers: toRef(props, 'packContainers'),
+  containerItemsByContainerId: toRef(props, 'containerItemsByContainerId'),
+  cratePeekMaps: toRef(props, 'cratePeekMaps') as unknown as Ref<MaterialJourneyCratePeekMaps>,
+  journeyStep: toRef(props, 'journeyStep'),
+  packStage: toRef(props, 'packStage'),
+  canManageMaterials: toRef(props, 'canManageMaterials'),
+  applyUpdatedItem: (item) => props.applyUpdatedItem(item),
+  packMoveQtyCap: props.packMoveQtyCap ? (item) => props.packMoveQtyCap!(item) : undefined,
+})
+
+watch(
+  () => [props.open, props.container?.id, props.shellPackItem?.id, props.issueableUnits, props.focusLooseIssue] as const,
+  async ([isOpen, containerId, shellId, units, looseFocus]) => {
+    if (looseFocus || !isOpen || !usesShellCheck.value || !props.container || !props.shellPackItem || !containerId || !shellId) {
+      closeShellForward()
+      return
+    }
+    await openForContainerShell(props.container, props.shellPackItem, Math.max(1, units))
+  },
+)
+
+const sections = computed(() => {
   if (!props.container) return []
+  const peekMaps = props.cratePeekMaps ?? emptyMaterialJourneyCratePeekMaps()
   return peekSectionsForJourneyContainer(
     props.container,
-    props.containerItemsByContainerId,
+    {
+      containerItemsByContainerId: props.containerItemsByContainerId,
+      ...peekMaps,
+    },
     props.shellPackItem,
     t,
+    props.packItems,
+    props.packContainers,
   )
+})
+
+const emptyHint = computed(() => {
+  if (props.shellPackItem) {
+    return t('activities.packList.cratePeekEmptyLinkedCrate')
+  }
+  return t('activities.packList.cratePeekNoShellYet')
 })
 
 const primaryLabel = computed(() => {
@@ -73,14 +156,6 @@ const canPrimary = computed(
   () => props.canSubmit && props.issueableUnits > 0 && !submitting.value,
 )
 
-watch(
-  () => props.open,
-  (isOpen) => {
-    if (!isOpen) return
-    expandedPanels.value = []
-  },
-)
-
 function close(): void {
   emit('update:open', false)
 }
@@ -106,17 +181,55 @@ async function onPrimary(): Promise<void> {
   }
 }
 
-function sectionSummary(sec: PackCrateShellPeekSection): string {
-  const open = sec.lines.reduce((sum, line) => sum + Math.max(0, line.quantity), 0)
-  return t('activities.materialJourney.crateSheet.sectionSummary', { count: open })
+function onShellCancel(): void {
+  closeShellForward()
+  close()
+}
+
+async function onShellSubmit(payload: Parameters<typeof submitShellForward>[0]): Promise<void> {
+  const updated = await submitShellForward(payload)
+  if (updated) {
+    emit('completed')
+    close()
+  }
 }
 </script>
 
 <template>
+  <PackCrateShellForwardModal
+    v-if="usesShellCheck"
+    :open="open && shellModalOpen"
+    :label="shellLabel"
+    :move-qty="shellMoveQty"
+    :sections="shellSections"
+    :department-id="departmentId"
+    :container-batch-id="shellContainerBatchId"
+    :loose-stock-by-mid="shellLooseStockByMid"
+    :stock-loading="shellStockLoading"
+    :history-replenish-by-key="shellHistoryReplenishByKey"
+    :history-prefill-hint="shellHistoryPrefillHint"
+    :can-report-issues="false"
+    :group-mode="shellGroupMode"
+    :check-only="shellCheckOnly"
+    :submit-error="shellSubmitError"
+    :submitting="shellSubmitting"
+    :empty-hint="shellEmptyHint"
+    :embedded-issues-by-line-key="{}"
+    :repack-issue-reviews="{}"
+    :orphan-issues="[]"
+    :initial-line-reviews="shellInitialLineReviews"
+    :pack-item-id="shellPackItem?.id ?? null"
+    @cancel="onShellCancel"
+    @submit="onShellSubmit"
+  />
+
   <v-dialog
+    v-else
     :model-value="open"
-    fullscreen
+    :fullscreen="sheetFullscreen"
+    :max-width="sheetMaxWidth"
     scrollable
+    class="material-journey-sheet-dialog"
     transition="dialog-bottom-transition"
     @update:model-value="emit('update:open', $event)"
   >
@@ -133,33 +246,32 @@ function sectionSummary(sec: PackCrateShellPeekSection): string {
         </div>
       </header>
 
-      <div class="material-journey-sheet__body">
-        <p v-if="sections.length === 0" class="text-muted material-journey-sheet__empty">
-          {{ t('activities.materialJourney.crateSheet.empty') }}
-        </p>
-        <v-expansion-panels v-else v-model="expandedPanels" multiple class="material-journey-sheet__accordion">
-          <v-expansion-panel
-            v-for="sec in sections"
-            :key="sec.subsectionKey"
-            :value="sec.subsectionKey"
-          >
-            <v-expansion-panel-title>
-              <span>{{ sec.title }}</span>
-              <span class="material-journey-sheet__section-meta text-muted">{{ sectionSummary(sec) }}</span>
-            </v-expansion-panel-title>
-            <v-expansion-panel-text>
-              <ul class="material-journey-sheet__lines">
-                <li v-for="line in sec.lines" :key="line.id" class="material-journey-sheet__line">
-                  <span class="material-journey-sheet__line-name">{{ line.materialName }}</span>
-                  <span class="material-journey-sheet__line-qty">{{ line.quantity }}</span>
-                </li>
-              </ul>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
+      <div class="material-journey-sheet__body material-journey-sheet__body--crate">
+        <PackCrateShellInlinePanel
+          :sections="sections"
+          :empty-hint="emptyHint"
+          :check-pack-item="shellPackItem"
+          :separate-section-rows="true"
+          :default-expanded="true"
+          :parent-expanded="true"
+          :use-reality-view="false"
+          :show-template-toggle="false"
+          :loose-issue-container-id="focusLooseIssue ? container?.id ?? null : null"
+          :loose-issue-crate-label="focusLooseIssue ? container?.label ?? null : null"
+        />
       </div>
 
       <footer class="material-journey-sheet__footer">
+        <EButton
+          v-if="canDelete"
+          variant="danger"
+          class="material-journey-sheet__delete"
+          :disabled="deleting || submitting"
+          :loading="deleting"
+          @click="emit('delete')"
+        >
+          {{ t('activities.packList.deleteContainer') }}
+        </EButton>
         <EButton
           variant="primary"
           class="material-journey-sheet__primary"
@@ -174,6 +286,4 @@ function sectionSummary(sec: PackCrateShellPeekSection): string {
   </v-dialog>
 </template>
 
-<style scoped>
-@import '@/styles/views/activities/material-journey-sheet.css';
-</style>
+<style src="@/styles/views/activities/material-journey-sheet.css"></style>

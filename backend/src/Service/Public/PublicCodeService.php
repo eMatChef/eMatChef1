@@ -9,6 +9,8 @@ use App\Entity\DepartmentSetting;
 use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Entity\PublicCode;
+use App\Entity\StorageRack;
+use App\Entity\StorageSlot;
 use App\Entity\WorkshopTicket;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -20,8 +22,12 @@ class PublicCodeService
     public const ENTITY_BATCH = 'batch';
     public const ENTITY_ACTIVITY = 'activity';
     public const ENTITY_WORKSHOP = 'workshop';
+    public const ENTITY_STORAGE_ADDRESS = 'storage_address';
+    public const ENTITY_STORAGE_RACK = 'storage_rack';
+    public const ENTITY_STORAGE_SLOT = 'storage_slot';
 
     private string $publicQrBaseUrl;
+    private string $internalAppBaseUrl;
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -32,6 +38,7 @@ class PublicCodeService
         $this->publicQrBaseUrl = $trimmedQr !== ''
             ? rtrim($trimmedQr, '/')
             : rtrim($this->appFrontendUrl, '/');
+        $this->internalAppBaseUrl = rtrim(trim($this->appFrontendUrl), '/');
     }
 
     public function resolveMaterialByPublicCode(string $publicCode): ?array
@@ -529,6 +536,297 @@ class PublicCodeService
         $this->entityManager->persist($entry);
 
         return $entry;
+    }
+
+    /**
+     * Interner QR für Lagerstandort (Address type=storage) — is_public=false.
+     *
+     * @param string|null $createdByUserId Symfony-User-ID (12)
+     */
+    public function ensureStorageAddressPublicCode(Address $address, ?string $createdByUserId = null): PublicCode
+    {
+        $addressId = $address->getId();
+        if (!$addressId) {
+            throw new \InvalidArgumentException('Adresse muss eine ID besitzen.');
+        }
+        if ($address->getType() !== 'storage') {
+            throw new \InvalidArgumentException('Nur Lagerstandorte (type=storage) erhalten einen Lager-QR.');
+        }
+        if ($address->getDeletedAt() !== null) {
+            throw new \InvalidArgumentException('Gelöschte Adresse kann keinen QR erhalten.');
+        }
+
+        return $this->ensureInternalPublicCode(
+            self::ENTITY_STORAGE_ADDRESS,
+            $addressId,
+            $address->getDepartmentId(),
+            $createdByUserId,
+        );
+    }
+
+    /**
+     * @param string|null $createdByUserId Symfony-User-ID (12)
+     */
+    public function ensureStorageRackPublicCode(StorageRack $rack, ?string $createdByUserId = null): PublicCode
+    {
+        $rackId = $rack->getId();
+        if (!$rackId) {
+            throw new \InvalidArgumentException('Regal muss eine ID besitzen.');
+        }
+        if (!$rack->getIsActive()) {
+            throw new \InvalidArgumentException('Inaktives Regal kann keinen QR erhalten.');
+        }
+
+        return $this->ensureInternalPublicCode(
+            self::ENTITY_STORAGE_RACK,
+            $rackId,
+            $rack->getDepartmentId(),
+            $createdByUserId,
+        );
+    }
+
+    /**
+     * @param string|null $createdByUserId Symfony-User-ID (12)
+     */
+    public function ensureStorageSlotPublicCode(StorageSlot $slot, ?string $createdByUserId = null): PublicCode
+    {
+        $slotId = $slot->getId();
+        if (!$slotId) {
+            throw new \InvalidArgumentException('Fach muss eine ID besitzen.');
+        }
+        if (!$slot->getIsActive()) {
+            throw new \InvalidArgumentException('Inaktives Fach kann keinen QR erhalten.');
+        }
+
+        $rack = $slot->getRack();
+
+        return $this->ensureInternalPublicCode(
+            self::ENTITY_STORAGE_SLOT,
+            $slotId,
+            $rack->getDepartmentId(),
+            $createdByUserId,
+        );
+    }
+
+    /**
+     * @param string|null $createdByUserId Symfony-User-ID (12)
+     */
+    private function ensureInternalPublicCode(
+        string $entityType,
+        string $entityId,
+        string $departmentId,
+        ?string $createdByUserId = null,
+    ): PublicCode {
+        $existing = $this->findActivePublicCodeForEntity($entityType, $entityId);
+        if ($existing !== null) {
+            return $existing;
+        }
+
+        $entry = new PublicCode();
+        $entry->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, PublicCode::class, 'pc'));
+        $entry->setEntityType($entityType);
+        $entry->setEntityId($entityId);
+        $entry->setDepartmentId($departmentId);
+        $entry->setIsPublic(false);
+        $entry->setIsActive(true);
+        $entry->setVersion(1);
+        $entry->setPublicCode(IdGenerator::generateUniquePublicCode($this->entityManager, PublicCode::class, 'publicCode'));
+        if ($createdByUserId !== null && $createdByUserId !== '') {
+            $entry->setCreatedByUserId($createdByUserId);
+        }
+
+        $this->entityManager->persist($entry);
+
+        return $entry;
+    }
+
+    public function revokePublicCodeForEntity(string $entityType, string $entityId): void
+    {
+        /** @var PublicCode[] $entries */
+        $entries = $this->entityManager->getRepository(PublicCode::class)->findBy([
+            'entityType' => $entityType,
+            'entityId' => $entityId,
+            'isActive' => true,
+        ]);
+        foreach ($entries as $entry) {
+            $entry->setIsActive(false);
+            $entry->setRevokedAt(new \DateTime());
+        }
+    }
+
+    public function resolveInternalStorageByPublicCode(string $entityType, string $publicCode): ?array
+    {
+        $normalized = trim($publicCode);
+        if ($normalized === '') {
+            return null;
+        }
+
+        /** @var PublicCode|null $codeEntry */
+        $codeEntry = $this->entityManager->getRepository(PublicCode::class)->findOneBy([
+            'entityType' => $entityType,
+            'publicCode' => $normalized,
+            'isActive' => true,
+        ]);
+        if (!$codeEntry || $codeEntry->getRevokedAt() !== null) {
+            return null;
+        }
+
+        return match ($entityType) {
+            self::ENTITY_STORAGE_ADDRESS => $this->resolveInternalStorageAddressEntry($codeEntry),
+            self::ENTITY_STORAGE_RACK => $this->resolveInternalStorageRackEntry($codeEntry),
+            self::ENTITY_STORAGE_SLOT => $this->resolveInternalStorageSlotEntry($codeEntry),
+            default => null,
+        };
+    }
+
+    private function resolveInternalStorageAddressEntry(PublicCode $codeEntry): ?array
+    {
+        /** @var Address|null $address */
+        $address = $this->entityManager->getRepository(Address::class)->find($codeEntry->getEntityId());
+        if (!$address || $address->getDeletedAt() !== null || $address->getType() !== 'storage') {
+            return null;
+        }
+
+        $label = trim((string) ($address->getName() ?: $address->getFullAddress()));
+        if ($label === '') {
+            $label = $address->getId();
+        }
+
+        return [
+            'code' => $codeEntry->getPublicCode(),
+            'entity_type' => self::ENTITY_STORAGE_ADDRESS,
+            'entity_id' => $address->getId(),
+            'department_id' => $address->getDepartmentId(),
+            'name' => $label,
+            'label' => $label,
+            'public_url' => $this->buildStorageAddressInternalUrl($codeEntry->getPublicCode()),
+        ];
+    }
+
+    private function resolveInternalStorageRackEntry(PublicCode $codeEntry): ?array
+    {
+        /** @var StorageRack|null $rack */
+        $rack = $this->entityManager->getRepository(StorageRack::class)->find($codeEntry->getEntityId());
+        if (!$rack || !$rack->getIsActive()) {
+            return null;
+        }
+
+        $address = $rack->getStorageAddress();
+        $locationName = $address
+            ? trim((string) ($address->getName() ?: $address->getFullAddress()))
+            : '';
+
+        return [
+            'code' => $codeEntry->getPublicCode(),
+            'entity_type' => self::ENTITY_STORAGE_RACK,
+            'entity_id' => $rack->getId(),
+            'department_id' => $rack->getDepartmentId(),
+            'name' => $rack->getName(),
+            'storage_address_id' => $rack->getStorageAddressId(),
+            'storage_address_name' => $locationName !== '' ? $locationName : null,
+            'label' => $this->buildStorageRackLabel($locationName, $rack->getName()),
+            'public_url' => $this->buildStorageRackInternalUrl($codeEntry->getPublicCode()),
+        ];
+    }
+
+    private function resolveInternalStorageSlotEntry(PublicCode $codeEntry): ?array
+    {
+        /** @var StorageSlot|null $slot */
+        $slot = $this->entityManager->getRepository(StorageSlot::class)->find($codeEntry->getEntityId());
+        if (!$slot || !$slot->getIsActive()) {
+            return null;
+        }
+
+        $rack = $slot->getRack();
+        if (!$rack->getIsActive()) {
+            return null;
+        }
+
+        $address = $rack->getStorageAddress();
+        $locationName = $address
+            ? trim((string) ($address->getName() ?: $address->getFullAddress()))
+            : '';
+
+        return [
+            'code' => $codeEntry->getPublicCode(),
+            'entity_type' => self::ENTITY_STORAGE_SLOT,
+            'entity_id' => $slot->getId(),
+            'department_id' => $rack->getDepartmentId(),
+            'name' => $slot->getName(),
+            'rack_id' => $rack->getId(),
+            'rack_name' => $rack->getName(),
+            'storage_address_id' => $rack->getStorageAddressId(),
+            'storage_address_name' => $locationName !== '' ? $locationName : null,
+            'label' => $this->buildStorageSlotLabel($locationName, $rack->getName(), $slot->getName()),
+            'public_url' => $this->buildStorageSlotInternalUrl($codeEntry->getPublicCode()),
+        ];
+    }
+
+    public function buildStorageAddressLabel(Address $address): string
+    {
+        $label = trim((string) ($address->getName() ?: $address->getFullAddress()));
+
+        return $label !== '' ? $label : $address->getId();
+    }
+
+    public function buildStorageRackLabel(string $locationName, string $rackName): string
+    {
+        $rackName = trim($rackName);
+        if ($locationName === '') {
+            return $rackName;
+        }
+
+        return trim($locationName) . ' · ' . $rackName;
+    }
+
+    public function buildStorageSlotLabel(string $locationName, string $rackName, string $slotName): string
+    {
+        $parts = array_values(array_filter([
+            $locationName !== '' ? trim($locationName) : null,
+            trim($rackName),
+            trim($slotName),
+        ], static fn ($p) => $p !== null && $p !== ''));
+
+        return implode(' · ', $parts);
+    }
+
+    public function buildStorageAddressInternalUrl(string $publicCode): string
+    {
+        return $this->internalAppBaseUrl . '/i/l/' . rawurlencode($publicCode);
+    }
+
+    public function buildStorageRackInternalUrl(string $publicCode): string
+    {
+        return $this->internalAppBaseUrl . '/i/r/' . rawurlencode($publicCode);
+    }
+
+    public function buildStorageSlotInternalUrl(string $publicCode): string
+    {
+        return $this->internalAppBaseUrl . '/i/s/' . rawurlencode($publicCode);
+    }
+
+    /**
+     * Payload für Druckkorb / ensure-Response.
+     *
+     * @return array{entity_type: string, entity_id: string, public_code: string, public_url: string, label: string}
+     */
+    public function buildStorageQrPayload(string $entityType, PublicCode $codeEntry, string $label): array
+    {
+        $publicCode = $codeEntry->getPublicCode();
+        $publicUrl = match ($entityType) {
+            self::ENTITY_STORAGE_ADDRESS => $this->buildStorageAddressInternalUrl($publicCode),
+            self::ENTITY_STORAGE_RACK => $this->buildStorageRackInternalUrl($publicCode),
+            self::ENTITY_STORAGE_SLOT => $this->buildStorageSlotInternalUrl($publicCode),
+            default => throw new \InvalidArgumentException('Unbekannter Lager-entity_type: ' . $entityType),
+        };
+
+        return [
+            'entity_type' => $entityType,
+            'entity_id' => $codeEntry->getEntityId(),
+            'public_code' => $publicCode,
+            'public_url' => $publicUrl,
+            'label' => $label,
+        ];
     }
 
     /**

@@ -1583,6 +1583,7 @@ import {
   isPhysicalComboPreviewContainerLine,
   packContainerItemSectionsWithReality,
   packShellContainerForPackItem,
+  resolvePackContainerWarehouseBatchId,
   isPhysicalComboAsSet,
   peekSectionsForShellContainer,
   linkedShellCombosNeedingPackContainer,
@@ -6051,7 +6052,11 @@ async function loadWarehouseTemplatesForContainers(): Promise<void> {
   const contentsNext: Record<string, RackContentsItem[]> = {}
   await Promise.all(
     packContainers.value.map(async (c) => {
-      const batchId = (c.container_batch_id ?? '').trim()
+      const batchId = resolvePackContainerWarehouseBatchId(
+        c,
+        packItems.value,
+        packContainers.value,
+      )
       if (!batchId) return
       try {
         const data = await getContainerBatchContents(batchId)

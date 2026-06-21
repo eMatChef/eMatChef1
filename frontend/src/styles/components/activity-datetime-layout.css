@@ -54,6 +54,13 @@
   line-height: 1.2;
 }
 
+/* Phone: Zeiten untereinander (breitere Touch-Ziele) */
+.activity-create-wizard-host.activity-create-wizard-host--sm-down .activity-datetime-mobile__times,
+.activity-datetime-host.activity-datetime-host--sm-down .activity-datetime-mobile__times {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
 /* ── Pill-Leiste (Desktop/Tablet) ── */
 .activity-datetime-host .activity-pill-group,
 .activity-create-wizard-host .activity-pill-group {

@@ -5,7 +5,7 @@
         <h1>{{ t('settings.categories.title') }}</h1>
         <p class="subtitle">{{ t('settings.categories.subtitle') }}</p>
       </div>
-      <EButton variant="primary" @click="openCreateModal">
+      <EButton variant="primary" data-onboarding="settings-category-new" @click="openCreateModal">
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('settings.categories.newCategory') }}
       </EButton>
@@ -25,7 +25,7 @@
     </div>
 
     <!-- Kategorien-Liste -->
-    <div class="categories-list" v-if="!isLoading">
+    <div class="categories-list" v-if="!isLoading" data-onboarding="settings-category-list">
       <!-- Hauptkategorien -->
       <div 
         v-for="mainCat in mainCategories" 

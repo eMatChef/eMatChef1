@@ -244,13 +244,14 @@ class MaterialAvailabilityController extends AbstractController
                         COALESCE(batch_totals.total_qty, 0)::INT AS total_stock,
                         COALESCE(repair_totals.qty_in_repair, 0)::INT AS stock_in_repair,
                         COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0)::INT AS stock_in_phys_combo_kisten,
+                        COALESCE(stock_as_linked_ref.qty_as_linked_ref, 0)::INT AS stock_as_linked_ref_container,
                         COALESCE(stock_in_storage.qty_in_storage, 0)::INT AS stock_in_storage_containers,
                         COALESCE(reserved.reserved_qty, 0)::INT AS reserved_in_activities,
                         GREATEST(0,
                             CASE WHEN mi.material_type = 'physical_combo' THEN
                                 COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
                             ELSE
-                                COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                                COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(stock_as_linked_ref.qty_as_linked_ref, 0) - COALESCE(reserved.reserved_qty, 0)
                             END
                         )::INT AS available_for_period
                         FROM material_item mi
@@ -276,6 +277,7 @@ class MaterialAvailabilityController extends AbstractController
                                 AND combo_kiste.deleted_at IS NULL
                             GROUP BY b.material_item_id
                         ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        " . MaterialAvailabilityReservationQuery::stockAsLinkedRefContainerJoinSql() . "
                         LEFT JOIN (
                             SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
                             FROM batch_storage_allocation a
@@ -308,13 +310,14 @@ class MaterialAvailabilityController extends AbstractController
                         COALESCE(SUM(mb.qty), 0) AS total_stock,
                         COALESCE(MAX(repair_totals.qty_in_repair), 0) AS stock_in_repair,
                         COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) AS stock_in_phys_combo_kisten,
+                        COALESCE(MAX(stock_as_linked_ref.qty_as_linked_ref), 0) AS stock_as_linked_ref_container,
                         COALESCE(MAX(stock_in_storage.qty_in_storage), 0) AS stock_in_storage_containers,
                         COALESCE(MAX(reserved.reserved_qty), 0) AS reserved_in_activities,
                         GREATEST(0,
                             CASE WHEN mi.material_type = 'physical_combo' THEN
                                 COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
                             ELSE
-                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
+                                COALESCE(SUM(mb.qty), 0) - COALESCE(MAX(stock_in_phys_combo.qty_in_phys_combo), 0) - COALESCE(MAX(stock_as_linked_ref.qty_as_linked_ref), 0) - COALESCE(MAX(reserved.reserved_qty), 0)
                             END
                         ) AS available_for_period
                         FROM material_item mi
@@ -335,6 +338,7 @@ class MaterialAvailabilityController extends AbstractController
                                 AND combo_kiste.deleted_at IS NULL
                             GROUP BY b.material_item_id
                         ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                        " . MaterialAvailabilityReservationQuery::stockAsLinkedRefContainerJoinSql() . "
                         LEFT JOIN (
                             SELECT b.material_item_id AS mid, SUM(a.qty) AS qty_in_storage
                             FROM batch_storage_allocation a
@@ -415,6 +419,7 @@ class MaterialAvailabilityController extends AbstractController
                     $lcParams['lc_mid' . $i] = $mid;
                 }
                 $lcSql = "SELECT combo.id AS combo_id,
+                        NULLIF(TRIM(lcb_mi.name), '') AS linked_container_material_name,
                         NULLIF(TRIM(lcb.label), '') AS linked_container_label,
                         NULLIF(TRIM(lcb.serial_number), '') AS linked_container_serial,
                         lcb_mi.pack_unit AS linked_container_pack_unit
@@ -425,10 +430,12 @@ class MaterialAvailabilityController extends AbstractController
                 $lcStmt = $this->connection->prepare($lcSql);
                 $lcRows = $lcStmt->executeQuery($lcParams)->fetchAllAssociative();
                 foreach ($lcRows as $lc) {
-                    $label = trim((string) ($lc['linked_container_label'] ?? ''));
-                    $serial = trim((string) ($lc['linked_container_serial'] ?? ''));
                     $linkedContainerMap[$lc['combo_id']] = [
-                        'label' => $label !== '' ? $label : ($serial !== '' ? $serial : null),
+                        'label' => \App\Service\LinkedContainerDisplay::labelFromParts(
+                            $lc['linked_container_material_name'] ?? null,
+                            $lc['linked_container_label'] ?? null,
+                            $lc['linked_container_serial'] ?? null,
+                        ),
                         'pack_unit' => $lc['linked_container_pack_unit'] ?? null,
                     ];
                 }
@@ -484,6 +491,7 @@ class MaterialAvailabilityController extends AbstractController
                     'totalStock' => (int) $item['total_stock'],
                     'stockInRepair' => (int) ($item['stock_in_repair'] ?? 0),
                     'stockInPhysComboKisten' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
+                    'stockAsLinkedRefContainer' => (int) ($item['stock_as_linked_ref_container'] ?? 0),
                     'stockInStorageContainers' => (int) ($item['stock_in_storage_containers'] ?? 0),
                     /** @deprecated use stockInPhysComboKisten / stockInStorageContainers */
                     'stockInContainers' => (int) ($item['stock_in_phys_combo_kisten'] ?? 0),
@@ -891,7 +899,7 @@ class MaterialAvailabilityController extends AbstractController
                     CASE WHEN mi.material_type = 'physical_combo' THEN
                         COALESCE(batch_totals.total_qty, 0) - COALESCE(reserved.reserved_qty, 0)
                     ELSE
-                        COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(reserved.reserved_qty, 0)
+                        COALESCE(batch_totals.total_qty, 0) - COALESCE(stock_in_phys_combo.qty_in_phys_combo, 0) - COALESCE(stock_as_linked_ref.qty_as_linked_ref, 0) - COALESCE(reserved.reserved_qty, 0)
                     END
                 )::INT AS available_for_period
                 FROM material_item mi
@@ -911,6 +919,7 @@ class MaterialAvailabilityController extends AbstractController
                         AND combo_kiste.material_type = 'physical_combo' AND combo_kiste.deleted_at IS NULL
                     GROUP BY b.material_item_id
                 ) stock_in_phys_combo ON stock_in_phys_combo.mid = mi.id
+                " . MaterialAvailabilityReservationQuery::stockAsLinkedRefContainerJoinSql() . "
                 " . MaterialAvailabilityReservationQuery::lateralReservedQtySql($hasPeriod, $reservedExcludeSql) . "
                 WHERE mi.deleted_at IS NULL AND mi.id IN ($idIn)";
 
@@ -1114,7 +1123,8 @@ class MaterialAvailabilityController extends AbstractController
             }
 
             $physKisten = (int) ($row['stockInPhysComboKisten'] ?? 0);
-            $row['availableForPeriod'] = max(0, $total - $subtractRepair - $physKisten - $lockQty);
+            $linkedRef = (int) ($row['stockAsLinkedRefContainer'] ?? 0);
+            $row['availableForPeriod'] = max(0, $total - $subtractRepair - $physKisten - $linkedRef - $lockQty);
         }
         unset($row);
 

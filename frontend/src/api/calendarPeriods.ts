@@ -5,6 +5,7 @@ export type CalendarPeriodLabel =
   | 'department_break'
   | 'camp_week'
   | 'other'
+  | 'grossanlass'
 
 export interface DepartmentCalendarPeriod {
   id: string

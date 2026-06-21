@@ -17,7 +17,7 @@
       <template #title>{{ t('materialsView.title') }}</template>
       <template v-if="!isUserMaterialsBrowseOnly" #subtitle>{{ t('materialsView.description') }}</template>
       <template v-if="canManageMaterials" #actions>
-        <EButton variant="primary" @click="openCreateWizard">
+        <EButton variant="primary" data-onboarding="material-new" @click="openCreateWizard">
           <v-icon icon="mdi-plus" start size="20" />
           {{ t('materialsView.newMaterial') }}
         </EButton>

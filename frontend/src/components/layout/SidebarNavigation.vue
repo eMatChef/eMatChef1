@@ -176,6 +176,54 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
+      <!-- Grossanlass: Ressorts & Mitglieder (MW/DC — Name des Anlasses) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole"
+        :to="getLink('/ressorts')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('ressorts') }"
+        :title="grossanlassRessortsNavTitle"
+      >
+        <v-icon icon="mdi-sitemap" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label nav-label--grossanlass" :class="{ visible: showNavLabels }">{{ grossanlassNavLabel }}</span>
+      </router-link>
+
+      <!-- Mein Ressort (Ressort-Mitglieder: Bauprojekte & Materialwünsche) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && isUserRole"
+        :to="getLink('/mein-ressort')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('mein-ressort') }"
+        :title="t('sidebar.meinRessortHint')"
+      >
+        <v-icon icon="mdi-home-group" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meinRessort') }}</span>
+      </router-link>
+
+      <!-- Planung: Runden → Material sammeln → Beschaffung -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks"
+        :to="getLink('/planung')"
+        class="nav-item"
+        :class="{ active: isPlanungNavActive }"
+        :title="t('sidebar.planungHint')"
+      >
+        <v-icon icon="mdi-calendar-clock" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
+      </router-link>
+
+      <!-- Beschaffung (Grossanlass, MW/DC — Phase 2c Shell) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        :to="getLink('/beschaffung')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :title="t('sidebar.beschaffungHint')"
+      >
+        <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
+      </router-link>
+
       <!-- Materialien -->
       <router-link
         v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showMaterialsMenu && hasDepartmentContext && !isGrossanlassDept"
@@ -211,7 +259,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
@@ -222,7 +270,7 @@
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
@@ -233,7 +281,7 @@
 
       <!-- Horizontaler Balken (Divider) -->
       <div
-        v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
+        v-if="!isPendingAssignmentRoute && (showStandardDeptSidebarLinks || (isGrossanlassDept && showDeptContextSidebarLinks))"
         class="nav-divider"
       />
 
@@ -292,12 +340,18 @@
 
       <router-link
         v-if="!isPendingAssignmentRoute && showStandardDeptSidebarLinks"
-        :to="getLink('/help/overview')"
+        :to="helpNavLink"
         class="nav-item"
-        :class="{ active: isHelpOverviewNavActive }"
+        :class="{ active: isHelpNavActive }"
       >
         <v-icon icon="mdi-help-circle-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.help') }}</span>
+        <span
+          v-if="helpOnboardingBadgeCount > 0 && showNavLabels"
+          class="nav-badge"
+        >
+          {{ helpOnboardingBadgeCount }}
+        </span>
       </router-link>
 
     </nav>
@@ -315,12 +369,19 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
-import { isDepartmentBasicMemberRole } from '@/composables/useDepartmentMemberRole'
+import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { canUseDepartmentOnboarding } from '@/utils/onboardingGate'
+import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
+import {
+  isOnboardingDone,
+  readOnboardingState,
+} from '@/utils/departmentOnboarding'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const { isUserRole } = useDepartmentMemberRole()
 const { mdAndUp } = useDisplay()
 const drawerOpen = defineModel<boolean>({ default: false })
 const isHovered = ref(false)
@@ -506,7 +567,23 @@ const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
-/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — keine Standard-Dept-Module */
+const grossanlassNavLabel = computed(() => {
+  const id = departmentId.value
+  const dept = authStore.departments.find((d) => d.department_id === id)
+  return dept?.department?.name || t('grossanlass.label')
+})
+
+const grossanlassRessortsNavTitle = computed(() =>
+  t('sidebar.grossanlassRessortsHint', { name: grossanlassNavLabel.value }),
+)
+
+const isPlanungNavActive = computed(() => {
+  const path = route.path
+  if (path.includes('/settings')) return false
+  return path.includes('/planung')
+})
+
+/** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Ressorts/Planung, Aufgaben, Nachrichten */
 const showStandardDeptSidebarLinks = computed(
   () => showDeptContextSidebarLinks.value && !isGrossanlassDept.value,
 )
@@ -529,11 +606,39 @@ const showAccountingMenu = computed(() => {
   return false
 })
 
+/** Grossanlass-Beschaffung (Shell): nur MW/DC — kein Pfadi-/accounting-Modul */
+const showGrossanlassBeschaffungMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r === 'mw' || r === 'dc'
+})
+
 /** Lieferanten-Shop: Materialwart / Departmentchef */
 const showSupplierShopLink = computed(() => {
   if (isSuperAdmin.value) return false
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
   return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
+})
+
+const helpNavLink = computed(() => {
+  const depId = departmentId.value
+  if (!depId) return getLink('/help/dokumentation')
+  if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
+    return getLink('/help/einrichtung')
+  }
+  return getLink('/help/dokumentation')
+})
+
+const isHelpNavActive = computed(() => route.path.includes('/help'))
+
+const helpOnboardingBadgeCount = computed(() => {
+  const depId = departmentId.value
+  if (!depId || !canUseDepartmentOnboarding(authStore, depId)) return 0
+  const profId = authStore.profileId
+  if (!profId) return 0
+  if (isOnboardingDone(profId, depId)) return 0
+  const state = readOnboardingState(profId, depId)
+  return countOpenChecklistItems(state.completed, state.skipped || {})
 })
 
 /** Sidebar: Buchhaltung aktiv bei allen Unterpfaden /accounting/… */
@@ -547,7 +652,6 @@ function isDeptSectionNavActive(section: string): boolean {
 }
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
-const isHelpOverviewNavActive = computed(() => route.path.includes('/help'))
 
 function getLink(path: string): string {
   let id = (route.params.departmentId as string) || authStore.activeDepartmentId || ''

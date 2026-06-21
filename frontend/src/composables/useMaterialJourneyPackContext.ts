@@ -13,10 +13,12 @@ import {
   computeLooseQtyStillAtEventForReturn,
   computePackIssueForwardMax,
   computeQtyInContainersForItem,
+  computeRightQtyForMoveBack,
   computeTransportBackQtyInContainersForMaterial,
   computeTransportToQtyInContainersForMaterial,
   type PackQuantityContext,
   type PackQuantityForwardMaxContext,
+  type PackQuantityMoveBackContext,
 } from '@/components/activities/packStageQuantityLayer'
 import { getStageLeftQty,
   getStageRightQty,
@@ -74,11 +76,20 @@ export function useMaterialJourneyPackContext(options: {
     if (!c) return undefined
     const mid = (c.container_material_item_id ?? '').trim()
     if (mid) {
-      return options.packItems.value.find((p) => p.materialItemId === mid)
+      const byMid = options.packItems.value.find((p) => p.materialItemId === mid)
+      if (byMid) return byMid
     }
     const bid = (c.container_batch_id ?? '').trim()
     if (bid) {
-      return options.packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
+      const byBatch = options.packItems.value.find(
+        (p) => (p.linkedContainerBatchId ?? '').trim() === bid,
+      )
+      if (byBatch) return byBatch
+    }
+    for (const pi of options.packItems.value) {
+      if (packShellContainerForPackItem(pi, options.packContainers.value)?.id === containerId) {
+        return pi
+      }
     }
     return undefined
   }
@@ -117,6 +128,19 @@ export function useMaterialJourneyPackContext(options: {
         Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
     }),
   )
+
+  const packQuantityMoveBackCtx = computed(
+    (): PackQuantityMoveBackContext => ({
+      ...packQuantityCtx.value,
+      isCrateShellPackItem: (pi) => isCrateShellPackItem(pi, options.packContainers.value),
+      storedLooseQtyForPackItem: (pi) => pi.quantityStored ?? 0,
+      returnedLooseQtyForPackItem: (pi) => pi.quantityReturned ?? 0,
+    }),
+  )
+
+  function rightQtyForMoveBack(pi: ActivityPackItem): number {
+    return computeRightQtyForMoveBack(pi, packQuantityMoveBackCtx.value)
+  }
 
   function effectiveStageLeftQty(p: ActivityPackItem): number {
     return computeEffectiveStageLeftQty(p, {
@@ -272,6 +296,37 @@ export function useMaterialJourneyPackContext(options: {
     }),
   )
 
+  function packCrateLabelsForPackItem(pi: ActivityPackItem): string[] {
+    const labels: string[] = []
+    const seen = new Set<string>()
+    for (const c of options.packContainers.value) {
+      const items = options.containerItemsByContainerId.value[c.id] ?? []
+      const hasMaterial = items.some(
+        (row) =>
+          row.material_item_id === pi.materialItemId &&
+          (row.quantity_packed ?? 0) > 0,
+      )
+      if (hasMaterial && !seen.has(c.id)) {
+        seen.add(c.id)
+        labels.push(c.label)
+      }
+    }
+    return labels
+  }
+
+  function qtyInPackCrateForPackItem(pi: ActivityPackItem): number {
+    return packListCtx.value.qtyInContainersForItem(pi)
+  }
+
+  /** Menge, die in die gewählte Packkiste gelegt werden kann (offen oder bereits erledigt, noch nicht in Kiste). */
+  function packCrateAssignQtyForItem(pi: ActivityPackItem): number {
+    const forward = packIssueForwardMax(pi)
+    if (forward > 0) return forward
+    const packed = stageRightQty(pi)
+    const inCrate = qtyInPackCrateForPackItem(pi)
+    return Math.max(0, packed - inCrate)
+  }
+
   return {
     packListCtx,
     packContainerCtx,
@@ -286,5 +341,9 @@ export function useMaterialJourneyPackContext(options: {
     containerStoreUnits,
     containerActionableUnits,
     packQuantityCtx,
+    packCrateLabelsForPackItem,
+    qtyInPackCrateForPackItem,
+    packCrateAssignQtyForItem,
+    rightQtyForMoveBack,
   }
 }

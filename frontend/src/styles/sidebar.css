@@ -133,6 +133,13 @@
   width: auto;
 }
 
+.nav-label--grossanlass.visible {
+  max-width: 148px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nav-divider {
   height: 1px;
   background-color: rgba(255, 255, 255, 0.1);
@@ -225,4 +232,19 @@
 .nav-item.active .nav-chevron--mdi,
 .nav-item:hover .nav-chevron--mdi {
   color: currentColor;
+}
+
+.nav-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #0284c7;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
 }

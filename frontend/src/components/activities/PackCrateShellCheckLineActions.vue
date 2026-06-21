@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackShellCheckToggle from '@/components/activities/PackShellCheckToggle.vue'
 import type { ShellForwardLineReview } from '@/components/activities/packCrateForwardCheck'
+import '@/styles/views/activities/pack-shell-combo.css'
 
 defineOptions({ name: 'PackCrateShellCheckLineActions' })
 
@@ -48,15 +49,7 @@ function stepCounted(delta: number) {
 </script>
 
 <template>
-  <div
-    class="pack-crate-shell-check-line"
-    :class="{
-      'pack-crate-shell-check-line--ok': review.status === 'ok',
-      'pack-crate-shell-check-line--short': review.status === 'problem' && varianceKind === 'short',
-      'pack-crate-shell-check-line--surplus': review.status === 'problem' && varianceKind === 'surplus',
-      'pack-crate-shell-check-line--pending': review.status === null && varianceKind === 'unset',
-    }"
-  >
+  <div class="pack-crate-shell-check-line">
     <div class="pack-crate-shell-check-line__main pack-shell-forward-li-meta">
       <div class="pack-shell-forward-li-name">{{ materialName }}</div>
       <div class="pack-shell-forward-li-sub text-muted">
@@ -115,69 +108,13 @@ function stepCounted(delta: number) {
   </div>
 </template>
 
-<style src="@/styles/views/activities/pack-shell-combo.css"></style>
 <style scoped>
 .pack-crate-shell-check-line__main {
   flex: 1 1 140px;
   min-width: 0;
 }
 
-
 .pack-crate-shell-check-line__actions {
   flex: 0 0 auto;
 }
-
-.pack-crate-shell-check-line--ok {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  border-left: 3px solid #16a34a;
-}
-
-.pack-crate-shell-check-line--short {
-  border-color: #fecaca;
-  background: #fef2f2;
-  border-left: 3px solid #dc2626;
-}
-
-.pack-crate-shell-check-line--surplus {
-  border-color: #fed7aa;
-  background: #fff7ed;
-  border-left: 3px solid #ea580c;
-}
-
-.pack-crate-shell-check-line--pending {
-  border-color: #e2e8f0;
-  background: #fafafa;
-  border-left: 3px solid #cbd5e1;
-}
-
-.pack-shell-forward-variance-actions {
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.shell-forward-variance-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.shell-forward-variance-btn--minus.shell-forward-variance-btn--active {
-  border-color: #dc2626;
-  background: #fef2f2;
-  color: #b91c1c;
-}
-
-.shell-forward-variance-btn--plus.shell-forward-variance-btn--active {
-  border-color: #ea580c;
-  background: #fff7ed;
-  color: #c2410c;
-}
-
 </style>

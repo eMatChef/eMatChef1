@@ -145,13 +145,13 @@
   "department.member_added": {
     "adder_name_fallback": "Ein Teammitglied",
     "subject": "Du wurdest dem Department {{department_name}} zugewiesen",
-    "text_body": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" in eMatChef zugewiesen.\nDeine Rolle: {{role_label}}\n\nMelde dich an und wechsle ggf. in der App zu diesem Department:\n{{app_url}}\n\nFalls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung.",
+    "text_body": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" in eMatChef zugewiesen.\nDeine Rolle: {{role_label}}\n\nOeffne eMatChef — nach dem Login wirst du direkt zu diesem Department weitergeleitet:\n{{app_url}}\n\nFalls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung.",
     "html": {
       "greeting_word": "Hallo",
       "banner_title": "Neues Department in eMatChef",
       "added_lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\">{{adder_name}} hat dich dem Department <strong>{{department_name}}</strong> in eMatChef zugewiesen.</p>",
       "role_line_template": "<p style=\"margin:0 0 16px 0;font-size:14px;color:#374151;\">Deine Rolle: <strong>{{role_label}}</strong></p>",
-      "cta_label": "eMatChef oeffnen",
+      "cta_label": "Department oeffnen",
       "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
       "footer_note": "Falls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung."
     }

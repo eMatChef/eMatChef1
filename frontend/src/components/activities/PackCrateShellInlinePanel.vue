@@ -7,6 +7,7 @@ import { shellForwardExpectedQty, shellForwardLineKey } from '@/components/activ
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import { EButton } from '@/components/form/base'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import '@/styles/views/activities/pack-shell-combo.css'
 
 defineOptions({ name: 'PackCrateShellInlinePanel' })
 
@@ -492,7 +493,6 @@ watch(
 </template>
 
 <style src="@/styles/views/activities/pack-container-card.css"></style>
-<style src="@/styles/views/activities/pack-shell-combo.css"></style>
 <style scoped>
 .pack-combo-crate-inline {
   margin-top: 8px;

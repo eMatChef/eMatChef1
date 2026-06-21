@@ -237,7 +237,7 @@ function moveShellCrateForward(qtyFromControl?: number) {
     </div>
     <div v-show="innerVisible" class="pack-container-inner pack-container-inner--shell">
       <div v-if="showInnerKisteHint" class="pack-card-kiste text-muted pack-shell-storage-kiste">
-        {{ t('activities.packList.kisteLabel', { label: shellPackItem.linkedContainerLabel }) }}
+        {{ shellPackItem.linkedContainerLabel }}
       </div>
       <PackMaterialStorageStack
         v-if="showStorageLocation"
@@ -299,6 +299,4 @@ function moveShellCrateForward(qtyFromControl?: number) {
   </div>
 </template>
 
-<style src="@/styles/views/activities/detail-workflow.css"></style>
-<style src="@/styles/views/activities/pack-container-card.css"></style>
-<style src="@/styles/views/activities/pack-shell-combo.css"></style>
+<style src="@/styles/views/activities/pack-container-card-bundle.css"></style>

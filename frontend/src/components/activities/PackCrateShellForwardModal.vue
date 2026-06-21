@@ -543,14 +543,6 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
             v-for="line in sec.lines"
             :key="sec.subsectionKey + '-' + line.id"
             class="pack-shell-forward-li pack-shell-forward-li--wizard"
-            :class="{
-              'pack-shell-forward-li--ok': varianceKind(asCheckLine(sec, line)) === 'ok',
-              'pack-shell-forward-li--short': varianceKind(asCheckLine(sec, line)) === 'short',
-              'pack-shell-forward-li--surplus': varianceKind(asCheckLine(sec, line)) === 'surplus',
-              'pack-shell-forward-li--pending':
-                varianceKind(asCheckLine(sec, line)) === 'unset' &&
-                reviewFor(asCheckLine(sec, line).key, line.quantity).countedQty === line.quantity,
-            }"
           >
             <template v-for="cl in [asCheckLine(sec, line)]" :key="cl.key">
               <div class="pack-shell-forward-li-row">
@@ -1120,13 +1112,15 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
 }
 
 .pack-shell-forward-variance-actions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 4px;
 }
 
 .shell-forward-variance-btn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
   background: #fff;
@@ -1252,21 +1246,5 @@ function asCheckLine(sec: PackCrateShellPeekSection, line: PackCrateShellPeekSec
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
-}
-
-.pack-shell-forward-li--short {
-  border-left: 3px solid #dc2626;
-}
-
-.pack-shell-forward-li--surplus {
-  border-left: 3px solid #ea580c;
-}
-
-.pack-shell-forward-li--ok {
-  border-left: 3px solid #16a34a;
-}
-
-.pack-shell-forward-li--pending {
-  border-left: 3px solid #cbd5e1;
 }
 </style>

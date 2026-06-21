@@ -14,6 +14,7 @@ class DepartmentCalendarPeriod
     public const LABEL_DEPARTMENT_BREAK = 'department_break';
     public const LABEL_CAMP_WEEK = 'camp_week';
     public const LABEL_OTHER = 'other';
+    public const LABEL_GROSSANLASS = 'grossanlass';
 
     /** @var list<string> */
     public const ALLOWED_LABELS = [
@@ -21,6 +22,7 @@ class DepartmentCalendarPeriod
         self::LABEL_DEPARTMENT_BREAK,
         self::LABEL_CAMP_WEEK,
         self::LABEL_OTHER,
+        self::LABEL_GROSSANLASS,
     ];
 
     #[ORM\Id]

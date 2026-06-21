@@ -11,6 +11,7 @@ use App\Entity\Membership;
 use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
+use App\Service\Public\PublicCodeService;
 use App\Util\IdGenerator;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -27,7 +28,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class StorageLocationController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private PublicCodeService $publicCodeService,
     ) {}
 
     /**
@@ -339,6 +341,12 @@ class StorageLocationController extends AbstractController
         if (!$rack) return new JsonResponse(['error' => 'Rack nicht gefunden'], 404);
         $access = $this->assertDepartmentAccess($rack->getDepartmentId());
         if ($access instanceof JsonResponse) return $access;
+
+        $this->publicCodeService->revokePublicCodeForEntity(PublicCodeService::ENTITY_STORAGE_RACK, $id);
+        $slots = $this->entityManager->getRepository(StorageSlot::class)->findBy(['rackId' => $id]);
+        foreach ($slots as $slot) {
+            $this->publicCodeService->revokePublicCodeForEntity(PublicCodeService::ENTITY_STORAGE_SLOT, $slot->getId());
+        }
 
         $this->entityManager->remove($rack);
         $this->entityManager->flush();
@@ -654,6 +662,8 @@ class StorageLocationController extends AbstractController
         if (!$slot) return new JsonResponse(['error' => 'Slot nicht gefunden'], 404);
         $access = $this->assertDepartmentAccess($slot->getRack()->getDepartmentId());
         if ($access instanceof JsonResponse) return $access;
+
+        $this->publicCodeService->revokePublicCodeForEntity(PublicCodeService::ENTITY_STORAGE_SLOT, $id);
 
         $this->entityManager->remove($slot);
         $this->entityManager->flush();

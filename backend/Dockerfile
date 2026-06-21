@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
         libpq-dev \
         pdftk-java \
+        poppler-utils \
         && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install pdo_pgsql mbstring exif pcntl bcmath gd
 

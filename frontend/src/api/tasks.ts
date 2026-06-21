@@ -60,3 +60,61 @@ export async function clearPrintCart(departmentId: string): Promise<{ deleted: n
   return response.data
 }
 
+export async function downloadMaterialQrPdf(departmentId: string, batchIds?: string[]): Promise<Blob> {
+  const config = { responseType: 'blob' as const }
+  const response = batchIds && batchIds.length > 0
+    ? await apiClient.post(
+        '/api/tasks/print-cart/material-qr-pdf',
+        { department_id: departmentId, batch_ids: batchIds },
+        config,
+      )
+    : await apiClient.get(
+        `/api/tasks/print-cart/material-qr-pdf?department_id=${encodeURIComponent(departmentId)}`,
+        config,
+      )
+  const contentType = String(response.headers['content-type'] || '')
+  if (contentType.includes('application/json')) {
+    const text = await (response.data as Blob).text()
+    let message = 'PDF-Export fehlgeschlagen'
+    try {
+      const parsed = JSON.parse(text) as { error?: string }
+      if (parsed.error) message = parsed.error
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message)
+  }
+  return response.data as Blob
+}
+
+export interface MaterialQrTreeBatch {
+  id: string
+  line_label: string
+}
+
+export interface MaterialQrTreeMaterial {
+  id: string
+  name: string
+  category_id: string | null
+  batches: MaterialQrTreeBatch[]
+}
+
+export interface MaterialQrTreeCategory {
+  id: string
+  name: string
+  parent_id: string | null
+  sort_order: number
+}
+
+export interface MaterialQrTree {
+  categories: MaterialQrTreeCategory[]
+  materials: MaterialQrTreeMaterial[]
+}
+
+export async function getMaterialQrTree(departmentId: string): Promise<MaterialQrTree> {
+  const response = await apiClient.get<MaterialQrTree>(
+    `/api/tasks/print-cart/material-qr-tree?department_id=${encodeURIComponent(departmentId)}`,
+  )
+  return response.data
+}
+

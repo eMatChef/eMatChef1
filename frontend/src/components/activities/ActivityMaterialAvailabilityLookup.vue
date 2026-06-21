@@ -542,8 +542,9 @@ function isFixedComboComponentRow(m: ActivityPeriodAvailabilityMaterial): boolea
   const memberships = m.partOfPhysicalCombos ?? []
   if (memberships.length === 0) return false
   if (effectiveStock(m) > 0) return false
-  const inKiste = m.stockInPhysComboKisten ?? m.stockInContainers ?? 0
-  return inKiste > 0
+  const inPhysCombo =
+    (m.stockInPhysComboKisten ?? m.stockInContainers ?? 0) + (m.stockAsLinkedRefContainer ?? 0)
+  return inPhysCombo > 0
 }
 
 function partOfCombosLabel(m: ActivityPeriodAvailabilityMaterial): string {
@@ -616,6 +617,10 @@ function secondaryStockHint(m: ActivityPeriodAvailabilityMaterial): string | nul
   const inPhys = m.stockInPhysComboKisten ?? m.stockInContainers ?? 0
   if (inPhys > 0) {
     return t('activities.materialAvailability.inPhysComboKistenHint', { n: inPhys })
+  }
+  const asRef = m.stockAsLinkedRefContainer ?? 0
+  if (asRef > 0) {
+    return t('activities.materialAvailability.inLinkedRefContainerHint', { n: asRef })
   }
   return null
 }

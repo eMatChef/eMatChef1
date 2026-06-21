@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import EButton from '@/components/form/base/EButton.vue'
 import type { MaterialJourneyFilterTab } from '@/components/activities/materialJourneyTaskList'
 
 defineProps<{
@@ -7,6 +8,12 @@ defineProps<{
   totalCount: number
   showByShelfFilter: boolean
   presenceLabels?: string[]
+  showAddPackCrate?: boolean
+  addPackCrateLoading?: boolean
+}>()
+
+const emit = defineEmits<{
+  'add-pack-crate': []
 }>()
 
 const filterTab = defineModel<MaterialJourneyFilterTab>('filterTab', { required: true })
@@ -52,6 +59,20 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
       >
         {{ t('activities.materialJourney.filter.byShelf') }}
       </button>
+    </div>
+    <div v-if="showAddPackCrate" class="material-journey-toolbar__actions">
+      <EButton
+        variant="secondary"
+        size="small"
+        class="material-journey-toolbar__add-crate"
+        :loading="addPackCrateLoading"
+        :disabled="addPackCrateLoading"
+        :title="t('activities.packList.addPackCrateSingleTitle')"
+        @click="emit('add-pack-crate')"
+      >
+        <v-icon icon="mdi-package-variant-plus" start size="18" />
+        {{ t('activities.packList.addPackCrateSingleButton') }}
+      </EButton>
     </div>
     <p v-if="totalCount > 0" class="material-journey-toolbar__progress text-muted">
       {{ t('activities.materialJourney.toolbar.progress', { done: doneCount, total: totalCount }) }}

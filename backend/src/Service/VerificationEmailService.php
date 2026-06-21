@@ -209,6 +209,8 @@ class VerificationEmailService
         string $adderName,
         string $departmentName,
         string $roleLabel,
+        string $departmentId,
+        bool $isGrossanlass = false,
         ?string $recipientLocale = null
     ): void {
         $locale = $this->mailTemplateContent->normalizeLocaleParam(trim((string) ($recipientLocale ?? '')));
@@ -218,7 +220,7 @@ class VerificationEmailService
             throw $this->vex('tpl_dept_member', $locale);
         }
 
-        $appUrl = rtrim($this->frontendBaseUrl, '/') . '/login';
+        $appUrl = $this->buildDepartmentMemberAddedAppUrl($departmentId, $isGrossanlass);
         $safeRecipient = trim($recipientName) !== '' ? $recipientName : $recipientEmail;
         $vars = [
             'recipient_name' => $safeRecipient,
@@ -558,5 +560,24 @@ class VerificationEmailService
         $alt = htmlspecialchars($this->mailTemplateContent->getSharedString('brand_logo_alt', $locale), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         return '<img src="' . $safe . '" alt="' . $alt . '" width="140" style="max-width:180px;height:auto;display:block;margin:0 auto;border:0;" />';
+    }
+
+    /** Login mit Redirect ins Ziel (wie Join-Einladungen). */
+    public function buildAppLoginRedirectUrl(string $targetPath): string
+    {
+        $path = str_starts_with($targetPath, '/') ? $targetPath : '/' . $targetPath;
+
+        return rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query([
+            'redirect' => $path,
+        ], '', '&', \PHP_QUERY_RFC3986);
+    }
+
+    public function buildDepartmentMemberAddedAppUrl(string $departmentId, bool $isGrossanlass = false): string
+    {
+        $targetPath = $isGrossanlass
+            ? '/' . $departmentId . '/dashboard'
+            : '/' . $departmentId;
+
+        return $this->buildAppLoginRedirectUrl($targetPath);
     }
 }

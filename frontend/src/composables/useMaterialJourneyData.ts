@@ -14,8 +14,14 @@ import {
   journeyStepsForProfile,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
+import { isTransportOutAcknowledged, clearTransportOutAck } from '@/utils/materialJourneyTransportAck'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
+import {
+  emptyMaterialJourneyCratePeekMaps,
+  loadMaterialJourneyCratePeekData,
+  type MaterialJourneyCratePeekMaps,
+} from '@/composables/materialJourneyCratePeekLoad'
 
 const POLL_ACTIVE_MS = 5_000
 const POLL_IDLE_MS = 20_000
@@ -36,6 +42,7 @@ export function useMaterialJourneyData(
   const packItems = ref<ActivityPackItem[]>([])
   const packContainers = ref<ActivityPackContainer[]>([])
   const containerItemsByContainerId = ref<Record<string, ActivityPackContainerItem[]>>({})
+  const cratePeekMaps = ref<MaterialJourneyCratePeekMaps>(emptyMaterialJourneyCratePeekMaps())
   const loading = ref(true)
   const error = ref<string | null>(null)
 
@@ -43,19 +50,35 @@ export function useMaterialJourneyData(
 
   const steps = computed(() => journeyStepsForProfile(profile.value))
 
-  const resolvedStep = computed((): JourneyStep => {
-    const param = stepParam.value
-    if (param && isValidJourneyStep(param, profile.value)) return param
+  const defaultJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
+    const status = activity.value.status ?? 'packing'
+    if (status !== 'packed') {
+      clearTransportOutAck(activityId.value)
+    }
     return defaultJourneyStepForStatus(
-      activity.value.status ?? 'packing',
+      status,
       profile.value,
       canManageMaterials.value,
+      { transportOutAcknowledged: isTransportOutAcknowledged(activityId.value) },
     )
+  })
+
+  const resolvedStep = computed((): JourneyStep => {
+    const param = stepParam.value
+    const defaultStep = defaultJourneyStep.value
+
+    if (param && isValidJourneyStep(param, profile.value)) {
+      return param as JourneyStep
+    }
+    if (!activity.value) return 'pack'
+    return defaultStep
   })
 
   const needsStepRedirect = computed(() => {
     const param = stepParam.value
+    const defaultStep = defaultJourneyStep.value
+
     if (!param) return true
     return !isValidJourneyStep(param, profile.value)
   })
@@ -73,16 +96,30 @@ export function useMaterialJourneyData(
     return false
   })
 
-  async function loadPackContainers(activityId: string): Promise<void> {
-    const containers = await getActivityPackContainers(activityId).catch(() => [] as ActivityPackContainer[])
+  async function loadPackContainers(id: string): Promise<void> {
+    const containers = await getActivityPackContainers(id).catch(() => [] as ActivityPackContainer[])
     packContainers.value = containers
     const map: Record<string, ActivityPackContainerItem[]> = {}
     await Promise.all(
       containers.map(async (c) => {
-        map[c.id] = await getActivityPackContainerItems(activityId, c.id).catch(() => [])
+        map[c.id] = await getActivityPackContainerItems(id, c.id).catch(() => [])
       }),
     )
     containerItemsByContainerId.value = map
+    cratePeekMaps.value = await loadMaterialJourneyCratePeekData(containers, packItems.value)
+  }
+
+  function applyContainerItem(containerId: string, item: ActivityPackContainerItem): void {
+    const items = containerItemsByContainerId.value[containerId] ?? []
+    const idx = items.findIndex((row) => row.id === item.id)
+    const next =
+      idx >= 0
+        ? items.map((row, i) => (i === idx ? item : row))
+        : [...items, item]
+    containerItemsByContainerId.value = {
+      ...containerItemsByContainerId.value,
+      [containerId]: next,
+    }
   }
 
   async function reloadSilent(): Promise<void> {
@@ -118,6 +155,7 @@ export function useMaterialJourneyData(
       packItems.value = []
       packContainers.value = []
       containerItemsByContainerId.value = {}
+      cratePeekMaps.value = emptyMaterialJourneyCratePeekMaps()
     } finally {
       loading.value = false
     }
@@ -150,6 +188,7 @@ export function useMaterialJourneyData(
     packItems,
     packContainers,
     containerItemsByContainerId,
+    cratePeekMaps,
     loading,
     error,
     profile,
@@ -161,5 +200,6 @@ export function useMaterialJourneyData(
     canManageMaterials,
     reload,
     reloadSilent,
+    applyContainerItem,
   }
 }

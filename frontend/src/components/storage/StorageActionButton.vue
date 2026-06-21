@@ -24,6 +24,12 @@
     <svg v-else-if="icon === 'move'" :width="iconSize" :height="iconSize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
     </svg>
+    <svg v-else-if="icon === 'qr'" :width="iconSize" :height="iconSize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="7" height="7" rx="1"/>
+      <rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/>
+      <path d="M14 14h2v2h-2zM18 14h3v3h-3zM14 18h2v3h-2zM18 21h3"/>
+    </svg>
     <svg v-else :width="iconSize" :height="iconSize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
       <circle cx="12" cy="12" r="3"/>
@@ -36,7 +42,7 @@ import { computed } from 'vue'
 
 const props = withDefaults(defineProps<{
   title: string
-  icon: 'edit' | 'add' | 'delete' | 'move' | 'open'
+  icon: 'edit' | 'add' | 'delete' | 'move' | 'open' | 'qr'
   size?: 'sm' | 'md'
   variant?: 'default' | 'add' | 'delete'
   disabled?: boolean

@@ -117,12 +117,50 @@ const emit = defineEmits<{
   'update:modelValue': [value: Date | Date[] | null]
 }>()
 
-const leftMonth = ref(new Date().getMonth())
-const leftYear = ref(new Date().getFullYear())
-const rightMonth = ref((new Date().getMonth() + 1) % 12)
-const rightYear = ref(
-  new Date().getMonth() === 11 ? new Date().getFullYear() + 1 : new Date().getFullYear(),
-)
+/** Linkes/rechtes Pane aus gewähltem Zeitraum (Start- und Endmonat). */
+function dualPaneAnchorFromRange(
+  range: Date[] | null | undefined,
+  min?: Date,
+): { leftMonth: number; leftYear: number; rightMonth: number; rightYear: number } {
+  const start = range?.[0]
+  const end = range && range.length >= 2 ? range[1] : start
+  const fallback = min ?? new Date()
+
+  if (!start || !Number.isFinite(start.getTime())) {
+    const lm = fallback.getMonth()
+    const ly = fallback.getFullYear()
+    const next = shiftMonthYear(lm, ly, 1)
+    return { leftMonth: lm, leftYear: ly, rightMonth: next.month, rightYear: next.year }
+  }
+
+  const lm = start.getMonth()
+  const ly = start.getFullYear()
+
+  if (end && Number.isFinite(end.getTime())) {
+    const rm = end.getMonth()
+    const ry = end.getFullYear()
+    const leftKey = ly * 12 + lm
+    const endKey = ry * 12 + rm
+
+    if (leftKey === endKey) {
+      const next = shiftMonthYear(lm, ly, 1)
+      return { leftMonth: lm, leftYear: ly, rightMonth: next.month, rightYear: next.year }
+    }
+
+    if (leftKey < endKey) {
+      return { leftMonth: lm, leftYear: ly, rightMonth: rm, rightYear: ry }
+    }
+  }
+
+  const next = shiftMonthYear(lm, ly, 1)
+  return { leftMonth: lm, leftYear: ly, rightMonth: next.month, rightYear: next.year }
+}
+
+const initialAnchor = dualPaneAnchorFromRange(props.modelValue, props.min)
+const leftMonth = ref(initialAnchor.leftMonth)
+const leftYear = ref(initialAnchor.leftYear)
+const rightMonth = ref(initialAnchor.rightMonth)
+const rightYear = ref(initialAnchor.rightYear)
 
 const leftControls = ref<PickerControls | null>(null)
 const rightControls = ref<PickerControls | null>(null)
@@ -160,11 +198,11 @@ function syncLeftFromRight() {
 }
 
 function anchorFromSelection() {
-  const picked = props.modelValue?.[0]
-  const base = picked && Number.isFinite(picked.getTime()) ? picked : props.min ?? new Date()
-  leftMonth.value = base.getMonth()
-  leftYear.value = base.getFullYear()
-  syncRightFromLeft()
+  const next = dualPaneAnchorFromRange(props.modelValue, props.min)
+  leftMonth.value = next.leftMonth
+  leftYear.value = next.leftYear
+  rightMonth.value = next.rightMonth
+  rightYear.value = next.rightYear
 }
 
 watch(
@@ -172,13 +210,17 @@ watch(
   (open) => {
     if (open) anchorFromSelection()
   },
+  { immediate: true },
 )
 
-/** Nach Datums-Klick: VDatePicker zieht Monat mit — rechts wieder auf Folgemonat setzen. */
+/** Nach Datums-Klick: VDatePicker zieht Monat mit — Auswahl neu verankern solange Menü offen. */
 watch(
   () => props.modelValue,
   () => {
-    nextTick(() => syncRightFromLeft())
+    nextTick(() => {
+      if (props.menuOpen) anchorFromSelection()
+      else syncRightFromLeft()
+    })
   },
   { deep: true },
 )

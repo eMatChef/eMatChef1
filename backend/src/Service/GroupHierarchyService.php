@@ -136,4 +136,26 @@ class GroupHierarchyService
         return $this->isActivityGroupUnderUserGroups($departmentId, $activityGroupId, $userRootGroupIds)
             || $this->isUserGroupUnderActivityGroup($departmentId, $activityGroupId, $userRootGroupIds);
     }
+
+    /**
+     * Tiefe eines Knotens (Wurzel = 1).
+     */
+    public function computeDepth(string $departmentId, string $groupId): int
+    {
+        return count($this->expandWithAncestors($departmentId, [$groupId]));
+    }
+
+    /**
+     * Maximale Tiefe im Subtree (Wurzel des Subtrees = 1).
+     */
+    public function computeMaxSubtreeDepth(string $departmentId, string $rootGroupId): int
+    {
+        $descendants = $this->expandWithDescendants($departmentId, [$rootGroupId]);
+        $max = 0;
+        foreach ($descendants as $id) {
+            $max = max($max, $this->computeDepth($departmentId, $id));
+        }
+
+        return $max;
+    }
 }

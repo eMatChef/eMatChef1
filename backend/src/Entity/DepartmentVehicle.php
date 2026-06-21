@@ -48,6 +48,13 @@ class DepartmentVehicle
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    #[ORM\Column(name: 'owner_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $ownerAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'owner_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $ownerAddress = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -88,5 +95,13 @@ class DepartmentVehicle
     public function setIsActive(bool $isActive): self { $this->isActive = $isActive; return $this; }
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $notes): self { $this->notes = $notes; return $this; }
+    public function getOwnerAddressId(): ?string { return $this->ownerAddressId; }
+    public function setOwnerAddress(?Address $address): self
+    {
+        $this->ownerAddress = $address;
+        $this->ownerAddressId = $address?->getId();
+        return $this;
+    }
+    public function getOwnerAddress(): ?Address { return $this->ownerAddress; }
     public function touch(): self { $this->updatedAt = new \DateTime(); return $this; }
 }

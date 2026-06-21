@@ -1,6 +1,7 @@
 <template>
   <div class="activity-date-field-wrap">
     <VTextField
+      ref="activatorRef"
       :model-value="displayText"
       class="activity-date-field activity-v-date-input e-form-field"
       variant="outlined"
@@ -13,14 +14,15 @@
       :focused="menuOpen"
       @click:control="openMenu"
       @click:prepend-inner="openMenu"
+    />
+    <ActivityDatePickerMenuShell
+      v-model:open="menuOpen"
+      :activator="activatorRef"
+      :presets="menuPresets"
+      :show-presets="showPresets"
+      :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
+      @select-preset="applyPreset"
     >
-      <ActivityDatePickerMenuShell
-        v-model:open="menuOpen"
-        :presets="menuPresets"
-        :show-presets="showPresets"
-        :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
-        @select-preset="applyPreset"
-      >
         <div
           class="activity-date-picker-pane-wrap"
           @wheel="onWheel"
@@ -29,6 +31,7 @@
         >
           <VDatePicker
             v-bind="activityDatePickerCommonProps"
+            :width="pickerWidth"
             :model-value="modelValue"
             :month="paneMonth"
             :year="paneYear"
@@ -55,8 +58,7 @@
             </template>
           </VDatePicker>
         </div>
-      </ActivityDatePickerMenuShell>
-    </VTextField>
+    </ActivityDatePickerMenuShell>
   </div>
 </template>
 
@@ -64,6 +66,8 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VDatePicker, VTextField } from 'vuetify/components'
+import { useActivityDatePickerLayoutProps } from '@/composables/useActivityDatePickerLayoutProps'
+import { useActivityDatePickerDelayedClose } from '@/composables/useActivityDatePickerDelayedClose'
 import { useActivityDatePickerEvents } from '@/composables/useActivityDatePickerEvents'
 import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePickerPaneMonth'
 import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
@@ -89,6 +93,8 @@ const props = withDefaults(
     showPresets?: boolean
     /** Kalender-Punkte (Feiertage, Fixe Daten, fcal) */
     showMarkers?: boolean
+    /** single = Samstage + Fixe Daten; fixed-periods = nur Fixe Daten (Lagerwoche, …) */
+    presetMode?: 'single' | 'fixed-periods'
   }>(),
   {
     departmentId: null,
@@ -98,6 +104,7 @@ const props = withDefaults(
     blockClosedDates: true,
     showPresets: false,
     showMarkers: true,
+    presetMode: 'single',
   },
 )
 
@@ -107,12 +114,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const menuOpen = ref(false)
+const activatorRef = ref<{ $el: HTMLElement } | null>(null)
+const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
+const { pickerWidth } = useActivityDatePickerLayoutProps()
 const minDate = computed(() => (props.allowPast ? undefined : startOfToday()))
 
 const {
   month: paneMonth,
   year: paneYear,
   shiftMonth,
+  syncAnchorFromDate,
   onWheel,
   onTouchStart,
   onTouchEnd,
@@ -128,12 +139,13 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets('single', calendarPeriods)
+const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))
 
 function openMenu() {
   if (props.disabled) return
+  syncAnchorFromDate()
   menuOpen.value = true
 }
 
@@ -150,7 +162,8 @@ function onPickerUpdate(value: Date | Date[] | null) {
 function applyPreset(preset: ActivityDatePresetItem) {
   const d = preset.value instanceof Date ? preset.value : preset.value[0]
   emit('update:modelValue', d)
-  menuOpen.value = false
+  syncAnchorFromDate(d)
+  scheduleClose()
 }
 </script>
 

@@ -11,6 +11,7 @@
         variant="outlined"
         elevation="0"
         class="activity-type-chip-btn"
+        :data-onboarding="`activity-type-${opt.type}`"
         :class="[
           `activity-type-chip-btn--${opt.type}`,
           { 'activity-type-chip-btn--selected': selected === opt.type },

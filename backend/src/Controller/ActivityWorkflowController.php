@@ -1495,12 +1495,7 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $linkCb = $mi->getLinkedContainerBatch();
-        $linkedContainerLabel = null;
-        if ($linkCb !== null) {
-            $lb = $linkCb->getLabel();
-            $sn = $linkCb->getSerialNumber();
-            $linkedContainerLabel = ($lb !== null && $lb !== '') ? $lb : (($sn !== null && $sn !== '') ? $sn : null);
-        }
+        $linkedContainerLabel = \App\Service\LinkedContainerDisplay::labelFromBatch($linkCb);
 
         return [
             'id' => $item->getId(),
@@ -1525,7 +1520,6 @@ class ActivityWorkflowController extends AbstractController
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),
             'notes' => $item->getNotes(),
-            'intent_id' => $item->getIntentId(),
             'is_fully_packed' => $item->isFullyPacked(),
             'is_fully_issued' => $item->isFullyIssued(),
             'is_fully_returned' => $item->isFullyReturned(),

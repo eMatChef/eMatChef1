@@ -2,14 +2,18 @@
 
 namespace App\Controller;
 
+use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\PrintTaskItem;
 use App\Entity\User;
+use App\Service\Print\MaterialQrExportCollector;
+use App\Service\Print\MaterialQrPdfService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -17,7 +21,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class PrintTaskController extends AbstractController
 {
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private MaterialQrExportCollector $materialQrExportCollector,
+        private MaterialQrPdfService $materialQrPdfService,
     ) {}
 
     #[Route('', name: 'list', methods: ['GET'])]
@@ -194,6 +200,97 @@ class PrintTaskController extends AbstractController
         return new JsonResponse(['success' => true]);
     }
 
+    /**
+     * PDF-Export aller Material-QR-Codes (Bulk, Chargen, physische Kombis).
+     * A4-Raster: 12 QR-Codes pro Seite (3×4).
+     */
+    #[Route('/material-qr-pdf', name: 'material_qr_pdf', methods: ['GET', 'POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function materialQrPdf(Request $request): Response
+    {
+        $data = $request->getMethod() === 'POST'
+            ? (json_decode($request->getContent(), true) ?? [])
+            : [];
+
+        $departmentId = trim((string) ($data['department_id'] ?? $request->query->get('department_id', '')));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $currentUser = $this->getUser();
+        $actorUserId = $currentUser instanceof User ? $currentUser->getId() : null;
+
+        $batchIds = $data['batch_ids'] ?? null;
+        try {
+            if (is_array($batchIds)) {
+                $rows = $this->materialQrExportCollector->collectForBatchIds(
+                    $departmentId,
+                    $batchIds,
+                    $actorUserId,
+                    true,
+                );
+            } else {
+                $rows = $this->materialQrExportCollector->collectForDepartment($departmentId, $actorUserId, true);
+            }
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'QR-Codes konnten nicht gesammelt werden: ' . $e->getMessage()], 500);
+        }
+
+        if ($rows === []) {
+            return new JsonResponse(['error' => 'Keine Material-QR-Codes zum Export vorhanden'], 404);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        $deptName = $department instanceof Department ? $department->getName() : $departmentId;
+        $title = $deptName . ' – Material-QR-Codes';
+
+        try {
+            $pdfBinary = $this->materialQrPdfService->renderPdf($rows, $title);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'PDF konnte nicht erzeugt werden: ' . $e->getMessage()], 500);
+        }
+
+        $filename = 'material-qr-codes-' . preg_replace('/[^a-zA-Z0-9_-]+/', '-', $deptName) . '.pdf';
+
+        return new Response($pdfBinary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    /**
+     * Kategorien + Materialien mit Chargen für den Material-QR-PDF-Dialog.
+     */
+    #[Route('/material-qr-tree', name: 'material_qr_tree', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function materialQrTree(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $currentUser = $this->getUser();
+        $actorUserId = $currentUser instanceof User ? $currentUser->getId() : null;
+
+        try {
+            $tree = $this->materialQrExportCollector->buildTreeForDepartment($departmentId, $actorUserId);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => 'Materialbaum konnte nicht geladen werden: ' . $e->getMessage()], 500);
+        }
+
+        return new JsonResponse($tree);
+    }
+
     #[Route('', name: 'clear', methods: ['DELETE'])]
     #[IsGranted('ROLE_USER')]
     public function clear(Request $request): JsonResponse
@@ -232,7 +329,7 @@ class PrintTaskController extends AbstractController
     }
 
     /**
-     * Erlaubte entity_type: batch (Material+Charge), activity, workshop.
+     * Erlaubte entity_type: batch, activity, workshop, storage_address, storage_rack, storage_slot.
      * public_url muss zum QR-Schema passen (kein /i/b/-Only).
      */
     private function assertValidPublicUrl(string $entityType, string $publicUrl): true|JsonResponse
@@ -242,6 +339,9 @@ class PrintTaskController extends AbstractController
             'batch', 'material' => (bool) preg_match('#^/i/m/[^/]+/b/[^/]+/?$#', $path),
             'activity' => (bool) preg_match('#^/i/a/[^/]+/?$#', $path),
             'workshop' => (bool) preg_match('#^/i/w/[^/]+/?$#', $path),
+            'storage_address' => (bool) preg_match('#^/i/l/[^/]+/?$#', $path),
+            'storage_rack' => (bool) preg_match('#^/i/r/[^/]+/?$#', $path),
+            'storage_slot' => (bool) preg_match('#^/i/s/[^/]+/?$#', $path),
             default => false,
         };
         if (!$ok) {

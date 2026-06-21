@@ -288,6 +288,7 @@ class DepartmentController extends AbstractController
             'name' => $department->getName(),
             'organisation_id' => $department->getOrganisationId(),
             'parent_id' => $department->getParentId(),
+            'is_grossanlass' => $department->isGrossanlass(),
             'users' => $users
         ]);
     }
@@ -747,6 +748,26 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
         }
 
+        if ($department->isGrossanlass()) {
+            if (!in_array($role, ['mw', 'u'], true)) {
+                return new JsonResponse(['error' => 'Bei Grossanlass-Departments sind nur Materialchef (mw) und Mitglied (u) erlaubt'], 400);
+            }
+            if ($role === 'mw') {
+                $existingMw = $this->entityManager->getRepository(Membership::class)
+                    ->createQueryBuilder('m')
+                    ->select('COUNT(m.userId)')
+                    ->where('m.departmentId = :departmentId')
+                    ->andWhere('m.role = :role')
+                    ->setParameter('departmentId', $departmentId)
+                    ->setParameter('role', 'mw')
+                    ->getQuery()
+                    ->getSingleScalarResult();
+                if ((int) $existingMw > 0) {
+                    return new JsonResponse(['error' => 'Dieser Grossanlass hat bereits einen Materialchef'], 409);
+                }
+            }
+        }
+
         // Rollen-Hierarchie prüfen: darf der aktuelle User diese Rolle vergeben?
         $roleCheck = $this->canAssignRole($departmentId, $role);
         if ($roleCheck instanceof JsonResponse) {
@@ -799,6 +820,8 @@ class DepartmentController extends AbstractController
                     $adderName,
                     $department->getName(),
                     $this->labelForMemberRole($membership->getRole()),
+                    $department->getId(),
+                    $department->isGrossanlass(),
                     $profile->getLanguage()
                 );
                 $notificationEmailSent = true;
@@ -861,6 +884,29 @@ class DepartmentController extends AbstractController
         if (isset($data['role'])) {
             if (!in_array($data['role'], self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
                 return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+            }
+
+            $department = $membership->getDepartment();
+            if ($department->isGrossanlass()) {
+                if (!in_array($data['role'], ['mw', 'u'], true)) {
+                    return new JsonResponse(['error' => 'Bei Grossanlass-Departments sind nur Materialchef (mw) und Mitglied (u) erlaubt'], 400);
+                }
+                if ($data['role'] === 'mw' && $oldRole !== 'mw') {
+                    $existingMw = $this->entityManager->getRepository(Membership::class)
+                        ->createQueryBuilder('m')
+                        ->select('COUNT(m.userId)')
+                        ->where('m.departmentId = :departmentId')
+                        ->andWhere('m.role = :role')
+                        ->andWhere('m.userId != :userId')
+                        ->setParameter('departmentId', $departmentId)
+                        ->setParameter('role', 'mw')
+                        ->setParameter('userId', $userId)
+                        ->getQuery()
+                        ->getSingleScalarResult();
+                    if ((int) $existingMw > 0) {
+                        return new JsonResponse(['error' => 'Dieser Grossanlass hat bereits einen Materialchef'], 409);
+                    }
+                }
             }
 
             // Rollen-Hierarchie prüfen: darf der aktuelle User diese Rolle vergeben?

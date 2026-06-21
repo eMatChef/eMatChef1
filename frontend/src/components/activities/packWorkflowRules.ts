@@ -279,7 +279,6 @@ export function crateShellExcludedFromLooseForwardList(
   activePackStage?: string,
 ): boolean {
   if (!isForwardToEventStage) return false
-  if (activePackStage === 'packed_transport_to') return false
   if (!isCrateShellPackItem(pi, packContainers, virtualContainerIdByPackItemId)) return false
   return packShellContainerForPackItem(pi, packContainers, virtualContainerIdByPackItemId) != null
 }

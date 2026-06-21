@@ -69,10 +69,14 @@ export function defaultJourneyStepForStatus(
   status: string,
   profile: PackWorkflowProfile,
   canManageMaterials = false,
+  options?: { transportOutAcknowledged?: boolean },
 ): JourneyStep {
   if (status === 'packing') return 'pack'
   if (status === 'packed') {
-    return profile === 'logistics' ? 'transport_out' : 'issue'
+    if (profile === 'logistics') {
+      return options?.transportOutAcknowledged ? 'issue' : 'transport_out'
+    }
+    return 'issue'
   }
   if (status === 'at_event') {
     return profile === 'logistics' ? 'transport_back' : 'return'
@@ -125,6 +129,39 @@ export function isJourneyStoreStep(step: JourneyStep): boolean {
   return step === 'store'
 }
 
+/** Regal/Fach in Checkliste — nur Packen, Retour und Einlagern (§ Journey UX). */
+export function materialJourneyShowsShelfLocation(step: JourneyStep): boolean {
+  return step === 'pack' || step === 'return' || step === 'store'
+}
+
+/** Packkiste: «Lose mitnehmen» / «In andere Kiste» — ab Transport hin bis Retour. */
+export function materialJourneyShowsCrateTransitActions(step: JourneyStep): boolean {
+  return (
+    step === 'transport_out' ||
+    step === 'issue' ||
+    step === 'transport_back' ||
+    step === 'return'
+  )
+}
+
+/** Erledigt-Tab: Buchung zurücknehmen mit Mengenkontrolle. */
+export function materialJourneyShowsMoveBack(step: JourneyStep): boolean {
+  return step === 'transport_out'
+}
+
+/** Offen-Tab: Packkiste per → nur beim Packen (Transport: Inhalt einzeln / Kiste bleibt). */
+export function materialJourneyShowsCrateMoveForwardQty(step: JourneyStep): boolean {
+  return step === 'pack'
+}
+
+/** Offen-Tab: Menge eingeben + Pfeil statt «Tippen = alles». */
+export function materialJourneyShowsMoveForwardQty(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  return isJourneyLooseMovesEnabledForStep(step, profile) || step === 'store'
+}
+
 export function isJourneyStepAheadOfDefault(
   step: JourneyStep,
   defaultStep: JourneyStep,
@@ -132,4 +169,14 @@ export function isJourneyStepAheadOfDefault(
 ): boolean {
   const steps = journeyStepsForProfile(profile)
   return steps.indexOf(step) > steps.indexOf(defaultStep)
+}
+
+/** URL-Schritt liegt hinter dem Status (z. B. pack bei Status packed) — auf Default weiterleiten. */
+export function isJourneyStepBehindDefault(
+  step: JourneyStep,
+  defaultStep: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  const steps = journeyStepsForProfile(profile)
+  return steps.indexOf(step) < steps.indexOf(defaultStep)
 }

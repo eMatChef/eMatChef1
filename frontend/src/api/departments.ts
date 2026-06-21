@@ -15,6 +15,7 @@ export interface Department {
   organisation_id: string
   parent_id?: string | null
   users: DepartmentUser[]
+  is_grossanlass?: boolean
 }
 
 /**

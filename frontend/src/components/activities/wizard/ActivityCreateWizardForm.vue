@@ -199,6 +199,7 @@
         <div
           v-if="showJsMaterialOptionOnGrunddaten"
           class="form-group span-2 activity-js-include-wrap"
+          data-onboarding="activity-camp-js-material"
         >
           <ECheckbox
             :model-value="wantsJsMaterial"

@@ -495,5 +495,4 @@ function commitPhysicalComboWhole(): void {
   </div>
 </template>
 
-<style src="@/styles/views/activities/detail-workflow.css"></style>
-<style src="@/styles/views/activities/pack-container-card.css"></style>
+<style src="@/styles/views/activities/pack-container-card-bundle.css"></style>

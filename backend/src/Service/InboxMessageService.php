@@ -731,7 +731,7 @@ class InboxMessageService
         $isLogistics = \in_array($activityType, ['camp', 'event'], true);
 
         return match ($type) {
-            'activity_submitted' => 'pack',
+            'activity_submitted' => null,
             'activity_packed' => $isLogistics ? 'transport_out' : 'issue',
             'activity_at_event' => $isLogistics ? 'transport_back' : 'return',
             'activity_returned', 'activity_returned_mw' => $forMwRecipient ? 'store' : 'return',

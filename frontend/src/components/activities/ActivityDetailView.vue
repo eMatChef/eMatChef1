@@ -175,7 +175,7 @@
       </v-alert>
 
       <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
-          <v-tabs-window-item value="overview" class="activity-detail-window-item">
+          <v-tabs-window-item value="overview" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
@@ -301,7 +301,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item value="material" class="activity-detail-window-item">
+          <v-tabs-window-item value="material" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content activity-material-tab">
             <ActivityTabHeader :title="t('common.material')">
               <p class="activity-material-tab-hint text-muted">
@@ -500,7 +500,7 @@
                             :title="t('activities.detail.replenishmentBadge')"
                           >{{ t('activities.detail.replenishmentBadge') }}</span>
                           <div v-if="row.linked_container_label" class="activity-combo-kiste text-muted">
-                            {{ t('activities.detail.crateLine', { label: row.linked_container_label }) }}
+                            {{ row.linked_container_label }}
                           </div>
                           <!-- Set-Anzeige „wie Kiste": Hülle + aufgelöste Teile als Inhalt -->
                           <div
@@ -546,7 +546,7 @@
           </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
               <ActivityJsTabView
                 :activity-id="activityId"
@@ -556,25 +556,26 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showVehiclesTab" value="vehicles" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
-            <div v-if="canManageMaterials && !useLegacyPackUi" class="activity-pack-journey-beta-link">
-              <RouterLink
-                :to="{
-                  name: 'ActivityDetail',
-                  params: { departmentId, activityId },
-                  query: { tab: 'packs', ...legacyPackUiQuery() },
-                }"
-                class="activity-pack-journey-beta-link__anchor"
-              >
-                {{ t('activities.materialJourney.legacyPackLink') }}
-              </RouterLink>
+              <ActivityVehiclesTab
+                v-if="activity"
+                :activity-id="activityId"
+                :department-id="departmentId"
+                :can-manage="canManageActivityVehicles"
+              />
             </div>
+          </v-tabs-window-item>
+
+          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item" :transition="false">
+            <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
               v-if="activity && !useLegacyPackUi"
               :department-id="departmentId"
               :activity-id="activityId"
+              :transitions="transitions"
               embedded
+              @status-changed="onJourneyStatusChanged"
             />
             <ActivityPackListTab
               v-else-if="activity"
@@ -615,7 +616,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
@@ -627,7 +628,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
@@ -642,7 +643,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item">
+          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
@@ -655,7 +656,7 @@
             </div>
           </v-tabs-window-item>
 
-          <v-tabs-window-item value="history" class="activity-detail-window-item">
+          <v-tabs-window-item value="history" class="activity-detail-window-item" :transition="false">
             <div class="activity-detail-tab-panel tab-content">
               <ActivityHistoryTab :activity-id="activityId" />
             </div>
@@ -739,6 +740,7 @@ import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityM
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
 import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
+import ActivityVehiclesTab from '@/components/activities/ActivityVehiclesTab.vue'
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityMaterialJourneyView from '@/components/activities/ActivityMaterialJourneyView.vue'
@@ -779,7 +781,7 @@ import { usePageHeadStore } from '@/stores/pageHead'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useToast } from '@/composables/useToast'
-import { resolvePackUiPreference, legacyPackUiQuery } from '@/utils/packUiPreference'
+import { resolvePackUiPreference } from '@/utils/packUiPreference'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { EButton } from '@/components/form/base'
@@ -814,7 +816,7 @@ const router = useRouter()
 const detailTabsStore = useDetailTabsStore()
 const authStore = useAuthStore()
 
-const ACTIVITY_TAB_IDS = ['overview', 'material', 'js', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
+const ACTIVITY_TAB_IDS = ['overview', 'material', 'js', 'vehicles', 'packs', 'issues', 'consumables', 'costs', 'history'] as const
 type ActivityTabId = (typeof ACTIVITY_TAB_IDS)[number]
 
 function mergeActivityQuery(updates: Record<string, string | undefined>) {
@@ -907,6 +909,25 @@ const showPacksTab = computed(() => {
   return showMemberEarlyPackPreview.value
 })
 
+/** Fuhrpark-Planung ab «Bestätigt» (MW/DC/Ersteller) bzw. ab Packliste für alle. */
+const showVehiclesTab = computed(() => {
+  const act = activity.value
+  if (!act) return false
+  const s = act.status
+  const logisticsType = ['camp', 'event', 'activity', 'external'].includes(act.type || '')
+  if (!logisticsType) return false
+  if (showPacksTab.value) return true
+  if (s !== 'approved') return false
+  return canManageActivityVehicles.value
+})
+
+const canManageActivityVehicles = computed(() => {
+  const act = activity.value
+  if (!act) return false
+  if (canManageMaterials.value) return true
+  return act.created_by_user_id === authStore.userId
+})
+
 const useLegacyPackUi = computed(() => resolvePackUiPreference(route.query) === 'legacy')
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
@@ -990,6 +1011,9 @@ const tabs = computed(() => {
   if (showJsOrderCard.value) {
     out.push({ id: 'js', label: t('activities.jsMaterial.tabTitle') })
   }
+  if (showVehiclesTab.value) {
+    out.push({ id: 'vehicles', label: t('activities.detail.tabVehicles') })
+  }
   if (showPacksTab.value) {
     out.push({ id: 'packs', label: t('activities.detail.tabPacks') })
   }
@@ -1056,6 +1080,13 @@ const activeTab = ref<ActivityTabId>('overview')
 
 watch(showPacksTab, (show) => {
   if (!show && activeTab.value === 'packs') {
+    activeTab.value = 'overview'
+    mergeActivityQuery({ tab: 'overview' })
+  }
+})
+
+watch(showVehiclesTab, (show) => {
+  if (!show && activeTab.value === 'vehicles') {
     activeTab.value = 'overview'
     mergeActivityQuery({ tab: 'overview' })
   }
@@ -2329,6 +2360,24 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
 
 async function onPackListWorkflowNext(transition: ActivityTransitionRow) {
   await onTransition(transition, { skipPackConfirm: true })
+}
+
+async function onJourneyStatusChanged(): Promise<void> {
+  try {
+    const detail = await getActivity(props.activityId, props.departmentId)
+    activity.value = detail
+    pageHeadStore.setDynamic(
+      t('activities.detail.pageTitleSuffix', { name: detail.name }),
+      `${activityTypeLabelDetail(detail.type || '')} · ${activityStatusLabelDetail(detail.status || '')}`,
+    )
+    headerNotificationsStore.requestRefresh()
+    const trNext = await getActivityTransitions(props.activityId)
+    transitions.value = trNext.transitions || []
+    completionBlockers.value = trNext.completion_blockers ?? null
+    packListReloadToken.value += 1
+  } catch {
+    /* Journey hat bereits lokal aktualisiert — Kopfzeile best-effort nachziehen */
+  }
 }
 
 async function onTransition(

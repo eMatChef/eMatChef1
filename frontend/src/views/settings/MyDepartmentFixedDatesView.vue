@@ -1,26 +1,16 @@
 <template>
   <div class="fixed-dates-settings">
     <div class="page-header">
-      <div>
-        <h2 class="settings-title">{{ t('settings.fixedDates.title') }}</h2>
-        <p class="settings-description">{{ t('settings.fixedDates.description') }}</p>
-      </div>
+      <h2 class="settings-title">{{ t('settings.fixedDates.title') }}</h2>
+      <p class="settings-description">{{ pageDescription }}</p>
+      <p v-if="isGrossanlassDept" class="settings-hint">{{ t('settings.fixedDates.grossanlassHint') }}</p>
     </div>
 
-    <ECard v-if="userDepartments.length > 1" class="department-card">
-      <ESelect
-        id="department-select"
-        v-model="selectedDepartmentId"
-        :label="t('settings.common.selectDepartment')"
-        :items="departmentSelectItems"
-        item-title="text"
-        item-value="value"
-        hide-details
-        @update:model-value="onDepartmentChange"
-      />
+    <ECard v-if="!canManage">
+      <p class="muted">{{ t('settings.fixedDates.noPermission') }}</p>
     </ECard>
 
-    <template v-if="canManage">
+    <template v-else>
       <ECard class="create-card">
         <h3 class="section-heading">
           {{ editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle') }}
@@ -32,7 +22,7 @@
             v-model:end="form.end_date"
             class="field-period"
             :label="t('settings.fixedDates.period')"
-            :department-id="selectedDepartmentId"
+            :department-id="departmentId"
             :allow-past="true"
             :block-closed-dates="false"
             :show-presets="false"
@@ -50,18 +40,19 @@
           <ETextField
             id="fd-name"
             v-model="form.name"
-            class="field-wide"
+            class="field-name"
             :label="t('settings.fixedDates.name')"
-            :placeholder="t('settings.fixedDates.namePlaceholder')"
+            :placeholder="namePlaceholder"
             maxlength="120"
             hide-details
           />
         </div>
+        <p class="type-hint muted">{{ quickSelectHint }}</p>
         <div class="form-actions">
           <EButton v-if="editingId" variant="secondary" :disabled="saving" @click="cancelEdit">
             {{ t('common.cancel') }}
           </EButton>
-          <EButton variant="primary" :disabled="saving || !canSubmit" @click="submitForm">
+          <EButton variant="primary" :disabled="saving || !canSubmit" :loading="saving" @click="submitForm">
             {{ saving ? t('common.saving') : (editingId ? t('common.save') : t('common.create')) }}
           </EButton>
         </div>
@@ -69,8 +60,9 @@
 
       <ELoadingState v-if="loading" variant="inline" :message="t('settings.fixedDates.loading')" />
 
-      <ECard v-else-if="periods.length === 0">
-        <p class="muted">{{ t('settings.fixedDates.empty') }}</p>
+      <ECard v-else-if="periods.length === 0" class="empty-card">
+        <p class="empty-title">{{ emptyTitle }}</p>
+        <p v-if="emptyDescription" class="muted">{{ emptyDescription }}</p>
       </ECard>
 
       <ECard v-else class="table-card">
@@ -85,10 +77,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in periods" :key="row.id">
+            <tr v-for="row in periods" :key="row.id" :class="{ 'period-row--active': editingId === row.id }">
               <td>{{ formatDisplayDate(row.start_date) }}</td>
               <td>{{ formatDisplayDate(row.end_date) }}</td>
-              <td>{{ labelText(row.label) }}</td>
+              <td>
+                <span class="type-tag" :class="'type-tag--' + row.label">{{ labelText(row.label) }}</span>
+              </td>
               <td>{{ row.name }}</td>
               <td class="actions">
                 <button type="button" class="btn-link" @click="startEdit(row)">{{ t('common.edit') }}</button>
@@ -105,7 +99,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
@@ -129,6 +123,9 @@ import {
   type DepartmentCalendarPeriod,
 } from '@/api/calendarPeriods'
 
+const GROSSANLASS_LABELS: CalendarPeriodLabel[] = ['grossanlass', 'other', 'department_break']
+const MATERIAL_LABELS: CalendarPeriodLabel[] = ['school_vacation', 'department_break', 'camp_week', 'other']
+
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -138,27 +135,50 @@ const { canManageMaterials } = useDepartmentMemberRole()
 
 const canManage = canManageMaterials
 
-const userDepartments = computed(() => authStore.departments || [])
-const selectedDepartmentId = ref<string | null>(null)
+const departmentId = computed(
+  () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
+)
+
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+const pageDescription = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.fixedDates.descriptionGrossanlass')
+    : t('settings.fixedDates.description'),
+)
+
+const quickSelectHint = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.fixedDates.quickSelectHintGrossanlass')
+    : t('settings.fixedDates.quickSelectHint'),
+)
+
+const namePlaceholder = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.fixedDates.namePlaceholderGrossanlass')
+    : t('settings.fixedDates.namePlaceholder'),
+)
+
+const emptyTitle = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.fixedDates.emptyGrossanlassTitle')
+    : t('settings.fixedDates.empty'),
+)
+
+const emptyDescription = computed(() =>
+  isGrossanlassDept.value ? t('settings.fixedDates.emptyGrossanlassDescription') : '',
+)
+
 const periods = ref<DepartmentCalendarPeriod[]>([])
 const loading = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 
-const departmentSelectItems = computed(() =>
-  userDepartments.value.map((dept) => ({
-    text: dept.department?.name || dept.department_id,
-    value: dept.department_id,
-  })),
-)
+const defaultLabel = (): CalendarPeriodLabel =>
+  isGrossanlassDept.value ? 'grossanlass' : 'school_vacation'
 
-const emptyForm = (): {
-  label: CalendarPeriodLabel
-  name: string
-  start_date: string
-  end_date: string
-} => ({
-  label: 'school_vacation',
+const emptyForm = () => ({
+  label: defaultLabel(),
   name: '',
   start_date: '',
   end_date: '',
@@ -166,16 +186,16 @@ const emptyForm = (): {
 
 const form = reactive(emptyForm())
 
-const labelOptions = computed(() =>
-  (['school_vacation', 'department_break', 'camp_week', 'other'] as const).map((value) => ({
+const labelOptions = computed(() => {
+  const labels = isGrossanlassDept.value ? GROSSANLASS_LABELS : MATERIAL_LABELS
+  return labels.map((value) => ({
     value,
     text: labelText(value),
-  })),
-)
+  }))
+})
 
 function labelText(label: CalendarPeriodLabel): string {
-  const key = `settings.fixedDates.labels.${label}` as const
-  return t(key)
+  return t(`settings.fixedDates.labels.${label}`)
 }
 
 function formatDisplayDate(iso: string): string {
@@ -226,7 +246,7 @@ function cancelEdit() {
 }
 
 async function submitForm() {
-  if (!selectedDepartmentId.value || !canSubmit.value) return
+  if (!departmentId.value || !canSubmit.value) return
   saving.value = true
   const payload = {
     label: form.label,
@@ -236,14 +256,14 @@ async function submitForm() {
   }
   try {
     if (editingId.value) {
-      await updateDepartmentCalendarPeriod(selectedDepartmentId.value, editingId.value, payload)
+      await updateDepartmentCalendarPeriod(departmentId.value, editingId.value, payload)
       toast.success(t('settings.fixedDates.toastUpdated'))
     } else {
-      await createDepartmentCalendarPeriod(selectedDepartmentId.value, payload)
+      await createDepartmentCalendarPeriod(departmentId.value, payload)
       toast.success(t('settings.fixedDates.toastCreated'))
     }
     resetForm()
-    await loadPeriods(selectedDepartmentId.value)
+    await loadPeriods(departmentId.value)
   } catch (err: unknown) {
     const msg =
       err && typeof err === 'object' && 'response' in err
@@ -256,7 +276,7 @@ async function submitForm() {
 }
 
 async function removePeriod(id: string) {
-  if (!selectedDepartmentId.value) return
+  if (!departmentId.value) return
   const ok = await confirm.confirm({
     title: t('settings.fixedDates.confirmDeleteTitle'),
     message: t('settings.fixedDates.confirmDeleteMessage'),
@@ -266,9 +286,9 @@ async function removePeriod(id: string) {
   })
   if (!ok) return
   try {
-    await deleteDepartmentCalendarPeriod(selectedDepartmentId.value, id)
+    await deleteDepartmentCalendarPeriod(departmentId.value, id)
     if (editingId.value === id) resetForm()
-    await loadPeriods(selectedDepartmentId.value)
+    await loadPeriods(departmentId.value)
     toast.success(t('settings.fixedDates.toastDeleted'))
   } catch (err: unknown) {
     const msg =
@@ -279,26 +299,15 @@ async function removePeriod(id: string) {
   }
 }
 
-async function onDepartmentChange() {
-  if (!selectedDepartmentId.value) return
-  const newDeptId = selectedDepartmentId.value
-  await authStore.setActiveDepartment(newDeptId)
-  const oldDeptId = route.params.departmentId as string | undefined
-  if (oldDeptId && oldDeptId !== newDeptId) {
-    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
-    window.location.assign(newPath)
-    return
-  }
-  resetForm()
-  await loadPeriods(newDeptId)
-}
-
-onMounted(async () => {
-  selectedDepartmentId.value = authStore.activeDepartmentId || (userDepartments.value[0]?.department_id ?? null)
-  if (selectedDepartmentId.value && canManage.value) {
-    await loadPeriods(selectedDepartmentId.value)
-  }
-})
+watch(
+  departmentId,
+  (deptId) => {
+    if (!deptId || !canManage.value) return
+    resetForm()
+    void loadPeriods(deptId)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -306,6 +315,14 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 960px;
+  padding: 4px 8px 16px;
+  box-sizing: border-box;
+}
+
+.page-header {
+  padding: 0 4px;
 }
 
 .settings-title {
@@ -316,13 +333,34 @@ onMounted(async () => {
 }
 
 .settings-description,
+.settings-hint,
 .muted {
   color: var(--color-text-muted, #6b7280);
   margin: 0;
 }
 
+.settings-description {
+  margin-top: 6px;
+}
+
+.settings-hint {
+  margin-top: 10px;
+  font-size: 0.88rem;
+  padding: 8px 12px;
+  background: #eff6ff;
+  border-radius: 8px;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+}
+
+.create-card,
+.table-card,
+.empty-card {
+  padding: 4px;
+}
+
 .section-heading {
-  margin: 0 0 12px;
+  margin: 0 0 14px;
   font-size: 16px;
   font-weight: 600;
   color: var(--color-text, #111827);
@@ -330,20 +368,53 @@ onMounted(async () => {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 4px 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
 }
 
-.field-period,
-.field-wide {
+.field-period {
   grid-column: 1 / -1;
+}
+
+.field-name {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 640px) {
+  .form-grid {
+    grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  }
+
+  .field-period {
+    grid-column: 1 / -1;
+  }
+
+  .field-name {
+    grid-column: 2;
+  }
+}
+
+.type-hint {
+  margin: 12px 0 0;
+  font-size: 0.82rem;
 }
 
 .form-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
-  margin-top: 16px;
+  margin-top: 14px;
+}
+
+.empty-card {
+  text-align: center;
+  padding: 24px 16px;
+}
+
+.empty-title {
+  margin: 0 0 6px;
+  font-weight: 500;
+  color: var(--color-text, #111827);
 }
 
 .period-table {
@@ -354,16 +425,45 @@ onMounted(async () => {
 
 .period-table th {
   text-align: left;
-  padding: 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--color-border, #e5e7eb);
   color: var(--color-text-muted, #6b7280);
   font-weight: 500;
 }
 
 .period-table td {
-  padding: 10px 8px;
+  padding: 10px;
   border-bottom: 1px solid var(--color-border, #f3f4f6);
   vertical-align: middle;
+}
+
+.period-row--active td {
+  background: #fffbeb;
+}
+
+.type-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.type-tag--camp_week {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.type-tag--other {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.type-tag--grossanlass {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .actions {
@@ -382,9 +482,5 @@ onMounted(async () => {
 
 .btn-link.danger {
   color: var(--color-error, #dc2626);
-}
-
-.department-card {
-  max-width: 400px;
 }
 </style>

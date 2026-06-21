@@ -2,35 +2,23 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
-import {
-  isJourneyReturnStep,
-  isJourneyStoreStep,
-  isJourneyTransportBackStep,
-  isJourneyTransportOutStep,
-} from '@/components/activities/materialJourneySteps'
+import { materialJourneyShowsMoveForwardQty } from '@/components/activities/materialJourneySteps'
+import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 
 const props = defineProps<{
   doneCount: number
   totalCount: number
   openCount: number
   journeyStep: JourneyStep
+  profile: PackWorkflowProfile
 }>()
 
 const { t } = useI18n()
 
 const openHint = computed(() => {
   if (props.openCount <= 0) return null
-  if (isJourneyReturnStep(props.journeyStep)) {
-    return t('activities.materialJourney.footer.openHintReturn', { count: props.openCount })
-  }
-  if (isJourneyStoreStep(props.journeyStep)) {
-    return t('activities.materialJourney.footer.openHintStore', { count: props.openCount })
-  }
-  if (isJourneyTransportOutStep(props.journeyStep)) {
-    return t('activities.materialJourney.footer.openHintTransportOut', { count: props.openCount })
-  }
-  if (isJourneyTransportBackStep(props.journeyStep)) {
-    return t('activities.materialJourney.footer.openHintTransportBack', { count: props.openCount })
+  if (materialJourneyShowsMoveForwardQty(props.journeyStep, props.profile)) {
+    return t('activities.materialJourney.footer.openHintQty', { count: props.openCount })
   }
   return t('activities.materialJourney.footer.openHint', { count: props.openCount })
 })

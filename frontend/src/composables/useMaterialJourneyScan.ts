@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
@@ -15,9 +15,12 @@ import type { PackWorkflowListContext } from '@/components/activities/packWorkfl
 import {
   resolveMaterialBatchScan,
   resolveMaterialTextSearch,
+  resolveStorageLocationScan,
   type MaterialScanResolveResult,
   type MaterialScanTone,
 } from '@/composables/materialScanResolve'
+import { lookupStorageQr } from '@/api/storageQr'
+import { parseStorageLookupData, type StorageLookupResult } from '@/utils/packStorageLocationMatch'
 import { parseScanInput, isScanLikeInput } from '@/utils/scanParser'
 import { useToast } from '@/composables/useToast'
 
@@ -28,9 +31,17 @@ export type MaterialScanSessionEntry = {
   tone: MaterialScanTone
 }
 
-const SESSION_LOG_MAX = 5
+const SESSION_LOG_MAX = 3
+const SESSION_LOG_LABEL_MAX = 36
+
+function truncateSessionLogLabel(label: string): string {
+  const trimmed = label.trim()
+  if (trimmed.length <= SESSION_LOG_LABEL_MAX) return trimmed
+  return `${trimmed.slice(0, SESSION_LOG_LABEL_MAX - 1)}…`
+}
 
 export function useMaterialJourneyScan(options: {
+  departmentId: Ref<string>
   activityId: Ref<string>
   journeyStep: Ref<JourneyStep>
   listCtx: Ref<PackWorkflowListContext>
@@ -46,6 +57,7 @@ export function useMaterialJourneyScan(options: {
   const query = ref('')
   const resolving = ref(false)
   const activeResult = ref<MaterialScanResolveResult | null>(null)
+  const shelfSession = ref<StorageLookupResult | null>(null)
   const bulkConfirmed = ref(false)
   const sessionLog = ref<MaterialScanSessionEntry[]>([])
   let entrySeq = 0
@@ -62,15 +74,26 @@ export function useMaterialJourneyScan(options: {
     listEditable: options.listEditable.value,
   }))
 
+  const activeShelfResult: ComputedRef<MaterialScanResolveResult | null> = computed(() => {
+    if (!shelfSession.value) return null
+    return resolveStorageLocationScan(shelfSession.value, resolveCtx.value)
+  })
+
+  const hasShelfSession = computed(() => shelfSession.value != null)
+
   function pushSession(label: string, tone: MaterialScanTone): void {
     entrySeq += 1
     const entry: MaterialScanSessionEntry = {
       id: `scan-${entrySeq}`,
       at: new Date(),
-      label,
+      label: truncateSessionLogLabel(label),
       tone,
     }
     sessionLog.value = [entry, ...sessionLog.value].slice(0, SESSION_LOG_MAX)
+  }
+
+  function resultLabel(result: MaterialScanResolveResult): string {
+    return truncateSessionLogLabel(result.title)
   }
 
   function dismissResult(): void {
@@ -78,8 +101,13 @@ export function useMaterialJourneyScan(options: {
     bulkConfirmed.value = false
   }
 
-  function resultLabel(result: MaterialScanResolveResult): string {
-    return result.title
+  function dismissShelfSession(): void {
+    shelfSession.value = null
+    dismissResult()
+  }
+
+  function clearScanInput(): void {
+    query.value = ''
   }
 
   async function submitQuery(raw: string): Promise<MaterialScanResolveResult | null> {
@@ -100,6 +128,40 @@ export function useMaterialJourneyScan(options: {
         const lookup = await getPublicMaterialBatchByCodes(parsed.materialCode, parsed.batchCode)
         const result = resolveMaterialBatchScan(lookup, resolveCtx.value)
         activeResult.value = result
+        pushSession(resultLabel(result), result.tone)
+        return result
+      }
+
+      if (
+        parsed.type === 'storage_address' ||
+        parsed.type === 'storage_rack' ||
+        parsed.type === 'storage_slot'
+      ) {
+        const kind =
+          parsed.type === 'storage_address' ? 'l' : parsed.type === 'storage_rack' ? 'r' : 's'
+        const code =
+          parsed.type === 'storage_address'
+            ? parsed.locationCode
+            : parsed.type === 'storage_rack'
+              ? parsed.rackCode
+              : parsed.slotCode
+        const raw = await lookupStorageQr(options.departmentId.value, kind, code)
+        const lookup = parseStorageLookupData(raw)
+        if (!lookup) {
+          const fail: MaterialScanResolveResult = {
+            type: 'unknown',
+            tone: 'error',
+            title: trimmed.slice(0, 80),
+            detail: 'storage_not_found',
+            canAct: false,
+          }
+          activeResult.value = fail
+          pushSession(trimmed.slice(0, 40), 'error')
+          return fail
+        }
+        const result = resolveStorageLocationScan(lookup, resolveCtx.value)
+        shelfSession.value = lookup
+        activeResult.value = null
         pushSession(resultLabel(result), result.tone)
         return result
       }
@@ -250,8 +312,37 @@ export function useMaterialJourneyScan(options: {
     return t('common.close')
   }
 
+  function messageForShelfResult(result: MaterialScanResolveResult): string {
+    if (
+      result.detail === 'shelf_open' &&
+      result.shelfOpenCount != null &&
+      result.shelfTotalCount != null &&
+      result.shelfOpenCount > 0
+    ) {
+      const done = result.shelfTotalCount - result.shelfOpenCount
+      const parts = [
+        t('activities.materialJourney.scan.result.shelf_session_progress', {
+          done,
+          total: result.shelfTotalCount,
+        }),
+      ]
+      if (options.selectedPackCrateId?.value) {
+        parts.push(t('activities.materialJourney.scan.result.shelf_session_crate_hint'))
+      } else if (
+        result.storageLookup?.entity_type === 'storage_rack' ||
+        result.storageLookup?.entity_type === 'storage_address'
+      ) {
+        parts.push(t('activities.materialJourney.scan.result.shelf_session_hint_grouped'))
+      } else {
+        parts.push(t('activities.materialJourney.scan.result.shelf_session_hint'))
+      }
+      return parts.join(' ')
+    }
+    return messageForResult(result)
+  }
+
   function clearQuery(): void {
-    query.value = ''
+    clearScanInput()
     dismissResult()
   }
 
@@ -259,11 +350,15 @@ export function useMaterialJourneyScan(options: {
     query,
     resolving,
     activeResult,
+    activeShelfResult,
+    hasShelfSession,
     bulkConfirmed,
     sessionLog,
     searchFilter,
     submitQuery,
     dismissResult,
+    dismissShelfSession,
+    clearScanInput,
     confirmBulkBatch,
     filterTasks,
     listTextFilterActive,
@@ -272,6 +367,7 @@ export function useMaterialJourneyScan(options: {
     showInCrateAction,
     inCrateActionLabel,
     messageForResult,
+    messageForShelfResult,
     dismissLabelForResult,
     clearQuery,
   }

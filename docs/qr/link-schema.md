@@ -55,6 +55,17 @@ https://qr.ematchef.ch/i/w/{workshopCode}
 
 - Abteilungs-Infoscreen (`app.ematchef.ch/display/{publicId}`, PIN + Cookie)
 - Packen, Inventur, volle Material-Detailseite
+- **Lager-QR** (Standort/Regal/Fach) — nur auf `app.` — siehe [storage-location-qr.md](./storage-location-qr.md)
+
+### Intern: Lager (nur `app.ematchef.ch`)
+
+```text
+https://app.ematchef.ch/i/l/{locationCode}     Lagerstandort
+https://app.ematchef.ch/i/r/{rackCode}         Regal
+https://app.ematchef.ch/i/s/{slotCode}         Fach
+```
+
+`is_public = false` in `public_code` — kein öffentlicher Finder.
 
 ---
 

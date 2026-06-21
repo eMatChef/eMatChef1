@@ -37,6 +37,7 @@
             :department-id="contextDepartmentId"
             :show-presets="true"
             :show-markers="true"
+            preset-mode="fixed-periods"
             :label-from="t('activities.zeitraum.timeStart')"
             :label-to="t('activities.zeitraum.timeEnd')"
             :aria-label="t('grossanlass.wizard.eventPeriodLabel')"

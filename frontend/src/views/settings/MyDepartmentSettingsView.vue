@@ -90,6 +90,25 @@
         </div>
       </div>
 
+      <div v-if="showMemberOnboardingSelfService" class="info-card">
+        <div class="card-header">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
+            <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
+          </svg>
+          <h2>{{ t('onboarding.settings.title') }}</h2>
+        </div>
+
+        <p class="onboarding-status">
+          {{ t('onboarding.settings.progress', { done: memberOnboardingDoneCount, total: memberOnboardingTotal }) }}
+        </p>
+
+        <div class="onboarding-admin-row">
+          <EButton variant="primary" size="small" @click="openOnboardingHub">
+            {{ t('onboarding.settings.openHub') }}
+          </EButton>
+        </div>
+      </div>
+
       <div v-if="canManageJoinCode && !isSelectedDepartmentGrossanlass" class="info-card">
         <div class="card-header">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
@@ -265,7 +284,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -298,7 +317,8 @@ import {
   saveCalendarSettings as saveCalendarSettingsApi,
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
-import { buildOnboardingDismissedKey, buildOnboardingDoneKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
+import { buildOnboardingDoneKey, buildOnboardingPausedKey, buildOnboardingStateKey, readOnboardingState } from '@/utils/departmentOnboarding'
+import { countResolvedChecklistItems, ONBOARDING_CHECKLIST_ITEMS } from '@/utils/onboardingChecklist'
 import { departmentDisplayName, departmentHomePath, isGrossanlassDepartment } from '@/utils/departmentSwitch'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
@@ -307,6 +327,7 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
@@ -411,6 +432,29 @@ const isHierarchyLeaderDeptRole = computed(() => {
 const isExemptFromMemberOnboardingUi = computed(() => {
   return isHierarchyLeaderDeptRole.value || authStore.userRoles.includes('ROLE_SUPERADMIN')
 })
+
+const showMemberOnboardingSelfService = computed(() => {
+  if (!selectedDepartmentId.value || isSelectedDepartmentGrossanlass.value) return false
+  if (isExemptFromMemberOnboardingUi.value) return false
+  const r = String(currentRole.value || '').toLowerCase().trim()
+  return ['dc', 'depchef', 'mw', 'matwart'].includes(r)
+})
+
+const memberOnboardingTotal = ONBOARDING_CHECKLIST_ITEMS.length
+
+const memberOnboardingDoneCount = computed(() => {
+  const profileId = authStore.profileId
+  const depId = selectedDepartmentId.value
+  if (!profileId || !depId) return 0
+  const state = readOnboardingState(profileId, depId)
+  return countResolvedChecklistItems(state.completed, state.skipped || {})
+})
+
+function openOnboardingHub() {
+  const depId = selectedDepartmentId.value
+  if (!depId) return
+  router.push({ name: 'HelpEinrichtung', params: { departmentId: depId } })
+}
 
 const onboardingStatusLabel = computed(() => {
   if (isHierarchyLeaderDeptRole.value) {
@@ -646,7 +690,7 @@ async function resetDepartmentOnboarding() {
     const departmentId = selectedDepartmentId.value
     if (profileId && departmentId) {
       localStorage.removeItem(buildOnboardingDoneKey(profileId, departmentId))
-      localStorage.removeItem(buildOnboardingDismissedKey(profileId, departmentId))
+      localStorage.removeItem(buildOnboardingPausedKey(profileId, departmentId))
       localStorage.removeItem(buildOnboardingStateKey(profileId, departmentId))
       sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
     }
@@ -703,7 +747,7 @@ async function resetDepartmentDb() {
     const departmentId = selectedDepartmentId.value
     if (profileId && departmentId) {
       localStorage.removeItem(buildOnboardingDoneKey(profileId, departmentId))
-      localStorage.removeItem(buildOnboardingDismissedKey(profileId, departmentId))
+      localStorage.removeItem(buildOnboardingPausedKey(profileId, departmentId))
       localStorage.removeItem(buildOnboardingStateKey(profileId, departmentId))
       sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
     }

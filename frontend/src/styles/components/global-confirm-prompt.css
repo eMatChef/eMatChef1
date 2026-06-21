@@ -95,3 +95,42 @@
 .global-prompt-dialog__input .e-form-field {
   margin-bottom: 0;
 }
+
+/* Mobile: Confirm/Prompt-Dialoge auf schmalen Screens */
+@media (max-width: 599px) {
+  .v-overlay__content:has(.global-confirm-dialog),
+  .v-overlay__content:has(.global-prompt-dialog) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-inline: 12px;
+  }
+
+  .v-overlay__content:has(.global-confirm-dialog) .e-dialog__actions,
+  .v-overlay__content:has(.global-prompt-dialog) .e-dialog__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 12px 14px;
+  }
+
+  .v-overlay__content:has(.global-confirm-dialog) .e-dialog__actions .v-spacer,
+  .v-overlay__content:has(.global-prompt-dialog) .e-dialog__actions .v-spacer {
+    display: none;
+  }
+
+  .v-overlay__content:has(.global-confirm-dialog) .e-dialog__actions .v-btn,
+  .v-overlay__content:has(.global-prompt-dialog) .e-dialog__actions .v-btn {
+    width: 100%;
+    margin-inline: 0;
+  }
+
+  .global-confirm-dialog__title,
+  .global-prompt-dialog__title {
+    font-size: 1.05rem;
+  }
+
+  .global-confirm-dialog__message,
+  .global-prompt-dialog__message {
+    font-size: 0.875rem;
+  }
+}
