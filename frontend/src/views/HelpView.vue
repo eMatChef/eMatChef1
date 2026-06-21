@@ -33,7 +33,7 @@
           />
         </v-card>
       </v-menu>
-      <span class="settings-view__mobile-title">{{ t('help.menuTitle') }}</span>
+      <span class="settings-view__mobile-title">{{ activeSectionLabel }}</span>
     </header>
 
     <aside
@@ -71,13 +71,15 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
-import SettingsSubnavList from '@/components/settings/SettingsSubnavList.vue'
+import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
+import SettingsSubnavList, { type SettingsNavItem } from '@/components/settings/SettingsSubnavList.vue'
 import '@/styles/views/settings-shell.css'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
+const { canUseOnboarding } = useDepartmentOnboardingAccess()
 
 const mobileMenuOpen = ref(false)
 const desktopNavHovered = ref(false)
@@ -89,9 +91,27 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const menuItems = computed(() => [
-  { id: 'overview', label: t('help.nav.overview'), mdiIcon: 'mdi-help-circle-outline' },
-])
+const menuItems = computed<SettingsNavItem[]>(() => {
+  const items: SettingsNavItem[] = []
+  if (canUseOnboarding.value) {
+    items.push({
+      id: 'einrichtung',
+      label: t('help.nav.einrichtung'),
+      mdiIcon: 'mdi-compass-outline',
+    })
+  }
+  items.push({
+    id: 'dokumentation',
+    label: t('help.nav.dokumentation'),
+    mdiIcon: 'mdi-book-open-variant',
+  })
+  return items
+})
+
+const activeSectionLabel = computed(() => {
+  const active = menuItems.value.find((item) => isHelpItemActive(item.id))
+  return active?.label || t('help.menuTitle')
+})
 
 function getHelpLink(path: string): string {
   if (!departmentId.value) return '#'
@@ -105,8 +125,8 @@ function navLinkForItem(itemId: string): string {
 function isHelpItemActive(itemId: string): boolean {
   const base = departmentId.value ? `/${departmentId.value}/help`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
-  if (itemId === 'overview') {
-    return p === base || p === `${base}/overview`
+  if (itemId === 'dokumentation') {
+    return p === base || p === `${base}/dokumentation` || p === `${base}/overview`
   }
   return p === `${base}/${itemId}`
 }

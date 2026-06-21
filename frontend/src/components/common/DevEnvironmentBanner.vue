@@ -23,13 +23,39 @@ const show = computed(() => shouldShowDevEnvironmentBanner())
 .emc-app:has(.dev-environment-banner) {
   --emc-dev-system-bar-height: 36px;
 }
+
+/*
+ * Banner im Flex-Layout (volle Breite) → v-main startet bereits unter dem Banner.
+ * Nur der fixierte TopHeader (Listen/Shell) wird nach unten versetzt.
+ * Aktivitäts-Detail: Header scrollt mit (.top-header--in-scroll) — kein top-Offset!
+ */
+.emc-app:has(.dev-environment-banner) .top-header.v-app-bar:not(.top-header--in-scroll) {
+  top: var(--emc-dev-system-bar-height) !important;
+}
+
+.emc-app:has(.dev-environment-banner) .top-header.top-header--in-scroll {
+  top: auto !important;
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  position: relative !important;
+}
+
+.emc-app:has(.dev-environment-banner) .emc-sidebar-drawer.v-navigation-drawer {
+  top: var(--emc-dev-system-bar-height) !important;
+  height: calc(100% - var(--emc-dev-system-bar-height)) !important;
+}
+
+.emc-app:has(.dev-environment-banner) .page-main:not(.page-main--activity-detail) {
+  --v-layout-top: 64px !important;
+}
 </style>
 
 <style scoped>
 .dev-environment-banner {
   flex: 0 0 auto;
   width: 100%;
-  min-height: 36px;
+  min-height: var(--emc-dev-system-bar-height, 36px);
   box-sizing: border-box;
   display: flex;
   align-items: center;

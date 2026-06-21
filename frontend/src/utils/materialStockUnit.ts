@@ -1,6 +1,6 @@
 /** Verpackungseinheiten (Lager) — nicht Stk/m/m² als Bestandseinheit */
 export const PACKAGING_UNIT_VALUES = [
-  'Bund',
+  'Bündel',
   'Kiste',
   'Karton',
   'Sack',
@@ -9,6 +9,9 @@ export const PACKAGING_UNIT_VALUES = [
   'Set',
   'Paket',
 ] as const
+
+/** Legacy-Schreibweise ohne Umlaut (Import/API) */
+const PACKAGING_UNIT_LEGACY_ALIASES = ['Bund'] as const
 
 export type PackagingUnit = (typeof PACKAGING_UNIT_VALUES)[number]
 
@@ -31,16 +34,21 @@ export function getStockUnitLabel(packUnit: string | null | undefined): string {
 
 export function isPackagingUnit(packUnit: string | null | undefined): boolean {
   const raw = (packUnit || '').trim()
-  return PACKAGING_UNIT_VALUES.includes(raw as PackagingUnit)
+  if (!raw) return false
+  if (PACKAGING_UNIT_VALUES.includes(raw as PackagingUnit)) return true
+  return (PACKAGING_UNIT_LEGACY_ALIASES as readonly string[]).includes(raw)
 }
 
-/** Stk. mit pack_size = Inhalt pro Stück (z. B. 500 m Garn pro Rolle) */
+/** Stk. mit pack_size = Inhalt pro Stück (z. B. 500 m Garn pro Rolle) — nicht Verpackung (Bündel, Kiste …). */
 export function hasContentPerPiece(
   packUnit: string | null | undefined,
   packSize: number | null | undefined,
 ): boolean {
   if (!packSize || packSize < 2) return false
-  return getStockUnitKind(packUnit) === 'piece' && !isPackagingUnit(packUnit)
+  const raw = (packUnit || '').trim()
+  if (isPackagingUnit(raw)) return false
+  if (raw !== '' && raw !== 'Stk') return false
+  return true
 }
 
 export function formatStockQty(
@@ -157,11 +165,12 @@ export function getMaterialUnitSuffix(
   return null
 }
 
-const DISPLAY_SUFFIX_RE = /\s*\([^)]+\)\s*$/
+/** Nur Einheits-Suffixe am Ende — nicht beliebige Klammern wie «(Netz + 6 Schläger)». */
+const UNIT_SUFFIX_RE = /\s*(?:\(\d+(?:[.,]\d+)?\s*m\)|\(m²\))\s*$/iu
 
 /** Entfernt ein bestehendes Einheits-Suffix am Namensende. */
 export function stripMaterialUnitSuffix(name: string): string {
-  return (name || '').trim().replace(DISPLAY_SUFFIX_RE, '').trim()
+  return (name || '').trim().replace(UNIT_SUFFIX_RE, '').trim()
 }
 
 /** Anzeigename mit Einheits-Suffix — DB-Name bleibt separat, wird aber oft gleich gehalten. */

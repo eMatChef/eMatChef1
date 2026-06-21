@@ -14,11 +14,25 @@
           </EButton>
         </div>
       </div>
-      <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
-        <v-icon icon="mdi-plus" start size="20" />
-        {{ t('settings.storage.newRack') }}
-      </EButton>
+      <div class="settings-header-actions">
+        <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('settings.storage.newRack') }}
+        </EButton>
+        <EButton
+          variant="secondary"
+          :disabled="storageAddresses.length === 0 || isQueueingQr"
+          :loading="isQueueingQr"
+          @click="queuePrintAll"
+        >
+          {{ t('settings.storage.qrPrintAll') }}
+        </EButton>
+      </div>
     </div>
+    <label v-if="storageAddresses.length > 0" class="storage-qr-queue-toggle">
+      <input v-model="queueQrOnCreate" type="checkbox" />
+      <span>{{ t('settings.storage.qrQueueOnCreate') }}</span>
+    </label>
 
     <!-- Suchleiste -->
     <div class="search-bar">
@@ -48,6 +62,18 @@
             <span class="location-count">{{ t('settings.storage.rackCount', location.racks.length) }}</span>
           </button>
           <div class="location-actions">
+            <StorageActionButton
+              v-if="location.addressId"
+              :title="t('settings.storage.qrPdfOpen')"
+              icon="open"
+              @click="openLocationPdfDialog(location.addressId!, location.name)"
+            />
+            <StorageActionButton
+              v-if="location.addressId"
+              :title="t('settings.storage.qrPrintLocation')"
+              icon="qr"
+              @click="queuePrintLocation(location.addressId!)"
+            />
             <StorageActionButton
               v-if="location.addressId"
               :title="t('settings.storage.editLocation')"
@@ -100,6 +126,11 @@
                 </div>
               </div>
               <div class="rack-actions" @click.stop>
+                <StorageActionButton
+                  :title="t('settings.storage.qrPrintRack')"
+                  icon="qr"
+                  @click="queuePrintRack(rack.id)"
+                />
                 <StorageCrudActions
                   :show-edit="true"
                   :show-add="true"
@@ -128,6 +159,12 @@
                     <span class="slot-name">{{ slot.name }}</span>
                   </div>
                   <div class="slot-actions">
+                    <StorageActionButton
+                      size="sm"
+                      :title="t('settings.storage.qrPrintSlot')"
+                      icon="qr"
+                      @click="queuePrintSlot(slot.id)"
+                    />
                     <StorageCrudActions
                       size="sm"
                       :show-edit="true"
@@ -305,6 +342,14 @@
       @close="closeAddressModal"
       @saved="handleAddressSaved"
     />
+
+    <StorageLocationQrPdfDialog
+      v-model="showLocationPdfDialog"
+      :department-id="departmentId"
+      :address-id="pdfDialogAddressId"
+      :location-name="pdfDialogLocationName"
+      :racks="pdfDialogRacks"
+    />
   </div>
 </template>
 
@@ -320,6 +365,8 @@ import { EButton, EDialog, ESearchField, ESelect, ETextField } from '@/component
 import StorageConfirmModal from '@/components/storage/StorageConfirmModal.vue'
 import StorageBulkCreateModal from '@/components/storage/StorageBulkCreateModal.vue'
 import StorageActionButton from '@/components/storage/StorageActionButton.vue'
+import StorageLocationQrPdfDialog from '@/components/storage/StorageLocationQrPdfDialog.vue'
+import type { StorageQrPdfRack } from '@/api/storageQr'
 import StorageCrudActions from '@/components/storage/StorageCrudActions.vue'
 import {
   getRackSuggestions,
@@ -340,6 +387,7 @@ import {
   type StorageRack,
   type StorageSlot
 } from '@/api/storageLocations'
+import { queueStorageQrPrint } from '@/api/storageQr'
 
 const route = useRoute()
 const toast = useToast()
@@ -438,9 +486,15 @@ const deletingRack = ref<StorageRack | null>(null)
 const deletingSlot = ref<StorageSlot | null>(null)
 const isDeleting = ref(false)
 const isSaving = ref(false)
+const isQueueingQr = ref(false)
+const queueQrOnCreate = ref(true)
 const settingPrimaryAddressId = ref<string | null>(null)
 const showAddressModal = ref(false)
 const editingAddress = ref<Address | null>(null)
+const showLocationPdfDialog = ref(false)
+const pdfDialogAddressId = ref('')
+const pdfDialogLocationName = ref('')
+const pdfDialogRacks = ref<StorageQrPdfRack[]>([])
 
 // Gefilterte Regale
 const filteredRacks = computed(() => {
@@ -597,9 +651,71 @@ function closeAddressModal() {
   editingAddress.value = null
 }
 
-async function handleAddressSaved() {
+async function handleAddressSaved(savedAddress?: Address) {
   await loadRacks()
   closeAddressModal()
+  if (queueQrOnCreate.value && savedAddress?.id) {
+    await queuePrintForScope('address', { addressId: savedAddress.id })
+  }
+}
+
+function toastQueueResult(result: { created_count: number; skipped_count: number }) {
+  if (result.created_count > 0 && result.skipped_count > 0) {
+    toast.success(t('settings.storage.qrQueueSuccess', {
+      created: result.created_count,
+      skipped: result.skipped_count,
+    }))
+  } else if (result.created_count > 0) {
+    toast.success(t('settings.storage.qrQueueSuccessCreatedOnly', { count: result.created_count }))
+  }
+}
+
+async function queuePrintForScope(
+  scope: 'all' | 'address' | 'rack' | 'slot',
+  options?: { addressId?: string; rackId?: string; slotId?: string },
+) {
+  if (!departmentId.value || isQueueingQr.value) return
+  isQueueingQr.value = true
+  try {
+    const result = await queueStorageQrPrint(departmentId.value, scope, options)
+    toastQueueResult(result)
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.storage.qrQueueError'))
+  } finally {
+    isQueueingQr.value = false
+  }
+}
+
+function queuePrintAll() {
+  return queuePrintForScope('all')
+}
+
+function queuePrintLocation(addressId: string) {
+  return queuePrintForScope('address', { addressId })
+}
+
+function queuePrintRack(rackId: string) {
+  return queuePrintForScope('rack', { rackId })
+}
+
+function queuePrintSlot(slotId: string) {
+  return queuePrintForScope('slot', { slotId })
+}
+
+async function openLocationPdfDialog(addressId: string, locationName: string) {
+  const locationRackList = racks.value.filter((rack) => rack.storage_address_id === addressId)
+  await Promise.all(locationRackList.map((rack) => loadSlotsForRack(rack.id, true)))
+
+  const locationRacks = locationRackList.map((rack) => ({
+    id: rack.id,
+    name: rack.name,
+    slots: getSlots(rack.id).map((slot) => ({ id: slot.id, name: slot.name })),
+  }))
+
+  pdfDialogAddressId.value = addressId
+  pdfDialogLocationName.value = locationName
+  pdfDialogRacks.value = locationRacks
+  showLocationPdfDialog.value = true
 }
 
 async function loadSlotsForRack(rackId: string, forceRefresh = false) {
@@ -665,20 +781,27 @@ async function saveRack() {
     } else {
       const names = rackGeneratedNames.value
       if (names.length === 0) return
+      const createdRackIds: string[] = []
       for (const name of names) {
         const initialSlotNameForRack = (rackSlotNameOverrides.value[name] ?? `${getSlotPrefix(name)}1`).trim()
         if (!initialSlotNameForRack) {
           toast.error(t('settings.storage.slotNameRequired'))
           return
         }
-        await createStorageRack({
+        const created = await createStorageRack({
           department_id: departmentId.value,
           storage_address_id: storageAddressId,
           name,
           initial_slot_name: initialSlotNameForRack
         })
+        createdRackIds.push(created.id)
       }
       toast.success(t('settings.storage.toastRacksCreated', { count: names.length }))
+      if (queueQrOnCreate.value) {
+        for (const rackId of createdRackIds) {
+          await queuePrintForScope('rack', { rackId })
+        }
+      }
     }
     closeRackModal()
     await loadRacks(storageAddressId)
@@ -766,10 +889,17 @@ async function saveSlot() {
     } else {
       const names = slotGeneratedNames.value
       if (names.length === 0) return
+      const createdSlotIds: string[] = []
       for (const name of names) {
-        await createStorageSlot({ rack_id: rackId, name })
+        const created = await createStorageSlot({ rack_id: rackId, name })
+        createdSlotIds.push(created.id)
       }
       toast.success(t('settings.storage.toastSlotsCreated', { count: names.length }))
+      if (queueQrOnCreate.value) {
+        for (const slotId of createdSlotIds) {
+          await queuePrintForScope('slot', { slotId })
+        }
+      }
     }
     closeSlotModal()
     await loadSlotsForRack(rackId, true)
@@ -856,7 +986,29 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
+}
+
+.settings-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.storage-qr-queue-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.storage-qr-queue-toggle input {
+  width: 16px;
+  height: 16px;
 }
 
 .settings-header h1 {

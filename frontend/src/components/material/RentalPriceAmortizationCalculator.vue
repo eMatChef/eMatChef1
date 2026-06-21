@@ -33,7 +33,7 @@
       </div>
       <div class="rental-amort-replace-estimate__text">
         <span v-if="replacementBasisEstimateChf != null">
-          <span v-html="t('components.rentalAmortization.estimateLabelHtml')"></span>
+          <span>{{ t('components.rentalAmortization.estimateLabel') }}</span>
           <strong>Fr. {{ formatChfDisplay(replacementBasisEstimateChf) }}</strong>
           <template v-if="effectivePieceCount > 1">
             <span class="rental-amort-muted">{{

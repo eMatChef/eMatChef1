@@ -9,6 +9,8 @@ export interface ActivityPeriodAvailabilityMaterial {
   totalStock: number
   /** In Phys.-Kombi-Kisten (nicht lose buchbar) */
   stockInPhysComboKisten?: number
+  /** Als Referenz-Sack/Kiste einer phys. Kombo verknüpft (nicht lose buchbar) */
+  stockAsLinkedRefContainer?: number
   /** In Lager-Behältern (buchbar, zählt zu «frei») */
   stockInStorageContainers?: number
   /** @deprecated stockInPhysComboKisten */

@@ -11,6 +11,9 @@ use Doctrine\ORM\Mapping as ORM;
  * - batch — Material-Charge (public_url: /i/m/{materialCode}/b/{batchCode})
  * - activity — Anlass (/i/a/{activityCode})
  * - workshop — Werkstatt-Ticket (/i/w/{workshopCode})
+ * - storage_address — Lagerstandort (/i/l/{code}) auf app.
+ * - storage_rack — Regal (/i/r/{code})
+ * - storage_slot — Fach (/i/s/{code})
  */
 #[ORM\Entity]
 #[ORM\Table(name: 'print_task_item')]

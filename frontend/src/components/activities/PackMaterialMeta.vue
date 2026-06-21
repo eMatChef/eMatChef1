@@ -48,7 +48,7 @@ const { t } = useI18n()
       <span v-if="item.isJsMaterial" class="mat-source-badge">{{ t('activities.common.jsBadge') }}</span>
     </span>
     <div v-if="showLinkedKiste && item.linkedContainerLabel" class="pack-card-kiste text-muted">
-      {{ t('activities.packList.kisteLabel', { label: item.linkedContainerLabel }) }}
+      {{ item.linkedContainerLabel }}
     </div>
     <PackMaterialStorageStack
       v-if="showStorageLocation"

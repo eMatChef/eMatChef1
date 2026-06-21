@@ -652,6 +652,18 @@ useDepartmentLiveRefresh({
   margin: 0;
 }
 
+@media (max-width: 599px) {
+  .dashboard-header .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .welcome-text {
+    width: 100%;
+  }
+}
+
 .grossanlass-dashboard__title {
   display: inline-flex;
   align-items: center;

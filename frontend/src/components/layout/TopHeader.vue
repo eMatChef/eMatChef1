@@ -79,6 +79,9 @@
           </div>
         </template>
       </div>
+      <div v-else-if="authStore.activeDepartmentName" class="header-department-name">
+        {{ authStore.activeDepartmentName }}
+      </div>
     </div>
     
     <!-- Right Section: Actions & User -->
@@ -1671,7 +1674,13 @@ watch(
 
 .top-header--in-scroll {
   position: relative !important;
-  inset: auto !important;
+  top: auto !important;
+  left: 0 !important;
+  right: auto !important;
+  width: 100% !important;
+  max-width: none !important;
+  transform: none !important;
+  padding-inline-end: 0 !important;
   flex-shrink: 0;
   z-index: 9;
 }
@@ -1691,6 +1700,10 @@ watch(
   max-height: 64px;
   padding: 0 24px;
   box-sizing: border-box;
+}
+
+.top-header--in-scroll .header-main-row {
+  width: 100%;
 }
 
 .header-main-row--compact {
@@ -1837,6 +1850,16 @@ watch(
   display: flex;
   align-items: center;
   overflow: hidden;
+}
+
+.header-department-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, #1a1a2e);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(40vw, 320px);
 }
 
 .trial-warning {

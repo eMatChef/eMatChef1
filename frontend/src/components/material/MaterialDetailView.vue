@@ -913,7 +913,11 @@
                   <p class="composition-tab-intro">
                     {{
                       material.material_type === 'physical_combo'
-                        ? t('components.materialDetail.compositionIntroPhysical')
+                        ? physicalComboRefContainerName
+                          ? t('components.materialDetail.compositionIntroPhysical', {
+                              refContainer: physicalComboRefContainerName,
+                            })
+                          : t('components.materialDetail.compositionIntroPhysicalGeneric')
                         : material.material_type === 'virtual_combo'
                           ? t('components.materialDetail.compositionIntroVirtual')
                           : t('components.materialDetail.compositionIntro')
@@ -2811,6 +2815,14 @@ const linkedContainerLabelForRelease = computed(() => {
   return name || '–'
 })
 
+/** Name des Referenz-Sacks/Kiste (nur wenn verknüpft) — für Einleitungstexte. */
+const physicalComboRefContainerName = computed((): string | null => {
+  const linked = material.value?.linked_container_batch
+  if (!linked) return null
+  const name = (linked.material_name || linked.label || linked.display_label || '').trim()
+  return name || null
+})
+
 const addCompositionStockCap = computed((): number | null => {
   const m = addCompositionSourceDetail.value || addCompositionSelected.value
   if (!m) return null
@@ -3375,13 +3387,14 @@ let originalFormData = ''
 
 type MaterialFormField = keyof typeof formData
 
+function emptyToNull(v: unknown) {
+  if (v == null) return null
+  if (typeof v === 'string' && v.trim() === '') return null
+  return v
+}
+
 function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: Material): Record<string, unknown> {
   const payload: Record<string, unknown> = {}
-  const emptyToNull = (v: unknown) => {
-    if (v == null) return null
-    if (typeof v === 'string' && v.trim() === '') return null
-    return v
-  }
 
   switch (field) {
     case 'name':
@@ -3513,6 +3526,27 @@ async function saveMaterialField(field: MaterialFormField, value: unknown): Prom
       throw new Error(t('components.materialDetail.stockUnitLengthRequired'))
     }
     const newName = applyMaterialUnitSuffixToName(formData.name, 'm', null, cm)
+    if (newName !== formData.name.trim()) payload.name = newName
+  }
+
+  if (field === 'pack_unit' || field === 'pack_size') {
+    const pu: string | null =
+      field === 'pack_unit'
+        ? (() => {
+            const s = String(value ?? '').trim()
+            return s === '' ? null : s
+          })()
+        : formData.pack_unit?.trim()
+          ? formData.pack_unit.trim()
+          : null
+    const ps =
+      field === 'pack_size'
+        ? value == null || value === ''
+          ? null
+          : Number(value)
+        : formData.pack_size
+    const sizeLen = isMeterStockUnit(pu ?? formData.pack_unit) ? formData.size_length : null
+    const newName = applyMaterialUnitSuffixToName(formData.name, pu, ps, sizeLen)
     if (newName !== formData.name.trim()) payload.name = newName
   }
 

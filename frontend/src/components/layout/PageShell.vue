@@ -4,12 +4,12 @@
     fluid
     :style="maxWidthStyle"
   >
-    <header v-if="hasHeader" class="page-shell__header">
+    <header v-if="title || subtitle || $slots.title || $slots.subtitle || $slots.actions" class="page-shell__header">
       <div class="page-shell__header-main">
-        <h1 v-if="hasTitle" class="page-shell__title">
+        <h1 v-if="title || $slots.title" class="page-shell__title">
           <slot name="title">{{ title }}</slot>
         </h1>
-        <p v-if="hasSubtitle" class="page-shell__subtitle">
+        <p v-if="subtitle || $slots.subtitle" class="page-shell__subtitle">
           <slot name="subtitle">{{ subtitle }}</slot>
         </p>
       </div>
@@ -29,7 +29,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, useSlots } from 'vue'
+import { computed } from 'vue'
 
 defineOptions({ name: 'PageShell' })
 
@@ -45,12 +45,6 @@ const props = withDefaults(
   }
 )
 
-const slots = useSlots()
-
-const hasTitle = computed(() => Boolean(props.title || slots.title))
-const hasSubtitle = computed(() => Boolean(props.subtitle || slots.subtitle))
-const hasHeader = computed(() => hasTitle.value || hasSubtitle.value || Boolean(slots.actions))
-
 const maxWidthStyle = computed(() => {
   const value = props.maxWidth
   if (value == null || value === '') return undefined
@@ -61,7 +55,8 @@ const maxWidthStyle = computed(() => {
 </script>
 
 <style scoped>
-.page-shell {
+.page-shell.v-container,
+.page-shell.v-container--fluid {
   width: 100%;
   padding: 0 !important;
 }

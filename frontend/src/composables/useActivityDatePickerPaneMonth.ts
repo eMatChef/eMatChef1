@@ -21,15 +21,18 @@ export function useActivityDatePickerPaneMonth(options: {
     year.value = next.year
   }
 
+  function syncAnchorFromDate(override?: Date) {
+    const anchor = override ?? toValue(options.anchorDate)
+    const base = anchor && Number.isFinite(anchor.getTime()) ? anchor : new Date()
+    anchorFromDate(base)
+  }
+
   watch(
     () => toValue(options.menuOpen),
     (open) => {
-      if (!open) return
-      const anchor = toValue(options.anchorDate)
-      const base =
-        anchor && Number.isFinite(anchor.getTime()) ? anchor : new Date()
-      anchorFromDate(base)
+      if (open) syncAnchorFromDate()
     },
+    { immediate: true },
   )
 
   const { onWheel, onTouchStart, onTouchEnd } = useActivityDatePickerWheelMonth({ month, year })
@@ -38,6 +41,7 @@ export function useActivityDatePickerPaneMonth(options: {
     month,
     year,
     shiftMonth,
+    syncAnchorFromDate,
     onWheel,
     onTouchStart,
     onTouchEnd,

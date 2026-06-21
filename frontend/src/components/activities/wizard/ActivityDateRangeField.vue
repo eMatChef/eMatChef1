@@ -1,6 +1,7 @@
 <template>
   <div class="activity-date-range-field-wrap">
     <VTextField
+      ref="activatorRef"
       :model-value="displayText"
       class="activity-date-range-field activity-v-date-input e-form-field"
       variant="outlined"
@@ -14,14 +15,15 @@
       :placeholder="t('activities.dateRangePicker.placeholder')"
       @click:control="openMenu"
       @click:prepend-inner="openMenu"
+    />
+    <ActivityDatePickerMenuShell
+      v-model:open="menuOpen"
+      :activator="activatorRef"
+      :presets="menuPresets"
+      :show-presets="showPresetsResolved"
+      :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
+      @select-preset="applyPreset"
     >
-      <ActivityDatePickerMenuShell
-        v-model:open="menuOpen"
-        :presets="menuPresets"
-        :show-presets="showPresetsResolved"
-        :presets-aria-label="t('activities.dateRangePicker.presetsAria')"
-        @select-preset="applyPreset"
-      >
         <ActivityDateRangeDualPicker
           v-if="dualCalendar"
           :model-value="pickerRange"
@@ -55,6 +57,7 @@
         >
           <VDatePicker
             v-bind="activityDatePickerCommonProps"
+            :width="pickerWidth"
             :model-value="pickerRange"
             :month="singlePaneMonth"
             :year="singlePaneYear"
@@ -87,8 +90,7 @@
             </template>
           </VDatePicker>
         </div>
-      </ActivityDatePickerMenuShell>
-    </VTextField>
+    </ActivityDatePickerMenuShell>
   </div>
 </template>
 
@@ -97,6 +99,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VDatePicker, VTextField } from 'vuetify/components'
 import { useSmAndUp } from '@/composables/useSmAndUp'
+import { useActivityDatePickerLayoutProps } from '@/composables/useActivityDatePickerLayoutProps'
+import { useActivityDatePickerDelayedClose } from '@/composables/useActivityDatePickerDelayedClose'
 import { useActivityDatePickerEvents } from '@/composables/useActivityDatePickerEvents'
 import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePickerPaneMonth'
 import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
@@ -152,6 +156,9 @@ const toast = useToast()
 const smAndUp = useSmAndUp()
 const dualCalendar = computed(() => smAndUp.value)
 const menuOpen = ref(false)
+const activatorRef = ref<{ $el: HTMLElement } | null>(null)
+const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
+const { pickerWidth } = useActivityDatePickerLayoutProps()
 const pickerRange = ref<Date[] | null>(null)
 
 const showPresetsResolved = computed(
@@ -185,6 +192,7 @@ const {
   month: singlePaneMonth,
   year: singlePaneYear,
   shiftMonth: shiftSingleMonth,
+  syncAnchorFromDate,
   onWheel: onSingleWheel,
   onTouchStart: onSingleTouchStart,
   onTouchEnd: onSingleTouchEnd,
@@ -210,6 +218,7 @@ const displayText = computed(() => {
 
 function openMenu() {
   if (props.disabled) return
+  syncAnchorFromDate()
   menuOpen.value = true
 }
 
@@ -225,7 +234,8 @@ function applyPreset(preset: ActivityDatePresetItem) {
   }
   pickerRange.value = range
   emit('update:modelValue', range)
-  menuOpen.value = false
+  syncAnchorFromDate(range[0])
+  scheduleClose()
 }
 </script>
 

@@ -4,7 +4,7 @@ Was Besucher und Scanner **ohne App** sehen, wenn sie einen QR von `qr.ematchef.
 
 **Stand:** Mai 2026 · **Status:** Umgesetzt (Material, Aktivität, Werkstatt); Display auf `app.`
 
-Linkschema: [link-schema.md](./link-schema.md) · Scan/URL-History: [scan-and-url-history.md](./scan-and-url-history.md) · Lager/Scanner: [../devices/README.md](../devices/README.md)
+**Verwandt:** [link-schema.md](./link-schema.md) · [storage-location-qr.md](./storage-location-qr.md) · [scan-and-url-history.md](./scan-and-url-history.md) · Lager/Scanner: [../devices/README.md](../devices/README.md)
 
 ---
 

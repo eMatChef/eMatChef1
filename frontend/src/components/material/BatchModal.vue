@@ -1032,70 +1032,6 @@ function parseBatchChfInput(s: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-const batchAddPurchasePriceVisible = computed(() => {
-  if (isEditMode.value) return false
-  if (isSerializedAddMode.value) {
-    return serialRows.value.some((e) => (e.serial_number || '').trim())
-  }
-  return (form.qty || 0) > 0
-})
-
-const batchPurchasePriceContextQty = computed(() => {
-  if (useMeterQtyByCount.value) {
-    return Math.max(0, displayQty.value)
-  }
-  if (isSerializedAddMode.value) {
-    return serialRows.value.filter((e) => (e.serial_number || '').trim()).length
-  }
-  return Math.max(0, Math.floor(Number(form.qty) || 0))
-})
-
-const batchEffectivePurchaseUnitPrice = computed(() => {
-  const qty = batchPurchasePriceContextQty.value
-  if (qty <= 0) return 0
-  const shipping = parseBatchChfInput(purchaseShippingChf.value)
-  if (purchasePriceInputMode.value === 'unit') {
-    const up = parseMaterialChfInput(form.unit_price)
-    if (up <= 0 && shipping <= 0) return 0
-    return Math.round((up + shipping / qty) * 100) / 100
-  }
-  const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + shipping
-  if (sum <= 0) return 0
-  return Math.round((sum / qty) * 100) / 100
-})
-
-function onBatchPurchasePriceModeToggle(event: Event) {
-  const el = event.target as HTMLInputElement | null
-  purchasePriceInputMode.value = el?.checked ? 'total' : 'unit'
-}
-
-watch(
-  [purchasePriceInputMode, purchaseTotalWaresChf, purchaseShippingChf, batchPurchasePriceContextQty],
-  () => {
-    if (purchasePriceInputMode.value !== 'total') return
-    const qty = batchPurchasePriceContextQty.value
-    if (qty <= 0) return
-    const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + parseBatchChfInput(purchaseShippingChf.value)
-    if (sum > 0) {
-      form.unit_price = (sum / qty).toFixed(2)
-    }
-  },
-)
-
-watch(purchasePriceInputMode, (m, prev) => {
-  if (m === 'total' && prev === 'unit') {
-    const qty = batchPurchasePriceContextQty.value
-    const up = parseMaterialChfInput(form.unit_price)
-    if (qty > 0 && up > 0 && !purchaseTotalWaresChf.value.trim()) {
-      purchaseTotalWaresChf.value = (up * qty).toFixed(2)
-    }
-  }
-  if (m === 'unit' && prev === 'total') {
-    purchaseTotalWaresChf.value = ''
-    purchaseShippingChf.value = ''
-  }
-})
-
 const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
 const batchStockUnit = ref<'Stk' | 'm'>('Stk')
 
@@ -1373,6 +1309,70 @@ interface SerialNumberEntry {
 }
 const serialRows = ref<SerialNumberEntry[]>([])
 let serialIdCounter = 0
+
+const batchAddPurchasePriceVisible = computed(() => {
+  if (isEditMode.value) return false
+  if (isSerializedAddMode.value) {
+    return serialRows.value.some((e) => (e.serial_number || '').trim())
+  }
+  return (form.qty || 0) > 0
+})
+
+const batchPurchasePriceContextQty = computed(() => {
+  if (useMeterQtyByCount.value) {
+    return Math.max(0, displayQty.value)
+  }
+  if (isSerializedAddMode.value) {
+    return serialRows.value.filter((e) => (e.serial_number || '').trim()).length
+  }
+  return Math.max(0, Math.floor(Number(form.qty) || 0))
+})
+
+const batchEffectivePurchaseUnitPrice = computed(() => {
+  const qty = batchPurchasePriceContextQty.value
+  if (qty <= 0) return 0
+  const shipping = parseBatchChfInput(purchaseShippingChf.value)
+  if (purchasePriceInputMode.value === 'unit') {
+    const up = parseMaterialChfInput(form.unit_price)
+    if (up <= 0 && shipping <= 0) return 0
+    return Math.round((up + shipping / qty) * 100) / 100
+  }
+  const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + shipping
+  if (sum <= 0) return 0
+  return Math.round((sum / qty) * 100) / 100
+})
+
+function onBatchPurchasePriceModeToggle(event: Event) {
+  const el = event.target as HTMLInputElement | null
+  purchasePriceInputMode.value = el?.checked ? 'total' : 'unit'
+}
+
+watch(
+  [purchasePriceInputMode, purchaseTotalWaresChf, purchaseShippingChf, batchPurchasePriceContextQty],
+  () => {
+    if (purchasePriceInputMode.value !== 'total') return
+    const qty = batchPurchasePriceContextQty.value
+    if (qty <= 0) return
+    const sum = parseBatchChfInput(purchaseTotalWaresChf.value) + parseBatchChfInput(purchaseShippingChf.value)
+    if (sum > 0) {
+      form.unit_price = (sum / qty).toFixed(2)
+    }
+  },
+)
+
+watch(purchasePriceInputMode, (m, prev) => {
+  if (m === 'total' && prev === 'unit') {
+    const qty = batchPurchasePriceContextQty.value
+    const up = parseMaterialChfInput(form.unit_price)
+    if (qty > 0 && up > 0 && !purchaseTotalWaresChf.value.trim()) {
+      purchaseTotalWaresChf.value = (up * qty).toFixed(2)
+    }
+  }
+  if (m === 'unit' && prev === 'total') {
+    purchaseTotalWaresChf.value = ''
+    purchaseShippingChf.value = ''
+  }
+})
 
 const filteredRacks = computed(() => {
   if (!form.storage_address_id) return racks.value

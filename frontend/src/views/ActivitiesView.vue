@@ -19,7 +19,7 @@
       <template #title>{{ t('activities.title') }}</template>
       <template #subtitle>{{ t('activities.subtitle') }}</template>
       <template #actions>
-        <EButton variant="primary" @click="openCreateActivityWizard">
+        <EButton variant="primary" data-onboarding="activity-new" @click="openCreateActivityWizard">
           <v-icon icon="mdi-plus" start size="20" />
           {{ t('activities.create') }}
         </EButton>
