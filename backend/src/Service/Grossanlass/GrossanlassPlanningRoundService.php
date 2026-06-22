@@ -181,6 +181,28 @@ class GrossanlassPlanningRoundService
         return $this->toArray($round);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function reopenRound(Department $department, User $user, string $roundId): array
+    {
+        if (!$this->access->canManagePlanung($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Planungsrunden');
+        }
+
+        $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getStatus() !== ActivityGrossanlassRound::STATUS_CLOSED) {
+            throw new \InvalidArgumentException('Nur geschlossene Runden können wieder geöffnet werden');
+        }
+
+        $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
+        $round->setClosedAt(null);
+        $round->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return $this->toArray($round);
+    }
+
     private function applyAutoSchedule(Department $department, Activity $activity): void
     {
         $now = new \DateTime();

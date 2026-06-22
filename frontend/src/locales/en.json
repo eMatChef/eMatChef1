@@ -2187,6 +2187,30 @@
         "markTransportedHint": "Check quantities on the «Done» tab and undo if needed — then «Mark as transported» for the first trip.",
         "toastSuccess": "Transport complete — continue at event."
       },
+      "transportOutComplete": {
+        "title": "Outbound transport complete",
+        "description": "{count} lines — everything is booked for transport.",
+        "continue": "Continue to at event",
+        "hint": "Tours are optional — material can be issued directly at the event."
+      },
+      "phaseComplete": {
+        "defaultTitle": "Step complete",
+        "defaultDescription": "{count} lines — checklist for this step is done.",
+        "defaultContinue": "Continue to {next}",
+        "error": "Could not unlock the next step.",
+        "transport_out": {
+          "title": "Outbound transport complete",
+          "description": "{count} lines — everything is booked for transport.",
+          "continue": "Continue to at event",
+          "hint": "Tours are optional — material can be issued directly at the event."
+        },
+        "transport_back": {
+          "title": "Return transport complete",
+          "description": "{count} lines — everything is booked for return transport.",
+          "continue": "Continue to return",
+          "hint": "Tours are optional — returns can be booked directly."
+        }
+      },
       "moveBack": {
         "action": "Undo booking",
         "toastSuccess": "{name} · ×{qty} undone"
@@ -2194,7 +2218,7 @@
       "moveForward": {
         "action": "Book quantity"
       },
-      "readonlyFutureStep": "This step is ahead of the current activity status — view only.",
+      "readonlyFutureStep": "This step is not unlocked yet — please complete the previous step first.",
       "readonlyPastStep": "This step is already complete — view only.",
       "toastViewOnly": "This step is read-only.",
       "toastComboPhase3": "Physical sets will be supported with a set checklist in phase 3.",
@@ -6229,6 +6253,13 @@
         "autoEnabled": "Automatic open/close enabled",
         "openAction": "Open round",
         "closeAction": "Close round",
+        "reopenAction": "Reopen round",
+        "closeConfirmTitle": "Close round?",
+        "closeConfirmMessage": "Really close «{name}»? Department members will no longer be able to submit new wishes. Existing wishes are kept.",
+        "reopenConfirmTitle": "Reopen round?",
+        "reopenConfirmMessage": "Reopen «{name}»? Department members can submit and edit wishes again.",
+        "reopened": "«{name}» is open again",
+        "errorReopen": "Could not reopen round",
         "modalNew": "Create planning round",
         "modalEdit": "Edit planning round",
         "nameLabel": "Round name",
@@ -6311,6 +6342,7 @@
       "selectOptionLabel": "Option {n}",
       "addOption": "Add option",
       "removeOption": "Remove option",
+      "fieldLockedHint": "Field has responses — cannot be removed",
       "allowMultiple": "Allow multiple selection (checkboxes)",
       "selectDisplayHint": "Single select: dropdown. Multiple select: checkboxes.",
       "autoSaving": "Saving…",

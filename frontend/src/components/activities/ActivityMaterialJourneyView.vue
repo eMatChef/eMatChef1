@@ -9,11 +9,10 @@ import MaterialJourneyToolbar from '@/components/activities/materialJourney/Mate
 import MaterialJourneyTaskList from '@/components/activities/materialJourney/MaterialJourneyTaskList.vue'
 import MaterialJourneyStepFooter from '@/components/activities/materialJourney/MaterialJourneyStepFooter.vue'
 import MaterialJourneyPackCompletePanel from '@/components/activities/materialJourney/MaterialJourneyPackCompletePanel.vue'
+import MaterialJourneyPhaseCompletePanel from '@/components/activities/materialJourney/MaterialJourneyPhaseCompletePanel.vue'
 import MaterialJourneyLegacyLink from '@/components/activities/materialJourney/MaterialJourneyLegacyLink.vue'
 import MaterialAssignCrateSheet from '@/components/activities/materialJourney/MaterialAssignCrateSheet.vue'
 import MaterialCrateCheckSheet from '@/components/activities/materialJourney/MaterialCrateCheckSheet.vue'
-import MaterialReassignCrateSheet from '@/components/activities/materialJourney/MaterialReassignCrateSheet.vue'
-import MaterialLooseTakeSheet from '@/components/activities/materialJourney/MaterialLooseTakeSheet.vue'
 import MaterialComboCheckSheet from '@/components/activities/materialJourney/MaterialComboCheckSheet.vue'
 import MaterialReturnCrateSheet from '@/components/activities/materialJourney/MaterialReturnCrateSheet.vue'
 import MaterialStoreShelveSheet from '@/components/activities/materialJourney/MaterialStoreShelveSheet.vue'
@@ -33,20 +32,7 @@ import {
   defaultJourneyStepForStatus,
   isJourneyTransportBackStep,
   isJourneyTransportOutStep,
-  materialJourneyShowsCrateTransitActions,
 } from '@/components/activities/materialJourneySteps'
-import {
-  reassignTargetPackCrates,
-  transferPackedItemBetweenContainers,
-  type ReassignCrateConfirmPayload,
-} from '@/composables/useMaterialJourneyCrateTransfer'
-import {
-  containerLineLooseTakeMax,
-  issueContainerLineLoose,
-  type LooseTakeConfirmPayload,
-} from '@/composables/useMaterialJourneyLooseTake'
-import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
-import { useConfirm } from '@/composables/useConfirm'
 import { useMaterialJourneyData } from '@/composables/useMaterialJourneyData'
 import { useMaterialJourneyTasks } from '@/composables/useMaterialJourneyTasks'
 import { useMaterialJourneyPackCrates } from '@/composables/useMaterialJourneyPackCrates'
@@ -55,7 +41,6 @@ import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { useToast } from '@/composables/useToast'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
-import { acknowledgeTransportOut } from '@/utils/materialJourneyTransportAck'
 import type { ActivityPackContainer } from '@/api/activityContainers'
 import type { MaterialScanResolveResult, MaterialScanShelfLine } from '@/composables/materialScanResolve'
 import { resolvePackItemShelfAction } from '@/composables/materialScanResolve'
@@ -66,9 +51,14 @@ import {
 import { packItemMatchesStorageLookup } from '@/utils/packStorageLocationMatch'
 import {
   getActivityTransitions,
+  patchActivityPackJourneyStep,
   patchActivityStatus,
   type ActivityTransitionRow,
 } from '@/api/activities'
+import {
+  journeyStepNeedsAdvanceConfirm,
+  nextJourneyStep,
+} from '@/utils/materialJourneyNavigation'
 
 const props = withDefaults(
   defineProps<{
@@ -89,7 +79,6 @@ const route = useRoute()
 const router = useRouter()
 const { t, te } = useI18n()
 const toast = useToast()
-const { confirm: confirmDialog } = useConfirm()
 
 const stepParam = computed(() => {
   if (props.embedded) {
@@ -114,6 +103,8 @@ const {
   steps,
   resolvedStep,
   needsStepRedirect,
+  activeJourneyStep,
+  journeyStepWorkComplete,
   positionCount,
   isEarlyPackPreview,
   canManageMaterials,
@@ -153,16 +144,6 @@ const {
   activateLoosePackItem,
   taskRowForScanResult,
   moveTaskRow,
-  moveBackTaskRow,
-  moveBackQtyForRow,
-  setMoveBackQtyForRow,
-  showMoveBack,
-  showMoveForwardQty,
-  showCrateMoveForwardQty,
-  moveForwardQtyForRow,
-  setForwardQtyForRow,
-  moveForwardTaskRow,
-  transportedUnitsTotal,
   packListCtx,
   returnCrate,
   storeShelveOpen,
@@ -194,7 +175,6 @@ const {
   submitAddScannedPackCrate,
   assignPackItemToSelectedCrate,
   packCrateAssignQtyForItem,
-  shellPackItemForContainer,
 } = useMaterialJourneyTasks({
   activity,
   packItems,
@@ -495,9 +475,7 @@ async function tryAutoBookShelfScan(result: MaterialScanResolveResult): Promise<
 async function onScanSubmit(): Promise<void> {
   const result = await submitQuery(scanQuery.value)
   if (result?.type === 'shelf_location') {
-    if ((result.shelfLines?.length ?? 0) > 0 && showByShelfFilter.value) {
-      filterTab.value = 'byShelf'
-    }
+    if ((result.shelfLines?.length ?? 0) > 0) filterTab.value = 'byShelf'
     return
   }
   if (activeShelfResult.value && result) {
@@ -659,6 +637,15 @@ const activityStatusLabel = computed(() => {
   return te(key) ? t(key) : status
 })
 
+const journeyStepBadgeLabel = computed(() => {
+  const step = activeJourneyStep.value
+  if (step === 'issue' && profile.value === 'logistics') {
+    return t('activities.materialJourney.step.issueLogistics')
+  }
+  const key = `activities.materialJourney.step.${step}` as const
+  return te(key) ? t(key) : step
+})
+
 const activityStatusCss = computed(() =>
   activity.value ? activityStatusClass(activity.value.status ?? '') : '',
 )
@@ -728,6 +715,10 @@ function onActivateTaskRow(
   row: Parameters<typeof activateTaskRow>[0],
   source: Parameters<typeof activateTaskRow>[1] = 'tap',
 ): void {
+  if (row.kind === 'crate' && row.container && packCrateSelectMode.value) {
+    togglePackCrateSelection(row.container.id)
+    return
+  }
   if (
     row.kind === 'loose' &&
     row.packItem &&
@@ -741,179 +732,6 @@ function onActivateTaskRow(
     }
   }
   activateTaskRow(row, source)
-}
-
-function onSelectPackTarget(row: Parameters<typeof activateTaskRow>[0]): void {
-  if (row.kind !== 'crate' || !row.container || !packCrateSelectMode.value) return
-  togglePackCrateSelection(row.container.id)
-}
-
-const looseTakeSheetOpen = ref(false)
-const looseTakeSourceCrate = ref<ActivityPackContainer | null>(null)
-const looseTakeSourceLine = ref<MaterialJourneyAccordionLine | null>(null)
-const looseTakeMaxQty = ref(0)
-const looseTakeSubmitting = ref(false)
-const reassignCrateSheetOpen = ref(false)
-const reassignSourceCrate = ref<ActivityPackContainer | null>(null)
-const reassignSourceLine = ref<MaterialJourneyAccordionLine | null>(null)
-const reassignCrateSubmitting = ref(false)
-
-const reassignTargetContainers = computed(() => {
-  const source = reassignSourceCrate.value
-  if (!source) return []
-  return reassignTargetPackCrates(
-    packContainers.value,
-    source.id,
-    shellPackItemForContainer,
-  )
-})
-
-const showCrateTransitActions = computed(
-  () => materialJourneyShowsCrateTransitActions(resolvedStep.value) && listEditable.value,
-)
-
-watch(reassignCrateSheetOpen, (open) => {
-  if (!open) reassignSourceLine.value = null
-})
-
-watch(looseTakeSheetOpen, (open) => {
-  if (!open) {
-    looseTakeSourceLine.value = null
-    looseTakeSourceCrate.value = null
-    looseTakeMaxQty.value = 0
-  }
-})
-
-function containerItemForAccordionLine(
-  containerId: string,
-  line: MaterialJourneyAccordionLine,
-) {
-  return (containerItemsByContainerId.value[containerId] ?? []).find((row) => row.id === line.id)
-}
-
-function onCrateLooseTake(
-  row: Parameters<typeof activateTaskRow>[0],
-  line: MaterialJourneyAccordionLine,
-): void {
-  if (row.kind !== 'crate' || !row.container) return
-  const ci = containerItemForAccordionLine(row.container.id, line)
-  if (!ci) return
-  const max = containerLineLooseTakeMax(ci, packStage.value)
-  if (max < 1) {
-    toast.error(t('activities.packList.toastNothingLeftToIssue'))
-    return
-  }
-  looseTakeSourceCrate.value = row.container
-  looseTakeSourceLine.value = line
-  looseTakeMaxQty.value = max
-  looseTakeSheetOpen.value = true
-}
-
-async function onLooseTakeConfirm(payload: LooseTakeConfirmPayload): Promise<void> {
-  const source = looseTakeSourceCrate.value
-  const line = looseTakeSourceLine.value
-  if (!source || !line || looseTakeSubmitting.value) return
-  const ci = containerItemForAccordionLine(source.id, line)
-  if (!ci) return
-
-  const material = (ci.material_name ?? line.name).trim() || t('common.material')
-  const crate = source.label.trim()
-  const qty = payload.quantity
-
-  let confirmed = false
-  if (packStage.value === 'at_event_transport_back') {
-    confirmed = await confirmDialog({
-      title: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackTitle'),
-      message: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackMessage', {
-        qty,
-        material,
-        crate: crate || t('activities.common.crate'),
-      }),
-      confirmText: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackProceed'),
-      cancelText: t('common.cancel'),
-      variant: 'warning',
-    })
-  } else {
-    confirmed = await confirmDialog({
-      title: t('activities.packList.confirmIssueLooseWithoutCrateTitle'),
-      message: t('activities.packList.confirmIssueLooseWithoutCrateMessage', {
-        qty,
-        material,
-        activityName: activity.value?.name ?? '',
-        activityType: activity.value?.type ?? '',
-      }),
-      confirmText: t('activities.packList.confirmIssueLooseWithoutCrateProceed'),
-      cancelText: t('common.cancel'),
-      variant: 'warning',
-    })
-  }
-  if (!confirmed) return
-
-  looseTakeSubmitting.value = true
-  try {
-    await issueContainerLineLoose(
-      props.activityId,
-      source.id,
-      ci,
-      qty,
-      packItems.value,
-      packStage.value,
-    )
-    await reloadSilent()
-    looseTakeSheetOpen.value = false
-    looseTakeSourceCrate.value = null
-    looseTakeSourceLine.value = null
-    toast.success(
-      t('activities.materialJourney.looseTake.toastSuccess', { name: line.name, count: qty }),
-    )
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastIssueLineFailed'))
-  } finally {
-    looseTakeSubmitting.value = false
-  }
-}
-
-function onCrateReassign(
-  row: Parameters<typeof activateTaskRow>[0],
-  line: MaterialJourneyAccordionLine,
-): void {
-  if (row.kind !== 'crate' || !row.container) return
-  reassignSourceCrate.value = row.container
-  reassignSourceLine.value = line
-  reassignCrateSheetOpen.value = true
-}
-
-async function onReassignCrateConfirm(payload: ReassignCrateConfirmPayload): Promise<void> {
-  const source = reassignSourceCrate.value
-  const line = reassignSourceLine.value
-  if (!source || !line || reassignCrateSubmitting.value) return
-  reassignCrateSubmitting.value = true
-  try {
-    await transferPackedItemBetweenContainers(
-      props.activityId,
-      source.id,
-      payload.targetContainerId,
-      line.id,
-      containerItemsByContainerId.value,
-      payload.quantity,
-    )
-    await reloadSilent()
-    reassignCrateSheetOpen.value = false
-    reassignSourceCrate.value = null
-    reassignSourceLine.value = null
-    toast.success(
-      t('activities.materialJourney.reassignCrate.toastSuccessItemQty', {
-        name: line.name,
-        count: payload.quantity,
-      }),
-    )
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.materialJourney.reassignCrate.toastFailed'))
-  } finally {
-    reassignCrateSubmitting.value = false
-  }
 }
 
 watch(
@@ -958,73 +776,31 @@ const showPackCompletePanel = computed(
     progress.value.open === 0,
 )
 
-const showTransportCompletePanel = computed(
-  () =>
-    !isEarlyPackPreview.value &&
-    isJourneyTransportOutStep(resolvedStep.value) &&
-    profile.value === 'logistics' &&
-    activity.value?.status === 'packed' &&
-    progress.value.total > 0 &&
-    progress.value.open === 0,
+const phaseAdvanceTarget = computed((): JourneyStep | null => {
+  const step = resolvedStep.value
+  if (!journeyStepNeedsAdvanceConfirm(step, profile.value)) return null
+  if (step !== activeJourneyStep.value) return null
+  if (!journeyStepWorkComplete.value(step)) return null
+  return nextJourneyStep(step, profile.value)
+})
+
+const showPhaseCompletePanel = computed(
+  () => !isEarlyPackPreview.value && phaseAdvanceTarget.value != null,
 )
 
-/** Pack-Abschluss ersetzt Checkliste; Transport-Abschluss bleibt als Banner darüber. */
-const hideChecklistForComplete = computed(() => showPackCompletePanel.value)
+const showStepCompletePanel = computed(
+  () => showPackCompletePanel.value || showPhaseCompletePanel.value,
+)
 
-function moveBackQtyForDisplayedRow(row: Parameters<typeof moveBackQtyForRow>[0]): number {
-  return moveBackQtyForRow(row)
-}
-
-function onMoveBackQtyUpdate(row: Parameters<typeof moveBackQtyForRow>[0], qty: number): void {
-  setMoveBackQtyForRow(row.id, qty, row.maxMoveBackQty)
-}
-
-function onMoveBackRow(row: Parameters<typeof moveBackTaskRow>[0], qty: number): void {
-  void moveBackTaskRow(row, qty)
-}
-
-function onMoveForwardQtyUpdate(row: Parameters<typeof moveForwardQtyForRow>[0], qty: number): void {
-  setForwardQtyForRow(row.id, qty, row.maxForwardQty)
-}
-
-function moveForwardQtyForDisplayedRow(row: Parameters<typeof moveForwardQtyForRow>[0]): number {
-  return moveForwardQtyForRow(row)
-}
-
-function onMoveForwardRow(row: Parameters<typeof moveForwardTaskRow>[0], qty: number): void {
-  if (
-    row.kind === 'loose' &&
-    row.packItem &&
-    packCrateSelectMode.value &&
-    selectedPackCrateId.value
-  ) {
-    const assignQty = Math.min(Math.floor(qty), packCrateAssignQtyForItem(row.packItem))
-    if (assignQty > 0) {
-      void assignPackItemToSelectedCrate(row.packItem, assignQty, 'tap')
-      return
-    }
-  }
-  void moveForwardTaskRow(row, qty)
-}
+const advancingJourneyPhase = ref(false)
 
 const localTransitions = ref<ActivityTransitionRow[]>([])
 const markingPacked = ref(false)
-const markingTransported = ref(false)
 
 const effectiveTransitions = computed(() => props.transitions ?? localTransitions.value)
 
 const packedTransition = computed(
   () => effectiveTransitions.value.find((row) => row.status === 'packed') ?? null,
-)
-
-watch(
-  showTransportCompletePanel,
-  (show) => {
-    if (show && filterTab.value === 'open') {
-      filterTab.value = 'done'
-    }
-  },
-  { immediate: true },
 )
 
 watch(
@@ -1048,6 +824,23 @@ watch(
   },
 )
 
+async function onAdvanceJourneyPhase(): Promise<void> {
+  const nextStep = phaseAdvanceTarget.value
+  if (!nextStep || advancingJourneyPhase.value) return
+  advancingJourneyPhase.value = true
+  try {
+    const updated = await patchActivityPackJourneyStep(props.activityId, nextStep)
+    activity.value = updated
+    onStepChange(nextStep)
+    emit('statusChanged')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.materialJourney.phaseComplete.error'))
+  } finally {
+    advancingJourneyPhase.value = false
+  }
+}
+
 async function onMarkPacked(): Promise<void> {
   const transition = packedTransition.value
   if (!transition?.allowed || markingPacked.value) return
@@ -1056,11 +849,7 @@ async function onMarkPacked(): Promise<void> {
     await patchActivityStatus(props.activityId, { status: 'packed' })
     await reloadSilent()
     const status = activity.value?.status ?? 'packed'
-    const nextStep = defaultJourneyStepForStatus(
-      status,
-      profile.value,
-      canManageMaterials.value,
-    )
+    const nextStep = defaultJourneyStepForStatus(status, profile.value, canManageMaterials.value)
     onStepChange(nextStep)
     const statusKey = activityStatusI18nKey('packed')
     const statusLabel = te(`activities.status.${statusKey}`)
@@ -1075,18 +864,6 @@ async function onMarkPacked(): Promise<void> {
     markingPacked.value = false
   }
 }
-
-async function onMarkTransported(): Promise<void> {
-  if (markingTransported.value || !listEditable.value) return
-  markingTransported.value = true
-  try {
-    acknowledgeTransportOut(props.activityId)
-    onStepChange('issue')
-    toast.success(t('activities.materialJourney.transportComplete.toastSuccess'))
-  } finally {
-    markingTransported.value = false
-  }
-}
 </script>
 
 <template>
@@ -1099,6 +876,9 @@ async function onMarkTransported(): Promise<void> {
       <div v-if="activity" class="material-journey-header__title">
         <h1 class="material-journey-header__name">{{ activity.name }}</h1>
         <span class="material-journey-header__status status-label" :class="activityStatusCss">
+          {{ journeyStepBadgeLabel }}
+        </span>
+        <span v-if="activityStatusLabel" class="material-journey-header__status-sub text-muted">
           {{ activityStatusLabel }}
         </span>
       </div>
@@ -1120,6 +900,7 @@ async function onMarkTransported(): Promise<void> {
       <MaterialJourneyStepper
         :steps="steps"
         :current-step="resolvedStep"
+        :active-step="activeJourneyStep"
         :profile="profile"
         @update:current-step="onStepChange"
       />
@@ -1132,7 +913,7 @@ async function onMarkTransported(): Promise<void> {
       </p>
 
       <MaterialJourneyTransportTours
-        v-if="showTransportTours && !isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="showTransportTours && !isEarlyPackPreview && !showPhaseCompletePanel"
         :activity-id="activityId"
         :department-id="departmentId"
         :journey-step="resolvedStep"
@@ -1142,29 +923,23 @@ async function onMarkTransported(): Promise<void> {
 
       <MaterialJourneyPackCompletePanel
         v-if="showPackCompletePanel"
-        mode="pack"
         :total-count="progress.total"
         :transition="packedTransition"
         :loading="markingPacked"
         :current-status="activity.status"
-        @confirm="onMarkPacked()"
+        @mark-packed="onMarkPacked()"
       />
 
-      <MaterialJourneyPackCompletePanel
-        v-if="showTransportCompletePanel"
-        mode="transport"
-        class="material-journey-pack-complete--with-list"
+      <MaterialJourneyPhaseCompletePanel
+        v-else-if="showPhaseCompletePanel && phaseAdvanceTarget"
+        :from-step="resolvedStep"
+        :next-step="phaseAdvanceTarget"
         :total-count="progress.total"
-        :units-transported="transportedUnitsTotal"
-        :loading="markingTransported"
-        :action-disabled="!listEditable"
-        @confirm="onMarkTransported()"
+        :loading="advancingJourneyPhase"
+        @continue="onAdvanceJourneyPhase()"
       />
 
-      <div
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete && !showTransportCompletePanel"
-        class="material-journey-scan-wrap"
-      >
+      <div v-else-if="!isEarlyPackPreview" class="material-journey-scan-wrap">
         <MaterialJourneyScanBar
           v-model="scanQuery"
           :loading="scanResolving || assignCrateSubmitting"
@@ -1259,7 +1034,7 @@ async function onMarkTransported(): Promise<void> {
       />
 
       <MaterialJourneyToolbar
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="!isEarlyPackPreview && !showStepCompletePanel"
         v-model:filter-tab="filterTab"
         :done-count="progress.done"
         :total-count="progress.total"
@@ -1290,7 +1065,7 @@ async function onMarkTransported(): Promise<void> {
       </div>
 
       <MaterialJourneyTaskList
-        v-if="!hideChecklistForComplete"
+        v-if="!showStepCompletePanel"
         :tasks="displayedTasks"
         :regal-groups="displayedRegalGroups"
         :filter-tab="filterTab"
@@ -1303,42 +1078,7 @@ async function onMarkTransported(): Promise<void> {
         :pack-crate-select-mode="packCrateSelectMode"
         :pack-target-crate-id="selectedPackCrateId"
         :container-items-by-container-id="containerItemsByContainerId"
-        :pack-items="packItems"
-        :pack-containers="packContainers"
-        :crate-peek-maps="cratePeekMaps"
-        :shell-pack-item-for-container="shellPackItemForContainer"
-        :show-transit-actions="showCrateTransitActions"
-        :show-move-back="showMoveBack"
-        :move-back-qty-for-row="moveBackQtyForDisplayedRow"
-        :show-move-forward="showMoveForwardQty"
-        :show-crate-move-forward="showCrateMoveForwardQty"
-        :move-forward-qty-for-row="moveForwardQtyForDisplayedRow"
         @activate="onActivateTaskRow"
-        @select-target="onSelectPackTarget"
-        @loose-take="onCrateLooseTake"
-        @reassign="onCrateReassign"
-        @move-back="onMoveBackRow"
-        @update:move-back-qty="onMoveBackQtyUpdate"
-        @move-forward="onMoveForwardRow"
-        @update:move-forward-qty="onMoveForwardQtyUpdate"
-      />
-
-      <MaterialLooseTakeSheet
-        v-model:open="looseTakeSheetOpen"
-        :source-container="looseTakeSourceCrate"
-        :source-line="looseTakeSourceLine"
-        :max-qty="looseTakeMaxQty"
-        :submitting="looseTakeSubmitting"
-        @confirm="onLooseTakeConfirm"
-      />
-
-      <MaterialReassignCrateSheet
-        v-model:open="reassignCrateSheetOpen"
-        :source-container="reassignSourceCrate"
-        :source-line="reassignSourceLine"
-        :target-containers="reassignTargetContainers"
-        :submitting="reassignCrateSubmitting"
-        @confirm="onReassignCrateConfirm"
       />
 
       <MaterialCrateCheckSheet
@@ -1408,9 +1148,8 @@ async function onMarkTransported(): Promise<void> {
       />
 
       <MaterialJourneyStepFooter
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="!isEarlyPackPreview && !showStepCompletePanel"
         :journey-step="resolvedStep"
-        :profile="profile"
         :done-count="progress.done"
         :total-count="progress.total"
         :open-count="progress.open"

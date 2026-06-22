@@ -18,7 +18,20 @@
           </v-chip>
           <span v-if="activity" class="type-badge" :class="activity.type">{{ activityTypeLabelDetail(activity.type) }}</span>
           <h1>{{ activity?.name ?? t('activities.detail.fallbackTitle') }}</h1>
-          <span v-if="activity" class="status-label" :class="activityStatusClass(activity.status)">{{ activityStatusLabelDetail(activity.status) }}</span>
+          <span
+            v-if="activity && showPackJourneyStepBadge"
+            class="status-label status-label--journey"
+            :class="activityStatusClass(activity.status)"
+          >{{ packJourneyStepLabelDetail }}</span>
+          <span
+            v-if="activity && showPackJourneyStepBadge"
+            class="status-label status-label--workflow text-muted"
+          >{{ activityStatusLabelDetail(activity.status) }}</span>
+          <span
+            v-else-if="activity"
+            class="status-label"
+            :class="activityStatusClass(activity.status)"
+          >{{ activityStatusLabelDetail(activity.status) }}</span>
         </div>
       </div>
       <div v-if="activity && !loadError" class="header-actions activity-detail-workflow-actions">
@@ -784,6 +797,11 @@ import { useToast } from '@/composables/useToast'
 import { resolvePackUiPreference } from '@/utils/packUiPreference'
 import { resolveActivityPublicUrl } from '@/utils/publicQrUrl'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import {
+  allowsAtEventToReturnedHandoff,
+  allowsPackedToAtEventHandoff,
+  resolveActiveJourneyStep,
+} from '@/utils/materialJourneyNavigation'
 import { EButton } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import QRCode from 'qrcode'
@@ -929,6 +947,30 @@ const canManageActivityVehicles = computed(() => {
 })
 
 const useLegacyPackUi = computed(() => resolvePackUiPreference(route.query) === 'legacy')
+
+const packWorkflowProfile = computed(() =>
+  packWorkflowProfileForActivityType(activity.value?.type ?? 'activity'),
+)
+
+const showPackJourneyStepBadge = computed(() => {
+  if (!activity.value || useLegacyPackUi.value || activeTab.value !== 'packs') return false
+  const s = activity.value.status ?? ''
+  return ['packing', 'packed', 'at_event', 'returned'].includes(s)
+})
+
+const packJourneyStepLabelDetail = computed(() => {
+  if (!activity.value) return ''
+  const step = resolveActiveJourneyStep(
+    activity.value,
+    packWorkflowProfile.value,
+    canManageMaterials.value,
+  )
+  if (step === 'issue' && packWorkflowProfile.value === 'logistics') {
+    return t('activities.materialJourney.step.issueLogistics')
+  }
+  const key = `activities.materialJourney.step.${step}` as const
+  return te(key) ? t(key) : step
+})
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
 const STATUSES_WITH_ISSUES_TAB = ['at_event', 'returned', 'completed'] as const
@@ -1171,6 +1213,22 @@ const workflowTransitions = computed(() =>
     const s = activity.value?.status
     if (s === 'at_event' && t.status === 'packed') return false
     if (s === 'returned' && t.status === 'at_event') return false
+    if (
+      s === 'packed' &&
+      t.status === 'at_event' &&
+      activity.value &&
+      !allowsPackedToAtEventHandoff(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+    ) {
+      return false
+    }
+    if (
+      s === 'at_event' &&
+      t.status === 'returned' &&
+      activity.value &&
+      !allowsAtEventToReturnedHandoff(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+    ) {
+      return false
+    }
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
     if (activity.value?.type === 'activity' && t.status === 'approved') return false
     if (hideReturnedTransitionInActivityHeader(t.status)) return false

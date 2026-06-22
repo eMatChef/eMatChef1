@@ -102,6 +102,14 @@
                 >
                   <v-icon icon="mdi-stop-circle-outline" size="16" />
                 </button>
+                <button
+                  v-if="round.status === 'closed'"
+                  class="action-btn action-btn-primary"
+                  :title="t('grossanlass.planung.rounds.reopenAction')"
+                  @click="handleReopen(round)"
+                >
+                  <v-icon icon="mdi-replay" size="16" />
+                </button>
               </div>
             </td>
           </tr>
@@ -232,6 +240,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -245,6 +254,7 @@ import {
   createGrossanlassPlanningRound,
   getGrossanlassPlanningRounds,
   openGrossanlassPlanningRound,
+  reopenGrossanlassPlanningRound,
   updateGrossanlassPlanningRound,
   type GrossanlassPlanningRound,
   type GrossanlassRoundStatus,
@@ -254,6 +264,7 @@ const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
+const confirm = useConfirm()
 const { isUserRole, isMaterialwart } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
@@ -512,12 +523,35 @@ async function handleOpen(round: GrossanlassPlanningRound) {
 
 async function handleClose(round: GrossanlassPlanningRound) {
   if (!departmentId.value) return
+  const ok = await confirm.confirm({
+    title: t('grossanlass.planung.rounds.closeConfirmTitle'),
+    message: t('grossanlass.planung.rounds.closeConfirmMessage', { name: round.name }),
+    variant: 'warning',
+  })
+  if (!ok) return
   try {
     await closeGrossanlassPlanningRound(departmentId.value, round.id)
     toast.success(t('grossanlass.planung.rounds.closed', { name: round.name }))
     await loadRounds()
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.planung.rounds.errorClose'))
+  }
+}
+
+async function handleReopen(round: GrossanlassPlanningRound) {
+  if (!departmentId.value) return
+  const ok = await confirm.confirm({
+    title: t('grossanlass.planung.rounds.reopenConfirmTitle'),
+    message: t('grossanlass.planung.rounds.reopenConfirmMessage', { name: round.name }),
+    variant: 'warning',
+  })
+  if (!ok) return
+  try {
+    await reopenGrossanlassPlanningRound(departmentId.value, round.id)
+    toast.success(t('grossanlass.planung.rounds.reopened', { name: round.name }))
+    await loadRounds()
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || t('grossanlass.planung.rounds.errorReopen'))
   }
 }
 

@@ -27,6 +27,7 @@ use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
+use App\Service\ActivityPackJourneyService;
 use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
@@ -61,6 +62,7 @@ class ActivityController extends AbstractController
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
         private ActivitySharedVenueService $sharedVenueService,
+        private ActivityPackJourneyService $activityPackJourney,
     ) {}
 
     private function getActorUserId(): ?string
@@ -1471,6 +1473,10 @@ class ActivityController extends AbstractController
         $activity->setUpdatedAt(new \DateTime());
         $activity->applyStatusTimestamp($newStatus);
 
+        $canManageMaterials = $user instanceof User
+            && $this->activityAccess->canUserEditPackList($user, $activity);
+        $this->activityPackJourney->syncStepOnStatusChange($activity, $newStatus, $canManageMaterials);
+
         // 5. Spezialfall: Zurückweisung (approved → submitted) mit Kommentar
         if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
             $activity->setRejectionComment($comment);
@@ -1565,6 +1571,48 @@ class ActivityController extends AbstractController
         }
 
         return new JsonResponse($this->serializeActivity($activity));
+    }
+
+    /**
+     * Material-Journey: nächsten Pack-Schritt freischalten (Button «Weiter zu …»).
+     *
+     * Body: { "step": "issue" }
+     */
+    #[Route('/{id}/pack-journey-step', name: 'advance_pack_journey_step', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function advancePackJourneyStep(string $id, Request $request): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für die Packliste'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $targetStep = trim((string) ($data['step'] ?? $data['pack_journey_step'] ?? ''));
+        if ($targetStep === '') {
+            return new JsonResponse(['error' => 'Schritt fehlt (step)'], 400);
+        }
+
+        $canManageMaterials = $this->activityAccess->canUserEditPackList($user, $activity);
+        $error = $this->activityPackJourney->advanceToStep($activity, $targetStep, $canManageMaterials);
+        if ($error !== null) {
+            return new JsonResponse(['error' => $error], 422);
+        }
+
+        $this->createHistoryEntry($activity, 'pack_journey_step_advanced', [
+            'pack_journey_step' => $targetStep,
+        ]);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeActivity($activity, true, $user));
     }
 
     /**
@@ -4505,6 +4553,7 @@ class ActivityController extends AbstractController
             'color' => $activity->getColor(),
             'type' => $activity->getType(),
             'status' => $activity->getStatus(),
+            'pack_journey_step' => $activity->getPackJourneyStep(),
             'create_wizard_completed' => $activity->isCreateWizardCompleted(),
             'usage_start' => $activity->getUsageStart()?->format('c'),
             'usage_end' => $activity->getUsageEnd()?->format('c'),
