@@ -42,6 +42,9 @@ const editId = ref<string | null>(null)
 const createForm = ref({
   name: '',
   plate: '',
+  load_length_cm: null as number | null,
+  load_width_cm: null as number | null,
+  load_height_cm: null as number | null,
   max_payload_kg: null as number | null,
   notes: '',
   owner_address_id: null as string | null,
@@ -51,6 +54,9 @@ const createForm = ref({
 const editForm = ref({
   name: '',
   plate: '',
+  load_length_cm: null as number | null,
+  load_width_cm: null as number | null,
+  load_height_cm: null as number | null,
   max_payload_kg: null as number | null,
   notes: '',
   owner_address_id: null as string | null,
@@ -130,10 +136,47 @@ watch(searchQuery, (q) => {
   }, 300)
 })
 
+function metersToCm(m: number | null | undefined): number | null {
+  if (m == null) return null
+  return Math.round(m * 100)
+}
+
+function cmToMeters(cm: number | null | undefined): number | null {
+  if (cm == null || !Number.isFinite(cm) || cm <= 0) return null
+  return Math.round(cm) / 100
+}
+
+function loadDimsFromVehicle(v: DepartmentVehicle): {
+  load_length_cm: number | null
+  load_width_cm: number | null
+  load_height_cm: number | null
+} {
+  return {
+    load_length_cm: metersToCm(v.length_m),
+    load_width_cm: metersToCm(v.width_m),
+    load_height_cm: metersToCm(v.height_m),
+  }
+}
+
+function loadDimsToMeters(form: {
+  load_length_cm: number | null
+  load_width_cm: number | null
+  load_height_cm: number | null
+}): { length_m: number | null; width_m: number | null; height_m: number | null } {
+  return {
+    length_m: cmToMeters(form.load_length_cm),
+    width_m: cmToMeters(form.load_width_cm),
+    height_m: cmToMeters(form.load_height_cm),
+  }
+}
+
 function resetCreateForm(): void {
   createForm.value = {
     name: '',
     plate: '',
+    load_length_cm: null,
+    load_width_cm: null,
+    load_height_cm: null,
     max_payload_kg: null,
     notes: '',
     owner_address_id: null,
@@ -162,10 +205,14 @@ async function onCreateAndAssign(): Promise<void> {
   if (!name || !props.canManage) return
   saving.value = true
   try {
+    const dims = loadDimsToMeters(createForm.value)
     const created = await createAndAssignActivityVehicle(props.activityId, {
       vehicle: {
         name,
         plate: createForm.value.plate.trim() || undefined,
+        length_m: dims.length_m ?? undefined,
+        width_m: dims.width_m ?? undefined,
+        height_m: dims.height_m ?? undefined,
         max_payload_kg: createForm.value.max_payload_kg ?? undefined,
         notes: createForm.value.notes.trim() || undefined,
         owner_address_id: createForm.value.owner_address_id ?? undefined,
@@ -188,6 +235,7 @@ function startEdit(row: ActivityVehicleAssignment): void {
   editForm.value = {
     name: row.vehicle.name,
     plate: row.vehicle.plate ?? '',
+    ...loadDimsFromVehicle(row.vehicle),
     max_payload_kg: row.vehicle.max_payload_kg,
     notes: row.vehicle.notes ?? '',
     owner_address_id: row.vehicle.owner_address_id ?? null,
@@ -203,11 +251,15 @@ async function onSaveEdit(row: ActivityVehicleAssignment): Promise<void> {
   if (!props.canManage) return
   saving.value = true
   try {
+    const dims = loadDimsToMeters(editForm.value)
     const updated = await updateActivityVehicle(props.activityId, row.id, {
       notes: editForm.value.assignmentNotes.trim() || undefined,
       vehicle: {
         name: editForm.value.name.trim(),
         plate: editForm.value.plate.trim() || null,
+        length_m: dims.length_m,
+        width_m: dims.width_m,
+        height_m: dims.height_m,
         max_payload_kg: editForm.value.max_payload_kg,
         notes: editForm.value.notes.trim() || null,
         owner_address_id: editForm.value.owner_address_id ?? undefined,
@@ -243,6 +295,18 @@ function payloadLabel(v: DepartmentVehicle): string {
     return t('activities.vehicles.payloadKg', { kg: v.max_payload_kg })
   }
   return t('activities.vehicles.payloadUnknown')
+}
+
+function loadAreaLabel(v: DepartmentVehicle): string | null {
+  const length = metersToCm(v.length_m)
+  const width = metersToCm(v.width_m)
+  const height = metersToCm(v.height_m)
+  if (length == null && width == null && height == null) return null
+  return t('activities.vehicles.loadAreaCm', {
+    length: length ?? '–',
+    width: width ?? '–',
+    height: height ?? '–',
+  })
 }
 </script>
 
@@ -296,6 +360,38 @@ function payloadLabel(v: DepartmentVehicle): string {
                   class="activity-vehicles-tab__input"
                 />
               </label>
+              <div class="activity-vehicles-tab__load-area">
+                <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
+                <div class="activity-vehicles-tab__load-area-fields">
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadLength') }}</span>
+                    <input
+                      v-model.number="editForm.load_length_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadWidth') }}</span>
+                    <input
+                      v-model.number="editForm.load_width_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadHeight') }}</span>
+                    <input
+                      v-model.number="editForm.load_height_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                </div>
+              </div>
               <label class="activity-vehicles-tab__field-wide">
                 <span>{{ t('activities.vehicles.fieldOwner') }}</span>
                 <DepartmentAddressAutocomplete
@@ -327,6 +423,7 @@ function payloadLabel(v: DepartmentVehicle): string {
               <strong>{{ row.vehicle.name }}</strong>
               <span v-if="row.vehicle.plate" class="text-muted">{{ row.vehicle.plate }}</span>
               <span class="text-muted">{{ payloadLabel(row.vehicle) }}</span>
+              <span v-if="loadAreaLabel(row.vehicle)" class="text-muted">{{ loadAreaLabel(row.vehicle) }}</span>
               <span v-if="row.vehicle.owner_label" class="activity-vehicles-tab__owner">
                 {{ t('activities.vehicles.ownerLine', { label: row.vehicle.owner_label }) }}
               </span>
@@ -393,6 +490,38 @@ function payloadLabel(v: DepartmentVehicle): string {
               class="activity-vehicles-tab__input"
             />
           </label>
+          <div class="activity-vehicles-tab__load-area">
+            <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
+            <div class="activity-vehicles-tab__load-area-fields">
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadLength') }}</span>
+                <input
+                  v-model.number="createForm.load_length_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadWidth') }}</span>
+                <input
+                  v-model.number="createForm.load_width_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadHeight') }}</span>
+                <input
+                  v-model.number="createForm.load_height_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+            </div>
+          </div>
           <label class="activity-vehicles-tab__field-wide">
             <span>{{ t('activities.vehicles.fieldOwner') }}</span>
             <DepartmentAddressAutocomplete
@@ -499,6 +628,32 @@ function payloadLabel(v: DepartmentVehicle): string {
 
 .activity-vehicles-tab__field-wide {
   grid-column: 1 / -1;
+}
+
+.activity-vehicles-tab__load-area {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-vehicles-tab__load-area-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.activity-vehicles-tab__load-area-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.activity-vehicles-tab__load-area-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .activity-vehicles-tab__form-grid label {

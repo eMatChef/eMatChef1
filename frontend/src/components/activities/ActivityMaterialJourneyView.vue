@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, provide, ref, toRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
@@ -24,24 +24,41 @@ import MaterialScanShelfResultCard from '@/components/activities/materialJourney
 import MaterialReplenishmentWishPanel from '@/components/activities/materialJourney/MaterialReplenishmentWishPanel.vue'
 import MaterialReplenishmentWishList from '@/components/activities/materialJourney/MaterialReplenishmentWishList.vue'
 import PackAddContainerModal from '@/components/activities/PackAddContainerModal.vue'
+import PhysicalComboIssueComponentModal from '@/components/activities/PhysicalComboIssueComponentModal.vue'
+import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
+import { usePhysicalComboIssuePicker } from '@/composables/usePhysicalComboIssuePicker'
 import { useMaterialJourneyScan } from '@/composables/useMaterialJourneyScan'
 import { groupMaterialJourneyTasksByShelf } from '@/components/activities/materialJourneyRegalGroups'
 import MaterialJourneyTransportTours from '@/components/activities/materialJourney/MaterialJourneyTransportTours.vue'
+import { directionForJourneyStep } from '@/api/activityTransportTours'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import {
+  activityStatusAfterJourneyStep,
   defaultJourneyStepForStatus,
-  isJourneyTransportBackStep,
-  isJourneyTransportOutStep,
 } from '@/components/activities/materialJourneySteps'
+import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
+import {
+  isPackConfirmedStage,
+  isPackForwardToEventStage,
+  isPackReturnPipelineStage,
+  isPackReturnStage,
+  isPackUnpackStage,
+} from '@/components/activities/packStageQuantities'
 import { useMaterialJourneyData } from '@/composables/useMaterialJourneyData'
 import { useMaterialJourneyTasks } from '@/composables/useMaterialJourneyTasks'
 import { useMaterialJourneyPackCrates } from '@/composables/useMaterialJourneyPackCrates'
 import { useMaterialJourneyPresence } from '@/composables/useMaterialJourneyPresence'
+import { useMaterialJourneyIssueActions } from '@/composables/useMaterialJourneyIssueActions'
+import { useMaterialJourneyAtEventInventoryIssues } from '@/composables/useMaterialJourneyAtEventInventoryIssues'
 import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
+import type { PackIssueWizardEmitPayload } from '@/components/activities/physicalComboIssueFlow'
+import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
+import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { useToast } from '@/composables/useToast'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
-import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialScanResolveResult, MaterialScanShelfLine } from '@/composables/materialScanResolve'
 import { resolvePackItemShelfAction } from '@/composables/materialScanResolve'
 import {
@@ -51,7 +68,6 @@ import {
 import { packItemMatchesStorageLookup } from '@/utils/packStorageLocationMatch'
 import {
   getActivityTransitions,
-  patchActivityPackJourneyStep,
   patchActivityStatus,
   type ActivityTransitionRow,
 } from '@/api/activities'
@@ -67,12 +83,36 @@ const props = withDefaults(
     embedded?: boolean
     /** Kopfzeile der Aktivität — vermeidet doppelten API-Call im eingebetteten Modus */
     transitions?: ActivityTransitionRow[]
+    canReportIssues?: boolean
+    canReportConsumption?: boolean
+    /** Nachlieferung Verbrauchsmaterial (Gruppe ab «Am Event» oder MW/DC) */
+    canRequestConsumableNachbuchung?: boolean
+    /** Activity-Items mit is_consumable — Fallback wenn Pack-Zeile das Flag nicht trägt */
+    consumableMaterialItemIds?: string[]
   }>(),
-  { embedded: false, transitions: undefined },
+  {
+    embedded: false,
+    transitions: undefined,
+    canReportIssues: true,
+    canReportConsumption: true,
+    canRequestConsumableNachbuchung: false,
+    consumableMaterialItemIds: () => [],
+  },
 )
 
 const emit = defineEmits<{
   statusChanged: []
+  openIssueWizard: [payload: PackIssueWizardEmitPayload]
+  openConsumptionModal: [payload: ConsumptionModalPreset]
+  requestNachbuchung: [
+    payload: {
+      materialItemId: string
+      materialLabel: string
+      packSize?: number | null
+      packUnit?: string | null
+      packStage?: string
+    },
+  ]
 }>()
 
 const route = useRoute()
@@ -104,6 +144,7 @@ const {
   resolvedStep,
   needsStepRedirect,
   activeJourneyStep,
+  stepsWithOpenWork,
   journeyStepWorkComplete,
   positionCount,
   isEarlyPackPreview,
@@ -124,8 +165,12 @@ const {
   listEditable,
   isFutureStep,
   isPastStep,
+  movesEnabledForStep,
+  shellPackItemForContainer,
   visibleTasks,
   showByShelfFilter,
+  showFilterToolbar,
+  isLogisticsAtEventInventory,
   progress,
   activateTaskRow,
   crateSheetOpen,
@@ -189,6 +234,163 @@ const {
   reloadSilent,
   applyContainerItem,
 })
+
+const canReportIssuesRef = computed(() => props.canReportIssues !== false)
+const canReportConsumptionRef = computed(() => props.canReportConsumption !== false)
+const consumableMaterialItemIdsSet = computed(() => {
+  const ids = new Set((props.consumableMaterialItemIds ?? []).filter(Boolean))
+  for (const pi of packItems.value) {
+    if (pi.isConsumable && pi.materialItemId) ids.add(pi.materialItemId)
+  }
+  return ids
+})
+
+const physicalComboIssuePicker = usePhysicalComboIssuePicker({
+  packContainers: () => packContainers.value,
+  containerItemsByContainerId: () => containerItemsByContainerId.value,
+  cratePeekMaps: () => cratePeekMaps.value,
+  t,
+  emitIssueWizard: (payload) => emit('openIssueWizard', payload),
+})
+const {
+  open: physicalComboIssueModalOpen,
+  loading: physicalComboIssueModalLoading,
+  issueType: physicalComboIssueModalIssueType,
+  shellPackItem: physicalComboIssueModalPi,
+  sections: physicalComboIssueModalSections,
+  close: closePhysicalComboIssueModal,
+  onConfirm: onPhysicalComboIssueConfirm,
+} = physicalComboIssuePicker
+
+const { showIssueForRow, showIssueForAccordionLine, isConsumableForMaterialId } = useMaterialJourneyIssueActions({
+  activity,
+  packItems,
+  packContainers,
+  containerItemsByContainerId,
+  journeyStep: resolvedStep,
+  packStage,
+  profile,
+  packListCtx,
+  canReportIssues: canReportIssuesRef,
+  canReportConsumption: canReportConsumptionRef,
+  consumableMaterialItemIds: consumableMaterialItemIdsSet,
+  shellPackItemForContainer,
+  issuedQtyInContainersForMaterial: (mid) => packListCtx.value.issuedQtyInContainersForMaterial(mid),
+})
+
+const {
+  reloadIssues,
+  atEventQtyLabelForRow,
+  atEventQtyLabelForLine,
+} = useMaterialJourneyAtEventInventoryIssues({
+  activityId: toRef(props, 'activityId'),
+  active: isLogisticsAtEventInventory,
+  packItems,
+  containerItemsByContainerId,
+  consumableMaterialItemIds: consumableMaterialItemIdsSet,
+  shellPackItemForContainer,
+})
+
+function onIssueLoss(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  if (isPhysicalComboPackItem(pi)) {
+    void physicalComboIssuePicker.tryOpenPicker(pi, 'loss')
+    return
+  }
+  emit('openIssueWizard', { materialItemId: pi.materialItemId, issueType: 'loss' })
+}
+
+function onIssueRepair(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  if (isPhysicalComboPackItem(pi)) {
+    void physicalComboIssuePicker.tryOpenPicker(pi, 'repair')
+    return
+  }
+  emit('openIssueWizard', { materialItemId: pi.materialItemId, issueType: 'repair' })
+}
+
+function onIssueConsumed(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  emit('openConsumptionModal', {
+    materialItemId: pi.materialItemId,
+    materialName: row.title,
+    packSize: pi.packSize ?? null,
+    packUnit: pi.packUnit ?? null,
+  })
+}
+
+function onIssueLossLine(_row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  emit('openIssueWizard', { materialItemId: line.materialItemId, issueType: 'loss' })
+}
+
+function onIssueRepairLine(_row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  emit('openIssueWizard', { materialItemId: line.materialItemId, issueType: 'repair' })
+}
+
+function onIssueConsumedLine(row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  const pi = packItems.value.find((p) => p.materialItemId === line.materialItemId)
+  emit('openConsumptionModal', {
+    materialItemId: line.materialItemId,
+    materialName: line.name,
+    packSize: pi?.packSize ?? null,
+    packUnit: pi?.packUnit ?? null,
+  })
+}
+
+function showConsumableNachbuchungForPackItem(pi: ActivityPackItem): boolean {
+  if (!pi.isConsumable || props.canRequestConsumableNachbuchung !== true) return false
+  if (isPackUnpackStage(packStage.value)) return false
+  const st = activity.value?.status ?? ''
+  if (st === 'completed' || st === 'cancelled') return false
+  if (isPackConfirmedStage(packStage.value)) return false
+  return (
+    isPackForwardToEventStage(packStage.value) ||
+    isPackReturnPipelineStage(packStage.value) ||
+    isPackReturnStage(packStage.value)
+  )
+}
+
+function showConsumableNachbuchungForMaterial(materialItemId: string): boolean {
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  return pi ? showConsumableNachbuchungForPackItem(pi) : false
+}
+
+function emitConsumableNachbuchungForMaterial(materialItemId: string): void {
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  if (!pi) return
+  emit('requestNachbuchung', {
+    materialItemId: pi.materialItemId,
+    materialLabel: pi.materialName,
+    packSize: pi.packSize ?? null,
+    packUnit: pi.packUnit ?? null,
+    packStage: packStage.value,
+  })
+}
+
+provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
+  showConsumableNachbuchungForMaterial,
+  emitConsumableNachbuchungForMaterial,
+})
+
+function showIssueForAccordionLineBound(
+  row: MaterialJourneyTaskRow,
+  line: MaterialJourneyAccordionLine,
+): boolean {
+  return showIssueForAccordionLine(line, row)
+}
+
+function atEventQtyLabelForLineBound(
+  row: MaterialJourneyTaskRow,
+  line: MaterialJourneyAccordionLine,
+): string | null {
+  return atEventQtyLabelForLine(line, row)
+}
 
 const {
   showAddPackCrateButton,
@@ -319,6 +521,10 @@ const showActivePackCratePanel = computed(
   () => resolvedStep.value === 'pack' && selectedPackCrate.value != null,
 )
 
+const selectedPackCrateHasContents = computed(() =>
+  selectedPackCrateItems.value.some((item) => (item.quantity_packed ?? 0) > 0),
+)
+
 const {
   open: returnCrateOpen,
   container: returnCrateContainer,
@@ -332,6 +538,11 @@ const {
 const pollFast = computed(() => listEditable.value && movingId.value === null)
 const pollIntervalMs = computed(() => (pollFast.value ? 5_000 : 20_000))
 const pollEnabled = computed(() => !loading.value && !!activity.value && !error.value && !isEarlyPackPreview.value)
+
+async function reloadSilentWithIssues(): Promise<void> {
+  await reloadSilent()
+  await reloadIssues()
+}
 
 useBackgroundPoll({
   intervalMs: pollIntervalMs,
@@ -347,7 +558,7 @@ useBackgroundPoll({
     assignCrateSheetOpen.value ||
     addModalOpen.value ||
     containerMutationLoading.value,
-  poll: reloadSilent,
+  poll: reloadSilentWithIssues,
 })
 
 const replenishment = useReplenishmentWishes({
@@ -618,7 +829,6 @@ function onCrateDelete(): void {
 }
 
 watch(resolvedStep, () => {
-  filterTab.value = 'open'
   dismissResult()
   clearShelfLineFocus()
 })
@@ -628,13 +838,6 @@ watch(comboSheetOpen, (isOpen, wasOpen) => {
     clearShelfLineFocus()
     dismissResult()
   }
-})
-
-const activityStatusLabel = computed(() => {
-  const status = activity.value?.status
-  if (!status) return ''
-  const key = `activities.status.${activityStatusI18nKey(status)}` as const
-  return te(key) ? t(key) : status
 })
 
 const journeyStepBadgeLabel = computed(() => {
@@ -652,8 +855,7 @@ const activityStatusCss = computed(() =>
 
 const showTransportTours = computed(
   () =>
-    isJourneyTransportOutStep(resolvedStep.value) ||
-    isJourneyTransportBackStep(resolvedStep.value),
+    directionForJourneyStep(resolvedStep.value) != null,
 )
 
 const transportAssignableTasks = computed(() =>
@@ -734,6 +936,19 @@ function onActivateTaskRow(
   activateTaskRow(row, source)
 }
 
+function onMoveForwardTask(row: MaterialJourneyTaskRow, qty: number): void {
+  if (
+    row.kind === 'loose' &&
+    row.packItem &&
+    packCrateSelectMode.value &&
+    selectedPackCrateId.value
+  ) {
+    void assignPackItemToSelectedCrate(row.packItem, qty, 'tap')
+    return
+  }
+  void moveTaskRow(row, 'tap', qty)
+}
+
 watch(
   [needsStepRedirect, resolvedStep, loading],
   ([redirect, step, isLoading]) => {
@@ -785,7 +1000,17 @@ const phaseAdvanceTarget = computed((): JourneyStep | null => {
 })
 
 const showPhaseCompletePanel = computed(
-  () => !isEarlyPackPreview.value && phaseAdvanceTarget.value != null,
+  () =>
+    !isEarlyPackPreview.value &&
+    phaseAdvanceTarget.value != null &&
+    resolvedStep.value !== 'issue',
+)
+
+const showIssueReturnMaterialButton = computed(
+  () =>
+    isLogisticsAtEventInventory.value &&
+    resolvedStep.value === activeJourneyStep.value &&
+    phaseAdvanceTarget.value === 'transport_back',
 )
 
 const showStepCompletePanel = computed(
@@ -825,12 +1050,18 @@ watch(
 )
 
 async function onAdvanceJourneyPhase(): Promise<void> {
-  const nextStep = phaseAdvanceTarget.value
-  if (!nextStep || advancingJourneyPhase.value) return
+  const currentStep = resolvedStep.value
+  const nextStatus = activityStatusAfterJourneyStep(currentStep, profile.value)
+  if (!nextStatus || advancingJourneyPhase.value) return
   advancingJourneyPhase.value = true
   try {
-    const updated = await patchActivityPackJourneyStep(props.activityId, nextStep)
-    activity.value = updated
+    await patchActivityStatus(props.activityId, { status: nextStatus })
+    await reloadSilent()
+    const nextStep = defaultJourneyStepForStatus(
+      activity.value?.status ?? nextStatus,
+      profile.value,
+      canManageMaterials.value,
+    )
     onStepChange(nextStep)
     emit('statusChanged')
   } catch (err: unknown) {
@@ -878,9 +1109,6 @@ async function onMarkPacked(): Promise<void> {
         <span class="material-journey-header__status status-label" :class="activityStatusCss">
           {{ journeyStepBadgeLabel }}
         </span>
-        <span v-if="activityStatusLabel" class="material-journey-header__status-sub text-muted">
-          {{ activityStatusLabel }}
-        </span>
       </div>
     </header>
 
@@ -901,6 +1129,7 @@ async function onMarkPacked(): Promise<void> {
         :steps="steps"
         :current-step="resolvedStep"
         :active-step="activeJourneyStep"
+        :steps-with-open-work="stepsWithOpenWork"
         :profile="profile"
         @update:current-step="onStepChange"
       />
@@ -919,6 +1148,9 @@ async function onMarkPacked(): Promise<void> {
         :journey-step="resolvedStep"
         :list-editable="listEditable"
         :assignable-tasks="transportAssignableTasks"
+        :pack-items="packItems"
+        :pack-containers="packContainers"
+        @pipeline-changed="reload"
       />
 
       <MaterialJourneyPackCompletePanel
@@ -939,7 +1171,7 @@ async function onMarkPacked(): Promise<void> {
         @continue="onAdvanceJourneyPhase()"
       />
 
-      <div v-else-if="!isEarlyPackPreview" class="material-journey-scan-wrap">
+      <div v-else-if="!isEarlyPackPreview && !isLogisticsAtEventInventory" class="material-journey-scan-wrap">
         <MaterialJourneyScanBar
           v-model="scanQuery"
           :loading="scanResolving || assignCrateSubmitting"
@@ -997,7 +1229,7 @@ async function onMarkPacked(): Promise<void> {
         />
 
         <MaterialJourneyActiveCratePanel
-          v-if="showActivePackCratePanel"
+          v-if="showActivePackCratePanel && selectedPackCrateHasContents"
           :items="selectedPackCrateItems"
         />
       </div>
@@ -1034,7 +1266,7 @@ async function onMarkPacked(): Promise<void> {
       />
 
       <MaterialJourneyToolbar
-        v-if="!isEarlyPackPreview && !showStepCompletePanel"
+        v-if="!isEarlyPackPreview && !showStepCompletePanel && showFilterToolbar"
         v-model:filter-tab="filterTab"
         :done-count="progress.done"
         :total-count="progress.total"
@@ -1064,6 +1296,35 @@ async function onMarkPacked(): Promise<void> {
         </EButton>
       </div>
 
+      <div
+        v-if="isLogisticsAtEventInventory && !showStepCompletePanel"
+        class="material-journey-inventory-header section-card"
+      >
+        <div class="material-journey-inventory-header__top">
+          <div>
+            <h2 class="material-journey-inventory-header__title">
+              {{ t('activities.materialJourney.inventoryAtEvent.title') }}
+            </h2>
+            <p v-if="displayedTasks.length === 0" class="text-muted material-journey-inventory-header__empty">
+              {{ t('activities.materialJourney.inventoryAtEvent.empty') }}
+            </p>
+            <p v-else class="text-muted material-journey-inventory-header__hint">
+              {{ t('activities.materialJourney.inventoryAtEvent.hint') }}
+            </p>
+          </div>
+          <EButton
+            v-if="showIssueReturnMaterialButton"
+            variant="primary"
+            size="small"
+            class="material-journey-inventory-header__action"
+            :loading="advancingJourneyPhase"
+            @click="onAdvanceJourneyPhase()"
+          >
+            {{ t('activities.materialJourney.inventoryAtEvent.returnMaterial') }}
+          </EButton>
+        </div>
+      </div>
+
       <MaterialJourneyTaskList
         v-if="!showStepCompletePanel"
         :tasks="displayedTasks"
@@ -1077,8 +1338,28 @@ async function onMarkPacked(): Promise<void> {
         :list-filter-active="listTextFilterActive"
         :pack-crate-select-mode="packCrateSelectMode"
         :pack-target-crate-id="selectedPackCrateId"
+        :pack-target-crate-label="selectedPackCrate?.label ?? null"
         :container-items-by-container-id="containerItemsByContainerId"
+        :pack-items="packItems"
+        :pack-containers="packContainers"
+        :crate-peek-maps="cratePeekMaps"
+        :shell-pack-item-for-container="shellPackItemForContainer"
+        :show-transit-actions="movesEnabledForStep"
+        :show-move-forward="movesEnabledForStep"
+        :show-crate-move-forward="movesEnabledForStep"
+        :show-issue-for-row="showIssueForRow"
+        :show-issue-for-accordion-line="showIssueForAccordionLineBound"
+        :at-event-qty-label-for-row="atEventQtyLabelForRow"
+        :at-event-qty-label-for-line="atEventQtyLabelForLineBound"
+        :is-consumable-for-material-id="isConsumableForMaterialId"
         @activate="onActivateTaskRow"
+        @move-forward="onMoveForwardTask"
+        @consumed="onIssueConsumed"
+        @loss="onIssueLoss"
+        @repair="onIssueRepair"
+        @line-consumed="onIssueConsumedLine"
+        @line-loss="onIssueLossLine"
+        @line-repair="onIssueRepairLine"
       />
 
       <MaterialCrateCheckSheet
@@ -1123,6 +1404,16 @@ async function onMarkPacked(): Promise<void> {
         @completed="onComboSheetCompleted"
       />
 
+      <PhysicalComboIssueComponentModal
+        :open="physicalComboIssueModalOpen"
+        :loading="physicalComboIssueModalLoading"
+        :issue-type="physicalComboIssueModalIssueType"
+        :shell-pack-item="physicalComboIssueModalPi"
+        :sections="physicalComboIssueModalSections"
+        @cancel="closePhysicalComboIssueModal"
+        @confirm="onPhysicalComboIssueConfirm"
+      />
+
       <MaterialReturnCrateSheet
         v-model:open="returnCrateOpen"
         :container-label="returnCrateContainer?.label ?? ''"
@@ -1148,8 +1439,9 @@ async function onMarkPacked(): Promise<void> {
       />
 
       <MaterialJourneyStepFooter
-        v-if="!isEarlyPackPreview && !showStepCompletePanel"
+        v-if="!isEarlyPackPreview && !showStepCompletePanel && !isLogisticsAtEventInventory"
         :journey-step="resolvedStep"
+        :profile="profile"
         :done-count="progress.done"
         :total-count="progress.total"
         :open-count="progress.open"
@@ -1166,4 +1458,27 @@ async function onMarkPacked(): Promise<void> {
 
 <style scoped>
 @import '@/styles/views/activities/material-journey.css';
+
+.material-journey-inventory-header__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.material-journey-inventory-header__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.material-journey-inventory-header__hint,
+.material-journey-inventory-header__empty {
+  margin: 0;
+  font-size: 13px;
+}
+
+.material-journey-inventory-header__action {
+  flex-shrink: 0;
+}
 </style>

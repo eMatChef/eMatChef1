@@ -87,6 +87,9 @@ export async function createAndAssignActivityVehicle(
     vehicle: {
       name: string
       plate?: string
+      length_m?: number
+      width_m?: number
+      height_m?: number
       max_payload_kg?: number
       max_volume_m3?: number
       notes?: string
@@ -110,6 +113,9 @@ export async function updateActivityVehicle(
     vehicle?: {
       name?: string
       plate?: string | null
+      length_m?: number | null
+      width_m?: number | null
+      height_m?: number | null
       max_payload_kg?: number | null
       max_volume_m3?: number | null
       notes?: string | null

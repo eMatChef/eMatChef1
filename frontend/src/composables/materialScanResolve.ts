@@ -269,7 +269,7 @@ export function resolveMaterialBatchScan(
 
   if (matches.length === 0) {
     const inCrate = containerHoldingMaterial(materialId, ctx)
-    if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep)) {
+    if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile)) {
       return {
         type: 'in_crate',
         tone: 'info',
@@ -371,7 +371,7 @@ export function resolveMaterialBatchScan(
   }
 
   const inCrate = containerHoldingMaterial(materialId, ctx)
-  if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep) && !isOpen) {
+  if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile) && !isOpen) {
     return {
       type: 'in_crate',
       tone: 'info',

@@ -373,8 +373,11 @@
       "approved": "Bestätigt",
       "packing": "Wird gepackt",
       "packed": "Gepackt",
+      "transport_out": "Transport hin",
       "at_event": "Am Event",
-      "returned": "Retour"
+      "transport_back": "Transport zurück",
+      "returned": "Retour",
+      "storing": "Einlagern"
     }
   },
   "dashboard": {
@@ -1557,7 +1560,8 @@
       "newActivityMetaGroup": " · {group}",
       "newActivityHint": "Zur Aktivität öffnen",
       "showAllFooterTitle": "Zur Nachrichtenzentrale (unter Aufgaben in der Navigation)",
-      "showAll": "Alle anzeigen"
+      "showAll": "Alle anzeigen",
+      "dismissAria": "Benachrichtigung entfernen"
     },
     "header": {
       "helpTitle": "Hilfe",
@@ -1793,8 +1797,11 @@
       "approved": "Bestätigt",
       "packing": "Wird gepackt",
       "packed": "Gepackt",
-      "at_event": "Am Event",
+      "transport_out": "Transport hin",
+      "at_event": "Am Anlass",
+      "transport_back": "Transport zurück",
       "returned": "Retour",
+      "storing": "Einlagern",
       "completed": "Abgeschlossen",
       "cancelled": "Storniert",
       "confirmed": "Bestätigt",
@@ -1805,8 +1812,11 @@
       "approved": "Bestätigen",
       "packing": "Packen starten",
       "packed": "Gepackt markieren",
-      "at_event": "Alles mitgenommen ans Event",
+      "transport_out": "Weiter zu Transport hin",
+      "at_event": "Weiter zu Am Anlass",
+      "transport_back": "Transport abgeschlossen",
       "returned": "Retour erfassen",
+      "storing": "Einlagern starten",
       "completed": "Abschliessen",
       "cancelled": "Stornieren",
       "packingFromSubmitted": "Annehmen & Packen",
@@ -2180,6 +2190,9 @@
       "comboContentToggleAria": "Inhalt der physischen Kombination auf- oder zuklappen",
       "comboContentEmpty": "Keine Stückliste für diese physische Kombination hinterlegt.",
       "replenishmentBadge": "Nachlieferung / Zukauf",
+      "replenishmentQtyHint": "Zukauf — Menge und Preis über «Nachlieferung» erfasst",
+      "replenishmentRest": "Zukauf",
+      "replenishmentRemoveTitle": "Nachlieferung hier nicht ändern — nur über Verbrauchsmaterial / Nachlieferung",
       "defaultEmpty": "Noch keine Positionen.",
       "availabilityLoadFailed": "Verfügbarkeit konnte nicht geladen werden.",
       "ariaDecPack": "Menge um 1 {unit} verringern",
@@ -2442,6 +2455,12 @@
         "byShelf": "Nach Regal",
         "aria": "Checkliste filtern"
       },
+      "inventoryAtEvent": {
+        "title": "Material am Anlass",
+        "empty": "Noch nichts angekommen — Touren oben als «Angekommen» markieren.",
+        "hint": "Verbrauch, Defekt oder Verlust pro Position melden — Kisten antippen für Inhalt.",
+        "returnMaterial": "Material zurückführen"
+      },
       "regalGroup": {
         "noShelf": "Ohne Regal",
         "summary": "{count} offen"
@@ -2459,12 +2478,19 @@
         "inPackCrates": "In Packkiste: {labels}",
         "openCrateSheetHint": "Kistencheck öffnen — Teilmengen und lose Ausgabe",
         "selectPackTargetHint": "Als Zielkiste wählen (grün markieren)",
+        "assignToCrateHint": "In Kiste «{label}»",
         "accordionEmpty": "Noch kein Inhalt in dieser Kiste.",
         "accordionEmptyPackCrate": "Kiste leer — Material einzeln buchen oder per Pfeil Kistencheck öffnen.",
         "accordionToggle": "Inhalt",
         "accordionCount": "{count} Positionen",
         "looseTake": "Lose mitnehmen",
-        "reassignCrate": "In andere Packkiste"
+        "reassignCrate": "In andere Packkiste",
+        "atEventTotal": "{count} total",
+        "atEventTaken": "{count} mitgenommen",
+        "atEventLoss": "{count} Verlust",
+        "atEventRepair": "{count} Reparatur",
+        "atEventConsumption": "{count} Verbrauch",
+        "atEventNotTaken": "{count} nicht mitgenommen"
       },
       "looseTake": {
         "title": "Lose mitnehmen",
@@ -2619,7 +2645,9 @@
       },
       "transportTours": {
         "title": "Transport-Touren",
-        "hint": "Fahrzeug wählen und Kisten/Positionen zuordnen — Pipeline-Buchungen bleiben in der Checkliste.",
+        "titleArrival": "Transport-Ankunft",
+        "hint": "Fahrzeug wählen, Material zuordnen und Tour abfahren — Ankunft buchen Sie unter «Am Anlass».",
+        "hintArrival": "Ohne geplante Tour gilt alles als eine Fahrt — «Angekommen» bucht das Material am Anlass.",
         "empty": "Noch keine Tour — «+ Tour» legt eine Fahrt an.",
         "addTour": "+ Tour",
         "fitOk": "Passt",
@@ -2627,6 +2655,7 @@
         "fitUnknown": "Gewicht unbekannt",
         "weightHint": "{weight} kg / max. {max} kg",
         "noAssignable": "Keine offenen Kisten oder Positionen für diesen Schritt.",
+        "noAssigned": "Dieser Tour ist noch kein Material zugeordnet.",
         "deleteTour": "Tour löschen",
         "createTitle": "Neue Tour",
         "vehicleLabel": "Fahrzeug",
@@ -2636,7 +2665,25 @@
         "quickAddPayload": "kg max.",
         "vehicleCreated": "Fahrzeug angelegt",
         "createConfirm": "Tour anlegen",
-        "noActivityVehicles": "Noch keine Fahrzeuge dieser Aktivität zugeordnet — bitte im Tab «Fahrzeuge» hinzufügen."
+        "noActivityVehicles": "Noch keine Fahrzeuge dieser Aktivität zugeordnet — bitte im Tab «Fahrzeuge» hinzufügen.",
+        "status": {
+          "planned": "Geplant",
+          "in_transit": "Unterwegs",
+          "arrived": "Angekommen"
+        },
+        "markDeparted": "Abfahren",
+        "markArrived": "Angekommen",
+        "arriveAllOutbound": "Alles transportierte Material ist am Anlass",
+        "arriveAllInbound": "Alles zurücktransportierte Material ist da",
+        "arrivedToast": "Tour angekommen — Material gebucht.",
+        "arriveAllToast": "{units} Einheiten am Anlass gebucht.",
+        "pendingArrivalHint": "Noch nicht alle Touren als angekommen markiert.",
+        "implicitTrip": {
+          "label": "Fahrt (alles)",
+          "subtitle": "Eine Fahrt — ohne Tour geplant",
+          "allArrived": "Alles transportierte Material ist am Anlass.",
+          "noTransportYet": "Noch nichts unterwegs — bitte zuerst auf «Transport hin» Material auf die Fahrt buchen."
+        }
       },
       "scan": {
         "label": "Suchen oder scannen",
@@ -3467,6 +3514,11 @@
       "fieldName": "Bezeichnung",
       "fieldPlate": "Kennzeichen",
       "fieldPayload": "Nutzlast (kg)",
+      "fieldLoadArea": "Ladefläche (cm)",
+      "fieldLoadLength": "Länge",
+      "fieldLoadWidth": "Breite",
+      "fieldLoadHeight": "Höhe",
+      "loadAreaCm": "Ladefläche: {length} × {width} × {height} cm",
       "fieldOwner": "Eigentümer / Vermieter (Kontakt)",
       "ownerPlaceholder": "Firma oder Kontakt suchen…",
       "fieldNotes": "Notizen zum Fahrzeug",
@@ -8670,7 +8722,24 @@
     },
     "dashboard": {
       "draftBadge": "Entwurf",
-      "welcome": "Willkommen beim Grossanlass. Lege unter dem Anlass-Namen in der Sidebar Ressorts an und starte unter «Planungsrunden» die Bedarfserfassung."
+      "welcome": "Willkommen beim Grossanlass. Lege unter dem Anlass-Namen in der Sidebar Ressorts an und starte unter «Planungsrunden» die Bedarfserfassung.",
+      "loading": "Dashboard wird geladen…",
+      "errorLoad": "Dashboard konnte nicht geladen werden",
+      "statRessorts": "Ressorts",
+      "statOpenRounds": "Offene Runden",
+      "statBudgetSoll": "Budget (Soll)",
+      "statAwaitingDelivery": "Offene Lieferungen",
+      "openRoundsTitle": "Offene Planungsrunden",
+      "allRounds": "Alle Runden",
+      "noOpenRoundsTitle": "Keine offene Runde",
+      "noOpenRoundsDescription": "Sobald eine Planungsrunde geöffnet ist, kannst du hier direkt Materialwünsche einreichen.",
+      "submitWish": "Wunsch einreichen",
+      "openRoundPage": "Zur Runde",
+      "otherRoundsTitle": "Geplant & abgeschlossen",
+      "quickLinksTitle": "Schnellzugriff",
+      "linkRessorts": "Ressorts verwalten",
+      "wishDialogTitle": "Wunsch — {name}",
+      "wishDialogClosed": "Diese Runde ist nicht mehr offen."
     },
     "planung": {
       "title": "Planung",

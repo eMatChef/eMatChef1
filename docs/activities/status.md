@@ -2,26 +2,39 @@
 
 Übersicht aller Status einer **Aktivität** (Anlass / Event / Lager) in eMatChef.
 
-**Quelle im Code:** `backend/src/Entity/Activity.php` (`ALL_STATUSES`, `STATUS_TRANSITIONS`, `TRANSITION_PERMISSIONS`)  
-**Anzeige (DE):** `frontend/src/locales/de.json` → `activities.status.*`
+**Quelle im Code (Ziel):** `backend/src/Entity/Activity.php` (`ALL_STATUSES`, `STATUS_TRANSITIONS`, `TRANSITION_PERMISSIONS`)  
+**Anzeige (DE):** `frontend/src/locales/de.json` → `activities.status.*`  
+**Architektur:** [newUI/ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md) — Stepper = Activity-Status; Material unabhängig (`quantity_*`)
 
-**Stand:** Mai 2026
+**Stand:** Juni 2026 · **Umgesetzt** (neue Status `transport_out`, `transport_back`, `storing`; `pack_journey_step` entfernt; Stepper leitet aus `activity.status` ab)
 
 ---
 
 ## Status-Liste
+
+### Freigabe & Abschluss
 
 | Technischer Key | Anzeige (DE) | Bedeutung |
 |-----------------|--------------|-----------|
 | `draft` | Entwurf | Aktivität angelegt, Material/Details noch bearbeitbar, nicht eingereicht |
 | `submitted` | Eingereicht | Gruppe/Ersteller hat eingereicht; wartet auf Freigabe durch MW/DC |
 | `approved` | Bestätigt | Material freigegeben; Packen kann starten |
-| `packing` | Wird gepackt | Packliste wird bearbeitet (Material wird gepackt / in Kisten gelegt) |
-| `packed` | Gepackt | Packen abgeschlossen; Material bereit für Ausgabe ans Event |
-| `at_event` | Am Event | Material ist bei der Gruppe / am Anlass |
-| `returned` | Retour | Gruppe hat retourniert; MW/DC prüft und räumt ins Lager ein |
-| `completed` | Abgeschlossen | Alles erledigt (Retour verarbeitet, Abrechnung finalisiert) |
+| `completed` | Abgeschlossen | Vorgang abgeschlossen (Einlagerung, Meldungen, Buchhaltung) |
 | `cancelled` | Storniert | Aktivität abgebrochen |
+
+### Pack & Event
+
+| Technischer Key | Anzeige (DE) | Stepper (Journey-UI) | Bedeutung |
+|-----------------|--------------|----------------------|-----------|
+| `packing` | Wird gepackt | `pack` | Packliste wird bearbeitet |
+| `packed` | Gepackt | — | Packen abgeschlossen; bereit für Transport/Ausgabe |
+| `transport_out` | Transport hin | `transport_out` | Logistics: Material unterwegs zum Anlass |
+| `at_event` | Am Anlass | `issue` *(UI-Label)* | Material am Event / Ausgabe-Phase |
+| `transport_back` | Transport zurück | `transport_back` | Logistics: Rücktransport ins Lager |
+| `returned` | Retour | `return` | Gruppe hat abgegeben |
+| `storing` | Einlagern | `store` | MW lagert Material ins Regal |
+
+**Quick** (`activity`, `external`): `transport_out` und `transport_back` entfallen im Workflow — siehe [Übergänge](#pack-event-logistics-vs-quick).
 
 ---
 
@@ -36,38 +49,57 @@ Einheitlich in `frontend/src/styles/activity-status.css` (Dashboard, Aktivitäte
 | `approved` | Grün | Bestätigt |
 | `packing` | Orange | Wird gepackt |
 | `packed` | Primary (Grün) | Gepackt |
-| `at_event` | Dunkelgrün | Am Event |
+| `transport_out` | *(noch zu definieren)* | Transport hin |
+| `at_event` | Dunkelgrün | Am Anlass |
+| `transport_back` | *(noch zu definieren)* | Transport zurück |
 | `returned` | Türkis | Retour |
+| `storing` | *(noch zu definieren)* | Einlagern |
 | `completed` | Grau | Abgeschlossen |
 | `cancelled` | Rot | Storniert |
-
-Transport-Stufen (`transport_to`, `transport_back`) sind **Pack-Pipeline**, keine Aktivitäts-Status — siehe [material-pipeline.md](./material-pipeline.md).
 
 ---
 
 ## Typischer Happy Path
 
+### Quick (`activity` / `external`)
+
 ```
-Entwurf → Eingereicht → Bestätigt → Wird gepackt → Gepackt → Am Event → Retour → Abgeschlossen
- draft  →  submitted  →  approved  →   packing   →  packed  → at_event → returned → completed
+… → Wird gepackt → Gepackt → Am Anlass → Retour → Einlagern → Abgeschlossen
+     packing      packed    at_event    returned  storing    completed
+```
+
+### Logistics (`camp` / `event`)
+
+```
+… → Gepackt → Transport hin → Am Anlass → Transport zurück → Retour → Einlagern → Abgeschlossen
+     packed   transport_out  at_event   transport_back      returned storing    completed
 ```
 
 ```mermaid
 flowchart LR
-  draft --> submitted
-  submitted --> approved
-  approved --> packing
-  packing --> packed
-  packed --> at_event
-  at_event --> returned
-  returned --> completed
+  subgraph quick [Quick]
+    packing --> packed
+    packed --> at_event
+    at_event --> returned
+    returned --> storing
+    storing --> completed
+  end
+  subgraph logistics [Logistics]
+    packing2[packing] --> packed2[packed]
+    packed2 --> transport_out
+    transport_out --> at_event2[at_event]
+    at_event2 --> transport_back
+    transport_back --> returned2[returned]
+    returned2 --> storing2[storing]
+    storing2 --> completed2[completed]
+  end
 ```
 
 ---
 
 ## Erlaubte Übergänge
 
-Aus `Activity::STATUS_TRANSITIONS`:
+### Freigabe (unverändert)
 
 | Von | Nach (erlaubt) |
 |-----|----------------|
@@ -75,75 +107,104 @@ Aus `Activity::STATUS_TRANSITIONS`:
 | `submitted` | `approved`, `packing`, `cancelled` |
 | `approved` | `packing`, `submitted` (Zurückweisung), `cancelled` |
 | `packing` | `packed`, `cancelled` |
-| `packed` | `at_event`, `packing` (zurück), `cancelled` |
-| `at_event` | `returned` |
-| `returned` | `completed` |
+
+### Pack & Event — Logistics
+
+| Von | Nach (erlaubt) |
+|-----|----------------|
+| `packed` | `transport_out`, `packing` (zurück), `cancelled` |
+| `transport_out` | `at_event`, `packed` (Korrektur) |
+| `at_event` | `transport_back`, `packed` (Korrektur, MW) |
+| `transport_back` | `returned`, `at_event` (Korrektur, MW) |
+| `returned` | `storing`, `at_event` (Korrektur, MW) |
+| `storing` | `completed`, `returned` (Korrektur, MW) |
 | `completed` | — (Endstatus) |
-| `cancelled` | — (Endstatus) |
+
+### Pack & Event — Quick
+
+| Von | Nach (erlaubt) |
+|-----|----------------|
+| `packed` | `at_event`, `packing` (zurück), `cancelled` |
+| `at_event` | `returned`, `packed` (Korrektur, MW) |
+| `returned` | `storing`, `at_event` (Korrektur, MW) |
+| `storing` | `completed`, `returned` (Korrektur, MW) |
+
+**Hinweis:** Die exakte Matrix in `Activity::STATUS_TRANSITIONS` wird bei der Code-Migration angepasst. Bis dahin gilt der **bestehende** Code (ohne `transport_out`, `transport_back`, `storing`).
+
+### Transport-Touren & Ankunft (Logistics)
+
+| Journey-Schritt | Touren-Aktion | Pipeline |
+|-----------------|---------------|----------|
+| `transport_out` | Planen, zuordnen, **Abfahren** (`in_transit`) | Checkliste: `packed` → `transport_to` |
+| `issue` (Am Anlass) | **Angekommen** pro Tour oder Bulk | `transport_to` → `issued` |
+| `transport_back` | Rückfahrt planen, abfahren, ankommen | `issued` → `transport_back` |
+
+Tour-Status: `planned` → `in_transit` → `arrived`. Ankunft bucht Pipeline — nicht die Offen/Erledigt-Checkliste auf Am Anlass.
 
 ### Besondere Wege
 
-- **`submitted` → `packing`:** Annehmen und direkt mit Packen beginnen (ohne Zwischenstatus «Bestätigt»).
-- **`approved` → `submitted`:** Zurückweisung durch Materialwart/DC (mit Kommentar möglich).
+- **`submitted` → `packing`:** Annehmen und direkt mit Packen beginnen.
+- **`approved` → `submitted`:** Zurückweisung durch Materialwart/DC.
 - **`packed` → `packing`:** Zurück zum Packen (Korrektur).
-- **`draft` / mehrere Stufen → `cancelled`:** Storno.
+- **Teilausgabe:** Status `at_event` auch wenn Rest noch `quantity_packed` hat — Material unabhängig, siehe [material-pipeline.md](./material-pipeline.md).
 
 ### Quick-Modus (Typ «activity») vs. Lager/Event vs. Extern
 
 | Aspekt | Typ `activity` | Typ `camp` / `event` | Typ `external` |
 |--------|------------------|----------------------|----------------|
-| **Anlegen** | alle Department-Mitglieder (Gruppenmitglied `u` nur «Aktivität») | User (`u`), Gruppenchef, Leiter 1–3 | **nur Materialwart** |
-| **Start-Status** | Entwurf (Quick: Auto-Einreichung möglich) | **immer Entwurf** | Entwurf |
-| **Material im Entwurf** | Gruppe + Untergruppen | Gruppe + Untergruppen | MW |
-| **Einreichen** | Ersteller, Gruppenchef, DC, MW | **nur Ersteller oder Gruppenchef** | **nur MW** |
-| **Nach Einreichung Material** | nur MW/DC (bis «Am Event») | nur MW/DC (bis «Am Event») | nur MW/DC |
-| Gruppenchef «Bestätigen» | entfällt — Material bei Einreichung final | `submitted` → `approved` (Leader/MW) | — |
-| MW-Aktion danach | «Packen starten» | «Bestätigen» / «Annehmen & Packen» | Packen / Ausgabe |
+| **Transport-Status** | entfällt | `transport_out`, `transport_back` | entfällt |
+| **Anlegen** | alle Department-Mitglieder | User, Gruppenchef, Leiter | nur MW |
+| **Einreichen** | Ersteller, Gruppenchef, DC, MW | Ersteller oder Gruppenchef | nur MW |
+| **Packen** | MW + Gruppe ab «gepackt» | MW packt; Gruppe ab «gepackt» | nur MW |
 
-Technisch: Frontend sendet weiterhin `submitted`; Backend setzt bei Typ `activity` automatisch `approved` und benachrichtigt den MW.
+Technisch Quick: Frontend sendet `submitted`; Backend setzt bei Typ `activity` oft direkt `approved`.
 
 ---
 
 ## Wer darf welchen Übergang?
 
-Rollen-Kontext (Auszug aus `TRANSITION_PERMISSIONS`):
+Rollen-Kontext (Ziel — Auszug; Details bei Migration in `TRANSITION_PERMISSIONS`):
 
 | Übergang | Typische Berechtigte |
 |----------|----------------------|
-| `draft` → `submitted` | Ersteller, Gruppenleiter, DC, MW |
-| `submitted` → `approved` / `packing` | MW, DC, Gruppenleiter, Org-Admin, Super-Admin |
-| `approved` → `packing` | MW, Org-Admin, Super-Admin |
-| `approved` → `submitted` | MW, Org-Admin, Super-Admin (Zurückweisung) |
 | `packing` → `packed` | MW, Org-Admin, Super-Admin |
-| `packed` → `at_event` | MW, Org-Admin, Super-Admin, **Ersteller, Gruppenmitglied** |
-| `at_event` → `returned` | MW, Org-Admin, Super-Admin, **Ersteller, Gruppenmitglied** |
-| `returned` → `completed` | MW, Org-Admin, Super-Admin |
-| → `cancelled` | je nach Stufe MW/DC/Leiter/… (siehe Backend) |
+| `packed` → `at_event` / `transport_out` | MW, Gruppe/Ersteller (Profil) |
+| `transport_out` → `at_event` | MW, Gruppe/Ersteller |
+| `at_event` → `transport_back` | MW, Gruppe/Ersteller |
+| `transport_back` → `returned` | MW, Gruppe/Ersteller |
+| `returned` → `storing` | MW, DC |
+| `storing` → `completed` | MW, Org-Admin, Super-Admin |
 
-**Storno ab «Wird gepackt»:** Gruppe/User sehen keinen Storno-Button mehr (`packing` und höher). MW/DC erhalten eine Warnung: Pack-Buchungen werden zurückgesetzt, Material gilt wieder als im Lager — nur stornieren, wenn nichts ans Event ausgegeben wurde. Ab `at_event` ist Storno ohnehin nicht mehr möglich.
+**Gruppe** ist bei Ausgabe, Transport und Retour aktiv. **Abschliessen** obliegt dem Materialwart/DC.
 
-**Gruppe** (Ersteller/Mitglieder) ist vor allem bei **Ausgabe ans Event** und **Retour erfassen** aktiv. **Abschliessen** (`returned` → `completed`) obliegt dem Materialwart/DC.
+---
+
+## Journey-Stepper = Activity-Status
+
+Der Material-Journey-Stepper ([newUI/](./newUI/)) zeigt **dieselbe** Workflow-Achse wie `activity.status`:
+
+- **Kein** separates Feld `pack_journey_step` (entfernt).
+- Stepper-Klick = nur Navigation (URL), kein Status-Schreiben.
+- Primary-Button unten = derselbe Übergang wie Header-Button (`PATCH /status`).
+
+Details: [ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md)
 
 ---
 
 ## Abgrenzung: Aktivitäts-Status vs. Material-Pipeline
 
-Zwei **getrennte** Ebenen — bewusst nicht zusammengelegt:
+Zwei **getrennte** Ebenen:
 
-- **Aktivität** (`draft` … `completed`): Freigabe, Rollen, Inbox
-- **Material** (`ordered` … `quantity_stored`): physische Position pro Stück/Menge
+| Ebene | Frage | Beispiel |
+|-------|--------|----------|
+| **Aktivität** | Workflow-Phase, Rollen, Inbox | `at_event` |
+| **Material** | Wo liegen wie viele Stück? | 4× `quantity_issued`, 2× `quantity_packed` |
 
 Vollständige Beschreibung: **[material-pipeline.md](./material-pipeline.md)**
 
-Kurz: In `draft` / `submitted` / `approved` ist Material nur **bestellt** (`ordered`). Die Pack-Pipeline startet erst ab `packing`. Bei `returned` hat die Gruppe retourniert; **Eingelagert** (`quantity_stored`) ist eine eigene MW-Stufe. **Verfügbarkeit** für andere Anlässe folgt der Pipeline (frei pro eingelagerter Menge), nicht `completed`.
+**Abschluss-Blocker** (`storing` → `completed`): Material nicht vollständig `stored`; offene Meldungen; Werkstatt; Buchhaltung. Direkt `returned` → `completed` ist nicht mehr vorgesehen — zuerst `storing`.
 
-**Abschluss-Blocker** (`returned` → `completed`): Material nicht vollständig eingelagert; offene Verlust-/Reparatur-/Schaden-Meldungen; offene Werkstatt-Tickets; **alle** ausstehenden Buchhaltungs-Aufträge der Aktivität (keine Sammel-Endabrechnung).
-
-**Buchhaltung ab Retour** (`ActivityAccountingCostService`): mehrere `accounting_acquisition_follow_up` pro Aktivität — `activity_consumption` (Verbrauch gesammelt), `activity_replenishment` (**pro einreichendem Department**, Auftrag im jeweiligen Dep. — **erst bei Status `completed`**, Nachkauf-Preise sind vorher nur unter Tab «Kosten» sichtbar), `activity_rental` (nur external), `activity_workshop` (pro Ticket, **Buchhaltungs-Department = Owner des Materials**). Verrechnungsziel in der API: `charge_target` — `group` (intern Verbrauch), `department` (Werkstatt intern / Nachlieferung), `external_customer` (Vermietung, Werkstatt/Reparatur extern). Kein separater `activity_loss`-Posten. Melder (`reported_by_display_name`) und Kunde/Material-Dep. werden für Zuordnung in der Buchhaltung mitgeliefert. Liste aller Aufträge einer Aktivität: `GET /api/activities/{id}/accounting-followups`. Details: [material-pipeline.md](./material-pipeline.md#regeln-ziel).
-
-**UI bei `returned`:** Abschluss-Checkliste «Materialabschluss» nur für **MW/DC** (Materialwart, Depchef) sichtbar (`completion_blockers` aus `GET /api/activities/{id}/transitions`) — Einlagern, Meldungen, Werkstatt, Buchhaltung mit Sprüngen zu Packliste / Issues / Kosten / Werkstatt. Gruppe/User/L1–L3 sehen die Karte nicht.
-
-Details Pack-Workflow (Geräte): [devices/pack-workflow.md](../devices/pack-workflow.md)
+**UI bei `returned` / `storing`:** Abschluss-Checkliste für MW/DC (`completion_blockers` aus `GET /api/activities/{id}/transitions`).
 
 ---
 
@@ -152,11 +213,14 @@ Details Pack-Workflow (Geräte): [devices/pack-workflow.md](../devices/pack-work
 Status setzen: `PATCH /api/activities/{id}/status`  
 Verlauf: `GET /api/activities/{id}/history` (Einträge z. B. `status_changed`)
 
+**Deprecated (Ziel):** `PATCH /api/activities/{id}/pack-journey-step`
+
 ---
 
 ## Siehe auch
 
-- [Material-Pipeline](./material-pipeline.md) (Bestellung vs. Packliste, Quick vs. Logistics)
-- [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md) (Packliste: Tabs, Kistencheck, Rollen)
-- [Pack-Workflow (Geräte)](../devices/pack-workflow.md)
-- [Nachrichtenzentrale](../nachrichtenzentrale.md) (Benachrichtigungen bei Statuswechsel)
+- [ADR Workflow-Layers](./newUI/ADR-workflow-layers.md)
+- [Material-Pipeline](./material-pipeline.md)
+- [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md)
+- [Material-Journey UI](./newUI/README.md)
+- [Nachrichtenzentrale](../nachrichtenzentrale.md)

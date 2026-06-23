@@ -27,7 +27,6 @@ use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
-use App\Service\ActivityPackJourneyService;
 use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
 use App\Service\InboxMessageService;
@@ -62,7 +61,6 @@ class ActivityController extends AbstractController
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
         private ActivitySharedVenueService $sharedVenueService,
-        private ActivityPackJourneyService $activityPackJourney,
     ) {}
 
     private function getActorUserId(): ?string
@@ -1424,15 +1422,19 @@ class ActivityController extends AbstractController
             $newStatus = Activity::STATUS_APPROVED;
         }
 
-        // 2. Transition erlaubt?
-        if (!$isQuickAutoApprove && !$activity->canTransitionTo($newStatus)) {
-            $allowed = Activity::STATUS_TRANSITIONS[$oldStatus] ?? [];
+        // 2. Transition erlaubt? (profilabhängig filtern)
+        $allowedTargets = Activity::filterTransitionTargets(
+            $oldStatus,
+            $activity->getType(),
+            Activity::STATUS_TRANSITIONS[$oldStatus] ?? [],
+        );
+        if (!$isQuickAutoApprove && !\in_array($newStatus, $allowedTargets, true)) {
             return new JsonResponse([
                 'error' => sprintf(
                     'Übergang von "%s" nach "%s" ist nicht erlaubt. Erlaubte Übergänge: %s',
                     $oldStatus,
                     $newStatus,
-                    implode(', ', $allowed) ?: 'keine'
+                    implode(', ', $allowedTargets) ?: 'keine'
                 )
             ], 422);
         }
@@ -1473,10 +1475,6 @@ class ActivityController extends AbstractController
         $activity->setUpdatedAt(new \DateTime());
         $activity->applyStatusTimestamp($newStatus);
 
-        $canManageMaterials = $user instanceof User
-            && $this->activityAccess->canUserEditPackList($user, $activity);
-        $this->activityPackJourney->syncStepOnStatusChange($activity, $newStatus, $canManageMaterials);
-
         // 5. Spezialfall: Zurückweisung (approved → submitted) mit Kommentar
         if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
             $activity->setRejectionComment($comment);
@@ -1500,8 +1498,11 @@ class ActivityController extends AbstractController
         if (in_array($newStatus, [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
             Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
             Activity::STATUS_CANCELLED,
         ], true)) {
             $this->activityItemPipelineStatus->syncForActivity($activity);
@@ -1545,7 +1546,7 @@ class ActivityController extends AbstractController
 
         if (
             $newStatus === Activity::STATUS_AT_EVENT
-            && $oldStatus === Activity::STATUS_PACKED
+            && $oldStatus !== Activity::STATUS_AT_EVENT
         ) {
             $this->activityUserNotifications->notifyStatus($activity, $user, 'activity_at_event');
         }
@@ -1574,9 +1575,7 @@ class ActivityController extends AbstractController
     }
 
     /**
-     * Material-Journey: nächsten Pack-Schritt freischalten (Button «Weiter zu …»).
-     *
-     * Body: { "step": "issue" }
+     * @deprecated Stepper = activity.status — nutze PATCH /status. Mappt Journey-Step auf Status-Übergang.
      */
     #[Route('/{id}/pack-journey-step', name: 'advance_pack_journey_step', methods: ['PATCH'])]
     #[IsGranted('ROLE_USER')]
@@ -1587,32 +1586,32 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
         }
 
-        $user = $this->getUser();
-        if (!$user instanceof User) {
-            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
-        }
-        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
-            return new JsonResponse(['error' => 'Keine Berechtigung für die Packliste'], 403);
-        }
-
         $data = json_decode($request->getContent(), true);
         $targetStep = trim((string) ($data['step'] ?? $data['pack_journey_step'] ?? ''));
-        if ($targetStep === '') {
-            return new JsonResponse(['error' => 'Schritt fehlt (step)'], 400);
+        $targetStatus = match ($targetStep) {
+            'transport_out' => Activity::STATUS_TRANSPORT_OUT,
+            'issue' => Activity::STATUS_AT_EVENT,
+            'transport_back' => Activity::STATUS_TRANSPORT_BACK,
+            'return' => Activity::STATUS_RETURNED,
+            'store' => Activity::STATUS_STORING,
+            default => null,
+        };
+        if ($targetStatus === null) {
+            return new JsonResponse(['error' => 'Ungültiger Schritt — bitte PATCH /status verwenden'], 400);
         }
 
-        $canManageMaterials = $this->activityAccess->canUserEditPackList($user, $activity);
-        $error = $this->activityPackJourney->advanceToStep($activity, $targetStep, $canManageMaterials);
-        if ($error !== null) {
-            return new JsonResponse(['error' => $error], 422);
-        }
+        $proxyRequest = Request::create(
+            $request->getUri(),
+            'PATCH',
+            [],
+            $request->cookies->all(),
+            $request->files->all(),
+            $request->server->all(),
+            json_encode(['status' => $targetStatus], \JSON_THROW_ON_ERROR),
+        );
+        $proxyRequest->headers->replace($request->headers->all());
 
-        $this->createHistoryEntry($activity, 'pack_journey_step_advanced', [
-            'pack_journey_step' => $targetStep,
-        ]);
-        $this->entityManager->flush();
-
-        return new JsonResponse($this->serializeActivity($activity, true, $user));
+        return $this->changeStatus($id, $proxyRequest);
     }
 
     /**
@@ -1837,7 +1836,11 @@ class ActivityController extends AbstractController
         }
 
         $currentStatus = $activity->getStatus();
-        $possibleTransitions = Activity::STATUS_TRANSITIONS[$currentStatus] ?? [];
+        $possibleTransitions = Activity::filterTransitionTargets(
+            $currentStatus,
+            $activity->getType(),
+            Activity::STATUS_TRANSITIONS[$currentStatus] ?? [],
+        );
 
         $completionBlockers = $currentStatus !== Activity::STATUS_COMPLETED
             ? $this->getCompletionBlockers($activity)
@@ -1874,6 +1877,7 @@ class ActivityController extends AbstractController
 
         if (
             $currentStatus === Activity::STATUS_RETURNED
+            || $currentStatus === Activity::STATUS_STORING
             || in_array(Activity::STATUS_COMPLETED, $possibleTransitions, true)
         ) {
             $payload['completion_blockers'] = $completionBlockers;
@@ -1926,7 +1930,14 @@ class ActivityController extends AbstractController
 
         // activity / camp / event: Ersteller/Gruppe «gepackt → am Event» und «am Event → Retour»
         $handoffKey = $fromStatus . '->' . $toStatus;
-        if (\in_array($handoffKey, ['packed->at_event', 'at_event->returned'], true)) {
+        if (\in_array($handoffKey, [
+            'packed->at_event',
+            'packed->transport_out',
+            'transport_out->at_event',
+            'at_event->transport_back',
+            'at_event->returned',
+            'transport_back->returned',
+        ], true)) {
             if (\in_array($activity->getType() ?? '', ['activity', 'camp', 'event'], true)
                 && $this->activityAccess->canUserOperateActivityPackHandoff($user, $activity)) {
                 return true;
@@ -2036,6 +2047,24 @@ class ActivityController extends AbstractController
         return 'Berechtigung fehlt. Benötigt: ' . implode(' oder ', $roleLabels);
     }
 
+    /** @deprecated API-Kompatibilität — Stepper leitet aus activity.status ab */
+    private function legacyJourneyStepFromStatus(Activity $activity): ?string
+    {
+        $status = $activity->getStatus();
+        $logistics = Activity::usesLogisticsWorkflow($activity->getType());
+
+        return match ($status) {
+            Activity::STATUS_PACKING => 'pack',
+            Activity::STATUS_PACKED => $logistics ? 'transport_out' : 'issue',
+            Activity::STATUS_TRANSPORT_OUT => 'transport_out',
+            Activity::STATUS_AT_EVENT => $logistics ? 'issue' : 'issue',
+            Activity::STATUS_TRANSPORT_BACK => 'transport_back',
+            Activity::STATUS_RETURNED => 'return',
+            Activity::STATUS_STORING => 'store',
+            default => null,
+        };
+    }
+
     /**
      * Status-Label für die API-Response (Zustandsbeschreibung)
      */
@@ -2047,8 +2076,11 @@ class ActivityController extends AbstractController
             Activity::STATUS_APPROVED  => 'Bestätigt',
             Activity::STATUS_PACKING   => 'Wird gepackt',
             Activity::STATUS_PACKED    => 'Gepackt',
-            Activity::STATUS_AT_EVENT  => 'Am Event',
+            Activity::STATUS_TRANSPORT_OUT => 'Transport hin',
+            Activity::STATUS_AT_EVENT  => 'Am Anlass',
+            Activity::STATUS_TRANSPORT_BACK => 'Transport zurück',
             Activity::STATUS_RETURNED  => 'Retour',
+            Activity::STATUS_STORING   => 'Einlagern',
             Activity::STATUS_COMPLETED => 'Abgeschlossen',
             Activity::STATUS_CANCELLED => 'Storniert',
             default => $status,
@@ -2078,8 +2110,14 @@ class ActivityController extends AbstractController
         if ($fromStatus === Activity::STATUS_AT_EVENT && $targetStatus === Activity::STATUS_PACKED) {
             return 'Zurück zu «Gepackt»';
         }
+        if ($fromStatus === Activity::STATUS_TRANSPORT_BACK && $targetStatus === Activity::STATUS_AT_EVENT) {
+            return 'Zurück zu «Am Anlass»';
+        }
         if ($fromStatus === Activity::STATUS_RETURNED && $targetStatus === Activity::STATUS_AT_EVENT) {
-            return 'Zurück zu «Am Event»';
+            return 'Zurück zu «Am Anlass»';
+        }
+        if ($fromStatus === Activity::STATUS_STORING && $targetStatus === Activity::STATUS_RETURNED) {
+            return 'Zurück zu «Retour»';
         }
 
         return match($targetStatus) {
@@ -2087,8 +2125,11 @@ class ActivityController extends AbstractController
             Activity::STATUS_APPROVED  => 'Bestätigen',
             Activity::STATUS_PACKING   => 'Packen starten',
             Activity::STATUS_PACKED    => 'Gepackt markieren',
-            Activity::STATUS_AT_EVENT  => 'Alles mitgenommen ans Event',
+            Activity::STATUS_TRANSPORT_OUT => 'Weiter zu Transport hin',
+            Activity::STATUS_AT_EVENT  => 'Weiter zu Am Anlass',
+            Activity::STATUS_TRANSPORT_BACK => 'Transport abgeschlossen',
             Activity::STATUS_RETURNED  => 'Retour erfassen',
+            Activity::STATUS_STORING   => 'Einlagern starten',
             Activity::STATUS_COMPLETED => 'Abschliessen',
             Activity::STATUS_CANCELLED => 'Stornieren',
             default => $this->getStatusLabel($targetStatus),
@@ -2210,7 +2251,7 @@ class ActivityController extends AbstractController
                 'unit_price' => $item->getUnitPrice(),
                 'line_total' => $item->getLineTotal(),
                 'price_type' => $item->getPriceType(),
-                'is_consumable' => $item->getIsConsumable(),
+                'is_consumable' => $item->getIsConsumable() || $mi->countsAsConsumableForActivity(),
                 'is_replenishment' => $item->getIsReplenishment(),
                 'created_by_user_id' => $item->getCreatedByUserId(),
                 'created_by_display_name' => $this->userDisplayName($item->getCreatedByUser()),
@@ -2294,7 +2335,7 @@ class ActivityController extends AbstractController
                 $activityItem->setNotes($itemData['notes'] ?? null);
 
                 // Verbrauchsmaterial + Preisfelder
-                $activityItem->setIsConsumable($materialItem->getIsConsumable());
+                $activityItem->setIsConsumable($materialItem->countsAsConsumableForActivity());
                 $activityItem->setIsReplenishment(false);
                 if (isset($itemData['unit_price'])) {
                     $activityItem->setUnitPrice($itemData['unit_price']);
@@ -2345,13 +2386,7 @@ class ActivityController extends AbstractController
             $this->entityManager->flush();
 
             // Packliste an Materialliste anbinden (PUT ersetzt alle Zeilen — ohne dies fehlen neue Positionen)
-            if (in_array($activity->getStatus(), [
-                Activity::STATUS_PACKING,
-                Activity::STATUS_PACKED,
-                Activity::STATUS_AT_EVENT,
-                Activity::STATUS_RETURNED,
-                Activity::STATUS_COMPLETED,
-            ], true)) {
+            if ($this->shouldResyncPackListOnMaterialChange($activity)) {
                 $this->resyncPackListFromActivityItems($activity);
                 $this->entityManager->flush();
             }
@@ -2482,7 +2517,7 @@ class ActivityController extends AbstractController
                 $activityItem->setPriority($data['priority'] ?? 'normal');
                 $activityItem->setNotes($data['notes'] ?? null);
                 // Verbrauchsmaterial + Preisfelder
-                $activityItem->setIsConsumable($materialItem->getIsConsumable());
+                $activityItem->setIsConsumable($materialItem->countsAsConsumableForActivity());
                 $activityItem->setIsReplenishment(false);
                 if (isset($data['unit_price'])) {
                     $activityItem->setUnitPrice($data['unit_price']);
@@ -2514,13 +2549,7 @@ class ActivityController extends AbstractController
             $activity->setUpdatedAt(new \DateTime());
 
             // PackItem synchronisieren (Summe aller ActivityItem-Zeilen pro Material)
-            if (in_array($activity->getStatus(), [
-                Activity::STATUS_PACKING,
-                Activity::STATUS_PACKED,
-                Activity::STATUS_AT_EVENT,
-                Activity::STATUS_RETURNED,
-                Activity::STATUS_COMPLETED,
-            ], true)) {
+            if ($this->shouldResyncPackListOnMaterialChange($activity)) {
                 $sumQty = (int) $this->entityManager->createQueryBuilder()
                     ->select('COALESCE(SUM(ai.quantity), 0)')
                     ->from(ActivityItem::class, 'ai')
@@ -2581,6 +2610,14 @@ class ActivityController extends AbstractController
         $deny = $this->assertCanModifyActivityMaterialItems($currentUser, $activity);
         if ($deny !== null) {
             return $deny;
+        }
+
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return new JsonResponse(['error' => 'Überschuss kann erst ab Retour entlastet werden.'], 422);
         }
 
         $data = json_decode($request->getContent(), true);
@@ -2686,13 +2723,7 @@ class ActivityController extends AbstractController
         $activity->setUpdatedAt(new \DateTime());
 
         $materialItem = $this->entityManager->getRepository(MaterialItem::class)->find($materialItemId);
-        if ($materialItem && in_array($activity->getStatus(), [
-            Activity::STATUS_PACKING,
-            Activity::STATUS_PACKED,
-            Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
-            Activity::STATUS_COMPLETED,
-        ], true)) {
+        if ($materialItem && $this->shouldResyncPackListOnMaterialChange($activity)) {
             $sumQty = (int) $this->entityManager->createQueryBuilder()
                 ->select('COALESCE(SUM(ai.quantity), 0)')
                 ->from(ActivityItem::class, 'ai')
@@ -2765,13 +2796,7 @@ class ActivityController extends AbstractController
         // total_price neu berechnen (nach flush, damit removed item nicht mehr gezählt wird)
         $this->recalculateTotalPrice($activity);
 
-        if (in_array($activity->getStatus(), [
-            Activity::STATUS_PACKING,
-            Activity::STATUS_PACKED,
-            Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
-            Activity::STATUS_COMPLETED,
-        ], true)) {
+        if ($this->shouldResyncPackListOnMaterialChange($activity)) {
             $packItemIdsForPurge = array_values(array_filter(array_map(
                 static fn (ActivityPackItem $pi) => $pi->getId(),
                 $this->entityManager->getRepository(ActivityPackItem::class)->findBy([
@@ -3372,7 +3397,7 @@ class ActivityController extends AbstractController
         $activityItem->setMaterialItem($materialItem);
         $activityItem->setQuantity($addQty);
         $activityItem->setPriority('normal');
-        $activityItem->setIsConsumable($materialItem->getIsConsumable());
+        $activityItem->setIsConsumable($materialItem->countsAsConsumableForActivity());
         $activityItem->setIsReplenishment(false);
         $this->entityManager->persist($activityItem);
         $activity->setItemCount($activity->getItemCount() + 1);
@@ -3464,24 +3489,31 @@ class ActivityController extends AbstractController
      */
     private function inferReplenishmentPipelineIncrement(ActivityPackItem $packItem, string $activityStatus): string
     {
-        if (!in_array($activityStatus, [
-            Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
-            Activity::STATUS_COMPLETED,
-        ], true)) {
-            return 'packed';
-        }
-        if ($packItem->getQuantityTransportTo() < $packItem->getQuantityPacked()) {
+        if ($activityStatus === Activity::STATUS_TRANSPORT_OUT) {
             return 'transport_to';
         }
-        if ($packItem->getQuantityIssued() < $packItem->getQuantityTransportTo()) {
+        if ($activityStatus === Activity::STATUS_AT_EVENT) {
             return 'issued';
         }
-        if ($packItem->getQuantityTransportBack() < $packItem->getQuantityIssued()) {
+        if ($activityStatus === Activity::STATUS_TRANSPORT_BACK) {
             return 'transport_back';
         }
-        if ($packItem->getQuantityReturned() < $packItem->getQuantityTransportBack()) {
+        if (in_array($activityStatus, [
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
             return 'returned';
+        }
+        if ($activityStatus === Activity::STATUS_PACKED) {
+            if ($packItem->getQuantityTransportTo() < $packItem->getQuantityPacked()) {
+                return 'transport_to';
+            }
+            if ($packItem->getQuantityIssued() < $packItem->getQuantityTransportTo()) {
+                return 'issued';
+            }
+
+            return 'packed';
         }
 
         return 'packed';
@@ -3737,7 +3769,7 @@ class ActivityController extends AbstractController
             $parent->setQuantity($addQty);
             $parent->setPriority($data['priority'] ?? 'normal');
             $parent->setNotes($data['notes'] ?? null);
-            $parent->setIsConsumable($combo->getIsConsumable());
+            $parent->setIsConsumable($combo->countsAsConsumableForActivity());
             $parent->setIsReplenishment(false);
             $this->applyItemProvenance($parent, $currentUser, $activity, $data);
             $this->entityManager->persist($parent);
@@ -3759,13 +3791,7 @@ class ActivityController extends AbstractController
         $this->recalculateTotalPrice($activity);
         $activity->setUpdatedAt(new \DateTime());
 
-        if (in_array($activity->getStatus(), [
-            Activity::STATUS_PACKING,
-            Activity::STATUS_PACKED,
-            Activity::STATUS_AT_EVENT,
-            Activity::STATUS_RETURNED,
-            Activity::STATUS_COMPLETED,
-        ], true)) {
+        if ($this->shouldResyncPackListOnMaterialChange($activity)) {
             $this->resyncPackListFromActivityItems($activity);
         }
 
@@ -3822,7 +3848,7 @@ class ActivityController extends AbstractController
             $child->setMaterialItem($componentMaterial);
             $child->setQuantity($childQty);
             $child->setPriority($itemData['priority'] ?? 'normal');
-            $child->setIsConsumable($componentMaterial->getIsConsumable());
+            $child->setIsConsumable($componentMaterial->countsAsConsumableForActivity());
             $child->setIsReplenishment(false);
             $child->setParentActivityItemId($parent->getId());
             $this->entityManager->persist($child);
@@ -3946,7 +3972,9 @@ class ActivityController extends AbstractController
         $lockedStatuses = [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
             Activity::STATUS_RETURNED,
             Activity::STATUS_COMPLETED,
         ];
@@ -4355,9 +4383,23 @@ class ActivityController extends AbstractController
         return $changes;
     }
 
+    /** Packliste nach Material-Änderung (add/sync/remove) — ab «Wird gepackt». */
+    private function shouldResyncPackListOnMaterialChange(Activity $activity): bool
+    {
+        return \in_array($activity->getStatus(), [
+            Activity::STATUS_PACKING,
+            Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_COMPLETED,
+        ], true);
+    }
+
     /**
      * Entwurf: wie bisher (isMaterialEditable + breite Draft-Regeln).
-     * Nach Einreichung: nur Host-MW/DC in den Status submitted…packed.
+     * Nach Einreichung: MW/DC bis vor «Retour».
      */
     private function assertCanModifyActivityMaterialItems(User $user, Activity $activity): ?JsonResponse
     {
@@ -4380,7 +4422,7 @@ class ActivityController extends AbstractController
     }
 
     /**
-     * Materialposition hinzufügen (POST): Entwurf, Host-MW/DC nach Einreichung, oder u–l3 vor «packing».
+     * Materialposition hinzufügen (POST): Entwurf, MW/DC bis vor «Retour», oder u–l3 vor «packing».
      */
     private function assertCanAddActivityMaterialItem(User $user, Activity $activity): ?JsonResponse
     {
@@ -4553,7 +4595,7 @@ class ActivityController extends AbstractController
             'color' => $activity->getColor(),
             'type' => $activity->getType(),
             'status' => $activity->getStatus(),
-            'pack_journey_step' => $activity->getPackJourneyStep(),
+            'pack_journey_step' => $this->legacyJourneyStepFromStatus($activity),
             'create_wizard_completed' => $activity->isCreateWizardCompleted(),
             'usage_start' => $activity->getUsageStart()?->format('c'),
             'usage_end' => $activity->getUsageEnd()?->format('c'),

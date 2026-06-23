@@ -16,7 +16,7 @@ import {
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
-import { resolveActiveJourneyStep } from '@/utils/materialJourneyNavigation'
+import { journeyStepsWithOpenWork, resolveActiveJourneyStep } from '@/utils/materialJourneyNavigation'
 import {
   emptyMaterialJourneyCratePeekMaps,
   loadMaterialJourneyCratePeekData,
@@ -61,6 +61,14 @@ export function useMaterialJourneyData(
       packContainers.value,
       containerItemsByContainerId.value,
     ),
+  )
+
+  const stepsWithOpenWork = computed((): JourneyStep[] =>
+    journeyStepsWithOpenWork(activeJourneyStep.value, profile.value, {
+      packItems: packItems.value,
+      packContainers: packContainers.value,
+      containerItemsByContainerId: containerItemsByContainerId.value,
+    }),
   )
 
   const steps = computed(() => journeyStepsForProfile(profile.value))
@@ -197,6 +205,7 @@ export function useMaterialJourneyData(
     /** @deprecated use activeJourneyStep */
     defaultJourneyStep: activeJourneyStep,
     journeyStepWorkComplete,
+    stepsWithOpenWork,
     positionCount,
     isEarlyPackPreview,
     canManageMaterials,

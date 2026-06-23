@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
 
@@ -20,6 +21,11 @@ const props = defineProps<{
   showCrateMoveForward?: boolean
   moveForwardQty?: number
   hasReassignTargets?: boolean
+  showIssueActions?: boolean
+  atEventQtyLabel?: string | null
+  atEventQtyLabelForLine?: (line: MaterialJourneyAccordionLine) => string | null
+  showIssueForAccordionLine?: (line: MaterialJourneyAccordionLine) => boolean
+  isConsumableForMaterialId?: (materialItemId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,6 +37,12 @@ const emit = defineEmits<{
   'update:moveBackQty': [qty: number]
   moveForward: [qty: number]
   'update:moveForwardQty': [qty: number]
+  consumed: []
+  loss: []
+  repair: []
+  lineConsumed: [line: MaterialJourneyAccordionLine]
+  lineLoss: [line: MaterialJourneyAccordionLine]
+  lineRepair: [line: MaterialJourneyAccordionLine]
 }>()
 
 const { t } = useI18n()
@@ -105,6 +117,7 @@ const kindIcon = computed(() => {
 })
 
 const qtyLabel = computed(() => {
+  if (props.atEventQtyLabel) return props.atEventQtyLabel
   if (isCrate.value && props.row.isDone) {
     return t('activities.materialJourney.row.crateDone')
   }
@@ -117,13 +130,19 @@ const qtyLabel = computed(() => {
   return t('activities.materialJourney.row.doneQty', { count: props.row.doneQty })
 })
 
-const isMainClickable = computed(
-  () =>
+const isInventoryPeekMode = computed(() => Boolean(props.atEventQtyLabel))
+
+const isMainClickable = computed(() => {
+  if (isInventoryPeekMode.value) {
+    return !props.readonly && (isCrate.value || isCombo.value)
+  }
+  return (
     !props.readonly &&
     !showMoveForwardControls.value &&
     props.row.canOpenSheet &&
-    (isCrate.value || isCombo.value),
-)
+    (isCrate.value || isCombo.value)
+  )
+})
 
 function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
   if (badge === 'physical_combo') return t('activities.materialJourney.badge.set')
@@ -139,12 +158,37 @@ function toggleExpanded(): void {
 
 function onMainActivate(): void {
   if (!isMainClickable.value) return
+  if (isInventoryPeekMode.value) {
+    toggleExpanded()
+    return
+  }
   emit('activate')
 }
 
 function onForwardMove(qty: number): void {
   emit('update:moveForwardQty', qty)
   emit('moveForward', qty)
+}
+
+function showLineIssueActions(line: MaterialJourneyAccordionLine): boolean {
+  return Boolean(props.showIssueForAccordionLine?.(line))
+}
+
+function lineQtyLabel(line: MaterialJourneyAccordionLine): string {
+  const custom = props.atEventQtyLabelForLine?.(line)
+  if (custom) return custom
+  return t('activities.packList.qtyInContainerLine', { n: line.quantity })
+}
+
+const comboIsConsumable = computed(() => {
+  const mid = props.row.packItem?.materialItemId
+  if (!mid) return false
+  if (props.row.packItem?.isConsumable === true) return true
+  return props.isConsumableForMaterialId?.(mid) === true
+})
+
+function lineIsConsumable(materialItemId: string): boolean {
+  return props.isConsumableForMaterialId?.(materialItemId) === true
 }
 
 function onSelectTarget(event: Event): void {
@@ -215,7 +259,12 @@ function onSelectTarget(event: Event): void {
           <span v-if="row.packCrateHint" class="material-journey-task-row__crate-flag">
             {{ row.packCrateHint }}
           </span>
-          <span v-if="packTargetActive" class="material-journey-crate-row__target-badge">
+          <span
+            v-if="packTargetSelectable"
+            class="material-journey-crate-row__target-badge"
+            :class="{ 'material-journey-crate-row__target-badge--active': packTargetActive }"
+            :aria-hidden="!packTargetActive"
+          >
             {{ t('activities.packList.crateTargetBadge') }}
           </span>
         </span>
@@ -223,6 +272,16 @@ function onSelectTarget(event: Event): void {
 
       <div class="material-journey-task-row__trailing material-journey-crate-row__trailing" @click.stop>
         <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>
+        <PackIssueQuickActions
+          v-if="showIssueActions && row.packItem && isCombo"
+          :is-consumable="comboIsConsumable"
+          :material-item-id="row.packItem.materialItemId"
+          :material-name="row.title"
+          :show-consumption="comboIsConsumable"
+          @consumed="emit('consumed')"
+          @loss="emit('loss')"
+          @repair="emit('repair')"
+        />
         <PackMoveControls
           v-if="showMoveForwardControls"
           direction="forward"
@@ -270,23 +329,45 @@ function onSelectTarget(event: Event): void {
         <li v-for="line in previewLines" :key="line.id" class="material-journey-crate-row__content-line">
           <div class="material-journey-crate-row__content-main">
             <span class="material-journey-crate-row__content-name">{{ line.name }}</span>
+          </div>
+          <div
+            v-if="showLineIssueActions(line) || showLineActions(line)"
+            class="material-journey-crate-row__content-trailing"
+            @click.stop
+          >
             <span class="material-journey-crate-row__content-qty text-muted">
-              {{ t('activities.packList.qtyInContainerLine', { n: line.quantity }) }}
+              {{ lineQtyLabel(line) }}
             </span>
+            <PackIssueQuickActions
+              v-if="showLineIssueActions(line) && line.materialItemId"
+              :is-consumable="lineIsConsumable(line.materialItemId)"
+              :material-item-id="line.materialItemId"
+              :material-name="line.name"
+              :show-consumption="lineIsConsumable(line.materialItemId)"
+              @consumed="emit('lineConsumed', line)"
+              @loss="emit('lineLoss', line)"
+              @repair="emit('lineRepair', line)"
+            />
+            <div v-if="showLineActions(line)" class="material-journey-crate-row__content-actions">
+              <EButton variant="secondary" size="small" @click.stop="emit('looseTake', line)">
+                {{ t('activities.materialJourney.row.looseTake') }}
+              </EButton>
+              <EButton
+                v-if="showReassignAction(line)"
+                variant="secondary"
+                size="small"
+                @click.stop="emit('reassign', line)"
+              >
+                {{ t('activities.materialJourney.row.reassignCrate') }}
+              </EButton>
+            </div>
           </div>
-          <div v-if="showLineActions(line)" class="material-journey-crate-row__content-actions" @click.stop>
-            <EButton variant="secondary" size="small" @click.stop="emit('looseTake', line)">
-              {{ t('activities.materialJourney.row.looseTake') }}
-            </EButton>
-            <EButton
-              v-if="showReassignAction(line)"
-              variant="secondary"
-              size="small"
-              @click.stop="emit('reassign', line)"
-            >
-              {{ t('activities.materialJourney.row.reassignCrate') }}
-            </EButton>
-          </div>
+          <span
+            v-else
+            class="material-journey-crate-row__content-qty text-muted"
+          >
+            {{ lineQtyLabel(line) }}
+          </span>
         </li>
       </ul>
       <p v-else class="material-journey-crate-row__content-empty text-muted">

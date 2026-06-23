@@ -10,8 +10,11 @@ import {
 import { postMovePackItem, type ActivityPackItem, type PackMoveSource } from '@/api/activityPackItems'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
 import {
+  buildMaterialJourneyAtEventInventory,
   buildMaterialJourneyTasks,
+  countOpenLooseComboMaterialTasks,
   filterMaterialJourneyTasksByTab,
+  resolveDefaultMaterialJourneyFilterTab,
   sortMaterialJourneyTasks,
   type MaterialJourneyFilterTab,
   type MaterialJourneyTaskRow,
@@ -20,6 +23,7 @@ import {
   isJourneyLooseMovesEnabledForStep,
   isJourneyReturnStep,
   isJourneyStoreStep,
+  isLogisticsTourArrivalStep,
   journeyStepToPackStage,
   materialJourneyShowsShelfLocation,
   type JourneyStep,
@@ -94,6 +98,11 @@ export function useMaterialJourneyTasks(options: {
       options.journeyStep.value,
       activeJourneyStep.value,
       options.profile.value,
+      {
+        packItems: options.packItems.value,
+        packContainers: options.packContainers.value,
+        containerItemsByContainerId: options.containerItemsByContainerId.value,
+      },
     ),
   )
 
@@ -202,31 +211,82 @@ export function useMaterialJourneyTasks(options: {
     showShelfLocation: materialJourneyShowsShelfLocation(options.journeyStep.value),
   }))
 
+  const isLogisticsAtEventInventory = computed(() =>
+    isLogisticsTourArrivalStep(options.journeyStep.value, options.profile.value),
+  )
+
   const allTasks = computed(() => {
+    if (isLogisticsAtEventInventory.value) {
+      const rows = buildMaterialJourneyAtEventInventory(options.packItems.value, {
+        packContainers: options.packContainers.value,
+        shellPackItemForContainer,
+        formatCrateLineCount: (count) =>
+          t('activities.materialJourney.row.crateLineCount', { count }),
+        cratePeekLineCount: (
+          container: ActivityPackContainer,
+          shellPackItem?: ActivityPackItem,
+        ) =>
+          countCratePeekLines(
+            container,
+            cratePeekCtx.value,
+            shellPackItem ?? null,
+            t,
+            options.packItems.value,
+            options.packContainers.value,
+          ),
+      })
+      return sortMaterialJourneyTasks(rows, options.journeyStep.value)
+    }
     const rows = buildMaterialJourneyTasks(options.packItems.value, taskBuildCtx.value)
     return sortMaterialJourneyTasks(rows, options.journeyStep.value)
   })
 
-  const visibleTasks = computed(() => filterMaterialJourneyTasksByTab(allTasks.value, filterTab.value))
+  const visibleTasks = computed(() => {
+    if (isLogisticsAtEventInventory.value) return allTasks.value
+    return filterMaterialJourneyTasksByTab(allTasks.value, filterTab.value)
+  })
+
+  const showFilterToolbar = computed(() => !isLogisticsAtEventInventory.value)
 
   const showByShelfFilter = computed(
     () => options.journeyStep.value === 'pack' && options.canManageMaterials.value,
   )
 
-  watch(
-    [options.journeyStep, showByShelfFilter],
-    ([step, showShelf]) => {
-      if (filterTab.value === 'byShelf' && (step !== 'pack' || !showShelf)) {
-        filterTab.value = 'open'
-      }
-    },
-  )
-
   const progress = computed(() => {
     const openCount = allTasks.value.filter((row) => row.isOpen).length
     const doneCount = allTasks.value.filter((row) => row.isDone).length
+    const openLooseComboCount = countOpenLooseComboMaterialTasks(allTasks.value)
     const total = openCount + doneCount
-    return { open: openCount, done: doneCount, total }
+    return { open: openCount, done: doneCount, openLooseCombo: openLooseComboCount, total }
+  })
+
+  function resolveDefaultFilterTab(): MaterialJourneyFilterTab {
+    return resolveDefaultMaterialJourneyFilterTab({
+      stepAccess: stepAccess.value,
+      openLooseComboCount: progress.value.openLooseCombo,
+      doneCount: progress.value.done,
+    })
+  }
+
+  watch(
+    options.journeyStep,
+    (step, previousStep) => {
+      const showShelf = showByShelfFilter.value
+      if (filterTab.value === 'byShelf' && (step !== 'pack' || !showShelf)) {
+        filterTab.value = resolveDefaultFilterTab()
+        return
+      }
+      if (previousStep === undefined || step !== previousStep) {
+        filterTab.value = resolveDefaultFilterTab()
+      }
+    },
+    { immediate: true },
+  )
+
+  watch(showByShelfFilter, (showShelf) => {
+    if (filterTab.value === 'byShelf' && !showShelf) {
+      filterTab.value = resolveDefaultFilterTab()
+    }
   })
 
   const activeCrateShellPackItem = computed(() =>
@@ -346,7 +406,11 @@ export function useMaterialJourneyTasks(options: {
     closeStoreShelve()
   }
 
-  async function moveTaskRow(row: MaterialJourneyTaskRow, source: PackMoveSource = 'tap'): Promise<void> {
+  async function moveTaskRow(
+    row: MaterialJourneyTaskRow,
+    source: PackMoveSource = 'tap',
+    qty?: number,
+  ): Promise<void> {
     if (!row.packItem || !row.canMove || row.maxForwardQty < 1) {
       showReadonlyToast(row)
       return
@@ -354,12 +418,17 @@ export function useMaterialJourneyTasks(options: {
     const activityId = options.activity.value?.id
     if (!activityId) return
 
+    const moveQty = Math.min(
+      row.maxForwardQty,
+      Math.max(1, Math.floor(Number(qty ?? row.maxForwardQty))),
+    )
+
     movingId.value = row.id
     lastFailedMove.value = null
     try {
       const updated = await postMovePackItem(activityId, row.packItem.id, {
         stage: getBackendStage(packStage.value),
-        quantity: row.maxForwardQty,
+        quantity: moveQty,
         source,
       })
       applyUpdatedItem(updated)
@@ -378,6 +447,9 @@ export function useMaterialJourneyTasks(options: {
   }
 
   function activateTaskRow(row: MaterialJourneyTaskRow, source: PackMoveSource = 'tap'): void {
+    if (isLogisticsAtEventInventory.value && (row.kind === 'combo' || row.kind === 'crate')) {
+      return
+    }
     if (row.kind === 'crate' && row.container) {
       if (!row.canOpenSheet) {
         showReadonlyToast(row)
@@ -635,8 +707,11 @@ export function useMaterialJourneyTasks(options: {
     isFutureStep,
     isPastStep,
     activeJourneyStep,
+    shellPackItemForContainer,
     visibleTasks,
     showByShelfFilter,
+    showFilterToolbar,
+    isLogisticsAtEventInventory,
     progress,
     activateTaskRow,
     crateSheetOpen,

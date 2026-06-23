@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { VTooltip } from 'vuetify/components'
+
 defineOptions({ name: 'PackMoveControls' })
 
 const props = withDefaults(
@@ -111,11 +113,29 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           @input="onInput"
           @keyup.enter="onMoveClick"
         />
+        <VTooltip
+          v-if="forwardTitle"
+          :text="forwardTitle"
+          location="top"
+          max-width="240"
+        >
+          <template #activator="{ props: tipProps }">
+            <button
+              v-bind="tipProps"
+              type="button"
+              class="btn-move-arrow btn-move-arrow--up btn-move-arrow--into-crate"
+              :disabled="disabled"
+              @click="onMoveClick"
+            >
+              <v-icon icon="mdi-arrow-up" size="12" />
+            </button>
+          </template>
+        </VTooltip>
         <button
+          v-else
           type="button"
           class="btn-move-arrow btn-move-arrow--up btn-move-arrow--into-crate"
           :disabled="disabled"
-          :title="forwardTitle"
           @click="onMoveClick"
         >
           <v-icon icon="mdi-arrow-up" size="12" />

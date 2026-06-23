@@ -13,6 +13,8 @@ export type MaterialJourneyAccordionLine = {
   name: string
   quantity: number
   materialItemId?: string | null
+  /** Am Anlass: quantity_issued der Zeile (Melden / Bestand). */
+  issuedQty?: number
   /** Noch in der Kiste gepackt — verschiebbar per «In andere Packkiste». */
   maxReassignQty?: number
   /** Position aus activity_pack_container_item — «Lose mitnehmen» / «In andere Packkiste». */
@@ -38,13 +40,21 @@ function linesFromContainerItems(
       name: (item.material_name ?? '').trim() || '—',
       quantity: accordionQtyForContainerLine(item),
       materialItemId: item.material_item_id,
+      issuedQty: item.quantity_issued ?? 0,
       maxReassignQty: item.quantity_packed ?? 0,
       actionable: (item.quantity_packed ?? 0) > 0,
     }))
 }
 
 function linesFromPeekSections(
-  sections: { lines: { id: string; materialName: string; quantity: number }[] }[],
+  sections: {
+    lines: {
+      id: string
+      materialName: string
+      quantity: number
+      materialItemId?: string | null
+    }[]
+  }[],
 ): MaterialJourneyAccordionLine[] {
   const out: MaterialJourneyAccordionLine[] = []
   for (const sec of sections) {
@@ -53,6 +63,8 @@ function linesFromPeekSections(
         id: line.id,
         name: line.materialName,
         quantity: line.quantity,
+        materialItemId: line.materialItemId ?? null,
+        issuedQty: line.quantity,
       })
     }
   }

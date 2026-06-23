@@ -332,6 +332,15 @@
                   </div>
                 </div>
 
+                <MaterialTypeToggles
+                  v-if="canManageMaterials && !isComboMaterialView"
+                  class="mt-4"
+                  :is-consumable="formData.is_consumable"
+                  :is-food="formData.is_food"
+                  @update:is-consumable="onConsumableFlagChange"
+                  @update:is-food="onFoodFlagChange"
+                />
+
                 <div v-if="canManageJsMaterial" class="checkbox-group mt-4">
                   <AutoSaveField
                     v-model="formData.is_js_material"
@@ -461,7 +470,7 @@
 
             <!-- Verpackungseinheit (bei Verbrauch/Essen siehe Kosten) -->
             <div
-              v-if="!isVirtualComboView && !material.is_consumable && !material.is_food && !isMeterStockMaterial"
+              v-if="!isVirtualComboView && !showConsumableFoodUi && !isMeterStockMaterial"
               class="section-card"
             >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
@@ -501,7 +510,7 @@
               </p>
             </div>
 
-            <div v-if="!isVirtualComboView && !material.is_consumable && !material.is_food" class="section-card">
+            <div v-if="!isVirtualComboView && !showConsumableFoodUi" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
@@ -536,13 +545,13 @@
               </div>
             </div>
 
-            <div v-if="!isVirtualComboView && (material.is_consumable || material.is_food)" class="section-card">
+            <div v-if="!isVirtualComboView && showConsumableFoodUi" class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionCosts') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.costsHint') }}</p>
-              <div v-if="material.is_consumable" class="costs-hint-banner">
+              <div v-if="formData.is_consumable || material.is_consumable" class="costs-hint-banner">
                 <span>{{ t('components.materialDetail.costsConsumableBanner') }}</span>
               </div>
-              <div v-if="material.is_food" class="costs-hint-banner costs-hint-banner--food">
+              <div v-if="formData.is_food || material.is_food" class="costs-hint-banner costs-hint-banner--food">
                 <span>{{ t('components.materialDetail.costsFoodBanner') }}</span>
               </div>
               <div class="form-grid">
@@ -589,7 +598,7 @@
                   </div>
                   <p class="form-hint">{{ t('components.materialDetail.hintRefPurchase') }}</p>
                 </div>
-                <div v-if="material.is_consumable" class="form-group">
+                <div v-if="formData.is_consumable || material.is_consumable" class="form-group">
                   <label>{{ t('components.materialDetail.labelMinStock') }} <span class="optional">{{ t('components.materialDetail.optionalParen') }}</span></label>
                   <input v-model.number="formData.min_stock" type="number" min="0" class="form-input" :placeholder="t('components.materialDetail.packSizePlaceholder')" />
                 </div>
@@ -1377,7 +1386,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Vermietung -->
-          <v-tabs-window-item v-if="!isVirtualComboView && !material.is_consumable && !material.is_food" value="rental" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!isVirtualComboView && !showConsumableFoodUi" value="rental" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
@@ -2598,6 +2607,7 @@ import { resolveBatchComboStorageContext } from '@/utils/batchComboStorageContex
 import StorageTreeView from '@/components/storage/StorageTreeView.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import ComboOptionsEditor from '@/components/material/ComboOptionsEditor.vue'
+import MaterialTypeToggles from '@/components/material/wizard/MaterialTypeToggles.vue'
 import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteInput.vue'
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
@@ -3371,6 +3381,8 @@ const formData = reactive({
   pack_size_width: '',
   pack_size_height: '',
   is_container: false,
+  is_consumable: false,
+  is_food: false,
   is_js_material: false,
   external_source: '',
   sale_price: null as number | null,
@@ -3473,6 +3485,17 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
     case 'is_container':
       if (m.tracking_type === 'bulk') payload.is_container = !!value
       break
+    case 'is_consumable':
+      payload.is_consumable = !!value
+      if (value) payload.is_food = false
+      break
+    case 'is_food':
+      payload.is_food = !!value
+      if (value) {
+        payload.is_consumable = false
+        payload.tracking_type = 'bulk'
+      }
+      break
     case 'is_js_material':
       if (canManageJsMaterial.value) {
         payload.is_js_material = !!value
@@ -3500,6 +3523,63 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
   }
 
   return payload
+}
+
+async function onConsumableFlagChange(enabled: boolean): Promise<void> {
+  formData.is_consumable = enabled
+  if (enabled) formData.is_food = false
+  await persistConsumableFoodFlags()
+}
+
+async function onFoodFlagChange(enabled: boolean): Promise<void> {
+  formData.is_food = enabled
+  if (enabled) formData.is_consumable = false
+  await persistConsumableFoodFlags()
+}
+
+async function persistConsumableFoodFlags(): Promise<void> {
+  if (!canManageMaterials.value || !material.value?.id) return
+
+  const nextConsumable = formData.is_consumable
+  const nextFood = formData.is_food
+
+  if (!nextConsumable && !nextFood) {
+    try {
+      const updated = await updateMaterial(props.materialId, {
+        is_consumable: false,
+        is_food: false,
+      })
+      applyMaterialSoftUpdate(updated)
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } }
+      toast.error(e.response?.data?.error || t('components.materialDetail.errSaveMaterial'))
+      populateFormData(material.value)
+    }
+    return
+  }
+
+  const sp = formData.sale_price
+  const rp = formData.reference_purchase_unit_chf
+  if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
+    toast.info(t('components.materialDetail.errConsumablePricesRequired'))
+    return
+  }
+
+  try {
+    const payload: Record<string, unknown> = {
+      is_consumable: nextConsumable,
+      is_food: nextFood,
+      sale_price: String(Number(sp)),
+      reference_purchase_unit_chf: String(Number(rp)),
+    }
+    if (nextFood) payload.tracking_type = 'bulk'
+    const updated = await updateMaterial(props.materialId, payload)
+    applyMaterialSoftUpdate(updated)
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('components.materialDetail.errSaveMaterial'))
+    populateFormData(material.value)
+  }
 }
 
 async function saveMaterialField(field: MaterialFormField, value: unknown): Promise<void> {
@@ -4075,16 +4155,32 @@ function pickFormFields(source: Record<string, unknown>, keys: readonly Material
 
 const manualSaveFieldKeys = computed((): MaterialFormField[] => {
   const keys: MaterialFormField[] = [...MANUAL_SAVE_FIELD_KEYS]
-  if (material.value?.is_consumable || material.value?.is_food) {
+  if (showConsumableFoodUi.value) {
     keys.push(...MANUAL_PACK_FIELD_KEYS)
   }
   return keys
 })
 
+const showConsumableFoodUi = computed(
+  () =>
+    formData.is_consumable ||
+    formData.is_food ||
+    material.value?.is_consumable === true ||
+    material.value?.is_food === true,
+)
+
+const hasPendingTypeFlagChanges = computed(
+  () =>
+    !!material.value &&
+    (formData.is_consumable !== !!material.value.is_consumable ||
+      formData.is_food !== !!material.value.is_food),
+)
+
 const hasManualUnsavedChanges = computed(() => {
   const keys = manualSaveFieldKeys.value
   const original = JSON.parse(originalFormData || '{}') as Record<string, unknown>
   return (
+    hasPendingTypeFlagChanges.value ||
     JSON.stringify(pickFormFields(formData, keys)) !== JSON.stringify(pickFormFields(original, keys))
   )
 })
@@ -4093,8 +4189,8 @@ const propertyBadgeText = computed(() => {
   const m = material.value
   if (!m) return ''
 
-  if (m.is_food) return t('components.materialDetail.badgeFood')
-  if (m.is_consumable) return t('components.materialDetail.badgeConsumable')
+  if (formData.is_food || m.is_food) return t('components.materialDetail.badgeFood')
+  if (formData.is_consumable || m.is_consumable) return t('components.materialDetail.badgeConsumable')
 
   const mt = m.material_type || 'physical'
 
@@ -4922,6 +5018,8 @@ function populateFormData(m: Material) {
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
   formData.pack_size_height = normalizeMaterialMetricInput(m.pack_size_height, 'cm') ?? ''
   formData.is_container = m.is_container ?? false
+  formData.is_consumable = m.is_consumable ?? false
+  formData.is_food = m.is_food ?? false
   formData.is_js_material = m.is_js_material || false
   formData.external_source = m.external_source || ''
   formData.sale_price = parseMaterialPriceNum(m.sale_price)
@@ -5033,6 +5131,12 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
       break
     case 'is_container':
       formData.is_container = m.is_container ?? false
+      break
+    case 'is_consumable':
+      formData.is_consumable = m.is_consumable ?? false
+      break
+    case 'is_food':
+      formData.is_food = m.is_food ?? false
       break
     case 'is_js_material':
       formData.is_js_material = m.is_js_material || false
@@ -6069,7 +6173,7 @@ async function submitAddToContainer() {
 }
 
 async function save() {
-  if (material.value.is_consumable || material.value.is_food) {
+  if (showConsumableFoodUi.value) {
     const sp = formData.sale_price
     const rp = formData.reference_purchase_unit_chf
     if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
@@ -6125,7 +6229,13 @@ async function save() {
       payload.external_source = formData.is_js_material ? (formData.external_source || 'js_ch') : null
     }
 
-    if (material.value.is_consumable || material.value.is_food) {
+    if (hasPendingTypeFlagChanges.value) {
+      payload.is_consumable = formData.is_consumable
+      payload.is_food = formData.is_food
+      if (formData.is_food) payload.tracking_type = 'bulk'
+    }
+
+    if (showConsumableFoodUi.value) {
       payload.sale_price =
         formData.sale_price != null && formData.sale_price > 0 ? String(formData.sale_price) : null
       payload.reference_purchase_unit_chf =
@@ -6133,18 +6243,13 @@ async function save() {
           ? String(formData.reference_purchase_unit_chf)
           : null
     }
-    if (material.value.is_consumable) {
+    if (formData.is_consumable || material.value.is_consumable) {
       payload.min_stock = formData.min_stock
     }
 
     const updated = await updateMaterial(props.materialId, payload)
     
-    originalFormData = JSON.stringify(formData)
-    syncSavedFormBaselines()
-    void nextTick(() => {
-      detailTabsStore.setTabDirty(props.materialId, 'material', props.departmentId, false)
-    })
-    emit('updated', updated)
+    applyMaterialSoftUpdate(updated)
     
     // History aktualisieren falls Tab aktiv
     if (activeTab.value === 'history') {

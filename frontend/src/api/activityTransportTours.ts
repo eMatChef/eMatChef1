@@ -2,6 +2,8 @@ import apiClient from './apiClient'
 
 export type TransportTourDirection = 'outbound' | 'inbound'
 
+export type TransportTourStatus = 'planned' | 'in_transit' | 'arrived'
+
 export type TransportTourLoadFit = 'ok' | 'heavy' | 'unknown'
 
 export interface TransportTourLoadSummary {
@@ -24,6 +26,7 @@ export interface ActivityTransportTour {
   activity_id: string
   label: string
   direction: TransportTourDirection
+  status: TransportTourStatus
   sort_order: number
   notes: string | null
   vehicle_id: string
@@ -40,6 +43,11 @@ export type TransportTourItemInput = {
   quantity?: number
 }
 
+function mapTourStatus(raw: unknown): TransportTourStatus {
+  if (raw === 'in_transit' || raw === 'arrived') return raw
+  return 'planned'
+}
+
 function mapTour(raw: Record<string, unknown>): ActivityTransportTour {
   const load = (raw.load_summary ?? {}) as Record<string, unknown>
   const itemsRaw = Array.isArray(raw.items) ? raw.items : []
@@ -48,6 +56,7 @@ function mapTour(raw: Record<string, unknown>): ActivityTransportTour {
     activity_id: String(raw.activity_id ?? ''),
     label: String(raw.label ?? ''),
     direction: (raw.direction === 'inbound' ? 'inbound' : 'outbound') as TransportTourDirection,
+    status: mapTourStatus(raw.status),
     sort_order: Number(raw.sort_order ?? 0),
     notes: raw.notes != null ? String(raw.notes) : null,
     vehicle_id: String(raw.vehicle_id ?? ''),
@@ -101,7 +110,12 @@ export async function createActivityTransportTour(
 export async function updateActivityTransportTour(
   activityId: string,
   tourId: string,
-  body: { label?: string; notes?: string; items?: TransportTourItemInput[] },
+  body: {
+    label?: string
+    notes?: string
+    status?: TransportTourStatus
+    items?: TransportTourItemInput[]
+  },
 ): Promise<ActivityTransportTour> {
   const { data } = await apiClient.patch<Record<string, unknown>>(
     `/api/activities/${activityId}/transport-tours/${tourId}`,
@@ -117,8 +131,43 @@ export async function deleteActivityTransportTour(
   await apiClient.delete(`/api/activities/${activityId}/transport-tours/${tourId}`)
 }
 
+export async function arriveActivityTransportTour(
+  activityId: string,
+  tourId: string,
+): Promise<ActivityTransportTour> {
+  const { data } = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/transport-tours/${tourId}/arrive`,
+  )
+  const tour = (data?.tour ?? data) as Record<string, unknown>
+  return mapTour(tour ?? {})
+}
+
+export async function arriveAllActivityTransportTours(
+  activityId: string,
+  direction: TransportTourDirection,
+): Promise<{ applied_units: number; updated_lines: number; tours_marked: number }> {
+  const { data } = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/transport-tours/arrive-all`,
+    { direction },
+  )
+  return {
+    applied_units: Number(data?.applied_units ?? 0),
+    updated_lines: Number(data?.updated_lines ?? 0),
+    tours_marked: Number(data?.tours_marked ?? 0),
+  }
+}
+
 export function directionForJourneyStep(step: string): TransportTourDirection | null {
-  if (step === 'transport_out') return 'outbound'
+  if (step === 'transport_out' || step === 'issue') return 'outbound'
   if (step === 'transport_back') return 'inbound'
+  return null
+}
+
+/** Touren-Planung (Zuordnung, Abfahrt) vs. Ankunft buchen. */
+export function transportTourUiModeForJourneyStep(
+  step: string,
+): 'plan' | 'arrival' | null {
+  if (step === 'transport_out' || step === 'transport_back') return 'plan'
+  if (step === 'issue') return 'arrival'
   return null
 }

@@ -22,7 +22,11 @@ import {
   type PackWorkflowContainerContext,
   type PackWorkflowListContext,
 } from '@/components/activities/packWorkflowRules'
-import { getStageRightQty, isPackForwardToEventStage } from '@/components/activities/packStageQuantities'
+import {
+  getStageRightQty,
+  isPackConfirmedStage,
+  isPackForwardToEventStage,
+} from '@/components/activities/packStageQuantities'
 import { isCrateShellPackItem, packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
 import { comboComponentsForJourneyContainer } from '@/composables/useMaterialJourneyCrateSections'
 import type { ComboComponent } from '@/api/materials'
@@ -51,16 +55,19 @@ function shouldShowPackContainerInJourneyList(
   return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
 }
 
-function shouldHideLooseShellForJourneyCrateRow(
+function shouldHideShellMaterialForJourneyCrateRow(
   pi: ActivityPackItem,
   ctx: MaterialJourneyTaskBuildContext,
 ): boolean {
-  if (!ctx.listCtx.showPackContainersUi || !isPackForwardToEventStage(ctx.packStage)) {
-    return false
-  }
+  if (!ctx.listCtx.showPackContainersUi) return false
   if (!isCrateShellPackItem(pi, ctx.packContainers)) return false
   const container = packShellContainerForPackItem(pi, ctx.packContainers)
   if (!container) return false
+
+  // Packen: Shell nur als Packkisten-Zeile, nie zusätzlich als lose Position.
+  if (isPackConfirmedStage(ctx.packStage)) return true
+
+  if (!isPackForwardToEventStage(ctx.packStage)) return false
   return shouldShowPackContainerInJourneyList(container, ctx)
 }
 
@@ -119,6 +126,28 @@ export type MaterialJourneyTaskBuildContext = {
   comboMaterialIdByContainerId?: Record<string, string>
   /** Regal/Fach in Zeilen-Untertitel (false ab Transport hin bis vor Retour). */
   showShelfLocation?: boolean
+  /** Packen: noch lose Sets/Artikel offen (Packkisten folgen diesem Signal). */
+  hasOpenLooseComboPackWork?: boolean
+}
+
+/** Offene Material-Positionen ohne Packkisten (lose + Phys.-Kombi). */
+export function hasOpenLooseComboMaterialTasks(rows: MaterialJourneyTaskRow[]): boolean {
+  return rows.some((row) => row.isOpen && row.kind !== 'crate')
+}
+
+export function countOpenLooseComboMaterialTasks(rows: MaterialJourneyTaskRow[]): number {
+  return rows.filter((row) => row.isOpen && row.kind !== 'crate').length
+}
+
+export function resolveDefaultMaterialJourneyFilterTab(options: {
+  stepAccess: 'editable' | 'readonly_past' | 'readonly_future'
+  openLooseComboCount: number
+  doneCount: number
+}): MaterialJourneyFilterTab {
+  if (options.stepAccess === 'readonly_past') return 'done'
+  if (options.stepAccess === 'readonly_future') return 'open'
+  if (options.openLooseComboCount === 0 && options.doneCount > 0) return 'done'
+  return 'open'
 }
 
 function taskBadges(pi: ActivityPackItem, ctx: MaterialJourneyTaskBuildContext): MaterialJourneyTaskBadge[] {
@@ -166,7 +195,7 @@ export function buildMaterialJourneyLooseTask(
     Boolean(ctx.canMoveBackItem?.(pi)) && isDone && maxMoveBackQty > 0
 
   const subtitleParts: string[] = []
-  if (ctx.showShelfLocation !== false) {
+  if (ctx.showShelfLocation !== false && isOpen) {
     const rack = packRackLabel(pi)
     if (rack) subtitleParts.push(rack)
     if (pi.storageSlotName?.trim()) subtitleParts.push(pi.storageSlotName.trim())
@@ -226,12 +255,20 @@ export function buildMaterialJourneyCrateTask(
       ctx.containerCtx,
       ctx.stageLeftItems,
     )
-  const isOpen = onConfirmedPackedRight
+  let isOpen = onConfirmedPackedRight
     ? false
     : shouldShowPackContainerInJourneyList(container, ctx)
-  const isDone =
+  let isDone =
     onConfirmedPackedRight ||
     (!isOpen && shouldShowContainerOnRightMirror(container.id, ctx.containerCtx))
+
+  // Packen: Kiste immer sichtbar — «offen» solange noch lose/Kombi-Material offen ist.
+  if (isPackConfirmedStage(ctx.packStage) && ctx.listCtx.showPackContainersUi) {
+    const hasLooseOpen = ctx.hasOpenLooseComboPackWork ?? false
+    isOpen = hasLooseOpen
+    isDone = !hasLooseOpen
+  }
+
   const openQty = isOpen ? Math.max(1, issueable) : 0
   const doneQty = isDone ? 1 : 0
   const shellPackItem = ctx.shellPackItemForContainer(container.id)
@@ -300,21 +337,144 @@ export function buildMaterialJourneyTasks(
 
   const looseRows = journeyItems
     .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
-    .filter((pi) => !shouldHideLooseShellForJourneyCrateRow(pi, ctx))
+    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, ctx))
     .map((pi) => buildMaterialJourneyLooseTask(pi, ctx))
     .filter((row) => row.isOpen || row.isDone)
 
   const comboRows = journeyItems
     .filter((pi) => isPhysicalComboPackItem(pi))
+    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, ctx))
     .map((pi) => buildMaterialJourneyComboTask(pi, ctx))
     .filter((row) => row.isOpen || row.isDone)
+
+  const hasOpenLooseComboPackWork =
+    looseRows.some((row) => row.isOpen) || comboRows.some((row) => row.isOpen)
+  const crateCtx: MaterialJourneyTaskBuildContext = {
+    ...ctx,
+    hasOpenLooseComboPackWork,
+  }
 
   const crateRows =
     ctx.listCtx.showPackContainersUi
       ? ctx.packContainers
-          .map((c) => buildMaterialJourneyCrateTask(c, ctx))
+          .map((c) => buildMaterialJourneyCrateTask(c, crateCtx))
           .filter((row) => row.isOpen || row.isDone)
       : []
+
+  return [...crateRows, ...comboRows, ...looseRows]
+}
+
+/** Am Anlass (Logistics): statische Bestandsliste — nur quantity_issued > 0. */
+export function buildMaterialJourneyAtEventInventory(
+  packItems: ActivityPackItem[],
+  ctx: Pick<
+    MaterialJourneyTaskBuildContext,
+    'packContainers' | 'shellPackItemForContainer' | 'formatCrateLineCount' | 'cratePeekLineCount'
+  >,
+): MaterialJourneyTaskRow[] {
+  const journeyItems = packItemsForMaterialJourney(packItems)
+
+  const looseRows = journeyItems
+    .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
+    .filter((pi) => (pi.quantityIssued ?? 0) > 0)
+    .map((pi) => {
+      const issued = pi.quantityIssued ?? 0
+      const shelfLabel = materialJourneyShelfLabel(pi)
+      const shelfKey = materialJourneyShelfKey(shelfLabel)
+      const badges: MaterialJourneyTaskBadge[] = pi.isConsumable ? ['consumable'] : []
+      return {
+        id: `inv-loose-${pi.id}`,
+        kind: 'loose' as const,
+        packItem: pi,
+        title: packMaterialDisplayName(pi),
+        subtitle: null,
+        openQty: 0,
+        doneQty: issued,
+        maxForwardQty: 0,
+        isOpen: false,
+        isDone: true,
+        badges,
+        canMove: false,
+        canMoveBack: false,
+        maxMoveBackQty: 0,
+        canOpenSheet: false,
+        categoryName: pi.categoryName ?? null,
+        shelfLabel,
+        shelfKey,
+        packCrateHint: null,
+      }
+    })
+
+  const comboRows = journeyItems
+    .filter((pi) => isPhysicalComboPackItem(pi))
+    .filter((pi) => (pi.quantityIssued ?? 0) > 0)
+    .map((pi) => {
+      const issued = pi.quantityIssued ?? 0
+      const shelfLabel = materialJourneyShelfLabel(pi)
+      return {
+        id: `inv-combo-${pi.id}`,
+        kind: 'combo' as const,
+        packItem: pi,
+        title: packMaterialDisplayName(pi),
+        subtitle: null,
+        openQty: 0,
+        doneQty: issued,
+        maxForwardQty: 0,
+        isOpen: false,
+        isDone: true,
+        badges: ['physical_combo'] as MaterialJourneyTaskBadge[],
+        canMove: false,
+        canMoveBack: false,
+        maxMoveBackQty: 0,
+        canOpenSheet: false,
+        categoryName: pi.categoryName ?? null,
+        shelfLabel,
+        shelfKey: materialJourneyShelfKey(shelfLabel),
+        packCrateHint: null,
+      }
+    })
+
+  const crateRows = ctx.packContainers
+    .filter((container) => {
+      const shell = ctx.shellPackItemForContainer(container.id)
+      if ((shell?.quantityIssued ?? 0) > 0) return true
+      return false
+    })
+    .map((container) => {
+      const shellPackItem = ctx.shellPackItemForContainer(container.id)
+      let lineCount = ctx.cratePeekLineCount
+        ? ctx.cratePeekLineCount(container, shellPackItem)
+        : 0
+      const subtitleParts: string[] = []
+      if (lineCount > 0) {
+        subtitleParts.push(ctx.formatCrateLineCount(lineCount))
+      }
+      const { shelfLabel, shelfKey } = materialJourneyShelfForContainer(
+        container,
+        ctx.shellPackItemForContainer,
+      )
+      return {
+        id: `inv-crate-${container.id}`,
+        kind: 'crate' as const,
+        container,
+        title: container.label,
+        subtitle: subtitleParts.length > 0 ? subtitleParts.join(' · ') : null,
+        openQty: 0,
+        doneQty: 1,
+        maxForwardQty: 0,
+        isOpen: false,
+        isDone: true,
+        badges: ['crate'] as MaterialJourneyTaskBadge[],
+        canMove: false,
+        canMoveBack: false,
+        maxMoveBackQty: 0,
+        canOpenSheet: false,
+        categoryName: null,
+        shelfLabel,
+        shelfKey,
+        packCrateHint: null,
+      }
+    })
 
   return [...crateRows, ...comboRows, ...looseRows]
 }

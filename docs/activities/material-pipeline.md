@@ -5,7 +5,8 @@ Zwei **getrennte** Status-Ebenen pro Aktivität:
 1. **Aktivitäts-Status** — Freigabe, Rollen, Benachrichtigungen → [status.md](./status.md)
 2. **Material-Pipeline** — physische Position jeder Position/Menge
 
-**Stand:** Mai 2026 · `quantity_stored` implementiert
+**Stand:** Juni 2026 · `quantity_stored` implementiert  
+**Architektur:** [newUI/ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md) — Activity-Status inkl. `transport_out`, `transport_back`, `storing`; Material über `quantity_*` (kein Enum pro Zeile)
 
 ---
 
@@ -16,7 +17,21 @@ Zwei **getrennte** Status-Ebenen pro Aktivität:
 | Aktivität | «In welcher Phase ist der Anlass?» | `returned` = Gruppe hat retourniert |
 | Material | «Wo ist Stück X?» | 3× retourniert, 1× noch nicht eingelagert |
 
-Eine Aktivität kann `returned` sein, während einzelne Positionen noch nicht `quantity_stored` sind. **Verfügbarkeit für andere Anlässe** wird pro Position freigegeben, sobald die Menge **eingelagert** ist (`quantity_stored`). Der Aktivitäts-Status `completed` betrifft den **Vorgangsabschluss** (Einlagerung vollständig, Meldungen, Werkstatt, Buchhaltung).
+Eine Aktivität kann `returned` oder `storing` sein, während einzelne Positionen noch nicht `quantity_stored` sind. **Verfügbarkeit für andere Anlässe** wird pro Position freigegeben, sobald die Menge **eingelagert** ist (`quantity_stored`). Der Aktivitäts-Status `completed` betrifft den **Vorgangsabschluss** (Einlagerung vollständig, Meldungen, Werkstatt, Buchhaltung) — **nicht** mit Material-Stufe `stored` verwechseln.
+
+### Material-Stufen (Naming)
+
+| Material-Stufe | DB-Spalte | Anmerkung |
+|----------------|-----------|-----------|
+| ordered | `activity_item.quantity` / `quantity_ordered` | Referenz aus Bestellung |
+| **packed** | `quantity_packed` | «Gepackt» — nicht `packing` nennen |
+| transport_out | `quantity_transport_to` | nur Logistics |
+| at_event | `quantity_issued` | bei der Gruppe |
+| transport_back | `quantity_transport_back` | nur Logistics |
+| returned | `quantity_returned` | abgegeben, noch nicht eingelagert |
+| **stored** | `quantity_stored` | physisch im Regal — nicht `completed` |
+
+**Kein** `material_status`-ENUM pro Zeile: Teilmengen = mehrere Spalten > 0 gleichzeitig (z. B. 2× packed, 4× at_event).
 
 ---
 
@@ -44,34 +59,43 @@ Bei Typ **`activity`** überspringt die Aktivität den Status `submitted`: Einre
 
 **Legacy:** `activity_item.status = requested` → Ziel: `ordered`. Das Feld wird nicht für Pack-Stufen verwendet.
 
+### Zwei Tabellen — kein «Umzug»
+
+| Tabelle | Wann | Rolle |
+|---------|------|--------|
+| `activity_item` | ab `draft` | Planung / Bestellung; bleibt als Referenz |
+| `activity_pack_item` | ab `packing` (`autoInitPackList`) | Physische Pipeline; eine aggregierte Zeile pro Material |
+
+Bei Freigabe wird Material **nicht** in eine andere Tabelle verschoben — es wird eine **Pack-Zeile angelegt** und `quantity_ordered` aus den Bestellzeilen summiert.
+
 ---
 
 ## Ebene 2: Pack-Pipeline (`activity_pack_item`)
 
-Pro Material-Position, Mengen als Buckets (Teilmengen möglich).
+Pro Material-Position, Mengen als Buckets (Teilmengen möglich). Gleiche `quantity_*` auf `activity_pack_container_item` pro Kisten-Inhalt.
 
 ### Volle Pipeline (Logistics / Camp / Event)
 
 ```
-ordered → packed → transport_to → at_event → transport_back → returned → quantity_stored
+ordered → packed → transport_out → at_event → transport_back → returned → stored
 ```
 
-| Stufe | Feld | Bedeutung |
-|-------|------|-----------|
-| Bestellt | *(activity_item.quantity)* | Referenz aus Bestellung |
-| Gepackt | `quantity_packed` | Im Lager gepackt / in Kiste |
-| Transport hin | `quantity_transport_to` | Unterwegs zum Event |
-| Am Event | `quantity_issued` | Bei der Gruppe |
-| Transport zurück | `quantity_transport_back` | Unterwegs zurück ins Lager |
-| Retour | `quantity_returned` | Gruppe hat abgegeben — MW hat noch nicht eingelagert |
-| Eingelagert | `quantity_stored` | MW hat geprüft und ins Regal gelegt |
+| Material-Stufe | Feld | Bedeutung |
+|----------------|------|-----------|
+| ordered | `quantity_ordered` / `activity_item.quantity` | Referenz aus Bestellung |
+| packed | `quantity_packed` | Im Lager gepackt / in Kiste |
+| transport_out | `quantity_transport_to` | Unterwegs zum Anlass |
+| at_event | `quantity_issued` | Bei der Gruppe |
+| transport_back | `quantity_transport_back` | Unterwegs zurück ins Lager |
+| returned | `quantity_returned` | Gruppe hat abgegeben — MW hat noch nicht eingelagert |
+| stored | `quantity_stored` | MW hat geprüft und ins Regal gelegt |
 
 ### Quick-Profil (Typ `activity`) und External
 
 Transport-Stufen entfallen in der UI **und** im Backend — `quantity_transport_to` / `quantity_transport_back` bleiben **0** (nur Camp/Event schreibt diese Felder):
 
 ```
-ordered → packed → at_event → returned → quantity_stored
+ordered → packed → at_event → returned → stored
 ```
 
 | Typ | Packliste bearbeiten | Ausgabe «Am Event» | Retour + Ausgepackt |
@@ -86,17 +110,19 @@ Externe Mieter haben **keinen** Packlisten-Zugang — nach Ausgabe übernimmt de
 Volle Pipeline inkl. Transport — **Gruppe/Ersteller (bis Leader) ab Aktivitäts-Status «gepackt»**, MW packt vorher und lagert nach «Retour» ein:
 
 ```
-ordered → packed → transport_to → at_event → transport_back → returned → quantity_stored
+ordered → packed → transport_out → at_event → transport_back → returned → stored
 ```
 
-| UI-Stufe (MW) | Pipeline | Wer (Gruppe) | Wer (MW) |
-|---------------|----------|--------------|----------|
-| Bestätigt → Gepackt | `packed` | — (nur Ansicht) | MW packt |
-| Gepackt → Transport hin | `transport_to` | Gruppe / Leader | Notfall |
-| Transport hin → Am Event | `at_event` | Gruppe / Leader | Notfall — **Aktivitäts-Status «Am Event»** nur von diesem Tab (nicht schon bei «Transport hin») |
-| Am Event → Transport zurück | `transport_back` | Gruppe / Leader | Notfall |
-| Transport zurück → Retour | `returned` | Gruppe / Leader | Notfall — **Aktivitäts-Status «Retour»** nur von diesem Tab (nicht schon bei «Transport zurück») |
-| Retour → Ausgepackt | `quantity_stored` | — | MW lagert ein |
+| Journey / Activity-Status | Material-Fokus | Wer (Gruppe) | Wer (MW) |
+|---------------------------|----------------|--------------|----------|
+| `packing` | → `packed` | — (nur Ansicht) | MW packt |
+| `packed` / `transport_out` | → `transport_out` | Gruppe / Leader | Notfall |
+| `at_event` (Stepper `issue`) | → `at_event` (`quantity_issued`) | Gruppe / Leader | Notfall |
+| `transport_back` | → `transport_back` | Gruppe / Leader | Notfall |
+| `returned` | → `returned` | Gruppe / Leader | Notfall |
+| `storing` (Stepper `store`) | → `stored` | — | MW lagert ein |
+
+Activity-Status und Material sind **unabhängig**: Status kann `at_event` sein, während Mengen noch auf `packed` oder `transport_out` liegen (Teilausgabe).
 
 Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepackt» und ohne «Ausgepackt»).
 
@@ -132,16 +158,17 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 ## Zuordnung: Aktivität ↔ Material
 
-| Aktivitäts-Status | Packliste existiert? | Typische Material-Lage |
-|-------------------|----------------------|-------------------------|
-| `draft` | Nein | nur `ordered` |
-| `submitted` | Nein | nur `ordered` |
-| `approved` | Nein | nur `ordered` |
+| Aktivitäts-Status | Packliste existiert? | Typischer Material-Fokus (kann Teilmengen haben) |
+|-------------------|----------------------|-----------------------------------------------------|
+| `draft` … `approved` | Nein | nur `ordered` |
 | `packing` | Ja (Init beim Übergang) | `packed` steigt |
-| `packed` | Ja | alles `packed`, noch nicht `at_event` |
-| `at_event` | Ja | `quantity_issued` |
-| `returned` | Ja | `quantity_returned` — **noch nicht** `quantity_stored` |
-| `completed` | Ja | `quantity_stored` vollständig (minus Verlust/Verbrauch) |
+| `packed` | Ja | `packed`; ggf. schon Teilmengen weiter |
+| `transport_out` | Ja | `transport_out` |
+| `at_event` | Ja | `at_event` (`quantity_issued`); Rest evtl. noch `packed` / `transport_out` |
+| `transport_back` | Ja | `transport_back` |
+| `returned` | Ja | `returned` — **noch nicht** `stored` |
+| `storing` | Ja | `stored` steigt |
+| `completed` | Ja | alles relevant `stored` (minus Verlust/Verbrauch) |
 | `cancelled` | — | keine weiteren Buchungen |
 
 ---
@@ -150,7 +177,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned, quantity_issued) - quantity_stored` ab Status `packing` … `returned`. Bei **Zeitraum-Abfrage** nur wenn Planungszeitraum der blockierenden Aktivität überlappt (z. B. 5 draussen am 06.06. blockieren nicht die Buchung für 20.06., wenn die Planung nicht kollidiert). Ohne Zeitraum: alle offenen Pipeline-Mengen. Eingelagerte Menge ist sofort frei.
 2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed` im überlappenden Zeitraum.
-3. **Abschluss** (`returned` → `completed`) blockiert bei: offenem Einlagern (gleiche Logik wie `maxForwardQty` für Stufe `stored`, inkl. Verbrauchsmaterial: `ordered − Verbrauch − stored`), offenen Issue-Meldungen (Verlust/Reparatur/Schaden), offenen Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen der Aktivität (mehrere `activity_*`-Follow-ups, kein `activity_final`).
+3. **Abschluss** (`storing` → `completed`) blockiert bei: offenem Einlagern (`quantity_stored`), offenen Issue-Meldungen, Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen.
 4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss; Kosten laufen über die einzelnen Buchhaltungs-Aufträge ab Retour.
 5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
 6. **Verbrauchsmaterial einlagern:** Maximal `quantity_ordered − Verbrauchsmeldungen − quantity_stored` (auch wenn `quantity_returned` noch 0 ist). Formale Retour-Stücke nutzen weiterhin `maxStored` aus Pack-Feldern.
@@ -174,6 +201,8 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 ## Implementierung
 
+### Material (`quantity_*`) — erledigt
+
 - [x] `quantity_stored` (+ Backend-Stufe `stored`) in DB und Pipeline
 - [x] `returned_unpack` UI an Stufe `stored` gekoppelt (links: Retour offen, rechts: Ausgepackt / eingelagert)
 - [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; bei Zeitraum-Abfrage mit Planungs-Overlap; Zeitraum-Reservierung bis `approved`; Reparatur-Batches abgezogen (`MaterialAvailabilityReservationQuery`, `MaterialAvailabilityController`)
@@ -182,10 +211,17 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 - [x] Abschluss-Blocker Einlagerung über `PackPipelineService::maxForwardQty(stored)` (+ Verbrauch pro Material)
 - [x] UI: Abschluss-Checkliste bei Status `returned` (`ActivityCompletionChecklist`, Blocker aus `GET …/transitions`)
 
+### Activity-Status & Journey (geplant)
+
+- [x] Neue Activity-Status: `transport_out`, `transport_back`, `storing` — [ADR](./newUI/ADR-workflow-layers.md)
+- [x] `pack_journey_step` entfernt; Stepper = `activity.status`
+- [x] Stepper-Zugriff: vergangene Knoten bearbeitbar bei offenen Mengen auf der PackStage
+
 ---
 
 ## Siehe auch
 
+- [ADR Workflow-Layers](./newUI/ADR-workflow-layers.md)
 - [Aktivitäts-Status](./status.md)
 - [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md)
 - [Pack-Step-UI](./pack-step-ui.md)

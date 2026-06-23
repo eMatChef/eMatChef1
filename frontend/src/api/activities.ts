@@ -287,16 +287,6 @@ export async function patchActivityStatus(
   return data
 }
 
-export async function patchActivityPackJourneyStep(
-  activityId: string,
-  step: string,
-): Promise<ActivityDetail> {
-  const { data } = await apiClient.patch<ActivityDetail>(`/api/activities/${activityId}/pack-journey-step`, {
-    step,
-  })
-  return data
-}
-
 export async function createActivity(payload: CreateActivityPayload): Promise<ActivityCreatedResponse> {
   const { data } = await apiClient.post<ActivityCreatedResponse>('/api/activities', payload)
   return data

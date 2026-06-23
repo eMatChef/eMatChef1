@@ -15,9 +15,7 @@
       </span>
     </template>
 
-    <div class="section-card grossanlass-dashboard__welcome-card">
-      <p class="text-muted grossanlass-dashboard__welcome">{{ t('grossanlass.dashboard.welcome') }}</p>
-    </div>
+    <GrossanlassDashboardPanel v-if="departmentId" :key="departmentId" :department-id="departmentId" />
   </PageShell>
 
   <div v-else class="dashboard">
@@ -342,6 +340,7 @@ import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PageShell from '@/components/layout/PageShell.vue'
+import GrossanlassDashboardPanel from '@/components/grossanlass/GrossanlassDashboardPanel.vue'
 import { EButton } from '@/components/form/base'
 import { formatPeriodCompact } from '@/utils/formatPeriod'
 

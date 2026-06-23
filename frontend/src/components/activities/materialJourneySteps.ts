@@ -64,7 +64,25 @@ export function journeyStepToPackStage(step: JourneyStep, profile: PackWorkflowP
   }
 }
 
-/** Default journey step when :step route param is missing (§3.2). */
+/**
+ * Pipeline-Stufe für Verbrauchsmaterial-Nachlieferung: aktiver Journey-Schritt
+ * (oder Ableitung aus Aktivitäts-Status), z. B. at_event → packed_at_event.
+ */
+export function replenishmentPackStageForContext(
+  activityStatus: string,
+  profile: PackWorkflowProfile,
+  options?: {
+    journeyStep?: JourneyStep | null
+    canManageMaterials?: boolean
+  },
+): PackStage {
+  const step =
+    options?.journeyStep ??
+    defaultJourneyStepForStatus(activityStatus, profile, options?.canManageMaterials ?? false)
+  return journeyStepToPackStage(step, profile)
+}
+
+/** Stepper-Schritt aus activity.status (1:1, siehe ADR-workflow-layers.md). */
 export function defaultJourneyStepForStatus(
   status: string,
   profile: PackWorkflowProfile,
@@ -74,16 +92,40 @@ export function defaultJourneyStepForStatus(
   if (status === 'packed') {
     return profile === 'logistics' ? 'transport_out' : 'issue'
   }
-  if (status === 'at_event') {
-    return profile === 'logistics' ? 'transport_back' : 'return'
-  }
-  if (status === 'returned') {
-    return canManageMaterials ? 'store' : 'return'
-  }
+  if (status === 'transport_out') return 'transport_out'
+  if (status === 'at_event') return 'issue'
+  if (status === 'transport_back') return 'transport_back'
+  if (status === 'returned') return 'return'
+  if (status === 'storing') return 'store'
   if (status === 'completed') {
     return canManageMaterials ? 'store' : 'return'
   }
   return 'pack'
+}
+
+/** Nächster Activity-Status nach «Weiter» vom aktuellen Journey-Schritt. */
+export function activityStatusAfterJourneyStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): string | null {
+  if (profile === 'logistics') {
+    switch (step) {
+      case 'transport_out':
+        return 'at_event'
+      case 'issue':
+        return 'transport_back'
+      case 'transport_back':
+        return 'returned'
+      default:
+        return null
+    }
+  }
+  switch (step) {
+    case 'issue':
+      return 'returned'
+    default:
+      return null
+  }
 }
 
 /** Phase 2+: lose Vorwärts-Moves; Phase 6: Retour + Einlagern; Phase 7: Logistics-Transport. */
@@ -94,13 +136,22 @@ export function isJourneyLooseMovesEnabledForStep(
   if (step === 'pack') return true
   if (step === 'return' || step === 'store') return true
   if (profile === 'logistics') {
-    return step === 'transport_out' || step === 'issue' || step === 'transport_back'
+    return step === 'transport_out' || step === 'transport_back'
   }
   return step === 'issue'
 }
 
+/** Am Anlass (Logistics): Ankunft über Touren, keine Pipeline-Checkliste. */
+export function isLogisticsTourArrivalStep(step: JourneyStep, profile: PackWorkflowProfile): boolean {
+  return profile === 'logistics' && step === 'issue'
+}
+
 /** Vorwärts-Checkliste: Packen/Ausgabe/Transport (Kisten-Sheet, Scan «in Kiste»). */
-export function isJourneyForwardChecklistStep(step: JourneyStep): boolean {
+export function isJourneyForwardChecklistStep(
+  step: JourneyStep,
+  profile?: PackWorkflowProfile,
+): boolean {
+  if (profile === 'logistics' && step === 'issue') return false
   return (
     step === 'pack' ||
     step === 'issue' ||
@@ -125,9 +176,9 @@ export function isJourneyStoreStep(step: JourneyStep): boolean {
   return step === 'store'
 }
 
-/** Regal/Fach in Checkliste — nur Packen, Retour und Einlagern (§ Journey UX). */
+/** Regal/Fach in Checkliste — nur Packen und Einlagern (ab «Gepackt» kein Lagerort mehr). */
 export function materialJourneyShowsShelfLocation(step: JourneyStep): boolean {
-  return step === 'pack' || step === 'return' || step === 'store'
+  return step === 'pack' || step === 'store'
 }
 
 export function materialJourneyShowsMoveForwardQty(

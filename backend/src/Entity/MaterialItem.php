@@ -571,6 +571,12 @@ class MaterialItem
     public function getIsConsumable(): bool { return $this->isConsumable; }
     public function setIsConsumable(bool $isConsumable): self { $this->isConsumable = $isConsumable; return $this; }
 
+    /** Verbrauch/Verbrauchsmaterial-Tab: Verbrauchsmaterial oder Esswaren. */
+    public function countsAsConsumableForActivity(): bool
+    {
+        return $this->isConsumable || $this->isFood;
+    }
+
     // Esswaren Getters/Setters
     public function getIsFood(): bool { return $this->isFood; }
     public function setIsFood(bool $isFood): self { $this->isFood = $isFood; return $this; }

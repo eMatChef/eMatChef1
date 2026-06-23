@@ -54,17 +54,13 @@ class Activity
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'activity'])]
     private string $type = 'activity';
 
-    // Status: draft, submitted, approved, packing, packed, at_event, returned, completed, cancelled
+    // Status: draft, submitted, approved, packing, packed, transport_out, at_event, transport_back, returned, storing, completed, cancelled
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
     /** false = Stepper-Zwischenstand, Detailansicht erst nach finalem Wizard-Schritt */
     #[ORM\Column(name: 'create_wizard_completed', type: 'boolean', options: ['default' => true])]
     private bool $createWizardCompleted = true;
-
-    /** Material-Journey: aktuell bearbeitbarer Schritt (pack, transport_out, issue, …) */
-    #[ORM\Column(name: 'pack_journey_step', type: 'string', length: 32, nullable: true)]
-    private ?string $packJourneyStep = null;
 
     // Submitted-Timestamp (wann der Leader freigegeben hat)
     #[ORM\Column(name: 'submitted_at', type: 'datetime', nullable: true)]
@@ -318,19 +314,6 @@ class Activity
     public function setCreateWizardCompleted(bool $createWizardCompleted): self
     {
         $this->createWizardCompleted = $createWizardCompleted;
-        return $this;
-    }
-
-    public function getPackJourneyStep(): ?string
-    {
-        return $this->packJourneyStep;
-    }
-
-    public function setPackJourneyStep(?string $packJourneyStep): self
-    {
-        $this->packJourneyStep = $packJourneyStep !== null && trim($packJourneyStep) !== ''
-            ? trim($packJourneyStep)
-            : null;
         return $this;
     }
 
@@ -711,9 +694,13 @@ class Activity
     public const STATUS_APPROVED = 'approved';
     public const STATUS_PACKING = 'packing';
     public const STATUS_PACKED = 'packed';
-    /** Material am Event / bei der Gruppe */
+    public const STATUS_TRANSPORT_OUT = 'transport_out';
+    /** Material am Event / bei der Gruppe (Stepper-UI: «Am Anlass» / issue) */
     public const STATUS_AT_EVENT = 'at_event';
+    public const STATUS_TRANSPORT_BACK = 'transport_back';
     public const STATUS_RETURNED = 'returned';
+    /** MW lagert Material ein (Stepper-UI: store) */
+    public const STATUS_STORING = 'storing';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
@@ -723,27 +710,73 @@ class Activity
         self::STATUS_APPROVED,
         self::STATUS_PACKING,
         self::STATUS_PACKED,
+        self::STATUS_TRANSPORT_OUT,
         self::STATUS_AT_EVENT,
+        self::STATUS_TRANSPORT_BACK,
         self::STATUS_RETURNED,
+        self::STATUS_STORING,
         self::STATUS_COMPLETED,
         self::STATUS_CANCELLED,
     ];
 
+    /** camp/event = Logistics-Workflow mit Transport-Stufen */
+    public static function usesLogisticsWorkflow(?string $activityType): bool
+    {
+        return \in_array($activityType ?? '', ['camp', 'event'], true);
+    }
+
     /**
-     * Erlaubte Status-Übergänge
-     * Key = aktueller Status, Values = erlaubte Ziel-Status
+     * Erlaubte Status-Übergänge (Superset; Profil-Filter in ActivityController::getTransitions).
      */
     public const STATUS_TRANSITIONS = [
         self::STATUS_DRAFT     => [self::STATUS_SUBMITTED, self::STATUS_CANCELLED],
         self::STATUS_SUBMITTED => [self::STATUS_APPROVED, self::STATUS_PACKING, self::STATUS_CANCELLED],
-        self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED], // zurück zu submitted = Zurückweisung
+        self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED],
         self::STATUS_PACKING   => [self::STATUS_PACKED, self::STATUS_CANCELLED],
-        self::STATUS_PACKED    => [self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
-        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED, self::STATUS_PACKED],
-        self::STATUS_RETURNED  => [self::STATUS_COMPLETED, self::STATUS_AT_EVENT],
+        self::STATUS_PACKED    => [self::STATUS_TRANSPORT_OUT, self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
+        self::STATUS_TRANSPORT_OUT => [self::STATUS_AT_EVENT, self::STATUS_PACKED],
+        self::STATUS_AT_EVENT  => [self::STATUS_TRANSPORT_BACK, self::STATUS_RETURNED, self::STATUS_PACKED],
+        self::STATUS_TRANSPORT_BACK => [self::STATUS_RETURNED, self::STATUS_AT_EVENT],
+        self::STATUS_RETURNED  => [self::STATUS_STORING, self::STATUS_AT_EVENT],
+        self::STATUS_STORING   => [self::STATUS_COMPLETED, self::STATUS_RETURNED],
         self::STATUS_COMPLETED => [],
         self::STATUS_CANCELLED => [],
     ];
+
+    /**
+     * Profilabhängige Ziel-Status aus STATUS_TRANSITIONS filtern.
+     *
+     * @param list<string> $targets
+     * @return list<string>
+     */
+    public static function filterTransitionTargets(string $currentStatus, ?string $activityType, array $targets): array
+    {
+        $logistics = self::usesLogisticsWorkflow($activityType);
+
+        return array_values(array_filter($targets, static function (string $target) use ($currentStatus, $logistics): bool {
+            if ($currentStatus === self::STATUS_PACKED) {
+                if ($logistics && $target === self::STATUS_AT_EVENT) {
+                    return false;
+                }
+                if (!$logistics && $target === self::STATUS_TRANSPORT_OUT) {
+                    return false;
+                }
+            }
+            if ($currentStatus === self::STATUS_AT_EVENT) {
+                if ($logistics && $target === self::STATUS_RETURNED) {
+                    return false;
+                }
+                if (!$logistics && $target === self::STATUS_TRANSPORT_BACK) {
+                    return false;
+                }
+            }
+            if ($currentStatus === self::STATUS_RETURNED && $target === self::STATUS_COMPLETED) {
+                return false;
+            }
+
+            return true;
+        }));
+    }
 
     /**
      * Wer darf welchen Übergang durchführen?
@@ -772,12 +805,20 @@ class Activity
         'packing->packed'     => ['mw', 'sa', 'org'],
         'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
         'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
+        'packed->transport_out' => ['mw', 'sa', 'org', 'creator', 'member'],
         'packed->packing'     => ['mw', 'dc', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
+        'transport_out->at_event' => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_out->packed' => ['mw', 'dc', 'sa', 'org'],
         'at_event->packed'    => ['mw', 'dc', 'sa', 'org'],
+        'at_event->transport_back' => ['mw', 'sa', 'org', 'creator', 'member'],
         'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_back->returned' => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_back->at_event' => ['mw', 'dc', 'sa', 'org'],
         'returned->at_event'  => ['mw', 'dc', 'sa', 'org'],
-        'returned->completed' => ['mw', 'sa', 'org'],
+        'returned->storing'   => ['mw', 'sa', 'org'],
+        'storing->completed'  => ['mw', 'sa', 'org'],
+        'storing->returned'   => ['mw', 'dc', 'sa', 'org'],
     ];
 
     /**

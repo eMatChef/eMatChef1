@@ -133,11 +133,19 @@ export function activityStatusRevertTarget(
   profile: PackWorkflowProfile,
 ): string | null {
   if (status === 'packed') return 'packing'
-  if (status === 'at_event') {
-    if (profile === 'logistics') return null
-    return 'packed'
+  if (profile === 'logistics') {
+    if (status === 'transport_out') return 'packed'
+    if (status === 'at_event') return 'transport_out'
+    if (status === 'transport_back') return 'at_event'
+    if (status === 'returned') return 'transport_back'
+    if (status === 'storing') return 'returned'
+    if (status === 'completed') return 'storing'
+    return null
   }
+  if (status === 'at_event') return 'packed'
   if (status === 'returned') return 'at_event'
+  if (status === 'storing') return 'returned'
+  if (status === 'completed') return 'storing'
   return null
 }
 
@@ -200,6 +208,7 @@ export function autoPackStageForStatus(
     return 'transport_back_returned'
   }
   if (profile === 'quick' || profile === 'external') {
+    if (s === 'storing') return 'returned_unpack'
     if (s === 'returned') {
       return canManageMaterials ? 'returned_unpack' : 'at_event_returned'
     }
@@ -215,8 +224,12 @@ export function autoPackStageForStatus(
     }
     return 'packed_at_event'
   }
+  if (s === 'packing' || s === 'approved' || s === 'submitted') return 'confirmed_packed'
   if (s === 'packed') return 'packed_transport_to'
-  if (s === 'at_event') return 'at_event_transport_back'
+  if (s === 'transport_out') return 'packed_transport_to'
+  if (s === 'at_event') return 'transport_to_at_event'
+  if (s === 'transport_back') return 'at_event_transport_back'
+  if (s === 'storing') return 'returned_unpack'
   if (s === 'returned') {
     return canManageMaterials ? 'returned_unpack' : 'transport_back_returned'
   }
@@ -345,11 +358,17 @@ export function workflowTargetStatusForStage(
 ): string | null {
   const s = activityStatus
   if (stage === 'confirmed_packed') return 'packed'
-  if (stage === 'returned_unpack' && s === 'returned') return 'completed'
-  if (isPackWorkflowStatusToEventStage(stage, profile)) return 'at_event'
-  if (isPackWorkflowStatusToReturnedStage(stage, profile) && s === 'at_event') {
-    return 'returned'
+  if (profile === 'logistics') {
+    if (stage === 'packed_transport_to' && s === 'packed') return 'transport_out'
+    if (stage === 'transport_to_at_event' && s === 'transport_out') return 'at_event'
+    if (stage === 'at_event_transport_back' && s === 'at_event') return 'transport_back'
+    if (stage === 'transport_back_returned' && s === 'transport_back') return 'returned'
+  } else {
+    if (isPackWorkflowStatusToEventStage(stage, profile) && s === 'packed') return 'at_event'
+    if (isPackWorkflowStatusToReturnedStage(stage, profile) && s === 'at_event') return 'returned'
   }
+  if (stage === 'returned_unpack' && s === 'returned') return 'storing'
+  if (stage === 'returned_unpack' && s === 'storing') return 'completed'
   return null
 }
 

@@ -24,10 +24,6 @@
             :class="activityStatusClass(activity.status)"
           >{{ packJourneyStepLabelDetail }}</span>
           <span
-            v-if="activity && showPackJourneyStepBadge"
-            class="status-label status-label--workflow text-muted"
-          >{{ activityStatusLabelDetail(activity.status) }}</span>
-          <span
             v-else-if="activity"
             class="status-label"
             :class="activityStatusClass(activity.status)"
@@ -87,7 +83,7 @@
             {{ cancelTransition ? transitionActionLabel(cancelTransition) : '' }}
           </EButton>
           <EButton
-            v-if="showDamageReportEntry"
+            v-if="showDamageReportInActivityHeader"
             variant="secondary"
             size="small"
             class="activity-header-action-btn"
@@ -587,8 +583,15 @@
               :department-id="departmentId"
               :activity-id="activityId"
               :transitions="transitions"
+              :can-report-issues="showDamageReportEntry"
+              :can-report-consumption="showConsumptionBooking"
+              :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
+              :consumable-material-item-ids="consumableMaterialItemIds"
               embedded
               @status-changed="onJourneyStatusChanged"
+              @open-issue-wizard="onPackIssueWizard"
+              @open-consumption-modal="onOpenConsumptionModal"
+              @request-nachbuchung="openNachbuchungModal"
             />
             <ActivityPackListTab
               v-else-if="activity"
@@ -606,9 +609,7 @@
               :reload-token="packListReloadToken"
               :consumption-modal-cancelled-token="consumptionModalCancelledToken"
               :consumption-modal-return-without-consumption-token="consumptionModalReturnWithoutConsumptionToken"
-              :can-add-activity-material="
-                canAddActivityMaterial && (activity.status === 'packing' || activity.status === 'packed')
-              "
+              :can-add-activity-material="canAddActivityMaterial"
               :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
               :activity-type-for-material-add="activityTypeForMat"
               :planning-start-iso="activity.planning_start ?? null"
@@ -648,6 +649,7 @@
               :can-create="showConsumptionBooking"
               :can-add-activity-material="canAddActivityMaterial"
               :can-request-consumable-replenishment="canRequestConsumableNachbuchung"
+              :replenishment-pack-stage="currentReplenishmentPackStage"
               :reload-token="consumablesReloadToken"
               @request-nachbuchung="openNachbuchungModal"
               @consumption-booked="onConsumableBooked"
@@ -748,6 +750,7 @@ import {
   type ActivityCompletionBlockers,
   type ActivityTransitionRow,
 } from '@/api/activities'
+import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
@@ -800,8 +803,17 @@ import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStat
 import {
   allowsAtEventToReturnedHandoff,
   allowsPackedToAtEventHandoff,
+  activityAllowsConsumptionBooking,
+  activityAllowsDamageReport,
+  activityAllowsIssueReports,
   resolveActiveJourneyStep,
 } from '@/utils/materialJourneyNavigation'
+import {
+  isValidJourneyStep,
+  replenishmentPackStageForContext,
+  type JourneyStep,
+} from '@/components/activities/materialJourneySteps'
+import type { PackStage } from '@/components/activities/packStageQuantities'
 import { EButton } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import QRCode from 'qrcode'
@@ -813,8 +825,11 @@ const MANAGER_WORKFLOW_TRANSITION_STATUSES = new Set([
   'approved',
   'packing',
   'packed',
+  'transport_out',
   'at_event',
+  'transport_back',
   'returned',
+  'storing',
   'completed',
 ])
 
@@ -858,11 +873,18 @@ function transitionActionLabel(tr: ActivityTransitionRow): string {
   return activityTransitionActionLabel(tr.status, activity.value?.status, t, te, tr.label)
 }
 
-/** Camp/Event: «Retour erfassen» erst im Pack-Tab «Transport (zurück)→Retour», nicht in der Kopfzeile bei «Am Event». */
-function hideReturnedTransitionInActivityHeader(targetStatus: string): boolean {
+/** Camp/Event Logistics: Übergänge laufen über Material-Journey (Touren, «Material zurückführen», Retour), nicht Kopfzeile. */
+function hideLogisticsHandoffTransitionInActivityHeader(targetStatus: string): boolean {
   const act = activity.value
-  if (!act || targetStatus !== 'returned' || act.status !== 'at_event') return false
-  return packWorkflowProfileForActivityType(act.type || 'activity') === 'logistics'
+  if (!act) return false
+  if (packWorkflowProfileForActivityType(act.type || 'activity') !== 'logistics') return false
+  const s = act.status ?? ''
+  if (s === 'at_event' && (targetStatus === 'returned' || targetStatus === 'transport_back')) {
+    return true
+  }
+  if (s === 'transport_back' && targetStatus === 'returned') return true
+  if (s === 'transport_out' && targetStatus === 'at_event') return true
+  return false
 }
 
 const activity = ref<ActivityDetail | null>(null)
@@ -873,8 +895,11 @@ const showActivityQrActionModal = ref(false)
 const STATUSES_STAFF_ONLY_CANCEL = [
   'packing',
   'packed',
+  'transport_out',
   'at_event',
+  'transport_back',
   'returned',
+  'storing',
   'completed',
   'cancelled',
 ] as const
@@ -927,7 +952,7 @@ const showPacksTab = computed(() => {
   return showMemberEarlyPackPreview.value
 })
 
-/** Fuhrpark-Planung ab «Bestätigt» (MW/DC/Ersteller) bzw. ab Packliste für alle. */
+/** Fuhrpark-Planung ab Entwurf (MW/DC/Ersteller) bzw. ab Packliste für alle. */
 const showVehiclesTab = computed(() => {
   const act = activity.value
   if (!act) return false
@@ -935,8 +960,8 @@ const showVehiclesTab = computed(() => {
   const logisticsType = ['camp', 'event', 'activity', 'external'].includes(act.type || '')
   if (!logisticsType) return false
   if (showPacksTab.value) return true
-  if (s !== 'approved') return false
-  return canManageActivityVehicles.value
+  if (['draft', 'submitted', 'approved'].includes(s ?? '') && canManageActivityVehicles.value) return true
+  return false
 })
 
 const canManageActivityVehicles = computed(() => {
@@ -952,10 +977,30 @@ const packWorkflowProfile = computed(() =>
   packWorkflowProfileForActivityType(activity.value?.type ?? 'activity'),
 )
 
+/** Aktiver Journey-Schritt aus URL (neue Packliste), sonst null. */
+const activePackJourneyStep = computed((): JourneyStep | null => {
+  if (useLegacyPackUi.value) return null
+  const raw = route.query.packStep
+  const s = (Array.isArray(raw) ? raw[0] : raw)?.toString().trim()
+  if (!s) return null
+  const profile = packWorkflowProfile.value
+  return isValidJourneyStep(s, profile) ? s : null
+})
+
+/** Pipeline-Stufe für Verbrauchsmaterial-Nachlieferung am aktuellen Schritt. */
+const currentReplenishmentPackStage = computed((): PackStage | null => {
+  const a = activity.value
+  if (!a) return null
+  return replenishmentPackStageForContext(a.status ?? 'draft', packWorkflowProfile.value, {
+    journeyStep: activePackJourneyStep.value,
+    canManageMaterials: canManageMaterials.value,
+  })
+})
+
 const showPackJourneyStepBadge = computed(() => {
   if (!activity.value || useLegacyPackUi.value || activeTab.value !== 'packs') return false
   const s = activity.value.status ?? ''
-  return ['packing', 'packed', 'at_event', 'returned'].includes(s)
+  return ['packing', 'packed', 'transport_out', 'at_event', 'transport_back', 'returned', 'storing'].includes(s)
 })
 
 const packJourneyStepLabelDetail = computed(() => {
@@ -973,18 +1018,24 @@ const packJourneyStepLabelDetail = computed(() => {
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
-const STATUSES_WITH_ISSUES_TAB = ['at_event', 'returned', 'completed'] as const
+const STATUSES_WITH_ISSUES_TAB = ['at_event', 'transport_back', 'returned', 'storing', 'completed'] as const
 
 /** Gruppe: Meldungen ab «Wird gepackt» nur lesen; neue Meldungen erst ab «Am Event». */
 const MEMBER_ISSUES_PREVIEW_STATUSES = ['packing', 'packed'] as const
 
 /** Verbrauchsmaterial buchen: erst ab «Am Event» */
-const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'returned', 'completed'] as const
+const STATUSES_WITH_CONSUMABLES_TAB = ['at_event', 'transport_back', 'returned', 'storing', 'completed'] as const
 
 const showIssuesTab = computed(() => {
   const s = activity.value?.status
   if (!s) return false
   if ((STATUSES_WITH_ISSUES_TAB as readonly string[]).includes(s)) return true
+  if (
+    activity.value &&
+    activityAllowsIssueReports(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+  ) {
+    return true
+  }
   if (
     isRestrictedGroupMember.value &&
     isGroupHandoffActivityType.value &&
@@ -1006,15 +1057,38 @@ const showMemberScopeStatusHint = computed(() => {
   return ['submitted', 'approved', 'packing', 'packed'].includes(s)
 })
 
+function activityItemIsConsumable(row: ActivityItemRow): boolean {
+  return row.is_consumable === true
+}
+
+const packItemsSnapshot = ref<ActivityPackItem[]>([])
+
 const hasConsumableItems = computed(() =>
-  activityItems.value.some((row) => row.is_consumable === true),
+  activityItems.value.some(activityItemIsConsumable) ||
+  packItemsSnapshot.value.some((pi) => pi.isConsumable),
 )
+
+const consumableMaterialItemIds = computed(() => {
+  const ids = new Set<string>()
+  for (const row of activityItems.value) {
+    if (activityItemIsConsumable(row) && row.material_item_id) {
+      ids.add(row.material_item_id)
+    }
+  }
+  for (const pi of packItemsSnapshot.value) {
+    if (pi.isConsumable) ids.add(pi.materialItemId)
+  }
+  return [...ids]
+})
 
 const showConsumablesTab = computed(() => {
   const s = activity.value?.status
-  if (!s) return false
-  if (!(STATUSES_WITH_CONSUMABLES_TAB as readonly string[]).includes(s)) return false
-  return hasConsumableItems.value
+  if (!s || !hasConsumableItems.value) return false
+  if ((STATUSES_WITH_CONSUMABLES_TAB as readonly string[]).includes(s)) return true
+  return (
+    activity.value != null &&
+    activityAllowsConsumptionBooking(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+  )
 })
 
 const activityIssues = ref<ActivityIssueReportRow[]>([])
@@ -1041,7 +1115,7 @@ const showCostsTab = computed(() => {
 
 /** Ohne ?tab=: v4.01 — Packliste als Start nur bei packing…returned (nicht bei completed). */
 function defaultTabWhenNoQuery(status: string | undefined): ActivityTabId {
-  if (status && ['packing', 'packed', 'at_event', 'returned'].includes(status)) return 'packs'
+  if (status && ['packing', 'packed', 'transport_out', 'at_event', 'transport_back', 'returned', 'storing'].includes(status)) return 'packs'
   return 'overview'
 }
 
@@ -1217,21 +1291,30 @@ const workflowTransitions = computed(() =>
       s === 'packed' &&
       t.status === 'at_event' &&
       activity.value &&
-      !allowsPackedToAtEventHandoff(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+      !allowsPackedToAtEventHandoff(activity.value, packWorkflowProfile.value)
     ) {
       return false
     }
     if (
-      s === 'at_event' &&
+      s === 'transport_out' &&
+      t.status === 'at_event' &&
+      activity.value &&
+      !allowsPackedToAtEventHandoff(activity.value, packWorkflowProfile.value)
+    ) {
+      return false
+    }
+    if (
+      (s === 'at_event' || s === 'transport_back') &&
       t.status === 'returned' &&
       activity.value &&
-      !allowsAtEventToReturnedHandoff(activity.value, packWorkflowProfile.value, canManageMaterials.value)
+      !allowsAtEventToReturnedHandoff(activity.value, packWorkflowProfile.value)
     ) {
       return false
     }
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
     if (activity.value?.type === 'activity' && t.status === 'approved') return false
-    if (hideReturnedTransitionInActivityHeader(t.status)) return false
+    if (hideLogisticsHandoffTransitionInActivityHeader(t.status)) return false
+    if (s === 'returned' && t.status === 'completed') return false
     return true
   }),
 )
@@ -1415,13 +1498,29 @@ const showOverviewEditForm = computed(() => {
   return typ === 'camp' || typ === 'event' || typ === 'external'
 })
 
-/** Entwurf (bestehende Regeln) oder nach Einreichung: Host-MW/DC bis einschliesslich «gepackt». */
-const showMaterialLookup = computed(() => {
+/** MW/DC: Materialzeilen bearbeiten bis vor «Retour» (API-Flag oder lokale Rolle). */
+const MW_ACTIVITY_MATERIAL_EDIT_STATUSES = [
+  'submitted',
+  'approved',
+  'packing',
+  'packed',
+  'transport_out',
+  'at_event',
+  'transport_back',
+] as const
+
+const canEditActivityMaterialLines = computed(() => {
   const a = activity.value
   if (!a) return false
   if (a.status === 'draft') return !!a.can_edit_draft_material
-  return !!a.can_edit_activity_material
+  if (a.can_edit_activity_material) return true
+  return (
+    canManageMaterials.value &&
+    (MW_ACTIVITY_MATERIAL_EDIT_STATUSES as readonly string[]).includes(a.status ?? '')
+  )
 })
+
+const showMaterialLookup = computed(() => canEditActivityMaterialLines.value)
 
 const showJsOrderCard = computed(() => {
   const a = activity.value
@@ -1469,9 +1568,9 @@ const showDraftMaterialAddForGroup = computed(() => {
   return !!a.can_edit_draft_material && isBasicDepartmentMember.value
 })
 
-/** «Material hinzufügen» im Material-Tab (MW/DC mit Bearbeitungsrecht, bis «Am Event»). */
+/** «Material hinzufügen» im Material-Tab (MW/DC mit Bearbeitungsrecht, bis vor «Retour»). */
 const showMaterialAddOnMaterialTab = computed(
-  () => showMaterialLookup.value && !isBasicDepartmentMember.value,
+  () => canEditActivityMaterialLines.value && canManageMaterials.value,
 )
 
 const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
@@ -1516,6 +1615,7 @@ function activityItemToMaterialLine(r: ActivityItemRow): ActivityMaterialLine {
         }
       : null,
     pack_mode: draftPackMode(r),
+    is_replenishment: r.is_replenishment === true,
   }
 }
 
@@ -1597,28 +1697,38 @@ const canReportDamageAsMaterialStaff = computed(() =>
   ['mw', 'dc', 'matwart', 'depchef'].includes(departmentRole.value),
 )
 
-/** Reparaturen / Verluste: erst nach «Am Event buchen»; User/Gruppe nicht mehr nach «Retour erfassen». */
+/** Reparaturen / Verluste: ab Journey-Schritt «Am Anlass» (auch bei Status «Gepackt»). */
 const showDamageReportEntry = computed(() => {
   const a = activity.value
   if (!a) return false
-  if (a.status === 'completed') return false
-  if (a.can_report_issues === false) return false
-  const s = a.status
-  if (s !== 'at_event' && s !== 'returned') return false
-  if (s === 'returned' && !canReportDamageAsMaterialStaff.value) return false
-  return true
+  return activityAllowsDamageReport(
+    a,
+    packWorkflowProfile.value,
+    canReportDamageAsMaterialStaff.value,
+    canManageMaterials.value,
+  )
 })
 
-/** Verbrauch buchen: User/Leader ab «Am Event» und in Retour (Modal / Tab «Verbrauch»). Buch-Buchhaltung erst MW beim Einlagern/Abschluss. */
+/** Meldungen inline in Material-Journey — «Schaden melden» oben ausblenden. */
+const showDamageReportInActivityHeader = computed(() => {
+  if (!showDamageReportEntry.value) return false
+  if (activeTab.value !== 'packs' || useLegacyPackUi.value) return true
+  const s = activity.value?.status ?? ''
+  if (packWorkflowProfile.value === 'logistics') {
+    return !['at_event', 'transport_back', 'returned', 'storing'].includes(s)
+  }
+  return !['at_event', 'returned', 'storing'].includes(s)
+})
+
+/** Verbrauch buchen: ab Journey-Schritt «Am Anlass» (auch bei Status «Gepackt»). */
 const showConsumptionBooking = computed(() => {
   const a = activity.value
-  if (!a || a.status === 'completed') return false
-  if (a.can_report_issues === false) return false
-  return a.status === 'at_event' || a.status === 'returned'
+  if (!a) return false
+  return activityAllowsConsumptionBooking(a, packWorkflowProfile.value, canManageMaterials.value)
 })
 
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
-const canAddActivityMaterial = computed(() => activity.value?.can_edit_activity_material === true)
+const canAddActivityMaterial = computed(() => canEditActivityMaterialLines.value)
 
 /** Nachlieferung Verbrauchsmaterial: MW/DC oder Gruppe/Ersteller ab «Am Event». */
 const canRequestConsumableNachbuchung = computed(
@@ -1647,6 +1757,15 @@ const packListReloadToken = ref(0)
 
 watch(issuesReloadToken, () => {
   void loadActivityIssues()
+})
+
+watch(packListReloadToken, () => {
+  void loadPackItemsSnapshot()
+})
+
+watch(showPacksTab, (show) => {
+  if (show) void loadPackItemsSnapshot()
+  else packItemsSnapshot.value = []
 })
 
 const consumptionModalOpen = ref(false)
@@ -1738,7 +1857,8 @@ function openNachbuchungModal(payload: {
   nachbuchungMaterialLabel.value = payload.materialLabel
   nachbuchungPackSize.value = payload.packSize ?? null
   nachbuchungPackUnit.value = payload.packUnit ?? null
-  nachbuchungPackStage.value = payload.packStage?.trim() || null
+  nachbuchungPackStage.value =
+    payload.packStage?.trim() || currentReplenishmentPackStage.value || null
   nachbuchungOpen.value = true
 }
 
@@ -1893,10 +2013,7 @@ function onDraftTableRemoveLine({ line }: { line: ActivityMaterialLine; index: n
 async function saveDraftQuantities(options?: { successToastKey?: string | null }) {
   const a = activity.value
   if (!a) return
-  const can =
-    (a.status === 'draft' && a.can_edit_draft_material) ||
-    (a.status !== 'draft' && a.can_edit_activity_material)
-  if (!can) return
+  if (!canEditActivityMaterialLines.value) return
   if (syncingQuantities.value) return
   syncingQuantities.value = true
   try {
@@ -2123,6 +2240,7 @@ async function reload() {
     if (activeTab.value === 'material') {
       void loadItems()
     }
+    void loadPackItemsSnapshot()
   } catch (err: unknown) {
     const e = err as { response?: { status?: number; data?: { error?: string } }; message?: string }
     const msg =
@@ -2133,6 +2251,18 @@ async function reload() {
     pageHeadStore.setDynamic(t('activities.detail.pageErrorTitle'), msg)
   } finally {
     isLoading.value = false
+  }
+}
+
+async function loadPackItemsSnapshot(): Promise<void> {
+  if (!showPacksTab.value) {
+    packItemsSnapshot.value = []
+    return
+  }
+  try {
+    packItemsSnapshot.value = await getPackItems(props.activityId)
+  } catch {
+    packItemsSnapshot.value = []
   }
 }
 
@@ -2291,11 +2421,7 @@ async function onDraftAddQuantity(payload: {
   const mid = payload.material?.materialItemId
   const a = activity.value
   if (!mid || !a) return
-  const can =
-    (a.status === 'draft' && a.can_edit_draft_material) ||
-    (a.status !== 'draft' && a.can_edit_activity_material) ||
-    !!a.can_add_forgotten_material
-  if (!can) return
+  if (!canEditActivityMaterialLines.value && !a.can_add_forgotten_material) return
   addingDraftMaterial.value = true
   try {
     await addActivityItem(props.activityId, {
@@ -2312,7 +2438,7 @@ async function onDraftAddQuantity(payload: {
     }
     toast.success(t('activities.detail.toastMaterialAdded'))
     await refreshActivityTotalsFromApi()
-    if (a.status === 'packing' || a.status === 'packed') {
+    if (a.status === 'packing' || a.status === 'packed' || a.status === 'transport_out' || a.status === 'at_event' || a.status === 'transport_back') {
       packListReloadToken.value += 1
     }
   } catch (err: unknown) {
@@ -2379,10 +2505,7 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
   const a = activity.value
   if (!a) return
   if (row.material_type === 'virtual_combo' && !row.parent_activity_item_id) return
-  const can =
-    (a.status === 'draft' && a.can_edit_draft_material) ||
-    (a.status !== 'draft' && a.can_edit_activity_material)
-  if (!can) return
+  if (!canEditActivityMaterialLines.value) return
 
   const status = a.status || ''
   if (

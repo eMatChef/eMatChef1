@@ -6,6 +6,7 @@ import {
 } from '@/components/activities/materialJourneyTaskList'
 import {
   journeyStepToPackStage,
+  isLogisticsTourArrivalStep,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
@@ -43,7 +44,7 @@ function buildTaskContextForStep(
   }
 }
 
-/** Keine offenen Checklisten-Positionen in diesem Journey-Schritt (Touren nicht relevant). */
+/** Keine offenen Checklisten-Positionen in diesem Journey-Schritt. */
 export function isJourneyStepWorkComplete(
   step: JourneyStep,
   profile: PackWorkflowProfile,
@@ -52,6 +53,11 @@ export function isJourneyStepWorkComplete(
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
 ): boolean {
   if (packItems.length === 0) return false
+
+  if (isLogisticsTourArrivalStep(step, profile)) {
+    return !hasPendingLogisticsArrival(packItems)
+  }
+
   const ctx = buildTaskContextForStep(
     step,
     profile,
@@ -62,4 +68,11 @@ export function isJourneyStepWorkComplete(
   const tasks = buildMaterialJourneyTasks(packItems, ctx).filter((row) => row.isOpen || row.isDone)
   if (tasks.length === 0) return false
   return tasks.every((row) => !row.isOpen)
+}
+
+/** Noch transportiert, aber noch nicht am Anlass (quantity_transport_to > quantity_issued). */
+export function hasPendingLogisticsArrival(packItems: ActivityPackItem[]): boolean {
+  return packItems.some(
+    (pi) => (pi.quantityTransportTo ?? 0) > (pi.quantityIssued ?? 0),
+  )
 }

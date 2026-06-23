@@ -57,7 +57,7 @@
           </template>
           <template v-else-if="task.kind === 'grossanlass_round_opened' && task.grossanlassRoundOpened">
             <EButton variant="primary" size="small" @click="openGrossanlassPlanung(task.grossanlassRoundOpened)">
-              {{ t('grossanlass.inbox.roundOpenedPreview') }}
+              {{ t('grossanlass.dashboard.submitWish') }}
             </EButton>
           </template>
           <template v-else-if="task.kind === 'department_invite' && task.departmentInvite">
@@ -146,6 +146,7 @@ import {
   type DepartmentTaskStatus,
 } from '@/composables/useDepartmentTasks'
 import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
+import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
 
 type StatusTab = DepartmentTaskStatus
 
@@ -342,8 +343,11 @@ async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) 
   } catch {
     /* navigate anyway */
   }
-  const path = note.planung_url || `/${note.department_id}/planung`
-  void router.push(path)
+  void router.push(
+    note.round_id
+      ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
+      : (note.planung_url || `/${note.department_id}/planung`),
+  )
 }
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {

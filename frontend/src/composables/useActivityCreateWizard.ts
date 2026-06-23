@@ -85,6 +85,8 @@ export interface ActivityMaterialLine {
   config_snapshot?: ComboConfigSnapshot | null
   /** Zeilenmodell B: abgeleitete Kind-Zeile einer virtuellen Kombo (lose). */
   parent_activity_item_id?: string | null
+  /** Nachlieferung / Zukauf (Verbrauchsmaterial) — nicht wie Lager-Material editierbar */
+  is_replenishment?: boolean
 }
 
 function pickFirstRootGroup(groups: Group[]): string | null {
