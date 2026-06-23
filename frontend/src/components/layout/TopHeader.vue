@@ -123,13 +123,12 @@
           <div v-else class="notifications-list">
             <template v-if="hasBellMessages">
               <p class="notifications-section-label">{{ t('layout.notifications.sectionMessages') }}</p>
-              <button
+              <NotificationBellItem
                 v-for="msg in userMessagePreview"
                 :key="`um-${msg.id}`"
-                type="button"
-                class="notification-item notification-item--user-message"
-                :class="{ 'notification-item--unread': !msg.read }"
-                @click="openUserMessageFromBell(msg)"
+                :item-class="['notification-item--user-message', { 'notification-item--unread': !msg.read }]"
+                @open="openUserMessageFromBell(msg)"
+                @dismiss="dismissUserMessageFromBell(msg)"
               >
                 <NotificationSenderBlock
                   :sender="fromUserMessage(msg)"
@@ -141,13 +140,13 @@
                   <div class="notification-title">{{ msg.subject }}</div>
                   <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="entry in bellActivityMessages"
                 :key="`act-${entry.bellScope}-${entry.id}`"
-                type="button"
-                class="notification-item notification-item--activity-mw"
-                @click="openActivityBellEntry(entry)"
+                item-class="notification-item--activity-mw"
+                @open="openActivityBellEntry(entry)"
+                @dismiss="dismissActivityBellEntry(entry)"
               >
                 <NotificationSenderBlock
                   :sender="fromActivityMw(entry)"
@@ -158,26 +157,25 @@
                   <div class="notification-title">{{ bellLine(entry) }}</div>
                   <div class="notification-subtitle">{{ bellSubtitle(entry) }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="note in inviteAcceptedPreview"
                 :key="`inv-acc-${note.id}`"
-                type="button"
-                class="notification-item notification-item--invite-accepted"
-                :class="{ 'notification-item--unread': !note.read }"
-                @click="openInviteAcceptedFromBell(note)"
+                :item-class="['notification-item--invite-accepted', { 'notification-item--unread': !note.read }]"
+                @open="openInviteAcceptedFromBell(note)"
+                @dismiss="dismissInviteAcceptedFromBell(note)"
               >
                 <div class="notification-item__body notification-item__body--full">
                   <div class="notification-title">{{ inviteAcceptedBellTitle(note) }}</div>
                   <div class="notification-subtitle">{{ inviteAcceptedBellSubtitle(note) }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="msg in notificationPreviewFound"
                 :key="`pf-${msg.id}`"
-                type="button"
-                class="notification-item notification-item--found"
-                @click="openFoundMessageFromBell(msg)"
+                item-class="notification-item--found"
+                @open="openFoundMessageFromBell(msg)"
+                @dismiss="dismissFoundMessageFromBell(msg)"
               >
                 <NotificationSenderBlock
                   :sender="fromPublicFound(msg)"
@@ -189,14 +187,13 @@
                   <div class="notification-title">{{ t('layout.notifications.qrContactTitle', { name: msg.material_name }) }}</div>
                   <div class="notification-subtitle">{{ truncateMessage(msg.message) }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="note in grossanlassRoundOpenedPreview"
                 :key="`ga-round-${note.id}`"
-                type="button"
-                class="notification-item notification-item--grossanlass-round"
-                :class="{ 'notification-item--unread': !note.read }"
-                @click="openGrossanlassRoundFromBell(note)"
+                :item-class="['notification-item--grossanlass-round', { 'notification-item--unread': !note.read }]"
+                @open="openGrossanlassRoundFromBell(note)"
+                @dismiss="dismissGrossanlassRoundFromBell(note)"
               >
                 <div class="notification-item__body notification-item__body--full">
                   <div class="notification-title">
@@ -204,14 +201,13 @@
                   </div>
                   <div class="notification-subtitle">{{ t('grossanlass.inbox.roundOpenedPreview') }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="note in grossanlassMwAssignedPreview"
                 :key="`ga-mw-${note.id}`"
-                type="button"
-                class="notification-item notification-item--grossanlass-mw"
-                :class="{ 'notification-item--unread': !note.read }"
-                @click="openGrossanlassMwFromBell(note)"
+                :item-class="['notification-item--grossanlass-mw', { 'notification-item--unread': !note.read }]"
+                @open="openGrossanlassMwFromBell(note)"
+                @dismiss="dismissGrossanlassMwFromBell(note)"
               >
                 <div class="notification-item__body notification-item__body--full">
                   <div class="notification-title">
@@ -219,14 +215,13 @@
                   </div>
                   <div class="notification-subtitle">{{ t('grossanlass.inbox.preview') }}</div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="inv in receivedDepartmentInvitePreview"
                 :key="`dept-inv-${inv.id}`"
-                type="button"
-                class="notification-item notification-item--dept-invite"
-                :class="{ 'notification-item--unread': !inv.read }"
-                @click="openDepartmentInviteFromBell(inv)"
+                :item-class="['notification-item--dept-invite', { 'notification-item--unread': !inv.read }]"
+                @open="openDepartmentInviteFromBell(inv)"
+                @dismiss="dismissDepartmentInviteFromBell(inv)"
               >
                 <NotificationSenderBlock
                   :sender="fromDepartmentInvite(inv)"
@@ -245,28 +240,28 @@
                     })) }}
                   </div>
                 </div>
-              </button>
-              <button
+              </NotificationBellItem>
+              <NotificationBellItem
                 v-for="invite in notificationPreviewInvites"
                 :key="`inv-${invite.activity_id}-${invite.source_department_id}`"
-                type="button"
-                class="notification-item notification-item--activity-invite"
-                @click="openCampInviteFromBell(invite)"
+                item-class="notification-item--activity-invite"
+                @open="openCampInviteFromBell(invite)"
+                @dismiss="dismissCampInviteFromBell(invite)"
               >
                 <div class="notification-item__body notification-item__body--full">
                   <div class="notification-title">{{ notificationInviteTitle(invite) }}</div>
                   <div class="notification-subtitle">{{ truncateMessage(invite.activity_name) }}</div>
                 </div>
-              </button>
+              </NotificationBellItem>
             </template>
 
             <template v-if="hasBellTasks">
               <p class="notifications-section-label">{{ t('layout.notifications.sectionTasks') }}</p>
-              <button
+              <NotificationBellItem
                 v-if="showAccountingInBell"
-                type="button"
-                class="notification-item notification-item--accounting"
-                @click="goToAccountingAssign"
+                item-class="notification-item--accounting"
+                @open="goToAccountingAssign"
+                @dismiss="dismissAccountingFromBell"
               >
                 <div class="notification-title">{{ t('layout.notifications.accountingTitle') }}</div>
                 <div class="notification-subtitle">
@@ -276,7 +271,7 @@
                       : t('layout.notifications.accountingFollowUpMany', { count: pendingFollowUpCount })
                   }}
                 </div>
-              </button>
+              </NotificationBellItem>
             </template>
           </div>
         </div>
@@ -616,6 +611,7 @@ import {
 } from '../../api/joinRequests'
 import {
   getPublicFoundMessages,
+  markPublicFoundMessageRead,
   updatePublicFoundMessageStatus,
   type PublicFoundItemMessage,
 } from '../../api/publicFoundMessages'
@@ -630,6 +626,7 @@ import {
 } from '../../stores/detailTabs'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { getPostLogoutPath } from '@/utils/appLoginUrl'
+import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import {
   getActivityMwNotifications,
@@ -650,7 +647,7 @@ import {
   markUserDirectMessageRead,
   type UserDirectMessage,
 } from '@/api/inboxMessages'
-import { NotificationSenderBlock } from '@/components/notifications'
+import { NotificationSenderBlock, NotificationBellItem } from '@/components/notifications'
 import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useUnreadDocumentTitleAlert } from '@/composables/useUnreadDocumentTitleAlert'
 import { getSenderPrimaryLine } from '@/utils/notificationSender'
@@ -746,6 +743,7 @@ const activityUserPreview = ref<ActivityMwNotification[]>([])
 const activityUserUnreadCount = ref(0)
 const pendingFollowUpCount = ref(0)
 const accountingBellDismissed = ref(false)
+const bellLocallyDismissedKeys = ref(new Set<string>())
 const userMessagePreview = ref<UserDirectMessage[]>([])
 const userMessageUnreadCount = ref(0)
 const inviteAcceptedPreview = ref<InviteAcceptedNotification[]>([])
@@ -845,10 +843,23 @@ const pendingEmailTarget = computed(() =>
   (authStore.profile?.pendingEmail || authStore.profile?.pending_email || '').trim()
 )
 
-const notificationPreviewInvites = computed(() => pendingDepartmentInvites.value.slice(0, 5))
+const notificationPreviewInvites = computed(() =>
+  pendingDepartmentInvites.value
+    .filter(
+      (inv) =>
+        !bellLocallyDismissedKeys.value.has(
+          `camp-${inv.activity_id}-${inv.source_department_id}`,
+        ),
+    )
+    .slice(0, 5),
+)
 const notificationPreviewFound = computed(() =>
   canManageQrContact.value
-    ? publicFoundPreview.value.filter((m) => m.status === 'open').slice(0, 5)
+    ? publicFoundPreview.value
+        .filter(
+          (m) => m.status === 'open' && !bellLocallyDismissedKeys.value.has(`found-${m.id}`),
+        )
+        .slice(0, 5)
     : [],
 )
 
@@ -966,6 +977,12 @@ function syncBellBadge() {
   headerNotificationsStore.requestRefresh()
 }
 
+function addBellLocalDismissKey(key: string) {
+  const next = new Set(bellLocallyDismissedKeys.value)
+  next.add(key)
+  bellLocallyDismissedKeys.value = next
+}
+
 function tabGroupLabel(type: DetailTabType): string {
   const keys: Record<DetailTabType, string> = {
     material: 'layout.tabs.groupMaterial',
@@ -1054,6 +1071,143 @@ function goToNotificationsCenter() {
   router.push(`/${deptId}/notifications`)
 }
 
+async function dismissActivityBellEntry(entry: BellActivityEntry) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  if (entry.bellScope === 'user') {
+    activityUserPreview.value = activityUserPreview.value.filter((e) => e.id !== entry.id)
+    activityUserUnreadCount.value = Math.max(0, activityUserUnreadCount.value - 1)
+  } else {
+    activityMwPreview.value = activityMwPreview.value.filter((e) => e.id !== entry.id)
+    activityMwUnreadCount.value = Math.max(0, activityMwUnreadCount.value - 1)
+  }
+  decrementUnreadCount()
+  try {
+    if (entry.bellScope === 'user') {
+      await markUserActivityStatusNotificationRead(deptId, entry.id)
+    } else {
+      await markActivityMwNotificationRead(deptId, entry.id)
+    }
+    syncBellBadge()
+  } catch {
+    /* ignore */
+  }
+}
+
+async function dismissUserMessageFromBell(msg: UserDirectMessage) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  userMessagePreview.value = userMessagePreview.value.filter((m) => m.id !== msg.id)
+  if (!msg.read) {
+    userMessageUnreadCount.value = Math.max(0, userMessageUnreadCount.value - 1)
+    decrementUnreadCount()
+    try {
+      await markUserDirectMessageRead(deptId, msg.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function dismissInviteAcceptedFromBell(note: InviteAcceptedNotification) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  inviteAcceptedPreview.value = inviteAcceptedPreview.value.filter((n) => n.id !== note.id)
+  if (!note.read) {
+    inviteAcceptedUnreadCount.value = Math.max(0, inviteAcceptedUnreadCount.value - 1)
+    decrementUnreadCount()
+    try {
+      await markInviteNotificationRead(deptId, note.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function dismissFoundMessageFromBell(msg: PublicFoundItemMessage) {
+  const deptId = authStore.activeDepartmentId
+  if (!deptId) return
+  publicFoundPreview.value = publicFoundPreview.value.filter((m) => m.id !== msg.id)
+  addBellLocalDismissKey(`found-${msg.id}`)
+  if (!msg.read_at) {
+    decrementUnreadCount()
+    try {
+      await markPublicFoundMessageRead(deptId, msg.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function dismissGrossanlassRoundFromBell(note: GrossanlassRoundOpenedNotification) {
+  grossanlassRoundOpenedPreview.value = grossanlassRoundOpenedPreview.value.filter(
+    (e) => e.id !== note.id,
+  )
+  if (!note.read) {
+    receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+    decrementUnreadCount()
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function dismissGrossanlassMwFromBell(note: GrossanlassMwAssignedNotification) {
+  grossanlassMwAssignedPreview.value = grossanlassMwAssignedPreview.value.filter(
+    (e) => e.id !== note.id,
+  )
+  if (!note.read) {
+    receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+    decrementUnreadCount()
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function dismissDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
+  receivedDepartmentInvitePreview.value = receivedDepartmentInvitePreview.value.filter(
+    (e) => e.id !== inv.id,
+  )
+  if (!inv.read) {
+    receivedDepartmentInviteUnread.value = Math.max(0, receivedDepartmentInviteUnread.value - 1)
+    decrementUnreadCount()
+    try {
+      await markReceivedDepartmentInviteRead(inv.id)
+      syncBellBadge()
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function dismissCampInviteFromBell(invite: PendingDepartmentActivityInvite) {
+  addBellLocalDismissKey(`camp-${invite.activity_id}-${invite.source_department_id}`)
+  pendingDepartmentInvites.value = pendingDepartmentInvites.value.filter(
+    (entry) =>
+      !(
+        entry.activity_id === invite.activity_id &&
+        entry.source_department_id === invite.source_department_id
+      ),
+  )
+  decrementUnreadCount()
+}
+
+function dismissAccountingFromBell() {
+  accountingBellDismissed.value = true
+  const n = pendingFollowUpCount.value
+  if (n > 0) decrementUnreadCount(n)
+}
+
 async function openActivityBellEntry(entry: BellActivityEntry) {
   const deptId = authStore.activeDepartmentId
   if (!deptId || !entry.activity_id) return
@@ -1117,7 +1271,11 @@ async function openGrossanlassRoundFromBell(note: GrossanlassRoundOpenedNotifica
     /* navigate anyway */
   }
   const path = note.planung_url || `/${note.department_id}/planung`
-  void router.push(path)
+  void router.push(
+    note.round_id
+      ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
+      : path,
+  )
   syncBellBadge()
 }
 
@@ -1720,6 +1878,7 @@ watch(
     userMessagePreview.value = []
     userMessageUnreadCount.value = 0
     accountingBellDismissed.value = false
+    bellLocallyDismissedKeys.value = new Set()
     void loadDepartmentInvites()
     startNotificationsPolling()
   }
@@ -2135,14 +2294,14 @@ watch(
   display: grid;
 }
 
-.notification-item {
+:deep(.notification-item) {
   padding: 10px 12px;
   border-bottom: 1px solid #f3f4f6;
   display: grid;
   gap: 6px;
 }
 
-button.notification-item--found {
+:deep(button.notification-item--found) {
   width: 100%;
   margin: 0;
   border: none;
@@ -2158,23 +2317,23 @@ button.notification-item--found {
   gap: 10px;
 }
 
-button.notification-item--found .notification-item__avatar {
+:deep(button.notification-item--found .notification-item__avatar) {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-button.notification-item--found .notification-item__body {
+:deep(button.notification-item--found .notification-item__body) {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-button.notification-item--found:hover {
+:deep(button.notification-item--found:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--activity {
+:deep(button.notification-item--activity) {
   width: 100%;
   margin: 0;
   border: none;
@@ -2189,11 +2348,11 @@ button.notification-item--activity {
   gap: 6px;
 }
 
-button.notification-item--activity:hover {
+:deep(button.notification-item--activity:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--activity-mw {
+:deep(button.notification-item--activity-mw) {
   width: 100%;
   margin: 0;
   border: none;
@@ -2209,11 +2368,11 @@ button.notification-item--activity-mw {
   gap: 10px;
 }
 
-button.notification-item--activity-mw:hover {
+:deep(button.notification-item--activity-mw:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--user-message {
+:deep(button.notification-item--user-message) {
   display: flex;
   align-items: flex-start;
   gap: 10px;
@@ -2228,25 +2387,25 @@ button.notification-item--user-message {
   cursor: pointer;
 }
 
-button.notification-item--user-message:hover {
+:deep(button.notification-item--user-message:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--user-message.notification-item--unread {
+:deep(button.notification-item--user-message.notification-item--unread) {
   background: #eff6ff;
 }
 
-button.notification-item--user-message .notification-item__avatar {
+:deep(button.notification-item--user-message .notification-item__avatar) {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-button.notification-item--user-message .notification-item__body {
+:deep(button.notification-item--user-message .notification-item__body) {
   flex: 1;
   min-width: 0;
 }
 
-button.notification-item--invite-accepted {
+:deep(button.notification-item--invite-accepted) {
   width: 100%;
   padding: 10px 12px;
   border: none;
@@ -2258,11 +2417,35 @@ button.notification-item--invite-accepted {
   cursor: pointer;
 }
 
-button.notification-item--invite-accepted:hover {
+:deep(button.notification-item--invite-accepted:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--invite-accepted.notification-item--unread {
+:deep(button.notification-item--invite-accepted.notification-item--unread) {
+  background: #eff6ff;
+}
+
+:deep(button.notification-item--grossanlass-round),
+:deep(button.notification-item--grossanlass-mw),
+:deep(button.notification-item--activity-invite) {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: #fff;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:deep(button.notification-item--grossanlass-round:hover),
+:deep(button.notification-item--grossanlass-mw:hover),
+:deep(button.notification-item--activity-invite:hover) {
+  background: #f9fafb;
+}
+
+:deep(button.notification-item--grossanlass-round.notification-item--unread),
+:deep(button.notification-item--grossanlass-mw.notification-item--unread) {
   background: #eff6ff;
 }
 
@@ -2271,19 +2454,19 @@ button.notification-item--invite-accepted.notification-item--unread {
   min-width: 0;
 }
 
-button.notification-item--activity-mw .notification-item__avatar {
+:deep(button.notification-item--activity-mw .notification-item__avatar) {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-button.notification-item--activity-mw .notification-item__body {
+:deep(button.notification-item--activity-mw .notification-item__body) {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-button.notification-item--dept-invite {
+:deep(button.notification-item--dept-invite) {
   width: 100%;
   margin: 0;
   border: none;
@@ -2299,28 +2482,28 @@ button.notification-item--dept-invite {
   gap: 10px;
 }
 
-button.notification-item--dept-invite .notification-item__avatar {
+:deep(button.notification-item--dept-invite .notification-item__avatar) {
   flex-shrink: 0;
   margin-top: 2px;
 }
 
-button.notification-item--dept-invite .notification-item__body {
+:deep(button.notification-item--dept-invite .notification-item__body) {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-button.notification-item--dept-invite:hover {
+:deep(button.notification-item--dept-invite:hover) {
   background: #f9fafb;
 }
 
-button.notification-item--dept-invite.notification-item--unread {
+:deep(button.notification-item--dept-invite.notification-item--unread) {
   background: #eff6ff;
   border-left: 3px solid #3b82f6;
 }
 
-button.notification-item--accounting {
+:deep(button.notification-item--accounting) {
   width: 100%;
   margin: 0;
   border: none;
@@ -2335,7 +2518,7 @@ button.notification-item--accounting {
   gap: 6px;
 }
 
-button.notification-item--accounting:hover {
+:deep(button.notification-item--accounting:hover) {
   background: linear-gradient(90deg, rgba(245, 158, 11, 0.18) 0%, #f9fafb 14px);
 }
 

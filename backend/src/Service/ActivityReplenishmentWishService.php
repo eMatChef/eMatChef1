@@ -86,7 +86,7 @@ class ActivityReplenishmentWishService
             $activityItem->setQuantity($qty);
             $activityItem->setPriority('normal');
             $activityItem->setNotes($wish->getNotes());
-            $activityItem->setIsConsumable($material->getIsConsumable());
+            $activityItem->setIsConsumable($material->countsAsConsumableForActivity());
             $activityItem->setIsReplenishment(false);
             $this->entityManager->persist($activityItem);
         }

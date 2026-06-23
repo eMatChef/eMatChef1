@@ -242,7 +242,7 @@
                 />
                 <!-- Slider-Toggles (nicht bei Vorlage) -->
                 <MaterialTypeToggles
-                  v-if="!isFromTemplate"
+                  v-if="!isFromTemplate || creationMode === 'individual'"
                   :is-consumable="formData.is_consumable"
                   :is-food="formData.is_food"
                   @update:is-consumable="formData.is_consumable = $event"

@@ -87,6 +87,13 @@
                   ><span aria-hidden="true">{{ COMBO_BADGE.virtual }}</span> {{ t('activities.detail.comboVirtualShort') }}</span
                 >
                 <span v-if="row.is_js_material" class="activity-mat-js-tag">J&amp;S</span>
+                <span
+                  v-if="row.is_replenishment"
+                  class="activity-mat-replenishment-tag"
+                  :title="t('activities.materialLinesTable.replenishmentBadge')"
+                >
+                  {{ t('activities.materialLinesTable.replenishmentBadge') }}
+                </span>
                 <button
                   v-if="row.is_container && row.material_type !== 'physical_combo'"
                   type="button"
@@ -846,6 +853,7 @@ function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
 }
 
 function shortageForRow(row: ActivityMaterialLine): number {
+  if (isReplenishmentLine(row)) return 0
   const max = maxQtyForRow(row)
   if (max === undefined) return 0
   return Math.max(0, row.quantity - max)
@@ -859,12 +867,20 @@ function lineLockedForPackListOnly(row: ActivityMaterialLine): boolean {
   return !!row.is_container && row.material_type !== 'physical_combo'
 }
 
+function isReplenishmentLine(row: ActivityMaterialLine): boolean {
+  return row.is_replenishment === true
+}
+
 function qtyRowLocked(row: ActivityMaterialLine): boolean {
+  if (isReplenishmentLine(row)) return true
   if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) return true
   return lineLockedForPackListOnly(row) || props.packingStageQuantityReadonly === true
 }
 
 function qtyLockedHint(row: ActivityMaterialLine): string {
+  if (isReplenishmentLine(row)) {
+    return t('activities.materialLinesTable.replenishmentQtyHint')
+  }
   if (isVirtualComboLooseChildRow(row)) {
     return t('activities.materialLinesTable.virtualComboChildQtyHint')
   }
@@ -878,6 +894,9 @@ function qtyLockedHint(row: ActivityMaterialLine): string {
 }
 
 function qtyLockedRemoveTitle(row: ActivityMaterialLine): string {
+  if (isReplenishmentLine(row)) {
+    return t('activities.materialLinesTable.replenishmentRemoveTitle')
+  }
   if (isVirtualComboLooseChildRow(row)) {
     return t('activities.materialLinesTable.virtualComboChildRemoveTitle')
   }
@@ -914,6 +933,9 @@ function remainingAfterSelection(row: ActivityMaterialLine): number | null {
 
 /** Anzeige: Menge / maximal im Zeitraum */
 function formatRestCell(row: ActivityMaterialLine): string {
+  if (isReplenishmentLine(row)) {
+    return t('activities.materialLinesTable.replenishmentRest')
+  }
   if (availabilityLoading.value) return '…'
   const max = maxQtyForRow(row)
   if (max === undefined) return t('activities.wizard.form.summaryEmpty')
@@ -1531,6 +1553,18 @@ function applyAllSuggestedQuantities() {
   border-radius: 4px;
   background: #eef2ff;
   color: #4338ca;
+}
+
+.activity-mat-replenishment-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
 }
 
 .activity-mat-container-tag {

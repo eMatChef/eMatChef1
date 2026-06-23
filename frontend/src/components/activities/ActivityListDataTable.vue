@@ -70,7 +70,7 @@
 
     <template #item.issues="{ item }">
       <router-link
-        v-if="['at_event', 'returned', 'completed'].includes(item.status)"
+        v-if="['at_event', 'transport_back', 'returned', 'storing', 'completed'].includes(item.status)"
         class="activity-list-shared__issues-link"
         :to="`/${departmentId}/activities/${item.id}?tab=issues`"
         @click.stop

@@ -143,7 +143,11 @@
       "approved": "Approved",
       "packing": "Packing",
       "packed": "Packed",
-      "at_event": "At event"
+      "transport_out": "Transport out",
+      "at_event": "At event",
+      "transport_back": "Transport back",
+      "returned": "Returned",
+      "storing": "Storing"
     }
   },
   "public": {
@@ -346,8 +350,11 @@
       "approved": "Approved",
       "packing": "Packing",
       "packed": "Packed",
+      "transport_out": "Transport out",
       "at_event": "At event",
+      "transport_back": "Transport back",
       "returned": "Returned",
+      "storing": "Storing",
       "completed": "Completed",
       "cancelled": "Cancelled"
     },
@@ -1416,7 +1423,8 @@
       "newActivityTitle": "{name} submitted an activity",
       "newActivityHint": "Open activity",
       "showAllFooterTitle": "Open message center (under Tasks in the navigation)",
-      "showAll": "Show all"
+      "showAll": "Show all",
+      "dismissAria": "Dismiss notification"
     },
     "header": {
       "helpTitle": "Help",
@@ -1616,8 +1624,11 @@
       "approved": "Approved",
       "packing": "Packing",
       "packed": "Packed",
+      "transport_out": "Transport out",
       "at_event": "At event",
+      "transport_back": "Transport back",
       "returned": "Returned",
+      "storing": "Storing",
       "completed": "Completed",
       "cancelled": "Cancelled",
       "confirmed": "Confirmed",
@@ -1628,8 +1639,11 @@
       "approved": "Approve",
       "packing": "Start packing",
       "packed": "Mark as packed",
-      "at_event": "Everything taken to event",
+      "transport_out": "Continue to transport out",
+      "at_event": "Continue to at event",
+      "transport_back": "Transport complete",
       "returned": "Record return",
+      "storing": "Start storing",
       "completed": "Complete",
       "cancelled": "Cancel",
       "packingFromSubmitted": "Accept & pack",
@@ -2030,6 +2044,9 @@
       "comboContentToggleAria": "Expand or collapse physical combo contents",
       "comboContentEmpty": "No bill of materials defined for this physical combo.",
       "replenishmentBadge": "Follow-up / purchase",
+      "replenishmentQtyHint": "Purchased — quantity and price recorded via follow-up delivery",
+      "replenishmentRest": "Purchase",
+      "replenishmentRemoveTitle": "Follow-up lines cannot be edited here — use consumables / follow-up delivery",
       "defaultEmpty": "No lines yet.",
       "availabilityLoadFailed": "Could not load availability.",
       "ariaDecPack": "Decrease quantity by 1 {unit}",
@@ -2107,6 +2124,12 @@
         "byShelf": "By shelf",
         "aria": "Filter checklist"
       },
+      "inventoryAtEvent": {
+        "title": "Material at event",
+        "empty": "Nothing arrived yet — mark tours above as «Arrived».",
+        "hint": "Report consumption, defect or loss per line — tap crates for contents.",
+        "returnMaterial": "Return material"
+      },
       "regalGroup": {
         "noShelf": "No shelf",
         "summary": "{count} open"
@@ -2124,12 +2147,19 @@
         "inPackCrates": "In pack crate: {labels}",
         "openCrateSheetHint": "Open crate check — partial quantities and loose issue",
         "selectPackTargetHint": "Select as target crate (green highlight)",
+        "assignToCrateHint": "Into crate «{label}»",
         "accordionEmpty": "No contents in this crate yet.",
         "accordionEmptyPackCrate": "Crate empty — book items individually or use the arrow to open the crate check.",
         "accordionToggle": "Contents",
         "accordionCount": "{count} lines",
         "looseTake": "Take loose",
-        "reassignCrate": "Move to another pack crate"
+        "reassignCrate": "Move to another pack crate",
+        "atEventTotal": "{count} total",
+        "atEventTaken": "{count} taken along",
+        "atEventLoss": "{count} loss",
+        "atEventRepair": "{count} repair",
+        "atEventConsumption": "{count} consumed",
+        "atEventNotTaken": "{count} not taken"
       },
       "looseTake": {
         "title": "Take loose",
@@ -2253,7 +2283,9 @@
       },
       "transportTours": {
         "title": "Transport tours",
-        "hint": "Choose a vehicle and assign crates/lines — pipeline bookings stay in the checklist.",
+        "titleArrival": "Transport arrival",
+        "hint": "Choose a vehicle, assign material and mark departure — book arrival under «At event».",
+        "hintArrival": "Without a planned tour, everything counts as one trip — «Arrived» books material at the event.",
         "empty": "No tour yet — «+ Tour» creates a trip.",
         "addTour": "+ Tour",
         "fitOk": "Fits",
@@ -2261,12 +2293,31 @@
         "fitUnknown": "Weight unknown",
         "weightHint": "{weight} kg / max. {max} kg",
         "noAssignable": "No open crates or lines for this step.",
+        "noAssigned": "No material assigned to this tour yet.",
         "deleteTour": "Delete tour",
         "createTitle": "New tour",
         "vehicleLabel": "Vehicle",
         "chooseVehicle": "Choose vehicle…",
         "createConfirm": "Create tour",
-        "noActivityVehicles": "No vehicles assigned to this activity yet — add them in the «Vehicles» tab."
+        "noActivityVehicles": "No vehicles assigned to this activity yet — add them in the «Vehicles» tab.",
+        "status": {
+          "planned": "Planned",
+          "in_transit": "En route",
+          "arrived": "Arrived"
+        },
+        "markDeparted": "Depart",
+        "markArrived": "Arrived",
+        "arriveAllOutbound": "All transported material is at the event",
+        "arriveAllInbound": "All return transport material is back",
+        "arrivedToast": "Tour arrived — material booked.",
+        "arriveAllToast": "{units} units booked at event.",
+        "pendingArrivalHint": "Not all tours marked as arrived yet.",
+        "implicitTrip": {
+          "label": "Trip (all)",
+          "subtitle": "Single trip — no tour planned",
+          "allArrived": "All transported material is at the event.",
+          "noTransportYet": "Nothing en route yet — book material on «Transport out» first."
+        }
       },
       "scan": {
         "label": "Search or scan",
@@ -3035,6 +3086,11 @@
       "fieldName": "Name",
       "fieldPlate": "Plate",
       "fieldPayload": "Payload (kg)",
+      "fieldLoadArea": "Load area (cm)",
+      "fieldLoadLength": "Length",
+      "fieldLoadWidth": "Width",
+      "fieldLoadHeight": "Height",
+      "loadAreaCm": "Load area: {length} × {width} × {height} cm",
       "fieldOwner": "Owner / lessor (contact)",
       "ownerPlaceholder": "Search company or contact…",
       "fieldNotes": "Vehicle notes",
@@ -6173,7 +6229,24 @@
     },
     "dashboard": {
       "draftBadge": "Draft",
-      "welcome": "Welcome to the major event workspace. Use the event name in the sidebar to manage departments and members, and «Planning rounds» to collect demand."
+      "welcome": "Welcome to the major event workspace. Use the event name in the sidebar to manage departments and members, and «Planning rounds» to collect demand.",
+      "loading": "Loading dashboard…",
+      "errorLoad": "Could not load dashboard",
+      "statRessorts": "Departments",
+      "statOpenRounds": "Open rounds",
+      "statBudgetSoll": "Budget (target)",
+      "statAwaitingDelivery": "Awaiting delivery",
+      "openRoundsTitle": "Open planning rounds",
+      "allRounds": "All rounds",
+      "noOpenRoundsTitle": "No open round",
+      "noOpenRoundsDescription": "When a planning round is open, you can submit material wishes here.",
+      "submitWish": "Submit wish",
+      "openRoundPage": "Open round",
+      "otherRoundsTitle": "Scheduled & closed",
+      "quickLinksTitle": "Quick links",
+      "linkRessorts": "Manage departments",
+      "wishDialogTitle": "Wish — {name}",
+      "wishDialogClosed": "This round is no longer open."
     },
     "planung": {
       "title": "Planning",

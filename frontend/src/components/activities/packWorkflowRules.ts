@@ -160,7 +160,7 @@ export function packMwEmergencyMoveEnabled(
 ): boolean {
   if (isMwActivityCreator) return false
   if (!canManageMaterials || !isGroupHandoffProfile) return false
-  return activityStatus === 'packed' || activityStatus === 'at_event'
+  return activityStatus === 'packed' || activityStatus === 'transport_out' || activityStatus === 'at_event' || activityStatus === 'transport_back'
 }
 
 export function packMwGroupHandoffActive(

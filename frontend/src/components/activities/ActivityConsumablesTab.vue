@@ -142,35 +142,10 @@
             </div>
 
             <footer
-              v-if="
-                (canAddActivityMaterial && remainingQty(row.material_item_id) > 0) ||
-                (canRequestNachbuchung && remainingQty(row.material_item_id) > 0)
-              "
+              v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
               class="consumable-card__footer"
             >
-              <div
-                v-if="canAddActivityMaterial && remainingQty(row.material_item_id) > 0"
-                class="consumable-footer__surplus"
-              >
-                <p class="consumable-footer__hint text-muted">
-                  {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
-                </p>
-                <EButton
-                  variant="secondary"
-                  size="small"
-                  :disabled="releasingId === row.material_item_id"
-                  :loading="releasingId === row.material_item_id"
-                  @click="releaseSurplus(row)"
-                >
-                  {{
-                    releasingId === row.material_item_id
-                      ? t('activities.consumables.surplusReleasing')
-                      : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
-                  }}
-                </EButton>
-              </div>
               <EButton
-                v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
                 variant="text"
                 size="small"
                 class="consumable-footer__nachbuchung"
@@ -265,7 +240,6 @@ import {
   createActivityIssue,
   getActivityIssues,
   getActivityItems,
-  releaseConsumableSurplus,
   type ActivityIssueReportRow,
   type ActivityItemRow,
 } from '@/api/activities'
@@ -296,6 +270,8 @@ const props = defineProps<{
   canAddActivityMaterial?: boolean
   /** Nachlieferung Verbrauchsmaterial (Gruppe/Ersteller ab «Am Event» oder MW/DC) */
   canRequestConsumableReplenishment?: boolean
+  /** Pipeline-Stufe für Nachlieferung (z. B. packed_at_event) */
+  replenishmentPackStage?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -305,6 +281,7 @@ const emit = defineEmits<{
       materialLabel: string
       packSize?: number | null
       packUnit?: string | null
+      packStage?: string
     },
   ]
   /** Nach erfolgreicher Verbrauchsmeldung: Parent lädt Meldungen neu (Kosten-Tab, Reparaturen/Verluste). */
@@ -363,8 +340,6 @@ function formatLineAmount(row: { material_item_id: string; sale_price: number | 
   const amount = consumableChargeableCost(row.material_item_id, activityItems.value, issues.value)
   return formatChfLabel(amount)
 }
-
-const releasingId = ref<string | null>(null)
 
 const canRequestNachbuchung = computed(
   () =>
@@ -434,6 +409,7 @@ function emitNachbuchung(row: {
     materialLabel: displayNameAgg(row),
     packSize: row.pack_size ?? null,
     packUnit: row.pack_unit ?? null,
+    packStage: props.replenishmentPackStage?.trim() || undefined,
   })
 }
 
@@ -516,26 +492,6 @@ async function load() {
     toast.error(t('activities.consumables.toastLoadFailed'))
   } finally {
     isLoading.value = false
-  }
-}
-
-async function releaseSurplus(row: { material_item_id: string }) {
-  const rem = remainingQty(row.material_item_id)
-  if (rem < 1 || releasingId.value) return
-  releasingId.value = row.material_item_id
-  try {
-    await releaseConsumableSurplus(props.activityId, {
-      material_item_id: row.material_item_id,
-      quantity: rem,
-    })
-    toast.success(t('activities.consumables.toastSurplusReleased', { n: rem }))
-    emit('consumptionBooked')
-    await load()
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.consumables.toastSurplusFailed'))
-  } finally {
-    releasingId.value = null
   }
 }
 
@@ -775,18 +731,6 @@ watch(
   padding: 12px 16px;
   border-top: 1px solid #f1f5f9;
   background: #fafbfc;
-}
-
-.consumable-footer__surplus {
-  flex: 1;
-  min-width: min(100%, 16rem);
-}
-
-.consumable-footer__hint {
-  margin: 0 0 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  max-width: 28rem;
 }
 
 .consumable-footer__nachbuchung {

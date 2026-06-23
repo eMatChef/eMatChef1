@@ -1530,7 +1530,7 @@ class ActivityWorkflowController extends AbstractController
             'return_difference' => $item->getReturnDifference(),
             'packed_by' => $user ? $user->getId() : null,
             'packed_at' => $item->getPackedAt()?->format('c'),
-            'is_consumable' => $mi->getIsConsumable(),
+            'is_consumable' => $mi->countsAsConsumableForActivity(),
             'is_js_material' => $mi->getIsJsMaterial(),
             'external_source' => $mi->getExternalSource(),
             'storage_rack_name' => $rackDisplay,
@@ -1606,14 +1606,60 @@ ORDER BY mb.material_item_id ASC, mb.id ASC";
 FROM material_batch mb
 INNER JOIN batch_storage_allocation a ON a.batch_id = mb.id
 LEFT JOIN material_batch cb ON cb.id = a.container_batch_id
-LEFT JOIN storage_rack r ON r.id = COALESCE(cb.rack_id, a.rack_id)
-LEFT JOIN storage_slot s ON s.id = COALESCE(cb.slot_id, a.slot_id)
+LEFT JOIN LATERAL (
+    SELECT alloc.rack_id AS eff_rack_id, alloc.slot_id AS eff_slot_id
+    FROM batch_storage_allocation alloc
+    WHERE alloc.batch_id = cb.id
+      AND alloc.container_batch_id IS NULL
+      AND (alloc.rack_id IS NOT NULL OR alloc.slot_id IS NOT NULL)
+    ORDER BY alloc.qty DESC
+    LIMIT 1
+) cb_loc ON a.container_batch_id IS NOT NULL
+LEFT JOIN storage_rack r ON r.id = COALESCE(cb_loc.eff_rack_id, cb.rack_id, a.rack_id)
+LEFT JOIN storage_slot s ON s.id = COALESCE(cb_loc.eff_slot_id, cb.slot_id, a.slot_id)
 WHERE mb.status = 'active'
 AND mb.material_item_id IN ($ph2)
-AND (COALESCE(cb.rack_id, a.rack_id) IS NOT NULL OR COALESCE(cb.slot_id, a.slot_id) IS NOT NULL)
+AND (COALESCE(cb_loc.eff_rack_id, cb.rack_id, a.rack_id) IS NOT NULL OR COALESCE(cb_loc.eff_slot_id, cb.slot_id, a.slot_id) IS NOT NULL)
 ORDER BY mb.material_item_id ASC, mb.id ASC";
 
         foreach ($conn->executeQuery($sql2, $missing)->fetchAllAssociative() as $row) {
+            $mid = $row['material_item_id'];
+            if (!isset($out[$mid])) {
+                $out[$mid] = [
+                    'rack_name' => $row['rack_name'],
+                    'slot_name' => $row['slot_name'],
+                ];
+            }
+        }
+
+        $missing = array_values(array_diff($materialIds, array_keys($out)));
+        if ($missing === []) {
+            return $out;
+        }
+
+        // Phys.-Kombi: Lagerplatz oft über verknüpfte Referenz-Kiste (linked_container_batch_id).
+        $ph3 = implode(',', array_fill(0, count($missing), '?'));
+        $sql3 = "SELECT mi.id AS material_item_id,
+  r.name AS rack_name,
+  s.name AS slot_name
+FROM material_item mi
+INNER JOIN material_batch cb ON cb.id = mi.linked_container_batch_id AND cb.status = 'active'
+LEFT JOIN LATERAL (
+    SELECT alloc.rack_id AS eff_rack_id, alloc.slot_id AS eff_slot_id
+    FROM batch_storage_allocation alloc
+    WHERE alloc.batch_id = cb.id
+      AND alloc.container_batch_id IS NULL
+      AND (alloc.rack_id IS NOT NULL OR alloc.slot_id IS NOT NULL)
+    ORDER BY alloc.qty DESC
+    LIMIT 1
+) cb_loc ON true
+LEFT JOIN storage_rack r ON r.id = COALESCE(cb_loc.eff_rack_id, cb.rack_id)
+LEFT JOIN storage_slot s ON s.id = COALESCE(cb_loc.eff_slot_id, cb.slot_id)
+WHERE mi.id IN ($ph3)
+AND mi.linked_container_batch_id IS NOT NULL
+AND (r.id IS NOT NULL OR s.id IS NOT NULL)";
+
+        foreach ($conn->executeQuery($sql3, $missing)->fetchAllAssociative() as $row) {
             $mid = $row['material_item_id'];
             if (!isset($out[$mid])) {
                 $out[$mid] = [

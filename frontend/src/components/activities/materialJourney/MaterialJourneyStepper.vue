@@ -10,6 +10,8 @@ const props = defineProps<{
   currentStep: JourneyStep
   /** Bearbeitbarer Pipeline-Checkpoint (Backend) */
   activeStep: JourneyStep
+  /** Vergangene Schritte mit noch offenen Material-Positionen */
+  stepsWithOpenWork?: JourneyStep[]
   profile: PackWorkflowProfile
 }>()
 
@@ -27,7 +29,12 @@ function stepLabel(step: JourneyStep): string {
 }
 
 const activeIndex = computed(() => Math.max(0, props.steps.indexOf(props.activeStep)))
-const viewedIndex = computed(() => Math.max(0, props.steps.indexOf(props.currentStep)))
+
+const openWorkSet = computed(() => new Set(props.stepsWithOpenWork ?? []))
+
+function stepHasOpenWork(step: JourneyStep, index: number): boolean {
+  return index < activeIndex.value && openWorkSet.value.has(step)
+}
 
 const progressPercent = computed(() => {
   if (props.steps.length <= 1) return 100
@@ -63,7 +70,8 @@ function onStepClick(step: JourneyStep): void {
           'material-journey-stepper__seg--last': index === steps.length - 1,
           'material-journey-stepper__seg--active': step === currentStep,
           'material-journey-stepper__seg--checkpoint': step === activeStep && step !== currentStep,
-          'material-journey-stepper__seg--done': index < activeIndex,
+          'material-journey-stepper__seg--done': index < activeIndex && !stepHasOpenWork(step, index),
+          'material-journey-stepper__seg--open': stepHasOpenWork(step, index),
           'material-journey-stepper__seg--future': index > activeIndex,
         }"
       >
@@ -77,9 +85,15 @@ function onStepClick(step: JourneyStep): void {
         >
           <span class="material-journey-stepper__seg-icon" aria-hidden="true">
             <v-icon
-              v-if="index < activeIndex"
+              v-if="index < activeIndex && !stepHasOpenWork(step, index)"
               icon="mdi-check"
               class="material-journey-stepper__check"
+              size="16"
+            />
+            <v-icon
+              v-else-if="stepHasOpenWork(step, index)"
+              icon="mdi-alert-circle-outline"
+              class="material-journey-stepper__open"
               size="16"
             />
             <span v-else class="material-journey-stepper__num">{{ index + 1 }}</span>
@@ -100,5 +114,14 @@ function onStepClick(step: JourneyStep): void {
 .material-journey-stepper__seg--checkpoint .material-journey-stepper__seg-btn {
   outline: 2px solid rgb(var(--v-theme-primary));
   outline-offset: 2px;
+}
+
+.material-journey-stepper__seg--open .material-journey-stepper__seg-btn {
+  outline: 2px solid rgb(var(--v-theme-warning));
+  outline-offset: 2px;
+}
+
+.material-journey-stepper__open {
+  color: rgb(var(--v-theme-warning));
 }
 </style>

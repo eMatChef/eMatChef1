@@ -4,7 +4,7 @@ Zielbild für eine **neue Oberfläche** für Packen, Ausgabe, Retour und Einlage
 
 **Stand:** Juni 2026 · **Status:** Phasen 0–8b umgesetzt (Journey Beta auf Route `pack-journey`); Legacy Tab `packs` bleibt Standard bis Phase 13
 
-**Detail-Spec:** [SPEC.md](./SPEC.md)
+**Detail-Spec:** [SPEC.md](./SPEC.md) · **Architektur ADR:** [ADR-workflow-layers.md](./ADR-workflow-layers.md)
 
 **Verwandt:** [material-pipeline.md](../material-pipeline.md) · [pack-workflow-rules.md](../pack-workflow-rules.md) · [pack-step-ui.md](../pack-step-ui.md) · [status.md](../status.md) · [devices/pack-workflow.md](../../devices/pack-workflow.md)
 
@@ -466,6 +466,7 @@ Vollständig: [SPEC §20–§22](./SPEC.md#20-integration--erweiterungen).
 | 19 | Scan- / QR-URL-History | **abgegrenzt** — [§20.11](./SPEC.md#2011-scan-history-abgegrenzung) · [scan-and-url-history.md](../../qr/scan-and-url-history.md) |
 | 20 | Parität Legacy-Packliste | **entschieden** — [§22](./SPEC.md#22-parität-legacy-packliste--entschieden) |
 | 21 | MW = Ersteller (7A) | **entschieden** — kein Handoff; MW≠Ersteller: Notfall bleibt |
+| 22 | Activity vs. Material vs. Stepper | **entschieden** — [ADR-workflow-layers.md](./ADR-workflow-layers.md): Stepper = `activity.status`; Material = `quantity_*`; `pack_journey_step` entfällt |
 
 ---
 

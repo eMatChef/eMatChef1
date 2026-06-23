@@ -1845,7 +1845,7 @@ const memberAwaitingMwPack = computed(
 const memberMwPackIncompleteItems = computed(() => {
   if (canManageMaterials.value) return []
   if (!isGroupHandoffProfile.value) return []
-  if (!['packing', 'packed', 'at_event'].includes(props.status)) return []
+  if (!['packing', 'packed', 'transport_out', 'at_event', 'transport_back'].includes(props.status)) return []
   return packItems.value
     .filter((pi) => {
       const ordered = pi.quantityOrdered ?? 0
@@ -1965,7 +1965,7 @@ const showMwLooseCrateAssignmentBanner = computed(
   () =>
     canManageMaterials.value &&
     hasMwLooseCrateAssignmentWork.value &&
-    (props.status === 'packed' || props.status === 'at_event'),
+    (props.status === 'packed' || props.status === 'transport_out' || props.status === 'at_event' || props.status === 'transport_back'),
 )
 
 function toastMwPackListRevertLockedForGroup(): void {
@@ -7342,7 +7342,7 @@ const showContinueAfterTransportBackButton = computed(
   () =>
     props.packListEditable &&
     isActiveStatusPackStage.value &&
-    props.status === 'at_event' &&
+    props.status === 'transport_back' &&
     packWorkflowProfile.value === 'logistics' &&
     activePackStage.value === 'at_event_transport_back' &&
     nextPackStageKey.value === 'transport_back_returned',
@@ -7395,7 +7395,7 @@ const showWorkflowRevertButton = computed(() => {
   if (!canManageMaterials.value || mwGroupHandoffActive.value) return false
   const tr = previousWorkflowTransition.value
   if (!tr) return false
-  if (props.status === 'returned' && tr.status === 'at_event') {
+  if (props.status === 'returned' && (tr.status === 'at_event' || tr.status === 'transport_back')) {
     return isPackWorkflowRevertFromReturnedStage(activePackStage.value, packWorkflowProfile.value)
   }
   return true
@@ -8505,8 +8505,12 @@ async function confirmReturnStatusTransition(): Promise<boolean> {
 function isWorkflowStatusRevertForMw(transition: ActivityTransitionRow): boolean {
   const s = props.status
   if (s === 'packed' && transition.status === 'packing') return true
-  if (s === 'at_event' && transition.status === 'packed') return true
-  if (s === 'returned' && transition.status === 'at_event') return true
+  if (s === 'transport_out' && transition.status === 'packed') return true
+  if (s === 'at_event' && (transition.status === 'packed' || transition.status === 'transport_out')) return true
+  if (s === 'transport_back' && transition.status === 'at_event') return true
+  if (s === 'returned' && (transition.status === 'at_event' || transition.status === 'transport_back')) return true
+  if (s === 'storing' && transition.status === 'returned') return true
+  if (s === 'completed' && transition.status === 'storing') return true
   return false
 }
 
@@ -8521,7 +8525,7 @@ async function confirmBeforeWorkflowTransition(transition: ActivityTransitionRow
 
   const revertTarget = activityStatusRevertTarget(props.status, packWorkflowProfile.value)
   if (revertTarget && transition.status === revertTarget) {
-    if (props.status === 'returned' && transition.status === 'at_event') {
+    if (props.status === 'returned' && (transition.status === 'at_event' || transition.status === 'transport_back')) {
       if (!isPackWorkflowRevertFromReturnedStage(activePackStage.value, packWorkflowProfile.value)) {
         toast.info(t('activities.packList.toastPackStageViewOnly'))
         return false
@@ -8530,11 +8534,11 @@ async function confirmBeforeWorkflowTransition(transition: ActivityTransitionRow
     return confirmWorkflowRevert(transition)
   }
 
-  if (transition.status === 'at_event') {
+  if (transition.status === 'at_event' || transition.status === 'transport_out' || transition.status === 'transport_back') {
     return confirmAtEventStatusTransition()
   }
 
-  if (transition.status === 'returned') {
+  if (transition.status === 'returned' || transition.status === 'storing') {
     return confirmReturnStatusTransition()
   }
 

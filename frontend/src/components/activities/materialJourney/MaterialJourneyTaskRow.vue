@@ -1,8 +1,22 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { VTooltip } from 'vuetify/components'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
+import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+
+/** Kurzer Kistenname für Tooltip (ohne Seriennummer-Doppelung). */
+function shortPackCrateLabel(label: string): string {
+  const trimmed = label.trim()
+  if (!trimmed) return ''
+  const sep = trimmed.lastIndexOf(' – ')
+  if (sep >= 0) {
+    const tail = trimmed.slice(sep + 3).trim()
+    if (tail) return tail
+  }
+  return trimmed.length > 36 ? `${trimmed.slice(0, 33)}…` : trimmed
+}
 
 const props = defineProps<{
   row: MaterialJourneyTaskRow
@@ -12,6 +26,13 @@ const props = defineProps<{
   moveBackQty?: number
   showMoveForward?: boolean
   moveForwardQty?: number
+  /** Gewählte Packkiste: ↑-Pfeil statt → */
+  packCrateAssignActive?: boolean
+  packTargetCrateLabel?: string | null
+  showIssueActions?: boolean
+  /** Am Anlass: «6 total · 4 mitgenommen · …» statt «erledigt». */
+  atEventQtyLabel?: string | null
+  isConsumableForMaterialId?: (materialItemId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +41,9 @@ const emit = defineEmits<{
   'update:moveBackQty': [qty: number]
   moveForward: [qty: number]
   'update:moveForwardQty': [qty: number]
+  consumed: []
+  loss: []
+  repair: []
 }>()
 
 const { t } = useI18n()
@@ -37,6 +61,7 @@ const statusClass = computed(() => {
 })
 
 const qtyLabel = computed(() => {
+  if (props.atEventQtyLabel) return props.atEventQtyLabel
   if (props.showMoveBack && props.row.isDone) {
     return t('activities.materialJourney.row.transportedQty', { count: props.row.doneQty })
   }
@@ -50,14 +75,32 @@ const showMoveBackControls = computed(
   () => Boolean(props.showMoveBack) && props.row.canMoveBack && !props.readonly,
 )
 
-const showMoveForwardControls = computed(
+const showCrateAssignUpControls = computed(
   () =>
+    Boolean(props.packCrateAssignActive) &&
     Boolean(props.showMoveForward) &&
     props.row.kind === 'loose' &&
     props.row.canMove &&
     props.row.isOpen &&
     !props.readonly,
 )
+
+const showMoveForwardControls = computed(
+  () =>
+    Boolean(props.showMoveForward) &&
+    props.row.kind === 'loose' &&
+    props.row.canMove &&
+    props.row.isOpen &&
+    !props.readonly &&
+    !showCrateAssignUpControls.value,
+)
+
+const assignUpTitle = computed(() => {
+  const label =
+    shortPackCrateLabel(props.packTargetCrateLabel ?? '') ||
+    t('activities.packList.crateTargetFallback')
+  return t('activities.materialJourney.row.assignToCrateHint', { label })
+})
 
 const effectiveMoveBackQty = computed(
   () => props.moveBackQty ?? props.row.maxMoveBackQty,
@@ -67,8 +110,19 @@ const effectiveMoveForwardQty = computed(
   () => props.moveForwardQty ?? props.row.maxForwardQty,
 )
 
+const rowIsConsumable = computed(() => {
+  const mid = props.row.packItem?.materialItemId
+  if (!mid) return false
+  if (props.row.packItem?.isConsumable === true) return true
+  return props.isConsumableForMaterialId?.(mid) === true
+})
+
 const hasInlineControls = computed(
-  () => showMoveForwardControls.value || showMoveBackControls.value,
+  () =>
+    showCrateAssignUpControls.value ||
+    showMoveForwardControls.value ||
+    showMoveBackControls.value ||
+    props.showIssueActions,
 )
 
 const isRowClickable = computed(
@@ -130,6 +184,26 @@ function onRowClick(): void {
 
     <div class="material-journey-task-row__trailing" @click.stop>
       <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>
+      <PackIssueQuickActions
+        v-if="showIssueActions && row.packItem"
+        :is-consumable="rowIsConsumable"
+        :material-item-id="row.packItem.materialItemId"
+        :material-name="row.title"
+        :show-consumption="rowIsConsumable"
+        @consumed="emit('consumed')"
+        @loss="emit('loss')"
+        @repair="emit('repair')"
+      />
+      <PackMoveControls
+        v-if="showCrateAssignUpControls"
+        direction="assign-up"
+        :qty="effectiveMoveForwardQty"
+        :max="row.maxForwardQty"
+        :disabled="moving"
+        :forward-title="assignUpTitle"
+        @update:qty="emit('update:moveForwardQty', $event)"
+        @move="emit('moveForward', $event)"
+      />
       <PackMoveControls
         v-if="showMoveForwardControls"
         direction="forward"

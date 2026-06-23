@@ -19,6 +19,7 @@ const props = defineProps<{
   movingId: string | null
   packCrateSelectMode?: boolean
   packTargetCrateId?: string | null
+  packTargetCrateLabel?: string | null
   containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
   packItems?: ActivityPackItem[]
   packContainers?: ActivityPackContainer[]
@@ -31,6 +32,11 @@ const props = defineProps<{
   showCrateMoveForward?: boolean
   moveForwardQtyForRow?: (row: TaskRow) => number
   hasReassignTargetsForRow?: (row: TaskRow) => boolean
+  showIssueForRow?: (row: TaskRow) => boolean
+  showIssueForAccordionLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => boolean
+  atEventQtyLabelForRow?: (row: TaskRow, previewLines: MaterialJourneyAccordionLine[]) => string | null
+  atEventQtyLabelForLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => string | null
+  isConsumableForMaterialId?: (materialItemId: string) => boolean
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +48,12 @@ const emit = defineEmits<{
   'update:moveBackQty': [row: TaskRow, qty: number]
   moveForward: [row: TaskRow, qty: number]
   'update:moveForwardQty': [row: TaskRow, qty: number]
+  consumed: [row: TaskRow]
+  loss: [row: TaskRow]
+  repair: [row: TaskRow]
+  lineConsumed: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineLoss: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineRepair: [row: TaskRow, line: MaterialJourneyAccordionLine]
 }>()
 
 const { t } = useI18n()
@@ -71,6 +83,10 @@ function previewLinesFor(row: TaskRow): MaterialJourneyAccordionLine[] {
   })
 }
 
+function isPackCrateAssignActive(): boolean {
+  return Boolean(props.packCrateSelectMode && props.packTargetCrateId)
+}
+
 function isPackTargetActive(row: TaskRow): boolean {
   return (
     Boolean(props.packCrateSelectMode) &&
@@ -94,6 +110,19 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
       props.shellPackItemForContainer,
     ).length > 0
   )
+}
+
+function atEventLabelForRow(row: TaskRow): string | null {
+  if (!props.atEventQtyLabelForRow) return null
+  return props.atEventQtyLabelForRow(row, previewLinesFor(row))
+}
+
+function atEventLabelForLine(row: TaskRow, line: MaterialJourneyAccordionLine): string | null {
+  return props.atEventQtyLabelForLine?.(row, line) ?? null
+}
+
+function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionLine): boolean {
+  return props.showIssueForAccordionLine?.(row, line) ?? false
 }
 </script>
 
@@ -122,6 +151,11 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
           :show-crate-move-forward="showCrateMoveForward"
           :move-forward-qty="moveForwardQtyForRow?.(row)"
           :has-reassign-targets="hasReassignTargetsFor(row)"
+          :show-issue-actions="showIssueForRow?.(row) ?? false"
+          :at-event-qty-label="atEventLabelForRow(row)"
+          :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
+          :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
+          :is-consumable-for-material-id="isConsumableForMaterialId"
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
@@ -130,6 +164,12 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"
           @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
+          @consumed="emit('consumed', row)"
+          @loss="emit('loss', row)"
+          @repair="emit('repair', row)"
+          @line-consumed="emit('lineConsumed', row, $event)"
+          @line-loss="emit('lineLoss', row, $event)"
+          @line-repair="emit('lineRepair', row, $event)"
         />
         <MaterialJourneyTaskRow
           v-else
@@ -140,11 +180,18 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
           :move-back-qty="moveBackQtyForRow?.(row)"
           :show-move-forward="showMoveForward"
           :move-forward-qty="moveForwardQtyForRow?.(row)"
+          :pack-crate-assign-active="isPackCrateAssignActive()"
+          :pack-target-crate-label="packTargetCrateLabel"
+          :show-issue-actions="showIssueForRow?.(row) ?? false"
+          :at-event-qty-label="atEventLabelForRow(row)"
           @activate="emit('activate', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"
           @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
+          @consumed="emit('consumed', row)"
+          @loss="emit('loss', row)"
+          @repair="emit('repair', row)"
         />
       </li>
     </ul>
