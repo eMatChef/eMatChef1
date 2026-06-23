@@ -89,6 +89,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   returned_at?: string | null
   completed_at?: string | null
   rejection_comment?: string | null
+  /** Material-Journey: aktuell bearbeitbarer Schritt (pack, transport_out, issue, …) */
+  pack_journey_step?: string | null
   is_material_editable?: boolean
   is_pack_list_editable?: boolean
   can_report_issues?: boolean
@@ -282,6 +284,16 @@ export async function patchActivityStatus(
   body: { status: string; comment?: string | null },
 ): Promise<ActivityDetail> {
   const { data } = await apiClient.patch<ActivityDetail>(`/api/activities/${activityId}/status`, body)
+  return data
+}
+
+export async function patchActivityPackJourneyStep(
+  activityId: string,
+  step: string,
+): Promise<ActivityDetail> {
+  const { data } = await apiClient.patch<ActivityDetail>(`/api/activities/${activityId}/pack-journey-step`, {
+    step,
+  })
   return data
 }
 

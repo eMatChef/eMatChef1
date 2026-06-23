@@ -2522,6 +2522,30 @@
         "markTransportedHint": "Im Tab «Erledigt» Mengen prüfen und ggf. zurückstellen — dann «Als transportiert» für die erste Fahrt.",
         "toastSuccess": "Transport abgeschlossen — weiter zum Anlass."
       },
+      "transportOutComplete": {
+        "title": "Transport hin erledigt",
+        "description": "{count} Positionen — alles für den Transport ist gebucht.",
+        "continue": "Weiter zu Am Anlass",
+        "hint": "Touren sind optional — Material kann direkt am Anlass ausgegeben werden."
+      },
+      "phaseComplete": {
+        "defaultTitle": "Schritt erledigt",
+        "defaultDescription": "{count} Positionen — Checkliste für diesen Schritt ist fertig.",
+        "defaultContinue": "Weiter zu {next}",
+        "error": "Schritt konnte nicht freigeschaltet werden.",
+        "transport_out": {
+          "title": "Transport hin erledigt",
+          "description": "{count} Positionen — alles für den Transport ist gebucht.",
+          "continue": "Weiter zu Am Anlass",
+          "hint": "Touren sind optional — Material kann direkt am Anlass ausgegeben werden."
+        },
+        "transport_back": {
+          "title": "Transport zurück erledigt",
+          "description": "{count} Positionen — alles für den Rücktransport ist gebucht.",
+          "continue": "Weiter zu Retour",
+          "hint": "Touren sind optional — Retour kann direkt gebucht werden."
+        }
+      },
       "moveBack": {
         "action": "Zurückstellen",
         "toastSuccess": "{name} · ×{qty} zurückgestellt"
@@ -2529,7 +2553,7 @@
       "moveForward": {
         "action": "Menge buchen"
       },
-      "readonlyFutureStep": "Dieser Schritt liegt noch vor dem aktuellen Stand — nur Ansicht.",
+      "readonlyFutureStep": "Dieser Schritt ist noch nicht freigeschaltet — bitte den vorherigen Schritt abschliessen.",
       "readonlyPastStep": "Dieser Schritt ist bereits abgeschlossen — nur Ansicht.",
       "jsBanner": {
         "hint": "J+S-Leihmaterial wird im Tab J+S bestellt und geprüft — nicht über diese Packliste.",
@@ -8726,6 +8750,13 @@
         "autoEnabled": "Automatisches Öffnen/Schliessen aktiv",
         "openAction": "Runde öffnen",
         "closeAction": "Runde schliessen",
+        "reopenAction": "Runde wieder öffnen",
+        "closeConfirmTitle": "Runde schliessen?",
+        "closeConfirmMessage": "«{name}» wirklich schliessen? Ressort-Mitglieder können danach keine neuen Wünsche mehr einreichen. Bereits eingereichte Wünsche bleiben erhalten.",
+        "reopenConfirmTitle": "Runde wieder öffnen?",
+        "reopenConfirmMessage": "«{name}» wieder öffnen? Ressort-Mitglieder können dann erneut Wünsche einreichen und bearbeiten.",
+        "reopened": "«{name}» ist wieder offen",
+        "errorReopen": "Runde konnte nicht wieder geöffnet werden",
         "modalNew": "Planungsrunde anlegen",
         "modalEdit": "Planungsrunde bearbeiten",
         "nameLabel": "Name der Runde",
@@ -8808,6 +8839,7 @@
       "selectOptionLabel": "Option {n}",
       "addOption": "Option hinzufügen",
       "removeOption": "Option entfernen",
+      "fieldLockedHint": "Feld mit Antworten — kann nicht entfernt werden",
       "allowMultiple": "Mehrfachauswahl (Checkboxen)",
       "selectDisplayHint": "Ohne Mehrfachauswahl: Dropdown (eine Option). Mit Mehrfachauswahl: Checkboxen.",
       "autoSaving": "Speichern…",

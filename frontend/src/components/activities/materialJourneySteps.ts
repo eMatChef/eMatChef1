@@ -69,14 +69,10 @@ export function defaultJourneyStepForStatus(
   status: string,
   profile: PackWorkflowProfile,
   canManageMaterials = false,
-  options?: { transportOutAcknowledged?: boolean },
 ): JourneyStep {
   if (status === 'packing') return 'pack'
   if (status === 'packed') {
-    if (profile === 'logistics') {
-      return options?.transportOutAcknowledged ? 'issue' : 'transport_out'
-    }
-    return 'issue'
+    return profile === 'logistics' ? 'transport_out' : 'issue'
   }
   if (status === 'at_event') {
     return profile === 'logistics' ? 'transport_back' : 'return'
@@ -134,27 +130,6 @@ export function materialJourneyShowsShelfLocation(step: JourneyStep): boolean {
   return step === 'pack' || step === 'return' || step === 'store'
 }
 
-/** Packkiste: «Lose mitnehmen» / «In andere Kiste» — ab Transport hin bis Retour. */
-export function materialJourneyShowsCrateTransitActions(step: JourneyStep): boolean {
-  return (
-    step === 'transport_out' ||
-    step === 'issue' ||
-    step === 'transport_back' ||
-    step === 'return'
-  )
-}
-
-/** Erledigt-Tab: Buchung zurücknehmen mit Mengenkontrolle. */
-export function materialJourneyShowsMoveBack(step: JourneyStep): boolean {
-  return step === 'transport_out'
-}
-
-/** Offen-Tab: Packkiste per → nur beim Packen (Transport: Inhalt einzeln / Kiste bleibt). */
-export function materialJourneyShowsCrateMoveForwardQty(step: JourneyStep): boolean {
-  return step === 'pack'
-}
-
-/** Offen-Tab: Menge eingeben + Pfeil statt «Tippen = alles». */
 export function materialJourneyShowsMoveForwardQty(
   step: JourneyStep,
   profile: PackWorkflowProfile,

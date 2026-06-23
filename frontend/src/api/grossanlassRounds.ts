@@ -81,3 +81,13 @@ export async function closeGrossanlassPlanningRound(
   )
   return response.data
 }
+
+export async function reopenGrossanlassPlanningRound(
+  departmentId: string,
+  roundId: string,
+): Promise<GrossanlassPlanningRound> {
+  const response = await apiClient.post<GrossanlassPlanningRound>(
+    `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/reopen`,
+  )
+  return response.data
+}

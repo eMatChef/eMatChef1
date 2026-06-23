@@ -170,6 +170,36 @@ class GrossanlassPlanningRoundController extends AbstractController
         return new JsonResponse($round);
     }
 
+    #[Route('/{roundId}/reopen', name: 'reopen', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function reopen(string $departmentId, string $roundId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->userHasDepartmentMembership($currentUser->getId(), $departmentId)) {
+            return new JsonResponse(['error' => 'Kein Zugriff auf diese Abteilung'], 403);
+        }
+
+        try {
+            $round = $this->roundService->reopenRound($department, $currentUser, $roundId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Fehler beim Wiedereröffnen: ' . $e->getMessage()], 500);
+        }
+
+        return new JsonResponse($round);
+    }
+
     private function resolveGrossanlassDepartment(string $departmentId): Department|JsonResponse
     {
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);

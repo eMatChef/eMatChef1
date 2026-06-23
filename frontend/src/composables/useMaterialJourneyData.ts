@@ -9,14 +9,14 @@ import {
 import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import {
-  defaultJourneyStepForStatus,
   isValidJourneyStep,
   journeyStepsForProfile,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
-import { isTransportOutAcknowledged, clearTransportOutAck } from '@/utils/materialJourneyTransportAck'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
+import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
+import { resolveActiveJourneyStep } from '@/utils/materialJourneyNavigation'
 import {
   emptyMaterialJourneyCratePeekMaps,
   loadMaterialJourneyCratePeekData,
@@ -48,39 +48,37 @@ export function useMaterialJourneyData(
 
   const profile = computed(() => packWorkflowProfileForActivityType(activity.value?.type ?? 'activity'))
 
-  const steps = computed(() => journeyStepsForProfile(profile.value))
-
-  const defaultJourneyStep = computed((): JourneyStep => {
+  const activeJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
-    const status = activity.value.status ?? 'packing'
-    if (status !== 'packed') {
-      clearTransportOutAck(activityId.value)
-    }
-    return defaultJourneyStepForStatus(
-      status,
-      profile.value,
-      canManageMaterials.value,
-      { transportOutAcknowledged: isTransportOutAcknowledged(activityId.value) },
-    )
+    return resolveActiveJourneyStep(activity.value, profile.value, canManageMaterials.value)
   })
+
+  const journeyStepWorkComplete = computed(() => (step: JourneyStep) =>
+    isJourneyStepWorkComplete(
+      step,
+      profile.value,
+      packItems.value,
+      packContainers.value,
+      containerItemsByContainerId.value,
+    ),
+  )
+
+  const steps = computed(() => journeyStepsForProfile(profile.value))
 
   const resolvedStep = computed((): JourneyStep => {
     const param = stepParam.value
-    const defaultStep = defaultJourneyStep.value
-
     if (param && isValidJourneyStep(param, profile.value)) {
       return param as JourneyStep
     }
     if (!activity.value) return 'pack'
-    return defaultStep
+    return activeJourneyStep.value
   })
 
   const needsStepRedirect = computed(() => {
     const param = stepParam.value
-    const defaultStep = defaultJourneyStep.value
-
     if (!param) return true
-    return !isValidJourneyStep(param, profile.value)
+    if (!isValidJourneyStep(param, profile.value)) return true
+    return false
   })
 
   const positionCount = computed(() => {
@@ -195,6 +193,10 @@ export function useMaterialJourneyData(
     steps,
     resolvedStep,
     needsStepRedirect,
+    activeJourneyStep,
+    /** @deprecated use activeJourneyStep */
+    defaultJourneyStep: activeJourneyStep,
+    journeyStepWorkComplete,
     positionCount,
     isEarlyPackPreview,
     canManageMaterials,

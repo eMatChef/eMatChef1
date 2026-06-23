@@ -6,7 +6,10 @@ import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 
 const props = defineProps<{
   steps: JourneyStep[]
+  /** Gewählter Schritt in der URL */
   currentStep: JourneyStep
+  /** Bearbeitbarer Pipeline-Checkpoint (Backend) */
+  activeStep: JourneyStep
   profile: PackWorkflowProfile
 }>()
 
@@ -23,11 +26,12 @@ function stepLabel(step: JourneyStep): string {
   return t(`activities.materialJourney.step.${step}`)
 }
 
-const currentIndex = computed(() => Math.max(0, props.steps.indexOf(props.currentStep)))
+const activeIndex = computed(() => Math.max(0, props.steps.indexOf(props.activeStep)))
+const viewedIndex = computed(() => Math.max(0, props.steps.indexOf(props.currentStep)))
 
 const progressPercent = computed(() => {
   if (props.steps.length <= 1) return 100
-  return Math.round((currentIndex.value / (props.steps.length - 1)) * 100)
+  return Math.round((activeIndex.value / (props.steps.length - 1)) * 100)
 })
 
 function onStepClick(step: JourneyStep): void {
@@ -58,8 +62,9 @@ function onStepClick(step: JourneyStep): void {
           'material-journey-stepper__seg--first': index === 0,
           'material-journey-stepper__seg--last': index === steps.length - 1,
           'material-journey-stepper__seg--active': step === currentStep,
-          'material-journey-stepper__seg--done': index < currentIndex,
-          'material-journey-stepper__seg--future': index > currentIndex,
+          'material-journey-stepper__seg--checkpoint': step === activeStep && step !== currentStep,
+          'material-journey-stepper__seg--done': index < activeIndex,
+          'material-journey-stepper__seg--future': index > activeIndex,
         }"
       >
         <button
@@ -72,7 +77,7 @@ function onStepClick(step: JourneyStep): void {
         >
           <span class="material-journey-stepper__seg-icon" aria-hidden="true">
             <v-icon
-              v-if="index < currentIndex"
+              v-if="index < activeIndex"
               icon="mdi-check"
               class="material-journey-stepper__check"
               size="16"
@@ -91,4 +96,9 @@ function onStepClick(step: JourneyStep): void {
 
 <style scoped>
 @import '@/styles/views/activities/material-journey.css';
+
+.material-journey-stepper__seg--checkpoint .material-journey-stepper__seg-btn {
+  outline: 2px solid rgb(var(--v-theme-primary));
+  outline-offset: 2px;
+}
 </style>

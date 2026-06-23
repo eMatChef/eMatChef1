@@ -62,6 +62,10 @@ class Activity
     #[ORM\Column(name: 'create_wizard_completed', type: 'boolean', options: ['default' => true])]
     private bool $createWizardCompleted = true;
 
+    /** Material-Journey: aktuell bearbeitbarer Schritt (pack, transport_out, issue, …) */
+    #[ORM\Column(name: 'pack_journey_step', type: 'string', length: 32, nullable: true)]
+    private ?string $packJourneyStep = null;
+
     // Submitted-Timestamp (wann der Leader freigegeben hat)
     #[ORM\Column(name: 'submitted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $submittedAt = null;
@@ -314,6 +318,19 @@ class Activity
     public function setCreateWizardCompleted(bool $createWizardCompleted): self
     {
         $this->createWizardCompleted = $createWizardCompleted;
+        return $this;
+    }
+
+    public function getPackJourneyStep(): ?string
+    {
+        return $this->packJourneyStep;
+    }
+
+    public function setPackJourneyStep(?string $packJourneyStep): self
+    {
+        $this->packJourneyStep = $packJourneyStep !== null && trim($packJourneyStep) !== ''
+            ? trim($packJourneyStep)
+            : null;
         return $this;
     }
 
