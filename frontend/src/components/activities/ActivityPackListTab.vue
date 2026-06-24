@@ -2411,6 +2411,8 @@ function showPackIssueForShellUnpack(containerId: string): boolean {
 
 const emit = defineEmits<{
   workflowNext: [transition: ActivityTransitionRow]
+  /** Kopfzeile «Gepackt markieren» — nur wenn alles gepackt. */
+  packingHeaderReady: [ready: boolean]
   /** Nach Kistenwahl: Backend legt ActivityItem an — Parent soll Materialliste neu laden */
   activityItemsChanged: []
   openIssueWizard: [payload: PackIssueWizardEmitPayload]
@@ -7253,6 +7255,22 @@ const rightPanelHasEventContent = computed(() => {
 })
 
 const stageProgress = computed(() => stageProgressPercentForPackStage(activePackStage.value))
+
+/** Kopfzeile «Gepackt markieren» — nur wenn Packstufe «Gepackt» zu 100 %. */
+const isPackingWorkflowComplete = computed(
+  () =>
+    props.status === 'packing' &&
+    activePackStage.value === 'confirmed_packed' &&
+    stageProgress.value === 100,
+)
+
+watch(
+  isPackingWorkflowComplete,
+  (ready) => {
+    emit('packingHeaderReady', ready)
+  },
+  { immediate: true },
+)
 
 function stageProgressPercentForPackStage(stage: PackStage): number {
   const profile = packWorkflowProfile.value

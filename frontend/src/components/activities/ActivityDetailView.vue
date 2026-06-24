@@ -165,7 +165,7 @@
       </v-alert>
 
       <ActivityCompletionChecklist
-        v-if="canManageMaterials && activity.status === 'returned' && completionBlockers"
+        v-if="showMaterialCompletionChecklist"
         :blockers="completionBlockers"
         :activity-id="activityId"
         :host-department-id="departmentId"
@@ -230,6 +230,23 @@
                     <label>{{ t('common.group') }}</label>
                     <p class="activity-readonly-value">{{ activity.group_name || t('activities.wizard.form.summaryEmpty') }}</p>
                   </div>
+                  <ActivityDetailUserLine
+                    class="form-group"
+                    :label="t('activities.detail.labelCreatedBy')"
+                    :user="activity.created_by_user"
+                    :at="activity.created_at"
+                    :empty-label="t('activities.wizard.form.summaryEmpty')"
+                    :format-when="formatDateTime"
+                  />
+                  <ActivityDetailUserLine
+                    v-if="activity.submitted_at"
+                    class="form-group"
+                    :label="t('activities.detail.labelSubmittedBy')"
+                    :user="activity.submitted_by_user"
+                    :at="activity.submitted_at"
+                    :empty-label="t('activities.wizard.form.summaryEmpty')"
+                    :format-when="formatDateTime"
+                  />
                   <div v-if="activity.total_price != null" class="form-group">
                     <label>{{ t('activities.detail.labelTotalPrice') }}</label>
                     <p class="activity-readonly-value">CHF {{ Number(activity.total_price).toFixed(2) }}</p>
@@ -572,6 +589,7 @@
                 :activity-id="activityId"
                 :department-id="departmentId"
                 :can-manage="canManageActivityVehicles"
+                @assignments-changed="onActivityVehiclesChanged"
               />
             </div>
           </v-tabs-window-item>
@@ -580,6 +598,7 @@
             <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
               v-if="activity && !useLegacyPackUi"
+              ref="materialJourneyRef"
               :department-id="departmentId"
               :activity-id="activityId"
               :transitions="transitions"
@@ -587,8 +606,10 @@
               :can-report-consumption="showConsumptionBooking"
               :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
               :consumable-material-item-ids="consumableMaterialItemIds"
+              :reload-token="vehiclesReloadToken"
               embedded
               @status-changed="onJourneyStatusChanged"
+              @packing-header-ready="onPackingHeaderReady"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
               @request-nachbuchung="openNachbuchungModal"
@@ -620,6 +641,7 @@
               :adding-activity-material="addingDraftMaterial"
               :virtual-combo-self-provided-hints="virtualComboSelfProvidedHints"
               @workflow-next="onPackListWorkflowNext"
+              @packing-header-ready="onPackingHeaderReady"
               @activity-items-changed="onPackListActivityItemsChanged"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
@@ -755,6 +777,7 @@ import ActivityMaterialAvailabilityLookup from '@/components/activities/Activity
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityDetailUserLine from '@/components/activities/ActivityDetailUserLine.vue'
 import ActivityCostsTab from '@/components/activities/ActivityCostsTab.vue'
 import ActivityVehiclesTab from '@/components/activities/ActivityVehiclesTab.vue'
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
@@ -807,7 +830,9 @@ import {
   activityAllowsDamageReport,
   activityAllowsIssueReports,
   resolveActiveJourneyStep,
+  resolveEffectiveActiveJourneyStep,
 } from '@/utils/materialJourneyNavigation'
+import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
 import {
   isValidJourneyStep,
   replenishmentPackStageForContext,
@@ -873,17 +898,52 @@ function transitionActionLabel(tr: ActivityTransitionRow): string {
   return activityTransitionActionLabel(tr.status, activity.value?.status, t, te, tr.label)
 }
 
+/** Camp/Event: nur frühe Übergänge in der Kopfzeile (Einreichen … Packen); Rest über Material-Journey. */
+const LOGISTICS_HEADER_HIDDEN_WORKFLOW_TARGETS = new Set([
+  'transport_out',
+  'at_event',
+  'transport_back',
+  'returned',
+  'storing',
+  'completed',
+])
+
 /** Camp/Event Logistics: Übergänge laufen über Material-Journey (Touren, «Material zurückführen», Retour), nicht Kopfzeile. */
 function hideLogisticsHandoffTransitionInActivityHeader(targetStatus: string): boolean {
   const act = activity.value
   if (!act) return false
   if (packWorkflowProfileForActivityType(act.type || 'activity') !== 'logistics') return false
+  return LOGISTICS_HEADER_HIDDEN_WORKFLOW_TARGETS.has(targetStatus)
+}
+
+/** Quick/External: «Weiter zu Am Anlass» — Ausgabe läuft über Material-Journey. */
+function hideQuickHandoffTransitionInActivityHeader(targetStatus: string): boolean {
+  const act = activity.value
+  if (!act) return false
+  const profile = packWorkflowProfileForActivityType(act.type || 'activity')
+  if (profile === 'logistics') return false
+  if (activeTab.value !== 'packs' || useLegacyPackUi.value) return targetStatus === 'at_event'
+  if (targetStatus === 'at_event') return true
+  if (targetStatus === 'returned') return true
+  return false
+}
+
+/** Quick/External: «Einlagern starten» erst nach Übergabe an Materialwart (Status «Retour»). */
+function hideQuickStoringTransitionInActivityHeader(targetStatus: string): boolean {
+  if (targetStatus !== 'storing') return false
+  const act = activity.value
+  if (!act) return false
+  const profile = packWorkflowProfileForActivityType(act.type || 'activity')
+  if (profile === 'logistics') return false
+  if (!canManageMaterials.value) return true
   const s = act.status ?? ''
-  if (s === 'at_event' && (targetStatus === 'returned' || targetStatus === 'transport_back')) {
+  if (s !== 'returned' && s !== 'storing') return true
+  if (
+    s === 'returned' &&
+    !isJourneyStepWorkComplete('return', profile, packItemsSnapshot.value, [], {})
+  ) {
     return true
   }
-  if (s === 'transport_back' && targetStatus === 'returned') return true
-  if (s === 'transport_out' && targetStatus === 'at_event') return true
   return false
 }
 
@@ -927,8 +987,11 @@ const headerQrSize = computed(() => (smAndUp.value ? 64 : 40))
 const STATUSES_WITH_PACKS_TAB = [
   'packing',
   'packed',
+  'transport_out',
   'at_event',
+  'transport_back',
   'returned',
+  'storing',
   'completed',
 ] as const
 
@@ -952,13 +1015,13 @@ const showPacksTab = computed(() => {
   return showMemberEarlyPackPreview.value
 })
 
-/** Fuhrpark-Planung ab Entwurf (MW/DC/Ersteller) bzw. ab Packliste für alle. */
+/** Fuhrpark-Planung nur Camp/Event — ab Entwurf (MW/DC/Ersteller) bzw. ab Packliste für alle. */
 const showVehiclesTab = computed(() => {
   const act = activity.value
   if (!act) return false
+  const type = act.type || ''
+  if (type !== 'camp' && type !== 'event') return false
   const s = act.status
-  const logisticsType = ['camp', 'event', 'activity', 'external'].includes(act.type || '')
-  if (!logisticsType) return false
   if (showPacksTab.value) return true
   if (['draft', 'submitted', 'approved'].includes(s ?? '') && canManageActivityVehicles.value) return true
   return false
@@ -1005,16 +1068,25 @@ const showPackJourneyStepBadge = computed(() => {
 
 const packJourneyStepLabelDetail = computed(() => {
   if (!activity.value) return ''
-  const step = resolveActiveJourneyStep(
+  const step = resolveEffectiveActiveJourneyStep(
     activity.value,
     packWorkflowProfile.value,
     canManageMaterials.value,
   )
-  if (step === 'issue' && packWorkflowProfile.value === 'logistics') {
-    return t('activities.materialJourney.step.issueLogistics')
-  }
-  const key = `activities.materialJourney.step.${step}` as const
+  const key =
+    step === 'issue' && packWorkflowProfile.value === 'logistics'
+      ? 'activities.materialJourney.step.issueLogistics'
+      : `activities.materialJourney.step.${step}`
   return te(key) ? t(key) : step
+})
+
+/** MW-Abschluss-Checkliste: nicht auf Packliste (Journey) — dort arbeitet man bereits in der Checkliste. */
+const showMaterialCompletionChecklist = computed(() => {
+  if (!canManageMaterials.value || !activity.value || !completionBlockers.value) return false
+  const s = activity.value.status ?? ''
+  if (!['returned', 'storing'].includes(s)) return false
+  if (activeTab.value === 'packs' && !useLegacyPackUi.value) return false
+  return true
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
@@ -1163,7 +1235,27 @@ type ActivityPackListTabExpose = {
   confirmBeforeWorkflowTransition: (transition: ActivityTransitionRow) => Promise<boolean>
 }
 
+type ActivityMaterialJourneyViewExpose = {
+  showPackCompletePanel: boolean
+  markPacked: () => Promise<void>
+}
+
 const packListTabRef = ref<ActivityPackListTabExpose | null>(null)
+const materialJourneyRef = ref<ActivityMaterialJourneyViewExpose | null>(null)
+
+/** «Gepackt markieren» in der Kopfzeile — nur wenn Packliste/Journey meldet: alles erledigt. */
+const packingStageCompleteForHeader = ref(false)
+
+function onPackingHeaderReady(ready: boolean): void {
+  packingStageCompleteForHeader.value = ready
+}
+
+watch(
+  () => activity.value?.status,
+  (status) => {
+    if (status !== 'packing') packingStageCompleteForHeader.value = false
+  },
+)
 
 function transitionNeedsPackListConfirmation(transition: ActivityTransitionRow): boolean {
   const a = activity.value
@@ -1287,6 +1379,7 @@ const workflowTransitions = computed(() =>
     const s = activity.value?.status
     if (s === 'at_event' && t.status === 'packed') return false
     if (s === 'returned' && t.status === 'at_event') return false
+    if (s === 'storing' && (t.status === 'returned' || t.status === 'at_event')) return false
     if (
       s === 'packed' &&
       t.status === 'at_event' &&
@@ -1314,6 +1407,11 @@ const workflowTransitions = computed(() =>
     // Quick-Modus: kein «Bestätigen» — Material ist bei Einreichung bereits final
     if (activity.value?.type === 'activity' && t.status === 'approved') return false
     if (hideLogisticsHandoffTransitionInActivityHeader(t.status)) return false
+    if (hideQuickHandoffTransitionInActivityHeader(t.status)) return false
+    if (hideQuickStoringTransitionInActivityHeader(t.status)) return false
+    if (s === 'packing' && t.status === 'packed' && !packingStageCompleteForHeader.value) {
+      return false
+    }
     if (s === 'returned' && t.status === 'completed') return false
     return true
   }),
@@ -1754,6 +1852,7 @@ const issuesReloadToken = ref(0)
 const consumablesReloadToken = ref(0)
 const costsReloadToken = ref(0)
 const packListReloadToken = ref(0)
+const vehiclesReloadToken = ref(0)
 
 watch(issuesReloadToken, () => {
   void loadActivityIssues()
@@ -2094,6 +2193,11 @@ function activityTypeLabelDetail(type: string): string {
 }
 
 function activityStatusLabelDetail(status: string): string {
+  const act = activity.value
+  if (act && status === 'at_event' && packWorkflowProfile.value !== 'logistics') {
+    const quickKey = 'activities.status.at_event_quick' as const
+    if (te(quickKey)) return t(quickKey)
+  }
   const key = `activities.status.${activityStatusI18nKey(status)}` as const
   return te(key) ? t(key) : status
 }
@@ -2543,6 +2647,10 @@ async function onPackListWorkflowNext(transition: ActivityTransitionRow) {
   await onTransition(transition, { skipPackConfirm: true })
 }
 
+function onActivityVehiclesChanged(): void {
+  vehiclesReloadToken.value += 1
+}
+
 async function onJourneyStatusChanged(): Promise<void> {
   try {
     const detail = await getActivity(props.activityId, props.departmentId)
@@ -2556,6 +2664,10 @@ async function onJourneyStatusChanged(): Promise<void> {
     transitions.value = trNext.transitions || []
     completionBlockers.value = trNext.completion_blockers ?? null
     packListReloadToken.value += 1
+    if (detail.status === 'storing' && !useLegacyPackUi.value && canManageMaterials.value) {
+      activeTab.value = 'packs'
+      mergeActivityQuery({ tab: 'packs', packStep: 'store' })
+    }
   } catch {
     /* Journey hat bereits lokal aktualisiert — Kopfzeile best-effort nachziehen */
   }
@@ -2566,6 +2678,17 @@ async function onTransition(
   options?: { skipPackConfirm?: boolean },
 ) {
   if (!transition.allowed || isTransitioning.value) return
+
+  if (
+    transition.status === 'packed' &&
+    activity.value?.status === 'packing' &&
+    !useLegacyPackUi.value
+  ) {
+    const journey = materialJourneyRef.value
+    if (!journey?.showPackCompletePanel) return
+    await journey.markPacked()
+    return
+  }
 
   if (
     !options?.skipPackConfirm &&
@@ -2597,6 +2720,10 @@ async function onTransition(
       activeTab.value = 'packs'
       mergeActivityQuery({ tab: 'packs' })
     }
+    if (detail.status === 'storing' && !useLegacyPackUi.value && canManageMaterials.value) {
+      activeTab.value = 'packs'
+      mergeActivityQuery({ tab: 'packs', packStep: 'store' })
+    }
     if (detail.status === 'completed' && activeTab.value === 'packs') {
       packListReloadToken.value += 1
     }
@@ -2623,7 +2750,15 @@ async function onTransition(
 
 function onCompletionGoTab(tab: 'packs' | 'issues' | 'costs') {
   activeTab.value = tab
-  mergeActivityQuery({ tab })
+  const updates: Record<string, string | undefined> = { tab }
+  if (tab === 'packs' && activity.value && !useLegacyPackUi.value) {
+    const s = activity.value.status ?? ''
+    if (s === 'storing') updates.packStep = 'store'
+    else if (s === 'returned' || s === 'at_event') updates.packStep = 'return'
+    else if (s === 'packed' || s === 'transport_out') updates.packStep = 'issue'
+    else if (s === 'packing') updates.packStep = 'pack'
+  }
+  mergeActivityQuery(updates)
 }
 
 async function onCancelActivity() {

@@ -53,6 +53,20 @@ export async function getDepartmentVehicles(
   return (Array.isArray(data) ? data : []).map((row) => mapVehicle(row))
 }
 
+export async function getRecentDepartmentVehicles(
+  departmentId: string,
+  options?: { activityId?: string; limit?: number },
+): Promise<DepartmentVehicle[]> {
+  const params = new URLSearchParams()
+  if (options?.activityId) params.set('activity_id', options.activityId)
+  if (options?.limit != null) params.set('limit', String(options.limit))
+  const qs = params.toString()
+  const { data } = await apiClient.get<Record<string, unknown>[]>(
+    `/api/departments/${departmentId}/vehicles/recent${qs ? `?${qs}` : ''}`,
+  )
+  return (Array.isArray(data) ? data : []).map((row) => mapVehicle(row))
+}
+
 export async function createDepartmentVehicle(
   departmentId: string,
   body: {

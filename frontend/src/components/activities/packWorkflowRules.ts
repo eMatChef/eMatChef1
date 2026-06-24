@@ -1004,7 +1004,9 @@ export function packIssuesVisibleForStage(stage: PackStage): boolean {
   return (
     stage === 'transport_to_at_event' ||
     stage === 'packed_at_event' ||
-    stage === 'at_event_transport_back'
+    stage === 'at_event_transport_back' ||
+    stage === 'at_event_returned' ||
+    stage === 'transport_back_returned'
   )
 }
 

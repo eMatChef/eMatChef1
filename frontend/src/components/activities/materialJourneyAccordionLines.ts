@@ -46,6 +46,13 @@ function linesFromContainerItems(
     }))
 }
 
+export function materialJourneyAccordionLinesForContainerId(
+  containerId: string,
+  containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
+): MaterialJourneyAccordionLine[] {
+  return linesFromContainerItems(containerItemsByContainerId[containerId] ?? [])
+}
+
 function linesFromPeekSections(
   sections: {
     lines: {

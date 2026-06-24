@@ -204,8 +204,14 @@
             <span>{{ t('activities.consumables.costsTotal') }}</span>
             <strong>CHF {{ formatChf(consumableCostTotalValue) }}</strong>
           </div>
-          <p v-if="consumableCostTotalValue <= 0" class="consumable-costs-none text-muted">
+          <p v-if="showCostsMissingPriceWarning" class="consumable-costs-warn">
+            {{ t('activities.consumables.costsMissingSalePrice') }}
+          </p>
+          <p v-else-if="consumableCostTotalValue <= 0 && consumptionHistory.length === 0" class="consumable-costs-none text-muted">
             {{ t('activities.consumables.costsNoneYet') }}
+          </p>
+          <p v-else-if="consumableCostTotalValue <= 0" class="consumable-costs-none text-muted">
+            {{ t('activities.consumables.costsZeroWithUsage') }}
           </p>
         </section>
 
@@ -330,6 +336,12 @@ function replenishmentRecordedAt(row: { recorded_at?: string | null }): string |
 
 const consumableCostTotalValue = computed(() =>
   consumableCostTotal(activityItems.value, issues.value),
+)
+
+const showCostsMissingPriceWarning = computed(() =>
+  consumableAggregated.value.some(
+    (row) => usedQty(row.material_item_id) > 0 && row.sale_price == null,
+  ),
 )
 
 function formatUnitPrice(price: number | null): string {
@@ -780,6 +792,17 @@ watch(
 .consumable-costs-none {
   margin: 8px 0 0;
   font-size: 12px;
+}
+
+.consumable-costs-warn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
 }
 
 .consumable-history {

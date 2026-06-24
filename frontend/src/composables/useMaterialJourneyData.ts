@@ -16,7 +16,10 @@ import {
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
-import { journeyStepsWithOpenWork, resolveActiveJourneyStep } from '@/utils/materialJourneyNavigation'
+import {
+  journeyStepsWithOpenWork,
+  resolveEffectiveActiveJourneyStep,
+} from '@/utils/materialJourneyNavigation'
 import {
   emptyMaterialJourneyCratePeekMaps,
   loadMaterialJourneyCratePeekData,
@@ -50,7 +53,26 @@ export function useMaterialJourneyData(
 
   const activeJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
-    return resolveActiveJourneyStep(activity.value, profile.value, canManageMaterials.value)
+    return resolveEffectiveActiveJourneyStep(
+      activity.value,
+      profile.value,
+      canManageMaterials.value,
+    )
+  })
+
+  const stepsWithOpenWork = computed((): JourneyStep[] => {
+    const open = journeyStepsWithOpenWork(activeJourneyStep.value, profile.value, {
+      packItems: packItems.value,
+      packContainers: packContainers.value,
+      containerItemsByContainerId: containerItemsByContainerId.value,
+    })
+    if (profile.value === 'logistics') return open
+    const status = activity.value?.status ?? ''
+    // Quick: ab «Am Anlass» ist Ausgabe abgeschlossen (Rest = nicht mitgenommen, kein Warnsymbol).
+    if (['at_event', 'returned', 'storing', 'completed'].includes(status)) {
+      return open.filter((step) => step !== 'issue')
+    }
+    return open
   })
 
   const journeyStepWorkComplete = computed(() => (step: JourneyStep) =>
@@ -61,14 +83,6 @@ export function useMaterialJourneyData(
       packContainers.value,
       containerItemsByContainerId.value,
     ),
-  )
-
-  const stepsWithOpenWork = computed((): JourneyStep[] =>
-    journeyStepsWithOpenWork(activeJourneyStep.value, profile.value, {
-      packItems: packItems.value,
-      packContainers: packContainers.value,
-      containerItemsByContainerId: containerItemsByContainerId.value,
-    }),
   )
 
   const steps = computed(() => journeyStepsForProfile(profile.value))

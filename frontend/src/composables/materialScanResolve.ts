@@ -262,6 +262,19 @@ export function resolveMaterialBatchScan(
     }
   }
 
+  if (isContainerBatchLookup(lookup) && ctx.journeyStep === 'pack') {
+    return {
+      type: 'unknown_crate',
+      tone: 'info',
+      title: materialName,
+      detail: 'unknown_crate',
+      materialName,
+      scannedBatchId: batchId,
+      scannedBatchLabel: scannedBatchDisplayLabel(lookup, materialName),
+      canAct: ctx.listEditable,
+    }
+  }
+
   const matches = packItemsForMaterial(materialId, ctx.packItems)
   if (matches.length > 0 && matches.every((pi) => pi.isJsMaterial)) {
     return jsMaterialScanResult(materialName)

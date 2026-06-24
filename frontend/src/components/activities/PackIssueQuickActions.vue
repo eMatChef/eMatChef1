@@ -13,6 +13,8 @@ const props = defineProps<{
   materialName?: string
   /** Verbrauch buchen anzeigen (false = nur Nachlieferung) */
   showConsumption?: boolean
+  /** Schmalere Darstellung in Material-Journey-Zeilen */
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -40,11 +42,12 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
 </script>
 
 <template>
-  <div class="pack-card-issue-quick-row">
+  <div class="pack-card-issue-quick-row" :class="{ 'pack-card-issue-quick-row--compact': compact }">
     <PackConsumableQuickRow
       v-if="isConsumable && useInlineConsumption && materialItemId"
       :material-item-id="materialItemId"
       :show-consumption="showConsumptionButton"
+      compact
     />
     <template v-else-if="isConsumable && materialItemId">
       <EButton
@@ -67,7 +70,7 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
           )
         "
       >
-        {{ t('activities.packList.consumableInlineNachbuchung') }}
+        {{ compact ? t('activities.packList.consumableInlineNachbuchungShort') : t('activities.packList.consumableInlineNachbuchung') }}
       </EButton>
     </template>
     <template v-else-if="!isConsumable">

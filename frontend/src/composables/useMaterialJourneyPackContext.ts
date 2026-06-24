@@ -35,6 +35,8 @@ export function useMaterialJourneyPackContext(options: {
     containerReturnableUnits: (containerId: string) => state.value.containerReturnableUnits(containerId),
     containerStoreUnits: (containerId: string) => state.value.containerStoreUnits(containerId),
     containerActionableUnits: (containerId: string) => state.value.containerActionableUnits(containerId),
+    containerContentActionableUnits: (containerId: string) =>
+      state.value.containerContentActionableUnits(containerId),
     packQuantityCtx: computed(() => state.value.packQuantityCtx),
     packCrateLabelsForPackItem: (pi: ActivityPackItem) => state.value.packCrateLabelsForPackItem(pi),
     qtyInPackCrateForPackItem: (pi: ActivityPackItem) => state.value.qtyInPackCrateForPackItem(pi),

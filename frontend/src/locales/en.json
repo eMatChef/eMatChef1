@@ -1626,6 +1626,7 @@
       "packed": "Packed",
       "transport_out": "Transport out",
       "at_event": "At event",
+      "at_event_quick": "With me",
       "transport_back": "Transport back",
       "returned": "Returned",
       "storing": "Storing",
@@ -1814,6 +1815,10 @@
       "labelUsage": "Usage",
       "usageNotSet": "Not set",
       "labelMaterialPickupReturn": "Material pick-up / return",
+      "sectionOrg": "Organisation",
+      "labelDepartment": "Department",
+      "labelCreatedBy": "Created by",
+      "labelSubmittedBy": "Submitted by",
       "labelTotalPrice": "Total price",
       "sectionInvitedDepartments": "Invited departments",
       "sectionNotes": "Notes",
@@ -2110,6 +2115,7 @@
         "pack": "Pack",
         "transport_out": "Transport out",
         "issue": "Issue",
+        "issueOnTheWay": "With me",
         "issueLogistics": "At event",
         "transport_back": "Transport back",
         "return": "Return",
@@ -2121,8 +2127,36 @@
       "filter": {
         "open": "Open",
         "done": "Done",
+        "openQuickIssue": "Still to issue",
+        "doneQuickIssue": "With me",
         "byShelf": "By shelf",
         "aria": "Filter checklist"
+      },
+      "quickPhase": {
+        "aria": "Material phase",
+        "return": "Return",
+        "returnDisabledHint": "Issue everything first, then start return"
+      },
+      "quickReturnHandoff": {
+        "title": "Return complete",
+        "description": "{count} items — hand material over to the material manager. Storage can start after that.",
+        "continue": "Hand over to material manager",
+        "hint": "The material manager can then continue with «Start storing».",
+        "error": "Handover to material manager failed.",
+        "handoff": {
+          "title": "Return complete",
+          "description": "Everything returned — hand over to the material manager. They will store and close out.",
+          "action": "Hand over to material manager"
+        },
+        "handoffDone": {
+          "title": "Handed over to material manager",
+          "description": "Return is complete. Storage and closure are handled by the material manager — nothing left for you to do."
+        },
+        "storeForMw": {
+          "title": "Return complete",
+          "description": "The group has returned the material. You can start storing.",
+          "action": "Start storing"
+        }
       },
       "inventoryAtEvent": {
         "title": "Material at event",
@@ -2135,7 +2169,8 @@
         "summary": "{count} open"
       },
       "toolbar": {
-        "progress": "{done} / {total} done"
+        "progress": "{done} / {total} done",
+        "progressQuickIssue": "{done} / {total} taken along"
       },
       "row": {
         "openQty": "{count} open",
@@ -2148,6 +2183,7 @@
         "openCrateSheetHint": "Open crate check — partial quantities and loose issue",
         "selectPackTargetHint": "Select as target crate (green highlight)",
         "assignToCrateHint": "Into crate «{label}»",
+        "assignToTourHint": "Onto tour «{label}»",
         "accordionEmpty": "No contents in this crate yet.",
         "accordionEmptyPackCrate": "Crate empty — book items individually or use the arrow to open the crate check.",
         "accordionToggle": "Contents",
@@ -2199,6 +2235,7 @@
       },
       "footer": {
         "progress": "{done} of {total} lines done",
+        "progressQuickIssue": "{done} of {total} lines taken along",
         "openHint": "{count} still open — enter quantity and tap →",
         "openHintQty": "{count} still open — enter quantity and tap →",
         "openHintReturn": "{count} still open — enter quantity and tap →",
@@ -2274,6 +2311,25 @@
         "empty": "No components for this set.",
         "checkAllHint": "Check off all parts to book."
       },
+      "storeHint": {
+        "title": "Store material by shelf",
+        "description": "Tap or scan a line → verify rack/slot → «Stored». Then shelve physically; pick the next line when ready."
+      },
+      "storeSheet": {
+        "subtitle": "Verify rack and slot, then shelve",
+        "suggestedLocation": "Target location (material)",
+        "noLocation": "No shelf on file",
+        "rackLabel": "Rack",
+        "slotLabel": "Slot",
+        "noRacks": "No racks found",
+        "noSlots": "No slot",
+        "qtyLabel": "Quantity",
+        "qtyMax": "max. {max}",
+        "targetHint": "Target: {location}",
+        "confirm": "Stored",
+        "toastSuccess": "Item shelved",
+        "workflowHint": "After «Stored» this closes — walk to the shelf with the items. Tap or scan the next line when ready."
+      },
       "activeCrate": {
         "selected": "Crate «{label}» selected",
         "packTargetHint": "Pack material into «{label}»",
@@ -2291,9 +2347,27 @@
         "fitOk": "Fits",
         "fitHeavy": "Too heavy",
         "fitUnknown": "Weight unknown",
-        "weightHint": "{weight} kg / max. {max} kg",
+        "weightHint": "{weight} kg material / payload {max} kg",
+        "weightMaterialPart": "{weight} kg material",
+        "weightPayloadPart": "Payload {max} kg",
+        "unknownWeightNotice": "{count} items without weight — please weigh",
+        "weightEstimateHint": "Only master weights and weighed values count. Crates: empty shell weight plus contents (when in master). Missing weight — weigh here. Return leg uses outbound weight. Save to master under «Return».",
+        "weightReviewTitle": "Save weights to material master",
+        "weightReviewHint": "Weights from outbound transport — review and save to material master.",
+        "weightFromOutbound": "Outbound",
+        "inheritedWeightHint": "{weight} kg (from outbound)",
+        "inheritedWeightNote": "Carried from outbound transport",
+        "weighLabel": "Weighed",
+        "weighPlaceholder": "kg",
+        "saveWeightToMaterial": "Save to master",
+        "weightSavedToMaterial": "Weight saved to material master.",
+        "loadedTitle": "Loaded",
+        "loadedCount": "{count} lines",
+        "addTitle": "Add",
+        "removeFromTour": "Remove",
         "noAssignable": "No open crates or lines for this step.",
-        "noAssigned": "No material assigned to this tour yet.",
+        "assignListHint": "Assign open lines here — or book below with the green arrow.",
+        "noAssigned": "No material on this tour yet — book below with the green arrow.",
         "deleteTour": "Delete tour",
         "createTitle": "New tour",
         "vehicleLabel": "Vehicle",
@@ -2306,6 +2380,7 @@
           "arrived": "Arrived"
         },
         "markDeparted": "Depart",
+        "toggleTourAria": "Expand or collapse tour «{label}»",
         "markArrived": "Arrived",
         "arriveAllOutbound": "All transported material is at the event",
         "arriveAllInbound": "All return transport material is back",
@@ -2317,7 +2392,15 @@
           "subtitle": "Single trip — no tour planned",
           "allArrived": "All transported material is at the event.",
           "noTransportYet": "Nothing en route yet — book material on «Transport out» first."
-        }
+        },
+        "chooseTourTitle": "Which vehicle?",
+        "chooseTourHint": "Material is booked onto the tour. Without a vehicle, the simple trip applies.",
+        "simpleTour": "Simple trip",
+        "simpleTourActive": "Simple trip — no vehicle assignment. Material will appear as one trip later.",
+        "chooseTourConfirm": "Choose tour",
+        "assignedToast": "Booked onto tour «{label}».",
+        "tourTargetFallback": "Tour",
+        "targetPickerAria": "Choose vehicle for transport"
       },
       "scan": {
         "label": "Search or scan",
@@ -2400,6 +2483,10 @@
         "filterDescription": "Your search does not match any open line — adjust the term or clear the scan field.",
         "doneTitle": "Nothing done yet",
         "doneDescription": "Completed lines appear here after booking.",
+        "openTitleQuickIssue": "All issued",
+        "openDescriptionQuickIssue": "Nothing left to issue — switch to «With me».",
+        "doneTitleQuickIssue": "Nothing taken along yet",
+        "doneDescriptionQuickIssue": "Issued material appears here — report loss, consumption or repair on each line.",
         "listTitle": "Checklist coming soon",
         "listDescription": "{count} lines loaded — rows and actions arrive in phase 2."
       }
@@ -2644,6 +2731,7 @@
       "consumableInlineConfirmTitle": "Book consumption",
       "consumableInlineConfirmAria": "Confirm consumption",
       "consumableInlineNachbuchung": "Book replenishment",
+      "consumableInlineNachbuchungShort": "Replenish",
       "consumableInlineBooked": "{n} pcs consumption booked",
       "consumableInlineOverBooked": "Maximum {max} pcs — book replenishment first",
       "consumableInlineBookFailed": "Could not book consumption",
@@ -3055,6 +3143,7 @@
       "allClear": "All requirements met — the activity can be completed.",
       "itemStorage": "Material stored",
       "itemStoragePending": "{n} line(s) open",
+      "itemStorageHint": "Shelve by rack on the packing list — tap a line and confirm «Stored».",
       "piecesOpen": "pcs open",
       "itemIssues": "Reports cleared (workshop)",
       "itemWorkshop": "Workshop tickets closed",
@@ -3067,7 +3156,7 @@
     },
     "vehicles": {
       "title": "Vehicles",
-      "intro": "Plan vehicles for this activity — often rented from external companies. Tours in the pack list only use this list.",
+      "intro": "Plan vehicles for this activity — often rented from external companies. Enter payload (load capacity), not gross/total vehicle weight. Tours in the pack list only use this list.",
       "assignedTitle": "Assigned vehicles ({count})",
       "emptyAssigned": "No vehicles assigned yet.",
       "createNew": "New vehicle",
@@ -3082,10 +3171,14 @@
       "searchHint": "Search existing department (and partner) vehicles and add them to this activity.",
       "searchPlaceholder": "Name or plate…",
       "searchEmpty": "No matching vehicle — create a new one if needed.",
+      "recentTitle": "Recently used",
+      "recentEmpty": "No recently used vehicles yet — type a name or plate to search.",
+      "searchResultsTitle": "Search results",
       "assignAction": "Assign",
       "fieldName": "Name",
       "fieldPlate": "Plate",
       "fieldPayload": "Payload (kg)",
+      "fieldPayloadHint": "Load capacity in kg — not the vehicle's gross/total weight.",
       "fieldLoadArea": "Load area (cm)",
       "fieldLoadLength": "Length",
       "fieldLoadWidth": "Width",
@@ -3096,7 +3189,7 @@
       "fieldNotes": "Vehicle notes",
       "fieldAssignmentNotes": "Note for this activity (e.g. rental period)",
       "ownerLine": "Lessor: {label}",
-      "payloadKg": "max. {kg} kg",
+      "payloadKg": "Payload {kg} kg",
       "payloadUnknown": "Payload unknown"
     },
     "costs": {
@@ -3187,6 +3280,8 @@
       "costsColUnitPrice": "Unit price",
       "costsTotal": "Consumables total",
       "costsNoneYet": "No consumption booked yet — amount CHF 0.00",
+      "costsZeroWithUsage": "Consumption is booked but the amount is CHF 0.00 (missing sale price or warehouse stock without price).",
+      "costsMissingSalePrice": "Consumption is booked but without a sale price in the material master data nothing can be charged. Add the sale price on the material (e.g. torches) — the amount will appear here and an accounting task for group billing under «Costs».",
       "toastLoadFailed": "Could not load consumables.",
       "toastNoRemaining": "No further consumption possible.",
       "toastMaxPieces": "At most {n} pcs. possible.",
@@ -4415,6 +4510,10 @@
       "logErrorLoadContainerContents": "Error loading box contents:",
       "logErrorLoadBatches": "Error loading lots:",
       "logCreateMaterialError": "Error creating material:"
+    },
+    "materialMetricInput": {
+      "enterGrams": "Enter grams",
+      "enterKg": "Enter kg"
     },
     "materialDetail": {
       "backToList": "Back to list",

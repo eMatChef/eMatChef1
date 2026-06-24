@@ -29,6 +29,22 @@ export function resolveActiveJourneyStep(
   return defaultJourneyStepForStatus(activity.status ?? 'packing', profile, canManageMaterials)
 }
 
+/**
+ * Quick/External: ab «Am Anlass» ist Retour der aktive Checkpoint —
+ * Übergabe an MW erst per Handoff-Button, auch wenn nicht alles ausgegeben wurde.
+ */
+export function resolveEffectiveActiveJourneyStep(
+  activity: Pick<ActivityDetail, 'status' | 'type'> | null | undefined,
+  profile: PackWorkflowProfile,
+  canManageMaterials = false,
+): JourneyStep {
+  const base = resolveActiveJourneyStep(activity, profile, canManageMaterials)
+  if (profile !== 'logistics' && activity?.status === 'at_event') {
+    return 'return'
+  }
+  return base
+}
+
 export function journeyStepAccess(
   viewedStep: JourneyStep,
   activeStep: JourneyStep,
@@ -121,7 +137,9 @@ export function activityAllowsDamageReport(
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
-  if (activity.can_report_issues === false) return false
+  if (activity.can_report_issues === false) {
+    return activityAllowsIssueReports(activity, profile, canManageMaterials)
+  }
   const s = activity.status ?? ''
   if (s === 'at_event' || s === 'transport_back') return true
   if (s === 'returned' || s === 'storing') return canReportDamageAsMaterialStaff
@@ -134,7 +152,9 @@ export function activityAllowsConsumptionBooking(
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
-  if (activity.can_report_issues === false) return false
+  if (activity.can_report_issues === false) {
+    return activityAllowsIssueReports(activity, profile, canManageMaterials)
+  }
   const s = activity.status ?? ''
   if (['at_event', 'transport_back', 'returned', 'storing'].includes(s)) return true
   return activityAllowsIssueReports(activity, profile, canManageMaterials)

@@ -397,11 +397,10 @@
                   :label="t('components.materialDetail.labelEan')"
                   :save="(v) => saveMaterialField('ean', v)"
                 />
-                <AutoSaveField
+                <MaterialWeightAutoSaveField
                   v-model="formData.weight"
                   :baseline="savedFormBaselines.weight"
                   :label="t('components.materialDetail.labelWeightKg')"
-                  type="number"
                   :save="(v) => saveMaterialField('weight', v)"
                 />
                 <AutoSaveField
@@ -514,11 +513,10 @@
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h2>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <AutoSaveField
+                <MaterialWeightAutoSaveField
                   v-model="formData.pack_weight"
                   :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  type="number"
                   :save="(v) => saveMaterialField('pack_weight', v)"
                 />
                 <AutoSaveField
@@ -669,11 +667,10 @@
               <h3 class="subsection-heading-kosten">{{ t('components.materialDetail.sectionPackDimensions') }}</h3>
               <p class="section-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
               <div class="form-grid">
-                <AutoSaveField
+                <MaterialWeightAutoSaveField
                   v-model="formData.pack_weight"
                   :baseline="savedFormBaselines.pack_weight"
                   :label="t('components.materialDetail.labelPackWeightKg')"
-                  type="number"
                   :save="(v) => saveMaterialField('pack_weight', v)"
                 />
                 <AutoSaveField
@@ -2590,6 +2587,7 @@ import { useI18n } from 'vue-i18n'
 import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
 import MaterialDetailStockUnitField from '@/components/material/MaterialDetailStockUnitField.vue'
+import MaterialWeightAutoSaveField from '@/components/material/MaterialWeightAutoSaveField.vue'
 import MaterialStockBatchesDataTable from '@/components/material/MaterialStockBatchesDataTable.vue'
 import MaterialSerialBatchesDataTable from '@/components/material/MaterialSerialBatchesDataTable.vue'
 import MaterialArchiveBatchesDataTable from '@/components/material/MaterialArchiveBatchesDataTable.vue'

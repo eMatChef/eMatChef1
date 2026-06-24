@@ -206,3 +206,37 @@ export function isJourneyStepBehindDefault(
   const steps = journeyStepsForProfile(profile)
   return steps.indexOf(step) < steps.indexOf(defaultStep)
 }
+
+/** Quick/External Ausgabe: Material bereits mitgenommen (teilweise oder vollständig). */
+export function isQuickIssueOnTheWay(
+  profile: PackWorkflowProfile,
+  step: JourneyStep,
+  activityStatus: string,
+  issueDoneCount: number,
+): boolean {
+  if (profile === 'logistics' || step !== 'issue') return false
+  if (activityStatus === 'at_event') return true
+  return issueDoneCount > 0
+}
+
+/** i18n-Key für Stepper, Badge und Kopfzeile (ohne t()). */
+export function materialJourneyStepI18nKey(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+  options?: { activityStatus?: string; issueDoneCount?: number },
+): string {
+  if (step === 'issue' && profile === 'logistics') {
+    return 'activities.materialJourney.step.issueLogistics'
+  }
+  if (
+    isQuickIssueOnTheWay(
+      profile,
+      step,
+      options?.activityStatus ?? '',
+      options?.issueDoneCount ?? 0,
+    )
+  ) {
+    return 'activities.materialJourney.step.issueOnTheWay'
+  }
+  return `activities.materialJourney.step.${step}`
+}

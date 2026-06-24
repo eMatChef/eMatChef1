@@ -51,6 +51,7 @@ export type MaterialJourneyPackContextState = {
   containerReturnableUnits: (containerId: string) => number
   containerStoreUnits: (containerId: string) => number
   containerActionableUnits: (containerId: string) => number
+  containerContentActionableUnits: (containerId: string) => number
   packCrateLabelsForPackItem: (pi: ActivityPackItem) => string[]
   qtyInPackCrateForPackItem: (pi: ActivityPackItem) => number
   packCrateAssignQtyForItem: (pi: ActivityPackItem) => number
@@ -272,6 +273,30 @@ export function createMaterialJourneyPackContextState(
     return containerIssueableUnits(containerId)
   }
 
+  function containerContentActionableUnits(containerId: string): number {
+    if (isPackReturnStage(input.packStage)) {
+      let inner = 0
+      for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
+        if (isNonActionableContainerLine(ci)) continue
+        inner += computeContainerLineRemainingReturn(ci, packQuantityCtx, containerId)
+      }
+      return inner
+    }
+    if (isPackUnpackStage(input.packStage)) {
+      let sum = 0
+      for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
+        if (isNonActionableContainerLine(ci)) continue
+        sum += Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+      }
+      return sum
+    }
+    let sum = 0
+    for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
+      sum += containerLineRemainingAtForwardStage(ci)
+    }
+    return sum
+  }
+
   const stageLeftItems = input.packItems.filter((p) =>
     shouldIncludePackItemOnStageLeft(p, packListCtx),
   )
@@ -325,6 +350,7 @@ export function createMaterialJourneyPackContextState(
     containerReturnableUnits,
     containerStoreUnits,
     containerActionableUnits,
+    containerContentActionableUnits,
     packCrateLabelsForPackItem,
     qtyInPackCrateForPackItem,
     packCrateAssignQtyForItem,

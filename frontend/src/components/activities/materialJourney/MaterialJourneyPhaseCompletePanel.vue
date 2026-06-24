@@ -10,6 +10,9 @@ const props = defineProps<{
   nextStep: JourneyStep
   totalCount: number
   loading?: boolean
+  disabled?: boolean
+  /** Quick Retour: «Weiter an Matwart abgeben» statt Logistics-Phase-Weiter. */
+  handoffMode?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -18,7 +21,11 @@ const emit = defineEmits<{
 
 const { t, te } = useI18n()
 
-const i18nBase = computed(() => `activities.materialJourney.phaseComplete.${props.fromStep}`)
+const i18nBase = computed(() =>
+  props.handoffMode
+    ? 'activities.materialJourney.quickReturnHandoff'
+    : `activities.materialJourney.phaseComplete.${props.fromStep}`,
+)
 
 const nextStepLabel = computed(() => {
   const key = props.nextStep === 'issue' ? 'issueLogistics' : props.nextStep
@@ -56,6 +63,7 @@ const hint = computed(() =>
           size="default"
           class="material-journey-pack-complete__action"
           :loading="loading"
+          :disabled="disabled"
           @click="emit('continue')"
         >
           {{ continueLabel }}

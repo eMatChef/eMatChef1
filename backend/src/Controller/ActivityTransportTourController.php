@@ -279,7 +279,12 @@ class ActivityTransportTourController extends AbstractController
         $existing = $this->entityManager->getRepository(ActivityTransportTourItem::class)->findBy([
             'tourId' => $tour->getId(),
         ]);
+        $measuredByKey = [];
         foreach ($existing as $row) {
+            $key = ($row->getPackContainerId() ?? '') . '|' . ($row->getPackItemId() ?? '');
+            if ($row->getMeasuredWeightKg() !== null && trim($row->getMeasuredWeightKg()) !== '') {
+                $measuredByKey[$key] = $row->getMeasuredWeightKg();
+            }
             $this->entityManager->remove($row);
         }
         $this->entityManager->flush();
@@ -315,6 +320,29 @@ class ActivityTransportTourController extends AbstractController
             if (array_key_exists('quantity', $row)) {
                 $item->setQuantity(max(1, (int) $row['quantity']));
             }
+
+            $key = ($containerId !== '' ? $containerId : '') . '|' . ($packItemId !== '' ? $packItemId : '');
+            if (array_key_exists('measured_weight_kg', $row)) {
+                $rawMeasured = $row['measured_weight_kg'];
+                if ($rawMeasured === null || $rawMeasured === '') {
+                    $item->setMeasuredWeightKg(null);
+                } else {
+                    $n = (float) str_replace(',', '.', (string) $rawMeasured);
+                    $item->setMeasuredWeightKg($n > 0 ? (string) round($n, 2) : null);
+                }
+            } elseif (isset($measuredByKey[$key])) {
+                $item->setMeasuredWeightKg($measuredByKey[$key]);
+            } elseif ($tour->getDirection() === ActivityTransportTour::DIRECTION_INBOUND) {
+                $inherited = $this->tourService->findOutboundMeasuredWeightKg(
+                    $activityId,
+                    $containerId !== '' ? $containerId : null,
+                    $packItemId !== '' ? $packItemId : null,
+                );
+                if ($inherited !== null) {
+                    $item->setMeasuredWeightKg((string) round($inherited, 2));
+                }
+            }
+
             $this->entityManager->persist($item);
         }
     }
@@ -339,12 +367,21 @@ class ActivityTransportTourController extends AbstractController
             'vehicle_plate' => $vehicle->getPlate(),
             'lending_department_id' => $tour->getLendingDepartmentId(),
             'status' => $tour->getStatus(),
-            'items' => array_map(fn (ActivityTransportTourItem $i) => [
-                'id' => $i->getId(),
-                'pack_container_id' => $i->getPackContainerId(),
-                'pack_item_id' => $i->getPackItemId(),
-                'quantity' => $i->getQuantity(),
-            ], $items),
+            'items' => array_map(function (ActivityTransportTourItem $i) use ($tour) {
+                $meta = $this->tourService->tourItemWeightMeta($i);
+                $effective = $this->tourService->effectiveMeasuredWeightKg($tour, $i);
+
+                return [
+                    'id' => $i->getId(),
+                    'pack_container_id' => $i->getPackContainerId(),
+                    'pack_item_id' => $i->getPackItemId(),
+                    'quantity' => $i->getQuantity(),
+                    'measured_weight_kg' => $effective,
+                    'measured_weight_inherited' => $this->tourService->isMeasuredWeightInherited($tour, $i),
+                    'material_weight_known' => $meta['material_weight_known'],
+                    'material_item_id' => $meta['material_item_id'],
+                ];
+            }, $items),
             'load_summary' => $load,
         ];
     }

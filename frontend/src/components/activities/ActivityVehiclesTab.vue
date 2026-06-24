@@ -10,8 +10,9 @@ import {
   type ActivityVehicleAssignment,
 } from '@/api/activityVehicles'
 import { getAddresses, type Address } from '@/api/addresses'
-import { getDepartmentVehicles, type DepartmentVehicle } from '@/api/departmentVehicles'
+import type { DepartmentVehicle } from '@/api/departmentVehicles'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityVehicleAssignPicker from '@/components/activities/ActivityVehicleAssignPicker.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import EButton from '@/components/form/base/EButton.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -26,15 +27,16 @@ const props = defineProps<{
   reloadToken?: number
 }>()
 
+const emit = defineEmits<{
+  assignmentsChanged: []
+}>()
+
 const { t } = useI18n()
 const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
 const assignments = ref<ActivityVehicleAssignment[]>([])
-const searchQuery = ref('')
-const searchResults = ref<DepartmentVehicle[]>([])
-const searchLoading = ref(false)
 const addresses = ref<Address[]>([])
 const createOpen = ref(false)
 const editId = ref<string | null>(null)
@@ -63,11 +65,7 @@ const editForm = ref({
   assignmentNotes: '',
 })
 
-const assignedVehicleIds = computed(() => new Set(assignments.value.map((a) => a.vehicle_id)))
-
-const filteredSearchResults = computed(() =>
-  searchResults.value.filter((v) => !assignedVehicleIds.value.has(v.id)),
-)
+const assignedVehicleIds = computed(() => assignments.value.map((a) => a.vehicle_id))
 
 async function loadAssignments(): Promise<void> {
   loading.value = true
@@ -89,25 +87,6 @@ async function loadAddresses(): Promise<void> {
   }
 }
 
-async function runSearch(): Promise<void> {
-  const q = searchQuery.value.trim()
-  if (q.length < 1) {
-    searchResults.value = []
-    return
-  }
-  searchLoading.value = true
-  try {
-    searchResults.value = await getDepartmentVehicles(props.departmentId, {
-      activityId: props.activityId,
-      search: q,
-    })
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    searchLoading.value = false
-  }
-}
-
 watch(
   () => [props.activityId, props.reloadToken] as const,
   () => {
@@ -123,18 +102,6 @@ watch(
   },
   { immediate: true },
 )
-
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-watch(searchQuery, (q) => {
-  if (searchTimer) clearTimeout(searchTimer)
-  if (!q.trim()) {
-    searchResults.value = []
-    return
-  }
-  searchTimer = setTimeout(() => {
-    void runSearch()
-  }, 300)
-})
 
 function metersToCm(m: number | null | undefined): number | null {
   if (m == null) return null
@@ -190,9 +157,8 @@ async function onAssignExisting(vehicle: DepartmentVehicle): Promise<void> {
   try {
     const created = await assignActivityVehicle(props.activityId, { vehicle_id: vehicle.id })
     assignments.value = [...assignments.value, created]
-    searchQuery.value = ''
-    searchResults.value = []
     toast.success(t('activities.vehicles.assigned'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -223,6 +189,7 @@ async function onCreateAndAssign(): Promise<void> {
     createOpen.value = false
     resetCreateForm()
     toast.success(t('activities.vehicles.created'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -283,6 +250,7 @@ async function onRemove(row: ActivityVehicleAssignment): Promise<void> {
     assignments.value = assignments.value.filter((a) => a.id !== row.id)
     if (editId.value === row.id) editId.value = null
     toast.success(t('activities.vehicles.removed'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -359,6 +327,9 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
                   min="0"
                   class="activity-vehicles-tab__input"
                 />
+                <span class="activity-vehicles-tab__field-hint text-muted">
+                  {{ t('activities.vehicles.fieldPayloadHint') }}
+                </span>
               </label>
               <div class="activity-vehicles-tab__load-area">
                 <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
@@ -444,29 +415,15 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
 
     <section v-if="canManage" class="section-card activity-vehicles-tab__search">
       <h3 class="activity-vehicles-tab__section-title">{{ t('activities.vehicles.searchTitle') }}</h3>
-      <p class="text-muted">{{ t('activities.vehicles.searchHint') }}</p>
-      <input
-        v-model="searchQuery"
-        type="search"
-        class="activity-vehicles-tab__input activity-vehicles-tab__search-input"
-        :placeholder="t('activities.vehicles.searchPlaceholder')"
+      <p class="text-muted activity-vehicles-tab__search-hint">{{ t('activities.vehicles.searchHint') }}</p>
+      <ActivityVehicleAssignPicker
+        :department-id="departmentId"
+        :activity-id="activityId"
+        :excluded-vehicle-ids="assignedVehicleIds"
+        :disabled="saving"
+        :reload-token="reloadToken"
+        @select="onAssignExisting"
       />
-      <p v-if="searchLoading" class="text-muted">{{ t('common.loading') }}</p>
-      <ul v-else-if="filteredSearchResults.length" class="activity-vehicles-tab__search-results">
-        <li v-for="vehicle in filteredSearchResults" :key="vehicle.id">
-          <button
-            type="button"
-            class="activity-vehicles-tab__search-row"
-            :disabled="saving"
-            @click="onAssignExisting(vehicle)"
-          >
-            <span>{{ vehicle.name }}{{ vehicle.plate ? ` (${vehicle.plate})` : '' }}</span>
-            <span v-if="vehicle.owner_label" class="text-muted">{{ vehicle.owner_label }}</span>
-            <span class="activity-vehicles-tab__assign-label">{{ t('activities.vehicles.assignAction') }}</span>
-          </button>
-        </li>
-      </ul>
-      <p v-else-if="searchQuery.trim()" class="text-muted">{{ t('activities.vehicles.searchEmpty') }}</p>
     </section>
 
     <v-dialog v-model="createOpen" max-width="560">
@@ -489,6 +446,9 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
               min="0"
               class="activity-vehicles-tab__input"
             />
+            <span class="activity-vehicles-tab__field-hint text-muted">
+              {{ t('activities.vehicles.fieldPayloadHint') }}
+            </span>
           </label>
           <div class="activity-vehicles-tab__load-area">
             <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
@@ -673,48 +633,19 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
   font-weight: 400;
 }
 
+.activity-vehicles-tab__field-hint {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
 textarea.activity-vehicles-tab__input {
   min-height: 72px;
   resize: vertical;
 }
 
-.activity-vehicles-tab__search-input {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.activity-vehicles-tab__search-results {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.activity-vehicles-tab__search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f8fafc;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-}
-
-.activity-vehicles-tab__search-row + .activity-vehicles-tab__search-row,
-.activity-vehicles-tab__search-results li + li {
-  margin-top: 8px;
-}
-
-.activity-vehicles-tab__assign-label {
-  margin-left: auto;
-  font-size: 13px;
-  font-weight: 600;
-  color: #16a34a;
+.activity-vehicles-tab__search-hint {
+  margin: 0 0 12px;
 }
 
 .activity-vehicles-tab__dialog {

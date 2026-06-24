@@ -624,6 +624,14 @@
   background: var(--color-primary-dark);
 }
 
+.btn-move-arrow__icon {
+  transition: transform 0.15s ease;
+}
+
+.btn-move-arrow__icon--rotated {
+  transform: rotate(-90deg);
+}
+
 /* Rechte Seite: Zurück-Button + Input */
 .pack-card-actions-assign-up {
   display: flex;

@@ -24,6 +24,9 @@ const props = defineProps<{
   tasks: TaskRow[]
   regalGroups: RegalGroup[]
   filterTab: MaterialJourneyFilterTab
+  filterVariant?: 'default' | 'quickIssue'
+  /** Einlagern: immer nach Regal gruppieren */
+  groupByShelf?: boolean
   isEarlyPackPreview: boolean
   positionCount: number
   listEditable: boolean
@@ -33,6 +36,8 @@ const props = defineProps<{
   packCrateSelectMode?: boolean
   packTargetCrateId?: string | null
   packTargetCrateLabel?: string | null
+  transportTourAssignActive?: boolean
+  transportTargetTourLabel?: string | null
   containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
   packItems?: ActivityPackItem[]
   packContainers?: ActivityPackContainer[]
@@ -70,7 +75,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const isByShelf = computed(() => props.filterTab === 'byShelf')
+const isByShelf = computed(() => props.groupByShelf === true || props.filterTab === 'byShelf')
 
 function isExpandableRow(row: TaskRow): boolean {
   return row.kind === 'crate' || row.kind === 'combo'
@@ -148,15 +153,31 @@ const isFilteredEmpty = computed(
 
 const emptyTitle = computed(() => {
   if (isFilteredEmpty.value) return t('activities.materialJourney.empty.filterTitle')
-  if (props.filterTab === 'done') return t('activities.materialJourney.empty.doneTitle')
+  if (props.filterTab === 'done') {
+    if (props.filterVariant === 'quickIssue') {
+      return t('activities.materialJourney.empty.doneTitleQuickIssue')
+    }
+    return t('activities.materialJourney.empty.doneTitle')
+  }
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfTitle')
+  if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
+    return t('activities.materialJourney.empty.openTitleQuickIssue')
+  }
   return t('activities.materialJourney.empty.openTitle')
 })
 
 const emptyDescription = computed(() => {
   if (isFilteredEmpty.value) return t('activities.materialJourney.empty.filterDescription')
-  if (props.filterTab === 'done') return t('activities.materialJourney.empty.doneDescription')
+  if (props.filterTab === 'done') {
+    if (props.filterVariant === 'quickIssue') {
+      return t('activities.materialJourney.empty.doneDescriptionQuickIssue')
+    }
+    return t('activities.materialJourney.empty.doneDescription')
+  }
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfDescription')
+  if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
+    return t('activities.materialJourney.empty.openDescriptionQuickIssue')
+  }
   return t('activities.materialJourney.empty.openDescription')
 })
 </script>
@@ -189,6 +210,8 @@ const emptyDescription = computed(() => {
         :pack-crate-select-mode="packCrateSelectMode"
         :pack-target-crate-id="packTargetCrateId"
         :pack-target-crate-label="packTargetCrateLabel"
+        :transport-tour-assign-active="transportTourAssignActive"
+        :transport-target-tour-label="transportTargetTourLabel"
         :container-items-by-container-id="containerItemsByContainerId"
         :pack-items="packItems"
         :pack-containers="packContainers"
@@ -239,6 +262,8 @@ const emptyDescription = computed(() => {
           :show-move-forward="showMoveForward"
           :show-crate-move-forward="showCrateMoveForward"
           :move-forward-qty="moveForwardQtyForRow?.(row)"
+          :transport-tour-assign-active="transportTourAssignActive"
+          :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
@@ -271,6 +296,8 @@ const emptyDescription = computed(() => {
           :move-forward-qty="moveForwardQtyForRow?.(row)"
           :pack-crate-assign-active="isPackCrateAssignActive()"
           :pack-target-crate-label="packTargetCrateLabel"
+          :transport-tour-assign-active="transportTourAssignActive"
+          :transport-target-tour-label="transportTargetTourLabel"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
