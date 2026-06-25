@@ -7,6 +7,7 @@ import {
   packRackLabel,
 } from '@/components/activities/packMaterialDisplay'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import {
   materialJourneyShelfForContainer,
   materialJourneyShelfKey,
@@ -109,6 +110,7 @@ export type MaterialJourneyTaskBuildContext = {
   maxForwardQty: (pi: ActivityPackItem) => number
   containerIssueableUnits: (containerId: string) => number
   containerActionableUnits: (containerId: string) => number
+  containerContentActionableUnits: (containerId: string) => number
   canMoveItem: (pi: ActivityPackItem) => boolean
   canMoveBackItem?: (pi: ActivityPackItem) => boolean
   rightQtyForMoveBack?: (pi: ActivityPackItem) => number
@@ -143,11 +145,24 @@ export function resolveDefaultMaterialJourneyFilterTab(options: {
   stepAccess: 'editable' | 'readonly_past' | 'readonly_future'
   openLooseComboCount: number
   doneCount: number
+  /** Alle offenen Checklisten-Positionen (inkl. Kisten) — für Ausgabe/Retour. */
+  totalOpenCount?: number
 }): MaterialJourneyFilterTab {
   if (options.stepAccess === 'readonly_past') return 'done'
   if (options.stepAccess === 'readonly_future') return 'open'
-  if (options.openLooseComboCount === 0 && options.doneCount > 0) return 'done'
+  const openRemaining = options.totalOpenCount ?? options.openLooseComboCount
+  if (openRemaining === 0 && options.doneCount > 0) return 'done'
   return 'open'
+}
+
+export type MaterialJourneyFilterVariant = 'default' | 'quickIssue'
+
+export function materialJourneyFilterVariantForStep(
+  profile: PackWorkflowProfile,
+  journeyStep: JourneyStep,
+): MaterialJourneyFilterVariant {
+  if (profile === 'logistics') return 'default'
+  return journeyStep === 'issue' ? 'quickIssue' : 'default'
 }
 
 function taskBadges(pi: ActivityPackItem, ctx: MaterialJourneyTaskBuildContext): MaterialJourneyTaskBadge[] {
@@ -248,6 +263,7 @@ export function buildMaterialJourneyCrateTask(
   ctx: MaterialJourneyTaskBuildContext,
 ): MaterialJourneyTaskRow {
   const issueable = ctx.containerActionableUnits(container.id)
+  const contentIssueable = ctx.containerContentActionableUnits(container.id)
   const onConfirmedPackedRight =
     ctx.packStage === 'confirmed_packed' &&
     shouldShowPackContainerOnConfirmedPackedRight(
@@ -269,7 +285,13 @@ export function buildMaterialJourneyCrateTask(
     isDone = !hasLooseOpen
   }
 
-  const openQty = isOpen ? Math.max(1, issueable) : 0
+  // Packen: Inhalt-Menge für Anzeige; Transport/sonst: Kiste als Ganzes (1 Shell).
+  const usePackContentQty =
+    isPackConfirmedStage(ctx.packStage) && ctx.listCtx.showPackContainersUi
+  const forwardUnits =
+    usePackContentQty && contentIssueable > 0 ? contentIssueable : issueable
+  const displayQty = forwardUnits > 0 ? forwardUnits : isOpen ? Math.max(1, issueable) : 0
+  const openQty = displayQty
   const doneQty = isDone ? 1 : 0
   const shellPackItem = ctx.shellPackItemForContainer(container.id)
   let lineCount = ctx.cratePeekLineCount
@@ -314,7 +336,7 @@ export function buildMaterialJourneyCrateTask(
     subtitle: buildSubtitleParts(subtitleParts),
     openQty,
     doneQty,
-    maxForwardQty: issueable,
+    maxForwardQty: forwardUnits > 0 ? forwardUnits : issueable,
     isOpen,
     isDone,
     badges: ['crate'],

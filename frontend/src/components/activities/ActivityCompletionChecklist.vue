@@ -85,6 +85,9 @@ function openAccounting(fu?: { department_id: string }) {
               {{ pi.material_name }} ({{ pi.pending_store }} {{ t('activities.completion.piecesOpen') }})
             </li>
           </ul>
+          <p v-if="(blockers.unstored_pack_items_count ?? 0) > 0" class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemStorageHint') }}
+          </p>
         </div>
         <button
           v-if="(blockers.unstored_pack_items_count ?? 0) > 0"
@@ -265,6 +268,11 @@ function openAccounting(fu?: { department_id: string }) {
   padding-left: 1rem;
   font-size: 12px;
   color: #64748b;
+}
+
+.activity-completion-checklist__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
 }
 
 .activity-completion-checklist__chips {

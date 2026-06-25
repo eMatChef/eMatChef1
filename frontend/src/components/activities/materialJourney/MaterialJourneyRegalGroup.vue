@@ -20,6 +20,8 @@ const props = defineProps<{
   packCrateSelectMode?: boolean
   packTargetCrateId?: string | null
   packTargetCrateLabel?: string | null
+  transportTourAssignActive?: boolean
+  transportTargetTourLabel?: string | null
   containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
   packItems?: ActivityPackItem[]
   packContainers?: ActivityPackContainer[]
@@ -150,6 +152,8 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :show-move-forward="showMoveForward"
           :show-crate-move-forward="showCrateMoveForward"
           :move-forward-qty="moveForwardQtyForRow?.(row)"
+          :transport-tour-assign-active="transportTourAssignActive"
+          :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
@@ -182,6 +186,8 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :move-forward-qty="moveForwardQtyForRow?.(row)"
           :pack-crate-assign-active="isPackCrateAssignActive()"
           :pack-target-crate-label="packTargetCrateLabel"
+          :transport-tour-assign-active="transportTourAssignActive"
+          :transport-target-tour-label="transportTargetTourLabel"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           @activate="emit('activate', row)"

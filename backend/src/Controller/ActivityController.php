@@ -1470,10 +1470,19 @@ class ActivityController extends AbstractController
         // 4. Status setzen + Timestamp
         if ($isQuickAutoApprove) {
             $activity->setSubmittedAt(new \DateTime());
+            $activity->setSubmittedByUser($user);
         }
         $activity->setStatus($newStatus);
         $activity->setUpdatedAt(new \DateTime());
         $activity->applyStatusTimestamp($newStatus);
+
+        if (
+            !$isQuickAutoApprove
+            && $newStatus === Activity::STATUS_SUBMITTED
+            && $oldStatus !== Activity::STATUS_SUBMITTED
+        ) {
+            $activity->setSubmittedByUser($user);
+        }
 
         // 5. Spezialfall: Zurückweisung (approved → submitted) mit Kommentar
         if ($oldStatus === Activity::STATUS_APPROVED && $newStatus === Activity::STATUS_SUBMITTED) {
@@ -4607,6 +4616,7 @@ class ActivityController extends AbstractController
             'participant_count' => $activity->getParticipantCount(),
             'created_at' => $activity->getCreatedAt()->format('c'),
             'updated_at' => $activity->getUpdatedAt()->format('c'),
+            'created_by_user' => $this->serializeActivityUserSummary($activity->getCreatedByUser()),
         ];
 
         $activityPublicEntry = $this->publicCodeService->getActiveActivityPublicCode((string) $activity->getId());
@@ -4639,6 +4649,9 @@ class ActivityController extends AbstractController
                 'returned_at' => $activity->getReturnedAt()?->format('c'),
                 'completed_at' => $activity->getCompletedAt()?->format('c'),
                 'rejection_comment' => $activity->getRejectionComment(),
+                'submitted_by_user' => $this->serializeActivityUserSummary(
+                    $this->resolveSubmittedByUser($activity),
+                ),
                 // Workflow-Flags
                 'is_material_editable' => $activity->isMaterialEditable(),
                 'is_pack_list_editable' => $viewer instanceof User
@@ -4892,6 +4905,73 @@ class ActivityController extends AbstractController
         $nick = trim((string) ($profile->getNickname() ?? ''));
 
         return $nick !== '' ? $nick : null;
+    }
+
+    /**
+     * @return array{
+     *   id: string,
+     *   display_name: string|null,
+     *   first_name: string|null,
+     *   last_name: string|null,
+     *   nickname: string|null,
+     *   avatar_initials: string|null,
+     *   background_color: string|null,
+     *   text_color: string|null
+     * }|null
+     */
+    private function serializeActivityUserSummary(?User $user): ?array
+    {
+        if ($user === null) {
+            return null;
+        }
+        $profile = $user->getProfile();
+
+        return [
+            'id' => (string) $user->getId(),
+            'display_name' => $this->userDisplayName($user),
+            'first_name' => $profile?->getFirstName(),
+            'last_name' => $profile?->getLastName(),
+            'nickname' => $profile?->getNickname(),
+            'avatar_initials' => $profile?->getAvatarInitials(),
+            'background_color' => $profile?->getBackgroundColor(),
+            'text_color' => $profile?->getTextColor(),
+        ];
+    }
+
+    private function resolveSubmittedByUser(Activity $activity): ?User
+    {
+        $stored = $activity->getSubmittedByUser();
+        if ($stored instanceof User) {
+            return $stored;
+        }
+
+        $entries = $this->entityManager->getRepository(ActivityHistory::class)->findBy(
+            ['activityId' => $activity->getId(), 'action' => 'status_changed'],
+            ['createdAt' => 'ASC'],
+        );
+        foreach ($entries as $entry) {
+            if (!$entry instanceof ActivityHistory) {
+                continue;
+            }
+            $status = $entry->getChanges()['status'] ?? null;
+            if (!\is_array($status)) {
+                continue;
+            }
+            $new = $status['new'] ?? null;
+            $old = $status['old'] ?? null;
+            if ($new === Activity::STATUS_SUBMITTED) {
+                return $entry->getUser();
+            }
+            if (
+                $new === Activity::STATUS_APPROVED
+                && $old === Activity::STATUS_DRAFT
+                && $activity->getType() === 'activity'
+            ) {
+                return $entry->getUser();
+            }
+        }
+
+        return null;
     }
 
     /** @param mixed $value */

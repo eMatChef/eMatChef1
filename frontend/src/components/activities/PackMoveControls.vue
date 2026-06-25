@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { VTooltip } from 'vuetify/components'
 
 defineOptions({ name: 'PackMoveControls' })
@@ -25,6 +26,14 @@ const props = withDefaults(
     disabled: false,
     actionsClass: '',
   },
+)
+
+const isIntoCrateForward = computed(
+  () => props.intoCrate || props.direction === 'assign-up',
+)
+
+const isForward = computed(
+  () => props.direction === 'forward' || props.direction === 'assign-up',
 )
 
 const inputCap = () => {
@@ -72,7 +81,6 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
     class="pack-card-actions"
     :class="[
       direction === 'back' ? 'pack-card-actions-left' : '',
-      direction === 'assign-up' ? 'pack-card-actions-assign-up' : '',
       actionsClass,
     ]"
   >
@@ -102,14 +110,14 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
           @keyup.enter="onMoveClick"
         />
       </template>
-      <template v-else-if="direction === 'assign-up' || (direction === 'forward' && intoCrate)">
+      <template v-else-if="isForward">
         <input
           :value="qty"
           type="number"
           min="1"
           :max="inputCap() || max"
           class="pack-move-input"
-          :class="{ 'pack-move-input--into-crate': intoCrate }"
+          :class="{ 'pack-move-input--into-crate': isIntoCrateForward }"
           @input="onInput"
           @keyup.enter="onMoveClick"
         />
@@ -123,45 +131,45 @@ function onMoveClick(event: MouseEvent | KeyboardEvent) {
             <button
               v-bind="tipProps"
               type="button"
-              class="btn-move-arrow btn-move-arrow--up btn-move-arrow--into-crate"
+              class="btn-move-arrow"
+              :class="{ 'btn-move-arrow--into-crate': isIntoCrateForward }"
               :disabled="disabled"
               @click="onMoveClick"
             >
-              <v-icon icon="mdi-arrow-up" size="12" />
+              <v-icon
+                icon="mdi-arrow-right"
+                size="12"
+                class="btn-move-arrow__icon"
+              />
             </button>
           </template>
         </VTooltip>
         <button
           v-else
           type="button"
-          class="btn-move-arrow btn-move-arrow--up btn-move-arrow--into-crate"
-          :disabled="disabled"
-          @click="onMoveClick"
-        >
-          <v-icon icon="mdi-arrow-up" size="12" />
-        </button>
-      </template>
-      <template v-else>
-        <input
-          :value="qty"
-          type="number"
-          min="1"
-          :max="inputCap() || max"
-          class="pack-move-input"
-          @input="onInput"
-          @keyup.enter="onMoveClick"
-        />
-        <button
-          type="button"
           class="btn-move-arrow"
+          :class="{ 'btn-move-arrow--into-crate': isIntoCrateForward }"
           :disabled="disabled"
-          :title="forwardTitle"
           @click="onMoveClick"
         >
-          <v-icon icon="mdi-arrow-right" size="12" />
+          <v-icon
+            icon="mdi-arrow-right"
+            size="12"
+            class="btn-move-arrow__icon"
+          />
         </button>
       </template>
     </div>
   </div>
 </template>
+
+<style scoped>
+.btn-move-arrow :deep(.v-icon) {
+  transition: transform 0.15s ease;
+}
+
+.btn-move-arrow--into-crate :deep(.v-icon) {
+  transform: rotate(-90deg);
+}
+</style>
 

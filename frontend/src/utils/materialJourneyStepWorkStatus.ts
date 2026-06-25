@@ -37,6 +37,7 @@ function buildTaskContextForStep(
     maxForwardQty: state.packIssueForwardMax,
     containerIssueableUnits: state.containerIssueableUnits,
     containerActionableUnits: state.containerActionableUnits,
+    containerContentActionableUnits: state.containerContentActionableUnits,
     canMoveItem: () => true,
     canOpenSheet: true,
     formatCrateLineCount: (count) => String(count),

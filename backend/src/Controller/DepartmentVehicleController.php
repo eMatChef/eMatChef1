@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Activity;
+use App\Entity\ActivityVehicle;
 use App\Entity\Department;
 use App\Entity\DepartmentVehicle;
 use App\Entity\Membership;
@@ -50,6 +51,64 @@ class DepartmentVehicleController extends AbstractController
         $result = $vehicles->getQuery()->getResult();
 
         return new JsonResponse(array_map(fn (DepartmentVehicle $v) => $this->serializeVehicle($v), $result));
+    }
+
+    #[Route('/recent', name: 'recent', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function recent(string $departmentId, Request $request): JsonResponse
+    {
+        $departmentIds = $this->resolveDepartmentIds($departmentId, $request);
+        if ($departmentIds instanceof JsonResponse) {
+            return $departmentIds;
+        }
+
+        $limit = min(20, max(1, (int) $request->query->get('limit', 5)));
+
+        $rows = $this->entityManager->createQueryBuilder()
+            ->select('av.vehicleId AS vehicleId', 'MAX(av.updatedAt) AS HIDDEN lastUsed')
+            ->from(ActivityVehicle::class, 'av')
+            ->join('av.activity', 'a')
+            ->where('a.departmentId IN (:deptIds)')
+            ->groupBy('av.vehicleId')
+            ->orderBy('lastUsed', 'DESC')
+            ->setParameter('deptIds', $departmentIds)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getArrayResult();
+
+        $vehicleIds = array_values(array_filter(array_map(
+            static fn (array $row): string => (string) ($row['vehicleId'] ?? ''),
+            $rows,
+        )));
+
+        if ($vehicleIds === []) {
+            return new JsonResponse([]);
+        }
+
+        $fetched = $this->entityManager->getRepository(DepartmentVehicle::class)->createQueryBuilder('v')
+            ->leftJoin('v.ownerAddress', 'oa')
+            ->addSelect('oa')
+            ->where('v.id IN (:ids)')
+            ->andWhere('v.isActive = true')
+            ->setParameter('ids', $vehicleIds)
+            ->getQuery()
+            ->getResult();
+
+        $byId = [];
+        foreach ($fetched as $vehicle) {
+            if ($vehicle instanceof DepartmentVehicle) {
+                $byId[$vehicle->getId()] = $vehicle;
+            }
+        }
+
+        $vehicles = [];
+        foreach ($vehicleIds as $vehicleId) {
+            if (isset($byId[$vehicleId])) {
+                $vehicles[] = $byId[$vehicleId];
+            }
+        }
+
+        return new JsonResponse(array_map(fn (DepartmentVehicle $v) => $this->serializeVehicle($v), $vehicles));
     }
 
     #[Route('', name: 'create', methods: ['POST'])]

@@ -772,8 +772,11 @@ class ActivityAccessService
         $editableStatuses = [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
             Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
         ];
         if (!\in_array($status, $editableStatuses, true)) {
             return false;

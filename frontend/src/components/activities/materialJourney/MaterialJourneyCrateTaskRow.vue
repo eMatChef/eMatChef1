@@ -20,6 +20,8 @@ const props = defineProps<{
   showMoveForward?: boolean
   showCrateMoveForward?: boolean
   moveForwardQty?: number
+  transportTourAssignActive?: boolean
+  transportTargetTourLabel?: string | null
   hasReassignTargets?: boolean
   showIssueActions?: boolean
   atEventQtyLabel?: string | null
@@ -96,6 +98,20 @@ const effectiveMoveForwardQty = computed(
 const effectiveMoveBackQty = computed(
   () => props.moveBackQty ?? props.row.maxMoveBackQty,
 )
+
+const forwardIntoTour = computed(
+  () => Boolean(props.transportTourAssignActive) && showMoveForwardControls.value,
+)
+
+const forwardMoveTitle = computed(() => {
+  if (!forwardIntoTour.value) {
+    return t('activities.materialJourney.moveForward.action')
+  }
+  const label =
+    props.transportTargetTourLabel?.trim() ||
+    t('activities.materialJourney.transportTours.tourTargetFallback')
+  return t('activities.materialJourney.row.assignToTourHint', { label })
+})
 
 const statusIcon = computed(() => {
   if (props.row.isDone) return '✓'
@@ -285,10 +301,11 @@ function onSelectTarget(event: Event): void {
         <PackMoveControls
           v-if="showMoveForwardControls"
           direction="forward"
+          :into-crate="forwardIntoTour"
           :qty="effectiveMoveForwardQty"
           :max="forwardMaxQty"
           :disabled="moving"
-          :forward-title="t('activities.materialJourney.moveForward.action')"
+          :forward-title="forwardMoveTitle"
           @update:qty="emit('update:moveForwardQty', $event)"
           @move="onForwardMove"
         />

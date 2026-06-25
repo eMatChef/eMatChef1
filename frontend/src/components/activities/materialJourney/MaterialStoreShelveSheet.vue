@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import { getStorageOverview, type StorageOverviewRack } from '@/api/storageLocations'
 import { packRackLabel } from '@/components/activities/packMaterialDisplay'
 import EButton from '@/components/form/base/EButton.vue'
+import { useMaterialJourneySheetDialog } from '@/composables/useMaterialJourneySheetDialog'
 
 const props = defineProps<{
   open: boolean
@@ -13,21 +14,16 @@ const props = defineProps<{
   qty: number
   departmentId: string
   submitting: boolean
-  feedbackVisible: boolean
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:qty': [value: number]
   confirm: []
-  next: []
-  stay: []
 }>()
 
 const { t } = useI18n()
-
-const COUNTDOWN_START = 5
-const countdownLeft = ref(COUNTDOWN_START)
+const { sheetFullscreen, sheetMaxWidth } = useMaterialJourneySheetDialog({ maxWidth: 480 })
 
 const racksLoading = ref(false)
 const racks = ref<StorageOverviewRack[]>([])
@@ -124,34 +120,8 @@ watch(selectedRackId, () => {
   selectedSlotId.value = first?.id ? String(first.id) : ''
 })
 
-let countdownTimer: ReturnType<typeof setInterval> | null = null
-
-watch(
-  () => props.feedbackVisible,
-  (visible) => {
-    if (countdownTimer) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-    }
-    if (!visible) return
-    countdownLeft.value = COUNTDOWN_START
-    countdownTimer = setInterval(() => {
-      countdownLeft.value -= 1
-      if (countdownLeft.value <= 0) {
-        if (countdownTimer) clearInterval(countdownTimer)
-        countdownTimer = null
-        emit('next')
-      }
-    }, 1000)
-  },
-)
-
-onUnmounted(() => {
-  if (countdownTimer) clearInterval(countdownTimer)
-})
-
 function onConfirm(): void {
-  if (props.submitting || props.feedbackVisible || props.maxQty < 1) return
+  if (props.submitting || props.maxQty < 1) return
   emit('confirm')
 }
 </script>
@@ -159,8 +129,10 @@ function onConfirm(): void {
 <template>
   <v-dialog
     :model-value="open"
-    fullscreen
+    :fullscreen="sheetFullscreen"
+    :max-width="sheetMaxWidth"
     scrollable
+    class="material-journey-sheet-dialog"
     transition="dialog-bottom-transition"
     @update:model-value="emit('update:open', $event)"
   >
@@ -177,7 +149,7 @@ function onConfirm(): void {
         </div>
       </header>
 
-      <div v-if="!feedbackVisible" class="material-journey-sheet__body">
+      <div class="material-journey-sheet__body">
         <div class="material-store-shelve-sheet__field">
           <span class="material-store-shelve-sheet__label">
             {{ t('activities.materialJourney.storeSheet.suggestedLocation') }}
@@ -247,41 +219,21 @@ function onConfirm(): void {
         <p class="material-store-shelve-sheet__target text-muted">
           {{ t('activities.materialJourney.storeSheet.targetHint', { location: selectedLocationLabel }) }}
         </p>
-      </div>
-
-      <div v-else class="material-journey-sheet__body material-store-shelve-sheet__feedback">
-        <p class="material-store-shelve-sheet__feedback-title">
-          {{ t('activities.materialJourney.storeSheet.feedbackTitle') }}
+        <p class="material-store-shelve-sheet__workflow-hint text-muted">
+          {{ t('activities.materialJourney.storeSheet.workflowHint') }}
         </p>
-        <p class="text-muted">{{ t('activities.materialJourney.storeSheet.feedbackHint') }}</p>
       </div>
 
       <footer class="material-journey-sheet__footer">
-        <template v-if="!feedbackVisible">
-          <EButton
-            variant="primary"
-            class="material-journey-sheet__primary"
-            :disabled="submitting || maxQty < 1"
-            :loading="submitting"
-            @click="onConfirm"
-          >
-            {{ t('activities.materialJourney.storeSheet.confirm') }}
-          </EButton>
-        </template>
-        <template v-else>
-          <div class="material-store-shelve-sheet__next-actions">
-            <EButton
-              variant="primary"
-              class="material-store-shelve-sheet__next-yes"
-              @click="emit('next')"
-            >
-              {{ t('activities.materialJourney.storeSheet.nextYes', { seconds: countdownLeft }) }}
-            </EButton>
-            <EButton variant="secondary" @click="emit('stay')">
-              {{ t('activities.materialJourney.storeSheet.nextNo') }}
-            </EButton>
-          </div>
-        </template>
+        <EButton
+          variant="primary"
+          class="material-journey-sheet__primary"
+          :disabled="submitting || maxQty < 1"
+          :loading="submitting"
+          @click="onConfirm"
+        >
+          {{ t('activities.materialJourney.storeSheet.confirm') }}
+        </EButton>
       </footer>
     </div>
   </v-dialog>
@@ -331,20 +283,9 @@ function onConfirm(): void {
   font-size: 13px;
 }
 
-.material-store-shelve-sheet__feedback-title {
-  margin: 0 0 8px;
-  font-size: 1.05rem;
-  font-weight: 600;
-}
-
-.material-store-shelve-sheet__next-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-
-.material-store-shelve-sheet__next-yes {
-  position: relative;
+.material-store-shelve-sheet__workflow-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 </style>

@@ -30,6 +30,14 @@ function stepLabel(step: JourneyStep): string {
 
 const activeIndex = computed(() => Math.max(0, props.steps.indexOf(props.activeStep)))
 
+const currentStepIndex = computed(() => Math.max(0, props.steps.indexOf(props.currentStep)))
+
+const currentStepCaption = computed(() => {
+  const step = props.currentStep
+  const index = currentStepIndex.value
+  return `${index + 1}. ${stepLabel(step)}`
+})
+
 const openWorkSet = computed(() => new Set(props.stepsWithOpenWork ?? []))
 
 function stepHasOpenWork(step: JourneyStep, index: number): boolean {
@@ -105,6 +113,10 @@ function onStepClick(step: JourneyStep): void {
         </button>
       </li>
     </ol>
+
+    <p class="material-journey-stepper__current" aria-live="polite">
+      {{ currentStepCaption }}
+    </p>
   </nav>
 </template>
 

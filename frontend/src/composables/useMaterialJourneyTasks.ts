@@ -73,7 +73,6 @@ export function useMaterialJourneyTasks(options: {
   const activeStoreMaxQty = ref(0)
   const storeShelveQty = ref(1)
   const storeShelveSubmitting = ref(false)
-  const storeShelveFeedback = ref(false)
   const lastFailedMove = ref<{ row: MaterialJourneyTaskRow; source: PackMoveSource } | null>(null)
   const assignCrateSheetOpen = ref(false)
   const assignCratePackItem = ref<ActivityPackItem | null>(null)
@@ -115,7 +114,10 @@ export function useMaterialJourneyTasks(options: {
 
   const listEditable = computed(() => {
     if (options.isEarlyPackPreview.value) return false
-    if (options.activity.value?.is_pack_list_editable === false) return false
+    const status = options.activity.value?.status ?? ''
+    if (options.activity.value?.is_pack_list_editable === false) {
+      if (!(status === 'storing' && options.canManageMaterials.value)) return false
+    }
     if (stepAccess.value !== 'editable') return false
     if (!packWorkflowCanEdit(
       options.profile.value,
@@ -137,6 +139,7 @@ export function useMaterialJourneyTasks(options: {
     shellPackItemForContainer,
     containerIssueableUnits,
     containerActionableUnits,
+    containerContentActionableUnits,
     packQuantityCtx,
     packCrateLabelsForPackItem,
     qtyInPackCrateForPackItem,
@@ -181,6 +184,7 @@ export function useMaterialJourneyTasks(options: {
     maxForwardQty: packIssueForwardMax,
     containerIssueableUnits: containerActionableUnits,
     containerActionableUnits,
+    containerContentActionableUnits,
     canMoveItem,
     canOpenSheet: canOpenSheet.value,
     formatCrateLineCount: (count: number) =>
@@ -249,7 +253,13 @@ export function useMaterialJourneyTasks(options: {
   const showFilterToolbar = computed(() => !isLogisticsAtEventInventory.value)
 
   const showByShelfFilter = computed(
-    () => options.journeyStep.value === 'pack' && options.canManageMaterials.value,
+    () =>
+      (options.journeyStep.value === 'pack' || options.journeyStep.value === 'store') &&
+      options.canManageMaterials.value,
+  )
+
+  const useRegalGroupingOnStore = computed(
+    () => options.journeyStep.value === 'store' && options.canManageMaterials.value,
   )
 
   const progress = computed(() => {
@@ -265,14 +275,19 @@ export function useMaterialJourneyTasks(options: {
       stepAccess: stepAccess.value,
       openLooseComboCount: progress.value.openLooseCombo,
       doneCount: progress.value.done,
+      totalOpenCount: progress.value.open,
     })
   }
 
   watch(
     options.journeyStep,
     (step, previousStep) => {
+      if (step === 'store' && options.canManageMaterials.value) {
+        filterTab.value = 'byShelf'
+        return
+      }
       const showShelf = showByShelfFilter.value
-      if (filterTab.value === 'byShelf' && (step !== 'pack' || !showShelf)) {
+      if (filterTab.value === 'byShelf' && !showShelf) {
         filterTab.value = resolveDefaultFilterTab()
         return
       }
@@ -288,6 +303,20 @@ export function useMaterialJourneyTasks(options: {
       filterTab.value = resolveDefaultFilterTab()
     }
   })
+
+  watch(
+    () => ({
+      step: options.journeyStep.value,
+      open: progress.value.open,
+      done: progress.value.done,
+    }),
+    ({ step, open, done }) => {
+      if (step !== 'pack' && step !== 'issue') return
+      if (open === 0 && done > 0 && filterTab.value === 'open') {
+        filterTab.value = 'done'
+      }
+    },
+  )
 
   const activeCrateShellPackItem = computed(() =>
     activeCrate.value ? shellPackItemForContainer(activeCrate.value.id) ?? null : null,
@@ -350,25 +379,12 @@ export function useMaterialJourneyTasks(options: {
     activeStoreItem.value = pi
     activeStoreMaxQty.value = maxQty
     storeShelveQty.value = maxQty
-    storeShelveFeedback.value = false
     storeShelveOpen.value = true
   }
 
   function closeStoreShelve(): void {
     storeShelveOpen.value = false
-    storeShelveFeedback.value = false
     activeStoreItem.value = null
-  }
-
-  function findNextOpenStoreRow(): MaterialJourneyTaskRow | undefined {
-    return allTasks.value.find(
-      (row) =>
-        row.kind === 'loose' &&
-        row.isOpen &&
-        row.canMove &&
-        row.packItem &&
-        row.packItem.id !== activeStoreItem.value?.id,
-    )
   }
 
   async function submitStoreShelve(): Promise<void> {
@@ -386,24 +402,12 @@ export function useMaterialJourneyTasks(options: {
       })
       applyUpdatedItem(updated)
       toast.success(t('activities.materialJourney.storeSheet.toastSuccess'))
-    storeShelveFeedback.value = true
+      closeStoreShelve()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     } finally {
       storeShelveSubmitting.value = false
     }
-  }
-
-  function onStoreShelveNext(): void {
-    const next = findNextOpenStoreRow()
-    closeStoreShelve()
-    if (next?.packItem) {
-      openStoreShelve(next.packItem, next.maxForwardQty)
-    }
-  }
-
-  function onStoreShelveStay(): void {
-    closeStoreShelve()
   }
 
   async function moveTaskRow(
@@ -710,6 +714,7 @@ export function useMaterialJourneyTasks(options: {
     shellPackItemForContainer,
     visibleTasks,
     showByShelfFilter,
+    useRegalGroupingOnStore,
     showFilterToolbar,
     isLogisticsAtEventInventory,
     progress,
@@ -738,10 +743,7 @@ export function useMaterialJourneyTasks(options: {
     activeStoreMaxQty,
     storeShelveQty,
     storeShelveSubmitting,
-    storeShelveFeedback,
     submitStoreShelve,
-    onStoreShelveNext,
-    onStoreShelveStay,
     lastFailedMove,
     retryMove,
     assignCrateSheetOpen,

@@ -75,8 +75,8 @@ export function useMaterialJourneyIssueActions(options: {
 
   function showIssueForRow(row: MaterialJourneyTaskRow): boolean {
     if (!row.packItem) return false
-    if (row.kind === 'loose' || row.kind === 'combo') return showIssueForPackItem(row.packItem)
-    return false
+    if (row.kind !== 'loose' && row.kind !== 'combo') return false
+    return showIssueForPackItem(row.packItem)
   }
 
   function showIssueForAccordionLine(

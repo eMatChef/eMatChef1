@@ -1799,6 +1799,7 @@
       "packed": "Gepackt",
       "transport_out": "Transport hin",
       "at_event": "Am Anlass",
+      "at_event_quick": "Mit mir unterwegs",
       "transport_back": "Transport zurück",
       "returned": "Retour",
       "storing": "Einlagern",
@@ -1977,6 +1978,8 @@
       "labelMaterialPickupReturn": "Material Abholung / Rückgabe",
       "sectionOrg": "Organisation",
       "labelDepartment": "Department",
+      "labelCreatedBy": "Erstellt von",
+      "labelSubmittedBy": "Eingereicht von",
       "labelTotalPrice": "Gesamtpreis",
       "sectionInvitedDepartments": "Eingeladene Departments",
       "sectionNotes": "Notizen",
@@ -2441,6 +2444,7 @@
         "pack": "Packen",
         "transport_out": "Transport hin",
         "issue": "Ausgabe",
+        "issueOnTheWay": "Mit mir unterwegs",
         "issueLogistics": "Am Anlass",
         "transport_back": "Transport zurück",
         "return": "Retour",
@@ -2452,8 +2456,36 @@
       "filter": {
         "open": "Offen",
         "done": "Erledigt",
+        "openQuickIssue": "Noch ausgeben",
+        "doneQuickIssue": "Mit mir unterwegs",
         "byShelf": "Nach Regal",
         "aria": "Checkliste filtern"
+      },
+      "quickPhase": {
+        "aria": "Material-Phase",
+        "return": "Retour",
+        "returnDisabledHint": "Erst alles ausgeben, dann Retour starten"
+      },
+      "quickReturnHandoff": {
+        "title": "Retour erledigt",
+        "description": "{count} Positionen — Material an den Materialwart übergeben. Danach kann eingelagert werden.",
+        "continue": "Weiter an Matwart abgeben",
+        "hint": "Der Materialwart kann danach «Einlagern starten».",
+        "error": "Übergabe an Materialwart fehlgeschlagen.",
+        "handoff": {
+          "title": "Retour erledigt",
+          "description": "Alles retourniert — jetzt an den Materialwart übergeben. Er lagert ein und schliesst ab.",
+          "action": "Weiter an Matwart abgeben"
+        },
+        "handoffDone": {
+          "title": "An Materialwart übergeben",
+          "description": "Die Retour ist abgeschlossen. Einlagern und Abschluss erfolgen durch den Materialwart — du musst nichts mehr tun."
+        },
+        "storeForMw": {
+          "title": "Retour abgeschlossen",
+          "description": "Die Gruppe hat Material retourniert. Du kannst mit dem Einlagern beginnen.",
+          "action": "Einlagern starten"
+        }
       },
       "inventoryAtEvent": {
         "title": "Material am Anlass",
@@ -2466,7 +2498,8 @@
         "summary": "{count} offen"
       },
       "toolbar": {
-        "progress": "{done} / {total} erledigt"
+        "progress": "{done} / {total} erledigt",
+        "progressQuickIssue": "{done} / {total} mitgenommen"
       },
       "row": {
         "openQty": "{count} offen",
@@ -2479,6 +2512,7 @@
         "openCrateSheetHint": "Kistencheck öffnen — Teilmengen und lose Ausgabe",
         "selectPackTargetHint": "Als Zielkiste wählen (grün markieren)",
         "assignToCrateHint": "In Kiste «{label}»",
+        "assignToTourHint": "Auf Tour «{label}»",
         "accordionEmpty": "Noch kein Inhalt in dieser Kiste.",
         "accordionEmptyPackCrate": "Kiste leer — Material einzeln buchen oder per Pfeil Kistencheck öffnen.",
         "accordionToggle": "Inhalt",
@@ -2530,6 +2564,7 @@
       },
       "footer": {
         "progress": "{done} von {total} Positionen erledigt",
+        "progressQuickIssue": "{done} von {total} Positionen mitgenommen",
         "openHint": "Noch {count} offen — Menge eingeben und → tippen",
         "openHintQty": "Noch {count} offen — Menge eingeben und → tippen",
         "openHintReturn": "Noch {count} offen — Menge eingeben und → tippen",
@@ -2609,6 +2644,10 @@
         "empty": "Keine Komponenten für dieses Set.",
         "checkAllHint": "Alle Teile abhaken, um zu buchen."
       },
+      "storeHint": {
+        "title": "Material nach Regal einlagern",
+        "description": "Position antippen oder scannen → Regal/Fach prüfen → «Verräumt». Danach physisch verräumen; nächste Position, wenn du bereit bist."
+      },
       "storeSheet": {
         "subtitle": "Regal und Fach prüfen, dann verräumen",
         "suggestedLocation": "Soll-Standort (Material)",
@@ -2622,10 +2661,7 @@
         "targetHint": "Ziel: {location}",
         "confirm": "Verräumt",
         "toastSuccess": "Artikel verräumt",
-        "feedbackTitle": "Artikel eingelagert",
-        "feedbackHint": "Nächsten Artikel verräumen?",
-        "nextYes": "Ja — nächster ({seconds}s)",
-        "nextNo": "Nein, schliessen"
+        "workflowHint": "Nach «Verräumt» schliesst sich das Fenster — physisch zum Regal gehen. Nächste Position dann antippen oder scannen."
       },
       "assignCrate": {
         "subtitle": "Kiste wählen und Material zuordnen",
@@ -2653,16 +2689,34 @@
         "fitOk": "Passt",
         "fitHeavy": "Zu schwer",
         "fitUnknown": "Gewicht unbekannt",
-        "weightHint": "{weight} kg / max. {max} kg",
+        "weightHint": "{weight} kg Material / Nutzlast {max} kg",
+        "weightMaterialPart": "{weight} kg Material",
+        "weightPayloadPart": "Nutzlast {max} kg",
+        "unknownWeightNotice": "{count} Material ohne Gewicht — bitte wiegen",
+        "weightEstimateHint": "Nur Stamm-Gewichte und gewogene Werte zählen. Kisten: Leergewicht der Hülle plus Inhalt (wenn im Stamm). Fehlt ein Gewicht — hier wiegen. Rückweg übernimmt Hintransport. Stamm-Übernahme unter «Retour».",
+        "weightReviewTitle": "Gewichte in den Stamm übernehmen",
+        "weightReviewHint": "Gewichte vom Hintransport — nach Kontrolle ins Material übernehmen.",
+        "weightFromOutbound": "Hintransport",
+        "inheritedWeightHint": "{weight} kg (vom Hintransport)",
+        "inheritedWeightNote": "Vom Hintransport übernommen",
+        "weighLabel": "Gewogen",
+        "weighPlaceholder": "kg",
+        "saveWeightToMaterial": "Im Stamm speichern",
+        "weightSavedToMaterial": "Gewicht im Materialstamm gespeichert.",
+        "loadedTitle": "Geladen",
+        "loadedCount": "{count} Positionen",
+        "addTitle": "Hinzufügen",
+        "removeFromTour": "Entfernen",
         "noAssignable": "Keine offenen Kisten oder Positionen für diesen Schritt.",
-        "noAssigned": "Dieser Tour ist noch kein Material zugeordnet.",
+        "assignListHint": "Offene Positionen hier zuordnen — oder unten per grünem Pfeil buchen.",
+        "noAssigned": "Dieser Tour ist noch kein Material zugeordnet — unten per grünem Pfeil buchen.",
         "deleteTour": "Tour löschen",
         "createTitle": "Neue Tour",
         "vehicleLabel": "Fahrzeug",
         "chooseVehicle": "Fahrzeug wählen…",
         "quickAddHint": "Noch kein passendes Fahrzeug? Schnell anlegen (MW):",
         "quickAddName": "Name, z. B. Blaustein",
-        "quickAddPayload": "kg max.",
+        "quickAddPayload": "Nutzlast kg",
         "vehicleCreated": "Fahrzeug angelegt",
         "createConfirm": "Tour anlegen",
         "noActivityVehicles": "Noch keine Fahrzeuge dieser Aktivität zugeordnet — bitte im Tab «Fahrzeuge» hinzufügen.",
@@ -2672,6 +2726,7 @@
           "arrived": "Angekommen"
         },
         "markDeparted": "Abfahren",
+        "toggleTourAria": "Tour «{label}» ein- oder ausklappen",
         "markArrived": "Angekommen",
         "arriveAllOutbound": "Alles transportierte Material ist am Anlass",
         "arriveAllInbound": "Alles zurücktransportierte Material ist da",
@@ -2683,7 +2738,15 @@
           "subtitle": "Eine Fahrt — ohne Tour geplant",
           "allArrived": "Alles transportierte Material ist am Anlass.",
           "noTransportYet": "Noch nichts unterwegs — bitte zuerst auf «Transport hin» Material auf die Fahrt buchen."
-        }
+        },
+        "chooseTourTitle": "Auf welches Fahrzeug?",
+        "chooseTourHint": "Material wird auf die Tour gebucht. Ohne Fahrzeug gilt die einfache Tour.",
+        "simpleTour": "Einfache Tour",
+        "simpleTourActive": "Einfache Tour — ohne Fahrzeugzuordnung. Material erscheint später als eine Fahrt.",
+        "chooseTourConfirm": "Tour wählen",
+        "assignedToast": "Auf Tour «{label}» gebucht.",
+        "tourTargetFallback": "Tour",
+        "targetPickerAria": "Fahrzeug für Transport wählen"
       },
       "scan": {
         "label": "Suchen oder scannen",
@@ -2767,6 +2830,10 @@
         "filterDescription": "Die Suche passt zu keiner offenen Position — Suchbegriff anpassen oder Scan-Feld leeren.",
         "doneTitle": "Noch nichts erledigt",
         "doneDescription": "Erledigte Positionen erscheinen hier nach der Buchung.",
+        "openTitleQuickIssue": "Alles ausgegeben",
+        "openDescriptionQuickIssue": "Kein Material mehr zum Ausgeben — wechsle zu «Mit mir unterwegs».",
+        "doneTitleQuickIssue": "Noch nichts mitgenommen",
+        "doneDescriptionQuickIssue": "Ausgegebenes Material erscheint hier — Verlust, Verbrauch oder Reparatur direkt auf der Zeile melden.",
         "listTitle": "Checkliste folgt",
         "listDescription": "{count} Positionen geladen — Zeilen und Aktionen kommen in Phase 2."
       },
@@ -3080,6 +3147,7 @@
       "consumableInlineConfirmTitle": "Verbrauch buchen",
       "consumableInlineConfirmAria": "Verbrauch bestätigen",
       "consumableInlineNachbuchung": "Nachlieferung buchen",
+      "consumableInlineNachbuchungShort": "Nachlieferung",
       "consumableInlineBooked": "{n} Stk. Verbrauch gebucht",
       "consumableInlineOverBooked": "Maximal {max} Stk. — bitte zuerst Nachlieferung buchen",
       "consumableInlineBookFailed": "Verbrauch konnte nicht gebucht werden",
@@ -3483,6 +3551,7 @@
       "allClear": "Alle Voraussetzungen erfüllt — die Aktivität kann abgeschlossen werden.",
       "itemStorage": "Material eingelagert",
       "itemStoragePending": "{n} Position(en) offen",
+      "itemStorageHint": "In der Packliste nach Regal einlagern — Position antippen und «Verräumt» bestätigen.",
       "piecesOpen": "Stk. offen",
       "itemIssues": "Meldungen geklärt (Werkstatt)",
       "itemWorkshop": "Werkstatt-Tickets abgeschlossen",
@@ -3495,7 +3564,7 @@
     },
     "vehicles": {
       "title": "Fahrzeuge",
-      "intro": "Fahrzeuge dieser Aktivität planen — meist ausgeliehen von externen Firmen. Touren in der Packliste wählen nur aus dieser Liste.",
+      "intro": "Fahrzeuge dieser Aktivität planen — meist ausgeliehen von externen Firmen. Bei der Nutzlast das Zuladungsgewicht erfassen, nicht das Gesamtgewicht. Touren in der Packliste wählen nur aus dieser Liste.",
       "assignedTitle": "Zugeordnete Fahrzeuge ({count})",
       "emptyAssigned": "Noch keine Fahrzeuge zugeordnet.",
       "createNew": "Neues Fahrzeug",
@@ -3510,10 +3579,14 @@
       "searchHint": "Bestehende Fahrzeuge des Departments (und Partner) suchen und dieser Aktivität hinzufügen.",
       "searchPlaceholder": "Name oder Kennzeichen…",
       "searchEmpty": "Kein passendes Fahrzeug gefunden — ggf. neu anlegen.",
+      "recentTitle": "Zuletzt verwendet",
+      "recentEmpty": "Noch keine kürzlich verwendeten Fahrzeuge — Name oder Kennzeichen eingeben.",
+      "searchResultsTitle": "Suchergebnisse",
       "assignAction": "Zuordnen",
       "fieldName": "Bezeichnung",
       "fieldPlate": "Kennzeichen",
       "fieldPayload": "Nutzlast (kg)",
+      "fieldPayloadHint": "Zuladung in kg — nicht das Gesamtgewicht des Fahrzeugs.",
       "fieldLoadArea": "Ladefläche (cm)",
       "fieldLoadLength": "Länge",
       "fieldLoadWidth": "Breite",
@@ -3524,7 +3597,7 @@
       "fieldNotes": "Notizen zum Fahrzeug",
       "fieldAssignmentNotes": "Hinweis für diese Aktivität (z. B. Mietdauer)",
       "ownerLine": "Vermieter: {label}",
-      "payloadKg": "max. {kg} kg",
+      "payloadKg": "Nutzlast {kg} kg",
       "payloadUnknown": "Nutzlast unbekannt"
     },
     "costs": {
@@ -3618,6 +3691,8 @@
       "costsColUnitPrice": "Stückpreis",
       "costsTotal": "Verbrauchsmaterial gesamt",
       "costsNoneYet": "Noch kein Verbrauch gebucht — Betrag CHF 0.00",
+      "costsZeroWithUsage": "Verbrauch ist gebucht, der Betrag ist aber CHF 0.00 (fehlender Verkaufspreis oder nur Lagerbestand ohne Preis).",
+      "costsMissingSalePrice": "Verbrauch ist gebucht, aber ohne Verkaufspreis in den Material-Stammdaten kann nichts verrechnet werden. Verkaufspreis am Material (z. B. Fackeln) ergänzen — danach erscheint der Betrag hier und unter «Kosten» ein Buchhaltungs-Auftrag zur Gruppen-Verrechnung.",
       "toastLoadFailed": "Verbrauchsmaterial konnte nicht geladen werden.",
       "toastNoRemaining": "Kein weiterer Verbrauch möglich.",
       "toastMaxPieces": "Höchstens {n} Stk. möglich.",
@@ -5974,6 +6049,10 @@
       "logErrorLoadContainerContents": "Fehler beim Laden des Kisten-Inhalts:",
       "logErrorLoadBatches": "Fehler beim Laden der Batches:",
       "logCreateMaterialError": "Fehler beim Erstellen:"
+    },
+    "materialMetricInput": {
+      "enterGrams": "Gramm eingeben",
+      "enterKg": "kg eingeben"
     },
     "materialDetail": {
       "backToList": "Zurück zur Liste",

@@ -48,6 +48,17 @@ export interface ActivityInvitedDepartmentApi {
   group_name?: string | null
 }
 
+export interface ActivityUserSummary {
+  id: string
+  display_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
+}
+
 export interface ActivityCreatedResponse {
   id: string
   name: string
@@ -65,6 +76,8 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   group_id?: string | null
   group_name?: string | null
   created_by_user_id?: string | null
+  created_by_user?: ActivityUserSummary | null
+  submitted_by_user?: ActivityUserSummary | null
   department_name?: string
   color?: string | null
   item_count?: number

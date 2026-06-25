@@ -150,6 +150,10 @@
   gap: 8px 12px;
 }
 
+.activity-detail-quick-phase-chips {
+  flex-shrink: 0;
+}
+
 .activity-detail-workflow-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
