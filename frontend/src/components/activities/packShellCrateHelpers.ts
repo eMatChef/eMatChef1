@@ -83,6 +83,47 @@ export function isNonActionableContainerLine(ci: { id: string }): boolean {
   return isCrateCheckDisplayLine(ci) || isWarehousePreviewContainerLine(ci)
 }
 
+/** Vorschau-/Check-Zeile auf echte Pack-Kistenposition mappen (Einlagern, Meldungen). */
+export function resolveActionableContainerLine(
+  containerId: string,
+  ci: ActivityPackContainerItem,
+  containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
+): ActivityPackContainerItem {
+  if (!isNonActionableContainerLine(ci)) return ci
+  const mid = (ci.material_item_id ?? '').trim()
+  if (!mid) return ci
+  const real = (containerItemsByContainerId[containerId] ?? []).find(
+    (row) => row.material_item_id === mid && !isNonActionableContainerLine(row),
+  )
+  return real ?? ci
+}
+
+export function shellPackItemForContainer(
+  container: ActivityPackContainer,
+  packItems: ActivityPackItem[],
+): ActivityPackItem | undefined {
+  const batchId = (container.container_batch_id ?? '').trim()
+  if (batchId) {
+    const byBatch = packItems.find((p) => (p.linkedContainerBatchId ?? '').trim() === batchId)
+    if (byBatch) return byBatch
+  }
+  const mid = (container.container_material_item_id ?? '').trim()
+  if (mid) {
+    return packItems.find((p) => p.materialItemId === mid)
+  }
+  return undefined
+}
+
+export function shellPackItemForContainerId(
+  containerId: string,
+  packContainers: ActivityPackContainer[],
+  packItems: ActivityPackItem[],
+): ActivityPackItem | undefined {
+  const container = packContainers.find((c) => c.id === containerId)
+  if (!container) return undefined
+  return shellPackItemForContainer(container, packItems)
+}
+
 export function packShellContainerForPackItem(
   pi: ActivityPackItem,
   packContainers: ActivityPackContainer[],
@@ -93,13 +134,15 @@ export function packShellContainerForPackItem(
     const virtual = packContainers.find((c) => c.id === virtualId)
     if (virtual) return virtual
   }
-  const mid = pi.materialItemId
   const linkBatch = (pi.linkedContainerBatchId ?? '').trim()
-  for (const c of packContainers) {
-    if (c.container_material_item_id === mid) return c
-    if (linkBatch && c.container_batch_id === linkBatch) return c
+  if (linkBatch) {
+    const byBatch = packContainers.find((c) => (c.container_batch_id ?? '').trim() === linkBatch)
+    if (byBatch) return byBatch
   }
-  return undefined
+  const mid = pi.materialItemId
+  const byMaterial = packContainers.filter((c) => (c.container_material_item_id ?? '').trim() === mid)
+  if (byMaterial.length === 1) return byMaterial[0]
+  return byMaterial[0]
 }
 
 /** Lager-Charge für Kisten-Vorschau: container_batch_id oder linkedContainerBatchId der Shell-Position. */

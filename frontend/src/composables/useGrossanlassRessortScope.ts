@@ -53,6 +53,21 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
     )
   }
 
+  /** Direkte Zuordnung + Nachfahren — für «Mein Ressort», ohne Geschwister-Ressorts. */
+  function isInAssignedRessortBranch(group: GrossanlassGroup): boolean {
+    const userId = authStore.userId
+    if (!userId) return false
+    const assignedRootIds = groups.value
+      .filter((g) => g.members?.some((m) => m.user_id === userId))
+      .map((g) => g.id)
+    for (const rootId of assignedRootIds) {
+      if (collectBranchIds(rootId, groups.value).has(group.id)) {
+        return true
+      }
+    }
+    return false
+  }
+
   function canCreateRoot(): boolean {
     return canFullyManage.value
   }
@@ -85,6 +100,7 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
     canFullyManage,
     isLeaderOfGroup,
     isMemberInRessortBranch,
+    isInAssignedRessortBranch,
     canCreateRoot,
     canCreateChild,
     canEditGroup,

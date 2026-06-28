@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef, type Ref } from 'vue'
+import { computed, ref, watch, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
@@ -10,6 +10,7 @@ import {
   isJourneyStoreStep,
   isJourneyTransportBackStep,
   isJourneyTransportOutStep,
+  materialJourneyAllowsShelfSearch,
 } from '@/components/activities/materialJourneySteps'
 import { isPhysicalComboPackItem, packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
@@ -152,11 +153,23 @@ export function useMaterialJourneyScan(options: {
         const lookup = await getPublicMaterialBatchByCodes(parsed.materialCode, parsed.batchCode)
         materialItemId = lookup.material.id
         result = resolveMaterialBatchScan(lookup, resolveCtx.value)
-      } else if (
+      } else       if (
         parsed.type === 'storage_address' ||
         parsed.type === 'storage_rack' ||
         parsed.type === 'storage_slot'
       ) {
+        if (!materialJourneyAllowsShelfSearch(options.journeyStep.value)) {
+          const fail: MaterialScanResolveResult = {
+            type: 'unknown',
+            tone: 'muted',
+            title: trimmed.slice(0, 80),
+            detail: 'shelf_not_in_step',
+            canAct: false,
+          }
+          activeResult.value = fail
+          pushSession(trimmed.slice(0, 40), 'muted')
+          return
+        }
         const kind =
           parsed.type === 'storage_address' ? 'l' : parsed.type === 'storage_rack' ? 'r' : 's'
         const code =
@@ -232,6 +245,11 @@ export function useMaterialJourneyScan(options: {
         parsed.type === 'storage_rack' ||
         parsed.type === 'storage_slot'
       ) {
+        if (!materialJourneyAllowsShelfSearch(options.journeyStep.value)) {
+          toast.error(t('activities.materialJourney.scan.shelfNotInStep'))
+          atEventScanFilterRowIds.value = []
+          return null
+        }
         const kind =
           parsed.type === 'storage_address' ? 'l' : parsed.type === 'storage_rack' ? 'r' : 's'
         const code =
@@ -463,6 +481,12 @@ export function useMaterialJourneyScan(options: {
     clearAtEventScanFilter()
     dismissResult()
   }
+
+  watch(options.journeyStep, (step) => {
+    if (!materialJourneyAllowsShelfSearch(step)) {
+      dismissShelfSession()
+    }
+  })
 
   return {
     query,

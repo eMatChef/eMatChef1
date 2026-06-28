@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
+import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import { packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
 import type {
   MaterialScanResolveResult,
@@ -26,6 +27,9 @@ const props = defineProps<{
   inlineBulkConfirmed?: boolean
   inlineShowInCrate?: boolean
   inlineInCrateLabel?: string
+  inlineShowIssueActions?: boolean
+  inlineIssueIsConsumable?: boolean
+  inlineShowIssueConsumption?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +38,10 @@ const emit = defineEmits<{
   inlineInCrate: []
   inlineConfirmBulk: []
   inlineDismissLine: []
+  inlineConsumed: []
+  inlineLoss: []
+  inlineRepair: []
+  inlineDamage: []
   dismiss: []
 }>()
 
@@ -177,6 +185,18 @@ function quantityProgress(line: MaterialScanShelfLine): string {
                 {{ t('activities.materialJourney.scan.bulkConfirmHint') }}
               </p>
               <div class="material-scan-shelf-card__line-actions">
+                <PackIssueQuickActions
+                  v-if="inlineShowIssueActions && inlineResult.packItem"
+                  :is-consumable="inlineIssueIsConsumable === true"
+                  :material-item-id="inlineResult.packItem.materialItemId"
+                  :material-name="inlineResult.title"
+                  :show-consumption="inlineShowIssueConsumption !== false"
+                  compact
+                  @consumed="emit('inlineConsumed')"
+                  @loss="emit('inlineLoss')"
+                  @repair="emit('inlineRepair')"
+                  @damage="emit('inlineDamage')"
+                />
                 <EButton
                   v-if="inlineShowBulkConfirm && !inlineBulkConfirmed"
                   variant="secondary"

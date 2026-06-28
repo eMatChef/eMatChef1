@@ -169,6 +169,7 @@
         :blockers="completionBlockers"
         :activity-id="activityId"
         :host-department-id="departmentId"
+        :activity-status="activity.status ?? ''"
         @go-tab="onCompletionGoTab"
       />
 
@@ -183,8 +184,8 @@
         {{ t('activities.detail.memberScopeStatusHint') }}
       </v-alert>
 
-      <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
-          <v-tabs-window-item value="overview" class="activity-detail-window-item" :transition="false">
+      <div class="activity-detail-tabs-window">
+          <ActivityDetailTabPane tab-id="overview" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
@@ -325,9 +326,9 @@
               </div>
             </template>
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item value="material" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane tab-id="material" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content activity-material-tab">
             <ActivityTabHeader :title="t('common.material')">
               <p class="activity-material-tab-hint text-muted">
@@ -442,15 +443,14 @@
               </p>
             </div>
 
-            <div class="section-card activity-tab-panel-card">
+            <ActivityTabPanelShell
+              :loading="itemsShowFullLoading"
+              :refreshing="itemsRefreshing"
+              :loading-message="t('activities.detail.itemsLoading')"
+              loading-class="activity-items-loading"
+            >
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
-              <div v-if="itemsLoading" class="activity-items-loading">
-                <ELoadingState
-                  variant="inline"
-                  :message="t('activities.detail.itemsLoading')"
-                />
-              </div>
-              <div v-else-if="activityItems.length === 0" class="text-muted">
+              <div v-if="activityItems.length === 0" class="text-muted">
                 {{
                   showDraftMaterialAddForGroup
                     ? t('activities.detail.draftNoPositionsYet')
@@ -568,11 +568,11 @@
                   </tbody>
                 </table>
               </div>
-            </div>
+            </ActivityTabPanelShell>
           </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showJsOrderCard" tab-id="js" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityJsTabView
                 :activity-id="activityId"
@@ -580,9 +580,9 @@
                 :can-edit="canEditJsOrder"
               />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showVehiclesTab" value="vehicles" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showVehiclesTab" tab-id="vehicles" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityVehiclesTab
                 v-if="activity"
@@ -592,9 +592,9 @@
                 @assignments-changed="onActivityVehiclesChanged"
               />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showPacksTab" tab-id="packs" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
               v-if="activity && !useLegacyPackUi"
@@ -602,14 +602,19 @@
               :department-id="departmentId"
               :activity-id="activityId"
               :transitions="transitions"
+              :completion-blockers="completionBlockers"
               :can-report-issues="showDamageReportEntry"
               :can-report-consumption="showConsumptionBooking"
               :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
               :consumable-material-item-ids="consumableMaterialItemIds"
-              :reload-token="vehiclesReloadToken"
+              :reload-token="packListReloadToken"
+              :vehicles-reload-token="vehiclesReloadToken"
+              :consumption-modal-cancelled-token="consumptionModalCancelledToken"
+              :consumption-modal-return-without-consumption-token="consumptionModalReturnWithoutConsumptionToken"
               embedded
               @status-changed="onJourneyStatusChanged"
               @packing-header-ready="onPackingHeaderReady"
+              @store-header-ready="onStoreHeaderReady"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
               @request-nachbuchung="openNachbuchungModal"
@@ -650,24 +655,26 @@
               @material-scope-change="onMaterialLookupScopeChange"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showIssuesTab" tab-id="issues" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
+              :reports="activityIssues"
+              :reports-ready="issuesDataReady"
               :can-create="showDamageReportEntry"
               :read-only-hint="showIssuesTabReadOnlyHint"
-              :reload-token="issuesReloadToken"
               @open-wizard="openDamageReport()"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showConsumablesTab" tab-id="consumables" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
+              :activity-type="activity?.type"
               :can-create="showConsumptionBooking"
               :can-add-activity-material="canAddActivityMaterial"
               :can-request-consumable-replenishment="canRequestConsumableNachbuchung"
@@ -678,9 +685,9 @@
               @edit-consumption="onEditConsumption"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showCostsTab" tab-id="costs" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
@@ -691,14 +698,14 @@
               :reload-token="costsReloadToken"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item value="history" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane tab-id="history" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityHistoryTab :activity-id="activityId" />
             </div>
-          </v-tabs-window-item>
-      </v-tabs-window>
+          </ActivityDetailTabPane>
+      </div>
     </div>
 
     <DamageReportWizard
@@ -783,7 +790,9 @@ import ActivityVehiclesTab from '@/components/activities/ActivityVehiclesTab.vue
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityMaterialJourneyView from '@/components/activities/ActivityMaterialJourneyView.vue'
+import ActivityDetailTabPane from '@/components/activities/ActivityDetailTabPane.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
@@ -807,6 +816,7 @@ import {
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { getGroups, type Group } from '@/api/groups'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import { flattenGroupsWithLevel, type GroupWithLevel } from '@/utils/groupHierarchy'
 import {
   isDepartmentBasicMemberRole,
@@ -916,26 +926,47 @@ function hideLogisticsHandoffTransitionInActivityHeader(targetStatus: string): b
   return LOGISTICS_HEADER_HIDDEN_WORKFLOW_TARGETS.has(targetStatus)
 }
 
-/** Quick/External: «Weiter zu Am Anlass» — Ausgabe läuft über Material-Journey. */
+/** Quick/External: Material-Übergänge (Ausgabe, Retour) laufen über Material-Journey / Packliste. */
 function hideQuickHandoffTransitionInActivityHeader(targetStatus: string): boolean {
   const act = activity.value
   if (!act) return false
   const profile = packWorkflowProfileForActivityType(act.type || 'activity')
   if (profile === 'logistics') return false
-  if (activeTab.value !== 'packs' || useLegacyPackUi.value) return targetStatus === 'at_event'
+  if (activeTab.value !== 'packs') {
+    return (
+      targetStatus === 'at_event' ||
+      targetStatus === 'returned' ||
+      targetStatus === 'storing' ||
+      targetStatus === 'completed'
+    )
+  }
+  if (useLegacyPackUi.value) return targetStatus === 'at_event'
   if (targetStatus === 'at_event') return true
   if (targetStatus === 'returned') return true
   return false
 }
 
-/** Quick/External: «Einlagern starten» erst nach Übergabe an Materialwart (Status «Retour»). */
+/** Quick/External: «Einlagern starten» über Journey; «Abschliessen» auf Packliste wenn Einlagern erledigt. */
 function hideQuickStoringTransitionInActivityHeader(targetStatus: string): boolean {
-  if (targetStatus !== 'storing') return false
+  if (targetStatus !== 'storing' && targetStatus !== 'completed') return false
   const act = activity.value
   if (!act) return false
   const profile = packWorkflowProfileForActivityType(act.type || 'activity')
   if (profile === 'logistics') return false
-  if (!canManageMaterials.value) return true
+  if (!canManageMaterials.value) return targetStatus === 'storing'
+  if (!useLegacyPackUi.value) {
+    if (
+      targetStatus === 'completed' &&
+      activeTab.value === 'packs' &&
+      (act.status ?? '') === 'storing' &&
+      storeStageCompleteForHeader.value
+    ) {
+      return false
+    }
+    return true
+  }
+  if (activeTab.value !== 'packs') return true
+  if (targetStatus !== 'storing') return false
   const s = act.status ?? ''
   if (s !== 'returned' && s !== 'storing') return true
   if (
@@ -1068,25 +1099,14 @@ const showPackJourneyStepBadge = computed(() => {
 
 const packJourneyStepLabelDetail = computed(() => {
   if (!activity.value) return ''
-  const step = resolveEffectiveActiveJourneyStep(
-    activity.value,
-    packWorkflowProfile.value,
-    canManageMaterials.value,
-  )
-  const key =
-    step === 'issue' && packWorkflowProfile.value === 'logistics'
-      ? 'activities.materialJourney.step.issueLogistics'
-      : `activities.materialJourney.step.${step}`
-  return te(key) ? t(key) : step
+  return activityStatusLabelDetail(activity.value.status ?? 'draft')
 })
 
-/** MW-Abschluss-Checkliste: nicht auf Packliste (Journey) — dort arbeitet man bereits in der Checkliste. */
+/** MW-Abschluss-Checkliste ab Retour/Einlagern — einheitlich über allen Tabs (inkl. Packliste). */
 const showMaterialCompletionChecklist = computed(() => {
   if (!canManageMaterials.value || !activity.value || !completionBlockers.value) return false
   const s = activity.value.status ?? ''
-  if (!['returned', 'storing'].includes(s)) return false
-  if (activeTab.value === 'packs' && !useLegacyPackUi.value) return false
-  return true
+  return ['returned', 'storing'].includes(s)
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
@@ -1164,6 +1184,7 @@ const showConsumablesTab = computed(() => {
 })
 
 const activityIssues = ref<ActivityIssueReportRow[]>([])
+const issuesDataReady = ref(false)
 
 /** Reparatur / Verlust / Schaden — löst für Gruppe den Tab «Kosten» aus */
 const COSTS_TAB_ISSUE_TYPES = ['repair', 'loss', 'damage'] as const
@@ -1245,15 +1266,21 @@ const materialJourneyRef = ref<ActivityMaterialJourneyViewExpose | null>(null)
 
 /** «Gepackt markieren» in der Kopfzeile — nur wenn Packliste/Journey meldet: alles erledigt. */
 const packingStageCompleteForHeader = ref(false)
+const storeStageCompleteForHeader = ref(false)
 
 function onPackingHeaderReady(ready: boolean): void {
   packingStageCompleteForHeader.value = ready
+}
+
+function onStoreHeaderReady(ready: boolean): void {
+  storeStageCompleteForHeader.value = ready
 }
 
 watch(
   () => activity.value?.status,
   (status) => {
     if (status !== 'packing') packingStageCompleteForHeader.value = false
+    if (!['returned', 'storing'].includes(status ?? '')) storeStageCompleteForHeader.value = false
   },
 )
 
@@ -1279,9 +1306,15 @@ async function ensurePackListTabForTransition(): Promise<ActivityPackListTabExpo
   }
   return packListTabRef.value
 }
+const {
+  showFullLoading: itemsShowFullLoading,
+  isRefreshing: itemsRefreshing,
+  resetTabLoad: resetItemsTabLoad,
+  markHydrated: markItemsHydrated,
+  withTabLoad: withItemsLoad,
+} = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const isLoading = ref(true)
-const itemsLoading = ref(false)
 const loadError = ref<string | null>(null)
 const isTransitioning = ref(false)
 const activeTab = ref<ActivityTabId>('overview')
@@ -1410,6 +1443,9 @@ const workflowTransitions = computed(() =>
     if (hideQuickHandoffTransitionInActivityHeader(t.status)) return false
     if (hideQuickStoringTransitionInActivityHeader(t.status)) return false
     if (s === 'packing' && t.status === 'packed' && !packingStageCompleteForHeader.value) {
+      return false
+    }
+    if (s === 'storing' && t.status === 'completed' && !storeStageCompleteForHeader.value) {
       return false
     }
     if (s === 'returned' && t.status === 'completed') return false
@@ -1807,15 +1843,11 @@ const showDamageReportEntry = computed(() => {
   )
 })
 
-/** Meldungen inline in Material-Journey — «Schaden melden» oben ausblenden. */
+/** Meldungen inline in Material-Journey — «Schaden melden» oben auf Packliste ausblenden. */
 const showDamageReportInActivityHeader = computed(() => {
   if (!showDamageReportEntry.value) return false
   if (activeTab.value !== 'packs' || useLegacyPackUi.value) return true
-  const s = activity.value?.status ?? ''
-  if (packWorkflowProfile.value === 'logistics') {
-    return !['at_event', 'transport_back', 'returned', 'storing'].includes(s)
-  }
-  return !['at_event', 'returned', 'storing'].includes(s)
+  return false
 })
 
 /** Verbrauch buchen: ab Journey-Schritt «Am Anlass» (auch bei Status «Gepackt»). */
@@ -1828,11 +1860,9 @@ const showConsumptionBooking = computed(() => {
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
 const canAddActivityMaterial = computed(() => canEditActivityMaterialLines.value)
 
-/** Nachlieferung Verbrauchsmaterial: MW/DC oder Gruppe/Ersteller ab «Am Event». */
+/** Nachlieferung Verbrauchsmaterial — nur wenn API es erlaubt (Gruppe nur «Am Event», nicht nach Retour an MW). */
 const canRequestConsumableNachbuchung = computed(
-  () =>
-    activity.value?.can_request_consumable_replenishment === true ||
-    canAddActivityMaterial.value,
+  () => activity.value?.can_request_consumable_replenishment === true,
 )
 
 const damageReportOpen = ref(false)
@@ -1910,11 +1940,17 @@ async function openNextDamageReportFromQueue() {
 }
 
 function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
+  if (!showConsumptionBooking.value) return
   consumptionModalPreset.value = payload
   consumptionModalOpen.value = true
 }
 
 function onEditConsumption(payload: ConsumptionModalPreset) {
+  if (payload.editIssueId) {
+    if (!activity.value?.can_report_issues) return
+  } else if (!showConsumptionBooking.value) {
+    return
+  }
   consumptionModalPreset.value = payload
   consumptionModalOpen.value = true
 }
@@ -2309,6 +2345,8 @@ async function loadActivityIssues() {
     activityIssues.value = await getActivityIssues(props.activityId)
   } catch {
     activityIssues.value = []
+  } finally {
+    issuesDataReady.value = true
   }
 }
 
@@ -2320,6 +2358,8 @@ async function reload() {
   completionBlockers.value = null
   activityItems.value = []
   activityIssues.value = []
+  issuesDataReady.value = false
+  resetItemsTabLoad()
   draftQuantities.value = {}
   draftPackModes.value = {}
   try {
@@ -2334,6 +2374,7 @@ async function reload() {
     transitions.value = tr.transitions || []
     completionBlockers.value = tr.completion_blockers ?? null
     activityItems.value = items
+    markItemsHydrated()
     if (activeTab.value === 'material') {
       initDraftQuantitiesFromItems()
     }
@@ -2370,19 +2411,18 @@ async function loadPackItemsSnapshot(): Promise<void> {
   }
 }
 
-async function loadItems() {
-  itemsLoading.value = true
-  try {
-    activityItems.value = await getActivityItems(props.activityId)
-    initDraftQuantitiesFromItems()
-  } catch {
-    activityItems.value = []
-    draftQuantities.value = {}
-  draftPackModes.value = {}
-    toast.error(t('activities.detail.toastItemsLoadFailed'))
-  } finally {
-    itemsLoading.value = false
-  }
+async function loadItems(opts?: { forceFull?: boolean }) {
+  await withItemsLoad(async () => {
+    try {
+      activityItems.value = await getActivityItems(props.activityId)
+      initDraftQuantitiesFromItems()
+    } catch {
+      activityItems.value = []
+      draftQuantities.value = {}
+      draftPackModes.value = {}
+      toast.error(t('activities.detail.toastItemsLoadFailed'))
+    }
+  }, opts)
 }
 
 /** Packliste: Kiste als Behälter gewählt → Backend ergänzt ActivityItem; Materialliste & Summen aktualisieren */
@@ -2754,7 +2794,8 @@ function onCompletionGoTab(tab: 'packs' | 'issues' | 'costs') {
   if (tab === 'packs' && activity.value && !useLegacyPackUi.value) {
     const s = activity.value.status ?? ''
     if (s === 'storing') updates.packStep = 'store'
-    else if (s === 'returned' || s === 'at_event') updates.packStep = 'return'
+    else if (s === 'returned') updates.packStep = canManageMaterials.value ? 'store' : 'return'
+    else if (s === 'at_event') updates.packStep = 'return'
     else if (s === 'packed' || s === 'transport_out') updates.packStep = 'issue'
     else if (s === 'packing') updates.packStep = 'pack'
   }
@@ -2820,9 +2861,6 @@ watch(activeTab, (newTab) => {
   const fromQuery = normalizeActivityTabQuery(route.query.tab)
   if (fromQuery !== newTab) {
     mergeActivityQuery({ tab: newTab })
-  }
-  if (newTab === 'material' && activity.value) {
-    void loadItems()
   }
 })
 

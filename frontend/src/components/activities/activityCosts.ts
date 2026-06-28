@@ -1,4 +1,5 @@
 import type { ActivityIssueReportRow, ActivityItemRow } from '@/api/activities'
+import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 
 export interface ConsumableCostRow {
   material_item_id: string
@@ -48,6 +49,41 @@ export function parseMoney(v: string | number | null | undefined): number | null
   return Number.isFinite(n) ? n : null
 }
 
+/** Normaler Stück-Verkaufspreis: sale_price → pack_sale_price_chf ÷ pack_size. */
+function baseConsumableUnitSalePrice(row: {
+  sale_price?: string | number | null
+  pack_sale_price_chf?: string | number | null
+  pack_size?: number | null
+}): number | null {
+  const direct = parseMoney(row.sale_price)
+  if (direct != null) return direct
+
+  const packPrice = parseMoney(row.pack_sale_price_chf)
+  const packSize = row.pack_size
+  if (packPrice == null || packSize == null || packSize < 1 || packPrice <= 0) return null
+  if (packSize === 1) return packPrice
+  return unitPriceFromPackSaleChf(packPrice, packSize)
+}
+
+/** Intern: normaler Preis. Extern: normaler Preis + optionaler Zusatz (external_sale_price_chf). */
+export function effectiveConsumableUnitSalePrice(
+  row: {
+    sale_price?: string | number | null
+    external_sale_price_chf?: string | number | null
+    pack_sale_price_chf?: string | number | null
+    pack_size?: number | null
+  },
+  options?: { preferExternal?: boolean },
+): number | null {
+  const base = baseConsumableUnitSalePrice(row)
+  if (!options?.preferExternal) return base
+
+  const extra = parseMoney(row.external_sale_price_chf)
+  if (extra == null || extra <= 0) return base
+  if (base == null) return extra
+  return Math.round((base + extra) * 100) / 100
+}
+
 export function formatChf(amount: number): string {
   return amount.toFixed(2)
 }
@@ -65,10 +101,13 @@ export function consumableDisplayName(row: {
   return l ? `${l} — ${row.material_name}` : row.material_name
 }
 
-export function aggregateConsumableRows(items: ActivityItemRow[]): ConsumableCostRow[] {
+export function aggregateConsumableRows(
+  items: ActivityItemRow[],
+  options?: { preferExternal?: boolean },
+): ConsumableCostRow[] {
   const map = new Map<string, ConsumableCostRow>()
   for (const r of items.filter((x) => x.is_consumable === true)) {
-    const salePrice = parseMoney(r.sale_price)
+    const salePrice = effectiveConsumableUnitSalePrice(r, options)
     const isReplen = r.is_replenishment === true
     const ex = map.get(r.material_item_id)
     if (ex) {
@@ -159,6 +198,7 @@ export function consumableChargeableCost(
   materialItemId: string,
   items: ActivityItemRow[],
   issues: ActivityIssueReportRow[],
+  options?: { preferExternal?: boolean },
 ): number {
   const lines = items.filter((i) => i.is_consumable && i.material_item_id === materialItemId)
   if (lines.length === 0) return 0
@@ -171,7 +211,8 @@ export function consumableChargeableCost(
   const replenLines: { qty: number; unit: number | null }[] = []
 
   for (const r of lines) {
-    if (!salePrice) salePrice = parseMoney(r.sale_price)
+    const unit = effectiveConsumableUnitSalePrice(r, options)
+    if (salePrice == null && unit != null) salePrice = unit
     if (r.is_replenishment) {
       const lineTotal = parseMoney(r.line_total)
       const unit =
@@ -206,17 +247,22 @@ export function consumableLineCost(
   usedQty: number,
   items: ActivityItemRow[],
   issues: ActivityIssueReportRow[],
+  options?: { preferExternal?: boolean },
 ): number {
-  return consumableChargeableCost(row.material_item_id, items, issues)
+  return consumableChargeableCost(row.material_item_id, items, issues, options)
 }
 
-export function consumableCostTotal(items: ActivityItemRow[], issues: ActivityIssueReportRow[]): number {
+export function consumableCostTotal(
+  items: ActivityItemRow[],
+  issues: ActivityIssueReportRow[],
+  options?: { preferExternal?: boolean },
+): number {
   const ids = new Set(
     items.filter((i) => i.is_consumable).map((i) => i.material_item_id),
   )
   let sum = 0
   for (const id of ids) {
-    sum += consumableChargeableCost(id, items, issues)
+    sum += consumableChargeableCost(id, items, issues, options)
   }
   return sum
 }
@@ -248,7 +294,7 @@ export function lossIssueUnitPrice(
   if (!materialItemId) return null
   for (const r of items) {
     if (r.material_item_id === materialItemId) {
-      const p = parseMoney(r.sale_price)
+      const p = effectiveConsumableUnitSalePrice(r)
       if (p != null) return p
     }
   }

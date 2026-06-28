@@ -9,8 +9,8 @@ import {
 import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import { packWorkflowProfileForActivityType } from '@/components/activities/packWorkflowProfile'
 import {
-  isValidJourneyStep,
-  journeyStepsForProfile,
+  isValidJourneyStepForViewer,
+  journeyStepsForViewer,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -18,6 +18,7 @@ import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
 import {
   journeyStepsWithOpenWork,
+  isQuickIssuePhaseClosed,
   resolveEffectiveActiveJourneyStep,
 } from '@/utils/materialJourneyNavigation'
 import {
@@ -47,9 +48,16 @@ export function useMaterialJourneyData(
   const containerItemsByContainerId = ref<Record<string, ActivityPackContainerItem[]>>({})
   const cratePeekMaps = ref<MaterialJourneyCratePeekMaps>(emptyMaterialJourneyCratePeekMaps())
   const loading = ref(true)
+  const hasLoaded = ref(false)
   const error = ref<string | null>(null)
 
   const profile = computed(() => packWorkflowProfileForActivityType(activity.value?.type ?? 'activity'))
+
+  const journeyMaterialContext = computed(() => ({
+    packItems: packItems.value,
+    packContainers: packContainers.value,
+    containerItemsByContainerId: containerItemsByContainerId.value,
+  }))
 
   const activeJourneyStep = computed((): JourneyStep => {
     if (!activity.value) return 'pack'
@@ -57,6 +65,7 @@ export function useMaterialJourneyData(
       activity.value,
       profile.value,
       canManageMaterials.value,
+      journeyMaterialContext.value,
     )
   })
 
@@ -65,11 +74,13 @@ export function useMaterialJourneyData(
       packItems: packItems.value,
       packContainers: packContainers.value,
       containerItemsByContainerId: containerItemsByContainerId.value,
-    })
+    }, canManageMaterials.value)
     if (profile.value === 'logistics') return open
-    const status = activity.value?.status ?? ''
-    // Quick: ab «Am Anlass» ist Ausgabe abgeschlossen (Rest = nicht mitgenommen, kein Warnsymbol).
-    if (['at_event', 'returned', 'storing', 'completed'].includes(status)) {
+    if (isQuickIssuePhaseClosed(activity.value, profile.value, {
+      packItems: packItems.value,
+      packContainers: packContainers.value,
+      containerItemsByContainerId: containerItemsByContainerId.value,
+    })) {
       return open.filter((step) => step !== 'issue')
     }
     return open
@@ -85,21 +96,21 @@ export function useMaterialJourneyData(
     ),
   )
 
-  const steps = computed(() => journeyStepsForProfile(profile.value))
+  const steps = computed(() => journeyStepsForViewer(profile.value, canManageMaterials.value))
 
   const resolvedStep = computed((): JourneyStep => {
     const param = stepParam.value
-    if (param && isValidJourneyStep(param, profile.value)) {
+    if (param && isValidJourneyStepForViewer(param, profile.value, canManageMaterials.value)) {
       return param as JourneyStep
     }
-    if (!activity.value) return 'pack'
+    if (!activity.value) return steps.value[0] ?? 'issue'
     return activeJourneyStep.value
   })
 
   const needsStepRedirect = computed(() => {
     const param = stepParam.value
     if (!param) return true
-    if (!isValidJourneyStep(param, profile.value)) return true
+    if (!isValidJourneyStepForViewer(param, profile.value, canManageMaterials.value)) return true
     return false
   })
 
@@ -157,10 +168,13 @@ export function useMaterialJourneyData(
     }
   }
 
-  async function reload(): Promise<void> {
+  async function reload(opts?: { forceFull?: boolean }): Promise<void> {
     if (!activityId.value) return
-    loading.value = true
-    error.value = null
+    const silent = !opts?.forceFull && hasLoaded.value
+    if (!silent) {
+      loading.value = true
+      error.value = null
+    }
     try {
       const [act, items] = await Promise.all([
         getActivity(activityId.value, departmentId.value),
@@ -169,19 +183,27 @@ export function useMaterialJourneyData(
       activity.value = act
       packItems.value = items
       await loadPackContainers(activityId.value)
+      hasLoaded.value = true
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e)
-      activity.value = null
-      packItems.value = []
-      packContainers.value = []
-      containerItemsByContainerId.value = {}
-      cratePeekMaps.value = emptyMaterialJourneyCratePeekMaps()
+      if (!silent) {
+        error.value = e instanceof Error ? e.message : String(e)
+        activity.value = null
+        packItems.value = []
+        packContainers.value = []
+        containerItemsByContainerId.value = {}
+        cratePeekMaps.value = emptyMaterialJourneyCratePeekMaps()
+      }
     } finally {
-      loading.value = false
+      if (!silent) {
+        loading.value = false
+      }
     }
   }
 
-  watch([departmentId, activityId], () => {
+  watch([departmentId, activityId], ([dept, id], [prevDept, prevId]) => {
+    if ((prevId != null && id !== prevId) || (prevDept != null && dept !== prevDept)) {
+      hasLoaded.value = false
+    }
     void reload()
   }, { immediate: true })
 

@@ -1,5 +1,7 @@
+import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import { returnCrateConsumableState } from '@/utils/materialJourneyConsumable'
 import type { ReturnCrateLineEdit } from '@/components/activities/PackReturnCrateModal.vue'
 import { isNonActionableContainerLine } from '@/components/activities/packShellCrateHelpers'
 import type { PackQuantityContext } from '@/components/activities/packStageQuantityLayer'
@@ -9,6 +11,10 @@ import {
   packWorkflowRole,
 } from '@/components/activities/packWorkflowRules'
 
+/**
+ * Legacy-Packliste: volles Retour-Modal für MW; Gruppe nur bei Verbrauch in der Kiste.
+ * Journey nutzt immer {@link MaterialReturnCrateSheet} (☑ pro Inhaltszeile).
+ */
 export function shouldOpenMaterialJourneyReturnCrateModal(
   containerId: string,
   options: {
@@ -42,8 +48,10 @@ export function buildMaterialJourneyReturnCrateLines(
     packQuantityCtx: PackQuantityContext
     shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
     materialFallbackLabel: string
+    issues?: ActivityIssueReportRow[]
   },
 ): ReturnCrateLineEdit[] {
+  const issues = options.issues ?? []
   const containerId = container.id
   const lines: ReturnCrateLineEdit[] = []
 
@@ -57,6 +65,9 @@ export function buildMaterialJourneyReturnCrateLines(
       ? options.packItems.find((p) => p.materialItemId === materialItemId)
       : undefined
     const isConsumable = Boolean(pi?.isConsumable)
+    const consumption = isConsumable
+      ? returnCrateConsumableState(materialItemId, options.packItems, issues)
+      : null
     const isDone = max < 1 && returnedAlready > 0
     lines.push({
       id: ci.id,
@@ -73,8 +84,8 @@ export function buildMaterialJourneyReturnCrateLines(
       qty: isDone || isConsumable ? 0 : max,
       isExtra: false,
       isConsumable,
-      consumptionDone: !isConsumable,
-      consumptionOpen: 0,
+      consumptionDone: consumption?.consumptionDone ?? !isConsumable,
+      consumptionOpen: consumption?.consumptionOpen ?? 0,
       isDone,
     })
   }
@@ -85,6 +96,9 @@ export function buildMaterialJourneyReturnCrateLines(
     const shellMax = Math.max(0, (shell.quantityIssued ?? 0) - (shell.quantityReturned ?? 0))
     if (shellMax > 0) {
       const isConsumable = Boolean(shell.isConsumable)
+      const shellConsumption = isConsumable
+        ? returnCrateConsumableState(shell.materialItemId, options.packItems, issues)
+        : null
       lines.push({
         id: 'shell',
         kind: 'shell',
@@ -99,14 +113,26 @@ export function buildMaterialJourneyReturnCrateLines(
         qty: isConsumable ? 0 : shellMax,
         isExtra: false,
         isConsumable,
-        consumptionDone: !isConsumable,
-        consumptionOpen: 0,
+        consumptionDone: shellConsumption?.consumptionDone ?? !isConsumable,
+        consumptionOpen: shellConsumption?.consumptionOpen ?? 0,
         isDone: false,
       })
     }
   }
 
   return lines
+}
+
+export function materialJourneyReturnCrateCanCompleteWithoutMoves(
+  lines: ReturnCrateLineEdit[],
+): boolean {
+  if (lines.length < 1) return false
+  const openConsumables = lines.some(
+    (line) => line.isConsumable && !line.consumptionDone && line.consumptionOpen > 0,
+  )
+  if (openConsumables) return false
+  const hasReturnableNonConsumables = lines.some((line) => !line.isConsumable && line.max > 0)
+  return !hasReturnableNonConsumables
 }
 
 export function materialJourneyReturnCrateSubmitDisabled(lines: ReturnCrateLineEdit[]): boolean {

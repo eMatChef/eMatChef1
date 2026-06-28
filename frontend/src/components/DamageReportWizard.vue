@@ -249,10 +249,19 @@ interface ActivityOption {
   id: string
   name: string
   status?: string
+  type?: string
   group_id?: string | null
   group_name?: string | null
   usage_start?: string | null
   created_by_user_id?: string | null
+}
+
+/** Vgl. backend Activity::canReportIssues() */
+function activityAllowsIssueReportStatus(status: string | undefined, type?: string): boolean {
+  if (!status) return false
+  if (['at_event', 'transport_back', 'returned', 'storing'].includes(status)) return true
+  if (status === 'packed' && (type === 'activity' || type === 'external')) return true
+  return false
 }
 
 interface PackItem {
@@ -339,7 +348,7 @@ const selectableActivities = computed(() => {
   const uid = userId.value
   const myGroupIds = userGroupIds.value
   return activities.value.filter(a => {
-    if (!a.status || !['at_event', 'returned'].includes(a.status)) return false
+    if (!activityAllowsIssueReportStatus(a.status, a.type)) return false
     if (a.created_by_user_id === uid) return true
     if (a.group_id && myGroupIds.includes(a.group_id)) return true
     return false
@@ -355,8 +364,15 @@ const isSelectedPackItemSerialized = computed(
 )
 
 const maxReportableQuantity = computed(() => {
-  const issued = selectedPackItem.value?.quantity_issued ?? 0
-  return issued > 0 ? issued : 0
+  const pi = selectedPackItem.value
+  if (!pi) return 0
+  const issued = pi.quantity_issued ?? 0
+  if (issued > 0) return issued
+  const status = selectedActivity.value?.status ?? ''
+  if (status === 'storing' || status === 'returned') {
+    return Math.max(0, pi.quantity_packed ?? 0)
+  }
+  return 0
 })
 
 const canSubmit = computed(() => {
@@ -389,7 +405,10 @@ async function loadActivities() {
   try {
     const [actRes, grpRes] = await Promise.all([
       apiClient.get<ActivityOption[]>('/api/activities', {
-        params: { department_id: props.departmentId, status: 'issued,returned' }
+        params: {
+          department_id: props.departmentId,
+          status: 'at_event,transport_back,returned,storing,packed',
+        },
       }),
       getGroups(props.departmentId)
     ])
@@ -635,6 +654,7 @@ async function applyPresetActivity(id: string) {
         id: d.id,
         name: d.name,
         status: d.status,
+        type: d.type,
         group_id: d.group_id,
         group_name: d.group_name ?? null,
         usage_start: d.usage_start,
@@ -645,7 +665,7 @@ async function applyPresetActivity(id: string) {
       return
     }
   }
-  if (!a.status || !['at_event', 'returned'].includes(a.status)) {
+  if (!activityAllowsIssueReportStatus(a.status, a.type)) {
     toast.error(t('components.damageReportWizard.toastOnlyIssuedReturned'))
     return
   }

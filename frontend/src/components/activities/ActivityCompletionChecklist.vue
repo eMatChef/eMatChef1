@@ -12,6 +12,7 @@ const props = defineProps<{
   blockers: ActivityCompletionBlockers
   activityId: string
   hostDepartmentId: string
+  activityStatus?: string
 }>()
 
 const emit = defineEmits<{
@@ -20,6 +21,18 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const router = useRouter()
+
+const isPreCompletionPhase = computed(() =>
+  ['returned', 'storing'].includes(props.activityStatus ?? ''),
+)
+
+const accountingBlockerDone = computed(
+  () => (props.blockers.pending_accounting_followups_count ?? 0) === 0,
+)
+
+const accountingItemDone = computed(
+  () => !isPreCompletionPhase.value && accountingBlockerDone.value,
+)
 
 const hasBlockers = computed(
   () =>
@@ -165,19 +178,39 @@ function openAccounting(fu?: { department_id: string }) {
       </li>
 
       <li
+        v-if="isPreCompletionPhase"
         class="activity-completion-checklist__item"
-        :class="{
-          'activity-completion-checklist__item--done': (blockers.pending_accounting_followups_count ?? 0) === 0,
-        }"
+      >
+        <span class="activity-completion-checklist__icon" aria-hidden="true">○</span>
+        <div class="activity-completion-checklist__body">
+          <strong>{{ t('activities.completion.itemCostsReview') }}</strong>
+          <p class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemCostsReviewHint') }}
+          </p>
+        </div>
+        <button type="button" class="btn-outline btn-sm" @click="emit('go-tab', 'costs')">
+          {{ t('activities.completion.actionCostsReview') }}
+        </button>
+      </li>
+
+      <li
+        class="activity-completion-checklist__item"
+        :class="{ 'activity-completion-checklist__item--done': accountingItemDone }"
       >
         <span class="activity-completion-checklist__icon" aria-hidden="true">
-          {{ (blockers.pending_accounting_followups_count ?? 0) === 0 ? '✓' : '○' }}
+          {{ accountingItemDone ? '✓' : '○' }}
         </span>
         <div class="activity-completion-checklist__body">
           <strong>{{ t('activities.completion.itemAccounting') }}</strong>
           <span v-if="(blockers.pending_accounting_followups_count ?? 0) > 0" class="text-muted">
             — {{ blockers.pending_accounting_followups_count }}
           </span>
+          <p
+            v-if="isPreCompletionPhase && accountingBlockerDone"
+            class="activity-completion-checklist__hint text-muted"
+          >
+            {{ t('activities.completion.itemAccountingAfterCloseHint') }}
+          </p>
           <ul v-if="blockers.pending_accounting_followups?.length" class="activity-completion-checklist__sub">
             <li v-for="fu in blockers.pending_accounting_followups" :key="fu.id">
               {{ t(accountingFollowUpKindKey(fu.source_kind)) }} · CHF {{ formatChf(fu.amount) }}

@@ -687,6 +687,14 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Meldungen sind in diesem Aktivitätsstatus nicht möglich'], 422);
         }
 
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserReportActivityIssues($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für Meldungen in diesem Aktivitätsstatus'], 403);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         $type = $data['type'] ?? 'damage';

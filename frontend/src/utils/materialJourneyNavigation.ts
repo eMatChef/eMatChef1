@@ -2,9 +2,11 @@ import type { ActivityDetail } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import {
+  clampJourneyStepForViewer,
   defaultJourneyStepForStatus,
   journeyStepToPackStage,
   journeyStepsForProfile,
+  journeyStepsForViewer,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
 import { packIssuesVisibleForStage } from '@/components/activities/packWorkflowRules'
@@ -29,20 +31,68 @@ export function resolveActiveJourneyStep(
   return defaultJourneyStepForStatus(activity.status ?? 'packing', profile, canManageMaterials)
 }
 
+function quickIssueWorkComplete(
+  profile: PackWorkflowProfile,
+  material?: JourneyStepMaterialContext,
+): boolean {
+  if (!material?.packItems.length) return true
+  return isJourneyStepWorkComplete(
+    'issue',
+    profile,
+    material.packItems,
+    material.packContainers ?? [],
+    material.containerItemsByContainerId ?? {},
+  )
+}
+
 /**
  * Quick/External: ab «Am Anlass» ist Retour der aktive Checkpoint —
- * Übergabe an MW erst per Handoff-Button, auch wenn nicht alles ausgegeben wurde.
+ * solange die Ausgabe-Checkliste erledigt ist (Rest = nicht mitgenommen).
  */
 export function resolveEffectiveActiveJourneyStep(
   activity: Pick<ActivityDetail, 'status' | 'type'> | null | undefined,
   profile: PackWorkflowProfile,
   canManageMaterials = false,
+  material?: JourneyStepMaterialContext,
 ): JourneyStep {
   const base = resolveActiveJourneyStep(activity, profile, canManageMaterials)
   if (profile !== 'logistics' && activity?.status === 'at_event') {
-    return 'return'
+    if (!quickIssueWorkComplete(profile, material)) {
+      return clampJourneyStepForViewer('issue', profile, canManageMaterials)
+    }
+    return clampJourneyStepForViewer('return', profile, canManageMaterials)
   }
-  return base
+  /** MW Quick: ab «Retour»-Status ist Einlagern der aktive Checkpoint. */
+  if (
+    profile !== 'logistics' &&
+    canManageMaterials &&
+    ['returned', 'storing'].includes(activity?.status ?? '')
+  ) {
+    return 'store'
+  }
+  return clampJourneyStepForViewer(base, profile, canManageMaterials)
+}
+
+/** Quick/External: Ausgabe abgeschlossen — ab «Am Anlass», wenn keine offenen Ausgabe-Positionen mehr. */
+export function isQuickIssuePhaseClosed(
+  activity: Pick<ActivityDetail, 'status' | 'type'> | null | undefined,
+  profile: PackWorkflowProfile,
+  material?: JourneyStepMaterialContext,
+): boolean {
+  if (profile === 'logistics' || !activity) return false
+  const status = activity.status ?? ''
+  if (!['at_event', 'returned', 'storing', 'completed'].includes(status)) return false
+  return quickIssueWorkComplete(profile, material)
+}
+
+/** Quick/External: ab «Retour» ist die Gruppen-Journey abgeschlossen (MW lagert ein). */
+export function isQuickReturnPhaseClosed(
+  activity: Pick<ActivityDetail, 'status' | 'type'> | null | undefined,
+  profile: PackWorkflowProfile,
+): boolean {
+  if (profile === 'logistics' || !activity) return false
+  const status = activity.status ?? ''
+  return ['returned', 'storing', 'completed'].includes(status)
 }
 
 export function journeyStepAccess(
@@ -50,10 +100,39 @@ export function journeyStepAccess(
   activeStep: JourneyStep,
   profile: PackWorkflowProfile,
   material?: JourneyStepMaterialContext,
+  canManageMaterials = true,
+  activity?: Pick<ActivityDetail, 'status' | 'type'> | null,
 ): JourneyStepAccess {
-  const steps = journeyStepsForProfile(profile)
+  if (
+    isQuickIssuePhaseClosed(activity, profile, material) &&
+    viewedStep === 'issue'
+  ) {
+    return 'readonly_past'
+  }
+  if (
+    !canManageMaterials &&
+    isQuickReturnPhaseClosed(activity, profile) &&
+    (viewedStep === 'issue' || viewedStep === 'return')
+  ) {
+    return 'readonly_past'
+  }
+
+  const steps = journeyStepsForViewer(profile, canManageMaterials)
   const viewedIdx = steps.indexOf(viewedStep)
   const activeIdx = steps.indexOf(activeStep)
+
+  if (canManageMaterials) {
+    const status = activity?.status ?? ''
+    if (status === 'completed' || status === 'cancelled') {
+      if (viewedIdx < 0 || activeIdx < 0) return 'readonly_past'
+      return viewedIdx <= activeIdx ? 'readonly_past' : 'readonly_future'
+    }
+    if (viewedIdx < 0) return 'readonly_future'
+    if (activeIdx < 0) return 'editable'
+    if (viewedIdx > activeIdx) return 'readonly_future'
+    return 'editable'
+  }
+
   if (viewedIdx < 0 || activeIdx < 0) return 'readonly_future'
   if (viewedIdx > activeIdx) return 'readonly_future'
   if (viewedIdx < activeIdx) {
@@ -76,9 +155,10 @@ export function journeyStepsWithOpenWork(
   activeStep: JourneyStep,
   profile: PackWorkflowProfile,
   material: JourneyStepMaterialContext,
+  canManageMaterials = true,
 ): JourneyStep[] {
   if (!material.packItems.length) return []
-  const steps = journeyStepsForProfile(profile)
+  const steps = journeyStepsForViewer(profile, canManageMaterials)
   const activeIdx = steps.indexOf(activeStep)
   if (activeIdx <= 0) return []
 
@@ -98,8 +178,12 @@ export function journeyStepsWithOpenWork(
   return open
 }
 
-export function nextJourneyStep(step: JourneyStep, profile: PackWorkflowProfile): JourneyStep | null {
-  const steps = journeyStepsForProfile(profile)
+export function nextJourneyStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+  canManageMaterials = true,
+): JourneyStep | null {
+  const steps = journeyStepsForViewer(profile, canManageMaterials)
   const idx = steps.indexOf(step)
   if (idx < 0 || idx >= steps.length - 1) return null
   return steps[idx + 1]!
@@ -111,8 +195,12 @@ export function journeyStepNeedsAdvanceConfirm(step: JourneyStep, profile: PackW
   return step === 'transport_out' || step === 'issue' || step === 'transport_back'
 }
 
-export function journeyStepIndex(step: JourneyStep, profile: PackWorkflowProfile): number {
-  return journeyStepsForProfile(profile).indexOf(step)
+export function journeyStepIndex(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+  canManageMaterials = true,
+): number {
+  return journeyStepsForViewer(profile, canManageMaterials).indexOf(step)
 }
 
 /** Verbrauch / Reparatur / Verlust — ab Journey-Schritt «Am Anlass». */
@@ -133,16 +221,13 @@ export function activityAllowsIssueReports(
 export function activityAllowsDamageReport(
   activity: Pick<ActivityDetail, 'status' | 'type' | 'can_report_issues'> | null | undefined,
   profile: PackWorkflowProfile,
-  canReportDamageAsMaterialStaff: boolean,
+  _canReportDamageAsMaterialStaff: boolean,
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
-  if (activity.can_report_issues === false) {
-    return activityAllowsIssueReports(activity, profile, canManageMaterials)
-  }
+  if (activity.can_report_issues === false) return false
   const s = activity.status ?? ''
-  if (s === 'at_event' || s === 'transport_back') return true
-  if (s === 'returned' || s === 'storing') return canReportDamageAsMaterialStaff
+  if (['at_event', 'transport_back', 'returned', 'storing'].includes(s)) return true
   return activityAllowsIssueReports(activity, profile, canManageMaterials)
 }
 
@@ -152,11 +237,9 @@ export function activityAllowsConsumptionBooking(
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
-  if (activity.can_report_issues === false) {
-    return activityAllowsIssueReports(activity, profile, canManageMaterials)
-  }
+  if (activity.can_report_issues === false) return false
   const s = activity.status ?? ''
-  if (['at_event', 'transport_back', 'returned', 'storing'].includes(s)) return true
+  if (['at_event', 'transport_back'].includes(s)) return true
   return activityAllowsIssueReports(activity, profile, canManageMaterials)
 }
 

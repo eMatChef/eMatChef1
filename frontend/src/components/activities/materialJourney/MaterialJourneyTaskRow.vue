@@ -46,6 +46,7 @@ const emit = defineEmits<{
   consumed: []
   loss: []
   repair: []
+  damage: []
 }>()
 
 const { t } = useI18n()
@@ -205,6 +206,7 @@ function onRowClick(): void {
         @consumed="emit('consumed')"
         @loss="emit('loss')"
         @repair="emit('repair')"
+        @damage="emit('damage')"
       />
       <PackMoveControls
         v-if="showMoveForwardControls"

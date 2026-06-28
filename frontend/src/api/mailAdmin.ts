@@ -61,7 +61,7 @@ export async function getMailSendLog(limit: number, departmentId?: string): Prom
   return data.entries
 }
 
-/** Testmail über SendGrid-API — grosszügiges Timeout (Netz/API kann langsam sein). */
+/** Testmail — grosszügiges Timeout (Netz/API kann langsam sein). */
 const MAIL_TEST_SEND_TIMEOUT_MS = 120_000
 
 export async function postMailTestSend(to: string): Promise<void> {

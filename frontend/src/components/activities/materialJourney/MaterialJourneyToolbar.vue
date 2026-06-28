@@ -145,6 +145,12 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
       {{ progressLabel }}
     </p>
     <p
+      v-if="(presenceLabels ?? []).length > 0"
+      class="material-journey-toolbar__presence-title text-muted"
+    >
+      {{ t('activities.materialJourney.toolbar.alsoHere') }}
+    </p>
+    <p
       v-for="(label, idx) in presenceLabels ?? []"
       :key="idx"
       class="material-journey-toolbar__presence text-muted"

@@ -6,6 +6,7 @@ import MaterialJourneyTaskRow from '@/components/activities/materialJourney/Mate
 import MaterialJourneyCrateTaskRow from '@/components/activities/materialJourney/MaterialJourneyCrateTaskRow.vue'
 import MaterialJourneyRegalGroup from '@/components/activities/materialJourney/MaterialJourneyRegalGroup.vue'
 import type { MaterialJourneyRegalGroup as RegalGroup } from '@/components/activities/materialJourneyRegalGroups'
+import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type {
   MaterialJourneyFilterTab,
@@ -27,6 +28,7 @@ const props = defineProps<{
   filterVariant?: 'default' | 'quickIssue'
   /** Einlagern: immer nach Regal gruppieren */
   groupByShelf?: boolean
+  journeyStep?: JourneyStep
   isEarlyPackPreview: boolean
   positionCount: number
   listEditable: boolean
@@ -54,6 +56,8 @@ const props = defineProps<{
   atEventQtyLabelForRow?: (row: TaskRow, previewLines: MaterialJourneyAccordionLine[]) => string | null
   atEventQtyLabelForLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
+  containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
+  shellStorePendingQtyForRow?: (row: TaskRow) => number
 }>()
 
 const emit = defineEmits<{
@@ -68,14 +72,19 @@ const emit = defineEmits<{
   consumed: [row: TaskRow]
   loss: [row: TaskRow]
   repair: [row: TaskRow]
+  damage: [row: TaskRow]
   lineConsumed: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineLoss: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineRepair: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineDamage: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeLine: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeShell: [row: TaskRow]
 }>()
 
 const { t } = useI18n()
 
 const isByShelf = computed(() => props.groupByShelf === true || props.filterTab === 'byShelf')
+const isStoreByShelf = computed(() => props.journeyStep === 'store' && isByShelf.value)
 
 function isExpandableRow(row: TaskRow): boolean {
   return row.kind === 'crate' || row.kind === 'combo'
@@ -108,7 +117,7 @@ function isPackCrateAssignActive(): boolean {
 
 function isPackTargetActive(row: TaskRow): boolean {
   return (
-    Boolean(props.packCrateSelectMode) &&
+    Boolean(props.packTargetCrateId) &&
     row.kind === 'crate' &&
     row.container?.id === props.packTargetCrateId
   )
@@ -159,6 +168,7 @@ const emptyTitle = computed(() => {
     }
     return t('activities.materialJourney.empty.doneTitle')
   }
+  if (isStoreByShelf.value) return t('activities.materialJourney.empty.storeByShelfTitle')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfTitle')
   if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
     return t('activities.materialJourney.empty.openTitleQuickIssue')
@@ -174,6 +184,7 @@ const emptyDescription = computed(() => {
     }
     return t('activities.materialJourney.empty.doneDescription')
   }
+  if (isStoreByShelf.value) return t('activities.materialJourney.empty.storeByShelfDescription')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfDescription')
   if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
     return t('activities.materialJourney.empty.openDescriptionQuickIssue')
@@ -228,6 +239,9 @@ const emptyDescription = computed(() => {
         :at-event-qty-label-for-line="atEventQtyLabelForLine"
         :show-issue-for-accordion-line="showIssueForAccordionLine"
         :is-consumable-for-material-id="isConsumableForMaterialId"
+        :journey-step="journeyStep"
+        :container-line-remaining-store="containerLineRemainingStore"
+        :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
         :has-reassign-targets-for-row="hasReassignTargetsFor"
         @activate="emit('activate', $event)"
         @select-target="emit('selectTarget', $event)"
@@ -240,9 +254,13 @@ const emptyDescription = computed(() => {
         @consumed="emit('consumed', $event)"
         @loss="emit('loss', $event)"
         @repair="emit('repair', $event)"
+        @damage="emit('damage', $event)"
         @line-consumed="(row, line) => emit('lineConsumed', row, line)"
         @line-loss="(row, line) => emit('lineLoss', row, line)"
         @line-repair="(row, line) => emit('lineRepair', row, line)"
+        @line-damage="(row, line) => emit('lineDamage', row, line)"
+        @store-line="(row, line) => emit('storeLine', row, line)"
+        @store-shell="(row) => emit('storeShell', row)"
       />
     </div>
 
@@ -270,6 +288,10 @@ const emptyDescription = computed(() => {
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
           :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
+          :journey-step="journeyStep"
+          :container-items-by-container-id="containerItemsByContainerId"
+          :container-line-remaining-store="containerLineRemainingStore"
+          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
@@ -281,9 +303,13 @@ const emptyDescription = computed(() => {
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
           @line-consumed="emit('lineConsumed', row, $event)"
           @line-loss="emit('lineLoss', row, $event)"
           @line-repair="emit('lineRepair', row, $event)"
+          @line-damage="emit('lineDamage', row, $event)"
+          @store-line="emit('storeLine', row, $event)"
+          @store-shell="emit('storeShell', row)"
         />
         <MaterialJourneyTaskRow
           v-else
@@ -309,6 +335,7 @@ const emptyDescription = computed(() => {
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
         />
       </li>
     </ul>

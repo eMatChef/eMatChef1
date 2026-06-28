@@ -1708,17 +1708,39 @@ class ActivityController extends AbstractController
             ->getQuery()
             ->getResult();
 
+        $packContainers = $this->entityManager->getRepository(ActivityPackContainer::class)
+            ->findBy(['activityId' => $activityId], ['createdAt' => 'ASC']);
+        $containerItemsByContainerId = [];
+        foreach ($packContainers as $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            $containerItemsByContainerId[$container->getId()] = $this->entityManager
+                ->getRepository(ActivityPackContainerItem::class)
+                ->findBy(['packContainerId' => $container->getId()]);
+        }
+        $allContainerItems = [];
+        foreach ($containerItemsByContainerId as $rows) {
+            foreach ($rows as $ci) {
+                if ($ci instanceof ActivityPackContainerItem) {
+                    $allContainerItems[] = $ci;
+                }
+            }
+        }
+
         $unstoredRows = [];
         foreach ($packItemsForStorage as $pi) {
             if (!$pi instanceof ActivityPackItem) {
                 continue;
             }
             $consumed = $consumedByMaterial[$pi->getMaterialItemId()] ?? 0;
-            $pending = $this->packPipeline->maxForwardQty(
+            $pending = $this->pendingStoreForCompletionBlocker(
                 $pi,
-                PackPipelineService::STAGE_STORED,
                 $packProfile,
                 $consumed,
+                $packContainers,
+                $containerItemsByContainerId,
+                $allContainerItems,
             );
             if ($pending > 0) {
                 $unstoredRows[] = ['item' => $pi, 'pending' => $pending];
@@ -1766,6 +1788,68 @@ class ActivityController extends AbstractController
                 'pending_store' => $row['pending'],
             ], $unstoredPackItems),
         ];
+    }
+
+    /**
+     * @param ActivityPackContainer[] $containers
+     * @param array<string, ActivityPackContainerItem[]> $containerItemsByContainerId
+     * @param ActivityPackContainerItem[] $allContainerItems
+     */
+    private function pendingStoreForCompletionBlocker(
+        ActivityPackItem $pi,
+        string $profile,
+        int $consumed,
+        array $containers,
+        array $containerItemsByContainerId,
+        array $allContainerItems,
+    ): int {
+        $pending = $this->packPipeline->pendingLooseStoreForCompletion(
+            $pi,
+            $allContainerItems,
+            $profile,
+            $consumed,
+        );
+        if ($pending <= 0) {
+            return 0;
+        }
+
+        $materialId = $pi->getMaterialItemId();
+        $shellContainers = [];
+        foreach ($containers as $container) {
+            if (!$container instanceof ActivityPackContainer) {
+                continue;
+            }
+            if ($this->kisteMaterialLinker->shellMaterialIdForPackContainer($container) === $materialId) {
+                $shellContainers[] = $container;
+            }
+        }
+        if ($shellContainers === []) {
+            return $pending;
+        }
+
+        $shellOnlyPending = 0;
+        foreach ($shellContainers as $container) {
+            $innerPending = 0;
+            foreach ($containerItemsByContainerId[$container->getId()] ?? [] as $ci) {
+                if (!$ci instanceof ActivityPackContainerItem) {
+                    continue;
+                }
+                if ($ci->getMaterialItemId() === $materialId) {
+                    continue;
+                }
+                $innerPending += max(0, $ci->getQuantityReturned() - $ci->getQuantityStored());
+            }
+            if ($innerPending > 0) {
+                continue;
+            }
+            $shellOnlyPending += 1;
+        }
+
+        if ($shellOnlyPending <= 0) {
+            return $pending;
+        }
+
+        return min($pending, $shellOnlyPending);
     }
 
     /**
@@ -2268,6 +2352,8 @@ class ActivityController extends AbstractController
                 'submitter_department_name' => $item->getSubmitterDepartment()?->getName(),
                 'recorded_at' => $item->getCreatedAt()->format('c'),
                 'sale_price' => $mi->getSalePrice(),
+                'external_sale_price_chf' => $mi->getExternalSalePriceChf(),
+                'pack_sale_price_chf' => $mi->getPackSalePriceChf(),
                 'pack_size' => $mi->getPackSize(),
                 'pack_unit' => $mi->getPackUnit(),
                 'is_js_material' => $mi->getIsJsMaterial(),
@@ -4657,7 +4743,9 @@ class ActivityController extends AbstractController
                 'is_pack_list_editable' => $viewer instanceof User
                     ? $this->activityAccess->canUserEditPackList($viewer, $activity)
                     : $activity->isPackListEditable(),
-                'can_report_issues' => $activity->canReportIssues(),
+                'can_report_issues' => $viewer instanceof User
+                    ? $this->activityAccess->canUserReportActivityIssues($viewer, $activity)
+                    : $activity->canReportIssues(),
                 'is_return_editable' => $activity->isReturnEditable(),
                 'is_cancellable' => $activity->isCancellable(),
             ]);

@@ -607,6 +607,8 @@ class ActivityTransportTourService
             return ['applied_units' => 0, 'updated_lines' => 0];
         }
 
+        // Eine Packkiste pro Container-Buchung — Shell gilt für alle Kisten derselben Charge.
+        $apply = min($apply, 1);
         $this->packPipeline->applyForward($packItem, $stage, $apply, $profile);
         $packItem->setUpdatedAt(new \DateTime());
 

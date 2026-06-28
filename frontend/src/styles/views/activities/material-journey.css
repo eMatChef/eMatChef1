@@ -128,9 +128,18 @@
 }
 
 .material-journey-stepper__seg--active {
-  flex: 0 0 40px;
-  min-width: 40px;
+  flex: 1 1 auto;
+  min-width: 72px;
+  max-width: 55%;
   z-index: 3;
+}
+
+.material-journey-stepper__seg--active .material-journey-stepper__seg-label {
+  display: block;
+}
+
+.material-journey-stepper__seg--active .material-journey-stepper__seg-label-num {
+  display: none;
 }
 
 .material-journey-stepper__seg--done {
@@ -224,10 +233,6 @@
   background: rgb(var(--v-theme-primary));
   color: rgb(var(--v-theme-on-primary));
   box-shadow: 0 2px 8px rgb(var(--v-theme-primary), 0.28);
-}
-
-.material-journey-stepper__seg--active .material-journey-stepper__seg-label {
-  display: none;
 }
 
 .material-journey-stepper__seg--active .material-journey-stepper__seg-icon {
@@ -376,6 +381,14 @@
   border-color: #16a34a;
   box-shadow: inset 0 0 0 1px #86efac;
   background: #ecfdf5;
+}
+
+.material-journey-crate-row--pack-target-selectable .material-journey-crate-row__main {
+  cursor: pointer;
+}
+
+.material-journey-crate-row--pack-target-selectable:not(.material-journey-crate-row--target):hover {
+  border-color: #86efac;
 }
 
 .material-journey-crate-row--filled:not(.material-journey-crate-row--target) {
@@ -1546,6 +1559,10 @@
 
   .material-journey-stepper__seg--active .material-journey-stepper__seg-icon {
     display: inline-flex;
+  }
+
+  .material-journey-stepper__seg--active .material-journey-stepper__seg-label {
+    display: block;
   }
 
   .material-journey-stepper__seg--active .material-journey-stepper__check {

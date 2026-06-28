@@ -21,6 +21,7 @@ const emit = defineEmits<{
   consumed: []
   loss: []
   repair: []
+  damage: []
 }>()
 
 const { t } = useI18n()
@@ -74,6 +75,14 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
       </EButton>
     </template>
     <template v-else-if="!isConsumable">
+      <button
+        type="button"
+        class="btn-issue-quick btn-issue-damage"
+        :title="t('activities.common.issueDamage')"
+        @click.stop="emit('damage')"
+      >
+        {{ t('activities.common.issueDamage') }}
+      </button>
       <button
         type="button"
         class="btn-issue-quick btn-issue-loss"

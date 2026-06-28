@@ -25,8 +25,8 @@ class ActivityAccountingCostService
     }
 
     /**
-     * Alle Buchhaltungs-Aufträge zur Aktivität anlegen/aktualisieren (ab Retour).
-     * Keine Sammel-Endabrechnung (activity_final).
+     * Alle Buchhaltungs-Aufträge zur Aktivität anlegen/aktualisieren.
+     * Verbrauch/Miete/Nachlieferung: erst bei Status «abgeschlossen» — vorher nur Tab «Kosten».
      */
     public function syncActivityAccountingFollowUps(Activity $activity): void
     {
@@ -124,6 +124,17 @@ class ActivityAccountingCostService
     {
         $activityId = $activity->getId();
         if (!$activityId) {
+            return;
+        }
+
+        /** Verbrauch: erst bei «abgeschlossen» Buchhaltungs-Auftrag — vorher nur Tab «Kosten». */
+        if ($activity->getStatus() !== Activity::STATUS_COMPLETED) {
+            $this->removePendingFollowUp(
+                $activity,
+                AccountingAcquisitionFollowUp::SOURCE_ACTIVITY_CONSUMPTION,
+                $activityId,
+            );
+
             return;
         }
 
@@ -318,6 +329,17 @@ class ActivityAccountingCostService
                     $activityId,
                 );
             }
+
+            return;
+        }
+
+        /** Externe Miete: Buchhaltungs-Auftrag erst bei Aktivitäts-Abschluss. */
+        if ($activity->getStatus() !== Activity::STATUS_COMPLETED) {
+            $this->removePendingFollowUp(
+                $activity,
+                AccountingAcquisitionFollowUp::SOURCE_ACTIVITY_RENTAL,
+                $activityId,
+            );
 
             return;
         }
@@ -610,6 +632,46 @@ class ActivityAccountingCostService
         return $this->consumptionIssueCharge($activityId, $materialItemId, $totalUsed) ?? 0.0;
     }
 
+    /**
+     * Normaler Stückpreis; bei externen Aktivitäten optional + Zusatz (external_sale_price_chf).
+     */
+    private function effectiveConsumableUnitSalePrice(MaterialItem $mi, bool $preferExternal = false): ?float
+    {
+        $base = $this->baseConsumableUnitSalePrice($mi);
+        if (!$preferExternal) {
+            return $base;
+        }
+
+        $extra = $this->parseMoney($mi->getExternalSalePriceChf());
+        if ($extra === null || $extra <= 0) {
+            return $base;
+        }
+        if ($base === null) {
+            return $extra;
+        }
+
+        return round($base + $extra, 2);
+    }
+
+    private function baseConsumableUnitSalePrice(MaterialItem $mi): ?float
+    {
+        $direct = $this->parseMoney($mi->getSalePrice());
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        $packPrice = $this->parseMoney($mi->getPackSalePriceChf());
+        $packSize = $mi->getPackSize();
+        if ($packPrice === null || $packSize === null || $packSize < 1 || $packPrice <= 0) {
+            return null;
+        }
+        if ($packSize === 1) {
+            return $packPrice;
+        }
+
+        return round($packPrice / $packSize, 2);
+    }
+
     private function upsertPending(
         Activity $activity,
         string $sourceKind,
@@ -709,10 +771,13 @@ class ActivityAccountingCostService
         $warehouseQty = 0;
         $replenLines = [];
 
+        $activity = $this->entityManager->find(Activity::class, $activityId);
+        $preferExternal = $activity instanceof Activity && $activity->getType() === 'external';
+
         foreach ($consumableLines as $line) {
             $mi = $line->getMaterialItem();
-            if ($salePrice === null) {
-                $salePrice = $this->parseMoney($mi->getSalePrice());
+            if ($salePrice === null && $mi instanceof MaterialItem) {
+                $salePrice = $this->effectiveConsumableUnitSalePrice($mi, $preferExternal);
             }
             if ($line->getIsReplenishment()) {
                 $lineTotal = $this->parseMoney($line->getLineTotal());

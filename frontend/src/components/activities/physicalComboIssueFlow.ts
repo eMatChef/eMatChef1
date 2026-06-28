@@ -17,11 +17,11 @@ export type PhysicalComboIssueSelection = {
 }
 
 export type PackIssueWizardEmitPayload =
-  | { materialItemId: string; issueType: 'loss' | 'repair'; quantity?: number }
+  | { materialItemId: string; issueType: 'loss' | 'repair' | 'damage'; quantity?: number }
   | {
       items: Array<{
         materialItemId: string
-        issueType: 'loss' | 'repair'
+        issueType: 'loss' | 'repair' | 'damage'
         quantity?: number
       }>
     }

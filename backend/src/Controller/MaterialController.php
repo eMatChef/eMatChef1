@@ -495,6 +495,10 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (isset($data['sale_price'])) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('external_sale_price_chf', $data)) {
+                $ep = $data['external_sale_price_chf'];
+                $material->setExternalSalePriceChf($ep === null || $ep === '' ? null : (string) $ep);
+            }
             if (array_key_exists('reference_purchase_unit_chf', $data)) {
                 $rp = $data['reference_purchase_unit_chf'];
                 $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
@@ -1714,6 +1718,10 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (array_key_exists('sale_price', $data)) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('external_sale_price_chf', $data)) {
+                $ep = $data['external_sale_price_chf'];
+                $material->setExternalSalePriceChf($ep === null || $ep === '' ? null : (string) $ep);
+            }
             if (array_key_exists('reference_purchase_unit_chf', $data)) {
                 $rp = $data['reference_purchase_unit_chf'];
                 $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
@@ -4372,6 +4380,7 @@ class MaterialController extends AbstractController
             'external_source' => $material->getExternalSource(),
             'is_consumable' => $material->getIsConsumable(),
             'sale_price' => $material->getSalePrice(),
+            'external_sale_price_chf' => $material->getExternalSalePriceChf(),
             'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
@@ -4572,6 +4581,7 @@ class MaterialController extends AbstractController
             'is_js_material' => $material->getIsJsMaterial(),
             'external_source' => $material->getExternalSource(),
             'sale_price' => $material->getSalePrice(),
+            'external_sale_price_chf' => $material->getExternalSalePriceChf(),
             'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),

@@ -66,7 +66,7 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 
 **JWT:** Die **Passphrase** muss zu den **bestehenden PEM-Dateien** passen. Nach Reset auf einen Default in Compose ohne passende Keys → Login bricht; Lösung: stabile `JWT_PASSPHRASE` in der **Root-`.env`** (Develop) bzw. in der **Prod-`.env`** setzen, die zum Keypair auf dem Volume passt — oder Keys neu erzeugen (bestehende Tokens ungültig). **Automatisch (nur nicht-Prod empfohlen):** `bash deploy/regenerate-droplet-jwt.sh --yes` im Repo-Root (siehe Skriptkopf; auf **Produktion** alle Nutzer ausloggen).
 
-**SendGrid / Mailer:** In **Produktion** kommt `MAILER_DSN` (und ggf. `MAILER_FROM`) aus der **Server-`.env`** und dem **Override** (`docker-compose.override.prod.example.yml`). Wenn du es nur in einer **getrackten** Datei hattest, war es nach Deploy weg — dauerhaft in **`.env`** (und bei Bedarf `docker-compose.override.yml`) pflegen.
+**Mailer:** In **Produktion** kommt `MAILER_DSN` (und ggf. `MAILER_FROM`) aus der **Server-`.env`** und dem **Override** (`docker-compose.override.prod.example.yml`). Wenn du es nur in einer **getrackten** Datei hattest, war es nach Deploy weg — dauerhaft in **`.env`** (und bei Bedarf `docker-compose.override.yml`) pflegen.
 
 **Develop-Droplet:** Vorlage kopieren und ausfüllen:
 
@@ -225,9 +225,11 @@ Alternativ einzeilig:
 docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=prod
 ```
 
-## 3a. E-Mail (Prod, SendGrid-only)
+## 3a. E-Mail (Prod, MAILER_DSN)
 
-**Transport im Backend:** Ausschliesslich **`MAILER_DSN` aus der Umgebung** (typisch **SendGrid** über `sendgrid+api://...`). Wenn `MAILER_DSN` leer ist oder `null://…` bleibt, **ist kein Versand moeglich** (Registrierung/Passwort-Reset schlagen fehl) — es gibt keinen SMTP-Fallback in `mail_outbound.json` und keinen lokalen Datei-Spool mehr.
+Ausführliche Schritt-für-Schritt-Anleitung (SES, Cloudflare DNS, IAM, Prod-Test): **[docs/mail/README.md](../docs/mail/README.md)**.
+
+**Transport im Backend:** Ausschliesslich **`MAILER_DSN` aus der Umgebung** (HTTPS-API, z. B. `ses+api://…`). Wenn `MAILER_DSN` leer ist oder `null://…` bleibt, **ist kein Versand moeglich** (Registrierung/Passwort-Reset schlagen fehl) — es gibt keinen SMTP-Fallback in `mail_outbound.json` und keinen lokalen Datei-Spool mehr.
 
 **`mail_outbound.json` (optional, `var/app/`):** betrifft nur **Absender-Anzeige** (From-Name/Adresse in der App) und ggf. **Reply-To (Fallback)**, **nicht** den Transport. Vorrang hat weiterhin `MAILER_REPLY_TO` in der **Server-Env** (siehe unten). Der PHP-Prozess im `backend` läuft als `HOST_UID` / `HOST_GID` (Compose-Standard oft **1000:1000**). Schreibt das Host-Repo (z. B. per `root`) nach `git pull` als **`root`**, kann **`Permission denied` bei `var/app/mail_outbound.json`** erscheinen. Auf dem **Host** im Klon, UID/GID an eure `HOST_*` in `.env` bzw. Compose anpassen:
 
@@ -235,26 +237,26 @@ docker compose -p ematchef-prod exec backend php bin/console cache:clear --env=p
 
 **`.env` auf dem Server** (Compose/Override lädt die Variablen fürs `backend`; siehe `deploy/docker-compose.override.prod.example.yml` + `deploy/docker-compose.prod.env.example`):
 
-- `MAILER_DSN` — z. B. `sendgrid+api://…@default` (HTTPS-API; umgeht typische SMTP-Port-Sperren).
-- `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch` (muss in SendGrid zu eurer Domain/„Single Sender“-Verifikation passen; siehe [Getting started (SendGrid)](https://docs.sendgrid.com/for-developers/sending-email/getting-started-email-api) und [Domain Authentication](https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication)).
+- `MAILER_DSN` — z. B. `ses+api://ACCESS_KEY:SECRET@default?region=eu-central-1` (HTTPS-API; umgeht typische VPS-SMTP-Sperren).
+- `MAILER_FROM` — sichtbare Absenderadresse, z. B. `noreply@ematchef.ch` (muss zur verifizierten Absender-Domain passen).
 - `MAILER_REPLY_TO` — optional: **Antwort-Adresse** (Reply-To), z. B. `support@ematchef.ch` (Vorrang vor `reply_to_address` in `mail_outbound.json`).
 
-**Wichtig (Pitfall bei Deployments / Docker):** Wird `MAILER_DSN` in der **Container-Umgebung** noch auf `null://null` gesetzt, gewinnt das **gegen** `backend/.env` / `backend/.env.local` (Prozess-Env > Dotenv-Dateien). Dann muss der Container/Service so neu erstellt werden, dass `MAILER_DSN` wirklich den SendGrid-DSN hat.
+**Wichtig (Pitfall bei Deployments / Docker):** Wird `MAILER_DSN` in der **Container-Umgebung** noch auf `null://null` gesetzt, gewinnt das **gegen** `backend/.env` / `backend/.env.local` (Prozess-Env > Dotenv-Dateien). Dann muss der Container/Service so neu erstellt werden, dass `MAILER_DSN` wirklich gesetzt ist.
 
-### SendGrid (API, empfohlen z. B. bei DigitalOcean / blockiertem SMTP 587)
+### MAILER_DSN (HTTPS-API, empfohlen z. B. bei DigitalOcean / blockiertem SMTP 587)
 
-Das Backend enthält **`symfony/sendgrid-mailer`**. Versand läuft über **HTTPS** zur SendGrid-API — **kein** ausgehendes TCP zu fremdem Port 587 nötig (umgeht typische VPS-SMTP-Sperren).
+Das Backend versendet ueber **Symfony Mailer** mit **`MAILER_DSN`** (HTTPS-API). Versand laeuft ueber **HTTPS** — **kein** ausgehendes TCP zu SMTP-Port 587 noetig.
 
-1. **SendGrid:** Konto anlegen, unter API Keys einen Key mit Berechtigung **Mail Send** erzeugen.
-2. **Sender Authentication:** Domain (empfohlen) oder **Single Sender Verification** für die Absenderadresse, die in `MAILER_FROM` steht — siehe [Getting started (SendGrid)](https://docs.sendgrid.com/for-developers/sending-email/getting-started-email-api) und [Domain Authentication](https://docs.sendgrid.com/ui/account-and-settings/how-to-set-up-domain-authentication).
-3. **Server-`.env` / Compose-`environment`** fürs `backend` (je nach eurem Deploy-Setup; siehe `deploy/docker-compose.prod.env.example`).
+1. Absender-Domain verifizieren (SPF/DKIM in Cloudflare/ DNS).
+2. API-Zugangsdaten fuer den Mail-Provider erzeugen (Versand-Berechtigung).
+3. **Server-`.env` / Compose-`environment`** fürs `backend`:
 
    ```env
    MAILER_FROM="noreply@ematchef.ch"
-   MAILER_DSN="sendgrid+api://SG.DEIN_API_KEY_HIER@default"
+   MAILER_DSN="ses+api://ACCESS_KEY:SECRET@default?region=eu-central-1"
    ```
 
-   Den kompletten Key **URL-encoden**, falls er Sonderzeichen enthält, die in einer URL stören (`:`, `@`, …).
+   Zugangsdaten **URL-encoden**, falls Sonderzeichen in der URL stoeren (`:`, `@`, …).
 
 4. **Backend neu starten**, danach **`cache:clear --env=prod`** (Abschnitt 3).
 5. **Test im Container:** `docker compose -p ematchef-prod exec backend php bin/console mailer:test deine@mail.de --env=prod`  
@@ -262,16 +264,18 @@ Das Backend enthält **`symfony/sendgrid-mailer`**. Versand läuft über **HTTPS
 
 Nach jeder Änderung an **Mail-Env** (`MAILER_DSN`, ggf. `MAILER_FROM`/`MAILER_REPLY_TO`) oder outbounds JSON: **`cache:clear --env=prod`** (Abschnitt 3) bzw. Backend neu starten. **API-Check:** `GET /api/mail/settings` — `mailer_transport_mode` ist typischerweise **`env`**; wenn `MAILER_DSN` fehlt, **`env_missing`**. Testmail: Superadmin → E-Mail → Einstellungen, oder `POST /api/mail/test-send` mit `{"to":"…"}` (Superadmin / JWT je nach eurem Setup).
 
-### Testmail / Log: typische Fehlerbilder (SendGrid, HTTPS-API)
+**Versandprotokoll:** Superadmin → E-Mail → Log (`var/app/mail_send_log.json`) — protokolliert alle Versuche inkl. Registrierung, Passwort-Reset und fehlgeschlagene Sends.
 
-Der Versand laeuft **nicht** über klassisches SMTP zum Provider-Mailserver, sondern per **HTTPS** zu SendGrid (siehe DSN `sendgrid+api://...`). Wenn Mails fehlschlagen, lohnt sich fast immer zuerst:
+### Testmail / Log: typische Fehlerbilder
 
-- **SendGrid Activity** (Wurde der Request akzeptiert? Bounce/Block/Spam?)  
-- **API-Key** hat **Mail Send** und ist **nicht** deaktiviert/rotiert.  
-- **From/Domain** ist in SendGrid wirklich **authentifiziert/verifiziert** (Domain Authentication / Single Sender) und entspricht dem, was `MAILER_FROM` / eure App-Absender-Settings erwarten.  
-- **`MAILER_DSN` wirklich gesetzt** (siehe Pitfall oben: alte `MAILER_DSN=null://null` in der **Container-Env** kann Dotenv-Dateien ueberstimmen) und danach **`cache:clear --env=prod`**.
+Der Versand laeuft **nicht** über klassisches SMTP vom VPS, sondern per **HTTPS** (siehe `MAILER_DSN`). Wenn Mails fehlschlagen, lohnt sich fast immer zuerst:
 
-Falls es **gar nicht** am SendGrid-Konto liegt: prüft **ausgehendes HTTPS** vom Server (443) und generelle DNS/Proxy/Firewall-Themen — das ist der relevante Netzpfad (nicht SMTP-Port 587).
+- Provider-Dashboard (wurde die Mail angenommen? Bounce/Block?)
+- **API-Key** gueltig und Versand-Berechtigung aktiv
+- **From/Domain** verifiziert und entspricht `MAILER_FROM` / App-Absender-Einstellungen
+- **`MAILER_DSN` wirklich gesetzt** (Pitfall: `MAILER_DSN=null://null` in Container-Env ueberstimmt Dotenv) und danach **`cache:clear --env=prod`**
+
+Falls es am Provider liegt: ausgehendes **HTTPS (443)** vom Server pruefen.
 
 ## 3b. Hostpoint: Frontend bauen und per FTP hochladen (prod + dev)
 

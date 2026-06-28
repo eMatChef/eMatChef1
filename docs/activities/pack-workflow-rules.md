@@ -243,6 +243,7 @@ flowchart LR
 | Verlust/Reparatur Zeitraum | ab Transport→Event | ✓ `packIssuesVisibleForStage` |
 | External User | read-only | ✓ `packWorkflowCanEdit` + Member-Tabs |
 | Vollständige Migration UI-Filter | eine Matrix | ✓ Listen + Kisten + Zurück-Pfeil + Kistenziel/↑ in `packWorkflowRules.ts` |
+| Material Journey = gleiche Kisten-Regeln | ja | ✓ [newUI/README §6](./newUI/README.md#material-journey--grüner-pfeil-kistencheck-anzeige) · `materialJourneyCrateCheckGate.ts` |
 
 ---
 
@@ -260,4 +261,5 @@ flowchart LR
 | **Regel-Matrix** | `frontend/src/components/activities/packWorkflowRules.ts` |
 | Phys.-Kombi Einlagern-Modal | `frontend/src/components/activities/PackPhysComboStoreChecklistModal.vue` |
 | Pack-Haupt-UI | `frontend/src/components/activities/ActivityPackListTab.vue` |
+| Material Journey | `frontend/src/components/activities/ActivityMaterialJourneyView.vue` · `materialJourneyCrateCheckGate.ts` · `useMaterialJourneyShellForward.ts` |
 | Kistencheck Backend | `backend/src/Service/ActivityPackCrateCheckService.php` |

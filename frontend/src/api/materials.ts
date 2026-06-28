@@ -224,6 +224,7 @@ export interface Material {
   is_js_material?: boolean
   external_source?: string | null
   sale_price: string | null
+  external_sale_price_chf?: string | null
   /** Referenz-EK/Stk.; bei Verbrauchsmaterial/Esswaren Pflicht */
   reference_purchase_unit_chf?: string | null
   min_stock: number | null
@@ -326,6 +327,7 @@ export interface CreateMaterialRequest {
   is_consumable?: boolean
   is_food?: boolean
   sale_price?: string | null
+  external_sale_price_chf?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null
@@ -376,6 +378,7 @@ export interface UpdateMaterialRequest {
   is_consumable?: boolean
   is_food?: boolean
   sale_price?: string | null
+  external_sale_price_chf?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null

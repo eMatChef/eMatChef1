@@ -9,6 +9,7 @@ import {
   type MaterialJourneyAccordionLine,
 } from '@/components/activities/materialJourneyAccordionLines'
 import type { ActivityPackContainerItem, ActivityPackContainer } from '@/api/activityContainers'
+import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import { reassignTargetPackCrates } from '@/composables/useMaterialJourneyCrateTransfer'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
@@ -39,6 +40,9 @@ const props = defineProps<{
   atEventQtyLabelForRow?: (row: TaskRow, previewLines: MaterialJourneyAccordionLine[]) => string | null
   atEventQtyLabelForLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
+  journeyStep?: JourneyStep
+  containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
+  shellStorePendingQtyForRow?: (row: TaskRow) => number
 }>()
 
 const emit = defineEmits<{
@@ -53,9 +57,13 @@ const emit = defineEmits<{
   consumed: [row: TaskRow]
   loss: [row: TaskRow]
   repair: [row: TaskRow]
+  damage: [row: TaskRow]
   lineConsumed: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineLoss: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineRepair: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineDamage: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeLine: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeShell: [row: TaskRow]
 }>()
 
 const { t } = useI18n()
@@ -91,7 +99,7 @@ function isPackCrateAssignActive(): boolean {
 
 function isPackTargetActive(row: TaskRow): boolean {
   return (
-    Boolean(props.packCrateSelectMode) &&
+    Boolean(props.packTargetCrateId) &&
     row.kind === 'crate' &&
     row.container?.id === props.packTargetCrateId
   )
@@ -160,6 +168,10 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
           :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
+          :journey-step="journeyStep"
+          :container-items-by-container-id="containerItemsByContainerId"
+          :container-line-remaining-store="containerLineRemainingStore"
+          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
@@ -171,9 +183,13 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
           @line-consumed="emit('lineConsumed', row, $event)"
           @line-loss="emit('lineLoss', row, $event)"
           @line-repair="emit('lineRepair', row, $event)"
+          @line-damage="emit('lineDamage', row, $event)"
+          @store-line="emit('storeLine', row, $event)"
+          @store-shell="emit('storeShell', row)"
         />
         <MaterialJourneyTaskRow
           v-else
@@ -198,6 +214,7 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
         />
       </li>
     </ul>

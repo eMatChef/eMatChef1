@@ -2001,9 +2001,9 @@
   "mail": {
     "layout": {
       "prodIntro": "Modelli, mittente e registro invii — invio tramite",
-      "prodOutro": "(SendGrid) dall'ambiente server.",
+      "prodOutro": "MAILER_DSN nell'ambiente server.",
       "devIntro": "Modelli, mittente e registro invii — invio tramite",
-      "devOutro": "da backend/.env.local (es. SendGrid; null://null = nessun invio).",
+      "devOutro": "backend/.env.local (null://null = nessun invio).",
       "subnavAria": "Mail-Untermenü",
       "tabs": {
         "send": "Versand",
@@ -2038,10 +2038,10 @@
     "outbound": {
       "title": "Absender-E-Mail",
       "hintIntro": "Versand erfolgt ausschliesslich ueber",
-      "hintOutro": "aus der Server-Umgebung (SendGrid-only). Dieser Screen verwaltet nur Absender und Reply-To.",
+      "hintOutro": "dall'ambiente server (MAILER_DSN). Questa schermata gestisce solo mittente e reply-to.",
       "currentTransport": "Aktueller Versandweg:",
       "mailerMissingTitle": "MAILER_DSN fehlt:",
-      "mailerMissingBody": "Auf dem Server ist kein gueltiger MAILER_DSN gesetzt. Versand und Testmail sind deaktiviert, bis SendGrid in der Umgebung konfiguriert ist.",
+      "mailerMissingBody": "Nessun MAILER_DSN valido sul server. Invio e mail di test disabilitati finché MAILER_DSN non è configurato.",
       "loading": "Lade Einstellungen...",
       "fromAddress": "Absender-E-Mail",
       "fromName": "Absender-Name (optional)",
@@ -2061,7 +2061,7 @@
       "superadminOnly": "Nur Superadmin kann die E-Mail-Einstellungen aendern. Du kannst die aktuellen Werte einsehen.",
       "testTitle": "Testmail",
       "testHintIntro": "Sendet eine kurze Pruefmail ueber",
-      "testHintOutro": "(SendGrid) aus der Server-Umgebung.",
+      "testHintOutro": "dall'ambiente server (MAILER_DSN).",
       "testTarget": "Ziel-E-Mail",
       "testPlaceholder": "deine [at] adresse.ch",
       "sending": "Senden...",
@@ -2078,7 +2078,7 @@
     },
     "log": {
       "title": "Versandprotokoll",
-      "hint": "Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — keine Passwörter, kein Link-Token, kein Mailtext. Maximal 500 Einträge in var/app/mail_send_log.json. Wer als Benutzer eine Mail ausgelöst hat, wird hier nicht automatisch mitgeschrieben.",
+      "hint": "Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — auch fehlgeschlagene Versuche. Keine Passwörter, kein Link-Token, kein Mailtext. Maximal 500 Einträge in var/app/mail_send_log.json.",
       "loading": "Lade Log...",
       "empty": "Noch keine Einträge.",
       "dash": "—",
@@ -2090,12 +2090,18 @@
         "to": "An",
         "subject": "Betreff"
       },
+      "failedSuffix": "fehlgeschlagen",
       "kinds": {
         "authVerifyEmail": "Registrierung · E-Mail bestätigen",
         "authPendingEmailChange": "Profil · Neue E-Mail bestätigen",
         "authPasswordReset": "Passwort zurücksetzen",
         "departmentInvite": "Department-Einladung",
+        "departmentMemberAdded": "Department · Mitglied hinzugefügt",
+        "joinRequestManagerNotify": "Beitrittsanfrage · Leitung",
+        "adminJoinRequestManagerNotify": "Admin-Beitrittsanfrage · Leitung",
+        "jsOrderCoach": "J+S · Coach-Bestellung",
         "publicFoundItem": "Öffentlich · Fund-Hinweis",
+        "mailOutbound": "Systemmail",
         "mailTest": "Testmail (Einstellungen)",
         "mailTestFailed": "Testmail fehlgeschlagen"
       }

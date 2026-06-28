@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
+import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import type { MaterialScanResolveResult } from '@/composables/materialScanResolve'
 
 const props = defineProps<{
@@ -16,6 +17,9 @@ const props = defineProps<{
   showInCrate?: boolean
   inCrateLabel?: string
   dismissLabel?: string
+  showIssueActions?: boolean
+  issueIsConsumable?: boolean
+  showIssueConsumption?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +27,10 @@ const emit = defineEmits<{
   inCrate: []
   confirmBulk: []
   dismiss: []
+  consumed: []
+  loss: []
+  repair: []
+  damage: []
 }>()
 
 const { t } = useI18n()
@@ -46,6 +54,18 @@ const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
       </p>
     </div>
     <div class="material-scan-result-card__actions">
+      <PackIssueQuickActions
+        v-if="showIssueActions && result.packItem"
+        :is-consumable="issueIsConsumable === true"
+        :material-item-id="result.packItem.materialItemId"
+        :material-name="result.title"
+        :show-consumption="showIssueConsumption !== false"
+        compact
+        @consumed="emit('consumed')"
+        @loss="emit('loss')"
+        @repair="emit('repair')"
+        @damage="emit('damage')"
+      />
       <EButton
         v-if="showBulkConfirm && !bulkConfirmed"
         variant="secondary"

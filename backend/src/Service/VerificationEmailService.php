@@ -5,7 +5,7 @@ namespace App\Service;
 use App\Entity\User;
 use App\Service\Mail\AppMailer;
 use App\Service\Mail\MailOutboundSettingsStore;
-use App\Service\Mail\MailSendLogStore;
+use App\Service\Mail\MailLogKind;
 use App\Service\Mail\MailTemplateContentStore;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mime\Email;
@@ -15,7 +15,6 @@ class VerificationEmailService
     public function __construct(
         private AppMailer $mailer,
         private MailOutboundSettingsStore $mailOutboundSettings,
-        private MailSendLogStore $mailSendLog,
         private MailTemplateContentStore $mailTemplateContent,
         #[Autowire('%env(APP_FRONTEND_URL)%')]
         private string $frontendBaseUrl,
@@ -76,13 +75,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'extra_block'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'auth.verify_email',
-            $profile->getEmail(),
-            (string) $email->getSubject(),
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'auth.verify_email'));
     }
 
     public function sendPendingEmailChangeVerification(User $user, string $newEmail, string $token, \DateTime $expiresAt): void
@@ -131,13 +124,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'extra_block'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'auth.pending_email_change',
-            $newEmail,
-            (string) $email->getSubject(),
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'auth.pending_email_change'));
     }
 
     public function sendDepartmentInviteEmail(
@@ -194,13 +181,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'invite_lead_html', 'role_line_html'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'department.invite',
-            $recipientEmail,
-            $subject,
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'department.invite'));
     }
 
     public function sendDepartmentMemberAddedEmail(
@@ -259,13 +240,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'added_lead_html', 'role_line_html'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'department.member_added',
-            $recipientEmail,
-            $subject,
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'department.member_added'));
     }
 
     public function sendJoinRequestManagerNotification(
@@ -333,13 +308,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'join_request.manager_notify',
-            $recipientEmail,
-            $subject,
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'join_request.manager_notify'));
     }
 
     public function sendAdminJoinRequestManagerNotification(
@@ -416,13 +385,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'admin_join_request.manager_notify',
-            $recipientEmail,
-            $subject,
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'admin_join_request.manager_notify'));
     }
 
     public function sendPasswordResetCode(User $user, string $code, \DateTime $expiresAt): void
@@ -476,13 +439,7 @@ class VerificationEmailService
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
             ], ['brand_header_html'], $locale));
 
-        $this->mailer->send($email);
-        $this->mailSendLog->append(
-            'auth.password_reset_code',
-            $profile->getEmail(),
-            (string) $email->getSubject(),
-            $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-        );
+        $this->mailer->send(MailLogKind::stamp($email, 'auth.password_reset_code'));
     }
 
     private function vex(string $key, string $locale): \RuntimeException

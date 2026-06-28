@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import { useI18n } from 'vue-i18n'
 import {
   getActivityIssues,
@@ -9,7 +10,7 @@ import {
 } from '@/api/activities'
 import type { ActivityApiType } from '@/api/activities'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import {
   aggregateConsumableRows,
   aggregateRentalRows,
@@ -46,7 +47,7 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const isLoading = ref(false)
+const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
 const workshopTickets = ref<WorkshopTicket[]>([])
@@ -89,7 +90,9 @@ const lossIssues = computed(() => issues.value.filter((i) => i.type === 'loss'))
 const replenishmentRows = computed(() => replenishmentPurchaseRows(activityItems.value))
 const replenishmentGroups = computed(() => replenishmentGroupsBySubmitterDepartment(replenishmentRows.value))
 const replenishmentTotal = computed(() => replenishmentPurchaseTotal(replenishmentRows.value))
-const consumableTotal = computed(() => consumableCostTotal(activityItems.value, issues.value))
+const consumableTotal = computed(() =>
+  consumableCostTotal(activityItems.value, issues.value, { preferExternal: isExternal.value }),
+)
 const rentalTotal = computed(() => rentalCostTotal(rentalRows.value))
 
 const workshopResolved = computed(() =>
@@ -113,7 +116,7 @@ const openWorkshopTickets = computed(() =>
 )
 
 const isExternal = computed(() => props.activityType === 'external')
-const showAccountingTasks = computed(() => ['returned', 'storing', 'completed'].includes(props.activityStatus))
+const showAccountingTasks = computed(() => props.activityStatus === 'completed')
 
 const pendingAccountingSorted = computed(() => sortFollowUpsForDisplay(pendingAccounting.value))
 
@@ -134,7 +137,13 @@ function usedFor(materialItemId: string): number {
 }
 
 function lineAmount(row: (typeof consumableRows.value)[number]): string {
-  const amount = consumableLineCost(row, usedFor(row.material_item_id), activityItems.value, issues.value)
+  const amount = consumableLineCost(
+    row,
+    usedFor(row.material_item_id),
+    activityItems.value,
+    issues.value,
+    { preferExternal: isExternal.value },
+  )
   if (amount <= 0 && usedFor(row.material_item_id) <= 0) return 'CHF 0.00'
   return formatChfLabel(amount)
 }
@@ -150,39 +159,43 @@ function formatRecordedAt(iso: string | null | undefined): string {
   })
 }
 
-async function load() {
-  isLoading.value = true
-  try {
-    const [items, iss, tickets] = await Promise.all([
-      getActivityItems(props.activityId),
-      getActivityIssues(props.activityId),
-      getWorkshopTickets(props.departmentId, { activity_id: props.activityId }),
-    ])
-    activityItems.value = items
-    issues.value = iss
-    workshopTickets.value = tickets
-    if (showAccountingTasks.value) {
-      try {
-        pendingAccounting.value = await listActivityAcquisitionFollowups(props.activityId, 'pending')
-      } catch {
+async function load(opts?: { forceFull?: boolean }) {
+  await withTabLoad(async () => {
+    try {
+      const [items, iss, tickets] = await Promise.all([
+        getActivityItems(props.activityId),
+        getActivityIssues(props.activityId),
+        getWorkshopTickets(props.departmentId, { activity_id: props.activityId }),
+      ])
+      activityItems.value = items
+      issues.value = iss
+      workshopTickets.value = tickets
+      if (showAccountingTasks.value) {
+        try {
+          pendingAccounting.value = await listActivityAcquisitionFollowups(props.activityId, 'pending')
+        } catch {
+          pendingAccounting.value = []
+        }
+      } else {
         pendingAccounting.value = []
       }
-    } else {
+    } catch {
+      activityItems.value = []
+      issues.value = []
+      workshopTickets.value = []
       pendingAccounting.value = []
     }
-  } catch {
-    activityItems.value = []
-    issues.value = []
-    workshopTickets.value = []
-    pendingAccounting.value = []
-  } finally {
-    isLoading.value = false
-  }
+  }, opts)
 }
 
 watch(
   () => [props.activityId, props.reloadToken ?? 0] as const,
-  () => {
+  (curr, prev) => {
+    const [activityId] = curr
+    const prevActivityId = prev?.[0]
+    if (prevActivityId != null && activityId !== prevActivityId) {
+      resetTabLoad()
+    }
     void load()
   },
   { immediate: true },
@@ -192,14 +205,13 @@ watch(
 <template>
   <div class="activity-costs-tab">
     <ActivityTabHeader :title="t('activities.detail.tabCosts')" />
-    <div class="section-card activity-tab-panel-card">
-      <ELoadingState
-        v-if="isLoading"
-        variant="inline"
-        class="activity-costs-loading"
-        :message="t('activities.costs.loading')"
-      />
-      <div v-else class="costs-overview">
+    <ActivityTabPanelShell
+      :loading="showFullLoading"
+      :refreshing="isRefreshing"
+      :loading-message="t('activities.costs.loading')"
+      loading-class="activity-costs-loading"
+    >
+      <div class="costs-overview">
         <section
           v-if="showAccountingTasks && pendingAccountingSorted.length > 0"
           class="costs-accounting-tasks"
@@ -469,7 +481,7 @@ watch(
           </div>
         </section>
       </div>
-    </div>
+    </ActivityTabPanelShell>
   </div>
 </template>
 

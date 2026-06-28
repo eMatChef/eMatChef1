@@ -7,7 +7,7 @@ use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 /**
- * Transport: ausschliesslich MAILER_DSN aus der Umgebung (SendGrid-only).
+ * Transport: ausschliesslich MAILER_DSN aus der Umgebung (HTTPS-API).
  */
 final class MailTransportResolver
 {

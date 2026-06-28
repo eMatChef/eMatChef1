@@ -1,9 +1,14 @@
+import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import {
+  isPhysicalComboPackItem,
+} from '@/components/activities/packMaterialDisplay'
 import {
   isNonActionableContainerLine,
   isCrateShellPackItem,
   packShellContainerForPackItem,
+  shellPackItemForContainerId,
 } from '@/components/activities/packShellCrateHelpers'
 import {
   computeContainerLineRemainingReturn,
@@ -24,6 +29,7 @@ import {
 import {
   getStageLeftQty,
   getStageRightQty,
+  isPackForwardToEventStage,
   isPackReturnStage,
   isPackUnpackStage,
   type PackStage,
@@ -32,6 +38,21 @@ import type { PackWorkflowProfile } from '@/components/activities/packWorkflowPr
 import { showPackContainersForProfile } from '@/components/activities/packWorkflowProfile'
 import type { PackWorkflowContainerContext, PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
 import { shouldIncludePackItemOnStageLeft } from '@/components/activities/packWorkflowRules'
+import {
+  consumableBookedConsumptionQty as consumableBookedConsumptionQtyFor,
+  consumableConsumptionRemaining as consumableConsumptionRemainingFor,
+  consumablePhysicalReturnMax as consumablePhysicalReturnMaxFor,
+} from '@/utils/materialJourneyConsumable'
+import {
+  containerInnerPendingStoreUnits as unpackContainerInnerPendingStoreUnits,
+  containerLineRemainingStore as unpackContainerLineRemainingStore,
+  containerShellOnlyPendingUnpack as unpackContainerShellOnlyPendingUnpack,
+  containerShellPendingStoreQty as unpackContainerShellPendingStoreQty,
+  pendingStoreLooseQtyForPackItem as unpackPendingStoreLooseQtyForPackItem,
+  retourAccountingForContainerLine as unpackRetourAccountingForContainerLine,
+  retourAccountingForUnpackLoose as unpackRetourAccountingForUnpackLoose,
+  type MaterialJourneyUnpackAccountingInput,
+} from '@/utils/materialJourneyUnpackAccounting'
 
 export type MaterialJourneyPackContextStateInput = {
   packItems: ActivityPackItem[]
@@ -39,6 +60,7 @@ export type MaterialJourneyPackContextStateInput = {
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>
   packStage: PackStage
   profile: PackWorkflowProfile
+  issues?: ActivityIssueReportRow[]
 }
 
 export type MaterialJourneyPackContextState = {
@@ -52,6 +74,11 @@ export type MaterialJourneyPackContextState = {
   containerStoreUnits: (containerId: string) => number
   containerActionableUnits: (containerId: string) => number
   containerContentActionableUnits: (containerId: string) => number
+  containerLineRemainingStore: (ci: ActivityPackContainerItem) => number
+  containerInnerPendingStoreUnits: (containerId: string) => number
+  containerShellPendingStoreQty: (containerId: string) => number
+  containerShellOnlyPendingUnpack: (containerId: string) => boolean
+  unpackAccountingInput: MaterialJourneyUnpackAccountingInput
   packCrateLabelsForPackItem: (pi: ActivityPackItem) => string[]
   qtyInPackCrateForPackItem: (pi: ActivityPackItem) => number
   packCrateAssignQtyForItem: (pi: ActivityPackItem) => number
@@ -94,33 +121,14 @@ export function createMaterialJourneyPackContextState(
   }
 
   function shellPackItemForContainer(containerId: string): ActivityPackItem | undefined {
-    const c = input.packContainers.find((x) => x.id === containerId)
-    if (!c) return undefined
-    const mid = (c.container_material_item_id ?? '').trim()
-    if (mid) {
-      const byMid = input.packItems.find((p) => p.materialItemId === mid)
-      if (byMid) return byMid
-    }
-    const bid = (c.container_batch_id ?? '').trim()
-    if (bid) {
-      const byBatch = input.packItems.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
-      if (byBatch) return byBatch
-    }
-    for (const pi of input.packItems) {
-      if (packShellContainerForPackItem(pi, input.packContainers)?.id === containerId) {
-        return pi
-      }
-    }
-    return undefined
+    return shellPackItemForContainerId(containerId, input.packContainers, input.packItems)
   }
 
   function crateCheckGapForMaterial(_materialItemId: string): number {
     return 0
   }
 
-  function retourAccountingForUnpackLoose(pi: ActivityPackItem) {
-    return { retourTotal: pi.quantityReturned ?? 0 }
-  }
+  const issues = input.issues ?? []
 
   const packQuantityCtx: PackQuantityContext = {
     stage: input.packStage,
@@ -135,13 +143,34 @@ export function createMaterialJourneyPackContextState(
     crateCheckGapForMaterial,
   }
 
+  const unpackAccountingInput: MaterialJourneyUnpackAccountingInput = {
+    packItems: input.packItems,
+    containerItemsByContainerId: input.containerItemsByContainerId,
+    issues,
+    packQuantityCtx,
+  }
+
+  function retourAccountingForUnpackLoose(pi: ActivityPackItem) {
+    return unpackRetourAccountingForUnpackLoose(pi, unpackAccountingInput)
+  }
+
+  function journeyConsumablePhysicalReturnMax(pi: ActivityPackItem): number {
+    const atEvent = computeLooseQtyStillAtEventForReturn(pi, packQuantityCtx)
+    if (!pi.isConsumable) return atEvent
+    return consumablePhysicalReturnMaxFor(pi, packQuantityCtx, issues)
+  }
+
+  const containerIds = input.packContainers.map((c) => c.id)
+
   const packQuantityForwardMaxCtx: PackQuantityForwardMaxContext = {
     ...packQuantityCtx,
     retourAccountingForUnpackLoose,
     isCrateShellPackItem: (pi) => isCrateShellPackItem(pi, input.packContainers),
-    consumablePhysicalReturnMax: (pi) => getStageLeftQty(pi, input.packStage, input.profile),
+    consumablePhysicalReturnMax: journeyConsumablePhysicalReturnMax,
     pendingStoreLooseQtyForPackItem: (pi) =>
-      Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
+      isPackUnpackStage(input.packStage)
+        ? unpackPendingStoreLooseQtyForPackItem(pi, containerIds, unpackAccountingInput)
+        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
   }
 
   function effectiveStageLeftQty(p: ActivityPackItem): number {
@@ -167,6 +196,43 @@ export function createMaterialJourneyPackContextState(
     return computePackIssueForwardMax(pi, packQuantityForwardMaxCtx)
   }
 
+  function containerHasPackedInnerLines(containerId: string): boolean {
+    return (input.containerItemsByContainerId[containerId] ?? []).some(
+      (ci) =>
+        !isNonActionableContainerLine(ci) &&
+        Math.max(ci.quantity_packed ?? 0, ci.quantity_issued ?? 0) > 0,
+    )
+  }
+
+  function containerReturnedContentUnits(containerId: string): number {
+    let sum = 0
+    for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
+      sum += ci.quantity_returned ?? 0
+    }
+    const sh = shellPackItemForContainer(containerId)
+    if (sh) sum += sh.quantityReturned ?? 0
+    return sum
+  }
+
+  function containerReturnedAsWhole(containerId: string): boolean {
+    if (containerReturnableUnits(containerId) > 0) return false
+    if (containerReturnedContentUnits(containerId) <= 0) return false
+
+    const sh = shellPackItemForContainer(containerId)
+    const shellReturned = (sh?.quantityReturned ?? 0) > 0
+    const innerReturned = (input.containerItemsByContainerId[containerId] ?? []).some(
+      (ci) => !isNonActionableContainerLine(ci) && (ci.quantity_returned ?? 0) > 0,
+    )
+
+    if (sh && isPhysicalComboPackItem(sh)) {
+      return shellReturned
+    }
+    if (!containerHasPackedInnerLines(containerId)) {
+      return false
+    }
+    return shellReturned && innerReturned
+  }
+
   const packListCtx: PackWorkflowListContext = {
     stage: input.packStage,
     profile: input.profile,
@@ -179,11 +245,13 @@ export function createMaterialJourneyPackContextState(
     getStageRightQty: stageRightQty,
     looseQtyForPackItem,
     consumableShowsZeroOnStageLeft: () => false,
-    consumableConsumptionRemaining: () => 0,
-    consumablePhysicalReturnMax: (pi) => stageLeftQty(pi),
+    consumableConsumptionRemaining: (pi) => consumableConsumptionRemainingFor(pi, issues),
+    consumablePhysicalReturnMax: journeyConsumablePhysicalReturnMax,
     looseQtyStillAtEventForReturn: (pi) => computeLooseQtyStillAtEventForReturn(pi, packQuantityCtx),
     pendingStoreLooseQtyForPackItem: (pi) =>
-      Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
+      isPackUnpackStage(input.packStage)
+        ? unpackPendingStoreLooseQtyForPackItem(pi, containerIds, unpackAccountingInput)
+        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
     returnedLooseQtyForPackItem: (pi) => pi.quantityReturned ?? 0,
     storedLooseQtyForPackItem: (pi) => pi.quantityStored ?? 0,
     storedShellLooseQtyForPackItem: () => 0,
@@ -192,9 +260,9 @@ export function createMaterialJourneyPackContextState(
     notTakenQtyForReturn: () => 0,
     notTakenToEventQtyForMaterial: () => 0,
     consumableStillOnlyInCrateAtReturn: () => false,
-    consumableBookedConsumptionQty: () => 0,
+    consumableBookedConsumptionQty: (pi) => consumableBookedConsumptionQtyFor(pi, issues),
     isIndividuallyStorableCrateShell: () => false,
-    containerReturnedAsWhole: () => false,
+    containerReturnedAsWhole,
     qtyInContainersForItem: (pi) => computeQtyInContainersForItem(pi, packQuantityCtx),
     issuedQtyInContainersForMaterial: (materialItemId) =>
       computeIssuedQtyInContainersForMaterial(packQuantityCtx, materialItemId),
@@ -251,6 +319,17 @@ export function createMaterialJourneyPackContextState(
   }
 
   function containerStoreUnits(containerId: string): number {
+    if (isPackUnpackStage(input.packStage)) {
+      return (
+        unpackContainerInnerPendingStoreUnits(containerId, unpackAccountingInput) +
+        unpackContainerShellPendingStoreQty(
+          containerId,
+          shellPackItemForContainer(containerId),
+          unpackAccountingInput,
+          input.packContainers,
+        )
+      )
+    }
     let sum = 0
     for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
       if (isNonActionableContainerLine(ci)) continue
@@ -261,6 +340,34 @@ export function createMaterialJourneyPackContextState(
       sum += Math.max(0, (sh.quantityReturned ?? 0) - (sh.quantityStored ?? 0))
     }
     return sum
+  }
+
+  function containerLineRemainingStore(ci: ActivityPackContainerItem): number {
+    if (!isPackUnpackStage(input.packStage)) {
+      return Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+    }
+    return unpackContainerLineRemainingStore(ci, unpackAccountingInput)
+  }
+
+  function containerInnerPendingStoreUnits(containerId: string): number {
+    return unpackContainerInnerPendingStoreUnits(containerId, unpackAccountingInput)
+  }
+
+  function containerShellPendingStoreQty(containerId: string): number {
+    return unpackContainerShellPendingStoreQty(
+      containerId,
+      shellPackItemForContainer(containerId),
+      unpackAccountingInput,
+      input.packContainers,
+    )
+  }
+
+  function containerShellOnlyPendingUnpack(containerId: string): boolean {
+    return unpackContainerShellOnlyPendingUnpack(
+      containerId,
+      shellPackItemForContainer(containerId),
+      unpackAccountingInput,
+    )
   }
 
   function containerActionableUnits(containerId: string): number {
@@ -283,12 +390,7 @@ export function createMaterialJourneyPackContextState(
       return inner
     }
     if (isPackUnpackStage(input.packStage)) {
-      let sum = 0
-      for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
-        if (isNonActionableContainerLine(ci)) continue
-        sum += Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
-      }
-      return sum
+      return unpackContainerInnerPendingStoreUnits(containerId, unpackAccountingInput)
     }
     let sum = 0
     for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
@@ -309,6 +411,11 @@ export function createMaterialJourneyPackContextState(
     containerHasPackedContent,
     containerHasIssuedAtEvent,
     containerLineRemainingAtForwardStage,
+    containerReturnableUnits,
+    containerReturnedAsWhole,
+    containerStoreUnits,
+    containerContentsTravelWithShellAtEvent: (containerId) =>
+      isPackForwardToEventStage(input.packStage) && containerHasIssuedAtEvent(containerId),
     containerItemsForContainer: (containerId) => input.containerItemsByContainerId[containerId] ?? [],
   }
 
@@ -351,6 +458,11 @@ export function createMaterialJourneyPackContextState(
     containerStoreUnits,
     containerActionableUnits,
     containerContentActionableUnits,
+    containerLineRemainingStore,
+    containerInnerPendingStoreUnits,
+    containerShellPendingStoreQty,
+    containerShellOnlyPendingUnpack,
+    unpackAccountingInput,
     packCrateLabelsForPackItem,
     qtyInPackCrateForPackItem,
     packCrateAssignQtyForItem,

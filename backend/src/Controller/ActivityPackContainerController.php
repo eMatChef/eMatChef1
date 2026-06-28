@@ -758,6 +758,8 @@ class ActivityPackContainerController extends AbstractController
             if ($apply <= 0) {
                 return ['lines' => 0, 'units' => 0];
             }
+            // Eine Packkiste pro issue-all — Shell-Menge gilt für alle Kisten derselben Charge.
+            $apply = min($apply, 1);
             $this->packPipeline->applyForward($packItem, $pipelineStage, $apply, $profile);
         } elseif ($mode === 'return_all') {
             if ($this->containerHasInnerReturnPending($container)) {
@@ -767,13 +769,14 @@ class ActivityPackContainerController extends AbstractController
             if ($delta <= 0) {
                 return ['lines' => 0, 'units' => 0];
             }
-            $apply = $delta;
+            $apply = min($delta, 1);
             $packItem->setQuantityReturned($packItem->getQuantityReturned() + $apply);
         } elseif ($mode === 'unissue_all') {
             $apply = $this->packPipeline->maxBackwardQty($packItem, $pipelineStage, $profile);
             if ($apply <= 0) {
                 return ['lines' => 0, 'units' => 0];
             }
+            $apply = min($apply, 1);
             $this->packPipeline->applyBackward($packItem, $pipelineStage, $apply);
         } else {
             return ['lines' => 0, 'units' => 0];
@@ -811,12 +814,26 @@ class ActivityPackContainerController extends AbstractController
 
     private function serializeContainer(ActivityPackContainer $container): array
     {
+        $batch = $container->getContainerBatch();
+        $rackName = null;
+        $slotName = null;
+        if ($batch !== null) {
+            $rack = $batch->getRack();
+            $slot = $batch->getSlot();
+            $rackName = $rack?->getName();
+            $slotName = $slot?->getName();
+        }
+
         return [
             'id' => $container->getId(),
             'activity_id' => $container->getActivityId(),
             'container_batch_id' => $container->getContainerBatchId(),
             /** Stammdaten-Material der Kisten-Charge bzw. virtuelle Phys.-Kombi-Zeile */
             'container_material_item_id' => $this->kisteMaterialLinker->shellMaterialIdForPackContainer($container),
+            'container_serial_number' => $batch?->getSerialNumber(),
+            'container_batch_label' => $batch?->getLabel(),
+            'container_storage_rack_name' => $rackName,
+            'container_storage_slot_name' => $slotName,
             'label' => $container->getLabel(),
             'status' => $container->getStatus(),
             'source_activity_item_id' => $container->getSourceActivityItemId(),

@@ -230,6 +230,26 @@ Am Event kann Kisteninhalt **physisch gemischt** sein. Retour nutzt ein **eigene
 
 Details: [SPEC §7.5](./SPEC.md#75-materialreturncratesheet-retour).
 
+### Material Journey — Grüner Pfeil, Kistencheck, Anzeige
+
+Gilt für `ActivityMaterialJourneyView` (Tab Packliste, wenn Journey aktiv). **Fachlich dieselben Regeln** wie Packliste (`packWorkflowRules.ts`, `needsShellCratePresenceConfirm`); Code: `materialJourneyCrateCheckGate.ts`.
+
+| Journey-Schritt | Phys.-Kombi (→) | Packkiste (→) | Transport-Tour aktiv |
+|-----------------|-----------------|---------------|----------------------|
+| **pack** | Kistencheck (outbound) | Zielkiste wählen / abwählen (kein Pfeil-Verschieben) | — |
+| **issue** | Kistencheck | Kistencheck → ganz mitnehmen | Tour buchen (kein Check) |
+| **transport_out / transport_back** | Tour buchen | Tour buchen | Tour buchen |
+| **return / store** | Kistencheck (return / warehouse_store) | Kistencheck | — |
+
+**Kistencheck-Modal:** nur solange für `(packItemId, leg, userId)` noch kein Eintrag in der History — danach einfaches Bestätigungs-Sheet (wie Packliste).
+
+**Mehrere Packkisten gleicher Charge (z. B. Rakokiste 008 + 010):**
+
+- Check-Inhalt und Buchung beziehen sich immer auf die **angeklickte** Kiste (`activeContainer`), nicht auf die erste der Charge.
+- Backend `issue-all`: Shell-Material **max. 1× pro Kisten-Buchung** (nicht gesamte `quantityPacked` der Charge auf einmal).
+
+**Liste «Mit mir unterwegs»:** Material nur in der Packkisten-Zeile, **nicht** zusätzlich lose — solange die Menge ausschließlich in Kisten gebucht ist (`looseQtyOnRightMirror === 0`). Shell-Zeile ausblenden, wenn mindestens eine sichtbare Packkiste der Charge in der Liste steht.
+
 ---
 
 ## 7. Scan und Suche (nur Packliste)
