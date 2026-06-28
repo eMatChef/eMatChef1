@@ -2,7 +2,9 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getActivityHistory, type ActivityHistoryEntryRow } from '@/api/activities'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import {
   historyEntrySummaryLines,
   historyEntryTitle,
@@ -24,29 +26,37 @@ const props = defineProps<{
 }>()
 
 const { t, te, locale } = useI18n()
-const loading = ref(true)
+const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const error = ref<string | null>(null)
 const entries = ref<ActivityHistoryEntryRow[]>([])
 const filterPackOnly = ref(false)
 const expandedGroupIds = ref<Set<string>>(new Set())
 
-async function load() {
-  loading.value = true
-  error.value = null
-  try {
-    const rows = await getActivityHistory(props.activityId)
-    entries.value = [...rows].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    )
-  } catch {
-    error.value = t('activities.history.loadFailed')
-    entries.value = []
-  } finally {
-    loading.value = false
-  }
+async function load(opts?: { forceFull?: boolean }) {
+  await withTabLoad(async () => {
+    error.value = null
+    try {
+      const rows = await getActivityHistory(props.activityId)
+      entries.value = [...rows].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+    } catch {
+      error.value = t('activities.history.loadFailed')
+      entries.value = []
+    }
+  }, opts)
 }
 
-watch(() => props.activityId, () => void load(), { immediate: true })
+watch(
+  () => props.activityId,
+  (activityId, prevActivityId) => {
+    if (prevActivityId != null && activityId !== prevActivityId) {
+      resetTabLoad()
+    }
+    void load()
+  },
+  { immediate: true },
+)
 
 const filteredEntries = computed(() => {
   if (!filterPackOnly.value) return entries.value
@@ -111,8 +121,13 @@ function aggregatedUserLabel(row: ActivityHistoryDisplayRow & { kind: 'aggregate
 <template>
   <div class="activity-history-tab">
     <ActivityTabHeader :title="t('activities.detail.sectionHistory')" />
-    <div class="section-card activity-tab-panel-card">
-      <div v-if="!loading && !error && entries.length > 0" class="activity-history-filters">
+    <ActivityTabPanelShell
+      :loading="showFullLoading"
+      :refreshing="isRefreshing"
+      :loading-message="t('activities.history.loading')"
+      loading-class="activity-history-loading"
+    >
+      <div v-if="!error && entries.length > 0" class="activity-history-filters">
         <button
           type="button"
           class="activity-history-filter-chip"
@@ -131,11 +146,7 @@ function aggregatedUserLabel(row: ActivityHistoryDisplayRow & { kind: 'aggregate
         </button>
       </div>
 
-      <p v-if="loading" class="text-muted activity-inline-loading">
-        <span class="spinner spinner-sm"></span>
-        {{ t('activities.history.loading') }}
-      </p>
-      <p v-else-if="error" class="text-muted">{{ error }}</p>
+      <p v-if="error" class="text-muted">{{ error }}</p>
       <p v-else-if="displayRows.length === 0" class="text-muted">{{ t('activities.history.empty') }}</p>
       <ul v-else class="activity-history-list">
         <li
@@ -205,7 +216,7 @@ function aggregatedUserLabel(row: ActivityHistoryDisplayRow & { kind: 'aggregate
           </template>
         </li>
       </ul>
-    </div>
+    </ActivityTabPanelShell>
   </div>
 </template>
 

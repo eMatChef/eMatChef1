@@ -1,6 +1,6 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ActivityDetail } from '@/api/activities'
+import type { ActivityDetail, ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import {
   createActivityPackContainer,
@@ -9,6 +9,10 @@ import {
 } from '@/api/activityContainers'
 import { postMovePackItem, type ActivityPackItem, type PackMoveSource } from '@/api/activityPackItems'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
+import {
+  isNonActionableContainerLine,
+  resolveActionableContainerLine,
+} from '@/components/activities/packShellCrateHelpers'
 import {
   buildMaterialJourneyAtEventInventory,
   buildMaterialJourneyTasks,
@@ -28,7 +32,6 @@ import {
   materialJourneyShowsShelfLocation,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
-import { shouldOpenMaterialJourneyReturnCrateModal } from '@/components/activities/materialJourneyReturnCrate'
 import { useMaterialJourneyReturnCrate } from '@/composables/useMaterialJourneyReturnCrate'
 import { countCratePeekLines } from '@/composables/useMaterialJourneyCrateSections'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
@@ -39,7 +42,7 @@ import { useMaterialJourneyPackContext } from '@/composables/useMaterialJourneyP
 import { useToast } from '@/composables/useToast'
 import {
   journeyStepAccess,
-  resolveActiveJourneyStep,
+  resolveEffectiveActiveJourneyStep,
   type JourneyStepAccess,
 } from '@/utils/materialJourneyNavigation'
 
@@ -58,6 +61,7 @@ export function useMaterialJourneyTasks(options: {
   reload: () => Promise<void>
   reloadSilent?: () => Promise<void>
   applyContainerItem: (containerId: string, item: ActivityPackContainerItem) => void
+  issues?: Ref<ActivityIssueReportRow[]>
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -69,10 +73,14 @@ export function useMaterialJourneyTasks(options: {
   const activeCrate = ref<ActivityPackContainer | null>(null)
   const activeCombo = ref<ActivityPackItem | null>(null)
   const storeShelveOpen = ref(false)
+  const storeShelveOpenedFromScan = ref(false)
   const activeStoreItem = ref<ActivityPackItem | null>(null)
   const activeStoreMaxQty = ref(0)
   const storeShelveQty = ref(1)
   const storeShelveSubmitting = ref(false)
+  const activeStoreContainerId = ref<string | null>(null)
+  const activeStoreContainerItem = ref<ActivityPackContainerItem | null>(null)
+  const activeStoreIsShell = ref(false)
   const lastFailedMove = ref<{ row: MaterialJourneyTaskRow; source: PackMoveSource } | null>(null)
   const assignCrateSheetOpen = ref(false)
   const assignCratePackItem = ref<ActivityPackItem | null>(null)
@@ -85,10 +93,15 @@ export function useMaterialJourneyTasks(options: {
   const packStage = computed(() => journeyStepToPackStage(options.journeyStep.value, options.profile.value))
 
   const activeJourneyStep = computed(() =>
-    resolveActiveJourneyStep(
+    resolveEffectiveActiveJourneyStep(
       options.activity.value,
       options.profile.value,
       options.canManageMaterials.value,
+      {
+        packItems: options.packItems.value,
+        packContainers: options.packContainers.value,
+        containerItemsByContainerId: options.containerItemsByContainerId.value,
+      },
     ),
   )
 
@@ -102,6 +115,8 @@ export function useMaterialJourneyTasks(options: {
         packContainers: options.packContainers.value,
         containerItemsByContainerId: options.containerItemsByContainerId.value,
       },
+      options.canManageMaterials.value,
+      options.activity.value,
     ),
   )
 
@@ -140,6 +155,10 @@ export function useMaterialJourneyTasks(options: {
     containerIssueableUnits,
     containerActionableUnits,
     containerContentActionableUnits,
+    containerLineRemainingStore,
+    containerInnerPendingStoreUnits,
+    containerShellPendingStoreQty,
+    containerShellOnlyPendingUnpack,
     packQuantityCtx,
     packCrateLabelsForPackItem,
     qtyInPackCrateForPackItem,
@@ -150,6 +169,13 @@ export function useMaterialJourneyTasks(options: {
     containerItemsByContainerId: options.containerItemsByContainerId,
     packStage,
     profile: options.profile,
+    issues: options.issues,
+  })
+
+  const activeStoreContainer = computed(() => {
+    const id = activeStoreContainerId.value
+    if (!id) return null
+    return options.packContainers.value.find((c) => c.id === id) ?? null
   })
 
   const returnCrate = useMaterialJourneyReturnCrate({
@@ -158,6 +184,7 @@ export function useMaterialJourneyTasks(options: {
     containerItemsByContainerId: options.containerItemsByContainerId,
     packQuantityCtx,
     shellPackItemForContainer,
+    issues: options.issues ?? ref([]),
     reload: options.reload,
   })
 
@@ -283,7 +310,11 @@ export function useMaterialJourneyTasks(options: {
     options.journeyStep,
     (step, previousStep) => {
       if (step === 'store' && options.canManageMaterials.value) {
-        filterTab.value = 'byShelf'
+        filterTab.value =
+          progress.value.open === 0 && progress.value.done > 0 ? 'done' : 'byShelf'
+        if (progress.value.open > 0 && filterTab.value === 'done') {
+          filterTab.value = 'byShelf'
+        }
         return
       }
       const showShelf = showByShelfFilter.value
@@ -311,6 +342,12 @@ export function useMaterialJourneyTasks(options: {
       done: progress.value.done,
     }),
     ({ step, open, done }) => {
+      if (step === 'store' && options.canManageMaterials.value) {
+        if (open > 0 && filterTab.value === 'done') {
+          filterTab.value = 'byShelf'
+        }
+        return
+      }
       if (step !== 'pack' && step !== 'issue') return
       if (open === 0 && done > 0 && filterTab.value === 'open') {
         filterTab.value = 'done'
@@ -375,36 +412,111 @@ export function useMaterialJourneyTasks(options: {
     }
   }
 
-  function openStoreShelve(pi: ActivityPackItem, maxQty: number): void {
+  function openStoreShelve(pi: ActivityPackItem, maxQty: number, fromScan = false): void {
     activeStoreItem.value = pi
     activeStoreMaxQty.value = maxQty
     storeShelveQty.value = maxQty
+    storeShelveOpenedFromScan.value = fromScan
     storeShelveOpen.value = true
+  }
+
+  function maxStoreQtyForContainerLine(
+    containerId: string,
+    ci: ActivityPackContainerItem,
+    pi: ActivityPackItem,
+  ): number {
+    const resolved = resolveActionableContainerLine(
+      containerId,
+      ci,
+      options.containerItemsByContainerId.value,
+    )
+    if (isNonActionableContainerLine(resolved)) return 0
+    const lineMax = containerLineRemainingStore(resolved)
+    const packMax = packIssueForwardMax(pi)
+    return Math.min(lineMax, packMax)
+  }
+
+  function openStoreShelveForContainerLine(
+    containerId: string,
+    ci: ActivityPackContainerItem,
+    pi: ActivityPackItem,
+    maxQty: number,
+    fromScan = false,
+  ): void {
+    const resolved = resolveActionableContainerLine(
+      containerId,
+      ci,
+      options.containerItemsByContainerId.value,
+    )
+    if (isNonActionableContainerLine(resolved)) return
+    const cappedMax = Math.min(maxQty, maxStoreQtyForContainerLine(containerId, resolved, pi))
+    if (cappedMax < 1) return
+    activeStoreContainerId.value = containerId
+    activeStoreContainerItem.value = resolved
+    activeStoreIsShell.value = false
+    openStoreShelve(pi, cappedMax, fromScan)
+  }
+
+  function openStoreShelveForContainerShell(
+    containerId: string,
+    pi: ActivityPackItem,
+    maxQty: number,
+    fromScan = false,
+  ): void {
+    activeStoreContainerId.value = containerId
+    activeStoreContainerItem.value = null
+    activeStoreIsShell.value = true
+    openStoreShelve(pi, maxQty, fromScan)
   }
 
   function closeStoreShelve(): void {
     storeShelveOpen.value = false
     activeStoreItem.value = null
+    storeShelveOpenedFromScan.value = false
+    activeStoreContainerId.value = null
+    activeStoreContainerItem.value = null
+    activeStoreIsShell.value = false
   }
 
   async function submitStoreShelve(): Promise<void> {
     const pi = activeStoreItem.value
     const activityId = options.activity.value?.id
-    const qty = storeShelveQty.value
-    if (!pi || !activityId || qty < 1) return
+    const containerId = activeStoreContainerId.value
+    const containerItem = activeStoreContainerItem.value
+    if (!pi || !activityId) return
+
+    let qty = storeShelveQty.value
+    if (containerItem && containerId) {
+      qty = Math.min(qty, maxStoreQtyForContainerLine(containerId, containerItem, pi))
+    } else {
+      qty = Math.min(qty, packIssueForwardMax(pi))
+    }
+    if (qty < 1) return
 
     storeShelveSubmitting.value = true
     try {
       const updated = await postMovePackItem(activityId, pi.id, {
-        stage: getBackendStage(packStage.value),
+        stage: 'stored',
         quantity: qty,
-        source: 'tap',
+        source: storeShelveOpenedFromScan.value ? 'scan' : 'tap',
       })
       applyUpdatedItem(updated)
+      if (containerId && containerItem) {
+        const storedCap = Math.max(containerItem.quantity_returned ?? 0, qty)
+        await updateActivityPackContainerItem(activityId, containerId, containerItem.id, {
+          quantity_stored: Math.min((containerItem.quantity_stored ?? 0) + qty, storedCap),
+        })
+        if (options.reloadSilent) await options.reloadSilent()
+        else await options.reload()
+      } else if (containerId && activeStoreIsShell.value) {
+        if (options.reloadSilent) await options.reloadSilent()
+        else await options.reload()
+      }
       toast.success(t('activities.materialJourney.storeSheet.toastSuccess'))
       closeStoreShelve()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { error?: string } }; message?: string }
+      toast.error(err.response?.data?.error || err.message || String(e))
     } finally {
       storeShelveSubmitting.value = false
     }
@@ -460,18 +572,22 @@ export function useMaterialJourneyTasks(options: {
         return
       }
       if (isJourneyReturnStep(options.journeyStep.value)) {
-        if (
-          shouldOpenMaterialJourneyReturnCrateModal(row.container.id, {
-            canManageMaterials: options.canManageMaterials.value,
-            packItems: options.packItems.value,
-            containerItemsByContainerId: options.containerItemsByContainerId.value,
-            packQuantityCtx: packQuantityCtx.value,
-            shellPackItemForContainer,
-          })
-        ) {
-          returnCrate.openFor(row.container)
-          return
+        returnCrate.openFor(row.container)
+        return
+      }
+      if (isJourneyStoreStep(options.journeyStep.value)) {
+        const containerId = row.container.id
+        if (containerShellOnlyPendingUnpack(containerId)) {
+          const shell = shellPackItemForContainer(containerId)
+          const shellQty = containerShellPendingStoreQty(containerId)
+          if (shell && shellQty > 0) {
+            openStoreShelveForContainerShell(containerId, shell, shellQty, source === 'scan')
+            return
+          }
         }
+        activeCrate.value = row.container
+        crateSheetOpen.value = true
+        return
       }
       activeCrate.value = row.container
       crateSheetOpen.value = true
@@ -482,11 +598,21 @@ export function useMaterialJourneyTasks(options: {
         showReadonlyToast(row)
         return
       }
+      if (isJourneyStoreStep(options.journeyStep.value) && isPhysicalComboPackItem(row.packItem)) {
+        const container = options.packContainers.value.find(
+          (c) => shellPackItemForContainer(c.id)?.id === row.packItem?.id,
+        )
+        if (container) {
+          activeCrate.value = container
+          crateSheetOpen.value = true
+          return
+        }
+      }
       openComboPackItem(row.packItem)
       return
     }
     if (isJourneyStoreStep(options.journeyStep.value) && row.kind === 'loose' && row.packItem && row.canMove) {
-      openStoreShelve(row.packItem, row.maxForwardQty)
+      openStoreShelve(row.packItem, row.maxForwardQty, source === 'scan')
       return
     }
     void moveTaskRow(row, source)
@@ -530,7 +656,7 @@ export function useMaterialJourneyTasks(options: {
     if (isJourneyStoreStep(options.journeyStep.value)) {
       const row = allTasks.value.find((r) => r.kind === 'loose' && r.packItem?.id === pi.id)
       if (row?.canMove && row.maxForwardQty > 0) {
-        openStoreShelve(pi, row.maxForwardQty)
+        openStoreShelve(pi, row.maxForwardQty, source === 'scan')
         return
       }
     }
@@ -737,13 +863,22 @@ export function useMaterialJourneyTasks(options: {
     moveTaskRow,
     allTasks,
     packListCtx,
+    packQuantityCtx,
     returnCrate,
     storeShelveOpen,
+    storeShelveOpenedFromScan,
     activeStoreItem,
+    activeStoreContainer,
     activeStoreMaxQty,
     storeShelveQty,
     storeShelveSubmitting,
     submitStoreShelve,
+    openStoreShelveForContainerLine,
+    openStoreShelveForContainerShell,
+    containerLineRemainingStore,
+    containerInnerPendingStoreUnits,
+    containerShellPendingStoreQty,
+    containerShellOnlyPendingUnpack,
     lastFailedMove,
     retryMove,
     assignCrateSheetOpen,

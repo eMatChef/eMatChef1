@@ -7,7 +7,10 @@ import {
   packMaterialDisplayName,
 } from '@/components/activities/packMaterialDisplay'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
-import { isJourneyForwardChecklistStep } from '@/components/activities/materialJourneySteps'
+import {
+  isJourneyForwardChecklistStep,
+  materialJourneyAllowsShelfSearch,
+} from '@/components/activities/materialJourneySteps'
 import { isCrateShellPackItem } from '@/components/activities/packShellCrateHelpers'
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
@@ -607,8 +610,9 @@ export function resolveMaterialTextSearch(
     (p) =>
       packMaterialDisplayName(p).toLowerCase().includes(q) ||
       (p.categoryName ?? '').toLowerCase().includes(q) ||
-      (p.storageRackName ?? '').toLowerCase().includes(q) ||
-      (p.storageSlotName ?? '').toLowerCase().includes(q),
+      (materialJourneyAllowsShelfSearch(ctx.journeyStep) &&
+        ((p.storageRackName ?? '').toLowerCase().includes(q) ||
+          (p.storageSlotName ?? '').toLowerCase().includes(q))),
   )
   if (!pi) return null
 

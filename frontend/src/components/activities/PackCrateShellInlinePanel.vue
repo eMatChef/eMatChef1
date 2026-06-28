@@ -3,6 +3,10 @@ import { computed, inject, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackCrateShellCheckLineActions from '@/components/activities/PackCrateShellCheckLineActions.vue'
 import PackShellInlineLooseIssueRow from '@/components/activities/PackShellInlineLooseIssueRow.vue'
+import type {
+  PackCrateShellPeekLine,
+  PackCrateShellPeekSection,
+} from '@/components/activities/packCrateShellPeekTypes'
 import { shellForwardExpectedQty, shellForwardLineKey } from '@/components/activities/packCrateForwardCheck'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import { EButton } from '@/components/form/base'
@@ -11,29 +15,7 @@ import '@/styles/views/activities/pack-shell-combo.css'
 
 defineOptions({ name: 'PackCrateShellInlinePanel' })
 
-export interface PackCrateShellPeekLine {
-  id: string
-  materialName: string
-  quantity: number
-  /** material_item.id für Kistencheck / Lager / Meldungen */
-  materialItemId?: string | null
-  /** Seriennummer / Label der erwarteten Charge (Sichtprüfung) */
-  serialHint?: string | null
-  /** Nach Kistencheck: Status der Zeile (ok, loss, extra, …) */
-  checkStatus?: string | null
-  /** Soll zum Zeitpunkt des Checks */
-  sollQty?: number | null
-  /** Gezählt in der Kiste (vor Nachlegen) */
-  countedQty?: number | null
-  /** Aus Lager in die Kiste nachgelegt */
-  replenishQty?: number | null
-}
-
-export interface PackCrateShellPeekSection {
-  subsectionKey: string
-  title: string
-  lines: PackCrateShellPeekLine[]
-}
+export type { PackCrateShellPeekLine, PackCrateShellPeekSection } from '@/components/activities/packCrateShellPeekTypes'
 
 const props = withDefaults(
   defineProps<{

@@ -4,8 +4,12 @@ import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
+import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import { isJourneyStoreStep } from '@/components/activities/materialJourneySteps'
+import { resolveActionableContainerLine } from '@/components/activities/packShellCrateHelpers'
 
 const props = defineProps<{
   row: MaterialJourneyTaskRow
@@ -28,6 +32,10 @@ const props = defineProps<{
   atEventQtyLabelForLine?: (line: MaterialJourneyAccordionLine) => string | null
   showIssueForAccordionLine?: (line: MaterialJourneyAccordionLine) => boolean
   isConsumableForMaterialId?: (materialItemId: string) => boolean
+  journeyStep?: JourneyStep
+  containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
+  containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
+  shellStorePendingQtyForRow?: (row: MaterialJourneyTaskRow) => number
 }>()
 
 const emit = defineEmits<{
@@ -42,9 +50,13 @@ const emit = defineEmits<{
   consumed: []
   loss: []
   repair: []
+  damage: []
   lineConsumed: [line: MaterialJourneyAccordionLine]
   lineLoss: [line: MaterialJourneyAccordionLine]
   lineRepair: [line: MaterialJourneyAccordionLine]
+  lineDamage: [line: MaterialJourneyAccordionLine]
+  storeLine: [line: MaterialJourneyAccordionLine]
+  storeShell: []
 }>()
 
 const { t } = useI18n()
@@ -52,7 +64,33 @@ const expanded = ref(false)
 
 const isCombo = computed(() => props.row.kind === 'combo')
 const isCrate = computed(() => props.row.kind === 'crate')
-const hasPreview = computed(() => props.previewLines.length > 0)
+const isStoreStep = computed(() => isJourneyStoreStep(props.journeyStep ?? 'pack'))
+
+function containerItemForLine(line: MaterialJourneyAccordionLine): ActivityPackContainerItem | undefined {
+  const containerId = props.row.container?.id
+  if (!containerId || !props.containerItemsByContainerId) return undefined
+  const items = props.containerItemsByContainerId[containerId] ?? []
+  const found =
+    items.find((ci) => ci.id === line.id) ??
+    (line.materialItemId
+      ? items.find((ci) => ci.material_item_id === line.materialItemId)
+      : undefined)
+  if (!found) return undefined
+  return resolveActionableContainerLine(containerId, found, props.containerItemsByContainerId)
+}
+
+function storePendingForLine(line: MaterialJourneyAccordionLine): number {
+  const ci = containerItemForLine(line)
+  if (!ci) return 0
+  return props.containerLineRemainingStore?.(ci) ?? 0
+}
+
+const visiblePreviewLines = computed(() => {
+  if (!isStoreStep.value) return props.previewLines
+  return props.previewLines.filter((line) => storePendingForLine(line) > 0)
+})
+
+const hasPreview = computed(() => visiblePreviewLines.value.length > 0)
 
 const showMoveForwardControls = computed(
   () =>
@@ -79,6 +117,16 @@ function showReassignAction(line: MaterialJourneyAccordionLine): boolean {
     (line.maxReassignQty ?? line.quantity) > 0
   )
 }
+
+function showStoreAction(line: MaterialJourneyAccordionLine): boolean {
+  return isStoreStep.value && !props.readonly && props.row.isOpen && storePendingForLine(line) > 0
+}
+
+const shellStorePendingQty = computed(() => props.shellStorePendingQtyForRow?.(props.row) ?? 0)
+
+const showShellStoreAction = computed(
+  () => isStoreStep.value && !props.readonly && props.row.isOpen && shellStorePendingQty.value > 0,
+)
 
 const showMoveBackControls = computed(
   () => Boolean(props.showMoveBack) && props.row.canMoveBack && !props.readonly,
@@ -149,6 +197,9 @@ const qtyLabel = computed(() => {
 const isInventoryPeekMode = computed(() => Boolean(props.atEventQtyLabel))
 
 const isMainClickable = computed(() => {
+  if (Boolean(props.packTargetSelectable)) {
+    return !props.readonly
+  }
   if (isInventoryPeekMode.value) {
     return !props.readonly && (isCrate.value || isCombo.value)
   }
@@ -158,6 +209,18 @@ const isMainClickable = computed(() => {
     props.row.canOpenSheet &&
     (isCrate.value || isCombo.value)
   )
+})
+
+const mainActivateTitle = computed(() => {
+  if (Boolean(props.packTargetSelectable)) {
+    return props.packTargetActive
+      ? t('activities.materialJourney.row.deselectPackTargetHint')
+      : t('activities.materialJourney.row.selectPackTargetHint')
+  }
+  if (isMainClickable.value) {
+    return t('activities.materialJourney.row.openCrateSheetHint')
+  }
+  return undefined
 })
 
 function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
@@ -174,6 +237,10 @@ function toggleExpanded(): void {
 
 function onMainActivate(): void {
   if (!isMainClickable.value) return
+  if (Boolean(props.packTargetSelectable)) {
+    emit('selectTarget')
+    return
+  }
   if (isInventoryPeekMode.value) {
     toggleExpanded()
     return
@@ -193,10 +260,16 @@ function showLineIssueActions(line: MaterialJourneyAccordionLine): boolean {
 function lineQtyLabel(line: MaterialJourneyAccordionLine): string {
   const custom = props.atEventQtyLabelForLine?.(line)
   if (custom) return custom
+  if (isStoreStep.value) {
+    const pending = storePendingForLine(line)
+    if (pending > 0) {
+      return t('activities.materialJourney.row.storePendingQty', { count: pending })
+    }
+  }
   return t('activities.packList.qtyInContainerLine', { n: line.quantity })
 }
 
-const comboIsConsumable = computed(() => {
+const rowIsConsumable = computed(() => {
   const mid = props.row.packItem?.materialItemId
   if (!mid) return false
   if (props.row.packItem?.isConsumable === true) return true
@@ -223,6 +296,7 @@ function onSelectTarget(event: Event): void {
       'material-journey-crate-row--readonly': readonly,
       'material-journey-crate-row--moving': moving,
       'material-journey-crate-row--inline-actions': showMoveForwardControls || showMoveBackControls,
+      'material-journey-crate-row--pack-target-selectable': packTargetSelectable,
     }"
   >
     <div class="material-journey-crate-row__header">
@@ -251,7 +325,7 @@ function onSelectTarget(event: Event): void {
         type="button"
         class="material-journey-crate-row__main"
         :disabled="moving"
-        :title="isMainClickable ? t('activities.materialJourney.row.openCrateSheetHint') : undefined"
+        :title="mainActivateTitle"
         @click="onMainActivate"
       >
         <span class="material-journey-task-row__kind-icon" aria-hidden="true">
@@ -289,15 +363,24 @@ function onSelectTarget(event: Event): void {
       <div class="material-journey-task-row__trailing material-journey-crate-row__trailing" @click.stop>
         <span class="material-journey-task-row__qty">{{ qtyLabel }}</span>
         <PackIssueQuickActions
-          v-if="showIssueActions && row.packItem && isCombo"
-          :is-consumable="comboIsConsumable"
+          v-if="showIssueActions && row.packItem"
+          :is-consumable="rowIsConsumable"
           :material-item-id="row.packItem.materialItemId"
           :material-name="row.title"
-          :show-consumption="comboIsConsumable"
+          :show-consumption="rowIsConsumable"
           @consumed="emit('consumed')"
           @loss="emit('loss')"
           @repair="emit('repair')"
+          @damage="emit('damage')"
         />
+        <EButton
+          v-if="showShellStoreAction"
+          variant="primary"
+          size="small"
+          @click.stop="emit('storeShell')"
+        >
+          {{ t('activities.packList.storeLineTitle', { count: shellStorePendingQty }) }}
+        </EButton>
         <PackMoveControls
           v-if="showMoveForwardControls"
           direction="forward"
@@ -337,18 +420,18 @@ function onSelectTarget(event: Event): void {
         {{ t('activities.materialJourney.row.accordionToggle') }}
       </span>
       <span v-if="hasPreview" class="material-journey-crate-row__content-toggle-meta text-muted">
-        {{ t('activities.materialJourney.row.accordionCount', { count: previewLines.length }) }}
+        {{ t('activities.materialJourney.row.accordionCount', { count: visiblePreviewLines.length }) }}
       </span>
     </button>
 
     <div v-show="expanded" class="material-journey-crate-row__contents">
       <ul v-if="hasPreview" class="material-journey-crate-row__content-list">
-        <li v-for="line in previewLines" :key="line.id" class="material-journey-crate-row__content-line">
+        <li v-for="line in visiblePreviewLines" :key="line.id" class="material-journey-crate-row__content-line">
           <div class="material-journey-crate-row__content-main">
             <span class="material-journey-crate-row__content-name">{{ line.name }}</span>
           </div>
           <div
-            v-if="showLineIssueActions(line) || showLineActions(line)"
+            v-if="showLineIssueActions(line) || showLineActions(line) || showStoreAction(line)"
             class="material-journey-crate-row__content-trailing"
             @click.stop
           >
@@ -364,7 +447,16 @@ function onSelectTarget(event: Event): void {
               @consumed="emit('lineConsumed', line)"
               @loss="emit('lineLoss', line)"
               @repair="emit('lineRepair', line)"
+              @damage="emit('lineDamage', line)"
             />
+            <EButton
+              v-if="showStoreAction(line)"
+              variant="primary"
+              size="small"
+              @click.stop="emit('storeLine', line)"
+            >
+              {{ t('activities.packList.storeLineTitle', { count: storePendingForLine(line) }) }}
+            </EButton>
             <div v-if="showLineActions(line)" class="material-journey-crate-row__content-actions">
               <EButton variant="secondary" size="small" @click.stop="emit('looseTake', line)">
                 {{ t('activities.materialJourney.row.looseTake') }}

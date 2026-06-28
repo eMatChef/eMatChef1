@@ -2,16 +2,18 @@
   <div class="activity-js-tab">
     <ActivityTabHeader :title="t('activities.jsMaterial.tabTitle')" />
 
-    <div v-if="loading" class="activity-js-tab-loading">
-      <ELoadingState variant="inline" :message="t('activities.jsMaterial.order.loadingShort')" />
-    </div>
+    <ActivityTabPanelShell
+      :loading="showFullLoading"
+      :refreshing="isRefreshing"
+      :loading-message="t('activities.jsMaterial.order.loadingShort')"
+      loading-class="activity-js-tab-loading"
+    >
+      <div v-if="loadError" class="activity-js-tab-error">
+        <p class="text-muted">{{ loadError }}</p>
+        <EButton variant="secondary" size="small" @click="loadOrder({ forceFull: true })">{{ t('common.retry') }}</EButton>
+      </div>
 
-    <div v-else-if="loadError" class="section-card activity-tab-panel-card">
-      <p class="text-muted">{{ loadError }}</p>
-      <EButton variant="secondary" size="small" @click="loadOrder">{{ t('common.retry') }}</EButton>
-    </div>
-
-    <template v-else>
+      <template v-else>
       <div class="section-card activity-tab-panel-card activity-js-tab-summary">
         <div class="activity-js-tab-summary-row">
           <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
@@ -193,6 +195,7 @@
         </div>
       </div>
     </template>
+    </ActivityTabPanelShell>
 
     <ActivityJsOrderModal
       :is-open="showModal"
@@ -207,12 +210,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import ActivityJsOrderModal from '@/components/activities/ActivityJsOrderModal.vue'
 import { EButton } from '@/components/form/base'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { useToast } from '@/composables/useToast'
 import { usePrompt } from '@/composables/usePrompt'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -242,7 +246,7 @@ const toast = useToast()
 const { prompt: promptDialog } = usePrompt()
 const { isMaterialwart } = useDepartmentMemberRole()
 
-const loading = ref(true)
+const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const loadError = ref<string | null>(null)
 const order = ref<ActivityJsOrderApi | null>(null)
 const actionBusy = ref(false)
@@ -323,18 +327,17 @@ function syncAccordionDefaults() {
   }
 }
 
-async function loadOrder() {
-  loading.value = true
-  loadError.value = null
-  try {
-    order.value = await getActivityJsOrder(props.activityId)
-    syncDraftsFromOrder(order.value)
-    syncAccordionDefaults()
-  } catch {
-    loadError.value = t('activities.jsMaterial.order.loadError')
-  } finally {
-    loading.value = false
-  }
+async function loadOrder(opts?: { forceFull?: boolean }) {
+  await withTabLoad(async () => {
+    loadError.value = null
+    try {
+      order.value = await getActivityJsOrder(props.activityId)
+      syncDraftsFromOrder(order.value)
+      syncAccordionDefaults()
+    } catch {
+      loadError.value = t('activities.jsMaterial.order.loadError')
+    }
+  }, opts)
 }
 
 function openModal() {
@@ -568,14 +571,14 @@ function formatDateTime(iso: string): string {
 
 watch(
   () => props.activityId,
-  () => {
+  (activityId, prevActivityId) => {
+    if (prevActivityId != null && activityId !== prevActivityId) {
+      resetTabLoad()
+    }
     void loadOrder()
   },
+  { immediate: true },
 )
-
-onMounted(() => {
-  void loadOrder()
-})
 </script>
 
 <style scoped>

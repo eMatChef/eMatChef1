@@ -1584,6 +1584,7 @@ import {
   packContainerItemSectionsWithReality,
   packShellContainerForPackItem,
   resolvePackContainerWarehouseBatchId,
+  shellPackItemForContainerId,
   isPhysicalComboAsSet,
   peekSectionsForShellContainer,
   linkedShellCombosNeedingPackContainer,
@@ -2362,6 +2363,9 @@ function showPackIssueForPackItem(pi: ActivityPackItem): boolean {
 
 function showKisteMeldungForContainer(containerId: string): boolean {
   if (!showPackIssueActions.value) return false
+  if (isPackUnpackStage(activePackStage.value)) {
+    return showPackIssueForShellUnpack(containerId)
+  }
   return containerHasIssuedAtEvent(containerId)
 }
 
@@ -2372,7 +2376,6 @@ function showPackIssueForContainerLine(ci: ActivityPackContainerItem, containerI
   if (isPackUnpackStage(activePackStage.value)) {
     if (pi?.isConsumable) return false
     if (!showPackIssueActions.value) return false
-    if ((ci.quantity_issued ?? 0) < 1) return false
     return containerLineRemainingStore(ci) > 0
   }
   if (pi?.isConsumable) {
@@ -4490,6 +4493,28 @@ function containerLineRemainingStore(ci: ActivityPackContainerItem): number {
 function containerShellPendingStoreQty(containerId: string): number {
   const sh = shellPackItemForContainer(containerId)
   if (!sh) return 0
+  if (containerInnerPendingStoreUnits(containerId) > 0) return 0
+
+  const container = packContainers.value.find((c) => c.id === containerId)
+  const batchId = (container?.container_batch_id ?? '').trim()
+  if (batchId && isPackUnpackStage(activePackStage.value)) {
+    const shellMid = (container?.container_material_item_id ?? sh.materialItemId).trim()
+    const readySiblings = packContainers.value
+      .filter((c) => {
+        const cBatch = (c.container_batch_id ?? '').trim()
+        if (!cBatch) return false
+        const cMid = (c.container_material_item_id ?? '').trim()
+        return cMid === shellMid || cMid === sh.materialItemId
+      })
+      .filter((c) => containerInnerPendingStoreUnits(c.id) <= 0)
+      .sort((a, b) => a.id.localeCompare(b.id))
+
+    const readyIndex = readySiblings.findIndex((c) => c.id === containerId)
+    if (readyIndex < 0) return 0
+    const shellsStored = sh.quantityStored ?? 0
+    return readyIndex === shellsStored ? 1 : 0
+  }
+
   if (isPackUnpackStage(activePackStage.value)) {
     const acct = retourAccountingForUnpackLoose(sh)
     return Math.max(0, acct.retourTotal - (sh.quantityStored ?? 0))
@@ -5196,19 +5221,7 @@ function isVirtualWarehouseContainerLine(ci: ActivityPackContainerItem): boolean
 
 /** Pack-Position der Lager-Kiste (Charge) — wie Backend applyShellPackItemForBulkWorkflow */
 function shellPackItemForContainer(containerId: string): ActivityPackItem | undefined {
-  const c = packContainers.value.find((x) => x.id === containerId)
-  if (!c) return undefined
-  const mid = (c.container_material_item_id ?? '').trim()
-  if (mid) {
-    const byMid = packItems.value.find((p) => p.materialItemId === mid)
-    if (byMid) return byMid
-  }
-  const bid = (c.container_batch_id ?? '').trim()
-  if (bid) {
-    const byBatch = packItems.value.find((p) => (p.linkedContainerBatchId ?? '').trim() === bid)
-    if (byBatch) return byBatch
-  }
-  return undefined
+  return shellPackItemForContainerId(containerId, packContainers.value, packItems.value)
 }
 
 const hasActiveCrateTarget = computed(() => packHasActiveCrateTarget(activePackTarget.value))

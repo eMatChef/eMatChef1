@@ -12,59 +12,57 @@
         </button>
       </template>
     </ActivityTabHeader>
-    <div class="section-card activity-tab-panel-card">
+    <ActivityTabPanelShell
+      :loading="!reportsReady"
+      :loading-message="t('components.activityIssuesTab.loading')"
+      loading-class="activity-issues-loading"
+    >
       <p v-if="readOnlyHint" class="batch-field-hint activity-issues-readonly-hint">
         {{ t('components.activityIssuesTab.readOnlyBeforeAtEvent') }}
       </p>
-      <p v-if="isLoading" class="activity-inline-loading">
-        <span class="spinner spinner-sm"></span>
-        <span>{{ t('components.activityIssuesTab.loading') }}</span>
-      </p>
-      <template v-else>
-        <p v-if="reports.length === 0" class="text-muted">{{ t('components.activityIssuesTab.empty') }}</p>
-        <div v-else class="issues-list">
-          <div
-            v-for="r in reportsSorted"
-            :key="r.id"
-            class="issue-card"
-            :class="{ resolved: r.resolved }"
-          >
-            <div class="issue-header">
-              <span class="issue-type-badge" :class="r.type">{{ r.type_label || r.type }}</span>
-              <span v-if="r.material_name" class="issue-material">{{ r.material_name }}</span>
-              <span class="issue-qty">×{{ r.quantity }}</span>
-              <span class="issue-time">{{ formatDateTime(r.reported_at) }}</span>
-            </div>
-            <div v-if="r.description" class="issue-description">{{ r.description }}</div>
-            <div v-if="r.resolved" class="issue-footer">
-              <span class="issue-resolved">{{
-                r.resolved_at
-                  ? t('components.activityIssuesTab.resolvedWithDate', { at: formatDateTime(r.resolved_at) })
-                  : t('components.activityIssuesTab.resolved')
-              }}</span>
-            </div>
+      <p v-if="reportsSorted.length === 0" class="text-muted">{{ t('components.activityIssuesTab.empty') }}</p>
+      <div v-else class="issues-list">
+        <div
+          v-for="r in reportsSorted"
+          :key="r.id"
+          class="issue-card"
+          :class="{ resolved: r.resolved }"
+        >
+          <div class="issue-header">
+            <span class="issue-type-badge" :class="r.type">{{ r.type_label || r.type }}</span>
+            <span v-if="r.material_name" class="issue-material">{{ r.material_name }}</span>
+            <span class="issue-qty">×{{ r.quantity }}</span>
+            <span class="issue-time">{{ formatDateTime(r.reported_at) }}</span>
+          </div>
+          <div v-if="r.description" class="issue-description">{{ r.description }}</div>
+          <div v-if="r.resolved" class="issue-footer">
+            <span class="issue-resolved">{{
+              r.resolved_at
+                ? t('components.activityIssuesTab.resolvedWithDate', { at: formatDateTime(r.resolved_at) })
+                : t('components.activityIssuesTab.resolved')
+            }}</span>
           </div>
         </div>
-      </template>
-    </div>
+      </div>
+    </ActivityTabPanelShell>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getActivityIssues, type ActivityIssueReportRow } from '@/api/activities'
-import { useToast } from '@/composables/useToast'
+import type { ActivityIssueReportRow } from '@/api/activities'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 
 defineOptions({ name: 'ActivityIssuesTab' })
 
 const props = defineProps<{
   activityId: string
-  /** Parent erhöht nach erfolgreicher Meldung → Liste neu */
-  reloadToken?: number
+  /** Vom Parent bereits geladen — kein eigener Fetch, kein Doppel-Spinner beim Tab-Wechsel */
+  reports: ActivityIssueReportRow[]
+  reportsReady: boolean
   canCreate: boolean
-  /** Meldungen einsehbar, neue Meldung erst ab «Am Event». */
   readOnlyHint?: boolean
 }>()
 
@@ -73,12 +71,9 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
-const toast = useToast()
-const isLoading = ref(false)
-const reports = ref<ActivityIssueReportRow[]>([])
 
 const reportsSorted = computed(() =>
-  [...reports.value]
+  [...props.reports]
     .filter((r) => r.type !== 'consumption')
     .sort((a, b) => {
       const ta = new Date(a.reported_at).getTime()
@@ -97,26 +92,6 @@ function formatDateTime(iso: string): string {
     minute: '2-digit',
   })
 }
-
-async function load() {
-  isLoading.value = true
-  try {
-    reports.value = await getActivityIssues(props.activityId)
-  } catch {
-    reports.value = []
-    toast.error(t('components.activityIssuesTab.loadError'))
-  } finally {
-    isLoading.value = false
-  }
-}
-
-watch(
-  () => [props.activityId, props.reloadToken ?? 0] as const,
-  () => {
-    void load()
-  },
-  { immediate: true },
-)
 </script>
 
 <style scoped>

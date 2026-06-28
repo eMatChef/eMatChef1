@@ -1,4 +1,4 @@
-import { ref, watch, type Ref } from 'vue'
+import { watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getActivityIssues, type ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
@@ -17,20 +17,20 @@ import {
 export function useMaterialJourneyAtEventInventoryIssues(options: {
   activityId: Ref<string>
   active: Ref<boolean>
+  issues: Ref<ActivityIssueReportRow[]>
   packItems: Ref<ActivityPackItem[]>
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
   consumableMaterialItemIds?: Ref<ReadonlySet<string>>
   shellPackItemForContainer?: (containerId: string) => ActivityPackItem | undefined
 }) {
   const { t } = useI18n()
-  const issues = ref<ActivityIssueReportRow[]>([])
 
   async function reloadIssues(): Promise<void> {
     if (!options.active.value) {
-      issues.value = []
+      options.issues.value = []
       return
     }
-    issues.value = await getActivityIssues(options.activityId.value).catch(() => [])
+    options.issues.value = await getActivityIssues(options.activityId.value).catch(() => [])
   }
 
   watch([options.active, options.activityId], () => void reloadIssues(), { immediate: true })
@@ -54,7 +54,7 @@ export function useMaterialJourneyAtEventInventoryIssues(options: {
       const summary = atEventQtySummary(
         issued,
         row.packItem?.materialItemId,
-        issues.value,
+        options.issues.value,
       )
       return formatAtEventQtyLabel(summary, t)
     }
@@ -64,7 +64,7 @@ export function useMaterialJourneyAtEventInventoryIssues(options: {
       const summary = atEventQtySummaryForCrateContainer(
         row.container.id,
         options.containerItemsByContainerId.value,
-        issues.value,
+        options.issues.value,
         previewLines,
         { shellIssuedAtEvent: shellIssued },
       )
@@ -83,7 +83,7 @@ export function useMaterialJourneyAtEventInventoryIssues(options: {
     const shellIssued = crateShellIssuedAtEvent(row, options.shellPackItemForContainer)
     const issued = issuedQtyForAccordionLineAtEvent(line, row, { crateShellIssued: shellIssued })
     if (issued <= 0) return null
-    const summary = atEventQtySummary(issued, line.materialItemId, issues.value)
+    const summary = atEventQtySummary(issued, line.materialItemId, options.issues.value)
     return formatAtEventQtyLabel(summary, t)
   }
 
@@ -95,7 +95,6 @@ export function useMaterialJourneyAtEventInventoryIssues(options: {
   }
 
   return {
-    issues,
     reloadIssues,
     atEventQtyLabelForRow,
     atEventQtyLabelForLine,

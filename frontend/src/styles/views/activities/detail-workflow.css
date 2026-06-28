@@ -100,9 +100,47 @@
 .activity-issues-tab .activity-tab-panel-card,
 .activity-consumables-tab .activity-tab-panel-card,
 .activity-history-tab .activity-tab-panel-card,
+.activity-costs-tab .activity-tab-panel-card,
+.activity-vehicles-tab .activity-tab-panel-card,
 .activity-pack-list-tab .activity-tab-panel-card {
   padding: 16px 14px;
   margin-bottom: 8px;
+}
+
+/* Stiller Tab-Refresh (wie MaterialsView) — kein Voll-Spinner beim Tab-Wechsel */
+.activity-tab-panel-card {
+  position: relative;
+}
+
+.activity-tab-panel-card.is-soft-loading > :not(.soft-refresh-bar) {
+  opacity: 0.72;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.activity-tab-panel-card .soft-refresh-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 2;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.activity-tab-panel-card .soft-refresh-bar::after {
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #10b981, transparent);
+  animation: activity-tab-soft-refresh-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes activity-tab-soft-refresh-slide {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(320%); }
 }
 
 .activity-tab-subsection-title {
@@ -756,6 +794,18 @@
   min-width: auto !important;
   height: auto !important;
   line-height: 1.25;
+}
+
+.btn-issue-damage {
+  background: #fdf4ff;
+  border-color: #e879f9;
+  color: #a21caf;
+}
+
+.btn-issue-damage:hover {
+  background: #a21caf;
+  color: white;
+  border-color: #a21caf;
 }
 
 .btn-issue-loss {

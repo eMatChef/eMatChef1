@@ -1,4 +1,5 @@
 import { computed, type Ref } from 'vue'
+import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { PackStage } from '@/components/activities/packStageQuantities'
@@ -11,6 +12,7 @@ export function useMaterialJourneyPackContext(options: {
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
   packStage: Ref<PackStage>
   profile: Ref<PackWorkflowProfile>
+  issues?: Ref<ActivityIssueReportRow[]>
 }) {
   const state = computed(() =>
     createMaterialJourneyPackContextState({
@@ -19,6 +21,7 @@ export function useMaterialJourneyPackContext(options: {
       containerItemsByContainerId: options.containerItemsByContainerId.value,
       packStage: options.packStage.value,
       profile: options.profile.value,
+      issues: options.issues?.value ?? [],
     }),
   )
 
@@ -37,6 +40,15 @@ export function useMaterialJourneyPackContext(options: {
     containerActionableUnits: (containerId: string) => state.value.containerActionableUnits(containerId),
     containerContentActionableUnits: (containerId: string) =>
       state.value.containerContentActionableUnits(containerId),
+    containerLineRemainingStore: (ci: ActivityPackContainerItem) =>
+      state.value.containerLineRemainingStore(ci),
+    containerInnerPendingStoreUnits: (containerId: string) =>
+      state.value.containerInnerPendingStoreUnits(containerId),
+    containerShellPendingStoreQty: (containerId: string) =>
+      state.value.containerShellPendingStoreQty(containerId),
+    containerShellOnlyPendingUnpack: (containerId: string) =>
+      state.value.containerShellOnlyPendingUnpack(containerId),
+    unpackAccountingInput: computed(() => state.value.unpackAccountingInput),
     packQuantityCtx: computed(() => state.value.packQuantityCtx),
     packCrateLabelsForPackItem: (pi: ActivityPackItem) => state.value.packCrateLabelsForPackItem(pi),
     qtyInPackCrateForPackItem: (pi: ActivityPackItem) => state.value.qtyInPackCrateForPackItem(pi),

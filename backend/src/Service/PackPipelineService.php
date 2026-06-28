@@ -227,6 +227,36 @@ class PackPipelineService
         return max($base, $consumableCap);
     }
 
+    /**
+     * Abschluss-Blocker: lose Einlager-Menge minus offene Kistenzeilen derselben Material-ID.
+     *
+     * @param iterable<ActivityPackContainerItem> $containerItems
+     */
+    public function pendingLooseStoreForCompletion(
+        ActivityPackItem $item,
+        iterable $containerItems,
+        string $profile,
+        int $consumableConsumedQty = 0,
+    ): int {
+        $base = $this->maxForwardQty($item, self::STAGE_STORED, $profile, $consumableConsumedQty);
+        if ($base <= 0) {
+            return 0;
+        }
+        $materialId = $item->getMaterialItemId();
+        $pendingInContainers = 0;
+        foreach ($containerItems as $ci) {
+            if (!$ci instanceof ActivityPackContainerItem) {
+                continue;
+            }
+            if ($ci->getMaterialItemId() !== $materialId) {
+                continue;
+            }
+            $pendingInContainers += max(0, $ci->getQuantityReturned() - $ci->getQuantityStored());
+        }
+
+        return max(0, $base - $pendingInContainers);
+    }
+
     private function applyForwardStored(ActivityPackItem $item, int $qty, string $profile): void
     {
         $returnedPending = max(0, $item->getQuantityReturned() - $item->getQuantityStored());

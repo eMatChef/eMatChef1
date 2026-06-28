@@ -2549,111 +2549,23 @@
                   </div>
                 </div>
 
-                <!-- Kosten (Verbrauch / Esswaren): Preise, Verpackung, Preis pro VE -->
+                <!-- Preise & Verrechnung (Verbrauch / Esswaren) -->
                 <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
-                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionCosts') }}</h4>
-                  <div v-if="formData.is_consumable" class="slider-hint costs-hint-row">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
-                    <span>{{ t('components.materialDetail.costsConsumableBanner') }}</span>
-                  </div>
-                  <div v-if="formData.is_food" class="slider-hint costs-hint-row">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
-                    <span>{{ t('components.materialCreateWizard.costsFoodTabWizardHint') }}</span>
-                  </div>
-                  <div class="form-grid-details">
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelSalePrice') }}
-                        <span class="field-required-star">*</span>
-                      </label>
-                      <div class="price-input">
-                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                        <input
-                          v-model.number="formData.sale_price"
-                          type="number"
-                          step="0.05"
-                          min="0"
-                          class="form-input"
-                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                        />
-                      </div>
-                      <p class="field-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
-                      <div
-                        v-if="packSaleToUnitSaleChf != null"
-                        class="pack-sale-to-unit"
-                      >
-                        <p class="pack-sale-to-unit__text">
-                          {{
-                            t('components.materialDetail.packSaleCalcLine', {
-                              packPrice:
-                                formData.pack_sale_price_chf != null
-                                  ? Number(formData.pack_sale_price_chf).toFixed(2)
-                                  : '—',
-                              packUnit:
-                                formData.pack_unit || t('components.materialCreateWizard.packUnitFallbackGeneric'),
-                              packSize: formData.pack_size,
-                              unitPrice: packSaleToUnitSaleChf.toFixed(2),
-                            })
-                          }}
-                        </p>
-                        <button
-                          type="button"
-                          class="btn-outline btn-sm pack-sale-to-unit__btn"
-                          @click="applyPackSaleToWizardUnitSale"
-                        >
-                          {{ t('components.materialDetail.applyPackToUnit') }}
-                        </button>
-                      </div>
-                    </div>
-                    <div class="form-group">
-                      <label>
-                        {{
-                          wizardUseMeterQtyByCount
-                            ? t('components.materialCreateWizard.labelRefPurchaseMeter')
-                            : t('components.materialDetail.labelRefPurchase')
-                        }}
-                        <span class="field-required-star">*</span>
-                      </label>
-                      <div class="price-input">
-                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                        <input
-                          v-model.number="formData.reference_purchase_unit_chf"
-                          type="number"
-                          step="0.05"
-                          min="0"
-                          class="form-input"
-                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                        />
-                      </div>
-                      <p class="field-hint">
-                        {{
-                          wizardUseMeterQtyByCount
-                            ? t('components.materialCreateWizard.hintRefPurchaseMeter', {
-                                per: wizardMeterPieceLengthM,
-                              })
-                            : t('components.materialCreateWizard.hintRefPurchaseOverview')
-                        }}
-                      </p>
-                    </div>
-                    <div v-if="formData.is_consumable" class="form-group">
-                      <label>
-                        {{ t('components.materialCreateWizard.labelMinStockOptional') }}
-                        <span class="optional-label">({{ t('common.optional') }})</span>
-                      </label>
-                      <input
-                        v-model.number="formData.min_stock"
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                      />
-                      <p class="field-hint">{{ t('components.materialCreateWizard.hintMinStockUndershoot') }}</p>
-                    </div>
-                  </div>
+                  <h4 class="subsection-title">{{ t('components.materialDetail.tabConsumablePricing') }}</h4>
+                  <MaterialConsumablePricingPanel
+                    v-model:sale-price="formData.sale_price"
+                    v-model:reference-purchase-unit-chf="formData.reference_purchase_unit_chf"
+                    v-model:external-sale-price-chf="formData.external_sale_price_chf"
+                    v-model:pack-sale-price-chf="formData.pack_sale_price_chf"
+                    v-model:min-stock="formData.min_stock"
+                    :pack-size="formData.pack_size"
+                    :pack-unit="formData.pack_unit"
+                    :batches="wizardDraftBatches"
+                    :is-consumable="formData.is_consumable"
+                    :is-food="formData.is_food"
+                    :total-stock="formData.initial_qty || 0"
+                    mode="wizard"
+                  />
                   <p class="step-hint mt-2">
                     {{ t('components.materialCreateWizard.hintPackUnitAtQuantityStep') }}
                   </p>
@@ -2988,6 +2900,7 @@ import MaterialPreviewSidebar from '@/components/material/wizard/MaterialPreview
 import WizardFooter from '@/components/material/wizard/WizardFooter.vue'
 import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vue'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import MaterialConsumablePricingPanel from '@/components/material/MaterialConsumablePricingPanel.vue'
 import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import { EButton, EDialog, ETextField } from '@/components/form/base'
@@ -3720,6 +3633,7 @@ const formData = reactive({
   is_js_material: false,
   external_source: '' as string,
   sale_price: null as number | null,
+  external_sale_price_chf: null as number | null,
   reference_purchase_unit_chf: null as number | null,
   min_stock: null as number | null,
   pack_size: null as number | null,
@@ -4130,6 +4044,22 @@ const effectivePurchaseUnitPrice = computed(() => {
   const sum = parseChfInput(purchaseTotalWaresChf.value) + shipping
   if (sum <= 0) return 0
   return Math.round((sum / qty) * 100) / 100
+})
+
+/** Entwurfs-Charge für Anschaffungs-Akkordeon (Wizard hat noch keine Chargen-API). */
+const wizardDraftBatches = computed((): MaterialBatch[] => {
+  const up = effectivePurchaseUnitPrice.value
+  if (up <= 0) return []
+  const qty = purchasePriceContextQty.value || formData.initial_qty || 0
+  return [
+    {
+      id: 'wizard-draft',
+      qty,
+      unit_price: String(up),
+      acquired_on: formData.purchase_date || new Date().toISOString().slice(0, 10),
+      is_initial: true,
+    } as MaterialBatch,
+  ]
 })
 
 /** Einkaufspreis Referenz (Kosten) aus Anschaffung vorausfüllen, solange Referenz noch leer */
@@ -4859,6 +4789,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   formData.is_js_material = false
   formData.external_source = ''
   formData.sale_price = null
+  formData.external_sale_price_chf = null
   formData.reference_purchase_unit_chf = null
   formData.min_stock = null
   formData.pack_size = null
@@ -7060,6 +6991,10 @@ async function handleSubmit() {
         is_js_material: formData.is_js_material,
         external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
         sale_price: formData.sale_price ? String(formData.sale_price) : null,
+        external_sale_price_chf:
+          formData.external_sale_price_chf != null && formData.external_sale_price_chf > 0
+            ? String(formData.external_sale_price_chf)
+            : null,
         reference_purchase_unit_chf: formData.reference_purchase_unit_chf
           ? String(formData.reference_purchase_unit_chf)
           : null,

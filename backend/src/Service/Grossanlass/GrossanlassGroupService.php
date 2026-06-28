@@ -431,7 +431,7 @@ class GrossanlassGroupService
 
         return (int) $this->entityManager->getRepository(GroupMembership::class)
             ->createQueryBuilder('gm')
-            ->select('COUNT(gm.id)')
+            ->select('COUNT(gm.userId)')
             ->where('gm.groupId IN (:groupIds)')
             ->setParameter('groupIds', $groupIds)
             ->getQuery()

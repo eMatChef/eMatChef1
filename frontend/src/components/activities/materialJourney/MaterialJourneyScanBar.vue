@@ -9,17 +9,29 @@ import {
   writeMaterialJourneyScanTouchPref,
 } from '@/components/activities/materialJourney/materialJourneyScanTouchPref'
 import type { MaterialScanSessionEntry } from '@/composables/useMaterialJourneyScan'
+import { useMaterialJourneySheetDialog } from '@/composables/useMaterialJourneySheetDialog'
 import { useToast } from '@/composables/useToast'
 import { canRequestCamera } from '@/utils/cameraAccess'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
+import { isScanLikeInput } from '@/utils/scanParser'
+
+export type MaterialJourneyScanSuggestion = {
+  id: string
+  label: string
+  subtitle?: string | null
+  categoryName?: string | null
+}
 
 const props = defineProps<{
   modelValue: string
   loading: boolean
   sessionLog: MaterialScanSessionEntry[]
   labelKey?: string
+  placeholderKey?: string
   inputId?: string
   packTargetLabel?: string | null
+  suggestions?: MaterialJourneyScanSuggestion[]
+  typeaheadMinChars?: number
 }>()
 
 const emit = defineEmits<{
@@ -27,10 +39,13 @@ const emit = defineEmits<{
   submit: []
   clear: []
   deselect: []
+  'select-suggestion': [item: MaterialJourneyScanSuggestion]
 }>()
 
 const { t } = useI18n()
 const toast = useToast()
+const { sheetFullscreen: cameraFullscreen, sheetMaxWidth: cameraMaxWidth } =
+  useMaterialJourneySheetDialog({ maxWidth: 520 })
 const inputRef = ref<HTMLInputElement | null>(null)
 const menuOpen = ref(false)
 const cameraOpen = ref(false)
@@ -39,6 +54,36 @@ const coarsePointer = ref(false)
 const scanCooldown = ref(false)
 const rememberForSession = ref(false)
 const sessionPref = ref<MaterialJourneyScanTouchPref | null>(null)
+const typeaheadOpen = ref(false)
+const activeSuggestionIndex = ref(0)
+
+const typeaheadEnabled = computed(() => (props.suggestions?.length ?? 0) > 0)
+
+const effectivePlaceholder = computed(() =>
+  t(props.placeholderKey ?? 'activities.materialJourney.scan.placeholder'),
+)
+
+const effectiveTypeaheadMinChars = computed(() => props.typeaheadMinChars ?? 1)
+
+const filteredSuggestions = computed((): MaterialJourneyScanSuggestion[] => {
+  if (!typeaheadEnabled.value || !props.suggestions) return []
+  const raw = props.modelValue
+  if (isScanLikeInput(raw)) return []
+  const q = raw.trim().toLowerCase()
+  if (q.length < effectiveTypeaheadMinChars.value) return []
+  return props.suggestions
+    .filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        (item.subtitle?.toLowerCase().includes(q) ?? false) ||
+        (item.categoryName?.toLowerCase().includes(q) ?? false),
+    )
+    .slice(0, 12)
+})
+
+const showTypeaheadDropdown = computed(
+  () => typeaheadOpen.value && filteredSuggestions.value.length > 0,
+)
 
 const inputReadonly = computed(
   () => coarsePointer.value && !keyboardEnabled.value && sessionPref.value !== 'type',
@@ -65,11 +110,48 @@ watch(sessionPref, (pref) => {
   if (pref === 'type') keyboardEnabled.value = true
 })
 
+watch(
+  () => props.modelValue,
+  (value) => {
+    activeSuggestionIndex.value = 0
+    if (!typeaheadEnabled.value || isScanLikeInput(value)) {
+      typeaheadOpen.value = false
+      return
+    }
+    typeaheadOpen.value = value.trim().length >= effectiveTypeaheadMinChars.value
+  },
+)
+
 function onInput(event: Event): void {
   emit('update:modelValue', (event.target as HTMLInputElement).value)
 }
 
 function onKeydown(event: KeyboardEvent): void {
+  if (showTypeaheadDropdown.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      activeSuggestionIndex.value = Math.min(
+        activeSuggestionIndex.value + 1,
+        filteredSuggestions.value.length - 1,
+      )
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      activeSuggestionIndex.value = Math.max(activeSuggestionIndex.value - 1, 0)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const item = filteredSuggestions.value[activeSuggestionIndex.value]
+      if (item) selectSuggestion(item)
+      return
+    }
+    if (event.key === 'Escape') {
+      typeaheadOpen.value = false
+      return
+    }
+  }
   if (event.key === 'Enter') {
     event.preventDefault()
     emit('submit')
@@ -187,6 +269,18 @@ function onScanError(message: string): void {
   toast.error(localizedBarcodeScannerError(message, t))
 }
 
+function selectSuggestion(item: MaterialJourneyScanSuggestion): void {
+  typeaheadOpen.value = false
+  emit('select-suggestion', item)
+}
+
+function onInputFocusTypeahead(event: FocusEvent): void {
+  if (typeaheadEnabled.value && !isScanLikeInput(props.modelValue)) {
+    typeaheadOpen.value = props.modelValue.trim().length >= effectiveTypeaheadMinChars.value
+  }
+  onInputFocus(event)
+}
+
 defineExpose({
   focus: () => void focusForTyping(),
   openCamera,
@@ -221,89 +315,118 @@ defineExpose({
       </label>
     </div>
 
-    <div class="material-journey-scan-bar__row">
-      <button
-        type="button"
-        class="material-journey-scan-bar__scan-btn"
-        :aria-label="t('activities.materialJourney.scan.openCamera')"
-        :disabled="loading"
-        @click="openCamera"
-      >
-        <v-icon icon="mdi-barcode-scan" size="22" />
-      </button>
-      <input
-        :id="inputId ?? 'material-journey-scan-input'"
-        ref="inputRef"
-        class="material-journey-scan-bar__input"
-        type="search"
-        autocomplete="off"
-        autocapitalize="off"
-        spellcheck="false"
-        enterkeyhint="search"
-        :placeholder="t('activities.materialJourney.scan.placeholder')"
-        :value="modelValue"
-        :disabled="loading"
-        :readonly="inputReadonly"
-        @input="onInput"
-        @keydown="onKeydown"
-        @click="onInputClick"
-        @focus="onInputFocus"
-      />
+    <div class="material-journey-scan-bar__row-wrap">
+      <div class="material-journey-scan-bar__row">
+        <button
+          type="button"
+          class="material-journey-scan-bar__scan-btn"
+          :aria-label="t('activities.materialJourney.scan.openCamera')"
+          :disabled="loading"
+          @click="openCamera"
+        >
+          <v-icon icon="mdi-barcode-scan" size="22" />
+        </button>
+        <input
+          :id="inputId ?? 'material-journey-scan-input'"
+          ref="inputRef"
+          class="material-journey-scan-bar__input"
+          type="search"
+          autocomplete="off"
+          autocapitalize="off"
+          spellcheck="false"
+          enterkeyhint="search"
+          :placeholder="effectivePlaceholder"
+          :value="modelValue"
+          :disabled="loading"
+          :readonly="inputReadonly"
+          @input="onInput"
+          @keydown="onKeydown"
+          @click="onInputClick"
+          @focus="onInputFocusTypeahead"
+        />
 
-      <v-menu
-        v-if="coarsePointer"
-        v-model="menuOpen"
-        location="bottom end"
-        :close-on-content-click="false"
-        offset="6"
+        <v-menu
+          v-if="coarsePointer"
+          v-model="menuOpen"
+          location="bottom end"
+          :close-on-content-click="false"
+          offset="6"
+        >
+          <template #activator="{ props: menuActivatorProps }">
+            <button
+              type="button"
+              class="material-journey-scan-bar__menu-btn"
+              :aria-label="t('activities.materialJourney.scan.openMenu')"
+              :disabled="loading"
+              v-bind="menuActivatorProps"
+            >
+              <v-icon icon="mdi-chevron-down" size="20" />
+            </button>
+          </template>
+
+          <div class="material-journey-scan-menu section-card">
+            <p class="material-journey-scan-menu__title">
+              {{ t('activities.materialJourney.scan.chooseActionTitle') }}
+            </p>
+            <v-list density="compact" class="material-journey-scan-menu__list">
+              <v-list-item
+                :title="t('activities.materialJourney.scan.chooseCamera')"
+                prepend-icon="mdi-camera"
+                @click="chooseCameraFromMenu"
+              />
+              <v-list-item
+                :title="t('activities.materialJourney.scan.chooseType')"
+                prepend-icon="mdi-keyboard"
+                @click="chooseTypeFromMenu"
+              />
+            </v-list>
+            <label class="material-journey-scan-menu__remember">
+              <input v-model="rememberForSession" type="checkbox" />
+              <span>{{ t('activities.materialJourney.scan.rememberForSession') }}</span>
+            </label>
+            <p class="material-journey-scan-menu__hint text-muted">
+              {{ t('activities.materialJourney.scan.menuBarcodeHint') }}
+            </p>
+          </div>
+        </v-menu>
+
+        <button
+          v-if="modelValue.trim()"
+          type="button"
+          class="material-journey-scan-bar__clear"
+          :aria-label="t('common.searchClear')"
+          @click="emit('clear')"
+        >
+          <v-icon icon="mdi-close-circle" size="20" />
+        </button>
+      </div>
+
+      <ul
+        v-if="showTypeaheadDropdown"
+        class="material-journey-scan-typeahead"
+        role="listbox"
+        :aria-label="t('activities.materialJourney.scan.typeaheadAria')"
       >
-        <template #activator="{ props: menuActivatorProps }">
+        <li
+          v-for="(item, index) in filteredSuggestions"
+          :key="item.id"
+          role="presentation"
+        >
           <button
             type="button"
-            class="material-journey-scan-bar__menu-btn"
-            :aria-label="t('activities.materialJourney.scan.openMenu')"
-            :disabled="loading"
-            v-bind="menuActivatorProps"
+            class="material-journey-scan-typeahead__item"
+            :class="{ 'material-journey-scan-typeahead__item--active': index === activeSuggestionIndex }"
+            role="option"
+            :aria-selected="index === activeSuggestionIndex"
+            @mousedown.prevent="selectSuggestion(item)"
           >
-            <v-icon icon="mdi-chevron-down" size="20" />
+            <span class="material-journey-scan-typeahead__label">{{ item.label }}</span>
+            <span v-if="item.subtitle" class="material-journey-scan-typeahead__meta text-muted">
+              {{ item.subtitle }}
+            </span>
           </button>
-        </template>
-
-        <div class="material-journey-scan-menu section-card">
-          <p class="material-journey-scan-menu__title">
-            {{ t('activities.materialJourney.scan.chooseActionTitle') }}
-          </p>
-          <v-list density="compact" class="material-journey-scan-menu__list">
-            <v-list-item
-              :title="t('activities.materialJourney.scan.chooseCamera')"
-              prepend-icon="mdi-camera"
-              @click="chooseCameraFromMenu"
-            />
-            <v-list-item
-              :title="t('activities.materialJourney.scan.chooseType')"
-              prepend-icon="mdi-keyboard"
-              @click="chooseTypeFromMenu"
-            />
-          </v-list>
-          <label class="material-journey-scan-menu__remember">
-            <input v-model="rememberForSession" type="checkbox" />
-            <span>{{ t('activities.materialJourney.scan.rememberForSession') }}</span>
-          </label>
-          <p class="material-journey-scan-menu__hint text-muted">
-            {{ t('activities.materialJourney.scan.menuBarcodeHint') }}
-          </p>
-        </div>
-      </v-menu>
-
-      <button
-        v-if="modelValue.trim()"
-        type="button"
-        class="material-journey-scan-bar__clear"
-        :aria-label="t('common.searchClear')"
-        @click="emit('clear')"
-      >
-        <v-icon icon="mdi-close-circle" size="20" />
-      </button>
+        </li>
+      </ul>
     </div>
 
     <p v-if="showTouchHints" class="material-journey-scan-bar__touch-hint text-muted">
@@ -337,8 +460,10 @@ defineExpose({
 
     <v-dialog
       v-model="cameraOpen"
-      fullscreen
+      :fullscreen="cameraFullscreen"
+      :max-width="cameraMaxWidth"
       scrollable
+      class="material-journey-sheet-dialog material-journey-scan-camera-dialog"
       transition="dialog-bottom-transition"
     >
       <div class="material-journey-scan-camera">
@@ -366,4 +491,64 @@ defineExpose({
 
 <style scoped>
 @import '@/styles/views/activities/material-journey.css';
+
+.material-journey-scan-camera-dialog:not(.v-dialog--fullscreen) .material-journey-scan-camera {
+  max-height: min(85vh, 640px);
+}
+
+.material-journey-scan-camera-dialog:not(.v-dialog--fullscreen) .material-journey-scan-camera__body {
+  overflow-y: auto;
+}
+
+.material-journey-scan-bar__row-wrap {
+  position: relative;
+}
+
+.material-journey-scan-typeahead {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 12;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  max-height: min(40vh, 280px);
+  overflow-y: auto;
+  border: 1px solid var(--color-border, #d1d5db);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.material-journey-scan-typeahead__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.material-journey-scan-typeahead__item:hover,
+.material-journey-scan-typeahead__item--active {
+  background: var(--color-primary-muted-bg, #ecfdf5);
+}
+
+.material-journey-scan-typeahead__label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-text, #111827);
+}
+
+.material-journey-scan-typeahead__meta {
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
 </style>
+
+<style src="@/styles/views/activities/material-journey-sheet.css"></style>

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Service\Mail\AppMailer;
+use App\Service\Mail\MailLogKind;
 use App\Service\Mail\MailOutboundSettingsStore;
 use App\Service\Mail\MailSendLogStore;
 use App\Service\Mail\MailTemplateContentStore;
@@ -162,35 +163,21 @@ class MailAdminController extends AbstractController
             (string) ($tm['text_body'] ?? ''),
             ['transport_mode' => $mode]
         );
-        $logSubj = $this->mailTemplateContent->interpolate(
-            (string) ($tm['log_subject'] ?? $subj),
-            ['transport_mode' => $mode]
+
+        $email = MailLogKind::stamp(
+            (new Email())
+                ->from($this->mailOutboundSettingsStore->getFromAddressObject())
+                ->to($to)
+                ->subject($subj)
+                ->text($body),
+            'mail.test'
         );
-
-        $email = (new Email())
-            ->from($this->mailOutboundSettingsStore->getFromAddressObject())
-            ->to($to)
-            ->subject($subj)
-            ->text($body);
-
-        $fromAddr = $this->mailOutboundSettingsStore->getFromAddressObject()->getAddress();
 
         try {
             $this->appMailer->send($email);
         } catch (\Throwable $e) {
-            $prefix = $this->mailTemplateContent->getApiString('ma.test_log_fail_prefix', $this->loc($request));
-            $failDetail = $prefix . mb_substr($e->getMessage(), 0, 160);
-            $this->mailSendLogStore->append('mail.test.failed', $to, $failDetail, $fromAddr);
-
             return new JsonResponse(['error' => $e->getMessage()], 500);
         }
-
-        $this->mailSendLogStore->append(
-            'mail.test',
-            $to,
-            $logSubj,
-            $fromAddr
-        );
 
         return new JsonResponse(['ok' => true]);
     }

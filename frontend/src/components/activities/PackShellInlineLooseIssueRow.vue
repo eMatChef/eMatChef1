@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import { isPackForwardToEventStage } from '@/components/activities/packStageQuantities'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
-import type { PackCrateShellPeekLine } from '@/components/activities/PackCrateShellInlinePanel.vue'
+import type { PackCrateShellPeekLine } from '@/components/activities/packCrateShellPeekTypes'
 
 defineOptions({ name: 'PackShellInlineLooseIssueRow' })
 

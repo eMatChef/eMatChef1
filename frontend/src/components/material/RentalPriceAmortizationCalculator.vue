@@ -20,7 +20,20 @@
       </span>
     </div>
     <div class="rental-amort-replace-estimate">
-      <div class="form-group">
+      <AutoSaveField
+        v-if="persistParams"
+        v-model="rentalReplacementInflationPercent"
+        :baseline="paramBaselines.price_increase_percent_per_year"
+        :label="t('components.rentalAmortization.labelInflationPct')"
+        type="number"
+        :step="0.1"
+        :min="-20"
+        :max="30"
+        :disabled="disabled"
+        span-class="form-group rental-amort-autosave-field"
+        :save="saveCalcParamsField"
+      />
+      <div v-else class="form-group">
         <label>{{ t('components.rentalAmortization.labelInflationPct') }}</label>
         <input
           v-model.number="rentalReplacementInflationPercent"
@@ -45,7 +58,7 @@
         </span>
         <span v-else class="rental-amort-muted">{{ estimateEmptyHint }}</span>
         <button
-          v-if="replacementBasisEstimateChf != null"
+          v-if="replacementBasisEstimateChf != null && !disabled"
           type="button"
           class="btn-outline btn-sm"
           @click="applyReplacementEstimateToBasis"
@@ -54,7 +67,62 @@
         </button>
       </div>
     </div>
-    <div class="rental-amort-grid">
+    <div v-if="persistParams" class="rental-amort-grid">
+      <AutoSaveField
+        v-model="rentalCalcBasisOverride"
+        :baseline="paramBaselines.basis_override"
+        :label="t('components.rentalAmortization.labelManualBasis')"
+        :placeholder="manualBasisPlaceholder"
+        :disabled="disabled"
+        span-class="form-group"
+        :save="saveCalcParamsField"
+      />
+      <AutoSaveField
+        v-model="rentalCalcYears"
+        :baseline="paramBaselines.years_to_replacement"
+        :label="t('components.rentalAmortization.labelYears')"
+        type="number"
+        :min="1"
+        :step="1"
+        :disabled="disabled"
+        span-class="form-group"
+        :save="saveCalcParamsField"
+      />
+      <AutoSaveField
+        v-model="rentalCalcDaysInternalPerYear"
+        :baseline="paramBaselines.internal_days_per_year"
+        :label="t('components.rentalAmortization.labelDaysInt')"
+        type="number"
+        :min="0"
+        :step="1"
+        :disabled="disabled"
+        span-class="form-group"
+        :save="saveCalcParamsField"
+      />
+      <AutoSaveField
+        v-model="rentalCalcDaysExternalPerYear"
+        :baseline="paramBaselines.external_days_per_year"
+        :label="t('components.rentalAmortization.labelDaysExt')"
+        type="number"
+        :min="0"
+        :step="1"
+        :disabled="disabled"
+        span-class="form-group"
+        :save="saveCalcParamsField"
+      />
+      <AutoSaveField
+        v-model="rentalCalcMarkupPercent"
+        :baseline="paramBaselines.markup_percent"
+        :label="t('components.rentalAmortization.labelMarkup')"
+        type="number"
+        :min="0"
+        :step="5"
+        :disabled="disabled"
+        span-class="form-group"
+        :save="saveCalcParamsField"
+      />
+    </div>
+    <div v-else class="rental-amort-grid">
       <div class="form-group">
         <label>{{ t('components.rentalAmortization.labelManualBasis') }}</label>
         <div class="input-with-prefix">
@@ -116,7 +184,7 @@
         <dt>{{ t('components.rentalAmortization.previewDtPlanDays') }}</dt>
         <dd>{{ rentalPreview.totalRentalDays }}</dd>
       </dl>
-      <div class="rental-amort-actions">
+      <div v-if="!disabled" class="rental-amort-actions">
         <button type="button" class="btn-primary btn-sm" @click="applyRentalPriceSuggestion">
           {{ t('components.rentalAmortization.btnApplySuggestion') }}
         </button>
@@ -132,6 +200,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { AutoSaveField } from '@/components/common/autoSave'
 import type { RentalAmortizationDefaults } from '@/api/departmentSettings'
 import {
   suggestRentalPricesFromAmortization,
@@ -153,8 +222,11 @@ const props = withDefaults(
     defaults: RentalAmortizationDefaults
     /** Gespeicherte Eingaben pro Material; null = nur Standards anzeigen */
     modelValue?: RentalCalcParams | null
+    /** Detail: speichert Kalkulationsparameter sofort (AutoSave) */
+    persistParams?: (params: RentalCalcParams) => Promise<void>
+    disabled?: boolean
   }>(),
-  { context: 'batches', modelValue: null }
+  { context: 'batches', modelValue: null, disabled: false }
 )
 
 const emit = defineEmits<{
@@ -171,6 +243,21 @@ const rentalCalcDaysInternalPerYear = ref(30)
 const rentalCalcDaysExternalPerYear = ref(0)
 const rentalCalcMarkupPercent = ref(0)
 const rentalReplacementInflationPercent = ref(0.2)
+
+const persistParams = computed(() => props.persistParams)
+
+const paramBaselines = computed(() => {
+  const d = props.defaults
+  const m = props.modelValue
+  return {
+    price_increase_percent_per_year: m?.price_increase_percent_per_year ?? d.priceIncreasePercentPerYear,
+    basis_override: m?.basis_override != null && m.basis_override !== '' ? String(m.basis_override) : '',
+    years_to_replacement: m?.years_to_replacement ?? d.yearsToReplacement,
+    internal_days_per_year: m?.internal_days_per_year ?? d.internalDaysPerYear,
+    external_days_per_year: m?.external_days_per_year ?? d.externalDaysPerYear,
+    markup_percent: m?.markup_percent ?? d.markupPercent,
+  }
+})
 
 const suppressEmit = ref(false)
 const emitReady = ref(false)
@@ -231,6 +318,7 @@ watch(
     rentalReplacementInflationPercent,
   ],
   () => {
+    if (props.persistParams) return
     if (!emitReady.value || suppressEmit.value) return
     const j = JSON.stringify(buildPayload())
     if (j === lastEmittedJson) return
@@ -239,6 +327,15 @@ watch(
   },
   { deep: true }
 )
+
+async function saveCalcParamsField(_value?: unknown): Promise<void> {
+  const payload = buildPayload()
+  lastEmittedJson = JSON.stringify(payload)
+  emit('update:modelValue', payload)
+  if (props.persistParams) {
+    await props.persistParams(payload)
+  }
+}
 
 const contextPhrase = computed(() => {
   if (props.context === 'wizard') return t('components.rentalAmortization.contextWizard')
@@ -336,10 +433,13 @@ function formatChfDisplay(n: number | null | undefined): string {
   return formatChfFiveRappenString(Number(n))
 }
 
-function applyReplacementEstimateToBasis() {
+async function applyReplacementEstimateToBasis() {
   const v = replacementBasisEstimateChf.value
   if (v == null) return
   rentalCalcBasisOverride.value = v.toFixed(2)
+  if (props.persistParams) {
+    await saveCalcParamsField()
+  }
   toast.success(t('components.rentalAmortization.toastBasisFromEstimate'))
 }
 

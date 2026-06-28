@@ -227,6 +227,10 @@ export interface ActivityItemRow {
   submitter_department_name?: string | null
   recorded_at?: string | null
   sale_price?: string | number | null
+  /** Verkaufspreis pro Stück für externe Ausleihe (sonst sale_price) */
+  external_sale_price_chf?: string | number | null
+  /** Verkaufspreis pro VE — Fallback für Stückpreis wenn sale_price leer */
+  pack_sale_price_chf?: string | number | null
   pack_size?: number | null
   pack_unit?: string | null
   is_js_material?: boolean
