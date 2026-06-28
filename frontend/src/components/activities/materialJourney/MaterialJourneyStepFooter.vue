@@ -11,9 +11,22 @@ const props = defineProps<{
   openCount: number
   journeyStep: JourneyStep
   profile: PackWorkflowProfile
+  filterVariant?: 'default' | 'quickIssue'
 }>()
 
 const { t } = useI18n()
+
+const progressText = computed(() =>
+  props.filterVariant === 'quickIssue'
+    ? t('activities.materialJourney.footer.progressQuickIssue', {
+        done: props.doneCount,
+        total: props.totalCount,
+      })
+    : t('activities.materialJourney.footer.progress', {
+        done: props.doneCount,
+        total: props.totalCount,
+      }),
+)
 
 const openHint = computed(() => {
   if (props.openCount <= 0) return null
@@ -27,7 +40,7 @@ const openHint = computed(() => {
 <template>
   <footer v-if="totalCount > 0" class="material-journey-step-footer">
     <p class="material-journey-step-footer__progress">
-      {{ t('activities.materialJourney.footer.progress', { done: doneCount, total: totalCount }) }}
+      {{ progressText }}
     </p>
     <p v-if="openHint" class="material-journey-step-footer__hint text-muted">
       {{ openHint }}

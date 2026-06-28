@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, provide, ref, toRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
@@ -8,12 +8,12 @@ import MaterialJourneyStepper from '@/components/activities/materialJourney/Mate
 import MaterialJourneyToolbar from '@/components/activities/materialJourney/MaterialJourneyToolbar.vue'
 import MaterialJourneyTaskList from '@/components/activities/materialJourney/MaterialJourneyTaskList.vue'
 import MaterialJourneyStepFooter from '@/components/activities/materialJourney/MaterialJourneyStepFooter.vue'
-import MaterialJourneyPackCompletePanel from '@/components/activities/materialJourney/MaterialJourneyPackCompletePanel.vue'
+import MaterialJourneyPhaseCompletePanel from '@/components/activities/materialJourney/MaterialJourneyPhaseCompletePanel.vue'
+import MaterialJourneyQuickReturnHandoffBanner from '@/components/activities/materialJourney/MaterialJourneyQuickReturnHandoffBanner.vue'
+import type { QuickReturnHandoffBannerMode } from '@/components/activities/materialJourney/MaterialJourneyQuickReturnHandoffBanner.vue'
 import MaterialJourneyLegacyLink from '@/components/activities/materialJourney/MaterialJourneyLegacyLink.vue'
 import MaterialAssignCrateSheet from '@/components/activities/materialJourney/MaterialAssignCrateSheet.vue'
 import MaterialCrateCheckSheet from '@/components/activities/materialJourney/MaterialCrateCheckSheet.vue'
-import MaterialReassignCrateSheet from '@/components/activities/materialJourney/MaterialReassignCrateSheet.vue'
-import MaterialLooseTakeSheet from '@/components/activities/materialJourney/MaterialLooseTakeSheet.vue'
 import MaterialComboCheckSheet from '@/components/activities/materialJourney/MaterialComboCheckSheet.vue'
 import MaterialReturnCrateSheet from '@/components/activities/materialJourney/MaterialReturnCrateSheet.vue'
 import MaterialStoreShelveSheet from '@/components/activities/materialJourney/MaterialStoreShelveSheet.vue'
@@ -25,38 +25,45 @@ import MaterialScanShelfResultCard from '@/components/activities/materialJourney
 import MaterialReplenishmentWishPanel from '@/components/activities/materialJourney/MaterialReplenishmentWishPanel.vue'
 import MaterialReplenishmentWishList from '@/components/activities/materialJourney/MaterialReplenishmentWishList.vue'
 import PackAddContainerModal from '@/components/activities/PackAddContainerModal.vue'
+import PhysicalComboIssueComponentModal from '@/components/activities/PhysicalComboIssueComponentModal.vue'
+import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
+import { activityTransitionActionLabel } from '@/components/activities/activityTransitionLabels'
+import { usePhysicalComboIssuePicker } from '@/composables/usePhysicalComboIssuePicker'
 import { useMaterialJourneyScan } from '@/composables/useMaterialJourneyScan'
 import { groupMaterialJourneyTasksByShelf } from '@/components/activities/materialJourneyRegalGroups'
 import MaterialJourneyTransportTours from '@/components/activities/materialJourney/MaterialJourneyTransportTours.vue'
+import MaterialJourneyChooseTourModal from '@/components/activities/materialJourney/MaterialJourneyChooseTourModal.vue'
+import { directionForJourneyStep } from '@/api/activityTransportTours'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import {
+  activityStatusAfterJourneyStep,
   defaultJourneyStepForStatus,
-  isJourneyTransportBackStep,
-  isJourneyTransportOutStep,
-  materialJourneyShowsCrateTransitActions,
 } from '@/components/activities/materialJourneySteps'
+import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import {
-  reassignTargetPackCrates,
-  transferPackedItemBetweenContainers,
-  type ReassignCrateConfirmPayload,
-} from '@/composables/useMaterialJourneyCrateTransfer'
-import {
-  containerLineLooseTakeMax,
-  issueContainerLineLoose,
-  type LooseTakeConfirmPayload,
-} from '@/composables/useMaterialJourneyLooseTake'
-import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
-import { useConfirm } from '@/composables/useConfirm'
+  isPackConfirmedStage,
+  isPackForwardToEventStage,
+  isPackReturnPipelineStage,
+  isPackReturnStage,
+  isPackUnpackStage,
+} from '@/components/activities/packStageQuantities'
 import { useMaterialJourneyData } from '@/composables/useMaterialJourneyData'
 import { useMaterialJourneyTasks } from '@/composables/useMaterialJourneyTasks'
 import { useMaterialJourneyPackCrates } from '@/composables/useMaterialJourneyPackCrates'
+import { useMaterialJourneyTransportTourTarget } from '@/composables/useMaterialJourneyTransportTourTarget'
 import { useMaterialJourneyPresence } from '@/composables/useMaterialJourneyPresence'
+import { useMaterialJourneyIssueActions } from '@/composables/useMaterialJourneyIssueActions'
+import { useMaterialJourneyAtEventInventoryIssues } from '@/composables/useMaterialJourneyAtEventInventoryIssues'
 import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
+import type { PackIssueWizardEmitPayload } from '@/components/activities/physicalComboIssueFlow'
+import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
+import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { materialJourneyFilterVariantForStep } from '@/components/activities/materialJourneyTaskList'
+import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { useToast } from '@/composables/useToast'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
-import { acknowledgeTransportOut } from '@/utils/materialJourneyTransportAck'
-import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { ActivityPackItem, PackMoveSource } from '@/api/activityPackItems'
 import type { MaterialScanResolveResult, MaterialScanShelfLine } from '@/composables/materialScanResolve'
 import { resolvePackItemShelfAction } from '@/composables/materialScanResolve'
 import {
@@ -69,6 +76,10 @@ import {
   patchActivityStatus,
   type ActivityTransitionRow,
 } from '@/api/activities'
+import {
+  journeyStepNeedsAdvanceConfirm,
+  nextJourneyStep,
+} from '@/utils/materialJourneyNavigation'
 
 const props = withDefaults(
   defineProps<{
@@ -77,19 +88,47 @@ const props = withDefaults(
     embedded?: boolean
     /** Kopfzeile der Aktivität — vermeidet doppelten API-Call im eingebetteten Modus */
     transitions?: ActivityTransitionRow[]
+    canReportIssues?: boolean
+    canReportConsumption?: boolean
+    /** Nachlieferung Verbrauchsmaterial (Gruppe ab «Am Event» oder MW/DC) */
+    canRequestConsumableNachbuchung?: boolean
+    /** Activity-Items mit is_consumable — Fallback wenn Pack-Zeile das Flag nicht trägt */
+    consumableMaterialItemIds?: string[]
+    /** Erhöhen wenn z. B. Fahrzeuge der Aktivität geändert wurden */
+    reloadToken?: number
   }>(),
-  { embedded: false, transitions: undefined },
+  {
+    embedded: false,
+    transitions: undefined,
+    canReportIssues: true,
+    canReportConsumption: true,
+    canRequestConsumableNachbuchung: false,
+    consumableMaterialItemIds: () => [],
+    reloadToken: 0,
+  },
 )
 
 const emit = defineEmits<{
   statusChanged: []
+  /** Kopfzeile «Gepackt markieren» — nur wenn alles gepackt (wie Toolbar). */
+  packingHeaderReady: [ready: boolean]
+  openIssueWizard: [payload: PackIssueWizardEmitPayload]
+  openConsumptionModal: [payload: ConsumptionModalPreset]
+  requestNachbuchung: [
+    payload: {
+      materialItemId: string
+      materialLabel: string
+      packSize?: number | null
+      packUnit?: string | null
+      packStage?: string
+    },
+  ]
 }>()
 
 const route = useRoute()
 const router = useRouter()
 const { t, te } = useI18n()
 const toast = useToast()
-const { confirm: confirmDialog } = useConfirm()
 
 const stepParam = computed(() => {
   if (props.embedded) {
@@ -114,6 +153,9 @@ const {
   steps,
   resolvedStep,
   needsStepRedirect,
+  activeJourneyStep,
+  stepsWithOpenWork,
+  journeyStepWorkComplete,
   positionCount,
   isEarlyPackPreview,
   canManageMaterials,
@@ -133,8 +175,13 @@ const {
   listEditable,
   isFutureStep,
   isPastStep,
+  movesEnabledForStep,
+  shellPackItemForContainer,
   visibleTasks,
   showByShelfFilter,
+  useRegalGroupingOnStore,
+  showFilterToolbar,
+  isLogisticsAtEventInventory,
   progress,
   activateTaskRow,
   crateSheetOpen,
@@ -153,16 +200,6 @@ const {
   activateLoosePackItem,
   taskRowForScanResult,
   moveTaskRow,
-  moveBackTaskRow,
-  moveBackQtyForRow,
-  setMoveBackQtyForRow,
-  showMoveBack,
-  showMoveForwardQty,
-  showCrateMoveForwardQty,
-  moveForwardQtyForRow,
-  setForwardQtyForRow,
-  moveForwardTaskRow,
-  transportedUnitsTotal,
   packListCtx,
   returnCrate,
   storeShelveOpen,
@@ -170,10 +207,7 @@ const {
   activeStoreMaxQty,
   storeShelveQty,
   storeShelveSubmitting,
-  storeShelveFeedback,
   submitStoreShelve,
-  onStoreShelveNext,
-  onStoreShelveStay,
   allTasks,
   lastFailedMove,
   retryMove,
@@ -194,7 +228,6 @@ const {
   submitAddScannedPackCrate,
   assignPackItemToSelectedCrate,
   packCrateAssignQtyForItem,
-  shellPackItemForContainer,
 } = useMaterialJourneyTasks({
   activity,
   packItems,
@@ -209,6 +242,174 @@ const {
   reloadSilent,
   applyContainerItem,
 })
+
+const canReportIssuesRef = computed(() => props.canReportIssues !== false)
+const canReportConsumptionRef = computed(() => props.canReportConsumption !== false)
+const consumableMaterialItemIdsSet = computed(() => {
+  const ids = new Set((props.consumableMaterialItemIds ?? []).filter(Boolean))
+  for (const pi of packItems.value) {
+    if (pi.isConsumable && pi.materialItemId) ids.add(pi.materialItemId)
+  }
+  return ids
+})
+
+const physicalComboIssuePicker = usePhysicalComboIssuePicker({
+  packContainers: () => packContainers.value,
+  containerItemsByContainerId: () => containerItemsByContainerId.value,
+  cratePeekMaps: () => cratePeekMaps.value,
+  t,
+  emitIssueWizard: (payload) => emit('openIssueWizard', payload),
+})
+const {
+  open: physicalComboIssueModalOpen,
+  loading: physicalComboIssueModalLoading,
+  issueType: physicalComboIssueModalIssueType,
+  shellPackItem: physicalComboIssueModalPi,
+  sections: physicalComboIssueModalSections,
+  close: closePhysicalComboIssueModal,
+  onConfirm: onPhysicalComboIssueConfirm,
+} = physicalComboIssuePicker
+
+const { showIssueForRow, showIssueForAccordionLine, isConsumableForMaterialId } = useMaterialJourneyIssueActions({
+  activity,
+  packItems,
+  packContainers,
+  containerItemsByContainerId,
+  journeyStep: resolvedStep,
+  packStage,
+  profile,
+  packListCtx,
+  canReportIssues: canReportIssuesRef,
+  canReportConsumption: canReportConsumptionRef,
+  consumableMaterialItemIds: consumableMaterialItemIdsSet,
+  shellPackItemForContainer,
+  issuedQtyInContainersForMaterial: (mid) => packListCtx.value.issuedQtyInContainersForMaterial(mid),
+})
+
+/** Quick/External: Ausgabe und Retour — Meldungen auf Positionen mit ausgegebenem Material. */
+const isQuickIssueReporting = computed(
+  () =>
+    profile.value !== 'logistics' &&
+    (resolvedStep.value === 'issue' || resolvedStep.value === 'return'),
+)
+
+const journeyFilterVariant = computed(() =>
+  materialJourneyFilterVariantForStep(profile.value, resolvedStep.value),
+)
+
+const {
+  reloadIssues,
+  atEventQtyLabelForRow,
+  atEventQtyLabelForLine,
+} = useMaterialJourneyAtEventInventoryIssues({
+  activityId: toRef(props, 'activityId'),
+  active: computed(() => isLogisticsAtEventInventory.value || isQuickIssueReporting.value),
+  packItems,
+  containerItemsByContainerId,
+  consumableMaterialItemIds: consumableMaterialItemIdsSet,
+  shellPackItemForContainer,
+})
+
+function onIssueLoss(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  if (isPhysicalComboPackItem(pi)) {
+    void physicalComboIssuePicker.tryOpenPicker(pi, 'loss')
+    return
+  }
+  emit('openIssueWizard', { materialItemId: pi.materialItemId, issueType: 'loss' })
+}
+
+function onIssueRepair(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  if (isPhysicalComboPackItem(pi)) {
+    void physicalComboIssuePicker.tryOpenPicker(pi, 'repair')
+    return
+  }
+  emit('openIssueWizard', { materialItemId: pi.materialItemId, issueType: 'repair' })
+}
+
+function onIssueConsumed(row: MaterialJourneyTaskRow): void {
+  const pi = row.packItem
+  if (!pi) return
+  emit('openConsumptionModal', {
+    materialItemId: pi.materialItemId,
+    materialName: row.title,
+    packSize: pi.packSize ?? null,
+    packUnit: pi.packUnit ?? null,
+  })
+}
+
+function onIssueLossLine(_row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  emit('openIssueWizard', { materialItemId: line.materialItemId, issueType: 'loss' })
+}
+
+function onIssueRepairLine(_row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  emit('openIssueWizard', { materialItemId: line.materialItemId, issueType: 'repair' })
+}
+
+function onIssueConsumedLine(row: MaterialJourneyTaskRow, line: MaterialJourneyAccordionLine): void {
+  if (!line.materialItemId) return
+  const pi = packItems.value.find((p) => p.materialItemId === line.materialItemId)
+  emit('openConsumptionModal', {
+    materialItemId: line.materialItemId,
+    materialName: line.name,
+    packSize: pi?.packSize ?? null,
+    packUnit: pi?.packUnit ?? null,
+  })
+}
+
+function showConsumableNachbuchungForPackItem(pi: ActivityPackItem): boolean {
+  if (!pi.isConsumable || props.canRequestConsumableNachbuchung !== true) return false
+  if (isPackUnpackStage(packStage.value)) return false
+  const st = activity.value?.status ?? ''
+  if (st === 'completed' || st === 'cancelled') return false
+  if (isPackConfirmedStage(packStage.value)) return false
+  return (
+    isPackForwardToEventStage(packStage.value) ||
+    isPackReturnPipelineStage(packStage.value) ||
+    isPackReturnStage(packStage.value)
+  )
+}
+
+function showConsumableNachbuchungForMaterial(materialItemId: string): boolean {
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  return pi ? showConsumableNachbuchungForPackItem(pi) : false
+}
+
+function emitConsumableNachbuchungForMaterial(materialItemId: string): void {
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  if (!pi) return
+  emit('requestNachbuchung', {
+    materialItemId: pi.materialItemId,
+    materialLabel: pi.materialName,
+    packSize: pi.packSize ?? null,
+    packUnit: pi.packUnit ?? null,
+    packStage: packStage.value,
+  })
+}
+
+provide(PACK_WAREHOUSE_ISSUE_INJECT_KEY, {
+  showConsumableNachbuchungForMaterial,
+  emitConsumableNachbuchungForMaterial,
+})
+
+function showIssueForAccordionLineBound(
+  row: MaterialJourneyTaskRow,
+  line: MaterialJourneyAccordionLine,
+): boolean {
+  return showIssueForAccordionLine(line, row)
+}
+
+function atEventQtyLabelForLineBound(
+  row: MaterialJourneyTaskRow,
+  line: MaterialJourneyAccordionLine,
+): string | null {
+  return atEventQtyLabelForLine(line, row)
+}
 
 const {
   showAddPackCrateButton,
@@ -339,6 +540,19 @@ const showActivePackCratePanel = computed(
   () => resolvedStep.value === 'pack' && selectedPackCrate.value != null,
 )
 
+const scanTargetLabel = computed(() => {
+  if (showActivePackCratePanel.value) return selectedPackCrate.value?.label ?? null
+  if (transportTourAssignActive.value) return selectedTourLabel.value
+  if (transportTourSelectMode.value && simpleTourMode.value) {
+    return t('activities.materialJourney.transportTours.simpleTour')
+  }
+  return null
+})
+
+const selectedPackCrateHasContents = computed(() =>
+  selectedPackCrateItems.value.some((item) => (item.quantity_packed ?? 0) > 0),
+)
+
 const {
   open: returnCrateOpen,
   container: returnCrateContainer,
@@ -352,6 +566,11 @@ const {
 const pollFast = computed(() => listEditable.value && movingId.value === null)
 const pollIntervalMs = computed(() => (pollFast.value ? 5_000 : 20_000))
 const pollEnabled = computed(() => !loading.value && !!activity.value && !error.value && !isEarlyPackPreview.value)
+
+async function reloadSilentWithIssues(): Promise<void> {
+  await reloadSilent()
+  await reloadIssues()
+}
 
 useBackgroundPoll({
   intervalMs: pollIntervalMs,
@@ -367,7 +586,7 @@ useBackgroundPoll({
     assignCrateSheetOpen.value ||
     addModalOpen.value ||
     containerMutationLoading.value,
-  poll: reloadSilent,
+  poll: reloadSilentWithIssues,
 })
 
 const replenishment = useReplenishmentWishes({
@@ -432,12 +651,26 @@ function onReturnCrateLinesUpdate(lines: ReturnCrateLineEdit[]): void {
 }
 
 const displayedRegalGroups = computed(() => {
-  if (filterTab.value !== 'byShelf') return []
+  const groupByShelf = filterTab.value === 'byShelf' || useRegalGroupingOnStore.value
+  if (!groupByShelf) return []
   return groupMaterialJourneyTasksByShelf(
     displayedTasks.value,
     t('activities.materialJourney.regalGroup.noShelf'),
   )
 })
+
+const showStoreShelfHint = computed(
+  () =>
+    resolvedStep.value === 'store' &&
+    canManageMaterials.value &&
+    !isEarlyPackPreview.value &&
+    progress.value.total > 0,
+)
+
+/** Einlagern: Position antippen → Regal-Sheet (kein →-Pfeil, der würde ohne Regal buchen). */
+const showLooseMoveForward = computed(
+  () => movesEnabledForStep.value && resolvedStep.value !== 'store',
+)
 
 function scanQuantityMoveQty(result: MaterialScanResolveResult): number {
   if (result.type !== 'loose_ready' && result.type !== 'bulk_wrong_batch') return 0
@@ -458,6 +691,39 @@ function scanQuantityProgress(result: MaterialScanResolveResult | null): string 
   const row = taskRowForScanResult(result)
   if (!row) return ''
   return formatPackScanProgressHint(row.doneQty, row.openQty + row.doneQty, t)
+}
+
+function tryAutoSelectPackCrateFromScan(result: MaterialScanResolveResult): boolean {
+  if (!packCrateSelectMode.value) return false
+  if (result.type !== 'crate_shell' || !result.container) return false
+  if (!primaryActionEnabled(result)) return false
+  const inList = visibleTasks.value.some(
+    (row) => row.kind === 'crate' && row.container?.id === result.container!.id,
+  )
+  if (!inList) return false
+
+  selectPackCrate(result.container.id)
+  dismissResult()
+  clearScanInput()
+  return true
+}
+
+async function bookRowForward(
+  row: MaterialJourneyTaskRow,
+  source: PackMoveSource,
+  qty?: number,
+): Promise<boolean> {
+  if (transportTourSelectMode.value) {
+    movingId.value = row.id
+    try {
+      const moveQty = qty ?? row.maxForwardQty
+      return await bookTransportRow(row, moveQty, source)
+    } finally {
+      movingId.value = null
+    }
+  }
+  await moveTaskRow(row, source, qty)
+  return true
 }
 
 async function tryAutoBookShelfScan(result: MaterialScanResolveResult): Promise<boolean> {
@@ -483,10 +749,12 @@ async function tryAutoBookShelfScan(result: MaterialScanResolveResult): Promise<
 
   const row = taskRowForScanResult(result)
   if (row?.canMove) {
-    await moveTaskRow(row, 'scan')
-    dismissResult()
-    clearScanInput()
-    return true
+    const booked = await bookRowForward(row, 'scan')
+    if (booked) {
+      dismissResult()
+      clearScanInput()
+      return true
+    }
   }
 
   return false
@@ -495,9 +763,11 @@ async function tryAutoBookShelfScan(result: MaterialScanResolveResult): Promise<
 async function onScanSubmit(): Promise<void> {
   const result = await submitQuery(scanQuery.value)
   if (result?.type === 'shelf_location') {
-    if ((result.shelfLines?.length ?? 0) > 0 && showByShelfFilter.value) {
-      filterTab.value = 'byShelf'
-    }
+    if ((result.shelfLines?.length ?? 0) > 0) filterTab.value = 'byShelf'
+    return
+  }
+  if (result && tryAutoSelectPackCrateFromScan(result)) {
+    clearShelfLineFocus()
     return
   }
   if (activeShelfResult.value && result) {
@@ -586,7 +856,7 @@ async function executeScanResultAction(result: MaterialScanResolveResult): Promi
     }
     const row = taskRowForScanResult(result)
     if (row) {
-      activateTaskRow(row, 'scan')
+      onActivateTaskRow(row, 'scan')
     } else {
       activateLoosePackItem(result.packItem, 'scan')
     }
@@ -640,7 +910,6 @@ function onCrateDelete(): void {
 }
 
 watch(resolvedStep, () => {
-  filterTab.value = 'open'
   dismissResult()
   clearShelfLineFocus()
 })
@@ -652,11 +921,13 @@ watch(comboSheetOpen, (isOpen, wasOpen) => {
   }
 })
 
-const activityStatusLabel = computed(() => {
-  const status = activity.value?.status
-  if (!status) return ''
-  const key = `activities.status.${activityStatusI18nKey(status)}` as const
-  return te(key) ? t(key) : status
+const journeyStepBadgeLabel = computed(() => {
+  const step = resolvedStep.value
+  const key =
+    step === 'issue' && profile.value === 'logistics'
+      ? 'activities.materialJourney.step.issueLogistics'
+      : `activities.materialJourney.step.${step}`
+  return te(key) ? t(key) : step
 })
 
 const activityStatusCss = computed(() =>
@@ -664,13 +935,64 @@ const activityStatusCss = computed(() =>
 )
 
 const showTransportTours = computed(
-  () =>
-    isJourneyTransportOutStep(resolvedStep.value) ||
-    isJourneyTransportBackStep(resolvedStep.value),
+  () => directionForJourneyStep(resolvedStep.value) != null,
+)
+
+const showTransportWeightReview = computed(
+  () => resolvedStep.value === 'return' && canManageMaterials.value,
 )
 
 const transportAssignableTasks = computed(() =>
   allTasks.value.filter((row) => row.isOpen && (row.kind === 'crate' || row.kind === 'loose')),
+)
+
+const transportToursRef = ref<InstanceType<typeof MaterialJourneyTransportTours> | null>(null)
+
+const {
+  selectedTourId,
+  simpleTourMode,
+  tours: planTransportTours,
+  activityVehicles: planActivityVehicles,
+  chooseTourModalOpen,
+  assignTourSubmitting,
+  transportTourSelectMode,
+  transportTourAssignActive,
+  selectedTourLabel,
+  loadToursAndVehicles,
+  selectSimpleTour,
+  selectVehicleTarget,
+  toggleTourSelection,
+  cancelChooseTourModal,
+  bookTransportRow,
+} = useMaterialJourneyTransportTourTarget({
+  activityId: toRef(props, 'activityId'),
+  journeyStep: resolvedStep,
+  listEditable,
+  canManageMaterials,
+  assignableTasks: transportAssignableTasks,
+  packStage,
+  shellPackItemForContainer,
+  applyUpdatedItem,
+  reload,
+})
+
+async function onTransportPipelineChanged(): Promise<void> {
+  await reloadSilentWithIssues()
+  await loadToursAndVehicles()
+  await transportToursRef.value?.loadAll?.()
+}
+
+function onChooseTourModalOpenChange(open: boolean): void {
+  chooseTourModalOpen.value = open
+  if (!open) cancelChooseTourModal()
+}
+
+watch(
+  () => props.reloadToken,
+  () => {
+    void loadToursAndVehicles()
+    void transportToursRef.value?.loadAll?.()
+  },
 )
 
 function journeyRouteForStep(step: JourneyStep) {
@@ -728,6 +1050,10 @@ function onActivateTaskRow(
   row: Parameters<typeof activateTaskRow>[0],
   source: Parameters<typeof activateTaskRow>[1] = 'tap',
 ): void {
+  if (row.kind === 'crate' && row.container && packCrateSelectMode.value) {
+    togglePackCrateSelection(row.container.id)
+    return
+  }
   if (
     row.kind === 'loose' &&
     row.packItem &&
@@ -740,180 +1066,33 @@ function onActivateTaskRow(
       return
     }
   }
+  if (transportTourSelectMode.value && row.kind === 'loose' && row.canMove) {
+    void bookRowForward(row, source)
+    return
+  }
   activateTaskRow(row, source)
 }
 
-function onSelectPackTarget(row: Parameters<typeof activateTaskRow>[0]): void {
-  if (row.kind !== 'crate' || !row.container || !packCrateSelectMode.value) return
-  togglePackCrateSelection(row.container.id)
-}
-
-const looseTakeSheetOpen = ref(false)
-const looseTakeSourceCrate = ref<ActivityPackContainer | null>(null)
-const looseTakeSourceLine = ref<MaterialJourneyAccordionLine | null>(null)
-const looseTakeMaxQty = ref(0)
-const looseTakeSubmitting = ref(false)
-const reassignCrateSheetOpen = ref(false)
-const reassignSourceCrate = ref<ActivityPackContainer | null>(null)
-const reassignSourceLine = ref<MaterialJourneyAccordionLine | null>(null)
-const reassignCrateSubmitting = ref(false)
-
-const reassignTargetContainers = computed(() => {
-  const source = reassignSourceCrate.value
-  if (!source) return []
-  return reassignTargetPackCrates(
-    packContainers.value,
-    source.id,
-    shellPackItemForContainer,
-  )
-})
-
-const showCrateTransitActions = computed(
-  () => materialJourneyShowsCrateTransitActions(resolvedStep.value) && listEditable.value,
-)
-
-watch(reassignCrateSheetOpen, (open) => {
-  if (!open) reassignSourceLine.value = null
-})
-
-watch(looseTakeSheetOpen, (open) => {
-  if (!open) {
-    looseTakeSourceLine.value = null
-    looseTakeSourceCrate.value = null
-    looseTakeMaxQty.value = 0
-  }
-})
-
-function containerItemForAccordionLine(
-  containerId: string,
-  line: MaterialJourneyAccordionLine,
-) {
-  return (containerItemsByContainerId.value[containerId] ?? []).find((row) => row.id === line.id)
-}
-
-function onCrateLooseTake(
-  row: Parameters<typeof activateTaskRow>[0],
-  line: MaterialJourneyAccordionLine,
-): void {
-  if (row.kind !== 'crate' || !row.container) return
-  const ci = containerItemForAccordionLine(row.container.id, line)
-  if (!ci) return
-  const max = containerLineLooseTakeMax(ci, packStage.value)
-  if (max < 1) {
-    toast.error(t('activities.packList.toastNothingLeftToIssue'))
+function onMoveForwardTask(row: MaterialJourneyTaskRow, qty: number): void {
+  if (
+    resolvedStep.value === 'store' &&
+    row.kind === 'loose' &&
+    row.packItem &&
+    row.canMove
+  ) {
+    activateTaskRow(row, 'tap')
     return
   }
-  looseTakeSourceCrate.value = row.container
-  looseTakeSourceLine.value = line
-  looseTakeMaxQty.value = max
-  looseTakeSheetOpen.value = true
-}
-
-async function onLooseTakeConfirm(payload: LooseTakeConfirmPayload): Promise<void> {
-  const source = looseTakeSourceCrate.value
-  const line = looseTakeSourceLine.value
-  if (!source || !line || looseTakeSubmitting.value) return
-  const ci = containerItemForAccordionLine(source.id, line)
-  if (!ci) return
-
-  const material = (ci.material_name ?? line.name).trim() || t('common.material')
-  const crate = source.label.trim()
-  const qty = payload.quantity
-
-  let confirmed = false
-  if (packStage.value === 'at_event_transport_back') {
-    confirmed = await confirmDialog({
-      title: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackTitle'),
-      message: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackMessage', {
-        qty,
-        material,
-        crate: crate || t('activities.common.crate'),
-      }),
-      confirmText: t('activities.packList.confirmIssueLooseWithoutCrateTransportBackProceed'),
-      cancelText: t('common.cancel'),
-      variant: 'warning',
-    })
-  } else {
-    confirmed = await confirmDialog({
-      title: t('activities.packList.confirmIssueLooseWithoutCrateTitle'),
-      message: t('activities.packList.confirmIssueLooseWithoutCrateMessage', {
-        qty,
-        material,
-        activityName: activity.value?.name ?? '',
-        activityType: activity.value?.type ?? '',
-      }),
-      confirmText: t('activities.packList.confirmIssueLooseWithoutCrateProceed'),
-      cancelText: t('common.cancel'),
-      variant: 'warning',
-    })
+  if (
+    row.kind === 'loose' &&
+    row.packItem &&
+    packCrateSelectMode.value &&
+    selectedPackCrateId.value
+  ) {
+    void assignPackItemToSelectedCrate(row.packItem, qty, 'tap')
+    return
   }
-  if (!confirmed) return
-
-  looseTakeSubmitting.value = true
-  try {
-    await issueContainerLineLoose(
-      props.activityId,
-      source.id,
-      ci,
-      qty,
-      packItems.value,
-      packStage.value,
-    )
-    await reloadSilent()
-    looseTakeSheetOpen.value = false
-    looseTakeSourceCrate.value = null
-    looseTakeSourceLine.value = null
-    toast.success(
-      t('activities.materialJourney.looseTake.toastSuccess', { name: line.name, count: qty }),
-    )
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.packList.toastIssueLineFailed'))
-  } finally {
-    looseTakeSubmitting.value = false
-  }
-}
-
-function onCrateReassign(
-  row: Parameters<typeof activateTaskRow>[0],
-  line: MaterialJourneyAccordionLine,
-): void {
-  if (row.kind !== 'crate' || !row.container) return
-  reassignSourceCrate.value = row.container
-  reassignSourceLine.value = line
-  reassignCrateSheetOpen.value = true
-}
-
-async function onReassignCrateConfirm(payload: ReassignCrateConfirmPayload): Promise<void> {
-  const source = reassignSourceCrate.value
-  const line = reassignSourceLine.value
-  if (!source || !line || reassignCrateSubmitting.value) return
-  reassignCrateSubmitting.value = true
-  try {
-    await transferPackedItemBetweenContainers(
-      props.activityId,
-      source.id,
-      payload.targetContainerId,
-      line.id,
-      containerItemsByContainerId.value,
-      payload.quantity,
-    )
-    await reloadSilent()
-    reassignCrateSheetOpen.value = false
-    reassignSourceCrate.value = null
-    reassignSourceLine.value = null
-    toast.success(
-      t('activities.materialJourney.reassignCrate.toastSuccessItemQty', {
-        name: line.name,
-        count: payload.quantity,
-      }),
-    )
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.materialJourney.reassignCrate.toastFailed'))
-  } finally {
-    reassignCrateSubmitting.value = false
-  }
+  void bookRowForward(row, 'tap', qty)
 }
 
 watch(
@@ -958,78 +1137,201 @@ const showPackCompletePanel = computed(
     progress.value.open === 0,
 )
 
-const showTransportCompletePanel = computed(
+const phaseAdvanceTarget = computed((): JourneyStep | null => {
+  const step = resolvedStep.value
+  if (!journeyStepNeedsAdvanceConfirm(step, profile.value)) return null
+  if (step !== activeJourneyStep.value) return null
+  if (!journeyStepWorkComplete.value(step)) return null
+  return nextJourneyStep(step, profile.value)
+})
+
+const showPhaseCompletePanel = computed(
   () =>
     !isEarlyPackPreview.value &&
-    isJourneyTransportOutStep(resolvedStep.value) &&
-    profile.value === 'logistics' &&
-    activity.value?.status === 'packed' &&
+    phaseAdvanceTarget.value != null &&
+    resolvedStep.value !== 'issue',
+)
+
+const showIssueReturnMaterialButton = computed(
+  () =>
+    isLogisticsAtEventInventory.value &&
+    resolvedStep.value === activeJourneyStep.value &&
+    phaseAdvanceTarget.value === 'transport_back',
+)
+
+const showStepCompletePanel = computed(() => showPhaseCompletePanel.value)
+
+const advancingJourneyPhase = ref(false)
+
+const localTransitions = ref<ActivityTransitionRow[]>([])
+const markingPacked = ref(false)
+
+const effectiveTransitions = computed(() => props.transitions ?? localTransitions.value)
+
+const quickIssueAllIssued = computed(
+  () =>
+    isQuickIssueReporting.value &&
     progress.value.total > 0 &&
     progress.value.open === 0,
 )
 
-/** Pack-Abschluss ersetzt Checkliste; Transport-Abschluss bleibt als Banner darüber. */
-const hideChecklistForComplete = computed(() => showPackCompletePanel.value)
+const hideIssueScanBar = computed(
+  () =>
+    showPackCompletePanel.value ||
+    (isQuickIssueReporting.value &&
+      resolvedStep.value === 'issue' &&
+      (quickIssueAllIssued.value || filterTab.value === 'done')),
+)
 
-function moveBackQtyForDisplayedRow(row: Parameters<typeof moveBackQtyForRow>[0]): number {
-  return moveBackQtyForRow(row)
-}
+const quickReturnHandoffInProgress = ref(false)
 
-function onMoveBackQtyUpdate(row: Parameters<typeof moveBackQtyForRow>[0], qty: number): void {
-  setMoveBackQtyForRow(row.id, qty, row.maxMoveBackQty)
-}
+const quickReturnHandoffBannerMode = computed((): QuickReturnHandoffBannerMode | null => {
+  if (profile.value === 'logistics' || isEarlyPackPreview.value) return null
+  if (resolvedStep.value !== 'return') return null
+  if (!journeyStepWorkComplete.value('return')) return null
+  const status = activity.value?.status ?? ''
+  if (status === 'at_event') return 'handoff'
+  if (status === 'returned' && canManageMaterials.value) return 'storeForMw'
+  if (status === 'returned') return 'handoffDone'
+  return null
+})
 
-function onMoveBackRow(row: Parameters<typeof moveBackTaskRow>[0], qty: number): void {
-  void moveBackTaskRow(row, qty)
-}
+const returnedTransition = computed(
+  () => effectiveTransitions.value.find((row) => row.status === 'returned') ?? null,
+)
 
-function onMoveForwardQtyUpdate(row: Parameters<typeof moveForwardQtyForRow>[0], qty: number): void {
-  setForwardQtyForRow(row.id, qty, row.maxForwardQty)
-}
+const storingTransition = computed(
+  () => effectiveTransitions.value.find((row) => row.status === 'storing') ?? null,
+)
 
-function moveForwardQtyForDisplayedRow(row: Parameters<typeof moveForwardQtyForRow>[0]): number {
-  return moveForwardQtyForRow(row)
-}
+const quickReturnHandoffDisabled = computed(() => {
+  if (quickReturnHandoffInProgress.value) return true
+  const tr = returnedTransition.value
+  if (tr && !tr.allowed) return true
+  return false
+})
 
-function onMoveForwardRow(row: Parameters<typeof moveForwardTaskRow>[0], qty: number): void {
-  if (
-    row.kind === 'loose' &&
-    row.packItem &&
-    packCrateSelectMode.value &&
-    selectedPackCrateId.value
-  ) {
-    const assignQty = Math.min(Math.floor(qty), packCrateAssignQtyForItem(row.packItem))
-    if (assignQty > 0) {
-      void assignPackItemToSelectedCrate(row.packItem, assignQty, 'tap')
-      return
-    }
+const quickStartStoringDisabled = computed(() => {
+  if (quickReturnHandoffInProgress.value) return true
+  const tr = storingTransition.value
+  if (tr && !tr.allowed) return true
+  return false
+})
+
+const quickReturnHandoffBannerDisabled = computed(() => {
+  const mode = quickReturnHandoffBannerMode.value
+  if (mode === 'handoff') return quickReturnHandoffDisabled.value
+  if (mode === 'storeForMw') return quickStartStoringDisabled.value
+  return false
+})
+
+async function onQuickReturnHandoff(): Promise<void> {
+  if (quickReturnHandoffInProgress.value || quickReturnHandoffDisabled.value) return
+  if (activity.value?.status !== 'at_event') return
+  quickReturnHandoffInProgress.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: 'returned' })
+    await reloadSilent()
+    emit('statusChanged')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.materialJourney.quickReturnHandoff.error'))
+  } finally {
+    quickReturnHandoffInProgress.value = false
   }
-  void moveForwardTaskRow(row, qty)
 }
 
-const localTransitions = ref<ActivityTransitionRow[]>([])
-const markingPacked = ref(false)
-const markingTransported = ref(false)
+async function onQuickStartStoring(): Promise<void> {
+  if (quickReturnHandoffInProgress.value || quickStartStoringDisabled.value) return
+  if (activity.value?.status !== 'returned') return
+  quickReturnHandoffInProgress.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: 'storing' })
+    await reloadSilent()
+    onStepChange('store')
+    emit('statusChanged')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
+  } finally {
+    quickReturnHandoffInProgress.value = false
+  }
+}
 
-const effectiveTransitions = computed(() => props.transitions ?? localTransitions.value)
+function onQuickReturnHandoffBannerAction(): void {
+  const mode = quickReturnHandoffBannerMode.value
+  if (mode === 'handoff') void onQuickReturnHandoff()
+  else if (mode === 'storeForMw') void onQuickStartStoring()
+}
+
+const quickIssueAutoAdvancing = ref(false)
+
+async function maybeAutoAdvanceQuickIssueToAtEvent(): Promise<void> {
+  if (profile.value === 'logistics') return
+  if (resolvedStep.value !== 'issue') return
+  if (!activity.value || activity.value.status !== 'packed') return
+  if (activeJourneyStep.value !== 'issue') return
+  if (!journeyStepWorkComplete.value('issue')) return
+  if (quickIssueAutoAdvancing.value) return
+
+  quickIssueAutoAdvancing.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: 'at_event' })
+    await reloadSilent()
+    emit('statusChanged')
+  } catch {
+    /* Kopfzeile zeigt ggf. manuellen Übergang */
+  } finally {
+    quickIssueAutoAdvancing.value = false
+  }
+}
+
+watch(
+  [
+    () => packItems.value.length,
+    () => activity.value?.status,
+    activeJourneyStep,
+    () => journeyStepWorkComplete.value('issue'),
+    () => progress.value.open,
+  ],
+  () => {
+    void maybeAutoAdvanceQuickIssueToAtEvent()
+  },
+  { immediate: true },
+)
 
 const packedTransition = computed(
   () => effectiveTransitions.value.find((row) => row.status === 'packed') ?? null,
 )
 
-watch(
-  showTransportCompletePanel,
-  (show) => {
-    if (show && filterTab.value === 'open') {
-      filterTab.value = 'done'
-    }
-  },
-  { immediate: true },
+const markPackedButtonLabel = computed(() => {
+  const transition = packedTransition.value
+  if (!transition) return t('activities.transitionActions.packed')
+  return activityTransitionActionLabel(
+    transition.status,
+    activity.value?.status ?? null,
+    t,
+    te,
+    transition.label,
+  )
+})
+
+const markPackedActionDisabled = computed(
+  () => !packedTransition.value?.allowed || markingPacked.value,
 )
+
+const markPackedHint = computed(() => {
+  if (packedTransition.value?.allowed) {
+    return t('activities.materialJourney.packComplete.markPackedHint')
+  }
+  if (packedTransition.value?.reason) return packedTransition.value.reason
+  return t('activities.materialJourney.packComplete.noPermission')
+})
 
 watch(
   showPackCompletePanel,
   async (show) => {
+    emit('packingHeaderReady', show)
     if (!show || props.transitions != null || !props.activityId) return
     try {
       const payload = await getActivityTransitions(props.activityId)
@@ -1048,6 +1350,29 @@ watch(
   },
 )
 
+async function onAdvanceJourneyPhase(): Promise<void> {
+  const currentStep = resolvedStep.value
+  const nextStatus = activityStatusAfterJourneyStep(currentStep, profile.value)
+  if (!nextStatus || advancingJourneyPhase.value) return
+  advancingJourneyPhase.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: nextStatus })
+    await reloadSilent()
+    const nextStep = defaultJourneyStepForStatus(
+      activity.value?.status ?? nextStatus,
+      profile.value,
+      canManageMaterials.value,
+    )
+    onStepChange(nextStep)
+    emit('statusChanged')
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.materialJourney.phaseComplete.error'))
+  } finally {
+    advancingJourneyPhase.value = false
+  }
+}
+
 async function onMarkPacked(): Promise<void> {
   const transition = packedTransition.value
   if (!transition?.allowed || markingPacked.value) return
@@ -1056,11 +1381,7 @@ async function onMarkPacked(): Promise<void> {
     await patchActivityStatus(props.activityId, { status: 'packed' })
     await reloadSilent()
     const status = activity.value?.status ?? 'packed'
-    const nextStep = defaultJourneyStepForStatus(
-      status,
-      profile.value,
-      canManageMaterials.value,
-    )
+    const nextStep = defaultJourneyStepForStatus(status, profile.value, canManageMaterials.value)
     onStepChange(nextStep)
     const statusKey = activityStatusI18nKey('packed')
     const statusLabel = te(`activities.status.${statusKey}`)
@@ -1076,17 +1397,10 @@ async function onMarkPacked(): Promise<void> {
   }
 }
 
-async function onMarkTransported(): Promise<void> {
-  if (markingTransported.value || !listEditable.value) return
-  markingTransported.value = true
-  try {
-    acknowledgeTransportOut(props.activityId)
-    onStepChange('issue')
-    toast.success(t('activities.materialJourney.transportComplete.toastSuccess'))
-  } finally {
-    markingTransported.value = false
-  }
-}
+defineExpose({
+  showPackCompletePanel,
+  markPacked: onMarkPacked,
+})
 </script>
 
 <template>
@@ -1099,7 +1413,7 @@ async function onMarkTransported(): Promise<void> {
       <div v-if="activity" class="material-journey-header__title">
         <h1 class="material-journey-header__name">{{ activity.name }}</h1>
         <span class="material-journey-header__status status-label" :class="activityStatusCss">
-          {{ activityStatusLabel }}
+          {{ journeyStepBadgeLabel }}
         </span>
       </div>
     </header>
@@ -1120,6 +1434,8 @@ async function onMarkTransported(): Promise<void> {
       <MaterialJourneyStepper
         :steps="steps"
         :current-step="resolvedStep"
+        :active-step="activeJourneyStep"
+        :steps-with-open-work="stepsWithOpenWork"
         :profile="profile"
         @update:current-step="onStepChange"
       />
@@ -1132,44 +1448,56 @@ async function onMarkTransported(): Promise<void> {
       </p>
 
       <MaterialJourneyTransportTours
-        v-if="showTransportTours && !isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="(showTransportTours || showTransportWeightReview) && !isEarlyPackPreview && !showPhaseCompletePanel"
+        ref="transportToursRef"
         :activity-id="activityId"
         :department-id="departmentId"
         :journey-step="resolvedStep"
         :list-editable="listEditable"
+        :can-manage-materials="canManageMaterials"
         :assignable-tasks="transportAssignableTasks"
+        :pack-items="packItems"
+        :pack-containers="packContainers"
+        :container-items-by-container-id="containerItemsByContainerId"
+        :transport-tour-select-mode="transportTourSelectMode"
+        :selected-tour-id="selectedTourId"
+        :simple-tour-mode="simpleTourMode"
+        :plan-tours="transportTourSelectMode ? planTransportTours : null"
+        :plan-vehicles="transportTourSelectMode ? planActivityVehicles : null"
+        @pipeline-changed="onTransportPipelineChanged"
+        @tour-items-changed="loadToursAndVehicles"
+        @select-vehicle="selectVehicleTarget($event)"
+        @select-tour="toggleTourSelection($event)"
+        @select-simple-tour="selectSimpleTour()"
       />
 
-      <MaterialJourneyPackCompletePanel
-        v-if="showPackCompletePanel"
-        mode="pack"
-        :total-count="progress.total"
-        :transition="packedTransition"
-        :loading="markingPacked"
-        :current-status="activity.status"
-        @confirm="onMarkPacked()"
+      <MaterialJourneyChooseTourModal
+        :open="chooseTourModalOpen"
+        :vehicles="planActivityVehicles"
+        :loading="assignTourSubmitting"
+        @update:open="onChooseTourModalOpenChange"
+        @select-vehicle="selectVehicleTarget($event, true)"
+        @select-simple="selectSimpleTour(true)"
       />
 
-      <MaterialJourneyPackCompletePanel
-        v-if="showTransportCompletePanel"
-        mode="transport"
-        class="material-journey-pack-complete--with-list"
+      <MaterialJourneyPhaseCompletePanel
+        v-if="showPhaseCompletePanel && phaseAdvanceTarget"
+        :from-step="resolvedStep"
+        :next-step="phaseAdvanceTarget"
         :total-count="progress.total"
-        :units-transported="transportedUnitsTotal"
-        :loading="markingTransported"
-        :action-disabled="!listEditable"
-        @confirm="onMarkTransported()"
+        :loading="advancingJourneyPhase"
+        @continue="onAdvanceJourneyPhase()"
       />
 
       <div
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete && !showTransportCompletePanel"
+        v-else-if="!isEarlyPackPreview && !isLogisticsAtEventInventory && !hideIssueScanBar"
         class="material-journey-scan-wrap"
       >
         <MaterialJourneyScanBar
           v-model="scanQuery"
           :loading="scanResolving || assignCrateSubmitting"
           :session-log="scanSessionLog"
-          :pack-target-label="showActivePackCratePanel ? selectedPackCrate?.label ?? null : null"
+          :pack-target-label="scanTargetLabel"
           @submit="onScanSubmit"
           @clear="onScanClear"
           @deselect="clearSelectedPackCrate()"
@@ -1222,7 +1550,7 @@ async function onMarkTransported(): Promise<void> {
         />
 
         <MaterialJourneyActiveCratePanel
-          v-if="showActivePackCratePanel"
+          v-if="showActivePackCratePanel && selectedPackCrateHasContents"
           :items="selectedPackCrateItems"
         />
       </div>
@@ -1259,15 +1587,26 @@ async function onMarkTransported(): Promise<void> {
       />
 
       <MaterialJourneyToolbar
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="!isEarlyPackPreview && !showPhaseCompletePanel && showFilterToolbar"
         v-model:filter-tab="filterTab"
+        :filter-variant="journeyFilterVariant"
+        :hide-filter-tabs="useRegalGroupingOnStore"
         :done-count="progress.done"
         :total-count="progress.total"
         :show-by-shelf-filter="showByShelfFilter"
         :presence-labels="presenceLabels"
         :show-add-pack-crate="showAddPackCrateButton"
         :add-pack-crate-loading="containerMutationLoading"
+        :show-mark-packed="showPackCompletePanel"
+        :mark-packed-label="markPackedButtonLabel"
+        :mark-packed-disabled="markPackedActionDisabled"
+        :mark-packed-loading="markingPacked"
+        :mark-packed-hint="markPackedHint"
+        :pack-complete-description="
+          t('activities.materialJourney.packComplete.description', { count: progress.total })
+        "
         @add-pack-crate="openAddPackCrateModal()"
+        @mark-packed="onMarkPacked()"
       />
 
       <PackAddContainerModal
@@ -1289,11 +1628,63 @@ async function onMarkTransported(): Promise<void> {
         </EButton>
       </div>
 
+      <div
+        v-if="isLogisticsAtEventInventory && !showStepCompletePanel"
+        class="material-journey-inventory-header section-card"
+      >
+        <div class="material-journey-inventory-header__top">
+          <div>
+            <h2 class="material-journey-inventory-header__title">
+              {{ t('activities.materialJourney.inventoryAtEvent.title') }}
+            </h2>
+            <p v-if="displayedTasks.length === 0" class="text-muted material-journey-inventory-header__empty">
+              {{ t('activities.materialJourney.inventoryAtEvent.empty') }}
+            </p>
+            <p v-else class="text-muted material-journey-inventory-header__hint">
+              {{ t('activities.materialJourney.inventoryAtEvent.hint') }}
+            </p>
+          </div>
+          <EButton
+            v-if="showIssueReturnMaterialButton"
+            variant="primary"
+            size="small"
+            class="material-journey-inventory-header__action"
+            :loading="advancingJourneyPhase"
+            @click="onAdvanceJourneyPhase()"
+          >
+            {{ t('activities.materialJourney.inventoryAtEvent.returnMaterial') }}
+          </EButton>
+        </div>
+      </div>
+
+      <MaterialJourneyQuickReturnHandoffBanner
+        v-if="quickReturnHandoffBannerMode"
+        :mode="quickReturnHandoffBannerMode"
+        :loading="quickReturnHandoffInProgress"
+        :disabled="quickReturnHandoffBannerDisabled"
+        @action="onQuickReturnHandoffBannerAction()"
+      />
+
+      <section
+        v-if="showStoreShelfHint"
+        class="material-journey-store-hint section-card"
+        role="note"
+      >
+        <p class="material-journey-store-hint__title">
+          {{ t('activities.materialJourney.storeHint.title') }}
+        </p>
+        <p class="material-journey-store-hint__body text-muted">
+          {{ t('activities.materialJourney.storeHint.description') }}
+        </p>
+      </section>
+
       <MaterialJourneyTaskList
-        v-if="!hideChecklistForComplete"
+        v-if="!showPhaseCompletePanel"
         :tasks="displayedTasks"
         :regal-groups="displayedRegalGroups"
+        :group-by-shelf="useRegalGroupingOnStore"
         :filter-tab="filterTab"
+        :filter-variant="journeyFilterVariant"
         :is-early-pack-preview="isEarlyPackPreview"
         :position-count="positionCount"
         :list-editable="listEditable"
@@ -1302,43 +1693,30 @@ async function onMarkTransported(): Promise<void> {
         :list-filter-active="listTextFilterActive"
         :pack-crate-select-mode="packCrateSelectMode"
         :pack-target-crate-id="selectedPackCrateId"
+        :pack-target-crate-label="selectedPackCrate?.label ?? null"
+        :transport-tour-assign-active="transportTourAssignActive"
+        :transport-target-tour-label="selectedTourLabel"
         :container-items-by-container-id="containerItemsByContainerId"
         :pack-items="packItems"
         :pack-containers="packContainers"
         :crate-peek-maps="cratePeekMaps"
         :shell-pack-item-for-container="shellPackItemForContainer"
-        :show-transit-actions="showCrateTransitActions"
-        :show-move-back="showMoveBack"
-        :move-back-qty-for-row="moveBackQtyForDisplayedRow"
-        :show-move-forward="showMoveForwardQty"
-        :show-crate-move-forward="showCrateMoveForwardQty"
-        :move-forward-qty-for-row="moveForwardQtyForDisplayedRow"
+        :show-transit-actions="movesEnabledForStep"
+        :show-move-forward="showLooseMoveForward"
+        :show-crate-move-forward="movesEnabledForStep"
+        :show-issue-for-row="showIssueForRow"
+        :show-issue-for-accordion-line="showIssueForAccordionLineBound"
+        :at-event-qty-label-for-row="atEventQtyLabelForRow"
+        :at-event-qty-label-for-line="atEventQtyLabelForLineBound"
+        :is-consumable-for-material-id="isConsumableForMaterialId"
         @activate="onActivateTaskRow"
-        @select-target="onSelectPackTarget"
-        @loose-take="onCrateLooseTake"
-        @reassign="onCrateReassign"
-        @move-back="onMoveBackRow"
-        @update:move-back-qty="onMoveBackQtyUpdate"
-        @move-forward="onMoveForwardRow"
-        @update:move-forward-qty="onMoveForwardQtyUpdate"
-      />
-
-      <MaterialLooseTakeSheet
-        v-model:open="looseTakeSheetOpen"
-        :source-container="looseTakeSourceCrate"
-        :source-line="looseTakeSourceLine"
-        :max-qty="looseTakeMaxQty"
-        :submitting="looseTakeSubmitting"
-        @confirm="onLooseTakeConfirm"
-      />
-
-      <MaterialReassignCrateSheet
-        v-model:open="reassignCrateSheetOpen"
-        :source-container="reassignSourceCrate"
-        :source-line="reassignSourceLine"
-        :target-containers="reassignTargetContainers"
-        :submitting="reassignCrateSubmitting"
-        @confirm="onReassignCrateConfirm"
+        @move-forward="onMoveForwardTask"
+        @consumed="onIssueConsumed"
+        @loss="onIssueLoss"
+        @repair="onIssueRepair"
+        @line-consumed="onIssueConsumedLine"
+        @line-loss="onIssueLossLine"
+        @line-repair="onIssueRepairLine"
       />
 
       <MaterialCrateCheckSheet
@@ -1383,6 +1761,16 @@ async function onMarkTransported(): Promise<void> {
         @completed="onComboSheetCompleted"
       />
 
+      <PhysicalComboIssueComponentModal
+        :open="physicalComboIssueModalOpen"
+        :loading="physicalComboIssueModalLoading"
+        :issue-type="physicalComboIssueModalIssueType"
+        :shell-pack-item="physicalComboIssueModalPi"
+        :sections="physicalComboIssueModalSections"
+        @cancel="closePhysicalComboIssueModal"
+        @confirm="onPhysicalComboIssueConfirm"
+      />
+
       <MaterialReturnCrateSheet
         v-model:open="returnCrateOpen"
         :container-label="returnCrateContainer?.label ?? ''"
@@ -1401,16 +1789,14 @@ async function onMarkTransported(): Promise<void> {
         :max-qty="activeStoreMaxQty"
         :department-id="departmentId"
         :submitting="storeShelveSubmitting"
-        :feedback-visible="storeShelveFeedback"
         @confirm="submitStoreShelve()"
-        @next="onStoreShelveNext()"
-        @stay="onStoreShelveStay()"
       />
 
       <MaterialJourneyStepFooter
-        v-if="!isEarlyPackPreview && !hideChecklistForComplete"
+        v-if="!isEarlyPackPreview && !showStepCompletePanel && !isLogisticsAtEventInventory"
         :journey-step="resolvedStep"
         :profile="profile"
+        :filter-variant="journeyFilterVariant"
         :done-count="progress.done"
         :total-count="progress.total"
         :open-count="progress.open"
@@ -1427,4 +1813,45 @@ async function onMarkTransported(): Promise<void> {
 
 <style scoped>
 @import '@/styles/views/activities/material-journey.css';
+
+.material-journey-inventory-header__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.material-journey-inventory-header__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.material-journey-inventory-header__hint,
+.material-journey-inventory-header__empty {
+  margin: 0;
+  font-size: 13px;
+}
+
+.material-journey-inventory-header__action {
+  flex-shrink: 0;
+}
+
+.material-journey-store-hint {
+  margin-bottom: 12px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.35);
+  background: rgba(var(--v-theme-primary), 0.05);
+}
+
+.material-journey-store-hint__title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.material-journey-store-hint__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
 </style>

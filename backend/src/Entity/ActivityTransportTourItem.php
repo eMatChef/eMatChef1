@@ -30,6 +30,9 @@ class ActivityTransportTourItem
     #[ORM\Column(type: 'integer', nullable: true)]
     private ?int $quantity = null;
 
+    #[ORM\Column(name: 'measured_weight_kg', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $measuredWeightKg = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -58,5 +61,7 @@ class ActivityTransportTourItem
     public function setPackItemId(?string $id): self { $this->packItemId = $id; return $this; }
     public function getQuantity(): ?int { return $this->quantity; }
     public function setQuantity(?int $quantity): self { $this->quantity = $quantity; return $this; }
+    public function getMeasuredWeightKg(): ?string { return $this->measuredWeightKg; }
+    public function setMeasuredWeightKg(?string $kg): self { $this->measuredWeightKg = $kg; return $this; }
     public function touch(): self { $this->updatedAt = new \DateTime(); return $this; }
 }

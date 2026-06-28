@@ -32,6 +32,7 @@ class ActivityAccountingCostService
     {
         if (!in_array($activity->getStatus(), [
             Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
             Activity::STATUS_AT_EVENT,
             Activity::STATUS_PACKED,
             Activity::STATUS_PACKING,

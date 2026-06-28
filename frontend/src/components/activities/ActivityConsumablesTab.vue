@@ -142,35 +142,10 @@
             </div>
 
             <footer
-              v-if="
-                (canAddActivityMaterial && remainingQty(row.material_item_id) > 0) ||
-                (canRequestNachbuchung && remainingQty(row.material_item_id) > 0)
-              "
+              v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
               class="consumable-card__footer"
             >
-              <div
-                v-if="canAddActivityMaterial && remainingQty(row.material_item_id) > 0"
-                class="consumable-footer__surplus"
-              >
-                <p class="consumable-footer__hint text-muted">
-                  {{ t('activities.consumables.surplusHint', { n: remainingQty(row.material_item_id) }) }}
-                </p>
-                <EButton
-                  variant="secondary"
-                  size="small"
-                  :disabled="releasingId === row.material_item_id"
-                  :loading="releasingId === row.material_item_id"
-                  @click="releaseSurplus(row)"
-                >
-                  {{
-                    releasingId === row.material_item_id
-                      ? t('activities.consumables.surplusReleasing')
-                      : t('activities.consumables.surplusRelease', { n: remainingQty(row.material_item_id) })
-                  }}
-                </EButton>
-              </div>
               <EButton
-                v-if="canRequestNachbuchung && remainingQty(row.material_item_id) > 0"
                 variant="text"
                 size="small"
                 class="consumable-footer__nachbuchung"
@@ -229,8 +204,14 @@
             <span>{{ t('activities.consumables.costsTotal') }}</span>
             <strong>CHF {{ formatChf(consumableCostTotalValue) }}</strong>
           </div>
-          <p v-if="consumableCostTotalValue <= 0" class="consumable-costs-none text-muted">
+          <p v-if="showCostsMissingPriceWarning" class="consumable-costs-warn">
+            {{ t('activities.consumables.costsMissingSalePrice') }}
+          </p>
+          <p v-else-if="consumableCostTotalValue <= 0 && consumptionHistory.length === 0" class="consumable-costs-none text-muted">
             {{ t('activities.consumables.costsNoneYet') }}
+          </p>
+          <p v-else-if="consumableCostTotalValue <= 0" class="consumable-costs-none text-muted">
+            {{ t('activities.consumables.costsZeroWithUsage') }}
           </p>
         </section>
 
@@ -265,7 +246,6 @@ import {
   createActivityIssue,
   getActivityIssues,
   getActivityItems,
-  releaseConsumableSurplus,
   type ActivityIssueReportRow,
   type ActivityItemRow,
 } from '@/api/activities'
@@ -296,6 +276,8 @@ const props = defineProps<{
   canAddActivityMaterial?: boolean
   /** Nachlieferung Verbrauchsmaterial (Gruppe/Ersteller ab «Am Event» oder MW/DC) */
   canRequestConsumableReplenishment?: boolean
+  /** Pipeline-Stufe für Nachlieferung (z. B. packed_at_event) */
+  replenishmentPackStage?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -305,6 +287,7 @@ const emit = defineEmits<{
       materialLabel: string
       packSize?: number | null
       packUnit?: string | null
+      packStage?: string
     },
   ]
   /** Nach erfolgreicher Verbrauchsmeldung: Parent lädt Meldungen neu (Kosten-Tab, Reparaturen/Verluste). */
@@ -355,6 +338,12 @@ const consumableCostTotalValue = computed(() =>
   consumableCostTotal(activityItems.value, issues.value),
 )
 
+const showCostsMissingPriceWarning = computed(() =>
+  consumableAggregated.value.some(
+    (row) => usedQty(row.material_item_id) > 0 && row.sale_price == null,
+  ),
+)
+
 function formatUnitPrice(price: number | null): string {
   return formatChfLabel(price)
 }
@@ -363,8 +352,6 @@ function formatLineAmount(row: { material_item_id: string; sale_price: number | 
   const amount = consumableChargeableCost(row.material_item_id, activityItems.value, issues.value)
   return formatChfLabel(amount)
 }
-
-const releasingId = ref<string | null>(null)
 
 const canRequestNachbuchung = computed(
   () =>
@@ -434,6 +421,7 @@ function emitNachbuchung(row: {
     materialLabel: displayNameAgg(row),
     packSize: row.pack_size ?? null,
     packUnit: row.pack_unit ?? null,
+    packStage: props.replenishmentPackStage?.trim() || undefined,
   })
 }
 
@@ -516,26 +504,6 @@ async function load() {
     toast.error(t('activities.consumables.toastLoadFailed'))
   } finally {
     isLoading.value = false
-  }
-}
-
-async function releaseSurplus(row: { material_item_id: string }) {
-  const rem = remainingQty(row.material_item_id)
-  if (rem < 1 || releasingId.value) return
-  releasingId.value = row.material_item_id
-  try {
-    await releaseConsumableSurplus(props.activityId, {
-      material_item_id: row.material_item_id,
-      quantity: rem,
-    })
-    toast.success(t('activities.consumables.toastSurplusReleased', { n: rem }))
-    emit('consumptionBooked')
-    await load()
-  } catch (err: unknown) {
-    const e = err as { response?: { data?: { error?: string } }; message?: string }
-    toast.error(e.response?.data?.error || e.message || t('activities.consumables.toastSurplusFailed'))
-  } finally {
-    releasingId.value = null
   }
 }
 
@@ -777,18 +745,6 @@ watch(
   background: #fafbfc;
 }
 
-.consumable-footer__surplus {
-  flex: 1;
-  min-width: min(100%, 16rem);
-}
-
-.consumable-footer__hint {
-  margin: 0 0 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  max-width: 28rem;
-}
-
 .consumable-footer__nachbuchung {
   flex-shrink: 0;
   align-self: center;
@@ -836,6 +792,17 @@ watch(
 .consumable-costs-none {
   margin: 8px 0 0;
   font-size: 12px;
+}
+
+.consumable-costs-warn {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
 }
 
 .consumable-history {

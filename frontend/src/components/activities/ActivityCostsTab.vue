@@ -113,7 +113,7 @@ const openWorkshopTickets = computed(() =>
 )
 
 const isExternal = computed(() => props.activityType === 'external')
-const showAccountingTasks = computed(() => ['returned', 'completed'].includes(props.activityStatus))
+const showAccountingTasks = computed(() => ['returned', 'storing', 'completed'].includes(props.activityStatus))
 
 const pendingAccountingSorted = computed(() => sortFollowUpsForDisplay(pendingAccounting.value))
 

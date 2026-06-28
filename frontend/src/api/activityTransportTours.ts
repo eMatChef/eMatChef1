@@ -2,10 +2,13 @@ import apiClient from './apiClient'
 
 export type TransportTourDirection = 'outbound' | 'inbound'
 
+export type TransportTourStatus = 'planned' | 'in_transit' | 'arrived'
+
 export type TransportTourLoadFit = 'ok' | 'heavy' | 'unknown'
 
 export interface TransportTourLoadSummary {
-  estimated_weight_kg: number
+  known_weight_kg: number
+  unknown_weight_count: number
   estimated_volume_m3: number | null
   max_payload_kg: number | null
   max_volume_m3: number | null
@@ -17,6 +20,10 @@ export interface ActivityTransportTourItem {
   pack_container_id: string | null
   pack_item_id: string | null
   quantity: number | null
+  measured_weight_kg: number | null
+  measured_weight_inherited: boolean
+  material_weight_known: boolean
+  material_item_id: string | null
 }
 
 export interface ActivityTransportTour {
@@ -24,6 +31,7 @@ export interface ActivityTransportTour {
   activity_id: string
   label: string
   direction: TransportTourDirection
+  status: TransportTourStatus
   sort_order: number
   notes: string | null
   vehicle_id: string
@@ -38,6 +46,38 @@ export type TransportTourItemInput = {
   pack_container_id?: string
   pack_item_id?: string
   quantity?: number
+  measured_weight_kg?: number | null
+}
+
+export type TourDisplayLabelSource = Pick<ActivityTransportTour, 'label' | 'vehicle_name'>
+
+export function tourLabelIncludesVehicle(tour: TourDisplayLabelSource): boolean {
+  const vehicle = tour.vehicle_name.trim()
+  return vehicle.length > 0 && tour.label.includes(vehicle)
+}
+
+/** e.g. «Tour A Anhänger Bunzi» — vehicle omitted when already part of label. */
+export function formatTourDisplayLabel(tour: TourDisplayLabelSource): string {
+  const label = tour.label.trim()
+  const vehicle = tour.vehicle_name.trim()
+  if (!vehicle || tourLabelIncludesVehicle(tour)) return label
+  return `${label} ${vehicle}`
+}
+
+export function mapTourItemsForPatch(
+  items: ActivityTransportTourItem[],
+): TransportTourItemInput[] {
+  return items.map((item) => ({
+    pack_container_id: item.pack_container_id ?? undefined,
+    pack_item_id: item.pack_item_id ?? undefined,
+    quantity: item.quantity ?? 1,
+    measured_weight_kg: item.measured_weight_kg ?? undefined,
+  }))
+}
+
+function mapTourStatus(raw: unknown): TransportTourStatus {
+  if (raw === 'in_transit' || raw === 'arrived') return raw
+  return 'planned'
 }
 
 function mapTour(raw: Record<string, unknown>): ActivityTransportTour {
@@ -48,6 +88,7 @@ function mapTour(raw: Record<string, unknown>): ActivityTransportTour {
     activity_id: String(raw.activity_id ?? ''),
     label: String(raw.label ?? ''),
     direction: (raw.direction === 'inbound' ? 'inbound' : 'outbound') as TransportTourDirection,
+    status: mapTourStatus(raw.status),
     sort_order: Number(raw.sort_order ?? 0),
     notes: raw.notes != null ? String(raw.notes) : null,
     vehicle_id: String(raw.vehicle_id ?? ''),
@@ -62,10 +103,19 @@ function mapTour(raw: Record<string, unknown>): ActivityTransportTour {
         pack_container_id: r.pack_container_id != null ? String(r.pack_container_id) : null,
         pack_item_id: r.pack_item_id != null ? String(r.pack_item_id) : null,
         quantity: r.quantity != null ? Number(r.quantity) : null,
+        measured_weight_kg:
+          r.measured_weight_kg != null ? Number(r.measured_weight_kg) : null,
+        measured_weight_inherited: Boolean(r.measured_weight_inherited),
+        material_weight_known: Boolean(r.material_weight_known),
+        material_item_id:
+          r.material_item_id != null ? String(r.material_item_id) : null,
       }
     }),
     load_summary: {
-      estimated_weight_kg: Number(load.estimated_weight_kg ?? 0),
+      known_weight_kg: Number(
+        load.known_weight_kg ?? load.estimated_weight_kg ?? 0,
+      ),
+      unknown_weight_count: Number(load.unknown_weight_count ?? 0),
       estimated_volume_m3:
         load.estimated_volume_m3 != null ? Number(load.estimated_volume_m3) : null,
       max_payload_kg: load.max_payload_kg != null ? Number(load.max_payload_kg) : null,
@@ -101,7 +151,12 @@ export async function createActivityTransportTour(
 export async function updateActivityTransportTour(
   activityId: string,
   tourId: string,
-  body: { label?: string; notes?: string; items?: TransportTourItemInput[] },
+  body: {
+    label?: string
+    notes?: string
+    status?: TransportTourStatus
+    items?: TransportTourItemInput[]
+  },
 ): Promise<ActivityTransportTour> {
   const { data } = await apiClient.patch<Record<string, unknown>>(
     `/api/activities/${activityId}/transport-tours/${tourId}`,
@@ -117,8 +172,43 @@ export async function deleteActivityTransportTour(
   await apiClient.delete(`/api/activities/${activityId}/transport-tours/${tourId}`)
 }
 
+export async function arriveActivityTransportTour(
+  activityId: string,
+  tourId: string,
+): Promise<ActivityTransportTour> {
+  const { data } = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/transport-tours/${tourId}/arrive`,
+  )
+  const tour = (data?.tour ?? data) as Record<string, unknown>
+  return mapTour(tour ?? {})
+}
+
+export async function arriveAllActivityTransportTours(
+  activityId: string,
+  direction: TransportTourDirection,
+): Promise<{ applied_units: number; updated_lines: number; tours_marked: number }> {
+  const { data } = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/transport-tours/arrive-all`,
+    { direction },
+  )
+  return {
+    applied_units: Number(data?.applied_units ?? 0),
+    updated_lines: Number(data?.updated_lines ?? 0),
+    tours_marked: Number(data?.tours_marked ?? 0),
+  }
+}
+
 export function directionForJourneyStep(step: string): TransportTourDirection | null {
-  if (step === 'transport_out') return 'outbound'
+  if (step === 'transport_out' || step === 'issue') return 'outbound'
   if (step === 'transport_back') return 'inbound'
+  return null
+}
+
+/** Touren-Planung (Zuordnung, Abfahrt) vs. Ankunft buchen. */
+export function transportTourUiModeForJourneyStep(
+  step: string,
+): 'plan' | 'arrival' | null {
+  if (step === 'transport_out' || step === 'transport_back') return 'plan'
+  if (step === 'issue') return 'arrival'
   return null
 }

@@ -1,24 +1,60 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
 import type { MaterialJourneyFilterTab } from '@/components/activities/materialJourneyTaskList'
 
-defineProps<{
+const props = defineProps<{
   doneCount: number
   totalCount: number
+  /** Quick Ausgabe: «Noch ausgeben» / «Mit mir unterwegs» statt Offen/Erledigt. */
+  filterVariant?: 'default' | 'quickIssue'
   showByShelfFilter: boolean
   presenceLabels?: string[]
   showAddPackCrate?: boolean
   addPackCrateLoading?: boolean
+  showMarkPacked?: boolean
+  markPackedLabel?: string
+  markPackedDisabled?: boolean
+  markPackedLoading?: boolean
+  markPackedHint?: string
+  packCompleteDescription?: string
+  /** Einlagern: nur Fortschritt, keine Offen/Erledigt-Tabs */
+  hideFilterTabs?: boolean
 }>()
 
 const emit = defineEmits<{
   'add-pack-crate': []
+  'mark-packed': []
 }>()
 
 const filterTab = defineModel<MaterialJourneyFilterTab>('filterTab', { required: true })
 
 const { t } = useI18n()
+
+const openFilterLabel = computed(() =>
+  props.filterVariant === 'quickIssue'
+    ? t('activities.materialJourney.filter.openQuickIssue')
+    : t('activities.materialJourney.filter.open'),
+)
+
+const doneFilterLabel = computed(() =>
+  props.filterVariant === 'quickIssue'
+    ? t('activities.materialJourney.filter.doneQuickIssue')
+    : t('activities.materialJourney.filter.done'),
+)
+
+const progressLabel = computed(() =>
+  props.filterVariant === 'quickIssue'
+    ? t('activities.materialJourney.toolbar.progressQuickIssue', {
+        done: props.doneCount,
+        total: props.totalCount,
+      })
+    : t('activities.materialJourney.toolbar.progress', {
+        done: props.doneCount,
+        total: props.totalCount,
+      }),
+)
 
 function selectTab(tab: MaterialJourneyFilterTab): void {
   filterTab.value = tab
@@ -27,7 +63,38 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
 
 <template>
   <div class="material-journey-toolbar section-card">
-    <div class="material-journey-toolbar__filters" role="tablist" :aria-label="t('activities.materialJourney.filter.aria')">
+    <div v-if="showMarkPacked" class="material-journey-toolbar__packed-row">
+      <div class="material-journey-toolbar__packed-copy">
+        <p class="material-journey-toolbar__packed-title">
+          {{ t('activities.materialJourney.packComplete.title') }}
+        </p>
+        <p v-if="packCompleteDescription" class="material-journey-toolbar__packed-desc text-muted">
+          {{ packCompleteDescription }}
+        </p>
+        <p v-if="markPackedHint" class="material-journey-toolbar__packed-hint text-muted">
+          {{ markPackedHint }}
+        </p>
+      </div>
+      <EButton
+        v-if="markPackedLabel"
+        variant="primary"
+        size="default"
+        class="material-journey-toolbar__packed-action"
+        :disabled="markPackedDisabled"
+        :loading="markPackedLoading"
+        :title="markPackedHint || markPackedLabel"
+        @click="emit('mark-packed')"
+      >
+        {{ markPackedLabel }}
+      </EButton>
+    </div>
+
+    <div
+      v-if="!hideFilterTabs"
+      class="material-journey-toolbar__filters"
+      role="tablist"
+      :aria-label="t('activities.materialJourney.filter.aria')"
+    >
       <button
         type="button"
         class="material-journey-toolbar__chip"
@@ -36,7 +103,7 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
         :aria-selected="filterTab === 'open'"
         @click="selectTab('open')"
       >
-        {{ t('activities.materialJourney.filter.open') }}
+        {{ openFilterLabel }}
       </button>
       <button
         type="button"
@@ -46,7 +113,7 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
         :aria-selected="filterTab === 'done'"
         @click="selectTab('done')"
       >
-        {{ t('activities.materialJourney.filter.done') }}
+        {{ doneFilterLabel }}
       </button>
       <button
         v-if="showByShelfFilter"
@@ -75,7 +142,7 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
       </EButton>
     </div>
     <p v-if="totalCount > 0" class="material-journey-toolbar__progress text-muted">
-      {{ t('activities.materialJourney.toolbar.progress', { done: doneCount, total: totalCount }) }}
+      {{ progressLabel }}
     </p>
     <p
       v-for="(label, idx) in presenceLabels ?? []"

@@ -12,6 +12,10 @@ class ActivityTransportTour
     public const DIRECTION_OUTBOUND = 'outbound';
     public const DIRECTION_INBOUND = 'inbound';
 
+    public const STATUS_PLANNED = 'planned';
+    public const STATUS_IN_TRANSIT = 'in_transit';
+    public const STATUS_ARRIVED = 'arrived';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 13, columnDefinition: 'CHARACTER(13) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
@@ -39,6 +43,9 @@ class ActivityTransportTour
 
     #[ORM\Column(type: 'string', length: 16)]
     private string $direction;
+
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => 'planned'])]
+    private string $status = self::STATUS_PLANNED;
 
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
@@ -85,6 +92,8 @@ class ActivityTransportTour
     public function setLendingDepartmentId(?string $id): self { $this->lendingDepartmentId = $id; return $this; }
     public function getDirection(): string { return $this->direction; }
     public function setDirection(string $direction): self { $this->direction = $direction; return $this; }
+    public function getStatus(): string { return $this->status; }
+    public function setStatus(string $status): self { $this->status = $status; return $this; }
     public function getSortOrder(): int { return $this->sortOrder; }
     public function setSortOrder(int $sortOrder): self { $this->sortOrder = $sortOrder; return $this; }
     public function getNotes(): ?string { return $this->notes; }

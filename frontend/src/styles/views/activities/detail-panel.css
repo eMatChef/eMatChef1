@@ -81,11 +81,17 @@
   padding-inline: 8px;
 }
 
+.activity-detail-view :deep(.activity-detail-tabs .v-slide-group__content) {
+  gap: 4px;
+}
+
 .activity-detail-view :deep(.activity-detail-tabs .v-tab) {
   text-transform: none;
   font-size: 15px;
   font-weight: 500;
   letter-spacing: normal;
+  min-width: auto;
+  padding-inline: 16px;
 }
 
 .activity-detail-tabs-window {
@@ -142,6 +148,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+
+.activity-detail-quick-phase-chips {
+  flex-shrink: 0;
 }
 
 .activity-detail-workflow-actions {

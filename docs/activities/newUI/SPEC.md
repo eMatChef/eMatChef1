@@ -158,18 +158,27 @@ pack-journey:  MW Step pack → Gruppe issue/return → MW store (Ziel-UI)
 
 Logistics optional: readonly-Anker `at_event` nur als Status-Badge, **nicht** als eigener Stepper-Knoten bei quick.
 
-### 3.2 Aktiver Step vs. Aktivitäts-Status
+### 3.2 Aktiver Step = Aktivitäts-Status
 
-| `activity.status` | Default `journey_step` (Packliste) |
-|-------------------|-------------------------------------|
-| `draft` … `approved` | Tab `packs` nicht aktiv / Hinweis → Tab **Material** |
-| `packing` | `pack` |
-| `packed` | `issue` (Quick) / `transport_out` (Logistics) |
-| `at_event` | `return` (oder `transport_back` bei offener Pipeline) |
-| `returned` | `store` (MW) / `return` readonly (Gruppe) |
-| `completed` | alle readonly |
+**Entscheidung (Juni 2026):** [ADR-workflow-layers.md](./ADR-workflow-layers.md) — Stepper und `activity.status` sind **dieselbe** Workflow-Achse. Kein separates `pack_journey_step`.
 
-Automatischer Vorschlag beim Öffnen; User darf **vergangene** Steps nur lesen, **zukünftige** nicht bearbeiten (wie heutige `showPackStageViewOnlyBanner`-Logik).
+| `activity.status` | Stepper (UI) | Quick | Logistics |
+|-------------------|--------------|-------|-----------|
+| `draft` … `approved` | — | Tab Material | Tab Material |
+| `packing` | `pack` | ✓ | ✓ |
+| `packed` | — | Übergang | Übergang |
+| `transport_out` | `transport_out` | — | ✓ |
+| `at_event` | `issue` («Am Anlass») | ✓ | ✓ |
+| `transport_back` | `transport_back` | — | ✓ |
+| `returned` | `return` | ✓ | ✓ |
+| `storing` | `store` | ✓ (MW) | ✓ (MW) |
+| `completed` | readonly | ✓ | ✓ |
+
+- Primary-Button (Panel unten) = Header-Status-Button = `PATCH /status`
+- Stepper-Klick = nur Navigation (URL); **kein** Status-Schreiben
+- Vergangene Stepper-Knoten: bearbeitbar, wenn auf der PackStage noch offene Mengen (`quantity_*`) — nicht linear grau
+
+**Deprecated:** `pack_journey_step`, `PATCH …/pack-journey-step`
 
 ### 3.3 Mapping `journey_step` → `PackStage`
 
@@ -224,9 +233,9 @@ Logistics — vollständige Tabelle:
 | **quick** / **external** | `pack` → `issue` → `return` → `store` |
 | **logistics** | `pack` → `transport_out` → `issue` → `transport_back` → `return` → `store` |
 
-- Quick: kein `at_event`-Knoten — nach Ausgabe + Status `at_event` ist `return` nächster bearbeitbarer Step
-- Logistics: `issue` = UI «Am Anlass»; Status `at_event` hier setzen
-- Logistics: Status `returned` im Step `return`, nicht bei `transport_back`
+- Quick: kein `transport_out` / `transport_back` im Stepper
+- Logistics: `issue` = UI «Am Anlass» bei Status `at_event`
+- Status `returned` im Stepper `return`; `storing` im Stepper `store` (eigener Activity-Status)
 
 ### 3.5 Camp/Event — Transport
 
@@ -289,23 +298,26 @@ ActivityMaterialJourneyView.vue
 
 Fortschritt: `doneCount / totalCount` für aktuellen Step — berechnet aus `packWorkflowRules` + `getStageLeftQty` / `getStageRightQty` (gleiche Logik wie `stageProgress`, aber **Positionen** statt Mengen-Prozent optional beides).
 
-### 4.4 Status vs. Journey — **entschieden**
+### 4.4 Status vs. Journey — **entschieden** (Juni 2026)
+
+Siehe [ADR-workflow-layers.md](./ADR-workflow-layers.md).
 
 | UI-Ort | Verantwortung |
 |--------|----------------|
-| **Kopfzeile** `ActivityDetailView` | Aktivitäts-**Status**: `at_event`, `returned`, `completed`, Stornieren |
-| **Journey** Route `pack-journey` | **Mengen** / Pipeline: packen, ausgeben, retournieren, einlagern |
+| **Kopfzeile** `ActivityDetailView` | Aktivitäts-**Status**-Übergänge (`transport_out`, `at_event`, `storing`, …) |
+| **Journey** Stepper + Checkliste | **Gleiche** Workflow-Achse; Material-Mengen über `quantity_*` (unabhängig) |
 
-- Journey-**Footer**: kein Status-Button — höchstens Hinweis «Noch {n} Positionen bis Status … möglich»
-- Status-Confirm (`usePackWorkflowConfirm`) bleibt an Kopfzeile gekoppelt; Journey liefert `stageProgress` / Pending-Liste
+- Journey-**Footer** / Phase-Complete-Panel: **dieselbe** Status-Transition wie Kopfzeile (kein separates Journey-API)
+- Teilausgabe: Status weiter, Material kann in früheren `quantity_*`-Buckets zurückbleiben
+- `usePackWorkflowConfirm` bleibt für Bestätigungsdialoge; Ziel ist immer `PATCH /status`
 
 ### 4.5 `MaterialJourneyStepFooter`
 
 | Step | Footer (Journey) |
 |------|------------------|
-| `issue` | Hinweis Teilausgabe / offene Positionen — **kein** Status-Knopf |
-| `return` | Hinweis offene Retour — **kein** Status-Knopf |
-| `store` | Link zu Completion-Checkliste — **kein** «Abgeschlossen»-Knopf (Status in Kopfzeile) |
+| `issue` | Hinweis Teilausgabe / offene Positionen; Status-Weiter über Primary-Button |
+| `return` | Hinweis offene Retour |
+| `store` | Link zu Completion-Checkliste — Abschluss `storing` → `completed` in Kopfzeile |
 
 ### 4.6 Responsive (Progressive Enhancement)
 
@@ -863,11 +875,11 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 
 - [ ] `external` nur MW bearbeitet
 - [ ] Gruppe readonly ab korrektem Handoff
-- [ ] Abschluss-Blocker `completed` wie heute
+- [x] Abschluss-Blocker `completed` via `storing` → `completed`
 
 ### Parallel & Mobile
 
-- [ ] Tab `packs`: Legacy `ActivityPackListTab` unverändert funktionsfähig bis Rollout
+- [x] Tab `packs`: Legacy `ActivityPackListTab` — Status-Mapping `transport_out` / `transport_back` / `storing` (Juni 2026)
 - [x] Route `pack-journey`: Journey parallel erreichbar; Links Legacy ↔ Beta
 - [ ] Jede Journey-Phase auf **375px** abgenommen vor Desktop
 
@@ -875,7 +887,7 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 
 - [ ] Eine Hauptaktion pro Zeile auf Mobile (min. 44px Touch)
 - [ ] Max. ein Info-Banner gleichzeitig
-- [ ] Stepper dynamisch pro Profil, keine grauen Transport-Platzhalter bei quick
+- [x] Stepper dynamisch pro Profil, keine grauen Transport-Platzhalter bei quick
 
 - [x] Material-Tab: UI refresh, **ohne** Scan; Suche/Verfügbarkeit wie bisher
 - [x] Kein `plan`-Step im Stepper
@@ -1301,6 +1313,7 @@ activity_transport_tour
   label                  — «Tour A» (auto oder editierbar)
   vehicle_id             FK → department_vehicle  (nicht unique pro Aktivität!)
   direction              — outbound | inbound   (= transport_out | transport_back)
+  status                 — planned | in_transit | arrived
   sort_order
   notes                  nullable
   created_by_user_id
@@ -1314,13 +1327,24 @@ activity_transport_tour_item
   quantity               nullable — Teilmenge
 ```
 
-**UI** (Steps `transport_out` / `transport_back`):
+**UI — Planung** (Steps `transport_out` / `transport_back`):
 
 1. Liste der Touren (Tour A, Tour B, …)
 2. **«+ Tour»** → Fahrzeug aus Department-Fuhrpark wählen
 3. Auto-Label: nächster Buchstabe; Hinweis wenn Fahrzeug schon in anderer Tour
-4. Kisten / lose Positionen der Tour zuweisen (Checkbox, Scan oder Drag)
-5. Pro Tour: Chip **Passt** / **Zu schwer** / **Volumen knapp**
+4. Kisten / lose Positionen der Tour zuweisen (Checkbox)
+5. Pro Tour: Chip **Passt** / **Zu schwer**; Status **Geplant** → **Abfahren** → `in_transit`
+6. Pipeline **Hin** (`quantity_transport_to`) bleibt in der Checkliste auf `transport_out`
+
+**UI — Ankunft** (Step `issue` / Am Anlass, outbound):
+
+1. Touren-Liste read-only mit Status **Unterwegs** / **Angekommen**
+2. **«Tour angekommen»** → Pipeline `quantity_transport_to` → `quantity_issued` nur für dieser Tour zugewiesenes Material
+3. **«Alles transportierte Material ist am Anlass»** → Bulk-Buchung aller offenen `transport_to`
+4. Keine Offen/Erledigt-Checkliste — statische Bestandsliste `quantity_issued`
+5. **«Weiter»** nach vollständiger Ankunft → `transport_back`
+
+**API:** `PATCH …/transport-tours/{id}` (`status: planned|in_transit`), `POST …/arrive`, `POST …/arrive-all` (`direction`).
 
 #### Ladefläche & Gewicht
 

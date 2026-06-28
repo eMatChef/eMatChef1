@@ -10,8 +10,9 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 
 | Datei | Inhalt |
 |--------|--------|
-| **[status.md](./status.md)** | Alle Aktivitäts-Status, Übergänge, Rollen |
-| **[material-pipeline.md](./material-pipeline.md)** | Bestellung vs. Pack-Pipeline, Quick vs. Logistics, Zuordnung zu Aktivitäts-Status |
+| **[status.md](./status.md)** | Alle Aktivitäts-Status, Übergänge, Rollen (inkl. `transport_out`, `storing`) |
+| **[material-pipeline.md](./material-pipeline.md)** | Bestellung vs. Pack-Pipeline (`quantity_*`), Quick vs. Logistics |
+| **[newUI/ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md)** | **Entscheidung:** Stepper = Activity-Status; Material unabhängig |
 | **[pack-step-ui.md](./pack-step-ui.md)** | Zentrale Pack-Step-UI (Dual-Panel, Kisten, Spiegel-Ansicht, Workflow-Confirm) |
 | **[pack-workflow-rules.md](./pack-workflow-rules.md)** | **Ziel-Spezifikation** Pack-Regeln — Code: `packWorkflowRules.ts` |
 | **[newUI/](./newUI/)** | **Material-Journey UI** (neu): Checkliste, Stepper, Scan — parallel zu Legacy-Packliste, Route `pack-journey` |
@@ -30,12 +31,17 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 | `approved` | Bestätigt |
 | `packing` | Wird gepackt |
 | `packed` | Gepackt |
-| `at_event` | Am Event |
+| `transport_out` | Transport hin *(Logistics)* |
+| `at_event` | Am Anlass |
+| `transport_back` | Transport zurück *(Logistics)* |
 | `returned` | Retour |
+| `storing` | Einlagern |
 | `completed` | Abgeschlossen |
 | `cancelled` | Storniert |
 
-Vollständige Beschreibung: [status.md](./status.md)
+Vollständige Beschreibung: [status.md](./status.md) · Architektur: [ADR](./newUI/ADR-workflow-layers.md)
+
+**Material-Pipeline** (pro Menge, `quantity_*`): `ordered` → `packed` → `transport_out` → `at_event` → … → `stored` — [material-pipeline.md](./material-pipeline.md)
 
 ---
 

@@ -10,8 +10,9 @@ import {
   type ActivityVehicleAssignment,
 } from '@/api/activityVehicles'
 import { getAddresses, type Address } from '@/api/addresses'
-import { getDepartmentVehicles, type DepartmentVehicle } from '@/api/departmentVehicles'
+import type { DepartmentVehicle } from '@/api/departmentVehicles'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityVehicleAssignPicker from '@/components/activities/ActivityVehicleAssignPicker.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import EButton from '@/components/form/base/EButton.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -26,15 +27,16 @@ const props = defineProps<{
   reloadToken?: number
 }>()
 
+const emit = defineEmits<{
+  assignmentsChanged: []
+}>()
+
 const { t } = useI18n()
 const toast = useToast()
 
 const loading = ref(false)
 const saving = ref(false)
 const assignments = ref<ActivityVehicleAssignment[]>([])
-const searchQuery = ref('')
-const searchResults = ref<DepartmentVehicle[]>([])
-const searchLoading = ref(false)
 const addresses = ref<Address[]>([])
 const createOpen = ref(false)
 const editId = ref<string | null>(null)
@@ -42,6 +44,9 @@ const editId = ref<string | null>(null)
 const createForm = ref({
   name: '',
   plate: '',
+  load_length_cm: null as number | null,
+  load_width_cm: null as number | null,
+  load_height_cm: null as number | null,
   max_payload_kg: null as number | null,
   notes: '',
   owner_address_id: null as string | null,
@@ -51,17 +56,16 @@ const createForm = ref({
 const editForm = ref({
   name: '',
   plate: '',
+  load_length_cm: null as number | null,
+  load_width_cm: null as number | null,
+  load_height_cm: null as number | null,
   max_payload_kg: null as number | null,
   notes: '',
   owner_address_id: null as string | null,
   assignmentNotes: '',
 })
 
-const assignedVehicleIds = computed(() => new Set(assignments.value.map((a) => a.vehicle_id)))
-
-const filteredSearchResults = computed(() =>
-  searchResults.value.filter((v) => !assignedVehicleIds.value.has(v.id)),
-)
+const assignedVehicleIds = computed(() => assignments.value.map((a) => a.vehicle_id))
 
 async function loadAssignments(): Promise<void> {
   loading.value = true
@@ -83,25 +87,6 @@ async function loadAddresses(): Promise<void> {
   }
 }
 
-async function runSearch(): Promise<void> {
-  const q = searchQuery.value.trim()
-  if (q.length < 1) {
-    searchResults.value = []
-    return
-  }
-  searchLoading.value = true
-  try {
-    searchResults.value = await getDepartmentVehicles(props.departmentId, {
-      activityId: props.activityId,
-      search: q,
-    })
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    searchLoading.value = false
-  }
-}
-
 watch(
   () => [props.activityId, props.reloadToken] as const,
   () => {
@@ -118,22 +103,47 @@ watch(
   { immediate: true },
 )
 
-let searchTimer: ReturnType<typeof setTimeout> | null = null
-watch(searchQuery, (q) => {
-  if (searchTimer) clearTimeout(searchTimer)
-  if (!q.trim()) {
-    searchResults.value = []
-    return
+function metersToCm(m: number | null | undefined): number | null {
+  if (m == null) return null
+  return Math.round(m * 100)
+}
+
+function cmToMeters(cm: number | null | undefined): number | null {
+  if (cm == null || !Number.isFinite(cm) || cm <= 0) return null
+  return Math.round(cm) / 100
+}
+
+function loadDimsFromVehicle(v: DepartmentVehicle): {
+  load_length_cm: number | null
+  load_width_cm: number | null
+  load_height_cm: number | null
+} {
+  return {
+    load_length_cm: metersToCm(v.length_m),
+    load_width_cm: metersToCm(v.width_m),
+    load_height_cm: metersToCm(v.height_m),
   }
-  searchTimer = setTimeout(() => {
-    void runSearch()
-  }, 300)
-})
+}
+
+function loadDimsToMeters(form: {
+  load_length_cm: number | null
+  load_width_cm: number | null
+  load_height_cm: number | null
+}): { length_m: number | null; width_m: number | null; height_m: number | null } {
+  return {
+    length_m: cmToMeters(form.load_length_cm),
+    width_m: cmToMeters(form.load_width_cm),
+    height_m: cmToMeters(form.load_height_cm),
+  }
+}
 
 function resetCreateForm(): void {
   createForm.value = {
     name: '',
     plate: '',
+    load_length_cm: null,
+    load_width_cm: null,
+    load_height_cm: null,
     max_payload_kg: null,
     notes: '',
     owner_address_id: null,
@@ -147,9 +157,8 @@ async function onAssignExisting(vehicle: DepartmentVehicle): Promise<void> {
   try {
     const created = await assignActivityVehicle(props.activityId, { vehicle_id: vehicle.id })
     assignments.value = [...assignments.value, created]
-    searchQuery.value = ''
-    searchResults.value = []
     toast.success(t('activities.vehicles.assigned'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -162,10 +171,14 @@ async function onCreateAndAssign(): Promise<void> {
   if (!name || !props.canManage) return
   saving.value = true
   try {
+    const dims = loadDimsToMeters(createForm.value)
     const created = await createAndAssignActivityVehicle(props.activityId, {
       vehicle: {
         name,
         plate: createForm.value.plate.trim() || undefined,
+        length_m: dims.length_m ?? undefined,
+        width_m: dims.width_m ?? undefined,
+        height_m: dims.height_m ?? undefined,
         max_payload_kg: createForm.value.max_payload_kg ?? undefined,
         notes: createForm.value.notes.trim() || undefined,
         owner_address_id: createForm.value.owner_address_id ?? undefined,
@@ -176,6 +189,7 @@ async function onCreateAndAssign(): Promise<void> {
     createOpen.value = false
     resetCreateForm()
     toast.success(t('activities.vehicles.created'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -188,6 +202,7 @@ function startEdit(row: ActivityVehicleAssignment): void {
   editForm.value = {
     name: row.vehicle.name,
     plate: row.vehicle.plate ?? '',
+    ...loadDimsFromVehicle(row.vehicle),
     max_payload_kg: row.vehicle.max_payload_kg,
     notes: row.vehicle.notes ?? '',
     owner_address_id: row.vehicle.owner_address_id ?? null,
@@ -203,11 +218,15 @@ async function onSaveEdit(row: ActivityVehicleAssignment): Promise<void> {
   if (!props.canManage) return
   saving.value = true
   try {
+    const dims = loadDimsToMeters(editForm.value)
     const updated = await updateActivityVehicle(props.activityId, row.id, {
       notes: editForm.value.assignmentNotes.trim() || undefined,
       vehicle: {
         name: editForm.value.name.trim(),
         plate: editForm.value.plate.trim() || null,
+        length_m: dims.length_m,
+        width_m: dims.width_m,
+        height_m: dims.height_m,
         max_payload_kg: editForm.value.max_payload_kg,
         notes: editForm.value.notes.trim() || null,
         owner_address_id: editForm.value.owner_address_id ?? undefined,
@@ -231,6 +250,7 @@ async function onRemove(row: ActivityVehicleAssignment): Promise<void> {
     assignments.value = assignments.value.filter((a) => a.id !== row.id)
     if (editId.value === row.id) editId.value = null
     toast.success(t('activities.vehicles.removed'))
+    emit('assignmentsChanged')
   } catch (e) {
     toast.error(e instanceof Error ? e.message : String(e))
   } finally {
@@ -243,6 +263,18 @@ function payloadLabel(v: DepartmentVehicle): string {
     return t('activities.vehicles.payloadKg', { kg: v.max_payload_kg })
   }
   return t('activities.vehicles.payloadUnknown')
+}
+
+function loadAreaLabel(v: DepartmentVehicle): string | null {
+  const length = metersToCm(v.length_m)
+  const width = metersToCm(v.width_m)
+  const height = metersToCm(v.height_m)
+  if (length == null && width == null && height == null) return null
+  return t('activities.vehicles.loadAreaCm', {
+    length: length ?? '–',
+    width: width ?? '–',
+    height: height ?? '–',
+  })
 }
 </script>
 
@@ -295,7 +327,42 @@ function payloadLabel(v: DepartmentVehicle): string {
                   min="0"
                   class="activity-vehicles-tab__input"
                 />
+                <span class="activity-vehicles-tab__field-hint text-muted">
+                  {{ t('activities.vehicles.fieldPayloadHint') }}
+                </span>
               </label>
+              <div class="activity-vehicles-tab__load-area">
+                <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
+                <div class="activity-vehicles-tab__load-area-fields">
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadLength') }}</span>
+                    <input
+                      v-model.number="editForm.load_length_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadWidth') }}</span>
+                    <input
+                      v-model.number="editForm.load_width_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                  <label>
+                    <span>{{ t('activities.vehicles.fieldLoadHeight') }}</span>
+                    <input
+                      v-model.number="editForm.load_height_cm"
+                      type="number"
+                      min="0"
+                      class="activity-vehicles-tab__input"
+                    />
+                  </label>
+                </div>
+              </div>
               <label class="activity-vehicles-tab__field-wide">
                 <span>{{ t('activities.vehicles.fieldOwner') }}</span>
                 <DepartmentAddressAutocomplete
@@ -327,6 +394,7 @@ function payloadLabel(v: DepartmentVehicle): string {
               <strong>{{ row.vehicle.name }}</strong>
               <span v-if="row.vehicle.plate" class="text-muted">{{ row.vehicle.plate }}</span>
               <span class="text-muted">{{ payloadLabel(row.vehicle) }}</span>
+              <span v-if="loadAreaLabel(row.vehicle)" class="text-muted">{{ loadAreaLabel(row.vehicle) }}</span>
               <span v-if="row.vehicle.owner_label" class="activity-vehicles-tab__owner">
                 {{ t('activities.vehicles.ownerLine', { label: row.vehicle.owner_label }) }}
               </span>
@@ -347,29 +415,15 @@ function payloadLabel(v: DepartmentVehicle): string {
 
     <section v-if="canManage" class="section-card activity-vehicles-tab__search">
       <h3 class="activity-vehicles-tab__section-title">{{ t('activities.vehicles.searchTitle') }}</h3>
-      <p class="text-muted">{{ t('activities.vehicles.searchHint') }}</p>
-      <input
-        v-model="searchQuery"
-        type="search"
-        class="activity-vehicles-tab__input activity-vehicles-tab__search-input"
-        :placeholder="t('activities.vehicles.searchPlaceholder')"
+      <p class="text-muted activity-vehicles-tab__search-hint">{{ t('activities.vehicles.searchHint') }}</p>
+      <ActivityVehicleAssignPicker
+        :department-id="departmentId"
+        :activity-id="activityId"
+        :excluded-vehicle-ids="assignedVehicleIds"
+        :disabled="saving"
+        :reload-token="reloadToken"
+        @select="onAssignExisting"
       />
-      <p v-if="searchLoading" class="text-muted">{{ t('common.loading') }}</p>
-      <ul v-else-if="filteredSearchResults.length" class="activity-vehicles-tab__search-results">
-        <li v-for="vehicle in filteredSearchResults" :key="vehicle.id">
-          <button
-            type="button"
-            class="activity-vehicles-tab__search-row"
-            :disabled="saving"
-            @click="onAssignExisting(vehicle)"
-          >
-            <span>{{ vehicle.name }}{{ vehicle.plate ? ` (${vehicle.plate})` : '' }}</span>
-            <span v-if="vehicle.owner_label" class="text-muted">{{ vehicle.owner_label }}</span>
-            <span class="activity-vehicles-tab__assign-label">{{ t('activities.vehicles.assignAction') }}</span>
-          </button>
-        </li>
-      </ul>
-      <p v-else-if="searchQuery.trim()" class="text-muted">{{ t('activities.vehicles.searchEmpty') }}</p>
     </section>
 
     <v-dialog v-model="createOpen" max-width="560">
@@ -392,7 +446,42 @@ function payloadLabel(v: DepartmentVehicle): string {
               min="0"
               class="activity-vehicles-tab__input"
             />
+            <span class="activity-vehicles-tab__field-hint text-muted">
+              {{ t('activities.vehicles.fieldPayloadHint') }}
+            </span>
           </label>
+          <div class="activity-vehicles-tab__load-area">
+            <span class="activity-vehicles-tab__load-area-label">{{ t('activities.vehicles.fieldLoadArea') }}</span>
+            <div class="activity-vehicles-tab__load-area-fields">
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadLength') }}</span>
+                <input
+                  v-model.number="createForm.load_length_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadWidth') }}</span>
+                <input
+                  v-model.number="createForm.load_width_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+              <label>
+                <span>{{ t('activities.vehicles.fieldLoadHeight') }}</span>
+                <input
+                  v-model.number="createForm.load_height_cm"
+                  type="number"
+                  min="0"
+                  class="activity-vehicles-tab__input"
+                />
+              </label>
+            </div>
+          </div>
           <label class="activity-vehicles-tab__field-wide">
             <span>{{ t('activities.vehicles.fieldOwner') }}</span>
             <DepartmentAddressAutocomplete
@@ -501,6 +590,32 @@ function payloadLabel(v: DepartmentVehicle): string {
   grid-column: 1 / -1;
 }
 
+.activity-vehicles-tab__load-area {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-vehicles-tab__load-area-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.activity-vehicles-tab__load-area-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.activity-vehicles-tab__load-area-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .activity-vehicles-tab__form-grid label {
   display: flex;
   flex-direction: column;
@@ -518,48 +633,19 @@ function payloadLabel(v: DepartmentVehicle): string {
   font-weight: 400;
 }
 
+.activity-vehicles-tab__field-hint {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
 textarea.activity-vehicles-tab__input {
   min-height: 72px;
   resize: vertical;
 }
 
-.activity-vehicles-tab__search-input {
-  width: 100%;
-  margin-top: 8px;
-}
-
-.activity-vehicles-tab__search-results {
-  margin: 12px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.activity-vehicles-tab__search-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  background: #f8fafc;
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-}
-
-.activity-vehicles-tab__search-row + .activity-vehicles-tab__search-row,
-.activity-vehicles-tab__search-results li + li {
-  margin-top: 8px;
-}
-
-.activity-vehicles-tab__assign-label {
-  margin-left: auto;
-  font-size: 13px;
-  font-weight: 600;
-  color: #16a34a;
+.activity-vehicles-tab__search-hint {
+  margin: 0 0 12px;
 }
 
 .activity-vehicles-tab__dialog {

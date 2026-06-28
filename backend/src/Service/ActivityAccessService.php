@@ -671,7 +671,7 @@ class ActivityAccessService
     }
 
     /**
-     * Materialzeilen nach Entwurf: Host-MW/DC bis einschliesslich «Am Event» (danach nur noch Packliste/Retour).
+     * Materialzeilen nach Entwurf: MW/DC bis vor «Retour» (danach nur Packliste/Einlagern).
      *
      * @return list<string>
      */
@@ -682,7 +682,9 @@ class ActivityAccessService
             Activity::STATUS_APPROVED,
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
         ];
     }
 
@@ -694,11 +696,9 @@ class ActivityAccessService
         if (!\in_array($activity->getStatus(), $this->statusesAllowingHostMaterialEditAfterDraft(), true)) {
             return false;
         }
-        if ($this->isHostDepartmentMw($user, $activity)) {
-            return true;
-        }
 
-        return $this->isHostDepartmentMwOrDc($user, $activity);
+        return $this->isHostDepartmentMwOrDc($user, $activity)
+            || $this->isInvitedDepartmentMwOrDc($user, $activity);
     }
 
     /**
@@ -772,8 +772,11 @@ class ActivityAccessService
         $editableStatuses = [
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
             Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
         ];
         if (!\in_array($status, $editableStatuses, true)) {
             return false;
@@ -795,17 +798,22 @@ class ActivityAccessService
     }
 
     /**
-     * Fuhrpark der Aktivität: Host-/Partner-MW/DC oder Ersteller (ab «Bestätigt»).
+     * Fuhrpark der Aktivität: Host-/Partner-MW/DC oder Ersteller (ab Entwurf).
      */
     public function canUserManageActivityVehicles(User $user, Activity $activity): bool
     {
         $status = $activity->getStatus();
         $allowedStatuses = [
+            Activity::STATUS_DRAFT,
+            Activity::STATUS_SUBMITTED,
             Activity::STATUS_APPROVED,
             Activity::STATUS_PACKING,
             Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
             Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
             Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
             Activity::STATUS_COMPLETED,
         ];
         if (!\in_array($status, $allowedStatuses, true)) {

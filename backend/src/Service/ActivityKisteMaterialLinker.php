@@ -63,7 +63,7 @@ class ActivityKisteMaterialLinker
             $activityItem->setMaterialItem($materialItem);
             $activityItem->setQuantity(1);
             $activityItem->setPriority('normal');
-            $activityItem->setIsConsumable($materialItem->getIsConsumable());
+            $activityItem->setIsConsumable($materialItem->countsAsConsumableForActivity());
             $activityItem->setIsReplenishment(false);
 
             $this->entityManager->persist($activityItem);
@@ -259,7 +259,7 @@ class ActivityKisteMaterialLinker
             $activityItem->setMaterialItem($materialItem);
             $activityItem->setQuantity(max(1, $needContainers));
             $activityItem->setPriority('normal');
-            $activityItem->setIsConsumable($materialItem->getIsConsumable());
+            $activityItem->setIsConsumable($materialItem->countsAsConsumableForActivity());
             $activityItem->setIsReplenishment(false);
             $this->entityManager->persist($activityItem);
             $activity->setItemCount($activity->getItemCount() + 1);

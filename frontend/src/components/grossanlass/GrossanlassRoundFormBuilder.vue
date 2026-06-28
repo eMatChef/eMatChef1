@@ -197,7 +197,7 @@
             </div>
 
             <button
-              v-if="!isFixedSystemField(field)"
+              v-if="canRemoveFormBuilderField(field)"
               type="button"
               class="icon-btn"
               :title="t('common.delete')"
@@ -205,6 +205,13 @@
             >
               <v-icon icon="mdi-delete-outline" size="18" />
             </button>
+            <span
+              v-else-if="!isFixedSystemField(field) && field.has_response_values"
+              class="field-locked-hint"
+              :title="t('grossanlass.formBuilder.fieldLockedHint')"
+            >
+              <v-icon icon="mdi-lock-outline" size="16" />
+            </span>
           </div>
         </template>
       </draggable>
@@ -248,6 +255,7 @@ import {
   getGrossanlassRoundForm,
   isEditableCustomField,
   isFixedSystemField,
+  canRemoveFormBuilderField,
   isLegacySystemInputField,
   nextFormFieldSortOrder,
   updateGrossanlassRoundForm,
@@ -528,7 +536,7 @@ function addField(kind: FormBuilderAddKind) {
 }
 
 function removeField(field: GrossanlassRoundFormField) {
-  if (!draft.value || isFixedSystemField(field)) return
+  if (!draft.value || !canRemoveFormBuilderField(field)) return
   draft.value.fields = draft.value.fields.filter((f) => f.id !== field.id)
   delete selectOptionsDraft.value[field.id]
   delete selectOptionRowKeys.value[field.id]
@@ -917,6 +925,16 @@ onBeforeUnmount(() => {
   height: 32px;
   cursor: pointer;
   color: #dc2626;
+  flex-shrink: 0;
+}
+
+.field-locked-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: #94a3b8;
   flex-shrink: 0;
 }
 

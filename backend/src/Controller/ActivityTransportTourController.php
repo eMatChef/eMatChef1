@@ -117,11 +117,46 @@ class ActivityTransportTourController extends AbstractController
         $lendingDept = trim((string) ($data['lending_department_id'] ?? ''));
         $tour->setLendingDepartmentId($lendingDept !== '' ? $lendingDept : $vehicle->getDepartmentId());
         $tour->setCreatedByUserId($user->getId());
+        $tour->setStatus(ActivityTransportTour::STATUS_PLANNED);
 
         $this->entityManager->persist($tour);
         $this->entityManager->flush();
 
         return new JsonResponse($this->serializeTour($tour), 201);
+    }
+
+    #[Route('/arrive-all', name: 'arrive_all', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function arriveAll(string $activityId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+        if (!$activity->isPackListEditable()) {
+            return new JsonResponse(['error' => 'Packliste kann in diesem Status nicht bearbeitet werden'], 422);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $direction = trim((string) ($data['direction'] ?? $request->query->get('direction', '')));
+        if (!\in_array($direction, [ActivityTransportTour::DIRECTION_OUTBOUND, ActivityTransportTour::DIRECTION_INBOUND], true)) {
+            return new JsonResponse(['error' => 'direction muss outbound oder inbound sein'], 400);
+        }
+
+        $result = $this->tourService->arriveAllForDirection($activity, $direction, $user);
+
+        return new JsonResponse([
+            'success' => true,
+            ...$result,
+        ]);
     }
 
     #[Route('/{tourId}', name: 'update', methods: ['PATCH'])]
@@ -159,6 +194,16 @@ class ActivityTransportTourController extends AbstractController
         if (array_key_exists('sort_order', $data)) {
             $tour->setSortOrder((int) $data['sort_order']);
         }
+        if (array_key_exists('status', $data)) {
+            $status = trim((string) $data['status']);
+            if (!$this->tourService->isValidStatus($status)) {
+                return new JsonResponse(['error' => 'Ungültiger status'], 400);
+            }
+            if ($status === ActivityTransportTour::STATUS_ARRIVED) {
+                return new JsonResponse(['error' => 'Ankunft bitte über POST …/arrive buchen'], 400);
+            }
+            $tour->setStatus($status);
+        }
 
         if (array_key_exists('items', $data) && \is_array($data['items'])) {
             $this->replaceTourItems($tour, $activityId, $data['items']);
@@ -195,12 +240,51 @@ class ActivityTransportTourController extends AbstractController
         return new JsonResponse(['success' => true]);
     }
 
+    #[Route('/{tourId}/arrive', name: 'arrive', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function arrive(string $activityId, string $tourId): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserEditPackList($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+        if (!$activity->isPackListEditable()) {
+            return new JsonResponse(['error' => 'Packliste kann in diesem Status nicht bearbeitet werden'], 422);
+        }
+
+        $tour = $this->findTour($activityId, $tourId);
+        if ($tour instanceof JsonResponse) {
+            return $tour;
+        }
+
+        $result = $this->tourService->arriveTour($tour, $activity, $user);
+
+        return new JsonResponse([
+            'success' => true,
+            'tour' => $this->serializeTour($tour),
+            ...$result,
+        ]);
+    }
+
     private function replaceTourItems(ActivityTransportTour $tour, string $activityId, array $rows): void
     {
         $existing = $this->entityManager->getRepository(ActivityTransportTourItem::class)->findBy([
             'tourId' => $tour->getId(),
         ]);
+        $measuredByKey = [];
         foreach ($existing as $row) {
+            $key = ($row->getPackContainerId() ?? '') . '|' . ($row->getPackItemId() ?? '');
+            if ($row->getMeasuredWeightKg() !== null && trim($row->getMeasuredWeightKg()) !== '') {
+                $measuredByKey[$key] = $row->getMeasuredWeightKg();
+            }
             $this->entityManager->remove($row);
         }
         $this->entityManager->flush();
@@ -236,6 +320,29 @@ class ActivityTransportTourController extends AbstractController
             if (array_key_exists('quantity', $row)) {
                 $item->setQuantity(max(1, (int) $row['quantity']));
             }
+
+            $key = ($containerId !== '' ? $containerId : '') . '|' . ($packItemId !== '' ? $packItemId : '');
+            if (array_key_exists('measured_weight_kg', $row)) {
+                $rawMeasured = $row['measured_weight_kg'];
+                if ($rawMeasured === null || $rawMeasured === '') {
+                    $item->setMeasuredWeightKg(null);
+                } else {
+                    $n = (float) str_replace(',', '.', (string) $rawMeasured);
+                    $item->setMeasuredWeightKg($n > 0 ? (string) round($n, 2) : null);
+                }
+            } elseif (isset($measuredByKey[$key])) {
+                $item->setMeasuredWeightKg($measuredByKey[$key]);
+            } elseif ($tour->getDirection() === ActivityTransportTour::DIRECTION_INBOUND) {
+                $inherited = $this->tourService->findOutboundMeasuredWeightKg(
+                    $activityId,
+                    $containerId !== '' ? $containerId : null,
+                    $packItemId !== '' ? $packItemId : null,
+                );
+                if ($inherited !== null) {
+                    $item->setMeasuredWeightKg((string) round($inherited, 2));
+                }
+            }
+
             $this->entityManager->persist($item);
         }
     }
@@ -259,12 +366,22 @@ class ActivityTransportTourController extends AbstractController
             'vehicle_name' => $vehicle->getName(),
             'vehicle_plate' => $vehicle->getPlate(),
             'lending_department_id' => $tour->getLendingDepartmentId(),
-            'items' => array_map(fn (ActivityTransportTourItem $i) => [
-                'id' => $i->getId(),
-                'pack_container_id' => $i->getPackContainerId(),
-                'pack_item_id' => $i->getPackItemId(),
-                'quantity' => $i->getQuantity(),
-            ], $items),
+            'status' => $tour->getStatus(),
+            'items' => array_map(function (ActivityTransportTourItem $i) use ($tour) {
+                $meta = $this->tourService->tourItemWeightMeta($i);
+                $effective = $this->tourService->effectiveMeasuredWeightKg($tour, $i);
+
+                return [
+                    'id' => $i->getId(),
+                    'pack_container_id' => $i->getPackContainerId(),
+                    'pack_item_id' => $i->getPackItemId(),
+                    'quantity' => $i->getQuantity(),
+                    'measured_weight_kg' => $effective,
+                    'measured_weight_inherited' => $this->tourService->isMeasuredWeightInherited($tour, $i),
+                    'material_weight_known' => $meta['material_weight_known'],
+                    'material_item_id' => $meta['material_item_id'],
+                ];
+            }, $items),
             'load_summary' => $load,
         ];
     }

@@ -417,6 +417,7 @@ import { useNotificationSender } from '@/composables/useNotificationSender'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
+import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
 import { getSenderPrimaryLine, type NotificationSenderDescriptor } from '@/utils/notificationSender'
 
 const headerNotificationsStore = useHeaderNotificationsStore()
@@ -700,8 +701,11 @@ async function openGrossanlassRoundOpened(note: GrossanlassRoundOpenedNotificati
   } catch {
     /* navigate anyway */
   }
-  const path = note.planung_url || `/${note.department_id}/planung`
-  await router.push(path)
+  await router.push(
+    note.round_id
+      ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
+      : (note.planung_url || `/${note.department_id}/planung`),
+  )
 }
 
 async function openGrossanlassMwAssigned(note: GrossanlassMwAssignedNotification) {

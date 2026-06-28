@@ -5,8 +5,11 @@ export const ACTIVITY_STATUS_KEYS = [
   'approved',
   'packing',
   'packed',
+  'transport_out',
   'at_event',
+  'transport_back',
   'returned',
+  'storing',
   'completed',
   'cancelled',
 ] as const

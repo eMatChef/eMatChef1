@@ -2,6 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import { useToast } from '@/composables/useToast'
 import { getPublicMaterialBatchByCodes } from '@/api/public/publicLookup'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import {
@@ -22,7 +23,11 @@ import {
 import { lookupStorageQr } from '@/api/storageQr'
 import { parseStorageLookupData, type StorageLookupResult } from '@/utils/packStorageLocationMatch'
 import { parseScanInput, isScanLikeInput } from '@/utils/scanParser'
-import { useToast } from '@/composables/useToast'
+import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import {
+  filterMaterialJourneyAtEventInventoryByText,
+  resolveMaterialJourneyAtEventInventoryRowIds,
+} from '@/utils/materialJourneyAtEventInventoryFilter'
 
 export type MaterialScanSessionEntry = {
   id: string
@@ -50,6 +55,8 @@ export function useMaterialJourneyScan(options: {
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
   listEditable: Ref<boolean>
   selectedPackCrateId?: Ref<string | null>
+  atEventInventoryMode?: Ref<boolean>
+  atEventInventoryTasks?: Ref<MaterialJourneyTaskRow[]>
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -60,6 +67,8 @@ export function useMaterialJourneyScan(options: {
   const shelfSession = ref<StorageLookupResult | null>(null)
   const bulkConfirmed = ref(false)
   const sessionLog = ref<MaterialScanSessionEntry[]>([])
+  /** Am Anlass: Scan-Filter auf Zeilen-IDs (`null` = kein Scan-Filter aktiv). */
+  const atEventScanFilterRowIds = ref<string[] | null>(null)
   let entrySeq = 0
 
   const searchFilter = computed(() => query.value.trim().toLowerCase())
@@ -110,7 +119,93 @@ export function useMaterialJourneyScan(options: {
     query.value = ''
   }
 
+  function clearAtEventScanFilter(): void {
+    atEventScanFilterRowIds.value = null
+  }
+
+  async function submitAtEventInventoryQuery(raw: string): Promise<void> {
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      clearAtEventScanFilter()
+      dismissResult()
+      return
+    }
+
+    query.value = trimmed
+    dismissResult()
+    resolving.value = true
+
+    try {
+      const rows = options.atEventInventoryTasks?.value ?? []
+      const containerItems = options.containerItemsByContainerId.value
+
+      if (!isScanLikeInput(trimmed) && trimmed.length >= 2) {
+        clearAtEventScanFilter()
+        return
+      }
+
+      const parsed = parseScanInput(trimmed)
+      let result: MaterialScanResolveResult | null = null
+      let materialItemId: string | null = null
+
+      if (parsed.type === 'material_batch') {
+        const lookup = await getPublicMaterialBatchByCodes(parsed.materialCode, parsed.batchCode)
+        materialItemId = lookup.material.id
+        result = resolveMaterialBatchScan(lookup, resolveCtx.value)
+      } else if (
+        parsed.type === 'storage_address' ||
+        parsed.type === 'storage_rack' ||
+        parsed.type === 'storage_slot'
+      ) {
+        const kind =
+          parsed.type === 'storage_address' ? 'l' : parsed.type === 'storage_rack' ? 'r' : 's'
+        const code =
+          parsed.type === 'storage_address'
+            ? parsed.locationCode
+            : parsed.type === 'storage_rack'
+              ? parsed.rackCode
+              : parsed.slotCode
+        const rawLookup = await lookupStorageQr(options.departmentId.value, kind, code)
+        const lookup = parseStorageLookupData(rawLookup)
+        if (!lookup) {
+          atEventScanFilterRowIds.value = []
+          toast.error(t('activities.materialJourney.inventoryAtEvent.scanNotFound'))
+          return
+        }
+        const q = (lookup.label ?? lookup.name ?? '').trim()
+        const filtered = filterMaterialJourneyAtEventInventoryByText(rows, q, containerItems)
+        atEventScanFilterRowIds.value = filtered.map((row) => row.id)
+        if (filtered.length === 0) {
+          toast.error(t('activities.materialJourney.inventoryAtEvent.scanNotFound'))
+        }
+        return
+      } else {
+        result = resolveMaterialTextSearch(trimmed, resolveCtx.value)
+      }
+
+      const ids = resolveMaterialJourneyAtEventInventoryRowIds(
+        result,
+        rows,
+        containerItems,
+        materialItemId,
+      )
+      atEventScanFilterRowIds.value = ids
+      if (ids.length === 0) {
+        toast.error(t('activities.materialJourney.inventoryAtEvent.scanNotFound'))
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      resolving.value = false
+    }
+  }
+
   async function submitQuery(raw: string): Promise<MaterialScanResolveResult | null> {
+    if (options.atEventInventoryMode?.value) {
+      await submitAtEventInventoryQuery(raw)
+      return null
+    }
+
     const trimmed = raw.trim()
     if (!trimmed) {
       dismissResult()
@@ -207,9 +302,26 @@ export function useMaterialJourneyScan(options: {
     bulkConfirmed.value = true
   }
 
-  function filterTasks<T extends { title: string; subtitle: string | null; categoryName: string | null }>(
+  function filterTasks<T extends { id: string; title: string; subtitle: string | null; categoryName: string | null; shelfLabel?: string | null; kind?: MaterialJourneyTaskRow['kind']; packItem?: ActivityPackItem | null; container?: { id: string } | null }>(
     rows: T[],
   ): T[] {
+    if (options.atEventInventoryMode?.value) {
+      if (atEventScanFilterRowIds.value !== null) {
+        if (atEventScanFilterRowIds.value.length === 0) return []
+        const allowed = new Set(atEventScanFilterRowIds.value)
+        return rows.filter((row) => allowed.has(row.id))
+      }
+      const q = query.value.trim()
+      if (q.length >= 2 && !isScanLikeInput(q)) {
+        return filterMaterialJourneyAtEventInventoryByText(
+          rows as unknown as MaterialJourneyTaskRow[],
+          q,
+          options.containerItemsByContainerId.value,
+        ) as unknown as T[]
+      }
+      return rows
+    }
+
     const q = searchFilter.value
     if (q.length < 2) return rows
     if (isScanLikeInput(query.value)) return rows
@@ -222,6 +334,11 @@ export function useMaterialJourneyScan(options: {
   }
 
   const listTextFilterActive = computed(() => {
+    if (options.atEventInventoryMode?.value) {
+      if (atEventScanFilterRowIds.value !== null) return true
+      const trimmed = query.value.trim()
+      return trimmed.length >= 2 && !isScanLikeInput(trimmed)
+    }
     const trimmed = query.value.trim()
     if (trimmed.length < 2) return false
     return !isScanLikeInput(trimmed)
@@ -343,6 +460,7 @@ export function useMaterialJourneyScan(options: {
 
   function clearQuery(): void {
     clearScanInput()
+    clearAtEventScanFilter()
     dismissResult()
   }
 

@@ -198,26 +198,28 @@ defineExpose({
     class="material-journey-scan-bar"
     :class="{ 'material-journey-scan-bar--crate-target': Boolean(packTargetLabel) }"
   >
-    <div v-if="packTargetLabel" class="material-journey-scan-bar__target">
-      <p class="material-journey-scan-bar__target-hint">
-        {{ t('activities.materialJourney.activeCrate.packTargetHint', { label: packTargetLabel }) }}
-      </p>
-      <button
-        type="button"
-        class="material-journey-scan-bar__deselect"
-        @click="emit('deselect')"
-      >
-        {{ t('activities.materialJourney.activeCrate.deselect') }}
-      </button>
-    </div>
+    <div class="material-journey-scan-bar__header">
+      <div v-if="packTargetLabel" class="material-journey-scan-bar__target">
+        <p class="material-journey-scan-bar__target-hint">
+          {{ t('activities.materialJourney.activeCrate.packTargetHint', { label: packTargetLabel }) }}
+        </p>
+        <button
+          type="button"
+          class="material-journey-scan-bar__deselect"
+          @click="emit('deselect')"
+        >
+          {{ t('activities.materialJourney.activeCrate.deselect') }}
+        </button>
+      </div>
 
-    <label
-      v-else
-      class="material-journey-scan-bar__label"
-      :for="inputId ?? 'material-journey-scan-input'"
-    >
-      {{ t(labelKey ?? 'activities.materialJourney.scan.label') }}
-    </label>
+      <label
+        v-else
+        class="material-journey-scan-bar__label"
+        :for="inputId ?? 'material-journey-scan-input'"
+      >
+        {{ t(labelKey ?? 'activities.materialJourney.scan.label') }}
+      </label>
+    </div>
 
     <div class="material-journey-scan-bar__row">
       <button

@@ -262,6 +262,19 @@ export function resolveMaterialBatchScan(
     }
   }
 
+  if (isContainerBatchLookup(lookup) && ctx.journeyStep === 'pack') {
+    return {
+      type: 'unknown_crate',
+      tone: 'info',
+      title: materialName,
+      detail: 'unknown_crate',
+      materialName,
+      scannedBatchId: batchId,
+      scannedBatchLabel: scannedBatchDisplayLabel(lookup, materialName),
+      canAct: ctx.listEditable,
+    }
+  }
+
   const matches = packItemsForMaterial(materialId, ctx.packItems)
   if (matches.length > 0 && matches.every((pi) => pi.isJsMaterial)) {
     return jsMaterialScanResult(materialName)
@@ -269,7 +282,7 @@ export function resolveMaterialBatchScan(
 
   if (matches.length === 0) {
     const inCrate = containerHoldingMaterial(materialId, ctx)
-    if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep)) {
+    if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile)) {
       return {
         type: 'in_crate',
         tone: 'info',
@@ -371,7 +384,7 @@ export function resolveMaterialBatchScan(
   }
 
   const inCrate = containerHoldingMaterial(materialId, ctx)
-  if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep) && !isOpen) {
+  if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile) && !isOpen) {
     return {
       type: 'in_crate',
       tone: 'info',

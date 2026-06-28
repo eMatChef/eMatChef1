@@ -54,7 +54,7 @@ class Activity
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'activity'])]
     private string $type = 'activity';
 
-    // Status: draft, submitted, approved, packing, packed, at_event, returned, completed, cancelled
+    // Status: draft, submitted, approved, packing, packed, transport_out, at_event, transport_back, returned, storing, completed, cancelled
     #[ORM\Column(type: 'string', length: 20, options: ['default' => 'draft'])]
     private string $status = 'draft';
 
@@ -138,6 +138,13 @@ class Activity
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'created_by_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?User $createdByUser = null;
+
+    #[ORM\Column(name: 'submitted_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $submittedByUserId = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'submitted_by_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $submittedByUser = null;
 
     // Preise (für Vermietungen)
     /** pricing_mode: 'set_price' (Pauschal) oder 'item_price' (Einzelpreise pro Artikel) */
@@ -476,6 +483,29 @@ class Activity
         return $this;
     }
 
+    public function getSubmittedByUserId(): ?string
+    {
+        return $this->submittedByUserId;
+    }
+
+    public function setSubmittedByUserId(?string $submittedByUserId): self
+    {
+        $this->submittedByUserId = $submittedByUserId;
+        return $this;
+    }
+
+    public function getSubmittedByUser(): ?User
+    {
+        return $this->submittedByUser;
+    }
+
+    public function setSubmittedByUser(?User $submittedByUser): self
+    {
+        $this->submittedByUser = $submittedByUser;
+        $this->submittedByUserId = $submittedByUser?->getId();
+        return $this;
+    }
+
     public function getPricingMode(): ?string
     {
         return $this->pricingMode;
@@ -694,9 +724,13 @@ class Activity
     public const STATUS_APPROVED = 'approved';
     public const STATUS_PACKING = 'packing';
     public const STATUS_PACKED = 'packed';
-    /** Material am Event / bei der Gruppe */
+    public const STATUS_TRANSPORT_OUT = 'transport_out';
+    /** Material am Event / bei der Gruppe (Stepper-UI: «Am Anlass» / issue) */
     public const STATUS_AT_EVENT = 'at_event';
+    public const STATUS_TRANSPORT_BACK = 'transport_back';
     public const STATUS_RETURNED = 'returned';
+    /** MW lagert Material ein (Stepper-UI: store) */
+    public const STATUS_STORING = 'storing';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
 
@@ -706,27 +740,73 @@ class Activity
         self::STATUS_APPROVED,
         self::STATUS_PACKING,
         self::STATUS_PACKED,
+        self::STATUS_TRANSPORT_OUT,
         self::STATUS_AT_EVENT,
+        self::STATUS_TRANSPORT_BACK,
         self::STATUS_RETURNED,
+        self::STATUS_STORING,
         self::STATUS_COMPLETED,
         self::STATUS_CANCELLED,
     ];
 
+    /** camp/event = Logistics-Workflow mit Transport-Stufen */
+    public static function usesLogisticsWorkflow(?string $activityType): bool
+    {
+        return \in_array($activityType ?? '', ['camp', 'event'], true);
+    }
+
     /**
-     * Erlaubte Status-Übergänge
-     * Key = aktueller Status, Values = erlaubte Ziel-Status
+     * Erlaubte Status-Übergänge (Superset; Profil-Filter in ActivityController::getTransitions).
      */
     public const STATUS_TRANSITIONS = [
         self::STATUS_DRAFT     => [self::STATUS_SUBMITTED, self::STATUS_CANCELLED],
         self::STATUS_SUBMITTED => [self::STATUS_APPROVED, self::STATUS_PACKING, self::STATUS_CANCELLED],
-        self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED], // zurück zu submitted = Zurückweisung
+        self::STATUS_APPROVED  => [self::STATUS_PACKING, self::STATUS_SUBMITTED, self::STATUS_CANCELLED],
         self::STATUS_PACKING   => [self::STATUS_PACKED, self::STATUS_CANCELLED],
-        self::STATUS_PACKED    => [self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
-        self::STATUS_AT_EVENT  => [self::STATUS_RETURNED, self::STATUS_PACKED],
-        self::STATUS_RETURNED  => [self::STATUS_COMPLETED, self::STATUS_AT_EVENT],
+        self::STATUS_PACKED    => [self::STATUS_TRANSPORT_OUT, self::STATUS_AT_EVENT, self::STATUS_PACKING, self::STATUS_CANCELLED],
+        self::STATUS_TRANSPORT_OUT => [self::STATUS_AT_EVENT, self::STATUS_PACKED],
+        self::STATUS_AT_EVENT  => [self::STATUS_TRANSPORT_BACK, self::STATUS_RETURNED, self::STATUS_PACKED],
+        self::STATUS_TRANSPORT_BACK => [self::STATUS_RETURNED, self::STATUS_AT_EVENT],
+        self::STATUS_RETURNED  => [self::STATUS_STORING, self::STATUS_AT_EVENT],
+        self::STATUS_STORING   => [self::STATUS_COMPLETED, self::STATUS_RETURNED],
         self::STATUS_COMPLETED => [],
         self::STATUS_CANCELLED => [],
     ];
+
+    /**
+     * Profilabhängige Ziel-Status aus STATUS_TRANSITIONS filtern.
+     *
+     * @param list<string> $targets
+     * @return list<string>
+     */
+    public static function filterTransitionTargets(string $currentStatus, ?string $activityType, array $targets): array
+    {
+        $logistics = self::usesLogisticsWorkflow($activityType);
+
+        return array_values(array_filter($targets, static function (string $target) use ($currentStatus, $logistics): bool {
+            if ($currentStatus === self::STATUS_PACKED) {
+                if ($logistics && $target === self::STATUS_AT_EVENT) {
+                    return false;
+                }
+                if (!$logistics && $target === self::STATUS_TRANSPORT_OUT) {
+                    return false;
+                }
+            }
+            if ($currentStatus === self::STATUS_AT_EVENT) {
+                if ($logistics && $target === self::STATUS_RETURNED) {
+                    return false;
+                }
+                if (!$logistics && $target === self::STATUS_TRANSPORT_BACK) {
+                    return false;
+                }
+            }
+            if ($currentStatus === self::STATUS_RETURNED && $target === self::STATUS_COMPLETED) {
+                return false;
+            }
+
+            return true;
+        }));
+    }
 
     /**
      * Wer darf welchen Übergang durchführen?
@@ -755,12 +835,20 @@ class Activity
         'packing->packed'     => ['mw', 'sa', 'org'],
         'packing->cancelled'  => ['mw', 'dc', 'sa', 'org'],
         'packed->at_event'    => ['mw', 'sa', 'org', 'creator', 'member'],
+        'packed->transport_out' => ['mw', 'sa', 'org', 'creator', 'member'],
         'packed->packing'     => ['mw', 'dc', 'sa', 'org'],
         'packed->cancelled'   => ['mw', 'dc', 'sa', 'org'],
+        'transport_out->at_event' => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_out->packed' => ['mw', 'dc', 'sa', 'org'],
         'at_event->packed'    => ['mw', 'dc', 'sa', 'org'],
+        'at_event->transport_back' => ['mw', 'sa', 'org', 'creator', 'member'],
         'at_event->returned'  => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_back->returned' => ['mw', 'sa', 'org', 'creator', 'member'],
+        'transport_back->at_event' => ['mw', 'dc', 'sa', 'org'],
         'returned->at_event'  => ['mw', 'dc', 'sa', 'org'],
-        'returned->completed' => ['mw', 'sa', 'org'],
+        'returned->storing'   => ['mw', 'sa', 'org'],
+        'storing->completed'  => ['mw', 'sa', 'org'],
+        'storing->returned'   => ['mw', 'dc', 'sa', 'org'],
     ];
 
     /**
@@ -864,21 +952,32 @@ class Activity
         return in_array($this->status, [
             self::STATUS_PACKING,
             self::STATUS_PACKED,
+            self::STATUS_TRANSPORT_OUT,
             self::STATUS_AT_EVENT,
+            self::STATUS_TRANSPORT_BACK,
             self::STATUS_RETURNED,
+            self::STATUS_STORING,
         ], true);
     }
 
     /**
-     * Prüft ob Meldungen (Reparatur/Verlust) erstellt werden können.
-     * Erst ab Workflow-Status «Am Event» (Material ausgegeben), nicht mehr in «gepackt».
+     * Prüft ob Meldungen (Reparatur/Verlust/Verbrauch) erstellt werden können.
+     * Ab «Am Anlass»; Quick (activity/external) zusätzlich ab «gepackt» in der Ausgabe-Phase.
      */
     public function canReportIssues(): bool
     {
-        return in_array($this->status, [
+        if (in_array($this->status, [
             self::STATUS_AT_EVENT,
             self::STATUS_RETURNED,
-        ], true);
+        ], true)) {
+            return true;
+        }
+
+        if ($this->status === self::STATUS_PACKED && ($this->isActivity() || $this->isExternal())) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
