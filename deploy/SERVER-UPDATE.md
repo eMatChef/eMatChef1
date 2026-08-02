@@ -558,6 +558,15 @@ Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMA
 
 **Pfad anders?** In den YAML-Workflows die Zeile `export EMATCHEF_GIT_SSH_IDENTITY=…` an euren echten Key-Pfad anpassen (oder denselben Dateinamen auf dem Server verwenden).
 
+### Develop Auto-Deploy: API vs Hostpoint
+
+| Was | Workflow | Wann |
+|-----|----------|------|
+| **API** (`api-dev`) | `.github/workflows/cd-develop.yml` | Push auf `develop`, plus alle **30 Minuten** (Cron). Ist der Server schon auf `origin/develop`, wird der Deploy übersprungen. |
+| **Frontend Dev** (Hostpoint `dev` / `app-dev`) | `.github/workflows/ftp-deploy-develop.yml` | Nur wenn sich `frontend/**` (oder die Hostpoint-Build-Skripte) ändern — **nicht** bei reinen Backend-Pushes. Manuell: `workflow_dispatch`. |
+
+Hostpoint muss also **nicht** bei jedem API-Deploy erneuert werden. Ein SPA-Teilupdate einzelner Vue-Dateien geht nicht (Vite-Hashes); bei Frontend-Änderungen baut CI `home` + `app` neu und lädt die Ordner vollständig hoch.
+
 ---
 
 ## Hardening-Checklist (Cross-Subdomain Login)
