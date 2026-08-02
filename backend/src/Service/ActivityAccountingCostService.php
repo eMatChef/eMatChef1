@@ -122,6 +122,14 @@ class ActivityAccountingCostService
 
     private function syncConsumptionFollowUp(Activity $activity): void
     {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+
         $activityId = $activity->getId();
         if (!$activityId) {
             return;

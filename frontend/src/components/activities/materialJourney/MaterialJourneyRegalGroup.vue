@@ -43,13 +43,16 @@ const props = defineProps<{
   journeyStep?: JourneyStep
   containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
   shellStorePendingQtyForRow?: (row: TaskRow) => number
+  showCrateContentActions?: boolean
+  deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
-  reassign: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
+  deleteEmpty: [row: TaskRow]
   moveBack: [row: TaskRow, qty: number]
   'update:moveBackQty': [row: TaskRow, qty: number]
   moveForward: [row: TaskRow, qty: number]
@@ -110,16 +113,21 @@ function isPackTargetSelectable(row: TaskRow): boolean {
 }
 
 function hasReassignTargetsFor(row: TaskRow): boolean {
-  if (props.hasReassignTargetsForRow) return props.hasReassignTargetsForRow(row)
-  if (row.kind !== 'crate' || !row.container) return false
-  if (!props.packContainers || !props.shellPackItemForContainer) return false
-  return (
-    reassignTargetPackCrates(
-      props.packContainers,
-      row.container.id,
-      props.shellPackItemForContainer,
-    ).length > 0
-  )
+  if (props.hasReassignTargetsForRow && !props.hasReassignTargetsForRow(row)) return false
+  return reassignTargetsFor(row).length > 0
+}
+
+function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
+  if (row.kind !== 'crate' || !row.container) return []
+  if (!props.packContainers || !props.shellPackItemForContainer) return []
+  return reassignTargetPackCrates(
+    props.packContainers,
+    row.container.id,
+    props.shellPackItemForContainer,
+  ).map((container) => ({
+    id: container.id,
+    label: container.label,
+  }))
 }
 
 function atEventLabelForRow(row: TaskRow): string | null {
@@ -163,6 +171,9 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
+          :reassign-targets="reassignTargetsFor(row)"
+          :show-crate-content-actions="showCrateContentActions"
+          :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
@@ -175,7 +186,8 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
-          @reassign="emit('reassign', row, $event)"
+          @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
+          @delete-empty="emit('deleteEmpty', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"

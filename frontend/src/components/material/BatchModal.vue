@@ -603,7 +603,11 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in allocationRows" :key="row.id">
+                    <tr
+                      v-for="row in allocationRows"
+                      :key="row.id"
+                      :class="{ 'allocation-row--duplicate-crate': allocationRowHasDuplicateKiste(row, allocationRows) }"
+                    >
                       <td>
                         <input
                           v-model.number="row.qty"
@@ -668,14 +672,19 @@
                           class="batch-form-input form-select--sm"
                         >
                           <option value="">{{ t('components.batchModal.selectBox') }}</option>
-                                <option
-                                  v-for="cb in containerBatches"
-                                  :key="cb.id"
-                                  :value="cb.id"
-                                  :title="formatContainerBatchOptionFullLabel(cb)"
-                                >
-                                  {{ formatContainerBatchOptionFullLabel(cb) }}
-                                </option>
+                          <option
+                            v-for="cb in containerBatches"
+                            :key="cb.id"
+                            :value="cb.id"
+                            :disabled="isContainerBatchUsedInOtherRow(allocationRows, cb.id, row.id)"
+                            :title="
+                              isContainerBatchUsedInOtherRow(allocationRows, cb.id, row.id)
+                                ? t('components.batchModal.allocCrateAlreadyUsedInRow')
+                                : formatContainerBatchOptionFullLabel(cb)
+                            "
+                          >
+                            {{ formatContainerBatchOptionFullLabel(cb) }}
+                          </option>
                         </select>
                       </td>
                       <td>
@@ -685,6 +694,13 @@
                   </tbody>
                 </table>
               </div>
+              <p
+                v-if="hasDuplicateKisteContainers(allocationRows)"
+                class="batch-field-hint allocation-duplicate-crate-hint"
+                role="status"
+              >
+                {{ t('components.batchModal.allocDuplicateCrateHint') }}
+              </p>
               <p v-if="allocationRows.length > 0 && !allocationSumValid" class="batch-field-hint is-invalid">
                 {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum, unit: stockUnitLabel }) }}
               </p>
@@ -875,6 +891,11 @@ import {
   type StorageOverviewResponse,
 } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import {
+  allocationRowHasDuplicateKiste,
+  hasDuplicateKisteContainers,
+  isContainerBatchUsedInOtherRow,
+} from '@/utils/allocationStorageHints'
 import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import {
   formatFachSelectPreviewLine,
@@ -1727,11 +1748,12 @@ function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
 }
 
 function addAllocationRow() {
-  const lastMode = allocationRows.value[allocationRows.value.length - 1]?.mode ?? 'slot'
+  const lastRow = allocationRows.value[allocationRows.value.length - 1]
+  const lastMode = lastRow?.mode ?? 'slot'
   allocationRows.value.push({
     id: ++allocationIdCounter,
     mode: lastMode,
-    storage_address_id: '',
+    storage_address_id: lastRow?.storage_address_id ?? '',
     rack_id: '',
     slot_id: '',
     container_batch_id: '',
@@ -1845,6 +1867,16 @@ const allocationSum = computed(() =>
 const allocationSumValid = computed(() =>
   form.qty > 0 && allocationSum.value === form.qty
 )
+const allocationLocationsValid = computed(() => {
+  if (!allocationSumValid.value) return false
+  const rows = allocationRows.value.filter((r) => r.qty > 0)
+  if (rows.length === 0) return false
+  return rows.every((row) => {
+    if (row.mode === 'slot') return !!row.rack_id && !!row.slot_id
+    if (!row.container_batch_id) return false
+    return !allocationRowHasDuplicateKiste(row, allocationRows.value)
+  })
+})
 
 // Form befüllen
 onMounted(async () => {
@@ -2107,7 +2139,7 @@ const canSubmit = computed(() => {
     return true
   }
   if (form.qty < 1) return false
-  if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) return false
+  if (form.split_allocations && !allocationLocationsValid.value) return false
   return true
 })
 
@@ -2134,7 +2166,7 @@ const missingFields = computed(() => {
   if (form.qty < 1) {
     missing.push(t('components.batchModal.valQtyMin'))
   }
-  if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) {
+  if (form.split_allocations && !allocationLocationsValid.value) {
     missing.push(t('components.batchModal.valAllocationsSum', { qty: form.qty }))
   }
   return missing
@@ -2206,7 +2238,7 @@ function collectContainerBatchIdsForPendingAdd(): string[] {
     }
     return ids
   }
-  if (form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value) {
+  if (form.split_allocations && allocationRows.value.length > 0 && allocationLocationsValid.value) {
     for (const r of allocationRows.value) {
       if (r.qty > 0 && r.mode === 'kiste' && r.container_batch_id) {
         ids.push(String(r.container_batch_id))

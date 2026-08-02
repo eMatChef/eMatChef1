@@ -19,6 +19,8 @@ export type MaterialJourneyAccordionLine = {
   maxReassignQty?: number
   /** Position aus activity_pack_container_item — «Lose mitnehmen» / «In andere Packkiste». */
   actionable?: boolean
+  /** Nur Lager-Vorlage — nicht auf der Packliste gebucht. */
+  isWarehouseTemplate?: boolean
 }
 
 function accordionQtyForContainerLine(item: ActivityPackContainerItem): number {
@@ -55,6 +57,7 @@ export function materialJourneyAccordionLinesForContainerId(
 
 function linesFromPeekSections(
   sections: {
+    subsectionKey?: string
     lines: {
       id: string
       materialName: string
@@ -65,35 +68,20 @@ function linesFromPeekSections(
 ): MaterialJourneyAccordionLine[] {
   const out: MaterialJourneyAccordionLine[] = []
   for (const sec of sections) {
+    const isWarehouseTemplate = sec.subsectionKey === 'fixed'
     for (const line of sec.lines) {
       out.push({
-        id: line.id,
+        id: `peek-${sec.subsectionKey ?? 'all'}-${line.id}`,
         name: line.materialName,
         quantity: line.quantity,
         materialItemId: line.materialItemId ?? null,
-        issuedQty: line.quantity,
+        issuedQty: isWarehouseTemplate ? 0 : line.quantity,
+        actionable: false,
+        isWarehouseTemplate,
       })
     }
   }
   return out
-}
-
-function mergeAccordionLines(
-  ...groups: MaterialJourneyAccordionLine[][]
-): MaterialJourneyAccordionLine[] {
-  const map = new Map<string, MaterialJourneyAccordionLine>()
-  for (const group of groups) {
-    for (const line of group) {
-      const key = line.id || line.name
-      const existing = map.get(key)
-      if (!existing || line.quantity > existing.quantity) {
-        map.set(key, line)
-      }
-    }
-  }
-  return [...map.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
 }
 
 export function materialJourneyAccordionLinesForRow(
@@ -125,8 +113,24 @@ export function materialJourneyAccordionLinesForRow(
       ctx.packContainers,
     )
     const peekLines = linesFromPeekSections(sections)
+    const bookedMids = new Set(
+      booked.map((line) => (line.materialItemId ?? '').trim()).filter(Boolean),
+    )
 
-    return mergeAccordionLines(booked, peekLines)
+    const extraFromPeek = peekLines.filter((line) => {
+      if (line.isWarehouseTemplate) return false
+      const mid = (line.materialItemId ?? '').trim()
+      return mid === '' || !bookedMids.has(mid)
+    })
+    const templateOnly = peekLines.filter(
+      (line) =>
+        line.isWarehouseTemplate &&
+        (!(line.materialItemId ?? '').trim() || !bookedMids.has((line.materialItemId ?? '').trim())),
+    )
+
+    return [...booked, ...extraFromPeek, ...templateOnly].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+    )
   }
 
   if (row.kind === 'combo' && row.packItem) {

@@ -20,8 +20,13 @@ import {
   shellForwardLineKey,
 } from '@/components/activities/packCrateForwardCheck'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
-import { isJourneyReturnStep, isJourneyStoreStep } from '@/components/activities/materialJourneySteps'
+import {
+  isJourneyLogisticsReturnCrateCheckStep,
+  isJourneyReturnStep,
+  isJourneyStoreStep,
+} from '@/components/activities/materialJourneySteps'
 import { indexLatestCrateCheckByPackItemAndLeg } from '@/components/activities/packCrateCheckReality'
+import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import { getBackendStage, type PackStage } from '@/components/activities/packStageQuantities'
 import EButton from '@/components/form/base/EButton.vue'
 import { useMaterialJourneySheetDialog } from '@/composables/useMaterialJourneySheetDialog'
@@ -43,6 +48,7 @@ const props = defineProps<{
   cratePeekMaps?: MaterialJourneyCratePeekMaps
   journeyStep: JourneyStep
   packStage: PackStage
+  profile: PackWorkflowProfile
   activityId: string
   departmentId: string
   canManageMaterials: boolean
@@ -292,6 +298,9 @@ const primaryLabel = computed(() => {
 const subtitle = computed(() => {
   if (isJourneyReturnStep(props.journeyStep)) {
     return t('activities.materialJourney.crateSheet.subtitleReturn')
+  }
+  if (isJourneyLogisticsReturnCrateCheckStep(props.journeyStep, props.profile)) {
+    return t('activities.materialJourney.crateSheet.subtitleReturnCheck')
   }
   if (isStoreStep.value) {
     return t('activities.materialJourney.crateSheet.subtitleStoreLines')

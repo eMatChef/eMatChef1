@@ -20,6 +20,12 @@ const props = defineProps<{
   showIssueActions?: boolean
   issueIsConsumable?: boolean
   showIssueConsumption?: boolean
+  warehouseWarning?: string | null
+  warehouseLinePreview?: string | null
+  warehouseHint?: string | null
+  showWarehouseAction?: boolean
+  warehouseActionLabel?: string
+  warehouseActionEnabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,6 +37,7 @@ const emit = defineEmits<{
   loss: []
   repair: []
   damage: []
+  warehouseAction: []
 }>()
 
 const { t } = useI18n()
@@ -49,6 +56,15 @@ const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
         {{ quantityProgress }}
       </p>
       <p class="material-scan-result-card__message text-muted">{{ message }}</p>
+      <p v-if="warehouseWarning" class="material-scan-result-card__warehouse-warning">
+        {{ warehouseWarning }}
+      </p>
+      <p v-if="warehouseLinePreview" class="material-scan-result-card__warehouse-preview text-muted">
+        {{ warehouseLinePreview }}
+      </p>
+      <p v-if="warehouseHint" class="material-scan-result-card__warehouse-hint text-muted">
+        {{ warehouseHint }}
+      </p>
       <p v-if="showBulkConfirm && !bulkConfirmed" class="material-scan-result-card__hint">
         {{ t('activities.materialJourney.scan.bulkConfirmHint') }}
       </p>
@@ -75,7 +91,15 @@ const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
         {{ t('activities.materialJourney.scan.bulkConfirm') }}
       </EButton>
       <EButton
-        v-if="primaryEnabled"
+        v-if="showWarehouseAction && warehouseActionEnabled"
+        variant="primary"
+        size="small"
+        @click="emit('warehouseAction')"
+      >
+        {{ warehouseActionLabel ?? t('activities.materialJourney.scan.actionMiniInventory') }}
+      </EButton>
+      <EButton
+        v-else-if="primaryEnabled"
         variant="primary"
         size="small"
         @click="emit('primary')"

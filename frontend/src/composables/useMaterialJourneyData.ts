@@ -17,6 +17,7 @@ import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
 import {
+  journeyStepIndex,
   journeyStepsWithOpenWork,
   isQuickIssuePhaseClosed,
   resolveEffectiveActiveJourneyStep,
@@ -111,7 +112,18 @@ export function useMaterialJourneyData(
     const param = stepParam.value
     if (!param) return true
     if (!isValidJourneyStepForViewer(param, profile.value, canManageMaterials.value)) return true
+    if (!activity.value) return false
+    const paramStep = param as JourneyStep
+    const activeIdx = journeyStepIndex(activeJourneyStep.value, profile.value)
+    const paramIdx = journeyStepIndex(paramStep, profile.value)
+    if (paramIdx > activeIdx) return true
     return false
+  })
+
+  /** Ziel-Schritt bei Redirect (fehlend/ungültig/Zukunft → DB-aktiver Schritt). */
+  const journeyStepRedirectTarget = computed((): JourneyStep => {
+    if (needsStepRedirect.value) return activeJourneyStep.value
+    return resolvedStep.value
   })
 
   const positionCount = computed(() => {
@@ -237,6 +249,7 @@ export function useMaterialJourneyData(
     steps,
     resolvedStep,
     needsStepRedirect,
+    journeyStepRedirectTarget,
     activeJourneyStep,
     /** @deprecated use activeJourneyStep */
     defaultJourneyStep: activeJourneyStep,

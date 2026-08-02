@@ -15,6 +15,8 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 | **[newUI/ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md)** | **Entscheidung:** Stepper = Activity-Status; Material unabhängig |
 | **[pack-step-ui.md](./pack-step-ui.md)** | Zentrale Pack-Step-UI (Dual-Panel, Kisten, Spiegel-Ansicht, Workflow-Confirm) |
 | **[pack-workflow-rules.md](./pack-workflow-rules.md)** | **Ziel-Spezifikation** Pack-Regeln — Code: `packWorkflowRules.ts` |
+| **[journey-pack-workflow-todo.md](./journey-pack-workflow-todo.md)** | **Todo:** Journey ↔ Legacy-Regeln, Kisten, Quick/Logistics |
+| **[journey-pack-workflow-abnahme.md](./journey-pack-workflow-abnahme.md)** | **Abnahme Phase D:** Specs + manuelle Checkliste |
 | **[newUI/](./newUI/)** | **Material-Journey UI** (neu): Checkliste, Stepper, Scan — parallel zu Legacy-Packliste, Route `pack-journey` |
 | **[js-material/](./js-material/)** | J+S-Leihmaterial: Flag, Bestellformular, Dotation, Pack-Reiter, Check-Flow |
 | **[grossanlass/](../grossanlass/)** | Grossanlass (eigenes Produkt): Wizard, Ressorts, Planungsrunde Bedarf — [README](../grossanlass/README.md), [MVP](../grossanlass/MVP.md) |

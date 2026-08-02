@@ -133,6 +133,13 @@
             </li>
           </ul>
         </div>
+
+        <div v-if="stockImpactIssues.length > 0" class="ccd-stock-impact">
+          <p class="ccd-stock-impact-title">{{ t('components.comboConfigurator.stockImpactTitle') }}</p>
+          <ul class="ccd-stock-impact-list">
+            <li v-for="issue in stockImpactIssues" :key="issue.key">{{ issue.message }}</li>
+          </ul>
+        </div>
       </template>
 
       <p v-if="error" class="error-text">{{ error }}</p>
@@ -166,8 +173,15 @@ interface Props {
   startIso?: string | null
   endIso?: string | null
   initialQuantity?: number
+  standaloneQuantityByMaterialItemId?: Record<string, number>
 }
-const props = withDefaults(defineProps<Props>(), { activityId: null, startIso: null, endIso: null, initialQuantity: 1 })
+const props = withDefaults(defineProps<Props>(), {
+  activityId: null,
+  startIso: null,
+  endIso: null,
+  initialQuantity: 1,
+  standaloneQuantityByMaterialItemId: () => ({}),
+})
 const emit = defineEmits<{
   (
     e: 'confirm',
@@ -298,6 +312,40 @@ const resolvedStock = computed(() => availability.value?.selected.components ?? 
 const resolvedSelfProvided = computed(
   () => availability.value?.selected.selfProvided ?? [],
 )
+
+const stockImpactIssues = computed(() => {
+  const issues: Array<{ key: string; message: string }> = []
+  const qty = Math.max(1, quantity.value)
+  const standalone = props.standaloneQuantityByMaterialItemId ?? {}
+  for (const c of resolvedStock.value) {
+    const need = Math.max(0, (c.qtyPerCombo ?? 0) * qty)
+    if (need <= 0) continue
+    const loose = Math.max(0, standalone[c.materialItemId] ?? 0)
+    const avail = Math.max(0, c.availableForPeriod ?? 0)
+    if (loose > 0) {
+      issues.push({
+        key: `${c.materialItemId}-overlap`,
+        message: t('components.comboConfigurator.stockImpactOverlap', {
+          name: c.name,
+          loose,
+          need,
+        }),
+      })
+    }
+    const totalIfSeparate = loose + need
+    if (totalIfSeparate > avail) {
+      issues.push({
+        key: `${c.materialItemId}-shortage`,
+        message: t('components.comboConfigurator.stockImpactShortage', {
+          name: c.name,
+          total: totalIfSeparate,
+          avail,
+        }),
+      })
+    }
+  }
+  return issues
+})
 
 const needsSelfProvidedAck = computed(() => resolvedSelfProvided.value.length > 0)
 
@@ -436,6 +484,15 @@ onMounted(async () => {
 .ccd-resolved-title { font-weight: 600; }
 .ccd-resolved ul, .ccd-selfprovided ul { margin: 0.2rem 0 0; padding-left: 1.1rem; }
 .ccd-resolved-total { color: var(--text-muted, #6b7280); }
+.ccd-stock-impact {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+}
+.ccd-stock-impact-title { margin: 0 0 0.35rem; font-weight: 600; font-size: 0.84rem; color: #92400e; }
+.ccd-stock-impact-list { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; color: #78350f; }
 .text-green { color: #16a34a; }
 .text-red { color: #dc2626; }
 </style>

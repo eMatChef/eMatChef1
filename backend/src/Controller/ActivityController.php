@@ -252,42 +252,41 @@ class ActivityController extends AbstractController
         $isRestrictedMember = $this->activityAccess->isRestrictedGroupMember($currentUser, (string) $departmentId);
 
         if ($isRestrictedMember) {
-            $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds($currentUser, (string) $departmentId);
-            $qb->setParameter('currentUserId', $currentUser->getId());
-
-            if ($visibleGroupIds === []) {
-                $qb->andWhere('a.createdByUserId = :currentUserId');
-            } else {
-                $expr = $qb->expr()->orX(
-                    'a.createdByUserId = :currentUserId',
-                    'a.groupId IN (:visibleGroupIds)'
-                );
-                $qb->setParameter('visibleGroupIds', $visibleGroupIds);
-                $qb->andWhere($expr);
-            }
-
             $qb->andWhere('a.type != :externalType')
                 ->setParameter('externalType', 'external');
         } elseif (!$this->activityAccess->isDepartmentWideManager($membershipRole)) {
-            $visibleGroupIds = $this->activityAccess->getExpandedVisibleGroupIds($currentUser, (string) $departmentId);
-
-            $expr = $qb->expr()->orX(
-                'a.createdByUserId = :currentUserId',
-                'a.responsibleUserId = :currentUserId'
-            );
-            $qb->setParameter('currentUserId', $currentUser->getId());
-
-            if (!empty($visibleGroupIds)) {
-                $expr->add('a.groupId IN (:visibleGroupIds)');
-                $qb->setParameter('visibleGroupIds', $visibleGroupIds);
-            }
-
-            $qb->andWhere($expr);
             $qb->andWhere('a.type != :externalType')
                 ->setParameter('externalType', 'external');
         }
 
         $activities = $qb->getQuery()->getResult();
+
+        if ($isRestrictedMember) {
+            $activities = array_values(array_filter(
+                $activities,
+                fn (Activity $activity) => $this->activityAccess->canUserSeeActivityInDepartmentList(
+                    $currentUser,
+                    $activity,
+                    (string) $departmentId,
+                ),
+            ));
+        } elseif (!$this->activityAccess->isDepartmentWideManager($membershipRole)) {
+            $activities = array_values(array_filter(
+                $activities,
+                function (Activity $activity) use ($currentUser, $departmentId): bool {
+                    if ($activity->getCreatedByUserId() === $currentUser->getId()
+                        || $activity->getResponsibleUserId() === $currentUser->getId()) {
+                        return true;
+                    }
+
+                    return $this->activityAccess->canUserSeeActivityInDepartmentList(
+                        $currentUser,
+                        $activity,
+                        (string) $departmentId,
+                    );
+                },
+            ));
+        }
 
         // Zusätzlich: Aktivitäten anderer Departments, die dieses Department angenommen hat
         $invitedQb = $this->entityManager->createQueryBuilder();
@@ -2388,7 +2387,7 @@ class ActivityController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true);
-        $items = $data['items'] ?? [];
+        $items = $this->deduplicateIncomingActivityItems($data['items'] ?? []);
 
         try {
             $materialBefore = $this->aggregateActivityMaterials($id);
@@ -4114,6 +4113,56 @@ class ActivityController extends AbstractController
         }
 
         return null;
+    }
+
+    /**
+     * PUT /items: doppelte virtuelle Kombos (gleiches material_item_id) zu einer Zeile zusammenführen.
+     * Doppelbuchungen behalten die Menge der ersten Zeile; pack_mode «loose» hat Vorrang.
+     *
+     * @param list<array<string, mixed>> $items
+     * @return list<array<string, mixed>>
+     */
+    private function deduplicateIncomingActivityItems(array $items): array
+    {
+        /** @var array<string, array<string, mixed>> $mergedVirtualCombos */
+        $mergedVirtualCombos = [];
+        $other = [];
+
+        foreach ($items as $itemData) {
+            if (empty($itemData['material_item_id'])) {
+                continue;
+            }
+
+            $materialItem = $this->entityManager->getRepository(MaterialItem::class)
+                ->find($itemData['material_item_id']);
+            if ($materialItem === null) {
+                continue;
+            }
+
+            if (!$materialItem->isVirtualCombo()) {
+                $other[] = $itemData;
+                continue;
+            }
+
+            $mid = (string) $materialItem->getId();
+            if (!isset($mergedVirtualCombos[$mid])) {
+                $mergedVirtualCombos[$mid] = $itemData;
+                continue;
+            }
+
+            $existing = &$mergedVirtualCombos[$mid];
+            $newMode = isset($itemData['pack_mode']) && \in_array($itemData['pack_mode'], ['together', 'loose'], true)
+                ? (string) $itemData['pack_mode']
+                : 'loose';
+            $existingMode = isset($existing['pack_mode']) && \in_array($existing['pack_mode'], ['together', 'loose'], true)
+                ? (string) $existing['pack_mode']
+                : 'loose';
+            if ($newMode === 'loose' || $existingMode === 'loose') {
+                $existing['pack_mode'] = 'loose';
+            }
+        }
+
+        return array_merge(array_values($mergedVirtualCombos), $other);
     }
 
     /**

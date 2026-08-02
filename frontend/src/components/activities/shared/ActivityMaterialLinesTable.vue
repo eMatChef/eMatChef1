@@ -196,29 +196,47 @@
                     {{ virtualComboPackModeLabel(row) }}
                   </span>
                   <template v-if="effectiveVirtualComboPackMode(row) === 'together' && comboSetContent(row)">
-                    <span class="activity-mat-set-title text-muted">
-                      <span aria-hidden="true">{{ COMBO_BADGE.crate }}</span>
-                      {{ t('activities.detail.comboSetContentTitle') }}
-                    </span>
-                    <ul class="activity-mat-set-list">
-                      <li v-for="c in comboSetContent(row)!.resolved" :key="`r-${c.component_material_id}`">
-                        {{ c.total_qty }}× {{ c.name }}
-                      </li>
-                      <li
-                        v-for="c in comboSetContent(row)!.selfProvided"
-                        :key="`s-${c.component_material_id}`"
-                        class="activity-mat-set-self"
+                    <div class="activity-mat-combo-content-dropdown">
+                      <button
+                        type="button"
+                        class="activity-mat-combo-content-toggle"
+                        :aria-expanded="isVirtualComboContentOpen(row, originalIndex)"
+                        :aria-label="t('activities.materialLinesTable.comboContentToggleAria')"
+                        @click="toggleVirtualComboContent(row, originalIndex)"
                       >
-                        {{ c.total_qty }}× {{ c.name }}
-                        <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
-                        <span
-                          v-if="row.config_snapshot?.self_provided_acknowledged"
-                          class="activity-mat-selfprovided-ack-badge"
-                        >
-                          {{ formatSelfProvidedAckBadge(row.config_snapshot) }}
-                        </span>
-                      </li>
-                    </ul>
+                        <span class="activity-mat-combo-content-chev" aria-hidden="true">{{
+                          isVirtualComboContentOpen(row, originalIndex) ? '▼' : '▶'
+                        }}</span>
+                        {{ t('activities.materialLinesTable.comboContentToggle') }}
+                      </button>
+                      <div
+                        v-show="isVirtualComboContentOpen(row, originalIndex)"
+                        class="activity-mat-combo-content-body"
+                      >
+                        <ul class="activity-mat-combo-content-list">
+                          <li
+                            v-for="c in comboSetContent(row)!.resolved"
+                            :key="`r-${c.component_material_id}`"
+                          >
+                            {{ c.total_qty }}× {{ c.name }}
+                          </li>
+                          <li
+                            v-for="c in comboSetContent(row)!.selfProvided"
+                            :key="`s-${c.component_material_id}`"
+                            class="activity-mat-combo-content-self"
+                          >
+                            {{ c.total_qty }}× {{ c.name }}
+                            <span class="text-muted">· {{ t('activities.detail.comboSetSelfProvided') }}</span>
+                            <span
+                              v-if="row.config_snapshot?.self_provided_acknowledged"
+                              class="activity-mat-selfprovided-ack-badge"
+                            >
+                              {{ formatSelfProvidedAckBadge(row.config_snapshot) }}
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
                   </template>
                   <p
                     v-else-if="effectiveVirtualComboPackMode(row) === 'loose'"
@@ -419,7 +437,7 @@
               </span>
             </td>
             <td class="activity-mat-cell-remove">
-              <template v-if="qtyRowLocked(row) || !canRemoveLine(row)">
+              <template v-if="!canRemoveLine(row)">
                 <span
                   class="activity-mat-remove-na text-muted"
                   :title="removeBlockedTitle(row)"
@@ -431,7 +449,7 @@
                   v-if="variant === 'wizard'"
                   type="button"
                   class="activity-material-remove"
-                  :title="t('activities.materialLinesTable.removeLineTitle')"
+                  :title="isVirtualComboParentRow(row) ? t('activities.materialLinesTable.virtualComboRemoveTitle') : t('activities.materialLinesTable.removeLineTitle')"
                   :aria-label="t('activities.materialLinesTable.removeLineAria', { name: row.material_name })"
                   :disabled="disabled"
                   @click="emitRemove(originalIndex)"
@@ -471,8 +489,17 @@ import {
   canRemoveStandaloneLine,
   isVirtualComboChildLine,
   minStandaloneQtyForLine,
+  reservedQuantityByMaterialItemId,
   type VirtualComboFloorOptions,
+  type VirtualComboLineContext,
 } from '@/utils/virtualComboMaterial'
+import {
+  materialDemandShortage,
+  periodCapacityForMaterial,
+  restCapacityForRow,
+  restDisplayDemandForRow,
+  totalMaterialDemandInLines,
+} from '@/utils/materialPeriodDemand'
 import { EButton } from '@/components/form/base'
 
 const props = withDefaults(
@@ -498,6 +525,8 @@ const props = withDefaults(
     packingStageQuantityReadonly?: boolean
     /** Kind-Zeilen aus API (Detail): Mengen pro Material für Kombo-Floor */
     childQuantityByMaterialItemId?: Record<string, number>
+    /** Gespeicherte Summe pro Material (alle activity_items inkl. versteckter Kinder) */
+    savedQuantityByMaterialItemId?: Record<string, number>
     /** Virt. Kombo: pack_mode nachträglich änderbar (Detail vor «gepackt») */
     virtualComboPackModeEditable?: boolean
   }>(),
@@ -515,6 +544,7 @@ const props = withDefaults(
     materialScopeSinglePartnerId: null,
     packingStageQuantityReadonly: false,
     childQuantityByMaterialItemId: () => ({}),
+    savedQuantityByMaterialItemId: () => ({}),
     virtualComboPackModeEditable: false,
   },
 )
@@ -563,8 +593,12 @@ function comboFloorHint(row: ActivityMaterialLine): string | null {
 }
 
 function canRemoveLine(row: ActivityMaterialLine): boolean {
+  if (props.disabled || removeBusyFor(row)) return false
+  if (isVirtualComboLooseChildRow(row)) return false
+  if (isVirtualComboParentRow(row)) {
+    return !props.packingStageQuantityReadonly
+  }
   if (qtyRowLocked(row)) return false
-  if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) return false
   if (row.material_type === 'physical_combo') return true
   return canRemoveStandaloneLine(row, props.modelValue, floorOptions.value)
 }
@@ -613,10 +647,13 @@ const availabilityFirstFetchDone = ref(false)
 const availabilityError = ref<string | null>(null)
 
 type SortCol = 'name' | 'available' | 'quantity'
-const sortCol = ref<SortCol>('available')
+const sortCol = ref<SortCol>(props.variant === 'detail-draft' ? 'name' : 'available')
 const sortDir = ref<'asc' | 'desc'>('asc')
+/** Detail-Entwurf: stabile Reihenfolge bis der Nutzer explizit sortiert. */
+const userChoseSort = ref(false)
 
 function toggleSort(col: SortCol) {
+  userChoseSort.value = true
   if (sortCol.value === col) {
     sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
   } else {
@@ -631,7 +668,9 @@ function sortGlyph(col: SortCol): string {
 }
 
 function rowKey(row: ActivityMaterialLine, originalIndex: number): string {
-  return row.activity_item_id ? row.activity_item_id : `${row.material_item_id}-${originalIndex}`
+  const base = row.activity_item_id ?? row.material_item_id
+  const parent = row.parent_activity_item_id ?? ''
+  return parent ? `${base}-${parent}-${originalIndex}` : `${base}-${originalIndex}`
 }
 
 /** Set-Inhalt „wie Kiste" einer gebuchten virtuellen Kombo (aus config_snapshot). */
@@ -703,6 +742,7 @@ interface PhysicalComboContentLine {
 const comboComponentsByMaterialId = ref<Record<string, ComboComponent[]>>({})
 const comboComponentsLoadStarted = ref<Record<string, boolean>>({})
 const physicalComboContentOpenKeys = ref<Set<string>>(new Set())
+const virtualComboContentOpenKeys = ref<Set<string>>(new Set())
 
 function physicalComboContentKey(row: ActivityMaterialLine, originalIndex: number): string {
   return rowKey(row, originalIndex)
@@ -722,6 +762,25 @@ function togglePhysicalComboContent(row: ActivityMaterialLine, originalIndex: nu
     void ensureComboComponentsLoaded(row.material_item_id)
   }
   physicalComboContentOpenKeys.value = next
+}
+
+function virtualComboContentKey(row: ActivityMaterialLine, originalIndex: number): string {
+  return `vc-${rowKey(row, originalIndex)}`
+}
+
+function isVirtualComboContentOpen(row: ActivityMaterialLine, originalIndex: number): boolean {
+  return virtualComboContentOpenKeys.value.has(virtualComboContentKey(row, originalIndex))
+}
+
+function toggleVirtualComboContent(row: ActivityMaterialLine, originalIndex: number): void {
+  const key = virtualComboContentKey(row, originalIndex)
+  const next = new Set(virtualComboContentOpenKeys.value)
+  if (next.has(key)) {
+    next.delete(key)
+  } else {
+    next.add(key)
+  }
+  virtualComboContentOpenKeys.value = next
 }
 
 function physicalComboContentLoading(row: ActivityMaterialLine): boolean {
@@ -811,15 +870,17 @@ function rawFreePoolFromApi(materialItemId: string): number | undefined {
  * Nur explizite saved_quantity zählen; NICHT row.quantity als Ersatz (Wizard sonst savedSum=draftSum → max wächst mit +5).
  */
 function draftAndSavedSumsForMaterial(materialItemId: string): { draftSum: number; savedSum: number } {
-  let draftSum = 0
-  let savedSum = 0
-  for (const row of props.modelValue) {
-    if (row.material_item_id !== materialItemId) continue
-    draftSum += row.quantity
-    if (typeof row.saved_quantity === 'number') {
-      savedSum += row.saved_quantity
-    }
-  }
+  const draftSum = totalMaterialDemandInLines(
+    materialItemId,
+    props.modelValue,
+    props.childQuantityByMaterialItemId,
+  )
+  const savedSum =
+    reservedQuantityByMaterialItemId(props.modelValue as VirtualComboLineContext[], (row) => {
+      const line = row as ActivityMaterialLine
+      if (typeof line.saved_quantity === 'number') return line.saved_quantity
+      return line.quantity ?? 0
+    })[materialItemId] ?? 0
   return { draftSum, savedSum }
 }
 
@@ -841,22 +902,75 @@ function adjustedFreePoolForMaterial(materialItemId: string): number | undefined
   return Math.max(0, raw + savedSum - draftSum)
 }
 
-/** Max. buchbare Menge im Zeitraum (API availableForPeriod; eigene Aktivität bereits ausgeschlossen). */
-function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
-  const raw = rawFreePoolFromApi(row.material_item_id)
-  if (raw !== undefined) return raw
-  const anyRow = props.modelValue.find((r) => r.material_item_id === row.material_item_id)
+function savedSumForMaterial(materialItemId: string): number {
+  const fromProp = props.savedQuantityByMaterialItemId[materialItemId]
+  if (typeof fromProp === 'number') return fromProp
+  let savedSum = 0
+  for (const row of props.modelValue) {
+    if (row.material_item_id !== materialItemId) continue
+    if (typeof row.saved_quantity === 'number') {
+      savedSum += row.saved_quantity
+    }
+  }
+  return savedSum
+}
+
+function totalDemandForMaterial(materialItemId: string): number {
+  return totalMaterialDemandInLines(
+    materialItemId,
+    props.modelValue,
+    props.childQuantityByMaterialItemId,
+  )
+}
+
+function periodCapacityForMaterialRow(materialItemId: string): number | undefined {
+  const raw = rawFreePoolFromApi(materialItemId)
+  const excludeCurrent = !!props.activityId
+  if (raw !== undefined) {
+    return periodCapacityForMaterial(materialItemId, raw, savedSumForMaterial(materialItemId), {
+      excludeCurrentActivity: excludeCurrent,
+    })
+  }
+  const anyRow = props.modelValue.find((r) => r.material_item_id === materialItemId)
   if (anyRow && typeof anyRow.period_availability_cap === 'number') {
-    return anyRow.period_availability_cap
+    return periodCapacityForMaterial(
+      materialItemId,
+      anyRow.period_availability_cap,
+      savedSumForMaterial(materialItemId),
+      { excludeCurrentActivity: excludeCurrent },
+    )
   }
   return undefined
 }
 
+function materialShortageFor(materialItemId: string): number {
+  return materialDemandShortage(
+    totalDemandForMaterial(materialItemId),
+    periodCapacityForMaterialRow(materialItemId),
+  )
+}
+
+/** Max. buchbare Menge im Zeitraum (API availableForPeriod; eigene Aktivität bereits ausgeschlossen). */
+function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
+  if (isVirtualComboParentRow(row)) return undefined
+  const capacity = periodCapacityForMaterialRow(row.material_item_id)
+  if (capacity === undefined) return undefined
+  const totalDemand = totalDemandForMaterial(row.material_item_id)
+  const otherDemand = totalDemand - row.quantity
+  return Math.max(0, capacity - otherDemand)
+}
+
 function shortageForRow(row: ActivityMaterialLine): number {
   if (isReplenishmentLine(row)) return 0
-  const max = maxQtyForRow(row)
-  if (max === undefined) return 0
-  return Math.max(0, row.quantity - max)
+  if (isVirtualComboParentRow(row)) return 0
+  const capacity = restCapacityForRow(
+    row,
+    props.modelValue,
+    periodCapacityForMaterialRow(row.material_item_id),
+    props.childQuantityByMaterialItemId,
+  )
+  if (capacity === undefined) return 0
+  return materialDemandShortage(row.quantity, capacity)
 }
 
 /**
@@ -901,7 +1015,7 @@ function qtyLockedRemoveTitle(row: ActivityMaterialLine): string {
     return t('activities.materialLinesTable.virtualComboChildRemoveTitle')
   }
   if (isVirtualComboParentRow(row)) {
-    return t('activities.materialLinesTable.virtualComboRemoveTitle')
+    return t('activities.materialLinesTable.virtualComboRemoveBlockedTitle')
   }
   if (lineLockedForPackListOnly(row)) {
     return t('activities.materialLinesTable.packListRemoveTitle')
@@ -910,6 +1024,12 @@ function qtyLockedRemoveTitle(row: ActivityMaterialLine): string {
 }
 
 function removeBlockedTitle(row: ActivityMaterialLine): string {
+  if (isVirtualComboLooseChildRow(row)) {
+    return t('activities.materialLinesTable.virtualComboChildRemoveTitle')
+  }
+  if (isVirtualComboParentRow(row)) {
+    return t('activities.materialLinesTable.virtualComboRemoveBlockedTitle')
+  }
   if (qtyRowLocked(row)) return qtyLockedRemoveTitle(row)
   const minQ = minQtyForRow(row)
   if (minQ > minQty.value) {
@@ -931,15 +1051,30 @@ function remainingAfterSelection(row: ActivityMaterialLine): number | null {
   return Math.max(0, max - row.quantity)
 }
 
-/** Anzeige: Menge / maximal im Zeitraum */
+/** Anzeige: Gesamtbedarf / maximal im Zeitraum (inkl. Set-Teile). */
 function formatRestCell(row: ActivityMaterialLine): string {
   if (isReplenishmentLine(row)) {
     return t('activities.materialLinesTable.replenishmentRest')
   }
+  if (isVirtualComboParentRow(row)) {
+    return t('activities.wizard.form.summaryEmpty')
+  }
   if (availabilityLoading.value) return '…'
-  const max = maxQtyForRow(row)
-  if (max === undefined) return t('activities.wizard.form.summaryEmpty')
-  return `${row.quantity} / ${max}`
+  const periodCapacity = periodCapacityForMaterialRow(row.material_item_id)
+  if (periodCapacity === undefined) return t('activities.wizard.form.summaryEmpty')
+  const demand = restDisplayDemandForRow(
+    row,
+    props.modelValue,
+    props.childQuantityByMaterialItemId,
+  )
+  const rowCapacity = restCapacityForRow(
+    row,
+    props.modelValue,
+    periodCapacity,
+    props.childQuantityByMaterialItemId,
+  )
+  if (rowCapacity === undefined) return t('activities.wizard.form.summaryEmpty')
+  return `${demand} / ${rowCapacity}`
 }
 
 const hasAnyAvailabilityShortage = computed(() => {
@@ -949,13 +1084,16 @@ const hasAnyAvailabilityShortage = computed(() => {
 
 const orderedLines = computed(() => {
   const rows = props.modelValue.map((row, originalIndex) => ({ row, originalIndex }))
-  const getAvail = (id: string) => availabilityMap.value[id]
   const shortageForSort = (r: ActivityMaterialLine) =>
     qtyRowLocked(r) ? 0 : shortageForRow(r)
   const asc = sortDir.value === 'asc'
 
+  if (props.variant === 'detail-draft' && !userChoseSort.value) {
+    return [...rows].sort((x, y) => x.originalIndex - y.originalIndex)
+  }
+
   return [...rows].sort((x, y) => {
-    if (!availabilityLoading.value) {
+    if (!availabilityLoading.value && props.variant !== 'detail-draft') {
       const ix = shortageForSort(x.row) > 0 ? 1 : 0
       const iy = shortageForSort(y.row) > 0 ? 1 : 0
       if (ix !== iy) return iy - ix
@@ -1155,7 +1293,7 @@ function onQtyChange(idx: number, e: Event) {
 
 function emitRemove(originalIndex: number) {
   const line = props.modelValue[originalIndex]
-  if (!line || qtyRowLocked(line) || !canRemoveLine(line)) return
+  if (!line || !canRemoveLine(line)) return
   emit('remove-line', { line, index: originalIndex })
 }
 
@@ -1163,29 +1301,47 @@ function applySuggestedForLine(originalIndex: number) {
   if (props.disabled || availabilityLoading.value) return
   const row = props.modelValue[originalIndex]
   if (!row || qtyRowLocked(row)) return
-  const max = maxQtyForRow(row)
-  if (max === undefined) return
-  const nextQty = Math.min(row.quantity, max)
-  if (nextQty === row.quantity) return
+  const materialId = row.material_item_id
+  let shortage = materialShortageFor(materialId)
+  if (shortage <= 0) return
+
+  const minQ = minQtyForRow(row)
+  const reducible = Math.max(0, row.quantity - minQ)
+  const reduce = Math.min(reducible, shortage)
+  if (reduce <= 0) return
+
   const lines = [...props.modelValue]
-  lines[originalIndex] = { ...lines[originalIndex], quantity: nextQty }
+  lines[originalIndex] = { ...lines[originalIndex], quantity: row.quantity - reduce }
   emit('update:modelValue', lines)
 }
 
 function applyAllSuggestedQuantities() {
   if (props.disabled || availabilityLoading.value) return
   let changed = false
-  const lines = props.modelValue.map((row) => {
-    if (qtyRowLocked(row)) return row
-    const max = maxQtyForRow(row)
-    if (max === undefined) return row
-    const nextQty = Math.min(row.quantity, max)
-    if (nextQty !== row.quantity) {
+  const lines = props.modelValue.map((row) => ({ ...row }))
+  const materialIds = [...new Set(lines.map((r) => r.material_item_id))]
+
+  for (const materialId of materialIds) {
+    let shortage = materialShortageFor(materialId)
+    if (shortage <= 0) continue
+
+    const indices = lines
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => !qtyRowLocked(row) && row.material_item_id === materialId)
+      .sort((a, b) => b.row.quantity - a.row.quantity)
+
+    for (const { row, index } of indices) {
+      if (shortage <= 0) break
+      const minQ = minQtyForRow(row)
+      const reducible = Math.max(0, row.quantity - minQ)
+      const reduce = Math.min(reducible, shortage)
+      if (reduce <= 0) continue
+      lines[index] = { ...lines[index], quantity: row.quantity - reduce }
+      shortage -= reduce
       changed = true
-      return { ...row, quantity: nextQty }
     }
-    return row
-  })
+  }
+
   if (changed) emit('update:modelValue', lines)
 }
 </script>

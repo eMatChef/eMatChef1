@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import { materialJourneyStepI18nKey } from '@/components/activities/materialJourneySteps'
 
 const props = defineProps<{
   steps: JourneyStep[]
@@ -13,15 +14,22 @@ const props = defineProps<{
   /** Vergangene Schritte mit noch offenen Material-Positionen */
   stepsWithOpenWork?: JourneyStep[]
   profile: PackWorkflowProfile
+  activityStatus?: string
+  issueDoneCount?: number
 }>()
 
 const emit = defineEmits<{
   'update:currentStep': [step: JourneyStep]
 }>()
 
-const { t } = useI18n()
+const { t, te } = useI18n()
 
 function stepLabel(step: JourneyStep): string {
+  const key = materialJourneyStepI18nKey(step, props.profile, {
+    activityStatus: props.activityStatus ?? '',
+    issueDoneCount: props.issueDoneCount ?? 0,
+  })
+  if (te(key)) return t(key)
   if (step === 'issue' && props.profile === 'logistics') {
     return t('activities.materialJourney.step.issueLogistics')
   }

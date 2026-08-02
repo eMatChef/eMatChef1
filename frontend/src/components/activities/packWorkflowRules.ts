@@ -669,6 +669,9 @@ export function shouldShowContainerOnStageLeft(
   if (stage === 'at_event_returned') {
     return (ctx.containerReturnableUnits?.(containerId) ?? 0) > 0
   }
+  if (stage === 'returned_unpack') {
+    return (ctx.containerStoreUnits?.(containerId) ?? 0) > 0
+  }
   if (stage === 'confirmed_packed') {
     return !(ctx.containerHasIssuedAtEvent?.(containerId) ?? false)
   }

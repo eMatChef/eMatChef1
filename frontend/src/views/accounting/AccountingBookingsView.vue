@@ -890,6 +890,14 @@ async function applyAssignTabFromRoute() {
   if (String(q.sub || '') !== 'assign' && String(q.assign || '') !== '1') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
+  const followUpId = String(q.followUp || '').trim()
+  if (followUpId) {
+    const idx = pendingFollowUps.value.findIndex((f) => f.id === followUpId)
+    if (idx >= 0) {
+      assignTabIndex.value = idx
+      loadAssignFormForFollowUp(pendingFollowUps.value[idx]!)
+    }
+  }
   const nextQuery: Record<string, string> = {}
   const actId = String(q.activity_id || '').trim()
   if (actId) nextQuery.activity_id = actId

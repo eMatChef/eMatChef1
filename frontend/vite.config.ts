@@ -56,5 +56,9 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    test: {
+      environment: 'node',
+      include: ['src/**/*.spec.ts'],
+    },
   }
 })

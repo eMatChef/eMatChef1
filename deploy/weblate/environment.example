@@ -1,0 +1,53 @@
+# Kopieren nach ./environment und ausfüllen.
+# Datei "environment" nie committen.
+
+# --- Weblate ---
+WEBLATE_DEBUG=0
+WEBLATE_LOGLEVEL=INFO
+WEBLATE_SITE_TITLE=eMatChef Translate
+WEBLATE_ADMIN_NAME=Admin
+WEBLATE_ADMIN_EMAIL=admin@ematchef.ch
+# Starkes Passwort setzen — damit loggst du dich das erste Mal ein:
+WEBLATE_ADMIN_PASSWORD=CHANGE_ME_STRONG_PASSWORD
+WEBLATE_SERVER_EMAIL=noreply@ematchef.ch
+WEBLATE_DEFAULT_FROM_EMAIL=noreply@ematchef.ch
+WEBLATE_ALLOWED_HOSTS=translate.ematchef.ch
+# Registrierung offen, aber nur über Google (kein freies E-Mail-Signup):
+WEBLATE_REGISTRATION_OPEN=1
+WEBLATE_REGISTRATION_ALLOW_BACKENDS=google-oauth2
+WEBLATE_REQUIRE_LOGIN=1
+
+# Google OAuth (Login-Button in Weblate)
+# Redirect-URI in Google Cloud Console:
+#   https://translate.ematchef.ch/accounts/complete/google-oauth2/
+WEBLATE_SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=
+WEBLATE_SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=
+
+# Optional später: GitHub
+# WEBLATE_SOCIAL_AUTH_GITHUB_KEY=
+# WEBLATE_SOCIAL_AUTH_GITHUB_SECRET=
+
+# --- PostgreSQL ---
+POSTGRES_PASSWORD=CHANGE_ME_DB_PASSWORD
+POSTGRES_USER=weblate
+POSTGRES_DB=weblate
+POSTGRES_HOST=database
+POSTGRES_PORT=
+POSTGRES_DATABASE=weblate
+
+# --- Cache ---
+REDIS_HOST=cache
+REDIS_PORT=6379
+
+# --- Mail (Einladungen/Reset) ---
+# Ohne Mail: Admin-Login funktioniert trotzdem.
+# SendGrid SMTP (falls vorhanden):
+# WEBLATE_EMAIL_HOST=smtp.sendgrid.net
+# WEBLATE_EMAIL_PORT=587
+# WEBLATE_EMAIL_HOST_USER=apikey
+# WEBLATE_EMAIL_HOST_PASSWORD=SG.xxx
+WEBLATE_EMAIL_HOST=127.0.0.1
+WEBLATE_EMAIL_HOST_USER=
+WEBLATE_EMAIL_HOST_PASSWORD=
+
+CLIENT_MAX_BODY_SIZE=200M

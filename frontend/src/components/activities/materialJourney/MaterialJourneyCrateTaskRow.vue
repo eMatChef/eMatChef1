@@ -27,6 +27,9 @@ const props = defineProps<{
   transportTourAssignActive?: boolean
   transportTargetTourLabel?: string | null
   hasReassignTargets?: boolean
+  reassignTargets?: { id: string; label: string }[]
+  showCrateContentActions?: boolean
+  deleteEmptySubmitting?: boolean
   showIssueActions?: boolean
   atEventQtyLabel?: string | null
   atEventQtyLabelForLine?: (line: MaterialJourneyAccordionLine) => string | null
@@ -42,7 +45,8 @@ const emit = defineEmits<{
   activate: []
   selectTarget: []
   looseTake: [line: MaterialJourneyAccordionLine]
-  reassign: [line: MaterialJourneyAccordionLine]
+  reassignTo: [line: MaterialJourneyAccordionLine, targetContainerId: string]
+  deleteEmpty: []
   moveBack: [qty: number]
   'update:moveBackQty': [qty: number]
   moveForward: [qty: number]
@@ -85,12 +89,24 @@ function storePendingForLine(line: MaterialJourneyAccordionLine): number {
   return props.containerLineRemainingStore?.(ci) ?? 0
 }
 
+const bookedPreviewLines = computed(() =>
+  props.previewLines.filter((line) => !line.isWarehouseTemplate),
+)
+const warehouseTemplateLines = computed(() =>
+  props.previewLines.filter((line) => line.isWarehouseTemplate),
+)
+
 const visiblePreviewLines = computed(() => {
-  if (!isStoreStep.value) return props.previewLines
-  return props.previewLines.filter((line) => storePendingForLine(line) > 0)
+  if (!isStoreStep.value) return bookedPreviewLines.value
+  return bookedPreviewLines.value.filter((line) => storePendingForLine(line) > 0)
 })
 
-const hasPreview = computed(() => visiblePreviewLines.value.length > 0)
+const hasPreview = computed(
+  () => visiblePreviewLines.value.length > 0 || warehouseTemplateLines.value.length > 0,
+)
+const previewLineCount = computed(
+  () => visiblePreviewLines.value.length + warehouseTemplateLines.value.length,
+)
 
 const showMoveForwardControls = computed(
   () =>
@@ -107,13 +123,17 @@ const showActionButtons = computed(
 )
 
 function showLineActions(line: MaterialJourneyAccordionLine): boolean {
-  return showActionButtons.value && line.actionable !== false
+  return showActionButtons.value && line.actionable === true
 }
 
-function showReassignAction(line: MaterialJourneyAccordionLine): boolean {
+function showReassignForLine(line: MaterialJourneyAccordionLine): boolean {
   return (
-    showLineActions(line) &&
-    Boolean(props.hasReassignTargets) &&
+    isCrate.value &&
+    !props.readonly &&
+    Boolean(props.showCrateContentActions) &&
+    (props.reassignTargets?.length ?? 0) > 0 &&
+    line.actionable === true &&
+    !line.isWarehouseTemplate &&
     (line.maxReassignQty ?? line.quantity) > 0
   )
 }
@@ -126,6 +146,23 @@ const shellStorePendingQty = computed(() => props.shellStorePendingQtyForRow?.(p
 
 const showShellStoreAction = computed(
   () => isStoreStep.value && !props.readonly && props.row.isOpen && shellStorePendingQty.value > 0,
+)
+
+function onReassignSelect(line: MaterialJourneyAccordionLine, event: Event): void {
+  const select = event.target as HTMLSelectElement
+  const targetId = select.value.trim()
+  select.value = ''
+  if (!targetId) return
+  emit('reassignTo', line, targetId)
+}
+
+const showDeleteEmptyCrate = computed(
+  () =>
+    isCrate.value &&
+    !props.readonly &&
+    Boolean(props.showCrateContentActions) &&
+    bookedPreviewLines.value.length === 0 &&
+    !props.moving,
 )
 
 const showMoveBackControls = computed(
@@ -205,7 +242,6 @@ const isMainClickable = computed(() => {
   }
   return (
     !props.readonly &&
-    !showMoveForwardControls.value &&
     props.row.canOpenSheet &&
     (isCrate.value || isCombo.value)
   )
@@ -420,18 +456,27 @@ function onSelectTarget(event: Event): void {
         {{ t('activities.materialJourney.row.accordionToggle') }}
       </span>
       <span v-if="hasPreview" class="material-journey-crate-row__content-toggle-meta text-muted">
-        {{ t('activities.materialJourney.row.accordionCount', { count: visiblePreviewLines.length }) }}
+        {{ t('activities.materialJourney.row.accordionCount', { count: previewLineCount }) }}
       </span>
     </button>
 
     <div v-show="expanded" class="material-journey-crate-row__contents">
-      <ul v-if="hasPreview" class="material-journey-crate-row__content-list">
-        <li v-for="line in visiblePreviewLines" :key="line.id" class="material-journey-crate-row__content-line">
+      <ul v-if="visiblePreviewLines.length > 0" class="material-journey-crate-row__content-list">
+        <li
+          v-for="line in visiblePreviewLines"
+          :key="line.id"
+          class="material-journey-crate-row__content-line"
+        >
           <div class="material-journey-crate-row__content-main">
             <span class="material-journey-crate-row__content-name">{{ line.name }}</span>
           </div>
           <div
-            v-if="showLineIssueActions(line) || showLineActions(line) || showStoreAction(line)"
+            v-if="
+              showLineIssueActions(line) ||
+              showLineActions(line) ||
+              showStoreAction(line) ||
+              showReassignForLine(line)
+            "
             class="material-journey-crate-row__content-trailing"
             @click.stop
           >
@@ -461,15 +506,32 @@ function onSelectTarget(event: Event): void {
               <EButton variant="secondary" size="small" @click.stop="emit('looseTake', line)">
                 {{ t('activities.materialJourney.row.looseTake') }}
               </EButton>
-              <EButton
-                v-if="showReassignAction(line)"
-                variant="secondary"
-                size="small"
-                @click.stop="emit('reassign', line)"
-              >
-                {{ t('activities.materialJourney.row.reassignCrate') }}
-              </EButton>
             </div>
+            <label
+              v-if="showReassignForLine(line)"
+              class="material-journey-crate-row__reassign-field"
+            >
+              <span class="material-journey-crate-row__reassign-label text-muted">
+                {{ t('activities.materialJourney.row.reassignCrate') }}
+              </span>
+              <select
+                class="material-journey-crate-row__reassign-select"
+                :disabled="moving"
+                :aria-label="t('activities.materialJourney.reassignCrate.listAria')"
+                @change="onReassignSelect(line, $event)"
+              >
+                <option value="" selected disabled>
+                  {{ t('activities.materialJourney.row.reassignCratePlaceholder') }}
+                </option>
+                <option
+                  v-for="target in reassignTargets"
+                  :key="target.id"
+                  :value="target.id"
+                >
+                  {{ target.label }}
+                </option>
+              </select>
+            </label>
           </div>
           <span
             v-else
@@ -479,13 +541,50 @@ function onSelectTarget(event: Event): void {
           </span>
         </li>
       </ul>
-      <p v-else class="material-journey-crate-row__content-empty text-muted">
+      <div v-if="warehouseTemplateLines.length > 0" class="material-journey-crate-row__warehouse-block">
+        <p class="material-journey-crate-row__warehouse-title text-muted">
+          {{ t('activities.materialJourney.row.warehouseTemplateSection') }}
+        </p>
+        <ul class="material-journey-crate-row__content-list">
+          <li
+            v-for="line in warehouseTemplateLines"
+            :key="line.id"
+            class="material-journey-crate-row__content-line material-journey-crate-row__content-line--warehouse"
+          >
+            <div class="material-journey-crate-row__content-main">
+              <span class="material-journey-crate-row__content-name">{{ line.name }}</span>
+              <span class="material-journey-crate-row__warehouse-badge">
+                {{ t('activities.materialJourney.row.warehouseTemplateBadge') }}
+              </span>
+            </div>
+            <span class="material-journey-crate-row__content-qty text-muted">
+              {{ t('activities.packList.qtyInContainerLine', { n: line.quantity }) }}
+            </span>
+          </li>
+        </ul>
+      </div>
+      <p v-if="!hasPreview" class="material-journey-crate-row__content-empty text-muted">
         {{
           isCrate
             ? t('activities.materialJourney.row.accordionEmptyPackCrate')
             : t('activities.materialJourney.row.accordionEmpty')
         }}
       </p>
+      <div
+        v-if="showDeleteEmptyCrate"
+        class="material-journey-crate-row__delete-empty"
+        @click.stop
+      >
+        <EButton
+          variant="secondary"
+          size="small"
+          :loading="deleteEmptySubmitting"
+          :disabled="deleteEmptySubmitting"
+          @click="emit('deleteEmpty')"
+        >
+          {{ t('activities.materialJourney.row.deleteEmptyPackCrate') }}
+        </EButton>
+      </div>
     </div>
   </div>
 </template>
