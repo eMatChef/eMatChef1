@@ -26,16 +26,11 @@ jobs:
           script: |
             set -euo pipefail
             # GitHub→Server: secrets.PROD_SSH_* (Actions-Key, getrennt vom Login-Key).
-            # Server→GitHub: Deploy-Key auf dem Droplet (Hetzner root oder älteres deploy-prod).
-            GIT_DEPLOY_KEY=""
-            for cand in \
-              /root/.ssh/ematchef_deploy_prod_ed25519 \
-              /root/.ssh/ematchef_deploy_ed25519 \
-              /home/deploy-prod/.ssh/ematchef_deploy_ed25519
-            do
-              if [[ -f "$cand" ]]; then GIT_DEPLOY_KEY="$cand"; break; fi
-            done
-            test -n "$GIT_DEPLOY_KEY" || { echo "::error::Kein Git-Deploy-Key gefunden (siehe deploy/SERVER-UPDATE.md 6b)"; exit 1; }
+            # Server→GitHub: Deploy-Key (kein for-Loop: appleboy script_stop bricht Mehrzeilen-Schleifen).
+            GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_prod_ed25519
+            if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_ed25519; fi
+            if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then GIT_DEPLOY_KEY=/home/deploy-prod/.ssh/ematchef_deploy_ed25519; fi
+            if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then echo "::error::Kein Git-Deploy-Key gefunden (siehe deploy/SERVER-UPDATE.md 6b)"; exit 1; fi
             echo "Using git deploy key: $GIT_DEPLOY_KEY"
             export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
             export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
