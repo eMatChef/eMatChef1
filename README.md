@@ -9,7 +9,7 @@ Vielen Dank für Ihre Unterstützung! Es gibt verschiedene Möglichkeiten, mitzu
 
 - Besuchen Sie unsere Testumgebung unter [https://dev.ematchef.ch](https://dev.ematchef.ch). Sollten Sie einen Fehler entdecken, [eröffnen Sie bitte ein neues Issue](https://github.com/eMatChef/eMatChef1/issues/new).
 
-- Um uns bei der Übersetzung von E_MatChef in weitere Sprachen zu unterstützen, nutzen Sie bitte unser [Übersetzungstool](https://crowdin.com/project/ematchef).
+- Um uns bei der Übersetzung von E_MatChef in weitere Sprachen zu unterstützen, nutzen Sie bitte unser [Übersetzungstool](https://translate.ematchef.ch).
 
 Um das Projekt lokal auf Ihrem Computer auszuführen, folgen Sie einer der Installationsanleitungen:
 
