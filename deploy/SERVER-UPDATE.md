@@ -541,18 +541,25 @@ Wie **A)**, aber **eigenes** Schlüsselpaar auf dem **Develop-Server** und **zwe
 
 Die Workflows **`.github/workflows/cd-prod.yml`** und **`cd-develop.yml`** verbinden sich per **SSH** auf den Server und rufen **`deploy/prod-update.sh reset`** auf. Dabei läuft `git fetch` **auf dem Droplet** — dafür braucht der **SSH-Login-User** (z. B. `root`, Wert aus `PROD_SSH_USER`) einen **Deploy-Key** für GitHub, der unter **`$HOME/.ssh/…`** liegt:
 
-| Workflow | Erwarteter private Key auf dem Server |
+| Workflow | Erwarteter private Key auf dem Server (Server→GitHub) |
 |----------|----------------------------------------|
-| CD Prod | `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` (im Workflow fest verdrahtet; anderer System-User → Pfad in `cd-prod.yml` anpassen) |
-| CD Develop | `/home/<DEVELOP_SSH_USER>/.ssh/ematchef_deploy_develop_ed25519` |
+| CD Prod | zuerst `/root/.ssh/ematchef_deploy_prod_ed25519`, sonst `/root/.ssh/ematchef_deploy_ed25519`, sonst `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` |
+| CD Develop | `/home/<DEVELOP_SSH_USER>/.ssh/ematchef_deploy_develop_ed25519` (bzw. unter root oft `/root/.ssh/…` + `~/.ssh/config`) |
 
 Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMATCHEF_GIT_SSH_IDENTITY`** (siehe `deploy/prod-update.sh`). Ohne passende Datei: Fehlermeldung beim Deploy; ohne Variable (manuelles SSH als root mit `~/.ssh/config`) wie bisher.
 
 **GitHub Secrets (Repository → Settings → Secrets → Actions):** `PROD_SSH_HOST`, `PROD_SSH_USER`, `PROD_SSH_KEY`, `PROD_SSH_PORT` (z. B. `22`), `PROD_DEPLOY_PATH` (`/opt/ematchef/prod`); für Develop analog `DEVELOP_*`.
 
-**Wichtig:** `PROD_SSH_KEY` ist der Key für **GitHub Actions → Droplet** (`authorized_keys`). Der **Deploy-Key** für **Droplet → GitHub** ist eine **andere** Datei — muss für denselben User existieren wie oben in der Tabelle.
+**Wichtig — zwei verschiedene Keys:**
 
-**Pfad anders?** In den YAML-Workflows die Zeile `export EMATCHEF_GIT_SSH_IDENTITY=…` an euren echten Key-Pfad anpassen (oder denselben Dateinamen auf dem Server verwenden).
+| Secret / Datei | Richtung | Zweck |
+|----------------|----------|--------|
+| `PROD_SSH_KEY` / `DEVELOP_SSH_KEY` | Actions → Server | nur in `authorized_keys` auf dem VPS; **nicht** der persönliche Login-Key |
+| `ematchef_deploy_*_ed25519` auf dem Server | Server → GitHub | Deploy-Key für `git fetch` |
+
+Secrets mit privaten Keys am besten per CLI setzen: `gh secret set PROD_SSH_KEY < ~/.ssh/ematchef_actions_prod` (nicht per Copy-Paste in die Web-UI).
+
+**Pfad anders?** In den YAML-Workflows die Kandidaten-Liste anpassen (oder denselben Dateinamen auf dem Server verwenden).
 
 ---
 
