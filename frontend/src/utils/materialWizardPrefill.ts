@@ -11,8 +11,6 @@ export interface MaterialWizardPrefillDraft {
   manufacturer: string
   model: string
   color: string
-  ean: string
-  barcode_tag: string
   weight: string
   size_length: string
   size_width: string
@@ -81,8 +79,6 @@ export function buildMaterialWizardPrefillFromMaterial(
     manufacturer: (material.manufacturer || '').trim(),
     model: (material.model || '').trim(),
     color: (material.color || '').trim(),
-    ean: (material.ean || '').trim(),
-    barcode_tag: (material.barcode_tag || '').trim(),
     weight: (material.weight || '').trim(),
     size_length: (material.size_length || '').trim(),
     size_width: (material.size_width || '').trim(),

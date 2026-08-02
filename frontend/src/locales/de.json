@@ -2850,6 +2850,7 @@
         "cameraHint": "QR- oder Barcode in den Rahmen halten",
         "bulkConfirm": "Trotzdem buchen",
         "bulkConfirmHint": "Andere Charge als geplant — nur nach Bestätigung buchen.",
+        "externalBarcodeWarning": "Kein eMatChef-QR — erkannt als Barcode/EAN der Charge.",
         "quantityHintPieces": "{count} {unit} packen",
         "quantityHintPacksOnly": "{packs}× {unit} à {per} Stk. ({total} gesamt) packen",
         "quantityHintPacksPlusLoose": "{packs}× {unit} à {per} Stk. + {loose} lose ({total} gesamt) packen",
@@ -5724,7 +5725,8 @@
       "logErrorLoadStorageAddresses": "Fehler beim Laden der Lagerstandorte:",
       "logErrorLoadRacks": "Fehler beim Laden der Gestelle:",
       "logErrorLoadSlots": "Fehler beim Laden der Slots:",
-      "logErrorReloadSuppliers": "Fehler beim Neuladen der Lieferanten:"
+      "logErrorReloadSuppliers": "Fehler beim Neuladen der Lieferanten:",
+      "eanPlaceholder": "z.B. 7612345678901"
     },
     "materialPreviewSidebar": {
       "titleAddBatch": "Charge hinzufügen",
@@ -6232,7 +6234,7 @@
       "labelNameDb": "Name (in der Datenbank)",
       "labelCode": "Code",
       "optionalShort": "(Optional)",
-      "codePlaceholder": "z.B. Material-Code",
+      "codePlaceholder": "z.B. Fremdbarcode / Lieferantencode",
       "labelCategory": "Kategorie",
       "labelModel": "Modell",
       "sectionProperties": "Eigenschaften",
@@ -6764,7 +6766,9 @@
         "batch.supplier": "Lieferant",
         "acquired_on": "Kaufdatum",
         "qty": "Menge",
-        "unit_price": "Stückpreis"
+        "unit_price": "Stückpreis",
+        "batch.ean": "EAN (Charge)",
+        "batch.barcode_tag": "Code / Barcode (Charge)"
       },
       "badgeAlreadyInComposition": "bereits in Kombination",
       "confirmRemoveCompositionTitle": "Komponente aus Kombination entfernen?",
@@ -7789,14 +7793,13 @@
     "issueOriginCreatedTitle": "Aus {origin} erstellt",
     "btnStartWork": "▶ Arbeit starten",
     "btnAcceptLoss": "✓ Verlust annehmen",
-    "btnWaitingParts": "⏸ Wartet auf Teile",
+    "btnWaitingParts": "Warte auf Teile…",
     "btnResumeWork": "▶ Weiterarbeiten",
     "btnComplete": "✓ Abschließen",
     "btnRepairDone": "✓ Reparatur erledigt",
     "btnAdvanceReady": "Weiter → Bereit zur Reparatur",
     "btnStartRepair": "Reparatur beginnen",
     "btnOrderParts": "Zum Einkauf →",
-    "btnWaitingParts": "Warte auf Teile…",
     "btnCancelTicket": "✕ Ticket stornieren",
     "cancelConfirmTitle": "Ticket stornieren?",
     "cancelConfirmMessage": "«{title}» wird storniert und aus den offenen Tickets entfernt. Diese Aktion kann über «Wiedereröffnen» rückgängig gemacht werden.",

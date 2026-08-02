@@ -371,7 +371,7 @@
               <div class="mat-details">
                 <div class="mat-name">{{ selectedTicket.material_item.name }}</div>
                 <div class="mat-meta">
-                  <span v-if="selectedTicket.material_item.barcode_tag">{{ t('workshop.tagPrefix') }} {{ selectedTicket.material_item.barcode_tag }}</span>
+                  <span v-if="selectedTicket.material_item.barcode_tag || selectedTicket.material_batch?.barcode_tag">{{ t('workshop.tagPrefix') }} {{ selectedTicket.material_batch?.barcode_tag || selectedTicket.material_item.barcode_tag }}</span>
                   <span v-if="selectedTicket.material_item.category">{{ selectedTicket.material_item.category.name }}</span>
                   <span v-if="selectedTicket.affected_quantity && !selectedTicket.material_batch">
                     {{ t('workshop.createAffectedQtyOfStock', { qty: selectedTicket.affected_quantity, stock: selectedTicket.material_item.total_stock ?? '—' }) }}
@@ -908,7 +908,7 @@
                   <span class="ws-selected-name">{{ selectedMaterial.name }}</span>
                   <span class="ws-selected-meta">
                     <span v-if="selectedSerialLabel">🔢 {{ selectedSerialLabel }}</span>
-                    <span v-if="selectedMaterial.barcode_tag">🏷️ {{ selectedMaterial.barcode_tag }}</span>
+                    <span v-if="selectedMaterial.batches?.some(b => b.barcode_tag || b.ean)">🏷️ {{ selectedMaterial.batches?.find(b => b.barcode_tag || b.ean)?.barcode_tag || selectedMaterial.batches?.find(b => b.ean)?.ean }}</span>
                     <span v-if="selectedMaterial.category">{{ selectedMaterial.category.name }}</span>
                     <span v-if="!isSelectedMaterialSerialized && createForm.affected_quantity">
                       {{ t('workshop.createAffectedQtyOfStock', { qty: createForm.affected_quantity, stock: selectedMaterial.total_stock }) }}

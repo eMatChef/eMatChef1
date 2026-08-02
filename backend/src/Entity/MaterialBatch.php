@@ -65,6 +65,14 @@ class MaterialBatch
     #[ORM\Column(name: 'serial_number', type: 'string', length: 100, nullable: true)]
     private ?string $serialNumber = null;
 
+    /** Hersteller-/Verpackungs-EAN dieser Charge (kann über Jahre wechseln). */
+    #[ORM\Column(type: 'string', length: 13, nullable: true)]
+    private ?string $ean = null;
+
+    /** Freier Scan-Code / Fremdbarcode dieser Charge. */
+    #[ORM\Column(name: 'barcode_tag', type: 'string', length: 50, nullable: true)]
+    private ?string $barcodeTag = null;
+
     #[ORM\Column(name: 'expiry_date', type: 'date', nullable: true)]
     private ?\DateTime $expiryDate = null;
 
@@ -303,6 +311,28 @@ class MaterialBatch
     public function setSerialNumber(?string $serialNumber): self
     {
         $this->serialNumber = $serialNumber;
+        return $this;
+    }
+
+    public function getEan(): ?string
+    {
+        return $this->ean;
+    }
+
+    public function setEan(?string $ean): self
+    {
+        $this->ean = $ean;
+        return $this;
+    }
+
+    public function getBarcodeTag(): ?string
+    {
+        return $this->barcodeTag;
+    }
+
+    public function setBarcodeTag(?string $barcodeTag): self
+    {
+        $this->barcodeTag = $barcodeTag;
         return $this;
     }
 

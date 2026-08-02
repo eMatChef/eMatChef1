@@ -560,7 +560,35 @@
                 <p class="batch-field-hint">{{ t('components.batchModal.labelFieldHint') }}</p>
               </div>
             </div>
-          </template>
+                    </template>
+
+          <!-- EAN / Fremdbarcode an der Charge -->
+          <div class="batch-form-row">
+            <div class="batch-form-group">
+              <label>
+                {{ t('components.materialDetail.labelCode') }}
+                <span class="optional-label">({{ t('common.optional') }})</span>
+              </label>
+              <input
+                v-model="form.barcode_tag"
+                type="text"
+                class="batch-form-input"
+                :placeholder="t('components.materialDetail.codePlaceholder')"
+              />
+            </div>
+            <div class="batch-form-group">
+              <label>
+                {{ t('components.materialDetail.labelEan') }}
+                <span class="optional-label">({{ t('common.optional') }})</span>
+              </label>
+              <input
+                v-model="form.ean"
+                type="text"
+                class="batch-form-input"
+                :placeholder="t('components.batchModal.eanPlaceholder')"
+              />
+            </div>
+          </div>
 
           <!-- Auf mehrere Lagerplätze aufteilen (nur bei Bulk) -->
           <div v-if="!isSerializedMaterial" class="form-row mb-2">
@@ -1034,6 +1062,8 @@ const form = reactive({
   invoice_number: '',
   serial_number: '',
   label: '',
+  ean: '',
+  barcode_tag: '',
   storage_address_id: '',
   rack_id: '',
   slot_id: '',
@@ -1915,6 +1945,8 @@ onMounted(async () => {
     )
     form.serial_number = props.batch.serial_number || ''
     form.label = (props.batch as any).label || ''
+    form.ean = props.batch.ean || ''
+    form.barcode_tag = props.batch.barcode_tag || ''
     form.rack_id = props.batch.rack_id || ''
     form.slot_id = props.batch.slot_id || ''
     form.notes = props.batch.notes || ''
@@ -1936,6 +1968,11 @@ onMounted(async () => {
   } else {
     form.acquired_on = getTodayIsoDate()
     form.invoice_number = ''
+    form.serial_number = ''
+    form.label = ''
+    form.ean = ''
+    form.barcode_tag = ''
+    form.notes = ''
     pickPreferredLocation()
     initBatchStockUnitFromProps()
     purchasePriceInputMode.value = 'unit'
@@ -2272,6 +2309,8 @@ async function handleSubmit() {
       if (resolvedUnitPrice !== (props.batch.unit_price || '')) payload.unit_price = resolvedUnitPrice
       if (form.notes !== (props.batch.notes || '')) payload.notes = form.notes || null
       if (form.serial_number !== (props.batch.serial_number || '')) payload.serial_number = form.serial_number || null
+      if (form.ean !== (props.batch.ean || '')) payload.ean = form.ean.trim() || null
+      if (form.barcode_tag !== (props.batch.barcode_tag || '')) payload.barcode_tag = form.barcode_tag.trim() || null
       if (form.rack_id !== (props.batch.rack_id || '')) payload.rack_id = form.rack_id || null
       if (form.slot_id !== (props.batch.slot_id || '')) payload.slot_id = form.slot_id || null
       if (form.label !== ((props.batch as any).label || '')) payload.label = form.label.trim() || null
@@ -2283,11 +2322,13 @@ async function handleSubmit() {
       if (isSerializedAddMode.value) {
         const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
         const qty = rows.length
-        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes'> = {
+        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
           acquired_on: form.acquired_on,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
+          ean: form.ean.trim() || null,
+          barcode_tag: form.barcode_tag.trim() || null,
         }
         const serial_entries = rows.map((e) => ({
           serial_number: e.serial_number.trim(),
@@ -2349,6 +2390,8 @@ async function handleSubmit() {
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
+          ean: form.ean.trim() || null,
+          barcode_tag: form.barcode_tag.trim() || null,
           ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
             ? {
                 allocations: allocationRows.value

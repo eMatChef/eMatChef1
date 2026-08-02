@@ -56,6 +56,13 @@ const closeLabel = computed(() => props.dismissLabel ?? t('common.close'))
         {{ quantityProgress }}
       </p>
       <p class="material-scan-result-card__message text-muted">{{ message }}</p>
+      <p
+        v-if="result.externalBarcodeMatch"
+        class="material-scan-result-card__barcode-warning"
+        role="status"
+      >
+        {{ t('activities.materialJourney.scan.externalBarcodeWarning') }}
+      </p>
       <p v-if="warehouseWarning" class="material-scan-result-card__warehouse-warning">
         {{ warehouseWarning }}
       </p>

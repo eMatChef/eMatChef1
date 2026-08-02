@@ -13,7 +13,7 @@
           {{ t('components.materialDetail.backToList') }}
         </EButton>
         <div class="header-title">
-          <span v-if="!isUserMaterialsBrowseOnly && material.barcode_tag" class="material-code">{{ material.barcode_tag }}</span>
+          <span v-if="!isUserMaterialsBrowseOnly && primaryBatchScanCode" class="material-code">{{ primaryBatchScanCode }}</span>
           <h1>{{ materialDisplayName }}</h1>
           <span v-if="isComboDraft" class="combo-draft-badge">
             {{ t('components.materialDetail.comboDraftBadge') }}
@@ -236,14 +236,6 @@
                 
                 <template v-if="!isVirtualComboView">
                   <AutoSaveField
-                    v-model="formData.barcode_tag"
-                    :baseline="savedFormBaselines.barcode_tag"
-                    :label="`${t('components.materialDetail.labelCode')} (${t('components.materialDetail.optionalShort')})`"
-                    :placeholder="t('components.materialDetail.codePlaceholder')"
-                    :save="(v) => saveMaterialField('barcode_tag', v)"
-                  />
-                  
-                  <AutoSaveField
                     v-model="formData.category_id"
                     :baseline="savedFormBaselines.category_id"
                     :label="t('components.materialDetail.labelCategory')"
@@ -391,12 +383,6 @@
               </p>
               
               <div class="form-grid">
-                <AutoSaveField
-                  v-model="formData.ean"
-                  :baseline="savedFormBaselines.ean"
-                  :label="t('components.materialDetail.labelEan')"
-                  :save="(v) => saveMaterialField('ean', v)"
-                />
                 <MaterialWeightAutoSaveField
                   v-model="formData.weight"
                   :baseline="savedFormBaselines.weight"
@@ -3229,12 +3215,10 @@ const isLoadingUsedIn = ref(false)
 const formData = reactive({
   name: '',
   description: '',
-  barcode_tag: '',
   category_id: '',
   storage_address_id: '',
   manufacturer: '',
   model: '',
-  ean: '',
   weight: '',
   color: '',
   size_length: '',
@@ -3294,9 +3278,6 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
     case 'description':
       payload.description = emptyToNull(value)
       break
-    case 'barcode_tag':
-      payload.barcode_tag = emptyToNull(value)
-      break
     case 'category_id':
       payload.category_id = emptyToNull(value)
       break
@@ -3305,7 +3286,6 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
       break
     case 'manufacturer':
     case 'model':
-    case 'ean':
     case 'color':
       payload[field] = emptyToNull(value)
       break
@@ -3893,6 +3873,17 @@ const showEnsureLinkedContainerQrButton = computed(
     isPhysicalComboFromLinkedContainer.value &&
     !hasLinkedContainerPrintableQr.value,
 )
+
+/** Anzeige-Code im Header: erster Barcode/EAN einer Charge. */
+const primaryBatchScanCode = computed(() => {
+  const batches = material.value?.batches || []
+  for (const b of batches) {
+    const code = String(b.barcode_tag || b.ean || '').trim()
+    if (code) return code
+  }
+  return ''
+})
+
 
 /** Physische Combo, die mit einer konkreten Kisten-Charge verknüpft ist (QR von der Kiste übernommen). */
 const isPhysicalComboFromLinkedContainer = computed(
@@ -4870,12 +4861,10 @@ function openMaterialById(materialId: string) {
 function populateFormData(m: Material) {
   formData.name = m.name || ''
   formData.description = m.description || ''
-  formData.barcode_tag = m.barcode_tag || ''
   formData.category_id = m.category?.id || ''
   formData.storage_address_id = m.storage_address?.id || ''
   formData.manufacturer = m.manufacturer || ''
   formData.model = m.model || ''
-  formData.ean = m.ean || ''
   formData.weight = normalizeMaterialMetricInput(m.weight, 'kg') ?? ''
   formData.color = m.color || ''
   formData.size_length = normalizeMaterialMetricInput(m.size_length, 'cm') ?? ''
@@ -4925,9 +4914,6 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
     case 'description':
       formData.description = m.description || ''
       break
-    case 'barcode_tag':
-      formData.barcode_tag = m.barcode_tag || ''
-      break
     case 'category_id':
       formData.category_id = m.category?.id || ''
       break
@@ -4939,9 +4925,6 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
       break
     case 'model':
       formData.model = m.model || ''
-      break
-    case 'ean':
-      formData.ean = m.ean || ''
       break
     case 'weight':
       formData.weight = normalizeMaterialMetricInput(m.weight, 'kg') ?? ''
@@ -5129,7 +5112,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
 
   const materialFields: ReadOnlyField[] = []
   pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelCode'), m?.barcode_tag)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
   pushReadOnlyField(materialFields, t('common.manufacturer'), m?.manufacturer)
   pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
@@ -5152,7 +5134,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
   }
 
   const detailFields: ReadOnlyField[] = []
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelEan'), m?.ean)
   pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
   pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
   pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
@@ -6080,12 +6061,10 @@ async function save() {
     const payload: any = {
       name: formData.name,
       description: formData.description || null,
-      barcode_tag: formData.barcode_tag || null,
       category_id: formData.category_id || null,
       storage_address_id: formData.storage_address_id || null,
       manufacturer: formData.manufacturer || null,
       model: formData.model || null,
-      ean: formData.ean || null,
       weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
       color: formData.color || null,
       size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
