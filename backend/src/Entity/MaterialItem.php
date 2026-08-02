@@ -119,12 +119,6 @@ class MaterialItem
     private string $comboStatus = 'ready';
 
     // Identifikation
-    #[ORM\Column(type: 'string', length: 13, nullable: true)]
-    private ?string $ean = null;
-
-    #[ORM\Column(name: 'barcode_tag', type: 'string', length: 50, nullable: true)]
-    private ?string $barcodeTag = null;
-
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     private ?string $manufacturer = null;
 
@@ -451,12 +445,6 @@ class MaterialItem
     public function isVirtualCombo(): bool { return $this->materialType === 'virtual_combo'; }
 
     // Identifikation Getters/Setters
-    public function getEan(): ?string { return $this->ean; }
-    public function setEan(?string $ean): self { $this->ean = $ean; return $this; }
-
-    public function getBarcodeTag(): ?string { return $this->barcodeTag; }
-    public function setBarcodeTag(?string $barcodeTag): self { $this->barcodeTag = $barcodeTag; return $this; }
-
     public function getManufacturer(): ?string { return $this->manufacturer; }
     public function setManufacturer(?string $manufacturer): self { $this->manufacturer = $manufacturer; return $this; }
 

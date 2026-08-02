@@ -68,6 +68,8 @@ export type MaterialScanResolveResult = {
   storageLookup?: StorageLookupResult
   shelfOpenCount?: number
   shelfTotalCount?: number
+  /** Scan war Fremd-EAN/Barcode, nicht eMatChef-QR (`/i/m/…/b/…`). */
+  externalBarcodeMatch?: boolean
 }
 
 export type MaterialScanResolveContext = {

@@ -2505,6 +2505,7 @@
         "cameraHint": "Hold QR or barcode in the frame",
         "bulkConfirm": "Book anyway",
         "bulkConfirmHint": "Different batch than planned — book only after confirming.",
+        "externalBarcodeWarning": "Not an eMatChef QR — matched as batch barcode/EAN.",
         "quantityHintPieces": "Pack {count} {unit}",
         "quantityHintPacksOnly": "Pack {packs}× {unit} of {per} pcs ({total} total)",
         "quantityHintPacksPlusLoose": "Pack {packs}× {unit} of {per} pcs + {loose} loose ({total} total)",
@@ -4195,7 +4196,8 @@
       "logErrorLoadStorageAddresses": "Error loading storage sites:",
       "logErrorLoadRacks": "Error loading racks:",
       "logErrorLoadSlots": "Error loading bins:",
-      "logErrorReloadSuppliers": "Error reloading suppliers:"
+      "logErrorReloadSuppliers": "Error reloading suppliers:",
+      "eanPlaceholder": "e.g. 7612345678901"
     },
     "materialPreviewSidebar": {
       "titleAddBatch": "Add lot",
@@ -4685,7 +4687,7 @@
       "tabHistory": "History log",
       "labelNameDb": "Name (in database)",
       "optionalShort": "(optional)",
-      "codePlaceholder": "e.g. material code",
+      "codePlaceholder": "e.g. supplier barcode",
       "labelCategory": "Category",
       "labelModel": "Model",
       "sectionProperties": "Properties",
@@ -5207,7 +5209,9 @@
         },
         "acquired_on": "Purchase date",
         "qty": "Quantity",
-        "unit_price": "Unit price"
+        "unit_price": "Unit price",
+        "batch.ean": "EAN (batch)",
+        "batch.barcode_tag": "Code / barcode (batch)"
       }
     },
     "departmentOnboarding": {

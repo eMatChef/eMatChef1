@@ -1285,6 +1285,8 @@ class WorkshopController extends AbstractController
             'serial_number' => $batch->getSerialNumber(),
             'label' => $batch->getLabel(),
             'status' => $batch->getStatus(),
+            'ean' => $batch->getEan(),
+            'barcode_tag' => $batch->getBarcodeTag(),
         ];
     }
 
@@ -1351,7 +1353,7 @@ class WorkshopController extends AbstractController
                 'tracking_type' => $material->getTrackingType(),
                 'pack_unit' => $material->getPackUnit(),
                 'total_stock' => $material->getTotalStock(),
-                'barcode_tag' => $material->getBarcodeTag(),
+                'barcode_tag' => $ticket->getMaterialBatch()?->getBarcodeTag(),
                 'sale_price' => $material->getSalePrice(),
                 'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
                 'repair_template_key' => $material->getRepairTemplateKey(),

@@ -1076,6 +1076,13 @@
   color: rgb(var(--v-theme-warning));
 }
 
+.material-scan-result-card__barcode-warning {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(var(--v-theme-warning));
+}
+
 .material-scan-result-card__warehouse-preview,
 .material-scan-result-card__warehouse-hint {
   margin: 4px 0 0;

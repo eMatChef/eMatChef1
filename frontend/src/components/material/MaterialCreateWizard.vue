@@ -1470,6 +1470,28 @@
                     </div>
                   </div>
 
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelCode') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input
+                        v-model="formData.barcode_tag"
+                        type="text"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.codePlaceholder')"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelEan') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input v-model="formData.ean" type="text" class="form-input" :placeholder="t('components.batchModal.eanPlaceholder')" />
+                    </div>
+                  </div>
+
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
                     <label class="toggle-label">
                       <span class="toggle-wrapper">
@@ -2226,6 +2248,26 @@
                         :required="!formData.is_food"
                       />
                     </div>
+
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelCode') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input
+                        v-model="formData.barcode_tag"
+                        type="text"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.codePlaceholder')"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelEan') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input v-model="formData.ean" type="text" class="form-input" :placeholder="t('components.batchModal.eanPlaceholder')" />
+                    </div>
                   </div>
 
                   <div class="form-row">
@@ -2470,22 +2512,6 @@
                 <div class="details-subsection">
                   <h4 class="subsection-title">{{ t('common.material') }}</h4>
                   <div class="form-grid-details">
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelCode') }}
-                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
-                      </label>
-                      <input
-                        v-model="formData.barcode_tag"
-                        type="text"
-                        class="form-input"
-                        :placeholder="t('components.materialDetail.codePlaceholder')"
-                      />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelEan') }}</label>
-                      <input v-model="formData.ean" type="text" class="form-input" />
-                    </div>
                     <div class="form-group">
                       <label>{{ t('components.materialDetail.labelModel') }}</label>
                       <input v-model="formData.model" type="text" class="form-input" />
@@ -6774,6 +6800,8 @@ async function handleSubmit() {
         expiry_date: expiryDatePayload || null,
         unit_price: resolveWizardStoredUnitPrice(),
         supplier_id: formData.supplier_id || null,
+        ean: formData.ean || null,
+        barcode_tag: formData.barcode_tag || null,
         ...(formData.split_allocations && hasRelevantAllocationRows.value && allocationSumValid.value && !hasInvalidAllocationRows.value
           ? {
               allocations: initialAllocations.value
@@ -7055,9 +7083,9 @@ async function handleSubmit() {
               }),
         // Details (wie in MaterialDetailView)
         description: formData.description || null,
-        barcode_tag: formData.barcode_tag || null,
         model: formData.model || null,
-        ean: formData.ean || null,
+        initial_barcode_tag: formData.barcode_tag || null,
+        initial_ean: formData.ean || null,
         weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
         size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
@@ -7178,8 +7206,6 @@ async function applyPrefillFromSourceMaterial(materialId: string): Promise<void>
   formData.manufacturer = draft.manufacturer
   formData.model = draft.model
   formData.color = draft.color
-  formData.ean = draft.ean
-  formData.barcode_tag = draft.barcode_tag
   formData.weight = draft.weight
   formData.size_length = draft.size_length
   formData.size_width = draft.size_width

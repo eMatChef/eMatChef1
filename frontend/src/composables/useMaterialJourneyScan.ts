@@ -4,6 +4,8 @@ import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/act
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import { useToast } from '@/composables/useToast'
 import { getPublicMaterialBatchByCodes } from '@/api/public/publicLookup'
+import { lookupMaterialByScanCode, type LookupBatchByCodeResponse } from '@/api/materials'
+import type { PublicLookupBatchResponse } from '@/api/public/publicLookup'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import {
   isJourneyReturnStep,
@@ -44,6 +46,35 @@ function truncateSessionLogLabel(label: string): string {
   const trimmed = label.trim()
   if (trimmed.length <= SESSION_LOG_LABEL_MAX) return trimmed
   return `${trimmed.slice(0, SESSION_LOG_LABEL_MAX - 1)}…`
+}
+
+function toPublicLookupFromScanCode(data: LookupBatchByCodeResponse): PublicLookupBatchResponse {
+  return {
+    code: data.batch_code || data.batch.id,
+    entity_type: 'batch',
+    material_code: data.material_code ?? undefined,
+    batch_code: data.batch_code ?? undefined,
+    public_url: data.public_url ?? undefined,
+    batch: {
+      id: data.batch.id,
+      serial_number: data.batch.serial_number,
+      label: data.batch.label,
+      status: data.batch.status,
+      is_container: data.batch.is_container,
+    },
+    material: {
+      id: data.material.id,
+      name: data.material.name,
+      description: data.material.description,
+      manufacturer: data.material.manufacturer,
+      model: data.material.model,
+      is_container: data.material.is_container,
+    },
+    department: {
+      id: data.department.id,
+      name: data.department.name || '',
+    },
+  }
 }
 
 export function useMaterialJourneyScan(options: {
@@ -192,6 +223,19 @@ export function useMaterialJourneyScan(options: {
           toast.error(t('activities.materialJourney.inventoryAtEvent.scanNotFound'))
         }
         return
+      } else if (parsed.type === 'unknown' || parsed.type === 'activity') {
+        if (parsed.type === 'unknown') {
+          try {
+            const codeLookup = await lookupMaterialByScanCode(options.departmentId.value, trimmed)
+            materialItemId = codeLookup.material.id
+            result = resolveMaterialBatchScan(toPublicLookupFromScanCode(codeLookup), resolveCtx.value)
+            result.externalBarcodeMatch = true
+          } catch {
+            result = resolveMaterialTextSearch(trimmed, resolveCtx.value)
+          }
+        } else {
+          result = resolveMaterialTextSearch(trimmed, resolveCtx.value)
+        }
       } else {
         result = resolveMaterialTextSearch(trimmed, resolveCtx.value)
       }
@@ -280,6 +324,17 @@ export function useMaterialJourneyScan(options: {
       }
 
       if (parsed.type === 'unknown') {
+        try {
+          const codeLookup = await lookupMaterialByScanCode(options.departmentId.value, trimmed)
+          const lookup = toPublicLookupFromScanCode(codeLookup)
+          const result = resolveMaterialBatchScan(lookup, resolveCtx.value)
+          result.externalBarcodeMatch = true
+          activeResult.value = result
+          pushSession(resultLabel(result), result.tone)
+          return result
+        } catch {
+          /* fall through to text search / unknown */
+        }
         const textResult = resolveMaterialTextSearch(trimmed, resolveCtx.value)
         if (textResult) {
           activeResult.value = textResult
