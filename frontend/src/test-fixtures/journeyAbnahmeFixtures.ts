@@ -84,10 +84,11 @@ export function muusliIssuedFixtures(): {
   const packContainers: ActivityPackContainer[] = [
     {
       id: crateId,
+      activity_id: 'act-abnahme',
       label: 'Rakokiste',
+      status: 'active',
       container_batch_id: 'batch-rako',
       container_material_item_id: 'mat-rako',
-      sort_order: 0,
     },
   ]
 
@@ -95,8 +96,9 @@ export function muusliIssuedFixtures(): {
     [crateId]: [
       {
         id: 'ci-fackeln',
-        container_id: crateId,
+        pack_container_id: crateId,
         material_item_id: 'mat-fackeln',
+        material_batch_id: null,
         material_name: 'Fackeln Verbrauch',
         quantity_packed: 5,
         quantity_issued: 5,
@@ -104,7 +106,8 @@ export function muusliIssuedFixtures(): {
         quantity_transport_back: 0,
         quantity_returned: 0,
         quantity_stored: 0,
-        sort_order: 0,
+        condition_out: 'ok',
+        notes: null,
       },
     ],
   }
@@ -136,10 +139,11 @@ export function partialCrateSevenThreeFixtures(): {
   const packContainers: ActivityPackContainer[] = [
     {
       id: crateId,
+      activity_id: 'act-abnahme',
       label: 'Transportkiste',
+      status: 'active',
       container_batch_id: 'batch-partial',
       container_material_item_id: 'mat-kiste',
-      sort_order: 0,
     },
   ]
 
@@ -147,8 +151,9 @@ export function partialCrateSevenThreeFixtures(): {
     [crateId]: [
       {
         id: 'ci-artikel',
-        container_id: crateId,
+        pack_container_id: crateId,
         material_item_id: 'mat-artikel',
+        material_batch_id: null,
         material_name: 'Testartikel',
         quantity_packed: 7,
         quantity_issued: 0,
@@ -156,7 +161,8 @@ export function partialCrateSevenThreeFixtures(): {
         quantity_transport_back: 0,
         quantity_returned: 0,
         quantity_stored: 0,
-        sort_order: 0,
+        condition_out: 'ok',
+        notes: null,
       },
     ],
   }
@@ -188,18 +194,20 @@ export function logisticsAtEventFixtures(): {
     packContainers: [
       {
         id: crateId,
+        activity_id: 'act-abnahme',
         label: 'Eventkiste',
+        status: 'active',
         container_batch_id: 'batch-log',
         container_material_item_id: 'mat-kiste',
-        sort_order: 0,
       },
     ],
     containerItemsByContainerId: {
       [crateId]: [
         {
           id: 'ci-hammer',
-          container_id: crateId,
+          pack_container_id: crateId,
           material_item_id: 'mat-hammer',
+          material_batch_id: null,
           material_name: 'Hammer',
           quantity_packed: 1,
           quantity_issued: 1,
@@ -207,7 +215,8 @@ export function logisticsAtEventFixtures(): {
           quantity_transport_back: 0,
           quantity_returned: 0,
           quantity_stored: 0,
-          sort_order: 0,
+          condition_out: 'ok',
+          notes: null,
         },
       ],
     },
