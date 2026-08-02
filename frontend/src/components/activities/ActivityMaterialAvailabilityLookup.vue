@@ -231,6 +231,32 @@
                     >
                       +10
                     </button>
+                    <span class="activity-mat-btn-divider" aria-hidden="true">|</span>
+                    <input
+                      type="number"
+                      class="activity-mat-custom-qty-input"
+                      :min="1"
+                      :max="maxAddableQty(entry.mat)"
+                      :value="customAddQtyFor(entry.mat.materialItemId)"
+                      :title="t('activities.materialAvailability.customQtyTitle')"
+                      :aria-label="t('activities.materialAvailability.customQtyLabel')"
+                      :placeholder="t('activities.materialAvailability.customQtyPlaceholder')"
+                      :disabled="disabled"
+                      @click.stop
+                      @mousedown.stop
+                      @input="onCustomAddQtyInput(entry.mat.materialItemId, ($event.target as HTMLInputElement).value)"
+                      @keydown.enter.stop.prevent="addCustomQty(entry.mat)"
+                    />
+                    <button
+                      type="button"
+                      class="activity-mat-quick-btn activity-mat-custom-qty-btn"
+                      :title="t('activities.materialAvailability.customQtyAdd')"
+                      :disabled="disabled || !canAdd(entry.mat, customAddQtyFor(entry.mat.materialItemId))"
+                      @mousedown.prevent
+                      @click.stop="addCustomQty(entry.mat)"
+                    >
+                      +
+                    </button>
                   </template>
                   <template v-else-if="isAlreadyAdded(entry.mat.materialItemId)">
                     <span class="mat-already-badge">{{ t('activities.materialAvailability.inList') }}</span>
@@ -302,6 +328,7 @@
       :start-iso="availabilityContext?.startDate ?? null"
       :end-iso="availabilityContext?.endDate ?? null"
       :initial-quantity="configuratorState.quantity"
+      :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
       @confirm="onConfiguratorConfirm"
       @cancel="onConfiguratorCancel"
     />
@@ -314,6 +341,15 @@
       @combine="onCombineUseExisting"
       @separate="onCombineSeparate"
       @cancel="onCombineCancel"
+    />
+
+    <CombineSeparateShortageDialog
+      v-if="combineSeparateShortageState"
+      :combo-name="combineSeparateShortageState.material.name"
+      :shortages="combineSeparateShortageState.shortages"
+      @adjust-and-book="onCombineSeparateAdjustAndBook"
+      @use-existing="onCombineSeparateUseExisting"
+      @cancel="onCombineSeparateShortageCancel"
     />
   </div>
 </template>
@@ -338,7 +374,13 @@ import { buildVirtualComboConfigSnapshot } from '@/utils/virtualComboMaterial'
 import CombineWithExistingDialog, {
   type CombineOverlap,
 } from '@/components/activities/CombineWithExistingDialog.vue'
+import CombineSeparateShortageDialog from '@/components/activities/CombineSeparateShortageDialog.vue'
 import ActivityMaterialQuantityDialog from '@/components/activities/ActivityMaterialQuantityDialog.vue'
+import {
+  combinePartsFromSeparateShortages,
+  computeSeparateBookShortages,
+  type SeparateBookShortage,
+} from '@/utils/materialPeriodDemand'
 
 interface InvitedPartnerDepartment {
   id: string
@@ -717,6 +759,26 @@ function canAdd(m: ActivityPeriodAvailabilityMaterial, qty: number): boolean {
   return maxAddableQty(m) >= qty
 }
 
+const customAddQtyByMaterialId = ref<Record<string, number>>({})
+
+function customAddQtyFor(materialId: string): number {
+  const v = customAddQtyByMaterialId.value[materialId]
+  return typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.floor(v) : 1
+}
+
+function onCustomAddQtyInput(materialId: string, raw: string) {
+  const n = Number(raw)
+  customAddQtyByMaterialId.value = {
+    ...customAddQtyByMaterialId.value,
+    [materialId]: Number.isFinite(n) ? n : 1,
+  }
+}
+
+function addCustomQty(m: ActivityPeriodAvailabilityMaterial) {
+  addQty(m, customAddQtyFor(m.materialItemId))
+  customAddQtyByMaterialId.value = { ...customAddQtyByMaterialId.value, [m.materialItemId]: 1 }
+}
+
 function addQty(m: ActivityPeriodAvailabilityMaterial, qty: number) {
   if (props.disabled) return
   if (m.materialType === 'virtual_combo' && isAlreadyAdded(m.materialItemId)) return
@@ -761,33 +823,7 @@ function onConfiguratorConfirm(payload: {
   configuratorState.value = null
   if (!state) return
 
-  const configSnapshot = buildVirtualComboConfigSnapshot({
-    quantity: payload.quantity,
-    selectedOptionIds: payload.selectedOptionIds,
-    resolvedStock: payload.resolvedStock,
-    resolvedSelfProvided: payload.resolvedSelfProvided,
-    packMode: payload.packMode,
-    selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
-  })
-
-  // „Kombinieren?": Überlapp der aufgelösten Teile mit vorhandenen Einzelpositionen erkennen.
-  const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
-  if (overlaps.length > 0) {
-    dismissMaterialLookupDropdown()
-    combineState.value = {
-      material: state.material,
-      quantity: payload.quantity,
-      selectedOptionIds: payload.selectedOptionIds,
-      packMode: payload.packMode,
-      selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
-      resolvedStock: payload.resolvedStock,
-      resolvedSelfProvided: payload.resolvedSelfProvided,
-      overlaps,
-    }
-    return
-  }
-
-  emit('add-quantity', {
+  const addState = {
     material: state.material,
     quantity: payload.quantity,
     selectedOptionIds: payload.selectedOptionIds,
@@ -795,10 +831,16 @@ function onConfiguratorConfirm(payload: {
     selfProvidedAcknowledged: payload.selfProvidedAcknowledged,
     resolvedStock: payload.resolvedStock,
     resolvedSelfProvided: payload.resolvedSelfProvided,
-    configSnapshot,
-  })
-  matSearch.value = ''
-  void loadAccessorySuggestion(state.material)
+  }
+
+  const overlaps = detectCombineOverlaps(payload.resolvedStock, payload.quantity)
+  if (overlaps.length > 0) {
+    dismissMaterialLookupDropdown()
+    combineState.value = { ...addState, overlaps }
+    return
+  }
+
+  void proceedComboAddWithStockCheck(addState)
 }
 
 function onConfiguratorCancel() {
@@ -847,9 +889,28 @@ function onCombineUseExisting() {
   if (!state) return
   const combineParts = state.overlaps.map((o) => ({
     materialItemId: o.materialItemId,
-    // Vorhandene Einheit für die Kombo nutzen → Einzelposition um den (gedeckelten) Bedarf reduzieren.
     reduceBy: Math.min(o.existingQty, o.comboNeed),
   }))
+  emitAddQuantityFromCombineState(state, combineParts)
+}
+
+function existingComboQtyFor(materialId: string): number {
+  const total = props.quantityByMaterialItemId[materialId] ?? 0
+  return Math.max(0, total - standaloneQtyFor(materialId))
+}
+
+function emitAddQuantityFromCombineState(
+  state: {
+    material: ActivityPeriodAvailabilityMaterial
+    quantity: number
+    selectedOptionIds: string[]
+    packMode: 'together' | 'loose'
+    selfProvidedAcknowledged: boolean
+    resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+    resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  },
+  combineParts?: Array<{ materialItemId: string; reduceBy: number }>,
+): void {
   emit('add-quantity', {
     material: state.material,
     quantity: state.quantity,
@@ -872,29 +933,123 @@ function onCombineUseExisting() {
   void loadAccessorySuggestion(state.material)
 }
 
-function onCombineSeparate() {
-  const state = combineState.value
-  combineState.value = null
-  if (!state) return
-  emit('add-quantity', {
-    material: state.material,
-    quantity: state.quantity,
-    selectedOptionIds: state.selectedOptionIds,
-    packMode: state.packMode,
-    selfProvidedAcknowledged: state.selfProvidedAcknowledged,
-    resolvedStock: state.resolvedStock,
-    resolvedSelfProvided: state.resolvedSelfProvided,
-    configSnapshot: buildVirtualComboConfigSnapshot({
-      quantity: state.quantity,
-      selectedOptionIds: state.selectedOptionIds,
-      resolvedStock: state.resolvedStock,
-      resolvedSelfProvided: state.resolvedSelfProvided,
-      packMode: state.packMode,
-      selfProvidedAcknowledged: state.selfProvidedAcknowledged,
-    }),
+async function fetchAvailabilityByMaterialId(
+  materialItemIds: string[],
+): Promise<Record<string, number>> {
+  if (materialItemIds.length === 0) return {}
+  const ctx = availabilityContext.value
+  const rows = await fetchMaterialsAvailableForPeriodByIds({
+    departmentId: props.departmentId,
+    activityId: props.activityId || null,
+    startDateIso: ctx?.startDate ?? null,
+    endDateIso: ctx?.endDate ?? null,
+    materialItemIds,
+    scope: ctx
+      ? {
+          source: ctx.source,
+          internalScope: ctx.internalScope,
+          singleDepartmentId: ctx.singleDepartmentId,
+          includeGlobalJs: ctx.includeGlobalJs,
+        }
+      : null,
   })
+  const out: Record<string, number> = {}
+  for (const row of rows) {
+    out[row.materialItemId] = effectiveStock(row)
+  }
+  return out
+}
+
+async function separateBookShortagesForState(state: {
+  quantity: number
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+}): Promise<SeparateBookShortage[]> {
+  const materialIds = [...new Set(state.resolvedStock.map((p) => p.materialItemId))]
+  const availabilityById = await fetchAvailabilityByMaterialId(materialIds)
+  return computeSeparateBookShortages(
+    state.resolvedStock.map((p) => ({
+      materialItemId: p.materialItemId,
+      name: p.name,
+      qtyPerCombo: p.qtyPerCombo,
+    })),
+    state.quantity,
+    {
+      standaloneQtyFor: standaloneQtyFor,
+      existingComboQtyFor: existingComboQtyFor,
+      rawAvailableFor: (id) => availabilityById[id],
+      savedQtyFor: (id) => props.savedQuantityByMaterialItemId[id] ?? 0,
+      excludeCurrentActivity: !!props.activityId,
+    },
+  )
+}
+
+const combineSeparateShortageState = ref<{
+  material: ActivityPeriodAvailabilityMaterial
+  quantity: number
+  selectedOptionIds: string[]
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  shortages: SeparateBookShortage[]
+} | null>(null)
+
+async function proceedComboAddWithStockCheck(state: {
+  material: ActivityPeriodAvailabilityMaterial
+  quantity: number
+  selectedOptionIds: string[]
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+  resolvedStock: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+  resolvedSelfProvided: Array<{ materialItemId: string; name: string; qtyPerCombo: number }>
+}): Promise<void> {
+  try {
+    const shortages = await separateBookShortagesForState(state)
+    if (shortages.length > 0) {
+      combineSeparateShortageState.value = { ...state, shortages }
+      return
+    }
+  } catch {
+    return
+  }
+  emitAddQuantityFromCombineState(state)
   matSearch.value = ''
   void loadAccessorySuggestion(state.material)
+}
+
+async function onCombineSeparate() {
+  const state = combineState.value
+  if (!state) return
+  combineState.value = null
+  await proceedComboAddWithStockCheck(state)
+}
+
+function onCombineSeparateShortageCancel() {
+  combineSeparateShortageState.value = null
+}
+
+function onCombineSeparateUseExisting() {
+  const state = combineSeparateShortageState.value
+  combineSeparateShortageState.value = null
+  if (!state) return
+  const overlapParts = state.resolvedStock
+    .map((p) => {
+      const existing = standaloneQtyFor(p.materialItemId)
+      if (existing <= 0) return null
+      const comboNeed = Math.max(0, p.qtyPerCombo) * Math.max(1, state.quantity)
+      return { materialItemId: p.materialItemId, reduceBy: Math.min(existing, comboNeed) }
+    })
+    .filter((p): p is { materialItemId: string; reduceBy: number } => p != null && p.reduceBy > 0)
+  emitAddQuantityFromCombineState(state, overlapParts)
+}
+
+function onCombineSeparateAdjustAndBook() {
+  const state = combineSeparateShortageState.value
+  combineSeparateShortageState.value = null
+  if (!state) return
+  if (state.shortages.some((s) => s.remainingShortage > 0)) return
+  const combineParts = combinePartsFromSeparateShortages(state.shortages)
+  emitAddQuantityFromCombineState(state, combineParts.length > 0 ? combineParts : undefined)
 }
 
 function onCombineCancel() {
@@ -1257,6 +1412,28 @@ function addAccessoryFromSuggestion(acc: ActivityPeriodAvailabilityMaterial) {
 
 .activity-mat-set-btn {
   min-width: auto;
+}
+
+.activity-mat-custom-qty-input {
+  width: 3.25rem;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.activity-mat-custom-qty-input:focus {
+  outline: none;
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgb(5 150 105 / 15%);
+}
+
+.activity-mat-custom-qty-btn {
+  min-width: 32px;
+  padding-inline: 8px;
 }
 
 .activity-mat-btn-divider {

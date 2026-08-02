@@ -12,6 +12,8 @@ import MaterialJourneyPhaseCompletePanel from '@/components/activities/materialJ
 import MaterialJourneyQuickReturnHandoffBanner from '@/components/activities/materialJourney/MaterialJourneyQuickReturnHandoffBanner.vue'
 import MaterialJourneyReturnSummaryTable from '@/components/activities/materialJourney/MaterialJourneyReturnSummaryTable.vue'
 import type { QuickReturnHandoffBannerMode } from '@/components/activities/materialJourney/MaterialJourneyQuickReturnHandoffBanner.vue'
+import MaterialJourneyQuickStatusTrail from '@/components/activities/materialJourney/MaterialJourneyQuickStatusTrail.vue'
+import MaterialJourneyLogisticsStatusTrail from '@/components/activities/materialJourney/MaterialJourneyLogisticsStatusTrail.vue'
 import MaterialJourneyLegacyLink from '@/components/activities/materialJourney/MaterialJourneyLegacyLink.vue'
 import MaterialAssignCrateSheet from '@/components/activities/materialJourney/MaterialAssignCrateSheet.vue'
 import MaterialCrateCheckSheet from '@/components/activities/materialJourney/MaterialCrateCheckSheet.vue'
@@ -46,6 +48,7 @@ import {
   isJourneyTransportBackStep,
   isJourneyTransportOutStep,
   materialJourneyAllowsShelfSearch,
+  materialJourneyStepI18nKey,
 } from '@/components/activities/materialJourneySteps'
 import { PACK_WAREHOUSE_ISSUE_INJECT_KEY } from '@/components/activities/packWarehouseIssueInjectKey'
 import {
@@ -70,6 +73,7 @@ import { materialJourneyFilterVariantForStep } from '@/components/activities/mat
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import type { ActivityPackItem, PackMoveSource } from '@/api/activityPackItems'
 import type { MaterialScanResolveResult, MaterialScanShelfLine } from '@/composables/materialScanResolve'
@@ -91,6 +95,15 @@ import {
 } from '@/utils/materialJourneyNavigation'
 import { buildMaterialJourneyReturnSummaryRows } from '@/utils/materialJourneyReturnSummary'
 import { consumablePhysicalReturnMax } from '@/utils/materialJourneyConsumable'
+import {
+  crateWarehouseTemplatePeekSummary,
+  isContainerBatchEmptyForPack,
+} from '@/utils/materialJourneyCrateWarehousePeek'
+import { transferPackedItemBetweenContainers } from '@/composables/useMaterialJourneyCrateTransfer'
+import {
+  computeMaterialJourneyProgressBreakdown,
+  materialJourneyProgressBreakdownHasContent,
+} from '@/utils/materialJourneyProgressBreakdown'
 
 const props = withDefaults(
   defineProps<{
@@ -148,6 +161,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, te } = useI18n()
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 
 const stepParam = computed(() => {
   if (props.embedded) {
@@ -172,6 +186,7 @@ const {
   steps,
   resolvedStep,
   needsStepRedirect,
+  journeyStepRedirectTarget,
   activeJourneyStep,
   stepsWithOpenWork,
   journeyStepWorkComplete,
@@ -198,6 +213,9 @@ const {
   listEditable,
   isFutureStep,
   isPastStep,
+  showMwStepEditButton,
+  mwStepEditActive,
+  enableMwStepEdit,
   movesEnabledForStep,
   shellPackItemForContainer,
   visibleTasks,
@@ -260,6 +278,8 @@ const {
   submitAddScannedPackCrate,
   assignPackItemToSelectedCrate,
   packCrateAssignQtyForItem,
+  issueReports,
+  reloadIssues,
 } = useMaterialJourneyTasks({
   activity,
   packItems,
@@ -333,7 +353,6 @@ const journeyFilterVariant = computed(() =>
 )
 
 const {
-  reloadIssues,
   atEventQtyLabelForRow,
   atEventQtyLabelForLine,
 } = useMaterialJourneyAtEventInventoryIssues({
@@ -639,6 +658,11 @@ const {
 } = scan
 
 const shelfFocusedPackItemId = ref<string | null>(null)
+const deletingEmptyPackCrateId = ref<string | null>(null)
+
+const showCrateContentActions = computed(
+  () => resolvedStep.value === 'pack' && listEditable.value && canManageMaterials.value,
+)
 
 const scanResolveCtx = computed(() => ({
   activityId: props.activityId,
@@ -687,6 +711,121 @@ const shelfInlineResult = computed((): MaterialScanResolveResult | null => {
 
 const showStandaloneScanResult = computed(
   () => scanResult.value != null && !(activeShelfResult.value && shelfInlineResult.value),
+)
+
+const scanCrateWarehouseSummary = computed(() => {
+  const result = scanResult.value
+  if (!result?.container || result.type !== 'crate_shell') return null
+  const shell =
+    shellPackItemForContainer(result.container.id) ?? result.packItem ?? null
+  return crateWarehouseTemplatePeekSummary(
+    result.container,
+    {
+      containerItemsByContainerId: containerItemsByContainerId.value,
+      ...cratePeekMaps.value,
+    },
+    shell,
+    t,
+    packItems.value,
+    packContainers.value,
+  )
+})
+
+const scanCrateWarehouseWarning = computed(() => {
+  const summary = scanCrateWarehouseSummary.value
+  if (!summary) return null
+  return t('activities.materialJourney.scan.crateWarehouseWarning', {
+    count: summary.lineCount,
+    total: summary.totalQty,
+  })
+})
+
+const scanCrateWarehouseLinePreview = computed(() => {
+  const summary = scanCrateWarehouseSummary.value
+  if (!summary) return null
+  const preview = summary.lines
+    .slice(0, 5)
+    .map((line) => `${line.name} (${line.qty})`)
+    .join(' · ')
+  if (summary.lines.length > 5) {
+    return `${preview} …`
+  }
+  return preview
+})
+
+const scanCrateWarehouseHint = computed(() => {
+  if (!scanCrateWarehouseSummary.value) return null
+  return t('activities.materialJourney.scan.crateWarehouseHint')
+})
+
+const scannedBatchAllowsPackCrate = ref<boolean | null>(null)
+
+watch(scanResult, async (result) => {
+  scannedBatchAllowsPackCrate.value = null
+  if (result?.type !== 'unknown_crate' || !result.scannedBatchId) return
+  scannedBatchAllowsPackCrate.value = await isContainerBatchEmptyForPack(
+    props.departmentId,
+    props.activityId,
+    result.scannedBatchId,
+  )
+})
+
+const scanBlockedForPackCrate = computed(() => {
+  if (scanCrateWarehouseSummary.value) return true
+  if (scanResult.value?.type === 'unknown_crate') {
+    return scannedBatchAllowsPackCrate.value === false
+  }
+  return false
+})
+
+const scanOffersMiniInventory = computed(() => {
+  const result = scanResult.value
+  if (!scanBlockedForPackCrate.value || !result?.container) return false
+  return result.type === 'crate_shell' || result.type === 'in_crate'
+})
+
+const scanMessageResolved = computed(() => {
+  const result = scanResult.value
+  if (!result) return ''
+  if (scanCrateWarehouseSummary.value && result.type === 'crate_shell') {
+    return t('activities.materialJourney.scan.result.crate_shell_with_content')
+  }
+  if (result.type === 'unknown_crate' && scannedBatchAllowsPackCrate.value === false) {
+    return t('activities.materialJourney.scan.result.unknown_crate_not_empty')
+  }
+  return messageForResult(result)
+})
+
+const scanPrimaryLabelResolved = computed(() => {
+  const result = scanResult.value
+  if (!result) return ''
+  if (scanOffersMiniInventory.value) {
+    return t('activities.materialJourney.scan.actionMiniInventory')
+  }
+  return primaryActionLabel(result)
+})
+
+const scanPrimaryEnabledResolved = computed(() => {
+  const result = scanResult.value
+  if (!result) return false
+  if (scanShowWarehouseAction.value) return false
+  if (scanBlockedForPackCrate.value) {
+    if (scanOffersMiniInventory.value) {
+      return (canManageMaterials.value || listEditable.value) && !!result.container
+    }
+    return false
+  }
+  return primaryActionEnabled(result) && !addingPackCrate.value
+})
+
+const scanShowWarehouseAction = computed(() => {
+  const result = scanResult.value
+  if (!scanCrateWarehouseSummary.value || !result?.container) return false
+  return result.type === 'crate_shell' || result.type === 'in_crate'
+})
+
+const scanWarehouseActionEnabled = computed(
+  () => scanShowWarehouseAction.value && (canManageMaterials.value || listEditable.value),
 )
 
 function clearShelfLineFocus(): void {
@@ -935,6 +1074,7 @@ function scanQuantityProgress(result: MaterialScanResolveResult | null): string 
 function tryAutoSelectPackCrateFromScan(result: MaterialScanResolveResult): boolean {
   if (!packCrateSelectMode.value) return false
   if (result.type !== 'crate_shell' || !result.container) return false
+  if (scanCrateWarehouseSummary.value) return false
   if (!primaryActionEnabled(result)) return false
   const inList = visibleTasks.value.some(
     (row) => row.kind === 'crate' && row.container?.id === result.container!.id,
@@ -1105,10 +1245,39 @@ async function tryAutoAssignToSelectedPackCrate(
   return true
 }
 
+async function openScanCrateCheck(result: MaterialScanResolveResult): Promise<void> {
+  if (!result.container) return
+  if (canManageMaterials.value || listEditable.value) {
+    openCrateContainer(result.container)
+  } else {
+    const row = taskRowForScanResult(result)
+    if (row) {
+      onActivateTaskRow(row, 'scan')
+    } else {
+      openCrateContainer(result.container)
+    }
+  }
+  dismissResult()
+  clearScanInput()
+  clearShelfLineFocus()
+}
+
+async function onScanWarehouseAction(): Promise<void> {
+  const result = scanResult.value
+  if (!result) return
+  await openScanCrateCheck(result)
+}
+
 async function executeScanResultAction(result: MaterialScanResolveResult): Promise<void> {
+  if (scanBlockedForPackCrate.value && result.container) {
+    await openScanCrateCheck(result)
+    return
+  }
+
   if (!primaryActionEnabled(result)) return
 
   if (result.type === 'unknown_crate') {
+    if (scannedBatchAllowsPackCrate.value === false) return
     const batchId = result.scannedBatchId ?? ''
     const label = result.scannedBatchLabel ?? result.title
     await submitAddScannedPackCrate(batchId, label)
@@ -1130,7 +1299,12 @@ async function executeScanResultAction(result: MaterialScanResolveResult): Promi
     return
   }
 
-  if (result.container && resolvedStep.value === 'pack' && result.type === 'crate_shell') {
+  if (
+    result.container &&
+    resolvedStep.value === 'pack' &&
+    result.type === 'crate_shell' &&
+    !scanBlockedForPackCrate.value
+  ) {
     selectPackCrate(result.container.id)
     dismissResult()
     clearScanInput()
@@ -1255,6 +1429,60 @@ function onCrateShellStore(row: MaterialJourneyTaskRow): void {
   openStoreShelveForContainerShell(containerId, shell, qty)
 }
 
+function deleteEmptySubmittingForRow(row: MaterialJourneyTaskRow): boolean {
+  return (
+    containerMutationLoading.value &&
+    deletingEmptyPackCrateId.value === row.container?.id
+  )
+}
+
+async function onDeleteEmptyPackCrate(row: MaterialJourneyTaskRow): Promise<void> {
+  if (!row.container) return
+  deletingEmptyPackCrateId.value = row.container.id
+  try {
+    await confirmDeletePackContainer(row.container)
+  } finally {
+    deletingEmptyPackCrateId.value = null
+  }
+}
+
+async function onReassignCrateLine(
+  row: MaterialJourneyTaskRow,
+  line: MaterialJourneyAccordionLine,
+  targetContainerId: string,
+): Promise<void> {
+  const activityId = props.activityId
+  const sourceContainerId = row.container?.id
+  if (!activityId || !sourceContainerId || !targetContainerId.trim()) return
+
+  const qty = line.maxReassignQty ?? line.quantity
+  if (qty < 1) return
+
+  movingId.value = row.id
+  try {
+    await transferPackedItemBetweenContainers(
+      activityId,
+      sourceContainerId,
+      targetContainerId,
+      line.id,
+      containerItemsByContainerId.value,
+      qty,
+    )
+    await reloadSilent()
+    toast.success(
+      t('activities.materialJourney.reassignCrate.toastSuccessItemQty', {
+        name: line.name,
+        count: qty,
+      }),
+    )
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    toast.error(message || t('activities.materialJourney.reassignCrate.toastFailed'))
+  } finally {
+    movingId.value = null
+  }
+}
+
 watch(resolvedStep, () => {
   dismissResult()
   clearShelfLineFocus()
@@ -1268,17 +1496,41 @@ watch(comboSheetOpen, (isOpen, wasOpen) => {
 })
 
 const journeyStepBadgeLabel = computed(() => {
-  if (activity.value?.status) {
-    const statusKey = `activities.status.${activity.value.status}`
-    if (te(statusKey)) return t(statusKey)
-  }
-  const step = resolvedStep.value
-  const key =
-    step === 'issue' && profile.value === 'logistics'
-      ? 'activities.materialJourney.step.issueLogistics'
-      : `activities.materialJourney.step.${step}`
+  const step = activeJourneyStep.value
+  const key = materialJourneyStepI18nKey(step, profile.value, {
+    activityStatus: activity.value?.status ?? '',
+    issueDoneCount: progress.value.done,
+  })
   return te(key) ? t(key) : step
 })
+
+const showQuickBringBackButton = computed(
+  () =>
+    profile.value !== 'logistics' &&
+    journeyFilterVariant.value === 'quickIssue' &&
+    resolvedStep.value === 'issue' &&
+    (progress.value.done > 0 ||
+      activity.value?.status === 'at_event' ||
+      activity.value?.status === 'returned'),
+)
+
+const quickBringBackDisabled = computed(() => {
+  const status = activity.value?.status ?? ''
+  if (status === 'at_event' || status === 'returned') return false
+  return progress.value.open > 0
+})
+
+const quickBringBackDisabledHint = computed(() => {
+  if (progress.value.done <= 0) {
+    return t('activities.materialJourney.quickPhase.returnDisabledNoIssue')
+  }
+  return t('activities.materialJourney.quickPhase.returnDisabledHint')
+})
+
+function onQuickBringBack(): void {
+  if (quickBringBackDisabled.value) return
+  onStepChange('return')
+}
 
 const activityStatusCss = computed(() =>
   activity.value ? activityStatusClass(activity.value.status ?? '') : '',
@@ -1496,6 +1748,10 @@ function shouldOpenCheckSheetOnMoveForward(row: MaterialJourneyTaskRow): boolean
 }
 
 function onMoveForwardTask(row: MaterialJourneyTaskRow, qty: number): void {
+  if (row.kind === 'crate' || row.kind === 'combo') {
+    activateTaskRow(row, 'tap')
+    return
+  }
   if (
     resolvedStep.value === 'store' &&
     row.kind === 'loose' &&
@@ -1523,7 +1779,7 @@ function onMoveForwardTask(row: MaterialJourneyTaskRow, qty: number): void {
 }
 
 watch(
-  [needsStepRedirect, resolvedStep, loading],
+  [needsStepRedirect, journeyStepRedirectTarget, loading],
   ([redirect, step, isLoading]) => {
     if (isLoading || !activity.value) return
     if (!redirect) return
@@ -1594,6 +1850,101 @@ const localTransitions = ref<ActivityTransitionRow[]>([])
 const markingPacked = ref(false)
 
 const effectiveTransitions = computed(() => props.transitions ?? localTransitions.value)
+
+const atEventTransition = computed(
+  () => effectiveTransitions.value.find((row) => row.status === 'at_event') ?? null,
+)
+
+const partialTakenToEventInProgress = ref(false)
+
+const showPartialTakenToEventButton = computed(
+  () =>
+    profile.value !== 'logistics' &&
+    resolvedStep.value === 'issue' &&
+    listEditable.value &&
+    activity.value?.status === 'packed' &&
+    progress.value.done > 0 &&
+    progress.value.open > 0,
+)
+
+const partialTakenToEventTitle = computed(() =>
+  canManageMaterials.value
+    ? t('activities.materialJourney.partialTaken.titleMw')
+    : t('activities.materialJourney.partialTaken.title'),
+)
+
+const progressBreakdownLabel = computed((): string | null => {
+  if (profile.value === 'logistics' || isEarlyPackPreview.value) return null
+  const step = resolvedStep.value
+  if (step !== 'issue' && step !== 'return' && step !== 'transport_back') return null
+  const mode =
+    step === 'issue' && journeyFilterVariant.value === 'quickIssue' && filterTab.value === 'done'
+      ? 'done'
+      : 'open'
+  const breakdown = computeMaterialJourneyProgressBreakdown(allTasks.value, mode)
+  if (!materialJourneyProgressBreakdownHasContent(breakdown)) return null
+  const parts: string[] = []
+  if (breakdown.crates > 0) {
+    parts.push(t('activities.materialJourney.progressBreakdown.crates', { count: breakdown.crates }))
+  }
+  if (breakdown.consumables > 0) {
+    parts.push(
+      t('activities.materialJourney.progressBreakdown.consumables', { count: breakdown.consumables }),
+    )
+  }
+  if (breakdown.loose > 0) {
+    parts.push(t('activities.materialJourney.progressBreakdown.loose', { count: breakdown.loose }))
+  }
+  return parts.length > 0 ? parts.join(' · ') : null
+})
+
+const showQuickStatusTrail = computed(
+  () =>
+    profile.value !== 'logistics' &&
+    !isEarlyPackPreview.value &&
+    ['packed', 'at_event', 'returned', 'storing', 'completed'].includes(activity.value?.status ?? ''),
+)
+
+const showLogisticsStatusTrail = computed(
+  () =>
+    profile.value === 'logistics' &&
+    !isEarlyPackPreview.value &&
+    ['packed', 'transport_out', 'at_event', 'transport_back', 'returned', 'storing', 'completed'].includes(
+      activity.value?.status ?? '',
+    ),
+)
+
+async function onPartialTakenToEvent(): Promise<void> {
+  if (partialTakenToEventInProgress.value || !showPartialTakenToEventButton.value) return
+  const transition = atEventTransition.value
+  if (transition && !transition.allowed) {
+    toast.error(transition.reason || t('activities.detail.toastStatusChangeFailed'))
+    return
+  }
+  const ok = await confirmDialog({
+    title: partialTakenToEventTitle.value,
+    message: canManageMaterials.value
+      ? t('activities.materialJourney.partialTaken.confirmMw')
+      : t('activities.materialJourney.partialTaken.confirm'),
+    confirmText: t('activities.materialJourney.partialTaken.action'),
+    cancelText: t('common.cancel'),
+    variant: 'warning',
+  })
+  if (!ok) return
+
+  partialTakenToEventInProgress.value = true
+  try {
+    await patchActivityStatus(props.activityId, { status: 'at_event' })
+    await reloadSilent()
+    emit('statusChanged')
+    toast.success(t('activities.materialJourney.partialTaken.toastSuccess'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
+  } finally {
+    partialTakenToEventInProgress.value = false
+  }
+}
 
 const quickIssueAllIssued = computed(
   () =>
@@ -1819,6 +2170,22 @@ watch(
 )
 
 watch(
+  [resolvedStep, () => activity.value?.status, showPartialTakenToEventButton],
+  async ([step, , showPartial]) => {
+    if (props.transitions != null || !props.activityId || isEarlyPackPreview.value) return
+    if (step !== 'issue' && step !== 'return') return
+    if (step === 'issue' && !showPartial && !showPackCompletePanel.value) return
+    try {
+      const payload = await getActivityTransitions(props.activityId)
+      localTransitions.value = payload.transitions ?? []
+    } catch {
+      localTransitions.value = []
+    }
+  },
+  { immediate: true },
+)
+
+watch(
   () => [
     mwStoreWorkComplete.value,
     activity.value?.status,
@@ -1924,6 +2291,8 @@ defineExpose({
         :active-step="activeJourneyStep"
         :steps-with-open-work="stepsWithOpenWork"
         :profile="profile"
+        :activity-status="activity.status ?? ''"
+        :issue-done-count="progress.done"
         @update:current-step="onStepChange"
       />
 
@@ -1953,7 +2322,36 @@ defineExpose({
         :rows="returnSummaryRows"
       />
 
-      <p v-if="isFutureStep" class="material-journey-readonly-banner section-card text-muted">
+      <MaterialJourneyQuickStatusTrail
+        v-if="showQuickStatusTrail"
+        :activity-status="activity.status ?? ''"
+      />
+
+      <MaterialJourneyLogisticsStatusTrail
+        v-if="showLogisticsStatusTrail"
+        :activity-status="activity.status ?? ''"
+      />
+
+      <div
+        v-if="showMwStepEditButton"
+        class="material-journey-mw-edit-banner section-card"
+        role="note"
+      >
+        <p class="material-journey-mw-edit-banner__text text-muted">
+          {{ t('activities.materialJourney.mwStepEdit.hint') }}
+        </p>
+        <EButton variant="primary" size="small" @click="enableMwStepEdit()">
+          {{ t('activities.materialJourney.mwStepEdit.action') }}
+        </EButton>
+      </div>
+      <p
+        v-else-if="mwStepEditActive"
+        class="material-journey-mw-edit-active section-card text-muted"
+        role="status"
+      >
+        {{ t('activities.materialJourney.mwStepEdit.active') }}
+      </p>
+      <p v-else-if="isFutureStep" class="material-journey-readonly-banner section-card text-muted">
         {{ t('activities.materialJourney.readonlyFutureStep') }}
       </p>
       <p
@@ -2062,11 +2460,11 @@ defineExpose({
         <MaterialScanResultCard
           v-if="showStandaloneScanResult && scanResult"
           :result="scanResult"
-          :message="messageForResult(scanResult)"
+          :message="scanMessageResolved"
           :quantity-hint="scanQuantityHint(scanResult)"
           :quantity-progress="scanQuantityProgress(scanResult)"
-          :primary-label="primaryActionLabel(scanResult)"
-          :primary-enabled="primaryActionEnabled(scanResult) && !addingPackCrate"
+          :primary-label="scanPrimaryLabelResolved"
+          :primary-enabled="scanPrimaryEnabledResolved"
           :dismiss-label="dismissLabelForResult(scanResult)"
           :show-bulk-confirm="Boolean(scanResult.needsBulkConfirm)"
           :bulk-confirmed="scanBulkConfirmed"
@@ -2076,7 +2474,14 @@ defineExpose({
           :issue-is-consumable="
             scanResult.packItem ? isConsumableForMaterialId(scanResult.packItem.materialItemId) : false
           "
+          :warehouse-warning="scanCrateWarehouseWarning"
+          :warehouse-line-preview="scanCrateWarehouseLinePreview"
+          :warehouse-hint="scanCrateWarehouseHint"
+          :show-warehouse-action="scanShowWarehouseAction"
+          :warehouse-action-label="t('activities.materialJourney.scan.actionMiniInventory')"
+          :warehouse-action-enabled="scanWarehouseActionEnabled"
           @primary="onScanPrimary"
+          @warehouse-action="onScanWarehouseAction"
           @in-crate="onScanInCrate"
           @confirm-bulk="confirmBulkBatch()"
           @consumed="onScanIssueConsumed(scanResult)"
@@ -2142,8 +2547,18 @@ defineExpose({
         :pack-complete-description="
           t('activities.materialJourney.packComplete.description', { count: progress.total })
         "
+        :show-bring-back="showQuickBringBackButton"
+        :bring-back-disabled="quickBringBackDisabled"
+        :bring-back-disabled-hint="quickBringBackDisabledHint"
+        :show-partial-taken="showPartialTakenToEventButton"
+        :partial-taken-disabled="partialTakenToEventInProgress"
+        :partial-taken-loading="partialTakenToEventInProgress"
+        :partial-taken-title="partialTakenToEventTitle"
+        :progress-breakdown="progressBreakdownLabel"
         @add-pack-crate="openAddPackCrateModal()"
         @mark-packed="onMarkPacked()"
+        @bring-back="onQuickBringBack()"
+        @partial-taken="onPartialTakenToEvent()"
       />
 
       <PackAddContainerModal
@@ -2241,6 +2656,8 @@ defineExpose({
         :at-event-qty-label-for-row="atEventQtyLabelForRow"
         :at-event-qty-label-for-line="atEventQtyLabelForLineBound"
         :is-consumable-for-material-id="isConsumableForMaterialId"
+        :show-crate-content-actions="showCrateContentActions"
+        :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
         @activate="onActivateTaskRow"
         @select-target="onSelectPackTarget"
         @move-forward="onMoveForwardTask"
@@ -2254,6 +2671,8 @@ defineExpose({
         @line-damage="onIssueDamageLine"
         @store-line="onAccordionStoreLine"
         @store-shell="onCrateShellStore"
+        @reassign-to="onReassignCrateLine"
+        @delete-empty="onDeleteEmptyPackCrate"
       />
 
       <MaterialCrateCheckSheet
@@ -2266,6 +2685,7 @@ defineExpose({
         :crate-peek-maps="cratePeekMaps"
         :journey-step="resolvedStep"
         :pack-stage="packStage"
+        :profile="profile"
         :activity-id="activityId"
         :department-id="departmentId"
         :can-manage-materials="canManageMaterials"
@@ -2349,6 +2769,7 @@ defineExpose({
         :done-count="progress.done"
         :total-count="progress.total"
         :open-count="progress.open"
+        :progress-breakdown="progressBreakdownLabel"
       />
 
       <MaterialJourneyLegacyLink

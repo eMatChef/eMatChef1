@@ -1558,7 +1558,11 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="row in initialAllocations" :key="row.id">
+                          <tr
+                            v-for="row in initialAllocations"
+                            :key="row.id"
+                            :class="{ 'allocation-row--duplicate-crate': allocationRowHasDuplicateKiste(row, initialAllocations) }"
+                          >
                             <td>
                               <input
                                 v-model.number="row.qty"
@@ -1650,7 +1654,12 @@
                                     v-for="cb in containerBatches"
                                     :key="cb.id"
                                     :value="cb.id"
-                                    :title="formatContainerBatchOptionFullLabel(cb)"
+                                    :disabled="isContainerBatchUsedInOtherRow(initialAllocations, cb.id, row.id)"
+                                    :title="
+                                      isContainerBatchUsedInOtherRow(initialAllocations, cb.id, row.id)
+                                        ? t('components.materialCreateWizard.allocCrateAlreadyUsedInRow')
+                                        : formatContainerBatchOptionFullLabel(cb)
+                                    "
                                   >
                                     {{ formatContainerBatchOptionFullLabel(cb) }}
                                   </option>
@@ -1669,6 +1678,13 @@
                         </tbody>
                       </table>
                     </div>
+                    <p
+                      v-if="hasDuplicateKisteContainers(initialAllocations)"
+                      class="field-hint allocation-duplicate-crate-hint"
+                      role="status"
+                    >
+                      {{ t('components.materialCreateWizard.allocDuplicateCrateHint') }}
+                    </p>
                     <p v-if="initialAllocations.length > 0 && !allocationSumValid" class="field-hint is-invalid">
                       {{
                         t('components.materialCreateWizard.allocSumMismatch', {
@@ -2882,6 +2898,11 @@ import {
   formatContainerBatchOptionFullLabel,
   formatContainerBatchSelectLabel,
 } from '@/utils/containerBatchLabel'
+import {
+  allocationRowHasDuplicateKiste,
+  hasDuplicateKisteContainers,
+  isContainerBatchUsedInOtherRow,
+} from '@/utils/allocationStorageHints'
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
@@ -3076,8 +3097,8 @@ function normalizeAllocationRowsToTotal() {
         sanitizedRows[0],
         {
           id: ++allocationIdCounter,
-          mode: 'slot',
-          storage_address_id: getPreferredStorageAddressId(),
+          mode: sanitizedRows[0].mode,
+          storage_address_id: sanitizedRows[0].storage_address_id || getPreferredStorageAddressId(),
           rack_id: '',
           slot_id: '',
           container_batch_id: '',
@@ -3106,11 +3127,12 @@ function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
 function addAllocationRow() {
   const remainingQty = Math.max(formData.initial_qty - allocationSum.value, 0)
   if (remainingQty <= 0) return
-  const lastMode = initialAllocations.value[initialAllocations.value.length - 1]?.mode ?? 'slot'
+  const lastRow = initialAllocations.value[initialAllocations.value.length - 1]
+  const lastMode = lastRow?.mode ?? 'slot'
   initialAllocations.value.push({
     id: ++allocationIdCounter,
     mode: lastMode,
-    storage_address_id: getPreferredStorageAddressId(),
+    storage_address_id: lastRow?.storage_address_id ?? getPreferredStorageAddressId(),
     rack_id: '',
     slot_id: '',
     container_batch_id: '',
@@ -3167,9 +3189,11 @@ const relevantAllocationRows = computed(() =>
   initialAllocations.value.filter((row) => row.qty > 0)
 )
 const hasInvalidAllocationRows = computed(() =>
-  relevantAllocationRows.value.some((row) =>
-    row.mode === 'slot' ? (!row.rack_id || !row.slot_id) : !row.container_batch_id
-  )
+  relevantAllocationRows.value.some((row) => {
+    if (row.mode === 'slot') return !row.rack_id || !row.slot_id
+    if (!row.container_batch_id) return true
+    return allocationRowHasDuplicateKiste(row, initialAllocations.value)
+  }),
 )
 const hasRelevantAllocationRows = computed(() => relevantAllocationRows.value.length > 0)
 const allocationSumValid = computed(() =>

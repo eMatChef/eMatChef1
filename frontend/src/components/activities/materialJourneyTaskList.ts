@@ -27,6 +27,7 @@ import {
 import {
   isPackConfirmedStage,
   isPackForwardToEventStage,
+  isPackReturnStage,
   isPackUnpackStage,
 } from '@/components/activities/packStageQuantities'
 import { isCrateShellPackItem, packShellContainerForPackItem } from '@/components/activities/packShellCrateHelpers'
@@ -48,13 +49,19 @@ function shouldShowPackContainerInJourneyList(
   ) {
     return true
   }
-  if (!ctx.listCtx.showPackContainersUi || !isPackForwardToEventStage(ctx.packStage)) {
+  if (!ctx.listCtx.showPackContainersUi) {
     return false
   }
-  const shell = ctx.shellPackItemForContainer(container.id)
-  if (!shell || !isCrateShellPackItem(shell, ctx.packContainers)) return false
-  if (!ctx.stageLeftItems.some((pi) => pi.id === shell.id)) return false
-  return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+  if (isPackForwardToEventStage(ctx.packStage)) {
+    const shell = ctx.shellPackItemForContainer(container.id)
+    if (!shell || !isCrateShellPackItem(shell, ctx.packContainers)) return false
+    if (!ctx.stageLeftItems.some((pi) => pi.id === shell.id)) return false
+    return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+  }
+  if (isPackReturnStage(ctx.packStage) || isPackUnpackStage(ctx.packStage)) {
+    return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+  }
+  return false
 }
 
 function shouldHideShellMaterialForJourneyCrateRow(

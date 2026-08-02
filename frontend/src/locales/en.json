@@ -637,7 +637,10 @@
     "emptyInProgressTitle": "No tasks in progress",
     "emptyInProgressText": "Tasks you are working on will appear here.",
     "emptyDoneTitle": "No completed tasks",
-    "emptyDoneText": "Completed QR contacts are listed here."
+    "emptyDoneText": "Completed tasks are listed here.",
+    "actionAccounting": "Assign booking",
+    "actionAccountingContinue": "Continue booking",
+    "actionAccountingView": "View booking"
   },
   "tasksPrint": {
     "subtitle": "Print queue for QR labels (database-backed)",
@@ -1893,6 +1896,7 @@
       "toastQtySaved": "Quantities saved",
       "toastPackModeSaved": "Packing preference saved",
       "toastQtySaveFailed": "Quantities could not be saved.",
+      "toastConsolidateFailed": "Duplicate material lines could not be merged.",
       "toastMaterialAdded": "Material added",
       "toastMaterialAddFailed": "Material could not be added.",
       "toastPositionRemoved": "Line removed",
@@ -1908,6 +1912,8 @@
       "confirmCancelAction": "Cancel activity",
       "confirmRemovePackedTitle": "Remove packed material?",
       "confirmRemovePackedMessage": "“{name}” has already been packed or is in the pack pipeline.\n\nIs everything physically back in the warehouse? Removing will delete the pack list entry, pack containers, and reports for this line.",
+      "confirmRemoveVirtualComboTitle": "Remove virtual combo?",
+      "confirmRemoveVirtualComboMessage": "“{name}” and all related set lines will be removed. Separate loose lines (e.g. tarps) will be reduced by this combo’s component quantities.",
       "qrGenLoading": "Creating…",
       "qrGenCreate": "Generate QR code",
       "modalQrActionTitle": "QR action",
@@ -2002,7 +2008,11 @@
       "quantityDialogLabel": "Quantity",
       "quantityDialogMax": "At most {max} available in the selected period",
       "quantityDialogPackHint": "Pack size: {n} pieces per {unit}",
-      "quantityDialogConfirm": "Add {n}×"
+      "quantityDialogConfirm": "Add {n}×",
+      "customQtyLabel": "Enter quantity",
+      "customQtyPlaceholder": "Qty",
+      "customQtyTitle": "Enter desired quantity, then + or Enter",
+      "customQtyAdd": "Add entered quantity"
     },
     "combineDialog": {
       "title": "Combine?",
@@ -2011,6 +2021,16 @@
       "explain": "Use the existing unit for the combo (the separate position is reduced accordingly) — or book both separately.",
       "useExisting": "Use existing",
       "keepSeparate": "Book separately"
+    },
+    "combineSeparateShortage": {
+      "title": "Stock insufficient for separate booking",
+      "intro": "If “{name}” is booked separately, total demand exceeds available stock for the period.",
+      "lineDetail": "Total wanted: {total} · Maximum possible: {available}",
+      "reduceStandalone": "Standalone line: {from} → {to} (−{n})",
+      "remainingBlock": "Still {n} short after adjustment — reduce set quantity or choose “Use existing”.",
+      "explainAdjust": "We can reduce standalone lines and still book the combo separately.",
+      "explainBlocked": "Separate booking is not possible as requested. Choose “Use existing” or reduce the set quantity.",
+      "adjustAndBook": "Adjust and book separately"
     },
     "materialLinesTable": {
       "shortageBanner": "Stock is insufficient for at least one line in the selected pick-up/return window — affected rows are listed at the top.",
@@ -2033,7 +2053,8 @@
       "virtualComboQtyHint": "Set quantity fixed when added",
       "virtualComboChildQtyHint": "Quantity fixed by virtual combo",
       "virtualComboChildRemoveTitle": "Combo part — change via the combo row above",
-      "virtualComboRemoveTitle": "Virtual combo cannot be removed here",
+      "virtualComboRemoveBlockedTitle": "Virtual combo cannot be removed while packing",
+      "virtualComboRemoveTitle": "Remove virtual combo",
       "warnOverRestTitle": "Quantity exceeds available remainder",
       "packListRemoveTitle": "Assign via pack list (container)",
       "qtyPackingReadonlyHint": "While packing, adjust quantities in the pack list; add more from the collapsible block at the top of the pack list.",
@@ -2136,7 +2157,28 @@
       "quickPhase": {
         "aria": "Material phase",
         "return": "Return",
-        "returnDisabledHint": "Issue everything first, then start return"
+        "bringBack": "Bring back",
+        "returnDisabledHint": "Issue something first or choose «I only took this much»",
+        "returnDisabledNoIssue": "Nothing taken yet — issue material first"
+      },
+      "quickStatusTrail": {
+        "aria": "Activity status in the material pipeline"
+      },
+      "logisticsStatusTrail": {
+        "aria": "Activity transport chain"
+      },
+      "partialTaken": {
+        "action": "I only took this much",
+        "title": "Set activity status to «With me» — only for material already taken (remainder stays «Packed»).",
+        "titleMw": "Emergency: set status «With me» — only for material already taken.",
+        "confirm": "Only material already taken counts as «With me». The rest stays packed and does not need to be returned.",
+        "confirmMw": "Set status «With me» — only for material already taken. Remainder stays «Packed».",
+        "toastSuccess": "Status set to «With me» — return can begin."
+      },
+      "progressBreakdown": {
+        "crates": "{count} in crates",
+        "consumables": "{count} consumables",
+        "loose": "{count} loose"
       },
       "quickReturnHandoff": {
         "title": "Return complete",
@@ -2206,6 +2248,10 @@
         "accordionCount": "{count} lines",
         "looseTake": "Take loose",
         "reassignCrate": "Move to another pack crate",
+        "reassignCratePlaceholder": "Choose pack crate…",
+        "deleteEmptyPackCrate": "Remove empty pack crate",
+        "warehouseTemplateSection": "Warehouse template (not booked on pack list)",
+        "warehouseTemplateBadge": "Warehouse template",
         "atEventTotal": "{count} total",
         "atEventTaken": "{count} taken along",
         "atEventLoss": "{count} loss",
@@ -2304,6 +2350,11 @@
       },
       "readonlyFutureStep": "This step is not unlocked yet — please complete the previous step first.",
       "readonlyPastStep": "This step is already complete — view only.",
+      "mwStepEdit": {
+        "hint": "As material manager you can unlock this step for corrections.",
+        "action": "Edit step",
+        "active": "Edit mode active — you can book moves in this step."
+      },
       "toastViewOnly": "This step is read-only.",
       "toastComboPhase3": "Physical sets will be supported with a set checklist in phase 3.",
       "toastStepReadonly": "Moves for this step arrive in a later phase.",
@@ -2316,6 +2367,7 @@
         "empty": "No open lines in this crate.",
         "sectionSummary": "{count} open",
         "subtitleReturn": "Review contents and return the crate",
+        "subtitleReturnCheck": "Return crate check — review contents for transport back",
         "subtitleStore": "Review contents and store the crate",
         "subtitleStoreLines": "Store contents first — scan shelf for each item",
         "shellAfterContent": "Contents done — now store the crate shell.",
@@ -2473,9 +2525,15 @@
         "actionUseAsPackCrate": "Yes, use as pack crate",
         "actionDeclinePackCrate": "No",
         "actionShow": "Show",
+        "actionMiniInventory": "Start mini-inventory",
+        "crateNotEmptyBlocked": "Crate is not empty — only empty crates can be used as pack crates.",
+        "crateWarehouseWarning": "Warehouse content: {count} item(s) ({total} pcs.) per template in this crate — is that correct?",
+        "crateWarehouseHint": "If not, start mini-inventory or scan an empty crate.",
         "result": {
           "not_on_list": "Not on this packing list.",
           "unknown_crate": "Crate is not on the packing list yet. Use as pack crate?",
+          "unknown_crate_not_empty": "Crate is not empty — only empty crates can be used as pack crates.",
+          "crate_shell_with_content": "Crate with warehouse content detected — cannot be used as an empty pack crate.",
           "not_ready": "Material manager is still packing.",
           "wrong_batch": "Different batch than planned.",
           "serialized_mismatch": "Wrong batch — serialized items require an exact QR match.",
@@ -4110,6 +4168,8 @@
       "storagePhDash": "– Site –",
       "rackPhDash": "– Rack –",
       "allocationSumInvalid": "Sum must be {qty} {unit} (now: {current})",
+      "allocDuplicateCrateHint": "The same box is selected in multiple rows — combine the quantities into one row.",
+      "allocCrateAlreadyUsedInRow": "Already selected in another row",
       "boughtFrom": "Purchased from (supplier)",
       "searchSupplier": "Search supplier…",
       "addNewSupplier": "Add new supplier",
@@ -4522,6 +4582,8 @@
       "selectPickSlotDash": "– Select bin –",
       "labelBoxBagSm": "Box / bag",
       "allocSumMismatch": "Total must be {qty} pcs. (now: {sum})",
+      "allocDuplicateCrateHint": "The same box is selected in multiple rows — combine the quantities into one row.",
+      "allocCrateAlreadyUsedInRow": "Already selected in another row",
       "labelMainStorage": "Main storage location",
       "rackLabel": "Rack",
       "slotLabel": "Bin",
@@ -6205,7 +6267,10 @@
       "packModeTitle": "How should the warehouse manager pack?",
       "packModeTogether": "Together as set (pack crate «{name}»)",
       "packModeLoose": "Loose — warehouse manager organises",
-      "selfProvidedAck": "I will organise these parts myself and bring them to the event."
+      "selfProvidedAck": "I will organise these parts myself and bring them to the event.",
+      "stockImpactTitle": "Impact on stock",
+      "stockImpactOverlap": "{name}: {loose} already booked loose on this activity — set needs {need}. On confirm you can combine or adjust quantities.",
+      "stockImpactShortage": "{name}: booking separately would need {total} pcs., only {avail} available in the period."
     }
   },
   "verwaltung": {

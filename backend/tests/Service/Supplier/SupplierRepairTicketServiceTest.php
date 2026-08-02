@@ -36,9 +36,26 @@ class SupplierRepairTicketServiceTest extends TestCase
         $department->method('getId')->willReturn('de12345678901');
         $department->method('getName')->willReturn('Pfadi');
 
+        $ticketState = new class {
+            public string $status = WorkshopTicket::STATUS_IN_PROGRESS;
+
+            public ?string $actualCost = null;
+        };
+
         $ticket = $this->createMock(WorkshopTicket::class);
         $ticket->method('getId')->willReturn($ticketId);
-        $ticket->method('getStatus')->willReturn(WorkshopTicket::STATUS_IN_PROGRESS);
+        $ticket->method('getStatus')->willReturnCallback(fn (): string => $ticketState->status);
+        $ticket->method('setStatus')->willReturnCallback(function (string $newStatus) use ($ticketState, $ticket): WorkshopTicket {
+            $ticketState->status = $newStatus;
+
+            return $ticket;
+        });
+        $ticket->method('getActualCost')->willReturnCallback(fn (): ?string => $ticketState->actualCost);
+        $ticket->method('setActualCost')->willReturnCallback(function (?string $cost) use ($ticketState, $ticket): WorkshopTicket {
+            $ticketState->actualCost = $cost;
+
+            return $ticket;
+        });
         $ticket->method('canTransitionTo')->willReturnCallback(
             static fn (string $status): bool => $status === WorkshopTicket::STATUS_COMPLETED,
         );
@@ -53,7 +70,10 @@ class SupplierRepairTicketServiceTest extends TestCase
         $ticket->method('getTitle')->willReturn('Zelt reparieren');
         $ticket->method('getDescription')->willReturn(null);
         $ticket->method('getEstimatedCost')->willReturn('120.00');
-        $ticket->method('getActualCost')->willReturn(null);
+        $ticket->method('setResolutionAction')->willReturnSelf();
+        $ticket->method('setCompletedAt')->willReturnSelf();
+        $ticket->method('syncPhaseFromStatus')->willReturnCallback(static function (): void {});
+        $ticket->method('updateTimestamps')->willReturnCallback(static function (): void {});
         $ticket->method('getResolutionAction')->willReturn(null);
         $ticket->method('getResolutionNotes')->willReturn(null);
         $ticket->method('getStartedAt')->willReturn(new \DateTime('2026-06-01'));
@@ -73,21 +93,11 @@ class SupplierRepairTicketServiceTest extends TestCase
         $companyRepo = $this->createMock(SupplierCompanyRepository::class);
         $companyRepo->method('find')->with($companyId)->willReturn($company);
 
-        $query = $this->createMock(AbstractQuery::class);
-        $query->method('getOneOrNullResult')->willReturn($ticket);
-
-        $qb = $this->createMock(QueryBuilder::class);
-        $qb->method('select')->willReturnSelf();
-        $qb->method('from')->willReturnSelf();
-        $qb->method('innerJoin')->willReturnSelf();
-        $qb->method('leftJoin')->willReturnSelf();
-        $qb->method('where')->willReturnSelf();
-        $qb->method('andWhere')->willReturnSelf();
-        $qb->method('setParameter')->willReturnSelf();
-        $qb->method('getQuery')->willReturn($query);
+        $ticketQb = $this->createTicketQueryBuilder($ticket);
+        $serialQb = $this->createSerialQueryBuilder();
 
         $em = $this->createMock(EntityManagerInterface::class);
-        $em->method('createQueryBuilder')->willReturn($qb);
+        $em->method('createQueryBuilder')->willReturnOnConsecutiveCalls($ticketQb, $serialQb);
         $em->expects($this->once())->method('flush');
         $em->expects($this->once())->method('persist');
 
@@ -130,5 +140,40 @@ class SupplierRepairTicketServiceTest extends TestCase
 
         $this->assertSame(WorkshopTicket::STATUS_COMPLETED, $result['status']);
         $this->assertSame('125.50', $result['actual_cost']);
+    }
+
+    private function createTicketQueryBuilder(WorkshopTicket $ticket): QueryBuilder
+    {
+        $query = $this->createMock(AbstractQuery::class);
+        $query->method('getOneOrNullResult')->willReturn($ticket);
+
+        $qb = $this->createMock(QueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('innerJoin')->willReturnSelf();
+        $qb->method('leftJoin')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('setParameter')->willReturnSelf();
+        $qb->method('getQuery')->willReturn($query);
+
+        return $qb;
+    }
+
+    private function createSerialQueryBuilder(): QueryBuilder
+    {
+        $query = $this->createMock(AbstractQuery::class);
+        $query->method('getOneOrNullResult')->willReturn(null);
+
+        $qb = $this->createMock(QueryBuilder::class);
+        $qb->method('select')->willReturnSelf();
+        $qb->method('from')->willReturnSelf();
+        $qb->method('where')->willReturnSelf();
+        $qb->method('andWhere')->willReturnSelf();
+        $qb->method('setParameter')->willReturnSelf();
+        $qb->method('setMaxResults')->willReturnSelf();
+        $qb->method('getQuery')->willReturn($query);
+
+        return $qb;
     }
 }

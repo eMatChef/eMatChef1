@@ -738,14 +738,16 @@
     "emptyInProgressTitle": "Keine Aufgaben in Bearbeitung",
     "emptyInProgressText": "Aufgaben, die du bearbeitest, erscheinen hier.",
     "emptyDoneTitle": "Keine erledigten Aufgaben",
-    "emptyDoneText": "Abgeschlossene QR-Kontakte findest du hier.",
+    "emptyDoneText": "Abgeschlossene Aufgaben findest du hier.",
     "kindQr": "QR-Kontakt",
     "kindDeptInvite": "Department-Einladung",
     "kindCampInvite": "Camp / Anlass",
     "kindAccounting": "Buchhaltung",
     "actionHandle": "Bearbeiten",
     "actionReadMessage": "Nachricht lesen",
-    "actionAccounting": "Buchung zuordnen"
+    "actionAccounting": "Buchung zuordnen",
+    "actionAccountingContinue": "Buchung fortsetzen",
+    "actionAccountingView": "Buchung anzeigen"
   },
   "tasksPrint": {
     "subtitle": "Druckkorb für QR-Etiketten (DB-basiert)",
@@ -2034,6 +2036,7 @@
       "toastQtySaved": "Mengen gespeichert",
       "toastPackModeSaved": "Pack-Vorgabe gespeichert",
       "toastQtySaveFailed": "Mengen konnten nicht gespeichert werden.",
+      "toastConsolidateFailed": "Doppelte Materialzeilen konnten nicht zusammengeführt werden.",
       "toastMaterialAdded": "Material hinzugefügt",
       "toastMaterialAddFailed": "Material konnte nicht hinzugefügt werden.",
       "toastPositionRemoved": "Position entfernt",
@@ -2050,6 +2053,8 @@
       "confirmCancelAction": "Stornieren",
       "confirmRemovePackedTitle": "Gepacktes Material entfernen?",
       "confirmRemovePackedMessage": "«{name}» wurde bereits gepackt oder ist in der Pack-Pipeline.\n\nLiegt alles wieder physisch im Materialwart-Lager? Beim Entfernen werden Packliste, Pack-Behälter und Meldungen zu dieser Position gelöscht.",
+      "confirmRemoveVirtualComboTitle": "Virtuelle Kombo entfernen?",
+      "confirmRemoveVirtualComboMessage": "«{name}» und alle zugehörigen Set-Positionen werden entfernt. Lose Einzelpositionen (z. B. Blachen) werden um den Set-Bedarf dieser Kombo reduziert.",
       "qrGenLoading": "Erzeuge…",
       "qrGenCreate": "QR-Code erzeugen",
       "labelCode": "Code",
@@ -2146,7 +2151,11 @@
       "quantityDialogLabel": "Menge",
       "quantityDialogMax": "Maximal {max} im gewählten Zeitraum verfügbar",
       "quantityDialogPackHint": "Verpackung: {n} Stück pro {unit}",
-      "quantityDialogConfirm": "{n}× übernehmen"
+      "quantityDialogConfirm": "{n}× übernehmen",
+      "customQtyLabel": "Menge eingeben",
+      "customQtyPlaceholder": "Anz.",
+      "customQtyTitle": "Gewünschte Menge eingeben, dann + oder Enter",
+      "customQtyAdd": "Eingegebene Menge hinzufügen"
     },
     "combineDialog": {
       "title": "Kombinieren?",
@@ -2155,6 +2164,16 @@
       "explain": "Vorhandene Einheit für die Kombo nutzen (Einzelposition wird entsprechend reduziert) – oder beides getrennt buchen.",
       "useExisting": "Vorhandene nutzen",
       "keepSeparate": "Getrennt buchen"
+    },
+    "combineSeparateShortage": {
+      "title": "Bestand reicht nicht für getrennte Buchung",
+      "intro": "Wenn „{name}“ getrennt gebucht wird, übersteigt der Gesamtbedarf den verfügbaren Bestand im Zeitraum.",
+      "lineDetail": "Gewünscht gesamt: {total} · Maximal möglich: {available}",
+      "reduceStandalone": "Einzelposition: {from} → {to} (−{n})",
+      "remainingBlock": "Auch nach Anpassung fehlen noch {n} — Set-Menge reduzieren oder «Vorhandene nutzen» wählen.",
+      "explainAdjust": "Wir können die eigenständigen Positionen reduzieren und die Kombo trotzdem getrennt buchen.",
+      "explainBlocked": "Getrennt buchen ist so nicht möglich. Bitte «Vorhandene nutzen» wählen oder die Set-Menge verringern.",
+      "adjustAndBook": "Anpassen und getrennt buchen"
     },
     "materialLinesTable": {
       "shortageBanner": "Im gewählten Abhol-/Rückgabezeitraum reicht der Bestand für mindestens eine Position nicht — betroffene Zeilen stehen oben in der Liste.",
@@ -2176,7 +2195,8 @@
       "comboFloorRemoveTitle": "Kombo-Bedarf {min} — nur Extra-Menge darüber per −1 entfernen",
       "virtualComboQtyHint": "Set-Menge beim Hinzufügen festgelegt",
       "virtualComboChildQtyHint": "Menge durch virtuelle Kombo festgelegt",
-      "virtualComboRemoveTitle": "Virtuelle Kombo hier nicht entfernbar",
+      "virtualComboRemoveBlockedTitle": "Virtuelle Kombo während des Packens nicht entfernbar",
+      "virtualComboRemoveTitle": "Virtuelle Kombo entfernen",
       "virtualComboChildRemoveTitle": "Kombo-Teil — nur über die Kombo-Zeile oben steuerbar",
       "warnOverRestTitle": "Menge über verfügbaren Rest",
       "packListRemoveTitle": "Zuordnung über die Packliste (Behälter)",
@@ -2465,7 +2485,28 @@
       "quickPhase": {
         "aria": "Material-Phase",
         "return": "Retour",
-        "returnDisabledHint": "Erst alles ausgeben, dann Retour starten"
+        "bringBack": "Retour bringen",
+        "returnDisabledHint": "Erst etwas ausgeben oder «Habe nur das mitgenommen» wählen",
+        "returnDisabledNoIssue": "Noch nichts mitgenommen — zuerst Material ausgeben"
+      },
+      "quickStatusTrail": {
+        "aria": "Aktivitäts-Status in der Material-Pipeline"
+      },
+      "logisticsStatusTrail": {
+        "aria": "Transport-Kette der Aktivität"
+      },
+      "partialTaken": {
+        "action": "Habe nur das mitgenommen",
+        "title": "Aktivitäts-Status auf «Mit mir unterwegs» setzen — nur für bereits mitgenommenes Material (Rest bleibt «Gepackt»).",
+        "titleMw": "Notfall: Status «Mit mir unterwegs» setzen — nur für schon mitgenommenes Material.",
+        "confirm": "Nur das bereits mitgenommene Material gilt als «Mit mir unterwegs». Der Rest bleibt gepackt und muss nicht retourniert werden.",
+        "confirmMw": "Status «Mit mir unterwegs» setzen — nur für schon mitgenommenes Material. Rest bleibt «Gepackt».",
+        "toastSuccess": "Status «Mit mir unterwegs» gesetzt — Retour kann beginnen."
+      },
+      "progressBreakdown": {
+        "crates": "{count} in Kisten",
+        "consumables": "{count} Verbrauch",
+        "loose": "{count} lose"
       },
       "quickReturnHandoff": {
         "title": "Retour erledigt",
@@ -2535,6 +2576,10 @@
         "accordionCount": "{count} Positionen",
         "looseTake": "Lose mitnehmen",
         "reassignCrate": "In andere Packkiste",
+        "reassignCratePlaceholder": "Packkiste wählen…",
+        "deleteEmptyPackCrate": "Leere Packkiste entfernen",
+        "warehouseTemplateSection": "Lager-Vorlage (nicht auf Packliste gebucht)",
+        "warehouseTemplateBadge": "Lager-Vorlage",
         "atEventTotal": "{count} total",
         "atEventTaken": "{count} mitgenommen",
         "atEventLoss": "{count} Verlust",
@@ -2633,6 +2678,11 @@
       },
       "readonlyFutureStep": "Dieser Schritt ist noch nicht freigeschaltet — bitte den vorherigen Schritt abschliessen.",
       "readonlyPastStep": "Dieser Schritt ist bereits abgeschlossen — nur Ansicht.",
+      "mwStepEdit": {
+        "hint": "Als Materialwart kannst du diesen Schritt zur Korrektur freischalten.",
+        "action": "Schritt bearbeiten",
+        "active": "Bearbeitungsmodus aktiv — du kannst Buchungen in diesem Schritt vornehmen."
+      },
       "jsBanner": {
         "hint": "J+S-Leihmaterial wird im Tab J+S bestellt und geprüft — nicht über diese Packliste.",
         "noPositionsYet": "Noch keine J+S-Positionen — Bestellformular im Tab J+S ausfüllen."
@@ -2649,6 +2699,7 @@
         "empty": "Keine offenen Positionen in dieser Kiste.",
         "sectionSummary": "{count} offen",
         "subtitleReturn": "Inhalt prüfen und Kiste retournieren",
+        "subtitleReturnCheck": "Retour-Kistencheck — Inhalt für den Rücktransport prüfen",
         "subtitleStore": "Inhalt prüfen und Kiste einlagern",
         "subtitleStoreLines": "Zuerst Inhalt einlagern — pro Position Regal scannen",
         "shellAfterContent": "Inhalt erledigt — jetzt die Kiste (Hülle) einlagern.",
@@ -2820,9 +2871,15 @@
         "actionUseAsPackCrate": "Ja, als Packkiste nutzen",
         "actionDeclinePackCrate": "Nein",
         "actionShow": "Anzeigen",
+        "actionMiniInventory": "Mini-Inventur starten",
+        "crateNotEmptyBlocked": "Kiste ist nicht leer — nur leere Kisten können als Packkiste genutzt werden.",
+        "crateWarehouseWarning": "Lager-Inhalt: {count} Positionen ({total} Stk.) laut Vorlage in dieser Kiste — stimmt das?",
+        "crateWarehouseHint": "Bei Abweichung Mini-Inventur starten oder eine leere Kiste scannen.",
         "result": {
           "not_on_list": "Nicht auf dieser Packliste.",
           "unknown_crate": "Kiste ist noch nicht auf der Packliste. Als Packkiste nutzen?",
+          "unknown_crate_not_empty": "Kiste ist nicht leer — nur leere Kisten können als Packkiste genutzt werden.",
+          "crate_shell_with_content": "Kiste mit Lager-Inhalt erkannt — nicht als leere Packkiste nutzbar.",
           "not_ready": "Materialwart packt noch.",
           "wrong_batch": "Andere Charge als geplant.",
           "serialized_mismatch": "Falsche Charge — bei Seriennummern muss der QR exakt passen.",
@@ -5637,6 +5694,8 @@
       "rackPhDash": "– Gestell –",
       "slotPhOptional": "– optional –",
       "allocationSumInvalid": "Summe muss {qty} {unit} ergeben (aktuell: {current})",
+      "allocDuplicateCrateHint": "Dieselbe Kiste ist in mehreren Zeilen gewählt — bitte Mengen in einer Zeile zusammenfassen.",
+      "allocCrateAlreadyUsedInRow": "Bereits in einer anderen Zeile gewählt",
       "boughtFrom": "Gekauft von (Lieferant)",
       "searchSupplier": "Lieferant suchen...",
       "addNewSupplier": "Neuen Lieferanten hinzufügen",
@@ -6063,6 +6122,8 @@
       "selectPickSlotDash": "– Fach wählen –",
       "labelBoxBagSm": "Kiste/Tasche",
       "allocSumMismatch": "Summe muss {qty} Stk. ergeben (aktuell: {sum})",
+      "allocDuplicateCrateHint": "Dieselbe Kiste ist in mehreren Zeilen gewählt — bitte Mengen in einer Zeile zusammenfassen.",
+      "allocCrateAlreadyUsedInRow": "Bereits in einer anderen Zeile gewählt",
       "labelMainStorage": "Hauptlagerplatz",
       "rackLabel": "Gestell",
       "slotLabel": "Fach",
@@ -7100,7 +7161,10 @@
       "packModeTitle": "Wie soll der Materialwart packen?",
       "packModeTogether": "Zusammen als Set (Packkiste «{name}»)",
       "packModeLoose": "Lose — Materialwart organisiert selbst",
-      "selfProvidedAck": "Ich organisiere diese Teile selbst und bringe sie zum Anlass mit."
+      "selfProvidedAck": "Ich organisiere diese Teile selbst und bringe sie zum Anlass mit.",
+      "stockImpactTitle": "Auswirkung auf den Bestand",
+      "stockImpactOverlap": "{name}: {loose} Stk. bereits lose auf der Aktivität — Set braucht {need}. Beim Übernehmen «Kombinieren?» oder Mengen anpassen.",
+      "stockImpactShortage": "{name}: getrennt wären {total} Stk. nötig, im Zeitraum nur {avail} verfügbar."
     },
     "activityCreateWizard": {
       "toastDraftLoadFailed": "Entwurf konnte nicht geladen werden."

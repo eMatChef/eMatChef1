@@ -57,15 +57,9 @@ export function useMaterialJourneyPackCrates(options: {
     const used = new Set(
       options.packContainers.value.map((c) => c.container_batch_id).filter((id): id is string => !!id),
     )
-    const rows = stockContainerBatches.value.filter((b) => !used.has(b.id))
-    return [...rows].sort((a, b) => {
-      const score = (x: ContainerBatch) => (x.storage_empty === true ? 0 : x.storage_empty === false ? 1 : 2)
-      const d = score(a) - score(b)
-      if (d !== 0) return d
-      const la = (a.display_label || a.label || a.material_name || '').toString()
-      const lb = (b.display_label || b.label || b.material_name || '').toString()
-      return la.localeCompare(lb, locale.value)
-    })
+    return stockContainerBatches.value.filter(
+      (b) => !used.has(b.id) && b.storage_empty === true,
+    )
   })
 
   const addContainerBatchOptions = computed(() =>
@@ -113,6 +107,10 @@ export function useMaterialJourneyPackCrates(options: {
     if (!activityId) return
 
     const batch = stockContainerBatches.value.find((b) => b.id === selectedStockBatchId.value)
+    if (!batch || batch.storage_empty !== true) {
+      toast.error(t('activities.materialJourney.scan.crateNotEmptyBlocked'))
+      return
+    }
     const containerBatchId = selectedStockBatchId.value
     const raw =
       batch?.display_label?.trim() ||

@@ -1,6 +1,7 @@
 import { computed, nextTick, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityDetail, ActivityIssueReportRow } from '@/api/activities'
+import { getActivityIssues } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import {
   createActivityPackContainer,
@@ -45,6 +46,7 @@ import {
   resolveEffectiveActiveJourneyStep,
   type JourneyStepAccess,
 } from '@/utils/materialJourneyNavigation'
+import { isContainerBatchEmptyForPack } from '@/utils/materialJourneyCrateWarehousePeek'
 
 export type { MaterialJourneyFilterTab } from '@/components/activities/materialJourneyTaskList'
 
@@ -92,6 +94,26 @@ export function useMaterialJourneyTasks(options: {
 
   const packStage = computed(() => journeyStepToPackStage(options.journeyStep.value, options.profile.value))
 
+  const issueReports = ref<ActivityIssueReportRow[]>([])
+
+  async function reloadIssues(): Promise<void> {
+    const id = options.activity.value?.id
+    if (!id || options.isEarlyPackPreview.value) {
+      issueReports.value = []
+      return
+    }
+    issueReports.value = await getActivityIssues(id).catch(() => [])
+  }
+
+  watch(
+    [() => options.activity.value?.id, options.isEarlyPackPreview],
+    () => void reloadIssues(),
+    { immediate: true },
+  )
+  watch(options.packItems, () => {
+    if (!options.isEarlyPackPreview.value && options.activity.value?.id) void reloadIssues()
+  })
+
   const activeJourneyStep = computed(() =>
     resolveEffectiveActiveJourneyStep(
       options.activity.value,
@@ -120,8 +142,38 @@ export function useMaterialJourneyTasks(options: {
     ),
   )
 
-  const isFutureStep = computed(() => stepAccess.value === 'readonly_future')
-  const isPastStep = computed(() => stepAccess.value === 'readonly_past')
+  const mwStepEditOverride = ref(false)
+
+  watch(options.journeyStep, () => {
+    mwStepEditOverride.value = false
+  })
+
+  const effectiveStepAccess = computed((): JourneyStepAccess => {
+    if (options.canManageMaterials.value && mwStepEditOverride.value) {
+      return 'editable'
+    }
+    return stepAccess.value
+  })
+
+  const isFutureStep = computed(() => effectiveStepAccess.value === 'readonly_future')
+  const isPastStep = computed(
+    () => effectiveStepAccess.value === 'readonly_past' && !mwStepEditOverride.value,
+  )
+
+  const showMwStepEditButton = computed(
+    () =>
+      options.canManageMaterials.value &&
+      !options.isEarlyPackPreview.value &&
+      stepAccess.value !== 'editable',
+  )
+
+  const mwStepEditActive = computed(
+    () => options.canManageMaterials.value && mwStepEditOverride.value,
+  )
+
+  function enableMwStepEdit(): void {
+    mwStepEditOverride.value = true
+  }
 
   const movesEnabledForStep = computed(() =>
     isJourneyLooseMovesEnabledForStep(options.journeyStep.value, options.profile.value),
@@ -133,7 +185,7 @@ export function useMaterialJourneyTasks(options: {
     if (options.activity.value?.is_pack_list_editable === false) {
       if (!(status === 'storing' && options.canManageMaterials.value)) return false
     }
-    if (stepAccess.value !== 'editable') return false
+    if (stepAccess.value !== 'editable' && !mwStepEditOverride.value) return false
     if (!packWorkflowCanEdit(
       options.profile.value,
       options.canManageMaterials.value,
@@ -682,7 +734,14 @@ export function useMaterialJourneyTasks(options: {
 
   async function submitAddScannedPackCrate(batchId: string, label: string): Promise<ActivityPackContainer | null> {
     const activityId = options.activity.value?.id
+    const departmentId = options.activity.value?.department_id ?? ''
     if (!activityId || !batchId.trim()) return null
+
+    const empty = await isContainerBatchEmptyForPack(departmentId, activityId, batchId)
+    if (!empty) {
+      toast.error(t('activities.materialJourney.scan.crateNotEmptyBlocked'))
+      return null
+    }
 
     const raw = label.trim() || t('activities.packList.crateTargetFallback')
     addingPackCrate.value = true
@@ -834,8 +893,12 @@ export function useMaterialJourneyTasks(options: {
     listEditable,
     movesEnabledForStep,
     stepAccess,
+    effectiveStepAccess,
     isFutureStep,
     isPastStep,
+    showMwStepEditButton,
+    mwStepEditActive,
+    enableMwStepEdit,
     activeJourneyStep,
     shellPackItemForContainer,
     visibleTasks,
@@ -896,7 +959,9 @@ export function useMaterialJourneyTasks(options: {
     togglePackCrateSelection,
     clearSelectedPackCrate,
     submitAddScannedPackCrate,
-    assignPackItemToSelectedCrate,
-    packCrateAssignQtyForItem,
+  assignPackItemToSelectedCrate,
+  packCrateAssignQtyForItem,
+  issueReports,
+  reloadIssues,
   }
 }

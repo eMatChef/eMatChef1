@@ -42,7 +42,7 @@ import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityM
 import type { ActivityPeriodAvailabilityMaterial } from '@/components/activities/shared/activityAvailabilityMaterial'
 import type { ActivityCreateType, ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
-import { canRemoveStandaloneLine } from '@/utils/virtualComboMaterial'
+import { canRemoveStandaloneLine, childQuantityByMaterialItemIdFromItems } from '@/utils/virtualComboMaterial'
 
 /** Nur angenommene Einladungen — Tab „Partner“ und API single/both */
 interface InvitedPartnerDepartment {
@@ -98,10 +98,19 @@ const activityType = computed((): ActivityApiType => props.activityType as Activ
 const planningStartIso = computed(() => props.planningStartAt?.toISOString() ?? null)
 const planningEndIso = computed(() => props.planningEndAt?.toISOString() ?? null)
 
+const childQuantityByMaterialItemIdFromLines = computed(() =>
+  childQuantityByMaterialItemIdFromItems(props.modelValue, {
+    quantityFor: (r) => r.quantity ?? 0,
+  }),
+)
+
 const quantityByMaterialItemIdFromLines = computed(() => {
+  const standalone = standaloneQuantityByMaterialItemIdFromLines.value
+  const child = childQuantityByMaterialItemIdFromLines.value
+  const ids = new Set([...Object.keys(standalone), ...Object.keys(child)])
   const m: Record<string, number> = {}
-  for (const row of props.modelValue) {
-    m[row.material_item_id] = (m[row.material_item_id] ?? 0) + row.quantity
+  for (const id of ids) {
+    m[id] = (standalone[id] ?? 0) + (child[id] ?? 0)
   }
   return m
 })
@@ -125,7 +134,18 @@ const invitedDepartmentsForLookup = computed(() =>
 )
 
 function onRemoveLine({ line, index }: { line: ActivityMaterialLine; index: number }) {
-  if (line.material_type === 'virtual_combo') return
+  if (line.parent_activity_item_id) return
+  if (line.material_type === 'virtual_combo') {
+    emit(
+      'update:modelValue',
+      props.modelValue.filter((row, i) => {
+        if (i === index) return false
+        if (line.activity_item_id && row.parent_activity_item_id === line.activity_item_id) return false
+        return true
+      }),
+    )
+    return
+  }
   if (
     line.material_type !== 'physical_combo' &&
     !canRemoveStandaloneLine(line, props.modelValue, {

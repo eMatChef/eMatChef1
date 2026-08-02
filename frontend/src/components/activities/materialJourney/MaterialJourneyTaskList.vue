@@ -58,13 +58,16 @@ const props = defineProps<{
   isConsumableForMaterialId?: (materialItemId: string) => boolean
   containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
   shellStorePendingQtyForRow?: (row: TaskRow) => number
+  showCrateContentActions?: boolean
+  deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
-  reassign: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
+  deleteEmpty: [row: TaskRow]
   moveBack: [row: TaskRow, qty: number]
   'update:moveBackQty': [row: TaskRow, qty: number]
   moveForward: [row: TaskRow, qty: number]
@@ -141,15 +144,20 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
 }
 
 function hasReassignTargetsFor(row: TaskRow): boolean {
-  if (row.kind !== 'crate' || !row.container) return false
-  if (!props.packContainers || !props.shellPackItemForContainer) return false
-  return (
-    reassignTargetPackCrates(
-      props.packContainers,
-      row.container.id,
-      props.shellPackItemForContainer,
-    ).length > 0
-  )
+  return reassignTargetsFor(row).length > 0
+}
+
+function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
+  if (row.kind !== 'crate' || !row.container) return []
+  if (!props.packContainers || !props.shellPackItemForContainer) return []
+  return reassignTargetPackCrates(
+    props.packContainers,
+    row.container.id,
+    props.shellPackItemForContainer,
+  ).map((container) => ({
+    id: container.id,
+    label: container.label,
+  }))
 }
 
 const listIsEmpty = computed(() =>
@@ -242,11 +250,14 @@ const emptyDescription = computed(() => {
         :journey-step="journeyStep"
         :container-line-remaining-store="containerLineRemainingStore"
         :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
+        :show-crate-content-actions="showCrateContentActions"
+        :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
         :has-reassign-targets-for-row="hasReassignTargetsFor"
         @activate="emit('activate', $event)"
         @select-target="emit('selectTarget', $event)"
         @loose-take="(row, line) => emit('looseTake', row, line)"
-        @reassign="(row, line) => emit('reassign', row, line)"
+        @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
+        @delete-empty="emit('deleteEmpty', $event)"
         @move-back="(row, qty) => emit('moveBack', row, qty)"
         @update:move-back-qty="(row, qty) => emit('update:moveBackQty', row, qty)"
         @move-forward="(row, qty) => emit('moveForward', row, qty)"
@@ -283,6 +294,9 @@ const emptyDescription = computed(() => {
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
+          :reassign-targets="reassignTargetsFor(row)"
+          :show-crate-content-actions="showCrateContentActions"
+          :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
@@ -295,7 +309,8 @@ const emptyDescription = computed(() => {
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
-          @reassign="emit('reassign', row, $event)"
+          @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
+          @delete-empty="emit('deleteEmpty', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"

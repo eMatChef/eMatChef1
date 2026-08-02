@@ -89,6 +89,7 @@ class WorkshopTicketCompletionServiceTest extends TestCase
     public function testApplyCompletionMarksStockLinesConsumed(): void
     {
         $material = $this->createMock(MaterialItem::class);
+        $material->method('getId')->willReturn('ma98765432109');
         $material->method('getCondition')->willReturn('repair');
         $material->method('getName')->willReturn('Hammer');
 
@@ -115,6 +116,7 @@ class WorkshopTicketCompletionServiceTest extends TestCase
         ));
 
         $spareMaterial = $this->createMock(MaterialItem::class);
+        $spareMaterial->method('getId')->willReturn('ma1234567890');
         $spareMaterial->method('getCondition')->willReturn('ok');
         $spareMaterial->method('getName')->willReturn('Schraube');
 

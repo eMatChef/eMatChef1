@@ -11,6 +11,59 @@ import { getPublicFoundMessages, type PublicFoundItemMessage } from '@/api/publi
 import { listAcquisitionFollowups, type AccountingAcquisitionFollowUp } from '@/api/accountingAcquisitionFollowups'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 
+const ACCOUNTING_IN_PROGRESS_STORAGE_KEY = 'ematchef-task-accounting-in-progress'
+
+export function readAccountingInProgressIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(ACCOUNTING_IN_PROGRESS_STORAGE_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((id): id is string => typeof id === 'string' && id.length > 0))
+  } catch {
+    return new Set()
+  }
+}
+
+export function markAccountingFollowUpInProgress(followUpId: string): void {
+  const ids = readAccountingInProgressIds()
+  ids.add(followUpId)
+  sessionStorage.setItem(ACCOUNTING_IN_PROGRESS_STORAGE_KEY, JSON.stringify([...ids]))
+}
+
+export function clearAccountingInProgressIds(recordedIds: Iterable<string>): void {
+  const recorded = new Set(recordedIds)
+  if (recorded.size === 0) return
+  const ids = readAccountingInProgressIds()
+  let changed = false
+  for (const id of recorded) {
+    if (ids.delete(id)) changed = true
+  }
+  if (!changed) return
+  if (ids.size === 0) {
+    sessionStorage.removeItem(ACCOUNTING_IN_PROGRESS_STORAGE_KEY)
+  } else {
+    sessionStorage.setItem(ACCOUNTING_IN_PROGRESS_STORAGE_KEY, JSON.stringify([...ids]))
+  }
+}
+
+function accountingFollowUpStatus(
+  row: AccountingAcquisitionFollowUp,
+  inProgressIds: Set<string>,
+): DepartmentTaskStatus {
+  if (row.status === 'recorded') return 'done'
+  if (inProgressIds.has(row.id)) return 'in_progress'
+  return 'open'
+}
+
+function accountingFollowUpTitle(row: AccountingAcquisitionFollowUp): string {
+  if (row.activity_name?.trim()) {
+    const material = row.material_name?.trim()
+    return material ? `${row.activity_name} · ${material}` : row.activity_name
+  }
+  return row.material_name || row.receipt_label || row.id
+}
+
 export type DepartmentTaskKind =
   | 'qr_found'
   | 'department_invite'
@@ -79,15 +132,22 @@ export async function loadDepartmentTasks(
 
   const accountingPromise =
     !options.isUserRole && departmentHasAccountingRole(departmentId)
-      ? listAcquisitionFollowups(departmentId, 'pending').catch(() => [])
-      : Promise.resolve([] as AccountingAcquisitionFollowUp[])
+      ? Promise.all([
+          listAcquisitionFollowups(departmentId, 'pending').catch(() => [] as AccountingAcquisitionFollowUp[]),
+          listAcquisitionFollowups(departmentId, 'recorded').catch(() => [] as AccountingAcquisitionFollowUp[]),
+        ])
+      : Promise.resolve([[], []] as [AccountingAcquisitionFollowUp[], AccountingAcquisitionFollowUp[]])
 
-  const [deptInv, camp, qr, accounting] = await Promise.all([
+  const [deptInv, camp, qr, accountingRows] = await Promise.all([
     deptInvPromise,
     campPromise,
     qrPromise,
     accountingPromise,
   ])
+
+  const [accountingPending, accountingRecorded] = accountingRows
+  clearAccountingInProgressIds(accountingRecorded.map((row) => row.id))
+  const accountingInProgressIds = readAccountingInProgressIds()
 
   for (const msg of qr.items || []) {
     items.push({
@@ -106,7 +166,7 @@ export async function loadDepartmentTasks(
       items.push({
         id: `ga-${inv.id}`,
         kind: 'grossanlass_mw_assigned',
-        status: 'open',
+        status: inv.read ? 'done' : 'open',
         createdAt: inv.created_at,
         title: inv.department_name,
         preview: inv.dashboard_url,
@@ -118,7 +178,7 @@ export async function loadDepartmentTasks(
       items.push({
         id: `ga-round-${inv.id}`,
         kind: 'grossanlass_round_opened',
-        status: 'open',
+        status: inv.read ? 'done' : 'open',
         createdAt: inv.created_at,
         title: inv.round_name,
         preview: inv.planung_url,
@@ -149,13 +209,25 @@ export async function loadDepartmentTasks(
     })
   }
 
-  for (const row of accounting) {
+  for (const row of accountingPending) {
     items.push({
       id: `acc-${row.id}`,
       kind: 'accounting_followup',
-      status: 'open',
+      status: accountingFollowUpStatus(row, accountingInProgressIds),
       createdAt: row.created_at,
-      title: row.material_name || row.receipt_label || row.id,
+      title: accountingFollowUpTitle(row),
+      preview: row.amount,
+      accounting: row,
+    })
+  }
+
+  for (const row of accountingRecorded.slice(0, 100)) {
+    items.push({
+      id: `acc-${row.id}`,
+      kind: 'accounting_followup',
+      status: 'done',
+      createdAt: row.updated_at || row.created_at,
+      title: accountingFollowUpTitle(row),
       preview: row.amount,
       accounting: row,
     })

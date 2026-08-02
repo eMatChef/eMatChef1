@@ -11,6 +11,7 @@ import {
   shellPackItemForContainerId,
 } from '@/components/activities/packShellCrateHelpers'
 import {
+  computeContainerStillAtEventQtyForMaterial,
   computeContainerLineRemainingReturn,
   computeContainerLineRemainingAtForwardStage,
   computeContainerShellIssueableUnits,
@@ -43,6 +44,7 @@ import {
   consumableConsumptionRemaining as consumableConsumptionRemainingFor,
   consumablePhysicalReturnMax as consumablePhysicalReturnMaxFor,
 } from '@/utils/materialJourneyConsumable'
+import { consumableShowsZeroOnStageLeft } from '@/utils/packConsumablePipeline'
 import {
   containerInnerPendingStoreUnits as unpackContainerInnerPendingStoreUnits,
   containerLineRemainingStore as unpackContainerLineRemainingStore,
@@ -204,6 +206,16 @@ export function createMaterialJourneyPackContextState(
     )
   }
 
+  function containerStillAtEventQtyForMaterial(materialItemId: string): number {
+    return computeContainerStillAtEventQtyForMaterial(packQuantityCtx, materialItemId)
+  }
+
+  function consumableStillOnlyInCrateAtReturn(pi: ActivityPackItem): boolean {
+    if (!isPackReturnStage(input.packStage)) return false
+    if (containerStillAtEventQtyForMaterial(pi.materialItemId) <= 0) return false
+    return computeLooseQtyStillAtEventForReturn(pi, packQuantityCtx) <= 0
+  }
+
   function containerReturnedContentUnits(containerId: string): number {
     let sum = 0
     for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
@@ -244,7 +256,14 @@ export function createMaterialJourneyPackContextState(
     getStageLeftQty: stageLeftQty,
     getStageRightQty: stageRightQty,
     looseQtyForPackItem,
-    consumableShowsZeroOnStageLeft: () => false,
+    consumableShowsZeroOnStageLeft: (pi) =>
+      consumableShowsZeroOnStageLeft(
+        pi,
+        input.packStage,
+        issues,
+        effectiveStageLeftQty(pi),
+        stageRightQty(pi),
+      ),
     consumableConsumptionRemaining: (pi) => consumableConsumptionRemainingFor(pi, issues),
     consumablePhysicalReturnMax: journeyConsumablePhysicalReturnMax,
     looseQtyStillAtEventForReturn: (pi) => computeLooseQtyStillAtEventForReturn(pi, packQuantityCtx),
@@ -259,7 +278,7 @@ export function createMaterialJourneyPackContextState(
     looseTransportBackOnRight: () => 0,
     notTakenQtyForReturn: () => 0,
     notTakenToEventQtyForMaterial: () => 0,
-    consumableStillOnlyInCrateAtReturn: () => false,
+    consumableStillOnlyInCrateAtReturn,
     consumableBookedConsumptionQty: (pi) => consumableBookedConsumptionQtyFor(pi, issues),
     isIndividuallyStorableCrateShell: () => false,
     containerReturnedAsWhole,
@@ -306,7 +325,31 @@ export function createMaterialJourneyPackContextState(
     return sum + computeContainerShellIssueableUnits(containerId, packQuantityCtx)
   }
 
+  function containerInnerTransportBackReturnableUnits(containerId: string): number {
+    let sum = 0
+    for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
+      if (isNonActionableContainerLine(ci)) continue
+      sum += Math.max(0, (ci.quantity_transport_back ?? 0) - (ci.quantity_returned ?? 0))
+    }
+    return sum
+  }
+
+  function containerShellTransportBackReturnableUnits(containerId: string): number {
+    const sh = shellPackItemForContainer(containerId)
+    if (!sh) return 0
+    return Math.max(0, (sh.quantityTransportBack ?? 0) - (sh.quantityReturned ?? 0))
+  }
+
+  function containerTransportBackReturnableUnits(containerId: string): number {
+    const inner = containerInnerTransportBackReturnableUnits(containerId)
+    if (inner > 0) return inner
+    return containerShellTransportBackReturnableUnits(containerId)
+  }
+
   function containerReturnableUnits(containerId: string): number {
+    if (input.packStage === 'transport_back_returned' && input.profile === 'logistics') {
+      return containerTransportBackReturnableUnits(containerId)
+    }
     let inner = 0
     for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
       if (isNonActionableContainerLine(ci)) continue
@@ -382,6 +425,9 @@ export function createMaterialJourneyPackContextState(
 
   function containerContentActionableUnits(containerId: string): number {
     if (isPackReturnStage(input.packStage)) {
+      if (input.packStage === 'transport_back_returned' && input.profile === 'logistics') {
+        return containerInnerTransportBackReturnableUnits(containerId)
+      }
       let inner = 0
       for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
         if (isNonActionableContainerLine(ci)) continue
@@ -412,11 +458,12 @@ export function createMaterialJourneyPackContextState(
     containerHasIssuedAtEvent,
     containerLineRemainingAtForwardStage,
     containerReturnableUnits,
-    containerReturnedAsWhole,
     containerStoreUnits,
+    containerTransportBackReturnableUnits,
     containerContentsTravelWithShellAtEvent: (containerId) =>
       isPackForwardToEventStage(input.packStage) && containerHasIssuedAtEvent(containerId),
     containerItemsForContainer: (containerId) => input.containerItemsByContainerId[containerId] ?? [],
+    containerReturnedAsWhole,
   }
 
   function packCrateLabelsForPackItem(pi: ActivityPackItem): string[] {

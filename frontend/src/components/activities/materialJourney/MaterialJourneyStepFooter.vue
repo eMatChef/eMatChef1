@@ -12,6 +12,7 @@ const props = defineProps<{
   journeyStep: JourneyStep
   profile: PackWorkflowProfile
   filterVariant?: 'default' | 'quickIssue'
+  progressBreakdown?: string | null
 }>()
 
 const { t } = useI18n()
@@ -44,6 +45,9 @@ const openHint = computed(() => {
     </p>
     <p v-if="openHint" class="material-journey-step-footer__hint text-muted">
       {{ openHint }}
+    </p>
+    <p v-if="progressBreakdown" class="material-journey-step-footer__breakdown text-muted">
+      {{ progressBreakdown }}
     </p>
   </footer>
 </template>

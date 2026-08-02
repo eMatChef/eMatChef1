@@ -220,6 +220,22 @@ export function isJourneyReturnStep(step: JourneyStep): boolean {
   return step === 'return'
 }
 
+/** Logistics: Kistencheck-Bein «return» auf Transport zurück und Retour. */
+export function isJourneyLogisticsReturnCrateCheckStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  return profile === 'logistics' && (step === 'transport_back' || step === 'return')
+}
+
+/** Journey-Schritt mit Retour-Pipeline (Modal / returnAll), inkl. Logistics Transport→Retour. */
+export function isJourneyReturnPipelineStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  return isJourneyReturnStep(step)
+}
+
 export function isJourneyStoreStep(step: JourneyStep): boolean {
   return step === 'store'
 }

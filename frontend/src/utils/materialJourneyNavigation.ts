@@ -48,6 +48,7 @@ function quickIssueWorkComplete(
 /**
  * Quick/External: ab «Am Anlass» ist Retour der aktive Checkpoint —
  * solange die Ausgabe-Checkliste erledigt ist (Rest = nicht mitgenommen).
+ * Logistics: bei at_event bleibt «Am Anlass» (issue) aktiv — kein Sprung auf Retour.
  */
 export function resolveEffectiveActiveJourneyStep(
   activity: Pick<ActivityDetail, 'status' | 'type'> | null | undefined,

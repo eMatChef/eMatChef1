@@ -1,0 +1,16 @@
+# Kopieren nach docker-compose.override.yml und anpassen.
+# docker-compose.override.yml gehört NICHT ins Git (Secrets/Domain-lokal).
+
+services:
+  https-portal:
+    environment:
+      # Domain muss bereits auf die Droplet-IP zeigen (A-Record), sonst kein Zertifikat.
+      DOMAINS: "translate.ematchef.ch -> http://weblate:8080"
+
+  weblate:
+    environment:
+      WEBLATE_SITE_DOMAIN: translate.ematchef.ch
+      WEBLATE_ALLOWED_HOSTS: translate.ematchef.ch
+      # Bei 2 GB RAM: 1 Worker (sonst crash/502). Besser: Droplet auf 4 GB.
+      WEBLATE_WORKERS: "1"
+      CELERY_SINGLE_PROCESS: "1"
