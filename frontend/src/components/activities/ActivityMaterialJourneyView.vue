@@ -378,7 +378,6 @@ const {
   containerItemsByContainerId,
   consumableMaterialItemIds: consumableMaterialItemIdsSet,
   shellPackItemForContainer,
-  issues: issueReports,
 })
 
 function onIssueLoss(row: MaterialJourneyTaskRow): void {

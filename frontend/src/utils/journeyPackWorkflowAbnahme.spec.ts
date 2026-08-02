@@ -36,7 +36,7 @@ function tasksForStep(
     containerItemsByContainerId: fixtures.containerItemsByContainerId,
     packStage,
     profile,
-    issueReports: fixtures.issueReports,
+    issues: fixtures.issueReports,
   })
   return buildMaterialJourneyTasks(fixtures.packItems, {
     listCtx: state.packListCtx,
