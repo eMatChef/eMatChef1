@@ -16,12 +16,15 @@ final class Version20260619130000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
+        // Frische DBs ohne J+S-Department (dept_js00000): Kategorie überspringen.
+        // Katalog/Department kommen aus Seed/Sync, nicht aus dieser Schema-Migration.
         $this->addSql(<<<'SQL'
             INSERT INTO category (id, department_id, name, description, parent_id, sort_order, created_at, updated_at)
             SELECT 'catjslagtr01', 'dept_js00000', 'Lagersport & Trekking',
                    'Bestellformular J+S Lagersport/Trekking — Positionen im Aktivitäts-Bestellmodal',
                    NULL, 0, NOW(), NOW()
             WHERE NOT EXISTS (SELECT 1 FROM category WHERE id = 'catjslagtr01')
+              AND EXISTS (SELECT 1 FROM department WHERE id = 'dept_js00000')
             SQL);
 
         $lines = [
