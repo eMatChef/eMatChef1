@@ -294,6 +294,9 @@
       "lead": "Terms of use and privacy — what applies on eMatChef and how we handle your data.",
       "emptyTitle": "Content coming soon",
       "emptyBody": "Sections on terms and privacy will be published here."
+    },
+    "footer": {
+      "status": "Status"
     }
   },
   "dashboard": {
@@ -1443,7 +1446,9 @@
       "switchDepartment": "Switch department",
       "departmentSettings": "Department settings",
       "switchSupplierCompany": "Switch company",
-      "logout": "Log out"
+      "logout": "Log out",
+      "versionTitle": "App version",
+      "versionAria": "App version {version}"
     },
     "profileModal": {
       "title": "Edit profile",
