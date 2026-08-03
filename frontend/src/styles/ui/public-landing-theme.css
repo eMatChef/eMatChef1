@@ -716,6 +716,22 @@
   color: var(--plt-text-soft);
 }
 
+.plt-footer-sep {
+  margin: 0 0.35em;
+}
+
+.plt-footer-status {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  text-decoration-color: color-mix(in srgb, var(--plt-text-soft) 50%, transparent);
+}
+
+.plt-footer-status:hover {
+  color: var(--plt-text);
+  text-decoration-color: var(--plt-accent);
+}
+
 /* Desktop: eine Zeile — Logo | Navigation | Sprache + Login */
 @media (min-width: 960px) {
   .plt-header-inner {

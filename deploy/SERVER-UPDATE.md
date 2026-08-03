@@ -612,6 +612,14 @@ Hostpoint muss also **nicht** bei jedem API-Deploy erneuert werden. Ein SPA-Teil
 
 ---
 
+## Status page (Better Stack)
+
+Öffentliche Uptime-Statusseite (wie eCamp): siehe **[`deploy/STATUS.md`](STATUS.md)**.
+
+Health-Endpoint für Monitore: `GET /api/health` (ohne Auth, DB-Ping).
+
+---
+
 ## Cron: Medien-Retention (Werkstatt-Fotos)
 
 Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **3**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).

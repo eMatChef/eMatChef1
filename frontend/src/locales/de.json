@@ -318,6 +318,9 @@
       "lead": "Nutzungsbedingungen und Datenschutz — transparent, was bei eMatChef gilt und wie wir mit Daten umgehen.",
       "emptyTitle": "Inhalt wird ergänzt",
       "emptyBody": "Die Abschnitte zu Nutzung und Datenschutz werden hier veröffentlicht."
+    },
+    "footer": {
+      "status": "Status"
     }
   },
   "publicNav": {
@@ -1579,7 +1582,9 @@
       "switchDepartment": "Department wechseln",
       "departmentSettings": "Abteilungseinstellungen",
       "switchSupplierCompany": "Firma wechseln",
-      "logout": "Abmelden"
+      "logout": "Abmelden",
+      "versionTitle": "App-Version",
+      "versionAria": "App-Version {version}"
     },
     "profileModal": {
       "title": "Profil bearbeiten",
