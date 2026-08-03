@@ -21,6 +21,10 @@ FRONTEND="$ROOT/frontend"
 
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
+VITE_APP_VERSION="$(node -p "require('$FRONTEND/package.json').version")"
+VITE_APP_GIT_SHA="$(git -C "$ROOT" rev-parse --short=7 HEAD 2>/dev/null || true)"
+export VITE_APP_VERSION VITE_APP_GIT_SHA
+
 # Dev-Hauptdomain (dev.ematchef.ch) — npm --prefix: kein cd (CI-sicher)
 VITE_DEPLOY_VARIANT=home \
 VITE_API_BASE=https://api-dev.ematchef.ch \
@@ -28,6 +32,8 @@ VITE_MAIN_SITE_ORIGIN=https://dev.ematchef.ch \
 VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
+VITE_APP_VERSION="$VITE_APP_VERSION" \
+VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 # Dev nicht indexieren — keine Sitemap von der API holen
@@ -38,6 +44,8 @@ VITE_APP_ORIGIN=https://app-dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr-dev.ematchef.ch \
 VITE_DEVICES_HOST=devices-dev.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
+VITE_APP_VERSION="$VITE_APP_VERSION" \
+VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"

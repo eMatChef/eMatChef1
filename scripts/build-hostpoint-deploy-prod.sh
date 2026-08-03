@@ -21,8 +21,14 @@ FRONTEND="$ROOT/frontend"
 
 mkdir -p "$OUT_BASE/home" "$OUT_BASE/app"
 
+VITE_APP_VERSION="$(node -p "require('$FRONTEND/package.json').version")"
+VITE_APP_GIT_SHA="$(git -C "$ROOT" rev-parse --short=7 HEAD 2>/dev/null || true)"
+export VITE_APP_VERSION VITE_APP_GIT_SHA
+
 # Hauptdomain (ematchef.ch)
 VITE_DEPLOY_VARIANT=home \
+VITE_APP_VERSION="$VITE_APP_VERSION" \
+VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 node "$ROOT/scripts/fetch-sitemap.mjs" "$OUT_BASE/home" "https://api.ematchef.ch"
@@ -31,6 +37,8 @@ node "$ROOT/scripts/fetch-sitemap.mjs" "$OUT_BASE/home" "https://api.ematchef.ch
 VITE_DEPLOY_VARIANT=app \
 VITE_QR_PUBLIC_HOST=qr.ematchef.ch \
 VITE_DEVICES_HOST=devices.ematchef.ch \
+VITE_APP_VERSION="$VITE_APP_VERSION" \
+VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
 npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/app" --emptyOutDir
 
 cp "$ROOT/scripts/hostpoint-spa.htaccess" "$OUT_BASE/home/.htaccess"

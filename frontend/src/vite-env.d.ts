@@ -6,6 +6,12 @@ interface ImportMetaEnv {
   readonly VITE_TURNSTILE_SKIP?: string
   /** 1/true = gelber Hinweis „Testumgebung“ (zusaetzlich zu bekannten Dev-Hosts). */
   readonly VITE_SHOW_DEV_BANNER?: string
+  /** SemVer from package.json / Hostpoint build (e.g. 4.0.1). */
+  readonly VITE_APP_VERSION?: string
+  /** Short git SHA from Hostpoint build (7 chars). */
+  readonly VITE_APP_GIT_SHA?: string
+  /** Public Better Stack status page URL (optional). */
+  readonly VITE_STATUS_PAGE_URL?: string
 }
 
 interface ImportMeta {
