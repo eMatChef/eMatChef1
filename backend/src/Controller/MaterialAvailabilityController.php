@@ -515,6 +515,7 @@ class MaterialAvailabilityController extends AbstractController
             // Virtuelle Kombos: Verfügbarkeit = Flaschenhals min(floor(frei/menge)) über stock-Teile.
             $materials = $this->enrichVirtualComboAvailability(
                 $materials,
+                $departmentId,
                 $hasPeriod ? $startDate : null,
                 $hasPeriod ? $endDate : null,
                 $excludeActivityId,
@@ -615,6 +616,11 @@ class MaterialAvailabilityController extends AbstractController
         }
 
         $availMap = $this->availabilityForIds(array_keys($allIds), $startDate, $endDate, $excludeActivityId);
+        $availMap = $this->adjustComponentAvailabilityForDepartment(
+            $availMap,
+            $combo->getDepartmentId(),
+            array_keys($allIds),
+        );
         $totalMap = $this->totalStockForIds(array_keys($allIds));
 
         // Basis-Flaschenhals (Pflichtteile). Pflicht-Basis fehlt/0 ⇒ ganze Kombo nicht baubar.
@@ -809,6 +815,7 @@ class MaterialAvailabilityController extends AbstractController
      */
     private function enrichVirtualComboAvailability(
         array $materials,
+        string $departmentId,
         ?\DateTime $startDate,
         ?\DateTime $endDate,
         string $excludeActivityId,
@@ -834,6 +841,11 @@ class MaterialAvailabilityController extends AbstractController
             }
         }
         $componentAvail = $this->availabilityForIds(array_keys($allComponentIds), $startDate, $endDate, $excludeActivityId);
+        $componentAvail = $this->adjustComponentAvailabilityForDepartment(
+            $componentAvail,
+            $departmentId,
+            array_keys($allComponentIds),
+        );
 
         return array_map(function (array $row) use ($resolvedByCombo, $componentAvail) {
             $cid = (string) $row['materialItemId'];
@@ -1129,6 +1141,31 @@ class MaterialAvailabilityController extends AbstractController
         unset($row);
 
         return $materials;
+    }
+
+    /**
+     * Komponenten-Verfügbarkeit: Werkstatt-Reparatur abziehen.
+     * Virtuelle Kombos sind Planungshilfe — Stücklisten-Mengen zählen nicht als Sperre.
+     *
+     * @param array<string, int> $availMap
+     * @param list<string> $materialIds
+     * @return array<string, int>
+     */
+    private function adjustComponentAvailabilityForDepartment(
+        array $availMap,
+        string $departmentId,
+        array $materialIds,
+    ): array {
+        if ($materialIds === []) {
+            return $availMap;
+        }
+        $workshopRepair = $this->workshopRepairQtyByMaterialIds($materialIds);
+        $out = [];
+        foreach ($availMap as $mid => $avail) {
+            $out[$mid] = max(0, (int) $avail - (int) ($workshopRepair[$mid] ?? 0));
+        }
+
+        return $out;
     }
 
     /**

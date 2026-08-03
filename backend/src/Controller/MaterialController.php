@@ -98,7 +98,7 @@ class MaterialController extends AbstractController
             }
         }
 
-        // Suchfilter (Name, Beschreibung, Barcode, EAN, Chargen-Seriennummer/Label) – gross/klein egal
+        // Suchfilter (Name, Beschreibung, Chargen-Seriennummer/Label/EAN/Barcode) – gross/klein egal
         $search = $request->query->get('search');
         if ($search !== null && $search !== '') {
             $searchLike = '%' . mb_strtolower((string) $search) . '%';
@@ -108,7 +108,9 @@ class MaterialController extends AbstractController
                 ->where('bSearch.status = :batchStatusActive')
                 ->andWhere(
                     'LOWER(COALESCE(bSearch.serialNumber, \'\')) LIKE :search
-                    OR LOWER(COALESCE(bSearch.label, \'\')) LIKE :search'
+                    OR LOWER(COALESCE(bSearch.label, \'\')) LIKE :search
+                    OR LOWER(COALESCE(bSearch.ean, \'\')) LIKE :search
+                    OR LOWER(COALESCE(bSearch.barcodeTag, \'\')) LIKE :search'
                 )
                 ->getDQL();
             $qb->andWhere(
@@ -117,8 +119,6 @@ class MaterialController extends AbstractController
                     'LOWER(COALESCE(m.description, \'\')) LIKE :search',
                     'LOWER(COALESCE(m.manufacturer, \'\')) LIKE :search',
                     'LOWER(COALESCE(m.model, \'\')) LIKE :search',
-                    'LOWER(COALESCE(m.barcodeTag, \'\')) LIKE :search',
-                    'LOWER(COALESCE(m.ean, \'\')) LIKE :search',
                     $qb->expr()->in('m.id', $batchMaterialIdsDql)
                 )
             )
@@ -151,6 +151,99 @@ class MaterialController extends AbstractController
         }
 
         return new JsonResponse($result);
+    }
+
+    /**
+     * Charge über Fremd-EAN / barcode_tag finden (eingeloggt, abteilungsbezogen).
+     * Für Scan ohne eMatChef-QR.
+     */
+    #[Route('/lookup-by-code', name: 'lookup_by_code', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function lookupByCode(Request $request): JsonResponse
+    {
+        $departmentId = trim((string) $request->query->get('department_id', ''));
+        $code = trim((string) $request->query->get('code', ''));
+        if ($departmentId === '') {
+            return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
+        }
+        if ($code === '') {
+            return new JsonResponse(['error' => 'code ist erforderlich'], 400);
+        }
+        $accessCheck = $this->assertDepartmentAccess($departmentId);
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('b', 'm')
+            ->from(MaterialBatch::class, 'b')
+            ->innerJoin('b.materialItem', 'm')
+            ->where('m.departmentId = :departmentId')
+            ->andWhere('m.deletedAt IS NULL')
+            ->andWhere('b.ean = :code OR b.barcodeTag = :code')
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('code', $code)
+            ->addOrderBy('b.createdAt', 'DESC');
+
+        /** @var list<MaterialBatch> $batches */
+        $batches = $qb->getQuery()->getResult();
+        if ($batches === []) {
+            return new JsonResponse(['error' => 'Kein Treffer für diesen Code'], 404);
+        }
+
+        // Aktive Chargen bevorzugen: nur wenn danach immer noch mehrdeutig, 409 zurückgeben.
+        $activeBatches = array_values(array_filter(
+            $batches,
+            static fn (MaterialBatch $b) => $b->getStatus() === 'active'
+        ));
+        $candidates = $activeBatches !== [] ? $activeBatches : $batches;
+
+        if (count($candidates) > 1) {
+            $ids = array_map(static fn (MaterialBatch $b) => $b->getId(), $candidates);
+            return new JsonResponse([
+                'error' => 'Code ist nicht eindeutig (mehrere Chargen)',
+                'batch_ids' => $ids,
+            ], 409);
+        }
+
+        $batch = $candidates[0];
+        $material = $batch->getMaterialItem();
+        $matchType = ($batch->getEan() !== null && $batch->getEan() === $code) ? 'ean' : 'barcode_tag';
+
+        $matCode = $this->publicCodeService->getActiveMaterialPublicCode((string) $material->getId())?->getPublicCode();
+        $batchCode = $this->publicCodeService->getActiveBatchPublicCode((string) $batch->getId())?->getPublicCode();
+        $publicUrl = ($matCode && $batchCode)
+            ? $this->publicCodeService->buildMaterialBatchPublicUrl($matCode, $batchCode)
+            : null;
+
+        return new JsonResponse([
+            'match_type' => $matchType,
+            'entity_type' => 'batch',
+            'material_code' => $matCode,
+            'batch_code' => $batchCode,
+            'public_url' => $publicUrl,
+            'batch' => [
+                'id' => $batch->getId(),
+                'serial_number' => $batch->getSerialNumber(),
+                'label' => $batch->getLabel(),
+                'status' => $batch->getStatus(),
+                'is_container' => $batch->getIsContainer() || $material->getIsContainer(),
+                'ean' => $batch->getEan(),
+                'barcode_tag' => $batch->getBarcodeTag(),
+            ],
+            'material' => [
+                'id' => $material->getId(),
+                'name' => $material->getName(),
+                'description' => $material->getDescription(),
+                'manufacturer' => $material->getManufacturer(),
+                'model' => $material->getModel(),
+                'is_container' => $material->getIsContainer(),
+            ],
+            'department' => [
+                'id' => $material->getDepartmentId(),
+                'name' => $material->getDepartment()?->getName(),
+            ],
+        ]);
     }
 
     /**
@@ -459,8 +552,6 @@ class MaterialController extends AbstractController
             if (isset($data['weight'])) $material->setWeight($data['weight']);
             
             // Identifikation
-            if (isset($data['ean'])) $material->setEan($data['ean']);
-            if (isset($data['barcode_tag'])) $material->setBarcodeTag($data['barcode_tag']);
             if (isset($data['manufacturer'])) $material->setManufacturer($data['manufacturer']);
             if (isset($data['model'])) $material->setModel($data['model']);
             if (isset($data['warranty_until']) && $data['warranty_until']) {
@@ -495,6 +586,10 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (isset($data['sale_price'])) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('external_sale_price_chf', $data)) {
+                $ep = $data['external_sale_price_chf'];
+                $material->setExternalSalePriceChf($ep === null || $ep === '' ? null : (string) $ep);
+            }
             if (array_key_exists('reference_purchase_unit_chf', $data)) {
                 $rp = $data['reference_purchase_unit_chf'];
                 $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
@@ -573,6 +668,8 @@ class MaterialController extends AbstractController
                     if (isset($serialEntry['label']) && trim((string)$serialEntry['label']) !== '') {
                         $batch->setLabel((string) $serialEntry['label']);
                     }
+
+                    $this->applyBatchScanCodesFromPayload($batch, $serialEntry, $data);
 
                     $batchIsContainer = array_key_exists('is_container', $serialEntry)
                         ? (bool) $serialEntry['is_container']
@@ -742,6 +839,8 @@ class MaterialController extends AbstractController
                 }
 
                 $batch->setIsContainer($material->getIsContainer());
+
+                $this->applyBatchScanCodesFromPayload($batch, $data);
 
                 $this->entityManager->persist($batch);
                 if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
@@ -1657,12 +1756,6 @@ class MaterialController extends AbstractController
             }
             
             // Identifikation
-            if (array_key_exists('ean', $data)) {
-                $material->setEan($data['ean'] !== null && $data['ean'] !== '' ? (string) $data['ean'] : null);
-            }
-            if (array_key_exists('barcode_tag', $data)) {
-                $material->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
-            }
             if (array_key_exists('manufacturer', $data)) {
                 $material->setManufacturer($data['manufacturer'] !== null && $data['manufacturer'] !== '' ? (string) $data['manufacturer'] : null);
             }
@@ -1714,6 +1807,10 @@ class MaterialController extends AbstractController
                 $material->setTrackingType($data['tracking_type']);
             }
             if (array_key_exists('sale_price', $data)) $material->setSalePrice($data['sale_price']);
+            if (array_key_exists('external_sale_price_chf', $data)) {
+                $ep = $data['external_sale_price_chf'];
+                $material->setExternalSalePriceChf($ep === null || $ep === '' ? null : (string) $ep);
+            }
             if (array_key_exists('reference_purchase_unit_chf', $data)) {
                 $rp = $data['reference_purchase_unit_chf'];
                 $material->setReferencePurchaseUnitChf($rp !== null && $rp !== '' ? (string) $rp : null);
@@ -2002,6 +2099,8 @@ class MaterialController extends AbstractController
                 $batch->setLabel($data['label'] ? (string) $data['label'] : null);
             }
 
+            $this->applyBatchScanCodesFromPayload($batch, $data);
+
             if (array_key_exists('is_container', $data)) {
                 $batch->setIsContainer((bool) $data['is_container']);
             } else {
@@ -2074,6 +2173,8 @@ class MaterialController extends AbstractController
                 'unit_price' => ['old' => null, 'new' => $batch->getUnitPrice()],
                 'rack_id' => ['old' => null, 'new' => $batch->getRackId()],
                 'slot_id' => ['old' => null, 'new' => $batch->getSlotId()],
+                'batch.ean' => ['old' => null, 'new' => $batch->getEan()],
+                'batch.barcode_tag' => ['old' => null, 'new' => $batch->getBarcodeTag()],
             ]);
 
             $this->entityManager->flush();
@@ -2094,6 +2195,8 @@ class MaterialController extends AbstractController
                 'label' => $batch->getLabel(),
                 'notes' => $batch->getNotes(),
                 'serial_number' => $batch->getSerialNumber(),
+                'ean' => $batch->getEan(),
+                'barcode_tag' => $batch->getBarcodeTag(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'public_code' => $batchPublicCode,
@@ -2241,6 +2344,7 @@ class MaterialController extends AbstractController
                 if ($label !== null) {
                     $batch->setLabel($label);
                 }
+                $this->applyBatchScanCodesFromPayload($batch, $entry, $data);
                 if ($expiryDate) {
                     $batch->setExpiryDate($expiryDate);
                 }
@@ -2345,6 +2449,8 @@ class MaterialController extends AbstractController
                     'batch_id' => ['old' => null, 'new' => $batch->getId()],
                     'qty' => ['old' => null, 'new' => 1],
                     'serial_number' => ['old' => null, 'new' => $sn],
+                    'batch.ean' => ['old' => null, 'new' => $batch->getEan()],
+                    'batch.barcode_tag' => ['old' => null, 'new' => $batch->getBarcodeTag()],
                 ]);
 
                 if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
@@ -2361,6 +2467,8 @@ class MaterialController extends AbstractController
                     'qty' => 1,
                     'serial_number' => $sn,
                     'label' => $batch->getLabel(),
+                    'ean' => $batch->getEan(),
+                    'barcode_tag' => $batch->getBarcodeTag(),
                     'rack_id' => $useContainerBatch ? null : $batch->getRackId(),
                     'slot_id' => $useContainerBatch ? null : $batch->getSlotId(),
                     'container_batch_id' => $useContainerBatch ? $useContainerBatch->getId() : null,
@@ -2410,6 +2518,8 @@ class MaterialController extends AbstractController
                 'notes' => $batch->getNotes(),
                 'label' => $batch->getLabel(),
                 'serial_number' => $batch->getSerialNumber(),
+                'ean' => $batch->getEan(),
+                'barcode_tag' => $batch->getBarcodeTag(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -2446,6 +2556,13 @@ class MaterialController extends AbstractController
 
             if (array_key_exists('serial_number', $data)) {
                 $batch->setSerialNumber($data['serial_number']);
+            }
+
+            if (array_key_exists('ean', $data)) {
+                $batch->setEan($data['ean'] !== null && $data['ean'] !== '' ? (string) $data['ean'] : null);
+            }
+            if (array_key_exists('barcode_tag', $data)) {
+                $batch->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
             }
 
             if (array_key_exists('rack_id', $data)) {
@@ -2499,6 +2616,8 @@ class MaterialController extends AbstractController
                 'notes' => $batch->getNotes(),
                 'label' => $batch->getLabel(),
                 'serial_number' => $batch->getSerialNumber(),
+                'ean' => $batch->getEan(),
+                'barcode_tag' => $batch->getBarcodeTag(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -2539,6 +2658,8 @@ class MaterialController extends AbstractController
                 'label' => $batch->getLabel(),
                 'notes' => $batch->getNotes(),
                 'serial_number' => $batch->getSerialNumber(),
+                'ean' => $batch->getEan(),
+                'barcode_tag' => $batch->getBarcodeTag(),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'public_code' => $batchPublicCode,
@@ -4286,6 +4407,50 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * EAN / barcode_tag auf eine Charge aus Request-Payloads anwenden.
+     * Erste Quelle mit gesetztem Key gewinnt. Akzeptiert auch initial_ean / initial_barcode_tag.
+     *
+     * @param array<string, mixed> ...$sources
+     */
+    private function applyBatchScanCodesFromPayload(MaterialBatch $batch, array ...$sources): void
+    {
+        $eanPresent = false;
+        $ean = null;
+        $barcodePresent = false;
+        $barcode = null;
+
+        foreach ($sources as $source) {
+            if (!$eanPresent) {
+                if (array_key_exists('ean', $source)) {
+                    $eanPresent = true;
+                    $ean = $source['ean'] !== null && $source['ean'] !== '' ? (string) $source['ean'] : null;
+                } elseif (array_key_exists('initial_ean', $source)) {
+                    $eanPresent = true;
+                    $ean = $source['initial_ean'] !== null && $source['initial_ean'] !== '' ? (string) $source['initial_ean'] : null;
+                }
+            }
+            if (!$barcodePresent) {
+                if (array_key_exists('barcode_tag', $source)) {
+                    $barcodePresent = true;
+                    $barcode = $source['barcode_tag'] !== null && $source['barcode_tag'] !== '' ? (string) $source['barcode_tag'] : null;
+                } elseif (array_key_exists('initial_barcode_tag', $source)) {
+                    $barcodePresent = true;
+                    $barcode = $source['initial_barcode_tag'] !== null && $source['initial_barcode_tag'] !== ''
+                        ? (string) $source['initial_barcode_tag']
+                        : null;
+                }
+            }
+        }
+
+        if ($eanPresent) {
+            $batch->setEan($ean);
+        }
+        if ($barcodePresent) {
+            $batch->setBarcodeTag($barcode);
+        }
+    }
+
+    /**
      * Erstellt einen History-Eintrag für ein Material
      */
     private function createHistoryEntry(MaterialItem $material, string $action, array $changes = []): void
@@ -4352,8 +4517,6 @@ class MaterialController extends AbstractController
             'size_width' => $material->getSizeWidth(),
             'size_height' => $material->getSizeHeight(),
             'weight' => $material->getWeight(),
-            'ean' => $material->getEan(),
-            'barcode_tag' => $material->getBarcodeTag(),
             'manufacturer' => $material->getManufacturer(),
             'model' => $material->getModel(),
             'warranty_until' => $material->getWarrantyUntil()?->format('Y-m-d'),
@@ -4372,6 +4535,7 @@ class MaterialController extends AbstractController
             'external_source' => $material->getExternalSource(),
             'is_consumable' => $material->getIsConsumable(),
             'sale_price' => $material->getSalePrice(),
+            'external_sale_price_chf' => $material->getExternalSalePriceChf(),
             'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
@@ -4572,13 +4736,13 @@ class MaterialController extends AbstractController
             'is_js_material' => $material->getIsJsMaterial(),
             'external_source' => $material->getExternalSource(),
             'sale_price' => $material->getSalePrice(),
+            'external_sale_price_chf' => $material->getExternalSalePriceChf(),
             'reference_purchase_unit_chf' => $material->getReferencePurchaseUnitChf(),
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
             'size_length' => $material->getSizeLength(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
-            'barcode_tag' => $material->getBarcodeTag(),
             'image_url' => $material->getPrimaryPhotoUrl(),
             'public_code' => $publicCode,
             'public_url' => null,
@@ -4598,8 +4762,6 @@ class MaterialController extends AbstractController
             $result['pack_size_length'] = $material->getPackSizeLength();
             $result['pack_size_width'] = $material->getPackSizeWidth();
             $result['pack_size_height'] = $material->getPackSizeHeight();
-            $result['ean'] = $material->getEan();
-            $result['barcode_tag'] = $material->getBarcodeTag();
             $result['manufacturer'] = $material->getManufacturer();
             $result['model'] = $material->getModel();
             $result['warranty_until'] = $material->getWarrantyUntil()?->format('Y-m-d');
@@ -4636,6 +4798,8 @@ class MaterialController extends AbstractController
                     'label' => $batch->getLabel(),
                     'notes' => $batch->getNotes(),
                     'serial_number' => $batch->getSerialNumber(),
+                    'ean' => $batch->getEan(),
+                    'barcode_tag' => $batch->getBarcodeTag(),
                     'rack_id' => $batch->getRackId(),
                     'slot_id' => $batch->getSlotId(),
                     'rack' => $batch->getRack() ? [

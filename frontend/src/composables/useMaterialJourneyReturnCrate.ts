@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import {
   returnAllPackContainerItems,
@@ -10,10 +11,19 @@ import type { ReturnCrateLineEdit, ReturnCratePartitionView } from '@/components
 import {
   buildMaterialJourneyReturnCrateLines,
   materialJourneyReturnCrateBatchSteps,
+  materialJourneyReturnCrateCanCompleteWithoutMoves,
   materialJourneyReturnCrateSubmitDisabled,
+  type MaterialJourneyReturnCrateBatchStep,
 } from '@/components/activities/materialJourneyReturnCrate'
 import type { PackQuantityContext } from '@/components/activities/packStageQuantityLayer'
+import {
+  resolveConsumableReturnQty,
+} from '@/utils/materialJourneyConsumable'
 import { useToast } from '@/composables/useToast'
+
+type PendingConsumableReturn =
+  | { kind: 'pack-item'; packItemId: string; qty: number }
+  | { kind: 'container-line'; containerId: string; containerItemId: string; qty: number }
 
 export function useMaterialJourneyReturnCrate(options: {
   activityId: Ref<string>
@@ -21,6 +31,7 @@ export function useMaterialJourneyReturnCrate(options: {
   containerItemsByContainerId: Ref<Record<string, ActivityPackContainerItem[]>>
   packQuantityCtx: Ref<PackQuantityContext>
   shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
+  issues: Ref<ActivityIssueReportRow[]>
   reload: () => Promise<void>
 }) {
   const { t } = useI18n()
@@ -30,6 +41,11 @@ export function useMaterialJourneyReturnCrate(options: {
   const container = ref<ActivityPackContainer | null>(null)
   const lines = ref<ReturnCrateLineEdit[]>([])
   const submitting = ref(false)
+  const pendingConsumableReturn = ref<PendingConsumableReturn | null>(null)
+  const pendingReturnCrateBatch = ref<{
+    containerId: string
+    remaining: MaterialJourneyReturnCrateBatchStep[]
+  } | null>(null)
 
   const partition = computed((): ReturnCratePartitionView => {
     const c = container.value
@@ -58,17 +74,24 @@ export function useMaterialJourneyReturnCrate(options: {
 
   const submitDisabled = computed(() => materialJourneyReturnCrateSubmitDisabled(lines.value))
 
+  function syncLines(): void {
+    const c = container.value
+    if (!c) return
+    lines.value = buildMaterialJourneyReturnCrateLines(c, {
+      packItems: options.packItems.value,
+      containerItemsByContainerId: options.containerItemsByContainerId.value,
+      packQuantityCtx: options.packQuantityCtx.value,
+      shellPackItemForContainer: options.shellPackItemForContainer,
+      materialFallbackLabel: t('common.material'),
+      issues: options.issues.value,
+    })
+  }
+
   watch(
-    () => [open.value, container.value?.id] as const,
+    () => [open.value, container.value?.id, options.issues.value, options.packItems.value] as const,
     ([isOpen, containerId]) => {
       if (!isOpen || !containerId || !container.value) return
-      lines.value = buildMaterialJourneyReturnCrateLines(container.value, {
-        packItems: options.packItems.value,
-        containerItemsByContainerId: options.containerItemsByContainerId.value,
-        packQuantityCtx: options.packQuantityCtx.value,
-        shellPackItemForContainer: options.shellPackItemForContainer,
-        materialFallbackLabel: t('common.material'),
-      })
+      syncLines()
     },
   )
 
@@ -81,6 +104,29 @@ export function useMaterialJourneyReturnCrate(options: {
     open.value = false
     container.value = null
     lines.value = []
+    pendingReturnCrateBatch.value = null
+  }
+
+  function clearPendingConsumableReturn(): void {
+    pendingConsumableReturn.value = null
+    pendingReturnCrateBatch.value = null
+  }
+
+  function beginConsumableReturnForPackItem(item: ActivityPackItem, returnQty: number): void {
+    pendingConsumableReturn.value = { kind: 'pack-item', packItemId: item.id, qty: returnQty }
+  }
+
+  function beginConsumableReturnForContainerLine(
+    containerId: string,
+    containerItemId: string,
+    returnQty: number,
+  ): void {
+    pendingConsumableReturn.value = {
+      kind: 'container-line',
+      containerId,
+      containerItemId,
+      qty: returnQty,
+    }
   }
 
   async function executeLineReturn(containerId: string, ci: ActivityPackContainerItem, qty: number): Promise<void> {
@@ -93,12 +139,108 @@ export function useMaterialJourneyReturnCrate(options: {
     })
   }
 
+  async function continueReturnCrateBatch(): Promise<void> {
+    const job = pendingReturnCrateBatch.value
+    if (!job) return
+
+    while (job.remaining.length > 0) {
+      const step = job.remaining[0]
+      if (step.kind === 'shell') {
+        job.remaining.shift()
+        const shell = options.shellPackItemForContainer(job.containerId)
+        if (shell && step.qty > 0) {
+          await postMovePackItem(options.activityId.value, shell.id, {
+            stage: 'returned',
+            quantity: step.qty,
+          })
+        }
+        continue
+      }
+
+      if (step.kind === 'line' && step.containerItemId) {
+        const ci = (options.containerItemsByContainerId.value[job.containerId] ?? []).find(
+          (row) => row.id === step.containerItemId,
+        )
+        if (!ci) {
+          job.remaining.shift()
+          continue
+        }
+        const pi = options.packItems.value.find((p) => p.materialItemId === ci.material_item_id)
+        if (pi?.isConsumable) {
+          beginConsumableReturnForContainerLine(job.containerId, ci.id, step.qty)
+          return
+        }
+        job.remaining.shift()
+        await executeLineReturn(job.containerId, ci, step.qty)
+        continue
+      }
+
+      job.remaining.shift()
+    }
+
+    pendingReturnCrateBatch.value = null
+    options.packItems.value = await getPackItems(options.activityId.value)
+    await options.reload()
+    toast.success(t('activities.packList.toastReturnContainer'))
+    close()
+  }
+
+  async function fulfillPendingConsumableReturn(): Promise<void> {
+    const pending = pendingConsumableReturn.value
+    if (!pending) return
+    pendingConsumableReturn.value = null
+
+    if (pending.kind === 'pack-item') {
+      const item = options.packItems.value.find((p) => p.id === pending.packItemId)
+      if (!item) return
+      const returnQty = resolveConsumableReturnQty(
+        item,
+        options.packQuantityCtx.value,
+        options.issues.value,
+        pending.qty,
+      )
+      if (returnQty <= 0) {
+        toast.info(t('activities.packList.toastConsumableAllUsedNothingToReturn'))
+        syncLines()
+        await continueReturnCrateBatch()
+        return
+      }
+      await postMovePackItem(options.activityId.value, item.id, {
+        stage: 'returned',
+        quantity: returnQty,
+      })
+      options.packItems.value = await getPackItems(options.activityId.value)
+      await options.reload()
+      syncLines()
+      await continueReturnCrateBatch()
+      return
+    }
+
+    const ci = (options.containerItemsByContainerId.value[pending.containerId] ?? []).find(
+      (row) => row.id === pending.containerItemId,
+    )
+    if (!ci) return
+    await executeLineReturn(pending.containerId, ci, pending.qty)
+    const batch = pendingReturnCrateBatch.value
+    if (
+      batch?.remaining[0]?.kind === 'line' &&
+      batch.remaining[0].containerItemId === pending.containerItemId
+    ) {
+      batch.remaining.shift()
+    }
+    options.packItems.value = await getPackItems(options.activityId.value)
+    await options.reload()
+    syncLines()
+    await continueReturnCrateBatch()
+  }
+
   async function submit(): Promise<void> {
     const c = container.value
     if (!c || submitDisabled.value) return
 
     const steps = materialJourneyReturnCrateBatchSteps(lines.value)
     if (steps.length === 0) {
+      if (!materialJourneyReturnCrateCanCompleteWithoutMoves(lines.value)) return
       close()
       toast.success(t('activities.packList.toastReturnCrateCheckComplete'))
       return
@@ -106,28 +248,8 @@ export function useMaterialJourneyReturnCrate(options: {
 
     submitting.value = true
     try {
-      for (const step of steps) {
-        if (step.kind === 'shell') {
-          const shell = options.shellPackItemForContainer(c.id)
-          if (shell && step.qty > 0) {
-            await postMovePackItem(options.activityId.value, shell.id, {
-              stage: 'returned',
-              quantity: step.qty,
-            })
-          }
-          continue
-        }
-        if (step.kind === 'line' && step.containerItemId) {
-          const ci = (options.containerItemsByContainerId.value[c.id] ?? []).find(
-            (row) => row.id === step.containerItemId,
-          )
-          if (ci) await executeLineReturn(c.id, ci, step.qty)
-        }
-      }
-      options.packItems.value = await getPackItems(options.activityId.value)
-      await options.reload()
-      toast.success(t('activities.packList.toastReturnContainer'))
-      close()
+      pendingReturnCrateBatch.value = { containerId: c.id, remaining: steps }
+      await continueReturnCrateBatch()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     } finally {
@@ -148,6 +270,25 @@ export function useMaterialJourneyReturnCrate(options: {
     }
   }
 
+  function reportReturnCrateConsumption(materialItemId: string): {
+    packItem: ActivityPackItem
+    returnQty?: number
+  } | null {
+    const c = container.value
+    if (!c) return null
+    const pi = options.packItems.value.find((p) => p.materialItemId === materialItemId)
+    if (!pi) return null
+
+    const line = lines.value.find((l) => l.materialItemId === materialItemId && l.isConsumable)
+    const returnQty = line?.max && line.max > 0 ? line.max : 1
+    if (line?.containerItemId) {
+      beginConsumableReturnForContainerLine(c.id, line.containerItemId, returnQty)
+    } else {
+      beginConsumableReturnForPackItem(pi, returnQty)
+    }
+    return { packItem: pi, returnQty }
+  }
+
   return {
     open,
     container,
@@ -155,9 +296,16 @@ export function useMaterialJourneyReturnCrate(options: {
     partition,
     submitting,
     submitDisabled,
+    pendingConsumableReturn,
     openFor,
     close,
     submit,
     submitReturnAll,
+    syncLines,
+    beginConsumableReturnForPackItem,
+    beginConsumableReturnForContainerLine,
+    fulfillPendingConsumableReturn,
+    clearPendingConsumableReturn,
+    reportReturnCrateConsumption,
   }
 }

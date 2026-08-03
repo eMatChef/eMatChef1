@@ -738,14 +738,16 @@
     "emptyInProgressTitle": "Keine Aufgaben in Bearbeitung",
     "emptyInProgressText": "Aufgaben, die du bearbeitest, erscheinen hier.",
     "emptyDoneTitle": "Keine erledigten Aufgaben",
-    "emptyDoneText": "Abgeschlossene QR-Kontakte findest du hier.",
+    "emptyDoneText": "Abgeschlossene Aufgaben findest du hier.",
     "kindQr": "QR-Kontakt",
     "kindDeptInvite": "Department-Einladung",
     "kindCampInvite": "Camp / Anlass",
     "kindAccounting": "Buchhaltung",
     "actionHandle": "Bearbeiten",
     "actionReadMessage": "Nachricht lesen",
-    "actionAccounting": "Buchung zuordnen"
+    "actionAccounting": "Buchung zuordnen",
+    "actionAccountingContinue": "Buchung fortsetzen",
+    "actionAccountingView": "Buchung anzeigen"
   },
   "tasksPrint": {
     "subtitle": "Druckkorb für QR-Etiketten (DB-basiert)",
@@ -2034,6 +2036,7 @@
       "toastQtySaved": "Mengen gespeichert",
       "toastPackModeSaved": "Pack-Vorgabe gespeichert",
       "toastQtySaveFailed": "Mengen konnten nicht gespeichert werden.",
+      "toastConsolidateFailed": "Doppelte Materialzeilen konnten nicht zusammengeführt werden.",
       "toastMaterialAdded": "Material hinzugefügt",
       "toastMaterialAddFailed": "Material konnte nicht hinzugefügt werden.",
       "toastPositionRemoved": "Position entfernt",
@@ -2050,6 +2053,8 @@
       "confirmCancelAction": "Stornieren",
       "confirmRemovePackedTitle": "Gepacktes Material entfernen?",
       "confirmRemovePackedMessage": "«{name}» wurde bereits gepackt oder ist in der Pack-Pipeline.\n\nLiegt alles wieder physisch im Materialwart-Lager? Beim Entfernen werden Packliste, Pack-Behälter und Meldungen zu dieser Position gelöscht.",
+      "confirmRemoveVirtualComboTitle": "Virtuelle Kombo entfernen?",
+      "confirmRemoveVirtualComboMessage": "«{name}» und alle zugehörigen Set-Positionen werden entfernt. Lose Einzelpositionen (z. B. Blachen) werden um den Set-Bedarf dieser Kombo reduziert.",
       "qrGenLoading": "Erzeuge…",
       "qrGenCreate": "QR-Code erzeugen",
       "labelCode": "Code",
@@ -2146,7 +2151,11 @@
       "quantityDialogLabel": "Menge",
       "quantityDialogMax": "Maximal {max} im gewählten Zeitraum verfügbar",
       "quantityDialogPackHint": "Verpackung: {n} Stück pro {unit}",
-      "quantityDialogConfirm": "{n}× übernehmen"
+      "quantityDialogConfirm": "{n}× übernehmen",
+      "customQtyLabel": "Menge eingeben",
+      "customQtyPlaceholder": "Anz.",
+      "customQtyTitle": "Gewünschte Menge eingeben, dann + oder Enter",
+      "customQtyAdd": "Eingegebene Menge hinzufügen"
     },
     "combineDialog": {
       "title": "Kombinieren?",
@@ -2155,6 +2164,16 @@
       "explain": "Vorhandene Einheit für die Kombo nutzen (Einzelposition wird entsprechend reduziert) – oder beides getrennt buchen.",
       "useExisting": "Vorhandene nutzen",
       "keepSeparate": "Getrennt buchen"
+    },
+    "combineSeparateShortage": {
+      "title": "Bestand reicht nicht für getrennte Buchung",
+      "intro": "Wenn „{name}“ getrennt gebucht wird, übersteigt der Gesamtbedarf den verfügbaren Bestand im Zeitraum.",
+      "lineDetail": "Gewünscht gesamt: {total} · Maximal möglich: {available}",
+      "reduceStandalone": "Einzelposition: {from} → {to} (−{n})",
+      "remainingBlock": "Auch nach Anpassung fehlen noch {n} — Set-Menge reduzieren oder «Vorhandene nutzen» wählen.",
+      "explainAdjust": "Wir können die eigenständigen Positionen reduzieren und die Kombo trotzdem getrennt buchen.",
+      "explainBlocked": "Getrennt buchen ist so nicht möglich. Bitte «Vorhandene nutzen» wählen oder die Set-Menge verringern.",
+      "adjustAndBook": "Anpassen und getrennt buchen"
     },
     "materialLinesTable": {
       "shortageBanner": "Im gewählten Abhol-/Rückgabezeitraum reicht der Bestand für mindestens eine Position nicht — betroffene Zeilen stehen oben in der Liste.",
@@ -2176,7 +2195,8 @@
       "comboFloorRemoveTitle": "Kombo-Bedarf {min} — nur Extra-Menge darüber per −1 entfernen",
       "virtualComboQtyHint": "Set-Menge beim Hinzufügen festgelegt",
       "virtualComboChildQtyHint": "Menge durch virtuelle Kombo festgelegt",
-      "virtualComboRemoveTitle": "Virtuelle Kombo hier nicht entfernbar",
+      "virtualComboRemoveBlockedTitle": "Virtuelle Kombo während des Packens nicht entfernbar",
+      "virtualComboRemoveTitle": "Virtuelle Kombo entfernen",
       "virtualComboChildRemoveTitle": "Kombo-Teil — nur über die Kombo-Zeile oben steuerbar",
       "warnOverRestTitle": "Menge über verfügbaren Rest",
       "packListRemoveTitle": "Zuordnung über die Packliste (Behälter)",
@@ -2256,6 +2276,7 @@
       "continue": "Fortfahren",
       "retry": "Erneut versuchen",
       "issueConsumed": "Gebraucht",
+      "issueDamage": "Schaden",
       "issueLoss": "Verlust",
       "issueRepair": "Reparatur",
       "backTitle": "Zurück",
@@ -2464,7 +2485,28 @@
       "quickPhase": {
         "aria": "Material-Phase",
         "return": "Retour",
-        "returnDisabledHint": "Erst alles ausgeben, dann Retour starten"
+        "bringBack": "Retour bringen",
+        "returnDisabledHint": "Erst etwas ausgeben oder «Habe nur das mitgenommen» wählen",
+        "returnDisabledNoIssue": "Noch nichts mitgenommen — zuerst Material ausgeben"
+      },
+      "quickStatusTrail": {
+        "aria": "Aktivitäts-Status in der Material-Pipeline"
+      },
+      "logisticsStatusTrail": {
+        "aria": "Transport-Kette der Aktivität"
+      },
+      "partialTaken": {
+        "action": "Habe nur das mitgenommen",
+        "title": "Aktivitäts-Status auf «Mit mir unterwegs» setzen — nur für bereits mitgenommenes Material (Rest bleibt «Gepackt»).",
+        "titleMw": "Notfall: Status «Mit mir unterwegs» setzen — nur für schon mitgenommenes Material.",
+        "confirm": "Nur das bereits mitgenommene Material gilt als «Mit mir unterwegs». Der Rest bleibt gepackt und muss nicht retourniert werden.",
+        "confirmMw": "Status «Mit mir unterwegs» setzen — nur für schon mitgenommenes Material. Rest bleibt «Gepackt».",
+        "toastSuccess": "Status «Mit mir unterwegs» gesetzt — Retour kann beginnen."
+      },
+      "progressBreakdown": {
+        "crates": "{count} in Kisten",
+        "consumables": "{count} Verbrauch",
+        "loose": "{count} lose"
       },
       "quickReturnHandoff": {
         "title": "Retour erledigt",
@@ -2487,6 +2529,19 @@
           "action": "Einlagern starten"
         }
       },
+      "returnSummary": {
+        "title": "Retour-Übersicht",
+        "positionCount": "{count} Position | {count} Positionen",
+        "consumableTag": "Verbrauch",
+        "columns": {
+          "material": "Material",
+          "issued": "Ausgegeben",
+          "returned": "Retour",
+          "loss": "Verlust",
+          "repair": "Reparatur",
+          "consumption": "Verbrauch"
+        }
+      },
       "inventoryAtEvent": {
         "title": "Material am Anlass",
         "empty": "Noch nichts angekommen — Touren oben als «Angekommen» markieren.",
@@ -2499,7 +2554,8 @@
       },
       "toolbar": {
         "progress": "{done} / {total} erledigt",
-        "progressQuickIssue": "{done} / {total} mitgenommen"
+        "progressQuickIssue": "{done} / {total} mitgenommen",
+        "alsoHere": "Auch auf der Packliste:"
       },
       "row": {
         "openQty": "{count} offen",
@@ -2511,6 +2567,7 @@
         "inPackCrates": "In Packkiste: {labels}",
         "openCrateSheetHint": "Kistencheck öffnen — Teilmengen und lose Ausgabe",
         "selectPackTargetHint": "Als Zielkiste wählen (grün markieren)",
+        "deselectPackTargetHint": "Zielkiste abwählen",
         "assignToCrateHint": "In Kiste «{label}»",
         "assignToTourHint": "Auf Tour «{label}»",
         "accordionEmpty": "Noch kein Inhalt in dieser Kiste.",
@@ -2519,12 +2576,17 @@
         "accordionCount": "{count} Positionen",
         "looseTake": "Lose mitnehmen",
         "reassignCrate": "In andere Packkiste",
+        "reassignCratePlaceholder": "Packkiste wählen…",
+        "deleteEmptyPackCrate": "Leere Packkiste entfernen",
+        "warehouseTemplateSection": "Lager-Vorlage (nicht auf Packliste gebucht)",
+        "warehouseTemplateBadge": "Lager-Vorlage",
         "atEventTotal": "{count} total",
         "atEventTaken": "{count} mitgenommen",
         "atEventLoss": "{count} Verlust",
         "atEventRepair": "{count} Reparatur",
         "atEventConsumption": "{count} Verbrauch",
-        "atEventNotTaken": "{count} nicht mitgenommen"
+        "atEventNotTaken": "{count} nicht mitgenommen",
+        "storePendingQty": "{count} Stk. einlagern"
       },
       "looseTake": {
         "title": "Lose mitnehmen",
@@ -2616,6 +2678,11 @@
       },
       "readonlyFutureStep": "Dieser Schritt ist noch nicht freigeschaltet — bitte den vorherigen Schritt abschliessen.",
       "readonlyPastStep": "Dieser Schritt ist bereits abgeschlossen — nur Ansicht.",
+      "mwStepEdit": {
+        "hint": "Als Materialwart kannst du diesen Schritt zur Korrektur freischalten.",
+        "action": "Schritt bearbeiten",
+        "active": "Bearbeitungsmodus aktiv — du kannst Buchungen in diesem Schritt vornehmen."
+      },
       "jsBanner": {
         "hint": "J+S-Leihmaterial wird im Tab J+S bestellt und geprüft — nicht über diese Packliste.",
         "noPositionsYet": "Noch keine J+S-Positionen — Bestellformular im Tab J+S ausfüllen."
@@ -2632,7 +2699,11 @@
         "empty": "Keine offenen Positionen in dieser Kiste.",
         "sectionSummary": "{count} offen",
         "subtitleReturn": "Inhalt prüfen und Kiste retournieren",
-        "subtitleStore": "Inhalt prüfen und Kiste einlagern"
+        "subtitleReturnCheck": "Retour-Kistencheck — Inhalt für den Rücktransport prüfen",
+        "subtitleStore": "Inhalt prüfen und Kiste einlagern",
+        "subtitleStoreLines": "Zuerst Inhalt einlagern — pro Position Regal scannen",
+        "shellAfterContent": "Inhalt erledigt — jetzt die Kiste (Hülle) einlagern.",
+        "primaryStoreShell": "Kiste «{label}» einlagern"
       },
       "comboSheet": {
         "subtitle": "Alle Teile abhaken und Set buchen",
@@ -2646,22 +2717,31 @@
       },
       "storeHint": {
         "title": "Material nach Regal einlagern",
-        "description": "Position antippen oder scannen → Regal/Fach prüfen → «Verräumt». Danach physisch verräumen; nächste Position, wenn du bereit bist."
+        "description": "Material scannen oder antippen → zum Soll-Regal gehen → Standort-QR scannen → «Verräumt»."
       },
       "storeSheet": {
-        "subtitle": "Regal und Fach prüfen, dann verräumen",
+        "subtitle": "Material zum Soll-Regal bringen, dann Standort scannen",
+        "bringTo": "Hinbringen nach",
         "suggestedLocation": "Soll-Standort (Material)",
-        "noLocation": "Kein Regal hinterlegt",
-        "rackLabel": "Regal",
-        "slotLabel": "Fach",
-        "noRacks": "Keine Regale gefunden",
-        "noSlots": "Kein Fach",
+        "noLocation": "Kein Regal hinterlegt — Standort scannen",
+        "scanLocationLabel": "Standort scannen",
+        "scanPhaseSubtitle": "Regal oder Fach am Lagerort scannen",
+        "scanContextQty": "{count} Stk.",
         "qtyLabel": "Menge",
-        "qtyMax": "max. {max}",
-        "targetHint": "Ziel: {location}",
-        "confirm": "Verräumt",
-        "toastSuccess": "Artikel verräumt",
-        "workflowHint": "Nach «Verräumt» schliesst sich das Fenster — physisch zum Regal gehen. Nächste Position dann antippen oder scannen."
+        "qtyUnit": "Stk.",
+        "manualStoreButton": "Verräumt in {location} · {count} Stk.",
+        "rackShort": "Regal",
+        "slotShort": "Fach",
+        "scanLocationPlaceholder": "Regal- oder Fach-QR scannen …",
+        "scanCountdown": "Scanner startet in {seconds}s …",
+        "scanCountdownNow": "Jetzt scannen",
+        "rackOnlyHint": "Richtiger Gang ({rack}) — bitte noch Fach «{slot}» scannen.",
+        "scanWrongLocation": "Falscher Standort — bitte Soll-Regal/Fach scannen.",
+        "scanNotStorage": "Kein Lager-QR — bitte Regal- oder Fach-Code scannen.",
+        "scanNotFound": "Standort nicht gefunden.",
+        "scanMatched": "Standort bestätigt: {location}",
+        "confirmHere": "{count}× hier verräumen ({seconds}s)",
+        "toastSuccess": "Artikel verräumt"
       },
       "assignCrate": {
         "subtitle": "Kiste wählen und Material zuordnen",
@@ -2751,6 +2831,10 @@
       "scan": {
         "label": "Suchen oder scannen",
         "placeholder": "Name, Regal oder QR-Code…",
+        "placeholderNoShelf": "Name oder QR-Code…",
+        "storePlaceholder": "Artikelname eingeben…",
+        "shelfNotInStep": "Regal-Suche gibt es nur beim Packen und Einlagern.",
+        "typeaheadAria": "Gepackte Artikel",
         "openCamera": "Kamera zum Scannen öffnen",
         "openMenu": "Suchoptionen",
         "barcodeShortcutHint": "Scannen ohne Auswahl: links auf das Scan-Symbol tippen.",
@@ -2766,6 +2850,7 @@
         "cameraHint": "QR- oder Barcode in den Rahmen halten",
         "bulkConfirm": "Trotzdem buchen",
         "bulkConfirmHint": "Andere Charge als geplant — nur nach Bestätigung buchen.",
+        "externalBarcodeWarning": "Kein eMatChef-QR — erkannt als Barcode/EAN der Charge.",
         "quantityHintPieces": "{count} {unit} packen",
         "quantityHintPacksOnly": "{packs}× {unit} à {per} Stk. ({total} gesamt) packen",
         "quantityHintPacksPlusLoose": "{packs}× {unit} à {per} Stk. + {loose} lose ({total} gesamt) packen",
@@ -2787,9 +2872,15 @@
         "actionUseAsPackCrate": "Ja, als Packkiste nutzen",
         "actionDeclinePackCrate": "Nein",
         "actionShow": "Anzeigen",
+        "actionMiniInventory": "Mini-Inventur starten",
+        "crateNotEmptyBlocked": "Kiste ist nicht leer — nur leere Kisten können als Packkiste genutzt werden.",
+        "crateWarehouseWarning": "Lager-Inhalt: {count} Positionen ({total} Stk.) laut Vorlage in dieser Kiste — stimmt das?",
+        "crateWarehouseHint": "Bei Abweichung Mini-Inventur starten oder eine leere Kiste scannen.",
         "result": {
           "not_on_list": "Nicht auf dieser Packliste.",
           "unknown_crate": "Kiste ist noch nicht auf der Packliste. Als Packkiste nutzen?",
+          "unknown_crate_not_empty": "Kiste ist nicht leer — nur leere Kisten können als Packkiste genutzt werden.",
+          "crate_shell_with_content": "Kiste mit Lager-Inhalt erkannt — nicht als leere Packkiste nutzbar.",
           "not_ready": "Materialwart packt noch.",
           "wrong_batch": "Andere Charge als geplant.",
           "serialized_mismatch": "Falsche Charge — bei Seriennummern muss der QR exakt passen.",
@@ -2815,6 +2906,7 @@
           "shelf_session_crate_hint": "Material scannen — landet in der aktiven Packkiste.",
           "shelf_session_progress": "{done} von {total} erledigt.",
           "storage_not_found": "Lagerstandort nicht gefunden.",
+          "shelf_not_in_step": "Regal-Suche gibt es nur beim Packen und Einlagern.",
           "unknown": "Code nicht erkannt.",
           "unsupported_scan": "Dieser Code-Typ wird hier nicht unterstützt."
         }
@@ -2826,6 +2918,8 @@
         "openDescription": "Keine offenen Positionen in diesem Schritt.",
         "byShelfTitle": "Alles gepackt",
         "byShelfDescription": "Keine offenen Positionen mehr — wechsle zu «Erledigt» oder einem anderen Schritt.",
+        "storeByShelfTitle": "Alles eingelagert",
+        "storeByShelfDescription": "Keine offenen Positionen mehr — der Materialabschluss erscheint gleich darüber.",
         "filterTitle": "Keine Treffer",
         "filterDescription": "Die Suche passt zu keiner offenen Position — Suchbegriff anpassen oder Scan-Feld leeren.",
         "doneTitle": "Noch nichts erledigt",
@@ -3156,8 +3250,8 @@
       "unpackStorePlusTitle": "Menge erhöhen",
       "unpackStoreConfirmTitle": "Menge einlagern",
       "unpackStoreConfirmAria": "Einlagern bestätigen",
-      "hintConsumableOverviewMw": "Verbrauch kann Gruppe/Leiter jederzeit buchen (Tab «Verbrauch» / «Gebraucht»). Buchhaltung nach Einlagern oder Abschluss.",
-      "hintConsumableOverviewUser": "Verbrauch buchst du im Tab «Verbrauch» oder über «Gebraucht» — die Buchhaltung erledigt der Materialwart beim Abschluss.",
+      "hintConsumableOverviewMw": "Verbrauch kann Gruppe/Leiter jederzeit buchen (Tab «Verbrauch» / «Gebraucht»). Buchhaltungs-Auftrag erst nach Abschluss der Aktivität.",
+      "hintConsumableOverviewUser": "Verbrauch buchst du im Tab «Verbrauch» oder über «Gebraucht» — die Buchhaltung erledigt der Materialwart nach dem Abschluss.",
       "hintNotTakenForReturn": "Gepackt (aus dem Lager), aber nicht ans Event mitgenommen — noch in der Packliste, nicht retourniert.",
       "notTakenForReturnQty": "{n} Stk. · gepackt, nicht mitgenommen",
       "consumableReturnConfirmTitle": "Verbrauchsmaterial retournieren",
@@ -3242,6 +3336,16 @@
       "modalAddHint": "Kisten mit «Behälter» am Material <strong>oder</strong> an der Serien-Instanz (ohne physische Kombi-Referenz). <strong>Leere</strong> Kisten stehen oben in der Liste; andere sind mit «mit Inhalt» gekennzeichnet. Ausgeschlossen: schon dieser Packliste zugeordnet oder parallel in einer anderen Aktivität mit überlappendem Planungs-/Nutzungszeitraum.",
       "modalLoadingBatches": "Kisten werden geladen…",
       "modalBatchLabel": "Kiste aus Lager",
+      "modalScanHint": "Kisten-QR scannen — passende Kiste wird in der Liste vorausgewählt.",
+      "modalScanInvalid": "Kein gültiger Material-/Chargen-QR.",
+      "modalScanNotContainer": "Gescanntes Material ist keine Kiste/kein Behälter.",
+      "modalScanNotAvailable": "Diese Kiste steht nicht zur Auswahl (schon auf der Packliste, anderweitig belegt oder kein passender Bestand).",
+      "modalScanSelected": "Kiste erkannt: {label}",
+      "modalScanAddTitle": "Per Scan erkannt",
+      "modalScanAddBanner": "{label} — wird in {seconds} Sek. hinzugefügt …",
+      "modalScanAddButton": "Hinzufügen ({seconds})",
+      "modalScanAddNow": "Jetzt hinzufügen",
+      "modalScanAddCancel": "Abbrechen",
       "modalSelectPlaceholder": "– Bitte wählen –",
       "modalNoBatch": "Keine Kiste in der Auswahl: entweder kein passender Bestand (Behälter am Material oder an der Instanz, auf Gestell gebucht), oder alle Kisten sind schon dieser Packliste zugeordnet / im gleichen Zeitraum einer anderen Aktivität zugeordnet.",
       "modalAssignTitle": "In Behälter legen",
@@ -3517,6 +3621,7 @@
       "action_material_changed": "Material geändert",
       "action_material_items_changed": "Material geändert",
       "action_pack_reset_cancel": "Packliste bei Storno zurückgesetzt",
+      "action_issue_reported": "Meldung erfasst",
       "action_pack_move": "Material gebucht",
       "action_pack_moveback": "Buchung zurückgenommen",
       "action_pack_container_bulk": "Kiste gebucht",
@@ -3556,10 +3661,14 @@
       "itemIssues": "Meldungen geklärt (Werkstatt)",
       "itemWorkshop": "Werkstatt-Tickets abgeschlossen",
       "itemAccounting": "Buchhaltung zugeordnet",
+      "itemAccountingAfterCloseHint": "Buchhaltungs-Aufträge entstehen erst nach «Abschliessen» — dann in der Buchhaltung zuordnen.",
+      "itemCostsReview": "Kosten freigeben",
+      "itemCostsReviewHint": "Kostenübersicht prüfen — Verbrauch, Werkstatt und Nachkäufe vor dem Abschluss kontrollieren.",
       "actionPacks": "Packliste →",
       "actionIssues": "Meldungen →",
       "actionWorkshop": "Werkstatt",
       "actionCosts": "Kosten →",
+      "actionCostsReview": "Kosten freigeben →",
       "actionAccountingAssign": "Zuordnen"
     },
     "vehicles": {
@@ -3636,7 +3745,7 @@
       "accountingPendingSum": "Summe offen",
       "accountingLink": "In Buchhaltung zuordnen →",
       "costOverviewTotal": "Kostenübersicht (Summe)",
-      "interimHint": "(Buchhaltung ab Retour)",
+      "interimHint": "(Vorschau — Buchhaltungs-Aufträge nach Abschluss)",
       "rowWorkshopRepair": "Werkstatt Reparatur",
       "rowWorkshopWriteoff": "Werkstatt Abschreibung",
       "grandTotalExternal": "Gesamtbetrag (extern)",
@@ -3675,6 +3784,7 @@
       "blockedHintWithNachbuchung": "Verbrauchslimit erreicht. Nachlieferung oder Reste dem Event zuordnen:",
       "addNachlieferung": "Nachlieferung zur Aktivität hinzufügen",
       "blockedHintNoRights": "Kein weiterer Verbrauch möglich. Eine Erhöhung der gebuchten Menge nur durch Materialwart / Dep.-Chef (Tab «Material»).",
+      "handoffReadOnlyHint": "Material an den Materialwart übergeben — weitere Verbrauchsbuchungen sind nicht mehr möglich.",
       "increaseBooked": "Gebuchte Menge erhöhen (Nachlieferung / Reste)…",
       "historyTitle": "Gebuchter Verbrauch",
       "historyQty": "×{n}",
@@ -3692,7 +3802,7 @@
       "costsTotal": "Verbrauchsmaterial gesamt",
       "costsNoneYet": "Noch kein Verbrauch gebucht — Betrag CHF 0.00",
       "costsZeroWithUsage": "Verbrauch ist gebucht, der Betrag ist aber CHF 0.00 (fehlender Verkaufspreis oder nur Lagerbestand ohne Preis).",
-      "costsMissingSalePrice": "Verbrauch ist gebucht, aber ohne Verkaufspreis in den Material-Stammdaten kann nichts verrechnet werden. Verkaufspreis am Material (z. B. Fackeln) ergänzen — danach erscheint der Betrag hier und unter «Kosten» ein Buchhaltungs-Auftrag zur Gruppen-Verrechnung.",
+      "costsMissingSalePrice": "Verbrauch ist gebucht, aber ohne Verkaufspreis in den Material-Stammdaten kann nichts verrechnet werden. Verkaufspreis am Material (z. B. Fackeln) ergänzen — danach erscheint der Betrag hier; ein Buchhaltungs-Auftrag zur Gruppen-Verrechnung entsteht erst, wenn die Aktivität abgeschlossen ist.",
       "toastLoadFailed": "Verbrauchsmaterial konnte nicht geladen werden.",
       "toastNoRemaining": "Kein weiterer Verbrauch möglich.",
       "toastMaxPieces": "Höchstens {n} Stk. möglich.",
@@ -5133,9 +5243,9 @@
   "mail": {
     "layout": {
       "prodIntro": "Vorlagen, Absender und Versandprotokoll — Versand über",
-      "prodOutro": "(SendGrid) aus der Server-Umgebung.",
+      "prodOutro": "MAILER_DSN in der Server-Umgebung.",
       "devIntro": "Vorlagen, Absender und Versandprotokoll — Versand über",
-      "devOutro": "aus backend/.env.local (z. B. SendGrid; null://null = kein Versand).",
+      "devOutro": "backend/.env.local (null://null = kein Versand).",
       "subnavAria": "Mail-Untermenü",
       "tabs": {
         "send": "Versand",
@@ -5169,10 +5279,10 @@
     "outbound": {
       "title": "Absender-E-Mail",
       "hintIntro": "Versand erfolgt ausschliesslich ueber",
-      "hintOutro": "aus der Server-Umgebung (SendGrid-only). Dieser Screen verwaltet nur Absender und Reply-To.",
+      "hintOutro": "aus der Server-Umgebung (MAILER_DSN). Dieser Screen verwaltet nur Absender und Reply-To.",
       "currentTransport": "Aktueller Versandweg:",
       "mailerMissingTitle": "MAILER_DSN fehlt:",
-      "mailerMissingBody": "Auf dem Server ist kein gueltiger MAILER_DSN gesetzt. Versand und Testmail sind deaktiviert, bis SendGrid in der Umgebung konfiguriert ist.",
+      "mailerMissingBody": "Auf dem Server ist kein gueltiger MAILER_DSN gesetzt. Versand und Testmail sind deaktiviert, bis MAILER_DSN in der Umgebung konfiguriert ist.",
       "loading": "Lade Einstellungen...",
       "fromAddress": "Absender-E-Mail",
       "fromName": "Absender-Name (optional)",
@@ -5192,7 +5302,7 @@
       "superadminOnly": "Nur Superadmin kann die E-Mail-Einstellungen aendern. Du kannst die aktuellen Werte einsehen.",
       "testTitle": "Testmail",
       "testHintIntro": "Sendet eine kurze Pruefmail ueber",
-      "testHintOutro": "(SendGrid) aus der Server-Umgebung.",
+      "testHintOutro": "aus der Server-Umgebung (MAILER_DSN).",
       "testTarget": "Ziel-E-Mail",
       "testPlaceholder": "deine [at] adresse.ch",
       "sending": "Senden...",
@@ -5208,7 +5318,7 @@
     },
     "log": {
       "title": "Versandprotokoll",
-      "hint": "Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — keine Passwörter, kein Link-Token, kein Mailtext. Maximal 500 Einträge in var/app/mail_send_log.json. Wer als Benutzer eine Mail ausgelöst hat, wird hier nicht automatisch mitgeschrieben.",
+      "hint": "Kurzprotokoll ohne sensiblen Inhalt: Zeitpunkt, Art, Absender-Adresse, Empfänger, Betreff — auch fehlgeschlagene Versuche. Keine Passwörter, kein Link-Token, kein Mailtext. Maximal 500 Einträge in var/app/mail_send_log.json.",
       "loading": "Lade Log...",
       "empty": "Noch keine Einträge.",
       "dash": "—",
@@ -5220,12 +5330,18 @@
         "to": "An",
         "subject": "Betreff"
       },
+      "failedSuffix": "fehlgeschlagen",
       "kinds": {
         "authVerifyEmail": "Registrierung · E-Mail bestätigen",
         "authPendingEmailChange": "Profil · Neue E-Mail bestätigen",
         "authPasswordReset": "Passwort zurücksetzen",
         "departmentInvite": "Department-Einladung",
+        "departmentMemberAdded": "Department · Mitglied hinzugefügt",
+        "joinRequestManagerNotify": "Beitrittsanfrage · Leitung",
+        "adminJoinRequestManagerNotify": "Admin-Beitrittsanfrage · Leitung",
+        "jsOrderCoach": "J+S · Coach-Bestellung",
         "publicFoundItem": "Öffentlich · Fund-Hinweis",
+        "mailOutbound": "Systemmail",
         "mailTest": "Testmail (Einstellungen)",
         "mailTestFailed": "Testmail fehlgeschlagen"
       }
@@ -5240,7 +5356,7 @@
       "reportWithoutActivity": "Ohne Aktivitätsbezug melden",
       "loadingActivities": "Aktivitäten werden geladen...",
       "emptyActivities": "Keine Aktivitäten im Status «Ausgegeben» oder «Retour» gefunden.",
-      "emptyActivitiesHint": "Schaden kann nur bei ausgegebenen Aktivitäten gemeldet werden.",
+      "emptyActivitiesHint": "Meldungen sind ab «Am Anlass», Retour oder Einlagern möglich.",
       "step2WithActivityTitle": "2. Schaden erfassen",
       "activityPrefix": "Aktivität:",
       "loadingMaterial": "Material wird geladen...",
@@ -5272,7 +5388,7 @@
       "reportDamage": "Schaden melden",
       "errorWithMessage": "Fehler: {message}",
       "toastActivityLoadFailed": "Aktivität konnte nicht geladen werden.",
-      "toastOnlyIssuedReturned": "Schaden kann nur bei ausgegebenen oder retour Aktivitäten gemeldet werden.",
+      "toastOnlyIssuedReturned": "Meldungen sind in diesem Aktivitätsstatus nicht möglich.",
       "repairSheetLabel": "Schadensstelle am Zelt",
       "repairSheetHint": "Markiere betroffene Bereiche im Diagramm (optional).",
       "loadingRepairSheet": "Zeltblatt wird geladen…",
@@ -5579,6 +5695,8 @@
       "rackPhDash": "– Gestell –",
       "slotPhOptional": "– optional –",
       "allocationSumInvalid": "Summe muss {qty} {unit} ergeben (aktuell: {current})",
+      "allocDuplicateCrateHint": "Dieselbe Kiste ist in mehreren Zeilen gewählt — bitte Mengen in einer Zeile zusammenfassen.",
+      "allocCrateAlreadyUsedInRow": "Bereits in einer anderen Zeile gewählt",
       "boughtFrom": "Gekauft von (Lieferant)",
       "searchSupplier": "Lieferant suchen...",
       "addNewSupplier": "Neuen Lieferanten hinzufügen",
@@ -5607,7 +5725,8 @@
       "logErrorLoadStorageAddresses": "Fehler beim Laden der Lagerstandorte:",
       "logErrorLoadRacks": "Fehler beim Laden der Gestelle:",
       "logErrorLoadSlots": "Fehler beim Laden der Slots:",
-      "logErrorReloadSuppliers": "Fehler beim Neuladen der Lieferanten:"
+      "logErrorReloadSuppliers": "Fehler beim Neuladen der Lieferanten:",
+      "eanPlaceholder": "z.B. 7612345678901"
     },
     "materialPreviewSidebar": {
       "titleAddBatch": "Charge hinzufügen",
@@ -5651,12 +5770,43 @@
       "costsHintA": "Preise im Schritt ",
       "wordDetails": "Details",
       "costsHintB": " unter ",
-      "wordCosts": "Kosten",
+      "wordCosts": "Preise & Verrechnung",
       "costsHintC": ". ",
       "wordVe": "Verpackungseinheit",
       "costsHintD": " bei der ",
       "wordQty": "Menge",
-      "costsHintE": ", sobald eine Anzahl eingetragen ist."
+      "costsHintE": " bzw. Packmaß im Tab «Daten», sobald eine Anzahl eingetragen ist."
+    },
+    "consumablePricing": {
+      "lead": "Anschaffung aus Chargen, normale Preise für interne Aktivitäten — bei «Extern» optional ein Zusatz pro Stück.",
+      "accordionAcquisition": "Anschaffung (Chargen)",
+      "acquisitionIntro": "Ist-Einkaufspreise aus Chargen — für Buchhaltung und als Referenz für die Preise. Referenz-EK wird standardmässig vom letzten EK übernommen.",
+      "avgPurchaseUnit": "Ø-EK pro Stk.",
+      "latestPurchaseUnit": "Letzter EK pro Stk.",
+      "priceTrend": "Preisverlauf",
+      "noBatchPrices": "Noch keine Chargen mit Einkaufspreis vorhanden.",
+      "colDate": "Datum",
+      "colQty": "Menge",
+      "colUnitPrice": "Stückpreis",
+      "applyAvgToReference": "Ø-EK als Referenz übernehmen",
+      "applyLatestToReference": "Letzten EK als Referenz übernehmen",
+      "accordionPrices": "Preise",
+      "pricesIntro": "Verkaufspreis und Referenz-EK — intern wird damit verrechnet (kein separater Gruppenpreis).",
+      "markupPercent": "Aufschlag (%)",
+      "externalCalculatorTitle": "Zusatz-Rechner (Extern)",
+      "externalCalculatorHint": "Aufschlag auf den normalen Verkaufspreis — ergibt den optionalen Zusatz für externe Aktivitäten.",
+      "externalCalculatorPreview": "Vorschlag: {base} CHF/Stk. + {markup}% = {extra} CHF Zusatz",
+      "externalCalculatorNeedsBase": "Zuerst Verkaufspreis (oder Referenz-EK) unter «Preise» erfassen.",
+      "applySuggestedExternal": "Vorschlag als Zusatz übernehmen",
+      "accordionExternal": "Extern (Zusatz)",
+      "externalIntro": "Optionaler Zusatz pro Stück nur bei Aktivitäten vom Typ «Extern» — kommt zum normalen Verkaufspreis dazu.",
+      "externalSalePrice": "Zusatzpreis extern (CHF/Stk.)",
+      "externalSaleHint": "Leer lassen, wenn extern wie intern verrechnet werden soll.",
+      "externalTotalPreview": "Extern gesamt: {base} + {extra} = {total} CHF/Stk.",
+      "packSaleNeedsVe": "Verpackungseinheit im Tab «Daten» erfassen, um den Packungspreis auf Stück umzurechnen.",
+      "packSaleModePackTitle": "Preis pro Verpackungseinheit eingeben",
+      "packSaleModePackDesc": "Stückpreis wird aus VE-Preis ÷ Stück/VE berechnet (wie Chargen-Erfassung)",
+      "hintDerivedPackPrice": "Errechneter VE-Preis: {price} Fr. ({packSize} Stk. pro {packUnit})"
     },
     "containerBatchContentsPicker": {
       "sectionLabel": "Aus Kiste übernehmen",
@@ -5974,6 +6124,8 @@
       "selectPickSlotDash": "– Fach wählen –",
       "labelBoxBagSm": "Kiste/Tasche",
       "allocSumMismatch": "Summe muss {qty} Stk. ergeben (aktuell: {sum})",
+      "allocDuplicateCrateHint": "Dieselbe Kiste ist in mehreren Zeilen gewählt — bitte Mengen in einer Zeile zusammenfassen.",
+      "allocCrateAlreadyUsedInRow": "Bereits in einer anderen Zeile gewählt",
       "labelMainStorage": "Hauptlagerplatz",
       "rackLabel": "Gestell",
       "slotLabel": "Fach",
@@ -6074,6 +6226,7 @@
       "tabUsedInCount": "Verwendet in ({count})",
       "tabComposition": "Zusammensetzung",
       "tabWorkshop": "Werkstatt",
+      "tabConsumablePricing": "Preise & Verrechnung",
       "tabRental": "Vermietung",
       "tabArchive": "Archiv",
       "tabArchiveCount": "Archiv ({count})",
@@ -6081,7 +6234,7 @@
       "labelNameDb": "Name (in der Datenbank)",
       "labelCode": "Code",
       "optionalShort": "(Optional)",
-      "codePlaceholder": "z.B. Material-Code",
+      "codePlaceholder": "z.B. Fremdbarcode / Lieferantencode",
       "labelCategory": "Kategorie",
       "labelModel": "Modell",
       "sectionProperties": "Eigenschaften",
@@ -6613,7 +6766,9 @@
         "batch.supplier": "Lieferant",
         "acquired_on": "Kaufdatum",
         "qty": "Menge",
-        "unit_price": "Stückpreis"
+        "unit_price": "Stückpreis",
+        "batch.ean": "EAN (Charge)",
+        "batch.barcode_tag": "Code / Barcode (Charge)"
       },
       "badgeAlreadyInComposition": "bereits in Kombination",
       "confirmRemoveCompositionTitle": "Komponente aus Kombination entfernen?",
@@ -7010,7 +7165,10 @@
       "packModeTitle": "Wie soll der Materialwart packen?",
       "packModeTogether": "Zusammen als Set (Packkiste «{name}»)",
       "packModeLoose": "Lose — Materialwart organisiert selbst",
-      "selfProvidedAck": "Ich organisiere diese Teile selbst und bringe sie zum Anlass mit."
+      "selfProvidedAck": "Ich organisiere diese Teile selbst und bringe sie zum Anlass mit.",
+      "stockImpactTitle": "Auswirkung auf den Bestand",
+      "stockImpactOverlap": "{name}: {loose} Stk. bereits lose auf der Aktivität — Set braucht {need}. Beim Übernehmen «Kombinieren?» oder Mengen anpassen.",
+      "stockImpactShortage": "{name}: getrennt wären {total} Stk. nötig, im Zeitraum nur {avail} verfügbar."
     },
     "activityCreateWizard": {
       "toastDraftLoadFailed": "Entwurf konnte nicht geladen werden."
@@ -7635,14 +7793,13 @@
     "issueOriginCreatedTitle": "Aus {origin} erstellt",
     "btnStartWork": "▶ Arbeit starten",
     "btnAcceptLoss": "✓ Verlust annehmen",
-    "btnWaitingParts": "⏸ Wartet auf Teile",
+    "btnWaitingParts": "Warte auf Teile…",
     "btnResumeWork": "▶ Weiterarbeiten",
     "btnComplete": "✓ Abschließen",
     "btnRepairDone": "✓ Reparatur erledigt",
     "btnAdvanceReady": "Weiter → Bereit zur Reparatur",
     "btnStartRepair": "Reparatur beginnen",
     "btnOrderParts": "Zum Einkauf →",
-    "btnWaitingParts": "Warte auf Teile…",
     "btnCancelTicket": "✕ Ticket stornieren",
     "cancelConfirmTitle": "Ticket stornieren?",
     "cancelConfirmMessage": "«{title}» wird storniert und aus den offenen Tickets entfernt. Diese Aktion kann über «Wiedereröffnen» rückgängig gemacht werden.",

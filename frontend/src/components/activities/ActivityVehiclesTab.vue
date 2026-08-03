@@ -12,11 +12,12 @@ import {
 import { getAddresses, type Address } from '@/api/addresses'
 import type { DepartmentVehicle } from '@/api/departmentVehicles'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import ActivityVehicleAssignPicker from '@/components/activities/ActivityVehicleAssignPicker.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import EButton from '@/components/form/base/EButton.vue'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { useToast } from '@/composables/useToast'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 
 defineOptions({ name: 'ActivityVehiclesTab' })
 
@@ -33,8 +34,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 
-const loading = ref(false)
 const saving = ref(false)
 const assignments = ref<ActivityVehicleAssignment[]>([])
 const addresses = ref<Address[]>([])
@@ -67,15 +68,14 @@ const editForm = ref({
 
 const assignedVehicleIds = computed(() => assignments.value.map((a) => a.vehicle_id))
 
-async function loadAssignments(): Promise<void> {
-  loading.value = true
-  try {
-    assignments.value = await getActivityVehicles(props.activityId)
-  } catch (e) {
-    toast.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    loading.value = false
-  }
+async function loadAssignments(opts?: { forceFull?: boolean }): Promise<void> {
+  await withTabLoad(async () => {
+    try {
+      assignments.value = await getActivityVehicles(props.activityId)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }, opts)
 }
 
 async function loadAddresses(): Promise<void> {
@@ -89,7 +89,12 @@ async function loadAddresses(): Promise<void> {
 
 watch(
   () => [props.activityId, props.reloadToken] as const,
-  () => {
+  (curr, prev) => {
+    const [activityId] = curr
+    const prevActivityId = prev?.[0]
+    if (prevActivityId != null && activityId !== prevActivityId) {
+      resetTabLoad()
+    }
     void loadAssignments()
   },
   { immediate: true },
@@ -286,9 +291,8 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
       </p>
     </ActivityTabHeader>
 
-    <ELoadingState v-if="loading" />
-
-    <section v-else class="section-card activity-vehicles-tab__assigned">
+    <ActivityTabPanelShell :loading="showFullLoading" :refreshing="isRefreshing">
+      <section class="activity-vehicles-tab__assigned">
       <div class="activity-vehicles-tab__section-head">
         <h3 class="activity-vehicles-tab__section-title">
           {{ t('activities.vehicles.assignedTitle', { count: assignments.length }) }}
@@ -425,6 +429,7 @@ function loadAreaLabel(v: DepartmentVehicle): string | null {
         @select="onAssignExisting"
       />
     </section>
+    </ActivityTabPanelShell>
 
     <v-dialog v-model="createOpen" max-width="560">
       <div class="section-card activity-vehicles-tab__dialog">

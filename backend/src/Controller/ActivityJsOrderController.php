@@ -495,7 +495,7 @@ class ActivityJsOrderController extends AbstractController
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'MAILER_DSN')) {
                 return new JsonResponse([
-                    'error' => 'E-Mail-Versand ist nicht konfiguriert (MAILER_DSN fehlt). Bitte SendGrid/MAILER_DSN in der Server-Umgebung setzen.',
+                    'error' => 'E-Mail-Versand ist nicht konfiguriert (MAILER_DSN fehlt). Bitte MAILER_DSN in der Server-Umgebung setzen.',
                     'code' => 'mail_transport_missing',
                 ], 503);
             }

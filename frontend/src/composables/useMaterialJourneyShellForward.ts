@@ -41,6 +41,7 @@ import {
 import { getBackendStage, isPackConfirmedStage, type PackStage } from '@/components/activities/packStageQuantities'
 import {
   materialJourneyPeekSectionTitles,
+  peekSectionsForJourneyContainer,
 } from '@/composables/useMaterialJourneyCrateSections'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
 import { emptyMaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
@@ -106,13 +107,26 @@ export function useMaterialJourneyShellForward(options: {
   const submitError = ref<string | null>(null)
   const submitting = ref(false)
   const crateCheckSnapshots = ref<Record<string, CrateCheckSnapshot>>({})
+  /** Konkrete Packkiste (z. B. Rakokiste 010) — nicht erste Kiste der Charge. */
+  const activeContainer = ref<ActivityPackContainer | null>(null)
 
   const groupMode = computed(() => !options.canManageMaterials.value)
+
+  function resolvedShellContainer(): ActivityPackContainer | undefined {
+    if (activeContainer.value) return activeContainer.value
+    const pi = packItem.value
+    if (!pi) return undefined
+    const pending = pendingAction.value
+    if ('containerId' in pending && pending.containerId) {
+      return options.packContainers.value.find((c) => c.id === pending.containerId)
+    }
+    return packShellContainerForPackItem(pi, options.packContainers.value)
+  }
 
   const label = computed(() => {
     const pi = packItem.value
     if (!pi) return ''
-    const c = packShellContainerForPackItem(pi, options.packContainers.value)
+    const c = resolvedShellContainer()
     const crateLabel = (c?.label ?? pi.linkedContainerLabel ?? '').trim()
     return crateLabel && crateLabel !== pi.materialName
       ? `${crateLabel} – ${pi.materialName}`
@@ -122,7 +136,7 @@ export function useMaterialJourneyShellForward(options: {
   const containerBatchId = computed(() => {
     const pi = packItem.value
     if (!pi) return null
-    const c = packShellContainerForPackItem(pi, options.packContainers.value)
+    const c = resolvedShellContainer()
     return (c?.container_batch_id ?? pi.linkedContainerBatchId ?? null) || null
   })
 
@@ -131,7 +145,7 @@ export function useMaterialJourneyShellForward(options: {
   const emptyHint = computed(() => {
     const pi = packItem.value
     if (!pi) return ''
-    if (packShellContainerForPackItem(pi, options.packContainers.value)) {
+    if (resolvedShellContainer()) {
       return t('activities.packList.cratePeekEmptyLinkedCrate')
     }
     return t('activities.packList.cratePeekNoShellYet')
@@ -142,9 +156,24 @@ export function useMaterialJourneyShellForward(options: {
   }
 
   function sectionsForItem(item: ActivityPackItem): PackCrateShellPeekSection[] {
+    const container = resolvedShellContainer()
+    if (container) {
+      const perContainer = peekSectionsForJourneyContainer(
+        container,
+        {
+          containerItemsByContainerId: options.containerItemsByContainerId.value,
+          ...peekMaps(),
+        },
+        item,
+        t,
+        options.packItems.value,
+        options.packContainers.value,
+      )
+      if (perContainer.length > 0) return perContainer
+    }
     const maps = peekMaps()
     const shellC = packShellContainerForPackItem(item, options.packContainers.value)
-    let combo = maps.comboComponentsByMaterialId[item.materialItemId] ?? []
+    const combo = maps.comboComponentsByMaterialId[item.materialItemId] ?? []
     return crateShellForwardPeekSections(
       item,
       options.packContainers.value,
@@ -290,6 +319,7 @@ export function useMaterialJourneyShellForward(options: {
   function close(): void {
     modalOpen.value = false
     packItem.value = null
+    activeContainer.value = null
     submitError.value = null
   }
 
@@ -353,6 +383,7 @@ export function useMaterialJourneyShellForward(options: {
     shellPackItem: ActivityPackItem,
     qty: number,
   ): Promise<void> {
+    activeContainer.value = container
     const step = options.journeyStep.value
     if (isJourneyReturnStep(step)) {
       await openForPackItem(shellPackItem, qty, {

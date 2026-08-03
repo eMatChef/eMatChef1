@@ -180,22 +180,26 @@ class GrossanlassWishService
      */
     public function listWishesForUserRessort(Department $department, User $user): array
     {
-        $allowedGroupIds = $this->resolveVisibleGroupIds($department, $user);
+        $allowedGroupIds = $this->access->resolveAssignedGroupBranchIds($user, $department->getId());
         if ($allowedGroupIds === []) {
             return [];
         }
 
-        $lines = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+        $qb = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
             ->createQueryBuilder('w')
             ->innerJoin('w.round', 'r')
             ->innerJoin('r.activity', 'a')
+            ->innerJoin('w.group', 'g')
+            ->innerJoin('w.createdByUser', 'u')
+            ->leftJoin('u.profile', 'p')
+            ->addSelect('g', 'u', 'p')
             ->where('a.departmentId = :departmentId')
-            ->andWhere('w.groupId IN (:groupIds)')
             ->setParameter('departmentId', $department->getId())
-            ->setParameter('groupIds', $allowedGroupIds)
-            ->orderBy('w.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->orderBy('w.createdAt', 'DESC');
+
+        $qb->andWhere('w.groupId IN (:groupIds)')->setParameter('groupIds', $allowedGroupIds);
+
+        $lines = $qb->getQuery()->getResult();
 
         return array_map(fn (ActivityGrossanlassWishLine $w) => $this->toArray($w), $lines);
     }
@@ -876,7 +880,8 @@ class GrossanlassWishService
             if ($parent === null || $parent->getDepartmentId() !== $department->getId()) {
                 throw new \InvalidArgumentException('Parent-Ressort nicht gefunden');
             }
-            if (!$this->access->canCreateChildGroup($user, $department, $parent, $leaderScope)) {
+            // §4.2: Bauprojekt anlegen dürfen alle Ressort-Mitglieder; leader_scope gilt nur für die Auswahl bestehender Bauprojekte.
+            if (!$this->access->canCreateChildGroup($user, $department, $parent, false)) {
                 throw new \RuntimeException('Keine Berechtigung, Bauprojekt anzulegen');
             }
 

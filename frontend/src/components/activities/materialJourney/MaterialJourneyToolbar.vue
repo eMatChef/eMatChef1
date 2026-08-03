@@ -21,11 +21,24 @@ const props = defineProps<{
   packCompleteDescription?: string
   /** Einlagern: nur Fortschritt, keine Offen/Erledigt-Tabs */
   hideFilterTabs?: boolean
+  /** Quick Ausgabe: «Retour bringen» neben «Mit mir unterwegs». */
+  showBringBack?: boolean
+  bringBackDisabled?: boolean
+  bringBackDisabledHint?: string
+  /** Quick Teilausgabe: Status «Mit mir unterwegs» ohne Rest auszugeben. */
+  showPartialTaken?: boolean
+  partialTakenDisabled?: boolean
+  partialTakenLoading?: boolean
+  partialTakenTitle?: string
+  /** Aufschlüsselung: Kisten / Verbrauch / lose */
+  progressBreakdown?: string | null
 }>()
 
 const emit = defineEmits<{
   'add-pack-crate': []
   'mark-packed': []
+  'bring-back': []
+  'partial-taken': []
 }>()
 
 const filterTab = defineModel<MaterialJourneyFilterTab>('filterTab', { required: true })
@@ -116,6 +129,26 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
         {{ doneFilterLabel }}
       </button>
       <button
+        v-if="showBringBack"
+        type="button"
+        class="material-journey-toolbar__chip material-journey-toolbar__chip--action"
+        :disabled="bringBackDisabled"
+        :title="bringBackDisabled ? bringBackDisabledHint : undefined"
+        @click="emit('bring-back')"
+      >
+        {{ t('activities.materialJourney.quickPhase.bringBack') }}
+      </button>
+      <button
+        v-if="showPartialTaken"
+        type="button"
+        class="material-journey-toolbar__chip material-journey-toolbar__chip--action"
+        :disabled="partialTakenDisabled || partialTakenLoading"
+        :title="partialTakenTitle"
+        @click="emit('partial-taken')"
+      >
+        {{ t('activities.materialJourney.partialTaken.action') }}
+      </button>
+      <button
         v-if="showByShelfFilter"
         type="button"
         class="material-journey-toolbar__chip"
@@ -143,6 +176,15 @@ function selectTab(tab: MaterialJourneyFilterTab): void {
     </div>
     <p v-if="totalCount > 0" class="material-journey-toolbar__progress text-muted">
       {{ progressLabel }}
+    </p>
+    <p v-if="progressBreakdown" class="material-journey-toolbar__breakdown text-muted">
+      {{ progressBreakdown }}
+    </p>
+    <p
+      v-if="(presenceLabels ?? []).length > 0"
+      class="material-journey-toolbar__presence-title text-muted"
+    >
+      {{ t('activities.materialJourney.toolbar.alsoHere') }}
     </p>
     <p
       v-for="(label, idx) in presenceLabels ?? []"

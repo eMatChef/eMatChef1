@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - develop
+  schedule:
+    # Nachzieher wie eCamp: alle 30 Min, falls Push-CD ausfiel oder Server hinterherhinkt
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -25,9 +28,13 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            export EMATCHEF_GIT_SSH_IDENTITY="/home/${{ secrets.DEVELOP_SSH_USER }}/.ssh/ematchef_deploy_develop_ed25519"
-            _git_ssh_id="$EMATCHEF_GIT_SSH_IDENTITY"
-            export GIT_SSH_COMMAND="ssh -i ${_git_ssh_id} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+            # Server→GitHub Deploy-Key (Hetzner root; kein /home/root/…).
+            GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_develop_ed25519
+            if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_ed25519; fi
+            if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then echo "::error::Kein Git-Deploy-Key gefunden: $GIT_DEPLOY_KEY"; exit 1; fi
+            echo "Using git deploy key: $GIT_DEPLOY_KEY"
+            export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
+            export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             cd "${{ secrets.DEVELOP_DEPLOY_PATH }}"
             DEPLOY_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}"
             if [[ ! -w "${DEPLOY_ROOT}/.git/objects" ]]; then
@@ -38,6 +45,13 @@ jobs:
             # Bootstrap: altes prod-update.sh auf dem Server macht ggf. noch `git fetch origin`
             # und scheitert, bevor reset das neue Skript holen kann.
             git fetch --no-tags origin "+refs/heads/develop:refs/remotes/origin/develop"
+            LOCAL="$(git rev-parse HEAD)"
+            REMOTE="$(git rev-parse origin/develop)"
+            if [[ "$LOCAL" == "$REMOTE" ]]; then
+              echo "Already at origin/develop ($LOCAL) — skip deploy."
+              exit 0
+            fi
+            echo "Updating $LOCAL -> $REMOTE"
             git reset --hard origin/develop
             EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
             EMATCHEF_GIT_BRANCH=develop \

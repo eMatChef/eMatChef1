@@ -81,10 +81,10 @@ const isLoading = ref(true)
 const error = ref('')
 
 const groupsRef = computed(() => groups.value)
-const { isMemberInRessortBranch } = useGrossanlassRessortScope(groupsRef)
+const { isInAssignedRessortBranch } = useGrossanlassRessortScope(groupsRef)
 
 const myGroupsTree = computed(() =>
-  flattenGrossanlassGroupsFiltered(groups.value, (g) => isMemberInRessortBranch(g)),
+  flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
 )
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))

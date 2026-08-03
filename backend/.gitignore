@@ -6,6 +6,7 @@
 /public/bundles/
 /var/
 /vendor/
+.phpunit.cache
 ###> symfony/framework-bundle ###
 /.env.local
 /.env.local.php

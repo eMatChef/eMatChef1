@@ -210,6 +210,31 @@ class ActivityAccessService
     }
 
     /**
+     * Aktivitätenliste im Department:
+     * - eigene erstellte Aktivitäten (createdByUserId)
+     * - oder Gruppe im gleichen Zweig (eigene Gruppe, Unter- und Elterngruppen)
+     */
+    public function canUserSeeActivityInDepartmentList(User $user, Activity $activity, string $departmentId): bool
+    {
+        if (trim((string) $activity->getDepartmentId()) !== trim($departmentId)) {
+            return false;
+        }
+
+        if ($activity->getCreatedByUserId() === $user->getId()) {
+            return true;
+        }
+
+        $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
+        $activityGroupId = trim((string) ($activity->getGroupId() ?? ''));
+
+        if ($activityGroupId === '' || $userRootGroupIds === []) {
+            return false;
+        }
+
+        return $this->groupHierarchy->isInSameGroupBranch($departmentId, $activityGroupId, $userRootGroupIds);
+    }
+
+    /**
      * Sichtbare Gruppen-IDs: Untergruppen (Parent → Child) und Parent-Gruppen (Child → Parent),
      * damit Lager/Event der eigenen Gruppe auch für Mitglieder in Untergruppen in Listen erscheinen.
      *
@@ -225,8 +250,7 @@ class ActivityAccessService
     }
 
     /**
-     * Lager/Event: Zugriff im gesamten Gruppenzweig (Parent- oder Child-Seite).
-     * Andere Typen: nur Abwärts (User-Gruppe und Untergruppen).
+     * Zugriff im gesamten Gruppenzweig (Parent- oder Child-Seite), konsistent mit Listen-Sichtbarkeit.
      *
      * @param list<string> $userRootGroupIds
      */
@@ -240,11 +264,7 @@ class ActivityAccessService
             return false;
         }
 
-        if (\in_array($activity->getType() ?? '', ['camp', 'event'], true)) {
-            return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
-        }
-
-        return $this->groupHierarchy->isActivityGroupUnderUserGroups($departmentId, $groupId, $userRootGroupIds);
+        return $this->groupHierarchy->isInSameGroupBranch($departmentId, $groupId, $userRootGroupIds);
     }
 
     public function isDepartmentInviteAccepted(Activity $activity, string $departmentId): bool
@@ -702,21 +722,48 @@ class ActivityAccessService
     }
 
     /**
-     * Verbrauchsmaterial-Nachlieferung (POST items mit replenishment): MW/DC oder Gruppe/Ersteller ab «Am Event».
+     * Meldungen (Schaden/Reparatur/Verlust/Verbrauch): ab «Am Anlass» bzw. Ausgabe-Phase.
+     * Gruppe/Ersteller nur bis vor «Retour an MW» (Status returned/storing).
+     */
+    public function canUserReportActivityIssues(User $user, Activity $activity): bool
+    {
+        if (!$activity->canReportIssues()) {
+            return false;
+        }
+
+        if ($this->isHostDepartmentMwOrDc($user, $activity) || $this->isInvitedDepartmentMwOrDc($user, $activity)) {
+            return true;
+        }
+
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return false;
+        }
+
+        return \in_array($activity->getStatus(), [
+            Activity::STATUS_PACKED,
+            Activity::STATUS_TRANSPORT_OUT,
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
+        ], true);
+    }
+
+    /**
+     * Verbrauchsmaterial-Nachlieferung (POST items mit replenishment): MW/DC oder Gruppe/Ersteller nur ab «Am Event».
      */
     public function canUserRequestConsumableReplenishment(User $user, Activity $activity): bool
     {
-        if (!\in_array($activity->getStatus(), [Activity::STATUS_AT_EVENT, Activity::STATUS_RETURNED], true)) {
-            return false;
-        }
         if (!$activity->canReportIssues()) {
             return false;
         }
         if ($this->canHostMwOrDcEditActivityMaterialAfterDraft($user, $activity)) {
-            return true;
+            return \in_array($activity->getStatus(), [Activity::STATUS_AT_EVENT, Activity::STATUS_RETURNED], true);
         }
 
-        return $this->canUserOperateActivityPackHandoff($user, $activity);
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return false;
+        }
+
+        return $activity->getStatus() === Activity::STATUS_AT_EVENT;
     }
 
     /**

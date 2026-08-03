@@ -1470,6 +1470,28 @@
                     </div>
                   </div>
 
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelCode') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input
+                        v-model="formData.barcode_tag"
+                        type="text"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.codePlaceholder')"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelEan') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input v-model="formData.ean" type="text" class="form-input" :placeholder="t('components.batchModal.eanPlaceholder')" />
+                    </div>
+                  </div>
+
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
                     <label class="toggle-label">
                       <span class="toggle-wrapper">
@@ -1558,7 +1580,11 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="row in initialAllocations" :key="row.id">
+                          <tr
+                            v-for="row in initialAllocations"
+                            :key="row.id"
+                            :class="{ 'allocation-row--duplicate-crate': allocationRowHasDuplicateKiste(row, initialAllocations) }"
+                          >
                             <td>
                               <input
                                 v-model.number="row.qty"
@@ -1650,7 +1676,12 @@
                                     v-for="cb in containerBatches"
                                     :key="cb.id"
                                     :value="cb.id"
-                                    :title="formatContainerBatchOptionFullLabel(cb)"
+                                    :disabled="isContainerBatchUsedInOtherRow(initialAllocations, cb.id, row.id)"
+                                    :title="
+                                      isContainerBatchUsedInOtherRow(initialAllocations, cb.id, row.id)
+                                        ? t('components.materialCreateWizard.allocCrateAlreadyUsedInRow')
+                                        : formatContainerBatchOptionFullLabel(cb)
+                                    "
                                   >
                                     {{ formatContainerBatchOptionFullLabel(cb) }}
                                   </option>
@@ -1669,6 +1700,13 @@
                         </tbody>
                       </table>
                     </div>
+                    <p
+                      v-if="hasDuplicateKisteContainers(initialAllocations)"
+                      class="field-hint allocation-duplicate-crate-hint"
+                      role="status"
+                    >
+                      {{ t('components.materialCreateWizard.allocDuplicateCrateHint') }}
+                    </p>
                     <p v-if="initialAllocations.length > 0 && !allocationSumValid" class="field-hint is-invalid">
                       {{
                         t('components.materialCreateWizard.allocSumMismatch', {
@@ -2210,6 +2248,26 @@
                         :required="!formData.is_food"
                       />
                     </div>
+
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelCode') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input
+                        v-model="formData.barcode_tag"
+                        type="text"
+                        class="form-input"
+                        :placeholder="t('components.materialDetail.codePlaceholder')"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialDetail.labelEan') }}
+                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
+                      </label>
+                      <input v-model="formData.ean" type="text" class="form-input" :placeholder="t('components.batchModal.eanPlaceholder')" />
+                    </div>
                   </div>
 
                   <div class="form-row">
@@ -2455,22 +2513,6 @@
                   <h4 class="subsection-title">{{ t('common.material') }}</h4>
                   <div class="form-grid-details">
                     <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelCode') }}
-                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
-                      </label>
-                      <input
-                        v-model="formData.barcode_tag"
-                        type="text"
-                        class="form-input"
-                        :placeholder="t('components.materialDetail.codePlaceholder')"
-                      />
-                    </div>
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelEan') }}</label>
-                      <input v-model="formData.ean" type="text" class="form-input" />
-                    </div>
-                    <div class="form-group">
                       <label>{{ t('components.materialDetail.labelModel') }}</label>
                       <input v-model="formData.model" type="text" class="form-input" />
                     </div>
@@ -2549,111 +2591,23 @@
                   </div>
                 </div>
 
-                <!-- Kosten (Verbrauch / Esswaren): Preise, Verpackung, Preis pro VE -->
+                <!-- Preise & Verrechnung (Verbrauch / Esswaren) -->
                 <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
-                  <h4 class="subsection-title">{{ t('components.materialDetail.sectionCosts') }}</h4>
-                  <div v-if="formData.is_consumable" class="slider-hint costs-hint-row">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
-                    <span>{{ t('components.materialDetail.costsConsumableBanner') }}</span>
-                  </div>
-                  <div v-if="formData.is_food" class="slider-hint costs-hint-row">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-                    </svg>
-                    <span>{{ t('components.materialCreateWizard.costsFoodTabWizardHint') }}</span>
-                  </div>
-                  <div class="form-grid-details">
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelSalePrice') }}
-                        <span class="field-required-star">*</span>
-                      </label>
-                      <div class="price-input">
-                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                        <input
-                          v-model.number="formData.sale_price"
-                          type="number"
-                          step="0.05"
-                          min="0"
-                          class="form-input"
-                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                        />
-                      </div>
-                      <p class="field-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
-                      <div
-                        v-if="packSaleToUnitSaleChf != null"
-                        class="pack-sale-to-unit"
-                      >
-                        <p class="pack-sale-to-unit__text">
-                          {{
-                            t('components.materialDetail.packSaleCalcLine', {
-                              packPrice:
-                                formData.pack_sale_price_chf != null
-                                  ? Number(formData.pack_sale_price_chf).toFixed(2)
-                                  : '—',
-                              packUnit:
-                                formData.pack_unit || t('components.materialCreateWizard.packUnitFallbackGeneric'),
-                              packSize: formData.pack_size,
-                              unitPrice: packSaleToUnitSaleChf.toFixed(2),
-                            })
-                          }}
-                        </p>
-                        <button
-                          type="button"
-                          class="btn-outline btn-sm pack-sale-to-unit__btn"
-                          @click="applyPackSaleToWizardUnitSale"
-                        >
-                          {{ t('components.materialDetail.applyPackToUnit') }}
-                        </button>
-                      </div>
-                    </div>
-                    <div class="form-group">
-                      <label>
-                        {{
-                          wizardUseMeterQtyByCount
-                            ? t('components.materialCreateWizard.labelRefPurchaseMeter')
-                            : t('components.materialDetail.labelRefPurchase')
-                        }}
-                        <span class="field-required-star">*</span>
-                      </label>
-                      <div class="price-input">
-                        <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                        <input
-                          v-model.number="formData.reference_purchase_unit_chf"
-                          type="number"
-                          step="0.05"
-                          min="0"
-                          class="form-input"
-                          :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                        />
-                      </div>
-                      <p class="field-hint">
-                        {{
-                          wizardUseMeterQtyByCount
-                            ? t('components.materialCreateWizard.hintRefPurchaseMeter', {
-                                per: wizardMeterPieceLengthM,
-                              })
-                            : t('components.materialCreateWizard.hintRefPurchaseOverview')
-                        }}
-                      </p>
-                    </div>
-                    <div v-if="formData.is_consumable" class="form-group">
-                      <label>
-                        {{ t('components.materialCreateWizard.labelMinStockOptional') }}
-                        <span class="optional-label">({{ t('common.optional') }})</span>
-                      </label>
-                      <input
-                        v-model.number="formData.min_stock"
-                        type="number"
-                        min="0"
-                        class="form-input"
-                        :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                      />
-                      <p class="field-hint">{{ t('components.materialCreateWizard.hintMinStockUndershoot') }}</p>
-                    </div>
-                  </div>
+                  <h4 class="subsection-title">{{ t('components.materialDetail.tabConsumablePricing') }}</h4>
+                  <MaterialConsumablePricingPanel
+                    v-model:sale-price="formData.sale_price"
+                    v-model:reference-purchase-unit-chf="formData.reference_purchase_unit_chf"
+                    v-model:external-sale-price-chf="formData.external_sale_price_chf"
+                    v-model:pack-sale-price-chf="formData.pack_sale_price_chf"
+                    v-model:min-stock="formData.min_stock"
+                    :pack-size="formData.pack_size"
+                    :pack-unit="formData.pack_unit"
+                    :batches="wizardDraftBatches"
+                    :is-consumable="formData.is_consumable"
+                    :is-food="formData.is_food"
+                    :total-stock="formData.initial_qty || 0"
+                    mode="wizard"
+                  />
                   <p class="step-hint mt-2">
                     {{ t('components.materialCreateWizard.hintPackUnitAtQuantityStep') }}
                   </p>
@@ -2970,6 +2924,11 @@ import {
   formatContainerBatchOptionFullLabel,
   formatContainerBatchSelectLabel,
 } from '@/utils/containerBatchLabel'
+import {
+  allocationRowHasDuplicateKiste,
+  hasDuplicateKisteContainers,
+  isContainerBatchUsedInOtherRow,
+} from '@/utils/allocationStorageHints'
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
 import { useI18n } from 'vue-i18n'
@@ -2988,6 +2947,7 @@ import MaterialPreviewSidebar from '@/components/material/wizard/MaterialPreview
 import WizardFooter from '@/components/material/wizard/WizardFooter.vue'
 import MaterialNameInput from '@/components/material/wizard/MaterialNameInput.vue'
 import RentalPriceAmortizationCalculator from '@/components/material/RentalPriceAmortizationCalculator.vue'
+import MaterialConsumablePricingPanel from '@/components/material/MaterialConsumablePricingPanel.vue'
 import MaterialMetricInput from '@/components/material/MaterialMetricInput.vue'
 import { normalizeMaterialMetricInput } from '@/utils/materialMetricUnits'
 import { EButton, EDialog, ETextField } from '@/components/form/base'
@@ -3163,8 +3123,8 @@ function normalizeAllocationRowsToTotal() {
         sanitizedRows[0],
         {
           id: ++allocationIdCounter,
-          mode: 'slot',
-          storage_address_id: getPreferredStorageAddressId(),
+          mode: sanitizedRows[0].mode,
+          storage_address_id: sanitizedRows[0].storage_address_id || getPreferredStorageAddressId(),
           rack_id: '',
           slot_id: '',
           container_batch_id: '',
@@ -3193,11 +3153,12 @@ function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
 function addAllocationRow() {
   const remainingQty = Math.max(formData.initial_qty - allocationSum.value, 0)
   if (remainingQty <= 0) return
-  const lastMode = initialAllocations.value[initialAllocations.value.length - 1]?.mode ?? 'slot'
+  const lastRow = initialAllocations.value[initialAllocations.value.length - 1]
+  const lastMode = lastRow?.mode ?? 'slot'
   initialAllocations.value.push({
     id: ++allocationIdCounter,
     mode: lastMode,
-    storage_address_id: getPreferredStorageAddressId(),
+    storage_address_id: lastRow?.storage_address_id ?? getPreferredStorageAddressId(),
     rack_id: '',
     slot_id: '',
     container_batch_id: '',
@@ -3254,9 +3215,11 @@ const relevantAllocationRows = computed(() =>
   initialAllocations.value.filter((row) => row.qty > 0)
 )
 const hasInvalidAllocationRows = computed(() =>
-  relevantAllocationRows.value.some((row) =>
-    row.mode === 'slot' ? (!row.rack_id || !row.slot_id) : !row.container_batch_id
-  )
+  relevantAllocationRows.value.some((row) => {
+    if (row.mode === 'slot') return !row.rack_id || !row.slot_id
+    if (!row.container_batch_id) return true
+    return allocationRowHasDuplicateKiste(row, initialAllocations.value)
+  }),
 )
 const hasRelevantAllocationRows = computed(() => relevantAllocationRows.value.length > 0)
 const allocationSumValid = computed(() =>
@@ -3720,6 +3683,7 @@ const formData = reactive({
   is_js_material: false,
   external_source: '' as string,
   sale_price: null as number | null,
+  external_sale_price_chf: null as number | null,
   reference_purchase_unit_chf: null as number | null,
   min_stock: null as number | null,
   pack_size: null as number | null,
@@ -4130,6 +4094,22 @@ const effectivePurchaseUnitPrice = computed(() => {
   const sum = parseChfInput(purchaseTotalWaresChf.value) + shipping
   if (sum <= 0) return 0
   return Math.round((sum / qty) * 100) / 100
+})
+
+/** Entwurfs-Charge für Anschaffungs-Akkordeon (Wizard hat noch keine Chargen-API). */
+const wizardDraftBatches = computed((): MaterialBatch[] => {
+  const up = effectivePurchaseUnitPrice.value
+  if (up <= 0) return []
+  const qty = purchasePriceContextQty.value || formData.initial_qty || 0
+  return [
+    {
+      id: 'wizard-draft',
+      qty,
+      unit_price: String(up),
+      acquired_on: formData.purchase_date || new Date().toISOString().slice(0, 10),
+      is_initial: true,
+    } as MaterialBatch,
+  ]
 })
 
 /** Einkaufspreis Referenz (Kosten) aus Anschaffung vorausfüllen, solange Referenz noch leer */
@@ -4859,6 +4839,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   formData.is_js_material = false
   formData.external_source = ''
   formData.sale_price = null
+  formData.external_sale_price_chf = null
   formData.reference_purchase_unit_chf = null
   formData.min_stock = null
   formData.pack_size = null
@@ -6819,6 +6800,8 @@ async function handleSubmit() {
         expiry_date: expiryDatePayload || null,
         unit_price: resolveWizardStoredUnitPrice(),
         supplier_id: formData.supplier_id || null,
+        ean: formData.ean || null,
+        barcode_tag: formData.barcode_tag || null,
         ...(formData.split_allocations && hasRelevantAllocationRows.value && allocationSumValid.value && !hasInvalidAllocationRows.value
           ? {
               allocations: initialAllocations.value
@@ -7060,6 +7043,10 @@ async function handleSubmit() {
         is_js_material: formData.is_js_material,
         external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
         sale_price: formData.sale_price ? String(formData.sale_price) : null,
+        external_sale_price_chf:
+          formData.external_sale_price_chf != null && formData.external_sale_price_chf > 0
+            ? String(formData.external_sale_price_chf)
+            : null,
         reference_purchase_unit_chf: formData.reference_purchase_unit_chf
           ? String(formData.reference_purchase_unit_chf)
           : null,
@@ -7096,9 +7083,9 @@ async function handleSubmit() {
               }),
         // Details (wie in MaterialDetailView)
         description: formData.description || null,
-        barcode_tag: formData.barcode_tag || null,
         model: formData.model || null,
-        ean: formData.ean || null,
+        initial_barcode_tag: formData.barcode_tag || null,
+        initial_ean: formData.ean || null,
         weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
         size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
@@ -7219,8 +7206,6 @@ async function applyPrefillFromSourceMaterial(materialId: string): Promise<void>
   formData.manufacturer = draft.manufacturer
   formData.model = draft.model
   formData.color = draft.color
-  formData.ean = draft.ean
-  formData.barcode_tag = draft.barcode_tag
   formData.weight = draft.weight
   formData.size_length = draft.size_length
   formData.size_width = draft.size_width

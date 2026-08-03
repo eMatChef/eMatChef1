@@ -11,12 +11,14 @@ defineProps<{
   lines: ReturnCrateLineEdit[]
   submitting: boolean
   submitDisabled: boolean
+  canReportConsumption?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:lines': [lines: ReturnCrateLineEdit[]]
   submit: []
+  'report-consumption': [materialItemId: string, materialName: string]
 }>()
 
 function onCancel(): void {
@@ -36,12 +38,13 @@ function onCancel(): void {
     :not-taken-reminders="[]"
     :not-taken-line="() => ''"
     :can-report-issues="false"
-    :can-report-consumption="false"
+    :can-report-consumption="canReportConsumption !== false"
     :submitting="submitting"
     :submit-disabled="submitDisabled"
     :searchable-materials="[]"
     @cancel="onCancel"
     @submit="emit('submit')"
     @update:lines="emit('update:lines', $event)"
+    @report-consumption="(mid, name) => emit('report-consumption', mid, name)"
   />
 </template>

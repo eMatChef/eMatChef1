@@ -9,6 +9,7 @@ import {
   type MaterialJourneyAccordionLine,
 } from '@/components/activities/materialJourneyAccordionLines'
 import type { ActivityPackContainerItem, ActivityPackContainer } from '@/api/activityContainers'
+import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import { reassignTargetPackCrates } from '@/composables/useMaterialJourneyCrateTransfer'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
@@ -39,13 +40,19 @@ const props = defineProps<{
   atEventQtyLabelForRow?: (row: TaskRow, previewLines: MaterialJourneyAccordionLine[]) => string | null
   atEventQtyLabelForLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
+  journeyStep?: JourneyStep
+  containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
+  shellStorePendingQtyForRow?: (row: TaskRow) => number
+  showCrateContentActions?: boolean
+  deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
-  reassign: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
+  deleteEmpty: [row: TaskRow]
   moveBack: [row: TaskRow, qty: number]
   'update:moveBackQty': [row: TaskRow, qty: number]
   moveForward: [row: TaskRow, qty: number]
@@ -53,9 +60,13 @@ const emit = defineEmits<{
   consumed: [row: TaskRow]
   loss: [row: TaskRow]
   repair: [row: TaskRow]
+  damage: [row: TaskRow]
   lineConsumed: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineLoss: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineRepair: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineDamage: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeLine: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeShell: [row: TaskRow]
 }>()
 
 const { t } = useI18n()
@@ -91,7 +102,7 @@ function isPackCrateAssignActive(): boolean {
 
 function isPackTargetActive(row: TaskRow): boolean {
   return (
-    Boolean(props.packCrateSelectMode) &&
+    Boolean(props.packTargetCrateId) &&
     row.kind === 'crate' &&
     row.container?.id === props.packTargetCrateId
   )
@@ -102,16 +113,21 @@ function isPackTargetSelectable(row: TaskRow): boolean {
 }
 
 function hasReassignTargetsFor(row: TaskRow): boolean {
-  if (props.hasReassignTargetsForRow) return props.hasReassignTargetsForRow(row)
-  if (row.kind !== 'crate' || !row.container) return false
-  if (!props.packContainers || !props.shellPackItemForContainer) return false
-  return (
-    reassignTargetPackCrates(
-      props.packContainers,
-      row.container.id,
-      props.shellPackItemForContainer,
-    ).length > 0
-  )
+  if (props.hasReassignTargetsForRow && !props.hasReassignTargetsForRow(row)) return false
+  return reassignTargetsFor(row).length > 0
+}
+
+function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
+  if (row.kind !== 'crate' || !row.container) return []
+  if (!props.packContainers || !props.shellPackItemForContainer) return []
+  return reassignTargetPackCrates(
+    props.packContainers,
+    row.container.id,
+    props.shellPackItemForContainer,
+  ).map((container) => ({
+    id: container.id,
+    label: container.label,
+  }))
 }
 
 function atEventLabelForRow(row: TaskRow): string | null {
@@ -155,15 +171,23 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
+          :reassign-targets="reassignTargetsFor(row)"
+          :show-crate-content-actions="showCrateContentActions"
+          :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
           :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
+          :journey-step="journeyStep"
+          :container-items-by-container-id="containerItemsByContainerId"
+          :container-line-remaining-store="containerLineRemainingStore"
+          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
-          @reassign="emit('reassign', row, $event)"
+          @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
+          @delete-empty="emit('deleteEmpty', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"
@@ -171,9 +195,13 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
           @line-consumed="emit('lineConsumed', row, $event)"
           @line-loss="emit('lineLoss', row, $event)"
           @line-repair="emit('lineRepair', row, $event)"
+          @line-damage="emit('lineDamage', row, $event)"
+          @store-line="emit('storeLine', row, $event)"
+          @store-shell="emit('storeShell', row)"
         />
         <MaterialJourneyTaskRow
           v-else
@@ -198,6 +226,7 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
         />
       </li>
     </ul>

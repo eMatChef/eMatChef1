@@ -6,6 +6,11 @@ export interface ActivityPackContainer {
   container_batch_id: string | null
   /** Material-ID der zugeordneten Kisten-Charge (wenn container_batch_id gesetzt) */
   container_material_item_id?: string | null
+  /** Seriennummer der Lager-Charge (nicht Materialstamm) */
+  container_serial_number?: string | null
+  container_batch_label?: string | null
+  container_storage_rack_name?: string | null
+  container_storage_slot_name?: string | null
   /** Virtuelle Kombo (pack_mode together): Eltern-activity_item.id */
   source_activity_item_id?: string | null
   label: string

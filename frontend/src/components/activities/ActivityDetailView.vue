@@ -169,6 +169,7 @@
         :blockers="completionBlockers"
         :activity-id="activityId"
         :host-department-id="departmentId"
+        :activity-status="activity.status ?? ''"
         @go-tab="onCompletionGoTab"
       />
 
@@ -183,8 +184,8 @@
         {{ t('activities.detail.memberScopeStatusHint') }}
       </v-alert>
 
-      <v-tabs-window v-model="activeTab" class="activity-detail-tabs-window">
-          <v-tabs-window-item value="overview" class="activity-detail-window-item" :transition="false">
+      <div class="activity-detail-tabs-window">
+          <ActivityDetailTabPane tab-id="overview" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityDraftOverviewForm
               v-if="showOverviewEditForm && activity"
@@ -325,9 +326,9 @@
               </div>
             </template>
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item value="material" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane tab-id="material" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content activity-material-tab">
             <ActivityTabHeader :title="t('common.material')">
               <p class="activity-material-tab-hint text-muted">
@@ -442,15 +443,14 @@
               </p>
             </div>
 
-            <div class="section-card activity-tab-panel-card">
+            <ActivityTabPanelShell
+              :loading="itemsShowFullLoading"
+              :refreshing="itemsRefreshing"
+              :loading-message="t('activities.detail.itemsLoading')"
+              loading-class="activity-items-loading"
+            >
               <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.materialPositionsTitle') }}</h2>
-              <div v-if="itemsLoading" class="activity-items-loading">
-                <ELoadingState
-                  variant="inline"
-                  :message="t('activities.detail.itemsLoading')"
-                />
-              </div>
-              <div v-else-if="activityItems.length === 0" class="text-muted">
+              <div v-if="activityItems.length === 0" class="text-muted">
                 {{
                   showDraftMaterialAddForGroup
                     ? t('activities.detail.draftNoPositionsYet')
@@ -480,17 +480,9 @@
                   @remove-line="onDraftTableRemoveLine"
                   @pack-mode-change="onVirtualComboPackModeChange"
                 />
-                <div v-if="hasDraftQtyChanges" class="activity-qty-save-row">
-                  <EButton
-                    variant="primary"
-                    size="small"
-                    :disabled="syncingQuantities"
-                    :loading="syncingQuantities"
-                    @click="saveDraftQuantities"
-                  >
-                    {{ syncingQuantities ? t('activities.detail.saveQtySaving') : t('activities.detail.saveQty') }}
-                  </EButton>
-                </div>
+                <p v-if="syncingQuantities" class="activity-qty-autosave-hint text-muted">
+                  {{ t('activities.detail.saveQtySaving') }}
+                </p>
               </div>
               <div v-else class="activity-items-table-wrap">
                 <table class="activity-items-table">
@@ -568,11 +560,11 @@
                   </tbody>
                 </table>
               </div>
-            </div>
+            </ActivityTabPanelShell>
           </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showJsOrderCard" value="js" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showJsOrderCard" tab-id="js" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityJsTabView
                 :activity-id="activityId"
@@ -580,9 +572,9 @@
                 :can-edit="canEditJsOrder"
               />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showVehiclesTab" value="vehicles" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showVehiclesTab" tab-id="vehicles" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityVehiclesTab
                 v-if="activity"
@@ -592,9 +584,9 @@
                 @assignments-changed="onActivityVehiclesChanged"
               />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showPacksTab" value="packs" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showPacksTab" tab-id="packs" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content activity-detail-tab-panel--packs">
             <ActivityMaterialJourneyView
               v-if="activity && !useLegacyPackUi"
@@ -602,14 +594,19 @@
               :department-id="departmentId"
               :activity-id="activityId"
               :transitions="transitions"
+              :completion-blockers="completionBlockers"
               :can-report-issues="showDamageReportEntry"
               :can-report-consumption="showConsumptionBooking"
               :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
               :consumable-material-item-ids="consumableMaterialItemIds"
-              :reload-token="vehiclesReloadToken"
+              :reload-token="packListReloadToken"
+              :vehicles-reload-token="vehiclesReloadToken"
+              :consumption-modal-cancelled-token="consumptionModalCancelledToken"
+              :consumption-modal-return-without-consumption-token="consumptionModalReturnWithoutConsumptionToken"
               embedded
               @status-changed="onJourneyStatusChanged"
               @packing-header-ready="onPackingHeaderReady"
+              @store-header-ready="onStoreHeaderReady"
               @open-issue-wizard="onPackIssueWizard"
               @open-consumption-modal="onOpenConsumptionModal"
               @request-nachbuchung="openNachbuchungModal"
@@ -650,24 +647,26 @@
               @material-scope-change="onMaterialLookupScopeChange"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showIssuesTab" value="issues" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showIssuesTab" tab-id="issues" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityIssuesTab
               :activity-id="activityId"
+              :reports="activityIssues"
+              :reports-ready="issuesDataReady"
               :can-create="showDamageReportEntry"
               :read-only-hint="showIssuesTabReadOnlyHint"
-              :reload-token="issuesReloadToken"
               @open-wizard="openDamageReport()"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showConsumablesTab" value="consumables" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showConsumablesTab" tab-id="consumables" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityConsumablesTab
               :activity-id="activityId"
+              :activity-type="activity?.type"
               :can-create="showConsumptionBooking"
               :can-add-activity-material="canAddActivityMaterial"
               :can-request-consumable-replenishment="canRequestConsumableNachbuchung"
@@ -678,9 +677,9 @@
               @edit-consumption="onEditConsumption"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item v-if="showCostsTab" value="costs" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane v-if="showCostsTab" tab-id="costs" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
             <ActivityCostsTab
               v-if="activity"
@@ -691,14 +690,14 @@
               :reload-token="costsReloadToken"
             />
             </div>
-          </v-tabs-window-item>
+          </ActivityDetailTabPane>
 
-          <v-tabs-window-item value="history" class="activity-detail-window-item" :transition="false">
+          <ActivityDetailTabPane tab-id="history" :active-tab="activeTab" eager>
             <div class="activity-detail-tab-panel tab-content">
               <ActivityHistoryTab :activity-id="activityId" />
             </div>
-          </v-tabs-window-item>
-      </v-tabs-window>
+          </ActivityDetailTabPane>
+      </div>
     </div>
 
     <DamageReportWizard
@@ -783,7 +782,9 @@ import ActivityVehiclesTab from '@/components/activities/ActivityVehiclesTab.vue
 import ActivityCompletionChecklist from '@/components/activities/ActivityCompletionChecklist.vue'
 import ActivityPackListTab from '@/components/activities/ActivityPackListTab.vue'
 import ActivityMaterialJourneyView from '@/components/activities/ActivityMaterialJourneyView.vue'
+import ActivityDetailTabPane from '@/components/activities/ActivityDetailTabPane.vue'
 import ActivityIssuesTab from '@/components/activities/ActivityIssuesTab.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import ActivityConsumablesTab from '@/components/activities/ActivityConsumablesTab.vue'
 import ActivityHistoryTab from '@/components/activities/ActivityHistoryTab.vue'
 import ActivityConsumptionModal from '@/components/activities/ActivityConsumptionModal.vue'
@@ -801,12 +802,24 @@ import type { ConsumptionModalPreset } from '@/components/activities/ActivityCon
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { COMBO_BADGE } from '@/utils/comboDisplay'
 import {
+  buildConsolidatedActivitySyncItems,
+  childQuantityByMaterialItemIdFromItems,
+  hasDuplicateMergeableStandaloneItems,
+  hasDuplicateVirtualComboParents,
   isActivityItemVisibleInMaterialTable,
+  isMergeableStandaloneTopLevelItem,
+  extraStandaloneQtyForMaterial,
+  mergeStandaloneRowsForMaterialTable,
+  mergeVirtualComboParentRowsForMaterialTable,
+  mergedVirtualComboPackMode,
+  reservedQuantityByMaterialItemId,
   shouldIncludeTopLevelInVirtualComboSync,
+  virtualComboStandaloneReduceByMaterialId,
 } from '@/utils/virtualComboMaterial'
 import type { MaterialScopeTab } from '@/components/activities/shared/activityMaterialAvailabilityScope'
 import { getGroups, type Group } from '@/api/groups'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import { flattenGroupsWithLevel, type GroupWithLevel } from '@/utils/groupHierarchy'
 import {
   isDepartmentBasicMemberRole,
@@ -835,6 +848,7 @@ import {
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
 import {
   isValidJourneyStep,
+  materialJourneyStepI18nKey,
   replenishmentPackStageForContext,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
@@ -916,26 +930,47 @@ function hideLogisticsHandoffTransitionInActivityHeader(targetStatus: string): b
   return LOGISTICS_HEADER_HIDDEN_WORKFLOW_TARGETS.has(targetStatus)
 }
 
-/** Quick/External: «Weiter zu Am Anlass» — Ausgabe läuft über Material-Journey. */
+/** Quick/External: Material-Übergänge (Ausgabe, Retour) laufen über Material-Journey / Packliste. */
 function hideQuickHandoffTransitionInActivityHeader(targetStatus: string): boolean {
   const act = activity.value
   if (!act) return false
   const profile = packWorkflowProfileForActivityType(act.type || 'activity')
   if (profile === 'logistics') return false
-  if (activeTab.value !== 'packs' || useLegacyPackUi.value) return targetStatus === 'at_event'
+  if (activeTab.value !== 'packs') {
+    return (
+      targetStatus === 'at_event' ||
+      targetStatus === 'returned' ||
+      targetStatus === 'storing' ||
+      targetStatus === 'completed'
+    )
+  }
+  if (useLegacyPackUi.value) return targetStatus === 'at_event'
   if (targetStatus === 'at_event') return true
   if (targetStatus === 'returned') return true
   return false
 }
 
-/** Quick/External: «Einlagern starten» erst nach Übergabe an Materialwart (Status «Retour»). */
+/** Quick/External: «Einlagern starten» über Journey; «Abschliessen» auf Packliste wenn Einlagern erledigt. */
 function hideQuickStoringTransitionInActivityHeader(targetStatus: string): boolean {
-  if (targetStatus !== 'storing') return false
+  if (targetStatus !== 'storing' && targetStatus !== 'completed') return false
   const act = activity.value
   if (!act) return false
   const profile = packWorkflowProfileForActivityType(act.type || 'activity')
   if (profile === 'logistics') return false
-  if (!canManageMaterials.value) return true
+  if (!canManageMaterials.value) return targetStatus === 'storing'
+  if (!useLegacyPackUi.value) {
+    if (
+      targetStatus === 'completed' &&
+      activeTab.value === 'packs' &&
+      (act.status ?? '') === 'storing' &&
+      storeStageCompleteForHeader.value
+    ) {
+      return false
+    }
+    return true
+  }
+  if (activeTab.value !== 'packs') return true
+  if (targetStatus !== 'storing') return false
   const s = act.status ?? ''
   if (s !== 'returned' && s !== 'storing') return true
   if (
@@ -1068,25 +1103,23 @@ const showPackJourneyStepBadge = computed(() => {
 
 const packJourneyStepLabelDetail = computed(() => {
   if (!activity.value) return ''
-  const step = resolveEffectiveActiveJourneyStep(
+  const profile = packWorkflowProfile.value
+  const dbStep = resolveEffectiveActiveJourneyStep(
     activity.value,
-    packWorkflowProfile.value,
+    profile,
     canManageMaterials.value,
   )
-  const key =
-    step === 'issue' && packWorkflowProfile.value === 'logistics'
-      ? 'activities.materialJourney.step.issueLogistics'
-      : `activities.materialJourney.step.${step}`
-  return te(key) ? t(key) : step
+  const key = materialJourneyStepI18nKey(dbStep, profile, {
+    activityStatus: activity.value.status ?? '',
+  })
+  return te(key) ? t(key) : dbStep
 })
 
-/** MW-Abschluss-Checkliste: nicht auf Packliste (Journey) — dort arbeitet man bereits in der Checkliste. */
+/** MW-Abschluss-Checkliste ab Retour/Einlagern — einheitlich über allen Tabs (inkl. Packliste). */
 const showMaterialCompletionChecklist = computed(() => {
   if (!canManageMaterials.value || !activity.value || !completionBlockers.value) return false
   const s = activity.value.status ?? ''
-  if (!['returned', 'storing'].includes(s)) return false
-  if (activeTab.value === 'packs' && !useLegacyPackUi.value) return false
-  return true
+  return ['returned', 'storing'].includes(s)
 })
 
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
@@ -1164,6 +1197,7 @@ const showConsumablesTab = computed(() => {
 })
 
 const activityIssues = ref<ActivityIssueReportRow[]>([])
+const issuesDataReady = ref(false)
 
 /** Reparatur / Verlust / Schaden — löst für Gruppe den Tab «Kosten» aus */
 const COSTS_TAB_ISSUE_TYPES = ['repair', 'loss', 'damage'] as const
@@ -1245,15 +1279,21 @@ const materialJourneyRef = ref<ActivityMaterialJourneyViewExpose | null>(null)
 
 /** «Gepackt markieren» in der Kopfzeile — nur wenn Packliste/Journey meldet: alles erledigt. */
 const packingStageCompleteForHeader = ref(false)
+const storeStageCompleteForHeader = ref(false)
 
 function onPackingHeaderReady(ready: boolean): void {
   packingStageCompleteForHeader.value = ready
+}
+
+function onStoreHeaderReady(ready: boolean): void {
+  storeStageCompleteForHeader.value = ready
 }
 
 watch(
   () => activity.value?.status,
   (status) => {
     if (status !== 'packing') packingStageCompleteForHeader.value = false
+    if (!['returned', 'storing'].includes(status ?? '')) storeStageCompleteForHeader.value = false
   },
 )
 
@@ -1279,9 +1319,15 @@ async function ensurePackListTabForTransition(): Promise<ActivityPackListTabExpo
   }
   return packListTabRef.value
 }
+const {
+  showFullLoading: itemsShowFullLoading,
+  isRefreshing: itemsRefreshing,
+  resetTabLoad: resetItemsTabLoad,
+  markHydrated: markItemsHydrated,
+  withTabLoad: withItemsLoad,
+} = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const isLoading = ref(true)
-const itemsLoading = ref(false)
 const loadError = ref<string | null>(null)
 const isTransitioning = ref(false)
 const activeTab = ref<ActivityTabId>('overview')
@@ -1412,6 +1458,9 @@ const workflowTransitions = computed(() =>
     if (s === 'packing' && t.status === 'packed' && !packingStageCompleteForHeader.value) {
       return false
     }
+    if (s === 'storing' && t.status === 'completed' && !storeStageCompleteForHeader.value) {
+      return false
+    }
     if (s === 'returned' && t.status === 'completed') return false
     return true
   }),
@@ -1421,23 +1470,24 @@ const activityTypeForMat = computed(
   (): ActivityApiType => (activity.value?.type || 'activity') as ActivityApiType,
 )
 
-/** Summe aktueller Mengen pro Material-Item (Entwurf: inkl. nicht gespeicherter Änderungen) */
+/** Summe aktueller Mengen pro Material (Entwurf): ohne Doppelzählung Kind-Zeilen vs. Kombo-Snapshot. */
 const quantityByMaterialItemId = computed(() => {
+  const fromReserved = reservedQuantityByMaterialItemId(activityItems.value, (r) =>
+    draftQty(r as ActivityItemRow),
+  )
+  const fromChildMap = childQuantityByMaterialItemId.value
+  const ids = new Set([...Object.keys(fromReserved), ...Object.keys(fromChildMap)])
   const m: Record<string, number> = {}
-  for (const r of activityItems.value) {
-    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
+  for (const id of ids) {
+    m[id] = Math.max(fromReserved[id] ?? 0, fromChildMap[id] ?? 0)
   }
   return m
 })
 
 /** Gespeicherte Summen pro Material (API) — für Verfügbarkeit in der Suche vs. Entwurf */
-const savedQuantityByMaterialItemId = computed(() => {
-  const m: Record<string, number> = {}
-  for (const r of activityItems.value) {
-    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + r.quantity
-  }
-  return m
-})
+const savedQuantityByMaterialItemId = computed(() =>
+  reservedQuantityByMaterialItemId(activityItems.value, (r) => r.quantity ?? 0),
+)
 
 /** Nur eigenständige Einzelpositionen (kein Kombo-Kind, keine Kombo-Hülle) — für Suche / „Kombinieren?". */
 const standaloneQuantityByMaterialItemId = computed(() => {
@@ -1451,33 +1501,16 @@ const standaloneQuantityByMaterialItemId = computed(() => {
 })
 
 /** Aufgelöste Kind-Zeilen virtueller Kombos (Entwurf-Mengen) — für Kombo-Floor in der Tabelle. */
-const childQuantityByMaterialItemId = computed(() => {
-  const m: Record<string, number> = {}
-  for (const r of activityItems.value) {
-    if (!r.parent_activity_item_id) continue
-    m[r.material_item_id] = (m[r.material_item_id] ?? 0) + draftQty(r)
-  }
-  for (const r of activityItems.value) {
-    if (r.parent_activity_item_id || r.material_type !== 'virtual_combo') continue
-    if (draftPackMode(r) === 'loose') continue
-    const snap = r.config_snapshot
-    const comboQty = Math.max(1, draftQty(r))
-    for (const c of snap?.resolved_components ?? []) {
-      const mid = c.component_material_id
-      if (!mid) continue
-      const total =
-        typeof c.qty_per_combo === 'number'
-          ? c.qty_per_combo * comboQty
-          : typeof c.total_qty === 'number'
-            ? c.total_qty
-            : 0
-      if (total > 0) {
-        m[mid] = Math.max(m[mid] ?? 0, total)
-      }
-    }
-  }
-  return m
-})
+const childQuantityByMaterialItemId = computed(() =>
+  childQuantityByMaterialItemIdFromItems(activityItems.value, {
+    draftPackModeByItemId: draftPackModes.value,
+    quantityFor: (r) => {
+      const id = r.activity_item_id ?? r.id
+      const row = id ? activityItems.value.find((x) => x.id === id) : undefined
+      return row ? draftQty(row) : Math.max(0, r.quantity ?? 0)
+    },
+  }),
+)
 
 /** pack_mode änderbar bis vor «gepackt» (draft / submitted / approved). */
 const virtualComboPackModeEditable = computed(() => {
@@ -1675,18 +1708,168 @@ const materialLinesForEditableTable = computed((): ActivityMaterialLine[] => {
   if (!showMaterialLookup.value) return []
   const items = activityItems.value
   const packModes = draftPackModes.value
+  const qtyFor = (r: ActivityItemRow) => draftQty(r)
   const seenLooseChild = new Set<string>()
-  return items
-    .filter((r) => {
-      if (!isActivityItemVisibleInMaterialTable(r, items, packModes)) return false
-      if (!r.parent_activity_item_id) return true
-      const key = `${r.parent_activity_item_id}:${r.material_item_id}`
-      if (seenLooseChild.has(key)) return false
-      seenLooseChild.add(key)
-      return true
-    })
-    .map((r) => activityItemToMaterialLine(r))
+  const visible = items.filter((r) => {
+    if (!isActivityItemVisibleInMaterialTable(r, items, packModes)) return false
+    if (!r.parent_activity_item_id) return true
+    const key = `${r.parent_activity_item_id}:${r.material_item_id}`
+    if (seenLooseChild.has(key)) return false
+    seenLooseChild.add(key)
+    return true
+  })
+
+
+  const syntheticLooseChildren: ActivityMaterialLine[] = []
+  for (const { representative: parent, members } of mergeVirtualComboParentRowsForMaterialTable(
+    items.filter((r) => r.material_type === 'virtual_combo' && !r.parent_activity_item_id),
+  )) {
+    if (draftPackMode(parent) !== 'loose') continue
+    if (members.some((m) => items.some((c) => c.parent_activity_item_id === m.id))) continue
+    const comboQty = Math.max(1, qtyFor(parent))
+    for (const c of parent.config_snapshot?.resolved_components ?? []) {
+      const mid = c.component_material_id
+      if (!mid) continue
+      const total =
+        typeof c.total_qty === 'number'
+          ? c.total_qty
+          : Math.max(0, (c.qty_per_combo ?? 0) * comboQty)
+      if (total <= 0) continue
+      const name =
+        c.name ||
+        items.find((i) => i.material_item_id === mid)?.material_name ||
+        mid
+      syntheticLooseChildren.push({
+        material_item_id: mid,
+        material_name: name,
+        quantity: total,
+        saved_quantity: total,
+        parent_activity_item_id: parent.id,
+        activity_item_id: `__loose_child_${parent.id}_${mid}`,
+        source_department_name: parent.source_department_name ?? null,
+        tracking_type: items.find((i) => i.material_item_id === mid)?.tracking_type ?? null,
+      })
+    }
+  }
+
+  const standaloneLines = mergeStandaloneRowsForMaterialTable(
+    visible.filter(
+      (r) =>
+        !r.parent_activity_item_id &&
+        r.material_type !== 'virtual_combo' &&
+        r.material_type !== 'physical_combo',
+    ),
+  ).flatMap(({ representative, members }) => {
+    const line = activityItemToMaterialLine(representative)
+    const standaloneRaw = members.reduce((sum, r) => sum + qtyFor(r), 0)
+    const extraQty = extraStandaloneQtyForMaterial(
+      line.material_item_id,
+      standaloneRaw,
+      items,
+      packModes,
+      (r) => draftQty(r as ActivityItemRow),
+    )
+    if (extraQty <= 0) return []
+    line.quantity = extraQty
+    const savedRaw = members.reduce((sum, r) => sum + (r.quantity ?? 0), 0)
+    line.saved_quantity = extraStandaloneQtyForMaterial(
+      line.material_item_id,
+      savedRaw,
+      items,
+      packModes,
+      (r) => r.quantity ?? 0,
+    )
+    return [line]
+  })
+
+  const childLineByMaterial = new Map<string, ActivityItemRow>()
+  for (const r of visible) {
+    if (!r.parent_activity_item_id) continue
+    const existing = childLineByMaterial.get(r.material_item_id)
+    if (!existing || qtyFor(r) > qtyFor(existing)) {
+      childLineByMaterial.set(r.material_item_id, r)
+    }
+  }
+  const childLines = [...childLineByMaterial.values()].map((r) => activityItemToMaterialLine(r))
+
+  const comboParents = mergeVirtualComboParentRowsForMaterialTable(
+    visible.filter((r) => r.material_type === 'virtual_combo' && !r.parent_activity_item_id),
+  ).map(({ representative, members }) => {
+    const line = activityItemToMaterialLine(representative)
+    const mode = mergedVirtualComboPackMode(members, packModes)
+    if (line.config_snapshot) {
+      line.config_snapshot = { ...line.config_snapshot, pack_mode: mode }
+    }
+    line.pack_mode = mode
+    return line
+  })
+
+  return [...comboParents, ...childLines, ...syntheticLooseChildren, ...standaloneLines]
 })
+
+/** Vor Sync: Kombo-Set-Bedarf von eigenständigen Zeilen abziehen (Extra bleibt). */
+function splitStandaloneForVirtualCombosInDraft(): boolean {
+  const reduceByMaterial = virtualComboStandaloneReduceByMaterialId(
+    activityItems.value,
+    draftPackModes.value,
+    (r) => draftQty(r as ActivityItemRow),
+  )
+  let changed = false
+  const nextQty = { ...draftQuantities.value }
+  for (const [materialId, reduceTotal] of Object.entries(reduceByMaterial)) {
+    let remaining = reduceTotal
+    for (const row of activityItems.value) {
+      if (!isMergeableStandaloneTopLevelItem(row)) continue
+      if (row.material_item_id !== materialId) continue
+      const current = draftQty(row)
+      const take = Math.min(remaining, current)
+      const reduced = current - take
+      if (reduced !== current) {
+        nextQty[row.id] = reduced
+        changed = true
+      }
+      remaining -= take
+      if (remaining <= 0) break
+    }
+  }
+  if (changed) draftQuantities.value = nextQty
+  return changed
+}
+
+function buildDraftSyncItems(itemsOverride?: ActivityItemRow[]) {
+  const items = itemsOverride ?? activityItems.value
+  const standaloneRawByMaterial = new Map<string, number>()
+  for (const r of items) {
+    if (!isMergeableStandaloneTopLevelItem(r)) continue
+    const mid = r.material_item_id
+    standaloneRawByMaterial.set(mid, (standaloneRawByMaterial.get(mid) ?? 0) + draftQty(r))
+  }
+  const syncExtraByMaterial = new Map<string, number>()
+  for (const [mid, raw] of standaloneRawByMaterial) {
+    syncExtraByMaterial.set(
+      mid,
+      extraStandaloneQtyForMaterial(mid, raw, items, draftPackModes.value, (row) =>
+        draftQty(row as ActivityItemRow),
+      ),
+    )
+  }
+  const allocatedExtra = new Map<string, number>()
+
+  return buildConsolidatedActivitySyncItems(items, {
+    quantityFor: (r) => {
+      if (!isMergeableStandaloneTopLevelItem(r)) return draftQty(r)
+      const mid = r.material_item_id
+      const totalExtra = syncExtraByMaterial.get(mid) ?? 0
+      const allocated = allocatedExtra.get(mid) ?? 0
+      const remaining = Math.max(0, totalExtra - allocated)
+      const qty = Math.min(draftQty(r), remaining)
+      allocatedExtra.set(mid, allocated + qty)
+      return qty
+    },
+    includeRow: (r) => shouldIncludeTopLevelInVirtualComboSync(r, items, draftPackModes.value),
+    extrasForRow: virtualComboSyncExtras,
+  })
+}
 
 function activityItemToMaterialLine(r: ActivityItemRow): ActivityMaterialLine {
   return {
@@ -1807,15 +1990,11 @@ const showDamageReportEntry = computed(() => {
   )
 })
 
-/** Meldungen inline in Material-Journey — «Schaden melden» oben ausblenden. */
+/** Meldungen inline in Material-Journey — «Schaden melden» oben auf Packliste ausblenden. */
 const showDamageReportInActivityHeader = computed(() => {
   if (!showDamageReportEntry.value) return false
   if (activeTab.value !== 'packs' || useLegacyPackUi.value) return true
-  const s = activity.value?.status ?? ''
-  if (packWorkflowProfile.value === 'logistics') {
-    return !['at_event', 'transport_back', 'returned', 'storing'].includes(s)
-  }
-  return !['at_event', 'returned', 'storing'].includes(s)
+  return false
 })
 
 /** Verbrauch buchen: ab Journey-Schritt «Am Anlass» (auch bei Status «Gepackt»). */
@@ -1828,11 +2007,9 @@ const showConsumptionBooking = computed(() => {
 /** Nachbuchung zur Aktivität (addActivityItem) — wie Tab «Material» */
 const canAddActivityMaterial = computed(() => canEditActivityMaterialLines.value)
 
-/** Nachlieferung Verbrauchsmaterial: MW/DC oder Gruppe/Ersteller ab «Am Event». */
+/** Nachlieferung Verbrauchsmaterial — nur wenn API es erlaubt (Gruppe nur «Am Event», nicht nach Retour an MW). */
 const canRequestConsumableNachbuchung = computed(
-  () =>
-    activity.value?.can_request_consumable_replenishment === true ||
-    canAddActivityMaterial.value,
+  () => activity.value?.can_request_consumable_replenishment === true,
 )
 
 const damageReportOpen = ref(false)
@@ -1910,11 +2087,17 @@ async function openNextDamageReportFromQueue() {
 }
 
 function onOpenConsumptionModal(payload: ConsumptionModalPreset) {
+  if (!showConsumptionBooking.value) return
   consumptionModalPreset.value = payload
   consumptionModalOpen.value = true
 }
 
 function onEditConsumption(payload: ConsumptionModalPreset) {
+  if (payload.editIssueId) {
+    if (!activity.value?.can_report_issues) return
+  } else if (!showConsumptionBooking.value) {
+    return
+  }
   consumptionModalPreset.value = payload
   consumptionModalOpen.value = true
 }
@@ -2090,50 +2273,89 @@ function initDraftQuantitiesFromItems() {
 function onDraftLinesTableUpdate(lines: ActivityMaterialLine[]) {
   const nextQty = { ...draftQuantities.value }
   const nextPack = { ...draftPackModes.value }
+  let qtyChanged = false
   for (const line of lines) {
-    if (!line.activity_item_id) continue
+    if (!line.activity_item_id || line.activity_item_id.startsWith('__loose_child_')) continue
+    const prevQty = nextQty[line.activity_item_id]
+    if (prevQty !== line.quantity) qtyChanged = true
     nextQty[line.activity_item_id] = line.quantity
     if (line.material_type === 'virtual_combo') {
       const mode = line.config_snapshot?.pack_mode ?? line.pack_mode
       if (mode === 'together' || mode === 'loose') {
-        nextPack[line.activity_item_id] = mode
+        for (const r of activityItems.value) {
+          if (r.material_type !== 'virtual_combo' || r.parent_activity_item_id) continue
+          if (r.material_item_id !== line.material_item_id || !r.id) continue
+          nextPack[r.id] = mode
+        }
+      }
+    }
+    if (
+      line.material_type !== 'virtual_combo' &&
+      line.material_type !== 'physical_combo' &&
+      !line.parent_activity_item_id
+    ) {
+      for (const r of activityItems.value) {
+        if (!isMergeableStandaloneTopLevelItem(r)) continue
+        if (r.material_item_id !== line.material_item_id) continue
+        if (r.id === line.activity_item_id) continue
+        nextQty[r.id] = 0
       }
     }
   }
   draftQuantities.value = nextQty
   draftPackModes.value = nextPack
+  if (qtyChanged) scheduleDraftQuantitiesAutoSave()
 }
+
+function applySavedQuantitiesFromDraft() {
+  activityItems.value = activityItems.value.map((r) => ({
+    ...r,
+    quantity: draftQty(r),
+  }))
+  initDraftQuantitiesFromItems()
+}
+
+let draftQtyAutoSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleDraftQuantitiesAutoSave() {
+  if (syncingQuantities.value) return
+  if (draftQtyAutoSaveTimer) clearTimeout(draftQtyAutoSaveTimer)
+  draftQtyAutoSaveTimer = setTimeout(() => {
+    draftQtyAutoSaveTimer = null
+    if (hasDraftQtyChanges.value && !syncingQuantities.value) {
+      void saveDraftQuantities({ successToastKey: null, soft: true })
+    }
+  }, 900)
+}
+
+onBeforeUnmount(() => {
+  if (draftQtyAutoSaveTimer) clearTimeout(draftQtyAutoSaveTimer)
+})
 
 function onDraftTableRemoveLine({ line }: { line: ActivityMaterialLine; index: number }) {
   const row = activityItems.value.find((r) => r.id === line.activity_item_id)
   if (row) void onRemoveDraftItem(row)
 }
 
-async function saveDraftQuantities(options?: { successToastKey?: string | null }) {
+async function saveDraftQuantities(options?: { successToastKey?: string | null; soft?: boolean }) {
   const a = activity.value
   if (!a) return
   if (!canEditActivityMaterialLines.value) return
   if (syncingQuantities.value) return
   syncingQuantities.value = true
   try {
-    await syncActivityItems(props.activityId, {
-      items: activityItems.value
-        .filter((r) =>
-          shouldIncludeTopLevelInVirtualComboSync(r, activityItems.value, draftPackModes.value),
-        )
-        .map((r) => ({
-          material_item_id: r.material_item_id,
-          quantity: draftQty(r),
-          priority: r.priority ?? undefined,
-          ...virtualComboSyncExtras(r),
-        })),
-    })
+    await syncActivityItems(props.activityId, { items: buildDraftSyncItems() })
     const toastKey = options?.successToastKey
     if (toastKey !== null) {
       toast.success(t(toastKey ?? 'activities.detail.toastQtySaved'))
     }
-    await loadItems()
-    await refreshActivityTotalsFromApi()
+    if (options?.soft) {
+      applySavedQuantitiesFromDraft()
+      await refreshActivityTotalsFromApi()
+    } else {
+      await loadItems({ skipAutoConsolidate: true })
+      await refreshActivityTotalsFromApi()
+    }
     if (
       (STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(a.status || '')
     ) {
@@ -2142,7 +2364,7 @@ async function saveDraftQuantities(options?: { successToastKey?: string | null }
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } }; message?: string }
     toast.error(e.response?.data?.error || e.message || t('activities.detail.toastQtySaveFailed'))
-    await loadItems()
+    await loadItems({ skipAutoConsolidate: true })
   } finally {
     syncingQuantities.value = false
   }
@@ -2153,10 +2375,14 @@ async function onVirtualComboPackModeChange(payload: {
   mode: 'together' | 'loose'
 }) {
   if (!virtualComboPackModeEditable.value) return
-  const rowId = payload.line.activity_item_id
-  if (rowId) {
-    draftPackModes.value = { ...draftPackModes.value, [rowId]: payload.mode }
+  const mid = payload.line.material_item_id
+  const nextPack = { ...draftPackModes.value }
+  for (const r of activityItems.value) {
+    if (r.material_type !== 'virtual_combo' || r.parent_activity_item_id) continue
+    if (r.material_item_id !== mid) continue
+    if (r.id) nextPack[r.id] = payload.mode
   }
+  draftPackModes.value = nextPack
   await saveDraftQuantities({ successToastKey: 'activities.detail.toastPackModeSaved' })
 }
 
@@ -2309,6 +2535,8 @@ async function loadActivityIssues() {
     activityIssues.value = await getActivityIssues(props.activityId)
   } catch {
     activityIssues.value = []
+  } finally {
+    issuesDataReady.value = true
   }
 }
 
@@ -2320,6 +2548,8 @@ async function reload() {
   completionBlockers.value = null
   activityItems.value = []
   activityIssues.value = []
+  issuesDataReady.value = false
+  resetItemsTabLoad()
   draftQuantities.value = {}
   draftPackModes.value = {}
   try {
@@ -2334,6 +2564,7 @@ async function reload() {
     transitions.value = tr.transitions || []
     completionBlockers.value = tr.completion_blockers ?? null
     activityItems.value = items
+    markItemsHydrated()
     if (activeTab.value === 'material') {
       initDraftQuantitiesFromItems()
     }
@@ -2370,18 +2601,58 @@ async function loadPackItemsSnapshot(): Promise<void> {
   }
 }
 
-async function loadItems() {
-  itemsLoading.value = true
+async function loadItems(opts?: { forceFull?: boolean; skipAutoConsolidate?: boolean }) {
+  await withItemsLoad(async () => {
+    try {
+      activityItems.value = await getActivityItems(props.activityId)
+      initDraftQuantitiesFromItems()
+      if (
+        !opts?.skipAutoConsolidate &&
+        canEditActivityMaterialLines.value &&
+        (hasDuplicateMergeableStandaloneItems(activityItems.value) ||
+          hasDuplicateVirtualComboParents(activityItems.value))
+      ) {
+        await consolidateDuplicateActivityItems()
+      }
+      if (!opts?.skipAutoConsolidate && canEditActivityMaterialLines.value) {
+        if (splitStandaloneForVirtualCombosInDraft()) {
+          await saveDraftQuantities({ successToastKey: null })
+        }
+      }
+    } catch {
+      activityItems.value = []
+      draftQuantities.value = {}
+      draftPackModes.value = {}
+      toast.error(t('activities.detail.toastItemsLoadFailed'))
+    }
+  }, opts)
+}
+
+/** Doppelte eigenständige Zeilen und virtuelle Kombos (gleiches Material) in der DB zusammenführen. */
+async function consolidateDuplicateActivityItems() {
+  if (
+    syncingQuantities.value ||
+    !canEditActivityMaterialLines.value ||
+    (!hasDuplicateMergeableStandaloneItems(activityItems.value) &&
+      !hasDuplicateVirtualComboParents(activityItems.value))
+  ) {
+    return
+  }
+  syncingQuantities.value = true
   try {
+    splitStandaloneForVirtualCombosInDraft()
+    await syncActivityItems(props.activityId, { items: buildDraftSyncItems() })
     activityItems.value = await getActivityItems(props.activityId)
     initDraftQuantitiesFromItems()
-  } catch {
-    activityItems.value = []
-    draftQuantities.value = {}
-  draftPackModes.value = {}
-    toast.error(t('activities.detail.toastItemsLoadFailed'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(
+      e.response?.data?.error ||
+        e.message ||
+        t('activities.detail.toastConsolidateFailed'),
+    )
   } finally {
-    itemsLoading.value = false
+    syncingQuantities.value = false
   }
 }
 
@@ -2535,8 +2806,8 @@ async function onDraftAddQuantity(payload: {
       ...(payload.packMode ? { pack_mode: payload.packMode } : {}),
       ...(payload.selfProvidedAcknowledged ? { self_provided_acknowledged: true } : {}),
     })
-    await loadItems()
-    // „Kombinieren?": vorhandene Einzelpositionen um den genutzten Kombo-Bedarf reduzieren.
+    await loadItems({ skipAutoConsolidate: true })
+    await consolidateDuplicateActivityItems()
     if (payload.combineParts && payload.combineParts.length > 0) {
       await applyCombineReductions(payload.combineParts)
     }
@@ -2554,8 +2825,8 @@ async function onDraftAddQuantity(payload: {
 }
 
 /**
- * „Kombinieren?": reduziert vorhandene eigenständige Einzelpositionen um den vom
- * Nutzer für die Kombo „freigegebenen" Bedarf (Zeilenmodell B re-expandiert die Kombo neu).
+ * „Kombinieren?": nur eigenständige Einzelpositionen um den freigegebenen Bedarf reduzieren
+ * (Extra bleibt, z. B. 50 − 39 = 11). Kein erneutes splitStandalone — das wäre Doppelabzug.
  */
 async function applyCombineReductions(
   parts: Array<{ materialItemId: string; reduceBy: number }>,
@@ -2566,36 +2837,27 @@ async function applyCombineReductions(
   }
   if (reduceMap.size === 0) return
 
-  const items: {
-    material_item_id: string
-    quantity: number
-    priority?: string
-    selected_option_ids?: string[]
-    pack_mode?: 'together' | 'loose'
-    self_provided_acknowledged?: boolean
-  }[] = []
   let changed = false
-  for (const r of activityItems.value) {
-    if (!shouldIncludeTopLevelInVirtualComboSync(r, activityItems.value, draftPackModes.value)) continue
-    let qty = draftQty(r)
-    const isComboRow = r.material_type === 'physical_combo' || r.material_type === 'virtual_combo'
-    const reduce = !isComboRow ? reduceMap.get(r.material_item_id) : undefined
-    if (reduce) {
-      const next = Math.max(0, qty - reduce)
-      if (next !== qty) changed = true
-      qty = next
+  const nextQty = { ...draftQuantities.value }
+  for (const [materialId, reduceTotal] of reduceMap) {
+    let remaining = reduceTotal
+    for (const row of activityItems.value) {
+      if (!isMergeableStandaloneTopLevelItem(row)) continue
+      if (row.material_item_id !== materialId) continue
+      const current = draftQty(row)
+      const take = Math.min(remaining, current)
+      const reduced = current - take
+      if (reduced !== current) {
+        nextQty[row.id] = reduced
+        changed = true
+      }
+      remaining -= take
+      if (remaining <= 0) break
     }
-    if (qty <= 0) continue
-    items.push({
-      material_item_id: r.material_item_id,
-      quantity: qty,
-      priority: r.priority ?? undefined,
-      ...virtualComboSyncExtras(r),
-    })
   }
   if (!changed) return
-  await syncActivityItems(props.activityId, { items })
-  await loadItems()
+  draftQuantities.value = nextQty
+  await saveDraftQuantities({ successToastKey: null })
 }
 
 const PACK_PIPELINE_ITEM_STATUSES = ['packed', 'at_event', 'returned'] as const
@@ -2605,16 +2867,36 @@ function activityItemHasPackProgress(row: ActivityItemRow): boolean {
   return (PACK_PIPELINE_ITEM_STATUSES as readonly string[]).includes(st)
 }
 
+function virtualComboChildHasPackProgress(parentId: string): boolean {
+  return activityItems.value.some(
+    (r) => r.parent_activity_item_id === parentId && activityItemHasPackProgress(r),
+  )
+}
+
 async function onRemoveDraftItem(row: ActivityItemRow) {
   const a = activity.value
   if (!a) return
-  if (row.material_type === 'virtual_combo' && !row.parent_activity_item_id) return
   if (!canEditActivityMaterialLines.value) return
+  if (row.parent_activity_item_id) return
+
+  if (row.material_type === 'virtual_combo') {
+    const okCombo = await confirmDialog({
+      title: t('activities.detail.confirmRemoveVirtualComboTitle'),
+      message: t('activities.detail.confirmRemoveVirtualComboMessage', { name: row.material_name }),
+      confirmText: t('common.remove'),
+      cancelText: t('common.cancel'),
+      variant: 'warning',
+    })
+    if (!okCombo) return
+  }
 
   const status = a.status || ''
+  const hasPackProgress =
+    activityItemHasPackProgress(row) ||
+    (row.material_type === 'virtual_combo' && virtualComboChildHasPackProgress(row.id))
   if (
     (STATUSES_AT_OR_AFTER_PACKING as readonly string[]).includes(status) &&
-    activityItemHasPackProgress(row)
+    hasPackProgress
   ) {
     const ok = await confirmDialog({
       title: t('activities.detail.confirmRemovePackedTitle'),
@@ -2628,9 +2910,31 @@ async function onRemoveDraftItem(row: ActivityItemRow) {
 
   removingItemId.value = row.id
   try {
-    await removeActivityItem(props.activityId, row.id)
+    if (row.material_type === 'virtual_combo') {
+      const comboRows = activityItems.value.filter(
+        (r) =>
+          r.material_type === 'virtual_combo' &&
+          !r.parent_activity_item_id &&
+          r.material_item_id === row.material_item_id,
+      )
+      const parentIds = new Set(comboRows.map((r) => r.id))
+      const itemsWithoutCombo = activityItems.value.filter(
+        (r) =>
+          !(
+            r.material_type === 'virtual_combo' &&
+            !r.parent_activity_item_id &&
+            r.material_item_id === row.material_item_id
+          ) && !(r.parent_activity_item_id && parentIds.has(r.parent_activity_item_id)),
+      )
+      await syncActivityItems(props.activityId, { items: buildDraftSyncItems(itemsWithoutCombo) })
+    } else if (isMergeableStandaloneTopLevelItem(row)) {
+      const items = buildDraftSyncItems().filter((i) => i.material_item_id !== row.material_item_id)
+      await syncActivityItems(props.activityId, { items })
+    } else {
+      await removeActivityItem(props.activityId, row.id)
+    }
     toast.success(t('activities.detail.toastPositionRemoved'))
-    await loadItems()
+    await loadItems({ skipAutoConsolidate: true })
     await refreshActivityTotalsFromApi()
     if (status === 'packing' || status === 'packed') {
       packListReloadToken.value += 1
@@ -2754,7 +3058,8 @@ function onCompletionGoTab(tab: 'packs' | 'issues' | 'costs') {
   if (tab === 'packs' && activity.value && !useLegacyPackUi.value) {
     const s = activity.value.status ?? ''
     if (s === 'storing') updates.packStep = 'store'
-    else if (s === 'returned' || s === 'at_event') updates.packStep = 'return'
+    else if (s === 'returned') updates.packStep = canManageMaterials.value ? 'store' : 'return'
+    else if (s === 'at_event') updates.packStep = 'return'
     else if (s === 'packed' || s === 'transport_out') updates.packStep = 'issue'
     else if (s === 'packing') updates.packStep = 'pack'
   }
@@ -2820,9 +3125,6 @@ watch(activeTab, (newTab) => {
   const fromQuery = normalizeActivityTabQuery(route.query.tab)
   if (fromQuery !== newTab) {
     mergeActivityQuery({ tab: newTab })
-  }
-  if (newTab === 'material' && activity.value) {
-    void loadItems()
   }
 })
 

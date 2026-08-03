@@ -1687,6 +1687,33 @@
   background: white;
 }
 
+.allocation-row--duplicate-crate {
+  background: #fffbeb;
+}
+
+.allocation-row--duplicate-crate .form-select,
+.allocation-row--duplicate-crate .form-select--sm,
+.allocation-row--duplicate-crate .batch-form-input {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.allocation-duplicate-crate-hint {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.allocations-table option:disabled {
+  color: #92400e;
+  background: #fef3c7;
+}
+
 .allocations-table {
   width: 100%;
   border-collapse: collapse;

@@ -1,4 +1,5 @@
 import type { ActivityPackItem } from '@/api/activityPackItems'
+import { packRackLabel } from '@/components/activities/packMaterialDisplay'
 
 export type StorageLookupResult = {
   entity_type: 'storage_address' | 'storage_rack' | 'storage_slot'
@@ -81,4 +82,31 @@ export function packItemShelfLineLocationLabel(
     return rack || slot || ''
   }
   return ''
+}
+
+/** Einlagern: voller Fach-Treffer vs. nur Gang/Regal vs. falscher Ort. */
+export type StoreLocationScanLevel = 'full' | 'rack_only' | 'wrong'
+
+export function resolveStoreLocationScanLevel(
+  pi: ActivityPackItem,
+  lookup: StorageLookupResult,
+): StoreLocationScanLevel {
+  const slot = pi.storageSlotName?.trim()
+  const rack = pi.storageRackName?.trim() ?? packRackLabel(pi).trim()
+
+  if (lookup.entity_type === 'storage_slot') {
+    return packItemMatchesStorageLookup(pi, lookup) ? 'full' : 'wrong'
+  }
+
+  if (lookup.entity_type === 'storage_rack') {
+    if (!packItemMatchesStorageLookup(pi, lookup)) return 'wrong'
+    return slot ? 'rack_only' : 'full'
+  }
+
+  if (lookup.entity_type === 'storage_address') {
+    if (!packItemMatchesStorageLookup(pi, lookup)) return 'wrong'
+    return rack && slot ? 'rack_only' : 'full'
+  }
+
+  return 'wrong'
 }

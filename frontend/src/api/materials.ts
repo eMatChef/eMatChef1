@@ -55,6 +55,8 @@ export interface MaterialBatch {
   label: string | null
   notes: string | null
   serial_number: string | null
+  ean?: string | null
+  barcode_tag?: string | null
   /** Pro Instanz: Behälter (kann anderen Lagerinhalt aufnehmen) */
   is_container?: boolean
   rack_id?: string | null
@@ -224,6 +226,7 @@ export interface Material {
   is_js_material?: boolean
   external_source?: string | null
   sale_price: string | null
+  external_sale_price_chf?: string | null
   /** Referenz-EK/Stk.; bei Verbrauchsmaterial/Esswaren Pflicht */
   reference_purchase_unit_chf?: string | null
   min_stock: number | null
@@ -249,8 +252,6 @@ export interface Material {
   size_width?: string | null
   size_height?: string | null
   weight?: string | null
-  ean?: string | null
-  barcode_tag?: string | null
   manufacturer?: string | null
   model?: string | null
   warranty_until?: string | null
@@ -289,6 +290,8 @@ export interface SerialNumberEntry {
   serial_number: string
   label?: string
   notes?: string
+  ean?: string | null
+  barcode_tag?: string | null
   is_container?: boolean
   rack_id?: string
   slot_id?: string
@@ -313,6 +316,8 @@ export interface CreateMaterialRequest {
   initial_expiry_date?: string
   initial_unit_price?: string | null
   initial_supplier_id?: string | null
+  initial_ean?: string | null
+  initial_barcode_tag?: string | null
   initial_rack_id?: string | null
   initial_slot_id?: string | null
   initial_container_batch_id?: string | null
@@ -326,6 +331,7 @@ export interface CreateMaterialRequest {
   is_consumable?: boolean
   is_food?: boolean
   sale_price?: string | null
+  external_sale_price_chf?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null
@@ -341,8 +347,6 @@ export interface CreateMaterialRequest {
   size_width?: string | null
   size_height?: string | null
   weight?: string | null
-  ean?: string | null
-  barcode_tag?: string | null
   manufacturer?: string | null
   model?: string | null
   warranty_until?: string | null
@@ -376,6 +380,7 @@ export interface UpdateMaterialRequest {
   is_consumable?: boolean
   is_food?: boolean
   sale_price?: string | null
+  external_sale_price_chf?: string | null
   reference_purchase_unit_chf?: string | null
   min_stock?: number | null
   pack_size?: number | null
@@ -391,8 +396,6 @@ export interface UpdateMaterialRequest {
   size_width?: string | null
   size_height?: string | null
   weight?: string | null
-  ean?: string | null
-  barcode_tag?: string | null
   manufacturer?: string | null
   model?: string | null
   warranty_until?: string | null
@@ -622,6 +625,46 @@ export async function getMaterialHistory(materialId: string): Promise<MaterialHi
   return response.data
 }
 
+
+export interface LookupBatchByCodeResponse {
+  match_type: 'ean' | 'barcode_tag'
+  entity_type: 'batch'
+  material_code?: string | null
+  batch_code?: string | null
+  public_url?: string | null
+  batch: {
+    id: string
+    serial_number?: string | null
+    label?: string | null
+    status?: string | null
+    is_container?: boolean
+    ean?: string | null
+    barcode_tag?: string | null
+  }
+  material: {
+    id: string
+    name: string
+    description?: string | null
+    manufacturer?: string | null
+    model?: string | null
+    is_container?: boolean
+  }
+  department: {
+    id: string
+    name?: string | null
+  }
+}
+
+export async function lookupMaterialByScanCode(
+  departmentId: string,
+  code: string,
+): Promise<LookupBatchByCodeResponse> {
+  const response = await apiClient.get<LookupBatchByCodeResponse>('/api/materials/lookup-by-code', {
+    params: { department_id: departmentId, code },
+  })
+  return response.data
+}
+
 // ============== Batch Functions ==============
 
 export interface AddBatchRequest {
@@ -632,13 +675,15 @@ export interface AddBatchRequest {
   supplier_id?: string | null
   notes?: string | null
   label?: string | null
+  ean?: string | null
+  barcode_tag?: string | null
   rack_id?: string | null
   slot_id?: string | null
   is_container?: boolean
   allocations?: { rack_id?: string; slot_id?: string; container_batch_id?: string; qty: number }[]
   // Serialisiert + qty > 1:
   serial_numbers?: string[]
-  serial_entries?: { serial_number: string; label?: string; is_container?: boolean }[]
+  serial_entries?: { serial_number: string; label?: string; ean?: string; barcode_tag?: string; is_container?: boolean }[]
   serial_prefix?: string
   start_number?: number
   pad_length?: number
@@ -654,6 +699,8 @@ export interface UpdateBatchRequest {
   notes?: string | null
   label?: string | null
   serial_number?: string | null
+  ean?: string | null
+  barcode_tag?: string | null
   supplier_id?: string | null
   rack_id?: string | null
   slot_id?: string | null

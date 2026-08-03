@@ -27,6 +27,8 @@ export interface WorkshopMaterialBatchInfo {
   serial_number: string | null
   label: string | null
   status: string
+  ean?: string | null
+  barcode_tag?: string | null
 }
 
 export interface WorkshopUserInfo {

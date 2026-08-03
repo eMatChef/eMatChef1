@@ -687,6 +687,14 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => 'Meldungen sind in diesem Aktivitätsstatus nicht möglich'], 422);
         }
 
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserReportActivityIssues($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung für Meldungen in diesem Aktivitätsstatus'], 403);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         $type = $data['type'] ?? 'damage';
@@ -805,10 +813,7 @@ class ActivityWorkflowController extends AbstractController
                 $this->inboxMessageService->notifyActivityIssueReported($activity, $user, $report);
             }
 
-            if (in_array($type, [
-                ActivityIssueReport::TYPE_CONSUMPTION,
-                ActivityIssueReport::TYPE_LOSS,
-            ], true)) {
+            if ($type === ActivityIssueReport::TYPE_LOSS) {
                 $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
             }
 
@@ -989,7 +994,7 @@ class ActivityWorkflowController extends AbstractController
         ]);
 
         $this->entityManager->flush();
-        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+        $this->syncConsumptionAccountingIfEligible($activity);
 
         return new JsonResponse($this->issueReportPhotoService->serializeIssueReport($report));
     }
@@ -1036,9 +1041,23 @@ class ActivityWorkflowController extends AbstractController
 
         $this->entityManager->remove($report);
         $this->entityManager->flush();
-        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+        $this->syncConsumptionAccountingIfEligible($activity);
 
         return new JsonResponse(['message' => 'Verbrauchsmeldung gelöscht']);
+    }
+
+    /** Verbrauch-Buchhaltung erst ab Retour (docs/accounting.md). */
+    private function syncConsumptionAccountingIfEligible(Activity $activity): void
+    {
+        if (!in_array($activity->getStatus(), [
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return;
+        }
+
+        $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
     }
 
     // ═══════════════════════════════════════════════

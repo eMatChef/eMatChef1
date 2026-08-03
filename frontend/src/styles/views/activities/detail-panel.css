@@ -96,14 +96,18 @@
 
 .activity-detail-tabs-window {
   overflow: visible;
+  position: relative;
 }
 
-/* v-window: inherit-Höhe / transitionHeight kollabiert sonst — Inhalt muss mitwachsen */
-.activity-detail-view :deep(.activity-detail-tabs-window.v-window) {
-  height: auto !important;
-  max-height: none !important;
-  min-height: 0;
-  overflow: visible !important;
+.activity-detail-tab-pane {
+  width: 100%;
+}
+
+/* Kein Vuetify v-window: kein Slide, kein Höhen-Animate beim Tab-Wechsel */
+.activity-detail-view :deep(.activity-detail-tabs-window.v-window),
+.activity-detail-view :deep(.activity-detail-tabs-window .v-window__container),
+.activity-detail-view :deep(.activity-detail-tabs-window .v-window-item) {
+  display: contents;
 }
 
 .activity-detail-view :deep(.activity-detail-tabs-window .v-window__container) {
@@ -111,18 +115,22 @@
   max-height: none !important;
   min-height: 0;
   overflow: visible !important;
+  transition: none !important;
 }
 
 .activity-detail-view :deep(.activity-detail-tabs-window .v-window-item) {
   overflow: visible;
-  position: relative !important;
-  height: auto !important;
+}
+
+.activity-detail-view :deep(.activity-detail-tabs-window .v-window-item:not(.v-window-item--active)) {
+  display: none !important;
 }
 
 .activity-detail-view :deep(.activity-detail-tabs-window .v-window-item--active) {
   position: relative !important;
   height: auto !important;
   width: 100% !important;
+  display: block !important;
 }
 
 .activity-detail-tab-panel--packs {

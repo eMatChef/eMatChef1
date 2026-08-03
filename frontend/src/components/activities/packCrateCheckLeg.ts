@@ -11,7 +11,7 @@ export type PackCrateCheckLeg = 'outbound' | 'return' | 'warehouse_store'
 
 /** Rückweg: Event→Retour (quick/external) oder Event→Transport zurück / Transport→Retour (logistics). */
 export function isPackReturnCrateCheckStage(stage: PackStage): boolean {
-  return isPackReturnStage(stage) || stage === 'at_event_transport_back'
+  return isPackReturnStage(stage) || stage === 'at_event_transport_back' || stage === 'transport_back_returned'
 }
 
 export function packCrateCheckLegForStage(stage: PackStage): PackCrateCheckLeg | null {

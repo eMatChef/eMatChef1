@@ -119,12 +119,6 @@ class MaterialItem
     private string $comboStatus = 'ready';
 
     // Identifikation
-    #[ORM\Column(type: 'string', length: 13, nullable: true)]
-    private ?string $ean = null;
-
-    #[ORM\Column(name: 'barcode_tag', type: 'string', length: 50, nullable: true)]
-    private ?string $barcodeTag = null;
-
     #[ORM\Column(type: 'string', length: 255, nullable: true)]
     private ?string $manufacturer = null;
 
@@ -210,6 +204,10 @@ class MaterialItem
 
     #[ORM\Column(name: 'sale_price', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $salePrice = null;
+
+    /** Optional: Zusatz pro Stück bei externen Aktivitäten (addiert auf sale_price) */
+    #[ORM\Column(name: 'external_sale_price_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
+    private ?string $externalSalePriceChf = null;
 
     /** Referenz-Einkaufspreis pro Stück (CHF), Pflicht bei Verbrauchsmaterial/Esswaren */
     #[ORM\Column(name: 'reference_purchase_unit_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
@@ -447,12 +445,6 @@ class MaterialItem
     public function isVirtualCombo(): bool { return $this->materialType === 'virtual_combo'; }
 
     // Identifikation Getters/Setters
-    public function getEan(): ?string { return $this->ean; }
-    public function setEan(?string $ean): self { $this->ean = $ean; return $this; }
-
-    public function getBarcodeTag(): ?string { return $this->barcodeTag; }
-    public function setBarcodeTag(?string $barcodeTag): self { $this->barcodeTag = $barcodeTag; return $this; }
-
     public function getManufacturer(): ?string { return $this->manufacturer; }
     public function setManufacturer(?string $manufacturer): self { $this->manufacturer = $manufacturer; return $this; }
 
@@ -583,6 +575,13 @@ class MaterialItem
 
     public function getSalePrice(): ?string { return $this->salePrice; }
     public function setSalePrice(?string $salePrice): self { $this->salePrice = $salePrice; return $this; }
+
+    public function getExternalSalePriceChf(): ?string { return $this->externalSalePriceChf; }
+    public function setExternalSalePriceChf(?string $externalSalePriceChf): self
+    {
+        $this->externalSalePriceChf = $externalSalePriceChf;
+        return $this;
+    }
 
     public function getReferencePurchaseUnitChf(): ?string { return $this->referencePurchaseUnitChf; }
     public function setReferencePurchaseUnitChf(?string $referencePurchaseUnitChf): self

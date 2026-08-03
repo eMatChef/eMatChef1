@@ -1,14 +1,12 @@
 <template>
   <div class="activity-consumables-tab">
     <ActivityTabHeader :title="t('activities.consumables.title')" />
-    <div class="section-card activity-tab-panel-card">
-      <ELoadingState
-        v-if="isLoading"
-        variant="inline"
-        class="activity-consumables-loading"
-        :message="t('activities.consumables.loading')"
-      />
-      <template v-else>
+    <ActivityTabPanelShell
+      :loading="showFullLoading"
+      :refreshing="isRefreshing"
+      :loading-message="t('activities.consumables.loading')"
+      loading-class="activity-consumables-loading"
+    >
         <p class="consumable-hint text-muted">
           {{ t('activities.consumables.intro') }}
         </p>
@@ -69,7 +67,7 @@
             </div>
 
             <div
-              v-if="remainingQty(row.material_item_id) > 0"
+              v-if="remainingQty(row.material_item_id) > 0 && canCreate"
               class="consumable-card__book"
             >
               <label class="consumable-book__label" :for="'consumable-qty-' + row.material_item_id">
@@ -125,6 +123,15 @@
                   }}
                 </EButton>
               </div>
+            </div>
+
+            <div
+              v-else-if="remainingQty(row.material_item_id) > 0"
+              class="consumable-card__blocked"
+            >
+              <p class="consumable-blocked-hint text-muted">
+                {{ t('activities.consumables.handoffReadOnlyHint') }}
+              </p>
             </div>
 
             <div v-else class="consumable-card__blocked">
@@ -233,8 +240,7 @@
             </div>
           </div>
         </div>
-      </template>
-    </div>
+    </ActivityTabPanelShell>
   </div>
 </template>
 
@@ -254,14 +260,16 @@ import {
   consumableChargeableCost,
   consumableCostTotal,
   consumableDisplayName,
+  effectiveConsumableUnitSalePrice,
   formatChf,
   formatChfLabel,
   replenishmentPurchaseRows,
 } from '@/components/activities/activityCosts'
 import { useToast } from '@/composables/useToast'
+import { useActivityTabLoad } from '@/composables/useActivityTabLoad'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
+import ActivityTabPanelShell from '@/components/activities/ActivityTabPanelShell.vue'
 import { EButton } from '@/components/form/base'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 
 defineOptions({ name: 'ActivityConsumablesTab' })
@@ -270,6 +278,7 @@ const { t, locale } = useI18n()
 
 const props = defineProps<{
   activityId: string
+  activityType?: string | null
   reloadToken?: number
   canCreate: boolean
   /** Materialwart / DC: addActivityItem */
@@ -296,16 +305,20 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
-const isLoading = ref(false)
+const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const packItems = ref<ActivityPackItem[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
 const qtyInputs = ref<Record<string, number>>({})
 const postingId = ref<string | null>(null)
 
+const isExternal = computed(() => props.activityType === 'external')
+
+const consumablePriceOptions = computed(() => ({ preferExternal: isExternal.value }))
+
 /** Pro Material aggregiert (Lager vs. Nachlieferung / Zukauf). */
 const consumableAggregated = computed(() => {
-  const rows = aggregateConsumableRows(activityItems.value)
+  const rows = aggregateConsumableRows(activityItems.value, consumablePriceOptions.value)
   return rows.map((row) => {
     const raw = activityItems.value.find(
       (r) => r.material_item_id === row.material_item_id && r.is_consumable === true,
@@ -335,13 +348,17 @@ function replenishmentRecordedAt(row: { recorded_at?: string | null }): string |
 }
 
 const consumableCostTotalValue = computed(() =>
-  consumableCostTotal(activityItems.value, issues.value),
+  consumableCostTotal(activityItems.value, issues.value, consumablePriceOptions.value),
 )
 
 const showCostsMissingPriceWarning = computed(() =>
-  consumableAggregated.value.some(
-    (row) => usedQty(row.material_item_id) > 0 && row.sale_price == null,
-  ),
+  consumableAggregated.value.some((row) => {
+    if (usedQty(row.material_item_id) <= 0) return false
+    const raw = activityItems.value.find(
+      (r) => r.material_item_id === row.material_item_id && r.is_consumable === true,
+    )
+    return effectiveConsumableUnitSalePrice(raw ?? row, consumablePriceOptions.value) == null
+  }),
 )
 
 function formatUnitPrice(price: number | null): string {
@@ -349,14 +366,16 @@ function formatUnitPrice(price: number | null): string {
 }
 
 function formatLineAmount(row: { material_item_id: string; sale_price: number | null }): string {
-  const amount = consumableChargeableCost(row.material_item_id, activityItems.value, issues.value)
+  const amount = consumableChargeableCost(
+    row.material_item_id,
+    activityItems.value,
+    issues.value,
+    consumablePriceOptions.value,
+  )
   return formatChfLabel(amount)
 }
 
-const canRequestNachbuchung = computed(
-  () =>
-    Boolean(props.canRequestConsumableReplenishment) || Boolean(props.canAddActivityMaterial),
-)
+const canRequestNachbuchung = computed(() => Boolean(props.canRequestConsumableReplenishment))
 
 const canManageConsumptionEntries = computed(
   () => props.canCreate || canRequestNachbuchung.value,
@@ -475,36 +494,35 @@ function formatDateTime(iso: string): string {
   })
 }
 
-async function load() {
-  isLoading.value = true
-  try {
-    const [items, iss, pack] = await Promise.all([
-      getActivityItems(props.activityId),
-      getActivityIssues(props.activityId),
-      getPackItems(props.activityId).catch(() => []),
-    ])
-    activityItems.value = items
-    issues.value = iss
-    packItems.value = pack
-    for (const r of items.filter((x) => x.is_consumable === true)) {
-      if (qtyInputs.value[r.material_item_id] == null) {
-        qtyInputs.value[r.material_item_id] = 1
+async function load(opts?: { forceFull?: boolean }) {
+  await withTabLoad(async () => {
+    try {
+      const [items, iss, pack] = await Promise.all([
+        getActivityItems(props.activityId),
+        getActivityIssues(props.activityId),
+        getPackItems(props.activityId).catch(() => []),
+      ])
+      activityItems.value = items
+      issues.value = iss
+      packItems.value = pack
+      for (const r of items.filter((x) => x.is_consumable === true)) {
+        if (qtyInputs.value[r.material_item_id] == null) {
+          qtyInputs.value[r.material_item_id] = 1
+        }
       }
+      for (const row of [...new Set(items.filter((x) => x.is_consumable).map((x) => x.material_item_id))]) {
+        const rem = remainingQty(row)
+        if (rem < 1) continue
+        const cur = qtyInputs.value[row] ?? 1
+        qtyInputs.value[row] = Math.min(rem, Math.max(1, cur))
+      }
+    } catch {
+      activityItems.value = []
+      packItems.value = []
+      issues.value = []
+      toast.error(t('activities.consumables.toastLoadFailed'))
     }
-    for (const row of [...new Set(items.filter((x) => x.is_consumable).map((x) => x.material_item_id))]) {
-      const rem = remainingQty(row)
-      if (rem < 1) continue
-      const cur = qtyInputs.value[row] ?? 1
-      qtyInputs.value[row] = Math.min(rem, Math.max(1, cur))
-    }
-  } catch {
-    activityItems.value = []
-    packItems.value = []
-    issues.value = []
-    toast.error(t('activities.consumables.toastLoadFailed'))
-  } finally {
-    isLoading.value = false
-  }
+  }, opts)
 }
 
 async function reportConsumption(row: {
@@ -542,7 +560,12 @@ async function reportConsumption(row: {
 
 watch(
   () => [props.activityId, props.reloadToken ?? 0] as const,
-  () => {
+  (curr, prev) => {
+    const [activityId] = curr
+    const prevActivityId = prev?.[0]
+    if (prevActivityId != null && activityId !== prevActivityId) {
+      resetTabLoad()
+    }
     void load()
   },
   { immediate: true },

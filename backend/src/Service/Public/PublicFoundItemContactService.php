@@ -5,8 +5,8 @@ namespace App\Service\Public;
 use App\Entity\Department;
 use App\Service\InboxMessageService;
 use App\Service\Mail\AppMailer;
+use App\Service\Mail\MailLogKind;
 use App\Service\Mail\MailOutboundSettingsStore;
-use App\Service\Mail\MailSendLogStore;
 use App\Service\Mail\MailTemplateContentStore;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Mime\Email;
@@ -17,7 +17,6 @@ class PublicFoundItemContactService
         private PublicCodeService $publicCodeService,
         private AppMailer $mailer,
         private MailOutboundSettingsStore $mailOutboundSettings,
-        private MailSendLogStore $mailSendLog,
         private MailTemplateContentStore $mailTemplateContent,
         private EntityManagerInterface $entityManager,
         private InboxMessageService $inboxMessages,
@@ -217,13 +216,7 @@ class PublicFoundItemContactService
                 $email->replyTo($senderEmail);
             }
 
-            $this->mailer->send($email);
-            $this->mailSendLog->append(
-                'public.found_item_contact',
-                $to,
-                $subject,
-                $this->mailOutboundSettings->getFromAddressObject()->getAddress()
-            );
+            $this->mailer->send(MailLogKind::stamp($email, 'public.found_item_contact'));
         }
 
         return ['ok' => true];

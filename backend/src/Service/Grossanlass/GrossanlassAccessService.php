@@ -155,7 +155,7 @@ class GrossanlassAccessService
 
         $membership = $this->entityManager->getRepository(GroupMembership::class)
             ->createQueryBuilder('gm')
-            ->select('COUNT(gm.id)')
+            ->select('COUNT(gm.userId)')
             ->where('gm.userId = :userId')
             ->andWhere('gm.groupId IN (:groupIds)')
             ->setParameter('userId', $user->getId())
@@ -164,6 +164,38 @@ class GrossanlassAccessService
             ->getSingleScalarResult();
 
         return (int) $membership > 0;
+    }
+
+    /**
+     * Gruppen-IDs im eigenen Ressort-Baum: direkte GroupMembership + Nachfahren (keine Geschwister-Zweige).
+     *
+     * @return list<string>
+     */
+    public function resolveAssignedGroupBranchIds(User $user, string $departmentId): array
+    {
+        /** @var list<GroupMembership> $memberships */
+        $memberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->createQueryBuilder('gm')
+            ->innerJoin('gm.group', 'g')
+            ->where('gm.userId = :userId')
+            ->andWhere('g.departmentId = :departmentId')
+            ->setParameter('userId', $user->getId())
+            ->setParameter('departmentId', $departmentId)
+            ->getQuery()
+            ->getResult();
+
+        $visible = [];
+        foreach ($memberships as $membership) {
+            if (!$membership instanceof GroupMembership) {
+                continue;
+            }
+            $branch = $this->hierarchy->expandWithDescendants($departmentId, [$membership->getGroupId()]);
+            foreach ($branch as $id) {
+                $visible[$id] = true;
+            }
+        }
+
+        return array_keys($visible);
     }
 
     public function findRootRessortId(Group $group): string

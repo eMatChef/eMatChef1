@@ -55,3 +55,6 @@ jobs:
 
       - name: Install backend dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
+
+      - name: Run backend unit tests
+        run: ./vendor/bin/phpunit

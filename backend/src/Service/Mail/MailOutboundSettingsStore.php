@@ -7,7 +7,7 @@ use Symfony\Component\Mime\Address;
 
 /**
  * Absender- und Reply-To-Metadaten in var/app/mail_outbound.json (nicht DB).
- * Transport: ausschliesslich MAILER_DSN aus der Umgebung (SendGrid-only).
+ * Transport: ausschliesslich MAILER_DSN aus der Umgebung (HTTPS-API).
  */
 class MailOutboundSettingsStore
 {
@@ -87,7 +87,7 @@ class MailOutboundSettingsStore
             return ['type' => 'dsn', 'dsn' => $fb, 'cache_key' => 'env:' . hash('sha256', $fb), 'source' => 'env'];
         }
 
-        throw new \RuntimeException('MAILER_DSN ist nicht gesetzt oder auf null:// konfiguriert. Versand ist nur ueber SendGrid (MAILER_DSN) erlaubt.');
+        throw new \RuntimeException('MAILER_DSN ist nicht gesetzt oder auf null:// konfiguriert. Versand ist nur ueber MAILER_DSN in der Server-Umgebung moeglich.');
     }
 
     /**

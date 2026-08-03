@@ -25,7 +25,7 @@ APP_SECRET=${APP_SECRET}
 JWT_PASSPHRASE=${JWT_PASSPHRASE}
 
 # Optional (von Hand; siehe deploy/docker-compose.prod.env.example):
-# MAILER_DSN="sendgrid+api://SG....@default"
+# MAILER_DSN="ses+api://ACCESS_KEY:SECRET@default?region=eu-central-1"
 # MAILER_FROM="noreply@ematchef.ch"
 # TURNSTILE_SECRET_KEY="..."
 EOF

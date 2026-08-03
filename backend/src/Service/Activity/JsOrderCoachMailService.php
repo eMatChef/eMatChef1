@@ -10,8 +10,8 @@ use App\Entity\User;
 use App\Service\Activity\ActivityJsOrderPdfStorageService;
 use App\Service\JsOrderPrefillService;
 use App\Service\Mail\AppMailer;
+use App\Service\Mail\MailLogKind;
 use App\Service\Mail\MailOutboundSettingsStore;
-use App\Service\Mail\MailSendLogStore;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 
@@ -23,7 +23,6 @@ class JsOrderCoachMailService
     public function __construct(
         private AppMailer $mailer,
         private MailOutboundSettingsStore $mailOutboundSettings,
-        private MailSendLogStore $mailSendLog,
         private ActivityJsOrderPdfStorageService $pdfStorage,
         private JsOrderPrefillService $prefillService,
     ) {
@@ -95,9 +94,6 @@ class JsOrderCoachMailService
             ->text($textBody)
             ->attachFromPath($path, $filename, 'application/pdf');
 
-        $this->mailer->send($email);
-
-        $fromAddr = $this->mailOutboundSettings->getFromAddressObject()->getAddress();
-        $this->mailSendLog->append('js_order.coach', $coachEmail, $subject, $fromAddr);
+        $this->mailer->send(MailLogKind::stamp($email, 'js_order.coach'));
     }
 }

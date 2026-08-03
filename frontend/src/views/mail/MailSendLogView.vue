@@ -25,7 +25,7 @@
           <tr v-for="(row, idx) in entries" :key="idx">
             <td class="cell-time">{{ formatAt(row.at) }}</td>
             <td class="cell-kind">
-              <span class="kind-pill" :title="row.kind">{{ kindLabel(row.kind) }}</span>
+              <span class="kind-pill" :class="{ 'kind-pill--failed': row.kind.endsWith('.failed') }" :title="row.kind">{{ kindLabel(row.kind) }}</span>
             </td>
             <td class="cell-from">{{ row.from || t('mail.log.dash') }}</td>
             <td class="cell-to">{{ row.to }}</td>
@@ -56,12 +56,24 @@ const KIND_LABELS: Record<string, string> = {
   'auth.pending_email_change': 'mail.log.kinds.authPendingEmailChange',
   'auth.password_reset_code': 'mail.log.kinds.authPasswordReset',
   'department.invite': 'mail.log.kinds.departmentInvite',
+  'department.member_added': 'mail.log.kinds.departmentMemberAdded',
+  'join_request.manager_notify': 'mail.log.kinds.joinRequestManagerNotify',
+  'admin_join_request.manager_notify': 'mail.log.kinds.adminJoinRequestManagerNotify',
+  'js_order.coach': 'mail.log.kinds.jsOrderCoach',
   'public.found_item_contact': 'mail.log.kinds.publicFoundItem',
+  'mail.outbound': 'mail.log.kinds.mailOutbound',
   'mail.test': 'mail.log.kinds.mailTest',
   'mail.test.failed': 'mail.log.kinds.mailTestFailed',
 }
 
 function kindLabel(kind: string): string {
+  if (kind.endsWith('.failed')) {
+    const base = kind.slice(0, -'.failed'.length)
+    const baseKey = KIND_LABELS[base]
+    if (baseKey) {
+      return `${t(baseKey)} (${t('mail.log.failedSuffix')})`
+    }
+  }
   const key = KIND_LABELS[kind]
   return key ? t(key) : kind
 }
@@ -187,6 +199,11 @@ watch(departmentId, () => {
   background: #f1f5f9;
   color: #334155;
   font-size: 12px;
+}
+
+.kind-pill--failed {
+  background: #fef2f2;
+  color: #b91c1c;
 }
 
 .cell-to {

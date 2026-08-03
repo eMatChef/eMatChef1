@@ -83,8 +83,29 @@
             </EButton>
           </template>
           <template v-else-if="task.kind === 'accounting_followup'">
-            <EButton variant="primary" size="small" @click="openAccountingTask(task)">
+            <EButton
+              v-if="task.status === 'open'"
+              variant="primary"
+              size="small"
+              @click="openAccountingTask(task)"
+            >
               {{ t('tasksGeneral.actionAccounting') }}
+            </EButton>
+            <EButton
+              v-else-if="task.status === 'in_progress'"
+              variant="primary"
+              size="small"
+              @click="openAccountingTask(task)"
+            >
+              {{ t('tasksGeneral.actionAccountingContinue') }}
+            </EButton>
+            <EButton
+              v-else
+              variant="secondary"
+              size="small"
+              @click="openAccountingTask(task, true)"
+            >
+              {{ t('tasksGeneral.actionAccountingView') }}
             </EButton>
           </template>
         </div>
@@ -122,6 +143,7 @@ import {
   acceptDepartmentInvite,
   declineDepartmentInvite,
   decideDepartmentActivityInvite,
+  markReceivedDepartmentInviteRead,
   type GrossanlassMwAssignedNotification,
   type GrossanlassRoundOpenedNotification,
   type PendingDepartmentActivityInvite,
@@ -141,6 +163,7 @@ import {
   parseTaskOpenQuery,
   taskOpenQuery,
   useDepartmentTasksLoader,
+  markAccountingFollowUpInProgress,
   type DepartmentTaskItem,
   type DepartmentTaskKind,
   type DepartmentTaskStatus,
@@ -170,7 +193,7 @@ const { tasks, isLoading, error, reload } = useDepartmentTasksLoader(departmentI
 const statusTab = ref<StatusTab>('open')
 
 const statusTabs = computed(() => {
-  const openCount = tasks.value.filter((t) => t.kind !== 'qr_found' || t.status === 'open').length
+  const openCount = tasks.value.filter((t) => t.status === 'open').length
   const inProgressCount = tasks.value.filter((t) => t.status === 'in_progress').length
   const doneCount = tasks.value.filter((t) => t.status === 'done').length
   return [
@@ -180,12 +203,7 @@ const statusTabs = computed(() => {
   ]
 })
 
-const filteredTasks = computed(() => {
-  if (statusTab.value === 'open') {
-    return tasks.value.filter((t) => t.kind !== 'qr_found' || t.status === 'open')
-  }
-  return tasks.value.filter((t) => t.status === statusTab.value)
-})
+const filteredTasks = computed(() => tasks.value.filter((t) => t.status === statusTab.value))
 
 const emptyTitle = computed(() => {
   switch (statusTab.value) {
@@ -324,6 +342,15 @@ function goToMessageForQr(msg: PublicFoundItemMessage) {
 async function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification) {
   const canLeave = await confirmLeaveIfDirty(t)
   if (!canLeave) return
+  if (!note.read) {
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      await reload()
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* navigate anyway */
+    }
+  }
   try {
     await authStore.loadDepartments()
     await authStore.setActiveDepartment(note.department_id)
@@ -337,11 +364,14 @@ async function openGrossanlassDashboard(note: GrossanlassMwAssignedNotification)
 async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) {
   const canLeave = await confirmLeaveIfDirty(t)
   if (!canLeave) return
-  try {
-    await authStore.loadDepartments()
-    await authStore.setActiveDepartment(note.department_id)
-  } catch {
-    /* navigate anyway */
+  if (!note.read) {
+    try {
+      await markReceivedDepartmentInviteRead(note.id)
+      await reload()
+      headerNotificationsStore.requestRefresh()
+    } catch {
+      /* navigate anyway */
+    }
   }
   void router.push(
     note.round_id
@@ -440,12 +470,21 @@ async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'ac
   }
 }
 
-function openAccountingTask(task: DepartmentTaskItem) {
+function openAccountingTask(task: DepartmentTaskItem, viewOnly = false) {
   if (!departmentId.value) return
+  const followUpId = task.accounting?.id
+  if (followUpId && !viewOnly && task.status !== 'done') {
+    markAccountingFollowUpInProgress(followUpId)
+    const row = tasks.value.find((t) => t.id === task.id)
+    if (row && row.status === 'open') row.status = 'in_progress'
+  }
   void router.push({
     name: 'AccountingBookings',
     params: { departmentId: departmentId.value },
-    query: { sub: 'assign' },
+    query: {
+      sub: 'assign',
+      ...(followUpId ? { followUp: followUpId } : {}),
+    },
   })
 }
 
@@ -517,6 +556,16 @@ onMounted(() => {
 watch(departmentId, () => {
   void reload()
 })
+
+watch(
+  () => route.path,
+  (path, previousPath) => {
+    if (!path.includes('/tasks')) return
+    if (previousPath && previousPath !== path) {
+      void reload()
+    }
+  },
+)
 </script>
 
 <style scoped>

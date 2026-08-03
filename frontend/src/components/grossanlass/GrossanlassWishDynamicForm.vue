@@ -227,7 +227,7 @@ const groupModeItems = computed(() => {
   const items: Array<{ title: string; value: 'existing' | 'new' }> = [
     { title: t('grossanlass.wishes.modeExisting'), value: 'existing' },
   ]
-  if (bauprojektField && allowNewBauprojekt(bauprojektField)) {
+  if (bauprojektField && allowNewBauprojekt(bauprojektField) && canUserCreateNewBauprojekt()) {
     items.push({ title: t('grossanlass.wishes.modeNewBauprojekt'), value: 'new' })
   }
   return items
@@ -418,17 +418,18 @@ function applyDefaultRessortSelection(force = false) {
   }
 }
 
-const parentSelectItems = computed(() =>
-  flattenGrossanlassGroupsFiltered(props.groups, (g) => {
+const parentSelectItems = computed(() => {
+  const branchFilter = hasSystemField('ressort_wahl') && local.ressortGroupId
+    ? collectBranchIds(local.ressortGroupId)
+    : null
+
+  return flattenGrossanlassGroupsFiltered(props.groups, (g) => {
     if (g.node_type === 'bauprojekt') return false
-    const field = bauprojektField.value
-    if (!selectableGroups.value.some((sg) => sg.id === g.id)) return false
-    if (!field || !usesLeaderScope(field) || props.canFullyManage || props.isLeaderOfGroup(g)) {
-      return true
-    }
-    return false
-  }).map((g) => ({ title: grossanlassGroupIndentTitle(g), value: g.id })),
-)
+    if (branchFilter && !branchFilter.has(g.id)) return false
+    // Neues Bauprojekt: alle Ressorts, unter denen der User Kinder anlegen darf (§4.2)
+    return props.canFullyManage || props.canCreateChild(g)
+  }).map((g) => ({ title: grossanlassGroupIndentTitle(g), value: g.id }))
+})
 
 const wishKindItems = computed(() => [
   { title: t('grossanlass.wishes.kindMaterial'), value: 'material' },
@@ -442,6 +443,13 @@ function fieldLabel(field: GrossanlassRoundFormField): string {
 
 function allowNewBauprojekt(field: GrossanlassRoundFormField): boolean {
   return field.config?.allow_new_bauprojekt !== false
+}
+
+function canUserCreateNewBauprojekt(): boolean {
+  if (props.canFullyManage) return true
+  return props.groups.some(
+    (g) => g.node_type !== 'bauprojekt' && props.canCreateChild(g),
+  )
 }
 
 function selectItems(field: GrossanlassRoundFormField) {
@@ -482,9 +490,12 @@ function buildPayload(): CreateGrossanlassWishPayload {
 
   if (hasSystemField('bauprojekt')) {
     if (local.groupMode === 'new') {
+      const parentId = hasSystemField('ressort_wahl') && local.ressortGroupId
+        ? local.ressortGroupId
+        : (local.parentId || local.ressortGroupId || '')
       payload.new_bauprojekt = {
         name: local.newBauprojektName.trim(),
-        parent_id: local.parentId || local.ressortGroupId || '',
+        parent_id: parentId,
       }
     } else if (local.groupId) {
       payload.group_id = local.groupId
@@ -616,7 +627,20 @@ watch(
       local.groupId = null
       bauprojektSearch.value = ''
     }
+    if (local.groupMode === 'new') {
+      local.parentId = ressortId
+    }
   },
+)
+
+watch(
+  () => groupModeItems.value,
+  (items) => {
+    if (local.groupMode === 'new' && !items.some((i) => i.value === 'new')) {
+      local.groupMode = 'existing'
+    }
+  },
+  { immediate: true },
 )
 
 watch(

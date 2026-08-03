@@ -6,6 +6,7 @@ import MaterialJourneyTaskRow from '@/components/activities/materialJourney/Mate
 import MaterialJourneyCrateTaskRow from '@/components/activities/materialJourney/MaterialJourneyCrateTaskRow.vue'
 import MaterialJourneyRegalGroup from '@/components/activities/materialJourney/MaterialJourneyRegalGroup.vue'
 import type { MaterialJourneyRegalGroup as RegalGroup } from '@/components/activities/materialJourneyRegalGroups'
+import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type {
   MaterialJourneyFilterTab,
@@ -27,6 +28,7 @@ const props = defineProps<{
   filterVariant?: 'default' | 'quickIssue'
   /** Einlagern: immer nach Regal gruppieren */
   groupByShelf?: boolean
+  journeyStep?: JourneyStep
   isEarlyPackPreview: boolean
   positionCount: number
   listEditable: boolean
@@ -54,13 +56,18 @@ const props = defineProps<{
   atEventQtyLabelForRow?: (row: TaskRow, previewLines: MaterialJourneyAccordionLine[]) => string | null
   atEventQtyLabelForLine?: (row: TaskRow, line: MaterialJourneyAccordionLine) => string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
+  containerLineRemainingStore?: (ci: ActivityPackContainerItem) => number
+  shellStorePendingQtyForRow?: (row: TaskRow) => number
+  showCrateContentActions?: boolean
+  deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
-  reassign: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
+  deleteEmpty: [row: TaskRow]
   moveBack: [row: TaskRow, qty: number]
   'update:moveBackQty': [row: TaskRow, qty: number]
   moveForward: [row: TaskRow, qty: number]
@@ -68,14 +75,19 @@ const emit = defineEmits<{
   consumed: [row: TaskRow]
   loss: [row: TaskRow]
   repair: [row: TaskRow]
+  damage: [row: TaskRow]
   lineConsumed: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineLoss: [row: TaskRow, line: MaterialJourneyAccordionLine]
   lineRepair: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  lineDamage: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeLine: [row: TaskRow, line: MaterialJourneyAccordionLine]
+  storeShell: [row: TaskRow]
 }>()
 
 const { t } = useI18n()
 
 const isByShelf = computed(() => props.groupByShelf === true || props.filterTab === 'byShelf')
+const isStoreByShelf = computed(() => props.journeyStep === 'store' && isByShelf.value)
 
 function isExpandableRow(row: TaskRow): boolean {
   return row.kind === 'crate' || row.kind === 'combo'
@@ -108,7 +120,7 @@ function isPackCrateAssignActive(): boolean {
 
 function isPackTargetActive(row: TaskRow): boolean {
   return (
-    Boolean(props.packCrateSelectMode) &&
+    Boolean(props.packTargetCrateId) &&
     row.kind === 'crate' &&
     row.container?.id === props.packTargetCrateId
   )
@@ -132,15 +144,20 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
 }
 
 function hasReassignTargetsFor(row: TaskRow): boolean {
-  if (row.kind !== 'crate' || !row.container) return false
-  if (!props.packContainers || !props.shellPackItemForContainer) return false
-  return (
-    reassignTargetPackCrates(
-      props.packContainers,
-      row.container.id,
-      props.shellPackItemForContainer,
-    ).length > 0
-  )
+  return reassignTargetsFor(row).length > 0
+}
+
+function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
+  if (row.kind !== 'crate' || !row.container) return []
+  if (!props.packContainers || !props.shellPackItemForContainer) return []
+  return reassignTargetPackCrates(
+    props.packContainers,
+    row.container.id,
+    props.shellPackItemForContainer,
+  ).map((container) => ({
+    id: container.id,
+    label: container.label,
+  }))
 }
 
 const listIsEmpty = computed(() =>
@@ -159,6 +176,7 @@ const emptyTitle = computed(() => {
     }
     return t('activities.materialJourney.empty.doneTitle')
   }
+  if (isStoreByShelf.value) return t('activities.materialJourney.empty.storeByShelfTitle')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfTitle')
   if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
     return t('activities.materialJourney.empty.openTitleQuickIssue')
@@ -174,6 +192,7 @@ const emptyDescription = computed(() => {
     }
     return t('activities.materialJourney.empty.doneDescription')
   }
+  if (isStoreByShelf.value) return t('activities.materialJourney.empty.storeByShelfDescription')
   if (props.filterTab === 'byShelf') return t('activities.materialJourney.empty.byShelfDescription')
   if (props.filterVariant === 'quickIssue' && props.filterTab === 'open') {
     return t('activities.materialJourney.empty.openDescriptionQuickIssue')
@@ -228,11 +247,17 @@ const emptyDescription = computed(() => {
         :at-event-qty-label-for-line="atEventQtyLabelForLine"
         :show-issue-for-accordion-line="showIssueForAccordionLine"
         :is-consumable-for-material-id="isConsumableForMaterialId"
+        :journey-step="journeyStep"
+        :container-line-remaining-store="containerLineRemainingStore"
+        :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
+        :show-crate-content-actions="showCrateContentActions"
+        :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
         :has-reassign-targets-for-row="hasReassignTargetsFor"
         @activate="emit('activate', $event)"
         @select-target="emit('selectTarget', $event)"
         @loose-take="(row, line) => emit('looseTake', row, line)"
-        @reassign="(row, line) => emit('reassign', row, line)"
+        @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
+        @delete-empty="emit('deleteEmpty', $event)"
         @move-back="(row, qty) => emit('moveBack', row, qty)"
         @update:move-back-qty="(row, qty) => emit('update:moveBackQty', row, qty)"
         @move-forward="(row, qty) => emit('moveForward', row, qty)"
@@ -240,9 +265,13 @@ const emptyDescription = computed(() => {
         @consumed="emit('consumed', $event)"
         @loss="emit('loss', $event)"
         @repair="emit('repair', $event)"
+        @damage="emit('damage', $event)"
         @line-consumed="(row, line) => emit('lineConsumed', row, line)"
         @line-loss="(row, line) => emit('lineLoss', row, line)"
         @line-repair="(row, line) => emit('lineRepair', row, line)"
+        @line-damage="(row, line) => emit('lineDamage', row, line)"
+        @store-line="(row, line) => emit('storeLine', row, line)"
+        @store-shell="(row) => emit('storeShell', row)"
       />
     </div>
 
@@ -265,15 +294,23 @@ const emptyDescription = computed(() => {
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
           :has-reassign-targets="hasReassignTargetsFor(row)"
+          :reassign-targets="reassignTargetsFor(row)"
+          :show-crate-content-actions="showCrateContentActions"
+          :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :at-event-qty-label="atEventLabelForRow(row)"
           :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
           :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
+          :journey-step="journeyStep"
+          :container-items-by-container-id="containerItemsByContainerId"
+          :container-line-remaining-store="containerLineRemainingStore"
+          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
           @activate="emit('activate', row)"
           @select-target="emit('selectTarget', row)"
           @loose-take="emit('looseTake', row, $event)"
-          @reassign="emit('reassign', row, $event)"
+          @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
+          @delete-empty="emit('deleteEmpty', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"
@@ -281,9 +318,13 @@ const emptyDescription = computed(() => {
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
           @line-consumed="emit('lineConsumed', row, $event)"
           @line-loss="emit('lineLoss', row, $event)"
           @line-repair="emit('lineRepair', row, $event)"
+          @line-damage="emit('lineDamage', row, $event)"
+          @store-line="emit('storeLine', row, $event)"
+          @store-shell="emit('storeShell', row)"
         />
         <MaterialJourneyTaskRow
           v-else
@@ -309,6 +350,7 @@ const emptyDescription = computed(() => {
           @consumed="emit('consumed', row)"
           @loss="emit('loss', row)"
           @repair="emit('repair', row)"
+          @damage="emit('damage', row)"
         />
       </li>
     </ul>

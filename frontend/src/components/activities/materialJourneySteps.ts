@@ -11,6 +11,9 @@ export type JourneyStep =
 
 const JOURNEY_STEPS_QUICK: JourneyStep[] = ['pack', 'issue', 'return', 'store']
 
+/** Gruppe / User ohne MW-Recht — wie PACK_STAGE_KEYS_QUICK_MEMBER in der klassischen Packliste. */
+const JOURNEY_STEPS_QUICK_MEMBER: JourneyStep[] = ['issue', 'return']
+
 const JOURNEY_STEPS_LOGISTICS: JourneyStep[] = [
   'pack',
   'transport_out',
@@ -20,13 +23,58 @@ const JOURNEY_STEPS_LOGISTICS: JourneyStep[] = [
   'store',
 ]
 
+/** Gruppe Camp/Event — Transport + Am Anlass + Retour, ohne Packen/Einlagern. */
+const JOURNEY_STEPS_LOGISTICS_MEMBER: JourneyStep[] = [
+  'transport_out',
+  'issue',
+  'transport_back',
+  'return',
+]
+
 export function journeyStepsForProfile(profile: PackWorkflowProfile): JourneyStep[] {
   if (profile === 'logistics') return [...JOURNEY_STEPS_LOGISTICS]
   return [...JOURNEY_STEPS_QUICK]
 }
 
+/** Stepper-Sicht: MW volle Pipeline, Gruppe nur Ausgabe/Retour (± Transport). */
+export function journeyStepsForViewer(
+  profile: PackWorkflowProfile,
+  canManageMaterials: boolean,
+): JourneyStep[] {
+  if (canManageMaterials) return journeyStepsForProfile(profile)
+  if (profile === 'logistics') return [...JOURNEY_STEPS_LOGISTICS_MEMBER]
+  return [...JOURNEY_STEPS_QUICK_MEMBER]
+}
+
 export function isValidJourneyStep(step: string, profile: PackWorkflowProfile): step is JourneyStep {
   return journeyStepsForProfile(profile).includes(step as JourneyStep)
+}
+
+export function isValidJourneyStepForViewer(
+  step: string,
+  profile: PackWorkflowProfile,
+  canManageMaterials: boolean,
+): step is JourneyStep {
+  return journeyStepsForViewer(profile, canManageMaterials).includes(step as JourneyStep)
+}
+
+/** MW-only Steps (pack/store) auf den nächsten Gruppen-Schritt mappen. */
+export function clampJourneyStepForViewer(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+  canManageMaterials: boolean,
+): JourneyStep {
+  if (canManageMaterials) return step
+  const viewerSteps = journeyStepsForViewer(profile, canManageMaterials)
+  if (viewerSteps.includes(step)) return step
+  const pipeline = journeyStepsForProfile(profile)
+  const idx = pipeline.indexOf(step)
+  if (idx < 0) return viewerSteps[0] ?? step
+  for (let i = idx; i >= 0; i--) {
+    const candidate = pipeline[i]!
+    if (viewerSteps.includes(candidate)) return candidate
+  }
+  return viewerSteps[0] ?? step
 }
 
 /** Mapping journey_step → PackStage (shared Rules-Layer). */
@@ -172,14 +220,33 @@ export function isJourneyReturnStep(step: JourneyStep): boolean {
   return step === 'return'
 }
 
+/** Logistics: Kistencheck-Bein «return» auf Transport zurück und Retour. */
+export function isJourneyLogisticsReturnCrateCheckStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  return profile === 'logistics' && (step === 'transport_back' || step === 'return')
+}
+
+/** Journey-Schritt mit Retour-Pipeline (Modal / returnAll), inkl. Logistics Transport→Retour. */
+export function isJourneyReturnPipelineStep(
+  step: JourneyStep,
+  profile: PackWorkflowProfile,
+): boolean {
+  return isJourneyReturnStep(step)
+}
+
 export function isJourneyStoreStep(step: JourneyStep): boolean {
   return step === 'store'
 }
 
-/** Regal/Fach in Checkliste — nur Packen und Einlagern (ab «Gepackt» kein Lagerort mehr). */
+/** Regal/Fach in Checkliste und Scan — nur Packen und Einlagern (dazwischen: Haufen / mitgenommen). */
 export function materialJourneyShowsShelfLocation(step: JourneyStep): boolean {
   return step === 'pack' || step === 'store'
 }
+
+/** Regal-QR und Regal-Textsuche — dieselbe Regel wie {@link materialJourneyShowsShelfLocation}. */
+export const materialJourneyAllowsShelfSearch = materialJourneyShowsShelfLocation
 
 export function materialJourneyShowsMoveForwardQty(
   step: JourneyStep,

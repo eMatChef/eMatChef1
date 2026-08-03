@@ -1,0 +1,68 @@
+# Weblate auf ematchef-translate (DigitalOcean).
+# Offizielles Setup: https://github.com/WeblateOrg/docker-compose
+# + HTTPS (Let’s Encrypt) + Single-Celery (wichtig bei 2 GB RAM).
+#
+# Start:
+#   cp environment.example environment
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   nano environment docker-compose.override.yml   # Secrets + Domain
+#   docker compose up -d
+
+services:
+  cache:
+    image: valkey/valkey:9.1.1
+    volumes:
+      - redis-data:/data
+    command: [valkey-server, --save, "60", "1", --loglevel, warning]
+    restart: always
+    read_only: true
+
+  database:
+    image: postgres:18-alpine
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    env_file:
+      - ./environment
+    restart: always
+
+  https-portal:
+    image: steveltn/https-portal:1
+    volumes:
+      - ssl-certs:/var/lib/https-portal
+    environment:
+      STAGE: production
+      PROXY_READ_TIMEOUT: 3600
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: always
+
+  weblate:
+    image: weblate/weblate
+    depends_on:
+      - cache
+      - database
+    volumes:
+      - weblate-data:/app/data
+      - weblate-cache:/app/cache
+    environment:
+      WEBLATE_ENABLE_HTTPS: "1"
+      WEBLATE_IP_PROXY_HEADER: HTTP_X_FORWARDED_FOR
+      WEBLATE_SECURE_PROXY_SSL_HEADER: HTTP_X_FORWARDED_PROTO,https
+      # Spart RAM auf dem 2-GB-Droplet (unter dem offiziellen 3-GB-Minimum).
+      CELERY_SINGLE_PROCESS: "1"
+      WEBLATE_WORKERS: "1"
+    env_file:
+      - ./environment
+    restart: always
+    read_only: true
+    tmpfs:
+      - /run
+      - /tmp
+
+volumes:
+  weblate-cache: {}
+  weblate-data: {}
+  postgres-data: {}
+  redis-data: {}
+  ssl-certs: {}

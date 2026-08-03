@@ -7,7 +7,10 @@ import {
   packMaterialDisplayName,
 } from '@/components/activities/packMaterialDisplay'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
-import { isJourneyForwardChecklistStep } from '@/components/activities/materialJourneySteps'
+import {
+  isJourneyForwardChecklistStep,
+  materialJourneyAllowsShelfSearch,
+} from '@/components/activities/materialJourneySteps'
 import { isCrateShellPackItem } from '@/components/activities/packShellCrateHelpers'
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
@@ -65,6 +68,8 @@ export type MaterialScanResolveResult = {
   storageLookup?: StorageLookupResult
   shelfOpenCount?: number
   shelfTotalCount?: number
+  /** Scan war Fremd-EAN/Barcode, nicht eMatChef-QR (`/i/m/…/b/…`). */
+  externalBarcodeMatch?: boolean
 }
 
 export type MaterialScanResolveContext = {
@@ -607,8 +612,9 @@ export function resolveMaterialTextSearch(
     (p) =>
       packMaterialDisplayName(p).toLowerCase().includes(q) ||
       (p.categoryName ?? '').toLowerCase().includes(q) ||
-      (p.storageRackName ?? '').toLowerCase().includes(q) ||
-      (p.storageSlotName ?? '').toLowerCase().includes(q),
+      (materialJourneyAllowsShelfSearch(ctx.journeyStep) &&
+        ((p.storageRackName ?? '').toLowerCase().includes(q) ||
+          (p.storageSlotName ?? '').toLowerCase().includes(q))),
   )
   if (!pi) return null
 

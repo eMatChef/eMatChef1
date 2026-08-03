@@ -193,7 +193,11 @@ class GrossanlassWishController extends AbstractController
             return $currentUser;
         }
 
-        return new JsonResponse($this->wishService->listWishesForUserRessort($department, $currentUser));
+        try {
+            return new JsonResponse($this->wishService->listWishesForUserRessort($department, $currentUser));
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Fehler beim Laden: ' . $e->getMessage()], 500);
+        }
     }
 
     private function resolveGrossanlassDepartment(string $departmentId): Department|JsonResponse

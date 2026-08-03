@@ -968,7 +968,9 @@ class Activity
     {
         if (in_array($this->status, [
             self::STATUS_AT_EVENT,
+            self::STATUS_TRANSPORT_BACK,
             self::STATUS_RETURNED,
+            self::STATUS_STORING,
         ], true)) {
             return true;
         }

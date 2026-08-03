@@ -560,7 +560,35 @@
                 <p class="batch-field-hint">{{ t('components.batchModal.labelFieldHint') }}</p>
               </div>
             </div>
-          </template>
+                    </template>
+
+          <!-- EAN / Fremdbarcode an der Charge -->
+          <div class="batch-form-row">
+            <div class="batch-form-group">
+              <label>
+                {{ t('components.materialDetail.labelCode') }}
+                <span class="optional-label">({{ t('common.optional') }})</span>
+              </label>
+              <input
+                v-model="form.barcode_tag"
+                type="text"
+                class="batch-form-input"
+                :placeholder="t('components.materialDetail.codePlaceholder')"
+              />
+            </div>
+            <div class="batch-form-group">
+              <label>
+                {{ t('components.materialDetail.labelEan') }}
+                <span class="optional-label">({{ t('common.optional') }})</span>
+              </label>
+              <input
+                v-model="form.ean"
+                type="text"
+                class="batch-form-input"
+                :placeholder="t('components.batchModal.eanPlaceholder')"
+              />
+            </div>
+          </div>
 
           <!-- Auf mehrere Lagerplätze aufteilen (nur bei Bulk) -->
           <div v-if="!isSerializedMaterial" class="form-row mb-2">
@@ -603,7 +631,11 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="row in allocationRows" :key="row.id">
+                    <tr
+                      v-for="row in allocationRows"
+                      :key="row.id"
+                      :class="{ 'allocation-row--duplicate-crate': allocationRowHasDuplicateKiste(row, allocationRows) }"
+                    >
                       <td>
                         <input
                           v-model.number="row.qty"
@@ -668,14 +700,19 @@
                           class="batch-form-input form-select--sm"
                         >
                           <option value="">{{ t('components.batchModal.selectBox') }}</option>
-                                <option
-                                  v-for="cb in containerBatches"
-                                  :key="cb.id"
-                                  :value="cb.id"
-                                  :title="formatContainerBatchOptionFullLabel(cb)"
-                                >
-                                  {{ formatContainerBatchOptionFullLabel(cb) }}
-                                </option>
+                          <option
+                            v-for="cb in containerBatches"
+                            :key="cb.id"
+                            :value="cb.id"
+                            :disabled="isContainerBatchUsedInOtherRow(allocationRows, cb.id, row.id)"
+                            :title="
+                              isContainerBatchUsedInOtherRow(allocationRows, cb.id, row.id)
+                                ? t('components.batchModal.allocCrateAlreadyUsedInRow')
+                                : formatContainerBatchOptionFullLabel(cb)
+                            "
+                          >
+                            {{ formatContainerBatchOptionFullLabel(cb) }}
+                          </option>
                         </select>
                       </td>
                       <td>
@@ -685,6 +722,13 @@
                   </tbody>
                 </table>
               </div>
+              <p
+                v-if="hasDuplicateKisteContainers(allocationRows)"
+                class="batch-field-hint allocation-duplicate-crate-hint"
+                role="status"
+              >
+                {{ t('components.batchModal.allocDuplicateCrateHint') }}
+              </p>
               <p v-if="allocationRows.length > 0 && !allocationSumValid" class="batch-field-hint is-invalid">
                 {{ t('components.batchModal.allocationSumInvalid', { qty: form.qty, current: allocationSum, unit: stockUnitLabel }) }}
               </p>
@@ -875,6 +919,11 @@ import {
   type StorageOverviewResponse,
 } from '@/api/storageLocations'
 import { formatContainerBatchOptionFullLabel } from '@/utils/containerBatchLabel'
+import {
+  allocationRowHasDuplicateKiste,
+  hasDuplicateKisteContainers,
+  isContainerBatchUsedInOtherRow,
+} from '@/utils/allocationStorageHints'
 import { usePhysicalComboWarningStore } from '@/stores/physicalComboWarning'
 import {
   formatFachSelectPreviewLine,
@@ -1013,6 +1062,8 @@ const form = reactive({
   invoice_number: '',
   serial_number: '',
   label: '',
+  ean: '',
+  barcode_tag: '',
   storage_address_id: '',
   rack_id: '',
   slot_id: '',
@@ -1727,11 +1778,12 @@ function setAllocationRowMode(row: AllocationRow, mode: 'slot' | 'kiste') {
 }
 
 function addAllocationRow() {
-  const lastMode = allocationRows.value[allocationRows.value.length - 1]?.mode ?? 'slot'
+  const lastRow = allocationRows.value[allocationRows.value.length - 1]
+  const lastMode = lastRow?.mode ?? 'slot'
   allocationRows.value.push({
     id: ++allocationIdCounter,
     mode: lastMode,
-    storage_address_id: '',
+    storage_address_id: lastRow?.storage_address_id ?? '',
     rack_id: '',
     slot_id: '',
     container_batch_id: '',
@@ -1845,6 +1897,16 @@ const allocationSum = computed(() =>
 const allocationSumValid = computed(() =>
   form.qty > 0 && allocationSum.value === form.qty
 )
+const allocationLocationsValid = computed(() => {
+  if (!allocationSumValid.value) return false
+  const rows = allocationRows.value.filter((r) => r.qty > 0)
+  if (rows.length === 0) return false
+  return rows.every((row) => {
+    if (row.mode === 'slot') return !!row.rack_id && !!row.slot_id
+    if (!row.container_batch_id) return false
+    return !allocationRowHasDuplicateKiste(row, allocationRows.value)
+  })
+})
 
 // Form befüllen
 onMounted(async () => {
@@ -1883,6 +1945,8 @@ onMounted(async () => {
     )
     form.serial_number = props.batch.serial_number || ''
     form.label = (props.batch as any).label || ''
+    form.ean = props.batch.ean || ''
+    form.barcode_tag = props.batch.barcode_tag || ''
     form.rack_id = props.batch.rack_id || ''
     form.slot_id = props.batch.slot_id || ''
     form.notes = props.batch.notes || ''
@@ -1904,6 +1968,11 @@ onMounted(async () => {
   } else {
     form.acquired_on = getTodayIsoDate()
     form.invoice_number = ''
+    form.serial_number = ''
+    form.label = ''
+    form.ean = ''
+    form.barcode_tag = ''
+    form.notes = ''
     pickPreferredLocation()
     initBatchStockUnitFromProps()
     purchasePriceInputMode.value = 'unit'
@@ -2107,7 +2176,7 @@ const canSubmit = computed(() => {
     return true
   }
   if (form.qty < 1) return false
-  if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) return false
+  if (form.split_allocations && !allocationLocationsValid.value) return false
   return true
 })
 
@@ -2134,7 +2203,7 @@ const missingFields = computed(() => {
   if (form.qty < 1) {
     missing.push(t('components.batchModal.valQtyMin'))
   }
-  if (form.split_allocations && (!allocationSumValid.value || allocationRows.value.every((r) => (r.mode === 'slot' ? !r.rack_id : !r.container_batch_id) || r.qty <= 0))) {
+  if (form.split_allocations && !allocationLocationsValid.value) {
     missing.push(t('components.batchModal.valAllocationsSum', { qty: form.qty }))
   }
   return missing
@@ -2206,7 +2275,7 @@ function collectContainerBatchIdsForPendingAdd(): string[] {
     }
     return ids
   }
-  if (form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value) {
+  if (form.split_allocations && allocationRows.value.length > 0 && allocationLocationsValid.value) {
     for (const r of allocationRows.value) {
       if (r.qty > 0 && r.mode === 'kiste' && r.container_batch_id) {
         ids.push(String(r.container_batch_id))
@@ -2240,6 +2309,8 @@ async function handleSubmit() {
       if (resolvedUnitPrice !== (props.batch.unit_price || '')) payload.unit_price = resolvedUnitPrice
       if (form.notes !== (props.batch.notes || '')) payload.notes = form.notes || null
       if (form.serial_number !== (props.batch.serial_number || '')) payload.serial_number = form.serial_number || null
+      if (form.ean !== (props.batch.ean || '')) payload.ean = form.ean.trim() || null
+      if (form.barcode_tag !== (props.batch.barcode_tag || '')) payload.barcode_tag = form.barcode_tag.trim() || null
       if (form.rack_id !== (props.batch.rack_id || '')) payload.rack_id = form.rack_id || null
       if (form.slot_id !== (props.batch.slot_id || '')) payload.slot_id = form.slot_id || null
       if (form.label !== ((props.batch as any).label || '')) payload.label = form.label.trim() || null
@@ -2251,11 +2322,13 @@ async function handleSubmit() {
       if (isSerializedAddMode.value) {
         const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
         const qty = rows.length
-        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes'> = {
+        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
           acquired_on: form.acquired_on,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
+          ean: form.ean.trim() || null,
+          barcode_tag: form.barcode_tag.trim() || null,
         }
         const serial_entries = rows.map((e) => ({
           serial_number: e.serial_number.trim(),
@@ -2317,6 +2390,8 @@ async function handleSubmit() {
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
+          ean: form.ean.trim() || null,
+          barcode_tag: form.barcode_tag.trim() || null,
           ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
             ? {
                 allocations: allocationRows.value

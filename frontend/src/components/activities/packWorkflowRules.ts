@@ -88,6 +88,7 @@ export type PackWorkflowContainerContext = PackWorkflowListContext & {
   packItemForMaterial?: (materialItemId: string) => ActivityPackItem | undefined
   containerItemsForContainer?: (containerId: string) => ActivityPackContainerItem[]
   containerReturnedAsWhole?: (containerId: string) => boolean
+  containerStoreUnits?: (containerId: string) => number
 }
 
 function isPackContainerMergedForVisibleList(
@@ -405,7 +406,7 @@ export function shouldIncludePackItemOnStageLeft(
     isCrateShellPackItem(p, packContainers, virtualContainerIdByPackItemId) &&
     packShellContainerForPackItem(p, packContainers, virtualContainerIdByPackItemId) != null
   ) {
-    return false
+    return ctx.pendingStoreLooseQtyForPackItem(p) > 0
   }
   return true
 }
@@ -665,8 +666,17 @@ export function shouldShowContainerOnStageLeft(
   if (stage === 'transport_back_returned') {
     return (ctx.containerTransportBackReturnableUnits?.(containerId) ?? 0) > 0
   }
+  if (stage === 'at_event_returned') {
+    return (ctx.containerReturnableUnits?.(containerId) ?? 0) > 0
+  }
+  if (stage === 'returned_unpack') {
+    return (ctx.containerStoreUnits?.(containerId) ?? 0) > 0
+  }
   if (stage === 'confirmed_packed') {
     return !(ctx.containerHasIssuedAtEvent?.(containerId) ?? false)
+  }
+  if (isPackUnpackStage(stage)) {
+    return (ctx.containerStoreUnits?.(containerId) ?? 0) > 0
   }
   return false
 }
@@ -701,6 +711,9 @@ export function shouldShowContainerOnRightMirror(
   }
   if (isPackReturnStage(stage)) {
     return ctx.containerReturnedAsWhole?.(containerId) ?? false
+  }
+  if (isPackUnpackStage(stage)) {
+    return (ctx.containerStoreUnits?.(containerId) ?? 0) <= 0 && (ctx.containerHasIssuedAtEvent?.(containerId) ?? false)
   }
   return ctx.containerHasIssuedAtEvent?.(containerId) ?? false
 }
@@ -1006,7 +1019,8 @@ export function packIssuesVisibleForStage(stage: PackStage): boolean {
     stage === 'packed_at_event' ||
     stage === 'at_event_transport_back' ||
     stage === 'at_event_returned' ||
-    stage === 'transport_back_returned'
+    stage === 'transport_back_returned' ||
+    stage === 'returned_unpack'
   )
 }
 
