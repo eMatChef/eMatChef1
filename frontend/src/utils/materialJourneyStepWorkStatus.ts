@@ -1,3 +1,4 @@
+import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import {
@@ -18,6 +19,7 @@ function buildTaskContextForStep(
   packItems: ActivityPackItem[],
   packContainers: ActivityPackContainer[],
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
+  issues: ActivityIssueReportRow[] = [],
 ): MaterialJourneyTaskBuildContext {
   const packStage = journeyStepToPackStage(step, profile)
   const state = createMaterialJourneyPackContextState({
@@ -26,6 +28,7 @@ function buildTaskContextForStep(
     containerItemsByContainerId,
     packStage,
     profile,
+    issues,
   })
 
   return {
@@ -52,6 +55,7 @@ export function isJourneyStepWorkComplete(
   packItems: ActivityPackItem[],
   packContainers: ActivityPackContainer[],
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
+  issues: ActivityIssueReportRow[] = [],
 ): boolean {
   if (packItems.length === 0) return false
 
@@ -65,10 +69,11 @@ export function isJourneyStepWorkComplete(
     packItems,
     packContainers,
     containerItemsByContainerId,
+    issues,
   )
   const tasks = buildMaterialJourneyTasks(packItems, ctx).filter((row) => row.isOpen || row.isDone)
-  if (tasks.length === 0) return false
-  return tasks.every((row) => !row.isOpen)
+  // Keine offenen Zeilen = fertig (auch wenn Done-Spiegel leer ist, weil Mengen schon weiter sind).
+  return !tasks.some((row) => row.isOpen)
 }
 
 /** Noch transportiert, aber noch nicht am Anlass (quantity_transport_to > quantity_issued). */

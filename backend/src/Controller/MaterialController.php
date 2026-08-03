@@ -1907,6 +1907,38 @@ class MaterialController extends AbstractController
         return new JsonResponse($this->serializeMaterial($material, true));
     }
 
+    /**
+     * Kombo zurück auf Entwurf: Status ready → draft.
+     * Danach nicht neu buchbar (Verfügbarkeit filtert draft). Bestehende offene Buchungen bleiben;
+     * Frontend warnt, wenn welche existieren.
+     */
+    #[Route('/{id}/unfinalize-combo', name: 'unfinalize_combo', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function unfinalizeCombo(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+        if (!$material->isCombo()) {
+            return new JsonResponse(['error' => 'Nur Kombos können zurückgesetzt werden'], 400);
+        }
+        if ($material->getComboStatus() !== 'ready') {
+            return new JsonResponse(['error' => 'Kombo ist bereits im Entwurf'], 400);
+        }
+
+        $material->setComboStatus('draft');
+        $material->updateTimestamps();
+        $this->createHistoryEntry($material, 'updated', ['combo_status' => ['old' => 'ready', 'new' => 'draft']]);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeMaterial($material, true));
+    }
+
     // ==========================================
     // === Verwandtes Zubehör (Empfehlung) ===
     // ==========================================

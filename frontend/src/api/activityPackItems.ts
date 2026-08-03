@@ -146,6 +146,24 @@ export async function postMovePackItem(
   return mapPackItem((data || {}) as Record<string, unknown>)
 }
 
+export async function patchActivityPackItem(
+  activityId: string,
+  packItemId: string,
+  body: Partial<{
+    quantity_packed: number
+    quantity_issued: number
+    quantity_returned: number
+    condition_out: string | null
+    notes: string | null
+  }>,
+): Promise<ActivityPackItem> {
+  const { data } = await apiClient.patch<Record<string, unknown>>(
+    `/api/activities/${activityId}/pack-items/${packItemId}`,
+    body,
+  )
+  return mapPackItem((data || {}) as Record<string, unknown>)
+}
+
 export async function postMoveBackPackItem(
   activityId: string,
   packItemId: string,

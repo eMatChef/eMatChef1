@@ -156,7 +156,7 @@ class AccountingAcquisitionFollowUpController extends AbstractController
         } catch (\Throwable $e) {
             if ($this->isMissingFollowUpTable($e)) {
                 return new JsonResponse([
-                    'error' => 'Datenbank-Tabelle für Anschaffungs-Aufträge fehlt. Bitte Migration ausführen (accounting_acquisition_follow_up).',
+                    'error' => 'Datenbank-Tabelle für Buchhaltungs-Aufträge fehlt. Bitte Migration ausführen (accounting_acquisition_follow_up).',
                 ], 503);
             }
             throw $e;

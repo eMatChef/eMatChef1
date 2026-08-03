@@ -70,6 +70,16 @@ docker compose exec backend ./vendor/bin/phpunit tests/Service/ActivityAccountin
 
 **Manuell:** Camp/Event durchklicken: Transport hin → Anlass → Touren → Transport zurück → Retour.
 
+### D4 Bug-Liste (Pfila 2026, Aug 2026)
+
+| Prio | Bug | Status |
+|------|-----|--------|
+| **P0** | Bulk «Alles zurück… ist da» bucht nicht `quantity_returned` | ✅ fix (`STAGE_RETURNED`) + Re-Check |
+| **P0** | «Weiter» bei `packed` zielt `at_event` (API 422) | ✅ fix → zuerst `transport_out` |
+| **P1** | Tour-Item desync vs. `quantity_transport_*` | ✅ fix (qty++ / Rollback) |
+| **P2** | Kein Fahrzeug im Fuhrpark | bewusst offen (Abnahme-Hindernis, kein Kern-Bug) |
+| kosmetisch | Stepper A11y Doppelnummer «22.» | ✅ fix (ein `aria-label`) |
+
 ---
 
 ## D5 — Verbrauch ohne MW-Auftrag vor Retour
@@ -88,5 +98,5 @@ docker compose exec backend ./vendor/bin/phpunit tests/Service/ActivityAccountin
 | D1 | ✅ spec | ✅ | 2026-06-30 | Aktivität **müüsli** (Hardscout). Ausgabe: 5/5 mitgenommen, Zähler «1 in Kisten · 1 Verbrauch · 3 lose». Retour: 0/3 (Kiste + Statikseil + Blache), Zähler «1 in Kisten · 2 lose». Fackeln lose-Zeile sichtbar weil DB `quantity_issued=5` lose + 10 in Kiste (Abweichung vom Spec-Fixture, kein reiner 100 %-in-Kiste-Fall). |
 | D2 | ✅ spec | — | | Keine Test-Aktivität «7+3» in DB; nur Spec. |
 | D3 | ✅ spec | ✅ | 2026-06-30 | **humpä** / **müüsli** `at_event`: «Retour bringen» → nur `packStep=return`, Status bleibt `at_event`. Retour-Schritt aktiv. Ausgabe-Ansicht read-only. |
-| D4 | ✅ spec | ☐ | | Kein Camp/Event in Transport-Kette (nur **Asterix** `draft`). Manuell nach Freigabe + Durchlauf. |
+| D4 | ✅ spec | ✅ | 2026-08-03 | Pfila 2026: volle Kette bis `storing` + `quantity_stored` (10+5). P0/P1 gefixt. Abschluss-Rest = Kosten freigeben → **#7**. |
 | D5 | ✅ spec + PHPUnit | ✅ | 2026-06-30 | «Gebraucht» auf Ausgabe ab `at_event` (müüsli). Buchhaltung: `activity_consumption` pending in DB — prüfen ob aus früherem Durchlauf; `syncConsumptionFollowUp` sync erst ab `returned`. |

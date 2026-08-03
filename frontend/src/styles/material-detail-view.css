@@ -1018,6 +1018,36 @@
   justify-content: flex-end;
 }
 
+.composition-draft-checklist {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-left: 3px solid #64748b;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.composition-draft-checklist__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.composition-draft-checklist__list {
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.composition-draft-checklist__list li.is-done {
+  color: #15803d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
 /* Komponente hinzufügen / bearbeiten: fester Kopf, scrollbarer Inhalt, kleinere Hinweise */
 .modal-dialog.composition-add-modal,
 .material-detail-view .composition-add-modal {

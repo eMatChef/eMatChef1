@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
+use App\Service\Accounting\AccountingExpectedCostsService;
 use Doctrine\DBAL\ParameterType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,7 +22,8 @@ class AccountingOverviewController extends AbstractController
     use AccountingMwOrDcTrait;
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private AccountingExpectedCostsService $expectedCosts,
     ) {
     }
 
@@ -149,6 +151,8 @@ class AccountingOverviewController extends AbstractController
             ['d' => ParameterType::STRING]
         )->fetchOne();
 
+        $expected = $this->expectedCosts->countsForDepartment($departmentId);
+
         return new JsonResponse([
             'years' => $years,
             'selected_year' => $selectedYear,
@@ -157,6 +161,8 @@ class AccountingOverviewController extends AbstractController
             'by_cost_center' => $byCostCenter,
             'by_entry_type' => $byEntryType,
             'pending_followup_count' => $pendingFollowups,
+            'expected_workshop_open_count' => $expected['workshop_open_count'],
+            'expected_workshop_activity_count' => $expected['workshop_open_activity_count'],
             'cost_center_count' => $costCenterCount,
         ]);
     }

@@ -183,10 +183,13 @@
             primary-type="event"
             :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
             :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+            :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
             :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
             inline-create-label-key="addresses.search.createEventVenueInline"
+            show-edit-button
             @update:selected-id="emit('update:venueAddressId', $event)"
             @create="openAddVenueAddressModal"
+            @edit="openEditVenueAddressModal"
           />
           <p v-if="venueAddressId" class="selected-address">
             {{ t('activities.wizard.form.selectedPrefix') }}{{ venueAddressSummary }}
@@ -546,10 +549,12 @@
 
     <AddressModal
       v-if="showAddressModal && addressModalTarget"
-      :key="addressModalTarget"
+      :key="`${addressModalTarget}-${addressModalEditId ?? 'new'}`"
       :department-id="departmentId"
       :default-type="addressModalTarget === 'venue' ? 'event' : 'customer'"
       :default-name="addressModalDefaultName"
+      :address="addressModalAddress"
+      :edit-address-id="addressModalEditId"
       @close="closeAddressModal"
       @saved="onAddressModalSaved"
     />
@@ -559,6 +564,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import type { ActivityApiType } from '@/api/activities'
 import { getAddresses, type Address } from '@/api/addresses'
 import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/joinRequests'
@@ -670,6 +676,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const router = useRouter()
 const authStore = useAuthStore()
 const { canSelectDepartmentGroupLevel } = useDepartmentMemberRole()
 
@@ -980,6 +987,8 @@ const rentalAddresses = ref<Address[]>([])
 const showAddressModal = ref(false)
 const addressModalTarget = ref<'customer' | 'venue' | null>(null)
 const addressModalDefaultName = ref('')
+const addressModalAddress = ref<Address | null>(null)
+const addressModalEditId = ref<string | null>(null)
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const customerAddressSearch = ref('')
 const showCustomerAddressDropdown = ref(false)
@@ -1099,29 +1108,40 @@ function closeAddressModal() {
   showAddressModal.value = false
   addressModalTarget.value = null
   addressModalDefaultName.value = ''
+  addressModalAddress.value = null
+  addressModalEditId.value = null
 }
 
 function openAddCustomerAddressModal() {
+  addressModalAddress.value = null
+  addressModalEditId.value = null
   addressModalDefaultName.value = customerAddressSearchTrimmed.value
   addressModalTarget.value = 'customer'
   showAddressModal.value = true
 }
 
 function openAddVenueAddressModal(presetName = '') {
+  addressModalAddress.value = null
+  addressModalEditId.value = null
   addressModalDefaultName.value = presetName.trim()
   addressModalTarget.value = 'venue'
   showAddressModal.value = true
 }
 
+function openEditVenueAddressModal(id: string) {
+  router.push(`/${props.departmentId}/contacts/${id}`)
+}
+
 function onAddressModalSaved(addr?: Address) {
-  const t = addressModalTarget.value
-  showAddressModal.value = false
-  addressModalTarget.value = null
-  addressModalDefaultName.value = ''
+  const target = addressModalTarget.value
+  closeAddressModal()
   void loadRentalAddresses().then(() => {
     if (addr?.id) {
-      if (t === 'customer') emit('update:customerAddressId', addr.id)
-      else if (t === 'venue') emit('update:venueAddressId', addr.id)
+      if (target === 'customer') emit('update:customerAddressId', addr.id)
+      else if (target === 'venue') {
+        emit('update:venueAddressId', addr.id)
+        router.push(`/${props.departmentId}/contacts/${addr.id}`)
+      }
     }
   })
 }

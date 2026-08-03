@@ -16,6 +16,7 @@ import type { PackWorkflowListContext } from '@/components/activities/packWorkfl
 import { packIssuesVisibleForStage } from '@/components/activities/packWorkflowRules'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import { issuedQtyForAccordionLineAtEvent, crateShellIssuedAtEvent } from '@/utils/materialJourneyAtEventInventoryQty'
 
 export function useMaterialJourneyIssueActions(options: {
@@ -110,7 +111,7 @@ export function useMaterialJourneyIssueActions(options: {
   function showIssueForRow(row: MaterialJourneyTaskRow): boolean {
     if (isStorePhase()) {
       if (!row.isOpen) return false
-      if (row.kind === 'crate' && row.container) {
+      if (isMaterialJourneyCrateKind(row.kind) && row.container) {
         return showIssueForShellUnpack(row.container.id)
       }
       if (!row.packItem) return false
@@ -157,13 +158,13 @@ export function useMaterialJourneyIssueActions(options: {
 
     if (isConsumable(pi)) {
       if (!showConsumptionActions.value) return false
-      if (shellIssued && row.kind === 'crate') return true
+      if (shellIssued && isMaterialJourneyCrateKind(row.kind)) return true
       return showConsumableConsumptionForPackItem(pi)
     }
 
     if (!showIssueActions.value) return false
     /** Kisteninhalt am Anlass — wie Legacy showPackIssueForContainerLine. */
-    if (shellIssued && row.kind === 'crate') return true
+    if (shellIssued && isMaterialJourneyCrateKind(row.kind)) return true
     if (isPackReturnStage(options.packStage.value)) {
       const ci = containerLineForAccordion(row, line)
       if (ci) {

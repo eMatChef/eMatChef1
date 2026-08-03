@@ -1,7 +1,7 @@
 import { computed, ref, watch, type Ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityPackItem, PackMoveSource } from '@/api/activityPackItems'
-import { postMovePackItem } from '@/api/activityPackItems'
+import { postMovePackItem, postMoveBackPackItem } from '@/api/activityPackItems'
 import {
   createActivityTransportTour,
   directionForJourneyStep,
@@ -17,6 +17,7 @@ import {
 import { getActivityVehicles, type ActivityVehicleAssignment } from '@/api/activityVehicles'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import type { PackStage } from '@/components/activities/packStageQuantities'
 import { getBackendStage } from '@/components/activities/packStageQuantities'
 import { useToast } from '@/composables/useToast'
@@ -219,14 +220,14 @@ export function useMaterialJourneyTransportTourTarget(options: {
 
   function resolvePackItemForRow(row: MaterialJourneyTaskRow): ActivityPackItem | undefined {
     if (row.packItem) return row.packItem
-    if (row.kind === 'crate' && row.container) {
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
       return options.shellPackItemForContainer(row.container.id)
     }
     return undefined
   }
 
   function tourItemKey(row: MaterialJourneyTaskRow): Pick<TransportTourItemInput, 'pack_container_id' | 'pack_item_id'> {
-    if (row.kind === 'crate' && row.container) {
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
       return { pack_container_id: row.container.id }
     }
     if (row.packItem) {
@@ -254,7 +255,7 @@ export function useMaterialJourneyTransportTourTarget(options: {
     if (!pi || !activityId || row.maxForwardQty < 1) return false
 
     const moveQty =
-      row.kind === 'crate'
+      isMaterialJourneyCrateKind(row.kind)
         ? 1
         : Math.min(row.maxForwardQty, Math.max(1, Math.floor(qty)))
     try {
@@ -283,12 +284,23 @@ export function useMaterialJourneyTransportTourTarget(options: {
     const key = tourItemKey(row)
     if (!key.pack_container_id && !key.pack_item_id) return false
 
+    const addQty = isMaterialJourneyCrateKind(row.kind) ? 1 : Math.max(1, Math.floor(qty))
     const items = mapTourItemsForPatch(tour.items)
-
-    if (!isRowOnTour(tour, row)) {
+    const existingIdx = items.findIndex(
+      (item) =>
+        (key.pack_container_id && item.pack_container_id === key.pack_container_id) ||
+        (key.pack_item_id && item.pack_item_id === key.pack_item_id),
+    )
+    if (existingIdx >= 0) {
+      const existing = items[existingIdx]!
+      items[existingIdx] = {
+        ...existing,
+        quantity: Math.max(1, (existing.quantity ?? 0) + addQty),
+      }
+    } else {
       items.push({
         ...key,
-        quantity: row.kind === 'crate' ? 1 : Math.max(1, Math.floor(qty)),
+        quantity: addQty,
       })
     }
 
@@ -308,18 +320,36 @@ export function useMaterialJourneyTransportTourTarget(options: {
     source: PackMoveSource = 'tap',
   ): Promise<boolean> {
     assignTourSubmitting.value = true
+    const pi = resolvePackItemForRow(row)
+    const moveQty =
+      isMaterialJourneyCrateKind(row.kind)
+        ? 1
+        : Math.min(row.maxForwardQty, Math.max(1, Math.floor(qty)))
     try {
       const moved = await moveTransportPipeline(row, qty, source)
       if (!moved) return false
       const assigned = await addRowToSelectedTour(row, qty)
-      if (assigned) {
-        toast.success(
-          t('activities.materialJourney.transportTours.assignedToast', {
-            label: selectedTourLabel.value ?? '',
-          }),
-        )
+      if (!assigned) {
+        // Pipeline schon gebucht — Tour-Zuordnung fehlgeschlagen → Move rückgängig
+        if (pi && options.activityId.value && moveQty > 0) {
+          try {
+            const rolledBack = await postMoveBackPackItem(options.activityId.value, pi.id, {
+              stage: getBackendStage(options.packStage.value),
+              quantity: moveQty,
+            })
+            options.applyUpdatedItem(rolledBack)
+          } catch {
+            /* Rollback-Fehler separat; Zuordnungsfehler schon getoastet */
+          }
+        }
+        return false
       }
-      return moved && assigned
+      toast.success(
+        t('activities.materialJourney.transportTours.assignedToast', {
+          label: selectedTourLabel.value ?? '',
+        }),
+      )
+      return true
     } finally {
       assignTourSubmitting.value = false
     }

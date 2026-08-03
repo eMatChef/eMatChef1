@@ -3,7 +3,6 @@ import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { PublicLookupBatchResponse } from '@/api/public/publicLookup'
 import {
   isPhysicalComboPackItem,
-  isVirtualComboPackItem,
   packMaterialDisplayName,
 } from '@/components/activities/packMaterialDisplay'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
@@ -13,8 +12,11 @@ import {
 } from '@/components/activities/materialJourneySteps'
 import { isCrateShellPackItem } from '@/components/activities/packShellCrateHelpers'
 import type { PackWorkflowListContext } from '@/components/activities/packWorkflowRules'
+import {
+  isVirtualComboTogetherContainer,
+  shouldIncludePackItemOnStageLeft,
+} from '@/components/activities/packWorkflowRules'
 import type { PackWorkflowProfile } from '@/components/activities/packWorkflowProfile'
-import { shouldIncludePackItemOnStageLeft } from '@/components/activities/packWorkflowRules'
 import {
   packItemMatchesStorageLookup,
   packItemShelfLineLocationLabel,
@@ -59,6 +61,7 @@ export type MaterialScanResolveResult = {
   materialName?: string
   packItem?: ActivityPackItem
   container?: ActivityPackContainer
+  /** @deprecated Scan öffnet Container; Feld bleibt für Labels optional. */
   parentCombo?: ActivityPackItem
   canAct: boolean
   needsBulkConfirm?: boolean
@@ -121,18 +124,16 @@ function containerHoldingMaterial(
   return null
 }
 
-function virtualComboParentForMaterial(
+function virtualTogetherContainerForMaterial(
   materialId: string,
   ctx: MaterialScanResolveContext,
-): ActivityPackItem | null {
-  for (const pi of ctx.packItems) {
-    if (!isVirtualComboPackItem(pi)) continue
-    const container = ctx.packContainers.find(
-      (c) => (c.source_activity_item_id ?? '').trim() === pi.id,
-    )
-    if (!container) continue
+): ActivityPackContainer | null {
+  for (const container of ctx.packContainers) {
+    if (!isVirtualComboTogetherContainer(container)) continue
     for (const ci of ctx.containerItemsByContainerId[container.id] ?? []) {
-      if (ci.material_item_id === materialId) return pi
+      if (ci.material_item_id === materialId && (ci.quantity_packed ?? 0) > 0) {
+        return container
+      }
     }
   }
   return null
@@ -286,6 +287,18 @@ export function resolveMaterialBatchScan(
   }
 
   if (matches.length === 0) {
+    const inVirtual = virtualTogetherContainerForMaterial(materialId, ctx)
+    if (inVirtual && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile)) {
+      return {
+        type: 'in_virtual_crate',
+        tone: 'info',
+        title: inVirtual.label || materialName,
+        detail: 'in_virtual_crate',
+        materialName,
+        container: inVirtual,
+        canAct: ctx.listEditable,
+      }
+    }
     const inCrate = containerHoldingMaterial(materialId, ctx)
     if (inCrate && isJourneyForwardChecklistStep(ctx.journeyStep, ctx.listCtx.profile)) {
       return {
@@ -320,16 +333,15 @@ export function resolveMaterialBatchScan(
     }
   }
 
-  const virtualParent = virtualComboParentForMaterial(materialId, ctx)
-  if (virtualParent) {
+  const virtualContainer = virtualTogetherContainerForMaterial(materialId, ctx)
+  if (virtualContainer) {
     return {
       type: 'in_virtual_crate',
       tone: 'info',
-      title: materialName,
+      title: virtualContainer.label || materialName,
       detail: 'in_virtual_crate',
       materialName,
-      parentCombo: virtualParent,
-      packItem: virtualParent,
+      container: virtualContainer,
       canAct: ctx.listEditable,
     }
   }

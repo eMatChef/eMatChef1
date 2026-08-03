@@ -1,7 +1,7 @@
 <template>
   <div class="activity-dual-location-map">
     <div ref="mapContainer" class="activity-dual-location-map__canvas" :style="{ height }" />
-    <p v-if="pins.length === 0" class="activity-dual-location-map__empty field-hint text-muted">
+    <p v-if="pins.length === 0 && !editablePinId" class="activity-dual-location-map__empty field-hint text-muted">
       {{ t('activities.venueLocations.noMapCoords') }}
     </p>
   </div>
@@ -18,55 +18,93 @@ export interface ActivityLocationPin {
   label: string
   latitude: number
   longitude: number
-  variant?: 'venue' | 'delivery'
+  variant?: 'venue' | 'delivery' | 'poi'
+  /** Hex-Farbe für freie POIs; überschreibt Variantenfarbe wenn gesetzt. */
+  color?: string | null
 }
 
 const props = withDefaults(
   defineProps<{
     pins: ActivityLocationPin[]
     height?: string
-    /** Pan/zoom erlauben (Pins bleiben immer fix). */
+    /** Pan/zoom erlauben. */
     interactive?: boolean
+    /** Pin-ID die verschoben werden darf (z. B. «venue»). */
+    editablePinId?: string | null
   }>(),
   {
     height: '220px',
     interactive: true,
+    editablePinId: null,
   },
 )
+
+const emit = defineEmits<{
+  'pin-moved': [payload: { id: string; latitude: number; longitude: number }]
+  'map-click': [payload: { latitude: number; longitude: number }]
+}>()
 
 const { t } = useI18n()
 const mapContainer = ref<HTMLDivElement>()
 let map: L.Map | null = null
 let markersLayer: L.LayerGroup | null = null
+const markerById = new Map<string, L.Marker>()
 
 const SWISS_BOUNDS = L.latLngBounds([45.8, 5.9], [47.85, 10.55])
 const DEFAULT_CENTER: L.LatLngExpression = [46.8182, 8.2275]
 const DEFAULT_ZOOM = 7
 
-function pinIcon(variant: ActivityLocationPin['variant']): L.DivIcon {
-  const kind = variant ?? 'venue'
+const VARIANT_COLORS: Record<NonNullable<ActivityLocationPin['variant']>, string> = {
+  venue: '#2563eb',
+  delivery: '#ea580c',
+  poi: '#16a34a',
+}
+
+function resolvePinColor(pin: ActivityLocationPin): string {
+  if (pin.color && /^#[0-9A-Fa-f]{6}$/.test(pin.color)) return pin.color
+  return VARIANT_COLORS[pin.variant ?? 'venue']
+}
+
+function pinIcon(pin: ActivityLocationPin): L.DivIcon {
+  const color = resolvePinColor(pin)
+  const kind = pin.variant ?? 'venue'
   return L.divIcon({
     className: 'activity-dual-location-map__marker-wrap',
-    html: `<span class="activity-dual-location-map__marker activity-dual-location-map__marker--${kind}"></span>`,
+    html: `<span class="activity-dual-location-map__marker activity-dual-location-map__marker--${kind}" style="background:${color}"></span>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10],
   })
 }
 
-function renderMarkers() {
+function fitToCurrentPins(pinsToRender: ActivityLocationPin[]) {
   if (!map) return
+  if (pinsToRender.length === 1) {
+    map.setView([pinsToRender[0].latitude, pinsToRender[0].longitude], 15, { animate: false })
+  } else if (pinsToRender.length > 1) {
+    const bounds = L.latLngBounds(pinsToRender.map((p) => [p.latitude, p.longitude] as L.LatLngExpression))
+    map.fitBounds(bounds.pad(0.35), { animate: false, maxZoom: 16, padding: [28, 28] })
+  } else {
+    map.fitBounds(SWISS_BOUNDS, { animate: false })
+  }
+}
+
+function renderMarkers(opts: { fit?: boolean } = {}) {
+  if (!map) return
+  const shouldFit = opts.fit ?? true
   if (markersLayer) {
     markersLayer.clearLayers()
   } else {
     markersLayer = L.layerGroup().addTo(map)
   }
+  markerById.clear()
 
   const pinsToRender = props.pins
   for (const pin of pinsToRender) {
+    const canDrag = props.interactive && props.editablePinId === pin.id
     const marker = L.marker([pin.latitude, pin.longitude], {
-      icon: pinIcon(pin.variant),
-      draggable: false,
-      interactive: false,
+      icon: pinIcon(pin),
+      draggable: canDrag,
+      interactive: canDrag || props.interactive,
     })
     marker.bindTooltip(pin.label, {
       permanent: true,
@@ -74,16 +112,56 @@ function renderMarkers() {
       offset: [0, -8],
       className: 'activity-dual-location-map__tooltip',
     })
+    if (canDrag) {
+      marker.on('dragend', () => {
+        const pos = marker.getLatLng()
+        emit('pin-moved', { id: pin.id, latitude: pos.lat, longitude: pos.lng })
+      })
+    }
     markersLayer.addLayer(marker)
+    markerById.set(pin.id, marker)
   }
 
-  if (pinsToRender.length === 1) {
-    map.setView([pinsToRender[0].latitude, pinsToRender[0].longitude], 15, { animate: false })
-  } else if (pinsToRender.length > 1) {
-    const bounds = L.latLngBounds(pinsToRender.map((p) => [p.latitude, p.longitude] as L.LatLngExpression))
-    map.fitBounds(bounds.pad(0.35), { animate: false })
+  if (shouldFit) {
+    fitToCurrentPins(pinsToRender)
+  }
+}
+
+function onMapClick(e: L.LeafletMouseEvent) {
+  if (!props.interactive || !props.editablePinId) return
+  const { lat, lng } = e.latlng
+  const editableId = props.editablePinId
+  const existing = markerById.get(editableId)
+  if (existing) {
+    existing.setLatLng([lat, lng])
+    emit('pin-moved', { id: editableId, latitude: lat, longitude: lng })
+    return
+  }
+  emit('map-click', { latitude: lat, longitude: lng })
+}
+
+function applyMapInteractivity() {
+  if (!map) return
+  const on = props.interactive
+  if (on) {
+    map.scrollWheelZoom.enable()
+    map.touchZoom.enable()
+    map.doubleClickZoom.enable()
+    map.boxZoom.enable()
+    map.keyboard.enable()
+    map.dragging.enable()
+    if (map.zoomControl) map.zoomControl.addTo(map)
   } else {
-    map.fitBounds(SWISS_BOUNDS, { animate: false })
+    map.scrollWheelZoom.disable()
+    map.touchZoom.disable()
+    map.doubleClickZoom.disable()
+    map.boxZoom.disable()
+    map.keyboard.disable()
+    map.dragging.disable()
+  }
+  map.off('click', onMapClick)
+  if (on && props.editablePinId) {
+    map.on('click', onMapClick)
   }
 }
 
@@ -105,36 +183,56 @@ function initMap() {
     maxZoom: 19,
   }).addTo(map)
 
-  renderMarkers()
+  applyMapInteractivity()
+  renderMarkers({ fit: true })
 
   setTimeout(() => {
     map?.invalidateSize({ pan: false })
-    renderMarkers()
+    renderMarkers({ fit: true })
   }, 150)
 }
 
 function destroyMap() {
   if (map) {
+    map.off('click', onMapClick)
     map.remove()
     map = null
     markersLayer = null
+    markerById.clear()
   }
 }
 
 function invalidateSize() {
   if (!map) return
   map.invalidateSize({ pan: false })
-  renderMarkers()
+  renderMarkers({ fit: !props.editablePinId })
 }
 
-defineExpose({ invalidateSize })
+function fitToPins() {
+  if (!map) return
+  fitToCurrentPins(props.pins)
+}
+
+defineExpose({ invalidateSize, fitToPins })
 
 watch(
-  () => props.pins,
+  () => props.pins.map((p) => `${p.id}:${p.latitude}:${p.longitude}:${p.color ?? ''}`).join('|'),
   () => {
-    if (map) renderMarkers()
+    if (map) {
+      nextTick(() => {
+        // Beim Verschieben nicht neu zoomen — nur Marker aktualisieren
+        renderMarkers({ fit: !props.editablePinId })
+      })
+    }
   },
-  { deep: true },
+)
+
+watch(
+  () => [props.interactive, props.editablePinId] as const,
+  () => {
+    applyMapInteractivity()
+    renderMarkers({ fit: false })
+  },
 )
 
 onMounted(() => {
@@ -158,15 +256,13 @@ onUnmounted(() => {
 .activity-dual-location-map__empty {
   margin: 8px 0 0;
 }
-</style>
 
-<style>
-.activity-dual-location-map__marker-wrap {
+:deep(.activity-dual-location-map__marker-wrap) {
   background: transparent;
   border: none;
 }
 
-.activity-dual-location-map__marker {
+:deep(.activity-dual-location-map__marker) {
   display: block;
   width: 16px;
   height: 16px;
@@ -175,26 +271,18 @@ onUnmounted(() => {
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
 }
 
-.activity-dual-location-map__marker--venue {
-  background: #2563eb;
-}
-
-.activity-dual-location-map__marker--delivery {
-  background: #ea580c;
-}
-
-.activity-dual-location-map__tooltip {
-  background: rgba(15, 23, 42, 0.92);
+:deep(.activity-dual-location-map__tooltip) {
+  background: #0f172a;
+  color: #fff;
   border: none;
   border-radius: 4px;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 600;
   padding: 2px 6px;
-  box-shadow: none;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25);
 }
 
-.activity-dual-location-map__tooltip::before {
-  border-top-color: rgba(15, 23, 42, 0.92);
+:deep(.activity-dual-location-map__tooltip::before) {
+  border-top-color: #0f172a;
 }
 </style>

@@ -270,6 +270,41 @@ export async function saveWorkshopSettings(
   })
 }
 
+/** Timing für optionalen Einnahme-Vermerk in der Aktivität (#7 Phase 3) */
+export type AccountingSettlementTiming = 'offer_at_activity' | 'accounting_only'
+
+export interface AccountingSettings {
+  settlementTimingConsumable: AccountingSettlementTiming
+  settlementTimingExternal: AccountingSettlementTiming
+}
+
+export const DEFAULT_ACCOUNTING_SETTINGS: AccountingSettings = {
+  settlementTimingConsumable: 'accounting_only',
+  settlementTimingExternal: 'accounting_only',
+}
+
+function parseSettlementTiming(raw: string | undefined): AccountingSettlementTiming {
+  return raw === 'offer_at_activity' ? 'offer_at_activity' : 'accounting_only'
+}
+
+export async function getAccountingSettings(departmentId: string): Promise<AccountingSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'accounting')
+  return {
+    settlementTimingConsumable: parseSettlementTiming(raw['accounting.settlement_timing_consumable']),
+    settlementTimingExternal: parseSettlementTiming(raw['accounting.settlement_timing_external']),
+  }
+}
+
+export async function saveAccountingSettings(
+  departmentId: string,
+  settings: AccountingSettings,
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'accounting.settlement_timing_consumable': settings.settlementTimingConsumable,
+    'accounting.settlement_timing_external': settings.settlementTimingExternal,
+  })
+}
+
 export async function getRentalAmortizationDefaults(departmentId: string): Promise<RentalAmortizationDefaults> {
   const raw = await getDepartmentSettingsGroup(departmentId, 'rental')
   return {

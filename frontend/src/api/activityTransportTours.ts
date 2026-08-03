@@ -198,17 +198,17 @@ export async function arriveAllActivityTransportTours(
   }
 }
 
-export function directionForJourneyStep(step: string): TransportTourDirection | null {
-  if (step === 'transport_out' || step === 'issue') return 'outbound'
-  if (step === 'transport_back') return 'inbound'
-  return null
-}
-
 /** Touren-Planung (Zuordnung, Abfahrt) vs. Ankunft buchen. */
 export function transportTourUiModeForJourneyStep(
   step: string,
 ): 'plan' | 'arrival' | null {
   if (step === 'transport_out' || step === 'transport_back') return 'plan'
   if (step === 'issue') return 'arrival'
+  return null
+}
+
+export function directionForJourneyStep(step: string): TransportTourDirection | null {
+  if (step === 'transport_out' || step === 'issue') return 'outbound'
+  if (step === 'transport_back') return 'inbound'
   return null
 }

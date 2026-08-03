@@ -2,9 +2,11 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import type { ActivityCompletionBlockers } from '@/api/activities'
+import type { ActivityApiType, ActivityCompletionBlockers } from '@/api/activities'
 import { accountingFollowUpKindKey } from '@/utils/accountingFollowUpLabels'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
+import { resolveActivityPrimaryChargeTarget } from '@/utils/activityChargeTarget'
+import EButton from '@/components/form/base/EButton.vue'
 
 defineOptions({ name: 'ActivityCompletionChecklist' })
 
@@ -13,10 +15,19 @@ const props = defineProps<{
   activityId: string
   hostDepartmentId: string
   activityStatus?: string
+  activityType?: ActivityApiType | string
+  groupName?: string | null
+  externalCustomerLabel?: string | null
+  activityName?: string | null
+  costsReleased?: boolean
+  costsReleaseLoading?: boolean
+  /** Vorschau-Summe aus Kosten-Tab; 0 = Schritt automatisch erledigt */
+  costsTotal?: number | null
 }>()
 
 const emit = defineEmits<{
   'go-tab': [tab: 'packs' | 'issues' | 'costs']
+  'release-costs': []
 }>()
 
 const { t } = useI18n()
@@ -26,21 +37,52 @@ const isPreCompletionPhase = computed(() =>
   ['returned', 'storing'].includes(props.activityStatus ?? ''),
 )
 
-const accountingBlockerDone = computed(
-  () => (props.blockers.pending_accounting_followups_count ?? 0) === 0,
+const storageComplete = computed(() => (props.blockers.unstored_pack_items_count ?? 0) === 0)
+
+const hasNoCosts = computed(
+  () => props.costsTotal != null && !Number.isNaN(props.costsTotal) && props.costsTotal <= 0,
 )
 
-const accountingItemDone = computed(
-  () => !isPreCompletionPhase.value && accountingBlockerDone.value,
-)
-
-const hasBlockers = computed(
+const costsReleasedDone = computed(
   () =>
-    (props.blockers.unstored_pack_items_count ?? 0) > 0 ||
-    (props.blockers.open_issue_reports_count ?? 0) > 0 ||
-    (props.blockers.open_workshop_tickets_count ?? 0) > 0 ||
-    (props.blockers.pending_accounting_followups_count ?? 0) > 0,
+    Boolean(props.costsReleased) ||
+    Boolean(props.blockers.costs_released) ||
+    hasNoCosts.value,
 )
+
+/** Kosten-Freigabe erst, wenn nichts mehr zum Einlagern offen ist. */
+const showCostsReleaseItem = computed(
+  () => isPreCompletionPhase.value && storageComplete.value,
+)
+
+const chargeTarget = computed(() =>
+  resolveActivityPrimaryChargeTarget({
+    activityType: props.activityType ?? 'activity',
+    groupName: props.groupName,
+    externalCustomerLabel: props.externalCustomerLabel,
+    activityName: props.activityName,
+  }),
+)
+
+const chargeTargetLabel = computed(() => {
+  const target = chargeTarget.value
+  if (target.kind === 'group' && target.label) {
+    return t('activities.completion.chargeGroup', { name: target.label })
+  }
+  if (target.kind === 'external_customer' && target.label) {
+    return t('activities.completion.chargeExternal', { name: target.label })
+  }
+  return t('activities.completion.chargeUnknown')
+})
+
+const showIssuesInfo = computed(() => (props.blockers.open_issue_reports_count ?? 0) > 0)
+const showWorkshopInfo = computed(() => (props.blockers.open_workshop_tickets_count ?? 0) > 0)
+const showAccountingInfo = computed(
+  () => (props.blockers.pending_accounting_followups_count ?? 0) > 0,
+)
+
+/** Nur Einlagern blockiert den Aktivitäts-Abschluss (#7 Phase 1). */
+const hasBlockers = computed(() => !storageComplete.value)
 
 const allClear = computed(() => !hasBlockers.value)
 
@@ -83,14 +125,14 @@ function openAccounting(fu?: { department_id: string }) {
     <ul class="activity-completion-checklist__list">
       <li
         class="activity-completion-checklist__item"
-        :class="{ 'activity-completion-checklist__item--done': (blockers.unstored_pack_items_count ?? 0) === 0 }"
+        :class="{ 'activity-completion-checklist__item--done': storageComplete }"
       >
         <span class="activity-completion-checklist__icon" aria-hidden="true">
-          {{ (blockers.unstored_pack_items_count ?? 0) === 0 ? '✓' : '○' }}
+          {{ storageComplete ? '✓' : '○' }}
         </span>
         <div class="activity-completion-checklist__body">
           <strong>{{ t('activities.completion.itemStorage') }}</strong>
-          <span v-if="(blockers.unstored_pack_items_count ?? 0) > 0" class="text-muted">
+          <span v-if="!storageComplete" class="text-muted">
             — {{ t('activities.completion.itemStoragePending', { n: blockers.unstored_pack_items_count }) }}
           </span>
           <ul v-if="blockers.unstored_pack_items?.length" class="activity-completion-checklist__sub">
@@ -98,12 +140,12 @@ function openAccounting(fu?: { department_id: string }) {
               {{ pi.material_name }} ({{ pi.pending_store }} {{ t('activities.completion.piecesOpen') }})
             </li>
           </ul>
-          <p v-if="(blockers.unstored_pack_items_count ?? 0) > 0" class="activity-completion-checklist__hint text-muted">
+          <p v-if="!storageComplete" class="activity-completion-checklist__hint text-muted">
             {{ t('activities.completion.itemStorageHint') }}
           </p>
         </div>
         <button
-          v-if="(blockers.unstored_pack_items_count ?? 0) > 0"
+          v-if="!storageComplete"
           type="button"
           class="btn-outline btn-sm"
           @click="emit('go-tab', 'packs')"
@@ -113,17 +155,16 @@ function openAccounting(fu?: { department_id: string }) {
       </li>
 
       <li
-        class="activity-completion-checklist__item"
-        :class="{ 'activity-completion-checklist__item--done': (blockers.open_issue_reports_count ?? 0) === 0 }"
+        v-if="showIssuesInfo"
+        class="activity-completion-checklist__item activity-completion-checklist__item--info"
       >
-        <span class="activity-completion-checklist__icon" aria-hidden="true">
-          {{ (blockers.open_issue_reports_count ?? 0) === 0 ? '✓' : '○' }}
-        </span>
+        <span class="activity-completion-checklist__icon" aria-hidden="true">ℹ</span>
         <div class="activity-completion-checklist__body">
           <strong>{{ t('activities.completion.itemIssues') }}</strong>
-          <span v-if="(blockers.open_issue_reports_count ?? 0) > 0" class="text-muted">
-            — {{ blockers.open_issue_reports_count }}
-          </span>
+          <span class="text-muted"> — {{ blockers.open_issue_reports_count }}</span>
+          <p class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemIssuesHint') }}
+          </p>
           <ul v-if="blockers.open_issue_reports?.length" class="activity-completion-checklist__sub">
             <li v-for="ir in blockers.open_issue_reports" :key="ir.id">
               {{ ir.material_name || '–' }} · {{ ir.type }}
@@ -131,7 +172,6 @@ function openAccounting(fu?: { department_id: string }) {
           </ul>
         </div>
         <button
-          v-if="(blockers.open_issue_reports_count ?? 0) > 0"
           type="button"
           class="btn-outline btn-sm"
           @click="emit('go-tab', 'issues')"
@@ -141,17 +181,16 @@ function openAccounting(fu?: { department_id: string }) {
       </li>
 
       <li
-        class="activity-completion-checklist__item"
-        :class="{ 'activity-completion-checklist__item--done': (blockers.open_workshop_tickets_count ?? 0) === 0 }"
+        v-if="showWorkshopInfo"
+        class="activity-completion-checklist__item activity-completion-checklist__item--info"
       >
-        <span class="activity-completion-checklist__icon" aria-hidden="true">
-          {{ (blockers.open_workshop_tickets_count ?? 0) === 0 ? '✓' : '○' }}
-        </span>
+        <span class="activity-completion-checklist__icon" aria-hidden="true">ℹ</span>
         <div class="activity-completion-checklist__body">
           <strong>{{ t('activities.completion.itemWorkshop') }}</strong>
-          <span v-if="(blockers.open_workshop_tickets_count ?? 0) > 0" class="text-muted">
-            — {{ blockers.open_workshop_tickets_count }}
-          </span>
+          <span class="text-muted"> — {{ blockers.open_workshop_tickets_count }}</span>
+          <p class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemWorkshopHint') }}
+          </p>
           <div
             v-if="blockers.open_workshop_tickets?.length"
             class="activity-completion-checklist__chips"
@@ -168,7 +207,6 @@ function openAccounting(fu?: { department_id: string }) {
           </div>
         </div>
         <button
-          v-if="(blockers.open_workshop_tickets_count ?? 0) > 0"
           type="button"
           class="btn-outline btn-sm"
           @click="openWorkshop()"
@@ -178,38 +216,66 @@ function openAccounting(fu?: { department_id: string }) {
       </li>
 
       <li
-        v-if="isPreCompletionPhase"
+        v-if="showCostsReleaseItem"
         class="activity-completion-checklist__item"
+        :class="{ 'activity-completion-checklist__item--done': costsReleasedDone }"
       >
-        <span class="activity-completion-checklist__icon" aria-hidden="true">○</span>
+        <span class="activity-completion-checklist__icon" aria-hidden="true">
+          {{ costsReleasedDone ? '✓' : '○' }}
+        </span>
         <div class="activity-completion-checklist__body">
-          <strong>{{ t('activities.completion.itemCostsReview') }}</strong>
-          <p class="activity-completion-checklist__hint text-muted">
+          <strong>
+            {{
+              hasNoCosts
+                ? t('activities.completion.itemCostsNone')
+                : costsReleasedDone
+                  ? t('activities.completion.itemCostsReleased')
+                  : t('activities.completion.itemCostsReview')
+            }}
+          </strong>
+          <p v-if="!hasNoCosts" class="activity-completion-checklist__charge">{{ chargeTargetLabel }}</p>
+          <p v-if="hasNoCosts" class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemCostsNoneHint') }}
+          </p>
+          <p v-else-if="!costsReleasedDone" class="activity-completion-checklist__hint text-muted">
             {{ t('activities.completion.itemCostsReviewHint') }}
           </p>
+          <p v-if="!hasNoCosts" class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.releaseHint') }}
+          </p>
         </div>
-        <button type="button" class="btn-outline btn-sm" @click="emit('go-tab', 'costs')">
-          {{ t('activities.completion.actionCostsReview') }}
-        </button>
+        <EButton
+          v-if="!costsReleasedDone"
+          variant="primary"
+          size="small"
+          :loading="costsReleaseLoading"
+          @click="emit('release-costs')"
+        >
+          {{ t('activities.completion.releaseAction') }}
+        </EButton>
       </li>
 
       <li
-        class="activity-completion-checklist__item"
-        :class="{ 'activity-completion-checklist__item--done': accountingItemDone }"
+        v-if="isPreCompletionPhase || showAccountingInfo"
+        class="activity-completion-checklist__item activity-completion-checklist__item--info"
+        :class="{ 'activity-completion-checklist__item--done': !showAccountingInfo }"
       >
         <span class="activity-completion-checklist__icon" aria-hidden="true">
-          {{ accountingItemDone ? '✓' : '○' }}
+          {{ showAccountingInfo ? 'ℹ' : '✓' }}
         </span>
         <div class="activity-completion-checklist__body">
           <strong>{{ t('activities.completion.itemAccounting') }}</strong>
-          <span v-if="(blockers.pending_accounting_followups_count ?? 0) > 0" class="text-muted">
+          <span v-if="showAccountingInfo" class="text-muted">
             — {{ blockers.pending_accounting_followups_count }}
           </span>
           <p
-            v-if="isPreCompletionPhase && accountingBlockerDone"
+            v-if="isPreCompletionPhase && !showAccountingInfo"
             class="activity-completion-checklist__hint text-muted"
           >
             {{ t('activities.completion.itemAccountingAfterCloseHint') }}
+          </p>
+          <p v-else-if="showAccountingInfo" class="activity-completion-checklist__hint text-muted">
+            {{ t('activities.completion.itemAccountingHint') }}
           </p>
           <ul v-if="blockers.pending_accounting_followups?.length" class="activity-completion-checklist__sub">
             <li v-for="fu in blockers.pending_accounting_followups" :key="fu.id">
@@ -227,7 +293,7 @@ function openAccounting(fu?: { department_id: string }) {
           </ul>
         </div>
         <button
-          v-if="(blockers.pending_accounting_followups_count ?? 0) > 0"
+          v-if="showAccountingInfo"
           type="button"
           class="btn-outline btn-sm"
           @click="emit('go-tab', 'costs')"
@@ -285,6 +351,10 @@ function openAccounting(fu?: { department_id: string }) {
   color: #16a34a;
 }
 
+.activity-completion-checklist__item--info .activity-completion-checklist__icon {
+  color: #2563eb;
+}
+
 .activity-completion-checklist__icon {
   flex: 0 0 1.25rem;
   font-weight: 700;
@@ -306,6 +376,12 @@ function openAccounting(fu?: { department_id: string }) {
 .activity-completion-checklist__hint {
   margin: 6px 0 0;
   font-size: 12px;
+}
+
+.activity-completion-checklist__charge {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .activity-completion-checklist__chips {

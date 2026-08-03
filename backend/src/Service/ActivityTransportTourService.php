@@ -342,10 +342,17 @@ class ActivityTransportTourService
         ], true);
     }
 
+    /**
+     * Ankunft bucht die nächste Pipeline-Stufe:
+     * - outbound (Am Anlass): transport_to → issued (STAGE_AT_EVENT)
+     * - inbound (Retour da): transport_back → returned (STAGE_RETURNED)
+     *
+     * Laden auf die Tour (issued → transport_back) bleibt bei den Vorwärts-Pfeilen.
+     */
     public function pipelineStageForDirection(string $direction): string
     {
         return $direction === ActivityTransportTour::DIRECTION_INBOUND
-            ? PackPipelineService::STAGE_TRANSPORT_BACK
+            ? PackPipelineService::STAGE_RETURNED
             : PackPipelineService::STAGE_AT_EVENT;
     }
 

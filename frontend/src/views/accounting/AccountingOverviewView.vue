@@ -48,6 +48,22 @@
             <span v-else>{{ t('accounting.common.emDash') }}</span>
           </div>
         </div>
+        <div
+          class="acc-kpi-card"
+          :class="{ 'acc-kpi-card--warn': (overview.expected_workshop_open_count || 0) > 0 }"
+        >
+          <div class="acc-kpi-label">{{ t('accounting.overview.kpiExpectedWorkshop') }}</div>
+          <div class="acc-kpi-value">{{ overview.expected_workshop_open_count || 0 }}</div>
+          <div class="acc-kpi-meta">
+            <router-link
+              v-if="(overview.expected_workshop_open_count || 0) > 0"
+              :to="{ name: 'AccountingBookings', params: { departmentId }, query: { sub: 'assign' } }"
+            >
+              {{ t('accounting.overview.kpiExpectedWorkshopLink') }}
+            </router-link>
+            <span v-else>{{ t('accounting.common.emDash') }}</span>
+          </div>
+        </div>
       </div>
 
       <section v-if="overview.years.length" class="overview-section">

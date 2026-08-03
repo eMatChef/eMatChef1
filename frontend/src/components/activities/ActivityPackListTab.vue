@@ -260,6 +260,12 @@
             {{ t('activities.packList.packStageCompletedBannerHint') }}
           </p>
         </div>
+        <MaterialJourneyReturnSummaryTable
+          v-if="isActivityCompleted && completedArchiveSummaryRows.length > 0"
+          class="pack-completed-archive-summary"
+          :rows="completedArchiveSummaryRows"
+          mode="archive"
+        />
         <div v-else-if="showPackStageViewOnlyBanner" class="pack-stage-view-only-banner" role="note">
           <p class="pack-stage-view-only-banner__title">
             {{
@@ -1424,6 +1430,7 @@
       @report-consumption="
         (mid, name) => emitConsumptionForMaterialId(mid, { materialName: name })
       "
+      @report-extra="onReturnCrateReportExtra"
       @cancel="closeReturnCrateModal"
       @submit="onReturnCrateModalSubmit"
     />
@@ -1464,8 +1471,10 @@ import PackReturnCrateModal, {
   type ReturnCratePartitionView,
   type ReturnCrateSearchMaterial,
 } from '@/components/activities/PackReturnCrateModal.vue'
+import { materialJourneyReturnCrateContentStillOpen } from '@/components/activities/materialJourneyReturnCrate'
 import PackPhysComboStoreChecklistModal from '@/components/activities/PackPhysComboStoreChecklistModal.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
+import MaterialJourneyReturnSummaryTable from '@/components/activities/materialJourney/MaterialJourneyReturnSummaryTable.vue'
 import PackMaterialRow from '@/components/activities/PackMaterialRow.vue'
 import PackMaterialRowDetail from '@/components/activities/PackMaterialRowDetail.vue'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
@@ -1659,6 +1668,7 @@ import {
 } from '@/components/activities/packCrateCheckPrefill'
 import {
   getPackItems,
+  patchActivityPackItem,
   postInitPackItems,
   postMoveAllPackItems,
   postMoveBackPackItem,
@@ -1690,6 +1700,10 @@ import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useToast } from '@/composables/useToast'
 import { packItemsLiveSyncSignature } from '@/utils/packItemsLiveSync'
+import {
+  buildMaterialJourneyReturnSummaryRows,
+  buildReplenishmentQtyByMaterial,
+} from '@/utils/materialJourneyReturnSummary'
 
 const { t, te, locale } = useI18n()
 const toast = useToast()
@@ -1871,7 +1885,7 @@ const memberReturnHandoffComplete = computed(
   () =>
     !canManageMaterials.value &&
     isGroupHandoffProfile.value &&
-    props.status === 'returned',
+    ['returned', 'storing', 'completed'].includes(props.status),
 )
 
 const packWorkflowReadOnly = computed(
@@ -1879,6 +1893,21 @@ const packWorkflowReadOnly = computed(
 )
 
 const isActivityCompleted = computed(() => props.status === 'completed')
+
+const completedArchiveSummaryRows = computed(() => {
+  if (!isActivityCompleted.value) return []
+  return buildMaterialJourneyReturnSummaryRows(
+    packItems.value,
+    packIssues.value,
+    undefined,
+    packContainers.value,
+    containerItemsByContainerId.value,
+    {
+      mode: 'archive',
+      replenishmentByMaterial: buildReplenishmentQtyByMaterial(activityItemsForAccounting.value),
+    },
+  )
+})
 
 /** Nach Abschluss keine Fortschritts-/Warn-Leiste (Material kann historisch «Gepackt» geblieben sein). */
 const showPackStageProgress = computed(() => !isActivityCompleted.value)
@@ -2906,7 +2935,14 @@ async function fulfillPendingConsumableReturn(): Promise<void> {
   const lines = containerItemsByContainerId.value[pending.containerId] ?? []
   const ci = lines.find((line) => line.id === pending.containerItemId)
   if (!ci) return
-  await executeReturnContainerLineToWarehouse(pending.containerId, ci, pending.qty)
+  const rem = containerLineRemainingReturn(ci, pending.containerId)
+  const returnQty = Math.min(pending.qty, rem)
+  if (returnQty <= 0) {
+    toast.info(t('activities.packList.toastConsumableAllUsedNothingToReturn'))
+    await continueReturnCrateBatch()
+    return
+  }
+  await executeReturnContainerLineToWarehouse(pending.containerId, ci, returnQty)
   const batch = pendingReturnCrateBatch.value
   if (
     batch?.remaining[0]?.kind === 'line' &&
@@ -3894,7 +3930,6 @@ function buildReturnCrateLineFromContainerItem(
   if (!materialItemId && max < 1 && returnedAlready < 1 && expectedQty < 1) return null
 
   const isConsumable = materialItemId ? isPackMaterialConsumable(materialItemId) : false
-  const consumption = isConsumable ? returnCrateConsumableState(materialItemId) : null
   const isDone = max < 1 && returnedAlready > 0
   const lineId = isNonActionableContainerLine(actionable)
     ? `preview-${materialItemId ?? ci.id}`
@@ -3908,15 +3943,25 @@ function buildReturnCrateLineFromContainerItem(
     materialItemId,
     materialName: actionable.material_name || ci.material_name || t('common.material'),
     expectedQty,
+    ordered: Math.max(
+      materialItemId
+        ? (packItems.value.find((p) => p.materialItemId === materialItemId)?.quantityOrdered ?? 0)
+        : 0,
+      expectedQty,
+      actionable.quantity_issued ?? 0,
+    ),
+    consumed: materialItemId ? consumedQtyForMaterial(materialItemId) : 0,
+    loss: materialItemId ? lossQtyForMaterial(materialItemId) : 0,
+    repair: materialItemId ? repairQtyForMaterial(materialItemId) : 0,
     max,
     issued: actionable.quantity_issued ?? 0,
     returnedAlready,
-    included: isDone ? false : !isConsumable,
-    qty: isDone || isConsumable ? 0 : max,
+    included: !isDone,
+    qty: isDone ? 0 : max,
     isExtra,
     isConsumable,
-    consumptionDone: consumption?.consumptionDone ?? false,
-    consumptionOpen: consumption?.consumptionOpen ?? 0,
+    consumptionDone: true,
+    consumptionOpen: 0,
     isDone,
   }
 }
@@ -3935,8 +3980,7 @@ function buildReturnCratePartition(containerId: string): ReturnCratePartitionVie
 
   const warehouseMids = containerWarehouseTemplateByContainerId.value[containerId]
   const hasWarehouseTemplate = (warehouseMids?.size ?? 0) > 0
-  const shellQty =
-    containerInnerReturnableUnits(containerId) > 0 ? 0 : containerShellStillAtEventQty(containerId)
+  const shellQty = containerShellStillAtEventQty(containerId)
   const shellMid = (c.container_material_item_id ?? '').trim()
   const shellPi = shellMid ? packItems.value.find((p) => p.materialItemId === shellMid) : undefined
   const shellIsExtra = Boolean(shellMid && shellQty > 0 && warehouseMids && !warehouseMids.has(shellMid))
@@ -4001,18 +4045,16 @@ function returnCrateConsumableState(materialItemId: string | null): {
 const returnCrateModalSubmitDisabled = computed(() => {
   if (returnCrateModalSubmitting.value || returnCrateModalContentsLoading.value) return true
 
-  const openConsumables = returnCrateModalLines.value.some(
-    (line) => line.isConsumable && !line.consumptionDone && line.consumptionOpen > 0,
-  )
-  if (openConsumables) return true
+  const hasUnresolvedVariance = returnCrateModalLines.value.some((line) => {
+    if (line.isDone || !line.included) return false
+    return Math.max(0, line.max - line.qty) > 0 || Math.max(0, line.qty - line.max) > 0
+  })
+  if (hasUnresolvedVariance) return true
 
-  const hasReturnSelection = returnCrateModalLines.value.some(
-    (line) => !line.isConsumable && line.included && line.qty > 0,
-  )
-  if (hasReturnSelection) return false
+  const returnable = returnCrateModalLines.value.filter((line) => !line.isDone && line.max > 0)
+  if (returnable.length < 1) return false
 
-  const hasReturnableNonConsumables = returnCrateModalLines.value.some((line) => !line.isConsumable && line.max > 0)
-  return hasReturnableNonConsumables
+  return !returnable.some((line) => line.included && line.qty > 0)
 })
 
 function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] {
@@ -4034,7 +4076,6 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
     if (!crateRelevantMaterialIds(containerId).has(pi.materialItemId)) continue
     const looseQty = looseQtyStillAtEventForReturn(pi)
     if (looseQty < 1) continue
-    const consumption = pi.isConsumable ? returnCrateConsumableState(pi.materialItemId) : null
     lines.push({
       id: `loose-${pi.materialItemId}`,
       kind: 'line',
@@ -4042,22 +4083,25 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       materialItemId: pi.materialItemId,
       materialName: pi.materialName,
       expectedQty: 0,
+      ordered: Math.max(pi.quantityOrdered ?? 0, pi.quantityIssued ?? 0),
+      consumed: consumedQtyForMaterial(pi.materialItemId),
+      loss: lossQtyForMaterial(pi.materialItemId),
+      repair: repairQtyForMaterial(pi.materialItemId),
       max: looseQty,
       issued: pi.quantityIssued ?? 0,
       returnedAlready: pi.quantityReturned ?? 0,
-      included: !pi.isConsumable,
-      qty: pi.isConsumable ? 0 : looseQty,
+      included: true,
+      qty: looseQty,
       isExtra: false,
       isConsumable: Boolean(pi.isConsumable),
-      consumptionDone: consumption?.consumptionDone ?? false,
-      consumptionOpen: consumption?.consumptionOpen ?? 0,
+      consumptionDone: true,
+      consumptionOpen: 0,
       isDone: false,
     })
   }
 
   if (partition.shellQty > 0) {
     const shellConsumable = shellMaterialId ? isPackMaterialConsumable(shellMaterialId) : false
-    const shellConsumption = shellConsumable ? returnCrateConsumableState(shellMaterialId) : null
     lines.push({
       id: 'shell',
       kind: 'shell',
@@ -4065,15 +4109,19 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       materialItemId: shellMaterialId,
       materialName: partition.shellMaterialName || t('activities.packList.shellMaterialLine'),
       expectedQty: 1,
+      ordered: partition.shellQty,
+      consumed: shellMaterialId ? consumedQtyForMaterial(shellMaterialId) : 0,
+      loss: shellMaterialId ? lossQtyForMaterial(shellMaterialId) : 0,
+      repair: shellMaterialId ? repairQtyForMaterial(shellMaterialId) : 0,
       max: partition.shellQty,
       issued: partition.shellQty,
       returnedAlready: 0,
-      included: !shellConsumable,
-      qty: shellConsumable ? 0 : partition.shellQty,
+      included: true,
+      qty: partition.shellQty,
       isExtra: partition.shellIsExtra,
       isConsumable: shellConsumable,
-      consumptionDone: shellConsumption?.consumptionDone ?? false,
-      consumptionOpen: shellConsumption?.consumptionOpen ?? 0,
+      consumptionDone: true,
+      consumptionOpen: 0,
       isDone: false,
     })
   }
@@ -4106,7 +4154,6 @@ function onReturnCrateAddMaterial(materialItemId: string): void {
   const leftAtEvent = Math.max(0, (pi.quantityIssued ?? 0) - (pi.quantityReturned ?? 0))
   const max = Math.max(1, leftAtEvent || getStageLeftQty(pi) || 1)
   const isConsumable = Boolean(pi.isConsumable)
-  const consumption = isConsumable ? returnCrateConsumableState(materialItemId) : null
   const containerLine = (containerItemsByContainerId.value[container.id] ?? []).find(
     (row) => row.material_item_id === materialItemId && !isNonActionableContainerLine(row),
   )
@@ -4120,15 +4167,19 @@ function onReturnCrateAddMaterial(materialItemId: string): void {
       materialItemId,
       materialName: pi.materialName,
       expectedQty: 0,
+      ordered: Math.max(pi.quantityOrdered ?? 0, pi.quantityIssued ?? 0),
+      consumed: consumedQtyForMaterial(materialItemId),
+      loss: lossQtyForMaterial(materialItemId),
+      repair: repairQtyForMaterial(materialItemId),
       max,
       issued: pi.quantityIssued ?? 0,
       returnedAlready: pi.quantityReturned ?? 0,
-      included: !isConsumable,
-      qty: isConsumable ? 0 : max,
+      included: true,
+      qty: max,
       isExtra: true,
       isConsumable,
-      consumptionDone: consumption?.consumptionDone ?? false,
-      consumptionOpen: consumption?.consumptionOpen ?? 0,
+      consumptionDone: true,
+      consumptionOpen: 0,
       isDone: false,
     },
   ]
@@ -4140,13 +4191,14 @@ function syncReturnCrateModalLines(): void {
   const prevById = new Map(returnCrateModalLines.value.map((line) => [line.id, line]))
   const added = returnCrateModalLines.value.filter((l) => l.placement === 'added')
   const rebuilt = buildReturnCrateModalLines(container.id).map((line) => {
-    if (line.isConsumable) return line
     const prev = prevById.get(line.id)
     if (!prev) return line
+    const ordered = line.ordered ?? 0
+    const softCap = Math.max(ordered * 2, Math.max(ordered, line.max) + 50, line.max + 50)
     return {
       ...line,
       included: prev.included,
-      qty: Math.min(Math.max(0, prev.qty), line.max),
+      qty: Math.min(Math.max(0, prev.qty), softCap),
     }
   })
   const rebuiltMids = new Set(rebuilt.map((l) => l.materialItemId).filter(Boolean))
@@ -4178,6 +4230,53 @@ async function openReturnCrateModal(c: ActivityPackContainer): Promise<void> {
     returnCrateModalLines.value = buildReturnCrateModalLines(c.id)
   } finally {
     returnCrateModalContentsLoading.value = false
+  }
+}
+
+async function onReturnCrateReportExtra(
+  materialItemId: string,
+  surplusQty: number,
+  lineId: string,
+): Promise<void> {
+  const c = returnCrateModalContainer.value
+  if (!c || surplusQty < 1) return
+  const pi = packItems.value.find((p) => p.materialItemId === materialItemId)
+  if (!pi) {
+    toast.error(t('activities.packList.toastNoPackLine'))
+    return
+  }
+  const line = returnCrateModalLines.value.find((l) => l.id === lineId)
+  returnCrateModalSubmitting.value = true
+  try {
+    const newIssued = (pi.quantityIssued ?? 0) + surplusQty
+    const newPacked = Math.max(pi.quantityPacked ?? 0, newIssued)
+    await patchActivityPackItem(props.activityId, pi.id, {
+      quantity_issued: newIssued,
+      quantity_packed: newPacked,
+    })
+    if (line?.containerItemId) {
+      const ci = (containerItemsByContainerId.value[c.id] ?? []).find(
+        (row) => row.id === line.containerItemId,
+      )
+      if (ci) {
+        const ciIssued = (ci.quantity_issued ?? 0) + surplusQty
+        const ciPacked = Math.max(ci.quantity_packed ?? 0, ciIssued)
+        await updateActivityPackContainerItem(props.activityId, c.id, ci.id, {
+          quantity_issued: ciIssued,
+          quantity_packed: ciPacked,
+        })
+      }
+    }
+    const items = await getPackItems(props.activityId)
+    packItems.value = items
+    await loadContainersData()
+    syncReturnCrateModalLines()
+    toast.success(t('activities.packList.returnCrateModalExtraBooked', { n: surplusQty }))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(err.response?.data?.error || err.message || String(e))
+  } finally {
+    returnCrateModalSubmitting.value = false
   }
 }
 
@@ -4215,12 +4314,6 @@ async function continueReturnCrateBatch(): Promise<void> {
       continue
     }
 
-    const pi = packItems.value.find((p) => p.materialItemId === ci.material_item_id)
-    if (shouldOpenConsumptionModalOnReturn(pi)) {
-      beginConsumableReturnForContainerLine(job.containerId, ci, step.qty)
-      return
-    }
-
     job.remaining.shift()
     await executeReturnContainerLineToWarehouse(job.containerId, ci, step.qty)
   }
@@ -4231,22 +4324,25 @@ async function continueReturnCrateBatch(): Promise<void> {
 
 function returnCrateModalCanCompleteWithoutMoves(): boolean {
   if (returnCrateModalLines.value.length < 1) return false
-  const openConsumables = returnCrateModalLines.value.some(
-    (line) => line.isConsumable && !line.consumptionDone && line.consumptionOpen > 0,
-  )
-  if (openConsumables) return false
-  const hasReturnableNonConsumables = returnCrateModalLines.value.some(
-    (line) => !line.isConsumable && line.max > 0,
-  )
-  return !hasReturnableNonConsumables
+  const hasUnresolvedVariance = returnCrateModalLines.value.some((line) => {
+    if (line.isDone || !line.included) return false
+    return Math.max(0, line.max - line.qty) > 0 || Math.max(0, line.qty - line.max) > 0
+  })
+  if (hasUnresolvedVariance) return false
+  return !returnCrateModalLines.value.some((line) => !line.isDone && line.max > 0)
 }
 
 async function onReturnCrateModalSubmit(): Promise<void> {
   const c = returnCrateModalContainer.value
   if (!c || returnCrateModalSubmitDisabled.value) return
 
+  const contentStillOpen = materialJourneyReturnCrateContentStillOpen(returnCrateModalLines.value)
   const steps: ReturnCrateBatchStep[] = returnCrateModalLines.value
-    .filter((line) => !line.isConsumable && !line.isDone && line.included && line.qty > 0)
+    .filter((line) => {
+      if (line.isDone || !line.included || line.qty <= 0) return false
+      if (line.kind === 'shell' && contentStillOpen) return false
+      return true
+    })
     .map((line): ReturnCrateBatchStep => {
       if (line.kind === 'shell') {
         return { kind: 'shell', qty: line.qty }
@@ -7102,6 +7198,17 @@ const packQuantityCtx = computed(
     shellPackItemForContainer,
     isNonActionableContainerLine,
     crateCheckGapForMaterial,
+    containerLinePhysicalReturnRemaining: (ci) => {
+      if (!isPackReturnStage(activePackStage.value)) return null
+      if (
+        activePackStage.value === 'transport_back_returned' &&
+        packWorkflowProfile.value === 'logistics'
+      ) {
+        return null
+      }
+      const acct = retourAccountingForContainerLine(ci)
+      return Math.max(0, acct.expectedReturn - (ci.quantity_returned ?? 0))
+    },
   }),
 )
 
@@ -8657,6 +8764,7 @@ async function loadAll() {
     const items = await getPackItems(props.activityId)
     packItems.value = items
     const needsIssueReports =
+      isActivityCompleted.value ||
       activityStatusAllowsIssueReports.value ||
       items.some((i) => i.isConsumable) ||
       isPackReturnOrUnpackWarehouseStage(statusPackStage.value)

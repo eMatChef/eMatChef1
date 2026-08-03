@@ -195,7 +195,7 @@
                   >
                     {{ virtualComboPackModeLabel(row) }}
                   </span>
-                  <template v-if="effectiveVirtualComboPackMode(row) === 'together' && comboSetContent(row)">
+                  <template v-if="comboSetContent(row)">
                     <div class="activity-mat-combo-content-dropdown">
                       <button
                         type="button"
@@ -239,11 +239,20 @@
                     </div>
                   </template>
                   <p
-                    v-else-if="effectiveVirtualComboPackMode(row) === 'loose'"
+                    v-if="effectiveVirtualComboPackMode(row) === 'loose'"
                     class="activity-mat-pack-mode-hint text-muted"
                   >
                     {{ t('activities.detail.virtualComboLoosePartsHint') }}
                   </p>
+                  <EButton
+                    v-if="virtualComboPackModeEditable && !disabled"
+                    variant="secondary"
+                    size="x-small"
+                    class="activity-mat-reconfigure-btn"
+                    @click="emitReconfigureVirtualCombo(originalIndex)"
+                  >
+                    {{ t('activities.materialLinesTable.virtualComboReconfigure') }}
+                  </EButton>
                 </div>
               </div>
             </td>
@@ -479,7 +488,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getComboComponents, type ComboComponent } from '@/api/materials'
+import { getComboComponents, getConfiguratorAvailability, type ComboComponent } from '@/api/materials'
 import { fetchMaterialsAvailableForPeriodByIds } from '@/api/materialAvailabilityPeriod'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
 import { materialLookupContextForScopeTab, type MaterialScopeTab } from './activityMaterialAvailabilityScope'
@@ -557,6 +566,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: ActivityMaterialLine[]]
   'remove-line': [payload: { line: ActivityMaterialLine; index: number }]
   'pack-mode-change': [payload: { line: ActivityMaterialLine; mode: 'together' | 'loose' }]
+  'reconfigure-virtual-combo': [payload: { line: ActivityMaterialLine; index: number }]
 }>()
 
 const minQty = computed(() => (props.variant === 'wizard' ? 1 : 0))
@@ -641,6 +651,8 @@ const scopeForAvailabilityFetch = computed(() => {
 })
 
 const availabilityMap = ref<Record<string, number>>({})
+/** Virt. Kombo-Eltern: buildable Sets laut aktueller Optionswahl (configurator-availability). */
+const virtualComboBuildableByMaterialId = ref<Record<string, number>>({})
 /** Nur erstes Laden: Zellen „…“, danach stille Hintergrund-Aktualisierung (kein Layout-Springen) */
 const availabilityLoading = ref(false)
 const availabilityFirstFetchDone = ref(false)
@@ -704,6 +716,12 @@ function setVirtualComboPackMode(originalIndex: number, mode: 'together' | 'loos
   }
   emit('update:modelValue', lines)
   emit('pack-mode-change', { line: lines[originalIndex], mode })
+}
+
+function emitReconfigureVirtualCombo(originalIndex: number) {
+  const line = props.modelValue[originalIndex]
+  if (!line || line.material_type !== 'virtual_combo' || props.disabled) return
+  emit('reconfigure-virtual-combo', { line, index: originalIndex })
 }
 
 function virtualComboPackModeLabel(row: ActivityMaterialLine): string | null {
@@ -952,7 +970,12 @@ function materialShortageFor(materialItemId: string): number {
 
 /** Max. buchbare Menge im Zeitraum (API availableForPeriod; eigene Aktivität bereits ausgeschlossen). */
 function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
-  if (isVirtualComboParentRow(row)) return undefined
+  if (isVirtualComboParentRow(row)) {
+    const buildable = virtualComboBuildableByMaterialId.value[row.material_item_id]
+    if (typeof buildable !== 'number') return undefined
+    // buildable = wie viele Sets insgesamt mit aktueller Auswahl möglich (eigene Buchung excluded).
+    return Math.max(row.quantity, buildable)
+  }
   const capacity = periodCapacityForMaterialRow(row.material_item_id)
   if (capacity === undefined) return undefined
   const totalDemand = totalDemandForMaterial(row.material_item_id)
@@ -962,7 +985,11 @@ function maxQtyForRow(row: ActivityMaterialLine): number | undefined {
 
 function shortageForRow(row: ActivityMaterialLine): number {
   if (isReplenishmentLine(row)) return 0
-  if (isVirtualComboParentRow(row)) return 0
+  if (isVirtualComboParentRow(row)) {
+    const buildable = virtualComboBuildableByMaterialId.value[row.material_item_id]
+    if (typeof buildable !== 'number') return 0
+    return Math.max(0, row.quantity - buildable)
+  }
   const capacity = restCapacityForRow(
     row,
     props.modelValue,
@@ -987,7 +1014,11 @@ function isReplenishmentLine(row: ActivityMaterialLine): boolean {
 
 function qtyRowLocked(row: ActivityMaterialLine): boolean {
   if (isReplenishmentLine(row)) return true
-  if (isVirtualComboParentRow(row) || isVirtualComboLooseChildRow(row)) return true
+  // Eltern-Menge editierbar solange pack_mode editierbar (draft/submitted/approved).
+  if (isVirtualComboParentRow(row)) {
+    return !props.virtualComboPackModeEditable || props.packingStageQuantityReadonly === true
+  }
+  if (isVirtualComboLooseChildRow(row)) return true
   return lineLockedForPackListOnly(row) || props.packingStageQuantityReadonly === true
 }
 
@@ -999,7 +1030,7 @@ function qtyLockedHint(row: ActivityMaterialLine): string {
     return t('activities.materialLinesTable.virtualComboChildQtyHint')
   }
   if (isVirtualComboParentRow(row)) {
-    return t('activities.materialLinesTable.virtualComboQtyHint')
+    return t('activities.materialLinesTable.virtualComboQtyReadonlyHint')
   }
   if (lineLockedForPackListOnly(row)) {
     return t('activities.materialLinesTable.packList')
@@ -1057,7 +1088,14 @@ function formatRestCell(row: ActivityMaterialLine): string {
     return t('activities.materialLinesTable.replenishmentRest')
   }
   if (isVirtualComboParentRow(row)) {
-    return t('activities.wizard.form.summaryEmpty')
+    if (availabilityLoading.value) return '…'
+    const buildable = virtualComboBuildableByMaterialId.value[row.material_item_id]
+    if (typeof buildable !== 'number') return t('activities.wizard.form.summaryEmpty')
+    const remaining = Math.max(0, buildable - row.quantity)
+    return t('activities.materialLinesTable.virtualComboRestRemaining', {
+      remaining,
+      buildable,
+    })
   }
   if (availabilityLoading.value) return '…'
   const periodCapacity = periodCapacityForMaterialRow(row.material_item_id)
@@ -1154,6 +1192,7 @@ async function refreshLineAvailability(fetchKey: string) {
   if (ids.length === 0) {
     if (generation !== availabilityRefreshGeneration) return
     availabilityMap.value = {}
+    virtualComboBuildableByMaterialId.value = {}
     availabilityError.value = null
     availabilityFirstFetchDone.value = false
     lastAvailabilityFetchKey = fetchKey
@@ -1181,6 +1220,35 @@ async function refreshLineAvailability(fetchKey: string) {
     }
     /** Keine künstliche 0 bei fehlendem Treffer — sonst max = Menge, falsche „50/50“ und keine + Buttons */
     availabilityMap.value = m
+
+    const virtualParents = props.modelValue.filter(
+      (r) => r.material_type === 'virtual_combo' && !r.parent_activity_item_id,
+    )
+    const buildableNext: Record<string, number> = { ...virtualComboBuildableByMaterialId.value }
+    await Promise.all(
+      virtualParents.map(async (parent) => {
+        try {
+          const optionIds = parent.config_snapshot?.selected_option_ids ?? []
+          const avail = await getConfiguratorAvailability(parent.material_item_id, {
+            startDate: planningStartIso.value || null,
+            endDate: planningEndIso.value || null,
+            quantity: Math.max(1, parent.quantity),
+            excludeActivityId: props.activityId ?? null,
+            selectedOptionIds: optionIds,
+          })
+          const n = avail.selected?.buildable ?? avail.base?.buildable
+          if (typeof n === 'number') {
+            buildableNext[parent.material_item_id] = n
+          } else {
+            delete buildableNext[parent.material_item_id]
+          }
+        } catch {
+          delete buildableNext[parent.material_item_id]
+        }
+      }),
+    )
+    if (generation !== availabilityRefreshGeneration) return
+    virtualComboBuildableByMaterialId.value = buildableNext
 
     let capsChanged = false
     const nextLines = props.modelValue.map((row) => {
@@ -1569,6 +1637,10 @@ function applyAllSuggestedQuantities() {
   display: block;
   margin: 0.15rem 0 0.35rem;
   font-size: 0.78rem;
+}
+
+.activity-mat-reconfigure-btn {
+  margin-top: 0.25rem;
 }
 
 .activity-mat-pack-mode-edit {

@@ -65,6 +65,24 @@
       </div>
     </div>
     <button
+      v-if="showEditButton && selectedId"
+      type="button"
+      class="edit-inline-btn"
+      :title="editButtonTitle"
+      :aria-label="editButtonTitle"
+      @click="onEditButtonClick"
+    >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path
+          d="M11.3333 2C11.5084 1.82489 11.7163 1.68601 11.9444 1.59124C12.1726 1.49648 12.4163 1.44775 12.6625 1.44775C12.9087 1.44775 13.1524 1.49648 13.3806 1.59124C13.6087 1.68601 13.8166 1.82489 13.9917 2C14.1668 2.17511 14.3057 2.383 14.4005 2.61117C14.4952 2.83934 14.5439 3.08305 14.5439 3.32917C14.5439 3.57529 14.4952 3.819 14.4005 4.04717C14.3057 4.27534 14.1668 4.48323 13.9917 4.65833L5.325 13.325L2 14L2.675 10.675L11.3333 2Z"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </button>
+    <button
       v-if="showAddButton"
       type="button"
       class="add-inline-btn"
@@ -94,6 +112,7 @@ const props = withDefaults(
     inputId?: string
     placeholder?: string
     addButtonTitle?: string
+    editButtonTitle?: string
     emptyAddressesLabel?: string
     otherAddressesDividerLabel?: string
     inlineCreateLabelKey?: string
@@ -101,17 +120,20 @@ const props = withDefaults(
     addressTypeTitleKey?: string
     minQueryLength?: number
     showAddButton?: boolean
+    showEditButton?: boolean
   }>(),
   {
     selectedId: null,
     minQueryLength: 1,
     showAddButton: true,
+    showEditButton: false,
     inlineCreateLabelKey: 'addresses.search.createPrimaryInline',
     addressFallbackNameKey: 'activities.wizard.form.addressFallbackName',
     addressTypeTitleKey: 'activities.wizard.form.addressTypeTitle',
     emptyAddressesLabel: '',
     otherAddressesDividerLabel: '',
     addButtonTitle: '',
+    editButtonTitle: '',
     placeholder: '',
   },
 )
@@ -119,6 +141,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:selectedId': [id: string | null]
   create: [query: string]
+  edit: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -196,6 +219,11 @@ function onInlineCreate() {
 
 function onAddButtonClick() {
   emit('create', searchTrimmed.value)
+}
+
+function onEditButtonClick() {
+  if (!props.selectedId) return
+  emit('edit', props.selectedId)
 }
 
 function clearSearch() {

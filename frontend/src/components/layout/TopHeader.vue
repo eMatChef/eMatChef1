@@ -373,6 +373,13 @@
           </svg>
           {{ t('layout.userMenu.logout') }}
         </button>
+        <div
+          class="user-menu-version"
+          :title="t('layout.userMenu.versionTitle')"
+          :aria-label="t('layout.userMenu.versionAria', { version: appVersionLabel })"
+        >
+          {{ appVersionLabel }}
+        </div>
         </div>
       </div>
     </div>
@@ -642,6 +649,7 @@ import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowU
 import { useActivityNotificationText } from '@/composables/useActivityNotificationText'
 import { departmentHomePath } from '@/utils/departmentSwitch'
 import { routeForInboxActivityNotification } from '@/utils/inboxPackJourneyDeepLink'
+import { appVersionLabel } from '@/config/appVersion'
 import {
   getUserDirectMessages,
   markUserDirectMessageRead,
@@ -2650,6 +2658,16 @@ watch(
 
 .item-icon--mdi {
   color: #64748b;
+}
+
+.user-menu-version {
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #9ca3af;
+  text-align: center;
+  user-select: text;
+  cursor: default;
 }
 
 .dropdown-item.logout {

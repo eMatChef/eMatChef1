@@ -7,7 +7,7 @@
             "description": "Vorlage für einen 39er Sarasani",
             "manufacturer": null,
             "manufacturer_address_id": null,
-            "template_kind": "configurator",
+            "template_kind": "combo",
             "template_domain": "tent",
             "model": null,
             "capacity": null,

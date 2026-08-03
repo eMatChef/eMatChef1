@@ -13,6 +13,8 @@ const props = defineProps<{
   disabled?: boolean
   /** Quick Retour: «Weiter an Matwart abgeben» statt Logistics-Phase-Weiter. */
   handoffMode?: boolean
+  /** Optional: fester Button-Text (z. B. «Weiter zu Transport hin» vor at_event). */
+  continueLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -43,11 +45,12 @@ const description = computed(() =>
     : t('activities.materialJourney.phaseComplete.defaultDescription', { count: props.totalCount }),
 )
 
-const continueLabel = computed(() =>
-  te(`${i18nBase.value}.continue`)
+const continueLabel = computed(() => {
+  if (props.continueLabel) return props.continueLabel
+  return te(`${i18nBase.value}.continue`)
     ? t(`${i18nBase.value}.continue`, { next: nextStepLabel.value })
-    : t('activities.materialJourney.phaseComplete.defaultContinue', { next: nextStepLabel.value }),
-)
+    : t('activities.materialJourney.phaseComplete.defaultContinue', { next: nextStepLabel.value })
+})
 
 const hint = computed(() =>
   te(`${i18nBase.value}.hint`) ? t(`${i18nBase.value}.hint`) : '',

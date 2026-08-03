@@ -2,6 +2,7 @@ import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import { isPhysicalComboPackItem, packMaterialDisplayName } from '@/components/activities/packMaterialDisplay'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import type { MaterialScanResolveResult } from '@/composables/materialScanResolve'
 
 export function sortMaterialJourneyAtEventInventoryTasks(
@@ -9,7 +10,7 @@ export function sortMaterialJourneyAtEventInventoryTasks(
 ): MaterialJourneyTaskRow[] {
   return [...rows].sort((a, b) => {
     const kindOrder = (kind: MaterialJourneyTaskRow['kind']) =>
-      kind === 'crate' ? 0 : kind === 'combo' ? 1 : 2
+      isMaterialJourneyCrateKind(kind) ? 0 : kind === 'combo' ? 1 : 2
     const kindDiff = kindOrder(a.kind) - kindOrder(b.kind)
     if (kindDiff !== 0) return kindDiff
     return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
@@ -22,7 +23,7 @@ function rowContainsMaterialId(
   containerItemsByContainerId: Record<string, ActivityPackContainerItem[]>,
 ): boolean {
   if (row.packItem?.materialItemId === materialItemId) return true
-  if (row.kind !== 'crate' || !row.container) return false
+  if (!isMaterialJourneyCrateKind(row.kind) || !row.container) return false
   const items = containerItemsByContainerId[row.container.id] ?? []
   return items.some(
     (item) =>
@@ -57,7 +58,7 @@ export function filterMaterialJourneyAtEventInventoryByText(
     if (row.packItem && packMaterialDisplayName(row.packItem).toLowerCase().includes(q)) {
       return true
     }
-    if (row.kind === 'crate' && row.container) {
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
       const items = containerItemsByContainerId[row.container.id] ?? []
       if (
         items.some(
@@ -83,7 +84,7 @@ export function resolveMaterialJourneyAtEventInventoryRowIds(
 
   if (result?.container) {
     const crate = rows.find(
-      (row) => row.kind === 'crate' && row.container?.id === result.container?.id,
+      (row) => isMaterialJourneyCrateKind(row.kind) && row.container?.id === result.container?.id,
     )
     if (crate) matched.add(crate.id)
   }

@@ -1377,6 +1377,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'accounting',
+            name: 'SettingsAccounting',
+            component: () => import('@/views/settings/AccountingSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsAccounting'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
             path: 'storage',
             name: 'SettingsStorage',
             component: () => import('@/views/settings/StorageSettingsView.vue'),

@@ -1,8 +1,16 @@
 <template>
   <div class="contacts-view">
-    <!-- Detail View (ersetzt Liste wenn Kontakt ausgewählt) -->
-      <ContactDetailView
-      v-if="showDetailView && selectedContactId"
+    <ContactDetailView
+      v-if="showCreateView"
+      mode="create"
+      :department-id="currentDepartmentId"
+      :default-type="createDefaultType"
+      @close="closeCreateView"
+      @created="handleCreated"
+    />
+
+    <ContactDetailView
+      v-else-if="showDetailView && selectedContactId"
       :contact-id="selectedContactId"
       :department-id="currentDepartmentId"
       @close="closeDetailView"
@@ -17,7 +25,7 @@
         {{ isUserRole ? t('contacts.descriptionUser') : t('contacts.description') }}
       </template>
       <template v-if="canCreateContact" #actions>
-        <EButton variant="primary" @click="openCreateModal">
+        <EButton variant="primary" @click="openCreateView">
           <v-icon icon="mdi-plus" start size="20" />
           {{ t('contacts.newAddress') }}
         </EButton>
@@ -90,7 +98,7 @@
         :description="t('contacts.emptyText')"
       >
         <template v-if="canCreateContact" #actions>
-          <EButton size="large" @click="openCreateModal">
+          <EButton size="large" @click="openCreateView">
             {{ t('contacts.emptyCta') }}
           </EButton>
         </template>
@@ -132,17 +140,6 @@
         </EResponsiveDataList>
         <p class="table-hint">{{ t('contacts.tableHint') }}</p>
       </div>
-
-      <!-- Address Modal (Create only) -->
-      <AddressModal
-        v-if="showModal"
-        :department-id="currentDepartmentId"
-        :address="null"
-        :default-type="createDefaultType"
-        :allowed-types="createAllowedTypes"
-        @close="closeModal"
-        @saved="handleSaved"
-      />
     </PageShell>
   </div>
 </template>
@@ -166,14 +163,12 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
 import { ESearchField, ESelect, ECheckbox, EButton } from '@/components/form/base'
-import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import ContactListDataTable from '@/components/contacts/ContactListDataTable.vue'
 import ContactListMobile from '@/components/contacts/ContactListMobile.vue'
 import {
   useDepartmentMemberRole,
   USER_CONTACT_VIEW_TYPES,
-  USER_CONTACT_CREATE_TYPES,
 } from '@/composables/useDepartmentMemberRole'
 import '@/styles/contacts-view.css'
 
@@ -187,10 +182,6 @@ const currentDepartmentId = computed(() => route.params.departmentId as string)
 const canCreateContact = computed(() => canManageContacts.value || isUserRole.value)
 
 const createDefaultType = computed(() => (isUserRole.value ? 'meeting' : 'customer'))
-
-const createAllowedTypes = computed(() =>
-  isUserRole.value ? [...USER_CONTACT_CREATE_TYPES] : null
-)
 
 const visibleAddressTypeKeys = computed(() => {
   const all = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
@@ -232,12 +223,10 @@ const selectedType = ref('')
 const selectedCanton = ref('')
 const showDeleted = ref(false)
 
-// Modal State
-const showModal = ref(false)
-
-// Detail View State (gesteuert über Route-Parameter)
+// Create / Detail View State
+const showCreateView = ref(false)
 const selectedContactId = computed(() => route.params.contactId as string | undefined || null)
-const showDetailView = computed(() => !!selectedContactId.value)
+const showDetailView = computed(() => !!selectedContactId.value && !showCreateView.value)
 
 // Computed: Filtered Contacts
 const filteredContacts = computed(() => {
@@ -318,18 +307,21 @@ async function handleContactDeleted() {
   await loadContacts()
 }
 
-// Modal (nur für Neu-Erstellung)
-function openCreateModal() {
-  showModal.value = true
+// Create (gleiche Detailansicht, alle Felder)
+function openCreateView() {
+  showCreateView.value = true
 }
 
-function closeModal() {
-  showModal.value = false
+function closeCreateView() {
+  showCreateView.value = false
 }
 
-async function handleSaved() {
-  closeModal()
+async function handleCreated(addr: Address) {
+  showCreateView.value = false
   await loadContacts()
+  if (addr?.id) {
+    router.push(`/${currentDepartmentId.value}/contacts/${addr.id}`)
+  }
 }
 
 async function restoreContact(contact: Address) {

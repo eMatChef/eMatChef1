@@ -2,6 +2,7 @@ import type { ComposerTranslation } from 'vue-i18n'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import {
   peekSectionsForJourneyCombo,
   peekSectionsForJourneyContainer,
@@ -95,7 +96,7 @@ export function materialJourneyAccordionLinesForRow(
     t: ComposerTranslation
   },
 ): MaterialJourneyAccordionLine[] {
-  if (row.kind === 'crate' && row.container) {
+  if (isMaterialJourneyCrateKind(row.kind) && row.container) {
     const containerItems = ctx.containerItemsByContainerId[row.container.id] ?? []
     const booked = linesFromContainerItems(containerItems)
 

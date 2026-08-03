@@ -31,6 +31,11 @@ export type AccountingAcquisitionFollowUp = {
   external_customer_label?: string | null
   reported_by_user_id?: string | null
   reported_by_display_name?: string | null
+  /** #7 Phase 4: Einnahme-Vermerk der Aktivität */
+  activity_collection_note?: 'cash' | 'invoice' | null
+  activity_collection_note_amount?: number | null
+  suggested_payment_method?: string | null
+  suggested_payment_status?: 'open' | 'paid' | 'cancelled' | null
 }
 
 export type AcquisitionFollowUpCreateBody = {

@@ -603,18 +603,8 @@ function createMap(
   }
 
   // Klick-Handler nur bei interaktiver, editierbarer Karte
-  if (props.interactive && props.editable) {
-    map.on('click', async (e: L.LeafletMouseEvent) => {
-      if (suppressMapClick) return
-      const { lat, lng } = e.latlng
-      setMarker(lat, lng, undefined, { recenter: true, allowAutoLayer: true })
-      emit('update:latitude', lat)
-      emit('update:longitude', lng)
-      emit('coordinates-changed', lat, lng)
-      hasCoordinates.value = true
-      await reverseGeocode(lat, lng)
-    })
-  }
+  applyMapClickHandler()
+  applyMarkerEditability()
 
   // Fix: invalidateSize nach dem Layout stabil ist, damit Tiles korrekt laden
   setTimeout(() => {
@@ -680,20 +670,12 @@ function setMarker(
 
   if (marker) {
     marker.setLatLng([lat, lng])
+    applyMarkerEditability()
   } else {
     marker = L.marker([lat, lng], {
       draggable: props.interactive && props.editable,
     }).addTo(map)
-
-    if (props.interactive && props.editable) {
-      marker.on('dragend', async () => {
-        const pos = marker!.getLatLng()
-        emit('update:latitude', pos.lat)
-        emit('update:longitude', pos.lng)
-        emit('coordinates-changed', pos.lat, pos.lng)
-        await reverseGeocode(pos.lat, pos.lng)
-      })
-    }
+    applyMarkerEditability()
   }
 
   if (recenter) {
@@ -900,9 +882,52 @@ function applyMapInteractivity() {
     map.keyboard.disable()
     map.dragging.disable()
   }
+  applyMapClickHandler()
+  applyMarkerEditability()
 }
 
-watch([() => props.interactive, () => props.scrollWheelZoom], () => {
+async function onMapClickSetLocation(e: L.LeafletMouseEvent) {
+  if (suppressMapClick) return
+  const { lat, lng } = e.latlng
+  setMarker(lat, lng, undefined, { recenter: true, allowAutoLayer: true })
+  emit('update:latitude', lat)
+  emit('update:longitude', lng)
+  emit('coordinates-changed', lat, lng)
+  hasCoordinates.value = true
+  await reverseGeocode(lat, lng)
+}
+
+function applyMapClickHandler() {
+  if (!map) return
+  map.off('click', onMapClickSetLocation)
+  if (props.interactive && props.editable) {
+    map.on('click', onMapClickSetLocation)
+  }
+}
+
+async function onMarkerDragEnd() {
+  if (!marker) return
+  const pos = marker.getLatLng()
+  emit('update:latitude', pos.lat)
+  emit('update:longitude', pos.lng)
+  emit('coordinates-changed', pos.lat, pos.lng)
+  await reverseGeocode(pos.lat, pos.lng)
+}
+
+function applyMarkerEditability() {
+  if (!marker) return
+  const canDrag = props.interactive && props.editable
+  if (canDrag) {
+    marker.dragging?.enable()
+    marker.off('dragend', onMarkerDragEnd)
+    marker.on('dragend', onMarkerDragEnd)
+  } else {
+    marker.dragging?.disable()
+    marker.off('dragend', onMarkerDragEnd)
+  }
+}
+
+watch([() => props.interactive, () => props.scrollWheelZoom, () => props.editable], () => {
   applyMapInteractivity()
 })
 

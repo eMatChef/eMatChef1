@@ -177,8 +177,8 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 
 1. **Physische Sperre** — `GREATEST(quantity_packed, quantity_returned, quantity_issued) - quantity_stored` ab Status `packing` … `returned`. Bei **Zeitraum-Abfrage** nur wenn Planungszeitraum der blockierenden Aktivität überlappt (z. B. 5 draussen am 06.06. blockieren nicht die Buchung für 20.06., wenn die Planung nicht kollidiert). Ohne Zeitraum: alle offenen Pipeline-Mengen. Eingelagerte Menge ist sofort frei.
 2. **Zeitraum-Reservierung** — `activity_item.quantity` nur in `draft`/`submitted`/`approved` bei Overlap mit `planning_start`/`planning_end` (Fallback `usage_*`). Frühes Packen vor `planning_start`: Sperre über `quantity_packed` im überlappenden Zeitraum.
-3. **Abschluss** (`storing` → `completed`) blockiert bei: offenem Einlagern (`quantity_stored`), offenen Issue-Meldungen, Werkstatt-Tickets, **allen** ausstehenden Buchhaltungs-Aufträgen.
-4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss; Kosten laufen über die einzelnen Buchhaltungs-Aufträge ab Retour.
+3. **Abschluss** (`storing` → `completed`) — **Aktivitäts-Abschluss** (Ziel): Material muss physisch geklärt sein (eingelagert **oder** Verlust/Reparatur gemeldet / in Werkstatt). **Keine** Blockade durch ausstehende Buchhaltung oder unfertige Werkstatt-*Kosten*. Effektive Kostenverrechnung = separater **Buchhaltungs-Abschluss** ([accounting.md](../accounting.md#zwei-abschlüsse-kernmodell)). *(Ist-Code blockiert noch durch Werkstatt-Tickets + Accounting-Follow-ups — Umbau geplant.)*
+4. **`completed` steuert nicht die Verfügbarkeit** — nur Vorgangsabschluss. Kosten: optional Einnahme-Vermerk in der Aktivität; Buchung immer in `/accounting`, sobald Kosten geklärt sind.
 5. **Quick / External:** keine Transport-UI; Logistics: volle Pipeline.
 6. **Verbrauchsmaterial einlagern:** Maximal `quantity_ordered − Verbrauchsmeldungen − quantity_stored` (auch wenn `quantity_returned` noch 0 ist). Formale Retour-Stücke nutzen weiterhin `maxStored` aus Pack-Feldern.
 7. **Mehr Menge als gebucht:** über **Nachlieferung** auf der Aktivität (`activity_item` mit `is_replenishment`), nicht über Einlagern. **Neue Charge/Batch** im Modul Material = physischer Lagerbestand, unabhängig von der Aktivitäts-Buchung.
@@ -206,7 +206,8 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 - [x] `quantity_stored` (+ Backend-Stufe `stored`) in DB und Pipeline
 - [x] `returned_unpack` UI an Stufe `stored` gekoppelt (links: Retour offen, rechts: Ausgepackt / eingelagert)
 - [x] Verfügbarkeit: Pipeline-Sperre `GREATEST(packed, returned) - stored`; bei Zeitraum-Abfrage mit Planungs-Overlap; Zeitraum-Reservierung bis `approved`; Reparatur-Batches abgezogen (`MaterialAvailabilityReservationQuery`, `MaterialAvailabilityController`)
-- [x] Abschluss-Blocker: Einlagerung, Issues, Werkstatt, Buchhaltung (`ActivityController::getCompletionBlockers`)
+- [x] Abschluss-Blocker (#7 Phase 1): nur Einlagerung / Disposition (`unstored_pack_items`); Werkstatt & Buchhaltung = Hinweise
+- [x] Abschluss-Blocker (Ziel): nur Material-Disposition; Buchhaltung entkoppelt — [accounting.md](../accounting.md#umsetzungsplan-top-10-7)
 - [x] `activity_item.status`: Sync aus Pack-Pipeline (`ActivityItemPipelineStatusService`) bei Move, Kisten, Statuswechsel
 - [x] Abschluss-Blocker Einlagerung über `PackPipelineService::maxForwardQty(stored)` (+ Verbrauch pro Material)
 - [x] UI: Abschluss-Checkliste bei Status `returned` (`ActivityCompletionChecklist`, Blocker aus `GET …/transitions`)

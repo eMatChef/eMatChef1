@@ -94,6 +94,17 @@ export interface ActivityDetail extends ActivityCreatedResponse {
   deposit_amount?: number | null
   deposit_paid?: boolean
   is_paid?: boolean
+  /** MW hat Kostenübersicht freigegeben */
+  costs_released?: boolean
+  costs_released_at?: string | null
+  costs_released_by_user?: ActivityUserSummary | null
+  /** Einnahme-Vermerk: cash | invoice | null (#7 Phase 3) */
+  collection_note?: 'cash' | 'invoice' | null
+  collection_note_amount?: number | null
+  collection_note_at?: string | null
+  collection_note_by_user?: ActivityUserSummary | null
+  /** Vermietung: Anzeige-Label für Verrechnung an Kunden */
+  external_customer_label?: string | null
   notes?: string | null
   deleted_at?: string | null
   submitted_at?: string | null
@@ -165,10 +176,14 @@ export interface ActivityCompletionBlockerFollowUp {
 }
 
 export interface ActivityCompletionBlockers {
+  /** true wenn unstored_pack_items_count > 0 (einziger harter Blocker, #7 Phase 1) */
+  blocks_completion?: boolean
   unstored_pack_items_count?: number
   open_issue_reports_count?: number
   open_workshop_tickets_count?: number
   pending_accounting_followups_count?: number
+  /** MW-Kostenfreigabe erledigt */
+  costs_released?: boolean
   unstored_pack_items?: Array<{
     id: string
     material_name?: string | null
@@ -317,13 +332,27 @@ export type PatchActivityPayload = Partial<Omit<CreateActivityPayload, 'departme
   viewer_department_id?: string | null
   wants_js_material?: boolean
   participant_count?: number | null
+  /** MW-Kostenfreigabe (nur returned/storing) */
+  costs_released?: boolean
 }
 
 export async function patchActivity(
   activityId: string,
   payload: PatchActivityPayload,
-): Promise<ActivityCreatedResponse> {
-  const { data } = await apiClient.patch<ActivityCreatedResponse>(`/api/activities/${activityId}`, payload)
+): Promise<ActivityDetail> {
+  const { data } = await apiClient.patch<ActivityDetail>(`/api/activities/${activityId}`, payload)
+  return data
+}
+
+/** Einnahme-Vermerk Bar/Rechnung (#7 Phase 3) — MW/DC */
+export async function upsertActivityCollectionNote(
+  activityId: string,
+  payload: { note: 'cash' | 'invoice' | null; amount?: number | null },
+): Promise<ActivityDetail> {
+  const { data } = await apiClient.patch<ActivityDetail>(
+    `/api/activities/${activityId}/collection-note`,
+    payload,
+  )
   return data
 }
 

@@ -30,6 +30,7 @@ Phasenplan für Umsetzung und Einführung. Baut auf abgeschlossenem [QR-URL-Umba
 | Abteilung | **Ein Gerät = eine Abteilung**, Login zu Schichtbeginn |
 | Offline v1 | **Keine Queue** — klare Fehlermeldung, Scan wiederholen |
 | `qr.` beim Scan | **Nie** Navigation zur QR-URL — nur Parser + API |
+| Auth später | QR-Geräte-Kopplung + User-PIN + Zugriffs-Tracking — [device-pairing-and-sessions.md](./device-pairing-and-sessions.md) (nach Pack-MVP) |
 
 ---
 
@@ -248,4 +249,5 @@ Siehe [local-dev-handheld.md](./local-dev-handheld.md).
 ## Siehe auch
 
 - [concept.md](./concept.md)
+- [device-pairing-and-sessions.md](./device-pairing-and-sessions.md) — geplante Geräte-Kopplung / PIN / Session-Tracking
 - [../work/qr-url-umbau-plan.md](../work/qr-url-umbau-plan.md)

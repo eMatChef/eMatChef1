@@ -167,6 +167,8 @@ interface Props {
   departmentId: string
   options: ComboOption[]
   groups: ComboOptionGroup[]
+  /** Optional guard before BOM/options mutations (e.g. open-activity warning). */
+  beforeMutate?: () => Promise<boolean>
 }
 const props = defineProps<Props>()
 const emit = defineEmits<{ (e: 'reload'): void }>()
@@ -175,6 +177,11 @@ const { t } = useI18n()
 
 const error = ref('')
 const modalError = ref('')
+
+async function guardMutate(): Promise<boolean> {
+  if (!props.beforeMutate) return true
+  return props.beforeMutate()
+}
 
 // Lokale Kopien für inline editierbare Gruppen.
 const sortedGroups = computed(() => [...props.groups].sort((a, b) => a.sort_order - b.sort_order))
@@ -206,6 +213,7 @@ const materialFetcher = async (query: string) => {
 
 // ── Gruppen ──
 async function addGroup() {
+  if (!(await guardMutate())) return
   error.value = ''
   try {
     const maxSort = props.groups.reduce((acc, g) => Math.max(acc, g.sort_order), -1)
@@ -223,6 +231,7 @@ async function addGroup() {
 }
 
 async function saveGroup(group: ComboOptionGroup) {
+  if (!(await guardMutate())) return
   error.value = ''
   try {
     await updateComboOptionGroup(props.materialId, group.id, {
@@ -244,6 +253,7 @@ function saveGroupMax(group: ComboOptionGroup, e: Event) {
 }
 
 async function removeGroup(group: ComboOptionGroup) {
+  if (!(await guardMutate())) return
   error.value = ''
   try {
     await deleteComboOptionGroup(props.materialId, group.id)
@@ -316,6 +326,7 @@ function pickDeltaMaterial(idx: number, item: Record<string, unknown>) {
 
 async function submitOption() {
   if (!canSubmit.value) return
+  if (!(await guardMutate())) return
   modalSubmitting.value = true
   modalError.value = ''
   try {
@@ -352,6 +363,7 @@ async function submitOption() {
 }
 
 async function removeOption(opt: ComboOption) {
+  if (!(await guardMutate())) return
   error.value = ''
   try {
     await deleteComboOption(props.materialId, opt.id)

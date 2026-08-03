@@ -87,7 +87,7 @@ async function loadPins() {
         variant: 'venue',
       })
     }
-    const delivery = (data.child_addresses ?? [])[0]
+    const delivery = (data.child_addresses ?? []).find((a) => a.type === 'event_delivery')
     if (
       delivery?.latitude != null &&
       delivery.longitude != null &&
@@ -99,6 +99,18 @@ async function loadPins() {
         latitude: delivery.latitude,
         longitude: delivery.longitude,
         variant: 'delivery',
+      })
+    }
+    for (const poi of data.child_addresses ?? []) {
+      if (poi.type !== 'event_poi') continue
+      if (poi.latitude == null || poi.longitude == null) continue
+      next.push({
+        id: poi.id,
+        label: poi.name || t('activities.venueLocations.poiFallbackLabel'),
+        latitude: poi.latitude,
+        longitude: poi.longitude,
+        variant: 'poi',
+        color: poi.pin_color,
       })
     }
     pins.value = next

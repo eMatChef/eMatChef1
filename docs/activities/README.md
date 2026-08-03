@@ -10,6 +10,8 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 
 | Datei | Inhalt |
 |--------|--------|
+| **[pack-steps-spezifikation.md](./pack-steps-spezifikation.md)** | **Top-10 #1:** Kern + 1d + 1c erledigt · Rest → **#7** Ph. 3–6 |
+| **[Kombos — Verbesserungen](../material/combos/verbesserungen.md)** | C1–C12 erledigt · Slice **#1d** geschlossen |
 | **[status.md](./status.md)** | Alle Aktivitäts-Status, Übergänge, Rollen (inkl. `transport_out`, `storing`) |
 | **[material-pipeline.md](./material-pipeline.md)** | Bestellung vs. Pack-Pipeline (`quantity_*`), Quick vs. Logistics |
 | **[newUI/ADR-workflow-layers.md](./newUI/ADR-workflow-layers.md)** | **Entscheidung:** Stepper = Activity-Status; Material unabhängig |

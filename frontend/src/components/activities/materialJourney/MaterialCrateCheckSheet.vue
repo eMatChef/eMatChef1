@@ -11,6 +11,7 @@ import {
 } from '@/api/activityContainers'
 import { postPackCrateCheck, type PackCrateCheckRequest } from '@/api/activityPackCrateCheck'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
+import { isVirtualComboTogetherContainer } from '@/components/activities/packWorkflowRules'
 import PackCrateShellForwardModal from '@/components/activities/PackCrateShellForwardModal.vue'
 import PackCrateShellInlinePanel from '@/components/activities/PackCrateShellInlinePanel.vue'
 import PackPhysComboStoreChecklistModal from '@/components/activities/PackPhysComboStoreChecklistModal.vue'
@@ -276,6 +277,12 @@ const showShellStore = computed(() => {
 })
 
 const emptyHint = computed(() => {
+  if (
+    props.container &&
+    isVirtualComboTogetherContainer(props.container)
+  ) {
+    return t('activities.materialJourney.crateSheet.emptyVirtualSet')
+  }
   if (props.shellPackItem) {
     return t('activities.packList.cratePeekEmptyLinkedCrate')
   }

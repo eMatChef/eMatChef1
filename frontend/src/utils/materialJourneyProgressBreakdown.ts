@@ -1,4 +1,5 @@
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 
 export type MaterialJourneyProgressBreakdown = {
   crates: number
@@ -15,7 +16,7 @@ export function computeMaterialJourneyProgressBreakdown(
   for (const row of rows) {
     const matches = mode === 'open' ? row.isOpen : row.isDone
     if (!matches) continue
-    if (row.kind === 'crate') {
+    if (isMaterialJourneyCrateKind(row.kind)) {
       breakdown.crates++
     } else if (row.badges.includes('consumable')) {
       breakdown.consumables++

@@ -10,6 +10,7 @@ import {
 } from '@/components/activities/packNotTakenHelpers'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 
 export type AtEventQtySummary = {
   total: number
@@ -102,7 +103,7 @@ export function crateShellIssuedAtEvent(
   row: MaterialJourneyTaskRow,
   shellPackItemForContainer?: (containerId: string) => ActivityPackItem | undefined,
 ): boolean {
-  if (row.kind !== 'crate' || !row.container || !shellPackItemForContainer) return false
+  if (!isMaterialJourneyCrateKind(row.kind) || !row.container || !shellPackItemForContainer) return false
   const shell = shellPackItemForContainer(row.container.id)
   return (shell?.quantityIssued ?? 0) > 0
 }
@@ -118,7 +119,7 @@ export function issuedQtyForAccordionLineAtEvent(
     return line.quantity
   }
   /** Kisteninhalt reist mit Shell — quantity_packed zählt als am Anlass. */
-  if (options?.crateShellIssued && row.kind === 'crate' && line.quantity > 0) {
+  if (options?.crateShellIssued && isMaterialJourneyCrateKind(row.kind) && line.quantity > 0) {
     return line.quantity
   }
   return line.quantity > 0 ? line.quantity : explicitIssued

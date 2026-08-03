@@ -27,6 +27,7 @@ export interface Address {
   phone: string | null
   mobile: string | null
   additional_info: string | null
+  pin_color?: string | null
   is_primary: boolean
   full_address: string
   deleted_at?: string | null
@@ -54,6 +55,7 @@ export interface AddressFormData {
   phone?: string | null
   mobile?: string | null
   additional_info?: string | null
+  pin_color?: string | null
   is_primary?: boolean
 }
 
@@ -218,6 +220,8 @@ export const ADDRESS_TYPES: AddressTypes = {
   'storage': 'Lagerstandort',
   'customer': 'Kundenadresse',
   'event': 'Eventstandort',
+  'event_delivery': 'Zustellpunkt (Event)',
+  'event_poi': 'Event-Punkt',
   'meeting': 'Treffpunkt',
   'office': 'Büro',
   'private': 'Privat',

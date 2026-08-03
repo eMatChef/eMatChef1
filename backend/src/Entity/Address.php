@@ -33,6 +33,7 @@ class Address
 
     public const TYPE_EVENT = 'event';
     public const TYPE_EVENT_DELIVERY = 'event_delivery';
+    public const TYPE_EVENT_POI = 'event_poi';
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     #[ORM\GeneratedValue(strategy: 'NONE')]
@@ -162,7 +163,7 @@ class Address
     private ?string $deletedByUserId = null;
 
     /**
-     * Übergeordnete Adresse (z. B. Eventstandort für Zustellpunkt event_delivery).
+     * Übergeordnete Adresse (z. B. Eventstandort für Zustellpunkt / Event-POI).
      */
     #[ORM\Column(name: 'parent_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $parentId = null;
@@ -170,6 +171,12 @@ class Address
     #[ORM\ManyToOne(targetEntity: self::class)]
     #[ORM\JoinColumn(name: 'parent_id', referencedColumnName: 'id', nullable: true, onDelete: 'CASCADE')]
     private ?Address $parent = null;
+
+    /**
+     * Markerfarbe (Hex, z. B. #16a34a) — vor allem für event_poi.
+     */
+    #[ORM\Column(name: 'pin_color', type: 'string', length: 7, nullable: true)]
+    private ?string $pinColor = null;
 
     public function __construct()
     {
@@ -529,6 +536,17 @@ class Address
         return $this;
     }
 
+    public function getPinColor(): ?string
+    {
+        return $this->pinColor;
+    }
+
+    public function setPinColor(?string $pinColor): self
+    {
+        $this->pinColor = $pinColor;
+        return $this;
+    }
+
     public function isDeleted(): bool
     {
         return $this->deletedAt !== null;
@@ -633,6 +651,7 @@ class Address
             'phone' => $this->phone,
             'mobile' => $this->mobile,
             'additional_info' => $this->additionalInfo,
+            'pin_color' => $this->pinColor,
             'is_primary' => $this->isPrimary,
             'full_address' => $this->getFullAddress(),
             'deleted_at' => $this->deletedAt?->format('c'),
@@ -654,6 +673,7 @@ class Address
             'customer' => 'Kundenadresse',
             'event' => 'Eventstandort',
             'event_delivery' => 'Zustellpunkt (Event)',
+            'event_poi' => 'Event-Punkt',
             'meeting' => 'Treffpunkt',
             'office' => 'Büro',
             'private' => 'Privat',

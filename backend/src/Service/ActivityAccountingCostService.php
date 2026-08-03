@@ -13,7 +13,7 @@ use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * Buchhaltung für Aktivitätskosten: mehrere Anschaffungs-Aufträge pro Aktivität
+ * Buchhaltung für Aktivitätskosten: mehrere Buchhaltungs-Aufträge pro Aktivität
  * (Verbrauch gesammelt, Miete extern, Werkstatt pro Ticket, optional Nachlieferung).
  */
 class ActivityAccountingCostService
@@ -48,31 +48,7 @@ class ActivityAccountingCostService
         $this->syncWorkshopFollowUps($activity);
     }
 
-    /** @deprecated */
-    public function enqueueFromConsumption(Activity $activity, ActivityIssueReport $report): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
     public function enqueueAccountingForMaterialOnStore(Activity $activity, string $materialItemId): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated */
-    public function finalizeConsumptionAccountingForActivity(Activity $activity): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated Keine Sammel-Endabrechnung mehr. */
-    public function enqueueFinalActivityBilling(Activity $activity): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated */
-    public function ensurePendingFinalBilling(Activity $activity): void
     {
         $this->syncActivityAccountingFollowUps($activity);
     }
@@ -86,7 +62,7 @@ class ActivityAccountingCostService
         $this->syncWorkshopFollowUps($activity);
     }
 
-    /** @deprecated Nur noch für Tests/Vergleich — Summe aller Follow-up-Beträge. */
+    /** Summe aller Follow-up-Beträge (Tests/Vergleich). */
     public function computeActivityBillingTotal(Activity $activity): float
     {
         $activityId = $activity->getId();

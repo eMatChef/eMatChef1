@@ -170,7 +170,15 @@
         :activity-id="activityId"
         :host-department-id="departmentId"
         :activity-status="activity.status ?? ''"
+        :activity-type="activity.type"
+        :group-name="activity.group_name"
+        :external-customer-label="activity.external_customer_label"
+        :activity-name="activity.name"
+        :costs-released="Boolean(activity.costs_released)"
+        :costs-release-loading="costsReleaseInProgress"
+        :costs-total="costsPreviewTotal"
         @go-tab="onCompletionGoTab"
+        @release-costs="openCostsReleaseConfirm()"
       />
 
       <v-alert
@@ -182,6 +190,17 @@
         icon="mdi-information-outline"
       >
         {{ t('activities.detail.memberScopeStatusHint') }}
+      </v-alert>
+
+      <v-alert
+        v-if="showMemberPostReturnHandoffLockHint"
+        type="info"
+        variant="tonal"
+        density="compact"
+        class="activity-member-scope-alert"
+        icon="mdi-lock-outline"
+      >
+        {{ t('activities.detail.memberPostReturnHandoffHint') }}
       </v-alert>
 
       <div class="activity-detail-tabs-window">
@@ -479,6 +498,23 @@
                   @update:model-value="onDraftLinesTableUpdate"
                   @remove-line="onDraftTableRemoveLine"
                   @pack-mode-change="onVirtualComboPackModeChange"
+                  @reconfigure-virtual-combo="onReconfigureVirtualCombo"
+                />
+                <ComboConfiguratorDialog
+                  v-if="reconfigureVirtualComboState"
+                  :combo-id="reconfigureVirtualComboState.materialItemId"
+                  :combo-name="reconfigureVirtualComboState.materialName"
+                  :department-id="departmentId"
+                  :activity-id="activityId"
+                  :start-iso="activity?.planning_start ?? null"
+                  :end-iso="activity?.planning_end ?? null"
+                  :initial-quantity="reconfigureVirtualComboState.quantity"
+                  :initial-selected-option-ids="reconfigureVirtualComboState.selectedOptionIds"
+                  :initial-pack-mode="reconfigureVirtualComboState.packMode"
+                  :initial-self-provided-acknowledged="reconfigureVirtualComboState.selfProvidedAcknowledged"
+                  :standalone-quantity-by-material-item-id="standaloneQuantityByMaterialItemId"
+                  @confirm="onReconfigureVirtualComboConfirm"
+                  @cancel="reconfigureVirtualComboState = null"
                 />
                 <p v-if="syncingQuantities" class="activity-qty-autosave-hint text-muted">
                   {{ t('activities.detail.saveQtySaving') }}
@@ -593,8 +629,8 @@
               ref="materialJourneyRef"
               :department-id="departmentId"
               :activity-id="activityId"
+              :activity-created-by-user-id="activity.created_by_user_id ?? null"
               :transitions="transitions"
-              :completion-blockers="completionBlockers"
               :can-report-issues="showDamageReportEntry"
               :can-report-consumption="showConsumptionBooking"
               :can-request-consumable-nachbuchung="canRequestConsumableNachbuchung"
@@ -688,6 +724,18 @@
               :activity-type="activity.type"
               :activity-status="activity.status"
               :reload-token="costsReloadToken"
+              :group-name="activity.group_name"
+              :external-customer-label="activity.external_customer_label"
+              :activity-name="activity.name"
+              :costs-released="Boolean(activity.costs_released)"
+              :costs-release-loading="costsReleaseInProgress"
+              :can-release-costs="canReleaseCosts"
+              :collection-note="activity.collection_note ?? null"
+              :collection-note-amount="activity.collection_note_amount ?? null"
+              :can-edit-collection-note="canManageMaterials"
+              @release-costs="openCostsReleaseConfirm"
+              @costs-preview="onCostsPreview"
+              @collection-note-updated="onCollectionNoteUpdated"
             />
             </div>
           </ActivityDetailTabPane>
@@ -735,6 +783,41 @@
       @success="onNachbuchungModalSuccess"
     />
 
+    <EDialog
+      v-model="costsReleaseConfirmOpen"
+      :title="t('activities.costs.releaseConfirmTitle')"
+      :max-width="480"
+      :persistent="costsReleaseInProgress"
+      card-variant="outlined"
+    >
+      <div class="costs-release-confirm">
+        <p class="costs-release-confirm__lead text-muted">
+          {{ t('activities.costs.releaseConfirmLead') }}
+        </p>
+        <p class="costs-release-confirm__charge">{{ costsReleaseConfirmChargeLabel }}</p>
+        <div v-if="costsReleaseConfirmTotal != null" class="costs-release-confirm__total">
+          <span>{{ t('activities.costs.releaseTotal') }}</span>
+          <strong>CHF {{ costsReleaseConfirmTotalLabel }}</strong>
+        </div>
+        <p class="costs-release-confirm__hint text-muted">
+          {{ t('activities.costs.releaseHint') }}
+        </p>
+      </div>
+      <template #actions>
+        <v-spacer />
+        <EButton variant="secondary" :disabled="costsReleaseInProgress" @click="costsReleaseConfirmOpen = false">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          :loading="costsReleaseInProgress"
+          @click="confirmCostsRelease()"
+        >
+          {{ t('activities.costs.releaseAction') }}
+        </EButton>
+      </template>
+    </EDialog>
+
     <PublicQrActionModal
       :open="showActivityQrActionModal"
       :label="activity?.name"
@@ -761,6 +844,7 @@ import {
   getActivityIssues,
   getActivityItems,
   getActivityTransitions,
+  patchActivity,
   patchActivityStatus,
   removeActivityItem,
   syncActivityItems,
@@ -773,6 +857,7 @@ import {
 } from '@/api/activities'
 import { getPackItems, type ActivityPackItem } from '@/api/activityPackItems'
 import ActivityMaterialAvailabilityLookup from '@/components/activities/ActivityMaterialAvailabilityLookup.vue'
+import ComboConfiguratorDialog from '@/components/activities/ComboConfiguratorDialog.vue'
 import ActivityMaterialLinesTable from '@/components/activities/shared/ActivityMaterialLinesTable.vue'
 import ActivityDraftOverviewForm from '@/components/activities/ActivityDraftOverviewForm.vue'
 import ActivityTabHeader from '@/components/activities/ActivityTabHeader.vue'
@@ -842,6 +927,7 @@ import {
   activityAllowsConsumptionBooking,
   activityAllowsDamageReport,
   activityAllowsIssueReports,
+  isMemberPostReturnHandoffLock,
   resolveActiveJourneyStep,
   resolveEffectiveActiveJourneyStep,
 } from '@/utils/materialJourneyNavigation'
@@ -853,7 +939,8 @@ import {
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
 import type { PackStage } from '@/components/activities/packStageQuantities'
-import { EButton } from '@/components/form/base'
+import { resolveActivityPrimaryChargeTarget } from '@/utils/activityChargeTarget'
+import { EButton, EDialog } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import QRCode from 'qrcode'
 
@@ -1066,6 +1153,7 @@ const canManageActivityVehicles = computed(() => {
   const act = activity.value
   if (!act) return false
   if (canManageMaterials.value) return true
+  if (isMemberPostReturnHandoffLock(act, false)) return false
   return act.created_by_user_id === authStore.userId
 })
 
@@ -1122,6 +1210,14 @@ const showMaterialCompletionChecklist = computed(() => {
   return ['returned', 'storing'].includes(s)
 })
 
+/** Kosten freigeben erst, wenn nichts mehr zum Einlagern offen ist. */
+const canReleaseCosts = computed(() => {
+  if (!activity.value) return false
+  const s = activity.value.status ?? ''
+  if (!['returned', 'storing'].includes(s)) return false
+  return (completionBlockers.value?.unstored_pack_items_count ?? 0) === 0
+})
+
 /** Reparaturen / Verluste: ab «Am Event» (Material ausgegeben) */
 const STATUSES_WITH_ISSUES_TAB = ['at_event', 'transport_back', 'returned', 'storing', 'completed'] as const
 
@@ -1160,6 +1256,13 @@ const showMemberScopeStatusHint = computed(() => {
   const s = activity.value?.status
   if (!s || !isRestrictedGroupMember.value || !isGroupHandoffActivityType.value) return false
   return ['submitted', 'approved', 'packing', 'packed'].includes(s)
+})
+
+/** Gruppe nach Retour-Übergabe: Hinweis nur ausserhalb Packliste (dort zeigt der Journey-Banner). */
+const showMemberPostReturnHandoffLockHint = computed(() => {
+  if (!isMemberPostReturnHandoffLock(activity.value, canManageMaterials.value)) return false
+  if (activeTab.value === 'packs' && !useLegacyPackUi.value) return false
+  return true
 })
 
 function activityItemIsConsumable(row: ActivityItemRow): boolean {
@@ -1287,6 +1390,7 @@ function onPackingHeaderReady(ready: boolean): void {
 
 function onStoreHeaderReady(ready: boolean): void {
   storeStageCompleteForHeader.value = ready
+  if (ready) void refreshCompletionBlockers()
 }
 
 watch(
@@ -1659,7 +1763,12 @@ const showJsOrderCard = computed(() => {
   return a.wants_js_material === true && (a.type === 'camp' || a.type === 'event')
 })
 
-const canEditJsOrder = computed(() => showMaterialLookup.value)
+const canEditJsOrder = computed(() => {
+  // Bestellformular folgt Material-Rechten. Empfang/Retour-Checks im J+S-Tab
+  // bleiben für die Gruppe nach Übergabe über checksReadonly offen.
+  if (isMemberPostReturnHandoffLock(activity.value, canManageMaterials.value)) return false
+  return showMaterialLookup.value
+})
 
 watch(showJsOrderCard, (show) => {
   if (!show && activeTab.value === 'js') {
@@ -2386,6 +2495,72 @@ async function onVirtualComboPackModeChange(payload: {
   await saveDraftQuantities({ successToastKey: 'activities.detail.toastPackModeSaved' })
 }
 
+type ReconfigureVirtualComboState = {
+  activityItemId: string
+  materialItemId: string
+  materialName: string
+  quantity: number
+  selectedOptionIds: string[]
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+}
+
+const reconfigureVirtualComboState = ref<ReconfigureVirtualComboState | null>(null)
+
+function onReconfigureVirtualCombo(payload: { line: ActivityMaterialLine; index: number }) {
+  if (!virtualComboPackModeEditable.value) return
+  const line = payload.line
+  if (line.material_type !== 'virtual_combo' || !line.activity_item_id) return
+  const snap = line.config_snapshot
+  reconfigureVirtualComboState.value = {
+    activityItemId: line.activity_item_id,
+    materialItemId: line.material_item_id,
+    materialName: line.material_name,
+    quantity: Math.max(1, line.quantity),
+    selectedOptionIds: [...(snap?.selected_option_ids ?? [])],
+    packMode: snap?.pack_mode === 'together' ? 'together' : 'loose',
+    selfProvidedAcknowledged: Boolean(snap?.self_provided_acknowledged),
+  }
+}
+
+async function onReconfigureVirtualComboConfirm(payload: {
+  selectedOptionIds: string[]
+  quantity: number
+  packMode: 'together' | 'loose'
+  selfProvidedAcknowledged: boolean
+}) {
+  const state = reconfigureVirtualComboState.value
+  reconfigureVirtualComboState.value = null
+  if (!state || !virtualComboPackModeEditable.value) return
+
+  const itemId = state.activityItemId
+  activityItems.value = activityItems.value.map((r) => {
+    if (r.id !== itemId) return r
+    const prevSnap = r.config_snapshot ?? {}
+    return {
+      ...r,
+      quantity: Math.max(1, payload.quantity),
+      config_snapshot: {
+        ...prevSnap,
+        selected_option_ids: [...payload.selectedOptionIds],
+        pack_mode: payload.packMode,
+        ...(payload.selfProvidedAcknowledged
+          ? { self_provided_acknowledged: true }
+          : { self_provided_acknowledged: false }),
+      },
+    }
+  })
+  draftQuantities.value = {
+    ...draftQuantities.value,
+    [itemId]: Math.max(1, payload.quantity),
+  }
+  draftPackModes.value = {
+    ...draftPackModes.value,
+    [itemId]: payload.packMode,
+  }
+  await saveDraftQuantities({ successToastKey: 'activities.detail.toastVirtualComboReconfigured' })
+}
+
 async function onDraftOverviewSaved() {
   await reloadActivityDetailSoft()
 }
@@ -2697,7 +2872,8 @@ async function refreshActivityTotalsFromApi() {
 }
 
 async function refreshCompletionBlockers() {
-  if (activity.value?.status !== 'returned') {
+  const status = activity.value?.status ?? ''
+  if (status !== 'returned' && status !== 'storing') {
     completionBlockers.value = null
     return
   }
@@ -3066,6 +3242,99 @@ function onCompletionGoTab(tab: 'packs' | 'issues' | 'costs') {
   mergeActivityQuery(updates)
 }
 
+const costsReleaseInProgress = ref(false)
+const costsReleaseConfirmOpen = ref(false)
+const costsReleaseConfirmTotal = ref<number | null>(null)
+const costsPreviewTotal = ref<number | null>(null)
+
+const costsReleaseConfirmChargeLabel = computed(() => {
+  const a = activity.value
+  if (!a) return t('activities.costs.chargeUnknown')
+  const target = resolveActivityPrimaryChargeTarget({
+    activityType: a.type ?? 'activity',
+    groupName: a.group_name,
+    externalCustomerLabel: a.external_customer_label,
+    activityName: a.name,
+  })
+  if (target.kind === 'group' && target.label) {
+    return t('activities.costs.chargeGroup', { name: target.label })
+  }
+  if (target.kind === 'external_customer' && target.label) {
+    return t('activities.costs.chargeExternal', { name: target.label })
+  }
+  return t('activities.costs.chargeUnknown')
+})
+
+const costsReleaseConfirmTotalLabel = computed(() => {
+  const n = costsReleaseConfirmTotal.value
+  if (n == null || Number.isNaN(n)) return '—'
+  return n.toFixed(2)
+})
+
+function onCostsPreview(payload: { total: number }): void {
+  costsPreviewTotal.value = payload.total
+  if (costsReleaseConfirmOpen.value && costsReleaseConfirmTotal.value == null) {
+    costsReleaseConfirmTotal.value = payload.total
+  }
+}
+
+function onCollectionNoteUpdated(payload: {
+  collection_note: 'cash' | 'invoice' | null
+  collection_note_amount: number | null
+  collection_note_at: string | null
+}): void {
+  if (!activity.value) return
+  activity.value.collection_note = payload.collection_note
+  activity.value.collection_note_amount = payload.collection_note_amount
+  activity.value.collection_note_at = payload.collection_note_at
+}
+
+/** Bestätigung wie beim Einlagern: Übersicht nochmals sehen, dann freigeben. */
+function openCostsReleaseConfirm(payload?: { total?: number }): void {
+  if (!activity.value || costsReleaseInProgress.value) return
+  if (activity.value.costs_released) return
+  if (!canReleaseCosts.value) return
+  const total = payload?.total ?? costsPreviewTotal.value
+  costsReleaseConfirmTotal.value =
+    total != null && !Number.isNaN(total) ? total : null
+  // Aus der Checkliste: Kosten-Tab öffnen, damit die Übersicht im Hintergrund sichtbar ist
+  if (activeTab.value !== 'costs') {
+    activeTab.value = 'costs'
+    mergeActivityQuery({ tab: 'costs' })
+    costsReloadToken.value += 1
+  }
+  costsReleaseConfirmOpen.value = true
+}
+
+async function confirmCostsRelease(): Promise<void> {
+  if (!activity.value || costsReleaseInProgress.value) return
+  if (activity.value.costs_released) {
+    costsReleaseConfirmOpen.value = false
+    return
+  }
+  costsReleaseInProgress.value = true
+  try {
+    const updated = await patchActivity(props.activityId, { costs_released: true })
+    Object.assign(activity.value, updated)
+    activity.value.costs_released = true
+    if (completionBlockers.value) {
+      completionBlockers.value = {
+        ...completionBlockers.value,
+        costs_released: true,
+      }
+    }
+    await refreshCompletionBlockers()
+    costsReloadToken.value += 1
+    costsReleaseConfirmOpen.value = false
+    toast.success(t('activities.costs.releaseDone'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } }; message?: string }
+    toast.error(e.response?.data?.error || e.message || t('activities.detail.toastStatusChangeFailed'))
+  } finally {
+    costsReleaseInProgress.value = false
+  }
+}
+
 async function onCancelActivity() {
   if (!cancelTransition.value) return
   const status = activity.value?.status
@@ -3174,5 +3443,33 @@ useBackgroundPoll({
 .activity-detail-view :deep(.detail-header) {
   position: static !important;
   top: auto !important;
+}
+
+.costs-release-confirm__lead {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.costs-release-confirm__charge {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.costs-release-confirm__total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-on-surface), 0.04);
+  font-size: 0.95rem;
+}
+
+.costs-release-confirm__hint {
+  margin: 0;
+  font-size: 0.85rem;
 }
 </style>

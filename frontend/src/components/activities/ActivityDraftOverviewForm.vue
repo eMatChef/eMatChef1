@@ -81,10 +81,13 @@
                 primary-type="event"
                 :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
                 :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+                :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
                 :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
                 inline-create-label-key="addresses.search.createEventVenueInline"
+                show-edit-button
                 @update:selected-id="(id) => onVenueAddressId(id, onChange)"
                 @create="openAddVenueAddressModal"
+                @edit="openEditVenueAddressModal"
               />
             </template>
           </AutoSaveField>
@@ -334,6 +337,8 @@
       :department-id="departmentId"
       default-type="event"
       :default-name="venueAddressModalDefaultName"
+      :address="venueAddressModalAddress"
+      :edit-address-id="venueAddressModalEditId"
       @close="closeVenueAddressModal"
       @saved="onVenueAddressModalSaved"
     />
@@ -343,6 +348,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import '@/styles/activity-create-wizard.css'
 import {
   patchActivity,
@@ -390,6 +396,7 @@ const emit = defineEmits<{
 
 const toast = useToast()
 const { t } = useI18n()
+const router = useRouter()
 const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
 const datetimeHostClasses = useDisplayHostClasses('activity-detail-datetime-host')
 const groups = ref<Group[]>([])
@@ -397,6 +404,8 @@ const addresses = ref<Address[]>([])
 const saving = ref(false)
 const showVenueAddressModal = ref(false)
 const venueAddressModalDefaultName = ref('')
+const venueAddressModalAddress = ref<Address | null>(null)
+const venueAddressModalEditId = ref<string | null>(null)
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const zeitraumSaving = ref(false)
 const zeitraumShowSaved = ref(false)
@@ -712,13 +721,21 @@ function onVenueAddressId(id: string | null, onChange: () => void) {
 }
 
 function openAddVenueAddressModal(presetName = '') {
+  venueAddressModalAddress.value = null
+  venueAddressModalEditId.value = null
   venueAddressModalDefaultName.value = presetName.trim()
   showVenueAddressModal.value = true
+}
+
+function openEditVenueAddressModal(id: string) {
+  router.push(`/${props.departmentId}/contacts/${id}`)
 }
 
 function closeVenueAddressModal() {
   showVenueAddressModal.value = false
   venueAddressModalDefaultName.value = ''
+  venueAddressModalAddress.value = null
+  venueAddressModalEditId.value = null
 }
 
 async function reloadAddresses() {
@@ -739,6 +756,7 @@ async function onVenueAddressModalSaved(addr?: Address) {
     form.value.venue_address_id = addr.id
     await saveVenueAddressId(addr.id)
     onAutoFieldSaved()
+    router.push(`/${props.departmentId}/contacts/${addr.id}`)
   }
 }
 
@@ -1404,7 +1422,8 @@ defineExpose({
   border-radius: 8px;
 }
 
-.activity-venue-autosave-field :deep(.add-inline-btn) {
+.activity-venue-autosave-field :deep(.add-inline-btn),
+.activity-venue-autosave-field :deep(.edit-inline-btn) {
   width: 48px;
   height: 48px;
   min-height: 48px;

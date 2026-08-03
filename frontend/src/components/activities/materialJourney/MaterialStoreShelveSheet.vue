@@ -58,14 +58,18 @@ const racks = ref<StorageOverviewRack[]>([])
 
 let countdownTimer: ReturnType<typeof setInterval> | null = null
 
+const targetAddressLabel = computed(() => props.packItem?.storageAddressName?.trim() ?? '')
+
+/** Nur echtes Regal — nicht Lagerort-Adresse als Regal-Fallback. */
 const targetRackLabel = computed(() => {
   const fromContainer = props.storeRackName?.trim()
   if (fromContainer) return fromContainer
   const pi = props.packItem
   if (!pi) return ''
-  return packRackLabel(pi) || pi.storageAddressName?.trim() || ''
+  return packRackLabel(pi)
 })
 
+/** Nur echtes Fach — kein Regal-/Adress-Fallback (sonst «Hauptlager» doppelt). */
 const targetSlotLabel = computed(() => {
   const fromContainer = props.storeSlotName?.trim()
   if (fromContainer) return fromContainer
@@ -77,32 +81,42 @@ const materialDisplayName = computed(
 )
 
 const hasTargetLocation = computed(
-  () => targetRackLabel.value.length > 0 || targetSlotLabel.value.length > 0,
+  () =>
+    targetAddressLabel.value.length > 0 ||
+    targetRackLabel.value.length > 0 ||
+    targetSlotLabel.value.length > 0,
 )
+
+/** Hero-Hauptzeile: möglichst spezifisch (Fach → Regal → Lagerort). */
+const heroPrimaryLabel = computed(() => {
+  if (targetSlotLabel.value) return targetSlotLabel.value
+  if (targetRackLabel.value) return targetRackLabel.value
+  return targetAddressLabel.value
+})
+
+/** Hero-Unterzeile: übergeordnete Ebene. */
+const heroSecondaryLabel = computed(() => {
+  if (targetSlotLabel.value && targetRackLabel.value) return targetRackLabel.value
+  if (targetSlotLabel.value && targetAddressLabel.value) return targetAddressLabel.value
+  if (targetRackLabel.value && targetAddressLabel.value) return targetAddressLabel.value
+  return ''
+})
 
 const scannedLocationLabel = computed(() => scannedLookup.value?.label ?? '')
 
 const confirmLocationLabel = computed(() => {
   if (scannedLocationLabel.value) return scannedLocationLabel.value
   const parts: string[] = []
+  if (targetAddressLabel.value) parts.push(targetAddressLabel.value)
   if (targetRackLabel.value) parts.push(targetRackLabel.value)
   if (targetSlotLabel.value) parts.push(targetSlotLabel.value)
   return parts.join(' · ')
 })
 
 const manualStoreButtonLabel = computed(() => {
-  const rack = targetRackLabel.value
-  const slot = targetSlotLabel.value
-  let location = ''
-  if (rack && slot) {
-    location = `${rack} · ${t('activities.materialJourney.storeSheet.slotShort')} ${slot}`
-  } else if (slot) {
-    location = `${t('activities.materialJourney.storeSheet.slotShort')} ${slot}`
-  } else {
-    location = rack
-  }
+  const location = confirmLocationLabel.value
   return t('activities.materialJourney.storeSheet.manualStoreButton', {
-    location,
+    location: location || t('activities.materialJourney.storeSheet.noLocationShort'),
     count: props.qty,
   })
 })
@@ -343,11 +357,14 @@ onUnmounted(() => {
           <span class="material-store-shelve-sheet__target-kicker">
             {{ t('activities.materialJourney.storeSheet.bringTo') }}
           </span>
-          <p v-if="targetRackLabel && targetSlotLabel" class="material-store-shelve-sheet__target-rack">
-            {{ targetRackLabel }}
+          <p
+            v-if="heroSecondaryLabel"
+            class="material-store-shelve-sheet__target-rack"
+          >
+            {{ heroSecondaryLabel }}
           </p>
           <p class="material-store-shelve-sheet__target-slot">
-            {{ targetSlotLabel || targetRackLabel }}
+            {{ heroPrimaryLabel }}
           </p>
         </div>
         <div v-else-if="!hasTargetLocation && phase !== 'scan'" class="material-store-shelve-sheet__no-target text-muted">
@@ -385,7 +402,21 @@ onUnmounted(() => {
                 </span>
               </div>
             </div>
-            <div v-if="targetRackLabel" class="material-store-shelve-sheet__scan-context-row">
+            <div
+              v-if="targetAddressLabel"
+              class="material-store-shelve-sheet__scan-context-row"
+            >
+              <span class="material-store-shelve-sheet__scan-context-label">
+                {{ t('activities.materialJourney.storeSheet.addressShort') }}
+              </span>
+              <span class="material-store-shelve-sheet__scan-context-value">
+                {{ targetAddressLabel }}
+              </span>
+            </div>
+            <div
+              v-if="targetRackLabel"
+              class="material-store-shelve-sheet__scan-context-row"
+            >
               <span class="material-store-shelve-sheet__scan-context-label">
                 {{ t('activities.materialJourney.storeSheet.rackShort') }}
               </span>
@@ -393,12 +424,26 @@ onUnmounted(() => {
                 {{ targetRackLabel }}
               </span>
             </div>
-            <div class="material-store-shelve-sheet__scan-context-row material-store-shelve-sheet__scan-context-row--slot">
+            <div
+              v-if="targetSlotLabel || targetRackLabel"
+              class="material-store-shelve-sheet__scan-context-row material-store-shelve-sheet__scan-context-row--slot"
+            >
               <span class="material-store-shelve-sheet__scan-context-label">
                 {{ t('activities.materialJourney.storeSheet.slotShort') }}
               </span>
               <span class="material-store-shelve-sheet__scan-context-value material-store-shelve-sheet__scan-context-value--slot">
-                {{ targetSlotLabel || targetRackLabel || '–' }}
+                {{ targetSlotLabel || '–' }}
+              </span>
+            </div>
+            <div
+              v-else-if="!targetAddressLabel && !targetRackLabel && !targetSlotLabel"
+              class="material-store-shelve-sheet__scan-context-row material-store-shelve-sheet__scan-context-row--slot"
+            >
+              <span class="material-store-shelve-sheet__scan-context-label">
+                {{ t('activities.materialJourney.storeSheet.slotShort') }}
+              </span>
+              <span class="material-store-shelve-sheet__scan-context-value material-store-shelve-sheet__scan-context-value--slot">
+                {{ t('activities.materialJourney.storeSheet.noLocationShort') }}
               </span>
             </div>
           </section>
