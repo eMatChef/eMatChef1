@@ -1442,8 +1442,15 @@ function applyAllSuggestedQuantities() {
   margin: 0 0 10px;
 }
 
+.activity-material-lines-table-root {
+  max-width: 100%;
+  min-width: 0;
+}
+
 .activity-material-table-wrap {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
 }
 
@@ -1455,6 +1462,91 @@ function applyAllSuggestedQuantities() {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   overflow: hidden;
+}
+
+/** Detail-Entwurf: Spalten in Containerbreite halten — kein horizontaler Scroll */
+.activity-material-lines-table-root--detail-draft .activity-material-table-wrap {
+  overflow-x: hidden;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-material-table {
+  table-layout: fixed;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-name {
+  width: 34%;
+  max-width: none;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-name {
+  max-width: none;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-source,
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-source {
+  width: 11%;
+  max-width: none;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-rest,
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-rest {
+  width: 12%;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-rest-stack {
+  max-width: 100%;
+  align-items: flex-start;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-rest-value {
+  min-width: 0;
+  white-space: normal;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-qty {
+  min-width: 0;
+  width: 26%;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-qty {
+  min-width: 0;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-warn {
+  width: 9%;
+  max-width: none;
+  white-space: normal;
+}
+
+.activity-material-lines-table-root--detail-draft th.activity-mat-col-warn {
+  white-space: normal;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-col-actions {
+  width: 8%;
+  min-width: 0;
+  max-width: none;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-set-content,
+.activity-material-lines-table-root--detail-draft .activity-mat-pack-mode-edit {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-pack-mode-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-remove .e-button,
+.activity-material-lines-table-root--detail-draft .activity-mat-cell-remove button {
+  white-space: normal;
+  max-width: 100%;
+  height: auto;
+  line-height: 1.25;
 }
 
 .activity-material-table th {
@@ -1722,8 +1814,8 @@ function applyAllSuggestedQuantities() {
 
 /** Detail-Entwurf: Text-Button „Entfernen“ statt × */
 .activity-material-lines-table-root--detail-draft .activity-mat-col-actions {
-  width: auto;
-  min-width: 5.5rem;
+  width: 8%;
+  min-width: 0;
   max-width: none;
 }
 

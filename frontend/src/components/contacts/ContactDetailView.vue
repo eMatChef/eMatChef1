@@ -1,12 +1,12 @@
 <template>
-  <div class="contact-detail-view">
+  <div class="contact-detail-view" :class="{ 'contact-detail-view--modal': asModal }">
     <header class="detail-header">
       <div class="detail-header-toolbar">
         <EButton variant="secondary" size="small" class="contact-detail-back-btn" @click="goBack">
-          <v-icon icon="mdi-arrow-left" start size="20" />
+          <v-icon :icon="asModal ? 'mdi-close' : 'mdi-arrow-left'" start size="20" />
           {{ backLabel }}
         </EButton>
-        <div v-if="isCreateMode" class="header-actions contact-detail-header-actions">
+        <div v-if="isCreateMode && !isMapPinContactType" class="header-actions contact-detail-header-actions">
           <EButton variant="primary" size="small" :loading="isSaving" :disabled="isSaving" @click="saveCreate">
             {{ t('common.save') }}
           </EButton>
@@ -25,7 +25,7 @@
             {{ isPermanentDeleting ? t('contacts.permanentDeleting') : t('contacts.permanentDelete') }}
           </EButton>
         </div>
-        <div v-else-if="contact && !isReadOnly" class="header-actions contact-detail-header-actions">
+        <div v-else-if="contact && !isReadOnly && !(asModal && createdFromPin)" class="header-actions contact-detail-header-actions">
           <EButton
             variant="danger"
             size="small"
@@ -97,7 +97,7 @@
                 :save="(v) => saveContactField('name', v)"
               />
               <AutoSaveField
-                v-if="!isEventContactType"
+                v-if="!isMapPinContactType"
                 v-model="formData.type"
                 :baseline="baselines.type"
                 type="select"
@@ -109,7 +109,10 @@
               <div v-else class="info-item form-group">
                 <span class="info-label">{{ t('settings.addressForm.type') }}</span>
                 <span class="info-value">
-                  <span class="address-type-badge event">{{ addressTypeLabel('event') }}</span>
+                  <span
+                    class="address-type-badge"
+                    :class="currentContactType || 'event'"
+                  >{{ addressTypeLabel(currentContactType || 'event') }}</span>
                 </span>
               </div>
               <AutoSaveField
@@ -514,9 +517,9 @@
             </div>
           </div>
 
-          <!-- Standort: Karte (nicht bei Event — dort nur Standorte-Karte unten) -->
+          <!-- Standort: Karte (nicht bei Event/Treffpunkt — dort Standorte-Karte unten) -->
           <div
-            v-if="!isCreateMode && contact?.type !== 'event'"
+            v-if="!isCreateMode && !isMapPinContactType"
             ref="locationSectionRef"
             class="section-card section-card--location"
           >
@@ -585,16 +588,26 @@
             </div>
           </div>
 
-          <!-- Event: Standorte-Karte + Accordion (Kind-Modal) -->
-          <div v-if="!isCreateMode && contact?.type === 'event'" class="section-card section-card--location">
+          <!-- Event / Treffpunkt: Standorte-Karte (+ Accordion nur bei Event) -->
+          <div
+            v-if="showMapPinLocationsSection"
+            ref="locationSectionRef"
+            class="section-card section-card--location"
+          >
             <EventVenueDetailLocations
               ref="eventLocationsRef"
               :event-address="contact"
               :child-addresses="childAddresses"
-              :read-only="isReadOnly"
+              :read-only="isReadOnly && !isCreateMode"
+              :create-pin-mode="isCreateMode && isMapPinContactType"
+              :allow-children="isEventContactType"
+              :location-kind="isMeetingContactType ? 'meeting' : 'event'"
+              :highlight-delivery="highlightDelivery"
               @edit-child="openChildEditModal"
               @create-child="openChildCreateModal"
+              @edit-venue-details="openVenueDetailsModal"
               @venue-updated="handleVenueUpdated"
+              @pin-accepted="handleMapPinAccepted"
             />
           </div>
 
@@ -633,7 +646,7 @@
             </template>
           </div>
 
-          <div v-if="isCreateMode" class="create-save-bar">
+          <div v-if="isCreateMode && !isMapPinContactType" class="create-save-bar">
             <EButton variant="secondary" :disabled="isSaving" @click="goBack">{{ t('common.cancel') }}</EButton>
             <EButton variant="primary" :loading="isSaving" @click="saveCreate">{{ t('common.save') }}</EButton>
           </div>
@@ -641,15 +654,17 @@
       </div>
     </div>
 
-    <!-- Kindadresse: Zustellpunkt / Event-Punkt (Farbe + Bezeichnung) -->
+    <!-- Venue-Details / Kindadresse: Zustellpunkt / Event-Punkt -->
     <AddressModal
       v-if="showChildModal"
       :department-id="departmentId"
       :address="childModalAddress"
       :default-type="childModalDefaultType"
-      :parent-id="contact?.id ?? null"
+      :parent-id="childModalParentId"
       :default-name="childModalDefaultName"
       :allowed-types="childModalAllowedTypes"
+      :initial-latitude="childModalMapFocus?.latitude ?? null"
+      :initial-longitude="childModalMapFocus?.longitude ?? null"
       @close="closeChildModal"
       @saved="handleChildSaved"
     />
@@ -726,11 +741,20 @@ const props = withDefaults(
     departmentId: string
     mode?: 'view' | 'create'
     defaultType?: string
+    /** Als Dialog über der Liste (gleicher Stil wie Detail). */
+    asModal?: boolean
+    /** Nach Laden zu Standorte scrollen (z. B. aus J+S-Tab). */
+    initialFocus?: 'locations' | null
+    /** Zustellpunkt / Lieferort-Zeile hervorheben. */
+    highlightDelivery?: boolean
   }>(),
   {
     contactId: null,
     mode: 'view',
     defaultType: 'customer',
+    asModal: false,
+    initialFocus: null,
+    highlightDelivery: false,
   },
 )
 
@@ -747,7 +771,15 @@ const emit = defineEmits<{
 const toast = useToast()
 const { t, te } = useI18n()
 
-const isCreateMode = computed(() => props.mode === 'create' || !props.contactId)
+/** Nach Pin-Speichern beim Event-Erfassen: Detail-Stil mit Accordion im gleichen Modal. */
+const createdFromPin = ref(false)
+
+const isCreateMode = computed(() => {
+  if (createdFromPin.value) return false
+  return props.mode === 'create' || !props.contactId
+})
+
+const asModal = computed(() => props.asModal)
 
 function addressTypeLabel(type: string): string {
   const path = `settings.addressForm.types.${type}` as const
@@ -854,7 +886,8 @@ function syncFormFromAddress(a: Address) {
 
 const showChildModal = ref(false)
 const childModalAddress = ref<Address | null>(null)
-const childModalDefaultType = ref<'event_delivery' | 'event_poi'>('event_delivery')
+const childModalIsVenueDetails = ref(false)
+const childModalDefaultType = ref<string>('event_delivery')
 const editingCommFields = reactive({
   email: false,
   phone: false,
@@ -970,11 +1003,30 @@ function emptyDraft(type = props.defaultType): Partial<AddressFormData> {
 const hasDeliveryChild = computed(() => childAddresses.value.some((a) => a.type === 'event_delivery'))
 
 const childModalAllowedTypes = computed(() => {
+  if (childModalIsVenueDetails.value) {
+    return [contact.value?.type === 'meeting' ? 'meeting' : 'event']
+  }
   if (childModalAddress.value) return [childModalAddress.value.type]
-  return hasDeliveryChild.value ? ['event_poi'] : ['event_delivery', 'event_poi']
+  // Erfassen: Typ fest (Lieferort bzw. Zusatzadresse), nicht umschaltbar
+  return hasDeliveryChild.value ? ['event_poi'] : ['event_delivery']
+})
+
+const childModalParentId = computed(() => {
+  if (childModalIsVenueDetails.value) return null
+  return contact.value?.id ?? null
+})
+
+/** Karten-Fokus beim Anlegen/Bearbeiten von Standortkindern → Eventstandort. */
+const childModalMapFocus = computed(() => {
+  if (childModalIsVenueDetails.value) return null
+  const lat = contact.value?.latitude
+  const lng = contact.value?.longitude
+  if (lat == null || lng == null) return null
+  return { latitude: lat, longitude: lng }
 })
 
 const childModalDefaultName = computed(() => {
+  if (childModalIsVenueDetails.value) return ''
   if (childModalDefaultType.value === 'event_poi') return ''
   const base = contact.value?.name || contact.value?.company || ''
   return base ? `${base} – Zustellung` : ''
@@ -996,8 +1048,17 @@ const currentContactType = computed(() =>
 )
 
 const isEventContactType = computed(() => currentContactType.value === 'event')
+const isMeetingContactType = computed(() => currentContactType.value === 'meeting')
+/** Eventstandort & Treffpunkt: Standort per Karte, ohne Strassenadresse. */
+const isMapPinContactType = computed(() => isEventContactType.value || isMeetingContactType.value)
 
-const showStreetAddressSection = computed(() => !isEventContactType.value)
+const showStreetAddressSection = computed(() => !isMapPinContactType.value)
+
+const showMapPinLocationsSection = computed(
+  () =>
+    isMapPinContactType.value
+    && (isCreateMode.value || contact.value?.type === 'event' || contact.value?.type === 'meeting'),
+)
 
 const isReadOnly = computed(() => {
   if (isCreateMode.value) return false
@@ -1047,7 +1108,9 @@ const typeFieldLocked = computed(() => {
 
 const typeSelectOptions = computed<AutoSaveSelectOption[]>(() => {
   const keys = editAllowedTypes.value?.length
-    ? Object.keys(ADDRESS_TYPES).filter((k) => editAllowedTypes.value!.includes(k))
+    ? Object.keys(ADDRESS_TYPES).filter((k) =>
+        editAllowedTypes.value!.includes(k as (typeof USER_CONTACT_CREATE_TYPES)[number]),
+      )
     : Object.keys(ADDRESS_TYPES)
   const filtered = keys.filter((k) => k !== 'event_delivery' && k !== 'event_poi')
   // Aktuellen Kind-Typ behalten, auch wenn nicht in Create-Liste
@@ -1069,6 +1132,7 @@ const cantonSelectOptions = computed<AutoSaveSelectOption[]>(() => [
 ])
 
 const backLabel = computed(() => {
+  if (asModal.value) return t('common.close')
   if (isCreateMode.value) return t('contacts.detail.backToList')
   if (contact.value?.parent_id) return t('contacts.detail.backToParent')
   return t('contacts.detail.backToList')
@@ -1102,16 +1166,21 @@ const headerInitials = computed(() => {
 })
 
 async function loadContact() {
-  if (isCreateMode.value || !props.contactId) {
+  if (isCreateMode.value || (!props.contactId && !createdFromPin.value)) {
     draft.value = emptyDraft()
     contact.value = null
+    isLoading.value = false
+    return
+  }
+  const id = props.contactId || contact.value?.id
+  if (!id) {
     isLoading.value = false
     return
   }
   isLoading.value = true
   error.value = null
   try {
-    const data = await getAddress(props.contactId)
+    const data = await getAddress(id)
     contact.value = data.address
     childAddresses.value = data.child_addresses ?? []
     syncFormFromAddress(data.address)
@@ -1134,6 +1203,22 @@ async function loadContact() {
   } finally {
     isLoading.value = false
   }
+  if (contact.value) {
+    await applyInitialFocus()
+  }
+}
+
+async function applyInitialFocus() {
+  if (props.initialFocus !== 'locations') return
+  await nextTick()
+  locationSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  if (props.highlightDelivery) {
+    await nextTick()
+    // Kurz warten bis Accordion/Karten gerendert sind
+    window.setTimeout(() => {
+      eventLocationsRef.value?.focusDeliveryHighlight()
+    }, 280)
+  }
 }
 
 function formatContactPerson(c: Address): string {
@@ -1153,12 +1238,16 @@ function getInitials(c: Address): string {
 }
 
 function goBack() {
+  if (createdFromPin.value && contact.value) {
+    emit('created', contact.value)
+    return
+  }
   if (isCreateMode.value) {
     emit('close')
     return
   }
   const parentId = contact.value?.parent_id
-  if (parentId) {
+  if (parentId && !asModal.value) {
     router.push(`/${props.departmentId}/contacts/${parentId}`)
     return
   }
@@ -1300,7 +1389,9 @@ async function saveCreate() {
 }
 
 function openChildCreateModal() {
+  childModalIsVenueDetails.value = false
   childModalAddress.value = null
+  // Zuerst Lieferort (Zustellpunkt), danach Zusatzadresse (Event-Punkt)
   childModalDefaultType.value = hasDeliveryChild.value ? 'event_poi' : 'event_delivery'
   showChildModal.value = true
 }
@@ -1313,21 +1404,83 @@ async function handleVenueUpdated(address: Address) {
   eventLocationsRef.value?.refreshMaps()
 }
 
+function openVenueDetailsModal() {
+  if (!contact.value) return
+  childModalIsVenueDetails.value = true
+  childModalAddress.value = contact.value
+  childModalDefaultType.value = contact.value.type === 'meeting' ? 'meeting' : 'event'
+  showChildModal.value = true
+}
+
 function openChildEditModal(address: Address) {
-  router.push(`/${props.departmentId}/contacts/${address.id}`)
+  childModalIsVenueDetails.value = false
+  childModalAddress.value = address
+  childModalDefaultType.value = address.type === 'event_poi' ? 'event_poi' : 'event_delivery'
+  showChildModal.value = true
 }
 
 function closeChildModal() {
   showChildModal.value = false
   childModalAddress.value = null
+  childModalIsVenueDetails.value = false
 }
 
-async function handleChildSaved() {
+async function handleChildSaved(saved?: Address) {
+  const wasVenueDetails = childModalIsVenueDetails.value
   closeChildModal()
-  await loadContact()
-  emit('updated')
+  if (wasVenueDetails && saved) {
+    contact.value = saved
+    syncFormFromAddress(saved)
+    if (createdFromPin.value) {
+      emit('created', saved)
+      return
+    }
+    emit('updated')
+  } else {
+    await loadContact()
+    emit('updated')
+  }
   await nextTick()
   eventLocationsRef.value?.refreshMaps()
+}
+
+async function handleMapPinAccepted(payload: { latitude: number; longitude: number; name: string }) {
+  isSaving.value = true
+  saveError.value = null
+  const d = draft.value
+  const pinType = d.type === 'meeting' ? 'meeting' : 'event'
+  try {
+    const { address } = await createAddress({
+      department_id: props.departmentId,
+      type: pinType,
+      name: payload.name.trim() || null,
+      company: d.company,
+      contact_first_name: d.contact_first_name,
+      contact_last_name: d.contact_last_name,
+      email: d.email,
+      phone: d.phone,
+      mobile: d.mobile,
+      additional_info: d.additional_info,
+      country: d.country || 'Schweiz',
+      street: '',
+      postal_code: '',
+      city: '',
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    })
+    contact.value = address
+    childAddresses.value = []
+    syncFormFromAddress(address)
+    createdFromPin.value = true
+    toast.success(t('contacts.detail.saveSuccess'))
+    await nextTick()
+    eventLocationsRef.value?.refreshMaps()
+  } catch (err: any) {
+    saveError.value = err.response?.data?.error || t('contacts.detail.saveError')
+    toast.error(saveError.value!)
+  } finally {
+    isSaving.value = false
+  }
 }
 
 function onLocationDraftLat(lat: number) {
@@ -1567,6 +1720,63 @@ onMounted(() => {
   min-width: 0;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+.contact-detail-view--modal {
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px 16px;
+  background: #fff;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.contact-detail-view--modal .detail-header {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.contact-detail-view--modal .header-title {
+  gap: 10px;
+}
+
+.contact-detail-view--modal .header-title h1 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.contact-detail-view--modal .contact-avatar-lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 15px;
+}
+
+.contact-detail-view--modal .content-main {
+  gap: 12px;
+}
+
+.contact-detail-view--modal .section-card {
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+
+.contact-detail-view--modal .section-header-row {
+  margin-bottom: 12px;
+}
+
+.contact-detail-view--modal .section-title {
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.contact-detail-view--modal .section-inline-body {
+  gap: 8px;
+}
+
+.contact-detail-view--modal .create-save-bar {
+  margin-top: 4px;
+  padding-top: 4px;
 }
 
 .deleted-banner {

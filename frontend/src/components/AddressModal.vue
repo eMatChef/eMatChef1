@@ -8,8 +8,8 @@
     card-class="address-modal-card"
   >
     <form id="address-modal-form" class="address-modal-body" @submit.prevent="handleSubmit">
-        <!-- Adress-Suche -->
-        <div class="address-search-section">
+        <!-- Adress-Suche (nicht für Event-Kinder / Eventstandort-Pin: nur Pin + Bezeichnung) -->
+        <div v-if="!isSimplifiedLocationMode" class="address-search-section">
           <div class="address-search-group">
             <label class="form-label address-search-label">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -82,8 +82,8 @@
         <div class="form-row two-cols">
           <ETextField
             v-model="formData.name"
-            :label="isEventChildMode ? t('settings.addressModal.eventChildLabel') : t('settings.addressForm.designation')"
-            :placeholder="isEventChildMode
+            :label="isEventPoiMode ? t('settings.addressModal.eventChildLabel') : t('settings.addressForm.designation')"
+            :placeholder="isEventPoiMode
               ? t('settings.addressModal.eventChildLabelPlaceholder')
               : t('settings.addressForm.designationPlaceholder')"
             hide-details="auto"
@@ -92,17 +92,20 @@
             v-model="formData.type"
             :items="addressTypeItems"
             :label="t('settings.addressModal.typeField')"
-            :disabled="isGlobalMode || (isEventChildMode && visibleAddressTypeKeys.length <= 1)"
+            :disabled="isGlobalMode || ((isSimplifiedLocationMode || isEventDeliveryMode) && visibleAddressTypeKeys.length <= 1)"
             hide-details="auto"
           />
         </div>
 
-        <p v-if="isEventChildMode && !isEditing" class="field-hint text-muted event-child-type-hint">
+        <p v-if="isEventDeliveryMode" class="field-hint text-muted event-child-type-hint">
+          {{ t('settings.addressModal.eventDeliveryAddressHint') }}
+        </p>
+        <p v-else-if="isEventPoiMode && !isEditing && visibleAddressTypeKeys.length > 1" class="field-hint text-muted event-child-type-hint">
           {{ t('settings.addressModal.eventChildTypeHint') }}
         </p>
 
         <ECheckbox
-          v-if="!isGlobalMode && formData.type === 'storage'"
+          v-if="!isGlobalMode && !isSimplifiedLocationMode && formData.type === 'storage'"
           v-model="formData.is_primary"
           :label="t('settings.addressModal.primaryStorageHint')"
           class="primary-toggle-group"
@@ -126,6 +129,7 @@
           </div>
         </div>
 
+        <template v-if="!isSimplifiedLocationMode">
         <!-- Firma -->
         <ETextField
           v-model="formData.company"
@@ -224,6 +228,7 @@
             hide-details="auto"
           />
         </div>
+        </template>
 
         <!-- Karte -->
         <div class="form-group map-section">
@@ -236,7 +241,13 @@
               </svg>
               {{ t('settings.addressModal.mapSectionLabel') }}
             </label>
-            <button type="button" @click="searchCoordinates" class="search-coords-btn" :disabled="!fullAddress">
+            <button
+              v-if="!isSimplifiedLocationMode"
+              type="button"
+              @click="searchCoordinates"
+              class="search-coords-btn"
+              :disabled="!fullAddress"
+            >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
@@ -261,7 +272,9 @@
               @coordinates-changed="onMapCoordinatesChanged"
             />
           </div>
-          <p class="map-hint">{{ t('settings.addressModal.mapHint') }}</p>
+          <p class="map-hint">
+            {{ isSimplifiedLocationMode ? t('settings.addressModal.eventChildMapHint') : t('settings.addressModal.mapHint') }}
+          </p>
           <div v-if="formData.latitude && formData.longitude" class="coordinates-info">
             <span class="coord-badge">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -275,6 +288,7 @@
 
         <!-- Zusätzliche Infos -->
         <ETextarea
+          v-if="!isSimplifiedLocationMode"
           v-model="formData.additional_info"
           :label="t('settings.addressForm.additionalInfo')"
           :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
@@ -361,6 +375,9 @@ interface Props {
   apiMode?: 'department' | 'global'
   /** Wenn gesetzt: nur diese Adresstypen im Dropdown (z. B. User-Rolle). */
   allowedTypes?: string[] | null
+  /** Start-Zentrum der Karte (z. B. Eventstandort beim Anlegen eines Standortkinds). */
+  initialLatitude?: number | null
+  initialLongitude?: number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -369,7 +386,9 @@ const props = withDefaults(defineProps<Props>(), {
   defaultType: 'storage',
   defaultName: '',
   parentId: null,
-  apiMode: 'department'
+  apiMode: 'department',
+  initialLatitude: null,
+  initialLongitude: null,
 })
 
 const emit = defineEmits<{
@@ -384,6 +403,15 @@ const mapRef = ref<InstanceType<typeof MapView>>()
 
 watch(dialogOpen, (open) => {
   if (!open) close()
+})
+
+const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+
+const visibleAddressTypeKeys = computed(() => {
+  if (props.allowedTypes?.length) {
+    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(String(key)))
+  }
+  return allAddressTypeKeys
 })
 
 const addressTypeItems = computed(() =>
@@ -402,33 +430,28 @@ const cantonItems = computed(() => [
 ])
 const isEditing = computed(() => !!(props.editAddressId || props.address?.id))
 const isGlobalMode = computed(() => props.apiMode === 'global')
-const isEventChildMode = computed(() => {
-  if (!props.parentId) return false
-  const keys = visibleAddressTypeKeys.value
-  return keys.every((k) => k === 'event_delivery' || k === 'event_poi')
+const isEventDeliveryMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event_delivery')
 })
+const isEventPoiMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event_poi')
+})
+/** Titel/Typ-Kontext für Event-Kinder (Lieferort + Zusatzadresse). */
+const isEventChildMode = computed(() => isEventDeliveryMode.value || isEventPoiMode.value)
+/** Eventstandort / Treffpunkt: Bezeichnung + Karte, ohne Strassenadresse. */
+const isMapPinVenueMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event' || k === 'meeting')
+})
+/** Vereinfacht: nur Zusatzadresse (POI) und Event-/Treffpunkt-Pin — Lieferort braucht volle Adresse. */
+const isSimplifiedLocationMode = computed(() => isEventPoiMode.value || isMapPinVenueMode.value)
 const isSaving = ref(false)
 const error = ref<string | null>(null)
-
-const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
-
-const visibleAddressTypeKeys = computed(() => {
-  if (props.allowedTypes?.length) {
-    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(String(key)))
-  }
-  return allAddressTypeKeys
-})
-
-const modalTitle = computed(() => {
-  if (isEditing.value) {
-    return t('settings.addressModal.editTitle')
-  }
-  if (isEventChildMode.value) {
-    return t('activities.venueLocations.addAddressButton')
-  }
-  const dk = props.defaultType in ADDRESS_TYPES ? props.defaultType : 'general'
-  return t('settings.addressModal.addTitle', { type: t(`settings.addressForm.types.${dk}`) })
-})
 
 // Adress-Suche
 interface SearchResult {
@@ -756,6 +779,36 @@ const formData = ref<Partial<AddressFormData>>({
   is_primary: false,
 })
 
+const modalTitle = computed(() => {
+  if (isEventChildMode.value) {
+    const childType = formData.value.type || props.address?.type || props.defaultType
+    if (isEditing.value) {
+      return childType === 'event_poi'
+        ? t('settings.addressModal.eventPoiEditTitle')
+        : t('settings.addressModal.eventDeliveryEditTitle')
+    }
+    return childType === 'event_poi'
+      ? t('settings.addressModal.eventPoiCreateTitle')
+      : t('settings.addressModal.eventDeliveryCreateTitle')
+  }
+  if (isMapPinVenueMode.value) {
+    const venueType = formData.value.type || props.address?.type || props.defaultType
+    if (isEditing.value) {
+      return venueType === 'meeting'
+        ? t('settings.addressModal.meetingEditTitle')
+        : t('settings.addressModal.eventVenueEditTitle')
+    }
+    return venueType === 'meeting'
+      ? t('settings.addressModal.meetingCreateTitle')
+      : t('settings.addressModal.eventVenueCreateTitle')
+  }
+  if (isEditing.value) {
+    return t('settings.addressModal.editTitle')
+  }
+  const dk = props.defaultType in ADDRESS_TYPES ? props.defaultType : 'general'
+  return t('settings.addressModal.addTitle', { type: t(`settings.addressForm.types.${dk}`) })
+})
+
 // Vollständige Adresse für Geocoding
 const fullAddress = computed(() => {
   const parts = []
@@ -822,8 +875,8 @@ async function resetForm() {
     city: '',
     canton: null,
     country: 'Schweiz',
-    latitude: null,
-    longitude: null,
+    latitude: props.initialLatitude ?? null,
+    longitude: props.initialLongitude ?? null,
     contact_first_name: null,
     contact_last_name: null,
     email: null,
@@ -834,19 +887,33 @@ async function resetForm() {
     is_primary: false,
   }
   await applyPrimaryDefaultForNewStorage()
+  await nextTick()
+  focusMapOnInitialCoords()
 }
 
-// Karte nach Modal-Öffnung invalidieren (Tiles laden)
+function focusMapOnInitialCoords() {
+  const lat = formData.value.latitude
+  const lng = formData.value.longitude
+  if (lat == null || lng == null) return
+  // Detail-Zoom am Eventstandort (LV95 ≈ geo.admin Nahansicht)
+  const zoom = 21.7
+  mapRef.value?.setMarker(lat, lng, zoom)
+}
+
+// Karte nach Modal-Öffnung invalidieren (Tiles laden) und ggf. zum Eltern-Standort zoomen
 onMounted(() => {
   // Mehrfach invalidieren, da das Modal-Layout Zeit braucht
   nextTick(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   })
   setTimeout(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   }, 300)
   setTimeout(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   }, 600)
 })
 
@@ -889,8 +956,21 @@ async function handleSubmit() {
   const hasName = formData.value.name || formData.value.company
   const hasAddress = formData.value.street || formData.value.city
   const hasCoordinates = formData.value.latitude && formData.value.longitude
-  
-  if (!hasName && !hasAddress && !hasCoordinates) {
+
+  if (isEventDeliveryMode.value) {
+    if (!String(formData.value.name || formData.value.company || '').trim()) {
+      error.value = t('settings.addressModal.eventDeliveryValidationName')
+      return
+    }
+    if (
+      !String(formData.value.street || '').trim() ||
+      !String(formData.value.postal_code || '').trim() ||
+      !String(formData.value.city || '').trim()
+    ) {
+      error.value = t('settings.addressModal.eventDeliveryValidationAddress')
+      return
+    }
+  } else if (!hasName && !hasAddress && !hasCoordinates) {
     error.value = t('settings.addressModal.validationMinFields')
     return
   }
@@ -1000,6 +1080,13 @@ const hasFormChanges = computed(() => {
     )
   } else {
     // Neu-Erstellung: Prüfen ob irgendein Feld ausgefüllt wurde
+    // Startkoordinaten vom Eventstandort zählen nicht als Änderung
+    const coordsChanged =
+      (f.latitude != null || f.longitude != null)
+      && (
+        f.latitude !== (props.initialLatitude ?? null)
+        || f.longitude !== (props.initialLongitude ?? null)
+      )
     return !!(
       (f.name && f.name !== props.defaultName) ||
       (f.company && f.company !== props.defaultName) ||
@@ -1013,8 +1100,7 @@ const hasFormChanges = computed(() => {
       f.phone ||
       f.mobile ||
       f.additional_info ||
-      f.latitude ||
-      f.longitude
+      coordsChanged
     )
   }
 })

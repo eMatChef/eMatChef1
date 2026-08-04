@@ -1,22 +1,45 @@
 <template>
   <div ref="rootRef" class="event-venue-detail-locations">
-    <div class="event-venue-detail-locations-header">
+    <div v-if="!hideTitle" class="event-venue-detail-locations-header">
       <h2 class="event-venue-detail-locations-title">
         {{ t('activities.venueLocations.sectionTitle') }}
       </h2>
       <div v-if="!readOnly" class="event-venue-detail-locations-actions">
         <EButton
-          v-if="editingVenue"
+          v-if="editingVenue && !createPinMode"
           variant="primary"
           size="small"
           :loading="isSavingVenue"
-          :disabled="draftLat == null || draftLng == null"
+          :disabled="!canAcceptVenue"
           @click="acceptVenueDraft"
         >
-          {{ t('contacts.detail.acceptLocation') }}
+          {{ acceptVenueLabel }}
         </EButton>
         <button
-          v-else
+          v-else-if="!createPinMode"
+          type="button"
+          class="event-venue-map-edit-btn"
+          :aria-label="t('common.edit')"
+          @click="startVenueEdit"
+        >
+          <v-icon icon="mdi-pencil-outline" size="16" />
+        </button>
+      </div>
+    </div>
+    <div v-else-if="!readOnly" class="event-venue-detail-locations-header event-venue-detail-locations-header--actions-only">
+      <div class="event-venue-detail-locations-actions">
+        <EButton
+          v-if="editingVenue && !createPinMode"
+          variant="primary"
+          size="small"
+          :loading="isSavingVenue"
+          :disabled="!canAcceptVenue"
+          @click="acceptVenueDraft"
+        >
+          {{ acceptVenueLabel }}
+        </EButton>
+        <button
+          v-else-if="!createPinMode"
           type="button"
           class="event-venue-map-edit-btn"
           :aria-label="t('common.edit')"
@@ -28,7 +51,7 @@
     </div>
 
     <p v-if="editingVenue" class="event-venue-edit-hint">
-      {{ t('contacts.detail.mapEditHint') }}
+      {{ createPinMode ? t('activities.venueLocations.createPinHint') : t('contacts.detail.mapEditHint') }}
     </p>
 
     <ActivityDualLocationMap
@@ -37,6 +60,8 @@
       height="280px"
       :interactive="editingVenue"
       :editable-pin-id="editingVenue ? 'venue' : null"
+      :prefer-swiss-map="true"
+      :show-layer-control="true"
       @pin-moved="onVenuePinMoved"
       @map-click="onVenueMapClick"
     />
@@ -46,89 +71,126 @@
         v-for="site in accordionSites"
         :key="site.id"
         class="event-venue-detail-accordion"
+        :class="{ 'is-highlighted': highlightPulseId === site.id }"
       >
-        <button
-          type="button"
-          class="event-venue-detail-accordion-toggle"
-          :aria-expanded="expandedId === site.id"
-          @click="toggleSite(site.id)"
-        >
-          <span class="event-venue-detail-accordion-chevron" aria-hidden="true">
-            {{ expandedId === site.id ? '▾' : '▸' }}
-          </span>
-          <span
-            class="event-venue-detail-accordion-dot"
-            :style="{ background: site.color }"
-            aria-hidden="true"
-          />
-          <span class="event-venue-detail-accordion-label">{{ site.label }}</span>
-          <span v-if="site.summary" class="event-venue-detail-accordion-summary">{{ site.summary }}</span>
-        </button>
+        <div class="event-venue-detail-accordion-row">
+          <button
+            type="button"
+            class="event-venue-detail-accordion-toggle"
+            :aria-expanded="expandedId === site.id"
+            @click="toggleSite(site.id)"
+          >
+            <span class="event-venue-detail-accordion-chevron" aria-hidden="true">
+              {{ expandedId === site.id ? '▾' : '▸' }}
+            </span>
+            <span
+              class="event-venue-detail-accordion-dot"
+              :style="{ background: site.color }"
+              aria-hidden="true"
+            />
+            <span class="event-venue-detail-accordion-label">{{ site.label }}</span>
+            <span v-if="site.summary" class="event-venue-detail-accordion-summary">{{ site.summary }}</span>
+          </button>
+          <button
+            v-if="!readOnly && !createPinMode && expandedId !== site.id"
+            type="button"
+            class="event-venue-accordion-edit-btn"
+            :aria-label="t('common.edit')"
+            @click.stop.prevent="site.onEdit()"
+          >
+            <v-icon icon="mdi-pencil-outline" size="16" />
+          </button>
+        </div>
         <div v-show="expandedId === site.id" class="event-venue-detail-accordion-body">
-          <p class="field-hint text-muted">{{ site.hint || site.summary || '—' }}</p>
-          <p v-if="site.address && !site.pin" class="field-hint text-muted">
-            {{ t('activities.venueLocations.noCoordsForAddress') }}
-          </p>
-          <div class="event-venue-detail-accordion-actions">
-            <EButton
-              v-if="!readOnly && site.id === 'venue'"
-              size="small"
-              variant="secondary"
-              @click="startVenueEdit"
-            >
-              {{ t('common.edit') }}
-            </EButton>
-            <EButton
-              v-else-if="!readOnly"
-              size="small"
-              variant="secondary"
-              @click="site.onEdit()"
-            >
-              {{ t('common.edit') }}
-            </EButton>
-            <template v-if="site.pin">
-              <a
-                :href="googleMapsLinkFor(site.pin)"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-outline btn-sm"
+          <template v-if="createPinMode && site.id === 'venue'">
+            <ETextField
+              v-model="createName"
+              :label="t('activities.venueLocations.createNameLabel')"
+              :placeholder="t('activities.venueLocations.createNamePlaceholder')"
+              hide-details="auto"
+            />
+            <p class="field-hint text-muted">
+              {{
+                draftLat != null
+                  ? t('activities.venueLocations.createPinPlacedHint')
+                  : t('activities.venueLocations.createPinHint')
+              }}
+            </p>
+            <div class="event-venue-detail-accordion-actions">
+              <EButton
+                variant="primary"
+                size="small"
+                :loading="isSavingVenue"
+                :disabled="!canAcceptVenue"
+                @click="acceptVenueDraft"
               >
-                {{ t('components.mapView.openGoogleMaps') }}
-              </a>
-              <a
-                :href="swisstopoLinkFor(site.pin)"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-outline btn-sm"
+                {{ acceptVenueLabel }}
+              </EButton>
+            </div>
+          </template>
+          <template v-else>
+            <p class="field-hint text-muted">{{ site.hint || site.summary || '—' }}</p>
+            <p v-if="site.address && !site.pin" class="field-hint text-muted">
+              {{ t('activities.venueLocations.noCoordsForAddress') }}
+            </p>
+            <div class="event-venue-detail-accordion-actions">
+              <button
+                v-if="!readOnly"
+                type="button"
+                class="event-venue-accordion-edit-btn"
+                :aria-label="t('common.edit')"
+                @click.stop.prevent="site.onEdit()"
               >
-                {{ t('components.mapView.openSwisstopoMap') }}
-              </a>
-            </template>
-          </div>
+                <v-icon icon="mdi-pencil-outline" size="16" />
+              </button>
+              <template v-if="site.pin">
+                <a
+                  :href="googleMapsLinkFor(site.pin)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-outline btn-sm"
+                >
+                  {{ t('components.mapView.openGoogleMaps') }}
+                </a>
+                <a
+                  :href="swisstopoLinkFor(site.pin)"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-outline btn-sm"
+                >
+                  {{ t('components.mapView.openSwisstopoMap') }}
+                </a>
+              </template>
+            </div>
+          </template>
         </div>
       </div>
 
       <button
-        v-if="!readOnly"
+        v-if="!readOnly && allowChildren && !createPinMode"
         type="button"
         class="event-venue-detail-add-row"
+        :class="{ 'is-highlighted': highlightPulseId === 'add-delivery' }"
         @click="emit('create-child')"
       >
         <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
-        <span>{{ t('activities.venueLocations.addAddressButton') }}</span>
+        <span>{{ addChildButtonLabel }}</span>
       </button>
     </div>
 
-    <p class="field-hint text-muted">{{ t('activities.venueLocations.overviewHint') }}</p>
+    <p v-if="!createPinMode && allowChildren" class="field-hint text-muted">{{ t('activities.venueLocations.overviewHint') }}</p>
+    <p v-else-if="!createPinMode && !allowChildren" class="field-hint text-muted">
+      {{ t('activities.venueLocations.venueMapEditHint') }}
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Address } from '@/api/addresses'
 import { updateAddress } from '@/api/addresses'
-import { EButton } from '@/components/form/base'
+import { EButton, ETextField } from '@/components/form/base'
 import ActivityDualLocationMap, { type ActivityLocationPin } from '@/components/activities/ActivityDualLocationMap.vue'
 import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
 import { useToast } from '@/composables/useToast'
@@ -148,16 +210,40 @@ type AccordionSite = {
   onEdit: () => void
 }
 
-const props = defineProps<{
-  eventAddress: Address
-  childAddresses: Address[]
-  readOnly?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    eventAddress?: Address | null
+    childAddresses?: Address[]
+    readOnly?: boolean
+    /** Erfassen: Karte + Accordion-Bezeichnung, Speichern emittiert pin-accepted. */
+    createPinMode?: boolean
+    /** Kind-Adressen (Zustellpunkt / Event-Punkt) — nur Eventstandort. */
+    allowChildren?: boolean
+    /** Label-Kontext für den Haupt-Pin. */
+    locationKind?: 'event' | 'meeting'
+    /** Titel «Standorte» ausblenden (z.B. unter Eventstandort-Feld). */
+    hideTitle?: boolean
+    /** Zustellpunkt / «Lieferort erfassen» hervorheben (Blinken + Scroll). */
+    highlightDelivery?: boolean
+  }>(),
+  {
+    eventAddress: null,
+    childAddresses: () => [],
+    readOnly: false,
+    createPinMode: false,
+    allowChildren: true,
+    locationKind: 'event',
+    hideTitle: false,
+    highlightDelivery: false,
+  },
+)
 
 const emit = defineEmits<{
   'edit-child': [address: Address]
   'create-child': []
+  'edit-venue-details': []
   'venue-updated': [address: Address]
+  'pin-accepted': [payload: { latitude: number; longitude: number; name: string }]
 }>()
 
 const { t, locale } = useI18n()
@@ -165,6 +251,8 @@ const toast = useToast()
 
 const rootRef = ref<HTMLElement | null>(null)
 const expandedId = ref<string | null>(null)
+const highlightPulseId = ref<string | null>(null)
+let highlightClearTimer: ReturnType<typeof setTimeout> | null = null
 const overviewMapRef = ref<InstanceType<typeof ActivityDualLocationMap> | null>(null)
 
 const editingVenue = ref(false)
@@ -173,6 +261,7 @@ const draftLat = ref<number | null>(null)
 const draftLng = ref<number | null>(null)
 const baselineLat = ref<number | null>(null)
 const baselineLng = ref<number | null>(null)
+const createName = ref('')
 
 const deliveryAddress = computed(
   () => props.childAddresses.find((a) => a.type === 'event_delivery') ?? null,
@@ -180,9 +269,43 @@ const deliveryAddress = computed(
 
 const poiAddresses = computed(() => props.childAddresses.filter((a) => a.type === 'event_poi'))
 
+const venueSiteLabel = computed(() =>
+  props.locationKind === 'meeting'
+    ? t('settings.addressForm.types.meeting')
+    : t('activities.wizard.form.venueLabel'),
+)
+
+const acceptVenueLabel = computed(() => {
+  if (!props.createPinMode) return t('contacts.detail.acceptLocation')
+  return props.locationKind === 'meeting'
+    ? t('activities.venueLocations.setMeetingPoint')
+    : t('activities.venueLocations.setEventVenue')
+})
+
+const addChildButtonLabel = computed(() =>
+  deliveryAddress.value
+    ? t('activities.venueLocations.addExtraAddressButton')
+    : t('activities.venueLocations.addDeliveryAddressButton'),
+)
+
+const canAcceptVenue = computed(() => {
+  if (draftLat.value == null || draftLng.value == null) return false
+  if (props.createPinMode && !createName.value.trim()) return false
+  return true
+})
+
 function addressSummary(addr: Address | null | undefined): string {
   if (!addr) return ''
-  return addr.full_address || addr.street_line || addr.name || ''
+  if (addr.full_address?.trim()) return addr.full_address.trim()
+  const street = (addr.street_line || [addr.street, addr.street_number].filter(Boolean).join(' ')).trim()
+  const place = [addr.postal_code, addr.city].filter(Boolean).join(' ').trim()
+  if (street && place) return `${street}, ${place}`
+  if (street || place) return street || place
+  return addr.name || addr.company || ''
+}
+
+function formatCoords(lat: number, lng: number): string {
+  return `${lat.toFixed(5)}° N, ${lng.toFixed(5)}° E`
 }
 
 function pinFromAddress(
@@ -206,25 +329,52 @@ function pinFromAddress(
 const venuePinBase = computed(() =>
   pinFromAddress(
     'venue',
-    t('activities.wizard.form.venueLabel'),
+    venueSiteLabel.value,
     props.eventAddress,
     'venue',
   ),
 )
 
 const accordionSites = computed((): AccordionSite[] => {
+  // Erfassen: Accordion schon sichtbar, auch ohne gespeicherte Adresse
+  if (props.createPinMode && !props.eventAddress) {
+    const name = createName.value.trim()
+    let summary = t('activities.venueLocations.siteMissing')
+    if (draftLat.value != null && draftLng.value != null) {
+      summary = formatCoords(draftLat.value, draftLng.value)
+    } else if (name) {
+      summary = name
+    }
+    return [
+      {
+        id: 'venue',
+        label: venueSiteLabel.value,
+        summary,
+        hint: t('activities.venueLocations.createPinHint'),
+        color: VENUE_COLOR,
+        address: null,
+        pin: null,
+        onEdit: () => emit('edit-venue-details'),
+      },
+    ]
+  }
+
+  if (!props.eventAddress) return []
   const sites: AccordionSite[] = [
     {
       id: 'venue',
-      label: t('activities.wizard.form.venueLabel'),
+      label: venueSiteLabel.value,
       summary: addressSummary(props.eventAddress) || t('activities.venueLocations.venueMapOnlyHint'),
       hint: t('activities.venueLocations.venueMapEditHint'),
       color: VENUE_COLOR,
       address: props.eventAddress,
       pin: venuePinBase.value,
-      onEdit: () => startVenueEdit(),
+      // Stift → Eventstandort/Treffpunkt bearbeiten (nicht Kind anlegen)
+      onEdit: () => emit('edit-venue-details'),
     },
   ]
+
+  if (!props.allowChildren) return sites
 
   const delivery = deliveryAddress.value
   if (delivery) {
@@ -274,7 +424,8 @@ const displayPins = computed((): ActivityLocationPin[] => {
   if (editingVenue.value && draftLat.value != null && draftLng.value != null) {
     pins.unshift({
       id: 'venue',
-      label: t('activities.wizard.form.venueLabel'),
+      // Fixe Typ-Bezeichnung auf der Karte (Eventstandort / Treffpunkt) — Freitext nur im Accordion
+      label: venueSiteLabel.value,
       latitude: draftLat.value,
       longitude: draftLng.value,
       variant: 'venue',
@@ -309,13 +460,17 @@ async function refreshMaps() {
 
 function startVenueEdit() {
   if (props.readOnly) return
-  draftLat.value = props.eventAddress.latitude
-  draftLng.value = props.eventAddress.longitude
-  baselineLat.value = props.eventAddress.latitude
-  baselineLng.value = props.eventAddress.longitude
+  // Beim Erfassen: kein Auto-Pin → ganze Schweiz sichtbar; Pin per Klick setzen
+  draftLat.value = props.eventAddress?.latitude ?? null
+  draftLng.value = props.eventAddress?.longitude ?? null
+  baselineLat.value = props.eventAddress?.latitude ?? null
+  baselineLng.value = props.eventAddress?.longitude ?? null
   editingVenue.value = true
   expandedId.value = 'venue'
   void refreshMaps()
+  if (props.createPinMode) {
+    void nextTick(() => overviewMapRef.value?.fitToPins())
+  }
 }
 
 function onVenuePinMoved(payload: { id: string; latitude: number; longitude: number }) {
@@ -328,13 +483,40 @@ function onVenueMapClick(payload: { latitude: number; longitude: number }) {
   if (!editingVenue.value) return
   draftLat.value = payload.latitude
   draftLng.value = payload.longitude
+  expandedId.value = 'venue'
 }
 
 async function acceptVenueDraft() {
   if (draftLat.value == null || draftLng.value == null) {
+    if (!props.createPinMode) editingVenue.value = false
+    return
+  }
+
+  if (props.createPinMode) {
+    const name = createName.value.trim()
+    if (!name) {
+      toast.error(t('activities.venueLocations.createNameRequired'))
+      expandedId.value = 'venue'
+      return
+    }
+    isSavingVenue.value = true
+    try {
+      emit('pin-accepted', {
+        latitude: draftLat.value,
+        longitude: draftLng.value,
+        name,
+      })
+    } finally {
+      isSavingVenue.value = false
+    }
+    return
+  }
+
+  if (!props.eventAddress?.id) {
     editingVenue.value = false
     return
   }
+
   const same =
     baselineLat.value != null
     && baselineLng.value != null
@@ -363,7 +545,7 @@ async function acceptVenueDraft() {
 }
 
 function onOutsidePointerDown(event: Event) {
-  if (!editingVenue.value) return
+  if (!editingVenue.value || props.createPinMode) return
   const el = rootRef.value
   const target = event.target as Node | null
   if (!el || !target || el.contains(target)) return
@@ -392,11 +574,71 @@ watch(
   { deep: true },
 )
 
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', onOutsidePointerDown, true)
+watch(
+  () => props.createPinMode,
+  (active, wasActive) => {
+    if (active) {
+      createName.value = ''
+      startVenueEdit()
+      return
+    }
+    if (wasActive) {
+      editingVenue.value = false
+      expandedId.value = 'venue'
+      void refreshMaps()
+    }
+  },
+)
+
+onMounted(() => {
+  if (props.createPinMode) startVenueEdit()
 })
 
-defineExpose({ refreshMaps, startVenueEdit })
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onOutsidePointerDown, true)
+  if (highlightClearTimer) {
+    clearTimeout(highlightClearTimer)
+    highlightClearTimer = null
+  }
+})
+
+watch(
+  () => props.highlightDelivery,
+  (on) => {
+    if (on) void focusDeliveryHighlight()
+  },
+)
+
+async function focusDeliveryHighlight() {
+  if (highlightClearTimer) {
+    clearTimeout(highlightClearTimer)
+    highlightClearTimer = null
+  }
+  await nextTick()
+  const delivery = deliveryAddress.value
+  if (delivery) {
+    expandedId.value = delivery.id
+    highlightPulseId.value = delivery.id
+  } else if (props.allowChildren) {
+    highlightPulseId.value = 'add-delivery'
+  } else {
+    expandedId.value = 'venue'
+    highlightPulseId.value = 'venue'
+  }
+  await nextTick()
+  const root = rootRef.value
+  const target =
+    highlightPulseId.value === 'add-delivery'
+      ? root?.querySelector('.event-venue-detail-add-row')
+      : root?.querySelector('.event-venue-detail-accordion.is-highlighted')
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  highlightClearTimer = setTimeout(() => {
+    highlightPulseId.value = null
+    highlightClearTimer = null
+  }, 3200)
+}
+
+defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight })
 </script>
 
 <style scoped>
@@ -411,6 +653,10 @@ defineExpose({ refreshMaps, startVenueEdit })
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.event-venue-detail-locations-header--actions-only {
+  justify-content: flex-end;
 }
 
 .event-venue-detail-locations-title {
@@ -464,11 +710,18 @@ defineExpose({ refreshMaps, startVenueEdit })
   background: #fff;
 }
 
+.event-venue-detail-accordion-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .event-venue-detail-accordion-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 0;
   border: none;
   background: none;
@@ -477,6 +730,28 @@ defineExpose({ refreshMaps, startVenueEdit })
   color: #0f172a;
   cursor: pointer;
   text-align: left;
+}
+
+.event-venue-accordion-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.event-venue-accordion-edit-btn:hover {
+  background: #f3f4f6;
+  color: #111827;
+  border-color: #d1d5db;
 }
 
 .event-venue-detail-accordion-chevron {
@@ -502,7 +777,7 @@ defineExpose({ refreshMaps, startVenueEdit })
   font-size: 0.75rem;
   font-weight: 500;
   color: #64748b;
-  max-width: 55%;
+  max-width: 45%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -550,5 +825,23 @@ defineExpose({ refreshMaps, startVenueEdit })
 .event-venue-detail-add-plus {
   font-size: 1.25rem;
   line-height: 1;
+}
+
+.event-venue-detail-accordion.is-highlighted,
+.event-venue-detail-add-row.is-highlighted {
+  animation: event-venue-highlight-pulse 0.85s ease-in-out 3;
+  border-radius: 8px;
+}
+
+@keyframes event-venue-highlight-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+    background-color: transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.55);
+    background-color: rgba(255, 237, 213, 0.65);
+  }
 }
 </style>

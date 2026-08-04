@@ -30,6 +30,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
+use App\Service\Accounting\AccountingActivityInvoiceService;
 use App\Service\InboxMessageService;
 use App\Service\ComboResolutionService;
 use App\Service\PackPipelineService;
@@ -70,6 +71,7 @@ class ActivityController extends AbstractController
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
         private ActivitySharedVenueService $sharedVenueService,
+        private AccountingActivityInvoiceService $activityInvoice,
     ) {}
 
     private function getActorUserId(): ?string
@@ -713,6 +715,30 @@ class ActivityController extends AbstractController
         $data['guest_invite_for_viewer'] = $this->activityAccess->getGuestInviteContextForViewer($currentUser, $activity);
 
         return new JsonResponse($data);
+    }
+
+    /**
+     * Berechnete Aktivitäts-Rechnung (Aggregat aus Follow-ups + offene Werkstatt).
+     */
+    #[Route('/{id}/accounting-invoice', name: 'accounting_invoice', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getAccountingInvoice(string $id): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        }
+
+        return new JsonResponse($this->activityInvoice->buildForActivity($activity));
     }
 
     /**

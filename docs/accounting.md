@@ -2,7 +2,7 @@
 
 Unterstützende Kostenverwaltung für Material-Departments — **kein Ersatz** für das Vereins-Finanztool (Abacus, Bexio, Excel beim Kassier).
 
-**Stand Spec:** August 2026 · Feature Top-10 #7 — **Phasen 1–6 erledigt** (Completion entkoppelt, Timing-Settings, Einnahme-Vermerk, Vorbelegung, «Kosten folgen», Aufräumen).
+**Stand Spec:** August 2026 · Feature Top-10 #7 — **Phasen 1–6 erledigt**. **Aktivitäts-Rechnung v1** (berechnet) umgesetzt; PDF/Persistenz später.
 
 ## Positionierung
 
@@ -186,17 +186,23 @@ API: `PATCH /api/activities/{id}/collection-note` (MW/DC). UI: Kosten-Tab. **Kei
 
 ## UI-Tabs
 
-| Tab | Route | Beschreibung |
-| --- | --- | --- |
-| Übersicht | `/accounting` | KPIs, Summen nach Jahr/Kostenstelle/Typ; KPI **«Kosten folgen»** (offene Werkstatt) |
-| Kostenstellen | `/accounting/kostenstellen` | CRUD + **Zuordnungsregeln** |
-| Buchungen | `/accounting/buchungen` | Liste, CSV-Export, Tab «Neue Buchung zuordnen» (+ Platzhalter offene Werkstatt) |
-| Gruppenkosten | `/accounting/gruppen` | Ist-Summen pro Gruppe, offene Posten |
-| Materialkosten | `/accounting/materialkosten` | Ist pro Material |
-| Abschreibung | `/accounting/abschreibung` | Vorschläge aus Anschaffungswerten |
-| Budget | `/accounting/budget` | Soll/Ist + CSV |
+Zwei Ebenen (Shell-Gruppen + Detail):
 
-Aktivität: Tab **Kosten** = Übersicht + optional Einnahme-Vermerk; Link zu offenen Follow-ups in der Buchhaltung.
+| Shell-Gruppe | Route(n) | Beschreibung |
+| --- | --- | --- |
+| **Übersicht** | `/accounting` | KPIs, Summen; KPI **«Kosten folgen»** |
+| **Erfassen** | `/accounting/buchungen` | Innen-Tabs: Buchungsliste · Zuordnen · **Rechnungen** |
+| **Auswertungen** | Detail-Tabs | Gruppenkosten · Materialkosten · Abschreibung · Budget |
+| **Stammdaten** | `/accounting/kostenstellen` | Kostenstellen + Zuordnungsregeln |
+
+| Auswertungen-Detail | Route |
+| --- | --- |
+| Gruppenkosten | `/accounting/gruppen` |
+| Materialkosten | `/accounting/materialkosten` |
+| Abschreibung | `/accounting/abschreibung` |
+| Budget | `/accounting/budget` |
+
+Aktivität: Tab **Kosten** = Übersicht + optional Einnahme-Vermerk + **Rechnungsvorschau** (A4-Modal); Link zu offenen Follow-ups in der Buchhaltung.
 
 ---
 
@@ -232,9 +238,87 @@ Details Status/Pipeline: [activities/status.md](./activities/status.md), [activi
 
 Mehrere Follow-ups **derselben Aktivität** können mit einer Kostenstelle gesammelt erfasst werden (`POST …/acquisition-followups/batch-record`).
 
+### Aktivitäts-Rechnung (v1 — berechnet)
+
+**Ziel:** Für den Kunden **eine** Gesamtrechnung pro Aktivität — intern bleiben die Kosten **getrennt**. Kein `activity_final`.
+
+**Ist (v1):** Berechnetes Aggregat (keine persistierte Rechnungstabelle, kein PDF).
+
+| API | Zweck |
+| --- | --- |
+| `GET /api/activities/{id}/accounting-invoice` | Positionen + Status + Summen |
+| `GET /api/departments/{id}/accounting/activity-invoices` | Liste für Buchhaltung → Erfassen → Rechnungen |
+
+| Status | Ableitung |
+| --- | --- |
+| `blocked` | Offene Werkstatt («Kosten folgen») |
+| `paid` | Vermerk `cash` und keine pending Follow-ups |
+| `open` | Vermerk `invoice` |
+| `draft` | Sonst mit Positionen |
+| `empty` | Keine Positionen |
+
+| UI | Ort |
+| --- | --- |
+| Aktivität Tab Kosten | Kurzblock + **Rechnung anzeigen** → A4-Modal mit Positionen |
+| Buchhaltung **Erfassen** → Rechnungen | Liste; **Rechnung anzeigen** → A4-Modal; Link zur Aktivität |
+
+**Zuordnen** bleibt der Tab für Follow-ups → Buchungen — nicht der Weg zur Kundenrechnung.
+
+Offen später: PDF-Export / Druck, persistierte Rechnung, Nachtrags-Workflow.
+
+```mermaid
+flowchart TB
+  subgraph intern [Intern — bleibt]
+    FU1[Follow-up Verbrauch]
+    FU2[Follow-up Miete]
+    FU3[Follow-up Werkstatt]
+    EXP[Platzhalter Kosten folgen]
+    FU1 --> BK1[Buchung]
+    FU2 --> BK2[Buchung]
+    FU3 --> BK3[Buchung]
+  end
+  subgraph kunde [Kunde — Aggregat]
+    INV[Aktivitäts-Rechnung]
+    L1[Position Verbrauch]
+    L2[Position Miete]
+    L3[Position Werkstatt / offen]
+    INV --> L1
+    INV --> L2
+    INV --> L3
+  end
+  FU1 -.-> L1
+  FU2 -.-> L2
+  FU3 -.-> L3
+  EXP -.-> L3
+```
+
+**Regeln:**
+
+- Die Rechnung **ersetzt keine** `AccountingBooking` — sie **aggregiert**.
+- Interner Verbrauch an Gruppe: sichtbar im Aggregat; Fokus Kundenrechnung = oft **external**.
+- Einnahme-Vermerk vorbelegt Status (`cash`/`invoice`), erzeugt allein keine Debitorenbuchung.
+
 ### Zuordnungsregeln
 
 Unter **Kostenstellen → Zuordnungsregeln** pro Department konfigurierbar. Überschreibt Keyword-Heuristik beim Tab «Neue Buchung zuordnen».
+
+**Bootstrap (idempotent):** Beim Anlegen eines Departments (und via `POST …/cost-centers/bootstrap` bzw. `app:accounting:ensure-defaults`) werden Standard-Kostenstellen **und** Regeln angelegt. Bestehende Einträge werden nicht überschrieben; fehlende werden nachgezogen. Aliase: `Vermietung` ↔ `Vermietung / Extern`, `Material & Ausstattung` ↔ `Material & Einkauf`, `Allgemeiner Bedarf` ↔ `Allgemein`.
+
+| Kostenstelle | Zweck |
+| --- | --- |
+| Allgemein | Rest / übergreifend |
+| Material & Einkauf | Anschaffungen, Nachkauf |
+| Reparatur & Werkstatt | intern/extern |
+| Vermietung / Extern | externe Ausleihe, Kundenrechnung |
+| Verbrauch / Gruppen | Aktivitätsverbrauch |
+
+| source_kind | Kostenstelle | Typ | Zahlungsart |
+| --- | --- | --- | --- |
+| `batch` | Material & Einkauf | `purchase` | `supplier_invoice` |
+| `activity_replenishment` | Material & Einkauf | `purchase` | `supplier_invoice` |
+| `activity_workshop` | Reparatur & Werkstatt | `repair_external` | `supplier_invoice` |
+| `activity_rental` | Vermietung / Extern | `other` | — |
+| `activity_consumption` | Verbrauch / Gruppen | `other` | `cash_group` |
 
 ---
 
@@ -250,6 +334,7 @@ Unter **Kostenstellen → Zuordnungsregeln** pro Department konfigurierbar. Übe
 | Bereich | Prefix |
 | --- | --- |
 | Kostenstellen | `/api/departments/{id}/accounting/cost-centers` |
+| Bootstrap Defaults | `POST …/accounting/cost-centers/bootstrap` |
 | Regeln | `/api/departments/{id}/accounting/cost-center-rules` |
 | Buchungen | `/api/departments/{id}/accounting/bookings` |
 | Follow-ups | `/api/departments/{id}/accounting/acquisition-followups` |
@@ -258,6 +343,7 @@ Unter **Kostenstellen → Zuordnungsregeln** pro Department konfigurierbar. Übe
 | Budget | `/api/departments/{id}/accounting/budget` |
 | Übersicht | `/api/departments/{id}/accounting/overview` |
 | Erwartete Kosten | `/api/departments/{id}/accounting/expected-costs` |
+| Aktivitäts-Rechnungen | `/api/departments/{id}/accounting/activity-invoices` |
 
 Vermerk-API: `PATCH /api/activities/{id}/collection-note` (MW/DC) — Body `{ note: 'cash'|'invoice'|null, amount?: number }`.
 
@@ -303,6 +389,7 @@ Verwandt: [ideen-backlog.md](./future/ideen-backlog.md) #7 · Journey [SPEC §20
 - Bankabgleich / Kassenbuch
 - Fertige Buchung **nur** in der Aktivität ohne `/accounting`
 - Bexio/OMC-Schnittstelle (später; hängt an klarem Datenmodell hier)
+- **Aktivitäts-Rechnung** — v1 berechnet (Kosten-Tab + Erfassen → Rechnungen); PDF / persistierte Rechnung später
 
 ## Migration
 

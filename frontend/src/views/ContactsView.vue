@@ -1,16 +1,7 @@
 <template>
   <div class="contacts-view">
     <ContactDetailView
-      v-if="showCreateView"
-      mode="create"
-      :department-id="currentDepartmentId"
-      :default-type="createDefaultType"
-      @close="closeCreateView"
-      @created="handleCreated"
-    />
-
-    <ContactDetailView
-      v-else-if="showDetailView && selectedContactId"
+      v-if="showDetailView && selectedContactId"
       :contact-id="selectedContactId"
       :department-id="currentDepartmentId"
       @close="closeDetailView"
@@ -25,7 +16,7 @@
         {{ isUserRole ? t('contacts.descriptionUser') : t('contacts.description') }}
       </template>
       <template v-if="canCreateContact" #actions>
-        <EButton variant="primary" @click="openCreateView">
+        <EButton variant="primary" @click="openCreateModal">
           <v-icon icon="mdi-plus" start size="20" />
           {{ t('contacts.newAddress') }}
         </EButton>
@@ -98,7 +89,7 @@
         :description="t('contacts.emptyText')"
       >
         <template v-if="canCreateContact" #actions>
-          <EButton size="large" @click="openCreateView">
+          <EButton size="large" @click="openCreateModal">
             {{ t('contacts.emptyCta') }}
           </EButton>
         </template>
@@ -141,6 +132,28 @@
         <p class="table-hint">{{ t('contacts.tableHint') }}</p>
       </div>
     </PageShell>
+
+    <v-dialog
+      v-model="showCreateModal"
+      class="contact-create-dialog"
+      max-width="960"
+      scrollable
+      content-class="contact-create-dialog__content"
+    >
+      <v-card class="contact-create-dialog__card" rounded="lg">
+        <v-card-text class="contact-create-dialog__body">
+          <ContactDetailView
+            v-if="showCreateModal"
+            mode="create"
+            as-modal
+            :department-id="currentDepartmentId"
+            :default-type="createDefaultType"
+            @close="closeCreateModal"
+            @created="handleCreated"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -224,9 +237,9 @@ const selectedCanton = ref('')
 const showDeleted = ref(false)
 
 // Create / Detail View State
-const showCreateView = ref(false)
+const showCreateModal = ref(false)
 const selectedContactId = computed(() => route.params.contactId as string | undefined || null)
-const showDetailView = computed(() => !!selectedContactId.value && !showCreateView.value)
+const showDetailView = computed(() => !!selectedContactId.value)
 
 // Computed: Filtered Contacts
 const filteredContacts = computed(() => {
@@ -307,17 +320,17 @@ async function handleContactDeleted() {
   await loadContacts()
 }
 
-// Create (gleiche Detailansicht, alle Felder)
-function openCreateView() {
-  showCreateView.value = true
+// Create (Detail-Stil als Modal)
+function openCreateModal() {
+  showCreateModal.value = true
 }
 
-function closeCreateView() {
-  showCreateView.value = false
+function closeCreateModal() {
+  showCreateModal.value = false
 }
 
 async function handleCreated(addr: Address) {
-  showCreateView.value = false
+  showCreateModal.value = false
   await loadContacts()
   if (addr?.id) {
     router.push(`/${currentDepartmentId.value}/contacts/${addr.id}`)

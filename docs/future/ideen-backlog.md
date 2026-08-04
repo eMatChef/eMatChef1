@@ -22,7 +22,7 @@ Bewertung: Impact und Aufwand je **1 (niedrig) … 5 (hoch)**. Priorität ≈ ho
 | 4 | **Hilfe + Einführungsrunde MW/Leiter finalisieren** | 4 | 2 | Adoption-Blocker, schneller sichtbarer Nutzen | [onboarding/](../onboarding/README.md) |
 | 5 | **Verbrauchsmat vereinfachen** (Eingabe/Löschung wenn aufgebraucht; kein QR; Barcode/Internet) | 4 | 2 | Hohe Reibung, begrenzter Scope | Material / QR |
 | 6 | **PDF-Import Materialeinkauf** (Artikel/Batch + Lieferantendaten vorausfüllen) | 4 | 3 | Weniger Tipparbeit, bessere Stammdaten | [pdf-purchase-import](../material/pdf-purchase-import.md), [supplier/](../supplier/plan.md) |
-| 7 | **Abrechnung in Aktivität** (Bar / Rechnung / bezahlt) + Buchhaltung aufräumen | 4 | 3 | **Phasen 1–6 erledigt** (Aug 2026) | [accounting.md — Zwei Abschlüsse](../accounting.md#zwei-abschlüsse-kernmodell) |
+| 7 | **Abrechnung in Aktivität** + Buchhaltung | 4 | 3 | Phasen 1–6 + **Rechnung v1** (berechnet); offen: PDF | [accounting.md](../accounting.md#aktivitäts-rechnung-v1--berechnet) |
 | 8 | **Defekt melden visuell** (Fragenkatalog / Tabs aussen–innen–Zubehör; auf Bild zeichnen) | 4 | 3 | Werkstatt-Differenzierung, weniger Rückfragen | [workshop/](../workshop/README.md) |
 | 9 | **Offline-MW + Bestellstopp** wenn eingeloggter MW offline | 4 | 3 | Verhindert Chaos bei Lager-Offline; hängt an #2 | [devices/concept](../devices/concept.md) (Offline) |
 | 10 | **Grossanlass überarbeiten** (Hauptmat-/Dep-Liste, Filter/Ressorts, Kontaktfelder) | 5 | 5 | Event-kritisch, hoher Aufwand — nach Kern-Packen | [grossanlass/](../grossanlass/README.md), [MVP](../grossanlass/MVP.md) |

@@ -5,18 +5,39 @@
 
     <template #filters>
       <v-tabs
-        :model-value="activeShellTab"
+        :model-value="activePrimary"
         class="accounting-shell-tabs"
         color="primary"
-        @update:model-value="onShellTabChange"
       >
-        <v-tab v-if="canManageAccounting" value="overview">{{ t('accounting.shell.tabOverview') }}</v-tab>
-        <v-tab v-if="canManageAccounting" value="cost-centers">{{ t('accounting.shell.tabCostCenters') }}</v-tab>
-        <v-tab v-if="canManageAccounting" value="bookings">{{ t('accounting.shell.tabBookings') }}</v-tab>
-        <v-tab v-if="canViewGroupCosts" value="groups">{{ t('accounting.shell.tabGroups') }}</v-tab>
-        <v-tab v-if="canManageAccounting" value="material-costs">{{ t('accounting.shell.tabMaterialCosts') }}</v-tab>
-        <v-tab v-if="canManageAccounting" value="amortization">{{ t('accounting.shell.tabAmortization') }}</v-tab>
-        <v-tab v-if="canManageAccounting" value="budget">{{ t('accounting.shell.tabBudget') }}</v-tab>
+        <v-tab v-if="canManageAccounting" value="overview" @click="onPrimaryChange('overview')">
+          {{ t('accounting.shell.groupOverview') }}
+        </v-tab>
+        <v-tab v-if="canManageAccounting" value="capture" @click="onPrimaryChange('capture')">
+          {{ t('accounting.shell.groupCapture') }}
+        </v-tab>
+        <v-tab v-if="canViewGroupCosts" value="reports" @click="onPrimaryChange('reports')">
+          {{ t('accounting.shell.groupReports') }}
+        </v-tab>
+        <v-tab v-if="canManageAccounting" value="master" @click="onPrimaryChange('master')">
+          {{ t('accounting.shell.groupMaster') }}
+        </v-tab>
+      </v-tabs>
+
+      <v-tabs
+        v-if="detailTabs.length > 1"
+        :model-value="activeDetail"
+        class="accounting-detail-tabs"
+        color="primary"
+        density="compact"
+      >
+        <v-tab
+          v-for="tab in detailTabs"
+          :key="tab.value"
+          :value="tab.value"
+          @click="onDetailChange(tab.value)"
+        >
+          {{ tab.label }}
+        </v-tab>
       </v-tabs>
     </template>
 
@@ -32,6 +53,8 @@ import PageShell from '@/components/layout/PageShell.vue'
 import { useAccountingAccess } from '@/composables/useAccountingAccess'
 import '@/styles/views/accounting-tabs.css'
 
+type PrimaryGroup = 'overview' | 'capture' | 'reports' | 'master'
+
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -41,14 +64,47 @@ const { canManageAccounting, canViewGroupCosts, ensureGroupsForAccess } = useAcc
   () => departmentId.value,
 )
 
+const routeByDetail: Record<string, string> = {
+  overview: 'AccountingOverview',
+  bookings: 'AccountingBookings',
+  'cost-centers': 'AccountingCostCenters',
+  groups: 'AccountingGroupCosts',
+  'material-costs': 'AccountingMaterialCosts',
+  amortization: 'AccountingAmortization',
+  budget: 'AccountingBudget',
+}
+
+const primaryByRouteName: Record<string, PrimaryGroup> = {
+  AccountingOverview: 'overview',
+  AccountingBookings: 'capture',
+  AccountingCostCenters: 'master',
+  AccountingGroupCosts: 'reports',
+  AccountingMaterialCosts: 'reports',
+  AccountingAmortization: 'reports',
+  AccountingBudget: 'reports',
+}
+
+const detailByRouteName: Record<string, string> = {
+  AccountingOverview: 'overview',
+  AccountingBookings: 'bookings',
+  AccountingCostCenters: 'cost-centers',
+  AccountingGroupCosts: 'groups',
+  AccountingMaterialCosts: 'material-costs',
+  AccountingAmortization: 'amortization',
+  AccountingBudget: 'budget',
+}
+
 async function applyAccessRedirects() {
   await ensureGroupsForAccess()
   if (!canViewGroupCosts.value && route.path.includes('/accounting')) {
     void router.replace({ name: 'Dashboard', params: { departmentId: departmentId.value } })
     return
   }
-  if (!canManageAccounting.value && canViewGroupCosts.value && route.name === 'AccountingOverview') {
-    void router.replace({ name: 'AccountingGroupCosts', params: { departmentId: departmentId.value } })
+  if (!canManageAccounting.value && canViewGroupCosts.value) {
+    const name = String(route.name || '')
+    if (name !== 'AccountingGroupCosts') {
+      void router.replace({ name: 'AccountingGroupCosts', params: { departmentId: departmentId.value } })
+    }
   }
 }
 
@@ -60,31 +116,68 @@ watch(departmentId, () => {
   void applyAccessRedirects()
 })
 
-const activeShellTab = computed(() => {
-  const name = route.name
-  if (name === 'AccountingCostCenters') return 'cost-centers'
-  if (name === 'AccountingBookings') return 'bookings'
-  if (name === 'AccountingGroupCosts') return 'groups'
-  if (name === 'AccountingMaterialCosts') return 'material-costs'
-  if (name === 'AccountingAmortization') return 'amortization'
-  if (name === 'AccountingBudget') return 'budget'
-  return 'overview'
+const activePrimary = computed<PrimaryGroup>(() => {
+  const name = String(route.name || '')
+  return primaryByRouteName[name] || (canManageAccounting.value ? 'overview' : 'reports')
 })
 
-function onShellTabChange(tab: unknown) {
+const activeDetail = computed(() => {
+  const name = String(route.name || '')
+  return detailByRouteName[name] || ''
+})
+
+const detailTabs = computed(() => {
+  const primary = activePrimary.value
+  if (primary === 'reports') {
+    const tabs: { value: string; label: string }[] = [
+      { value: 'groups', label: t('accounting.shell.tabGroups') },
+    ]
+    if (canManageAccounting.value) {
+      tabs.push(
+        { value: 'material-costs', label: t('accounting.shell.tabMaterialCosts') },
+        { value: 'amortization', label: t('accounting.shell.tabAmortization') },
+        { value: 'budget', label: t('accounting.shell.tabBudget') },
+      )
+    }
+    return tabs
+  }
+  // Erfassen / Stammdaten / Übersicht: kein Shell-Detail-Tab (Buchungen hat eigene Innen-Tabs)
+  return []
+})
+
+function pushRoute(routeName: string) {
   const id = departmentId.value
   if (!id) return
-  const routes: Record<string, string> = {
-    overview: 'AccountingOverview',
-    'cost-centers': 'AccountingCostCenters',
-    bookings: 'AccountingBookings',
-    groups: 'AccountingGroupCosts',
-    'material-costs': 'AccountingMaterialCosts',
-    amortization: 'AccountingAmortization',
-    budget: 'AccountingBudget',
+  void router.push({ name: routeName, params: { departmentId: id } })
+}
+
+function onPrimaryChange(tab: unknown) {
+  const primary = String(tab) as PrimaryGroup
+  if (primary === 'overview') {
+    pushRoute('AccountingOverview')
+    return
   }
-  const name = routes[String(tab)] || (canManageAccounting.value ? 'AccountingOverview' : 'AccountingGroupCosts')
-  void router.push({ name, params: { departmentId: id } })
+  if (primary === 'capture') {
+    pushRoute('AccountingBookings')
+    return
+  }
+  if (primary === 'master') {
+    pushRoute('AccountingCostCenters')
+    return
+  }
+  if (primary === 'reports') {
+    // Bleibe in Auswertungen, wenn schon dort; sonst Gruppenkosten
+    if (activePrimary.value === 'reports') {
+      return
+    }
+    pushRoute('AccountingGroupCosts')
+  }
+}
+
+function onDetailChange(tab: unknown) {
+  const detail = String(tab)
+  const routeName = routeByDetail[detail]
+  if (routeName) pushRoute(routeName)
 }
 </script>
 

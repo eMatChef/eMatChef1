@@ -606,6 +606,11 @@
                 :activity-id="activityId"
                 :department-id="departmentId"
                 :can-edit="canEditJsOrder"
+                :participant-count="activity?.participant_count ?? null"
+                :venue-address-id="activity?.viewer_venue_address_id ?? activity?.venue_address_id ?? null"
+                :js-delivery-address-id="activity?.js_delivery_address_id ?? null"
+                @activity-updated="onJsActivityUpdated"
+                @go-overview="activeTab = 'overview'"
               />
             </div>
           </ActivityDetailTabPane>
@@ -2562,6 +2567,10 @@ async function onReconfigureVirtualComboConfirm(payload: {
 }
 
 async function onDraftOverviewSaved() {
+  await reloadActivityDetailSoft()
+}
+
+async function onJsActivityUpdated() {
   await reloadActivityDetailSoft()
 }
 

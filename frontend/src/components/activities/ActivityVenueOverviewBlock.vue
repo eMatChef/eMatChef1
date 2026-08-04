@@ -1,126 +1,175 @@
 <template>
   <div v-if="venueAddressId" class="activity-venue-overview span-2">
-    <ActivityDualLocationMap
-      ref="mapRef"
-      :pins="pins"
-      height="200px"
-      :interactive="false"
+    <EventVenueDetailLocations
+      v-if="venueAddress"
+      ref="locationsRef"
+      :event-address="venueAddress"
+      :child-addresses="childAddresses"
+      :read-only="readOnly"
+      :allow-children="true"
+      location-kind="event"
+      :hide-title="hideTitle"
+      @edit-child="openChildEditModal"
+      @create-child="openChildCreateModal"
+      @edit-venue-details="openVenueDetailsModal"
+      @venue-updated="handleVenueUpdated"
     />
-    <ul v-if="pins.length > 0" class="activity-venue-overview-links">
-      <li v-for="pin in pins" :key="pin.id" class="activity-venue-overview-link-row">
-        <span
-          class="activity-venue-overview-link-dot"
-          :class="`activity-venue-overview-link-dot--${pin.variant ?? 'venue'}`"
-          aria-hidden="true"
-        />
-        <span class="activity-venue-overview-link-label">{{ pin.label }}</span>
-        <span class="activity-venue-overview-link-actions">
-          <a
-            :href="googleMapsLinkFor(pin)"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-outline btn-sm"
-          >
-            {{ t('components.mapView.openGoogleMaps') }}
-          </a>
-          <a
-            :href="swisstopoLinkFor(pin)"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-outline btn-sm"
-          >
-            {{ t('components.mapView.openSwisstopoMap') }}
-          </a>
-        </span>
-      </li>
-    </ul>
+
     <p v-if="showJsHint" class="field-hint text-muted activity-venue-overview-js-hint">
       {{ t('activities.venueLocations.activityVenueHint') }}
     </p>
+
+    <AddressModal
+      v-if="showChildModal"
+      :department-id="departmentId"
+      :address="childModalAddress"
+      :default-type="childModalDefaultType"
+      :parent-id="childModalParentId"
+      :default-name="childModalDefaultName"
+      :allowed-types="childModalAllowedTypes"
+      :initial-latitude="childModalMapFocus?.latitude ?? null"
+      :initial-longitude="childModalMapFocus?.longitude ?? null"
+      @close="closeChildModal"
+      @saved="handleChildSaved"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { getAddress } from '@/api/addresses'
-import ActivityDualLocationMap, { type ActivityLocationPin } from '@/components/activities/ActivityDualLocationMap.vue'
-import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
+import { getAddress, type Address } from '@/api/addresses'
+import AddressModal from '@/components/AddressModal.vue'
+import EventVenueDetailLocations from '@/components/contacts/EventVenueDetailLocations.vue'
 
-const props = defineProps<{
-  venueAddressId: string | null
-  showJsHint?: boolean
+const props = withDefaults(
+  defineProps<{
+    venueAddressId: string | null
+    departmentId: string
+    readOnly?: boolean
+    showJsHint?: boolean
+    /** Titel «Standorte» ausblenden (Feld heisst schon Eventstandort). */
+    hideTitle?: boolean
+  }>(),
+  {
+    readOnly: false,
+    showJsHint: false,
+    hideTitle: true,
+  },
+)
+
+const emit = defineEmits<{
+  updated: []
 }>()
 
-const { t, locale } = useI18n()
-const mapRef = ref<InstanceType<typeof ActivityDualLocationMap> | null>(null)
-const pins = ref<ActivityLocationPin[]>([])
+const { t } = useI18n()
 
-function mapLinkLang(): string {
-  return locale.value.split('-')[0] || 'de'
-}
+const locationsRef = ref<InstanceType<typeof EventVenueDetailLocations> | null>(null)
+const venueAddress = ref<Address | null>(null)
+const childAddresses = ref<Address[]>([])
 
-function googleMapsLinkFor(pin: ActivityLocationPin): string {
-  return googleMapsCoordinatesUrl(pin.latitude, pin.longitude)
-}
+const showChildModal = ref(false)
+const childModalAddress = ref<Address | null>(null)
+const childModalIsVenueDetails = ref(false)
+const childModalDefaultType = ref<string>('event_delivery')
 
-function swisstopoLinkFor(pin: ActivityLocationPin): string {
-  return swisstopoMapUrl(pin.latitude, pin.longitude, { lang: mapLinkLang() })
-}
+const hasDeliveryChild = computed(() => childAddresses.value.some((a) => a.type === 'event_delivery'))
 
-async function loadPins() {
+const childModalAllowedTypes = computed(() => {
+  if (childModalIsVenueDetails.value) {
+    return [venueAddress.value?.type === 'meeting' ? 'meeting' : 'event']
+  }
+  if (childModalAddress.value) return [childModalAddress.value.type]
+  return hasDeliveryChild.value ? ['event_poi'] : ['event_delivery']
+})
+
+const childModalParentId = computed(() => {
+  if (childModalIsVenueDetails.value) return null
+  return venueAddress.value?.id ?? null
+})
+
+const childModalMapFocus = computed(() => {
+  if (childModalIsVenueDetails.value) return null
+  const lat = venueAddress.value?.latitude
+  const lng = venueAddress.value?.longitude
+  if (lat == null || lng == null) return null
+  return { latitude: lat, longitude: lng }
+})
+
+const childModalDefaultName = computed(() => {
+  if (childModalIsVenueDetails.value) return ''
+  if (childModalDefaultType.value === 'event_poi') return ''
+  const base = venueAddress.value?.name || venueAddress.value?.company || ''
+  return base ? `${base} – Zustellung` : ''
+})
+
+async function loadVenue() {
   const id = props.venueAddressId
   if (!id) {
-    pins.value = []
+    venueAddress.value = null
+    childAddresses.value = []
     return
   }
   try {
     const data = await getAddress(id)
-    const venue = data.address
-    const next: ActivityLocationPin[] = []
-    if (venue.latitude != null && venue.longitude != null) {
-      next.push({
-        id: 'venue',
-        label: t('activities.wizard.form.venueLabel'),
-        latitude: venue.latitude,
-        longitude: venue.longitude,
-        variant: 'venue',
-      })
-    }
-    const delivery = (data.child_addresses ?? []).find((a) => a.type === 'event_delivery')
-    if (
-      delivery?.latitude != null &&
-      delivery.longitude != null &&
-      delivery.id !== venue.id
-    ) {
-      next.push({
-        id: 'delivery',
-        label: t('activities.venueLocations.deliveryPinLabel'),
-        latitude: delivery.latitude,
-        longitude: delivery.longitude,
-        variant: 'delivery',
-      })
-    }
-    for (const poi of data.child_addresses ?? []) {
-      if (poi.type !== 'event_poi') continue
-      if (poi.latitude == null || poi.longitude == null) continue
-      next.push({
-        id: poi.id,
-        label: poi.name || t('activities.venueLocations.poiFallbackLabel'),
-        latitude: poi.latitude,
-        longitude: poi.longitude,
-        variant: 'poi',
-        color: poi.pin_color,
-      })
-    }
-    pins.value = next
-    mapRef.value?.invalidateSize()
+    venueAddress.value = data.address
+    childAddresses.value = data.child_addresses ?? []
+    await nextTick()
+    locationsRef.value?.refreshMaps()
   } catch {
-    pins.value = []
+    venueAddress.value = null
+    childAddresses.value = []
   }
 }
 
-watch(() => props.venueAddressId, () => void loadPins(), { immediate: true })
+function openChildCreateModal() {
+  childModalIsVenueDetails.value = false
+  childModalAddress.value = null
+  childModalDefaultType.value = hasDeliveryChild.value ? 'event_poi' : 'event_delivery'
+  showChildModal.value = true
+}
+
+function openChildEditModal(address: Address) {
+  childModalIsVenueDetails.value = false
+  childModalAddress.value = address
+  childModalDefaultType.value = address.type === 'event_poi' ? 'event_poi' : 'event_delivery'
+  showChildModal.value = true
+}
+
+function openVenueDetailsModal() {
+  if (!venueAddress.value) return
+  childModalIsVenueDetails.value = true
+  childModalAddress.value = venueAddress.value
+  childModalDefaultType.value = venueAddress.value.type === 'meeting' ? 'meeting' : 'event'
+  showChildModal.value = true
+}
+
+function closeChildModal() {
+  showChildModal.value = false
+  childModalAddress.value = null
+  childModalIsVenueDetails.value = false
+}
+
+async function handleVenueUpdated(address: Address) {
+  venueAddress.value = address
+  emit('updated')
+  await nextTick()
+  locationsRef.value?.refreshMaps()
+}
+
+async function handleChildSaved(saved?: Address) {
+  const wasVenueDetails = childModalIsVenueDetails.value
+  closeChildModal()
+  if (wasVenueDetails && saved) {
+    venueAddress.value = saved
+  }
+  await loadVenue()
+  emit('updated')
+}
+
+watch(() => props.venueAddressId, () => void loadVenue(), { immediate: true })
+
+defineExpose({ reload: loadVenue })
 </script>
 
 <style scoped>
@@ -128,52 +177,7 @@ watch(() => props.venueAddressId, () => void loadPins(), { immediate: true })
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.activity-venue-overview-links {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.activity-venue-overview-link-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.activity-venue-overview-link-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.activity-venue-overview-link-dot--venue {
-  background: #2563eb;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #2563eb;
-}
-
-.activity-venue-overview-link-dot--delivery {
-  background: #ea580c;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 3px #ea580c;
-}
-
-.activity-venue-overview-link-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #334155;
-}
-
-.activity-venue-overview-link-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-left: auto;
+  margin-top: 8px;
 }
 
 .activity-venue-overview-js-hint {

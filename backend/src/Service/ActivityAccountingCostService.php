@@ -62,6 +62,53 @@ class ActivityAccountingCostService
         $this->syncWorkshopFollowUps($activity);
     }
 
+    /**
+     * Positionen für Aktivitäts-Rechnung: Verbrauch pro Material (Menge + Betrag).
+     *
+     * @return list<array{material_item_id: string, material_name: string, quantity: int, amount_chf: string}>
+     */
+    public function listConsumableUsageLinesForInvoice(Activity $activity): array
+    {
+        $activityId = $activity->getId();
+        if (!$activityId) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ($this->consumableMaterialIdsForActivity($activityId) as $materialItemId) {
+            $issues = $this->entityManager->getRepository(ActivityIssueReport::class)->findBy([
+                'activityId' => $activityId,
+                'type' => ActivityIssueReport::TYPE_CONSUMPTION,
+                'materialItemId' => $materialItemId,
+            ]);
+            $qty = 0;
+            foreach ($issues as $iss) {
+                if ($iss instanceof ActivityIssueReport) {
+                    $qty += $iss->getQuantity();
+                }
+            }
+            if ($qty <= 0) {
+                continue;
+            }
+            $amount = $this->computeConsumableMaterialTotalCost($activityId, $materialItemId);
+            if ($amount <= 0) {
+                continue;
+            }
+            $material = $this->entityManager->find(MaterialItem::class, $materialItemId);
+            $name = $material instanceof MaterialItem ? $material->getName() : $materialItemId;
+            $lines[] = [
+                'material_item_id' => $materialItemId,
+                'material_name' => $name,
+                'quantity' => $qty,
+                'amount_chf' => number_format($amount, 2, '.', ''),
+            ];
+        }
+
+        usort($lines, static fn (array $a, array $b): int => strcmp($a['material_name'], $b['material_name']));
+
+        return $lines;
+    }
+
     /** Summe aller Follow-up-Beträge (Tests/Vergleich). */
     public function computeActivityBillingTotal(Activity $activity): float
     {

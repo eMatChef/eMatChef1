@@ -170,3 +170,38 @@
   text-align: center;
   margin: 0;
 }
+
+/* Create-Modal: Vuettys scrollable braucht v-card-text; Höhe + overflow erzwingen */
+.contact-create-dialog .contact-create-dialog__content,
+.v-overlay__content.contact-create-dialog__content {
+  width: calc(100% - 24px) !important;
+  max-width: 960px !important;
+  max-height: min(90vh, 920px) !important;
+  margin: 12px auto !important;
+  overflow: hidden !important;
+}
+
+.contact-create-dialog__card {
+  background: #fff !important;
+  max-height: min(90vh, 920px) !important;
+  height: min(90vh, 920px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.contact-create-dialog__body.v-card-text,
+.contact-create-dialog__card > .contact-create-dialog__body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 0 !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+.contact-create-dialog__body .contact-detail-view--modal {
+  max-height: none;
+  overflow: visible;
+}

@@ -31,6 +31,11 @@ import {
   listActivityAcquisitionFollowups,
   type AccountingAcquisitionFollowUp,
 } from '@/api/accountingAcquisitionFollowups'
+import {
+  getActivityAccountingInvoice,
+  type ActivityAccountingInvoice,
+} from '@/api/activityAccountingInvoice'
+import ActivityAccountingInvoicePreviewDialog from '@/components/accounting/ActivityAccountingInvoicePreviewDialog.vue'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import {
   accountingFollowUpKindKey,
@@ -75,13 +80,15 @@ const emit = defineEmits<{
   }]
 }>()
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
 const workshopTickets = ref<WorkshopTicket[]>([])
 const pendingAccounting = ref<AccountingAcquisitionFollowUp[]>([])
 const recordedAccounting = ref<AccountingAcquisitionFollowUp[]>([])
+const accountingInvoice = ref<ActivityAccountingInvoice | null>(null)
+const invoicePreviewOpen = ref(false)
 const showAccountingLink = computed(() => departmentHasAccountingRole(props.departmentId))
 
 const settlementTiming = ref<AccountingSettlementTiming>(
@@ -118,6 +125,17 @@ const collectionNoteProminent = computed(
 const savedCollectionNote = computed(() => props.collectionNote ?? null)
 
 const showAccountingTasks = computed(() => props.activityStatus === 'completed')
+
+const showInvoicePanel = computed(() => {
+  const inv = accountingInvoice.value
+  return Boolean(inv && inv.status !== 'empty' && inv.lines.length > 0)
+})
+
+const invoiceStatusLabel = computed(() => {
+  const status = accountingInvoice.value?.status || ''
+  const key = `activities.costs.invoiceStatus.${status}`
+  return te(key) ? t(key) : status
+})
 
 const allAccountingFollowUps = computed(() =>
   sortFollowUpsForDisplay([...pendingAccounting.value, ...recordedAccounting.value]),
@@ -348,12 +366,18 @@ async function load(opts?: { forceFull?: boolean }) {
         pendingAccounting.value = []
         recordedAccounting.value = []
       }
+      try {
+        accountingInvoice.value = await getActivityAccountingInvoice(props.activityId)
+      } catch {
+        accountingInvoice.value = null
+      }
     } catch {
       activityItems.value = []
       issues.value = []
       workshopTickets.value = []
       pendingAccounting.value = []
       recordedAccounting.value = []
+      accountingInvoice.value = null
     }
   }, opts)
 }
@@ -515,6 +539,41 @@ watch(
           <p v-if="noteError" class="costs-collection-error">{{ noteError }}</p>
           <p class="costs-collection-hint text-muted">{{ t('activities.costs.collectionNoteHint') }}</p>
         </section>
+
+        <section v-if="showInvoicePanel && accountingInvoice" class="costs-invoice-panel">
+          <h3 class="costs-section-title">{{ t('activities.costs.invoiceTitle') }}</h3>
+          <p class="costs-invoice-lead text-muted">{{ t('activities.costs.invoiceLead') }}</p>
+          <div class="costs-invoice-summary">
+            <span
+              class="costs-invoice-status"
+              :class="`costs-invoice-status--${accountingInvoice.status}`"
+            >
+              {{ invoiceStatusLabel }}
+            </span>
+            <span class="costs-invoice-total">
+              {{ t('activities.costs.invoiceTotal') }} CHF {{ formatChf(parseFloat(accountingInvoice.total_chf) || 0) }}
+            </span>
+            <span
+              v-if="parseFloat(accountingInvoice.estimated_open_chf) > 0"
+              class="costs-invoice-estimate text-muted"
+            >
+              {{ t('activities.costs.invoiceEstimateOpen', {
+                amount: formatChf(parseFloat(accountingInvoice.estimated_open_chf) || 0),
+              }) }}
+            </span>
+          </div>
+          <p class="costs-invoice-footer">
+            <EButton variant="primary" size="small" @click="invoicePreviewOpen = true">
+              {{ t('activities.costs.invoicePreview') }}
+            </EButton>
+          </p>
+        </section>
+
+        <ActivityAccountingInvoicePreviewDialog
+          v-model="invoicePreviewOpen"
+          :invoice="accountingInvoice"
+          :department-id="departmentId"
+        />
 
         <section
           v-if="showAccountingTasks"
@@ -930,6 +989,83 @@ watch(
 .costs-collection-hint {
   margin: 0;
   font-size: 12px;
+}
+
+.costs-invoice-panel {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 8px;
+}
+
+.costs-invoice-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.costs-invoice-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.costs-invoice-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.costs-invoice-status--blocked {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.costs-invoice-status--open {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.costs-invoice-status--paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.costs-invoice-total {
+  font-weight: 700;
+}
+
+.costs-invoice-lines {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.costs-invoice-line {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr auto;
+  gap: 8px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.costs-invoice-line-kind {
+  font-weight: 600;
+}
+
+.costs-invoice-footer {
+  margin: 0;
+  font-size: 13px;
 }
 
 .costs-collection-error {
