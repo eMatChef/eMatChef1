@@ -2,6 +2,10 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import {
+  isDepartmentBasicMemberRole,
+  isDepartmentMwOrDcRole,
+} from '@/composables/useDepartmentMemberRole'
+import {
   isOnboardingDone,
   isOnboardingPaused,
 } from '@/utils/departmentOnboarding'
@@ -21,13 +25,19 @@ export function useDepartmentOnboardingAccess() {
 
   const profileId = computed(() => authStore.profileId || '')
 
-  const hasOnboardingRole = computed(() => {
-    const role = normalizeDeptRole(authStore.currentDepartmentRole)
-    return ['dc', 'depchef', 'mw', 'matwart'].includes(role)
-  })
+  const departmentRole = computed(() => normalizeDeptRole(authStore.currentDepartmentRole))
+
+  const hasSetupChecklistRole = computed(() => isDepartmentMwOrDcRole(departmentRole.value))
+
+  const hasTourRole = computed(
+    () => isDepartmentMwOrDcRole(departmentRole.value) || isDepartmentBasicMemberRole(departmentRole.value)
+  )
+
+  /** @deprecated use hasSetupChecklistRole — historically MW/DC only */
+  const hasOnboardingRole = hasSetupChecklistRole
 
   const skipsPersonalDepartmentOnboarding = computed(() => {
-    const role = normalizeDeptRole(authStore.currentDepartmentRole)
+    const role = departmentRole.value
     if (['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(role)) {
       return true
     }
@@ -38,32 +48,48 @@ export function useDepartmentOnboardingAccess() {
     authStore.isDepartmentGrossanlass(departmentId.value)
   )
 
-  const canUseOnboarding = computed(() => {
-    return (
+  const baseAccess = computed(
+    () =>
       authStore.isLoggedIn &&
       !!departmentId.value &&
       !!profileId.value &&
-      hasOnboardingRole.value &&
       !skipsPersonalDepartmentOnboarding.value &&
       !isGrossanlassDepartment.value
-    )
-  })
+  )
+
+  /** Setup-Checkliste (MW/DC). */
+  const canUseSetupChecklist = computed(() => baseAccess.value && hasSetupChecklistRole.value)
+
+  /** Spotlight-Touren (MW/DC + User/L1–L3). */
+  const canUseTours = computed(() => baseAccess.value && hasTourRole.value)
+
+  /** Hub Hilfe → Einrichtung. */
+  const canUseHelpEinrichtung = computed(() => canUseTours.value)
+
+  /** @deprecated alias for canUseSetupChecklist (badge / checklist refresh) */
+  const canUseOnboarding = canUseSetupChecklist
 
   const isPausedLocally = computed(() => {
-    if (!canUseOnboarding.value) return false
+    if (!canUseSetupChecklist.value) return false
     return isOnboardingPaused(profileId.value, departmentId.value)
   })
 
   const isDoneLocally = computed(() => {
-    if (!canUseOnboarding.value) return true
+    if (!canUseSetupChecklist.value) return true
     return isOnboardingDone(profileId.value, departmentId.value)
   })
 
   return {
     departmentId,
     profileId,
+    departmentRole,
     canUseOnboarding,
+    canUseSetupChecklist,
+    canUseTours,
+    canUseHelpEinrichtung,
     hasOnboardingRole,
+    hasSetupChecklistRole,
+    hasTourRole,
     skipsPersonalDepartmentOnboarding,
     isGrossanlassDepartment,
     isPausedLocally,

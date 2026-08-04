@@ -19,7 +19,7 @@ Bewertung: Impact und Aufwand je **1 (niedrig) … 5 (hoch)**. Priorität ≈ ho
 | 1 | **Pack-/Bestell-Steps** — **Kern + 1d + 1c erledigt** · Abschluss-Entkopplung via **#7** | 5 | 3→1 | Step-Fluss + Kombo + Buchhaltung grün | **[pack-steps-spezifikation.md](../activities/pack-steps-spezifikation.md)** · **[#7 accounting](../accounting.md#zwei-abschlüsse-kernmodell)** |
 | 2 | **Scanseite verbessern + offline** | 5 | 4 | MW-Alltag; ohne Scan/Offline stockt Lagerbetrieb | [devices/concept](../devices/concept.md), [local-dev-handheld](../devices/local-dev-handheld.md) |
 | 3 | **Handheld-/Geräte-Flow** (Scanseite anbieten, Multilogin 2 Geräte, PIN/QR-Freigabe) | 5 | 3 | Devices-MVP läuft; Lücke zu Feld-tauglich | [devices/](../devices/), [device-pairing](../devices/device-pairing-and-sessions.md), [rollout](../devices/rollout-plan.md) |
-| 4 | **Hilfe + Einführungsrunde MW/Leiter finalisieren** | 4 | 2 | Adoption-Blocker, schneller sichtbarer Nutzen | [onboarding/](../onboarding/README.md) |
+| 4 | **Hilfe + Einführungsrunde MW/Leiter** — Hub/Touren/Doku-Tab live; Wartung in onboarding-Docs | 4 | 2→1 | Adoption | **[onboarding/](../onboarding/README.md)** |
 | 5 | **Verbrauchsmat vereinfachen** (Eingabe/Löschung wenn aufgebraucht; kein QR; Barcode/Internet) | 4 | 2 | Hohe Reibung, begrenzter Scope | Material / QR |
 | 6 | **PDF-Import Materialeinkauf** (Artikel/Batch + Lieferantendaten vorausfüllen) | 4 | 3 | Weniger Tipparbeit, bessere Stammdaten | [pdf-purchase-import](../material/pdf-purchase-import.md), [supplier/](../supplier/plan.md) |
 | 7 | **Abrechnung in Aktivität** + Buchhaltung | 4 | 3 | Phasen 1–6 + **Rechnung v1** (berechnet); offen: PDF | [accounting.md](../accounting.md#aktivitäts-rechnung-v1--berechnet) |
@@ -104,14 +104,14 @@ Bewertung: Impact und Aufwand je **1 (niedrig) … 5 (hoch)**. Priorität ≈ ho
 
 ### UX, Hilfe, Suche, Feedback
 
-- Hilfeseite fertig (ggf. eigener Tab / Wegleitung mit Ausgrauen)
+- Hilfeseite fertig (Happy Path + FAQ unter Hilfe → Dokumentation; Wegleitung mit Ausgrauen weiter offen)
 - CTRL/STRG Hover-Tips; Icons überarbeiten
 - Suchfeld: 10 Vorschläge + letzte 5 Suchen speichern
 - Feedback in der Seite (Ideen/Bugs)
 - Version auf der Seite anzeigen
 - Sandbox erweitern um Tools zu sehen
 - Mobile-Version kontrollieren
-- Einführungsrunde MW/Leiter finalisieren
+- Einführungsrunde MW/Leiter — In-App Touren + Checkliste + Doku (siehe [onboarding/](../onboarding/README.md)); externes Workshop-Skript optional später
 - Statistiken
 
 ### Lieferanten, Import/Export, Integrationen

@@ -34,7 +34,8 @@ const I18N_FALLBACK_LOCALE: FallbackLocale = {
 function detectInitialLocale(): SupportedLanguageCode {
   const stored = localStorage.getItem(LOCALE_STORAGE_KEY)
   if (stored) return normalizeLanguageCode(stored)
-  return normalizeLanguageCode(navigator.language)
+  // App-Standard DE (CH). Browser-Sprache nicht als Erstwahl — sonst EN in Dev-/Embedded-Browsern.
+  return DEFAULT_LANGUAGE
 }
 
 /** Vuetify (v-skeleton-loader, v-data-table, …) via vue-i18n-Adapter → $vuetify.* */

@@ -17,6 +17,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\DepartmentRoleLabelService;
 use App\Service\InboxMessageService;
 use App\Service\JoinRequestManagerNotificationService;
 use App\Service\TurnstileVerifier;
@@ -50,6 +51,7 @@ class JoinRequestController extends AbstractController
         private TurnstileVerifier $turnstileVerifier,
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private DepartmentRoleLabelService $departmentRoleLabelService,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -1059,7 +1061,7 @@ class JoinRequestController extends AbstractController
                     $inviterName,
                     $department->getName(),
                     $inviteUrl,
-                    $this->labelForMemberRole($requestedRole)
+                    $this->departmentRoleLabelService->labelForRole($requestedRole, $department->getId())
                 );
                 $mailSent = true;
             } catch (\Throwable) {
@@ -1550,18 +1552,6 @@ class JoinRequestController extends AbstractController
     {
         $upper = strtoupper($code);
         return preg_replace('/[^A-Z0-9]/', '', $upper) ?? '';
-    }
-
-    private function labelForMemberRole(string $role): string
-    {
-        return match (strtolower(trim($role))) {
-            'mw' => 'Materialchef',
-            'dc' => 'Departmentchef',
-            'l1' => 'Leiter 1',
-            'l2' => 'Leiter 2',
-            'l3' => 'Leiter 3',
-            default => 'Mitglied',
-        };
     }
 
     private function generateInviteCode(): string

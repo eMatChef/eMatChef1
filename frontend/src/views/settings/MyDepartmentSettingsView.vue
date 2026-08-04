@@ -287,6 +287,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
@@ -329,6 +330,7 @@ import { EButton, ESelect } from '@/components/form/base'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const { t, te } = useI18n()
@@ -522,30 +524,8 @@ async function setAsPrimary() {
   }
 }
 
-const roleNames: Record<string, string> = {
-  'sa': 'Superadmin',
-  'superadmin': 'Superadmin',
-  'org': 'Organisationschef',
-  'organisationschef': 'Organisationschef',
-  'sub': 'Suborgchef',
-  'suborgchef': 'Suborgchef',
-  'mw': 'Materialchef',
-  'matwart': 'Materialchef',
-  'dc': 'Departmentchef',
-  'depchef': 'Departmentchef',
-  'l1': 'Leiter 1',
-  'leader1': 'Leiter 1',
-  'l2': 'Leiter 2',
-  'leader2': 'Leiter 2',
-  'l3': 'Leiter 3',
-  'leader3': 'Leiter 3',
-  'u': 'Mitglied',
-  'user': 'Mitglied'
-}
-
 function formatRole(role: string): string {
-  const normalized = String(role).toLowerCase().trim()
-  return roleNames[normalized] || role
+  return roleLabelsStore.labelFor(role, selectedDepartmentId.value || authStore.activeDepartmentId, t)
 }
 
 function getInitials(name: string): string {

@@ -154,6 +154,20 @@ class DepartmentSettingController extends AbstractController
             $validData[$timingKey] = $v;
         }
 
+        $roleLabelKeys = ['roles.label.l1', 'roles.label.l2', 'roles.label.l3'];
+        foreach ($roleLabelKeys as $roleLabelKey) {
+            if (!\array_key_exists($roleLabelKey, $validData)) {
+                continue;
+            }
+            $label = trim(preg_replace('/\s+/u', ' ', (string) $validData[$roleLabelKey]) ?? '');
+            if (mb_strlen($label) > 60) {
+                return new JsonResponse([
+                    'error' => 'Rollenbezeichnung darf maximal 60 Zeichen lang sein',
+                ], 422);
+            }
+            $validData[$roleLabelKey] = $label;
+        }
+
         $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         // Bestehende Settings für dieses Department laden
@@ -203,7 +217,7 @@ class DepartmentSettingController extends AbstractController
      */
     private function extractAllowedSettings(array $data): array
     {
-        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.', 'workshop.', 'accounting.'];
+        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.', 'workshop.', 'accounting.', 'roles.', 'js.'];
         $validData = [];
 
         foreach ($data as $key => $value) {

@@ -1471,13 +1471,15 @@
       },
       "activityCreate": {
         "title": "Aktivität anlegen",
-        "description": "Eine einfache Aktivität (z. B. Samstagsmeeting) erstellen.",
+        "description": "Eine einfache Aktivität (z. B. Samstagsmeeting) im aktuellen Assistenten erstellen.",
         "step1Title": "Neue Aktivität",
         "step1Body": "Öffne den Assistenten für eine neue Aktivität.",
         "step2Title": "Typ «Aktivität»",
         "step2Body": "Wähle «Aktivität» für kurze, ein-Tages-Aktivitäten deiner Gruppe.",
         "step3Title": "Grunddaten",
-        "step3Body": "Name, Gruppe und Zeitraum — Material kannst du im nächsten Schritt hinzufügen."
+        "step3Body": "Name und Gruppe — danach Zeitraum und Material im gleichen Assistenten.",
+        "step4Title": "Zeitraum & Material",
+        "step4Body": "Trage Nutzungszeit ein und füge Material hinzu. Speichern schliesst die Aktivität ab."
       },
       "activityCampCreate": {
         "title": "Lager (Camp) anlegen",
@@ -1487,15 +1489,23 @@
         "step2Title": "Typ «Lager»",
         "step2Body": "Wähle «Lager» für mehrtägige Camps mit Material-Vor- und Nachlauf.",
         "step3Title": "Camp-Grunddaten",
-        "step3Body": "Name, Gruppe, Eventstandort und optional J+S-Leihmaterial für Camp/Event.",
-        "step4Title": "Zeitraum & Material",
-        "step4Body": "Trage Nutzungs- und Materialzeitraum ein. Bei Bedarf Partner-Departments einladen und Material packen."
+        "step3Body": "Name, Gruppe und Eventstandort — Grundlage für Zeitraum und Material.",
+        "step4Title": "J+S-Leihmaterial",
+        "step4Body": "Optional: J+S-Leihmaterial einbeziehen. Dann erscheinen Dotation und Bestellformular im weiteren Verlauf.",
+        "step5Title": "Weiter im Assistenten",
+        "step5Body": "Mit «Weiter» kommen Zeitraum und Material. Bei aktivem J+S beeinflusst die Teilnehmerzahl die Dotation."
       },
       "issueReturn": {
-        "title": "Ausgabe & Rückgabe",
-        "description": "Material für eine Aktivität ausgeben und zurücknehmen.",
-        "step1Title": "Über Aktivitäten",
-        "step1Body": "Öffne eine Aktivität und nutze Packen/Ausgeben, um Material zu bewegen."
+        "title": "Packen & Ausgabe",
+        "description": "Material in einer Aktivität packen, ausgeben und zurücknehmen.",
+        "step1Title": "Aktivitäten-Liste",
+        "step1Body": "Hier siehst du alle Aktivitäten. Öffne eine mit Material, um zu packen.",
+        "step2Title": "Filter «In Bearbeitung»",
+        "step2Body": "Über «In Bearbeitung» (Desktop) findest du Aktivitäten, die gerade gepackt oder unterwegs sind. Dann Tab «Packen» in der Aktivität.",
+        "step3Title": "Journey-Schritte",
+        "step3Body": "Bestellt → gepackt → Transport/Anlass → retour → ausgepackt. Arbeite den aktuellen Schritt ab.",
+        "step4Title": "Rückgabe & Kosten",
+        "step4Body": "Nach dem Event Material zurückbuchen. Offene Kosten und Buchhaltung findest du in der Aktivität bzw. unter Buchhaltung."
       },
       "categoriesTour": {
         "title": "Kategorien verwalten",
@@ -4991,6 +5001,15 @@
         "l3": "Leader 3",
         "u": "Mitglied"
       },
+      "roleLabelsTitle": "Bezeichnungen der Leiter-Rollen",
+      "roleLabelsHint": "Benenne Leader 1–3 so, wie sie in deinem Department heissen (z. B. Stufenchef, Teamleiter). Leer = Standardname.",
+      "roleLabels": {
+        "l1": "Leader 1",
+        "l2": "Leader 2",
+        "l3": "Leader 3"
+      },
+      "toastRoleLabelsSaved": "Rollenbezeichnungen gespeichert.",
+      "errSaveRoleLabels": "Rollenbezeichnungen konnten nicht gespeichert werden.",
       "errLoadMembers": "Fehler beim Laden der Benutzer",
       "errLoadPendingInvites": "Pending Einladungen konnten nicht geladen werden.",
       "logErrorLoadAvailable": "Fehler beim Laden verfügbarer User:",
@@ -9048,6 +9067,52 @@
     },
     "comingSoon": {
       "description": "Handbuch, FAQ und Anleitungen folgen in Kürze."
+    },
+    "dokumentation": {
+      "title": "Dokumentation",
+      "subtitle": "Kurzer Überblick — vom Anlegen einer Aktivität bis zu Packen und Kosten.",
+      "happyPathTitle": "Happy Path",
+      "happyPathLead": "So findest du die wichtigsten Schritte ohne Support-Chat.",
+      "links": {
+        "setupTitle": "Einrichtung & Touren",
+        "setupDescMw": "Checkliste und geführte Touren für Materialwart und Depchef.",
+        "setupDescMember": "Geführte Touren: Aktivität oder Lager anlegen.",
+        "activityTitle": "Aktivität anlegen",
+        "activityDesc": "Neue Aktivität oder Lager — inkl. optional J+S bei Camp/Event.",
+        "packTitle": "Packen & Ausgabe",
+        "packDesc": "In der Aktivität unter «Packen» Material bewegen und zurücknehmen.",
+        "materialTitle": "Material erfassen",
+        "materialDesc": "Lagerbestand anlegen und Kategorien zuordnen.",
+        "costsTitle": "Kosten & Abrechnung",
+        "costsDesc": "Buchhaltung und Kostenstellen — Hinweise in der Aktivität und unter Buchhaltung."
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "findHelp": {
+          "q": "Wo finde ich Hilfe wieder?",
+          "a": "Sidebar «Hilfe»: Einrichtung (Touren) und Dokumentation (dieser Überblick)."
+        },
+        "createActivity": {
+          "q": "Wie lege ich eine Aktivität an?",
+          "a": "Aktivitäten → «Neu». Typ «Aktivität» für kurze Anlässe, «Lager» für Camps (dort optional J+S-Leihmaterial)."
+        },
+        "packing": {
+          "q": "Wo packe ich Material?",
+          "a": "Aktivität öffnen → Tab «Packen». Dort siehst du den Journey von bestellt bis retour im Lager."
+        },
+        "costs": {
+          "q": "Wo sehe ich Kosten?",
+          "a": "In der Aktivität unter Kosten sowie zentral unter Buchhaltung. Detail-Features zur Abrechnung werden laufend ergänzt."
+        },
+        "invite": {
+          "q": "Wie lade ich Teammitglieder ein?",
+          "a": "Einstellungen → Nutzer (MW/Depchef). Beitrittscode unter Mein Department."
+        },
+        "roles": {
+          "q": "Was dürfen User / L1–L3 vs. Materialwart?",
+          "a": "User und Leiter legen vor allem Aktivitäten an. Materialwart und Depchef richten Lager ein, packen und verwalten Einstellungen."
+        }
+      }
     }
   },
   "grossanlass": {
