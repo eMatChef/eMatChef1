@@ -9071,14 +9071,17 @@
     "dokumentation": {
       "title": "Dokumentation",
       "subtitle": "Kurzer Überblick — vom Anlegen einer Aktivität bis zu Packen und Kosten.",
-      "happyPathTitle": "Happy Path",
+      "subtitleMember": "Kurzer Überblick — so legst du eine Aktivität an.",
+      "happyPathTitle": "Erste Schritte",
       "happyPathLead": "So findest du die wichtigsten Schritte ohne Support-Chat.",
+      "happyPathLeadMember": "Starte mit einer Tour oder lege direkt eine Aktivität an.",
       "links": {
         "setupTitle": "Einrichtung & Touren",
         "setupDescMw": "Checkliste und geführte Touren für Materialwart und Depchef.",
         "setupDescMember": "Geführte Touren: Aktivität oder Lager anlegen.",
         "activityTitle": "Aktivität anlegen",
         "activityDesc": "Neue Aktivität oder Lager — inkl. optional J+S bei Camp/Event.",
+        "activityDescMember": "Neue Aktivität anlegen — Tour unter Einrichtung hilft Schritt für Schritt.",
         "packTitle": "Packen & Ausgabe",
         "packDesc": "In der Aktivität unter «Packen» Material bewegen und zurücknehmen.",
         "materialTitle": "Material erfassen",
@@ -9091,6 +9094,10 @@
         "findHelp": {
           "q": "Wo finde ich Hilfe wieder?",
           "a": "Sidebar «Hilfe»: Einrichtung (Touren) und Dokumentation (dieser Überblick)."
+        },
+        "findHelpMember": {
+          "q": "Wo finde ich Hilfe wieder?",
+          "a": "Sidebar «Hilfe»: unter Einrichtung die Tour «Aktivität anlegen», hier der Kurzüberblick."
         },
         "createActivity": {
           "q": "Wie lege ich eine Aktivität an?",

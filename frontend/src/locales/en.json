@@ -6626,14 +6626,17 @@
     "dokumentation": {
       "title": "Documentation",
       "subtitle": "A short overview — from creating an activity to packing and costs.",
-      "happyPathTitle": "Happy path",
+      "subtitleMember": "A short overview — how to create an activity.",
+      "happyPathTitle": "Getting started",
       "happyPathLead": "Find the main steps without a support chat.",
+      "happyPathLeadMember": "Start with a tour or create an activity directly.",
       "links": {
         "setupTitle": "Setup & tours",
         "setupDescMw": "Checklist and guided tours for material managers.",
         "setupDescMember": "Guided tours: create an activity or camp.",
         "activityTitle": "Create an activity",
         "activityDesc": "New activity or camp — including optional J+S for camp/event.",
+        "activityDescMember": "Create a new activity — the setup tour guides you step by step.",
         "packTitle": "Packing & issue",
         "packDesc": "In the activity under «Packing», move and return material.",
         "materialTitle": "Add material",
@@ -6646,6 +6649,10 @@
         "findHelp": {
           "q": "Where do I find help again?",
           "a": "Sidebar «Help»: Setup (tours) and Documentation (this overview)."
+        },
+        "findHelpMember": {
+          "q": "Where do I find help again?",
+          "a": "Sidebar «Help»: under Setup the «Create activity» tour, here the short overview."
         },
         "createActivity": {
           "q": "How do I create an activity?",
