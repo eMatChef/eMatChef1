@@ -67,11 +67,15 @@ describe('materialJourneyReturnCrate', () => {
         c1: [
           {
             id: 'ci1',
+            pack_container_id: 'c1',
             material_item_id: 'mid-f',
+            material_batch_id: null,
             material_name: 'Fackeln',
             quantity_packed: 10,
             quantity_issued: 5,
             quantity_returned: 0,
+            condition_out: 'ok',
+            notes: null,
           },
         ],
       },

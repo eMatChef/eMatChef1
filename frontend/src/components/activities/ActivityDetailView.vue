@@ -2541,17 +2541,20 @@ async function onReconfigureVirtualComboConfirm(payload: {
   const itemId = state.activityItemId
   activityItems.value = activityItems.value.map((r) => {
     if (r.id !== itemId) return r
-    const prevSnap = r.config_snapshot ?? {}
+    const qty = Math.max(1, payload.quantity)
+    const prevSnap = r.config_snapshot
     return {
       ...r,
-      quantity: Math.max(1, payload.quantity),
+      quantity: qty,
       config_snapshot: {
-        ...prevSnap,
+        combo_qty: qty,
         selected_option_ids: [...payload.selectedOptionIds],
         pack_mode: payload.packMode,
-        ...(payload.selfProvidedAcknowledged
-          ? { self_provided_acknowledged: true }
-          : { self_provided_acknowledged: false }),
+        self_provided_acknowledged: payload.selfProvidedAcknowledged,
+        resolved_components: prevSnap?.resolved_components,
+        self_provided: prevSnap?.self_provided,
+        self_provided_acknowledged_at: prevSnap?.self_provided_acknowledged_at,
+        self_provided_acknowledged_by_user_id: prevSnap?.self_provided_acknowledged_by_user_id,
       },
     }
   })

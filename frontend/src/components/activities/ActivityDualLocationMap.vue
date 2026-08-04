@@ -146,8 +146,8 @@ function setLayer(layer: MapBaseLayer) {
   }
   activeTileLayer = createTileLayer(layer)
   activeTileLayer.addTo(map)
-  // Marker über den Tiles halten
-  if (markersLayer) markersLayer.bringToFront()
+  // Marker über den Tiles halten (FeatureGroup-API; LayerGroup-Typen ohne bringToFront)
+  if (markersLayer) (markersLayer as L.FeatureGroup).bringToFront()
 }
 
 function resolvePinColor(pin: ActivityLocationPin): string {

@@ -6,7 +6,6 @@ import type { ActivityPackItem } from '@/api/activityPackItems'
 
 function packItem(partial: Partial<ActivityPackItem> & { id: string }): ActivityPackItem {
   return {
-    id: partial.id,
     activityId: 'act-1',
     materialItemId: partial.materialItemId ?? partial.id,
     materialName: partial.materialName ?? 'Seil',
