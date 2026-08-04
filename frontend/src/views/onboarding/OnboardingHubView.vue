@@ -14,6 +14,7 @@
       </section>
 
       <v-expansion-panels
+        v-if="canUseSetupChecklist"
         v-model="expandedPanels"
         multiple
         variant="accordion"
@@ -118,6 +119,7 @@ import { EButton, ECard } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useOnboardingChecklist, type OnboardingChecklistRow } from '@/composables/useOnboardingChecklist'
+import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { resolveChecklistItemRoute } from '@/utils/onboardingChecklist'
 
 defineOptions({ name: 'OnboardingHubView' })
@@ -126,6 +128,7 @@ const { t } = useI18n()
 const router = useRouter()
 const confirm = useConfirm()
 const toast = useToast()
+const { canUseSetupChecklist } = useDepartmentOnboardingAccess()
 
 const {
   departmentId,
@@ -139,12 +142,15 @@ const {
   markItemSkipped,
 } = useOnboardingChecklist()
 
-const expandedPanels = ref<Array<'setup'>>(['setup'])
+const expandedPanels = ref<Array<'setup'>>(canUseSetupChecklist.value ? ['setup'] : [])
 
 watch(
-  [isFullyDone, isLoading],
-  ([done, loading]) => {
-    if (loading) return
+  [isFullyDone, isLoading, canUseSetupChecklist],
+  ([done, loading, canSetup]) => {
+    if (loading || !canSetup) {
+      if (!canSetup) expandedPanels.value = []
+      return
+    }
     expandedPanels.value = done ? [] : ['setup']
   },
   { immediate: true },

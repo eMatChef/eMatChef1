@@ -3,31 +3,35 @@
 > Überarbeitung des Department-Onboardings: Setup-Wizard, persistenter Hub, thematische In-App-Touren.
 > Referenz-Inspiration: Inventory ONE (Willkommen → Hub → Spotlight-Touren auf echten Seiten).
 
-**Stand:** Hub unter Hilfe → Einrichtung · Geführte Touren (PR3 gestartet) · **Zielgruppe:** Frontend + Backend
+**Stand:** August 2026 — Hub unter Hilfe → Einrichtung · Spotlight-Touren live · Dokumentation-Tab (Happy Path) · **#4 Einführungsrunde** (Touren + Rollenfilter) · **Zielgruppe:** Frontend + Backend
 
 **Implementierung:**
 
-- [`OnboardingHubView.vue`](../../frontend/src/views/onboarding/OnboardingHubView.vue) — Accordion: Touren (immer offen) + Einrichtungsassistent (offen wenn offene Checklist-Punkte)
+- [`OnboardingHubView.vue`](../../frontend/src/views/onboarding/OnboardingHubView.vue) — Touren + Einrichtungsassistent (Checkliste nur MW/DC)
+- [`HelpDokumentationView.vue`](../../frontend/src/views/help/HelpDokumentationView.vue) — Happy Path + Mini-FAQ
 - [`onboardingChecklist.ts`](../../frontend/src/utils/onboardingChecklist.ts) — Checkliste + Auto-Erkennung
 - [`onboardingTours.ts`](../../frontend/src/config/onboardingTours.ts) · [`useOnboardingTour.ts`](../../frontend/src/composables/useOnboardingTour.ts) · [`OnboardingTourOverlay.vue`](../../frontend/src/components/onboarding/OnboardingTourOverlay.vue)
+- [`onboardingGate.ts`](../../frontend/src/utils/onboardingGate.ts) — `canUseDepartmentOnboarding` (Checkliste) vs. `canUseDepartmentTours` / `canUseHelpEinrichtung`
 - [`MyDepartmentSettingsView.vue`](../../frontend/src/views/settings/MyDepartmentSettingsView.vue) — Admin-Reset
 
 **Entfernt (2025):** Vollbild Welcome/Setup, `DepartmentOnboardingWizard`, Resume-Button in `AppLayout`.
+
+> **Pflicht bei UI-Änderungen:** siehe [§15 Wartung](#15-wartung--checkliste-bei-ui-änderungen).
 
 ---
 
 ## 0. UI — Hilfe → Einrichtung
 
-Der Hub lebt unter **`/:departmentId/help/einrichtung`** (Shell: `HelpView`).
+Der Hub lebt unter **`/:departmentId/help/einrichtung`** (Shell: `HelpView`). Dokumentation unter **`/:departmentId/help/dokumentation`**.
 
-### Accordion
+### Accordion / Inhalt
 
 | Panel | Verhalten |
 |-------|-----------|
-| **Geführte Touren** | Immer aufgeklappt |
-| **Einrichtungsassistent** | Aufgeklappt solange Checklist-Punkte offen; zugeklappt wenn alles erledigt (manuell aufklappbar) |
+| **Geführte Touren** | Immer sichtbar; Liste rollenabhängig gefiltert |
+| **Einrichtungsassistent** | Nur MW/DC; aufgeklappt solange Checklist-Punkte offen |
 
-Mobile-first über `PageShell` (max-width 720px), Checkliste + Tour-Karten.
+Mobile-first über `PageShell`, Checkliste + Tour-Karten.
 
 ---
 
@@ -94,8 +98,8 @@ Bei eMatChef (Vue Router, History-Mode):
 | `/:departmentId/onboarding/welcome` | Vollbild, **keine Sidebar** | Willkommen, «Einrichtung starten» |
 | `/:departmentId/onboarding/setup` | Vollbild | Setup-Wizard Phase 1 |
 | `/:departmentId/help` | Normale App-Shell | **Hilfe** mit Tabs (Subnav) |
-| `/:departmentId/help/einrichtung` | Tab «Einrichtung» | Checkliste + Touren (MW/DC) |
-| `/:departmentId/help/dokumentation` | Tab «Dokumentation» | Handbuch/FAQ (später) |
+| `/:departmentId/help/einrichtung` | Tab «Einrichtung» | Touren (alle berechtigten Rollen) + Checkliste (MW/DC) |
+| `/:departmentId/help/dokumentation` | Tab «Dokumentation» | Happy Path + Mini-FAQ |
 
 Nach Abschluss oder «Später» → Redirect auf `/:departmentId/dashboard`.
 
@@ -183,15 +187,19 @@ Klick auf offenes Item → passende Settings-Route oder Setup-Phase.
 
 ### 5.2 Themen-Touren
 
-| `onboardingTour` | Titel | Start-Route (Beispiel) | Schritte |
-|------------------|-------|------------------------|----------|
-| `material-create` | Material erfassen | `/{deptId}/materials` | 3 |
-| `activity-create` | Aktivität anlegen | `/{deptId}/activities` | 4 |
-| `issue-return` | Ausgabe & Rückgabe | `/{deptId}/activities` (Detail/Pack) | 3 |
-| `categories` | Kategorien verwalten | `/{deptId}/settings/categories` | 2 |
-| `invite-users` | Team einladen | `/{deptId}/settings/users` | 2 |
+| `onboardingTour` | Titel | Audience | Start-Route | Hinweise |
+|------------------|-------|----------|-------------|----------|
+| `material-create` | Material erfassen | MW/DC | Materials | — |
+| `activity-create` | Aktivität anlegen | alle Tour-Rollen | Activities | Typ Aktivität, Single-Layout-Wizard |
+| `activity-camp-create` | Lager (Camp) anlegen | alle + Camp-Recht | Activities | inkl. J+S-Toggle |
+| `issue-return` | Packen & Ausgabe | MW/DC | Activities | Pack-Happy-Path |
+| `categories` | Kategorien verwalten | MW/DC | SettingsCategories | — |
+| `invite-users` | Team einladen | MW/DC | SettingsUsers | — |
+| `default-coach` | Standard-Coach | MW/DC | SettingsActivities | J+S Defaults |
 
-Status pro Tour: `offen` · `erledigt` · `neu` (nach Version-Bump).
+Status pro Tour: `offen` · `erledigt` (localStorage, tour-`version`).
+
+Vollständiges Target-Inventar: [§15](#15-wartung--checkliste-bei-ui-änderungen).
 
 ### 5.3 Hub-Aktionen
 
@@ -370,14 +378,14 @@ Nach Reset: Redirect `/{deptId}/onboarding/welcome` optional nur für den Admin,
 
 ## 9. Rollen & Ausnahmen
 
-| Rolle | Setup | Hub | Touren |
-|-------|-------|-----|--------|
+| Rolle | Setup-Checkliste | Hub Einrichtung | Touren |
+|-------|------------------|-----------------|--------|
 | MW / DC | Ja | Ja | Alle |
-| L1–L3 | Nein | Reduziert (nur Touren) | Material, Aktivitäten |
+| User (`u`/`user`) + L1–L3 | Nein | Ja (nur Touren) | `activity-create`; `activity-camp-create` nur wenn Camp anlegen erlaubt |
 | SA / Org / Sub | Nein | Nein | — |
 | Grossanlass-Dept | Nein (eigenes Konzept später) | — | — |
 
-Bestehende Guards in [`AppLayout.vue`](../../frontend/src/components/layout/AppLayout.vue) (`hasOnboardingRole`, `skipsPersonalDepartmentOnboarding`, `isGrossanlassDepartment`) beibehalten.
+Guards: [`onboardingGate.ts`](../../frontend/src/utils/onboardingGate.ts) (`canUseDepartmentOnboarding` vs. `canUseDepartmentTours` / `canUseHelpEinrichtung`), Overlay in [`AppLayout.vue`](../../frontend/src/components/layout/AppLayout.vue) an `canUseTours`.
 
 ---
 
@@ -413,10 +421,18 @@ Bestehenden Wizard-Inhalt und `DepartmentOnboardingState` **weiterverwenden** �
 
 ### PR3 — Touren
 
-- [ ] `useOnboardingTour()` + `OnboardingTourOverlay`
-- [ ] Query-Parameter `onboardingTour` + `onboardingTourStep`
-- [ ] `data-onboarding` an 2–3 Kern-Views
-- [ ] Tour-Definitionen: `material-create`, `activity-create`
+- [x] `useOnboardingTour()` + `OnboardingTourOverlay`
+- [x] Query-Parameter `onboardingTour` + `onboardingTourStep`
+- [x] `data-onboarding` an Kern-Views (Material, Aktivitäten, Settings, Pack-Hinweise)
+- [x] Tour-Definitionen: `material-create`, `activity-create`, `activity-camp-create`, `issue-return`, …
+
+### PR3b / Top-10 #4 — Einführungsrunde finalisieren
+
+- [x] Dokumentation-Tab Happy Path + FAQ
+- [x] User/L1–L3: Hub mit Aktivitäts-Touren (ohne Checkliste)
+- [x] Aktivitäts-Touren am aktuellen Wizard inkl. J+S (Camp)
+- [x] Pack-Tour (`issue-return`) für MW erweitert
+- [x] Wartungs-Checkliste in diesem Dokument (§15)
 
 ### PR4 — Updates
 
@@ -451,4 +467,34 @@ i18n-Keys unter `onboarding.*` anlegen.
 ## 14. Referenz-Links
 
 - Inventory ONE Getting Started: Sidebar-Hub + Tour-Query auf Zielseite
-- Ist-Code: [`frontend/src/components/DepartmentOnboardingWizard.vue`](../../frontend/src/components/DepartmentOnboardingWizard.vue)
+- Tour-Config: [`frontend/src/config/onboardingTours.ts`](../../frontend/src/config/onboardingTours.ts)
+- J+S (Camp-Tour-Abhängigkeit): [`docs/activities/js-material/README.md`](../activities/js-material/README.md)
+
+---
+
+## 15. Wartung / Checkliste bei UI-Änderungen
+
+**Regel:** Wer UI an Elementen mit `data-onboarding="…"`, Wizard-Steps, «Neu»-Buttons, Aktivitäts-Typ-Chips, Pack-Tabs/Stepper oder Settings-Targets ändert, **muss** die Touren mitdenken — sonst brechen Spotlights still.
+
+### Checkliste (vor Merge)
+
+1. Existiert das Target noch? Selector in `onboardingTours.ts` stimmt?
+2. Sind Tour-Schritte und Reihenfolge noch sinnvoll (inkl. Stepper vs. Single-Layout)?
+3. i18n-Texte (`onboarding.tours.*`) noch korrekt?
+4. Tour-`version` erhöhen, wenn Schritte sich ändern (alte «erledigt»-Markierung wird ungültig)?
+5. Rollenfilter (`audience` / `requiresCampCreate`) noch passend?
+6. Kurz vom Hub starten und die betroffene Tour durchklicken.
+
+### Inventar Tour-ID → Targets → Code
+
+| Tour-ID | Route | Wichtige Targets | Komponenten |
+|---------|-------|------------------|---------------|
+| `material-create` | Materials | `material-new`, `material-creation-individual`, `material-wizard-general`, `material-wizard-category` | `MaterialsView`, `MaterialCreateWizard` |
+| `activity-create` | Activities | `activity-new`, `activity-type-activity`, `#activity-create-grunddaten`, `#activity-create-zeitraum` | `ActivitiesView`, `ActivityTypeChips`, `ActivityCreateWizardForm` — bei Tour: Typ-Chips auch wenn nur 1 Typ erlaubt (`ActivityCreateWizard`) |
+| `activity-camp-create` | Activities | `activity-new`, `activity-type-camp`, `#activity-create-grunddaten`, `activity-camp-js-material`, `activity-wizard-next` | wie oben + J+S-Toggle |
+| `issue-return` | Activities | `activities-list-filters`, `activities-packing-filter`; Detail: `activity-detail-packs-tab`, `activity-pack-stepper` | `ActivitiesView`, `ActivityDetailView`, `MaterialJourneyStepper` |
+| `categories` | SettingsCategories | `settings-category-new`, `settings-category-list` | `CategoriesSettingsView` |
+| `invite-users` | SettingsUsers | `settings-user-add` | `UsersSettingsView` |
+| `default-coach` | SettingsActivities | `settings-js-coach`, `#js-default-coach-person-nr` | `ActivitySettingsView` |
+
+Zentrale Definition: [`onboardingTours.ts`](../../frontend/src/config/onboardingTours.ts) (Kommentar am Dateianfang verweist hierher).

@@ -111,7 +111,12 @@
       color="primary"
       show-arrows
     >
-      <v-tab v-for="tab in tabs" :key="tab.id" :value="tab.id">
+      <v-tab
+        v-for="tab in tabs"
+        :key="tab.id"
+        :value="tab.id"
+        :data-onboarding="tab.id === 'packs' ? 'activity-detail-packs-tab' : undefined"
+      >
         {{ tab.label }}
       </v-tab>
     </v-tabs>

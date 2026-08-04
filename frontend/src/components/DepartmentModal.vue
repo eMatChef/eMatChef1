@@ -230,6 +230,7 @@ import { ref, watch, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   createDepartment,
@@ -273,6 +274,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
 )
@@ -311,7 +313,9 @@ const roleOrder = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'] as const
 const grossanlassRoleOrder = ['mw', 'u'] as const
 
 function roleLabel(value: string): string {
-  return t(`settings.adminUsers.roles.${value}`)
+  return roleLabelsStore.labelFor(value, props.department?.id, t, {
+    i18nNamespace: 'adminUsers',
+  })
 }
 
 const hasMwMember = computed(() => members.value.some((m) => m.role === 'mw'))
@@ -504,7 +508,10 @@ watch(() => props.isOpen, async (open) => {
     }
 
     if (isEdit.value && props.department?.id) {
-      await loadMembersData(props.department.id)
+      await Promise.all([
+        loadMembersData(props.department.id),
+        roleLabelsStore.load(props.department.id),
+      ])
     }
   } else {
     members.value = []
@@ -548,6 +555,7 @@ watch(
   async (departmentId) => {
     if (!props.isOpen || !isEdit.value || !departmentId) return
     await loadMembersData(departmentId)
+    await roleLabelsStore.load(departmentId)
   },
 )
 

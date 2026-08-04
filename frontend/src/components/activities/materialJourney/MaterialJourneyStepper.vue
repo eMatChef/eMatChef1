@@ -64,7 +64,11 @@ function onStepClick(step: JourneyStep): void {
 </script>
 
 <template>
-  <nav class="material-journey-stepper" aria-label="Material-Journey">
+  <nav
+    class="material-journey-stepper"
+    data-onboarding="activity-pack-stepper"
+    aria-label="Material-Journey"
+  >
     <div
       class="material-journey-stepper__track"
       role="progressbar"

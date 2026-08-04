@@ -217,6 +217,21 @@ class DepartmentSetting
     }
 
     /**
+     * Anzeige-Namen für Department-Rollen L1–L3 (leer = App-Default / i18n).
+     * Codes bleiben l1/l2/l3; nur die Beschriftung ist pro Department anpassbar.
+     *
+     * @return array<string, string>
+     */
+    public static function getRoleLabelDefaults(): array
+    {
+        return [
+            'roles.label.l1' => '',
+            'roles.label.l2' => '',
+            'roles.label.l3' => '',
+        ];
+    }
+
+    /**
      * Alle Department-Setting-Defaults (GET/PATCH-Fallbacks)
      *
      * @return array<string, string>
@@ -231,6 +246,7 @@ class DepartmentSetting
             self::getWorkshopDefaults(),
             self::getAccountingDefaults(),
             self::getJsMaterialDefaults(),
+            self::getRoleLabelDefaults(),
         );
     }
 }

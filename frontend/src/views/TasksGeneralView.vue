@@ -139,6 +139,7 @@ import { useToast } from '@/composables/useToast'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import {
   acceptDepartmentInvite,
   declineDepartmentInvite,
@@ -178,6 +179,7 @@ const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
@@ -230,15 +232,6 @@ const emptyText = computed(() => {
 const detailQr = ref<PublicFoundItemMessage | null>(null)
 const flashTaskId = ref('')
 
-const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
-  mw: 'settings.departmentUsers.roles.mw',
-  dc: 'settings.departmentUsers.roles.dc',
-  l1: 'settings.departmentUsers.roles.l1',
-  l2: 'settings.departmentUsers.roles.l2',
-  l3: 'settings.departmentUsers.roles.l3',
-  u: 'settings.departmentUsers.roles.u',
-}
-
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })
@@ -266,9 +259,8 @@ function taskKindLabel(kind: DepartmentTaskKind): string {
   }
 }
 
-function departmentInviteRoleLabel(role: string): string {
-  const key = DEPT_INVITE_ROLE_KEYS[role]
-  return key ? t(key) : role
+function departmentInviteRoleLabel(role: string, inviteDepartmentId?: string | null): string {
+  return roleLabelsStore.labelFor(role, inviteDepartmentId, t)
 }
 
 function taskPreview(task: DepartmentTaskItem): string {
@@ -280,7 +272,10 @@ function taskPreview(task: DepartmentTaskItem): string {
   }
   if (task.kind === 'department_invite' && task.departmentInvite) {
     return t('notificationsCenter.departmentInvitePreview', {
-      role: departmentInviteRoleLabel(task.departmentInvite.role),
+      role: departmentInviteRoleLabel(
+        task.departmentInvite.role,
+        task.departmentInvite.department_id,
+      ),
     })
   }
   if (task.kind === 'activity_invite' && task.activityInvite) {

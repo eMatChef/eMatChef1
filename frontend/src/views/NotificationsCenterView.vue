@@ -217,7 +217,7 @@
                   {{ t('layout.notifications.departmentInviteTitle', { department: item.departmentInvite!.department_name }) }}
                 </div>
                 <div class="nc-inbox-row__preview">
-                  {{ t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(item.departmentInvite!.role) }) }}
+                  {{ t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(item.departmentInvite!.role, item.departmentInvite!.department_id) }) }}
                 </div>
               </div>
               <span v-if="item.unread" class="nc-inbox-unread-dot" :title="t('notificationsCenter.unreadLabel')" />
@@ -321,7 +321,7 @@
         :visible="!!detailDepartmentInvite"
         :title="t('notificationsCenter.deptInviteDetailTitle')"
         :subject="detailDepartmentInvite ? t('layout.notifications.departmentInviteTitle', { department: detailDepartmentInvite.department_name }) : ''"
-        :preview="detailDepartmentInvite ? t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(detailDepartmentInvite.role) }) : ''"
+        :preview="detailDepartmentInvite ? t('notificationsCenter.departmentInvitePreview', { role: departmentInviteRoleLabel(detailDepartmentInvite.role, detailDepartmentInvite.department_id) }) : ''"
         :sender="detailDepartmentInvite ? fromDepartmentInvite(detailDepartmentInvite) : null"
         :created-at="detailDepartmentInvite?.created_at"
         navigate-on-proceed
@@ -375,6 +375,7 @@ import {
   type ReceivedUserInboxNotification,
 } from '@/api/joinRequests'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import {
   getPublicFoundMessages,
   updatePublicFoundMessageStatus,
@@ -426,6 +427,7 @@ const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const { t } = useI18n()
 const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromActivityInvite, fromUserMessage } =
@@ -974,18 +976,8 @@ async function openActivityMw(entry: ActivityMwNotification, forUserStatus = fal
   )
 }
 
-const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
-  mw: 'settings.departmentUsers.roles.mw',
-  dc: 'settings.departmentUsers.roles.dc',
-  l1: 'settings.departmentUsers.roles.l1',
-  l2: 'settings.departmentUsers.roles.l2',
-  l3: 'settings.departmentUsers.roles.l3',
-  u: 'settings.departmentUsers.roles.u',
-}
-
-function departmentInviteRoleLabel(role: string): string {
-  const key = DEPT_INVITE_ROLE_KEYS[role]
-  return key ? t(key) : role
+function departmentInviteRoleLabel(role: string, inviteDepartmentId?: string | null): string {
+  return roleLabelsStore.labelFor(role, inviteDepartmentId || departmentId.value, t)
 }
 
 async function openInviteAcceptedItem(note: InviteAcceptedNotification) {

@@ -360,6 +360,39 @@ export async function saveCalendarSettings(departmentId: string, settings: Calen
   })
 }
 
+/** Custom Anzeige-Namen für L1–L3 (leer = i18n-Default). */
+export interface DepartmentRoleLabels {
+  l1: string
+  l2: string
+  l3: string
+}
+
+export const EMPTY_DEPARTMENT_ROLE_LABELS: DepartmentRoleLabels = {
+  l1: '',
+  l2: '',
+  l3: '',
+}
+
+export async function getDepartmentRoleLabels(departmentId: string): Promise<DepartmentRoleLabels> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'roles')
+  return {
+    l1: String(raw['roles.label.l1'] ?? '').trim(),
+    l2: String(raw['roles.label.l2'] ?? '').trim(),
+    l3: String(raw['roles.label.l3'] ?? '').trim(),
+  }
+}
+
+export async function saveDepartmentRoleLabels(
+  departmentId: string,
+  labels: DepartmentRoleLabels
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'roles.label.l1': labels.l1.trim(),
+    'roles.label.l2': labels.l2.trim(),
+    'roles.label.l3': labels.l3.trim(),
+  })
+}
+
 export async function markDepartmentOnboardingDone(departmentId: string): Promise<Record<string, string>> {
   return updateDepartmentSettings(departmentId, {
     'onboarding.done_all': '1',

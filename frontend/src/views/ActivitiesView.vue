@@ -57,6 +57,7 @@
         <button
           type="button"
           class="stat-item stat-item-btn"
+          data-onboarding="activities-packing-filter"
           :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'in_progress' }"
           @click="applyStatFilter('in_progress')"
         >
@@ -92,7 +93,7 @@
         @focusin="onMobileFilterToolsFocusIn"
         @focusout="onMobileFilterToolsFocusOut"
       >
-        <div class="filter-bar">
+        <div class="filter-bar" data-onboarding="activities-list-filters">
           <div class="filter-tabs">
             <button
               v-for="tab in tabs"

@@ -1,7 +1,7 @@
 <template>
   <div class="tour-columns">
     <v-expansion-panels
-      v-for="category in ONBOARDING_TOUR_CATEGORY_ORDER"
+      v-for="category in visibleCategories"
       :key="category"
       v-model="expandedByCategory[category]"
       multiple
@@ -46,28 +46,45 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import {
+  filterOnboardingToursForRole,
   groupOnboardingToursByCategory,
   ONBOARDING_TOUR_CATEGORY_LABEL_KEYS,
   ONBOARDING_TOUR_CATEGORY_ORDER,
-  ONBOARDING_TOURS,
   type OnboardingTourCategory,
   type OnboardingTourId,
 } from '@/config/onboardingTours'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
+import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { isOnboardingTourCompleted } from '@/utils/onboardingTourProgress'
 
 const { t } = useI18n()
 const route = useRoute()
 const { startTour: launchTour } = useOnboardingTour()
-const { departmentId, profileId } = useDepartmentOnboardingAccess()
+const { departmentId, profileId, departmentRole } = useDepartmentOnboardingAccess()
+const { canCreateCampAndEvent, loadGroupsForDepartment } = useActivityGroupMemberScope()
 
-const groupedTours = groupOnboardingToursByCategory()
+onMounted(() => {
+  const depId = departmentId.value
+  if (depId) void loadGroupsForDepartment(depId)
+})
+
+const visibleTours = computed(() =>
+  filterOnboardingToursForRole(departmentRole.value, {
+    canCreateCamp: canCreateCampAndEvent.value,
+  })
+)
+
+const groupedTours = computed(() => groupOnboardingToursByCategory(visibleTours.value))
+
+const visibleCategories = computed(() =>
+  ONBOARDING_TOUR_CATEGORY_ORDER.filter((category) => groupedTours.value[category].length > 0)
+)
 
 const expandedByCategory = reactive<Record<OnboardingTourCategory, OnboardingTourCategory[]>>({
   material: ['material'],
@@ -89,9 +106,9 @@ const completedTourIds = computed(() => {
   const profId = profileId.value
   if (!depId || !profId) return new Set<OnboardingTourId>()
   return new Set(
-    ONBOARDING_TOURS.filter((tour) => isOnboardingTourCompleted(profId, depId, tour.id)).map(
-      (tour) => tour.id
-    )
+    visibleTours.value
+      .filter((tour) => isOnboardingTourCompleted(profId, depId, tour.id))
+      .map((tour) => tour.id)
   )
 })
 
@@ -100,13 +117,13 @@ function isTourDone(tourId: OnboardingTourId): boolean {
 }
 
 function categoryDoneCount(category: OnboardingTourCategory): number {
-  return groupedTours[category].filter((tour) => isTourDone(tour.id)).length
+  return groupedTours.value[category].filter((tour) => isTourDone(tour.id)).length
 }
 
 function categoryDoneChip(category: OnboardingTourCategory) {
   return {
     done: categoryDoneCount(category),
-    total: groupedTours[category].length,
+    total: groupedTours.value[category].length,
   }
 }
 

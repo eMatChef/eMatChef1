@@ -1349,13 +1349,15 @@
       },
       "activityCreate": {
         "title": "Create activity",
-        "description": "Create a simple activity (e.g. Saturday meeting).",
+        "description": "Create a simple activity (e.g. Saturday meeting) in the current wizard.",
         "step1Title": "New activity",
         "step1Body": "Open the wizard for a new activity.",
         "step2Title": "Type «Activity»",
         "step2Body": "Choose «Activity» for short, single-day group activities.",
         "step3Title": "Basic data",
-        "step3Body": "Name, group and dates — you can add material in the next step."
+        "step3Body": "Name and group — then dates and material in the same wizard.",
+        "step4Title": "Dates & material",
+        "step4Body": "Enter usage times and add material. Saving finishes the activity."
       },
       "activityCampCreate": {
         "title": "Create camp",
@@ -1365,15 +1367,23 @@
         "step2Title": "Type «Camp»",
         "step2Body": "Choose «Camp» for multi-day camps with material lead/lag times.",
         "step3Title": "Camp basics",
-        "step3Body": "Name, group, event venue and optional J+S rental material for camp/event.",
-        "step4Title": "Dates & material",
-        "step4Body": "Enter usage and material windows. Invite partner departments and pack material as needed."
+        "step3Body": "Name, group and event venue — basis for dates and material.",
+        "step4Title": "J+S rental material",
+        "step4Body": "Optional: include J+S rental material. Dotation and order form appear later in the flow.",
+        "step5Title": "Continue in the wizard",
+        "step5Body": "Use «Next» for dates and material. With J+S enabled, participant count affects dotation."
       },
       "issueReturn": {
-        "title": "Issue & return",
-        "description": "Issue material for an activity and return it.",
-        "step1Title": "Via activities",
-        "step1Body": "Open an activity and use pack/issue flows to move material."
+        "title": "Packing & issue",
+        "description": "Pack, issue and return material in an activity.",
+        "step1Title": "Activities list",
+        "step1Body": "All activities appear here. Open one with material to pack.",
+        "step2Title": "«In progress» filter",
+        "step2Body": "On desktop, «In progress» finds activities being packed or in transit. Then open the «Packing» tab.",
+        "step3Title": "Journey steps",
+        "step3Body": "Ordered → packed → transport/event → returned → unpacked. Complete the current step.",
+        "step4Title": "Return & costs",
+        "step4Body": "After the event, book material back. Open costs live in the activity or under Accounting."
       },
       "categoriesTour": {
         "title": "Manage categories",
@@ -3583,8 +3593,20 @@
       "roles": {
         "mw": "Materials lead",
         "dc": "Dept. lead",
+        "l1": "Leader 1",
+        "l2": "Leader 2",
+        "l3": "Leader 3",
         "u": "Member"
       },
+      "roleLabelsTitle": "Leader role names",
+      "roleLabelsHint": "Rename Leader 1–3 to match how your department uses them (e.g. Stage lead, Team lead). Leave empty for the default name.",
+      "roleLabels": {
+        "l1": "Leader 1",
+        "l2": "Leader 2",
+        "l3": "Leader 3"
+      },
+      "toastRoleLabelsSaved": "Role names saved.",
+      "errSaveRoleLabels": "Could not save role names.",
       "errLoadMembers": "Could not load users.",
       "errLoadPendingInvites": "Could not load pending invitations.",
       "logErrorLoadAvailable": "Could not load available users:",
@@ -6600,6 +6622,52 @@
     },
     "comingSoon": {
       "description": "Manual, FAQ and guides coming soon."
+    },
+    "dokumentation": {
+      "title": "Documentation",
+      "subtitle": "A short overview — from creating an activity to packing and costs.",
+      "happyPathTitle": "Happy path",
+      "happyPathLead": "Find the main steps without a support chat.",
+      "links": {
+        "setupTitle": "Setup & tours",
+        "setupDescMw": "Checklist and guided tours for material managers.",
+        "setupDescMember": "Guided tours: create an activity or camp.",
+        "activityTitle": "Create an activity",
+        "activityDesc": "New activity or camp — including optional J+S for camp/event.",
+        "packTitle": "Packing & issue",
+        "packDesc": "In the activity under «Packing», move and return material.",
+        "materialTitle": "Add material",
+        "materialDesc": "Create stock and assign categories.",
+        "costsTitle": "Costs & accounting",
+        "costsDesc": "Accounting and cost centres — in the activity and under Accounting."
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "findHelp": {
+          "q": "Where do I find help again?",
+          "a": "Sidebar «Help»: Setup (tours) and Documentation (this overview)."
+        },
+        "createActivity": {
+          "q": "How do I create an activity?",
+          "a": "Activities → «New». Type «Activity» for short events, «Camp» for multi-day camps (optional J+S)."
+        },
+        "packing": {
+          "q": "Where do I pack material?",
+          "a": "Open the activity → «Packing» tab. Follow the journey from ordered to returned to store."
+        },
+        "costs": {
+          "q": "Where do I see costs?",
+          "a": "In the activity under Costs and centrally under Accounting."
+        },
+        "invite": {
+          "q": "How do I invite team members?",
+          "a": "Settings → Users (MW/dept lead). Join code under My department."
+        },
+        "roles": {
+          "q": "What can users / L1–L3 vs. material managers do?",
+          "a": "Users and leaders mainly create activities. Material managers set up the store, pack, and manage settings."
+        }
+      }
     }
   },
   "grossanlass": {

@@ -236,7 +236,7 @@
                   <div class="notification-subtitle">
                     {{ truncateMessage(t('layout.notifications.departmentInviteSubtitle', {
                       name: inv.invited_by_name || t('layout.userFallback'),
-                      role: departmentInviteRoleLabel(inv.role),
+                      role: departmentInviteRoleLabel(inv.role, inv.department_id),
                     })) }}
                   </div>
                 </div>
@@ -596,6 +596,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '../../stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
@@ -664,7 +665,7 @@ import {
   getDevicesHomeUrl,
   isDevicesHost,
 } from '@/utils/devicesHost'
-const { t, te } = useI18n()
+const { t } = useI18n()
 const router = useRouter()
 const { mdAndUp, smAndUp } = useDisplay()
 
@@ -681,11 +682,12 @@ const detailTabsStore = useDetailTabsStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const route = useRoute()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 
-function departmentRoleLabel(role: string): string {
-  const normalized = String(role || '').toLowerCase().trim()
-  const key = `settings.adminUsers.roles.${normalized}`
-  return te(key) ? t(key) : role
+function departmentRoleLabel(role: string, departmentId?: string | null): string {
+  return roleLabelsStore.labelFor(role, departmentId || authStore.activeDepartmentId, t, {
+    i18nNamespace: 'adminUsers',
+  })
 }
 
 const departmentSwitchItems = computed(() =>
@@ -694,8 +696,18 @@ const departmentSwitchItems = computed(() =>
     name: dept.department?.name || dept.department_id,
     isGrossanlass: Boolean(dept.department?.is_grossanlass),
     isActive: dept.department_id === authStore.activeDepartmentId,
-    roleLabel: departmentRoleLabel(dept.role),
+    roleLabel: departmentRoleLabel(dept.role, dept.department_id),
   })),
+)
+
+watch(
+  () => authStore.departments.map((d) => d.department_id).join(','),
+  () => {
+    for (const dept of authStore.departments) {
+      void roleLabelsStore.load(dept.department_id)
+    }
+  },
+  { immediate: true },
 )
 
 const showDevicesScannerLink = computed(() => {
@@ -899,18 +911,8 @@ const bellEmpty = computed(() => !hasBellMessages.value && !hasBellTasks.value)
 
 const notificationsShowAllTitle = computed(() => t('layout.notifications.showAllFooterTitle'))
 
-const DEPT_INVITE_ROLE_KEYS: Record<string, string> = {
-  mw: 'settings.departmentUsers.roles.mw',
-  dc: 'settings.departmentUsers.roles.dc',
-  l1: 'settings.departmentUsers.roles.l1',
-  l2: 'settings.departmentUsers.roles.l2',
-  l3: 'settings.departmentUsers.roles.l3',
-  u: 'settings.departmentUsers.roles.u',
-}
-
-function departmentInviteRoleLabel(role: string): string {
-  const key = DEPT_INVITE_ROLE_KEYS[role]
-  return key ? t(key) : role
+function departmentInviteRoleLabel(role: string, inviteDepartmentId?: string | null): string {
+  return roleLabelsStore.labelFor(role, inviteDepartmentId || authStore.activeDepartmentId, t)
 }
 
 async function acceptDepartmentInviteFromBell(inv: ReceivedDepartmentInviteNotification) {
@@ -1344,7 +1346,7 @@ function inviteAcceptedBellTitle(note: InviteAcceptedNotification): string {
 function inviteAcceptedBellSubtitle(note: InviteAcceptedNotification): string {
   return t('settings.departmentUsers.inviteAcceptedMessage', {
     name: note.user_name || note.email,
-    role: departmentInviteRoleLabel(note.role),
+    role: departmentInviteRoleLabel(note.role, authStore.activeDepartmentId),
   })
 }
 

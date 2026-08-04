@@ -28,6 +28,50 @@
       </div>
     </div>
 
+    <div
+      v-if="canEditRoleLabels && !isGrossanlassDept && !isLoading"
+      class="role-labels-card"
+    >
+      <div class="role-labels-head">
+        <div>
+          <h3>{{ t('settings.departmentUsers.roleLabelsTitle') }}</h3>
+          <p class="role-labels-hint">{{ t('settings.departmentUsers.roleLabelsHint') }}</p>
+        </div>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="isSavingRoleLabels || !roleLabelsDirty"
+          :loading="isSavingRoleLabels"
+          @click="saveRoleLabels"
+        >
+          {{ isSavingRoleLabels ? t('common.saving') : t('common.save') }}
+        </EButton>
+      </div>
+      <div class="role-labels-grid">
+        <ETextField
+          v-model="roleLabelForm.l1"
+          :label="t('settings.departmentUsers.roleLabels.l1')"
+          :placeholder="t('settings.departmentUsers.roles.l1')"
+          maxlength="60"
+          hide-details
+        />
+        <ETextField
+          v-model="roleLabelForm.l2"
+          :label="t('settings.departmentUsers.roleLabels.l2')"
+          :placeholder="t('settings.departmentUsers.roles.l2')"
+          maxlength="60"
+          hide-details
+        />
+        <ETextField
+          v-model="roleLabelForm.l3"
+          :label="t('settings.departmentUsers.roleLabels.l3')"
+          :placeholder="t('settings.departmentUsers.roles.l3')"
+          maxlength="60"
+          hide-details
+        />
+      </div>
+    </div>
+
     <!-- Search -->
     <div v-if="!isLoading && members.length > 3" class="search-bar">
       <div class="search-box">
@@ -456,6 +500,11 @@ import {
   type DepartmentMember,
   type AvailableUser
 } from '@/api/departments'
+import {
+  saveDepartmentRoleLabels,
+  type DepartmentRoleLabels,
+} from '@/api/departmentSettings'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { getGroups, type Group } from '@/api/groups'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
@@ -469,10 +518,50 @@ import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+const roleLabelForm = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
+const roleLabelSaved = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
+const isSavingRoleLabels = ref(false)
+
+const roleLabelsDirty = computed(() =>
+  roleLabelForm.value.l1 !== roleLabelSaved.value.l1
+  || roleLabelForm.value.l2 !== roleLabelSaved.value.l2
+  || roleLabelForm.value.l3 !== roleLabelSaved.value.l3
+)
+
+async function loadRoleLabels() {
+  if (!departmentId.value || isGrossanlassDept.value) return
+  await roleLabelsStore.load(departmentId.value)
+  const cached = roleLabelsStore.getCached(departmentId.value)
+  roleLabelForm.value = { ...cached }
+  roleLabelSaved.value = { ...cached }
+}
+
+async function saveRoleLabels() {
+  if (!departmentId.value || !roleLabelsDirty.value) return
+  isSavingRoleLabels.value = true
+  try {
+    await saveDepartmentRoleLabels(departmentId.value, roleLabelForm.value)
+    const next = {
+      l1: roleLabelForm.value.l1.trim(),
+      l2: roleLabelForm.value.l2.trim(),
+      l3: roleLabelForm.value.l3.trim(),
+    }
+    roleLabelForm.value = { ...next }
+    roleLabelSaved.value = { ...next }
+    roleLabelsStore.setLocal(departmentId.value, next)
+    toast.success(t('settings.departmentUsers.toastRoleLabelsSaved'))
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errSaveRoleLabels'))
+  } finally {
+    isSavingRoleLabels.value = false
+  }
+}
 
 const addUserUnitLabels = computed(() => {
   if (isGrossanlassDept.value) {
@@ -519,6 +608,8 @@ const canManagePendingInvites = computed(() => {
   return ['mw', 'dc', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(role)
 })
 
+const canEditRoleLabels = computed(() => canManagePendingInvites.value)
+
 // Nur Rollen die der aktuelle User vergeben darf (eigene Rolle + darunter)
 const assignableRoles = computed(() => {
   // Globale Admin-Rollen dürfen alle Department-Rollen verwalten
@@ -560,9 +651,7 @@ function getRoleShort(role: string): string {
 }
 
 function getRoleLabel(role: string): string {
-  const key = role as DeptRoleKey
-  if (key in DEPT_ROLES) return t(`settings.departmentUsers.roles.${key}`)
-  return role
+  return roleLabelsStore.labelFor(role, departmentId.value, t)
 }
 
 function isCurrentUser(member: DepartmentMember): boolean {
@@ -997,6 +1086,7 @@ watch(departmentId, () => {
   loadMembers()
   loadPendingInvites()
   loadPendingJoinRequests()
+  loadRoleLabels()
 })
 watch(selectedAvailableUser, (user) => {
   addForm.value.user_id = user?.id ?? ''
@@ -1022,6 +1112,7 @@ onMounted(() => {
   loadMembers()
   loadPendingInvites()
   loadPendingJoinRequests()
+  loadRoleLabels()
 })
 
 onUnmounted(() => {
@@ -1107,6 +1198,52 @@ onUnmounted(() => {
 .stat-label {
   font-size: 13px;
   color: #64748b;
+}
+
+.role-labels-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.role-labels-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.role-labels-head h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.role-labels-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.role-labels-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .role-labels-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .role-labels-head {
+    flex-direction: column;
+  }
 }
 
 /* ========================================

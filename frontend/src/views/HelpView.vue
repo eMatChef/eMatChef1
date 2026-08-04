@@ -79,7 +79,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const { mdAndUp } = useDisplay()
-const { canUseOnboarding } = useDepartmentOnboardingAccess()
+const { canUseHelpEinrichtung } = useDepartmentOnboardingAccess()
 
 const mobileMenuOpen = ref(false)
 const desktopNavHovered = ref(false)
@@ -93,7 +93,7 @@ const departmentId = computed(() => {
 
 const menuItems = computed<SettingsNavItem[]>(() => {
   const items: SettingsNavItem[] = []
-  if (canUseOnboarding.value) {
+  if (canUseHelpEinrichtung.value) {
     items.push({
       id: 'einrichtung',
       label: t('help.nav.einrichtung'),

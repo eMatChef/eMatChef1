@@ -4,6 +4,8 @@ Vollständige Spezifikation für **J+S-Leihmaterial** in eMatChef: frühe Entsch
 
 **Stand:** Juni 2026 · **Status:** Tab J+S + Coach-Workflow (Phase 7) implementiert; Pack-Reiter-Summary bleibt Legacy
 
+> **Onboarding:** Create-Wizard-Targets (`data-onboarding="activity-camp-js-material"` u. a.) werden von Tour `activity-camp-create` genutzt — Targets nicht ohne Tour-Update entfernen. Siehe [onboarding §15](../../onboarding/README.md#15-wartung--checkliste-bei-ui-änderungen).
+
 **Verwandt:** [status.md](../status.md) · [material-pipeline.md](../material-pipeline.md) · [pack-workflow-rules.md](../pack-workflow-rules.md) · [Supplier-Portal §1b](../../supplier/supplier-portal.md#1b-drei-produktlinien-nicht-vermischen)
 
 **Referenzformular (extern):** J+S «Leihmaterialbestellung Lagersport/Trekking» (BASPO/J+S, Formularstand 16.06.2021)

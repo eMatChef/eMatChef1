@@ -29,7 +29,7 @@
     </div>
   </v-main>
 
-  <OnboardingTourOverlay v-if="canUseOnboarding" />
+  <OnboardingTourOverlay v-if="canUseTours" />
 </template>
 
 <script setup lang="ts">
@@ -59,7 +59,7 @@ const isMaterialDetailView = computed(() => {
 useUnsavedChangesReminder()
 const drawerOpen = ref(false)
 
-const { departmentId, profileId, canUseOnboarding } = useDepartmentOnboardingAccess()
+const { departmentId, profileId, canUseOnboarding, canUseTours } = useDepartmentOnboardingAccess()
 
 watch(
   [departmentId, profileId, () => authStore.isLoggedIn, () => authStore.currentDepartmentRole],

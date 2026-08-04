@@ -1,3 +1,13 @@
+/**
+ * Spotlight-Tour-Definitionen.
+ * Bei UI-Änderungen an Targets (`data-onboarding`) → Touren + Version mitprüfen.
+ * Siehe docs/onboarding/README.md § Wartung / Checkliste bei UI-Änderungen.
+ */
+import {
+  isDepartmentBasicMemberRole,
+  isDepartmentMwOrDcRole,
+} from '@/composables/useDepartmentMemberRole'
+
 export type OnboardingTourId =
   | 'material-create'
   | 'activity-create'
@@ -10,6 +20,9 @@ export type OnboardingTourId =
 export type OnboardingTourCategory = 'material' | 'activities' | 'settings'
 
 export type OnboardingTourStepMode = 'info' | 'click' | 'waitFor'
+
+/** Wer darf die Tour im Hub sehen? */
+export type OnboardingTourAudience = 'mw' | 'member' | 'all'
 
 export interface OnboardingTourStepDef {
   id: string
@@ -29,6 +42,10 @@ export interface OnboardingTourDef {
   titleKey: string
   descriptionKey: string
   mdiIcon: string
+  /** Default `mw` — nur Materialwart/Depchef. `member` = User/L1–L3 (+ MW). `all` = beides. */
+  audience?: OnboardingTourAudience
+  /** Tour nur anzeigen wenn Camp/Event anlegen erlaubt (z. B. activity-camp-create). */
+  requiresCampCreate?: boolean
   steps: OnboardingTourStepDef[]
 }
 
@@ -52,6 +69,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     id: 'material-create',
     category: 'material',
     version: 2,
+    audience: 'mw',
     routeName: 'Materials',
     titleKey: 'onboarding.tours.materialCreate.title',
     descriptionKey: 'onboarding.tours.materialCreate.description',
@@ -90,7 +108,8 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-create',
     category: 'activities',
-    version: 2,
+    version: 3,
+    audience: 'all',
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityCreate.title',
     descriptionKey: 'onboarding.tours.activityCreate.description',
@@ -117,12 +136,21 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         titleKey: 'onboarding.tours.activityCreate.step3Title',
         bodyKey: 'onboarding.tours.activityCreate.step3Body',
       },
+      {
+        id: '4',
+        target: '#activity-create-zeitraum',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.activityCreate.step4Title',
+        bodyKey: 'onboarding.tours.activityCreate.step4Body',
+      },
     ],
   },
   {
     id: 'activity-camp-create',
     category: 'activities',
-    version: 1,
+    version: 2,
+    audience: 'all',
+    requiresCampCreate: true,
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityCampCreate.title',
     descriptionKey: 'onboarding.tours.activityCampCreate.description',
@@ -151,15 +179,25 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       },
       {
         id: '4',
+        target: '[data-onboarding="activity-camp-js-material"]',
+        mode: 'waitFor',
         titleKey: 'onboarding.tours.activityCampCreate.step4Title',
         bodyKey: 'onboarding.tours.activityCampCreate.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="activity-wizard-next"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityCampCreate.step5Title',
+        bodyKey: 'onboarding.tours.activityCampCreate.step5Body',
       },
     ],
   },
   {
     id: 'issue-return',
     category: 'activities',
-    version: 1,
+    version: 2,
+    audience: 'mw',
     routeName: 'Activities',
     titleKey: 'onboarding.tours.issueReturn.title',
     descriptionKey: 'onboarding.tours.issueReturn.description',
@@ -167,8 +205,27 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     steps: [
       {
         id: '1',
+        target: '[data-onboarding="activities-list-filters"]',
+        mode: 'info',
         titleKey: 'onboarding.tours.issueReturn.step1Title',
         bodyKey: 'onboarding.tours.issueReturn.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="activities-packing-filter"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.issueReturn.step2Title',
+        bodyKey: 'onboarding.tours.issueReturn.step2Body',
+      },
+      {
+        id: '3',
+        titleKey: 'onboarding.tours.issueReturn.step3Title',
+        bodyKey: 'onboarding.tours.issueReturn.step3Body',
+      },
+      {
+        id: '4',
+        titleKey: 'onboarding.tours.issueReturn.step4Title',
+        bodyKey: 'onboarding.tours.issueReturn.step4Body',
       },
     ],
   },
@@ -176,6 +233,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     id: 'categories',
     category: 'settings',
     version: 2,
+    audience: 'mw',
     routeName: 'SettingsCategories',
     titleKey: 'onboarding.tours.categoriesTour.title',
     descriptionKey: 'onboarding.tours.categoriesTour.description',
@@ -201,6 +259,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     id: 'invite-users',
     category: 'settings',
     version: 2,
+    audience: 'mw',
     routeName: 'SettingsUsers',
     titleKey: 'onboarding.tours.inviteUsers.title',
     descriptionKey: 'onboarding.tours.inviteUsers.description',
@@ -219,6 +278,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     id: 'default-coach',
     category: 'settings',
     version: 1,
+    audience: 'mw',
     routeName: 'SettingsActivities',
     titleKey: 'onboarding.tours.defaultCoach.title',
     descriptionKey: 'onboarding.tours.defaultCoach.description',
@@ -259,16 +319,39 @@ export function getRouteNameForTourStep(
   return step?.routeName ?? tour.routeName
 }
 
-export function groupOnboardingToursByCategory(): Record<
-  OnboardingTourCategory,
-  OnboardingTourDef[]
-> {
+export function isTourVisibleForRole(
+  tour: OnboardingTourDef,
+  role: string,
+  options: { canCreateCamp?: boolean } = {}
+): boolean {
+  const audience = tour.audience ?? 'mw'
+  const isMw = isDepartmentMwOrDcRole(role)
+  const isMember = isDepartmentBasicMemberRole(role)
+
+  if (audience === 'mw' && !isMw) return false
+  if (audience === 'member' && !isMember && !isMw) return false
+  if (audience === 'all' && !isMw && !isMember) return false
+
+  if (tour.requiresCampCreate && !isMw && !options.canCreateCamp) return false
+  return true
+}
+
+export function filterOnboardingToursForRole(
+  role: string,
+  options: { canCreateCamp?: boolean } = {}
+): OnboardingTourDef[] {
+  return ONBOARDING_TOURS.filter((tour) => isTourVisibleForRole(tour, role, options))
+}
+
+export function groupOnboardingToursByCategory(
+  tours: OnboardingTourDef[] = ONBOARDING_TOURS
+): Record<OnboardingTourCategory, OnboardingTourDef[]> {
   const grouped: Record<OnboardingTourCategory, OnboardingTourDef[]> = {
     material: [],
     activities: [],
     settings: [],
   }
-  for (const tour of ONBOARDING_TOURS) {
+  for (const tour of tours) {
     grouped[tour.category].push(tour)
   }
   return grouped
