@@ -267,7 +267,9 @@
 
 /* Material tab table */
 .activity-items-table-wrap {
-  overflow-x: auto;
+  overflow-x: hidden;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .activity-items-table {

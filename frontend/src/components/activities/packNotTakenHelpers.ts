@@ -59,6 +59,36 @@ export function notTakenAttributedToIssuedLine(
   return qtyAttributedToIssuedLine(lineIssued, totalIssuedAtEvent, totalNotTakenToEvent)
 }
 
+/**
+ * Pipeline «nie ans Event / nicht mitgenommen» für Retour-Anzeige
+ * (ordered−packed + gepackt aber nie issued, minus Kistenanteil).
+ */
+export function notTakenQtyForReturnPipeline(
+  pi: {
+    quantityOrdered?: number
+    quantityPacked?: number
+    quantityIssued?: number
+    isConsumable?: boolean
+  },
+  opts: {
+    packedInCrates: number
+    consumedQty?: number
+  },
+): number {
+  const ordered = pi.quantityOrdered ?? 0
+  const packed = pi.quantityPacked ?? 0
+  const issued = pi.quantityIssued ?? 0
+  const notPacked = Math.max(0, ordered - packed)
+  const packedNeverIssued = Math.max(0, packed - issued)
+  const neverIssuedLoose = Math.max(0, packedNeverIssued - Math.max(0, opts.packedInCrates))
+  let total = notPacked + neverIssuedLoose
+  if (pi.isConsumable && total > 0) {
+    const consumed = Math.max(0, opts.consumedQty ?? 0)
+    total = Math.max(0, total - Math.min(consumed, total))
+  }
+  return total
+}
+
 /** Erwartete Retour beim Einlagern: ausgegeben − nicht mitgenommen − Verbrauch. */
 export function expectedReturnAfterNotTaken(
   issued: number,

@@ -13,7 +13,7 @@ use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * Buchhaltung für Aktivitätskosten: mehrere Anschaffungs-Aufträge pro Aktivität
+ * Buchhaltung für Aktivitätskosten: mehrere Buchhaltungs-Aufträge pro Aktivität
  * (Verbrauch gesammelt, Miete extern, Werkstatt pro Ticket, optional Nachlieferung).
  */
 class ActivityAccountingCostService
@@ -48,31 +48,7 @@ class ActivityAccountingCostService
         $this->syncWorkshopFollowUps($activity);
     }
 
-    /** @deprecated */
-    public function enqueueFromConsumption(Activity $activity, ActivityIssueReport $report): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
     public function enqueueAccountingForMaterialOnStore(Activity $activity, string $materialItemId): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated */
-    public function finalizeConsumptionAccountingForActivity(Activity $activity): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated Keine Sammel-Endabrechnung mehr. */
-    public function enqueueFinalActivityBilling(Activity $activity): void
-    {
-        $this->syncActivityAccountingFollowUps($activity);
-    }
-
-    /** @deprecated */
-    public function ensurePendingFinalBilling(Activity $activity): void
     {
         $this->syncActivityAccountingFollowUps($activity);
     }
@@ -86,7 +62,54 @@ class ActivityAccountingCostService
         $this->syncWorkshopFollowUps($activity);
     }
 
-    /** @deprecated Nur noch für Tests/Vergleich — Summe aller Follow-up-Beträge. */
+    /**
+     * Positionen für Aktivitäts-Rechnung: Verbrauch pro Material (Menge + Betrag).
+     *
+     * @return list<array{material_item_id: string, material_name: string, quantity: int, amount_chf: string}>
+     */
+    public function listConsumableUsageLinesForInvoice(Activity $activity): array
+    {
+        $activityId = $activity->getId();
+        if (!$activityId) {
+            return [];
+        }
+
+        $lines = [];
+        foreach ($this->consumableMaterialIdsForActivity($activityId) as $materialItemId) {
+            $issues = $this->entityManager->getRepository(ActivityIssueReport::class)->findBy([
+                'activityId' => $activityId,
+                'type' => ActivityIssueReport::TYPE_CONSUMPTION,
+                'materialItemId' => $materialItemId,
+            ]);
+            $qty = 0;
+            foreach ($issues as $iss) {
+                if ($iss instanceof ActivityIssueReport) {
+                    $qty += $iss->getQuantity();
+                }
+            }
+            if ($qty <= 0) {
+                continue;
+            }
+            $amount = $this->computeConsumableMaterialTotalCost($activityId, $materialItemId);
+            if ($amount <= 0) {
+                continue;
+            }
+            $material = $this->entityManager->find(MaterialItem::class, $materialItemId);
+            $name = $material instanceof MaterialItem ? $material->getName() : $materialItemId;
+            $lines[] = [
+                'material_item_id' => $materialItemId,
+                'material_name' => $name,
+                'quantity' => $qty,
+                'amount_chf' => number_format($amount, 2, '.', ''),
+            ];
+        }
+
+        usort($lines, static fn (array $a, array $b): int => strcmp($a['material_name'], $b['material_name']));
+
+        return $lines;
+    }
+
+    /** Summe aller Follow-up-Beträge (Tests/Vergleich). */
     public function computeActivityBillingTotal(Activity $activity): float
     {
         $activityId = $activity->getId();

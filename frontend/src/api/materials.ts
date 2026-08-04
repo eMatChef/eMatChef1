@@ -1007,6 +1007,14 @@ export async function finalizeCombo(materialId: string): Promise<Material> {
   return response.data
 }
 
+/**
+ * Kombo zurück auf Entwurf: Status ready → draft (nicht neu buchbar).
+ */
+export async function unfinalizeCombo(materialId: string): Promise<Material> {
+  const response = await apiClient.post<Material>(`/api/materials/${materialId}/unfinalize-combo`)
+  return response.data
+}
+
 // ============== Related-Accessory API Functions ==============
 
 /**

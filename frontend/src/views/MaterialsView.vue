@@ -201,11 +201,11 @@
         }}
       </p>
       <ul class="materials-view-combo-guide-steps">
-        <li v-if="postCreateComboGuideMaterial?.material_type === 'physical_combo'">
-          {{ t('materialsView.modalPostCreateComboStepFinalize') }}
-        </li>
-        <li v-else>
+        <li v-if="postCreateComboGuideMaterial?.material_type === 'virtual_combo'">
           {{ t('materialsView.modalPostCreateComboStepVirtual') }}
+        </li>
+        <li>
+          {{ t('materialsView.modalPostCreateComboStepFinalize') }}
         </li>
         <li v-if="postCreateComboGuideHasLinkedContainer">
           {{ t('materialsView.modalPostCreateComboStepContainer') }}

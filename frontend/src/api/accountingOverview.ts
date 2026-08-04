@@ -27,6 +27,9 @@ export type AccountingOverview = {
   by_cost_center: AccountingOverviewCostCenterRow[]
   by_entry_type: AccountingOverviewEntryTypeRow[]
   pending_followup_count: number
+  /** #7 Phase 5: offene Werkstatt-Tickets mit Aktivitätsbezug («Kosten folgen») */
+  expected_workshop_open_count: number
+  expected_workshop_activity_count: number
   cost_center_count: number
 }
 

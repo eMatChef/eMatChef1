@@ -183,10 +183,13 @@
             primary-type="event"
             :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
             :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+            :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
             :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
             inline-create-label-key="addresses.search.createEventVenueInline"
+            show-edit-button
             @update:selected-id="emit('update:venueAddressId', $event)"
             @create="openAddVenueAddressModal"
+            @edit="openEditVenueAddressModal"
           />
           <p v-if="venueAddressId" class="selected-address">
             {{ t('activities.wizard.form.selectedPrefix') }}{{ venueAddressSummary }}
@@ -194,6 +197,13 @@
               ×
             </button>
           </p>
+          <ActivityVenueOverviewBlock
+            v-if="venueAddressId"
+            :venue-address-id="venueAddressId"
+            :department-id="departmentId"
+            :show-js-hint="wantsJsMaterial === true"
+            @updated="loadRentalAddresses"
+          />
         </div>
 
         <div
@@ -545,14 +555,43 @@
     </template>
 
     <AddressModal
-      v-if="showAddressModal && addressModalTarget"
-      :key="addressModalTarget"
+      v-if="showAddressModal && addressModalTarget === 'customer'"
+      :key="`customer-${addressModalEditId ?? 'new'}`"
       :department-id="departmentId"
-      :default-type="addressModalTarget === 'venue' ? 'event' : 'customer'"
+      default-type="customer"
       :default-name="addressModalDefaultName"
+      :address="addressModalAddress"
+      :edit-address-id="addressModalEditId"
       @close="closeAddressModal"
       @saved="onAddressModalSaved"
     />
+
+    <v-dialog
+      v-model="showVenueContactModal"
+      class="contact-create-dialog"
+      max-width="960"
+      scrollable
+      content-class="contact-create-dialog__content"
+      :z-index="2400"
+    >
+      <v-card class="contact-create-dialog__card" rounded="lg">
+        <v-card-text class="contact-create-dialog__body">
+          <ContactDetailView
+            v-if="showVenueContactModal"
+            :key="venueContactModalKey"
+            :mode="venueContactModalMode"
+            as-modal
+            :department-id="departmentId"
+            :contact-id="venueContactModalId"
+            default-type="event"
+            @close="closeVenueContactModal"
+            @created="onVenueContactCreated"
+            @updated="onVenueContactUpdated"
+            @deleted="onVenueContactDeleted"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -564,6 +603,8 @@ import { getAddresses, type Address } from '@/api/addresses'
 import { searchJoinableDepartments, type DepartmentSearchResult } from '@/api/joinRequests'
 import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import AddressModal from '@/components/AddressModal.vue'
+import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
+import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import ActivityZeitraumDatetimeFields from '@/components/activities/shared/ActivityZeitraumDatetimeFields.vue'
 import type { ActivityDefaults } from '@/api/departmentSettings'
 import type { Group } from '@/api/groups'
@@ -598,6 +639,7 @@ import { activityPreviewMaterialLabel, activityPreviewUsageLabel } from './activ
 import { activityTypeLabel } from './activityTypeLabels'
 import ActivityOutlinedSection from './ActivityOutlinedSection.vue'
 import ActivityCreateMaterialStep from './ActivityCreateMaterialStep.vue'
+import '@/styles/contacts-view.css'
 
 const props = withDefaults(
   defineProps<{
@@ -978,8 +1020,13 @@ const datesLockedByMaterial = computed(() => props.materialLines.length > 0)
 
 const rentalAddresses = ref<Address[]>([])
 const showAddressModal = ref(false)
-const addressModalTarget = ref<'customer' | 'venue' | null>(null)
+const addressModalTarget = ref<'customer' | null>(null)
 const addressModalDefaultName = ref('')
+const addressModalAddress = ref<Address | null>(null)
+const addressModalEditId = ref<string | null>(null)
+const showVenueContactModal = ref(false)
+const venueContactModalMode = ref<'view' | 'create'>('view')
+const venueContactModalId = ref<string | null>(null)
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const customerAddressSearch = ref('')
 const showCustomerAddressDropdown = ref(false)
@@ -1099,30 +1146,65 @@ function closeAddressModal() {
   showAddressModal.value = false
   addressModalTarget.value = null
   addressModalDefaultName.value = ''
+  addressModalAddress.value = null
+  addressModalEditId.value = null
 }
 
 function openAddCustomerAddressModal() {
+  addressModalAddress.value = null
+  addressModalEditId.value = null
   addressModalDefaultName.value = customerAddressSearchTrimmed.value
   addressModalTarget.value = 'customer'
   showAddressModal.value = true
 }
 
-function openAddVenueAddressModal(presetName = '') {
-  addressModalDefaultName.value = presetName.trim()
-  addressModalTarget.value = 'venue'
-  showAddressModal.value = true
+const venueContactModalKey = computed(() =>
+  venueContactModalMode.value === 'create'
+    ? 'venue-create'
+    : `venue-view-${venueContactModalId.value ?? 'none'}`,
+)
+
+function closeVenueContactModal() {
+  showVenueContactModal.value = false
+  venueContactModalId.value = null
+}
+
+function openAddVenueAddressModal(_presetName = '') {
+  venueContactModalMode.value = 'create'
+  venueContactModalId.value = null
+  showVenueContactModal.value = true
+}
+
+function openEditVenueAddressModal(id: string) {
+  venueContactModalMode.value = 'view'
+  venueContactModalId.value = id
+  showVenueContactModal.value = true
+}
+
+async function onVenueContactCreated(addr: Address) {
+  closeVenueContactModal()
+  await loadRentalAddresses()
+  if (addr?.id) emit('update:venueAddressId', addr.id)
+}
+
+async function onVenueContactUpdated() {
+  await loadRentalAddresses()
+}
+
+async function onVenueContactDeleted() {
+  const deletedId = venueContactModalId.value
+  closeVenueContactModal()
+  await loadRentalAddresses()
+  if (deletedId && props.venueAddressId === deletedId) {
+    emit('update:venueAddressId', null)
+  }
 }
 
 function onAddressModalSaved(addr?: Address) {
-  const t = addressModalTarget.value
-  showAddressModal.value = false
-  addressModalTarget.value = null
-  addressModalDefaultName.value = ''
+  const target = addressModalTarget.value
+  closeAddressModal()
   void loadRentalAddresses().then(() => {
-    if (addr?.id) {
-      if (t === 'customer') emit('update:customerAddressId', addr.id)
-      else if (t === 'venue') emit('update:venueAddressId', addr.id)
-    }
+    if (addr?.id && target === 'customer') emit('update:customerAddressId', addr.id)
   })
 }
 

@@ -881,7 +881,7 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 
 - [x] Tab `packs`: Legacy `ActivityPackListTab` — Status-Mapping `transport_out` / `transport_back` / `storing` (Juni 2026)
 - [x] Route `pack-journey`: Journey parallel erreichbar; Links Legacy ↔ Beta
-- [ ] Jede Journey-Phase auf **375px** abgenommen vor Desktop
+- [x] Jede Journey-Phase auf **375px** abgenommen vor Desktop (Smoke Aug 2026: Stepper + kein Horizontal-Overflow auf Logistics-Kette)
 
 ### UX
 
@@ -891,15 +891,15 @@ Prefix Material-Tab refresh (optional geteilt): `activities.materialTab.*`
 
 - [x] Material-Tab: UI refresh, **ohne** Scan; Suche/Verfügbarkeit wie bisher
 - [x] Kein `plan`-Step im Stepper
-- [ ] Handoff-Banner gemäß [§19.1](#191-handoff-banner--readonly-matrix)
-- [ ] `not_taken` als eigene Zeile, Gruppe sichtbar
-- [ ] Material nachbuchen: Modal bei `packed`/`at_event` ([§5.2](#52-block-material-nachbuchen))
+- [x] Handoff-Banner gemäß [§19.1](#191-handoff-banner--readonly-matrix)
+- [x] `not_taken` als eigene Zeile, Gruppe sichtbar
+- [ ] Material nachbuchen: Modal bei `packed`/`at_event` ([§5.2](#52-block-material-nachbuchen)) — **aus #1 ausgelagert**
 - [x] Einlagern: `MaterialStoreShelveSheet` mit Verräum-Feedback ([§7.6](#76-materialstoreshelvesheet-einlagern))
 - [ ] Partner-Department readonly ([§8.1](#81-partner-departments))
 - [x] Deep Links Inbox → `pack-journey/:step` (ab Phase 8b)
 - [ ] `external`: MW-only Journey, PDF + Kosten-Tab — [§2.5](#25-profil-external-vermietung)
-- [ ] Completion-Blocker verlinken (kein Wizard) — [§20.3](#203-buchhaltung--abschluss--external)
-- [ ] Parität Legacy §22: Shell, Accordion Fix/Zusatz, QR/Charge, Retour-Stapel, Live-Sync
+- [x] Completion-Blocker entkoppelt (kein Wizard) — [§20.3](#203-buchhaltung--abschluss--external) — **#7 Phase 1**
+- [ ] Parität Legacy §22: Shell, Accordion Fix/Zusatz, QR/Charge, Retour-Stapel, Live-Sync — **aus #1 ausgelagert**
 - [x] Pack-History: Moves loggen, UI-Aggregation, **kein** Scan-Log — §20.2
 
 ---
@@ -1147,7 +1147,7 @@ Siehe [§20.3](#203-buchhaltung--abschluss--external) für Details.
 
 - Beim Auspacken (`store`): offene Defekte/Fehlmengen → Hinweis + Sprung Tab **Kosten**
 - Status `completed` in **Kopfzeile** mit bestehender `ActivityCompletionChecklist` — **kein** separater «Abschluss-Wizard» in der Journey
-- Blocker aus `GET …/transitions` (`completion_blockers`): Einlagern, Issues, Werkstatt, `accounting_followups` — MW/DC only ([status.md](../status.md))
+- Blocker aus `GET …/transitions` (`completion_blockers`): nur Material-Disposition (Ziel); Buchhaltung separat — MW/DC only ([status.md](../status.md), [accounting.md](../../accounting.md#zwei-abschlüsse-kernmodell))
 
 ---
 
@@ -1360,6 +1360,10 @@ activity_transport_tour_item
 
 Spiegelung der Hinfahrt empfohlen: gleiche Tour-Labels (Tour A zurück, Tour B zurück) mit `direction: inbound` — MW kann Zuordnung anpassen wenn Ladung anders verteilt wird.
 
+1. Checkliste/Pfeile: `issued` → `quantity_transport_back` (Laden auf Tour oder Einfache Tour)
+2. **«Alles zurücktransportierte Material ist da»** (`POST …/arrive-all` inbound) → `quantity_transport_back` → `quantity_returned`
+3. **«Weiter»** → Status `returned`
+
 ### 19.4 Unberechtigter Zugriff — Audit vs. Benachrichtigung
 
 | Aspekt | Entscheidung |
@@ -1455,13 +1459,14 @@ API (Ziel): `GET …/activities/{id}/pack-events` oder erweitertes `GET …/hist
 
 ### 20.3 Buchhaltung, Abschluss & `external`
 
-**Kein** monolithischer «Abschluss-Wizard» in der Journey — bestehendes Modell beibehalten:
+**Kein** monolithischer «Abschluss-Wizard» in der Journey. **Zwei Abschlüsse** — Details und Umsetzungsplan: [accounting.md](../../accounting.md#zwei-abschlüsse-kernmodell).
 
-| Element | Ort | Verhalten |
+| Element | Ort | Verhalten (Ziel) |
 |---------|-----|-----------|
-| Status `completed` | Kopfzeile `ActivityDetailView` | `usePackWorkflowConfirm` |
-| Blocker-Liste | `ActivityCompletionChecklist` (MW/DC only) | `completion_blockers` aus `GET …/transitions` |
-| Blocker-Typen | wie [status.md](../status.md) | Einlagern, Issues, Werkstatt-Tickets, `accounting_followups` (Verbrauch pro Dept, Nachlieferung, …) |
+| Status `completed` | Kopfzeile `ActivityDetailView` | Material geklärt (eingelagert **oder** Verlust/Reparatur gemeldet). **Nicht** durch Buchhaltung blockiert |
+| Blocker-Liste | `ActivityCompletionChecklist` (MW/DC only) | nur Material-Disposition; kein `accounting_followups`-Blocker |
+| Tab Kosten | `ActivityCostsTab` | Übersicht; optional **Einnahme-Vermerk** (Bar/Rechnung) — keine fertige Buchung |
+| Effektive Abrechnung | `/accounting` | Follow-up → Buchung; Vermerk nur als Vorbelegung |
 | Journey `store` | Hinweis + **Link** Tab Kosten / Issues / Werkstatt | kein eingebetteter Multi-Step-Wizard |
 
 #### Profil `external` (Vermietung)
@@ -1473,7 +1478,7 @@ Nur `activity.type === 'external'`:
 | **`activity_rental`** | Tab **Kosten**: Positionen bearbeiten, Beträge, **Rabatt** setzen |
 | **PDF Ausgabe** | Generierung «Ausgegebene Materialien» bei Ausgabe/Abschluss — Übergabe-Quittung für externen Kunden |
 | Journey | MW durchgehend; Gruppe readonly — [§2.5](#25-profil-external-vermietung) |
-| Blocker | `activity_rental` / Buchhaltung in Completion-Checkliste wie heute |
+| Abrechnung | wie intern: optional Vermerk in Aktivität; Buchung in `/accounting` wenn Kosten geklärt (Dept-Setting Timing) |
 
 ### 20.4 Schaden & Foto
 

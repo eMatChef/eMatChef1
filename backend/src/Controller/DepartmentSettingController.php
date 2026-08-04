@@ -136,6 +136,24 @@ class DepartmentSettingController extends AbstractController
             }
         }
 
+        $timingKeys = [
+            'accounting.settlement_timing_consumable',
+            'accounting.settlement_timing_external',
+        ];
+        $allowedTiming = ['offer_at_activity', 'accounting_only'];
+        foreach ($timingKeys as $timingKey) {
+            if (!\array_key_exists($timingKey, $validData)) {
+                continue;
+            }
+            $v = strtolower(trim((string) $validData[$timingKey]));
+            if (!\in_array($v, $allowedTiming, true)) {
+                return new JsonResponse([
+                    'error' => $timingKey . ' muss offer_at_activity oder accounting_only sein',
+                ], 422);
+            }
+            $validData[$timingKey] = $v;
+        }
+
         $this->workshopSparePartsCategoryBootstrap->ensure($department);
 
         // Bestehende Settings für dieses Department laden
@@ -185,7 +203,7 @@ class DepartmentSettingController extends AbstractController
      */
     private function extractAllowedSettings(array $data): array
     {
-        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.', 'workshop.'];
+        $allowedPrefixes = ['activity.', 'material.', 'general.', 'onboarding.', 'rental.', 'calendar.', 'workshop.', 'accounting.'];
         $validData = [];
 
         foreach ($data as $key => $value) {

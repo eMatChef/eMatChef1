@@ -9,6 +9,15 @@
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('accounting.costCenters.newButton') }}
       </EButton>
+      <EButton
+        v-if="items.length > 0 && hasMissingDefaults"
+        variant="secondary"
+        :disabled="isLoading || isApplyingStandardSeeds"
+        :loading="isApplyingStandardSeeds"
+        @click="createStandardCostCenters"
+      >
+        {{ t('accounting.costCenters.applyMissingDefaults') }}
+      </EButton>
     </div>
 
     <ELoadingState v-if="isLoading" variant="inline" :message="t('accounting.common.loading')" />
@@ -182,6 +191,7 @@ import {
   createCostCenter,
   updateCostCenter,
   deleteCostCenter,
+  bootstrapCostCenters,
   type AccountingCostCenter
 } from '@/api/accountingCostCenters'
 import {
@@ -215,12 +225,6 @@ const saving = ref(false)
 /** Standard-Vorschläge-Button (expliziter Name für Template/HMR mit KeepAlive). */
 const isApplyingStandardSeeds = ref(false)
 
-const SEED_KEYS = [
-  { key: 'material' as const, sort_order: 10 },
-  { key: 'general' as const, sort_order: 20 },
-  { key: 'events' as const, sort_order: 30 },
-]
-
 const form = reactive({
   name: '',
   account_code: '' as string,
@@ -243,6 +247,11 @@ const rulesByKind = computed(() => {
 
 const costCenterSelectItems = computed(() =>
   items.value.map((c) => ({ title: c.name, value: c.id }))
+)
+
+/** Fehlende Standard-Regeln → Button «Defaults ergänzen» anbieten. */
+const hasMissingDefaults = computed(() =>
+  ruleSourceKinds.some((sk) => !rulesByKind.value[sk]),
 )
 
 const ENTRY_KEYS = ['purchase', 'repair_external', 'repair_internal', 'amortization', 'other'] as const
@@ -340,17 +349,20 @@ async function load() {
 }
 
 async function createStandardCostCenters() {
-  if (items.value.length > 0 || !departmentId.value) return
+  if (!departmentId.value) return
   isApplyingStandardSeeds.value = true
   try {
-    for (const row of SEED_KEYS) {
-      await createCostCenter(departmentId.value, {
-        name: t(`accounting.costCenters.seeds.${row.key}.name`),
-        description: t(`accounting.costCenters.seeds.${row.key}.description`),
-        sort_order: row.sort_order,
-      })
+    const result = await bootstrapCostCenters(departmentId.value)
+    if (result.cost_centers_created === 0 && result.rules_created === 0) {
+      toast.success(t('accounting.costCenters.toastSeedsNone'))
+    } else {
+      toast.success(
+        t('accounting.costCenters.toastSeedsOk', {
+          centers: result.cost_centers_created,
+          rules: result.rules_created,
+        }),
+      )
     }
-    toast.success(t('accounting.costCenters.toastSeedsOk'))
     await load()
   } catch {
     toast.error(t('accounting.costCenters.toastSeedsFail'))

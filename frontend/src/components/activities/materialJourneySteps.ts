@@ -151,14 +151,20 @@ export function defaultJourneyStepForStatus(
   return 'pack'
 }
 
-/** Nächster Activity-Status nach «Weiter» vom aktuellen Journey-Schritt. */
+/**
+ * Nächster Activity-Status nach «Weiter» vom aktuellen Journey-Schritt.
+ * Logistics: bei Status `packed` auf Transport-hin zuerst `transport_out`
+ * (API erlaubt kein packed → at_event), danach `at_event`.
+ */
 export function activityStatusAfterJourneyStep(
   step: JourneyStep,
   profile: PackWorkflowProfile,
+  currentStatus?: string | null,
 ): string | null {
   if (profile === 'logistics') {
     switch (step) {
       case 'transport_out':
+        if ((currentStatus ?? '') === 'packed') return 'transport_out'
         return 'at_event'
       case 'issue':
         return 'transport_back'

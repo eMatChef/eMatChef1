@@ -846,6 +846,7 @@ class ActivityAccessService
 
     /**
      * Fuhrpark der Aktivität: Host-/Partner-MW/DC oder Ersteller (ab Entwurf).
+     * Ab «Retour gemeldet» nur noch MW/DC — Gruppe/Ersteller gesperrt.
      */
     public function canUserManageActivityVehicles(User $user, Activity $activity): bool
     {
@@ -869,6 +870,15 @@ class ActivityAccessService
 
         if ($this->isHostDepartmentMwOrDc($user, $activity) || $this->isInvitedDepartmentMwOrDc($user, $activity)) {
             return true;
+        }
+
+        // Ab Übergabe an MW: Ersteller/Gruppe dürfen Fahrzeuge nicht mehr ändern.
+        if (\in_array($status, [
+            Activity::STATUS_RETURNED,
+            Activity::STATUS_STORING,
+            Activity::STATUS_COMPLETED,
+        ], true)) {
+            return false;
         }
 
         return $activity->getCreatedByUserId() === $user->getId();

@@ -25,6 +25,7 @@ import {
   type MaterialJourneyAccordionLine,
 } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import EButton from '@/components/form/base/EButton.vue'
 import TransportTourWeightAutoSave from '@/components/activities/materialJourney/TransportTourWeightAutoSave.vue'
 import { updateMaterial } from '@/api/materials'
@@ -93,7 +94,7 @@ const savingMaterialWeightId = ref<string | null>(null)
 
 const assignableRows = computed(() =>
   props.assignableTasks
-    .filter((row) => row.isOpen && (row.kind === 'crate' || row.kind === 'loose'))
+    .filter((row) => row.isOpen && (isMaterialJourneyCrateKind(row.kind) || row.kind === 'loose'))
     .map((row) => ({
       key: row.id,
       label: row.title,
@@ -346,7 +347,11 @@ function loadedRowsForTour(tour: ActivityTransportTour): TourLoadedRow[] {
     return {
       id: item.id,
       label: labelForTourItem(item),
-      kind: assignable?.kind === 'crate' ? 'crate' : 'loose',
+      kind:
+        assignable &&
+        (assignable.kind === 'crate' || assignable.kind === 'virtual_crate')
+          ? 'crate'
+          : 'loose',
       containerId,
       packItemId,
       quantity: Math.max(1, item.quantity ?? 1),

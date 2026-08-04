@@ -31,6 +31,7 @@ import {
   getStageLeftQty,
   getStageRightQty,
   isPackForwardToEventStage,
+  isPackReturnOrUnpackWarehouseStage,
   isPackReturnStage,
   isPackUnpackStage,
   type PackStage,
@@ -46,7 +47,12 @@ import {
 } from '@/utils/materialJourneyConsumable'
 import { consumableShowsZeroOnStageLeft } from '@/utils/packConsumablePipeline'
 import {
+  notTakenQtyForReturnPipeline,
+  notTakenToEventQtyForMaterial as notTakenToEventQtyFromIssues,
+} from '@/components/activities/packNotTakenHelpers'
+import {
   containerInnerPendingStoreUnits as unpackContainerInnerPendingStoreUnits,
+  containerLinePhysicalReturnRemaining as unpackContainerLinePhysicalReturnRemaining,
   containerLineRemainingStore as unpackContainerLineRemainingStore,
   containerShellOnlyPendingUnpack as unpackContainerShellOnlyPendingUnpack,
   containerShellPendingStoreQty as unpackContainerShellPendingStoreQty,
@@ -150,6 +156,12 @@ export function createMaterialJourneyPackContextState(
     containerItemsByContainerId: input.containerItemsByContainerId,
     issues,
     packQuantityCtx,
+  }
+
+  packQuantityCtx.containerLinePhysicalReturnRemaining = (ci) => {
+    if (!isPackReturnStage(input.packStage)) return null
+    if (input.packStage === 'transport_back_returned' && input.profile === 'logistics') return null
+    return unpackContainerLinePhysicalReturnRemaining(ci, unpackAccountingInput)
   }
 
   function retourAccountingForUnpackLoose(pi: ActivityPackItem) {
@@ -276,8 +288,16 @@ export function createMaterialJourneyPackContextState(
     storedShellLooseQtyForPackItem: () => 0,
     looseQtyOnRightMirror: (pi) => computeLooseQtyOnRightMirror(pi, packQuantityCtx),
     looseTransportBackOnRight: () => 0,
-    notTakenQtyForReturn: () => 0,
-    notTakenToEventQtyForMaterial: () => 0,
+    notTakenQtyForReturn: (pi) => {
+      if (!isPackReturnOrUnpackWarehouseStage(input.packStage)) return 0
+      const packedInCrates = computeQtyInContainersForItem(pi, packQuantityCtx)
+      return notTakenQtyForReturnPipeline(pi, {
+        packedInCrates,
+        consumedQty: pi.isConsumable ? consumableBookedConsumptionQtyFor(pi, issues) : 0,
+      })
+    },
+    notTakenToEventQtyForMaterial: (materialItemId) =>
+      notTakenToEventQtyFromIssues(materialItemId, issues),
     consumableStillOnlyInCrateAtReturn,
     consumableBookedConsumptionQty: (pi) => consumableBookedConsumptionQtyFor(pi, issues),
     isIndividuallyStorableCrateShell: () => false,

@@ -20,6 +20,7 @@ import {
   journeyStepIndex,
   journeyStepsWithOpenWork,
   isQuickIssuePhaseClosed,
+  isQuickReturnPhaseClosed,
   resolveEffectiveActiveJourneyStep,
 } from '@/utils/materialJourneyNavigation'
 import {
@@ -71,7 +72,7 @@ export function useMaterialJourneyData(
   })
 
   const stepsWithOpenWork = computed((): JourneyStep[] => {
-    const open = journeyStepsWithOpenWork(activeJourneyStep.value, profile.value, {
+    let open = journeyStepsWithOpenWork(activeJourneyStep.value, profile.value, {
       packItems: packItems.value,
       packContainers: packContainers.value,
       containerItemsByContainerId: containerItemsByContainerId.value,
@@ -82,7 +83,11 @@ export function useMaterialJourneyData(
       packContainers: packContainers.value,
       containerItemsByContainerId: containerItemsByContainerId.value,
     })) {
-      return open.filter((step) => step !== 'issue')
+      open = open.filter((step) => step !== 'issue')
+    }
+    // Nach Übergabe / Einlagern: Retour-Checkpoint administrativ geschlossen
+    if (isQuickReturnPhaseClosed(activity.value, profile.value)) {
+      open = open.filter((step) => step !== 'return')
     }
     return open
   })

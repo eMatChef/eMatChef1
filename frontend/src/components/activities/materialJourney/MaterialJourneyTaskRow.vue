@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
+import EButton from '@/components/form/base/EButton.vue'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
 
 /** Kurzer Kistenname für Tooltip (ohne Seriennummer-Doppelung). */
@@ -32,6 +33,8 @@ const props = defineProps<{
   transportTourAssignActive?: boolean
   transportTargetTourLabel?: string | null
   showIssueActions?: boolean
+  /** Einlagern: sichtbarer Button (öffnet Regal-Sheet); ohne ihn blockieren Issue-Buttons den Zeilen-Tap. */
+  showStoreAction?: boolean
   /** Am Anlass: «6 total · 4 mitgenommen · …» statt «erledigt». */
   atEventQtyLabel?: string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
@@ -124,10 +127,20 @@ const rowIsConsumable = computed(() => {
   return props.isConsumableForMaterialId?.(mid) === true
 })
 
+const showStoreControls = computed(
+  () =>
+    Boolean(props.showStoreAction) &&
+    props.row.canMove &&
+    props.row.isOpen &&
+    props.row.maxForwardQty > 0 &&
+    !props.readonly,
+)
+
 const hasInlineControls = computed(
   () =>
     showMoveForwardControls.value ||
     showMoveBackControls.value ||
+    showStoreControls.value ||
     props.showIssueActions,
 )
 
@@ -174,13 +187,17 @@ function onRowClick(): void {
             {{
               badge === 'physical_combo'
                 ? t('activities.materialJourney.badge.set')
-                : badge === 'crate'
-                  ? t('activities.materialJourney.badge.crate')
-                  : badge === 'pack_crate'
-                    ? t('activities.materialJourney.badge.packCrate')
-                    : badge === 'consumable'
-                      ? t('activities.materialJourney.badge.consumable')
-                      : t('activities.materialJourney.badge.js')
+                : badge === 'virtual_crate'
+                  ? t('activities.materialJourney.badge.virtualCrate')
+                  : badge === 'crate'
+                    ? t('activities.materialJourney.badge.crate')
+                    : badge === 'pack_crate'
+                      ? t('activities.materialJourney.badge.packCrate')
+                      : badge === 'consumable'
+                        ? t('activities.materialJourney.badge.consumable')
+                        : badge === 'not_taken'
+                          ? t('activities.materialJourney.badge.notTaken')
+                          : t('activities.materialJourney.badge.js')
             }}
           </span>
         </span>
@@ -208,6 +225,15 @@ function onRowClick(): void {
         @repair="emit('repair')"
         @damage="emit('damage')"
       />
+      <EButton
+        v-if="showStoreControls"
+        variant="primary"
+        size="small"
+        :disabled="moving"
+        @click.stop="emit('activate')"
+      >
+        {{ t('activities.packList.storeLineTitle', { count: row.maxForwardQty }) }}
+      </EButton>
       <PackMoveControls
         v-if="showMoveForwardControls"
         direction="forward"

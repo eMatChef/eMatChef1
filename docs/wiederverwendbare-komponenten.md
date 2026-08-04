@@ -708,6 +708,24 @@ Globaler Einstieg: `frontend/src/style.css`
 
 ---
 
+## Beleg / PDF-Einkauf (geplant)
+
+Spec: [material/pdf-purchase-import.md](./material/pdf-purchase-import.md). **Noch nicht implementiert** — bei Umsetzung hier mit konkreten Pfaden nachziehen.
+
+| Baustein (Ziel) | Verantwortung | Wiederverwendung |
+| --------------- | ------------- | ---------------- |
+| **PurchaseDocumentCapture** | PDF oder Scan/Foto wählen | Wizard, später BatchModal, Grossanlass, Accounting |
+| **usePurchaseDocumentParse** / **usePurchaseDocumentSession** | Parse + Position i von N | jeder Capture-Consumer |
+| **PurchaseDocumentReviewHeader** | Lieferant/Meta reviewen | Wizard; Kontakt-Prefill anderswo |
+| **PurchaseDocumentLineStepper** + **LineForm** | eine Position bestätigen → create/addBatch | Wizard (N Zeilen); BatchModal (1 Zeile) |
+| **PdfTextExtractService** (Backend) | PDF → Text | Purchase-Parse + Grossanlass (gemeinsam) |
+
+**Bestehend nutzen:** `PhotoUpload`, `PurchaseReceiptFileInput` (ggf. aufgehen in Capture), `DepartmentAddressAutocomplete`, `AddressModal`, `E*`-Felder, Material Create/`addBatch`.
+
+**Anti-Pattern:** Parse-/Review-Logik in `MaterialCreateWizard.vue` einbetten.
+
+---
+
 ## Neue Bausteine dokumentieren
 
 Wenn du eine Komponente/Util für mehrere Bereiche einführst:

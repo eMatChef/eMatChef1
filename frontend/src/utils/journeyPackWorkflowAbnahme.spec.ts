@@ -57,13 +57,13 @@ function tasksForStep(
 
 describe('Phase D — Journey Pack-Workflow Abnahme', () => {
   describe('D1 müüsli: Rakokiste + Fackeln + lose', () => {
-    it('Ausgabe: 4 sichtbare Zeilen erledigt (Fackeln nur in Kiste, kein Duplikat)', () => {
+    it('Ausgabe: 3 sichtbare Zeilen erledigt (Fackeln nur in Kiste, kein Duplikat)', () => {
       const fx = muusliIssuedFixtures()
       const rows = tasksForStep('issue', 'quick', fx)
       const open = rows.filter((r) => r.isOpen)
       const done = rows.filter((r) => r.isDone)
 
-      expect(done.length).toBe(4)
+      expect(done.length).toBe(3)
       expect(open.length).toBe(0)
       expect(rows.some((r) => r.kind === 'crate' && r.title === 'Rakokiste')).toBe(true)
       expect(rows.filter((r) => r.kind === 'loose' && r.isDone).map((r) => r.title)).toEqual(
@@ -81,6 +81,55 @@ describe('Phase D — Journey Pack-Workflow Abnahme', () => {
       expect(open.some((r) => r.kind === 'crate' && r.title === 'Rakokiste')).toBe(true)
       expect(openLoose.map((r) => r.title).sort()).toEqual(['Blache', 'Statikseil'])
       expect(openLoose.some((r) => r.title.includes('Fackeln'))).toBe(false)
+    })
+
+    it('Retour: nach Verbrauch max. Retour = issued − Verbrauch', () => {
+      const fx = muusliIssuedFixtures()
+      const crateId = fx.packContainers[0]!.id
+      fx.packItems = fx.packItems.map((p) =>
+        p.materialItemId === 'mat-fackeln'
+          ? {
+              ...p,
+              quantityOrdered: 10,
+              quantityPacked: 10,
+              quantityIssued: 10,
+            }
+          : p,
+      )
+      fx.containerItemsByContainerId = {
+        [crateId]: (fx.containerItemsByContainerId[crateId] ?? []).map((ci) =>
+          ci.material_item_id === 'mat-fackeln'
+            ? { ...ci, quantity_packed: 10, quantity_issued: 10 }
+            : ci,
+        ),
+      }
+      fx.issueReports = [
+        {
+          id: 'ir-fackeln-1',
+          activity_id: 'act-abnahme',
+          material_item_id: 'mat-fackeln',
+          type: 'consumption',
+          quantity: 5,
+          description: null,
+          resolved: false,
+          reported_at: '2026-08-03T00:00:00Z',
+        },
+      ]
+
+      const packStage = journeyStepToPackStage('return', 'quick')
+      const state = createMaterialJourneyPackContextState({
+        packItems: fx.packItems,
+        packContainers: fx.packContainers,
+        containerItemsByContainerId: fx.containerItemsByContainerId,
+        packStage,
+        profile: 'quick',
+        issues: fx.issueReports,
+      })
+      const rows = tasksForStep('return', 'quick', fx)
+      const crate = rows.find((r) => r.kind === 'crate' && r.title === 'Rakokiste')
+
+      expect(state.containerReturnableUnits(crateId)).toBe(5)
+      expect(crate?.maxForwardQty).toBe(5)
     })
   })
 
@@ -160,6 +209,18 @@ describe('Phase D — Journey Pack-Workflow Abnahme', () => {
       expect(
         activityAllowsConsumptionBooking({ status: 'packing', type: 'activity' }, 'quick', false),
       ).toBe(false)
+    })
+
+    it('Verbrauch melden ist für Gruppe nach returned gesperrt', () => {
+      expect(
+        activityAllowsConsumptionBooking({ status: 'returned', type: 'activity' }, 'quick', false),
+      ).toBe(false)
+    })
+
+    it('Verbrauch melden bleibt für MW nach returned erlaubt', () => {
+      expect(
+        activityAllowsConsumptionBooking({ status: 'returned', type: 'activity' }, 'quick', true),
+      ).toBe(true)
     })
   })
 })

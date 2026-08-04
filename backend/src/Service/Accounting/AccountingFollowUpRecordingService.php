@@ -51,6 +51,10 @@ final class AccountingFollowUpRecordingService
         }
 
         $paymentMethod = $this->optionalPaymentMethod($options['payment_method'] ?? null);
+        if ($paymentMethod === null) {
+            $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+            $paymentMethod = $this->optionalPaymentMethod($fromNote['payment_method']);
+        }
         $paymentStatus = $this->resolvePaymentStatus($followUp, $options['payment_status'] ?? null);
 
         $group = $this->resolveGroup($options['group_id'] ?? null, $departmentId, $followUp);
@@ -138,6 +142,18 @@ final class AccountingFollowUpRecordingService
                     $opts['payment_method'] = $rule->getDefaultPaymentMethod();
                 }
             }
+            if (!isset($opts['payment_method']) || $opts['payment_method'] === '') {
+                $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+                if ($fromNote['payment_method'] !== null) {
+                    $opts['payment_method'] = $fromNote['payment_method'];
+                }
+            }
+            if (!isset($opts['payment_status']) || $opts['payment_status'] === '') {
+                $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+                if ($fromNote['payment_status'] !== null) {
+                    $opts['payment_status'] = $fromNote['payment_status'];
+                }
+            }
 
             try {
                 $result = $this->recordFollowUp($followUp, $opts);
@@ -158,6 +174,10 @@ final class AccountingFollowUpRecordingService
         $ps = $this->optionalPaymentStatus($raw);
         if ($ps !== null) {
             return $ps;
+        }
+        $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+        if ($fromNote['payment_status'] !== null) {
+            return $fromNote['payment_status'];
         }
         $activity = $followUp->getActivity();
         if ($activity !== null && $activity->getType() === 'external') {

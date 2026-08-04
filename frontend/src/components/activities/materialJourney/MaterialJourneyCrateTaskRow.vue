@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EButton from '@/components/form/base/EButton.vue'
 import PackMoveControls from '@/components/activities/PackMoveControls.vue'
@@ -7,6 +7,7 @@ import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
 import { isJourneyStoreStep } from '@/components/activities/materialJourneySteps'
 import { resolveActionableContainerLine } from '@/components/activities/packShellCrateHelpers'
@@ -67,8 +68,17 @@ const { t } = useI18n()
 const expanded = ref(false)
 
 const isCombo = computed(() => props.row.kind === 'combo')
-const isCrate = computed(() => props.row.kind === 'crate')
+const isCrate = computed(() => isMaterialJourneyCrateKind(props.row.kind))
 const isStoreStep = computed(() => isJourneyStoreStep(props.journeyStep ?? 'pack'))
+
+/** Einlagern: Packkiste offen → Accordion ausgeklappt (Inhalt zuerst, dann Hülle). */
+watch(
+  () => [isStoreStep.value, props.row.isOpen, props.row.id] as const,
+  ([store, isOpen]) => {
+    if (store && isOpen) expanded.value = true
+  },
+  { immediate: true },
+)
 
 function containerItemForLine(line: MaterialJourneyAccordionLine): ActivityPackContainerItem | undefined {
   const containerId = props.row.container?.id
@@ -219,6 +229,17 @@ const kindIcon = computed(() => {
 
 const qtyLabel = computed(() => {
   if (props.atEventQtyLabel) return props.atEventQtyLabel
+  if (isStoreStep.value && isCrate.value && props.row.isOpen) {
+    const contentPending = visiblePreviewLines.value.length
+    if (contentPending > 0) {
+      return t('activities.materialJourney.row.crateContentStorePending', { count: contentPending })
+    }
+    if (shellStorePendingQty.value > 0) {
+      return t('activities.materialJourney.row.crateShellStorePending', {
+        count: shellStorePendingQty.value,
+      })
+    }
+  }
   if (isCrate.value && props.row.isDone) {
     return t('activities.materialJourney.row.crateDone')
   }
@@ -261,6 +282,7 @@ const mainActivateTitle = computed(() => {
 
 function badgeLabel(badge: MaterialJourneyTaskRow['badges'][number]): string {
   if (badge === 'physical_combo') return t('activities.materialJourney.badge.set')
+  if (badge === 'virtual_crate') return t('activities.materialJourney.badge.virtualCrate')
   if (badge === 'crate') return t('activities.materialJourney.badge.crate')
   if (badge === 'pack_crate') return t('activities.materialJourney.badge.packCrate')
   if (badge === 'consumable') return t('activities.materialJourney.badge.consumable')
@@ -409,14 +431,6 @@ function onSelectTarget(event: Event): void {
           @repair="emit('repair')"
           @damage="emit('damage')"
         />
-        <EButton
-          v-if="showShellStoreAction"
-          variant="primary"
-          size="small"
-          @click.stop="emit('storeShell')"
-        >
-          {{ t('activities.packList.storeLineTitle', { count: shellStorePendingQty }) }}
-        </EButton>
         <PackMoveControls
           v-if="showMoveForwardControls"
           direction="forward"
@@ -563,13 +577,28 @@ function onSelectTarget(event: Event): void {
           </li>
         </ul>
       </div>
-      <p v-if="!hasPreview" class="material-journey-crate-row__content-empty text-muted">
+      <p
+        v-else-if="!hasPreview && !showShellStoreAction"
+        class="material-journey-crate-row__content-empty text-muted"
+      >
         {{
           isCrate
             ? t('activities.materialJourney.row.accordionEmptyPackCrate')
             : t('activities.materialJourney.row.accordionEmpty')
         }}
       </p>
+      <div
+        v-if="showShellStoreAction"
+        class="material-journey-crate-row__shell-store"
+        @click.stop
+      >
+        <p class="material-journey-crate-row__shell-store-hint text-muted">
+          {{ t('activities.materialJourney.crateSheet.shellAfterContent') }}
+        </p>
+        <EButton variant="primary" size="small" @click="emit('storeShell')">
+          {{ t('activities.packList.storeLineTitle', { count: shellStorePendingQty }) }}
+        </EButton>
+      </div>
       <div
         v-if="showDeleteEmptyCrate"
         class="material-journey-crate-row__delete-empty"

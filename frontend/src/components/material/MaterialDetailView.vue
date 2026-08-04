@@ -768,10 +768,19 @@
                     v-if="isComboDraft"
                     type="button"
                     class="btn-primary btn-sm composition-finalize-btn"
-                    :disabled="finalizingCombo"
+                    :disabled="finalizingCombo || unfinalizingCombo"
                     @click="finalizeComboNow"
                   >
                     {{ finalizingCombo ? t('components.materialDetail.comboFinalizeSubmitting') : t('components.materialDetail.btnFinalizeCombo') }}
+                  </button>
+                  <button
+                    v-else-if="isComboMaterialView"
+                    type="button"
+                    class="btn-outline-small"
+                    :disabled="finalizingCombo || unfinalizingCombo"
+                    @click="unfinalizeComboNow"
+                  >
+                    {{ unfinalizingCombo ? t('components.materialDetail.comboUnfinalizeSubmitting') : t('components.materialDetail.btnUnfinalizeCombo') }}
                   </button>
                   <button
                     v-if="material.linked_container_batch"
@@ -801,6 +810,26 @@
                     {{ t('common.refresh') }}
                   </button>
                 </div>
+              </div>
+
+              <div v-if="isComboDraft" class="composition-draft-checklist" role="status">
+                <p class="composition-draft-checklist__title">
+                  {{ t('components.materialDetail.compositionDraftChecklistTitle') }}
+                </p>
+                <ul class="composition-draft-checklist__list">
+                  <li :class="{ 'is-done': compositionDraftHasStockPart }">
+                    {{ t('components.materialDetail.compositionDraftChecklistStock') }}
+                  </li>
+                  <li v-if="isVirtualComboView">
+                    {{ t('components.materialDetail.compositionDraftChecklistOptions') }}
+                  </li>
+                  <li v-if="material.material_type === 'physical_combo'" :class="{ 'is-done': !!material.linked_container_batch }">
+                    {{ t('components.materialDetail.compositionDraftChecklistContainer') }}
+                  </li>
+                  <li>
+                    {{ t('components.materialDetail.compositionDraftChecklistFinalize') }}
+                  </li>
+                </ul>
               </div>
 
               <div v-if="comboComponentsLoading" class="loading-container composition-loading">
@@ -911,6 +940,7 @@
                 :department-id="props.departmentId"
                 :options="comboOptionsList"
                 :groups="comboOptionGroupsList"
+                :before-mutate="confirmBomEditIfOpenBookings"
                 @reload="reloadComboOptions"
               />
             </div>
@@ -2374,6 +2404,7 @@ import {
   updateComboComponent,
   deleteComboComponent,
   finalizeCombo,
+  unfinalizeCombo,
   getRelatedAccessories,
   addRelatedAccessory,
   deleteRelatedAccessory,
@@ -2671,6 +2702,7 @@ const editCompositionSubmitting = ref(false)
 const deletingCompositionId = ref<string | null>(null)
 const pendingRemoveComposition = ref<ComboComponent | null>(null)
 const finalizingCombo = ref(false)
+const unfinalizingCombo = ref(false)
 
 const linkedContainerBatchIdForRelease = computed(() => {
   const m = material.value
@@ -2922,8 +2954,55 @@ const isVirtualComboView = computed(() => material.value?.material_type === 'vir
 /** Kombo-Entwurf („in Bearbeitung“, nicht buchbar). */
 const isComboDraft = computed(() => isComboMaterialView.value && material.value?.combo_status === 'draft')
 
+/** Draft-Checkliste: ≥ 1 Lager-Teil (`stock`) — Finalize-Voraussetzung. */
+const compositionDraftHasStockPart = computed(() =>
+  comboComponentsList.value.some((c) => (c.component_source ?? 'stock') === 'stock'),
+)
+
 /** Abgeleitete „Konfigurator“-Eigenschaft: virtuelle Kombo mit ≥ 1 Options-Gruppe. */
 const isConfigurator = computed(() => isVirtualComboView.value && comboOptionGroupsList.value.length > 0)
+
+/** Session-Ack: BOM-Warnung bei offenen Aktivitäten nicht wiederholt abfragen. */
+const bomEditOpenActivitiesAcked = ref(false)
+
+/**
+ * C8: Vor BOM-/Options-Mutation warnen, wenn die Kombo in offenen Aktivitäten gebucht ist
+ * (sonst veralten config_snapshots). Endpoint liefert nur non-cancelled/non-completed.
+ */
+async function confirmBomEditIfOpenBookings(): Promise<boolean> {
+  if (bomEditOpenActivitiesAcked.value) return true
+  if (!props.departmentId || !props.materialId) return true
+  if (!isComboMaterialView.value) return true
+  try {
+    const rows = await getMaterialActivityBookings(props.materialId, props.departmentId)
+    if (rows.length === 0) return true
+    const names = [...new Set(rows.map((r) => r.activity_name).filter(Boolean))]
+    const preview = names.slice(0, 4).join(', ')
+    const more = names.length > 4 ? ` (+${names.length - 4})` : ''
+    const ok = await confirmDialog({
+      title: t('components.materialDetail.confirmBomEditOpenActivitiesTitle'),
+      message: t('components.materialDetail.confirmBomEditOpenActivitiesMessage', {
+        count: rows.length,
+        activities: `${preview}${more}`,
+      }),
+      confirmText: t('components.materialDetail.confirmBomEditOpenActivitiesAction'),
+      cancelText: t('common.cancel'),
+      variant: 'warning',
+    })
+    if (ok) bomEditOpenActivitiesAcked.value = true
+    return ok
+  } catch {
+    const ok = await confirmDialog({
+      title: t('components.materialDetail.confirmBomEditOpenActivitiesTitle'),
+      message: t('components.materialDetail.confirmBomEditOpenActivitiesCheckFailed'),
+      confirmText: t('components.materialDetail.confirmBomEditOpenActivitiesAction'),
+      cancelText: t('common.cancel'),
+      variant: 'warning',
+    })
+    if (ok) bomEditOpenActivitiesAcked.value = true
+    return ok
+  }
+}
 
 /** Editor neu laden (Optionen/Gruppen änderten sich). */
 async function reloadComboOptions() {
@@ -4229,6 +4308,7 @@ function emitCreateMaterialForComposition() {
 
 async function submitAddComposition() {
   if (!addCompositionSelected.value) return
+  if (!(await confirmBomEditIfOpenBookings())) return
   addCompositionSubmitting.value = true
   addCompositionError.value = ''
   try {
@@ -4266,7 +4346,7 @@ async function submitAddComposition() {
 }
 
 async function finalizeComboNow() {
-  if (finalizingCombo.value) return
+  if (finalizingCombo.value || unfinalizingCombo.value) return
   finalizingCombo.value = true
   try {
     const updated = await finalizeCombo(props.materialId)
@@ -4278,6 +4358,54 @@ async function finalizeComboNow() {
     toast.error(ax.response?.data?.error || t('components.materialDetail.errComboFinalize'))
   } finally {
     finalizingCombo.value = false
+  }
+}
+
+async function unfinalizeComboNow() {
+  if (finalizingCombo.value || unfinalizingCombo.value) return
+  if (!isComboMaterialView.value || isComboDraft.value) return
+
+  let openCount = 0
+  let activitiesPreview = ''
+  try {
+    const rows = await getMaterialActivityBookings(props.materialId, props.departmentId)
+    openCount = rows.length
+    if (openCount > 0) {
+      const names = [...new Set(rows.map((r) => r.activity_name).filter(Boolean))]
+      const preview = names.slice(0, 4).join(', ')
+      const more = names.length > 4 ? ` (+${names.length - 4})` : ''
+      activitiesPreview = `${preview}${more}`
+    }
+  } catch {
+    // Check failed — still allow with generic confirm.
+  }
+
+  const ok = await confirmDialog({
+    title: t('components.materialDetail.confirmUnfinalizeComboTitle'),
+    message:
+      openCount > 0
+        ? t('components.materialDetail.confirmUnfinalizeComboMessageWithBookings', {
+            count: openCount,
+            activities: activitiesPreview,
+          })
+        : t('components.materialDetail.confirmUnfinalizeComboMessage'),
+    confirmText: t('components.materialDetail.confirmUnfinalizeComboAction'),
+    cancelText: t('common.cancel'),
+    variant: 'warning',
+  })
+  if (!ok) return
+
+  unfinalizingCombo.value = true
+  try {
+    const updated = await unfinalizeCombo(props.materialId)
+    material.value = updated
+    toast.success(t('components.materialDetail.toastComboUnfinalized'))
+    emit('updated', material.value)
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    toast.error(ax.response?.data?.error || t('components.materialDetail.errComboUnfinalize'))
+  } finally {
+    unfinalizingCombo.value = false
   }
 }
 
@@ -4519,6 +4647,8 @@ async function submitEditComposition() {
     }
   }
 
+  if (!(await confirmBomEditIfOpenBookings())) return
+
   editCompositionSubmitting.value = true
   editCompositionError.value = ''
   try {
@@ -4597,6 +4727,7 @@ async function executeRemoveComposition(
   comp: ComboComponent,
   releasePayload?: DeleteComboComponentRequest,
 ): Promise<boolean> {
+  if (!(await confirmBomEditIfOpenBookings())) return false
   const name = comp.component_material.name
   const qty = comp.qty
   const isPhysicalCrate = !!releasePayload
@@ -4645,6 +4776,7 @@ watch(
     hasLoadedContainerBatches.value = false
     containerBatches.value = []
     containerContentBatchId.value = ''
+    bomEditOpenActivitiesAcked.value = false
   },
 )
 

@@ -59,6 +59,18 @@ export function retourAccountingForUnpackLoose(
   })
 }
 
+/**
+ * Physisch noch retournierbare Stück einer Kistenzeile:
+ * expectedReturn (issued − Verbrauch/Verlust/Reparatur/nicht mitgenommen) − bereits retourniert.
+ */
+export function containerLinePhysicalReturnRemaining(
+  ci: ActivityPackContainerItem,
+  input: MaterialJourneyUnpackAccountingInput,
+): number {
+  const acct = retourAccountingForContainerLine(ci, input)
+  return Math.max(0, acct.expectedReturn - acct.returnedBooked)
+}
+
 export function retourAccountingForContainerLine(
   ci: ActivityPackContainerItem,
   input: MaterialJourneyUnpackAccountingInput,
@@ -203,12 +215,19 @@ export function pendingStoreLooseQtyForPackItem(
 ): number {
   let base = packItemForwardStoreMax(pi)
   const consumed = consumedQtyForMaterial(pi.materialItemId, input.issues)
+  const loss = lossQtyForMaterial(pi.materialItemId, input.issues)
+  const repair = repairQtyForMaterial(pi.materialItemId, input.issues)
   if (consumed > 0 && pi.isConsumable) {
     const consumableCap = Math.max(
       0,
       (pi.quantityOrdered ?? 0) - consumed - (pi.quantityStored ?? 0),
     )
-    base = Math.max(base, consumableCap)
+    // Wie PackPipelineService::maxStoredForItem — Verbrauch begrenzt, erhöht nicht.
+    base = base <= 0 ? consumableCap : Math.min(base, consumableCap)
+  }
+  const goneExtra = loss + repair
+  if (goneExtra > 0) {
+    base = Math.max(0, base - goneExtra)
   }
   if (base <= 0) return 0
   return Math.max(0, base - pendingStoreInContainersForwardMax(pi.materialItemId, containerIds, input))

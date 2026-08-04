@@ -19,6 +19,14 @@
           :title="t('accounting.bookings.badgePendingTitle')"
         >{{ pendingFollowUps.length }}</span>
       </v-tab>
+      <v-tab value="invoices">
+        {{ t('accounting.bookings.tabInvoices') }}
+        <span
+          v-if="invoiceSummaries.length > 0"
+          class="accounting-tab-badge"
+          :title="t('accounting.bookings.badgeInvoicesTitle')"
+        >{{ invoiceSummaries.length }}</span>
+      </v-tab>
     </v-tabs>
 
     <EEmptyState
@@ -145,10 +153,51 @@
 
       <div v-show="bookingsSubTab === 'assign'" class="booking-assign-panel">
         <EEmptyState
-          v-if="!hasPendingBooking"
+          v-if="!hasPendingBooking && expectedCosts.length === 0"
           :title="`${t('accounting.bookings.assignEmptyBefore')}${t('accounting.common.costCenter')}${t('accounting.bookings.assignEmptyAfter')}`"
         />
         <template v-else>
+          <div v-if="expectedCosts.length" class="expected-costs-panel">
+            <h3 class="expected-costs-title">{{ t('accounting.bookings.expectedWorkshopTitle') }}</h3>
+            <p class="expected-costs-hint text-muted">{{ t('accounting.bookings.expectedWorkshopHint') }}</p>
+            <ul class="expected-costs-list">
+              <li v-for="row in expectedCosts" :key="row.ticket_id" class="expected-costs-item">
+                <div class="expected-costs-item-main">
+                  <span class="expected-costs-label">{{ t('accounting.bookings.expectedWorkshopLabel') }}</span>
+                  <span class="expected-costs-activity">
+                    {{ row.activity_name || t('accounting.common.dash') }}
+                    <template v-if="row.material_name"> · {{ row.material_name }}</template>
+                  </span>
+                  <span class="expected-costs-ticket text-muted">
+                    {{ row.ticket_title }}
+                    · {{ ticketStatusLabel(row.ticket_status) }}
+                    <template v-if="row.estimated_cost_chf">
+                      · {{ t('accounting.bookings.expectedEstimate', { amount: formatMoney(row.estimated_cost_chf) }) }}
+                    </template>
+                  </span>
+                </div>
+                <div class="expected-costs-actions">
+                  <router-link
+                    v-if="row.ticket_id"
+                    :to="{ name: 'Workshop', params: { departmentId }, query: { ticket: row.ticket_id } }"
+                  >
+                    {{ t('accounting.bookings.expectedLinkWorkshop') }}
+                  </router-link>
+                  <router-link
+                    v-if="row.activity_id"
+                    :to="{
+                      name: 'ActivityDetail',
+                      params: { departmentId, activityId: row.activity_id },
+                      query: { tab: 'costs' },
+                    }"
+                  >
+                    {{ t('accounting.bookings.expectedLinkActivity') }}
+                  </router-link>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <template v-if="hasPendingBooking">
           <p class="booking-assign-lead">
             {{ t('accounting.bookings.assignLeadBefore') }}<strong>{{ t('accounting.common.costCenter') }}</strong>{{ t('accounting.bookings.assignLeadAfter') }}
           </p>
@@ -314,9 +363,63 @@
               </EButton>
             </div>
           </div>
+          </template>
+          <EEmptyState
+            v-else
+            :title="t('accounting.bookings.assignOnlyExpected')"
+          />
         </template>
       </div>
+
+      <div v-show="bookingsSubTab === 'invoices'" class="booking-invoices-panel">
+        <p class="booking-invoices-lead text-muted">{{ t('accounting.bookings.invoicesLead') }}</p>
+        <ELoadingState v-if="invoicesLoading" variant="inline" :message="t('accounting.common.loading')" />
+        <EEmptyState
+          v-else-if="filteredInvoiceSummaries.length === 0"
+          :title="t('accounting.bookings.invoicesEmpty')"
+        />
+        <ul v-else class="booking-invoices-list">
+          <li v-for="row in filteredInvoiceSummaries" :key="row.activity_id" class="booking-invoices-item">
+            <div class="booking-invoices-main">
+              <span class="booking-invoices-status" :class="`booking-invoices-status--${row.status}`">
+                {{ invoiceStatusLabel(row.status) }}
+              </span>
+              <strong>{{ row.activity_name }}</strong>
+              <span v-if="row.is_external" class="text-muted">{{ t('accounting.bookings.invoicesExternal') }}</span>
+              <span class="booking-invoices-meta text-muted">
+                {{ t('accounting.bookings.invoicesLines', { n: row.line_count }) }}
+                · CHF {{ formatMoney(row.total_chf) }}
+                <template v-if="parseFloat(row.estimated_open_chf) > 0">
+                  · {{ t('accounting.bookings.invoicesEstimate', { amount: formatMoney(row.estimated_open_chf) }) }}
+                </template>
+              </span>
+            </div>
+            <div class="booking-invoices-actions">
+              <EButton variant="primary" size="small" @click="openInvoicePreview(row.activity_id)">
+                {{ t('accounting.bookings.invoicesPreview') }}
+              </EButton>
+              <router-link
+                :to="{
+                  name: 'ActivityDetail',
+                  params: { departmentId, activityId: row.activity_id },
+                  query: { tab: 'costs' },
+                }"
+              >
+                {{ t('accounting.bookings.invoicesOpenActivity') }}
+              </router-link>
+            </div>
+          </li>
+        </ul>
+      </div>
     </template>
+
+    <ActivityAccountingInvoicePreviewDialog
+      v-model="invoicePreviewOpen"
+      :invoice="invoicePreview"
+      :loading="invoicePreviewLoading"
+      :error="invoicePreviewError"
+      :department-id="departmentId"
+    />
 
     <EDialog
       v-model="modalOpen"
@@ -460,6 +563,17 @@ import {
   batchRecordFollowUps,
   type AccountingAcquisitionFollowUp
 } from '@/api/accountingAcquisitionFollowups'
+import {
+  listAccountingExpectedCosts,
+  type AccountingExpectedCostItem,
+} from '@/api/accountingExpectedCosts'
+import {
+  listDepartmentActivityInvoices,
+  getActivityAccountingInvoice,
+  type ActivityAccountingInvoice,
+  type ActivityAccountingInvoiceSummary,
+} from '@/api/activityAccountingInvoice'
+import ActivityAccountingInvoicePreviewDialog from '@/components/accounting/ActivityAccountingInvoicePreviewDialog.vue'
 import { listCostCenterRules, type AccountingCostCenterRule } from '@/api/accountingCostCenterRules'
 import { getGroups, type Group } from '@/api/groups'
 import type { Material } from '@/api/materials'
@@ -602,9 +716,16 @@ const modalReceipts = ref<MediaPhoto[]>([])
 const assignFollowUpReceipts = ref<MediaPhoto[]>([])
 const saving = ref(false)
 
-const bookingsSubTab = ref<'list' | 'assign'>('list')
+const bookingsSubTab = ref<'list' | 'assign' | 'invoices'>('list')
 const hasPendingBooking = ref(false)
 const pendingFollowUps = ref<AccountingAcquisitionFollowUp[]>([])
+const expectedCosts = ref<AccountingExpectedCostItem[]>([])
+const invoiceSummaries = ref<ActivityAccountingInvoiceSummary[]>([])
+const invoicesLoading = ref(false)
+const invoicePreviewOpen = ref(false)
+const invoicePreviewLoading = ref(false)
+const invoicePreviewError = ref('')
+const invoicePreview = ref<ActivityAccountingInvoice | null>(null)
 /** Aktuell im Formular (gewählte ausstehende Anschaffung). */
 const activeFollowUpId = ref<string | null>(null)
 /** Bei mehreren Pending-Follow-ups: welcher Unter-Tab aktiv ist. */
@@ -665,6 +786,27 @@ async function refreshPendingFollowUps() {
     activeFollowUpId.value = null
     assignTabIndex.value = 0
   }
+  await refreshExpectedCosts()
+}
+
+async function refreshExpectedCosts() {
+  if (!departmentId.value) return
+  try {
+    const activityFilter = String(route.query.activity_id || '').trim()
+    const data = await listAccountingExpectedCosts(departmentId.value)
+    let items = data.items || []
+    if (activityFilter) {
+      items = items.filter((i) => i.activity_id === activityFilter)
+    }
+    expectedCosts.value = items
+  } catch {
+    expectedCosts.value = []
+  }
+}
+
+function ticketStatusLabel(status: string): string {
+  const key = `accounting.bookings.workshopStatus.${status}`
+  return te(key) ? t(key) : status
 }
 
 function persistCurrentAssignDraft() {
@@ -715,10 +857,20 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     form.entry_type = defaultEntryTypeForFollowUp(p)
     const suggestedCc = suggestCostCenterId(p, costCenters.value, costCenterRules.value)
     form.cost_center_id = suggestedCc || costCenters.value[0]?.id || ''
-    const suggestedPay = suggestPaymentMethodForFollowUp(p, costCenterRules.value)
-    form.payment_method = suggestedPay || ''
-    form.payment_status =
-      p.charge_target === 'external_customer' || p.activity_type === 'external' ? 'open' : 'paid'
+    const fromNotePay = p.suggested_payment_method || null
+    const fromNoteStatus = p.suggested_payment_status || null
+    if (fromNotePay) {
+      form.payment_method = fromNotePay
+    } else {
+      const suggestedPay = suggestPaymentMethodForFollowUp(p, costCenterRules.value)
+      form.payment_method = suggestedPay || ''
+    }
+    if (fromNoteStatus) {
+      form.payment_status = fromNoteStatus
+    } else {
+      form.payment_status =
+        p.charge_target === 'external_customer' || p.activity_type === 'external' ? 'open' : 'paid'
+    }
     const chargeTarget = p.charge_target ?? (p.activity_type === 'external' ? 'external_customer' : 'group')
     if (chargeTarget === 'group') {
       form.group_id = p.suggested_group_id || p.activity_group_id || ''
@@ -729,6 +881,11 @@ function loadAssignFormForFollowUp(p: AccountingAcquisitionFollowUp) {
     const noteParts: string[] = []
     if (p.activity_id) {
       noteParts.push(`Aktivität: ${p.activity_name || p.activity_id}`)
+    }
+    if (p.activity_collection_note === 'cash') {
+      noteParts.push(t('accounting.bookings.collectionNoteCashHint'))
+    } else if (p.activity_collection_note === 'invoice') {
+      noteParts.push(t('accounting.bookings.collectionNoteInvoiceHint'))
     }
     if (chargeTarget === 'external_customer' && p.external_customer_label) {
       noteParts.push(`Kunde: ${p.external_customer_label}`)
@@ -775,16 +932,59 @@ function selectAssignTab(idx: number) {
 }
 
 async function onBookingsSubTabChange(tab: unknown) {
-  if (tab === 'assign') {
+  const next = String(tab)
+  if (next === 'assign') {
     bookingsSubTab.value = 'assign'
     await refreshPendingFollowUps()
-  } else {
-    bookingsSubTab.value = 'list'
+    return
   }
+  if (next === 'invoices') {
+    bookingsSubTab.value = 'invoices'
+    await refreshInvoiceSummaries()
+    return
+  }
+  bookingsSubTab.value = 'list'
 }
 
 async function openAssignTab() {
   await onBookingsSubTabChange('assign')
+}
+
+async function openInvoicePreview(activityId: string) {
+  invoicePreviewOpen.value = true
+  invoicePreviewLoading.value = true
+  invoicePreviewError.value = ''
+  invoicePreview.value = null
+  try {
+    invoicePreview.value = await getActivityAccountingInvoice(activityId)
+  } catch {
+    invoicePreviewError.value = t('accounting.bookings.invoicesPreviewError')
+  } finally {
+    invoicePreviewLoading.value = false
+  }
+}
+
+const filteredInvoiceSummaries = computed(() => {
+  const activityFilter = String(route.query.activity_id || '').trim()
+  if (!activityFilter) return invoiceSummaries.value
+  return invoiceSummaries.value.filter((r) => r.activity_id === activityFilter)
+})
+
+async function refreshInvoiceSummaries() {
+  if (!departmentId.value) return
+  invoicesLoading.value = true
+  try {
+    invoiceSummaries.value = await listDepartmentActivityInvoices(departmentId.value)
+  } catch {
+    invoiceSummaries.value = []
+  } finally {
+    invoicesLoading.value = false
+  }
+}
+
+function invoiceStatusLabel(status: string): string {
+  const key = `accounting.bookings.invoiceStatus.${status}`
+  return te(key) ? t(key) : status
 }
 
 function onAssignTabChange(tab: unknown) {
@@ -882,12 +1082,19 @@ async function bootstrapBookingsView() {
   await loadBookingYears()
   await load()
   await refreshPendingFollowUps()
+  await refreshInvoiceSummaries()
 }
 
-/** Query `sub=assign`: Tab „Neue Buchung zuordnen“ (ausstehende Anschaffungen). */
+/** Query `sub=assign|invoices`: Innen-Tab aus der Route. */
 async function applyAssignTabFromRoute() {
   const q = route.query
-  if (String(q.sub || '') !== 'assign' && String(q.assign || '') !== '1') return
+  const sub = String(q.sub || '')
+  if (sub === 'invoices') {
+    bookingsSubTab.value = 'invoices'
+    await refreshInvoiceSummaries()
+    return
+  }
+  if (sub !== 'assign' && String(q.assign || '') !== '1') return
   bookingsSubTab.value = 'assign'
   await refreshPendingFollowUps()
   const followUpId = String(q.followUp || '').trim()
@@ -1337,6 +1544,151 @@ async function onDelete(row: AccountingBooking) {
 
 .booking-assign-panel {
   margin-bottom: 24px;
+}
+
+.expected-costs-panel {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 8px;
+}
+
+.expected-costs-title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.expected-costs-hint {
+  margin: 0 0 10px;
+  font-size: 0.875rem;
+}
+
+.expected-costs-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.expected-costs-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.expected-costs-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.expected-costs-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #92400e;
+}
+
+.expected-costs-activity {
+  font-weight: 600;
+}
+
+.expected-costs-ticket {
+  font-size: 0.875rem;
+}
+
+.expected-costs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.875rem;
+}
+
+.booking-invoices-panel {
+  margin-bottom: 24px;
+}
+
+.booking-invoices-lead {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+}
+
+.booking-invoices-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.booking-invoices-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.booking-invoices-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.booking-invoices-status {
+  align-self: flex-start;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.booking-invoices-status--blocked {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.booking-invoices-status--open {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.booking-invoices-status--paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.booking-invoices-status--draft {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.booking-invoices-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.875rem;
 }
 
 .booking-assign-lead {

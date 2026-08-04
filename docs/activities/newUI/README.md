@@ -448,7 +448,7 @@ Vollständig: [SPEC §20–§22](./SPEC.md#20-integration--erweiterungen).
 | **Nutzungs-Statistik** | aus Moves, Department — **ohne** Scans — [§20.10](./SPEC.md#2010-nutzungs-statistik-department) |
 | **Scan- / QR-URL-History** | **nicht** in Aktivitäts-History — depübergreifend — [§20.11](./SPEC.md#2011-scan-history-abgegrenzung) · [scan-and-url-history.md](../../qr/scan-and-url-history.md) |
 | **Letzte Scans** | nur Session unter Scan-Bar, nicht gespeichert |
-| **Buchhaltung** | Completion-Checkliste in Kopfzeile — **kein** Wizard; Blocker → Tabs Kosten/Issues/Werkstatt |
+| **Buchhaltung** | Completion nur Material; optional Einnahme-Vermerk im Kosten-Tab; effektive Buchung in `/accounting` — [accounting.md](../../accounting.md#zwei-abschlüsse-kernmodell) |
 | **`external`** | PDF Ausgabe + Tab Kosten (Rabatt, `activity_rental`) — [§2.5](./SPEC.md#25-profil-external-vermietung) |
 | **Schaden/Foto** | über Meldungen/Werkstatt — nicht neu in Journey |
 | **Substitution** | Zukunft — Ersatz in Stammdaten |

@@ -33,6 +33,11 @@ export type PackQuantityContext = {
   shellPackItemForContainer: (containerId: string) => ActivityPackItem | undefined
   isNonActionableContainerLine: (ci: ActivityPackContainerItem) => boolean
   crateCheckGapForMaterial: (materialItemId: string) => number
+  /**
+   * Physisch noch retournierbar (expectedReturn − returned) inkl. Verbrauch/Verlust/Reparatur.
+   * Nur auf Retour-Stufen; `null` = kein Cap (Pipeline issued − returned).
+   */
+  containerLinePhysicalReturnRemaining?: (ci: ActivityPackContainerItem) => number | null
 }
 
 export type PackQuantityMoveBackContext = PackQuantityContext & {
@@ -350,14 +355,20 @@ export function computeContainerLineRemainingReturn(
   const i = ci.quantity_issued ?? 0
   const r = ci.quantity_returned ?? 0
   const issuedRemain = Math.max(0, i - r)
-  if (issuedRemain > 0) return issuedRemain
-  if (!isPackReturnStage(ctx.stage)) return 0
-  const p = ci.quantity_packed ?? 0
-  if (p <= r || i > 0) return 0
-  if (containerId && p > r) {
-    return p - r
+  let base = 0
+  if (issuedRemain > 0) {
+    base = issuedRemain
+  } else if (isPackReturnStage(ctx.stage)) {
+    const p = ci.quantity_packed ?? 0
+    if (p > r && i <= 0 && containerId) {
+      base = p - r
+    }
   }
-  return 0
+  if (base <= 0) return 0
+  if (!isPackReturnStage(ctx.stage)) return base
+  const physical = ctx.containerLinePhysicalReturnRemaining?.(ci)
+  if (physical == null) return base
+  return Math.min(base, Math.max(0, physical))
 }
 
 export function computeContainerStillAtEventQtyForMaterial(

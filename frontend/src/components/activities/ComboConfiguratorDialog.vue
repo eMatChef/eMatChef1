@@ -173,6 +173,10 @@ interface Props {
   startIso?: string | null
   endIso?: string | null
   initialQuantity?: number
+  /** Bestehende Optionswahl (Reconfigure) — sonst Defaults nach erstem Fetch. */
+  initialSelectedOptionIds?: string[]
+  initialPackMode?: 'together' | 'loose' | null
+  initialSelfProvidedAcknowledged?: boolean
   standaloneQuantityByMaterialItemId?: Record<string, number>
 }
 const props = withDefaults(defineProps<Props>(), {
@@ -180,6 +184,9 @@ const props = withDefaults(defineProps<Props>(), {
   startIso: null,
   endIso: null,
   initialQuantity: 1,
+  initialSelectedOptionIds: () => [],
+  initialPackMode: null,
+  initialSelfProvidedAcknowledged: false,
   standaloneQuantityByMaterialItemId: () => ({}),
 })
 const emit = defineEmits<{
@@ -203,9 +210,13 @@ const availability = ref<ConfiguratorAvailability | null>(null)
 const loading = ref(false)
 const error = ref('')
 const quantity = ref(Math.max(1, props.initialQuantity ?? 1))
-const selected = ref<Set<string>>(new Set())
-const packMode = ref<'together' | 'loose'>('loose')
-const selfProvidedAcknowledged = ref(false)
+const selected = ref<Set<string>>(
+  new Set((props.initialSelectedOptionIds ?? []).filter(Boolean)),
+)
+const packMode = ref<'together' | 'loose'>(
+  props.initialPackMode === 'together' ? 'together' : 'loose',
+)
+const selfProvidedAcknowledged = ref(Boolean(props.initialSelfProvidedAcknowledged))
 
 const sortedGroups = computed(() => [...(availability.value?.groups ?? [])].sort((a, b) => a.sortOrder - b.sortOrder))
 
@@ -436,11 +447,19 @@ function cancel() {
 }
 
 onMounted(async () => {
-  // Default-Auswahl aus den Optionen ziehen (nach erstem Fetch).
   await refresh()
-  for (const o of availability.value?.options ?? []) {
-    if (o.defaultSelected && !isOptionLocked(o)) {
-      selected.value.add(o.optionId)
+  const hasInitial = (props.initialSelectedOptionIds ?? []).length > 0
+  if (!hasInitial) {
+    for (const o of availability.value?.options ?? []) {
+      if (o.defaultSelected && !isOptionLocked(o)) {
+        selected.value.add(o.optionId)
+      }
+    }
+  } else {
+    // Ungültige / gesperrte Initial-Optionen entfernen, damit Confirm möglich bleibt.
+    for (const id of [...selected.value]) {
+      const opt = (availability.value?.options ?? []).find((o) => o.optionId === id)
+      if (!opt || isOptionLocked(opt)) selected.value.delete(id)
     }
   }
   if (selected.value.size > 0) {

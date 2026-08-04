@@ -8,8 +8,8 @@
     card-class="address-modal-card"
   >
     <form id="address-modal-form" class="address-modal-body" @submit.prevent="handleSubmit">
-        <!-- Adress-Suche -->
-        <div class="address-search-section">
+        <!-- Adress-Suche (nicht für Event-Kinder / Eventstandort-Pin: nur Pin + Bezeichnung) -->
+        <div v-if="!isSimplifiedLocationMode" class="address-search-section">
           <div class="address-search-group">
             <label class="form-label address-search-label">
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -82,27 +82,54 @@
         <div class="form-row two-cols">
           <ETextField
             v-model="formData.name"
-            :label="t('settings.addressForm.designation')"
-            :placeholder="t('settings.addressForm.designationPlaceholder')"
+            :label="isEventPoiMode ? t('settings.addressModal.eventChildLabel') : t('settings.addressForm.designation')"
+            :placeholder="isEventPoiMode
+              ? t('settings.addressModal.eventChildLabelPlaceholder')
+              : t('settings.addressForm.designationPlaceholder')"
             hide-details="auto"
           />
           <ESelect
             v-model="formData.type"
             :items="addressTypeItems"
             :label="t('settings.addressModal.typeField')"
-            :disabled="isGlobalMode"
+            :disabled="isGlobalMode || ((isSimplifiedLocationMode || isEventDeliveryMode) && visibleAddressTypeKeys.length <= 1)"
             hide-details="auto"
           />
         </div>
 
+        <p v-if="isEventDeliveryMode" class="field-hint text-muted event-child-type-hint">
+          {{ t('settings.addressModal.eventDeliveryAddressHint') }}
+        </p>
+        <p v-else-if="isEventPoiMode && !isEditing && visibleAddressTypeKeys.length > 1" class="field-hint text-muted event-child-type-hint">
+          {{ t('settings.addressModal.eventChildTypeHint') }}
+        </p>
+
         <ECheckbox
-          v-if="!isGlobalMode && formData.type === 'storage'"
+          v-if="!isGlobalMode && !isSimplifiedLocationMode && formData.type === 'storage'"
           v-model="formData.is_primary"
           :label="t('settings.addressModal.primaryStorageHint')"
           class="primary-toggle-group"
           hide-details
         />
 
+        <div v-if="!isGlobalMode && formData.type === 'event_poi'" class="pin-color-field">
+          <span class="form-label">{{ t('settings.addressModal.pinColorLabel') }}</span>
+          <div class="pin-color-swatches" role="listbox" :aria-label="t('settings.addressModal.pinColorLabel')">
+            <button
+              v-for="color in PIN_COLOR_PRESETS"
+              :key="color"
+              type="button"
+              class="pin-color-swatch"
+              :class="{ 'is-selected': formData.pin_color === color }"
+              :style="{ background: color }"
+              :title="color"
+              :aria-label="color"
+              @click="formData.pin_color = color"
+            />
+          </div>
+        </div>
+
+        <template v-if="!isSimplifiedLocationMode">
         <!-- Firma -->
         <ETextField
           v-model="formData.company"
@@ -201,6 +228,7 @@
             hide-details="auto"
           />
         </div>
+        </template>
 
         <!-- Karte -->
         <div class="form-group map-section">
@@ -213,7 +241,13 @@
               </svg>
               {{ t('settings.addressModal.mapSectionLabel') }}
             </label>
-            <button type="button" @click="searchCoordinates" class="search-coords-btn" :disabled="!fullAddress">
+            <button
+              v-if="!isSimplifiedLocationMode"
+              type="button"
+              @click="searchCoordinates"
+              class="search-coords-btn"
+              :disabled="!fullAddress"
+            >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path d="M7 12A5 5 0 107 2a5 5 0 000 10zM14 14l-3-3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
               </svg>
@@ -238,7 +272,9 @@
               @coordinates-changed="onMapCoordinatesChanged"
             />
           </div>
-          <p class="map-hint">{{ t('settings.addressModal.mapHint') }}</p>
+          <p class="map-hint">
+            {{ isSimplifiedLocationMode ? t('settings.addressModal.eventChildMapHint') : t('settings.addressModal.mapHint') }}
+          </p>
           <div v-if="formData.latitude && formData.longitude" class="coordinates-info">
             <span class="coord-badge">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -252,6 +288,7 @@
 
         <!-- Zusätzliche Infos -->
         <ETextarea
+          v-if="!isSimplifiedLocationMode"
           v-model="formData.additional_info"
           :label="t('settings.addressForm.additionalInfo')"
           :placeholder="t('settings.addressForm.additionalInfoPlaceholder')"
@@ -317,6 +354,17 @@ import {
   type GlobalAddressFormData
 } from '@/api/globalAddresses'
 
+const PIN_COLOR_PRESETS = [
+  '#16a34a',
+  '#0d9488',
+  '#2563eb',
+  '#7c3aed',
+  '#db2777',
+  '#ea580c',
+  '#ca8a04',
+  '#475569',
+] as const
+
 interface Props {
   departmentId: string
   address?: Address | null
@@ -327,6 +375,9 @@ interface Props {
   apiMode?: 'department' | 'global'
   /** Wenn gesetzt: nur diese Adresstypen im Dropdown (z. B. User-Rolle). */
   allowedTypes?: string[] | null
+  /** Start-Zentrum der Karte (z. B. Eventstandort beim Anlegen eines Standortkinds). */
+  initialLatitude?: number | null
+  initialLongitude?: number | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -335,7 +386,9 @@ const props = withDefaults(defineProps<Props>(), {
   defaultType: 'storage',
   defaultName: '',
   parentId: null,
-  apiMode: 'department'
+  apiMode: 'department',
+  initialLatitude: null,
+  initialLongitude: null,
 })
 
 const emit = defineEmits<{
@@ -350,6 +403,15 @@ const mapRef = ref<InstanceType<typeof MapView>>()
 
 watch(dialogOpen, (open) => {
   if (!open) close()
+})
+
+const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
+
+const visibleAddressTypeKeys = computed(() => {
+  if (props.allowedTypes?.length) {
+    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(String(key)))
+  }
+  return allAddressTypeKeys
 })
 
 const addressTypeItems = computed(() =>
@@ -368,25 +430,28 @@ const cantonItems = computed(() => [
 ])
 const isEditing = computed(() => !!(props.editAddressId || props.address?.id))
 const isGlobalMode = computed(() => props.apiMode === 'global')
+const isEventDeliveryMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event_delivery')
+})
+const isEventPoiMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event_poi')
+})
+/** Titel/Typ-Kontext für Event-Kinder (Lieferort + Zusatzadresse). */
+const isEventChildMode = computed(() => isEventDeliveryMode.value || isEventPoiMode.value)
+/** Eventstandort / Treffpunkt: Bezeichnung + Karte, ohne Strassenadresse. */
+const isMapPinVenueMode = computed(() => {
+  const keys = visibleAddressTypeKeys.value.map(String)
+  if (!keys.length) return false
+  return keys.every((k) => k === 'event' || k === 'meeting')
+})
+/** Vereinfacht: nur Zusatzadresse (POI) und Event-/Treffpunkt-Pin — Lieferort braucht volle Adresse. */
+const isSimplifiedLocationMode = computed(() => isEventPoiMode.value || isMapPinVenueMode.value)
 const isSaving = ref(false)
 const error = ref<string | null>(null)
-
-const allAddressTypeKeys = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
-
-const visibleAddressTypeKeys = computed(() => {
-  if (props.allowedTypes?.length) {
-    return allAddressTypeKeys.filter((key) => props.allowedTypes!.includes(String(key)))
-  }
-  return allAddressTypeKeys
-})
-
-const modalTitle = computed(() => {
-  if (isEditing.value) {
-    return t('settings.addressModal.editTitle')
-  }
-  const dk = props.defaultType in ADDRESS_TYPES ? props.defaultType : 'general'
-  return t('settings.addressModal.addTitle', { type: t(`settings.addressForm.types.${dk}`) })
-})
 
 // Adress-Suche
 interface SearchResult {
@@ -710,7 +775,38 @@ const formData = ref<Partial<AddressFormData>>({
   phone: null,
   mobile: null,
   additional_info: null,
+  pin_color: '#16a34a',
   is_primary: false,
+})
+
+const modalTitle = computed(() => {
+  if (isEventChildMode.value) {
+    const childType = formData.value.type || props.address?.type || props.defaultType
+    if (isEditing.value) {
+      return childType === 'event_poi'
+        ? t('settings.addressModal.eventPoiEditTitle')
+        : t('settings.addressModal.eventDeliveryEditTitle')
+    }
+    return childType === 'event_poi'
+      ? t('settings.addressModal.eventPoiCreateTitle')
+      : t('settings.addressModal.eventDeliveryCreateTitle')
+  }
+  if (isMapPinVenueMode.value) {
+    const venueType = formData.value.type || props.address?.type || props.defaultType
+    if (isEditing.value) {
+      return venueType === 'meeting'
+        ? t('settings.addressModal.meetingEditTitle')
+        : t('settings.addressModal.eventVenueEditTitle')
+    }
+    return venueType === 'meeting'
+      ? t('settings.addressModal.meetingCreateTitle')
+      : t('settings.addressModal.eventVenueCreateTitle')
+  }
+  if (isEditing.value) {
+    return t('settings.addressModal.editTitle')
+  }
+  const dk = props.defaultType in ADDRESS_TYPES ? props.defaultType : 'general'
+  return t('settings.addressModal.addTitle', { type: t(`settings.addressForm.types.${dk}`) })
 })
 
 // Vollständige Adresse für Geocoding
@@ -751,12 +847,22 @@ watch(() => props.address, async (addr) => {
       phone: addr.phone,
       mobile: addr.mobile,
       additional_info: addr.additional_info,
+      pin_color: addr.pin_color || '#16a34a',
       is_primary: !!addr.is_primary,
     }
   } else {
     await resetForm()
   }
 }, { immediate: true })
+
+watch(
+  () => formData.value.type,
+  (type) => {
+    if (type === 'event_poi' && !formData.value.pin_color) {
+      formData.value.pin_color = '#16a34a'
+    }
+  },
+)
 
 async function resetForm() {
   formData.value = {
@@ -769,30 +875,45 @@ async function resetForm() {
     city: '',
     canton: null,
     country: 'Schweiz',
-    latitude: null,
-    longitude: null,
+    latitude: props.initialLatitude ?? null,
+    longitude: props.initialLongitude ?? null,
     contact_first_name: null,
     contact_last_name: null,
     email: null,
     phone: null,
     mobile: null,
     additional_info: null,
+    pin_color: '#16a34a',
     is_primary: false,
   }
   await applyPrimaryDefaultForNewStorage()
+  await nextTick()
+  focusMapOnInitialCoords()
 }
 
-// Karte nach Modal-Öffnung invalidieren (Tiles laden)
+function focusMapOnInitialCoords() {
+  const lat = formData.value.latitude
+  const lng = formData.value.longitude
+  if (lat == null || lng == null) return
+  // Detail-Zoom am Eventstandort (LV95 ≈ geo.admin Nahansicht)
+  const zoom = 21.7
+  mapRef.value?.setMarker(lat, lng, zoom)
+}
+
+// Karte nach Modal-Öffnung invalidieren (Tiles laden) und ggf. zum Eltern-Standort zoomen
 onMounted(() => {
   // Mehrfach invalidieren, da das Modal-Layout Zeit braucht
   nextTick(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   })
   setTimeout(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   }, 300)
   setTimeout(() => {
     mapRef.value?.invalidateSize()
+    focusMapOnInitialCoords()
   }, 600)
 })
 
@@ -835,8 +956,21 @@ async function handleSubmit() {
   const hasName = formData.value.name || formData.value.company
   const hasAddress = formData.value.street || formData.value.city
   const hasCoordinates = formData.value.latitude && formData.value.longitude
-  
-  if (!hasName && !hasAddress && !hasCoordinates) {
+
+  if (isEventDeliveryMode.value) {
+    if (!String(formData.value.name || formData.value.company || '').trim()) {
+      error.value = t('settings.addressModal.eventDeliveryValidationName')
+      return
+    }
+    if (
+      !String(formData.value.street || '').trim() ||
+      !String(formData.value.postal_code || '').trim() ||
+      !String(formData.value.city || '').trim()
+    ) {
+      error.value = t('settings.addressModal.eventDeliveryValidationAddress')
+      return
+    }
+  } else if (!hasName && !hasAddress && !hasCoordinates) {
     error.value = t('settings.addressModal.validationMinFields')
     return
   }
@@ -891,6 +1025,7 @@ async function handleSubmit() {
         phone: formData.value.phone,
         mobile: formData.value.mobile,
         additional_info: formData.value.additional_info,
+        pin_color: formData.value.type === 'event_poi' ? (formData.value.pin_color || '#16a34a') : null,
         is_primary: !!formData.value.is_primary,
       }
 
@@ -945,6 +1080,13 @@ const hasFormChanges = computed(() => {
     )
   } else {
     // Neu-Erstellung: Prüfen ob irgendein Feld ausgefüllt wurde
+    // Startkoordinaten vom Eventstandort zählen nicht als Änderung
+    const coordsChanged =
+      (f.latitude != null || f.longitude != null)
+      && (
+        f.latitude !== (props.initialLatitude ?? null)
+        || f.longitude !== (props.initialLongitude ?? null)
+      )
     return !!(
       (f.name && f.name !== props.defaultName) ||
       (f.company && f.company !== props.defaultName) ||
@@ -958,8 +1100,7 @@ const hasFormChanges = computed(() => {
       f.phone ||
       f.mobile ||
       f.additional_info ||
-      f.latitude ||
-      f.longitude
+      coordsChanged
     )
   }
 })
@@ -1071,6 +1212,37 @@ function close() {
 
 .primary-toggle-group {
   margin-top: -2px;
+}
+
+.pin-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pin-color-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pin-color-swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #cbd5e1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pin-color-swatch.is-selected {
+  box-shadow: 0 0 0 2px #0f172a;
+}
+
+.event-child-type-hint {
+  margin: -4px 0 4px;
+  font-size: 13px;
 }
 
 .primary-toggle-label {

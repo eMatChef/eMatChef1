@@ -19,6 +19,7 @@ import {
   buildMaterialJourneyTasks,
   countOpenLooseComboMaterialTasks,
   filterMaterialJourneyTasksByTab,
+  isMaterialJourneyCrateKind,
   resolveDefaultMaterialJourneyFilterTab,
   sortMaterialJourneyTasks,
   type MaterialJourneyFilterTab,
@@ -64,6 +65,8 @@ export function useMaterialJourneyTasks(options: {
   reloadSilent?: () => Promise<void>
   applyContainerItem: (containerId: string, item: ActivityPackContainerItem) => void
   issues?: Ref<ActivityIssueReportRow[]>
+  /** MW-Notfall während Gruppen-Handoff — Confirm vor Vorwärts-Move. */
+  confirmMwEmergencyForwardMove?: () => Promise<boolean>
 }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -100,9 +103,12 @@ export function useMaterialJourneyTasks(options: {
     const id = options.activity.value?.id
     if (!id || options.isEarlyPackPreview.value) {
       issueReports.value = []
+      if (options.issues) options.issues.value = []
       return
     }
-    issueReports.value = await getActivityIssues(id).catch(() => [])
+    const rows = await getActivityIssues(id).catch(() => [] as ActivityIssueReportRow[])
+    issueReports.value = rows
+    if (options.issues) options.issues.value = rows
   }
 
   watch(
@@ -221,7 +227,7 @@ export function useMaterialJourneyTasks(options: {
     containerItemsByContainerId: options.containerItemsByContainerId,
     packStage,
     profile: options.profile,
-    issues: options.issues,
+    issues: options.issues ?? issueReports,
   })
 
   const activeStoreContainer = computed(() => {
@@ -236,7 +242,7 @@ export function useMaterialJourneyTasks(options: {
     containerItemsByContainerId: options.containerItemsByContainerId,
     packQuantityCtx,
     shellPackItemForContainer,
-    issues: options.issues ?? ref([]),
+    issues: options.issues ?? issueReports,
     reload: options.reload,
   })
 
@@ -303,6 +309,7 @@ export function useMaterialJourneyTasks(options: {
       const rows = buildMaterialJourneyAtEventInventory(options.packItems.value, {
         packContainers: options.packContainers.value,
         shellPackItemForContainer,
+        containerItemsByContainerId: options.containerItemsByContainerId.value,
         formatCrateLineCount: (count) =>
           t('activities.materialJourney.row.crateLineCount', { count }),
         cratePeekLineCount: (
@@ -457,7 +464,7 @@ export function useMaterialJourneyTasks(options: {
   function showReadonlyToast(row: MaterialJourneyTaskRow): void {
     if (!listEditable.value) {
       toast.info(t('activities.materialJourney.toastViewOnly'))
-    } else if (row.kind === 'combo' || row.kind === 'crate') {
+    } else if (row.kind === 'combo' || isMaterialJourneyCrateKind(row.kind)) {
       toast.info(t('activities.materialJourney.toastStepReadonly'))
     } else if (!movesEnabledForStep.value) {
       toast.info(t('activities.materialJourney.toastStepReadonly'))
@@ -586,6 +593,11 @@ export function useMaterialJourneyTasks(options: {
     const activityId = options.activity.value?.id
     if (!activityId) return
 
+    if (options.confirmMwEmergencyForwardMove) {
+      const ok = await options.confirmMwEmergencyForwardMove()
+      if (!ok) return
+    }
+
     const moveQty = Math.min(
       row.maxForwardQty,
       Math.max(1, Math.floor(Number(qty ?? row.maxForwardQty))),
@@ -615,10 +627,10 @@ export function useMaterialJourneyTasks(options: {
   }
 
   function activateTaskRow(row: MaterialJourneyTaskRow, source: PackMoveSource = 'tap'): void {
-    if (isLogisticsAtEventInventory.value && (row.kind === 'combo' || row.kind === 'crate')) {
+    if (isLogisticsAtEventInventory.value && (row.kind === 'combo' || isMaterialJourneyCrateKind(row.kind))) {
       return
     }
-    if (row.kind === 'crate' && row.container) {
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
       if (!row.canOpenSheet) {
         showReadonlyToast(row)
         return
@@ -875,7 +887,9 @@ export function useMaterialJourneyTasks(options: {
     container?: ActivityPackContainer
   }): MaterialJourneyTaskRow | undefined {
     if (result.container) {
-      return allTasks.value.find((r) => r.kind === 'crate' && r.container?.id === result.container?.id)
+      return allTasks.value.find(
+        (r) => isMaterialJourneyCrateKind(r.kind) && r.container?.id === result.container?.id,
+      )
     }
     if (result.packItem) {
       if (isPhysicalComboPackItem(result.packItem)) {
