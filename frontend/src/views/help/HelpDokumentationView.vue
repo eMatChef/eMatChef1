@@ -1,12 +1,12 @@
 <template>
   <PageShell
     :title="t('help.dokumentation.title')"
-    :subtitle="t('help.dokumentation.subtitle')"
+    :subtitle="pageSubtitle"
     max-width="720px"
   >
     <section class="help-doc-section">
       <h2 class="help-doc-heading">{{ t('help.dokumentation.happyPathTitle') }}</h2>
-      <p class="help-doc-lead">{{ t('help.dokumentation.happyPathLead') }}</p>
+      <p class="help-doc-lead">{{ pageLead }}</p>
       <ul class="help-doc-links">
         <li v-for="item in happyPathItems" :key="item.id">
           <RouterLink class="help-doc-link" :to="item.to">
@@ -50,6 +50,9 @@ const route = useRoute()
 const authStore = useAuthStore()
 const { canUseHelpEinrichtung, canUseSetupChecklist } = useDepartmentOnboardingAccess()
 
+/** MW/DC: volle Doku; User/L1–L3: nur Aktivität (wie Touren). */
+const isMwDocs = canUseSetupChecklist
+
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
@@ -58,6 +61,18 @@ function deptPath(suffix: string) {
   const id = departmentId.value
   return id ? `/${id}${suffix}` : '#'
 }
+
+const pageSubtitle = computed(() =>
+  isMwDocs.value
+    ? t('help.dokumentation.subtitle')
+    : t('help.dokumentation.subtitleMember')
+)
+
+const pageLead = computed(() =>
+  isMwDocs.value
+    ? t('help.dokumentation.happyPathLead')
+    : t('help.dokumentation.happyPathLeadMember')
+)
 
 const happyPathItems = computed(() => {
   const items: Array<{
@@ -73,21 +88,26 @@ const happyPathItems = computed(() => {
       id: 'einrichtung',
       icon: 'mdi-compass-outline',
       title: t('help.dokumentation.links.setupTitle'),
-      description: canUseSetupChecklist.value
+      description: isMwDocs.value
         ? t('help.dokumentation.links.setupDescMw')
         : t('help.dokumentation.links.setupDescMember'),
       to: deptPath('/help/einrichtung'),
     })
   }
 
+  items.push({
+    id: 'activity',
+    icon: 'mdi-calendar-plus',
+    title: t('help.dokumentation.links.activityTitle'),
+    description: isMwDocs.value
+      ? t('help.dokumentation.links.activityDesc')
+      : t('help.dokumentation.links.activityDescMember'),
+    to: deptPath('/activities'),
+  })
+
+  if (!isMwDocs.value) return items
+
   items.push(
-    {
-      id: 'activity',
-      icon: 'mdi-calendar-plus',
-      title: t('help.dokumentation.links.activityTitle'),
-      description: t('help.dokumentation.links.activityDesc'),
-      to: deptPath('/activities'),
-    },
     {
       id: 'pack',
       icon: 'mdi-package-variant-closed',
@@ -95,61 +115,74 @@ const happyPathItems = computed(() => {
       description: t('help.dokumentation.links.packDesc'),
       to: deptPath('/activities'),
     },
-  )
-
-  if (canUseSetupChecklist.value) {
-    items.push({
+    {
       id: 'material',
       icon: 'mdi-package-variant-plus',
       title: t('help.dokumentation.links.materialTitle'),
       description: t('help.dokumentation.links.materialDesc'),
       to: deptPath('/materials'),
-    })
-  }
-
-  items.push({
-    id: 'costs',
-    icon: 'mdi-cash-multiple',
-    title: t('help.dokumentation.links.costsTitle'),
-    description: t('help.dokumentation.links.costsDesc'),
-    to: deptPath('/accounting'),
-  })
+    },
+    {
+      id: 'costs',
+      icon: 'mdi-cash-multiple',
+      title: t('help.dokumentation.links.costsTitle'),
+      description: t('help.dokumentation.links.costsDesc'),
+      to: deptPath('/accounting'),
+    },
+  )
 
   return items
 })
 
-const faqItems = computed(() => [
-  {
-    id: 'find-help',
-    question: t('help.dokumentation.faq.findHelp.q'),
-    answer: t('help.dokumentation.faq.findHelp.a'),
-  },
-  {
-    id: 'create-activity',
-    question: t('help.dokumentation.faq.createActivity.q'),
-    answer: t('help.dokumentation.faq.createActivity.a'),
-  },
-  {
-    id: 'packing',
-    question: t('help.dokumentation.faq.packing.q'),
-    answer: t('help.dokumentation.faq.packing.a'),
-  },
-  {
-    id: 'costs',
-    question: t('help.dokumentation.faq.costs.q'),
-    answer: t('help.dokumentation.faq.costs.a'),
-  },
-  {
-    id: 'invite',
-    question: t('help.dokumentation.faq.invite.q'),
-    answer: t('help.dokumentation.faq.invite.a'),
-  },
-  {
-    id: 'roles',
-    question: t('help.dokumentation.faq.roles.q'),
-    answer: t('help.dokumentation.faq.roles.a'),
-  },
-])
+const faqItems = computed(() => {
+  if (!isMwDocs.value) {
+    return [
+      {
+        id: 'find-help',
+        question: t('help.dokumentation.faq.findHelpMember.q'),
+        answer: t('help.dokumentation.faq.findHelpMember.a'),
+      },
+      {
+        id: 'create-activity',
+        question: t('help.dokumentation.faq.createActivity.q'),
+        answer: t('help.dokumentation.faq.createActivity.a'),
+      },
+    ]
+  }
+
+  return [
+    {
+      id: 'find-help',
+      question: t('help.dokumentation.faq.findHelp.q'),
+      answer: t('help.dokumentation.faq.findHelp.a'),
+    },
+    {
+      id: 'create-activity',
+      question: t('help.dokumentation.faq.createActivity.q'),
+      answer: t('help.dokumentation.faq.createActivity.a'),
+    },
+    {
+      id: 'packing',
+      question: t('help.dokumentation.faq.packing.q'),
+      answer: t('help.dokumentation.faq.packing.a'),
+    },
+    {
+      id: 'costs',
+      question: t('help.dokumentation.faq.costs.q'),
+      answer: t('help.dokumentation.faq.costs.a'),
+    },
+    {
+      id: 'invite',
+      question: t('help.dokumentation.faq.invite.q'),
+      answer: t('help.dokumentation.faq.invite.a'),
+    },
+    {
+      id: 'roles',
+      question: t('help.dokumentation.faq.roles.q'),
+      answer: t('help.dokumentation.faq.roles.a'),
+    },
+  ]
+})
 </script>
 
 <style scoped>
