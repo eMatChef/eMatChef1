@@ -3,8 +3,9 @@
     ref="rootRef"
     class="user-avatar-badge"
     :class="[
+      `user-avatar-badge--${variant}`,
       `user-avatar-badge--${size}`,
-      { 'user-avatar-badge--leader': showLeaderStar },
+      { 'user-avatar-badge--leader': showLeaderStar && variant === 'badge' },
     ]"
     @mouseenter="showFloatingTooltip"
     @mouseleave="hideFloatingTooltip"
@@ -12,7 +13,7 @@
     @focusout="hideFloatingTooltip"
   >
     <span class="user-avatar-badge__avatar" :style="avatarStyle">
-      <span v-if="showLeaderStar" class="user-avatar-badge__star" aria-hidden="true">★</span>
+      <span v-if="showLeaderStar && variant === 'badge'" class="user-avatar-badge__star" aria-hidden="true">★</span>
       {{ initials }}
     </span>
     <Teleport to="body">
@@ -45,14 +46,20 @@ import {
   type UserAvatarFields,
 } from '@/utils/userAvatar'
 
+export type UserAvatarVariant = 'badge' | 'profile'
+export type UserAvatarSize = 'sm' | 'md' | 'lg'
+
 const props = withDefaults(
   defineProps<{
     user: UserAvatarFields
-    size?: 'sm' | 'md' | 'lg'
+    /** badge = abgerundetes Quadrat + Rahmen; profile = rund */
+    variant?: UserAvatarVariant
+    size?: UserAvatarSize
     showLeaderStar?: boolean
     showTooltip?: boolean
   }>(),
   {
+    variant: 'badge',
     size: 'sm',
     showLeaderStar: false,
     showTooltip: true,
