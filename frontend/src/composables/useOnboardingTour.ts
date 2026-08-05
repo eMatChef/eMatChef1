@@ -1,5 +1,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import {
   getOnboardingTour,
   getOnboardingTourStepIndex,
@@ -92,6 +93,10 @@ export function useOnboardingTour() {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
+  /** Wie Sidebar-Rail: Touren brauchen Desktop/Tablet-Breite (md+). */
+  const { mdAndUp } = useDisplay()
+
+  const toursSupportedOnViewport = computed(() => mdAndUp.value)
 
   const activeTourId = computed(() => {
     const raw = route.query[ONBOARDING_TOUR_QUERY]
@@ -120,7 +125,9 @@ export function useOnboardingTour() {
 
   const activeStepMode = computed<OnboardingTourStepMode>(() => activeStep.value?.mode ?? 'info')
 
-  const isActive = computed(() => !!activeTour.value && !!activeStep.value)
+  const isActive = computed(
+    () => toursSupportedOnViewport.value && !!activeTour.value && !!activeStep.value
+  )
 
   const isLastStep = computed(() => {
     if (!activeTour.value) return true
@@ -129,8 +136,30 @@ export function useOnboardingTour() {
 
   const expectsTargetClick = computed(() => activeStepMode.value === 'click')
 
+  function buildTourQuery(stepId: string) {
+    return {
+      [ONBOARDING_TOUR_QUERY]: activeTourId.value,
+      [ONBOARDING_TOUR_STEP_QUERY]: stepId,
+    }
+  }
+
+  function clearTourQuery() {
+    const nextQuery = { ...route.query }
+    delete nextQuery[ONBOARDING_TOUR_QUERY]
+    delete nextQuery[ONBOARDING_TOUR_STEP_QUERY]
+    return nextQuery
+  }
+
+  /** Tour abbrechen ohne als erledigt zu markieren (z. B. zu schmaler Viewport). */
+  function abortTour() {
+    stopObservingTarget()
+    if (!activeTourId.value) return
+    void router.replace({ query: clearTourQuery() })
+  }
+
   async function syncTarget(onTargetClick?: () => void) {
     stopObservingTarget()
+    if (!toursSupportedOnViewport.value) return
     const step = activeStep.value
     if (!step?.target) return
 
@@ -160,7 +189,17 @@ export function useOnboardingTour() {
     }
   )
 
+  watch(toursSupportedOnViewport, (supported) => {
+    if (!supported && activeTourId.value) {
+      abortTour()
+    }
+  })
+
   onMounted(() => {
+    if (!toursSupportedOnViewport.value && activeTourId.value) {
+      abortTour()
+      return
+    }
     void syncTarget(() => {
       void next()
     })
@@ -170,21 +209,8 @@ export function useOnboardingTour() {
     stopObservingTarget()
   })
 
-  function buildTourQuery(stepId: string) {
-    return {
-      [ONBOARDING_TOUR_QUERY]: activeTourId.value,
-      [ONBOARDING_TOUR_STEP_QUERY]: stepId,
-    }
-  }
-
-  function clearTourQuery() {
-    const nextQuery = { ...route.query }
-    delete nextQuery[ONBOARDING_TOUR_QUERY]
-    delete nextQuery[ONBOARDING_TOUR_STEP_QUERY]
-    return nextQuery
-  }
-
   function startTour(tourId: OnboardingTourId, departmentId: string) {
+    if (!toursSupportedOnViewport.value) return
     const tour = getOnboardingTour(tourId)
     if (!tour) return
     const firstStep = tour.steps[0]
@@ -253,9 +279,11 @@ export function useOnboardingTour() {
     isLastStep,
     expectsTargetClick,
     targetRect,
+    toursSupportedOnViewport,
     startTour,
     next,
     skip,
     finish,
+    abortTour,
   }
 }

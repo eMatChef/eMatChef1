@@ -1,5 +1,8 @@
 <template>
-  <div class="tour-columns">
+  <p v-if="!toursSupportedOnViewport" class="tour-viewport-hint">
+    {{ t('onboarding.tours.desktopOnlyHint') }}
+  </p>
+  <div v-else class="tour-columns">
     <v-expansion-panels
       v-for="category in visibleCategories"
       :key="category"
@@ -90,7 +93,7 @@ import type { UserAvatarFields } from '@/utils/userAvatar'
 const { t } = useI18n()
 const route = useRoute()
 const authStore = useAuthStore()
-const { startTour: launchTour } = useOnboardingTour()
+const { startTour: launchTour, toursSupportedOnViewport } = useOnboardingTour()
 const { departmentId, profileId, departmentRole } = useDepartmentOnboardingAccess()
 const { canCreateCampAndEvent, loadGroupsForDepartment } = useActivityGroupMemberScope()
 
@@ -167,12 +170,23 @@ function categoryDoneChip(category: OnboardingTourCategory) {
 
 function startTour(tourId: OnboardingTourId) {
   const depId = departmentId.value
-  if (!depId) return
+  if (!depId || !toursSupportedOnViewport.value) return
   launchTour(tourId, depId)
 }
 </script>
 
 <style scoped>
+.tour-viewport-hint {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .tour-columns {
   display: grid;
   grid-template-columns: 1fr;

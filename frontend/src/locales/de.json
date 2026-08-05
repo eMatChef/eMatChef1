@@ -1459,6 +1459,7 @@
       "stepOf": "Schritt {current} von {total}",
       "statusDone": "Erledigt",
       "clickTargetHint": "Klicke auf den markierten Bereich, um fortzufahren.",
+      "desktopOnlyHint": "Geführte Touren sind ab Tablet-Breite verfügbar — auf dem Handy stimmen Hervorhebung und Navigation nicht.",
       "categoryDone": "{done}/{total} erledigt",
       "categories": {
         "start": "Einstieg",
