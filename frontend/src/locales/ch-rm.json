@@ -199,9 +199,16 @@
     "de": "Tudestg",
     "de-pfadi": "Tudestg (Pfadi)",
     "de-cevi": "Tudestg (Cevi)",
+    "de-jubla": "Tudestg (Jubla)",
     "en": "Englais",
     "fr": "Franzos",
+    "fr-pfadi": "Franzos (Pfadi)",
+    "fr-cevi": "Franzos (Cevi)",
+    "fr-jubla": "Franzos (Jubla)",
     "it": "Talian",
+    "it-pfadi": "Talian (Pfadi)",
+    "it-cevi": "Talian (Cevi)",
+    "it-jubla": "Talian (Jubla)",
     "ch-rm": "Rumantsch"
   },
   "common": {

@@ -10,85 +10,76 @@ Nur diese Dateien gehören ins Repo und in Weblate:
 
 | Code | Datei | Rolle |
 |------|--------|--------|
-| `de` | `de.json` | **Quelle** (Schweizer Deutsch) |
+| `de` | `de.json` | **Quelle App-UI** (Schweizer Deutsch) |
 | `en` | `en.json` | Vollübersetzung |
 | `fr` | `fr.json` | Vollübersetzung |
 | `it` | `it.json` | Vollübersetzung |
 | `ch-rm` | `ch-rm.json` | Rumantsch (Lücken → de/en) |
-| `de-pfadi` | `de-pfadi.json` | Delta zu `de` (Pfadi-Wortschatz) |
-| `de-cevi` | `de-cevi.json` | Delta zu `de` (Cevi-Wortschatz) |
+| `de-pfadi` / `de-cevi` / `de-jubla` | `de-*.json` | Delta zu `de` |
+| `fr-pfadi` / `fr-cevi` / `fr-jubla` | `fr-*.json` | Delta zu `fr` |
+| `it-pfadi` / `it-cevi` / `it-jubla` | `it-*.json` | Delta zu `it` |
 
 Keine `en-US`, `fr-FR`, `it-IT`, `de-CH`, … — kurze Codes = Dateiname = App/DB.
 
-Neue Org-Variante (z. B. `de-jubla`): kleines Delta-JSON + Eintrag in `SUPPORTED_LANGUAGE_CODES` / Backend — **nicht** als Vollkopie von `de.json`.
+Org-Varianten sind **Deltas** (`{}` reicht als Stub). Fehlende Keys fallen in der App auf die Basis-Locale (`fr-pfadi` → `fr` → `de`).
 
 ## Zwei Schichten
 
 | Schicht | Was | Wo |
 |--------|-----|-----|
-| **App-UI** | alle Produkt-Strings | Weblate → Locale-JSON |
-| **Org-Typ-Delta** | viele gemeinsame Begriffe (Pfadi/Cevi/Jubla) | `de-pfadi.json` usw. (Weblate-Component „Varianten“) |
+| **App-UI** | alle Produkt-Strings | Weblate Component „App UI“ |
+| **Org-Typ-Delta** | Org-Wortschatz (Pfadi/Cevi/Jubla) pro Sprache | Weblate Components „DE/FR/IT Varianten“ |
 | **Org-Wörterbuch** (später) | wenige Overrides pro einzelner Org | DB, nicht Weblate |
-
-`de-pfadi` bleibt bewusst in Weblate: der Pfadi-Wortschatz ist gross und organisationsübergreifend. Ein DB-Wörterbuch ist nur für Ausnahmen pro Abteilung sinnvoll, nicht als Ersatz dafür.
 
 ## Weblate-Component (Pflicht-Setup)
 
-### Component A — „App UI“ (Ist-Stand auf translate.ematchef.ch)
+### Component A — „App UI“
 
 | Feld | Soll-Wert |
 |------|-----------|
-| Quellcode-Repository | `git@github.com:eMatChef/eMatChef1.git` |
-| Repository-Branch | `prod` |
-| Push-Branch | `weblate` |
-| Dateiformat | **JSON-Datei mit verschachtelter Struktur** (`json-nested`) — nicht i18next |
+| Repository | `git@github.com:eMatChef/eMatChef1.git` (oder linked) |
+| Branch | `prod` / Push-Branch `weblate` |
+| Dateiformat | `json-nested` |
 | Dateimaske | `frontend/src/locales/*.json` |
 | Sprachfilter | `^(en\|fr\|it\|ch-rm)$` |
 | Basissprachdatei | `frontend/src/locales/de.json` |
-| Ausgangssprache | Deutsch (Schweiz) `de_CH` — Datei trotzdem `de.json` |
-| Neue Übersetzung hinzufügen | **deaktivieren** (`none`) |
-| Stil des Sprachcodes | BCP mit Bindestrich |
-| Sprachen | `en`, `fr`, `it`, `rm` (Datei `ch-rm.json`) |
-| Projekt-Alias | `ch-rm:rm` (sonst wird `ch-rm` zu Chamorro) |
-
-`de-pfadi` / `de-cevi` **nicht** in dieser Component (sonst volle Key-Liste).
-
-**SSH:** Deploy Key + `known_hosts` unter `/app/data/ssh/`. Ohne Hostkeys: `Host key verification failed`. Ohne Clone in `/app/data/vcs/…`: Merge/Push `Errno 2`.
-
-**Push-Branch:** `weblate` → PR nach `prod`/`develop`.
-
-### Component B — „DE Varianten“ (Pfadi / Cevi / später Jubla)
-
-Linked Component auf demselben Git-Clone wie App UI (`weblate://ematchef/app-ui`):
-
-| Feld | Soll-Wert |
-|------|-----------|
-| Name / Slug | `DE Varianten` / `de-varianten` |
-| Repository | `weblate://ematchef/app-ui` |
-| Dateiformat | `json-nested` |
-| Dateimaske | `frontend/src/locales/*.json` |
-| Sprachfilter | `^(de-pfadi\|de-cevi)$` |
-| Basissprachdatei | `frontend/src/locales/de.json` |
-| Ausgangssprache | wie App UI (`de_CH`) |
-| Neue Übersetzung | deaktivieren |
+| Ausgangssprache | `de_CH` (Datei trotzdem `de.json`) |
+| Neue Übersetzung | **deaktivieren** (`none`) |
 | Sprachcodes | BCP mit Bindestrich |
+| Projekt-Alias | `ch-rm:rm,de:de_CH` |
 
-Custom-Sprachen in Weblate anlegen: `de-pfadi` („Deutsch (Pfadi)“), `de-cevi` („Deutsch (Cevi)“).  
-Übersetzer pflegen nur abweichende Keys; fehlende fallen in der App auf `de` zurück.
+Org-Varianten **nicht** in dieser Component.
 
-Neue Org-Variante (z. B. `de-jubla`): Locale-JSON + `languages.ts` / Backend + Sprachfilter um `|de-jubla` erweitern + Language in Weblate.
+### Components B/C/D — Org-Varianten (je Basis-Sprache)
+
+Linked auf denselben Clone (`weblate://ematchef/app-ui`). Pro Basis eine Component, damit die Quelle stimmt und die Dateimaske nicht mit App UI kollidiert:
+
+| Component | Slug | Template (Quelle) | Dateimaske | Sprachfilter |
+|-----------|------|-------------------|------------|--------------|
+| DE Varianten | `de-varianten` | `frontend/src/locales/de.json` | `frontend/src/locales/de-*.json` | `^(de-pfadi\|de-cevi\|de-jubla)$` |
+| FR Varianten | `fr-varianten` | `frontend/src/locales/fr.json` | `frontend/src/locales/fr-*.json` | `^(fr-pfadi\|fr-cevi\|fr-jubla)$` |
+| IT Varianten | `it-varianten` | `frontend/src/locales/it.json` | `frontend/src/locales/it-*.json` | `^(it-pfadi\|it-cevi\|it-jubla)$` |
+
+Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, Ausgangssprache = Template-Sprache (`de_CH` / `fr` / `it`).
+
+Custom-Sprachen in Weblate anlegen (Name z. B. „Deutsch (Pfadi)“, Code `de-pfadi`, … für alle 9).  
+Übersetzer füllen nur abweichende Keys; Rest bleibt leer → App-Fallback.
 
 ## Sync-Flow
 
-1. Dev fügt Keys in **`de.json`** ein → Push auf den Weblate-Branch.  
-2. Weblate **Update** (Webhook oder manuell: Component → Repository → Update).  
-3. Übersetzer arbeiten in Weblate.  
-4. Weblate commit/push (Branch `weblate` oder PR) → Review → Merge → Deploy.
+1. Dev fügt Keys in **`de.json`** (ggf. `fr.json`/`it.json`) ein → Push auf den Weblate-Branch.  
+2. Weblate **Update**.  
+3. Übersetzer arbeiten in App UI bzw. DE/FR/IT Varianten.  
+4. Weblate commit/push → Review → Merge → Deploy.
 
 ## Anti-Wildwuchs-Checkliste
 
-- [ ] File mask trifft nur echte Locales unter `frontend/src/locales/`  
-- [ ] Keine automatische Spracherkennung aus Dateinamen-Junk  
-- [ ] Nach Repo-Update: keine neuen `*-US` / `*-FR`-Sprachen entstanden  
-- [ ] Neue Sprache = Code in `languages.ts` + Backend + Locale-Datei + Weblate-Sprache  
-- [ ] Varianten bleiben Deltas, keine Vollkopien von `de.json`
+- [ ] App UI-Filter ohne Org-Varianten  
+- [ ] Varianten-Components mit `de-*.json` / `fr-*.json` / `it-*.json` (kein `*.json` → keine doppelte `de.json`)  
+- [ ] `new_lang=none` überall  
+- [ ] Neue Variante = Code in `languages.ts` + Backend + Locale-Stub + Weblate-Sprache + Filter  
+- [ ] Varianten bleiben Deltas, keine Vollkopien
+
+## Weblate nach Repo-Merge
+
+Skript auf dem Droplet: `docs/weblate-setup-org-variants.sh` (Custom-Sprachen + DE/FR/IT-Components, Dateimaske `de-*.json` usw.).

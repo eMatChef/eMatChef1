@@ -640,11 +640,18 @@
   },
   "languageNames": {
     "de": "Deutsch",
-    "en": "Englisch",
-    "fr": "Franzoesisch",
-    "it": "Italienisch",
     "de-pfadi": "Deutsch (Pfadi)",
     "de-cevi": "Deutsch (Cevi)",
+    "de-jubla": "Deutsch (Jubla)",
+    "en": "Englisch",
+    "fr": "Franzoesisch",
+    "fr-pfadi": "Franzoesisch (Pfadi)",
+    "fr-cevi": "Franzoesisch (Cevi)",
+    "fr-jubla": "Franzoesisch (Jubla)",
+    "it": "Italienisch",
+    "it-pfadi": "Italienisch (Pfadi)",
+    "it-cevi": "Italienisch (Cevi)",
+    "it-jubla": "Italienisch (Jubla)",
     "ch-rm": "Rumantsch"
   },
   "common": {

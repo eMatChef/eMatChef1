@@ -1,11 +1,18 @@
 import { createI18n } from 'vue-i18n'
 import { de as vuetifyDe, en as vuetifyEn, fr as vuetifyFr, it as vuetifyIt } from 'vuetify/locale'
 import de from '@/locales/de.json'
-import deCevi from '@/locales/de-cevi.json'
 import dePfadi from '@/locales/de-pfadi.json'
+import deCevi from '@/locales/de-cevi.json'
+import deJubla from '@/locales/de-jubla.json'
 import en from '@/locales/en.json'
 import fr from '@/locales/fr.json'
+import frPfadi from '@/locales/fr-pfadi.json'
+import frCevi from '@/locales/fr-cevi.json'
+import frJubla from '@/locales/fr-jubla.json'
 import it from '@/locales/it.json'
+import itPfadi from '@/locales/it-pfadi.json'
+import itCevi from '@/locales/it-cevi.json'
+import itJubla from '@/locales/it-jubla.json'
 import chRm from '@/locales/ch-rm.json'
 import {
   DEFAULT_LANGUAGE,
@@ -57,9 +64,16 @@ export const i18n = createI18n({
     de: withVuetifyLocale(de, vuetifyDe),
     'de-pfadi': withVuetifyLocale(dePfadi, vuetifyDe),
     'de-cevi': withVuetifyLocale(deCevi, vuetifyDe),
+    'de-jubla': withVuetifyLocale(deJubla, vuetifyDe),
     en: withVuetifyLocale(en, vuetifyEn),
     fr: withVuetifyLocale(fr, vuetifyFr),
+    'fr-pfadi': withVuetifyLocale(frPfadi, vuetifyFr),
+    'fr-cevi': withVuetifyLocale(frCevi, vuetifyFr),
+    'fr-jubla': withVuetifyLocale(frJubla, vuetifyFr),
     it: withVuetifyLocale(it, vuetifyIt),
+    'it-pfadi': withVuetifyLocale(itPfadi, vuetifyIt),
+    'it-cevi': withVuetifyLocale(itCevi, vuetifyIt),
+    'it-jubla': withVuetifyLocale(itJubla, vuetifyIt),
     'ch-rm': withVuetifyLocale(chRm, vuetifyDe),
   },
 })
