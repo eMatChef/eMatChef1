@@ -110,7 +110,7 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `frontend/src/components/material/MaterialDetailView.vue` (Dropdown + `formatReservationModeLabel` raus)
 - `frontend/src/components/template/TemplateEditDialog.vue`
 - `frontend/src/api/materials.ts`, `templates.ts` (Feld raus)
-- `frontend/src/locales/de.json`, `en.json` (Keys aufräumen — laut Leitprinzip nur diese zwei; `reservation_mode`-Keys liegen zusätzlich noch in `en-US.json`, `fr-FR.json`, `it-IT.json` und können bei Bedarf mit raus)
+- `frontend/src/locales/de.json`, `en.json` (Keys aufräumen — laut Leitprinzip nur diese zwei)
 - Vorlagen-Daten: `backend/data/templates/{zelthangar,tortuga,wico,hajk,spatz}.json`
 - Seeds: `backend/data/seeds/orgs/org_js000000_and_GLOBALORG001/subset.json`
 

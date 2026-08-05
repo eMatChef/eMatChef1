@@ -1,5 +1,13 @@
 {
+  "dashboard": {
+    "departmentsDesc": "Abteilungen verwalten"
+  },
   "layout": {
+    "userMenu": {
+      "switchDepartment": "Abteilung wechseln",
+      "departmentSettings": "Abteilungseinstellungen",
+      "devicesScanner": "Lager-Scanner"
+    },
     "notifications": {
       "empty": "Keine Benachrichtigungen"
     }
@@ -9,9 +17,17 @@
     "searchedLabel": "Gesucht:"
   },
   "pendingAssignment": {
-    "manualHint": "Keine passende Abteilung gefunden. Du kannst einen Antrag an das Admin-Team senden. Wähle die Organisation, damit Org/SubOrg-Chefs deinen Antrag sehen.",
+    "manualHint": "Keine passende Abteilung gefunden. Du kannst einen Antrag an das Admin-Team senden. Wähle die Organisation, damit Org-/Abteilungs-Chefs deinen Antrag sehen.",
     "parentDepartmentsQuestion": "Hat es übergeordnete Abteilungen? (optional)",
     "adminModalIntro": "Gib deine gewünschte Abteilung und Organisation ein. Das Admin-Team erhält dein Ticket und ordnet dich zu.",
     "successRequestSent": "Join-Request gesendet. Das Admin-Team sieht die Anfrage im Dashboard."
+  },
+  "activities": {
+    "detail": {
+      "labelDepartment": "Abteilung"
+    },
+    "wizard": {
+      "toastDefaultsLoadFailed": "Abteilungs-Standards konnten nicht geladen werden. Es werden Standard-Fixzeiten verwendet."
+    }
   }
 }
