@@ -217,7 +217,7 @@ Solange nicht alle Views migriert sind:
 
 ## i18n
 
-- Vuetify-Locale über `vue-i18n`-Adapter (gleiche Sprachen wie App: `de`, `en-US`, …).
+- Vuetify-Locale über `vue-i18n`-Adapter (gleiche Sprachen wie App: `de`, `en`, `fr`, `it`, …).
 - UI-Texte weiter in `locales/*.json`, nicht in Komponenten hardcoden.
 
 ---

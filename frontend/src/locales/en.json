@@ -545,11 +545,18 @@
   },
   "languageNames": {
     "de": "German",
-    "en": "English",
-    "fr": "French",
-    "it": "Italian",
     "de-pfadi": "German (Pfadi)",
     "de-cevi": "German (Cevi)",
+    "de-jubla": "German (Jubla)",
+    "en": "English",
+    "fr": "French",
+    "fr-pfadi": "French (Pfadi)",
+    "fr-cevi": "French (Cevi)",
+    "fr-jubla": "French (Jubla)",
+    "it": "Italian",
+    "it-pfadi": "Italian (Pfadi)",
+    "it-cevi": "Italian (Cevi)",
+    "it-jubla": "Italian (Jubla)",
     "ch-rm": "Romansh"
   },
   "common": {

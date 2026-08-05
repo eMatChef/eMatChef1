@@ -101,8 +101,8 @@ Wenn ein Entwicklungsstand bereit ist:
 - `Fast forward` in `.github/workflows/fast-forward.yml`
   - Kommentar **`/fast-forward`** auf dem Release-PR (`develop` -> `prod`)
   - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions auf `prod`)
-- `Translations (Crowdin)` in `.github/workflows/translations.yml`
-  - Trigger: relevante Pushes auf `prod`, Zeitplan oder manueller Run
+- Übersetzungen: self-hosted [Weblate](https://translate.ematchef.ch) — Setup und erlaubte Sprachen in [docs/TRANSLATION.md](docs/TRANSLATION.md)
+
 
 ### Required checks fuer Branch Protection
 
