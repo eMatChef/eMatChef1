@@ -1459,7 +1459,7 @@
       "stepOf": "Schritt {current} von {total}",
       "statusDone": "Erledigt",
       "clickTargetHint": "Klicke auf den markierten Bereich, um fortzufahren.",
-      "desktopOnlyHint": "Geführte Touren sind ab Tablet-Breite verfügbar — auf dem Handy stimmen Hervorhebung und Navigation nicht.",
+      "desktopOnlyHint": "Touren starten ab ca. 960 px Breite (Tablet quer / Desktop). Einmal gestartet läuft die Tour weiter — auch wenn du das Gerät drehst.",
       "categoryDone": "{done}/{total} erledigt",
       "categories": {
         "start": "Einstieg",

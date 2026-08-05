@@ -1,5 +1,5 @@
 <template>
-  <p v-if="!toursSupportedOnViewport" class="tour-viewport-hint">
+  <p v-if="!canStartToursOnViewport" class="tour-viewport-hint">
     {{ t('onboarding.tours.desktopOnlyHint') }}
   </p>
   <div v-else class="tour-columns">
@@ -93,7 +93,7 @@ import type { UserAvatarFields } from '@/utils/userAvatar'
 const { t } = useI18n()
 const route = useRoute()
 const authStore = useAuthStore()
-const { startTour: launchTour, toursSupportedOnViewport } = useOnboardingTour()
+const { startTour: launchTour, canStartToursOnViewport } = useOnboardingTour()
 const { departmentId, profileId, departmentRole } = useDepartmentOnboardingAccess()
 const { canCreateCampAndEvent, loadGroupsForDepartment } = useActivityGroupMemberScope()
 
@@ -170,7 +170,7 @@ function categoryDoneChip(category: OnboardingTourCategory) {
 
 function startTour(tourId: OnboardingTourId) {
   const depId = departmentId.value
-  if (!depId || !toursSupportedOnViewport.value) return
+  if (!depId || !canStartToursOnViewport.value) return
   launchTour(tourId, depId)
 }
 </script>

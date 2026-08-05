@@ -1335,7 +1335,7 @@
       "stepOf": "Step {current} of {total}",
       "statusDone": "Done",
       "clickTargetHint": "Click the highlighted area to continue.",
-      "desktopOnlyHint": "Guided tours are available from tablet width up — on phones the highlights and navigation do not line up.",
+      "desktopOnlyHint": "Tours start from about 960 px width (tablet landscape / desktop). Once started, the tour keeps running even if you rotate the device.",
       "categoryDone": "{done}/{total} done",
       "categories": {
         "start": "Getting started",

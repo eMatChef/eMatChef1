@@ -93,10 +93,12 @@ export function useOnboardingTour() {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
-  /** Wie Sidebar-Rail: Touren brauchen Desktop/Tablet-Breite (md+). */
+  /** Start nur ab md (≥960px). Laufende Tour bricht bei Hochformat/Resize nicht ab. */
   const { mdAndUp } = useDisplay()
 
-  const toursSupportedOnViewport = computed(() => mdAndUp.value)
+  const canStartToursOnViewport = computed(() => mdAndUp.value)
+  /** Alias für Tour-Liste (Start-Erlaubnis). */
+  const toursSupportedOnViewport = canStartToursOnViewport
 
   const activeTourId = computed(() => {
     const raw = route.query[ONBOARDING_TOUR_QUERY]
@@ -125,9 +127,7 @@ export function useOnboardingTour() {
 
   const activeStepMode = computed<OnboardingTourStepMode>(() => activeStep.value?.mode ?? 'info')
 
-  const isActive = computed(
-    () => toursSupportedOnViewport.value && !!activeTour.value && !!activeStep.value
-  )
+  const isActive = computed(() => !!activeTour.value && !!activeStep.value)
 
   const isLastStep = computed(() => {
     if (!activeTour.value) return true
@@ -150,7 +150,7 @@ export function useOnboardingTour() {
     return nextQuery
   }
 
-  /** Tour abbrechen ohne als erledigt zu markieren (z. B. zu schmaler Viewport). */
+  /** Tour abbrechen ohne als erledigt zu markieren. */
   function abortTour() {
     stopObservingTarget()
     if (!activeTourId.value) return
@@ -159,7 +159,6 @@ export function useOnboardingTour() {
 
   async function syncTarget(onTargetClick?: () => void) {
     stopObservingTarget()
-    if (!toursSupportedOnViewport.value) return
     const step = activeStep.value
     if (!step?.target) return
 
@@ -189,17 +188,7 @@ export function useOnboardingTour() {
     }
   )
 
-  watch(toursSupportedOnViewport, (supported) => {
-    if (!supported && activeTourId.value) {
-      abortTour()
-    }
-  })
-
   onMounted(() => {
-    if (!toursSupportedOnViewport.value && activeTourId.value) {
-      abortTour()
-      return
-    }
     void syncTarget(() => {
       void next()
     })
@@ -210,7 +199,7 @@ export function useOnboardingTour() {
   })
 
   function startTour(tourId: OnboardingTourId, departmentId: string) {
-    if (!toursSupportedOnViewport.value) return
+    if (!canStartToursOnViewport.value) return
     const tour = getOnboardingTour(tourId)
     if (!tour) return
     const firstStep = tour.steps[0]
@@ -280,6 +269,7 @@ export function useOnboardingTour() {
     expectsTargetClick,
     targetRect,
     toursSupportedOnViewport,
+    canStartToursOnViewport,
     startTour,
     next,
     skip,
