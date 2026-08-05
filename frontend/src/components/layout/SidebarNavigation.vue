@@ -23,7 +23,7 @@
     </div>
     
     <!-- Navigation Items -->
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" data-onboarding="sidebar-nav">
       <router-link
         v-if="isPendingAssignmentRoute"
         to="/pending-assignment"
@@ -40,6 +40,7 @@
         :to="mainDashboardLink"
         class="nav-item"
         :class="{ active: isMainDashboardNavActive }"
+        data-onboarding="nav-dashboard"
       >
         <v-icon icon="mdi-view-grid" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.dashboard') }}</span>
@@ -171,6 +172,7 @@
         :to="getLink('/activities')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('activities') }"
+        data-onboarding="nav-activities"
       >
         <v-icon icon="mdi-calendar" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
@@ -230,6 +232,7 @@
         :to="getLink('/materials')"
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
+        data-onboarding="nav-materials"
       >
         <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
@@ -252,6 +255,7 @@
         :to="getLink('/contacts')"
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
+        data-onboarding="nav-contacts"
       >
         <v-icon icon="mdi-account-group" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.contacts') }}</span>
@@ -263,6 +267,7 @@
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
+        data-onboarding="nav-tasks"
       >
         <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
@@ -274,6 +279,7 @@
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
+        data-onboarding="nav-notifications"
       >
         <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.notifications') }}</span>
@@ -333,6 +339,7 @@
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
+        data-onboarding="nav-settings"
       >
         <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
@@ -624,10 +631,10 @@ const helpNavLink = computed(() => {
   const depId = departmentId.value
   if (!depId) return getLink('/help/dokumentation')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
-    return getLink('/help/einrichtung')
+    return getLink('/help/tours')
   }
   if (canUseHelpEinrichtung(authStore, depId)) {
-    return getLink('/help/einrichtung')
+    return getLink('/help/tours')
   }
   return getLink('/help/dokumentation')
 })

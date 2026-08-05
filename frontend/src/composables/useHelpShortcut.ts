@@ -2,7 +2,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useDetailTabsStore } from '@/stores/detailTabs'
-import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
+import { canUseDepartmentOnboarding, canUseHelpTours } from '@/utils/onboardingGate'
 import { isOnboardingDone, readOnboardingState } from '@/utils/departmentOnboarding'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
@@ -31,10 +31,10 @@ export function useHelpShortcut() {
     const depId = departmentId.value
     if (!depId) return '/help/dokumentation'
 
-    const preferEinrichtung =
+    const preferTours =
       canUseDepartmentOnboarding(authStore, depId) && openChecklistCount(depId) > 0
-    if (preferEinrichtung || canUseHelpEinrichtung(authStore, depId)) {
-      return `/${depId}/help/einrichtung`
+    if (preferTours || canUseHelpTours(authStore, depId)) {
+      return `/${depId}/help/tours`
     }
     return `/${depId}/help/dokumentation`
   })

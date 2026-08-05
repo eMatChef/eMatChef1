@@ -86,7 +86,7 @@
     
     <!-- Right Section: Actions & User -->
     <div class="header-right" :class="{ 'header-right--compact': !smAndUp }">
-      <div class="search-wrapper" v-if="searchDepartmentId">
+      <div class="search-wrapper" v-if="searchDepartmentId" data-onboarding="header-search">
         <GlobalSearchInput
           ref="globalSearchRef"
           mode="icon"
@@ -289,10 +289,18 @@
 
       <!-- User Menu -->
       <div class="user-menu-wrapper">
-        <div class="user-menu" :class="{ 'user-menu--compact': !smAndUp }" @click.stop="toggleUserMenu">
-          <div class="user-avatar" :style="avatarStyle">
-            {{ userInitials }}
-          </div>
+        <div
+          class="user-menu"
+          :class="{ 'user-menu--compact': !smAndUp }"
+          data-onboarding="header-user-menu"
+          @click.stop="toggleUserMenu"
+        >
+          <UserAvatarBadge
+            :user="headerAvatarUser"
+            variant="profile"
+            size="sm"
+            :show-tooltip="false"
+          />
           <span v-if="smAndUp" class="user-name">{{ userName }}</span>
           <svg v-if="smAndUp" class="chevron-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M19 9l-7 7-7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -301,36 +309,19 @@
 
         <div v-if="showUserDropdown" class="user-dropdown">
         <div class="user-info">
-          <div class="user-avatar-large" :style="avatarStyle">
-            {{ userInitials }}
-          </div>
+          <UserAvatarBadge
+            :user="headerAvatarUser"
+            variant="profile"
+            size="lg"
+            :show-tooltip="false"
+          />
           <div class="user-details">
             <div class="user-name-full">{{ userFullName }}</div>
             <div class="user-email">{{ userEmail }}</div>
           </div>
         </div>
         <div class="dropdown-divider"></div>
-        <button class="dropdown-item" @click="editProfile">
-          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="12" cy="7" r="4" stroke-width="2"/>
-          </svg>
-          {{ t('layout.userMenu.editProfile') }}
-        </button>
-        <a
-          v-if="showDevicesScannerLink && devicesHomeUrl"
-          :href="devicesHomeUrl"
-          class="dropdown-item dropdown-item--link"
-          target="_blank"
-          rel="noopener noreferrer"
-          @click="showUserDropdown = false"
-        >
-          <v-icon icon="mdi-barcode-scan" class="item-icon item-icon--mdi" size="18" />
-          <span class="dept-switch-text">
-            {{ t('layout.userMenu.devicesScanner') }}
-            <span class="dept-switch-hint">{{ t('layout.userMenu.devicesScannerHint') }}</span>
-          </span>
-        </a>
+        <div data-onboarding="header-dept-switch">
         <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
           <span class="dropdown-section-label">{{ t('layout.userMenu.switchDepartment') }}</span>
         </button>
@@ -364,6 +355,34 @@
             <span class="dept-switch-hint">{{ authStore.activeSupplierCompanyName }}</span>
           </span>
         </button>
+        </div>
+        <div class="dropdown-divider"></div>
+        <button
+          type="button"
+          class="dropdown-item"
+          data-onboarding="header-edit-profile"
+          @click="editProfile"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="7" r="4" stroke-width="2"/>
+          </svg>
+          {{ t('layout.userMenu.editProfile') }}
+        </button>
+        <a
+          v-if="showDevicesScannerLink && devicesHomeUrl"
+          :href="devicesHomeUrl"
+          class="dropdown-item dropdown-item--link"
+          target="_blank"
+          rel="noopener noreferrer"
+          @click="showUserDropdown = false"
+        >
+          <v-icon icon="mdi-barcode-scan" class="item-icon item-icon--mdi" size="18" />
+          <span class="dept-switch-text">
+            {{ t('layout.userMenu.devicesScanner') }}
+            <span class="dept-switch-hint">{{ t('layout.userMenu.devicesScannerHint') }}</span>
+          </span>
+        </a>
         <div class="dropdown-divider"></div>
         <button class="dropdown-item logout" @click="doLogout">
           <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -396,10 +415,14 @@
 
         <form class="profile-modal-form" @submit.prevent="saveProfile">
           <div class="profile-modal-content">
-            <div class="profile-top-row">
-            <div class="user-avatar-large profile-avatar-preview" :style="profilePreviewStyle">
-              {{ profilePreviewInitials }}
-            </div>
+            <div class="profile-top-row" data-onboarding="profile-identity">
+            <UserAvatarBadge
+              class="profile-avatar-preview"
+              :user="profilePreviewAvatarUser"
+              variant="profile"
+              size="lg"
+              :show-tooltip="false"
+            />
             <div class="profile-top-fields">
               <label class="form-field">
                 <span>{{ t('layout.profileModal.lastName') }}</span>
@@ -450,7 +473,7 @@
             </div>
             </div>
 
-            <div class="profile-form-grid">
+            <div class="profile-form-grid" data-onboarding="profile-personal">
 
             <label class="form-field">
               <span>{{ t('layout.profileModal.nickname') }}</span>
@@ -477,8 +500,9 @@
                 <option value="it">{{ t('languageNames.it') }}</option>
               </select>
             </label>
+            </div>
 
-            <div class="form-field form-field-full">
+            <div class="form-field form-field-full" data-onboarding="profile-password">
               <span>{{ t('layout.profileModal.passwordSection') }}</span>
               <div class="profile-form-grid">
                 <label class="form-field">
@@ -513,7 +537,7 @@
               <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
             </div>
 
-            <div class="form-field form-field-full">
+            <div class="form-field form-field-full" data-onboarding="profile-colors">
               <span>{{ t('layout.profileModal.colorCombinations') }}</span>
               <div class="avatar-palette-wrap">
                 <div class="palette-row-label">{{ t('layout.profileModal.paletteWhiteInitials') }}</div>
@@ -545,37 +569,36 @@
                   </button>
                 </div>
               </div>
-            </div>
 
-            <label class="form-field">
-              <span>{{ t('layout.profileModal.backgroundColor') }}</span>
-              <div class="color-field">
-                <input v-model="profileForm.background_color" type="color" />
-                <input
-                  v-model="profileForm.background_color"
-                  type="text"
-                  maxlength="7"
-                  :placeholder="t('layout.profileModal.backgroundColorPlaceholder')"
-                />
-              </div>
-            </label>
+              <label class="form-field">
+                <span>{{ t('layout.profileModal.backgroundColor') }}</span>
+                <div class="color-field">
+                  <input v-model="profileForm.background_color" type="color" />
+                  <input
+                    v-model="profileForm.background_color"
+                    type="text"
+                    maxlength="7"
+                    :placeholder="t('layout.profileModal.backgroundColorPlaceholder')"
+                  />
+                </div>
+              </label>
 
-            <label class="form-field">
-              <span>{{ t('layout.profileModal.textColor') }}</span>
-              <div class="color-field">
-                <input v-model="profileForm.text_color" type="color" />
-                <input
-                  v-model="profileForm.text_color"
-                  type="text"
-                  maxlength="7"
-                  :placeholder="t('layout.profileModal.textColorPlaceholder')"
-                />
-              </div>
-            </label>
+              <label class="form-field">
+                <span>{{ t('layout.profileModal.textColor') }}</span>
+                <div class="color-field">
+                  <input v-model="profileForm.text_color" type="color" />
+                  <input
+                    v-model="profileForm.text_color"
+                    type="text"
+                    maxlength="7"
+                    :placeholder="t('layout.profileModal.textColorPlaceholder')"
+                  />
+                </div>
+              </label>
             </div>
           </div>
 
-            <div class="profile-modal-footer">
+          <div class="profile-modal-footer" data-onboarding="profile-save">
             <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
               <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
@@ -625,6 +648,8 @@ import {
 } from '../../api/publicFoundMessages'
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,
   listPathForDetailTab,
@@ -815,10 +840,19 @@ const userFullName = computed(() => {
   return authStore.userDisplayName
 })
 const userEmail = computed(() => authStore.userEmail)
-const avatarStyle = computed(() => ({
-  backgroundColor: authStore.userColors.background,
-  color: authStore.userColors.text,
-}))
+
+const headerAvatarUser = computed((): UserAvatarFields => {
+  const profile = authStore.profile
+  return {
+    first_name: profile?.firstName || profile?.first_name || '',
+    last_name: profile?.lastName || profile?.last_name || '',
+    nickname: profile?.nickname || '',
+    avatar_initials: profile?.avatarInitials || profile?.avatar_initials || userInitials.value,
+    background_color: authStore.userColors.background,
+    text_color: authStore.userColors.text,
+  }
+})
+
 const profilePreviewInitials = computed(() => {
   return buildAvatarInitials(
     profileForm.value.avatar_initials,
@@ -830,9 +864,13 @@ const profilePreviewInitials = computed(() => {
 const generatedInitialsTemplate = computed(() =>
   buildAvatarInitials('', profileForm.value.nickname, profileForm.value.first_name, profileForm.value.last_name)
 )
-const profilePreviewStyle = computed(() => ({
-  backgroundColor: normalizeHexColor(profileForm.value.background_color, '#EC4899'),
-  color: normalizeHexColor(profileForm.value.text_color, '#FFFFFF'),
+const profilePreviewAvatarUser = computed((): UserAvatarFields => ({
+  first_name: profileForm.value.first_name,
+  last_name: profileForm.value.last_name,
+  nickname: profileForm.value.nickname,
+  avatar_initials: profileForm.value.avatar_initials,
+  background_color: profileForm.value.background_color,
+  text_color: profileForm.value.text_color,
 }))
 const hasUnsavedProfileChanges = computed(() => {
   if (!initialProfileFormSnapshot.value) return false
@@ -2200,17 +2238,6 @@ watch(
   gap: 0;
 }
 
-.user-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 14px;
-}
-
 .user-name {
   font-size: 14px;
   font-weight: 500;
@@ -2596,17 +2623,6 @@ watch(
   gap: 12px;
 }
 
-.user-avatar-large {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 18px;
-}
-
 .user-details {
   flex: 1;
 }
@@ -2807,12 +2823,6 @@ watch(
   display: flex;
   justify-content: center;
   margin-bottom: 12px;
-}
-
-.profile-avatar-preview {
-  width: 54px;
-  height: 54px;
-  font-size: 20px;
 }
 
 .profile-top-row {

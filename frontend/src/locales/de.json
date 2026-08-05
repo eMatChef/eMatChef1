@@ -1381,8 +1381,9 @@
       "toDashboard": "Zum Dashboard"
     },
     "hub": {
-      "title": "Einrichtung",
-      "subtitle": "Checkliste und geführte Touren für dein Material-Department.",
+      "title": "Touren",
+      "subtitle": "Geführte Touren und Einrichtungs-Checkliste für Materialwart und Depchef.",
+      "subtitleMember": "Geführte Touren für Aktivitäten in deinem Department.",
       "progressLabel": "{done} von {total} erledigt",
       "checklistTitle": "Einrichtungs-Checkliste",
       "setupTitle": "Einrichtungsassistent",
@@ -1450,7 +1451,7 @@
     },
     "tours": {
       "start": "Tour starten",
-      "restart": "Tour wiederholen",
+      "restart": "Tour nochmals durchgehen",
       "next": "Weiter",
       "skip": "Tour beenden",
       "finish": "Fertig",
@@ -1459,9 +1460,48 @@
       "clickTargetHint": "Klicke auf den markierten Bereich, um fortzufahren.",
       "categoryDone": "{done}/{total} erledigt",
       "categories": {
+        "start": "Einstieg",
         "material": "Material",
         "activities": "Aktivitäten",
         "settings": "Einstellungen"
+      },
+      "profileOverview": {
+        "title": "Profil & Überblick",
+        "description": "Avatar und Profildaten ergänzen und sehen, was wo in der App liegt.",
+        "step1Title": "Navigation",
+        "step1Body": "Links siehst du die Bereiche der App. Wenn du mit der Maus über das Menü fährst, erscheinen die Bezeichnungen neben den Symbolen.",
+        "step2Title": "Dashboard",
+        "step2Body": "Hier siehst du deine anstehenden Aktivitäten und hast Schnellzugriff auf «Aktivität erstellen» und «Schaden melden».",
+        "step3Title": "Aktivitäten",
+        "step3Body": "Übersicht aller Aktivitäten und Möglichkeit, neue anzulegen. Das Anlegen Schritt für Schritt lernst du in der separaten Tour «Aktivität anlegen».",
+        "step4Title": "Materialien",
+        "step4Body": "Übersicht über das Material im Lager. Über das Auge-Symbol öffnest du die Detailansicht eines Artikels.",
+        "step5Title": "Kontakte",
+        "step5Body": "Kontakte und Eventstandorte. Hier kannst du auch eine neue Adresse anlegen.",
+        "step6Title": "Aufgaben",
+        "step6Body": "Deine offenen Aufgaben — zum Beispiel wenn eine Aktivität deine Aufmerksamkeit braucht.",
+        "step7Title": "Nachrichten",
+        "step7Body": "Hier erscheinen Nachrichten, wenn etwas passiert, du etwas erledigen musst oder Material zum Mitnehmen bereitsteht.",
+        "step8Title": "Einstellungen",
+        "step8Body": "Dein Department ansehen und das primäre (Haupt-)Department festlegen. Unter Gruppen siehst du, wer in welcher Gruppe ist.",
+        "step9Title": "Suche",
+        "step9Body": "Oben rechts suchst du schnell nach Aktivitäten, Material und mehr.",
+        "step10Title": "Dein Avatar",
+        "step10Body": "Dein Avatar mit Initialen und Farbe. Klicke darauf, um das Benutzermenü zu öffnen.",
+        "step11Title": "Department wechseln",
+        "step11Body": "Hier wechselst du zwischen Departments bzw. Abteilungen, wenn du in mehreren dabei bist.",
+        "step12Title": "Profil bearbeiten",
+        "step12Body": "Öffne «Profil bearbeiten», um Name, Avatar und weitere Angaben anzupassen.",
+        "step13Title": "Name & E-Mail",
+        "step13Body": "Nachname, Vorname und E-Mail. Wenn du die E-Mail änderst, musst du die neue Adresse per Bestätigungs-Mail freigeben.",
+        "step14Title": "Spitzname, Initialen & Sprache",
+        "step14Body": "Spitzname und Initialen erscheinen auf deinem Avatar. Die Sprache gilt für die ganze App.",
+        "step15Title": "Passwort",
+        "step15Body": "Hier kannst du dein Passwort ändern — nur nötig, wenn du es aktualisieren willst.",
+        "step16Title": "Avatar-Farben",
+        "step16Body": "Wähle Hintergrund- und Textfarbe für deinen Avatar — so wirst du in Listen und Gruppen erkannt.",
+        "step17Title": "Speichern",
+        "step17Body": "Speichere deine Angaben. Am besten vollständig ausfüllen — die Daten werden wiederverwendet, z. B. bei J+S-Lagerbestellungen, damit du nicht jedes Mal neu tippen musst."
       },
       "materialCreate": {
         "title": "Material erfassen",
@@ -9230,6 +9270,7 @@
   "help": {
     "menuTitle": "Hilfe",
     "nav": {
+      "tours": "Touren",
       "einrichtung": "Einrichtung",
       "dokumentation": "Dokumentation",
       "overview": "Dokumentation"

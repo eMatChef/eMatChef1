@@ -24,8 +24,8 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import {
-  canUseHelpEinrichtung,
-  isHelpEinrichtungPath,
+  canUseHelpTours,
+  isHelpToursPath,
 } from '@/utils/onboardingGate'
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
@@ -1443,8 +1443,9 @@ const routes: RouteRecordRaw[] = [
             }),
           },
           {
-            path: 'einrichtung',
-            name: 'HelpEinrichtung',
+            path: 'tours',
+            name: 'HelpTours',
+            alias: ['einrichtung'],
             component: () => import('@/views/onboarding/OnboardingHubView.vue'),
             meta: {
               requireDepartmentRoles: [
@@ -1459,7 +1460,7 @@ const routes: RouteRecordRaw[] = [
                 'user',
               ],
               denyRedirectTo: { name: 'HelpDokumentation' },
-              ...routeHead('helpEinrichtung'),
+              ...routeHead('helpTours'),
             },
           },
           {
@@ -2039,9 +2040,9 @@ router.beforeEach(async (to, from, next) => {
 
   const deptIdForOnboarding = to.params.departmentId as string | undefined
   if (deptIdForOnboarding && authStore.isLoggedIn && !isSuperAdmin()) {
-    const onHelpEinrichtung = isHelpEinrichtungPath(to.path, deptIdForOnboarding)
+    const onHelpTours = isHelpToursPath(to.path, deptIdForOnboarding)
 
-    if (onHelpEinrichtung && !canUseHelpEinrichtung(authStore, deptIdForOnboarding)) {
+    if (onHelpTours && !canUseHelpTours(authStore, deptIdForOnboarding)) {
       return next({
         name: 'HelpDokumentation',
         params: { departmentId: deptIdForOnboarding },

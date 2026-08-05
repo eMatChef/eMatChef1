@@ -1,7 +1,7 @@
 <template>
   <PageShell
     :title="t('onboarding.hub.title')"
-    :subtitle="t('onboarding.hub.subtitle')"
+    :subtitle="hubSubtitle"
     max-width="1200px"
   >
     <div v-if="isLoading" class="hub-muted">{{ t('common.loading') }}</div>
@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import PageShell from '@/components/layout/PageShell.vue'
@@ -147,6 +147,12 @@ const confirm = useConfirm()
 const toast = useToast()
 const { canUseSetupChecklist } = useDepartmentOnboardingAccess()
 const { shortcutVisible } = useHelpShortcut()
+
+const hubSubtitle = computed(() =>
+  canUseSetupChecklist.value
+    ? t('onboarding.hub.subtitle')
+    : t('onboarding.hub.subtitleMember')
+)
 
 const {
   departmentId,

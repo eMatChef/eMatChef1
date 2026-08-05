@@ -1257,8 +1257,9 @@
       "toDashboard": "Go to dashboard"
     },
     "hub": {
-      "title": "Setup",
-      "subtitle": "Checklist and guided tours for your material department.",
+      "title": "Tours",
+      "subtitle": "Guided tours and setup checklist for material managers.",
+      "subtitleMember": "Guided tours for activities in your department.",
       "progressLabel": "{done} of {total} done",
       "checklistTitle": "Setup checklist",
       "setupTitle": "Setup assistant",
@@ -1326,7 +1327,7 @@
     },
     "tours": {
       "start": "Start tour",
-      "restart": "Repeat tour",
+      "restart": "Go through tour again",
       "next": "Next",
       "skip": "End tour",
       "finish": "Done",
@@ -1335,9 +1336,48 @@
       "clickTargetHint": "Click the highlighted area to continue.",
       "categoryDone": "{done}/{total} done",
       "categories": {
+        "start": "Getting started",
         "material": "Material",
         "activities": "Activities",
         "settings": "Settings"
+      },
+      "profileOverview": {
+        "title": "Profile & overview",
+        "description": "Complete your avatar and profile, and see where things live in the app.",
+        "step1Title": "Navigation",
+        "step1Body": "On the left you find the app areas. Move the mouse over the menu to show the labels next to the icons.",
+        "step2Title": "Dashboard",
+        "step2Body": "Here you see your upcoming activities and quick actions to create an activity or report damage.",
+        "step3Title": "Activities",
+        "step3Body": "Overview of all activities and a way to create new ones. Step-by-step creation is covered in the separate «Create activity» tour.",
+        "step4Title": "Materials",
+        "step4Body": "Overview of stock in the warehouse. Use the eye icon to open an item’s detail view.",
+        "step5Title": "Contacts",
+        "step5Body": "Contacts and event locations. You can also create a new address here.",
+        "step6Title": "Tasks",
+        "step6Body": "Your open tasks — for example when an activity needs your attention.",
+        "step7Title": "Messages",
+        "step7Body": "Messages appear when something happens, you need to act, or material is ready to pick up.",
+        "step8Title": "Settings",
+        "step8Body": "View your department and set the primary (main) department. Under Groups you see who belongs where.",
+        "step9Title": "Search",
+        "step9Body": "Top right you can quickly search activities, material and more.",
+        "step10Title": "Your avatar",
+        "step10Body": "Your avatar with initials and colour. Click it to open the user menu.",
+        "step11Title": "Switch department",
+        "step11Body": "Here you switch between departments if you belong to more than one.",
+        "step12Title": "Edit profile",
+        "step12Body": "Open «Edit profile» to update name, avatar and other details.",
+        "step13Title": "Name & email",
+        "step13Body": "Last name, first name and email. If you change the email, you must confirm the new address via a verification email.",
+        "step14Title": "Nickname, initials & language",
+        "step14Body": "Nickname and initials appear on your avatar. Language applies to the whole app.",
+        "step15Title": "Password",
+        "step15Body": "Change your password here — only when you want to update it.",
+        "step16Title": "Avatar colours",
+        "step16Body": "Choose background and text colour for your avatar so you are recognised in lists and groups.",
+        "step17Title": "Save",
+        "step17Body": "Save your details. Preferably fill them in completely — they are reused, e.g. for J+S camp orders, so you do not have to type everything again."
       },
       "materialCreate": {
         "title": "Capture material",
@@ -6619,6 +6659,7 @@
   "help": {
     "menuTitle": "Help",
     "nav": {
+      "tours": "Tours",
       "einrichtung": "Setup",
       "dokumentation": "Documentation",
       "overview": "Documentation"
