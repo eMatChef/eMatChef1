@@ -13,6 +13,22 @@
         <OnboardingTourList />
       </section>
 
+      <section class="hub-shortcut-section">
+        <h2 class="hub-section-heading">{{ t('onboarding.hub.shortcutTitle') }}</h2>
+        <p class="hub-muted hub-panel-lead">{{ t('onboarding.hub.shortcutLead') }}</p>
+        <label class="hub-shortcut">
+          <v-switch
+            v-model="shortcutVisible"
+            color="primary"
+            hide-details
+            density="compact"
+            :aria-label="t('onboarding.hub.shortcutToggle')"
+          />
+          <span class="hub-shortcut__label">{{ t('onboarding.hub.shortcutToggle') }}</span>
+        </label>
+        <p class="hub-shortcut-hint">{{ t('onboarding.hub.shortcutHint') }}</p>
+      </section>
+
       <v-expansion-panels
         v-if="canUseSetupChecklist"
         v-model="expandedPanels"
@@ -120,6 +136,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import { useOnboardingChecklist, type OnboardingChecklistRow } from '@/composables/useOnboardingChecklist'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
+import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { resolveChecklistItemRoute } from '@/utils/onboardingChecklist'
 
 defineOptions({ name: 'OnboardingHubView' })
@@ -129,6 +146,7 @@ const router = useRouter()
 const confirm = useConfirm()
 const toast = useToast()
 const { canUseSetupChecklist } = useDepartmentOnboardingAccess()
+const { shortcutVisible } = useHelpShortcut()
 
 const {
   departmentId,
@@ -209,6 +227,34 @@ async function skipChecklistItem(item: OnboardingChecklistRow) {
 <style scoped>
 .hub-tours-section {
   margin-bottom: 20px;
+}
+
+.hub-shortcut-section {
+  margin-bottom: 20px;
+  padding: 1rem 1.15rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.hub-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.hub-shortcut__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.hub-shortcut-hint {
+  margin: 0.5rem 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.45;
 }
 
 .hub-section-heading {
