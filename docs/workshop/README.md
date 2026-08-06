@@ -209,9 +209,11 @@ Bei manueller Ticket-Erstellung vom Typ `repair`:
 - Serialisiert: Batch-Status → `defect`
 - Bulk: Stamm → `repair`, wenn `affected_quantity >= total_stock`
 
-### 4. Aktivitäts-Abschluss als Gate
+### 4. Aktivitäts-Abschluss vs. Buchhaltung
 
-Eine Aktivität kann **nicht abgeschlossen** werden, solange offene Werkstatt-Tickets existieren — neben offenen Meldungen, nicht eingelagertem Material und ausstehender Buchhaltung (`ActivityController::hasCompletionBlockers`).
+**Ist (Phase 1):** Aktivität blockiert **nicht** mehr bei offenen Werkstatt-Tickets / pending Buchhaltung — nur bei fehlender Material-Disposition (`unstored_pack_items`).
+
+**Modell** ([accounting.md — Zwei Abschlüsse](../accounting.md#zwei-abschlüsse-kernmodell)): Aktivität `completed`, sobald Material geklärt ist (eingelagert oder Verlust/Reparatur **gemeldet**). Offene Tickets blockieren den Aktivitäts-Abschluss **nicht**. Effektive Kosten → Follow-up erst nach Ticket-Abschluss mit `actual_cost`. In der Buchhaltung erscheinen offene Tickets als Vorschau **«Kosten folgen»** (Phase 5, [accounting.md](../accounting.md#buchhaltung-kosten-folgen-offene-werkstatt)).
 
 ---
 

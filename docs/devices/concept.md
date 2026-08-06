@@ -111,7 +111,7 @@ Konfiguration (geplant): `VITE_DEVICES_HOST`, `isDevicesHost()`, Router-Subset, 
 | Regel | Umsetzung |
 |--------|-----------|
 | **Ein Gerät = eine Abteilung** | Nach Login Abteilung wählen/pinnen (`activeDepartment`); Startscreen ohne erneute Wahl |
-| **Login zu Schichtbeginn** | Einmal auf `devices.`; Cookie `.ematchef.ch` / lokal `.ematchef.test` |
+| **Login zu Schichtbeginn** | Heute: einmal auf `devices.` (User-JWT). **Geplant:** Gerät per QR koppeln, Alltag **User + PIN** — [device-pairing-and-sessions.md](./device-pairing-and-sessions.md) |
 | **Eine Pack-Session pro Gerät** | Eine Aktivität aktiv; Wechsel per Aktivitäts-QR |
 | **Minimal Design** | Keine Sidebar, klare Farben (grün/rot/gelb), wenig Dekoration |
 
@@ -203,6 +203,7 @@ Vor MVP mit Fachbereich klären:
 2. Packen vor allem **lose** oder fast immer in **Kisten/Container**?
 3. Sollen **Smartphones** im Lager mitpacken oder nur Fortschritt zeigen?
 4. Presence („wer dran“) in v1 oder v1.5?
+5. **Geräte-Auth:** QR-Kopplung + User-PIN (siehe [device-pairing-and-sessions.md](./device-pairing-and-sessions.md)) — nach stabilem Pack-MVP?
 
 ---
 
@@ -210,5 +211,6 @@ Vor MVP mit Fachbereich klären:
 
 - [pack-workflow.md](./pack-workflow.md) — Ablauf Hin/Retour im Detail
 - [rollout-plan.md](./rollout-plan.md) — Phasen D0–D8
+- [device-pairing-and-sessions.md](./device-pairing-and-sessions.md) — QR-Kopplung, User-PIN, Session-Tracking
 - [zebra-tc700h.md](./zebra-tc700h.md) — Handheld
 - [datalogic-powerscan.md](./datalogic-powerscan.md) — Pistole am PC

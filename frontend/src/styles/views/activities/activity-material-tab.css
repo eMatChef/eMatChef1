@@ -2,6 +2,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .activity-material-tab .activity-tab-panel-card,
@@ -9,6 +11,8 @@
   border-radius: 10px;
   border: 1px solid #e5e7eb;
   box-shadow: none;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .activity-material-tab-hint {

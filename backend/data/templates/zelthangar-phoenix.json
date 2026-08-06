@@ -1,0 +1,193 @@
+{
+  "format_version": 5,
+  "manufacturer": "Zelthangar",
+  "templates": [
+    {
+      "name": "Zelthangar Phoenix",
+      "model": "Phoenix",
+      "description": "Konfigurator-Vorlage: Außenzelt/Plane + wählbares Innenzelt (Beispiel für System-Vorlagen mit option_groups). Mengen/Typen fachlich nachziehen.",
+      "capacity": 16,
+      "tentType": "gruppenzelt",
+      "materialType": "virtual_combo",
+      "template_kind": "configurator",
+      "template_domain": "tent",
+      "isActive": true,
+      "source": "zelthangar",
+      "components": [
+        {
+          "type": "aussenzelt",
+          "name": "Außenzelt",
+          "required": 1,
+          "optional": false,
+          "tracking": "serialized",
+          "component_source": "stock",
+          "is_generic": false,
+          "repair_types": ["loch", "riss"]
+        },
+        {
+          "type": "heringe",
+          "name": "Heringe",
+          "required": 12,
+          "optional": false,
+          "tracking": "bulk",
+          "component_source": "stock",
+          "is_generic": true
+        },
+        {
+          "type": "schnuere",
+          "name": "Schnüre",
+          "required": 8,
+          "optional": false,
+          "tracking": "bulk",
+          "component_source": "stock",
+          "is_generic": true
+        }
+      ],
+      "related_accessories": [
+        {
+          "name": "Transporttasche",
+          "component_type": "tasche",
+          "is_generic": true,
+          "sort_order": 0
+        }
+      ],
+      "option_groups": [
+        {
+          "id": "g0",
+          "name": "Innenzelt",
+          "selection_type": "exclusive",
+          "min_select": 0,
+          "max_select": 1,
+          "sort_order": 0
+        },
+        {
+          "id": "g1",
+          "name": "Aufbau",
+          "selection_type": "exclusive",
+          "min_select": 0,
+          "max_select": 1,
+          "sort_order": 1
+        }
+      ],
+      "options": [
+        {
+          "name": "6er Innenzelt",
+          "display_mode": "group",
+          "option_group_id": "g0",
+          "default_selected": true,
+          "sort_order": 0,
+          "deltas": [
+            {
+              "component_type": "innenzelt_6",
+              "name": "Innenzelt 6er",
+              "qty_delta": 1,
+              "tracking": "serialized",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 0
+            }
+          ]
+        },
+        {
+          "name": "2. Innenzelt (+Heringe/Schnüre)",
+          "display_mode": "group",
+          "option_group_id": "g0",
+          "default_selected": false,
+          "sort_order": 1,
+          "deltas": [
+            {
+              "component_type": "innenzelt_6",
+              "name": "Innenzelt 6er",
+              "qty_delta": 2,
+              "tracking": "serialized",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 0
+            },
+            {
+              "component_type": "heringe",
+              "name": "Heringe",
+              "qty_delta": 12,
+              "tracking": "bulk",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 1
+            },
+            {
+              "component_type": "schnuere",
+              "name": "Schnüre",
+              "qty_delta": 4,
+              "tracking": "bulk",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 2
+            }
+          ]
+        },
+        {
+          "name": "Hochstelleinheit",
+          "display_mode": "group",
+          "option_group_id": "g1",
+          "default_selected": false,
+          "sort_order": 0,
+          "deltas": [
+            {
+              "component_type": "hochstelleinheit",
+              "name": "Hochstelleinheit",
+              "qty_delta": 1,
+              "tracking": "bulk",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 0
+            }
+          ]
+        },
+        {
+          "name": "Vorzelt",
+          "display_mode": "group",
+          "option_group_id": "g1",
+          "default_selected": false,
+          "sort_order": 1,
+          "deltas": [
+            {
+              "component_type": "vorzelt",
+              "name": "Vorzelt",
+              "qty_delta": 1,
+              "tracking": "serialized",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 0
+            }
+          ]
+        },
+        {
+          "name": "Ecken entfernen (−Schnüre/Heringe)",
+          "display_mode": "toggle",
+          "option_group_id": null,
+          "default_selected": false,
+          "sort_order": 10,
+          "deltas": [
+            {
+              "component_type": "heringe",
+              "name": "Heringe",
+              "qty_delta": -4,
+              "tracking": "bulk",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 0
+            },
+            {
+              "component_type": "schnuere",
+              "name": "Schnüre",
+              "qty_delta": -2,
+              "tracking": "bulk",
+              "component_source": "stock",
+              "is_generic": true,
+              "sort_order": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

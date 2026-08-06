@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\AccountingCostCenter;
 use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\Department;
+use App\Service\Accounting\AccountingCostCenterBootstrapService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -19,7 +20,8 @@ class AccountingCostCenterController extends AbstractController
     use AccountingMwOrDcTrait;
 
     public function __construct(
-        private EntityManagerInterface $entityManager
+        private EntityManagerInterface $entityManager,
+        private AccountingCostCenterBootstrapService $costCenterBootstrap,
     ) {
     }
 
@@ -89,6 +91,28 @@ class AccountingCostCenterController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse($this->serialize($c), 201);
+    }
+
+    /**
+     * Idempotent: fehlende Standard-Kostenstellen und Zuordnungsregeln anlegen.
+     */
+    #[Route('/bootstrap', name: 'bootstrap', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function bootstrap(string $departmentId): JsonResponse
+    {
+        $deny = $this->assertAccountingMwOrDc($this->entityManager, $departmentId);
+        if ($deny instanceof JsonResponse) {
+            return $deny;
+        }
+
+        $dept = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$dept) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+
+        $result = $this->costCenterBootstrap->ensureDefaults($this->entityManager, $dept);
+
+        return new JsonResponse($result);
     }
 
     #[Route('/{id}', name: 'update', methods: ['PATCH'])]

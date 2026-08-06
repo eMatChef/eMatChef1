@@ -31,7 +31,7 @@
           <div class="material-wizard-content">
             <div ref="wizardFormRef" class="material-wizard-form">
               <ActivityTypeChips
-                v-if="showActivityTypePicker"
+                v-if="showTypeChips"
                 :selected="selectedActivityType"
                 @select="onSelectActivityType"
               />
@@ -131,6 +131,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { EButton } from '@/components/form/base'
 import { useMdAndUp } from '@/composables/useMdAndUp'
 import { useDisplayHostClasses } from '@/composables/useDisplayHostClasses'
@@ -161,6 +162,7 @@ import {
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { ONBOARDING_TOUR_QUERY } from '@/config/onboardingTours'
 import {
   expandMaterialLinesForSummary,
   formatMaterialSummaryEntries,
@@ -184,6 +186,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const route = useRoute()
 const mdAndUp = useMdAndUp()
 const smAndUp = useSmAndUp()
 const wizardHostClasses = useDisplayHostClasses('activity-create-wizard-host')
@@ -206,6 +209,15 @@ const {
   showActivityTypePicker,
 } = useActivityGroupMemberScope()
 
+/** Während Aktivitäts-Touren Typ-Chips zeigen, auch wenn nur ein Typ erlaubt ist. */
+const activityTourForcesTypePicker = computed(() => {
+  const tourId = route.query[ONBOARDING_TOUR_QUERY]
+  return tourId === 'activity-create' || tourId === 'activity-camp-create'
+})
+
+const showTypeChips = computed(
+  () => showActivityTypePicker.value || activityTourForcesTypePicker.value
+)
 const showDialog = computed({
   get: () => props.modelValue,
   set: (v: boolean) => emit('update:modelValue', v),
@@ -725,7 +737,11 @@ watch(
       await loadGroupsForDepartment(props.departmentId)
       const wizardGroups = wizardGroupsForUser(scopeGroups.value)
       const allowed = allowedCreateActivityTypes.value
-      if (!selectedActivityType.value && allowed.length === 1) {
+      if (
+        !selectedActivityType.value &&
+        allowed.length === 1 &&
+        !activityTourForcesTypePicker.value
+      ) {
         onSelectActivityType(allowed[0])
       }
       setWizardGroups(wizardGroups)

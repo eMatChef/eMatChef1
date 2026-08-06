@@ -64,6 +64,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { deletePendingInvite, getDepartmentInvite, getPendingInvites, regenerateDepartmentInvite, type DepartmentInviteData, type PendingInvite } from '@/api/joinRequests'
@@ -73,6 +74,7 @@ import QRCode from 'qrcode'
 
 const route = useRoute()
 const authStore = useAuthStore()
+const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const { t } = useI18n()
@@ -102,13 +104,9 @@ const canManageJoinCode = computed(() => {
   return ['dc', 'depchef', 'mw', 'matwart', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(normalizedRole)
 })
 
-const roleNames: Record<string, string> = {
-  sa: 'Superadmin', superadmin: 'Superadmin', org: 'Organisationschef', organisationschef: 'Organisationschef',
-  sub: 'Suborgchef', suborgchef: 'Suborgchef', mw: 'Materialchef', matwart: 'Materialchef', dc: 'Departmentchef',
-  depchef: 'Departmentchef', l1: 'Leiter 1', leader1: 'Leiter 1', l2: 'Leiter 2', leader2: 'Leiter 2',
-  l3: 'Leiter 3', leader3: 'Leiter 3', u: 'Mitglied', user: 'Mitglied',
+function formatRole(role: string): string {
+  return roleLabelsStore.labelFor(role, selectedDepartmentId.value, t)
 }
-function formatRole(role: string): string { return roleNames[String(role).toLowerCase().trim()] || role }
 
 async function loadInviteCode(deptId: string) {
   if (!canManageJoinCode.value) {

@@ -15,6 +15,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentResetService;
+use App\Service\DepartmentRoleLabelService;
 use App\Service\DevEnvironmentService;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
@@ -41,6 +42,7 @@ class DepartmentController extends AbstractController
         private VerificationEmailService $verificationEmailService,
         private AdminCapabilityChecker $adminCapabilityChecker,
         private GrossanlassDepartmentCreateService $grossanlassDepartmentCreateService,
+        private DepartmentRoleLabelService $departmentRoleLabelService,
     ) {}
 
     /**
@@ -819,7 +821,7 @@ class DepartmentController extends AbstractController
                     $profile->getDisplayName(),
                     $adderName,
                     $department->getName(),
-                    $this->labelForMemberRole($membership->getRole()),
+                    $this->departmentRoleLabelService->labelForRole($membership->getRole(), $department->getId()),
                     $department->getId(),
                     $department->isGrossanlass(),
                     $profile->getLanguage()
@@ -839,18 +841,6 @@ class DepartmentController extends AbstractController
             'is_primary' => $membership->getIsPrimary(),
             'notification_email_sent' => $notificationEmailSent,
         ], 201);
-    }
-
-    private function labelForMemberRole(string $role): string
-    {
-        return match (strtolower(trim($role))) {
-            'mw' => 'Materialchef',
-            'dc' => 'Departmentchef',
-            'l1' => 'Leiter 1',
-            'l2' => 'Leiter 2',
-            'l3' => 'Leiter 3',
-            default => 'Mitglied',
-        };
     }
 
     /**

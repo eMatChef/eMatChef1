@@ -93,3 +93,31 @@
 .pack-crate-shell-check-line:last-child {
   margin-bottom: 0;
 }
+
+.pack-crate-shell-check-line--ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.pack-crate-shell-check-line--short {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.pack-crate-shell-check-line--surplus {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.pack-crate-shell-check-line--pending {
+  border-color: #e2e8f0;
+  background: #fafafa;
+}
+
+.pack-crate-shell-check-line__actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}

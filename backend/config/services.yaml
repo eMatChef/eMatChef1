@@ -11,8 +11,8 @@ parameters:
     env(TURNSTILE_SKIP_VERIFY): '0'
     # 1 = Dev-Tools auf Develop-Droplet (DB-Reset etc.) trotz APP_ENV=prod
     env(EMATCHEF_DEV_TOOLS): '0'
-    # Sprachen: de|fr|it|en|ch-rm = Hauptsprachen; de-pfadi|de-cevi = Untervarianten (Delta zu de) — siehe docs/TRANSLATION.md
-    app.supported_languages: ['de', 'de-pfadi', 'de-cevi', 'en', 'fr', 'it', 'ch-rm']
+    # Sprachen: de|fr|it|en|ch-rm = Hauptsprachen; de|fr|it × pfadi|cevi|jubla = Org-Deltas — siehe docs/TRANSLATION.md
+    app.supported_languages: ['de', 'de-pfadi', 'de-cevi', 'de-jubla', 'en', 'fr', 'fr-pfadi', 'fr-cevi', 'fr-jubla', 'it', 'it-pfadi', 'it-cevi', 'it-jubla', 'ch-rm']
     app.default_language: 'de'
 
 services:

@@ -563,32 +563,91 @@
                     </template>
 
           <!-- EAN / Fremdbarcode an der Charge -->
-          <div class="batch-form-row">
-            <div class="batch-form-group">
+          <div class="batch-form-stack">
+            <div class="batch-form-group full-width">
               <label>
                 {{ t('components.materialDetail.labelCode') }}
                 <span class="optional-label">({{ t('common.optional') }})</span>
               </label>
-              <input
-                v-model="form.barcode_tag"
-                type="text"
-                class="batch-form-input"
-                :placeholder="t('components.materialDetail.codePlaceholder')"
-              />
+              <div
+                class="batch-scan-shell"
+                :class="{ 'batch-scan-shell--active': codeScannerTarget === 'barcode_tag' }"
+              >
+                <button
+                  type="button"
+                  class="batch-scan-btn"
+                  :class="{ 'batch-scan-btn--active': codeScannerTarget === 'barcode_tag' }"
+                  :title="
+                    codeScannerTarget === 'barcode_tag'
+                      ? t('components.batchModal.stopScan')
+                      : t('components.batchModal.scanCodeTitle')
+                  "
+                  :aria-label="
+                    codeScannerTarget === 'barcode_tag'
+                      ? t('components.batchModal.stopScan')
+                      : t('components.batchModal.scanCodeTitle')
+                  "
+                  @click="toggleCodeScanner('barcode_tag')"
+                >
+                  <v-icon icon="mdi-barcode-scan" size="20" />
+                </button>
+                <input
+                  v-model="form.barcode_tag"
+                  type="text"
+                  class="batch-scan-shell__input"
+                  :placeholder="t('components.materialDetail.codePlaceholder')"
+                />
+              </div>
             </div>
-            <div class="batch-form-group">
+            <div class="batch-form-group full-width">
               <label>
                 {{ t('components.materialDetail.labelEan') }}
                 <span class="optional-label">({{ t('common.optional') }})</span>
               </label>
-              <input
-                v-model="form.ean"
-                type="text"
-                class="batch-form-input"
-                :placeholder="t('components.batchModal.eanPlaceholder')"
-              />
+              <div
+                class="batch-scan-shell"
+                :class="{ 'batch-scan-shell--active': codeScannerTarget === 'ean' }"
+              >
+                <button
+                  type="button"
+                  class="batch-scan-btn"
+                  :class="{ 'batch-scan-btn--active': codeScannerTarget === 'ean' }"
+                  :title="
+                    codeScannerTarget === 'ean'
+                      ? t('components.batchModal.stopScan')
+                      : t('components.batchModal.scanEanTitle')
+                  "
+                  :aria-label="
+                    codeScannerTarget === 'ean'
+                      ? t('components.batchModal.stopScan')
+                      : t('components.batchModal.scanEanTitle')
+                  "
+                  @click="toggleCodeScanner('ean')"
+                >
+                  <v-icon icon="mdi-barcode-scan" size="20" />
+                </button>
+                <input
+                  v-model="form.ean"
+                  type="text"
+                  class="batch-scan-shell__input"
+                  :placeholder="t('components.batchModal.eanPlaceholder')"
+                />
+              </div>
             </div>
           </div>
+          <BarcodeScannerPanel
+            v-if="codeScannerTarget"
+            :active="Boolean(codeScannerTarget)"
+            mode="1d"
+            :hint="
+              codeScannerTarget === 'ean'
+                ? t('components.batchModal.scanEanHint')
+                : t('components.batchModal.scanCodeHint')
+            "
+            class="batch-code-scanner"
+            @detected="onCodeDetected"
+            @error="onSerialScannerError"
+          />
 
           <!-- Auf mehrere Lagerplätze aufteilen (nur bei Bulk) -->
           <div v-if="!isSerializedMaterial" class="form-row mb-2">
@@ -1012,6 +1071,8 @@ watch(dialogOpen, (open) => {
 })
 
 function closeDialog() {
+  serialScannerActive.value = false
+  codeScannerTarget.value = null
   dialogOpen.value = false
 }
 
@@ -1346,6 +1407,8 @@ const autoGenPad = ref(3)
 const autoGenCount = ref(5)
 const serialScannerActive = ref(false)
 const serialScannerTargetId = ref<number | null>(null)
+type CodeScannerTarget = 'barcode_tag' | 'ean'
+const codeScannerTarget = ref<CodeScannerTarget | null>(null)
 
 interface SerialNumberEntry {
   id: number
@@ -1552,6 +1615,7 @@ function setStockLocationMode(mode: 'slot' | 'kiste') {
 }
 
 function toggleSerialScanner() {
+  codeScannerTarget.value = null
   if (serialScannerActive.value) {
     serialScannerActive.value = false
     return
@@ -1566,8 +1630,26 @@ function toggleSerialScanner() {
 }
 
 function openSerialScannerFor(id: number) {
+  codeScannerTarget.value = null
   serialScannerTargetId.value = id
   serialScannerActive.value = true
+}
+
+function toggleCodeScanner(target: CodeScannerTarget) {
+  serialScannerActive.value = false
+  serialScannerTargetId.value = null
+  codeScannerTarget.value = codeScannerTarget.value === target ? null : target
+}
+
+function onCodeDetected(payload: { text: string }) {
+  const value = payload.text.trim()
+  if (!value || !codeScannerTarget.value) return
+  if (codeScannerTarget.value === 'ean') {
+    form.ean = value
+  } else {
+    form.barcode_tag = value
+  }
+  codeScannerTarget.value = null
 }
 
 function onSerialDetected(payload: { text: string }) {
@@ -1680,6 +1762,61 @@ function applyComboStorageDefaults(): void {
   if (rack?.storage_address_id) {
     form.storage_address_id = rack.storage_address_id
   }
+}
+
+/** Edit-Modus: bestehende Allokationen in Split-Zeilen bzw. Einzel-Picker übernehmen. */
+function applyBatchAllocationsToForm(batch: MaterialBatch): void {
+  const allocs = Array.isArray(batch.allocations) ? batch.allocations : []
+  if (allocs.length === 0) return
+
+  const rows: AllocationRow[] = allocs.map((alloc) => {
+    const containerId = String(alloc.container_batch_id || alloc.container_batch?.id || '').trim()
+    if (containerId) {
+      return {
+        id: ++allocationIdCounter,
+        mode: 'kiste',
+        storage_address_id: '',
+        rack_id: '',
+        slot_id: '',
+        container_batch_id: containerId,
+        qty: Math.max(0, Number(alloc.qty || 0)),
+      }
+    }
+    const rackId = String(alloc.rack_id || alloc.rack?.id || '').trim()
+    const slotId = String(alloc.slot_id || alloc.slot?.id || '').trim()
+    const rack = racks.value.find((r) => String(r.id) === rackId)
+    return {
+      id: ++allocationIdCounter,
+      mode: 'slot',
+      storage_address_id: rack?.storage_address_id || '',
+      rack_id: rackId,
+      slot_id: slotId,
+      container_batch_id: '',
+      qty: Math.max(0, Number(alloc.qty || 0)),
+    }
+  })
+
+  const allocSum = rows.reduce((sum, r) => sum + (r.qty || 0), 0)
+  const hasContainer = rows.some((r) => r.mode === 'kiste')
+  // Mehrere Plätze, Kiste/Tasche oder Restmenge → Split-UI (Einzel-Picker kann keine Kiste)
+  const useSplit = rows.length > 1 || hasContainer || allocSum !== Number(batch.qty || 0)
+
+  if (useSplit) {
+    form.split_allocations = true
+    allocationRows.value = rows
+    form.rack_id = ''
+    form.slot_id = ''
+    form.storage_address_id = ''
+    form.container_batch_id = ''
+    return
+  }
+
+  const row = rows[0]
+  form.split_allocations = false
+  form.rack_id = row.rack_id
+  form.slot_id = row.slot_id
+  form.storage_address_id = row.storage_address_id
+  form.container_batch_id = ''
 }
 
 function getTodayIsoDate(): string {
@@ -1950,7 +2087,10 @@ onMounted(async () => {
     form.rack_id = props.batch.rack_id || ''
     form.slot_id = props.batch.slot_id || ''
     form.notes = props.batch.notes || ''
-    if (form.rack_id) {
+    const hasAllocations = Array.isArray(props.batch.allocations) && props.batch.allocations.length > 0
+    if (hasAllocations) {
+      applyBatchAllocationsToForm(props.batch)
+    } else if (form.rack_id) {
       const selectedRack = racks.value.find((rack) => rack.id === form.rack_id)
       form.storage_address_id = selectedRack?.storage_address_id || ''
     } else {
@@ -1993,7 +2133,7 @@ onMounted(async () => {
     addSerialNumber()
     serialLocationSameForAll.value = true
     autoGenStart.value = suggestedStartNumber.value
-  } else if (!props.isSerialized && props.initialContainerBatchId) {
+  } else if (!isEditMode.value && !props.isSerialized && props.initialContainerBatchId) {
     form.split_allocations = true
     const initialQty = Math.max(1, form.qty || 1)
     allocationRows.value = [{
@@ -2011,6 +2151,12 @@ onMounted(async () => {
   if (form.rack_id) {
     await fetchSlotsEnsuringDefault(form.rack_id)
     await prefetchSlotPreviewsForRack(form.rack_id)
+  }
+  for (const row of allocationRows.value) {
+    if (row.mode === 'slot' && row.rack_id) {
+      await fetchSlotsEnsuringDefault(row.rack_id)
+      await prefetchSlotPreviewsForRack(row.rack_id)
+    }
   }
 })
 
@@ -2203,7 +2349,8 @@ const missingFields = computed(() => {
   if (form.qty < 1) {
     missing.push(t('components.batchModal.valQtyMin'))
   }
-  if (form.split_allocations && !allocationLocationsValid.value) {
+  // Edit speichert Allokationen nicht (Verschieben über «Menge verschieben»)
+  if (!isEditMode.value && form.split_allocations && !allocationLocationsValid.value) {
     missing.push(t('components.batchModal.valAllocationsSum', { qty: form.qty }))
   }
   return missing
@@ -2519,6 +2666,78 @@ async function handleSubmit() {
 
 .batch-form-group.full-width {
   flex: 1 1 100%;
+}
+
+.batch-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.batch-scan-shell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 10px 4px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.batch-scan-shell:focus-within {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.batch-scan-shell--active {
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+.batch-scan-shell__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: #111827;
+  padding: 6px 0;
+}
+
+.batch-scan-shell__input::placeholder {
+  color: #9ca3af;
+}
+
+.batch-scan-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  cursor: pointer;
+}
+
+.batch-scan-btn:hover {
+  background: rgba(16, 185, 129, 0.18);
+}
+
+.batch-scan-btn--active {
+  background: #10b981;
+  color: #fff;
+}
+
+.batch-code-scanner {
+  margin: -8px 0 16px;
 }
 
 .batch-toggle-label {

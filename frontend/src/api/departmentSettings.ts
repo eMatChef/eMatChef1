@@ -270,6 +270,41 @@ export async function saveWorkshopSettings(
   })
 }
 
+/** Timing für optionalen Einnahme-Vermerk in der Aktivität (#7 Phase 3) */
+export type AccountingSettlementTiming = 'offer_at_activity' | 'accounting_only'
+
+export interface AccountingSettings {
+  settlementTimingConsumable: AccountingSettlementTiming
+  settlementTimingExternal: AccountingSettlementTiming
+}
+
+export const DEFAULT_ACCOUNTING_SETTINGS: AccountingSettings = {
+  settlementTimingConsumable: 'accounting_only',
+  settlementTimingExternal: 'accounting_only',
+}
+
+function parseSettlementTiming(raw: string | undefined): AccountingSettlementTiming {
+  return raw === 'offer_at_activity' ? 'offer_at_activity' : 'accounting_only'
+}
+
+export async function getAccountingSettings(departmentId: string): Promise<AccountingSettings> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'accounting')
+  return {
+    settlementTimingConsumable: parseSettlementTiming(raw['accounting.settlement_timing_consumable']),
+    settlementTimingExternal: parseSettlementTiming(raw['accounting.settlement_timing_external']),
+  }
+}
+
+export async function saveAccountingSettings(
+  departmentId: string,
+  settings: AccountingSettings,
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'accounting.settlement_timing_consumable': settings.settlementTimingConsumable,
+    'accounting.settlement_timing_external': settings.settlementTimingExternal,
+  })
+}
+
 export async function getRentalAmortizationDefaults(departmentId: string): Promise<RentalAmortizationDefaults> {
   const raw = await getDepartmentSettingsGroup(departmentId, 'rental')
   return {
@@ -322,6 +357,39 @@ export async function getCalendarSettings(departmentId: string): Promise<Calenda
 export async function saveCalendarSettings(departmentId: string, settings: CalendarSettings): Promise<Record<string, string>> {
   return updateDepartmentSettings(departmentId, {
     'calendar.fcal_geo_id': settings.fcalGeoId.trim(),
+  })
+}
+
+/** Custom Anzeige-Namen für L1–L3 (leer = i18n-Default). */
+export interface DepartmentRoleLabels {
+  l1: string
+  l2: string
+  l3: string
+}
+
+export const EMPTY_DEPARTMENT_ROLE_LABELS: DepartmentRoleLabels = {
+  l1: '',
+  l2: '',
+  l3: '',
+}
+
+export async function getDepartmentRoleLabels(departmentId: string): Promise<DepartmentRoleLabels> {
+  const raw = await getDepartmentSettingsGroup(departmentId, 'roles')
+  return {
+    l1: String(raw['roles.label.l1'] ?? '').trim(),
+    l2: String(raw['roles.label.l2'] ?? '').trim(),
+    l3: String(raw['roles.label.l3'] ?? '').trim(),
+  }
+}
+
+export async function saveDepartmentRoleLabels(
+  departmentId: string,
+  labels: DepartmentRoleLabels
+): Promise<Record<string, string>> {
+  return updateDepartmentSettings(departmentId, {
+    'roles.label.l1': labels.l1.trim(),
+    'roles.label.l2': labels.l2.trim(),
+    'roles.label.l3': labels.l3.trim(),
   })
 }
 

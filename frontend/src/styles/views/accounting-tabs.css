@@ -1,7 +1,8 @@
 /**
- * Buchhaltung: Shell- und Innen-Tabs (Marken-Grün).
+ * Buchhaltung: Shell-Gruppen, Detail- und Innen-Tabs (Marken-Grün).
  */
 .accounting-shell-tabs,
+.accounting-detail-tabs,
 .accounting-inner-tabs {
   border-bottom: 2px solid #e5e7eb;
 }
@@ -10,16 +11,24 @@
   margin-bottom: 0;
 }
 
+.accounting-detail-tabs {
+  margin-top: 4px;
+  margin-bottom: 0;
+  border-bottom-color: #f3f4f6;
+}
+
 .accounting-inner-tabs {
   margin-bottom: 14px;
 }
 
 .accounting-shell-tabs .v-slide-group__content,
+.accounting-detail-tabs .v-slide-group__content,
 .accounting-inner-tabs .v-slide-group__content {
   gap: 2px;
 }
 
 .accounting-shell-tabs .v-tab,
+.accounting-detail-tabs .v-tab,
 .accounting-inner-tabs .v-tab {
   text-transform: none;
   font-size: 14px;
@@ -31,7 +40,14 @@
   transition: color 0.2s ease, background 0.2s ease;
 }
 
+.accounting-detail-tabs .v-tab {
+  font-size: 13px;
+  padding-inline: 14px;
+  min-height: 36px;
+}
+
 .accounting-shell-tabs .v-tab:not(.v-tab--selected):hover,
+.accounting-detail-tabs .v-tab:not(.v-tab--selected):hover,
 .accounting-inner-tabs .v-tab:not(.v-tab--selected):hover {
   color: var(--color-primary-dark);
   background: var(--color-primary-muted-bg);
@@ -39,16 +55,22 @@
 }
 
 .accounting-shell-tabs .v-tab--selected,
+.accounting-detail-tabs .v-tab--selected,
 .accounting-inner-tabs .v-tab--selected {
   color: var(--color-primary);
   font-weight: 600;
 }
 
 .accounting-shell-tabs .v-tab__slider,
+.accounting-detail-tabs .v-tab__slider,
 .accounting-inner-tabs .v-tab__slider {
   height: 3px;
   background: var(--color-primary-light);
   border-radius: 3px 3px 0 0;
+}
+
+.accounting-detail-tabs .v-tab__slider {
+  height: 2px;
 }
 
 .accounting-tab-badge {

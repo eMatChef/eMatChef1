@@ -80,6 +80,7 @@
         "settingsGroups": "Settings · Groups · eMatChef",
         "settingsActivities": "Settings · Activities · eMatChef",
         "settingsWorkshop": "Settings · Workshop · eMatChef",
+        "settingsAccounting": "Settings · Accounting · eMatChef",
         "settingsStorage": "Settings · Storage · eMatChef",
         "settingsTemplates": "Settings · Templates · eMatChef",
         "globalMaterialTemplates": "Admin · Material templates · eMatChef",
@@ -151,6 +152,9 @@
     }
   },
   "public": {
+    "footer": {
+      "status": "Status"
+    },
     "blog": {
       "untitledPost": "Untitled",
       "noPostsYet": "No posts yet",
@@ -425,10 +429,16 @@
       "sectionCommunication": "Communication",
       "sectionAddress": "Address",
       "sectionLocation": "Location",
+      "setLocationCta": "Set location on map",
+      "acceptLocation": "Accept location",
+      "mapEditHint": "Drag the marker or tap the map. Accept or click outside to save.",
       "sectionNotes": "Additional information",
       "primaryAddress": "Primary address",
       "noCommunication": "No contact details on file.",
       "addCommunicationCta": "Add email / phone",
+      "addEmailCta": "Add email",
+      "addPhoneCta": "Add phone",
+      "addMobileCta": "Add mobile",
       "openGoogleMaps": "Open in Google Maps",
       "copyAddress": "Copy address",
       "copied": "Copied!",
@@ -527,19 +537,26 @@
     "errLinkComponent": "Could not link component.",
     "modalPostCreateComboTitle": "Combination created",
     "modalPostCreateComboIntro": "“{name}” was created and is still “in progress” — it can only be booked after finalizing.",
-    "modalPostCreateComboStepFinalize": "Open the “Composition” tab and click “Finalize combo” when all parts are correct.",
+    "modalPostCreateComboStepFinalize": "When the bill of materials looks right: click “Finalize combo” on the Composition tab — only then is the combo bookable.",
     "modalPostCreateComboStepContainer": "Find the reference bag/box via “Open reference container” or in the “Stored in” tab.",
-    "modalPostCreateComboStepVirtual": "Review the bill of materials and adjust quantities or optional parts if needed.",
+    "modalPostCreateComboStepVirtual": "Review the bill of materials (stock parts, optional parts, configurator options if any) and adjust quantities if needed.",
     "btnPostCreateComboGotIt": "Got it",
     "btnPostCreateComboOpenStorage": "Go to storage location"
   },
   "languageNames": {
     "de": "German",
-    "en": "English",
-    "fr": "French",
-    "it": "Italian",
     "de-pfadi": "German (Pfadi)",
     "de-cevi": "German (Cevi)",
+    "de-jubla": "German (Jubla)",
+    "en": "English",
+    "fr": "French",
+    "fr-pfadi": "French (Pfadi)",
+    "fr-cevi": "French (Cevi)",
+    "fr-jubla": "French (Jubla)",
+    "it": "Italian",
+    "it-pfadi": "Italian (Pfadi)",
+    "it-cevi": "Italian (Cevi)",
+    "it-jubla": "Italian (Jubla)",
     "ch-rm": "Romansh"
   },
   "common": {
@@ -1339,13 +1356,15 @@
       },
       "activityCreate": {
         "title": "Create activity",
-        "description": "Create a simple activity (e.g. Saturday meeting).",
+        "description": "Create a simple activity (e.g. Saturday meeting) in the current wizard.",
         "step1Title": "New activity",
         "step1Body": "Open the wizard for a new activity.",
         "step2Title": "Type «Activity»",
         "step2Body": "Choose «Activity» for short, single-day group activities.",
         "step3Title": "Basic data",
-        "step3Body": "Name, group and dates — you can add material in the next step."
+        "step3Body": "Name and group — then dates and material in the same wizard.",
+        "step4Title": "Dates & material",
+        "step4Body": "Enter usage times and add material. Saving finishes the activity."
       },
       "activityCampCreate": {
         "title": "Create camp",
@@ -1355,15 +1374,23 @@
         "step2Title": "Type «Camp»",
         "step2Body": "Choose «Camp» for multi-day camps with material lead/lag times.",
         "step3Title": "Camp basics",
-        "step3Body": "Name, group, event venue and optional J+S rental material for camp/event.",
-        "step4Title": "Dates & material",
-        "step4Body": "Enter usage and material windows. Invite partner departments and pack material as needed."
+        "step3Body": "Name, group and event venue — basis for dates and material.",
+        "step4Title": "J+S rental material",
+        "step4Body": "Optional: include J+S rental material. Dotation and order form appear later in the flow.",
+        "step5Title": "Continue in the wizard",
+        "step5Body": "Use «Next» for dates and material. With J+S enabled, participant count affects dotation."
       },
       "issueReturn": {
-        "title": "Issue & return",
-        "description": "Issue material for an activity and return it.",
-        "step1Title": "Via activities",
-        "step1Body": "Open an activity and use pack/issue flows to move material."
+        "title": "Packing & issue",
+        "description": "Pack, issue and return material in an activity.",
+        "step1Title": "Activities list",
+        "step1Body": "All activities appear here. Open one with material to pack.",
+        "step2Title": "«In progress» filter",
+        "step2Body": "On desktop, «In progress» finds activities being packed or in transit. Then open the «Packing» tab.",
+        "step3Title": "Journey steps",
+        "step3Body": "Ordered → packed → transport/event → returned → unpacked. Complete the current step.",
+        "step4Title": "Return & costs",
+        "step4Body": "After the event, book material back. Open costs live in the activity or under Accounting."
       },
       "categoriesTour": {
         "title": "Manage categories",
@@ -1724,6 +1751,7 @@
         "addressTypeTitle": "Type: {type}",
         "noAddressesWithAdd": "No addresses yet — use + to add one",
         "addVenueAddressTitle": "Create new event-location address",
+        "editVenueAddressTitle": "Edit event-location address",
         "addCustomerAddressTitle": "Create new address",
         "selectedPrefix": "Selected ·",
         "clearSelectionTitle": "Clear selection",
@@ -1803,6 +1831,7 @@
       "draftBannerSubmitCampEvent": "While draft: the group and sub-groups can add material. Only the creator or group lead can submit — after that the group cannot change material.",
       "draftBannerSubmitMemberCamp": "Group members cannot submit camps or events — please ask the creator or group lead.",
       "memberScopeStatusHint": "You see this activity via your group or sub-group. After submit, material is read-only. Pack list: preview from «Submitted», actions from «Packed». Loss, repair, and missing reports only once activity status is «At event» (header button or pack list).",
+      "memberPostReturnHandoffHint": "Return handed over to the material manager — pack list, material, vehicles, and reports are locked. In the «J+S» tab you can still record receipt and return.",
       "tabOverview": "Overview",
       "tabPacks": "Pack list",
       "tabVehicles": "Vehicles",
@@ -1900,6 +1929,7 @@
       "toastConsumptionDeleted": "Consumption entry deleted",
       "toastQtySaved": "Quantities saved",
       "toastPackModeSaved": "Packing preference saved",
+      "toastVirtualComboReconfigured": "Set configuration saved",
       "toastQtySaveFailed": "Quantities could not be saved.",
       "toastConsolidateFailed": "Duplicate material lines could not be merged.",
       "toastMaterialAdded": "Material added",
@@ -2056,6 +2086,9 @@
       "comboFloorHint": "At least {min} (combo requirement)",
       "comboFloorRemoveTitle": "Combo requirement {min} — use −1 to remove only extra quantity above that",
       "virtualComboQtyHint": "Set quantity fixed when added",
+      "virtualComboQtyReadonlyHint": "Set quantity locked after packing starts",
+      "virtualComboReconfigure": "Change configuration",
+      "virtualComboRestRemaining": "{remaining} left (max {buildable})",
       "virtualComboChildQtyHint": "Quantity fixed by virtual combo",
       "virtualComboChildRemoveTitle": "Combo part — change via the combo row above",
       "virtualComboRemoveBlockedTitle": "Virtual combo cannot be removed while packing",
@@ -2166,12 +2199,6 @@
         "returnDisabledHint": "Issue something first or choose «I only took this much»",
         "returnDisabledNoIssue": "Nothing taken yet — issue material first"
       },
-      "quickStatusTrail": {
-        "aria": "Activity status in the material pipeline"
-      },
-      "logisticsStatusTrail": {
-        "aria": "Activity transport chain"
-      },
       "partialTaken": {
         "action": "I only took this much",
         "title": "Set activity status to «With me» — only for material already taken (remainder stays «Packed»).",
@@ -2198,11 +2225,11 @@
         },
         "handoffDone": {
           "title": "Handed over to material manager",
-          "description": "Return is complete. Storage and closure are handled by the material manager — nothing left for you to do."
+          "description": "Return is complete. Storage and closure are handled by the material manager. You can only still edit the «J+S» tab."
         },
         "storeForMw": {
           "title": "Return complete",
-          "description": "The group has returned the material. You can start storing.",
+          "description": "Everything returned — you can start storing.",
           "action": "Start storing"
         }
       },
@@ -2210,14 +2237,21 @@
         "title": "Return overview",
         "positionCount": "{count} item | {count} items",
         "consumableTag": "Consumable",
+        "replenishmentTag": "Replenishment",
         "columns": {
           "material": "Material",
           "issued": "Issued",
           "returned": "Returned",
           "loss": "Loss",
           "repair": "Repair",
-          "consumption": "Consumption"
+          "consumption": "Consumption",
+          "replenished": "Replenished",
+          "stored": "Stored"
         }
+      },
+      "completedSummary": {
+        "title": "Material summary",
+        "lead": "What was issued, returned, reported, replenished and stored."
       },
       "inventoryAtEvent": {
         "title": "Material at event",
@@ -2240,6 +2274,8 @@
         "transportedQty": "{count} taken along",
         "crateLineCount": "{count} line | {count} lines",
         "crateDone": "Done",
+        "crateContentStorePending": "{count} contents to store",
+        "crateShellStorePending": "Store crate · {count}",
         "inPackCrate": "In pack crate «{label}»",
         "inPackCrates": "In pack crate: {labels}",
         "openCrateSheetHint": "Open crate check — partial quantities and loose issue",
@@ -2299,7 +2335,16 @@
         "consumable": "Consumable",
         "js": "J+S",
         "crate": "Pack crate",
-        "packCrate": "Pack crate"
+        "virtualCrate": "Set",
+        "packCrate": "Pack crate",
+        "notTaken": "Not taken"
+      },
+      "selfProvided": {
+        "issueAck": "Brought it yourself?"
+      },
+      "notTakenSection": {
+        "title": "Not taken",
+        "hint": "Packed but not taken to the event — no return expected from the event."
       },
       "footer": {
         "progress": "{done} of {total} lines done",
@@ -2370,6 +2415,7 @@
         "primaryReturn": "Return crate",
         "primaryStore": "Store crate",
         "empty": "No open lines in this crate.",
+        "emptyVirtualSet": "No lines in this set.",
         "sectionSummary": "{count} open",
         "subtitleReturn": "Review contents and return the crate",
         "subtitleReturnCheck": "Return crate check — review contents for transport back",
@@ -2390,7 +2436,19 @@
       },
       "storeHint": {
         "title": "Store material by shelf",
-        "description": "Tap or scan a line → verify rack/slot → «Stored». Then shelve physically; pick the next line when ready."
+        "description": "Loose items and pack crates: use «… pcs store», then scan the shelf. For pack crates store contents first (accordion), then the crate."
+      },
+      "storeSections": {
+        "openTitle": "Still to store",
+        "openCount": "{count} open",
+        "doneTitle": "Already stored",
+        "doneCount": "{count} done"
+      },
+      "storeComplete": {
+        "title": "Everything stored",
+        "description": "{count} positions are back in the warehouse — well done.",
+        "continue": "Complete activity",
+        "hint": "Afterwards you can optionally review costs and consumption."
       },
       "storeSheet": {
         "subtitle": "Bring material to target shelf, then scan the location",
@@ -2403,8 +2461,10 @@
         "qtyLabel": "Quantity",
         "qtyUnit": "pcs.",
         "manualStoreButton": "Stored in {location} · {count} pcs.",
+        "addressShort": "Site",
         "rackShort": "Rack",
         "slotShort": "Slot",
+        "noLocationShort": "no target location",
         "scanLocationPlaceholder": "Scan rack or slot QR …",
         "scanCountdown": "Scanner starts in {seconds}s …",
         "scanCountdownNow": "Scan now",
@@ -2599,7 +2659,7 @@
       "initCreating": "Creating…",
       "initStart": "Start packing list",
       "readonlyHint": "View only — edits are not allowed in this status.",
-      "readonlyHintReturnedHandoff": "Return reported — the packing list is view-only. Material staff will put items back in stock; you can still record consumption in the «Consumables» tab.",
+      "readonlyHintReturnedHandoff": "Return handed over to the material manager — the activity is view-only. Exception: the «J+S» tab (receipt/return), which remains your responsibility.",
       "memberAwaitingPackEmpty": "Not packed yet — the material manager is still packing.",
       "memberPackPreviewHint": "The material manager is still packing. On the right you can see what is already packed — actions become available once marked as packed.",
       "memberPackPreviewLeftEmpty": "Nothing for you to book yet — see the current pack status on the right.",
@@ -2943,14 +3003,22 @@
       "returnCrateModalAddPickPlaceholder": "Choose material…",
       "returnCrateModalSearchEmpty": "No matching material in this activity.",
       "returnCrateModalExpectedQty": "expected {n} in crate",
+      "returnCrateModalMetaOrdered": "ordered {n}",
+      "returnCrateModalMetaConsumed": "consumed {n}",
+      "returnCrateModalMetaRepair": "repair {n}",
+      "returnCrateModalMetaLoss": "loss {n}",
       "returnCrateModalLineDone": "Return recorded",
       "returnCrateModalLineQty": "{still} left / {issued} issued",
       "returnCrateModalStillQty": "{n} still at event",
       "returnCrateModalBadgeExtra": "Extra",
       "returnCrateModalEmptyLines": "No packing lines in this container — check the crate itself only.",
       "returnCrateModalReturnQty": "Return",
-      "returnCrateModalMissingQty": "{n} not returned",
-      "returnCrateModalLineHint": "Consumables: book consumption first. Check other lines and adjust return qty; report differences as loss or repair.",
+      "returnCrateModalIncludeAria": "Return «{name}»",
+      "returnCrateModalMissingQty": "{n} not returned — please specify",
+      "returnCrateModalSurplusQty": "{n} too many — please specify",
+      "returnCrateModalBookExtra": "Extra",
+      "returnCrateModalExtraBooked": "Extra {n} pcs recorded — return qty updated",
+      "returnCrateModalLineHint": "Adjust return qty. If less: consumption, loss or repair. If more: Extra.",
       "returnCrateModalBookConsumption": "Book consumption",
       "returnCrateModalConsumptionOpen": "{n} consumption still open",
       "returnCrateModalConsumptionDone": "Consumption fully recorded.",
@@ -3250,23 +3318,35 @@
     },
     "completion": {
       "title": "Material completion",
-      "lead": "All items must be done before you can complete the activity.",
-      "allClear": "All requirements met — the activity can be completed.",
+      "lead": "Before «Complete», all material must be cleared (stored or reported as loss/repair).",
+      "allClear": "Material cleared — the activity can be completed. Accounting runs separately.",
       "itemStorage": "Material stored",
       "itemStoragePending": "{n} line(s) open",
-      "itemStorageHint": "Shelve by rack on the packing list — tap a line and confirm «Stored».",
+      "itemStorageHint": "Shelve by rack on the packing list — tap a line and confirm «Stored». Loss/repair reports count as cleared.",
       "piecesOpen": "pcs open",
-      "itemIssues": "Reports cleared (workshop)",
-      "itemWorkshop": "Workshop tickets closed",
-      "itemAccounting": "Accounting assigned",
-      "itemAccountingAfterCloseHint": "Accounting tasks are created only after «Complete» — then assign them in accounting.",
+      "itemIssues": "Open reports",
+      "itemIssuesHint": "Info — does not block completion. Reported loss/repair already counts as disposition.",
+      "itemWorkshop": "Open workshop",
+      "itemWorkshopHint": "Info — does not block completion. Costs follow in accounting once tickets are done.",
+      "itemAccounting": "Accounting",
+      "itemAccountingAfterCloseHint": "Accounting tasks are often created only after «Complete» — assign them in accounting, not here.",
+      "itemAccountingHint": "Info — does not block completion. Assign open follow-ups in accounting.",
       "itemCostsReview": "Release costs",
-      "itemCostsReviewHint": "Review the cost overview — consumables, workshop and purchases before closing.",
+      "itemCostsReviewHint": "Optional: review the cost overview — consumables, workshop and purchases. Does not block completion.",
+      "itemCostsReleased": "Costs released",
+      "itemCostsNone": "No costs incurred",
+      "itemCostsNoneHint": "Nothing to release — this step is done.",
+      "chargeGroup": "Billing: group {name}",
+      "chargeExternal": "Billing: customer {name}",
+      "chargeUnknown": "Billing: no target set yet",
+      "releaseAction": "Release costs",
+      "releaseDone": "Released",
+      "releaseHint": "Accounting tasks are often created only after «Complete».",
       "actionPacks": "Pack list →",
       "actionIssues": "Reports →",
       "actionWorkshop": "Workshop",
       "actionCosts": "Costs →",
-      "actionCostsReview": "Release costs →",
+      "actionCostsReview": "Review costs →",
       "actionAccountingAssign": "Assign"
     },
     "vehicles": {
@@ -3333,11 +3413,42 @@
       "reportedBy": "reported by {name}",
       "chargeExternal": "Customer: {name}",
       "chargeMaterialDept": "Material dept.: {name}",
+      "chargeGroup": "Group: {name}",
+      "chargeUnknown": "No billing target set",
+      "releaseSectionTitle": "Release costs",
+      "releaseLead": "Review the overview and release costs for completion.",
+      "releaseAction": "Release costs",
+      "releaseDone": "Costs released",
+      "releaseNone": "No costs — nothing to release",
+      "releaseHint": "Accounting tasks are created only after «Complete» — then assign them in accounting.",
+      "releaseTotal": "Total (preview)",
+      "releaseConfirmTitle": "Release costs?",
+      "releaseConfirmLead": "Please review the billing target and total again before releasing.",
+      "collectionNoteTitle": "Collection note (optional)",
+      "collectionNoteOfferTitle": "Collect costs now?",
+      "collectionNoteLead": "Optional: note if you just collected cash or issued an invoice. Not a finished booking.",
+      "collectionNoteOfferLead": "Per settings you can note collection here — cash or invoice. Booking still happens in accounting.",
+      "collectionNoteCash": "Cash collected",
+      "collectionNoteInvoice": "Invoice",
+      "collectionNoteClear": "Clear note",
+      "collectionNoteAmount": "Amount (CHF)",
+      "collectionNoteUseTotal": "Use total",
+      "collectionNoteCashSaved": "Cash collected — CHF {amount}",
+      "collectionNoteInvoiceSaved": "Invoice noted — CHF {amount}",
+      "collectionNoteHint": "Final settlement stays in accounting (follow-up → booking).",
+      "collectionNoteError": "Could not save collection note.",
       "accountingDept": "Accounting: {name}",
       "sectionWorkshopOpen": "Workshop: open",
       "workshopOpenPending": "Enter actual price in workshop",
       "sectionAccounting": "Accounting tasks",
+      "sectionAccountingHandoff": "Handed to accounting",
       "accountingLead": "One task per cost type (consumables combined per activity, workshop per ticket, external rental separate).",
+      "accountingHandoffLead": "These tasks were created on completion — pending assignment or already booked.",
+      "accountingHandoffEmpty": "No accounting tasks for this activity.",
+      "accountingHandoffCount": "{n} task | {n} tasks",
+      "accountingHandoffSum": "Total handed over",
+      "accountingStatusPending": "Open",
+      "accountingStatusRecorded": "Booked",
       "accountingPending": "{n} open accounting tasks",
       "accountingPendingSum": "Open total",
       "accountingLink": "Assign in accounting →",
@@ -3489,8 +3600,20 @@
       "roles": {
         "mw": "Materials lead",
         "dc": "Dept. lead",
+        "l1": "Leader 1",
+        "l2": "Leader 2",
+        "l3": "Leader 3",
         "u": "Member"
       },
+      "roleLabelsTitle": "Leader role names",
+      "roleLabelsHint": "Rename Leader 1–3 to match how your department uses them (e.g. Stage lead, Team lead). Leave empty for the default name.",
+      "roleLabels": {
+        "l1": "Leader 1",
+        "l2": "Leader 2",
+        "l3": "Leader 3"
+      },
+      "toastRoleLabelsSaved": "Role names saved.",
+      "errSaveRoleLabels": "Could not save role names.",
       "errLoadMembers": "Could not load users.",
       "errLoadPendingInvites": "Could not load pending invitations.",
       "logErrorLoadAvailable": "Could not load available users:",
@@ -3561,7 +3684,11 @@
       "contactPerson": "Contact person"
     },
     "addressModal": {
-      "validationMinFields": "Enter at least a name, an address, or a map location."
+      "validationMinFields": "Enter at least a name, an address, or a map location.",
+      "eventChildLabel": "Name / label",
+      "eventChildLabelPlaceholder": "e.g. East entrance, parking, tent A",
+      "eventChildTypeHint": "Delivery point for J+S, or a free event point with your own label and pin color.",
+      "pinColorLabel": "Pin color"
     },
     "storage": {
       "deleteRackTitle": "Delete rack?",
@@ -3729,7 +3856,34 @@
     },
     "nav": {
       "workshop": "Workshop",
+      "accounting": "Accounting",
       "fixedDates": "Fixed dates"
+    },
+    "accountingSettings": {
+      "title": "Accounting",
+      "subtitle": "When to offer a collection note in the activity",
+      "loading": "Loading settings…",
+      "saved": "Settings saved.",
+      "loadError": "Could not load settings.",
+      "saveError": "Could not save.",
+      "sections": {
+        "timing": {
+          "title": "Collection timing",
+          "description": "Controls whether the activity costs tab prominently offers “Collect costs now?”. Final booking always stays in accounting."
+        }
+      },
+      "fields": {
+        "timingConsumable": "Consumables / internal activities",
+        "timingExternal": "External rental"
+      },
+      "hints": {
+        "timingConsumable": "Default: settle only in accounting.",
+        "timingExternal": "Default: settle only in accounting."
+      },
+      "timingValues": {
+        "accountingOnly": "Accounting only (default)",
+        "offerAtActivity": "Offer at activity close"
+      }
     },
     "workshopSettings": {
       "title": "Workshop",
@@ -4202,7 +4356,11 @@
       "logErrorLoadRacks": "Error loading racks:",
       "logErrorLoadSlots": "Error loading bins:",
       "logErrorReloadSuppliers": "Error reloading suppliers:",
-      "eanPlaceholder": "e.g. 7612345678901"
+      "eanPlaceholder": "e.g. 7612345678901",
+      "scanCodeTitle": "Scan code",
+      "scanEanTitle": "Scan EAN",
+      "scanCodeHint": "Point at the supplier/code label barcode.",
+      "scanEanHint": "Hold the product EAN barcode in the frame."
     },
     "materialPreviewSidebar": {
       "titleAddBatch": "Add lot",
@@ -4842,7 +5000,24 @@
       "btnAddFromStock": "Add from stock",
       "btnFinalizeCombo": "Finalize combo",
       "comboFinalizeSubmitting": "Finalizing…",
+      "btnUnfinalizeCombo": "Revert to draft",
+      "comboUnfinalizeSubmitting": "Reverting…",
+      "confirmUnfinalizeComboTitle": "Revert combo to draft?",
+      "confirmUnfinalizeComboMessage": "The combo will no longer be newly bookable until you finalize it again. The bill of materials stays intact.",
+      "confirmUnfinalizeComboMessageWithBookings": "This combo is booked in {count} open activity/activities ({activities}). Reverting only blocks new bookings — existing snapshots stay. Continue anyway?",
+      "confirmUnfinalizeComboAction": "Revert",
+      "toastComboUnfinalized": "Combo is back “in progress”.",
+      "errComboUnfinalize": "Combo could not be reverted to draft.",
       "comboDraftBadge": "in progress",
+      "compositionDraftChecklistTitle": "Before finalizing",
+      "compositionDraftChecklistStock": "At least one stock part in the bill of materials (not only “self-provided”)",
+      "compositionDraftChecklistOptions": "Review configurator options/groups if needed",
+      "compositionDraftChecklistContainer": "Link a reference bag/box (physical combo)",
+      "compositionDraftChecklistFinalize": "Click “Finalize combo” — then it becomes bookable",
+      "confirmBomEditOpenActivitiesTitle": "Change BOM despite open activities?",
+      "confirmBomEditOpenActivitiesMessage": "This combo is booked in {count} open activity/activities ({activities}). Existing booking snapshots stay as-is — later syncs use the updated BOM. Continue anyway?",
+      "confirmBomEditOpenActivitiesCheckFailed": "Could not check open activities. Change the BOM anyway?",
+      "confirmBomEditOpenActivitiesAction": "Change anyway",
       "comboReadyBadge": "Bookable",
       "linkOpenComposition": "Open bill of materials →",
       "virtualComboSidebarHint": "Planning group — manage parts and options in the «Composition» tab.",
@@ -6454,6 +6629,59 @@
     },
     "comingSoon": {
       "description": "Manual, FAQ and guides coming soon."
+    },
+    "dokumentation": {
+      "title": "Documentation",
+      "subtitle": "A short overview — from creating an activity to packing and costs.",
+      "subtitleMember": "A short overview — how to create an activity.",
+      "happyPathTitle": "Getting started",
+      "happyPathLead": "Find the main steps without a support chat.",
+      "happyPathLeadMember": "Start with a tour or create an activity directly.",
+      "links": {
+        "setupTitle": "Setup & tours",
+        "setupDescMw": "Checklist and guided tours for material managers.",
+        "setupDescMember": "Guided tours: create an activity or camp.",
+        "activityTitle": "Create an activity",
+        "activityDesc": "New activity or camp — including optional J+S for camp/event.",
+        "activityDescMember": "Create a new activity — the setup tour guides you step by step.",
+        "packTitle": "Packing & issue",
+        "packDesc": "In the activity under «Packing», move and return material.",
+        "materialTitle": "Add material",
+        "materialDesc": "Create stock and assign categories.",
+        "costsTitle": "Costs & accounting",
+        "costsDesc": "Accounting and cost centres — in the activity and under Accounting."
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "findHelp": {
+          "q": "Where do I find help again?",
+          "a": "Sidebar «Help»: Setup (tours) and Documentation (this overview)."
+        },
+        "findHelpMember": {
+          "q": "Where do I find help again?",
+          "a": "Sidebar «Help»: under Setup the «Create activity» tour, here the short overview."
+        },
+        "createActivity": {
+          "q": "How do I create an activity?",
+          "a": "Activities → «New». Type «Activity» for short events, «Camp» for multi-day camps (optional J+S)."
+        },
+        "packing": {
+          "q": "Where do I pack material?",
+          "a": "Open the activity → «Packing» tab. Follow the journey from ordered to returned to store."
+        },
+        "costs": {
+          "q": "Where do I see costs?",
+          "a": "In the activity under Costs and centrally under Accounting."
+        },
+        "invite": {
+          "q": "How do I invite team members?",
+          "a": "Settings → Users (MW/dept lead). Join code under My department."
+        },
+        "roles": {
+          "q": "What can users / L1–L3 vs. material managers do?",
+          "a": "Users and leaders mainly create activities. Material managers set up the store, pack, and manage settings."
+        }
+      }
     }
   },
   "grossanlass": {

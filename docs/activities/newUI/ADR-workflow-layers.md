@@ -166,7 +166,7 @@ Pro Material **eine** `activity_pack_item`-Zeile; **pro Pipeline-Stufe eine Spal
 
 ## Abschluss-Blocker
 
-Bisher `returned` → `completed`. Ziel: **`storing` → `completed`** (Material vollständig `stored`, Meldungen, Werkstatt, Buchhaltung).
+Bisher `returned` → `completed`. Ziel: **`storing` → `completed`** (Material physisch geklärt: eingelagert oder Verlust/Reparatur gemeldet). **Buchhaltung blockiert nicht** — siehe [accounting.md](../../accounting.md#zwei-abschlüsse-kernmodell).
 
 ---
 

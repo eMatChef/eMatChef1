@@ -6,7 +6,7 @@ import {
   returnAllPackContainerItems,
   updateActivityPackContainerItem,
 } from '@/api/activityContainers'
-import { getPackItems, postMovePackItem, type ActivityPackItem } from '@/api/activityPackItems'
+import { getPackItems, patchActivityPackItem, postMovePackItem, type ActivityPackItem } from '@/api/activityPackItems'
 import type { ReturnCrateLineEdit, ReturnCratePartitionView } from '@/components/activities/PackReturnCrateModal.vue'
 import {
   buildMaterialJourneyReturnCrateLines,
@@ -15,10 +15,14 @@ import {
   materialJourneyReturnCrateSubmitDisabled,
   type MaterialJourneyReturnCrateBatchStep,
 } from '@/components/activities/materialJourneyReturnCrate'
-import type { PackQuantityContext } from '@/components/activities/packStageQuantityLayer'
+import {
+  computeContainerLineRemainingReturn,
+  type PackQuantityContext,
+} from '@/components/activities/packStageQuantityLayer'
 import {
   resolveConsumableReturnQty,
 } from '@/utils/materialJourneyConsumable'
+import { returnCrateLineInputCap } from '@/utils/materialJourneyReturnCrateLineMeta'
 import { useToast } from '@/composables/useToast'
 
 type PendingConsumableReturn =
@@ -77,13 +81,24 @@ export function useMaterialJourneyReturnCrate(options: {
   function syncLines(): void {
     const c = container.value
     if (!c) return
-    lines.value = buildMaterialJourneyReturnCrateLines(c, {
+    const prevById = new Map(lines.value.map((line) => [line.id, line]))
+    const rebuilt = buildMaterialJourneyReturnCrateLines(c, {
       packItems: options.packItems.value,
       containerItemsByContainerId: options.containerItemsByContainerId.value,
       packQuantityCtx: options.packQuantityCtx.value,
       shellPackItemForContainer: options.shellPackItemForContainer,
       materialFallbackLabel: t('common.material'),
       issues: options.issues.value,
+    })
+    lines.value = rebuilt.map((line) => {
+      const prev = prevById.get(line.id)
+      if (!prev || line.isDone) return line
+      const cap = returnCrateLineInputCap(line.ordered, line.max)
+      return {
+        ...line,
+        included: prev.included,
+        qty: Math.min(Math.max(0, prev.qty), cap),
+      }
     })
   }
 
@@ -165,11 +180,6 @@ export function useMaterialJourneyReturnCrate(options: {
           job.remaining.shift()
           continue
         }
-        const pi = options.packItems.value.find((p) => p.materialItemId === ci.material_item_id)
-        if (pi?.isConsumable) {
-          beginConsumableReturnForContainerLine(job.containerId, ci.id, step.qty)
-          return
-        }
         job.remaining.shift()
         await executeLineReturn(job.containerId, ci, step.qty)
         continue
@@ -220,7 +230,19 @@ export function useMaterialJourneyReturnCrate(options: {
       (row) => row.id === pending.containerItemId,
     )
     if (!ci) return
-    await executeLineReturn(pending.containerId, ci, pending.qty)
+    const rem = computeContainerLineRemainingReturn(
+      ci,
+      options.packQuantityCtx.value,
+      pending.containerId,
+    )
+    const returnQty = Math.min(pending.qty, rem)
+    if (returnQty <= 0) {
+      toast.info(t('activities.packList.toastConsumableAllUsedNothingToReturn'))
+      syncLines()
+      await continueReturnCrateBatch()
+      return
+    }
+    await executeLineReturn(pending.containerId, ci, returnQty)
     const batch = pendingReturnCrateBatch.value
     if (
       batch?.remaining[0]?.kind === 'line' &&
@@ -280,13 +302,65 @@ export function useMaterialJourneyReturnCrate(options: {
     if (!pi) return null
 
     const line = lines.value.find((l) => l.materialItemId === materialItemId && l.isConsumable)
-    const returnQty = line?.max && line.max > 0 ? line.max : 1
+    const returnQty =
+      line?.included && line.qty >= 0 ? line.qty : line?.max && line.max > 0 ? line.max : 0
     if (line?.containerItemId) {
       beginConsumableReturnForContainerLine(c.id, line.containerItemId, returnQty)
     } else {
       beginConsumableReturnForPackItem(pi, returnQty)
     }
     return { packItem: pi, returnQty }
+  }
+
+  /** Übermenge als Extra: issued (+ packed falls nötig) anheben, damit Retour die volle Menge buchen kann. */
+  async function bookReturnCrateExtra(
+    materialItemId: string,
+    surplusQty: number,
+    lineId: string,
+  ): Promise<boolean> {
+    const c = container.value
+    if (!c || surplusQty < 1) return false
+    const pi = options.packItems.value.find((p) => p.materialItemId === materialItemId)
+    if (!pi) {
+      toast.error(t('activities.packList.toastNoPackLine'))
+      return false
+    }
+
+    submitting.value = true
+    try {
+      const newIssued = (pi.quantityIssued ?? 0) + surplusQty
+      const newPacked = Math.max(pi.quantityPacked ?? 0, newIssued)
+      await patchActivityPackItem(options.activityId.value, pi.id, {
+        quantity_issued: newIssued,
+        quantity_packed: newPacked,
+      })
+
+      const targetLine = lines.value.find((l) => l.id === lineId)
+      if (targetLine?.containerItemId) {
+        const ci = (options.containerItemsByContainerId.value[c.id] ?? []).find(
+          (row) => row.id === targetLine.containerItemId,
+        )
+        if (ci) {
+          const ciIssued = (ci.quantity_issued ?? 0) + surplusQty
+          const ciPacked = Math.max(ci.quantity_packed ?? 0, ciIssued)
+          await updateActivityPackContainerItem(options.activityId.value, c.id, ci.id, {
+            quantity_issued: ciIssued,
+            quantity_packed: ciPacked,
+          })
+        }
+      }
+
+      options.packItems.value = await getPackItems(options.activityId.value)
+      await options.reload()
+      syncLines()
+      toast.success(t('activities.packList.returnCrateModalExtraBooked', { n: surplusQty }))
+      return true
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      return false
+    } finally {
+      submitting.value = false
+    }
   }
 
   return {
@@ -307,5 +381,6 @@ export function useMaterialJourneyReturnCrate(options: {
     fulfillPendingConsumableReturn,
     clearPendingConsumableReturn,
     reportReturnCrateConsumption,
+    bookReturnCrateExtra,
   }
 }

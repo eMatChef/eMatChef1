@@ -1,4 +1,4 @@
-import type { ActivityDetail } from '@/api/activities'
+import type { ActivityDetail, ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import {
@@ -19,6 +19,7 @@ export type JourneyStepMaterialContext = {
   packItems: ActivityPackItem[]
   packContainers?: ActivityPackContainer[]
   containerItemsByContainerId?: Record<string, ActivityPackContainerItem[]>
+  issues?: ActivityIssueReportRow[]
 }
 
 /** Aktueller Stepper-Schritt = abgeleitet aus activity.status (ADR-workflow-layers). */
@@ -42,6 +43,7 @@ function quickIssueWorkComplete(
     material.packItems,
     material.packContainers ?? [],
     material.containerItemsByContainerId ?? {},
+    material.issues ?? [],
   )
 }
 
@@ -96,6 +98,19 @@ export function isQuickReturnPhaseClosed(
   return ['returned', 'storing', 'completed'].includes(status)
 }
 
+/**
+ * Gruppe/Ersteller nach Übergabe an MW (`returned`+): Aktivität gesperrt ausser J+S-Tab.
+ * MW/DC bleiben voll handlungsfähig.
+ */
+export function isMemberPostReturnHandoffLock(
+  activity: Pick<ActivityDetail, 'status'> | null | undefined,
+  canManageMaterials: boolean,
+): boolean {
+  if (canManageMaterials || !activity) return false
+  const status = activity.status ?? ''
+  return ['returned', 'storing', 'completed'].includes(status)
+}
+
 export function journeyStepAccess(
   viewedStep: JourneyStep,
   activeStep: JourneyStep,
@@ -143,6 +158,7 @@ export function journeyStepAccess(
       material.packItems,
       material.packContainers ?? [],
       material.containerItemsByContainerId ?? {},
+      material.issues ?? [],
     )) {
       return 'editable'
     }
@@ -172,6 +188,7 @@ export function journeyStepsWithOpenWork(
       material.packItems,
       material.packContainers ?? [],
       material.containerItemsByContainerId ?? {},
+      material.issues ?? [],
     )) {
       open.push(step)
     }
@@ -211,6 +228,7 @@ export function activityAllowsIssueReports(
   canManageMaterials = false,
 ): boolean {
   if (!activity) return false
+  if (isMemberPostReturnHandoffLock(activity, canManageMaterials)) return false
   const status = activity.status ?? ''
   if (status === 'completed' || status === 'cancelled') return false
   if (['at_event', 'transport_back', 'returned', 'storing'].includes(status)) return true
@@ -226,6 +244,7 @@ export function activityAllowsDamageReport(
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
+  if (isMemberPostReturnHandoffLock(activity, canManageMaterials)) return false
   if (activity.can_report_issues === false) return false
   const s = activity.status ?? ''
   if (['at_event', 'transport_back', 'returned', 'storing'].includes(s)) return true
@@ -238,6 +257,7 @@ export function activityAllowsConsumptionBooking(
   canManageMaterials = false,
 ): boolean {
   if (!activity || activity.status === 'completed') return false
+  if (isMemberPostReturnHandoffLock(activity, canManageMaterials)) return false
   if (activity.can_report_issues === false) return false
   const s = activity.status ?? ''
   if (['at_event', 'transport_back'].includes(s)) return true

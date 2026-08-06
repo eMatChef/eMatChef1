@@ -197,11 +197,18 @@
   },
   "languageNames": {
     "de": "Tedesco",
-    "en": "Inglese",
-    "fr": "Francese",
-    "it": "Italiano",
     "de-pfadi": "Tedesco (Pfadi)",
     "de-cevi": "Tedesco (Cevi)",
+    "de-jubla": "Tedesco (Jubla)",
+    "en": "Inglese",
+    "fr": "Francese",
+    "fr-pfadi": "Francese (Pfadi)",
+    "fr-cevi": "Francese (Cevi)",
+    "fr-jubla": "Francese (Jubla)",
+    "it": "Italiano",
+    "it-pfadi": "Italiano (Pfadi)",
+    "it-cevi": "Italiano (Cevi)",
+    "it-jubla": "Italiano (Jubla)",
     "ch-rm": "Romancio"
   },
   "common": {

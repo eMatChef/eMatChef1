@@ -44,3 +44,18 @@ export async function updateCostCenter(
 export async function deleteCostCenter(departmentId: string, id: string): Promise<void> {
   await apiClient.delete(`/api/departments/${departmentId}/accounting/cost-centers/${id}`)
 }
+
+export type AccountingCostCenterBootstrapResult = {
+  cost_centers_created: number
+  rules_created: number
+}
+
+/** Idempotent: fehlende Standard-Kostenstellen und Zuordnungsregeln anlegen. */
+export async function bootstrapCostCenters(
+  departmentId: string,
+): Promise<AccountingCostCenterBootstrapResult> {
+  const { data } = await apiClient.post<AccountingCostCenterBootstrapResult>(
+    `/api/departments/${departmentId}/accounting/cost-centers/bootstrap`,
+  )
+  return data
+}

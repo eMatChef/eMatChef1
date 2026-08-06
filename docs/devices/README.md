@@ -4,7 +4,7 @@ Handheld (**Zebra TC700H**), Pistolen-Scanner (**Datalogic PowerScan 8530** am P
 
 **QR-URLs** (Etiketten, PDF, Display): [docs/qr/](../qr/)
 
-**Stand:** Mai 2026 · **Status:** D1–D3 im Frontend umgesetzt · D4 (Retour) offen · **D5 geplant:** Universal-Scan-Hub
+**Stand:** August 2026 · **Status:** D1–D3 im Frontend umgesetzt · D4 (Retour) offen · **D5 geplant:** Universal-Scan-Hub · **geplant:** Geräte-Kopplung (QR) + User-PIN + Zugriffs-Tracking
 
 ---
 
@@ -28,6 +28,7 @@ Siehe [rollout-plan.md](./rollout-plan.md) Phase D5.
 | Datei | Inhalt |
 |--------|--------|
 | **[concept.md](./concept.md)** | Gesamtkonzept: Subdomain, zwei UI-Modi, Scan-Parser, Hin/Retour, Live-Status, Offline, Smartphones |
+| **[device-pairing-and-sessions.md](./device-pairing-and-sessions.md)** | **Geplant:** QR-Geräte-Kopplung, User-Auswahl + PIN, Geräteliste, Login-/Zugriffs-Tracking (Desktop/Mobile/Handheld) |
 | **[rollout-plan.md](./rollout-plan.md)** | Phasen D0–D8, MVP, Deploy, Checklisten |
 | **[pack-workflow.md](./pack-workflow.md)** | Ablauf Scan → Buchung, APIs, Kisten-Optionen |
 | **[local-dev-handheld.md](./local-dev-handheld.md)** | TC70/PC im WLAN testen, DNS, WSL, Offline-Verhalten |
@@ -56,7 +57,8 @@ Siehe [rollout-plan.md](./rollout-plan.md) Phase D5.
 | Zebra TC700H | **Handheld** — minimal, Touch |
 | PC/Laptop + PowerScan | **Desktop Lager** — mehr Infos, Tabelle, Scan-Log |
 
-Login einmal pro Schicht; **ein Gerät = eine Abteilung**.
+Login heute einmal pro Schicht; **ein Gerät = eine Abteilung**.  
+**Geplant:** Gerät per QR koppeln → Alltag nur noch **User wählen + PIN** — siehe [device-pairing-and-sessions.md](./device-pairing-and-sessions.md).
 
 ---
 

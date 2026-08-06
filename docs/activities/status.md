@@ -19,7 +19,7 @@
 | `draft` | Entwurf | Aktivität angelegt, Material/Details noch bearbeitbar, nicht eingereicht |
 | `submitted` | Eingereicht | Gruppe/Ersteller hat eingereicht; wartet auf Freigabe durch MW/DC |
 | `approved` | Bestätigt | Material freigegeben; Packen kann starten |
-| `completed` | Abgeschlossen | Vorgang abgeschlossen (Einlagerung, Meldungen, Buchhaltung) |
+| `completed` | Abgeschlossen | Material physisch geklärt (Vorgangsabschluss); Buchhaltung separat |
 | `cancelled` | Storniert | Aktivität abgebrochen |
 
 ### Pack & Event
@@ -137,9 +137,9 @@ flowchart LR
 |-----------------|---------------|----------|
 | `transport_out` | Planen, zuordnen, **Abfahren** (`in_transit`) | Checkliste: `packed` → `transport_to` |
 | `issue` (Am Anlass) | **Angekommen** pro Tour oder Bulk | `transport_to` → `issued` |
-| `transport_back` | Rückfahrt planen, abfahren, ankommen | `issued` → `transport_back` |
+| `transport_back` | Rückfahrt planen/laden (Pfeile → `transport_back`); Bulk **«Alles zurück… ist da»** | Laden: `issued` → `transport_back`; Ankunft: `transport_back` → `returned` |
 
-Tour-Status: `planned` → `in_transit` → `arrived`. Ankunft bucht Pipeline — nicht die Offen/Erledigt-Checkliste auf Am Anlass.
+Tour-Status: `planned` → `in_transit` → `arrived`. Outbound-Ankunft auf `issue`; Inbound-Ankunft (Bulk) auf `transport_back` bucht `quantity_returned`.
 
 ### Besondere Wege
 
@@ -202,9 +202,17 @@ Zwei **getrennte** Ebenen:
 
 Vollständige Beschreibung: **[material-pipeline.md](./material-pipeline.md)**
 
-**Abschluss-Blocker** (`storing` → `completed`): Material nicht vollständig `stored`; offene Meldungen; Werkstatt; Buchhaltung. Direkt `returned` → `completed` ist nicht mehr vorgesehen — zuerst `storing`.
+### Aktivitäts-Abschluss (`storing` → `completed`)
 
-**UI bei `returned` / `storing`:** Abschluss-Checkliste für MW/DC (`completion_blockers` aus `GET /api/activities/{id}/transitions`).
+**Zielmodell** (siehe [accounting.md — Zwei Abschlüsse](../accounting.md#zwei-abschlüsse-kernmodell)):
+
+Jedes Material ist geklärt, wenn es **eingelagert** ist **oder** Verlust/Reparatur **gemeldet** ist (Werkstatt-Pfad) **oder** Verlust gemeldet ist. **Buchhaltung blockiert den Aktivitäts-Abschluss nicht.** Offene Werkstatt-*Bearbeitung* (Ticket noch nicht erledigt, keine `actual_cost`) blockiert `completed` ebenfalls **nicht** — nur fehlende Disposition (weder eingelagert noch gemeldet).
+
+Direkt `returned` → `completed` ist nicht vorgesehen — zuerst `storing`.
+
+**Ist-Code (Phase 1):** Harter Blocker nur `unstored_pack_items`. Offene Werkstatt-Tickets, Issue-Reports und `pending_accounting_followups` erscheinen in der Checkliste als Hinweise.
+
+**UI bei `returned` / `storing`:** Abschluss-Checkliste für MW/DC (`completion_blockers` aus `GET /api/activities/{id}/transitions`). Optional: Kosten freigeben / später Einnahme-Vermerk (Bar/Rechnung) — keine fertige Buchung; effektive Abrechnung in `/accounting`.
 
 ---
 
@@ -219,6 +227,7 @@ Verlauf: `GET /api/activities/{id}/history` (Einträge z. B. `status_changed`)
 
 ## Siehe auch
 
+- [Buchhaltung — Zwei Abschlüsse](../accounting.md#zwei-abschlüsse-kernmodell)
 - [ADR Workflow-Layers](./newUI/ADR-workflow-layers.md)
 - [Material-Pipeline](./material-pipeline.md)
 - [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md)

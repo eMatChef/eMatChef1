@@ -4,6 +4,7 @@ import MaterialJourneyTaskRow from '@/components/activities/materialJourney/Mate
 import MaterialJourneyCrateTaskRow from '@/components/activities/materialJourney/MaterialJourneyCrateTaskRow.vue'
 import type { MaterialJourneyRegalGroup } from '@/components/activities/materialJourneyRegalGroups'
 import type { MaterialJourneyTaskRow as TaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import {
   materialJourneyAccordionLinesForRow,
   type MaterialJourneyAccordionLine,
@@ -72,7 +73,11 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 function isExpandableRow(row: TaskRow): boolean {
-  return row.kind === 'crate' || row.kind === 'combo'
+  return isMaterialJourneyCrateKind(row.kind) || row.kind === 'combo'
+}
+
+function showStoreForLooseRow(row: TaskRow): boolean {
+  return props.journeyStep === 'store' && row.canMove && row.isOpen && row.maxForwardQty > 0
 }
 
 function previewLinesFor(row: TaskRow): MaterialJourneyAccordionLine[] {
@@ -103,13 +108,13 @@ function isPackCrateAssignActive(): boolean {
 function isPackTargetActive(row: TaskRow): boolean {
   return (
     Boolean(props.packTargetCrateId) &&
-    row.kind === 'crate' &&
+    isMaterialJourneyCrateKind(row.kind) &&
     row.container?.id === props.packTargetCrateId
   )
 }
 
 function isPackTargetSelectable(row: TaskRow): boolean {
-  return Boolean(props.packCrateSelectMode) && row.kind === 'crate'
+  return Boolean(props.packCrateSelectMode) && isMaterialJourneyCrateKind(row.kind)
 }
 
 function hasReassignTargetsFor(row: TaskRow): boolean {
@@ -118,7 +123,7 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
 }
 
 function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
-  if (row.kind !== 'crate' || !row.container) return []
+  if (!isMaterialJourneyCrateKind(row.kind) || !row.container) return []
   if (!props.packContainers || !props.shellPackItemForContainer) return []
   return reassignTargetPackCrates(
     props.packContainers,
@@ -217,7 +222,9 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
+          :show-store-action="showStoreForLooseRow(row)"
           :at-event-qty-label="atEventLabelForRow(row)"
+          :is-consumable-for-material-id="isConsumableForMaterialId"
           @activate="emit('activate', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"

@@ -1,7 +1,6 @@
 <template>
   <div class="contacts-view">
-    <!-- Detail View (ersetzt Liste wenn Kontakt ausgewählt) -->
-      <ContactDetailView
+    <ContactDetailView
       v-if="showDetailView && selectedContactId"
       :contact-id="selectedContactId"
       :department-id="currentDepartmentId"
@@ -132,18 +131,29 @@
         </EResponsiveDataList>
         <p class="table-hint">{{ t('contacts.tableHint') }}</p>
       </div>
-
-      <!-- Address Modal (Create only) -->
-      <AddressModal
-        v-if="showModal"
-        :department-id="currentDepartmentId"
-        :address="null"
-        :default-type="createDefaultType"
-        :allowed-types="createAllowedTypes"
-        @close="closeModal"
-        @saved="handleSaved"
-      />
     </PageShell>
+
+    <v-dialog
+      v-model="showCreateModal"
+      class="contact-create-dialog"
+      max-width="960"
+      scrollable
+      content-class="contact-create-dialog__content"
+    >
+      <v-card class="contact-create-dialog__card" rounded="lg">
+        <v-card-text class="contact-create-dialog__body">
+          <ContactDetailView
+            v-if="showCreateModal"
+            mode="create"
+            as-modal
+            :department-id="currentDepartmentId"
+            :default-type="createDefaultType"
+            @close="closeCreateModal"
+            @created="handleCreated"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -166,14 +176,12 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EResponsiveDataList from '@/components/layout/EResponsiveDataList.vue'
 import { ESearchField, ESelect, ECheckbox, EButton } from '@/components/form/base'
-import AddressModal from '@/components/AddressModal.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import ContactListDataTable from '@/components/contacts/ContactListDataTable.vue'
 import ContactListMobile from '@/components/contacts/ContactListMobile.vue'
 import {
   useDepartmentMemberRole,
   USER_CONTACT_VIEW_TYPES,
-  USER_CONTACT_CREATE_TYPES,
 } from '@/composables/useDepartmentMemberRole'
 import '@/styles/contacts-view.css'
 
@@ -187,10 +195,6 @@ const currentDepartmentId = computed(() => route.params.departmentId as string)
 const canCreateContact = computed(() => canManageContacts.value || isUserRole.value)
 
 const createDefaultType = computed(() => (isUserRole.value ? 'meeting' : 'customer'))
-
-const createAllowedTypes = computed(() =>
-  isUserRole.value ? [...USER_CONTACT_CREATE_TYPES] : null
-)
 
 const visibleAddressTypeKeys = computed(() => {
   const all = Object.keys(ADDRESS_TYPES) as (keyof typeof ADDRESS_TYPES)[]
@@ -232,10 +236,8 @@ const selectedType = ref('')
 const selectedCanton = ref('')
 const showDeleted = ref(false)
 
-// Modal State
-const showModal = ref(false)
-
-// Detail View State (gesteuert über Route-Parameter)
+// Create / Detail View State
+const showCreateModal = ref(false)
 const selectedContactId = computed(() => route.params.contactId as string | undefined || null)
 const showDetailView = computed(() => !!selectedContactId.value)
 
@@ -318,18 +320,21 @@ async function handleContactDeleted() {
   await loadContacts()
 }
 
-// Modal (nur für Neu-Erstellung)
+// Create (Detail-Stil als Modal)
 function openCreateModal() {
-  showModal.value = true
+  showCreateModal.value = true
 }
 
-function closeModal() {
-  showModal.value = false
+function closeCreateModal() {
+  showCreateModal.value = false
 }
 
-async function handleSaved() {
-  closeModal()
+async function handleCreated(addr: Address) {
+  showCreateModal.value = false
   await loadContacts()
+  if (addr?.id) {
+    router.push(`/${currentDepartmentId.value}/contacts/${addr.id}`)
+  }
 }
 
 async function restoreContact(contact: Address) {

@@ -1,8 +1,10 @@
 # Kombos (physisch & virtuell)
 
-Konzept-Dokumentation zu **Combo-Materialien** in eMatChef: physische vs. virtuelle Kombo, Stückliste (BOM), Reservationsmodus, optionales Zubehör, Verfügbarkeit/Sperre und der geplante Umbau (Wizard, Vorlagen, Aktivitäten).
+Konzept-Dokumentation zu **Combo-Materialien** in eMatChef: physische vs. virtuelle Kombo, Stückliste (BOM), optionales Zubehör, Verfügbarkeit/Sperre, Wizard/Vorlagen/Aktivitäten.
 
-**Stand:** Mai 2026 · Zielmodell bereinigt (3 Typen, `reservation_mode` entfällt, Entwurfs-Flag); Umbau Pakete 0–7 erledigt (Konfigurator + 3-Zustands-Verfügbarkeit + Buchungs-Dialog; Paket 7 Cross-Cutting: „Kombinieren?"-Dialog, Set-Anzeige „wie Kiste", einheitliche Badges)
+**Stand:** August 2026 · Zielmodell (3 Typen, `reservation_mode` entfernt, Entwurfs-Flag); Umbau Pakete 0–8 **erledigt**; Journey/Nachbearbeitung **C1–C7** + Stammdaten **C8–C12 erledigt** · Restarbeit: [verbesserungen.md](./verbesserungen.md) (bewusst später) / Top-10 **#7**
+
+**Docs:** [plan.md](./plan.md) · [virtual-combo-activities.md](./virtual-combo-activities.md) · [verbesserungen.md](./verbesserungen.md)
 
 ---
 
@@ -89,12 +91,12 @@ is_optional  =  abgeleitetes Anzeige-Flag „zeig als Toggle"  (kein eigenes Ver
 ```mermaid
 flowchart TB
   subgraph master [Stammdaten]
-    MI[MaterialItem<br/>material_type: physical / physical_combo / virtual_combo<br/>combo_status: draft/ready neu · reservation_mode wird entfernt]
+    MI[MaterialItem<br/>material_type: physical / physical_combo / virtual_combo<br/>combo_status: draft/ready]
     MB[MaterialBatch<br/>qty + serial_number]
     MCC[MaterialComboComponent<br/>qty, component_role, assignment_mode, is_optional, component_source]
   end
   subgraph tpl [Vorlagen]
-    MT[MaterialTemplate<br/>material_type, capacity, reservation_mode]
+    MT[MaterialTemplate<br/>material_type, capacity]
     MTC[MaterialTemplateComponent<br/>required_qty, is_optional, tracking, is_generic]
   end
   MI --> MB
@@ -130,31 +132,18 @@ flowchart TB
 
 ---
 
-## 3. Reservationsmodus
+## 3. Reservationsmodus (historisch — entfernt)
 
-Gespeichert auf `MaterialItem.reservation_mode` (und `MaterialTemplate`). Dokumentierte Werte: `complete_only`, `individual`, `flexible`.
+Früher auf `MaterialItem.reservation_mode` / Vorlage gespeichert (`complete_only` / `individual` / `flexible`). Der Wert floss **nie** in Verfügbarkeits-/Buchungslogik ein.
 
-### Aktueller Stand (wichtig)
-
-Der Wert wird **nur gesetzt und in der API-Response zurückgegeben** – er fließt in **keine** Verfügbarkeits- oder Buchungslogik ein (kein Vorkommen in den Availability-/Activity-Controllern). Aktuell also reine Deklaration ohne Wirkung.
-
-### Entscheidung: `reservation_mode` entfällt ⚠️ (überholt den früheren Reframe)
-
-> Diese Sektion ist historisch. **Aktueller Stand: `reservation_mode` wird gestrichen** (siehe Abschnitt 0).
-
-Der Zwischenschritt war, das Trio `complete_only / individual / flexible` auf „Nur komplett / Mit Optionen" einzudampfen. Inzwischen entschieden: **gar kein eigenes Modus-Feld**. Begründung:
-- „Nur komplett" = einfach eine virtuelle Kombo **ohne** Optionen → ergibt sich automatisch.
-- „Mit Optionen" = virtuelle Kombo **mit** Optionen (Toggle/Gruppe).
-- Freie Zusammenstellung = **Konfigurator** = abgeleiteter Zustand der virtuellen Kombo (kein eigener Typ — siehe Abschnitt 0).
-
-Das Verhalten leitet sich also aus **Material-Typ** + **Vorhandensein von Zubehör/Optionen** ab; `reservation_mode` (heute ohne Wirkung) wird nicht weiterentwickelt, sondern entfernt. `individual` war ohnehin sinnlos.
+**Aktuell:** Feld ist **entfernt** (Paket 2). Verhalten kommt aus **Typ** + **Zusammensetzung** (Abschnitt 0): ohne Optionen = komplett; mit Optionen/Gruppen = Konfigurator.
 
 ---
 
 ## 4. Optionales Zubehör (`is_optional`)
 
 - Das „Zubehör"-Feld heißt im Code **`is_optional`** (kein separates `is_accessory`). Beispiel aus der Vorlagen-Doku: „Tortuga Bodendecke".
-- **Bug (offen):** Der „optional"-Haken wird im Zusammensetzungs-Tab (`MaterialDetailView.vue`) für **beide** Combo-Typen angezeigt – auch für physische Kombos, wo er **keinen Sinn** ergibt (fixes, als Ganzes reserviertes Einzelstück). Der `assignment_mode` wird dort schon typabhängig vorbelegt (`virtual_combo → on_issue`, sonst `bulk`), nur `is_optional` wurde vergessen.
+- **Ist (Paket 0):** `is_optional` nur bei **virtueller** Kombo (`MaterialDetailView` gated). Physisch: verwandtes Zubehör als separate Position.
 - **Soll:**
 
 | Combo-Typ | Komponenten | „optional"-Frage? |
@@ -170,7 +159,7 @@ Das Verhalten leitet sich also aus **Material-Typ** + **Vorhandensein von Zubeh�
 | Fall | Beispiel | Combo-Typ | Status |
 |------|----------|-----------|--------|
 | **Fix im Sack** | Aussen + Innen + Stangen dauerhaft zusammen | physische Kombo (Sack = `linked_container_batch`) | **voll abgebildet** |
-| **Variabel** | 1 Aussenzelt, wahlweise 1/2 Innenzelte oder Aufstelleinheit – mit anderen Heringen/Schnüren/Stangen | virtuelle Kombo mit **variabler** Stückliste | **Lücke** |
+| **Variabel** | 1 Aussenzelt, wahlweise 1/2 Innenzelte oder Aufstelleinheit – mit anderen Heringen/Schnüren/Stangen | virtuelle Kombo mit **variabler** Stückliste | **erledigt** (Konfigurator, Pakete 5/6) |
 
 ### Grenze von `is_optional` (historische Analyse — durch Weg B gelöst)
 
@@ -186,15 +175,15 @@ Der *alte* `is_optional` war nur ein **unabhängiger** Ja/Nein-Haken pro Zeile. 
 |-----|------|----------------|---------|
 | **A) Variante = eigene Kombo** | „Zelt 8 Pers" / „Zelt 16 Pers" je mit fester Stückliste, gemeinsamer Teile-Pool | **Ja** | klein |
 | **B) Eine Kombo + `is_optional`** | Pflichtteile + unabhängige optionale Zeilen | teilweise – keine Mengen-Abhängigkeit/Ausschluss | mittel |
-| **C) Varianten-BOM (Konfigurator)** | Options-Gruppen mit gekoppelten Unter-Stücklisten | **Nein** – neues Datenmodell | groß |
+| **C) Varianten-BOM (Konfigurator)** | Options-Gruppen mit gekoppelten Unter-Stücklisten | **Ja** (umgesetzt) | — |
 
-**Entscheidung:** Für die variablen Zelte wird **Weg C (Konfigurator)** gebaut – siehe Abschnitt 6. Feste Sets bleiben physische Kombos oder virtuelle Kombos ohne Zubehör (Mix). Weg A bleibt als pragmatische Abkürzung für rein diskrete Konfigurationen möglich.
+**Entscheidung (umgesetzt):** Variable Zelte laufen über **Weg C (Konfigurator)** — siehe Abschnitt 6. Feste Sets bleiben physische Kombos oder virtuelle Kombos ohne Zubehör. Weg A bleibt als Abkürzung für rein diskrete Konfigurationen möglich.
 
 ---
 
-## 6. Konfigurator-Modell (Zielbild für variable Kombos)
+## 6. Konfigurator-Modell (variable Kombos — umgesetzt)
 
-Für variable Kombos (Zelte mit 1/2 Innenzelten, „Hochstelleinheit **oder** Vorzelt", „Ecken entfernen Schnüre/Heringe"; Blachenburgen „Sarasani"/„Berliner") wird ein **Konfigurator** gebaut: eine virtuelle Kombo, deren Stückliste sich aus der Auswahl ergibt.
+Für variable Kombos (Zelte mit 1/2 Innenzelten, „Hochstelleinheit **oder** Vorzelt", „Ecken entfernen Schnüre/Heringe"; Blachenburgen „Sarasani"/„Berliner") gibt es einen **Konfigurator**: eine virtuelle Kombo, deren Stückliste sich aus der Auswahl ergibt.
 
 > **Kein eigener Typ, ein Modell:** Der Konfigurator ist der **erweiterte Zustand** einer virtuellen Kombo (Abschnitt 0). **Alles Wählbare ist eine Option mit Delta-Liste** — auch das einfache „Zubehör" (`is_optional`) ist nur eine Option im Anzeige-Modus `toggle`. Es gibt **keinen zweiten Mechanismus**.
 
@@ -369,7 +358,7 @@ Buchung von 3× „Zelt 8 Pers" sperrt im Zeitraum 3× Plane, 36× Stange, 72× 
 
 - `self_provided`-Teile erzeugen **keine** Reservierungs-Kind-Zeile, nur einen Hinweis-/Checklisten-Eintrag.
 - Konfig ändern = Kind-Zeilen neu generieren (Eltern-Zeile bleibt, Snapshot aktualisieren).
-- Benötigt **neu:** `activity_item.parent_activity_item_id` (NULL = normale/Eltern-Zeile) + Snapshot-Feld (z. B. `config_snapshot` JSON) an der Eltern-Zeile.
+- Umgesetzt: `activity_item.parent_activity_item_id` (NULL = normale/Eltern-Zeile) + `config_snapshot` JSON an der Eltern-Zeile.
 
 ### Geteilter Pool
 
@@ -453,26 +442,18 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 ---
 
-## 10. Roadmap – finaler Umbau
+## 10. Roadmap – Umbau-Status
 
-### A) Wizard „Material erstellen" (nur das Nötigste)
-- **Drei Typen** klar anbieten: Einzelartikel · Physische Kombo · Virtuelle Kombo. **Konfigurator ist kein eigener Typ** (ergibt sich aus der Zusammensetzung).
-- `reservation_mode` **entfernen** (Verhalten abgeleitet, siehe Abschnitt 0).
-- `is_optional` (Zubehör) nur bei virtueller Kombo (physisch ausblenden).
-- Wizard legt Kombo als **Hülle** an → Status `draft` („in Bearbeitung"); Stückliste/Optionen im Detail-Tab.
-- Neues **Entwurfs-Flag** `draft/ready` auf `MaterialItem` (+ Migration); `draft` nicht buchbar.
+Pakete 0–8, Journey **C1–C7** und Stammdaten **C8–C12** sind erledigt. Bewusst später / optional: [verbesserungen.md](./verbesserungen.md). System-Vorlagen: `backend/data/templates/` (Sarasani flach, Phoenix Konfigurator-Beispiel).
 
-### B) Detail-Tab & Vorlagen
-- **Detail-Tab (`MaterialDetailView`):** Stückliste, Zubehör (`is_optional`), Komponenten-Quelle (`stock`/`self_provided`), Button „Delta/Optionen" → Konfigurator-Gruppen/Optionen/±Deltas, verwandtes Zubehör; „fertigstellen" setzt `ready`.
-- **Vorlagen-Editor:** spiegelt dieselbe Struktur (Pflicht/Zubehör, Quelle, Gruppen/Optionen/Deltas); `is_optional` / `component_source` / `required_qty` / `tracking` korrekt in die erzeugte Kombo übertragen.
+### A) Wizard „Material erstellen" — ✅
+- Drei Typen; Konfigurator kein eigener Typ; `reservation_mode` entfernt; `is_optional` nur virtuell; Hülle `draft` → Detail fertigstellen `ready`.
 
-### C) Aktivitäten – Bestellen & Zusammensetzen
-- **Bestellen:** virtuelle Kombo hinzufügen → Verfügbarkeit als Flaschenhals der `stock`-Komponenten; Zubehör-Teile wählbar; `self_provided`-Teile als Hinweis; Sperre kaskadiert auf Komponenten-Mengen × Zeitraum. Nur `ready`-Kombos buchbar.
-- **Anzeige:** „noch X× verfügbar" pro Kombo (statt X-mal klicken).
-- **Kombinieren:** Überlapp einer Kombo-Option mit vorhandener Position erkennen → User fragen, ob vorhandene Einheit verwendet wird (statt doppelt reservieren).
-- **Pack-Vorgabe (`pack_mode`):** User entscheidet «zusammen als Packkiste» vs. «lose — MW organisiert»; Details → [virtual-combo-activities.md](./virtual-combo-activities.md).
-- **Packen (MW):** Pick-/Scan-Liste pro `on_issue`-Komponente → konkrete Seriennummer zuweisen (`component_batch_id` setzen, `isAwaitingAssignment()` wird false).
-- **Pipeline:** Pack-/Sperr-Positionen pro Komponente führen.
+### B) Detail-Tab & Vorlagen — ✅
+- Stückliste, Quelle, Optionen/Deltas, verwandtes Zubehör, Finalize. Vorlagen-Editor spiegelt die Struktur (Inhalte/System-Vorlagen: C11).
+
+### C) Aktivitäten – Bestellen & Packen — ✅ (Kern)
+- Konfigurator-Buchung, Combine, `pack_mode`, Journey `virtual_crate` / `self_provided` / Scan (C1–C4), Nachbearbeitung Menge/Optionen/Rest (C5–C7). Details → [virtual-combo-activities.md](./virtual-combo-activities.md).
 
 ---
 
@@ -480,7 +461,7 @@ Wenn ein Kombo-Bestandteil (z. B. Aufstelleinheit als Option) dasselbe Teil ist 
 
 | Thema | Ort |
 |-------|-----|
-| Combo-Material | `backend/src/Entity/MaterialItem.php` (`material_type`, `reservation_mode`) |
+| Combo-Material | `backend/src/Entity/MaterialItem.php` (`material_type`, `combo_status`) |
 | Stückliste | `backend/src/Entity/MaterialComboComponent.php` |
 | Vorlage | `backend/src/Entity/MaterialTemplate.php`, `MaterialTemplateComponent.php` |
 | Combo-CRUD / Komponenten | `backend/src/Controller/MaterialController.php` |

@@ -64,7 +64,11 @@ function onStepClick(step: JourneyStep): void {
 </script>
 
 <template>
-  <nav class="material-journey-stepper" aria-label="Material-Journey">
+  <nav
+    class="material-journey-stepper"
+    data-onboarding="activity-pack-stepper"
+    aria-label="Material-Journey"
+  >
     <div
       class="material-journey-stepper__track"
       role="progressbar"
@@ -95,7 +99,7 @@ function onStepClick(step: JourneyStep): void {
           type="button"
           class="material-journey-stepper__seg-btn"
           :aria-current="step === currentStep ? 'step' : undefined"
-          :aria-label="stepLabel(step)"
+          :aria-label="`${index + 1}. ${stepLabel(step)}`"
           :title="stepLabel(step)"
           @click="onStepClick(step)"
         >
@@ -114,7 +118,7 @@ function onStepClick(step: JourneyStep): void {
             />
             <span v-else class="material-journey-stepper__num">{{ index + 1 }}</span>
           </span>
-          <span class="material-journey-stepper__seg-label">
+          <span class="material-journey-stepper__seg-label" aria-hidden="true">
             <span class="material-journey-stepper__seg-label-num">{{ index + 1 }}.</span>
             {{ stepLabel(step) }}
           </span>
@@ -122,7 +126,7 @@ function onStepClick(step: JourneyStep): void {
       </li>
     </ol>
 
-    <p class="material-journey-stepper__current" aria-live="polite">
+    <p class="material-journey-stepper__current" aria-hidden="true">
       {{ currentStepCaption }}
     </p>
   </nav>

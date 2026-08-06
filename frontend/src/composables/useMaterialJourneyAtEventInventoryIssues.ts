@@ -5,6 +5,7 @@ import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import { isConsumablePackItem } from '@/utils/packItemConsumable'
 import {
   atEventQtySummary,
@@ -59,7 +60,7 @@ export function useMaterialJourneyAtEventInventoryIssues(options: {
       return formatAtEventQtyLabel(summary, t)
     }
 
-    if (row.kind === 'crate' && row.container) {
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
       const shellIssued = crateShellIssuedAtEvent(row, options.shellPackItemForContainer)
       const summary = atEventQtySummaryForCrateContainer(
         row.container.id,

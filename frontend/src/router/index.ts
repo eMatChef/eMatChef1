@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { usePermissionsStore } from '@/stores/permissions'
+import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { usePageHeadStore } from '@/stores/pageHead'
 import { syncDocumentHead } from '@/composables/usePageHead'
 import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
@@ -23,7 +24,7 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import {
-  canUseDepartmentOnboarding,
+  canUseHelpEinrichtung,
   isHelpEinrichtungPath,
 } from '@/utils/onboardingGate'
 
@@ -1377,6 +1378,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'accounting',
+            name: 'SettingsAccounting',
+            component: () => import('@/views/settings/AccountingSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsAccounting'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
             path: 'storage',
             name: 'SettingsStorage',
             component: () => import('@/views/settings/StorageSettingsView.vue'),
@@ -1436,7 +1447,17 @@ const routes: RouteRecordRaw[] = [
             name: 'HelpEinrichtung',
             component: () => import('@/views/onboarding/OnboardingHubView.vue'),
             meta: {
-              requireDepartmentRoles: ['mw', 'matwart', 'dc', 'depchef'],
+              requireDepartmentRoles: [
+                'mw',
+                'matwart',
+                'dc',
+                'depchef',
+                'l1',
+                'l2',
+                'l3',
+                'u',
+                'user',
+              ],
               denyRedirectTo: { name: 'HelpDokumentation' },
               ...routeHead('helpEinrichtung'),
             },
@@ -1445,7 +1466,7 @@ const routes: RouteRecordRaw[] = [
             path: 'dokumentation',
             name: 'HelpDokumentation',
             alias: 'overview',
-            component: () => import('@/views/help/HelpComingSoonView.vue'),
+            component: () => import('@/views/help/HelpDokumentationView.vue'),
             meta: routeHead('helpOverview'),
           },
         ],
@@ -1602,6 +1623,7 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const permissionsStore = usePermissionsStore()
+  const roleLabelsStore = useDepartmentRoleLabelsStore()
   const isSuperAdmin = () => {
     const userRoles = authStore.userRoles || []
     return userRoles.includes('ROLE_SUPERADMIN')
@@ -1883,10 +1905,12 @@ router.beforeEach(async (to, from, next) => {
     // Visibility für Department laden
     if (departmentId && departmentId !== 'login') {
       permissionsStore.loadVisibility(departmentId)
+      roleLabelsStore.load(departmentId)
     }
   } else if (authStore.isLoggedIn && authStore.activeDepartmentId) {
     // Visibility für aktives Department laden
     permissionsStore.loadVisibility(authStore.activeDepartmentId)
+    roleLabelsStore.load(authStore.activeDepartmentId)
   }
 
   if (to.meta.requireDepartmentRoles && Array.isArray(to.meta.requireDepartmentRoles)) {
@@ -2017,7 +2041,7 @@ router.beforeEach(async (to, from, next) => {
   if (deptIdForOnboarding && authStore.isLoggedIn && !isSuperAdmin()) {
     const onHelpEinrichtung = isHelpEinrichtungPath(to.path, deptIdForOnboarding)
 
-    if (onHelpEinrichtung && !canUseDepartmentOnboarding(authStore, deptIdForOnboarding)) {
+    if (onHelpEinrichtung && !canUseHelpEinrichtung(authStore, deptIdForOnboarding)) {
       return next({
         name: 'HelpDokumentation',
         params: { departmentId: deptIdForOnboarding },

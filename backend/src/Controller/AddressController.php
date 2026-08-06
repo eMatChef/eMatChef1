@@ -21,10 +21,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class AddressController extends AbstractController
 {
     /** Kontakte: User-Rolle – lesbare Typen. */
-    private const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting'];
+    private const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting', 'event_delivery', 'event_poi'];
 
     /** Kontakte: User-Rolle – anlegen/bearbeiten/löschen nur diese Typen. */
-    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery'];
+    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery', 'event_poi'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -130,7 +130,7 @@ class AddressController extends AbstractController
         if ($address->getType() === Address::TYPE_EVENT) {
             $payload['child_addresses'] = array_map(
                 fn (Address $child) => $child->toArray(),
-                $this->findEventDeliveryChildren($address->getId())
+                $this->findEventChildAddresses($address->getId())
             );
         }
 
@@ -494,7 +494,10 @@ class AddressController extends AbstractController
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
         }
-        if ($address->getType() === Address::TYPE_EVENT_DELIVERY && $address->getParentId() !== null) {
+        if (
+            in_array($address->getType(), [Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
+            && $address->getParentId() !== null
+        ) {
             $parent = $this->entityManager->getRepository(Address::class)->find($address->getParentId());
             if ($parent instanceof Address && !$parent->isDeleted()) {
                 $this->assertCanModifyContact($parent);
@@ -513,7 +516,10 @@ class AddressController extends AbstractController
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
         }
-        if ($address->getType() === Address::TYPE_EVENT_DELIVERY && $address->getParentId() !== null) {
+        if (
+            in_array($address->getType(), [Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
+            && $address->getParentId() !== null
+        ) {
             $parent = $this->entityManager->getRepository(Address::class)->find($address->getParentId());
             if ($parent instanceof Address && !$parent->isDeleted()) {
                 $this->assertCanViewContact($parent);
@@ -528,18 +534,28 @@ class AddressController extends AbstractController
     }
 
     /** @return Address[] */
-    private function findEventDeliveryChildren(string $eventAddressId): array
+    private function findEventChildAddresses(string $eventAddressId): array
     {
         /** @var Address[] $rows */
         $rows = $this->entityManager->getRepository(Address::class)->findBy(
-            [
-                'parentId' => $eventAddressId,
-                'type' => Address::TYPE_EVENT_DELIVERY,
-            ],
-            ['name' => 'ASC']
+            ['parentId' => $eventAddressId],
+            ['type' => 'ASC', 'name' => 'ASC']
         );
 
-        return array_values(array_filter($rows, static fn (Address $a) => !$a->isDeleted()));
+        return array_values(array_filter(
+            $rows,
+            static fn (Address $a) => !$a->isDeleted()
+                && in_array($a->getType(), [Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
+        ));
+    }
+
+    /** @return Address[] */
+    private function findEventDeliveryChildren(string $eventAddressId): array
+    {
+        return array_values(array_filter(
+            $this->findEventChildAddresses($eventAddressId),
+            static fn (Address $a) => $a->getType() === Address::TYPE_EVENT_DELIVERY
+        ));
     }
 
     private function validateAddressParentLink(Address $address): ?string
@@ -547,23 +563,27 @@ class AddressController extends AbstractController
         $parentId = $address->getParentId();
         $type = $address->getType();
 
-        if ($type === Address::TYPE_EVENT_DELIVERY) {
+        if ($type === Address::TYPE_EVENT_DELIVERY || $type === Address::TYPE_EVENT_POI) {
             if ($parentId === null || $parentId === '') {
-                return 'Zustellpunkt braucht einen Eventstandort (parent_id).';
+                return $type === Address::TYPE_EVENT_DELIVERY
+                    ? 'Zustellpunkt braucht einen Eventstandort (parent_id).'
+                    : 'Event-Punkt braucht einen Eventstandort (parent_id).';
             }
             $parent = $this->entityManager->getRepository(Address::class)->find($parentId);
             if (!$parent instanceof Address || $parent->isDeleted()) {
                 return 'Eventstandort (parent_id) nicht gefunden.';
             }
             if ($parent->getType() !== Address::TYPE_EVENT) {
-                return 'Zustellpunkt darf nur an einen Eventstandort gehängt werden.';
+                return 'Kindadresse darf nur an einen Eventstandort gehängt werden.';
             }
             if ($parent->getDepartmentId() !== $address->getDepartmentId()) {
-                return 'Zustellpunkt muss im gleichen Department liegen wie der Eventstandort.';
+                return 'Kindadresse muss im gleichen Department liegen wie der Eventstandort.';
             }
-            foreach ($this->findEventDeliveryChildren($parentId) as $existing) {
-                if ($address->getId() === null || $existing->getId() !== $address->getId()) {
-                    return 'Für diesen Eventstandort existiert bereits ein Zustellpunkt.';
+            if ($type === Address::TYPE_EVENT_DELIVERY) {
+                foreach ($this->findEventDeliveryChildren($parentId) as $existing) {
+                    if ($address->getId() === null || $existing->getId() !== $address->getId()) {
+                        return 'Für diesen Eventstandort existiert bereits ein Zustellpunkt.';
+                    }
                 }
             }
 
@@ -571,7 +591,7 @@ class AddressController extends AbstractController
         }
 
         if ($parentId !== null && $parentId !== '') {
-            return 'parent_id ist nur für Typ event_delivery erlaubt.';
+            return 'parent_id ist nur für Typ event_delivery und event_poi erlaubt.';
         }
 
         return null;
@@ -661,6 +681,14 @@ class AddressController extends AbstractController
         }
         if (array_key_exists('additional_info', $data)) {
             $address->setAdditionalInfo($data['additional_info']);
+        }
+        if (array_key_exists('pin_color', $data)) {
+            $raw = $data['pin_color'];
+            if ($raw === null || $raw === '') {
+                $address->setPinColor(null);
+            } elseif (is_string($raw) && preg_match('/^#[0-9A-Fa-f]{6}$/', $raw)) {
+                $address->setPinColor(strtolower($raw));
+            }
         }
         if (isset($data['is_primary'])) {
             $address->setIsPrimary((bool) $data['is_primary']);

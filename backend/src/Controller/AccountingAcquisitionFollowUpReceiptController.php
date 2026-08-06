@@ -105,7 +105,7 @@ class AccountingAcquisitionFollowUpReceiptController extends AbstractController
     {
         $followUp = $this->entityManager->find(AccountingAcquisitionFollowUp::class, $followUpId);
         if (!$followUp || $followUp->getDepartment()->getId() !== $departmentId) {
-            throw $this->createNotFoundException('Anschaffungs-Auftrag nicht gefunden');
+            throw $this->createNotFoundException('Buchhaltungs-Auftrag nicht gefunden');
         }
 
         return $followUp;

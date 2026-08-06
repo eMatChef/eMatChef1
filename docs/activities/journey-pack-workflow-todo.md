@@ -1,8 +1,8 @@
 
 # Material-Journey — Pack-Workflow Todo
 
-**Stand:** Juni 2026  
-**Kontext:** [ADR Workflow-Layers](./newUI/ADR-workflow-layers.md) · [pack-workflow-rules.md](./pack-workflow-rules.md) · [material-pipeline.md](./material-pipeline.md)
+**Stand:** August 2026 — **Kern + 1d + 1c Phase 1 erledigt**. Top-10 **#7 Abrechnung Phasen 1–6 erledigt** (Vermerk, Kosten folgen, Aufräumen).  
+**Kontext:** [ADR Workflow-Layers](./newUI/ADR-workflow-layers.md) · [pack-workflow-rules.md](./pack-workflow-rules.md) · [material-pipeline.md](./material-pipeline.md) · [pack-steps-spezifikation.md](./pack-steps-spezifikation.md)
 
 Ziel: **Journey-UI** nutzt dieselbe Regel-Matrix wie Legacy (`packWorkflowRules.ts` + `packListCtx`) — zwei Flows (Quick/External vs. Logistics), Activity-Status ≠ Material-Pipeline.
 

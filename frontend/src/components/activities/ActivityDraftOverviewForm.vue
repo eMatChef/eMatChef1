@@ -81,16 +81,21 @@
                 primary-type="event"
                 :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
                 :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+                :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
                 :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
                 inline-create-label-key="addresses.search.createEventVenueInline"
+                show-edit-button
                 @update:selected-id="(id) => onVenueAddressId(id, onChange)"
                 @create="openAddVenueAddressModal"
+                @edit="openEditVenueAddressModal"
               />
             </template>
           </AutoSaveField>
           <ActivityVenueOverviewBlock
             :venue-address-id="form.venue_address_id"
+            :department-id="departmentId"
             :show-js-hint="form.wants_js_material === true"
+            @updated="reloadAddresses"
           />
         </div>
 
@@ -329,14 +334,32 @@
       </button>
     </div>
 
-    <AddressModal
-      v-if="showVenueAddressModal"
-      :department-id="departmentId"
-      default-type="event"
-      :default-name="venueAddressModalDefaultName"
-      @close="closeVenueAddressModal"
-      @saved="onVenueAddressModalSaved"
-    />
+    <v-dialog
+      v-model="showVenueContactModal"
+      class="contact-create-dialog"
+      max-width="960"
+      scrollable
+      content-class="contact-create-dialog__content"
+      :z-index="2400"
+    >
+      <v-card class="contact-create-dialog__card" rounded="lg">
+        <v-card-text class="contact-create-dialog__body">
+          <ContactDetailView
+            v-if="showVenueContactModal"
+            :key="venueContactModalKey"
+            :mode="venueContactModalMode"
+            as-modal
+            :department-id="departmentId"
+            :contact-id="venueContactModalId"
+            default-type="event"
+            @close="closeVenueContactModal"
+            @created="onVenueContactCreated"
+            @updated="onVenueContactUpdated"
+            @deleted="onVenueContactDeleted"
+          />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -344,6 +367,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import '@/styles/activity-create-wizard.css'
+import '@/styles/contacts-view.css'
 import {
   patchActivity,
   assignDepartmentInviteGroup,
@@ -369,7 +393,7 @@ import { AUTO_SAVE_SUCCESS_ICON_MS } from '@/composables/useAutoSaveField'
 import type { AutoSaveFieldValue, AutoSaveSelectOption } from '@/components/common/autoSave/types'
 import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import { DepartmentAddressAutocomplete } from '@/components/addresses'
-import AddressModal from '@/components/AddressModal.vue'
+import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 
 const props = withDefaults(
@@ -395,8 +419,9 @@ const datetimeHostClasses = useDisplayHostClasses('activity-detail-datetime-host
 const groups = ref<Group[]>([])
 const addresses = ref<Address[]>([])
 const saving = ref(false)
-const showVenueAddressModal = ref(false)
-const venueAddressModalDefaultName = ref('')
+const showVenueContactModal = ref(false)
+const venueContactModalMode = ref<'view' | 'create'>('view')
+const venueContactModalId = ref<string | null>(null)
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const zeitraumSaving = ref(false)
 const zeitraumShowSaved = ref(false)
@@ -711,14 +736,27 @@ function onVenueAddressId(id: string | null, onChange: () => void) {
   onChange()
 }
 
-function openAddVenueAddressModal(presetName = '') {
-  venueAddressModalDefaultName.value = presetName.trim()
-  showVenueAddressModal.value = true
+const venueContactModalKey = computed(() =>
+  venueContactModalMode.value === 'create'
+    ? 'venue-create'
+    : `venue-view-${venueContactModalId.value ?? 'none'}`,
+)
+
+function openAddVenueAddressModal(_presetName = '') {
+  venueContactModalMode.value = 'create'
+  venueContactModalId.value = null
+  showVenueContactModal.value = true
 }
 
-function closeVenueAddressModal() {
-  showVenueAddressModal.value = false
-  venueAddressModalDefaultName.value = ''
+function openEditVenueAddressModal(id: string) {
+  venueContactModalMode.value = 'view'
+  venueContactModalId.value = id
+  showVenueContactModal.value = true
+}
+
+function closeVenueContactModal() {
+  showVenueContactModal.value = false
+  venueContactModalId.value = null
 }
 
 async function reloadAddresses() {
@@ -732,12 +770,27 @@ async function reloadAddresses() {
   }
 }
 
-async function onVenueAddressModalSaved(addr?: Address) {
-  closeVenueAddressModal()
+async function onVenueContactCreated(addr: Address) {
+  closeVenueContactModal()
   await reloadAddresses()
   if (addr?.id) {
     form.value.venue_address_id = addr.id
     await saveVenueAddressId(addr.id)
+    onAutoFieldSaved()
+  }
+}
+
+async function onVenueContactUpdated() {
+  await reloadAddresses()
+}
+
+async function onVenueContactDeleted() {
+  const deletedId = venueContactModalId.value
+  closeVenueContactModal()
+  await reloadAddresses()
+  if (deletedId && form.value.venue_address_id === deletedId) {
+    form.value.venue_address_id = null
+    await saveVenueAddressId(null)
     onAutoFieldSaved()
   }
 }
@@ -1404,7 +1457,8 @@ defineExpose({
   border-radius: 8px;
 }
 
-.activity-venue-autosave-field :deep(.add-inline-btn) {
+.activity-venue-autosave-field :deep(.add-inline-btn),
+.activity-venue-autosave-field :deep(.edit-inline-btn) {
   width: 48px;
   height: 48px;
   min-height: 48px;

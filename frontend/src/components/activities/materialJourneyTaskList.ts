@@ -15,6 +15,8 @@ import {
 } from '@/components/activities/materialJourneyRegalGroups'
 import { packItemsForMaterialJourney } from '@/components/activities/materialJourneyJsSummary'
 import {
+  isVirtualComboTogetherContainer,
+  shouldIncludePackItemOnReturnNotTaken,
   shouldIncludePackItemOnStageLeft,
   shouldIncludePackItemOnStoredLoose,
   shouldShowContainerOnRightMirror,
@@ -53,6 +55,9 @@ function shouldShowPackContainerInJourneyList(
     return false
   }
   if (isPackForwardToEventStage(ctx.packStage)) {
+    if (isVirtualComboTogetherContainer(container)) {
+      return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+    }
     const shell = ctx.shellPackItemForContainer(container.id)
     if (!shell || !isCrateShellPackItem(shell, ctx.packContainers)) return false
     if (!ctx.stageLeftItems.some((pi) => pi.id === shell.id)) return false
@@ -60,6 +65,23 @@ function shouldShowPackContainerInJourneyList(
   }
   if (isPackReturnStage(ctx.packStage) || isPackUnpackStage(ctx.packStage)) {
     return shouldShowContainerOnStageLeft(container.id, ctx.containerCtx)
+  }
+  return false
+}
+
+/** Stock-Kind einer virt. Kombo together — nur im Set-Sheet, nicht als lose Zeile. */
+function isPackItemInVirtualTogetherContainer(
+  pi: ActivityPackItem,
+  ctx: Pick<MaterialJourneyTaskBuildContext, 'packContainers' | 'containerCtx'>,
+): boolean {
+  const mid = (pi.materialItemId ?? '').trim()
+  if (!mid) return false
+  for (const c of ctx.packContainers) {
+    if (!isVirtualComboTogetherContainer(c)) continue
+    const items = ctx.containerCtx.containerItemsForContainer?.(c.id) ?? []
+    if (items.some((ci) => ci.material_item_id === mid && (ci.quantity_packed ?? 0) > 0)) {
+      return true
+    }
   }
   return false
 }
@@ -121,9 +143,21 @@ function journeyLooseRowIsDone(
   return journeyLooseDoneQty(pi, ctx) > 0
 }
 
-export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'combo'
+export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'virtual_crate' | 'combo' | 'not_taken'
 
-export type MaterialJourneyTaskBadge = 'physical_combo' | 'consumable' | 'js' | 'crate' | 'pack_crate'
+export type MaterialJourneyTaskBadge =
+  | 'physical_combo'
+  | 'consumable'
+  | 'js'
+  | 'crate'
+  | 'virtual_crate'
+  | 'pack_crate'
+  | 'not_taken'
+
+/** Phys. Packkiste oder logisches Set (virt. Kombo together). */
+export function isMaterialJourneyCrateKind(kind: MaterialJourneyTaskKind): boolean {
+  return kind === 'crate' || kind === 'virtual_crate'
+}
 
 export type MaterialJourneyTaskRow = {
   id: string
@@ -183,11 +217,11 @@ export type MaterialJourneyTaskBuildContext = {
 
 /** Offene Material-Positionen ohne Packkisten (lose + Phys.-Kombi). */
 export function hasOpenLooseComboMaterialTasks(rows: MaterialJourneyTaskRow[]): boolean {
-  return rows.some((row) => row.isOpen && row.kind !== 'crate')
+  return rows.some((row) => row.isOpen && !isMaterialJourneyCrateKind(row.kind))
 }
 
 export function countOpenLooseComboMaterialTasks(rows: MaterialJourneyTaskRow[]): number {
-  return rows.filter((row) => row.isOpen && row.kind !== 'crate').length
+  return rows.filter((row) => row.isOpen && !isMaterialJourneyCrateKind(row.kind)).length
 }
 
 export function resolveDefaultMaterialJourneyFilterTab(options: {
@@ -389,9 +423,13 @@ export function buildMaterialJourneyCrateTask(
     maxMoveBackQty > 0 &&
     Boolean(ctx.canMoveBackItem?.(shellPackItem))
 
+  const isVirtualSet = isVirtualComboTogetherContainer(container)
+  const kind: MaterialJourneyTaskKind = isVirtualSet ? 'virtual_crate' : 'crate'
+  const badges: MaterialJourneyTaskBadge[] = isVirtualSet ? ['virtual_crate'] : ['crate']
+
   return {
     id: `crate-${container.id}`,
-    kind: 'crate',
+    kind,
     container,
     packItem: shellPackItem ?? undefined,
     title: container.label,
@@ -401,7 +439,7 @@ export function buildMaterialJourneyCrateTask(
     maxForwardQty: forwardUnits > 0 ? forwardUnits : issueable,
     isOpen,
     isDone,
-    badges: ['crate'],
+    badges,
     canMove: false,
     canMoveBack,
     maxMoveBackQty,
@@ -418,23 +456,25 @@ export function buildMaterialJourneyTasks(
   ctx: MaterialJourneyTaskBuildContext,
 ): MaterialJourneyTaskRow[] {
   const journeyItems = packItemsForMaterialJourney(packItems)
+  const crateBaseCtx: MaterialJourneyTaskBuildContext = { ...ctx }
 
   const looseRows = journeyItems
     .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
-    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, ctx))
-    .map((pi) => buildMaterialJourneyLooseTask(pi, ctx))
+    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, crateBaseCtx))
+    .filter((pi) => !isPackItemInVirtualTogetherContainer(pi, crateBaseCtx))
+    .map((pi) => buildMaterialJourneyLooseTask(pi, crateBaseCtx))
     .filter((row) => row.isOpen || row.isDone)
 
   const comboRows = journeyItems
     .filter((pi) => isPhysicalComboPackItem(pi))
-    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, ctx))
-    .map((pi) => buildMaterialJourneyComboTask(pi, ctx))
+    .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, crateBaseCtx))
+    .map((pi) => buildMaterialJourneyComboTask(pi, crateBaseCtx))
     .filter((row) => row.isOpen || row.isDone)
 
   const hasOpenLooseComboPackWork =
     looseRows.some((row) => row.isOpen) || comboRows.some((row) => row.isOpen)
   const crateCtx: MaterialJourneyTaskBuildContext = {
-    ...ctx,
+    ...crateBaseCtx,
     hasOpenLooseComboPackWork,
   }
 
@@ -445,7 +485,43 @@ export function buildMaterialJourneyTasks(
           .filter((row) => row.isOpen || row.isDone)
       : []
 
-  return [...crateRows, ...comboRows, ...looseRows]
+  const notTakenRows = journeyItems
+    .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
+    .filter((pi) => shouldIncludePackItemOnReturnNotTaken(pi, ctx.listCtx))
+    .map((pi) => buildMaterialJourneyNotTakenTask(pi, ctx))
+
+  return [...crateRows, ...comboRows, ...looseRows, ...notTakenRows]
+}
+
+function buildMaterialJourneyNotTakenTask(
+  pi: ActivityPackItem,
+  ctx: MaterialJourneyTaskBuildContext,
+): MaterialJourneyTaskRow {
+  const fromPipeline = ctx.listCtx.notTakenQtyForReturn(pi)
+  const fromIssues = ctx.listCtx.notTakenToEventQtyForMaterial(pi.materialItemId)
+  const qty = Math.max(fromPipeline, fromIssues)
+  const shelfLabel = materialJourneyShelfLabel(pi)
+  return {
+    id: `not-taken-${pi.id}`,
+    kind: 'not_taken',
+    packItem: pi,
+    title: packMaterialDisplayName(pi),
+    subtitle: null,
+    openQty: 0,
+    doneQty: qty,
+    maxForwardQty: 0,
+    isOpen: false,
+    isDone: true,
+    badges: ['not_taken'],
+    canMove: false,
+    canMoveBack: false,
+    maxMoveBackQty: 0,
+    canOpenSheet: false,
+    categoryName: pi.categoryName ?? null,
+    shelfLabel,
+    shelfKey: materialJourneyShelfKey(shelfLabel),
+    packCrateHint: null,
+  }
 }
 
 /** Am Anlass (Logistics): statische Bestandsliste — nur quantity_issued > 0. */
@@ -454,13 +530,32 @@ export function buildMaterialJourneyAtEventInventory(
   ctx: Pick<
     MaterialJourneyTaskBuildContext,
     'packContainers' | 'shellPackItemForContainer' | 'formatCrateLineCount' | 'cratePeekLineCount'
-  >,
+  > & {
+    containerItemsByContainerId?: Record<string, { material_item_id: string; quantity_packed?: number; quantity_issued?: number }[]>
+  },
 ): MaterialJourneyTaskRow[] {
   const journeyItems = packItemsForMaterialJourney(packItems)
+  const itemsByContainer = ctx.containerItemsByContainerId ?? {}
+
+  function materialInVirtualTogether(mid: string): boolean {
+    for (const c of ctx.packContainers) {
+      if (!isVirtualComboTogetherContainer(c)) continue
+      const items = itemsByContainer[c.id] ?? []
+      if (items.some((ci) => ci.material_item_id === mid && (ci.quantity_packed ?? 0) > 0)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  function virtualTogetherHasIssued(containerId: string): boolean {
+    return (itemsByContainer[containerId] ?? []).some((ci) => (ci.quantity_issued ?? 0) > 0)
+  }
 
   const looseRows = journeyItems
     .filter((pi) => !isVirtualComboPackItem(pi) && !isPhysicalComboPackItem(pi))
     .filter((pi) => (pi.quantityIssued ?? 0) > 0)
+    .filter((pi) => !materialInVirtualTogether(pi.materialItemId))
     .map((pi) => {
       const issued = pi.quantityIssued ?? 0
       const shelfLabel = materialJourneyShelfLabel(pi)
@@ -522,10 +617,14 @@ export function buildMaterialJourneyAtEventInventory(
     .filter((container) => {
       const shell = ctx.shellPackItemForContainer(container.id)
       if ((shell?.quantityIssued ?? 0) > 0) return true
+      if (isVirtualComboTogetherContainer(container) && virtualTogetherHasIssued(container.id)) {
+        return true
+      }
       return false
     })
     .map((container) => {
       const shellPackItem = ctx.shellPackItemForContainer(container.id)
+      const isVirtualSet = isVirtualComboTogetherContainer(container)
       let lineCount = ctx.cratePeekLineCount
         ? ctx.cratePeekLineCount(container, shellPackItem)
         : 0
@@ -539,7 +638,7 @@ export function buildMaterialJourneyAtEventInventory(
       )
       return {
         id: `inv-crate-${container.id}`,
-        kind: 'crate' as const,
+        kind: (isVirtualSet ? 'virtual_crate' : 'crate') as MaterialJourneyTaskKind,
         container,
         title: container.label,
         subtitle: subtitleParts.length > 0 ? subtitleParts.join(' · ') : null,
@@ -548,7 +647,7 @@ export function buildMaterialJourneyAtEventInventory(
         maxForwardQty: 0,
         isOpen: false,
         isDone: true,
-        badges: ['crate'] as MaterialJourneyTaskBadge[],
+        badges: (isVirtualSet ? ['virtual_crate'] : ['crate']) as MaterialJourneyTaskBadge[],
         canMove: false,
         canMoveBack: false,
         maxMoveBackQty: 0,
@@ -580,9 +679,11 @@ export function sortMaterialJourneyTasks(
     journeyStep === 'transport_out' ||
     journeyStep === 'transport_back'
   return [...rows].sort((a, b) => {
+    if (a.kind === 'not_taken' && b.kind !== 'not_taken') return 1
+    if (b.kind === 'not_taken' && a.kind !== 'not_taken') return -1
     if (cratesFirst) {
       const kindOrder = (kind: MaterialJourneyTaskKind) =>
-        kind === 'crate' ? 0 : kind === 'combo' ? 1 : 2
+        isMaterialJourneyCrateKind(kind) ? 0 : kind === 'combo' ? 1 : 2
       const kindDiff = kindOrder(a.kind) - kindOrder(b.kind)
       if (kindDiff !== 0) return kindDiff
     }
@@ -599,6 +700,7 @@ export function filterMaterialJourneyTasksByTab(
   rows: MaterialJourneyTaskRow[],
   tab: MaterialJourneyFilterTab,
 ): MaterialJourneyTaskRow[] {
-  if (tab === 'byShelf') return rows.filter((row) => row.isOpen)
-  return rows.filter((row) => (tab === 'open' ? row.isOpen : row.isDone))
+  if (tab === 'byShelf') return rows.filter((row) => row.isOpen || row.kind === 'not_taken')
+  if (tab === 'open') return rows.filter((row) => row.isOpen || row.kind === 'not_taken')
+  return rows.filter((row) => row.isDone)
 }

@@ -12,6 +12,7 @@ import type {
   MaterialJourneyFilterTab,
   MaterialJourneyTaskRow as TaskRow,
 } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
 import {
   materialJourneyAccordionLinesForRow,
   type MaterialJourneyAccordionLine,
@@ -60,6 +61,9 @@ const props = defineProps<{
   shellStorePendingQtyForRow?: (row: TaskRow) => number
   showCrateContentActions?: boolean
   deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
+  /** Einlagern: oben offen (Regal), unten bereits eingelagert */
+  showStoreSplitSections?: boolean
+  storeDoneTasks?: TaskRow[]
 }>()
 
 const emit = defineEmits<{
@@ -86,11 +90,21 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const storeDoneRows = computed(() => props.storeDoneTasks ?? [])
+
+const showStoreDoneSection = computed(
+  () => Boolean(props.showStoreSplitSections) && storeDoneRows.value.length > 0,
+)
+
 const isByShelf = computed(() => props.groupByShelf === true || props.filterTab === 'byShelf')
 const isStoreByShelf = computed(() => props.journeyStep === 'store' && isByShelf.value)
 
 function isExpandableRow(row: TaskRow): boolean {
-  return row.kind === 'crate' || row.kind === 'combo'
+  return isMaterialJourneyCrateKind(row.kind) || row.kind === 'combo'
+}
+
+function showStoreForLooseRow(row: TaskRow): boolean {
+  return props.journeyStep === 'store' && row.canMove && row.isOpen && row.maxForwardQty > 0
 }
 
 function previewLinesFor(row: TaskRow): MaterialJourneyAccordionLine[] {
@@ -121,13 +135,13 @@ function isPackCrateAssignActive(): boolean {
 function isPackTargetActive(row: TaskRow): boolean {
   return (
     Boolean(props.packTargetCrateId) &&
-    row.kind === 'crate' &&
+    isMaterialJourneyCrateKind(row.kind) &&
     row.container?.id === props.packTargetCrateId
   )
 }
 
 function isPackTargetSelectable(row: TaskRow): boolean {
-  return Boolean(props.packCrateSelectMode) && row.kind === 'crate'
+  return Boolean(props.packCrateSelectMode) && isMaterialJourneyCrateKind(row.kind)
 }
 
 function atEventLabelForRow(row: TaskRow): string | null {
@@ -148,7 +162,7 @@ function hasReassignTargetsFor(row: TaskRow): boolean {
 }
 
 function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
-  if (row.kind !== 'crate' || !row.container) return []
+  if (!isMaterialJourneyCrateKind(row.kind) || !row.container) return []
   if (!props.packContainers || !props.shellPackItemForContainer) return []
   return reassignTargetPackCrates(
     props.packContainers,
@@ -160,9 +174,16 @@ function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
   }))
 }
 
-const listIsEmpty = computed(() =>
-  isByShelf.value ? props.regalGroups.length === 0 : props.tasks.length === 0,
-)
+const listIsEmpty = computed(() => {
+  if (isByShelf.value) return props.regalGroups.length === 0
+  return primaryTasks.value.length === 0 && notTakenTasks.value.length === 0
+})
+
+const primaryTasks = computed(() => props.tasks.filter((row) => row.kind !== 'not_taken'))
+
+const notTakenTasks = computed(() => props.tasks.filter((row) => row.kind === 'not_taken'))
+
+const showNotTakenSection = computed(() => notTakenTasks.value.length > 0)
 
 const isFilteredEmpty = computed(
   () => listIsEmpty.value && (props.totalOpenCount ?? 0) > 0 && Boolean(props.listFilterActive),
@@ -219,141 +240,288 @@ const emptyDescription = computed(() => {
       :description="emptyDescription"
     />
 
-    <div v-else-if="isByShelf" class="material-journey-task-list__regal-groups">
-      <MaterialJourneyRegalGroup
-        v-for="group in regalGroups"
-        :key="group.key"
-        :group="group"
-        :list-editable="listEditable"
-        :moving-id="movingId"
-        :pack-crate-select-mode="packCrateSelectMode"
-        :pack-target-crate-id="packTargetCrateId"
-        :pack-target-crate-label="packTargetCrateLabel"
-        :transport-tour-assign-active="transportTourAssignActive"
-        :transport-target-tour-label="transportTargetTourLabel"
-        :container-items-by-container-id="containerItemsByContainerId"
-        :pack-items="packItems"
-        :pack-containers="packContainers"
-        :crate-peek-maps="cratePeekMaps"
-        :shell-pack-item-for-container="shellPackItemForContainer"
-        :show-transit-actions="showTransitActions"
-        :show-move-back="showMoveBack"
-        :move-back-qty-for-row="moveBackQtyForRow"
-        :show-move-forward="showMoveForward"
-        :show-crate-move-forward="showCrateMoveForward"
-        :move-forward-qty-for-row="moveForwardQtyForRow"
-        :show-issue-for-row="showIssueForRow"
-        :at-event-qty-label-for-row="atEventQtyLabelForRow"
-        :at-event-qty-label-for-line="atEventQtyLabelForLine"
-        :show-issue-for-accordion-line="showIssueForAccordionLine"
-        :is-consumable-for-material-id="isConsumableForMaterialId"
-        :journey-step="journeyStep"
-        :container-line-remaining-store="containerLineRemainingStore"
-        :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
-        :show-crate-content-actions="showCrateContentActions"
-        :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
-        :has-reassign-targets-for-row="hasReassignTargetsFor"
-        @activate="emit('activate', $event)"
-        @select-target="emit('selectTarget', $event)"
-        @loose-take="(row, line) => emit('looseTake', row, line)"
-        @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
-        @delete-empty="emit('deleteEmpty', $event)"
-        @move-back="(row, qty) => emit('moveBack', row, qty)"
-        @update:move-back-qty="(row, qty) => emit('update:moveBackQty', row, qty)"
-        @move-forward="(row, qty) => emit('moveForward', row, qty)"
-        @update:move-forward-qty="(row, qty) => emit('update:moveForwardQty', row, qty)"
-        @consumed="emit('consumed', $event)"
-        @loss="emit('loss', $event)"
-        @repair="emit('repair', $event)"
-        @damage="emit('damage', $event)"
-        @line-consumed="(row, line) => emit('lineConsumed', row, line)"
-        @line-loss="(row, line) => emit('lineLoss', row, line)"
-        @line-repair="(row, line) => emit('lineRepair', row, line)"
-        @line-damage="(row, line) => emit('lineDamage', row, line)"
-        @store-line="(row, line) => emit('storeLine', row, line)"
-        @store-shell="(row) => emit('storeShell', row)"
-      />
-    </div>
+    <div
+      v-else-if="isByShelf"
+      class="material-journey-task-list__regal-groups"
+      :class="{ 'material-journey-task-list__store-split': showStoreSplitSections }"
+    >
+      <section
+        v-if="showStoreSplitSections"
+        class="material-journey-store-section"
+        aria-labelledby="material-journey-store-open-title"
+      >
+        <header class="material-journey-store-section__header">
+          <h2 id="material-journey-store-open-title" class="material-journey-store-section__title">
+            {{ t('activities.materialJourney.storeSections.openTitle') }}
+          </h2>
+          <span class="material-journey-store-section__meta text-muted">
+            {{
+              t('activities.materialJourney.storeSections.openCount', {
+                count: totalOpenCount ?? tasks.length,
+              })
+            }}
+          </span>
+        </header>
+        <div class="material-journey-task-list__regal-groups">
+          <MaterialJourneyRegalGroup
+            v-for="group in regalGroups"
+            :key="group.key"
+            :group="group"
+            :list-editable="listEditable"
+            :moving-id="movingId"
+            :pack-crate-select-mode="packCrateSelectMode"
+            :pack-target-crate-id="packTargetCrateId"
+            :pack-target-crate-label="packTargetCrateLabel"
+            :transport-tour-assign-active="transportTourAssignActive"
+            :transport-target-tour-label="transportTargetTourLabel"
+            :container-items-by-container-id="containerItemsByContainerId"
+            :pack-items="packItems"
+            :pack-containers="packContainers"
+            :crate-peek-maps="cratePeekMaps"
+            :shell-pack-item-for-container="shellPackItemForContainer"
+            :show-transit-actions="showTransitActions"
+            :show-move-back="showMoveBack"
+            :move-back-qty-for-row="moveBackQtyForRow"
+            :show-move-forward="showMoveForward"
+            :show-crate-move-forward="showCrateMoveForward"
+            :move-forward-qty-for-row="moveForwardQtyForRow"
+            :show-issue-for-row="showIssueForRow"
+            :at-event-qty-label-for-row="atEventQtyLabelForRow"
+            :at-event-qty-label-for-line="atEventQtyLabelForLine"
+            :show-issue-for-accordion-line="showIssueForAccordionLine"
+            :is-consumable-for-material-id="isConsumableForMaterialId"
+            :journey-step="journeyStep"
+            :container-line-remaining-store="containerLineRemainingStore"
+            :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
+            :show-crate-content-actions="showCrateContentActions"
+            :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
+            :has-reassign-targets-for-row="hasReassignTargetsFor"
+            @activate="emit('activate', $event)"
+            @select-target="emit('selectTarget', $event)"
+            @loose-take="(row, line) => emit('looseTake', row, line)"
+            @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
+            @delete-empty="emit('deleteEmpty', $event)"
+            @move-back="(row, qty) => emit('moveBack', row, qty)"
+            @update:move-back-qty="(row, qty) => emit('update:moveBackQty', row, qty)"
+            @move-forward="(row, qty) => emit('moveForward', row, qty)"
+            @update:move-forward-qty="(row, qty) => emit('update:moveForwardQty', row, qty)"
+            @consumed="emit('consumed', $event)"
+            @loss="emit('loss', $event)"
+            @repair="emit('repair', $event)"
+            @damage="emit('damage', $event)"
+            @line-consumed="(row, line) => emit('lineConsumed', row, line)"
+            @line-loss="(row, line) => emit('lineLoss', row, line)"
+            @line-repair="(row, line) => emit('lineRepair', row, line)"
+            @line-damage="(row, line) => emit('lineDamage', row, line)"
+            @store-line="(row, line) => emit('storeLine', row, line)"
+            @store-shell="(row) => emit('storeShell', row)"
+          />
+        </div>
+      </section>
 
-    <ul v-else class="material-journey-task-list__items">
-      <li v-for="row in tasks" :key="row.id">
-        <MaterialJourneyCrateTaskRow
-          v-if="isExpandableRow(row)"
-          :row="row"
-          :moving="movingId === row.id"
-          :readonly="!listEditable"
-          :pack-target-active="isPackTargetActive(row)"
-          :pack-target-selectable="isPackTargetSelectable(row)"
-          :preview-lines="previewLinesFor(row)"
-          :show-transit-actions="showTransitActions"
-          :show-move-back="showMoveBack"
-          :move-back-qty="moveBackQtyForRow?.(row)"
-          :show-move-forward="showMoveForward"
-          :show-crate-move-forward="showCrateMoveForward"
-          :move-forward-qty="moveForwardQtyForRow?.(row)"
-          :transport-tour-assign-active="transportTourAssignActive"
-          :transport-target-tour-label="transportTargetTourLabel"
-          :has-reassign-targets="hasReassignTargetsFor(row)"
-          :reassign-targets="reassignTargetsFor(row)"
-          :show-crate-content-actions="showCrateContentActions"
-          :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
-          :show-issue-actions="showIssueForRow?.(row) ?? false"
-          :at-event-qty-label="atEventLabelForRow(row)"
-          :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
-          :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
-          :is-consumable-for-material-id="isConsumableForMaterialId"
-          :journey-step="journeyStep"
-          :container-items-by-container-id="containerItemsByContainerId"
-          :container-line-remaining-store="containerLineRemainingStore"
-          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
-          @activate="emit('activate', row)"
-          @select-target="emit('selectTarget', row)"
-          @loose-take="emit('looseTake', row, $event)"
-          @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
-          @delete-empty="emit('deleteEmpty', row)"
-          @move-back="emit('moveBack', row, $event)"
-          @update:move-back-qty="emit('update:moveBackQty', row, $event)"
-          @move-forward="emit('moveForward', row, $event)"
-          @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
-          @consumed="emit('consumed', row)"
-          @loss="emit('loss', row)"
-          @repair="emit('repair', row)"
-          @damage="emit('damage', row)"
-          @line-consumed="emit('lineConsumed', row, $event)"
-          @line-loss="emit('lineLoss', row, $event)"
-          @line-repair="emit('lineRepair', row, $event)"
-          @line-damage="emit('lineDamage', row, $event)"
-          @store-line="emit('storeLine', row, $event)"
-          @store-shell="emit('storeShell', row)"
-        />
-        <MaterialJourneyTaskRow
-          v-else
-          :row="row"
-          :moving="movingId === row.id"
-          :readonly="!listEditable"
-          :show-move-back="showMoveBack"
-          :move-back-qty="moveBackQtyForRow?.(row)"
-          :show-move-forward="showMoveForward"
-          :move-forward-qty="moveForwardQtyForRow?.(row)"
-          :pack-crate-assign-active="isPackCrateAssignActive()"
+      <template v-else>
+        <MaterialJourneyRegalGroup
+          v-for="group in regalGroups"
+          :key="group.key"
+          :group="group"
+          :list-editable="listEditable"
+          :moving-id="movingId"
+          :pack-crate-select-mode="packCrateSelectMode"
+          :pack-target-crate-id="packTargetCrateId"
           :pack-target-crate-label="packTargetCrateLabel"
           :transport-tour-assign-active="transportTourAssignActive"
           :transport-target-tour-label="transportTargetTourLabel"
-          :show-issue-actions="showIssueForRow?.(row) ?? false"
-          :at-event-qty-label="atEventLabelForRow(row)"
+          :container-items-by-container-id="containerItemsByContainerId"
+          :pack-items="packItems"
+          :pack-containers="packContainers"
+          :crate-peek-maps="cratePeekMaps"
+          :shell-pack-item-for-container="shellPackItemForContainer"
+          :show-transit-actions="showTransitActions"
+          :show-move-back="showMoveBack"
+          :move-back-qty-for-row="moveBackQtyForRow"
+          :show-move-forward="showMoveForward"
+          :show-crate-move-forward="showCrateMoveForward"
+          :move-forward-qty-for-row="moveForwardQtyForRow"
+          :show-issue-for-row="showIssueForRow"
+          :at-event-qty-label-for-row="atEventQtyLabelForRow"
+          :at-event-qty-label-for-line="atEventQtyLabelForLine"
+          :show-issue-for-accordion-line="showIssueForAccordionLine"
           :is-consumable-for-material-id="isConsumableForMaterialId"
-          @activate="emit('activate', row)"
-          @move-back="emit('moveBack', row, $event)"
-          @update:move-back-qty="emit('update:moveBackQty', row, $event)"
-          @move-forward="emit('moveForward', row, $event)"
-          @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
-          @consumed="emit('consumed', row)"
-          @loss="emit('loss', row)"
-          @repair="emit('repair', row)"
-          @damage="emit('damage', row)"
+          :journey-step="journeyStep"
+          :container-line-remaining-store="containerLineRemainingStore"
+          :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
+          :show-crate-content-actions="showCrateContentActions"
+          :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
+          :has-reassign-targets-for-row="hasReassignTargetsFor"
+          @activate="emit('activate', $event)"
+          @select-target="emit('selectTarget', $event)"
+          @loose-take="(row, line) => emit('looseTake', row, line)"
+          @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
+          @delete-empty="emit('deleteEmpty', $event)"
+          @move-back="(row, qty) => emit('moveBack', row, qty)"
+          @update:move-back-qty="(row, qty) => emit('update:moveBackQty', row, qty)"
+          @move-forward="(row, qty) => emit('moveForward', row, qty)"
+          @update:move-forward-qty="(row, qty) => emit('update:moveForwardQty', row, qty)"
+          @consumed="emit('consumed', $event)"
+          @loss="emit('loss', $event)"
+          @repair="emit('repair', $event)"
+          @damage="emit('damage', $event)"
+          @line-consumed="(row, line) => emit('lineConsumed', row, line)"
+          @line-loss="(row, line) => emit('lineLoss', row, line)"
+          @line-repair="(row, line) => emit('lineRepair', row, line)"
+          @line-damage="(row, line) => emit('lineDamage', row, line)"
+          @store-line="(row, line) => emit('storeLine', row, line)"
+          @store-shell="(row) => emit('storeShell', row)"
         />
-      </li>
-    </ul>
+      </template>
+
+      <section
+        v-if="showStoreDoneSection"
+        class="material-journey-store-section material-journey-store-section--done"
+        aria-labelledby="material-journey-store-done-title"
+      >
+        <header class="material-journey-store-section__header">
+          <h2 id="material-journey-store-done-title" class="material-journey-store-section__title">
+            {{ t('activities.materialJourney.storeSections.doneTitle') }}
+          </h2>
+          <span class="material-journey-store-section__meta text-muted">
+            {{ t('activities.materialJourney.storeSections.doneCount', { count: storeDoneRows.length }) }}
+          </span>
+        </header>
+        <ul class="material-journey-task-list__items">
+          <li v-for="row in storeDoneRows" :key="`done-${row.id}`">
+            <MaterialJourneyCrateTaskRow
+              v-if="isExpandableRow(row)"
+              :row="row"
+              :moving="false"
+              :readonly="true"
+              :preview-lines="previewLinesFor(row)"
+              :journey-step="journeyStep"
+              :container-items-by-container-id="containerItemsByContainerId"
+              :is-consumable-for-material-id="isConsumableForMaterialId"
+            />
+            <MaterialJourneyTaskRow
+              v-else
+              :row="row"
+              :moving="false"
+              :readonly="true"
+              :is-consumable-for-material-id="isConsumableForMaterialId"
+            />
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <template v-else>
+      <ul v-if="primaryTasks.length > 0" class="material-journey-task-list__items">
+        <li v-for="row in primaryTasks" :key="row.id">
+          <MaterialJourneyCrateTaskRow
+            v-if="isExpandableRow(row)"
+            :row="row"
+            :moving="movingId === row.id"
+            :readonly="!listEditable"
+            :pack-target-active="isPackTargetActive(row)"
+            :pack-target-selectable="isPackTargetSelectable(row)"
+            :preview-lines="previewLinesFor(row)"
+            :show-transit-actions="showTransitActions"
+            :show-move-back="showMoveBack"
+            :move-back-qty="moveBackQtyForRow?.(row)"
+            :show-move-forward="showMoveForward"
+            :show-crate-move-forward="showCrateMoveForward"
+            :move-forward-qty="moveForwardQtyForRow?.(row)"
+            :transport-tour-assign-active="transportTourAssignActive"
+            :transport-target-tour-label="transportTargetTourLabel"
+            :has-reassign-targets="hasReassignTargetsFor(row)"
+            :reassign-targets="reassignTargetsFor(row)"
+            :show-crate-content-actions="showCrateContentActions"
+            :delete-empty-submitting="deleteEmptySubmittingForRow?.(row) ?? false"
+            :show-issue-actions="showIssueForRow?.(row) ?? false"
+            :at-event-qty-label="atEventLabelForRow(row)"
+            :at-event-qty-label-for-line="(line) => atEventLabelForLine(row, line)"
+            :show-issue-for-accordion-line="(line) => showIssueForAccordionLine(row, line)"
+            :is-consumable-for-material-id="isConsumableForMaterialId"
+            :journey-step="journeyStep"
+            :container-items-by-container-id="containerItemsByContainerId"
+            :container-line-remaining-store="containerLineRemainingStore"
+            :shell-store-pending-qty-for-row="shellStorePendingQtyForRow"
+            @activate="emit('activate', row)"
+            @select-target="emit('selectTarget', row)"
+            @loose-take="emit('looseTake', row, $event)"
+            @reassign-to="(line, targetId) => emit('reassignTo', row, line, targetId)"
+            @delete-empty="emit('deleteEmpty', row)"
+            @move-back="emit('moveBack', row, $event)"
+            @update:move-back-qty="emit('update:moveBackQty', row, $event)"
+            @move-forward="emit('moveForward', row, $event)"
+            @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
+            @consumed="emit('consumed', row)"
+            @loss="emit('loss', row)"
+            @repair="emit('repair', row)"
+            @damage="emit('damage', row)"
+            @line-consumed="emit('lineConsumed', row, $event)"
+            @line-loss="emit('lineLoss', row, $event)"
+            @line-repair="emit('lineRepair', row, $event)"
+            @line-damage="emit('lineDamage', row, $event)"
+            @store-line="emit('storeLine', row, $event)"
+            @store-shell="emit('storeShell', row)"
+          />
+          <MaterialJourneyTaskRow
+            v-else
+            :row="row"
+            :moving="movingId === row.id"
+            :readonly="!listEditable"
+            :show-move-back="showMoveBack"
+            :move-back-qty="moveBackQtyForRow?.(row)"
+            :show-move-forward="showMoveForward"
+            :move-forward-qty="moveForwardQtyForRow?.(row)"
+            :pack-crate-assign-active="isPackCrateAssignActive()"
+            :pack-target-crate-label="packTargetCrateLabel"
+            :transport-tour-assign-active="transportTourAssignActive"
+            :transport-target-tour-label="transportTargetTourLabel"
+            :show-issue-actions="showIssueForRow?.(row) ?? false"
+            :show-store-action="showStoreForLooseRow(row)"
+            :at-event-qty-label="atEventLabelForRow(row)"
+            :is-consumable-for-material-id="isConsumableForMaterialId"
+            @activate="emit('activate', row)"
+            @move-back="emit('moveBack', row, $event)"
+            @update:move-back-qty="emit('update:moveBackQty', row, $event)"
+            @move-forward="emit('moveForward', row, $event)"
+            @update:move-forward-qty="emit('update:moveForwardQty', row, $event)"
+            @consumed="emit('consumed', row)"
+            @loss="emit('loss', row)"
+            @repair="emit('repair', row)"
+            @damage="emit('damage', row)"
+          />
+        </li>
+      </ul>
+
+      <section
+        v-if="showNotTakenSection"
+        class="material-journey-not-taken-section section-card"
+        aria-labelledby="material-journey-not-taken-title"
+      >
+        <header class="material-journey-not-taken-section__header">
+          <h2 id="material-journey-not-taken-title" class="material-journey-not-taken-section__title">
+            {{ t('activities.materialJourney.notTakenSection.title') }}
+          </h2>
+          <span class="material-journey-not-taken-section__meta text-muted">
+            {{ notTakenTasks.length }}
+          </span>
+        </header>
+        <p class="material-journey-not-taken-section__hint text-muted">
+          {{ t('activities.materialJourney.notTakenSection.hint') }}
+        </p>
+        <ul class="material-journey-task-list__items">
+          <li v-for="row in notTakenTasks" :key="row.id">
+            <MaterialJourneyTaskRow
+              :row="row"
+              :moving="false"
+              :readonly="true"
+              :is-consumable-for-material-id="isConsumableForMaterialId"
+            />
+          </li>
+        </ul>
+      </section>
+    </template>
   </div>
 </template>
 

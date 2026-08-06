@@ -448,7 +448,7 @@ export function useMaterialJourneyScan(options: {
     if (result.type === 'unknown_crate') {
       return t('activities.materialJourney.scan.actionUseAsPackCrate')
     }
-    if (result.type === 'crate_shell' || result.type === 'in_crate') {
+    if (result.type === 'crate_shell' || result.type === 'in_crate' || result.type === 'in_virtual_crate') {
       if (options.journeyStep.value === 'pack') {
         return t('activities.materialJourney.scan.actionOpenCratePack')
       }
@@ -461,9 +461,6 @@ export function useMaterialJourneyScan(options: {
       return t('activities.materialJourney.scan.actionOpenCrateIssue')
     }
     if (result.type === 'combo_check' || result.detail === 'text_combo') {
-      return t('activities.materialJourney.scan.actionOpenCombo')
-    }
-    if (result.type === 'in_virtual_crate') {
       return t('activities.materialJourney.scan.actionOpenCombo')
     }
     if (result.type === 'loose_ready' || result.type === 'bulk_wrong_batch') {
@@ -489,8 +486,8 @@ export function useMaterialJourneyScan(options: {
 
   function messageForResult(result: MaterialScanResolveResult): string {
     const key = `activities.materialJourney.scan.result.${result.detail ?? result.type}` as const
-    if (result.type === 'in_virtual_crate' && result.parentCombo) {
-      return t(key, { name: packMaterialDisplayName(result.parentCombo) })
+    if (result.type === 'in_virtual_crate' && result.container) {
+      return t(key, { name: result.container.label })
     }
     return t(key)
   }

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import {
   getActivityIssues,
   getActivityItems,
+  upsertActivityCollectionNote,
   type ActivityIssueReportRow,
   type ActivityItemRow,
 } from '@/api/activities'
@@ -30,11 +31,23 @@ import {
   listActivityAcquisitionFollowups,
   type AccountingAcquisitionFollowUp,
 } from '@/api/accountingAcquisitionFollowups'
+import {
+  getActivityAccountingInvoice,
+  type ActivityAccountingInvoice,
+} from '@/api/activityAccountingInvoice'
+import ActivityAccountingInvoicePreviewDialog from '@/components/accounting/ActivityAccountingInvoicePreviewDialog.vue'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
 import {
   accountingFollowUpKindKey,
   sortFollowUpsForDisplay,
 } from '@/utils/accountingFollowUpLabels'
+import { resolveActivityPrimaryChargeTarget } from '@/utils/activityChargeTarget'
+import {
+  DEFAULT_ACCOUNTING_SETTINGS,
+  getAccountingSettings,
+  type AccountingSettlementTiming,
+} from '@/api/departmentSettings'
+import EButton from '@/components/form/base/EButton.vue'
 
 defineOptions({ name: 'ActivityCostsTab' })
 
@@ -44,20 +57,132 @@ const props = defineProps<{
   activityType: ActivityApiType
   activityStatus: string
   reloadToken?: number
+  groupName?: string | null
+  externalCustomerLabel?: string | null
+  activityName?: string | null
+  costsReleased?: boolean
+  costsReleaseLoading?: boolean
+  /** false solange noch Material zum Einlagern offen ist */
+  canReleaseCosts?: boolean
+  collectionNote?: 'cash' | 'invoice' | null
+  collectionNoteAmount?: number | null
+  /** MW/DC: Vermerk setzen */
+  canEditCollectionNote?: boolean
 }>()
 
-const { t, locale } = useI18n()
+const emit = defineEmits<{
+  'release-costs': [payload?: { total: number }]
+  'costs-preview': [payload: { total: number }]
+  'collection-note-updated': [payload: {
+    collection_note: 'cash' | 'invoice' | null
+    collection_note_amount: number | null
+    collection_note_at: string | null
+  }]
+}>()
+
+const { t, te, locale } = useI18n()
 const { showFullLoading, isRefreshing, resetTabLoad, withTabLoad } = useActivityTabLoad()
 const activityItems = ref<ActivityItemRow[]>([])
 const issues = ref<ActivityIssueReportRow[]>([])
 const workshopTickets = ref<WorkshopTicket[]>([])
 const pendingAccounting = ref<AccountingAcquisitionFollowUp[]>([])
+const recordedAccounting = ref<AccountingAcquisitionFollowUp[]>([])
+const accountingInvoice = ref<ActivityAccountingInvoice | null>(null)
+const invoicePreviewOpen = ref(false)
 const showAccountingLink = computed(() => departmentHasAccountingRole(props.departmentId))
 
+const settlementTiming = ref<AccountingSettlementTiming>(
+  DEFAULT_ACCOUNTING_SETTINGS.settlementTimingConsumable,
+)
+const noteDraft = ref<'cash' | 'invoice' | null>(null)
+const noteAmountDraft = ref<number | null>(null)
+const noteSaving = ref(false)
+const noteError = ref('')
+
+const showCostReleasePanel = computed(
+  () =>
+    ['returned', 'storing'].includes(props.activityStatus) &&
+    props.canReleaseCosts !== false,
+)
+
+const hasNoCosts = computed(() => grandTotal.value <= 0)
+
+const costsReleaseDone = computed(
+  () => Boolean(props.costsReleased) || hasNoCosts.value,
+)
+
+const showCollectionNotePanel = computed(
+  () =>
+    Boolean(props.canEditCollectionNote) &&
+    ['returned', 'storing', 'completed'].includes(props.activityStatus) &&
+    !hasNoCosts.value,
+)
+
+const collectionNoteProminent = computed(
+  () => settlementTiming.value === 'offer_at_activity',
+)
+
+const savedCollectionNote = computed(() => props.collectionNote ?? null)
+
+const showAccountingTasks = computed(() => props.activityStatus === 'completed')
+
+const showInvoicePanel = computed(() => {
+  const inv = accountingInvoice.value
+  return Boolean(inv && inv.status !== 'empty' && inv.lines.length > 0)
+})
+
+const invoiceStatusLabel = computed(() => {
+  const status = accountingInvoice.value?.status || ''
+  const key = `activities.costs.invoiceStatus.${status}`
+  return te(key) ? t(key) : status
+})
+
+const allAccountingFollowUps = computed(() =>
+  sortFollowUpsForDisplay([...pendingAccounting.value, ...recordedAccounting.value]),
+)
+
+const pendingAccountingSorted = computed(() =>
+  sortFollowUpsForDisplay(pendingAccounting.value),
+)
+
+const accountingHandoffTotal = computed(() =>
+  allAccountingFollowUps.value.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0),
+)
+
+const pendingAccountingTotal = computed(() =>
+  pendingAccountingSorted.value.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0),
+)
+
+const chargeTarget = computed(() =>
+  resolveActivityPrimaryChargeTarget({
+    activityType: props.activityType,
+    groupName: props.groupName,
+    externalCustomerLabel: props.externalCustomerLabel,
+    activityName: props.activityName,
+  }),
+)
+
+const chargeTargetLabel = computed(() => {
+  const target = chargeTarget.value
+  if (target.kind === 'group' && target.label) {
+    return t('activities.costs.chargeGroup', { name: target.label })
+  }
+  if (target.kind === 'external_customer' && target.label) {
+    return t('activities.costs.chargeExternal', { name: target.label })
+  }
+  return t('activities.costs.chargeUnknown')
+})
+
 const accountingLinkDepartmentId = computed(() => {
-  const fu = pendingAccountingSorted.value[0]
+  const fu = allAccountingFollowUps.value[0] ?? pendingAccountingSorted.value[0]
   return fu?.department_id ?? props.departmentId
 })
+
+function followUpStatusLabel(status: AccountingAcquisitionFollowUp['status']): string {
+  return status === 'recorded'
+    ? t('activities.costs.accountingStatusRecorded')
+    : t('activities.costs.accountingStatusPending')
+}
 
 function followUpMetaLine(fu: AccountingAcquisitionFollowUp): string {
   const parts: string[] = []
@@ -116,13 +241,6 @@ const openWorkshopTickets = computed(() =>
 )
 
 const isExternal = computed(() => props.activityType === 'external')
-const showAccountingTasks = computed(() => props.activityStatus === 'completed')
-
-const pendingAccountingSorted = computed(() => sortFollowUpsForDisplay(pendingAccounting.value))
-
-const pendingAccountingTotal = computed(() =>
-  pendingAccountingSorted.value.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0),
-)
 
 const internalGrandTotal = computed(
   () => consumableTotal.value + repairTotal.value + writeoffTotal.value,
@@ -131,6 +249,67 @@ const externalGrandTotal = computed(
   () => consumableTotal.value + rentalTotal.value + repairTotal.value + writeoffTotal.value,
 )
 const grandTotal = computed(() => (isExternal.value ? externalGrandTotal.value : internalGrandTotal.value))
+
+function syncNoteDraftFromProps() {
+  noteDraft.value = props.collectionNote ?? null
+  noteAmountDraft.value =
+    props.collectionNoteAmount != null && !Number.isNaN(props.collectionNoteAmount)
+      ? props.collectionNoteAmount
+      : null
+  noteError.value = ''
+}
+
+watch(
+  () => [props.collectionNote, props.collectionNoteAmount] as const,
+  () => syncNoteDraftFromProps(),
+  { immediate: true },
+)
+
+watch(grandTotal, (total) => {
+  if (noteDraft.value && (noteAmountDraft.value == null || noteAmountDraft.value === 0)) {
+    noteAmountDraft.value = Math.round(total * 100) / 100
+  }
+})
+
+async function loadSettlementTiming() {
+  try {
+    const settings = await getAccountingSettings(props.departmentId)
+    settlementTiming.value = isExternal.value
+      ? settings.settlementTimingExternal
+      : settings.settlementTimingConsumable
+  } catch {
+    settlementTiming.value = DEFAULT_ACCOUNTING_SETTINGS.settlementTimingConsumable
+  }
+}
+
+async function saveCollectionNote(note: 'cash' | 'invoice' | null) {
+  noteSaving.value = true
+  noteError.value = ''
+  try {
+    const amount =
+      note == null
+        ? null
+        : noteAmountDraft.value != null && !Number.isNaN(noteAmountDraft.value)
+          ? noteAmountDraft.value
+          : grandTotal.value
+    const updated = await upsertActivityCollectionNote(props.activityId, {
+      note,
+      amount: note == null ? null : amount,
+    })
+    emit('collection-note-updated', {
+      collection_note: updated.collection_note ?? null,
+      collection_note_amount: updated.collection_note_amount ?? null,
+      collection_note_at: updated.collection_note_at ?? null,
+    })
+    noteDraft.value = updated.collection_note ?? null
+    noteAmountDraft.value = updated.collection_note_amount ?? null
+  } catch (e: unknown) {
+    const ax = e as { response?: { data?: { error?: string } } }
+    noteError.value = ax.response?.data?.error || t('activities.costs.collectionNoteError')
+  } finally {
+    noteSaving.value = false
+  }
+}
 
 function usedFor(materialItemId: string): number {
   return consumableUsedQty(materialItemId, issues.value)
@@ -166,24 +345,39 @@ async function load(opts?: { forceFull?: boolean }) {
         getActivityItems(props.activityId),
         getActivityIssues(props.activityId),
         getWorkshopTickets(props.departmentId, { activity_id: props.activityId }),
+        loadSettlementTiming(),
       ])
       activityItems.value = items
       issues.value = iss
       workshopTickets.value = tickets
       if (showAccountingTasks.value) {
         try {
-          pendingAccounting.value = await listActivityAcquisitionFollowups(props.activityId, 'pending')
+          const [pending, recorded] = await Promise.all([
+            listActivityAcquisitionFollowups(props.activityId, 'pending'),
+            listActivityAcquisitionFollowups(props.activityId, 'recorded'),
+          ])
+          pendingAccounting.value = pending
+          recordedAccounting.value = recorded
         } catch {
           pendingAccounting.value = []
+          recordedAccounting.value = []
         }
       } else {
         pendingAccounting.value = []
+        recordedAccounting.value = []
+      }
+      try {
+        accountingInvoice.value = await getActivityAccountingInvoice(props.activityId)
+      } catch {
+        accountingInvoice.value = null
       }
     } catch {
       activityItems.value = []
       issues.value = []
       workshopTickets.value = []
       pendingAccounting.value = []
+      recordedAccounting.value = []
+      accountingInvoice.value = null
     }
   }, opts)
 }
@@ -200,6 +394,15 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  [grandTotal, () => props.activityStatus],
+  ([total, status]) => {
+    if (['returned', 'storing', 'completed'].includes(status)) {
+      emit('costs-preview', { total })
+    }
+  },
+)
 </script>
 
 <template>
@@ -213,37 +416,215 @@ watch(
     >
       <div class="costs-overview">
         <section
-          v-if="showAccountingTasks && pendingAccountingSorted.length > 0"
+          v-if="showCostReleasePanel"
+          class="costs-release-panel"
+          :class="{ 'costs-release-panel--done': costsReleaseDone }"
+        >
+          <h3 class="costs-section-title">
+            {{ t('activities.costs.releaseSectionTitle') }}
+          </h3>
+          <template v-if="hasNoCosts">
+            <p class="costs-release-done">
+              ✓ {{ t('activities.costs.releaseNone') }}
+            </p>
+          </template>
+          <template v-else>
+            <p class="costs-release-lead text-muted">{{ t('activities.costs.releaseLead') }}</p>
+            <p class="costs-release-charge">{{ chargeTargetLabel }}</p>
+            <div class="costs-release-total">
+              <span>{{ t('activities.costs.releaseTotal') }}</span>
+              <strong>CHF {{ formatChf(grandTotal) }}</strong>
+            </div>
+            <p class="costs-release-hint text-muted">{{ t('activities.costs.releaseHint') }}</p>
+            <EButton
+              v-if="!costsReleased"
+              variant="primary"
+              size="default"
+              :loading="costsReleaseLoading"
+              @click="emit('release-costs', { total: grandTotal })"
+            >
+              {{ t('activities.costs.releaseAction') }}
+            </EButton>
+            <p v-else class="costs-release-done">
+              ✓ {{ t('activities.costs.releaseDone') }}
+            </p>
+          </template>
+        </section>
+
+        <section
+          v-if="showCollectionNotePanel"
+          class="costs-collection-note"
+          :class="{
+            'costs-collection-note--offer': collectionNoteProminent,
+            'costs-collection-note--done': !!savedCollectionNote,
+          }"
+        >
+          <h3 class="costs-section-title">
+            {{
+              collectionNoteProminent
+                ? t('activities.costs.collectionNoteOfferTitle')
+                : t('activities.costs.collectionNoteTitle')
+            }}
+          </h3>
+          <p class="costs-collection-lead text-muted">
+            {{
+              collectionNoteProminent
+                ? t('activities.costs.collectionNoteOfferLead')
+                : t('activities.costs.collectionNoteLead')
+            }}
+          </p>
+          <p v-if="savedCollectionNote" class="costs-release-done">
+            ✓
+            {{
+              savedCollectionNote === 'cash'
+                ? t('activities.costs.collectionNoteCashSaved', {
+                    amount: formatChf(props.collectionNoteAmount ?? grandTotal),
+                  })
+                : t('activities.costs.collectionNoteInvoiceSaved', {
+                    amount: formatChf(props.collectionNoteAmount ?? grandTotal),
+                  })
+            }}
+          </p>
+          <div class="costs-collection-amount">
+            <label class="costs-collection-amount-label" for="collection-note-amount">
+              {{ t('activities.costs.collectionNoteAmount') }}
+            </label>
+            <input
+              id="collection-note-amount"
+              v-model.number="noteAmountDraft"
+              type="number"
+              min="0"
+              step="0.05"
+              class="costs-collection-amount-input"
+              :disabled="noteSaving"
+            />
+            <button
+              type="button"
+              class="costs-collection-amount-fill"
+              :disabled="noteSaving"
+              @click="noteAmountDraft = Math.round(grandTotal * 100) / 100"
+            >
+              {{ t('activities.costs.collectionNoteUseTotal') }}
+            </button>
+          </div>
+          <div class="costs-collection-actions">
+            <EButton
+              :variant="collectionNoteProminent ? 'primary' : 'secondary'"
+              size="small"
+              :loading="noteSaving && noteDraft === 'cash'"
+              :disabled="noteSaving"
+              @click="saveCollectionNote('cash')"
+            >
+              {{ t('activities.costs.collectionNoteCash') }}
+            </EButton>
+            <EButton
+              variant="secondary"
+              size="small"
+              :loading="noteSaving && noteDraft === 'invoice'"
+              :disabled="noteSaving"
+              @click="saveCollectionNote('invoice')"
+            >
+              {{ t('activities.costs.collectionNoteInvoice') }}
+            </EButton>
+            <EButton
+              v-if="savedCollectionNote"
+              variant="secondary"
+              size="small"
+              :disabled="noteSaving"
+              @click="saveCollectionNote(null)"
+            >
+              {{ t('activities.costs.collectionNoteClear') }}
+            </EButton>
+          </div>
+          <p v-if="noteError" class="costs-collection-error">{{ noteError }}</p>
+          <p class="costs-collection-hint text-muted">{{ t('activities.costs.collectionNoteHint') }}</p>
+        </section>
+
+        <section v-if="showInvoicePanel && accountingInvoice" class="costs-invoice-panel">
+          <h3 class="costs-section-title">{{ t('activities.costs.invoiceTitle') }}</h3>
+          <p class="costs-invoice-lead text-muted">{{ t('activities.costs.invoiceLead') }}</p>
+          <div class="costs-invoice-summary">
+            <span
+              class="costs-invoice-status"
+              :class="`costs-invoice-status--${accountingInvoice.status}`"
+            >
+              {{ invoiceStatusLabel }}
+            </span>
+            <span class="costs-invoice-total">
+              {{ t('activities.costs.invoiceTotal') }} CHF {{ formatChf(parseFloat(accountingInvoice.total_chf) || 0) }}
+            </span>
+            <span
+              v-if="parseFloat(accountingInvoice.estimated_open_chf) > 0"
+              class="costs-invoice-estimate text-muted"
+            >
+              {{ t('activities.costs.invoiceEstimateOpen', {
+                amount: formatChf(parseFloat(accountingInvoice.estimated_open_chf) || 0),
+              }) }}
+            </span>
+          </div>
+          <p class="costs-invoice-footer">
+            <EButton variant="primary" size="small" @click="invoicePreviewOpen = true">
+              {{ t('activities.costs.invoicePreview') }}
+            </EButton>
+          </p>
+        </section>
+
+        <ActivityAccountingInvoicePreviewDialog
+          v-model="invoicePreviewOpen"
+          :invoice="accountingInvoice"
+          :department-id="departmentId"
+        />
+
+        <section
+          v-if="showAccountingTasks"
           class="costs-accounting-tasks"
         >
           <h3 class="costs-section-title">
-            <span class="costs-icon" aria-hidden="true">📒</span>
-            {{ t('activities.costs.sectionAccounting') }}
+            {{ t('activities.costs.sectionAccountingHandoff') }}
           </h3>
-          <p class="costs-accounting-lead text-muted">{{ t('activities.costs.accountingLead') }}</p>
-          <ul class="costs-accounting-list">
-            <li v-for="fu in pendingAccountingSorted" :key="fu.id" class="costs-accounting-item">
-              <span class="costs-accounting-kind">{{ t(accountingFollowUpKindKey(fu.source_kind)) }}</span>
-              <span class="costs-accounting-amount">CHF {{ formatChf(parseFloat(fu.amount) || 0) }}</span>
-              <span v-if="fu.receipt_label" class="costs-accounting-label text-muted">{{ fu.receipt_label }}</span>
-              <span v-if="followUpMetaLine(fu)" class="costs-accounting-meta text-muted">{{ followUpMetaLine(fu) }}</span>
-            </li>
-          </ul>
-          <p class="costs-accounting-footer">
-            {{ t('activities.costs.accountingPending', { n: pendingAccountingSorted.length }) }}
-            · {{ t('activities.costs.accountingPendingSum') }} CHF {{ formatChf(pendingAccountingTotal) }}
-            <router-link
-              v-if="showAccountingLink"
-              class="costs-accounting-link"
-              :to="{
-                name: 'AccountingBookings',
-                params: { departmentId: accountingLinkDepartmentId },
-                query: { sub: 'assign', activity_id: activityId },
-              }"
-            >
-              {{ t('activities.costs.accountingLink') }}
-            </router-link>
+          <p class="costs-accounting-lead text-muted">{{ t('activities.costs.accountingHandoffLead') }}</p>
+          <p v-if="allAccountingFollowUps.length === 0" class="costs-empty">
+            {{ t('activities.costs.accountingHandoffEmpty') }}
           </p>
+          <template v-else>
+            <ul class="costs-accounting-list">
+              <li v-for="fu in allAccountingFollowUps" :key="fu.id" class="costs-accounting-item">
+                <span class="costs-accounting-kind">{{ t(accountingFollowUpKindKey(fu.source_kind)) }}</span>
+                <span
+                  class="costs-accounting-status"
+                  :class="{
+                    'costs-accounting-status--pending': fu.status === 'pending',
+                    'costs-accounting-status--recorded': fu.status === 'recorded',
+                  }"
+                >
+                  {{ followUpStatusLabel(fu.status) }}
+                </span>
+                <span class="costs-accounting-amount">CHF {{ formatChf(parseFloat(fu.amount) || 0) }}</span>
+                <span v-if="fu.material_name" class="costs-accounting-label text-muted">{{ fu.material_name }}</span>
+                <span v-else-if="fu.receipt_label" class="costs-accounting-label text-muted">{{ fu.receipt_label }}</span>
+                <span v-if="followUpMetaLine(fu)" class="costs-accounting-meta text-muted">{{ followUpMetaLine(fu) }}</span>
+              </li>
+            </ul>
+            <p class="costs-accounting-footer">
+              {{ t('activities.costs.accountingHandoffCount', { n: allAccountingFollowUps.length }) }}
+              · {{ t('activities.costs.accountingHandoffSum') }} CHF {{ formatChf(accountingHandoffTotal) }}
+              <span v-if="pendingAccountingSorted.length > 0" class="costs-accounting-pending-note">
+                · {{ t('activities.costs.accountingPending', { n: pendingAccountingSorted.length }) }}
+                (CHF {{ formatChf(pendingAccountingTotal) }})
+              </span>
+              <router-link
+                v-if="showAccountingLink"
+                class="costs-accounting-link"
+                :to="{
+                  name: 'AccountingBookings',
+                  params: { departmentId: accountingLinkDepartmentId },
+                  query: { sub: 'assign', activity_id: activityId },
+                }"
+              >
+                {{ t('activities.costs.accountingLink') }}
+              </router-link>
+            </p>
+          </template>
         </section>
 
         <!-- Verbrauchsmaterial -->
@@ -502,6 +883,197 @@ watch(
   gap: 16px;
 }
 
+.costs-release-panel {
+  padding: 14px 16px;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.costs-release-panel--done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.costs-release-lead {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.costs-release-charge {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.costs-release-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.costs-release-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.costs-release-done {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+.costs-collection-note {
+  padding: 14px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.costs-collection-note--offer {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.costs-collection-note--done {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.costs-collection-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.costs-collection-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 12px;
+}
+
+.costs-collection-amount-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.costs-collection-amount-input {
+  width: 7.5rem;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.costs-collection-amount-fill {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.costs-collection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.costs-collection-hint {
+  margin: 0;
+  font-size: 12px;
+}
+
+.costs-invoice-panel {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  border-radius: 8px;
+}
+
+.costs-invoice-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.costs-invoice-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.costs-invoice-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.costs-invoice-status--blocked {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.costs-invoice-status--open {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.costs-invoice-status--paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.costs-invoice-total {
+  font-weight: 700;
+}
+
+.costs-invoice-lines {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.costs-invoice-line {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr auto;
+  gap: 8px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.costs-invoice-line-kind {
+  font-weight: 600;
+}
+
+.costs-invoice-footer {
+  margin: 0;
+  font-size: 13px;
+}
+
+.costs-collection-error {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #b91c1c;
+}
+
 .costs-accounting-banner {
   margin: 0 0 4px;
   padding: 10px 12px;
@@ -539,8 +1111,9 @@ watch(
 
 .costs-accounting-item {
   display: grid;
-  grid-template-columns: minmax(140px, 1fr) auto;
+  grid-template-columns: minmax(120px, 1fr) auto auto;
   gap: 4px 12px;
+  align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #e2e8f0;
   font-size: 13px;
@@ -552,6 +1125,24 @@ watch(
 
 .costs-accounting-kind {
   font-weight: 600;
+}
+
+.costs-accounting-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.costs-accounting-status--pending {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.costs-accounting-status--recorded {
+  background: #f0fdf4;
+  color: #15803d;
 }
 
 .costs-accounting-amount {

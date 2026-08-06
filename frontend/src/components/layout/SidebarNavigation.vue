@@ -370,7 +370,7 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
-import { canUseDepartmentOnboarding } from '@/utils/onboardingGate'
+import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
   isOnboardingDone,
@@ -624,6 +624,9 @@ const helpNavLink = computed(() => {
   const depId = departmentId.value
   if (!depId) return getLink('/help/dokumentation')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
+    return getLink('/help/einrichtung')
+  }
+  if (canUseHelpEinrichtung(authStore, depId)) {
     return getLink('/help/einrichtung')
   }
   return getLink('/help/dokumentation')

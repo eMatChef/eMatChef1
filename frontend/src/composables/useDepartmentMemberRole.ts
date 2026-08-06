@@ -83,10 +83,10 @@ export function useDepartmentMemberRole() {
 }
 
 /** Kontakte: User-Rolle darf diese Typen sehen (Lesen). */
-export const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting'] as const
+export const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting', 'event_delivery', 'event_poi'] as const
 
 /** Kontakte: User-Rolle darf nur diese Typen anlegen/bearbeiten/löschen. */
-export const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery'] as const
+export const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery', 'event_poi'] as const
 
 /** @deprecated Alias – bitte USER_CONTACT_VIEW_TYPES verwenden */
 export const USER_CONTACT_ADDRESS_TYPES = USER_CONTACT_VIEW_TYPES

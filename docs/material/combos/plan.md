@@ -110,7 +110,7 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 - `frontend/src/components/material/MaterialDetailView.vue` (Dropdown + `formatReservationModeLabel` raus)
 - `frontend/src/components/template/TemplateEditDialog.vue`
 - `frontend/src/api/materials.ts`, `templates.ts` (Feld raus)
-- `frontend/src/locales/de.json`, `en.json` (Keys aufräumen — laut Leitprinzip nur diese zwei; `reservation_mode`-Keys liegen zusätzlich noch in `en-US.json`, `fr-FR.json`, `it-IT.json` und können bei Bedarf mit raus)
+- `frontend/src/locales/de.json`, `en.json` (Keys aufräumen — laut Leitprinzip nur diese zwei)
 - Vorlagen-Daten: `backend/data/templates/{zelthangar,tortuga,wico,hajk,spatz}.json`
 - Seeds: `backend/data/seeds/orgs/org_js000000_and_GLOBALORG001/subset.json`
 
@@ -220,7 +220,7 @@ Diese Stellen steuern Typ-/Status-/Verfügbarkeitslogik zentral — Änderungen 
 
 **Definition of Done:** Konfigurierbares Zelt/Blachenburg anlegbar (inkl. Entweder-Oder + „1 oder 2" + ±Delta), in der Aktivität zusammenstellbar mit korrekter Verfügbarkeit. ✓ *(Editor (Material + Vorlage), 3-Zustands-Verfügbarkeit und interaktiver Buchungs-Dialog implementiert; Frontend type-check + PHP-Lint grün.)*
 
-> **Hinweis — Vorlagen-Funktion vs. -Inhalte:** Paket 6 baut nur die **Funktion** (Editor + Verfügbarkeit). Das **Konvertieren bestehender System-Vorlagen** (z. B. Zelthangar Phoenix von 5 getrennten Vorlagen → 1 Konfigurator) ist eine **separate, optionale Inhalts-/Datenaufgabe danach** (manuell im Editor oder JSON + Re-Import), nicht Teil der DoD.
+> **Hinweis — Vorlagen-Funktion vs. -Inhalte:** Paket 6 baut nur die **Funktion** (Editor + Verfügbarkeit). System-Vorlagen-Inhalte: **C11 erledigt** — `backend/data/templates/zelthangar-phoenix.json` (Konfigurator-Beispiel) + Sarasani als flache `combo`. Weitere Hersteller-Inhalte bei Bedarf nachziehen.
 
 ---
 
@@ -285,4 +285,5 @@ Alle Grundsatzentscheidungen sind getroffen. Es bleiben nur **Implementierungs-D
 
 - [README.md](./README.md) — Konzept & Zielmodell
 - [virtual-combo-activities.md](./virtual-combo-activities.md) — Pack-Flow & `pack_mode` (Paket 8)
+- **[verbesserungen.md](./verbesserungen.md)** — Restarbeit nach Paket 8 (Journey, Nachbearbeitung; Top-10 **#1d**)
 - [../../activities/material-pipeline.md](../../activities/material-pipeline.md) — Bestellung/Pack-Pipeline

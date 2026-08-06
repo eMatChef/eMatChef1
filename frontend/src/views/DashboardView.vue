@@ -343,6 +343,7 @@ import PageShell from '@/components/layout/PageShell.vue'
 import GrossanlassDashboardPanel from '@/components/grossanlass/GrossanlassDashboardPanel.vue'
 import { EButton } from '@/components/form/base'
 import { formatPeriodCompact } from '@/utils/formatPeriod'
+import { intlLocaleForUiLanguage } from '@/config/languages'
 
 const route = useRoute()
 const { t, locale } = useI18n()
@@ -350,19 +351,7 @@ const authStore = useAuthStore()
 const headerNotificationsStore = useHeaderNotificationsStore()
 
 /** BCP-47-Tag für `Intl` passend zur UI-Sprache (CH-Kontext). */
-const intlLocale = computed(() => {
-  const loc = String(locale.value)
-  const map: Record<string, string> = {
-    de: 'de-CH',
-    'de-pfadi': 'de-CH',
-    'de-cevi': 'de-CH',
-    en: 'en-GB',
-    fr: 'fr-CH',
-    it: 'it-CH',
-    'ch-rm': 'rm-CH'
-  }
-  return map[loc] ?? 'de-CH'
-})
+const intlLocale = computed(() => intlLocaleForUiLanguage(String(locale.value)))
 const dashboardDisplayName = computed(() => {
   const nickname = authStore.profile?.nickname?.trim()
   if (nickname) return nickname

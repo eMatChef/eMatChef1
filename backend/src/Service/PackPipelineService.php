@@ -203,6 +203,10 @@ class PackPipelineService
     /**
      * Verbrauchsmaterial: oft kein formaler Retour-Schritt; offene Einlager-Menge =
      * gebucht (ordered) minus gemeldeter Verbrauch minus bereits eingelagert.
+     *
+     * Wichtig: Verbrauch begrenzt die Pipeline-Menge (min), statt sie zu erhöhen (max) —
+     * sonst bleiben retournierte+verbrauchte Stücke als Einlager-Blocker stehen,
+     * während die Journey-UI sie bereits als «weg» ausblendet.
      */
     private function maxStoredForItem(ActivityPackItem $item, int $consumableConsumedQty): int
     {
@@ -223,12 +227,16 @@ class PackPipelineService
         }
 
         $consumableCap = max(0, $item->getQuantityOrdered() - $consumableConsumedQty - $item->getQuantityStored());
+        if ($base <= 0) {
+            return $consumableCap;
+        }
 
-        return max($base, $consumableCap);
+        return min($base, $consumableCap);
     }
 
     /**
      * Abschluss-Blocker: lose Einlager-Menge minus offene Kistenzeilen derselben Material-ID.
+     * Kistenzeilen wie Frontend: returned−stored + nie ausgegebene gepackte Menge.
      *
      * @param iterable<ActivityPackContainerItem> $containerItems
      */
@@ -237,8 +245,15 @@ class PackPipelineService
         iterable $containerItems,
         string $profile,
         int $consumableConsumedQty = 0,
+        int $lossQty = 0,
+        int $repairQty = 0,
     ): int {
         $base = $this->maxForwardQty($item, self::STAGE_STORED, $profile, $consumableConsumedQty);
+        // Verlust/Reparatur: physisch nicht einlagerbar (FE: retourTotal − stored).
+        $goneExtra = max(0, $lossQty) + max(0, $repairQty);
+        if ($goneExtra > 0) {
+            $base = max(0, $base - $goneExtra);
+        }
         if ($base <= 0) {
             return 0;
         }
@@ -251,7 +266,12 @@ class PackPipelineService
             if ($ci->getMaterialItemId() !== $materialId) {
                 continue;
             }
-            $pendingInContainers += max(0, $ci->getQuantityReturned() - $ci->getQuantityStored());
+            $pendingInContainers += $this->maxStored(
+                $ci->getQuantityPacked(),
+                $ci->getQuantityIssued(),
+                $ci->getQuantityReturned(),
+                $ci->getQuantityStored(),
+            );
         }
 
         return max(0, $base - $pendingInContainers);

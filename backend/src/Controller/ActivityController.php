@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\Activity;
 use App\Entity\ActivityJsOrder;
@@ -29,6 +30,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
+use App\Service\Accounting\AccountingActivityInvoiceService;
 use App\Service\InboxMessageService;
 use App\Service\ComboResolutionService;
 use App\Service\PackPipelineService;
@@ -45,7 +47,15 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/activities', name: 'api_activities_')]
 class ActivityController extends AbstractController
 {
+    use AccountingMwOrDcTrait;
+
     private const DEPARTMENT_MANAGER_ROLES = ['mw', 'dc', 'org', 'sub', 'sa'];
+    private const COLLECTION_NOTE_VALUES = ['cash', 'invoice'];
+    private const COLLECTION_NOTE_STATUSES = [
+        Activity::STATUS_RETURNED,
+        Activity::STATUS_STORING,
+        Activity::STATUS_COMPLETED,
+    ];
 
     public function __construct(
         private EntityManagerInterface $entityManager,
@@ -61,6 +71,7 @@ class ActivityController extends AbstractController
         private PackPipelineService $packPipeline,
         private ComboResolutionService $comboResolution,
         private ActivitySharedVenueService $sharedVenueService,
+        private AccountingActivityInvoiceService $activityInvoice,
     ) {}
 
     private function getActorUserId(): ?string
@@ -707,6 +718,30 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * Berechnete Aktivitäts-Rechnung (Aggregat aus Follow-ups + offene Werkstatt).
+     */
+    #[Route('/{id}/accounting-invoice', name: 'accounting_invoice', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getAccountingInvoice(string $id): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserViewActivity($currentUser, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung fuer diese Aktivitaet'], 403);
+        }
+
+        return new JsonResponse($this->activityInvoice->buildForActivity($activity));
+    }
+
+    /**
      * Alle Buchhaltungs-Aufträge einer Aktivität (alle Departments), z. B. Kosten-Tab.
      */
     #[Route('/{id}/accounting-followups', name: 'accounting_followups', methods: ['GET'])]
@@ -1133,6 +1168,25 @@ class ActivityController extends AbstractController
             if (isset($data['is_paid'])) {
                 $activity->setIsPaid((bool)$data['is_paid']);
             }
+            if (array_key_exists('costs_released', $data)) {
+                $release = (bool) $data['costs_released'];
+                if ($release) {
+                    $status = $activity->getStatus();
+                    if (!\in_array($status, [Activity::STATUS_RETURNED, Activity::STATUS_STORING], true)) {
+                        return new JsonResponse(
+                            ['error' => 'Kosten können nur bei Status Retour oder Einlagern freigegeben werden'],
+                            422,
+                        );
+                    }
+                    if (!$activity->isCostsReleased()) {
+                        $activity->setCostsReleasedAt(new \DateTime());
+                        $activity->setCostsReleasedByUser($currentUser);
+                    }
+                } else {
+                    $activity->setCostsReleasedAt(null);
+                    $activity->setCostsReleasedByUser(null);
+                }
+            }
             if (array_key_exists('notes', $data)) {
                 $activity->setNotes($data['notes']);
             }
@@ -1176,6 +1230,75 @@ class ActivityController extends AbstractController
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Fehler beim Aktualisieren: ' . $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Einnahme-Vermerk Bar/Rechnung (#7 Phase 3) — kein AccountingBooking.
+     * Body: { "note": "cash"|"invoice"|null, "amount"?: number|null }
+     */
+    #[Route('/{id}/collection-note', name: 'collection_note', methods: ['PATCH', 'POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function upsertCollectionNote(string $id, Request $request): JsonResponse
+    {
+        $activity = $this->entityManager->getRepository(Activity::class)->find($id);
+        if (!$activity || $activity->isDeleted()) {
+            return new JsonResponse(['error' => 'Aktivität nicht gefunden'], 404);
+        }
+
+        $access = $this->assertAccountingMwOrDc($this->entityManager, (string) $activity->getDepartmentId());
+        if ($access instanceof JsonResponse) {
+            return $access;
+        }
+
+        if (!\in_array($activity->getStatus(), self::COLLECTION_NOTE_STATUSES, true)) {
+            return new JsonResponse(
+                ['error' => 'Vermerk nur bei Retour, Einlagern oder Abgeschlossen möglich'],
+                422,
+            );
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data) || !\array_key_exists('note', $data)) {
+            return new JsonResponse(['error' => 'note ist erforderlich (cash|invoice|null)'], 400);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $rawNote = $data['note'];
+        if ($rawNote === null || $rawNote === '') {
+            $activity->setCollectionNote(null);
+            $activity->setCollectionNoteAmount(null);
+            $activity->setCollectionNoteAt(null);
+            $activity->setCollectionNoteByUser(null);
+        } else {
+            $note = \is_string($rawNote) ? strtolower(trim($rawNote)) : '';
+            if (!\in_array($note, self::COLLECTION_NOTE_VALUES, true)) {
+                return new JsonResponse(['error' => 'note muss cash, invoice oder null sein'], 422);
+            }
+            $amount = null;
+            if (\array_key_exists('amount', $data) && $data['amount'] !== null && $data['amount'] !== '') {
+                if (!\is_numeric($data['amount'])) {
+                    return new JsonResponse(['error' => 'amount muss eine Zahl sein'], 422);
+                }
+                $amountNum = round((float) $data['amount'], 2);
+                if ($amountNum < 0) {
+                    return new JsonResponse(['error' => 'amount darf nicht negativ sein'], 422);
+                }
+                $amount = number_format($amountNum, 2, '.', '');
+            }
+            $activity->setCollectionNote($note);
+            $activity->setCollectionNoteAmount($amount);
+            $activity->setCollectionNoteAt(new \DateTime());
+            $activity->setCollectionNoteByUser($currentUser);
+        }
+
+        $activity->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeActivity($activity, true));
     }
 
     #[Route('/department-invites/pending', name: 'department_invites_pending', methods: ['GET'])]
@@ -1454,7 +1577,8 @@ class ActivityController extends AbstractController
             return new JsonResponse(['error' => $permissionCheck], 403);
         }
 
-        // 3b. Abschluss-Blocker: Einlagerung, Meldungen, Werkstatt, offene Buchhaltung (inkl. Endabrechnung).
+        // 3b. Abschluss-Blocker (#7 Phase 1): nur fehlende Material-Disposition (Einlagern).
+        // Offene Werkstatt / Buchhaltungs-Follow-ups blockieren nicht (Zwei-Abschlüsse-Modell).
         if ($newStatus === Activity::STATUS_COMPLETED) {
             $blockers = $this->getCompletionBlockers($activity);
             if ($this->hasCompletionBlockers($blockers)) {
@@ -1623,13 +1747,13 @@ class ActivityController extends AbstractController
     }
 
     /**
-     * Ermittelt Blocker für den Abschluss einer Aktivität.
+     * Ermittelt Abschluss-Infos und harte Blocker für `storing` → `completed`.
      *
-     * Blockiert wird bei:
-     * - Material noch nicht vollständig eingelagert (packed/returned > stored)
-     * - Offene Verlust-/Reparatur-/Schaden-Meldungen
-     * - Offene Werkstatt-Tickets
-     * - Ausstehende Buchhaltungs-Aufträge (inkl. Endabrechnung)
+     * Hart blockierend (Zwei-Abschlüsse / #7 Phase 1):
+     * - Material weder eingelagert noch über Verlust/Reparatur-Menge geklärt (`unstored_pack_items`)
+     *
+     * Nur Hinweis (kein Blocker): offene Issue-Reports, offene Werkstatt-Tickets,
+     * pending Buchhaltungs-Follow-ups — effektive Abrechnung bleibt in `/accounting`.
      */
     private function getCompletionBlockers(Activity $activity): array
     {
@@ -1695,7 +1819,18 @@ class ActivityController extends AbstractController
         }
 
         $packProfile = $this->packPipeline->profileForActivityType($activity->getType());
-        $consumedByMaterial = $this->consumedQtyByMaterialForActivity($activityId);
+        $consumedByMaterial = $this->issueQtyByMaterialForActivity(
+            $activityId,
+            ActivityIssueReport::TYPE_CONSUMPTION,
+        );
+        $lossByMaterial = $this->issueQtyByMaterialForActivity(
+            $activityId,
+            ActivityIssueReport::TYPE_LOSS,
+        );
+        $repairByMaterial = $this->issueQtyByMaterialForActivity(
+            $activityId,
+            ActivityIssueReport::TYPE_REPAIR,
+        );
 
         $packItemsForStorage = $this->entityManager->getRepository(ActivityPackItem::class)
             ->createQueryBuilder('pi')
@@ -1737,6 +1872,8 @@ class ActivityController extends AbstractController
                 $pi,
                 $packProfile,
                 $consumed,
+                $lossByMaterial[$pi->getMaterialItemId()] ?? 0,
+                $repairByMaterial[$pi->getMaterialItemId()] ?? 0,
                 $packContainers,
                 $containerItemsByContainerId,
                 $allContainerItems,
@@ -1757,6 +1894,7 @@ class ActivityController extends AbstractController
         $unstoredPackItems = array_slice($unstoredRows, 0, 12);
 
         return [
+            'blocks_completion' => $unstoredPackItemsCount > 0,
             'open_workshop_tickets_count' => count($openWorkshopTickets),
             'open_issue_reports_count' => count($openIssueReports),
             'pending_accounting_followups_count' => $pendingAccountingCount,
@@ -1786,6 +1924,7 @@ class ActivityController extends AbstractController
                 'quantity_stored' => $row['item']->getQuantityStored(),
                 'pending_store' => $row['pending'],
             ], $unstoredPackItems),
+            'costs_released' => $activity->isCostsReleased(),
         ];
     }
 
@@ -1798,6 +1937,8 @@ class ActivityController extends AbstractController
         ActivityPackItem $pi,
         string $profile,
         int $consumed,
+        int $loss,
+        int $repair,
         array $containers,
         array $containerItemsByContainerId,
         array $allContainerItems,
@@ -1807,6 +1948,8 @@ class ActivityController extends AbstractController
             $allContainerItems,
             $profile,
             $consumed,
+            $loss,
+            $repair,
         );
         if ($pending <= 0) {
             return 0;
@@ -1852,9 +1995,9 @@ class ActivityController extends AbstractController
     }
 
     /**
-     * @return array<string, int> materialItemId => Summe Verbrauchsmeldungen
+     * @return array<string, int> materialItemId => Summe Issue-Mengen eines Typs
      */
-    private function consumedQtyByMaterialForActivity(string $activityId): array
+    private function issueQtyByMaterialForActivity(string $activityId, string $type): array
     {
         $rows = $this->entityManager->createQueryBuilder()
             ->select('ir.materialItemId AS mid', 'COALESCE(SUM(ir.quantity), 0) AS qty')
@@ -1863,7 +2006,7 @@ class ActivityController extends AbstractController
             ->andWhere('ir.type = :t')
             ->groupBy('ir.materialItemId')
             ->setParameter('aid', $activityId)
-            ->setParameter('t', ActivityIssueReport::TYPE_CONSUMPTION)
+            ->setParameter('t', $type)
             ->getQuery()
             ->getArrayResult();
 
@@ -1876,14 +2019,22 @@ class ActivityController extends AbstractController
     }
 
     /**
+     * @return array<string, int> materialItemId => Summe Verbrauchsmeldungen
+     * @deprecated use issueQtyByMaterialForActivity
+     */
+    private function consumedQtyByMaterialForActivity(string $activityId): array
+    {
+        return $this->issueQtyByMaterialForActivity($activityId, ActivityIssueReport::TYPE_CONSUMPTION);
+    }
+
+    /**
+     * Harte Completion-Blocker (#7 Phase 1): nur fehlende Einlagerung / Disposition.
+     *
      * @param array<string, mixed> $blockers
      */
     private function hasCompletionBlockers(array $blockers): bool
     {
-        return ($blockers['unstored_pack_items_count'] ?? 0) > 0
-            || ($blockers['open_issue_reports_count'] ?? 0) > 0
-            || ($blockers['open_workshop_tickets_count'] ?? 0) > 0
-            || ($blockers['pending_accounting_followups_count'] ?? 0) > 0;
+        return ($blockers['unstored_pack_items_count'] ?? 0) > 0;
     }
 
     /**
@@ -1891,21 +2042,11 @@ class ActivityController extends AbstractController
      */
     private function completionBlockerMessage(array $blockers): string
     {
-        $parts = [];
         if (($blockers['unstored_pack_items_count'] ?? 0) > 0) {
-            $parts[] = 'Material noch nicht vollständig eingelagert';
-        }
-        if (($blockers['open_issue_reports_count'] ?? 0) > 0) {
-            $parts[] = 'offene Verlust-/Reparatur-/Schaden-Meldungen';
-        }
-        if (($blockers['open_workshop_tickets_count'] ?? 0) > 0) {
-            $parts[] = 'offene Werkstatt-Tickets';
-        }
-        if (($blockers['pending_accounting_followups_count'] ?? 0) > 0) {
-            $parts[] = 'ausstehende Buchhaltungs-Aufträge';
+            return 'Aktivität kann nicht abgeschlossen werden: Material noch nicht vollständig eingelagert (oder über Verlust/Reparatur geklärt).';
         }
 
-        return 'Aktivität kann nicht abgeschlossen werden: ' . implode(', ', $parts) . '.';
+        return 'Aktivität kann nicht abgeschlossen werden.';
     }
 
     /**
@@ -4752,6 +4893,13 @@ class ActivityController extends AbstractController
             'created_at' => $activity->getCreatedAt()->format('c'),
             'updated_at' => $activity->getUpdatedAt()->format('c'),
             'created_by_user' => $this->serializeActivityUserSummary($activity->getCreatedByUser()),
+            'costs_released' => $activity->isCostsReleased(),
+            'costs_released_at' => $activity->getCostsReleasedAt()?->format('c'),
+            'collection_note' => $activity->getCollectionNote(),
+            'collection_note_amount' => $activity->getCollectionNoteAmount() !== null
+                ? (float) $activity->getCollectionNoteAmount()
+                : null,
+            'collection_note_at' => $activity->getCollectionNoteAt()?->format('c'),
         ];
 
         $activityPublicEntry = $this->publicCodeService->getActiveActivityPublicCode((string) $activity->getId());
@@ -4774,6 +4922,9 @@ class ActivityController extends AbstractController
                 'deposit_amount' => $activity->getDepositAmount() ? (float) $activity->getDepositAmount() : null,
                 'deposit_paid' => $activity->isDepositPaid(),
                 'is_paid' => $activity->isPaid(),
+                'costs_released_by_user' => $this->serializeActivityUserSummary($activity->getCostsReleasedByUser()),
+                'collection_note_by_user' => $this->serializeActivityUserSummary($activity->getCollectionNoteByUser()),
+                'external_customer_label' => $this->externalCustomerLabelForActivity($activity),
                 'notes' => $activity->getNotes(),
                 'invited_departments' => $this->enrichInvitedDepartmentsForApi($activity->getInvitedDepartments()),
                 'deleted_at' => $activity->getDeletedAt()?->format('c'),
@@ -5042,6 +5193,30 @@ class ActivityController extends AbstractController
         $nick = trim((string) ($profile->getNickname() ?? ''));
 
         return $nick !== '' ? $nick : null;
+    }
+
+    private function externalCustomerLabelForActivity(Activity $activity): ?string
+    {
+        $address = $activity->getAddress();
+        if (!$address instanceof Address) {
+            $name = trim($activity->getName());
+
+            return $name !== '' ? $name : null;
+        }
+
+        $parts = array_filter([
+            trim((string) ($address->getCompany() ?? '')),
+            trim((string) ($address->getName() ?? '')),
+        ]);
+
+        if ($parts !== []) {
+            return implode(' · ', $parts);
+        }
+
+        $city = trim((string) ($address->getCity() ?? ''));
+        $fallback = trim($activity->getName());
+
+        return $city !== '' ? $city : ($fallback !== '' ? $fallback : null);
     }
 
     /**

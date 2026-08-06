@@ -163,6 +163,37 @@ class Activity
     #[ORM\Column(name: 'is_paid', type: 'boolean', options: ['default' => false])]
     private bool $isPaid = false;
 
+    /** MW hat Kostenübersicht freigegeben (vor Abschluss). */
+    #[ORM\Column(name: 'costs_released_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $costsReleasedAt = null;
+
+    #[ORM\Column(name: 'costs_released_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $costsReleasedByUserId = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'costs_released_by_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $costsReleasedByUser = null;
+
+    /**
+     * Einnahme-Vermerk in der Aktivität (kein AccountingBooking):
+     * cash | invoice | null — siehe accounting.md #7 Phase 3.
+     */
+    #[ORM\Column(name: 'collection_note', type: 'string', length: 16, nullable: true)]
+    private ?string $collectionNote = null;
+
+    #[ORM\Column(name: 'collection_note_amount', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    private ?string $collectionNoteAmount = null;
+
+    #[ORM\Column(name: 'collection_note_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $collectionNoteAt = null;
+
+    #[ORM\Column(name: 'collection_note_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $collectionNoteByUserId = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'collection_note_by_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $collectionNoteByUser = null;
+
     // Material-Anzahl (Cache, wird bei Änderung aktualisiert)
     #[ORM\Column(name: 'item_count', type: 'integer', options: ['default' => 0])]
     private int $itemCount = 0;
@@ -558,6 +589,89 @@ class Activity
     public function setIsPaid(bool $isPaid): self
     {
         $this->isPaid = $isPaid;
+        return $this;
+    }
+
+    public function getCostsReleasedAt(): ?\DateTime
+    {
+        return $this->costsReleasedAt;
+    }
+
+    public function setCostsReleasedAt(?\DateTime $costsReleasedAt): self
+    {
+        $this->costsReleasedAt = $costsReleasedAt;
+        return $this;
+    }
+
+    public function isCostsReleased(): bool
+    {
+        return $this->costsReleasedAt !== null;
+    }
+
+    public function getCostsReleasedByUserId(): ?string
+    {
+        return $this->costsReleasedByUserId;
+    }
+
+    public function getCostsReleasedByUser(): ?User
+    {
+        return $this->costsReleasedByUser;
+    }
+
+    public function setCostsReleasedByUser(?User $user): self
+    {
+        $this->costsReleasedByUser = $user;
+        $this->costsReleasedByUserId = $user?->getId();
+        return $this;
+    }
+
+    public function getCollectionNote(): ?string
+    {
+        return $this->collectionNote;
+    }
+
+    public function setCollectionNote(?string $collectionNote): self
+    {
+        $this->collectionNote = $collectionNote;
+        return $this;
+    }
+
+    public function getCollectionNoteAmount(): ?string
+    {
+        return $this->collectionNoteAmount;
+    }
+
+    public function setCollectionNoteAmount(?string $collectionNoteAmount): self
+    {
+        $this->collectionNoteAmount = $collectionNoteAmount;
+        return $this;
+    }
+
+    public function getCollectionNoteAt(): ?\DateTime
+    {
+        return $this->collectionNoteAt;
+    }
+
+    public function setCollectionNoteAt(?\DateTime $collectionNoteAt): self
+    {
+        $this->collectionNoteAt = $collectionNoteAt;
+        return $this;
+    }
+
+    public function getCollectionNoteByUserId(): ?string
+    {
+        return $this->collectionNoteByUserId;
+    }
+
+    public function getCollectionNoteByUser(): ?User
+    {
+        return $this->collectionNoteByUser;
+    }
+
+    public function setCollectionNoteByUser(?User $user): self
+    {
+        $this->collectionNoteByUser = $user;
+        $this->collectionNoteByUserId = $user?->getId();
         return $this;
     }
 

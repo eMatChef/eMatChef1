@@ -191,6 +191,18 @@ class DepartmentSetting
     }
 
     /**
+     * Buchhaltung: Timing für optionalen Einnahme-Vermerk in der Aktivität (#7 Phase 3).
+     * offer_at_activity | accounting_only
+     */
+    public static function getAccountingDefaults(): array
+    {
+        return [
+            'accounting.settlement_timing_consumable' => 'accounting_only',
+            'accounting.settlement_timing_external' => 'accounting_only',
+        ];
+    }
+
+    /**
      * Standard-Werte für J+S-Leihmaterial (Camp/Event-Bestellformular)
      */
     public static function getJsMaterialDefaults(): array
@@ -201,6 +213,21 @@ class DepartmentSetting
             'js.default_coach_last_name' => '',
             'js.default_coach_email' => '',
             'js.default_delivery_type' => 'franko',
+        ];
+    }
+
+    /**
+     * Anzeige-Namen für Department-Rollen L1–L3 (leer = App-Default / i18n).
+     * Codes bleiben l1/l2/l3; nur die Beschriftung ist pro Department anpassbar.
+     *
+     * @return array<string, string>
+     */
+    public static function getRoleLabelDefaults(): array
+    {
+        return [
+            'roles.label.l1' => '',
+            'roles.label.l2' => '',
+            'roles.label.l3' => '',
         ];
     }
 
@@ -217,7 +244,9 @@ class DepartmentSetting
             self::getRentalAmortizationDefaults(),
             self::getCalendarDefaults(),
             self::getWorkshopDefaults(),
+            self::getAccountingDefaults(),
             self::getJsMaterialDefaults(),
+            self::getRoleLabelDefaults(),
         );
     }
 }

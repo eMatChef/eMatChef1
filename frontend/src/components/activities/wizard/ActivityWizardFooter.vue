@@ -57,6 +57,7 @@
           v-if="layoutMode === 'stepper' && selectedActivityType && !isLastStep"
           variant="primary"
           size="small"
+          data-onboarding="activity-wizard-next"
           :disabled="!canAdvanceFromCurrentStep"
           :loading="isSavingDraft"
           @click="$emit('weiter')"

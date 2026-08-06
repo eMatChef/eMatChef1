@@ -1,8 +1,9 @@
 /**
- * «+» neben Autocomplete/Suchfeldern (Material-Wizard, Adresssuche, Kategorie, …)
- * Klasse: .add-inline-btn
+ * «+» / Edit neben Autocomplete/Suchfeldern (Material-Wizard, Adresssuche, Kategorie, …)
+ * Klassen: .add-inline-btn, .edit-inline-btn
  */
-.add-inline-btn {
+.add-inline-btn,
+.edit-inline-btn {
   width: 42px;
   height: 42px;
   min-height: 42px;
@@ -23,13 +24,27 @@
 }
 
 .add-inline-btn:hover:not(:disabled),
-.add-inline-btn:focus-visible:not(:disabled) {
+.add-inline-btn:focus-visible:not(:disabled),
+.edit-inline-btn:hover:not(:disabled),
+.edit-inline-btn:focus-visible:not(:disabled) {
   border: 2px dashed #059669;
   color: #047857;
   background: #ecfdf5;
 }
 
-.add-inline-btn:disabled {
+.add-inline-btn:disabled,
+.edit-inline-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.edit-inline-btn {
+  color: #475569;
+}
+
+.edit-inline-btn:hover:not(:disabled),
+.edit-inline-btn:focus-visible:not(:disabled) {
+  color: #334155;
+  border-color: #64748b;
+  background: #f8fafc;
 }

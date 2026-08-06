@@ -12,6 +12,7 @@ use App\Entity\MaterialItem;
 use App\Service\Accounting\AccountingAcquisitionFollowUpReceiptService;
 use App\Service\Accounting\AccountingBookingReceiptStorageService;
 use App\Service\Accounting\AccountingBookingSourceService;
+use App\Service\Accounting\ActivityCollectionNotePaymentSuggest;
 use App\Service\InboxMessageService;
 use App\Service\Media\MediaPhotoNormalizer;
 use App\Util\IdGenerator;
@@ -214,14 +215,14 @@ class AccountingBookingController extends AbstractController
                 $followUp = $this->entityManager->find(AccountingAcquisitionFollowUp::class, $followUpId);
             } catch (\Throwable) {
                 return new JsonResponse([
-                    'error' => 'Anschaffungs-Aufträge sind in der Datenbank noch nicht eingerichtet (Migration accounting_acquisition_follow_up).',
+                    'error' => 'Buchhaltungs-Aufträge sind in der Datenbank noch nicht eingerichtet (Migration accounting_acquisition_follow_up).',
                 ], 503);
             }
             if (!$followUp || $followUp->getDepartment()->getId() !== $departmentId) {
-                return new JsonResponse(['error' => 'Anschaffungs-Auftrag nicht gefunden'], 404);
+                return new JsonResponse(['error' => 'Buchhaltungs-Auftrag nicht gefunden'], 404);
             }
             if ($followUp->getStatus() !== AccountingAcquisitionFollowUp::STATUS_PENDING) {
-                return new JsonResponse(['error' => 'Anschaffungs-Auftrag ist bereits erfasst'], 400);
+                return new JsonResponse(['error' => 'Buchhaltungs-Auftrag ist bereits erfasst'], 400);
             }
         }
 
@@ -244,6 +245,12 @@ class AccountingBookingController extends AbstractController
         $booking->setBookedAt($bookedAt);
         $booking->setEntryType($parse['entryType']);
         $booking->setPaymentMethod($parse['paymentMethod']);
+        if (($parse['paymentMethod'] === null || $parse['paymentMethod'] === '') && $followUp !== null) {
+            $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+            if ($fromNote['payment_method'] !== null) {
+                $booking->setPaymentMethod($fromNote['payment_method']);
+            }
+        }
         $paymentStatus = $parse['paymentStatus'];
         if (($data['payment_status'] ?? '') === '' && $followUp !== null) {
             $paymentStatus = $this->defaultPaymentStatusForFollowUp($followUp);
@@ -294,6 +301,10 @@ class AccountingBookingController extends AbstractController
     {
         if ($followUp === null) {
             return AccountingBooking::PAYMENT_STATUS_PAID;
+        }
+        $fromNote = ActivityCollectionNotePaymentSuggest::fromActivity($followUp->getActivity());
+        if ($fromNote['payment_status'] !== null) {
+            return $fromNote['payment_status'];
         }
         $activity = $followUp->getActivity();
         if ($activity !== null && $activity->getType() === 'external') {

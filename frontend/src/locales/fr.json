@@ -293,11 +293,18 @@
   },
   "languageNames": {
     "de": "Allemand",
-    "en": "Anglais",
-    "fr": "Francais",
-    "it": "Italien",
     "de-pfadi": "Allemand (Pfadi)",
     "de-cevi": "Allemand (Cevi)",
+    "de-jubla": "Allemand (Jubla)",
+    "en": "Anglais",
+    "fr": "Francais",
+    "fr-pfadi": "Francais (Pfadi)",
+    "fr-cevi": "Francais (Cevi)",
+    "fr-jubla": "Francais (Jubla)",
+    "it": "Italien",
+    "it-pfadi": "Italien (Pfadi)",
+    "it-cevi": "Italien (Cevi)",
+    "it-jubla": "Italien (Jubla)",
     "ch-rm": "Romanche"
   },
   "common": {

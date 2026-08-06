@@ -78,10 +78,13 @@
               primary-type="event"
               :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
               :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+              :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
               :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
               inline-create-label-key="addresses.search.createEventVenueInline"
+              show-edit-button
               @update:selected-id="(id) => onVenueAddressId(id, onChange)"
               @create="(name) => emit('create-venue-address', name)"
+              @edit="(id) => emit('edit-venue-address', id)"
             />
           </template>
         </AutoSaveField>
@@ -136,10 +139,13 @@
               primary-type="event"
               :placeholder="t('activities.wizard.form.addressSearchPlaceholder')"
               :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
+              :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
               :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
               inline-create-label-key="addresses.search.createEventVenueInline"
+              show-edit-button
               @update:selected-id="(id) => onDeliveryAddressId(id, onChange)"
               @create="(name) => emit('create-delivery-address', name)"
+              @edit="(id) => emit('edit-delivery-address', id)"
             />
           </template>
         </AutoSaveField>
@@ -194,6 +200,8 @@ const emit = defineEmits<{
   'update:deliveryAddressId': [id: string | null]
   'create-venue-address': [presetName: string]
   'create-delivery-address': [presetName: string]
+  'edit-venue-address': [id: string]
+  'edit-delivery-address': [id: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -473,7 +481,8 @@ watch(showOverviewMap, (visible) => {
   border-radius: 8px;
 }
 
-.activity-venue-autosave-field :deep(.add-inline-btn) {
+.activity-venue-autosave-field :deep(.add-inline-btn),
+.activity-venue-autosave-field :deep(.edit-inline-btn) {
   width: 48px;
   height: 48px;
   min-height: 48px;

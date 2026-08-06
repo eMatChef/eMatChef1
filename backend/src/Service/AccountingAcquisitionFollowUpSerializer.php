@@ -7,6 +7,7 @@ use App\Entity\Activity;
 use App\Entity\Address;
 use App\Entity\User;
 use App\Entity\WorkshopTicket;
+use App\Service\Accounting\ActivityCollectionNotePaymentSuggest;
 use App\Service\Media\MediaPhotoNormalizer;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -97,6 +98,12 @@ class AccountingAcquisitionFollowUpSerializer
             'external_customer_label' => $externalCustomerLabel,
             'reported_by_user_id' => $reportedByUserId,
             'reported_by_display_name' => $reportedByDisplayName,
+            'activity_collection_note' => $activity?->getCollectionNote(),
+            'activity_collection_note_amount' => $activity?->getCollectionNoteAmount() !== null
+                ? (float) $activity->getCollectionNoteAmount()
+                : null,
+            'suggested_payment_method' => ActivityCollectionNotePaymentSuggest::fromActivity($activity)['payment_method'],
+            'suggested_payment_status' => ActivityCollectionNotePaymentSuggest::fromActivity($activity)['payment_status'],
         ];
     }
 
