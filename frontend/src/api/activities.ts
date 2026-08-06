@@ -376,6 +376,26 @@ export async function deleteActivity(activityId: string): Promise<{ message?: st
   return data
 }
 
+export async function assignDepartmentInviteGroup(
+  activityId: string,
+  payload: { departmentId: string; groupId: string },
+): Promise<{ group_id: string; group_name: string }> {
+  const { data } = await apiClient.patch<{ group_id: string; group_name: string }>(
+    `/api/activities/${activityId}/department-invites/group`,
+    {
+      department_id: payload.departmentId,
+      group_id: payload.groupId,
+    },
+  )
+  return data
+}
+
+/** DELETE /api/activities/:id — Soft-Delete (Entwurf verwerfen) */
+export async function deleteActivity(activityId: string): Promise<{ message?: string }> {
+  const { data } = await apiClient.delete<{ message?: string }>(`/api/activities/${activityId}`)
+  return data
+}
+
 export interface SyncActivityItemPayload {
   material_item_id: string
   quantity: number

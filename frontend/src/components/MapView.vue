@@ -412,6 +412,11 @@ function swissTileOptions(maxNativeZoom: number): L.TileLayerOptions {
     maxZoom: SWISS_LV95_MAX_ZOOM,
     maxNativeZoom,
   }
+  return {
+    swisstopo: L.tileLayer(wmtsUrl('ch.swisstopo.pixelkarte-farbe', 'jpeg', '3857'), tileLayers.swisstopo.options),
+    swissimage: L.tileLayer(wmtsUrl('ch.swisstopo.swissimage', 'jpeg', '3857'), tileLayers.swissimage.options),
+    osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', tileLayers.osm.options),
+  }
 }
 
 /** Welche Projektion ein Basis-Layer benötigt (OSM nur Web-Mercator). */
@@ -613,6 +618,33 @@ function createMap(
       fitSwissOverviewIfNeeded()
     }
   }, 200)
+}
+
+function initMap() {
+  if (!mapContainer.value || map) return
+
+  const lat = props.latitude ?? DEFAULT_CENTER[0]
+  const lng = props.longitude ?? DEFAULT_CENTER[1]
+  const zoom =
+    props.latitude && props.longitude
+      ? props.zoom
+      : props.editable
+        ? props.useSwissProjection
+          ? props.zoom
+          : DEFAULT_ZOOM_EDITABLE
+        : DEFAULT_ZOOM
+
+  hasCoordinates.value = props.latitude !== null && props.longitude !== null
+
+  const useSwiss = props.preferSwissMap && (
+    !props.latitude || !props.longitude || isInSwitzerland.value
+  )
+  const initialLayer: MapBaseLayer = useSwiss ? 'swisstopo' : 'osm'
+  createMap(projectionForLayer(initialLayer), L.latLng(lat, lng), zoom, initialLayer)
+
+  if (props.latitude && props.longitude) {
+    reverseGeocode(props.latitude, props.longitude)
+  }
 }
 
 function initMap() {

@@ -176,6 +176,10 @@
                 <span class="info-label">{{ t('settings.addressForm.contactPerson') }}</span>
                 <span class="info-value">{{ contact ? (formatContactPerson(contact) || '—') : '—' }}</span>
               </div>
+              <div class="info-item" v-if="contact.contact_first_name || contact.contact_last_name">
+                <span class="info-label">{{ t('settings.addressForm.contactPerson') }}</span>
+                <span class="info-value">{{ formatContactPerson(contact) }}</span>
+              </div>
               <div class="info-item">
                 <span class="info-label">{{ t('settings.addressForm.type') }}</span>
                 <span class="info-value">
@@ -587,6 +591,7 @@
               </button>
             </div>
           </div>
+          </template>
 
           <!-- Event / Treffpunkt: Standorte-Karte (+ Accordion nur bei Event) -->
           <div
@@ -1225,6 +1230,10 @@ function formatContactPerson(c: Address): string {
   return [c.contact_first_name, c.contact_last_name].filter(Boolean).join(' ')
 }
 
+function formatContactPerson(c: Address): string {
+  return [c.contact_first_name, c.contact_last_name].filter(Boolean).join(' ')
+}
+
 function getInitials(c: Address): string {
   const contactName = formatContactPerson(c)
   if (contactName) {
@@ -1632,6 +1641,27 @@ async function maybeGeocodeAfterAddressChange() {
   if (contact.value.latitude != null && contact.value.longitude != null) return
   if (!canGeocodeFromAddress.value) return
   await geocodeAndSaveLocation()
+}
+
+function openDeliveryCreateModal() {
+  deliveryModalAddress.value = null
+  showDeliveryModal.value = true
+}
+
+function openDeliveryEditModal() {
+  deliveryModalAddress.value = deliveryAddress.value
+  showDeliveryModal.value = true
+}
+
+function closeDeliveryModal() {
+  showDeliveryModal.value = false
+  deliveryModalAddress.value = null
+}
+
+async function handleDeliverySaved() {
+  closeDeliveryModal()
+  await loadContact()
+  emit('updated')
 }
 
 function confirmDelete() {

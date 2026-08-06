@@ -3600,9 +3600,6 @@
       "roles": {
         "mw": "Materials lead",
         "dc": "Dept. lead",
-        "l1": "Leader 1",
-        "l2": "Leader 2",
-        "l3": "Leader 3",
         "u": "Member"
       },
       "roleLabelsTitle": "Leader role names",

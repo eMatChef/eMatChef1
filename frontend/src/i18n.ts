@@ -56,6 +56,17 @@ function withVuetifyLocale<T extends Record<string, unknown>>(
   }
 }
 
+/** Vuetify (v-skeleton-loader, v-data-table, …) via vue-i18n-Adapter → $vuetify.* */
+function withVuetifyLocale<T extends Record<string, unknown>>(
+  messages: T,
+  vuetifyLocale: typeof vuetifyDe,
+): T & { $vuetify: typeof vuetifyDe } {
+  return {
+    ...escapeLiteralAtSignInMessages(messages),
+    $vuetify: escapeLiteralAtSignInMessages(vuetifyLocale),
+  }
+}
+
 export const i18n = createI18n({
   legacy: false,
   locale: detectInitialLocale(),

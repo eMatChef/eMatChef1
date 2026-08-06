@@ -843,6 +843,18 @@ class DepartmentController extends AbstractController
         ], 201);
     }
 
+    private function labelForMemberRole(string $role): string
+    {
+        return match (strtolower(trim($role))) {
+            'mw' => 'Materialchef',
+            'dc' => 'Departmentchef',
+            'l1' => 'Leiter 1',
+            'l2' => 'Leiter 2',
+            'l3' => 'Leiter 3',
+            default => 'Mitglied',
+        };
+    }
+
     /**
      * Aktualisiert die Rolle eines Mitglieds in einem Department
      */
