@@ -15,9 +15,9 @@ Nur diese Dateien gehören ins Repo und in Weblate:
 | `fr` | `fr.json` | Vollübersetzung |
 | `it` | `it.json` | Vollübersetzung |
 | `ch-rm` | `ch-rm.json` | Rumantsch (Lücken → de/en) |
-| `de-pfadi` / `de-cevi` / `de-jubla` | `de-*.json` | Delta zu `de` |
-| `fr-pfadi` / `fr-cevi` / `fr-jubla` | `fr-*.json` | Delta zu `fr` |
-| `it-pfadi` / `it-cevi` / `it-jubla` | `it-*.json` | Delta zu `it` |
+| `de-pfadi` / `de-cevi` / `de-jubla` | `de-pfadi.json` usw. | Delta zu `de` |
+| `fr-pfadi` / `fr-cevi` / `fr-jubla` | `fr-pfadi.json` usw. | Delta zu `fr` |
+| `it-pfadi` / `it-cevi` / `it-jubla` | `it-pfadi.json` usw. | Delta zu `it` |
 
 Keine `en-US`, `fr-FR`, `it-IT`, `de-CH`, … — kurze Codes = Dateiname = App/DB.
 
@@ -52,13 +52,16 @@ Org-Varianten **nicht** in dieser Component.
 
 ### Components B/C/D — Org-Varianten (je Basis-Sprache)
 
-Linked auf denselben Clone (`weblate://ematchef/app-ui`). Pro Basis eine Component, damit die Quelle stimmt und die Dateimaske nicht mit App UI kollidiert:
+Linked auf denselben Clone (`weblate://ematchef/app-ui`). Pro Basis eine Component (eigene Quelle).
+
+**Dateimaske immer** `frontend/src/locales/*.json` — **nicht** `de-*.json`.  
+Weblate setzt `*` = Sprachcode: bei Maske `de-*.json` und Code `de-jubla` entsteht fälschlich `de-de-jubla.json`.
 
 | Component | Slug | Template (Quelle) | Dateimaske | Sprachfilter |
 |-----------|------|-------------------|------------|--------------|
-| DE Varianten | `de-varianten` | `frontend/src/locales/de.json` | `frontend/src/locales/de-*.json` | `^(de-pfadi\|de-cevi\|de-jubla)$` |
-| FR Varianten | `fr-varianten` | `frontend/src/locales/fr.json` | `frontend/src/locales/fr-*.json` | `^(fr-pfadi\|fr-cevi\|fr-jubla)$` |
-| IT Varianten | `it-varianten` | `frontend/src/locales/it.json` | `frontend/src/locales/it-*.json` | `^(it-pfadi\|it-cevi\|it-jubla)$` |
+| DE Varianten | `de-varianten` | `frontend/src/locales/de.json` | `frontend/src/locales/*.json` | `^(de-pfadi\|de-cevi\|de-jubla)$` |
+| FR Varianten | `fr-varianten` | `frontend/src/locales/fr.json` | `frontend/src/locales/*.json` | `^(fr-pfadi\|fr-cevi\|fr-jubla)$` |
+| IT Varianten | `it-varianten` | `frontend/src/locales/it.json` | `frontend/src/locales/*.json` | `^(it-pfadi\|it-cevi\|it-jubla)$` |
 
 Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, Ausgangssprache = Template-Sprache (`de_CH` / `fr` / `it`).
 
@@ -75,11 +78,12 @@ Custom-Sprachen in Weblate anlegen (Name z. B. „Deutsch (Pfadi)“, Code `de
 ## Anti-Wildwuchs-Checkliste
 
 - [ ] App UI-Filter ohne Org-Varianten  
-- [ ] Varianten-Components mit `de-*.json` / `fr-*.json` / `it-*.json` (kein `*.json` → keine doppelte `de.json`)  
+- [ ] Varianten-Components: Maske `*.json` + enger Sprachfilter (nie `de-*.json` bei Codes `de-…`)  
 - [ ] `new_lang=none` überall  
 - [ ] Neue Variante = Code in `languages.ts` + Backend + Locale-Stub + Weblate-Sprache + Filter  
-- [ ] Varianten bleiben Deltas, keine Vollkopien
+- [ ] Varianten bleiben Deltas, keine Vollkopien  
+- [ ] Keine Dateien wie `de-de-jubla.json` / `fr-fr-pfadi.json` im Repo
 
 ## Weblate nach Repo-Merge
 
-Skript auf dem Droplet: `docs/weblate-setup-org-variants.sh` (Custom-Sprachen + DE/FR/IT-Components, Dateimaske `de-*.json` usw.).
+Skript auf dem Droplet: `docs/weblate-setup-org-variants.sh` (Custom-Sprachen + DE/FR/IT-Components, Maske `*.json`).
