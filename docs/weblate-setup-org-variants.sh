@@ -9,6 +9,7 @@ cd /opt/weblate
 
 docker compose exec -T weblate weblate shell <<'PY'
 from django.db import transaction
+from django.contrib.auth import get_user_model
 from weblate.trans.models import Component, Project, Translation
 from weblate.lang.models import Language, Plural
 from pathlib import Path
@@ -17,6 +18,9 @@ p = Project.objects.get(slug="ematchef")
 base = Component.objects.get(project=p, slug="app-ui")
 LOC = Path("/app/data/vcs/ematchef/app-ui/frontend/src/locales")
 FILEMASK = "frontend/src/locales/*.json"
+User = get_user_model()
+admin = User.objects.filter(is_superuser=True).first() or User.objects.first()
+print("admin=", admin)
 
 # Aliases (Komma-getrennt)
 p.language_aliases = "ch-rm:rm,de:de_CH"
@@ -101,7 +105,7 @@ def ensure_variant_component(slug, name, template, regex, source_code, variant_c
         for t in list(c.translation_set.filter(language=lang)):
             if t.filename != filename:
                 print(" remove wrong", t.filename)
-                t.remove()
+                t.remove(admin)
         t = c.translation_set.filter(language=lang).first()
         if t is None:
             plural = lang.plural_set.order_by("id").first()
@@ -117,18 +121,23 @@ def ensure_variant_component(slug, name, template, regex, source_code, variant_c
                 t.filename = filename
                 t.save(update_fields=["filename"])
             print(" ok", code, "->", t.filename)
-        with transaction.atomic():
-            t.check_sync(force=True)
-        t.invalidate_cache()
-        print("  total=", t.stats.all, "translated=", t.stats.translated)
 
-    # Quelle syncen
+    # Quelle zuerst, dann Varianten (sonst total=0)
     src = c.translation_set.filter(language=c.source_language).first()
     if src:
         with transaction.atomic():
             src.check_sync(force=True)
         src.invalidate_cache()
         print(" source", src.language.code, "total=", src.stats.all)
+    try:
+        c.create_translations(force=True)
+    except Exception as e:
+        print("create_translations:", type(e).__name__, e)
+    with transaction.atomic():
+        for t in c.translation_set.exclude(language=c.source_language):
+            t.check_sync(force=True)
+            t.invalidate_cache()
+            print(" ", t.language.code, "file=", t.filename, "total=", t.stats.all, "translated=", t.stats.translated)
 
 ensure_variant_component(
     "de-varianten",
