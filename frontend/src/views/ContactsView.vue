@@ -358,27 +358,6 @@ async function confirmPermanentDelete(contact: Address) {
   }
 }
 
-async function restoreContact(contact: Address) {
-  try {
-    await restoreAddress(contact.id)
-    toast.success(t('contacts.restoreSuccess'))
-    await loadContacts()
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('contacts.restoreError'))
-  }
-}
-
-async function confirmPermanentDelete(contact: Address) {
-  const name = contact.name || contact.company || t('contacts.unnamed')
-  if (!window.confirm(t('contacts.permanentDeleteMessage', { name }))) return
-  try {
-    await permanentDeleteAddress(contact.id)
-    await loadContacts()
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('contacts.permanentDeleteError'))
-  }
-}
-
 // Watchers
 watch(showDeleted, () => {
   loadContacts()

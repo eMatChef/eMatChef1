@@ -223,22 +223,6 @@
         </div>
 
         <div
-          v-if="showJsMaterialOptionOnGrunddaten"
-          class="form-group span-2 activity-js-include-wrap"
-          data-onboarding="activity-camp-js-material"
-        >
-          <ECheckbox
-            :model-value="wantsJsMaterial"
-            :label="t('activities.jsMaterial.includeToggle')"
-            hide-details
-            @update:model-value="emit('update:wantsJsMaterial', !!$event)"
-          />
-          <p class="field-hint text-muted activity-js-include-hint">
-            {{ t('activities.jsMaterial.includeHint') }}
-          </p>
-        </div>
-
-        <div
           v-if="selectedActivityType === 'external'"
           class="form-group activity-external-address-wrap"
         >
