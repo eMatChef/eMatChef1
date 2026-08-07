@@ -86,6 +86,18 @@ Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, 
 
 Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
 
+## Translate-Droplet / Weblate-Betrieb (Checkliste)
+
+App-Droplets (develop/prod) brauchen für Übersetzungen **nichts Extra** — CD holt Locales mit dem Branch.
+
+Auf **translate.ematchef.ch** einmal prüfen:
+
+1. **Repository-Branch** = `develop`, **Push-Branch** = `weblate` (App UI + Varianten).
+2. **Commit / Push:** unter App UI → Operationen → Repository-Wartung idealerweise **Auto-Commit + Auto-Push** (sonst manuell Commit+Push nach Übersetzen).
+3. **Update von GitHub:** Webhook oder regelmässiges Update, damit neue Keys aus `develop` ankommen.
+4. **SSH Deploy-Key** mit Write-Zugriff aufs Repo (Push auf `weblate`).
+5. Diagnose **„Doppelte Dateimaske“** (App UI + Varianten teilen `de.json`/`fr.json`/`it.json`) stört den Sync nicht; langfristig per Sprachfilter/Template bereinigen.
+
 ## README-Badges (live)
 
 Die Sprach-Badges in der `README.md` kommen von Weblate-Widgets:
