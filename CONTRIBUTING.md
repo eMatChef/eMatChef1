@@ -136,6 +136,22 @@ Fuer `CD Prod`:
 - Kleine, in sich geschlossene Commits
 - Imperativ im Commit-Titel (z. B. `Add ...`, `Fix ...`, `Refactor ...`)
 - Keine Geheimnisse committen (`.env`, Schluessel, Zugangsdaten)
+- Author = dein GitHub-Account (`git config user.name` / `user.email`), nicht Bots
+
+### Keine Bot-Contributors (github-actions / cursoragent)
+
+GitHub listet jeden **Commit-Author** unter Contributors. Deshalb:
+
+1. **Weblate-Sync** commitet als Maintainer (`Matthias Ruffieux`), nicht als `github-actions[bot]`.
+2. **Cursor IDE:** Settings → Agents → **Attribution** ausschalten (entfernt „Made with Cursor“ lokal).
+3. **Cursor Cloud Agents** committen serverseitig oft als `cursoragent` — dafür gibt es keinen zuverlässigen Opt-out. Workaround: lokal committen/pushen, oder PR squash-mergen und Author prüfen.
+4. Repo-Hook `.githooks/prepare-commit-msg` streicht `Co-authored-by: Cursor` / `cursoragent@…` aus der Message. Aktivieren mit:
+
+```bash
+./scripts/install-git-hooks.sh
+```
+
+Bestehende Bot-Commits in der History bleiben sichtbar, bis die History umgeschrieben wird (force-push, meist unnötig).
 
 ## Fragen und Abstimmung
 

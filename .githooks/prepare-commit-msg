@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Entfernt Cursor-/Agent-Attribution aus Commit-Messages, damit
+# cursoragent nicht in der GitHub-Contributors-Liste landet.
+#
+# Args von Git: $1 = path to commit message file, $2 = source, $3 = SHA
+set -euo pipefail
+
+MSG_FILE="${1:-}"
+[[ -n "$MSG_FILE" && -f "$MSG_FILE" ]] || exit 0
+
+# Nur bearbeiten, wenn Cursor-Marker vorkommen
+if ! grep -qiE 'cursoragent@cursor\.com|Co-authored-by:.*Cursor|Made-with:[[:space:]]*Cursor' "$MSG_FILE"; then
+  exit 0
+fi
+
+tmp="$(mktemp)"
+# shellcheck disable=SC2016
+grep -viE \
+  -e 'Co-authored-by:[[:space:]].*[Cc]ursor' \
+  -e 'cursoragent@cursor\.com' \
+  -e 'Made-with:[[:space:]]*Cursor' \
+  "$MSG_FILE" >"$tmp" || true
+mv "$tmp" "$MSG_FILE"
