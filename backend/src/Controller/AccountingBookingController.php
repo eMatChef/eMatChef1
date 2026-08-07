@@ -121,7 +121,7 @@ class AccountingBookingController extends AbstractController
 
         $filename = sprintf('buchungen-%s-%d.csv', $departmentId, $year);
 
-        return new StreamedResponse(function () use ($rows, $sourceMap, $year): void {
+        return new StreamedResponse(function () use ($rows, $sourceMap): void {
             $out = fopen('php://output', 'w');
             if ($out === false) {
                 return;

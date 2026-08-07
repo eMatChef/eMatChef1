@@ -1,0 +1,89 @@
+# Bei PRs nach prod: Beschreibung um Liste der enthaltenen Feature-PRs ergänzen.
+name: Release PR summary
+
+on:
+  pull_request:
+    branches: [prod]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: release-pr-summary-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  summarize:
+    name: Summarize changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build summary and update PR body
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git fetch origin "$BASE" "$HEAD_REF" --quiet
+
+          SUMMARY="$(
+            git log "origin/${BASE}..origin/${HEAD_REF}" \
+              --merges --first-parent \
+              --grep='dependabot' --invert-grep \
+              --pretty=format:'%s' \
+            | grep -E '^Merge pull request #' \
+            | sed -E 's/^Merge pull request (#([0-9]+)).*/- #\2/' \
+            | tac \
+            || true
+          )"
+
+          if [[ -z "${SUMMARY}" ]]; then
+            SUMMARY="- _(keine Feature-PR-Merges erkannt)_"
+          fi
+
+          export SUMMARY
+          export PR
+
+          python3 <<'PY'
+          import json, os, re, subprocess, textwrap
+
+          summary = os.environ["SUMMARY"]
+          pr = os.environ["PR"]
+          block = textwrap.dedent(f"""\
+          <!-- release-pr-summary:start -->
+          ### Changes in this release
+
+          Includes the following non-Dependabot PRs:
+          {summary}
+          <!-- release-pr-summary:end -->
+          """).strip()
+
+          body = subprocess.check_output(
+              ["gh", "pr", "view", pr, "--json", "body", "-q", ".body // \"\""],
+              text=True,
+          )
+          pat = re.compile(
+              r"<!-- release-pr-summary:start -->.*?<!-- release-pr-summary:end -->",
+              re.S,
+          )
+          if pat.search(body):
+              new_body = pat.sub(block, body)
+          else:
+              new_body = body.rstrip() + "\n\n" + block + "\n"
+
+          path = "/tmp/pr-body.md"
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(new_body)
+          subprocess.check_call(["gh", "pr", "edit", pr, "--body-file", path])
+          print(f"PR #{pr} description updated.")
+          print(summary)
+          PY

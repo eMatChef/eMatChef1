@@ -95,8 +95,21 @@ jobs:
               | grep -oE '[0-9]+$')"
           fi
 
-          # protect-develop verlangt PR; required_approving_review_count=0 → Merge ok
+          # protect-develop: PR + required check «CI ok»
+          gh pr merge "$PR" --auto --squash --delete-branch || true
+          if gh pr view "$PR" --json state -q .state | grep -qx MERGED; then
+            echo "PR #$PR bereits gemerged."
+            exit 0
+          fi
+
+          echo "Warte auf CI-Checks für PR #$PR …"
+          # Bis zu ~15 Min auf grüne Checks (Locales + CI ok)
+          if ! gh pr checks "$PR" --watch --fail-fast --interval 15; then
+            echo "::error::CI-Checks für PR #$PR fehlgeschlagen."
+            exit 1
+          fi
+
           if ! gh pr merge "$PR" --squash --delete-branch; then
-            echo "::warning::PR #$PR erstellt, Auto-Merge fehlgeschlagen — bitte manuell mergen."
+            echo "::warning::PR #$PR erstellt, Merge fehlgeschlagen — bitte manuell mergen."
             exit 1
           fi

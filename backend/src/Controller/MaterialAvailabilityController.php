@@ -6,6 +6,7 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use App\Entity\Activity;
 use App\Entity\MaterialComboOption;
+use App\Entity\MaterialComboOptionDelta;
 use App\Entity\WorkshopTicket;
 use App\Service\ComboResolutionService;
 use App\Service\MaterialAvailabilityReservationQuery;

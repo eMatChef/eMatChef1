@@ -31,6 +31,8 @@
     },
     "require-dev": {
         "dg/bypass-finals": "^1.9",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-symfony": "^2.0",
         "phpunit/phpunit": "^11.5",
         "symfony/maker-bundle": "^1.0"
     },
@@ -52,7 +54,8 @@
         "post-update-cmd": [
             "@auto-scripts"
         ],
-        "test": "phpunit"
+        "test": "phpunit",
+        "phpstan": "phpstan analyse --memory-limit=1G"
     },
     "config": {
         "allow-plugins": {

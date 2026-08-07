@@ -10,9 +10,54 @@ on:
       - develop
       - prod
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  frontend-build:
-    name: Frontend Build
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
+      locales: ${{ steps.filter.outputs.locales }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+            backend:
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
+            locales:
+              - 'frontend/src/locales/**'
+              - 'scripts/check-locales.sh'
+              - '.github/workflows/ci.yml'
+
+  locales:
+    name: Locales
+    needs: changes
+    if: needs.changes.outputs.locales == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate locale JSON
+        run: bash scripts/check-locales.sh
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -31,11 +76,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build frontend
+      - name: Unit tests
+        run: npm test
+
+      - name: Typecheck & build
         run: npm run build
 
-  backend-composer:
-    name: Backend Composer
+  backend:
+    name: Backend
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,5 +106,30 @@ jobs:
       - name: Install backend dependencies
         run: composer install --prefer-dist --no-progress --no-interaction --no-scripts
 
-      - name: Run backend unit tests
+      - name: Unit tests
         run: ./vendor/bin/phpunit
+
+      - name: PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
+  # Branch protection braucht einen immer-grünen Aggregator, auch wenn Jobs geskippt sind.
+  ci-ok:
+    name: CI ok
+    needs: [changes, locales, frontend, backend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check job results
+        run: |
+          set -euo pipefail
+          locales="${{ needs.locales.result }}"
+          front="${{ needs.frontend.result }}"
+          back="${{ needs.backend.result }}"
+          # success | skipped = ok; failure | cancelled = fail
+          ok() { [[ "$1" == "success" || "$1" == "skipped" ]]; }
+          if ok "$locales" && ok "$front" && ok "$back"; then
+            echo "CI ok (locales=$locales frontend=$front backend=$back)"
+            exit 0
+          fi
+          echo "::error::CI failed (locales=$locales frontend=$front backend=$back)"
+          exit 1
