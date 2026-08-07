@@ -1,0 +1,10 @@
+includes:
+  - vendor/phpstan/phpstan-symfony/extension.neon
+
+parameters:
+  level: 1
+  paths:
+    - src
+  # Choice/Assert-Attribute ohne separates Validator-Package in CI.
+  ignoreErrors:
+    - identifier: attribute.notFound

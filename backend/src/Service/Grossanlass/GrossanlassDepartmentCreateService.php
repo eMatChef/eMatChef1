@@ -114,7 +114,6 @@ class GrossanlassDepartmentCreateService
 
         return $this->entityManager->wrapInTransaction(function () use (
             $currentUser,
-            $data,
             $organisation,
             $parent,
             $plannedStart,

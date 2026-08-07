@@ -21,6 +21,7 @@ jobs:
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
       backend: ${{ steps.filter.outputs.backend }}
+      locales: ${{ steps.filter.outputs.locales }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,6 +37,22 @@ jobs:
             backend:
               - 'backend/**'
               - '.github/workflows/ci.yml'
+            locales:
+              - 'frontend/src/locales/**'
+              - 'scripts/check-locales.sh'
+              - '.github/workflows/ci.yml'
+
+  locales:
+    name: Locales
+    needs: changes
+    if: needs.changes.outputs.locales == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate locale JSON
+        run: bash scripts/check-locales.sh
 
   frontend:
     name: Frontend
@@ -92,23 +109,27 @@ jobs:
       - name: Unit tests
         run: ./vendor/bin/phpunit
 
+      - name: PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+
   # Branch protection braucht einen immer-grünen Aggregator, auch wenn Jobs geskippt sind.
   ci-ok:
     name: CI ok
-    needs: [changes, frontend, backend]
+    needs: [changes, locales, frontend, backend]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check job results
         run: |
           set -euo pipefail
+          locales="${{ needs.locales.result }}"
           front="${{ needs.frontend.result }}"
           back="${{ needs.backend.result }}"
           # success | skipped = ok; failure | cancelled = fail
           ok() { [[ "$1" == "success" || "$1" == "skipped" ]]; }
-          if ok "$front" && ok "$back"; then
-            echo "CI ok (frontend=$front backend=$back)"
+          if ok "$locales" && ok "$front" && ok "$back"; then
+            echo "CI ok (locales=$locales frontend=$front backend=$back)"
             exit 0
           fi
-          echo "::error::CI failed (frontend=$front backend=$back)"
+          echo "::error::CI failed (locales=$locales frontend=$front backend=$back)"
           exit 1
