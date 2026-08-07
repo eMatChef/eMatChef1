@@ -74,7 +74,7 @@ import DeptNodeBody from '@/components/admin/DeptNodeBody.vue'
 import { groupAssignments, type OverviewKind } from '@/utils/userRoleDisplay'
 import type { AdminOrgOverviewUser } from '@/api/adminUsers'
 
-export type { OverviewKind }
+export type { OverviewKind } from '@/utils/userRoleDisplay'
 
 export interface DeptAssignment {
   user: AdminOrgOverviewUser
