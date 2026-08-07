@@ -17,7 +17,7 @@ Nicht `support@…` oder Prod-Accounts verwenden.
 cd /opt/ematchef/develop   # bzw. DEVELOP_DEPLOY_PATH
 # Passwort selbst wählen (stark, nur für E2E), nicht committen:
 E2E_PW='…dein-geheimes-passwort…'
-docker compose exec -T backend php bin/console app:ensure-e2e-user \
+docker compose -p ematchef-develop exec -T backend php bin/console app:ensure-e2e-user \
   --email=e2e-smoke@ematchef.ch \
   --password="$E2E_PW"
 unset E2E_PW
@@ -52,12 +52,12 @@ npm run test:e2e
 
 ## CI
 
-Workflow **E2E Smoke** (`.github/workflows/e2e-smoke.yml`):
+Job **Playwright smoke** in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml):
 
-- Läuft auf Push/PR zu `develop` / `prod`
+- Läuft auf jedem Push/PR zu `develop` / `prod` (und `workflow_dispatch`)
 - Installiert Chromium und führt `npm run test:e2e` aus
-- Fehlt Login-Secret → nur öffentlicher Login-Seiten-Test
-- Job ist vorerst **nicht** Teil von **CI ok** (stabilisieren, dann Pflicht machen)
+- Secrets: `E2E_BASE_URL`, `E2E_USER_EMAIL`, `E2E_USER_PASSWORD` (Login-Test; ohne Login-Secrets nur Seiten-Smoke)
+- **Pflicht** für Aggregator **CI ok** (Branch-Protection) — Develop muss erreichbar und Login ok sein
 
 ## Preview-Deploy
 

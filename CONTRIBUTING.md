@@ -89,9 +89,9 @@ Wenn ein Entwicklungsstand bereit ist:
 ### Aktive Workflows
 
 - `CI` in `.github/workflows/ci.yml`
-  - Jobs: Locales, Frontend (ESLint, Vitest, Build), Backend (Composer, PHPUnit, PHPStan), Aggregator **CI ok**
+  - Jobs: Locales, Frontend (ESLint, Vitest, Build), Backend (Composer, PHPUnit, PHPStan), **Playwright smoke** (gegen Develop), Aggregator **CI ok**
   - Trigger: Push/PR auf `develop` und `prod`
-- `E2E Smoke` in `.github/workflows/e2e-smoke.yml` (Playwright gegen Develop; Secrets siehe [docs/E2E.md](docs/E2E.md); vorerst nicht Teil von **CI ok**)
+  - Smoke-Secrets: siehe [docs/E2E.md](docs/E2E.md)
 - `CD Develop` in `.github/workflows/cd-develop.yml`
   - Trigger: Push auf `develop` (zusaetzlich manuell startbar)
   - Deploy auf Develop-Server per SSH
