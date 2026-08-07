@@ -31,6 +31,17 @@ Org-Varianten sind **Deltas** (`{}` reicht als Stub). Fehlende Keys fallen in de
 | **Org-Typ-Delta** | Org-Wortschatz (Pfadi/Cevi/Jubla) pro Sprache | Weblate Components „DE/FR/IT Varianten“ |
 | **Org-Wörterbuch** (später) | wenige Overrides pro einzelner Org | DB, nicht Weblate |
 
+## Branch-Modell (wie eCamp: am Dev-Branch hängen)
+
+| Rolle | Branch |
+|-------|--------|
+| Weblate liest (neue Keys aus der Entwicklung) | **`develop`** |
+| Weblate pusht Commits | **`weblate`** |
+| Auto-Integration | GitHub Action **Weblate integrate develop** → nur `frontend/src/locales/**` nach **`develop`** |
+| Prod | später per Release `develop` → `prod` (kein Staging-Zwang) |
+
+Staging/Prod-Kette wie eCamp ist optional für später — jetzt reicht develop + Release nach prod.
+
 ## Weblate-Component (Pflicht-Setup)
 
 ### Component A — „App UI“
@@ -38,7 +49,7 @@ Org-Varianten sind **Deltas** (`{}` reicht als Stub). Fehlende Keys fallen in de
 | Feld | Soll-Wert |
 |------|-----------|
 | Repository | `git@github.com:eMatChef/eMatChef1.git` (oder linked) |
-| Branch | `prod` / Push-Branch `weblate` |
+| Branch | **`develop`** / Push-Branch **`weblate`** |
 | Dateiformat | `json-nested` |
 | Dateimaske | `frontend/src/locales/*.json` |
 | Sprachfilter | `^(en\|fr\|it\|ch-rm)$` |
@@ -52,7 +63,7 @@ Org-Varianten **nicht** in dieser Component.
 
 ### Components B/C/D — Org-Varianten (je Basis-Sprache)
 
-Linked auf denselben Clone (`weblate://ematchef/app-ui`). Pro Basis eine Component (eigene Quelle).
+Linked auf denselben Clone (`weblate://ematchef/app-ui`). Pro Basis eine Component (eigene Quelle). Branch wie App UI: **`develop`**.
 
 **Dateimaske immer** `frontend/src/locales/*.json` — **nicht** `de-*.json`.  
 Weblate setzt `*` = Sprachcode: bei Maske `de-*.json` und Code `de-jubla` entsteht fälschlich `de-de-jubla.json`.
@@ -65,15 +76,15 @@ Weblate setzt `*` = Sprachcode: bei Maske `de-*.json` und Code `de-jubla` entste
 
 Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, Ausgangssprache = Template-Sprache (`de_CH` / `fr` / `it`).
 
-Custom-Sprachen in Weblate anlegen (Name z. B. „Deutsch (Pfadi)“, Code `de-pfadi`, … für alle 9).  
-Übersetzer füllen nur abweichende Keys; Rest bleibt leer → App-Fallback.
-
 ## Sync-Flow
 
-1. Dev fügt Keys in **`de.json`** (ggf. `fr.json`/`it.json`) ein → Push auf den Weblate-Branch.  
-2. Weblate **Update**.  
-3. Übersetzer arbeiten in App UI bzw. DE/FR/IT Varianten.  
-4. Weblate commit/push → Review → Merge → Deploy.
+1. Dev fügt Keys in **`de.json`** auf **`develop`** ein → Push.  
+2. Weblate **Update** (Webhook oder manuell) — sieht neue Strings.  
+3. Übersetzer speichern in Weblate → Push auf Branch **`weblate`**.  
+4. Action **Weblate integrate develop** übernimmt Locales nach **`develop`** (CD Develop deployst).  
+5. Release nach **`prod`** wenn bereit (PR / Fast-forward).
+
+Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
 
 ## Anti-Wildwuchs-Checkliste
 
@@ -82,8 +93,10 @@ Custom-Sprachen in Weblate anlegen (Name z. B. „Deutsch (Pfadi)“, Code `de
 - [ ] `new_lang=none` überall  
 - [ ] Neue Variante = Code in `languages.ts` + Backend + Locale-Stub + Weblate-Sprache + Filter  
 - [ ] Varianten bleiben Deltas, keine Vollkopien  
-- [ ] Keine Dateien wie `de-de-jubla.json` / `fr-fr-pfadi.json` im Repo
+- [ ] Keine Dateien wie `de-de-jubla.json` / `fr-fr-pfadi.json` im Repo  
+- [ ] Repo-Branch = `develop`, Push-Branch = `weblate`
 
-## Weblate nach Repo-Merge
+## Weblate Setup-Skripte
 
-Skript auf dem Droplet: `docs/weblate-setup-org-variants.sh` (Custom-Sprachen + DE/FR/IT-Components, Maske `*.json`).
+- `docs/weblate-setup-org-variants.sh` — Sprachen + DE/FR/IT-Components  
+- `docs/weblate-switch-to-develop.sh` — Branch `develop` + Clone neu

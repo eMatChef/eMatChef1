@@ -1,0 +1,80 @@
+# Weblate → develop (Auto-Sync)
+
+# Wenn Weblate auf Branch `weblate` pusht: Locale-Dateien nach `develop` übernehmen.
+# Nur `frontend/src/locales/**` — kein Blind-Merge des ganzen weblate-Branches.
+
+name: Weblate integrate develop
+
+on:
+  push:
+    branches:
+      - weblate
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weblate-integrate-develop
+  cancel-in-progress: false
+
+jobs:
+  sync-locales:
+    name: Locales weblate → develop
+    runs-on: ubuntu-latest
+    # Kein Loop: dieser Job pusht nur develop, nie weblate
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/weblate'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync locale files from weblate
+        run: |
+          set -euo pipefail
+          git config user.name "eMatChef Weblate"
+          git config user.email "weblate@users.noreply.github.com"
+
+          git fetch origin weblate develop
+          git reset --hard origin/develop
+
+          # Nur Locale-JSON aus weblate übernehmen
+          git checkout origin/weblate -- frontend/src/locales/
+
+          # Orphan-/Doppel-Präfix-Müll nie mergen
+          git rm -f --ignore-unmatch \
+            frontend/src/locales/en-US.json \
+            frontend/src/locales/en-US-*.json \
+            frontend/src/locales/fr-FR.json \
+            frontend/src/locales/fr-FR-*.json \
+            frontend/src/locales/it-IT.json \
+            frontend/src/locales/it-IT-*.json \
+            frontend/src/locales/de-de-*.json \
+            frontend/src/locales/fr-fr-*.json \
+            frontend/src/locales/it-it-*.json \
+            2>/dev/null || true
+
+          git add frontend/src/locales/
+
+          # Sicherheit: nur unter locales/
+          BAD="$(git diff --cached --name-only | grep -v '^frontend/src/locales/' || true)"
+          if [[ -n "$BAD" ]]; then
+            echo "::error::Unerlaubte Dateien im Staging:"
+            echo "$BAD"
+            exit 1
+          fi
+
+          if git diff --cached --quiet; then
+            echo "Keine Locale-Änderungen — fertig."
+            exit 0
+          fi
+
+          echo "Geänderte Dateien:"
+          git diff --cached --stat
+
+          git commit -m "chore(l10n): Weblate → develop"
+          git push origin develop
