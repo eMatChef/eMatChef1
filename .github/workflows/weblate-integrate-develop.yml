@@ -2,6 +2,7 @@
 
 # Wenn Weblate auf Branch `weblate` pusht: Locale-Dateien nach `develop` übernehmen.
 # Nur `frontend/src/locales/**` — kein Blind-Merge des ganzen weblate-Branches.
+# Direct push auf develop ist durch Branch-Protection blockiert → PR + Auto-Merge.
 
 name: Weblate integrate develop
 
@@ -13,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: weblate-integrate-develop
@@ -22,7 +24,7 @@ jobs:
   sync-locales:
     name: Locales weblate → develop
     runs-on: ubuntu-latest
-    # Kein Loop: dieser Job pusht nur develop, nie weblate
+    # Kein Loop: dieser Job pusht nur chore/weblate-locales, nie weblate
     if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/weblate'
 
     steps:
@@ -34,10 +36,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sync locale files from weblate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "eMatChef Weblate"
           git config user.email "weblate@users.noreply.github.com"
+
+          BRANCH="chore/weblate-locales"
 
           git fetch origin weblate develop
           git reset --hard origin/develop
@@ -77,4 +83,20 @@ jobs:
           git diff --cached --stat
 
           git commit -m "chore(l10n): Weblate → develop"
-          git push origin develop
+
+          git push -f origin "HEAD:refs/heads/${BRANCH}"
+
+          # PR öffnen oder vorhandene Nummer holen
+          PR="$(gh pr list --base develop --head "${BRANCH}" --json number --jq '.[0].number // empty')"
+          if [[ -z "$PR" ]]; then
+            PR="$(gh pr create --base develop --head "${BRANCH}" \
+              --title "chore(l10n): Weblate → develop" \
+              --body "Automatisch: Locale-Dateien vom \`weblate\`-Branch nach \`develop\`." \
+              | grep -oE '[0-9]+$')"
+          fi
+
+          # protect-develop verlangt PR; required_approving_review_count=0 → Merge ok
+          if ! gh pr merge "$PR" --squash --delete-branch; then
+            echo "::warning::PR #$PR erstellt, Auto-Merge fehlgeschlagen — bitte manuell mergen."
+            exit 1
+          fi
