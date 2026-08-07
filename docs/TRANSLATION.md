@@ -81,7 +81,7 @@ Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, 
 1. Dev fügt Keys in **`de.json`** auf **`develop`** ein → Push.  
 2. Weblate **Update** (Webhook oder manuell) — sieht neue Strings.  
 3. Übersetzer speichern in Weblate → Push auf Branch **`weblate`**.  
-4. Action **Weblate integrate develop** übernimmt Locales nach **`develop`** (CD Develop deployst).  
+4. Action **Weblate integrate develop** öffnet/merged PR `chore/weblate-locales` → **`develop`** (Branch-Protection; CD Develop deployst).  
 5. Release nach **`prod`** wenn bereit (PR / Fast-forward).
 
 Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
