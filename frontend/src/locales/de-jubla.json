@@ -1,1 +1,37 @@
-{}
+{
+    "router": {
+        "meta": {
+            "titles": {
+                "departments": "Scharen · eMatChef",
+                "settingsMyDepartment": "Einstellungen · Meine Schaar · eMatChef"
+            },
+            "descriptions": {
+                "departmentDisplay": "Schaar-Infoscreen: anstehende Anlässe und Werkstatt mit QR-Codes zur öffentlichen Kurzseite."
+            }
+        }
+    },
+    "devices": {
+        "home": {
+            "pinDepartment": "Scharen für dieses Gerät",
+            "scanWrongDepartment": "Dieser Anlass gehört zu einer anderen Schaar."
+        },
+        "pack": {
+            "hinErrors": {
+                "wrong_department": "Material gehört zu einer anderen Schaar."
+            }
+        }
+    },
+    "public": {
+        "lookup": {
+            "department": "Schaar"
+        }
+    },
+    "dashboard": {
+        "orgAndDepartments": "Organisation & Schaaren",
+        "departments": "Schaaren",
+        "departmentsDesc": "Schaaren verwalten"
+    },
+    "tasksGeneral": {
+        "kindDeptInvite": "Schaar-Einladung"
+    }
+}
