@@ -86,6 +86,24 @@ Gemeinsam: Format `json-nested`, neue Übersetzung `none`, BCP mit Bindestrich, 
 
 Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
 
+## README-Badges (live)
+
+Die Sprach-Badges in der `README.md` kommen von Weblate-Widgets:
+
+```
+https://translate.ematchef.ch/widget/ematchef/-/<lang>/svg-badge.svg
+```
+
+Codes: `de_CH` (Quelle), `en`, `fr`, `it`, `rm` (Alias `ch-rm`).
+
+**Voraussetzung:** Widgets ohne Login erreichbar. Falls 302 auf `/accounts/login/`:
+
+1. `bash docs/weblate-enable-public-badges.sh` — setzt Projekt **Public**
+2. In Weblate-`.env`: `WEBLATE_REQUIRE_LOGIN=0`, dann `docker compose up -d`
+3. Prüfen: `curl -sI https://translate.ematchef.ch/widget/ematchef/-/en/svg-badge.svg` → `200`
+
+Übersetzen bleibt login-pflichtig; anonym nur Lesen/Badges. Registrierung kann weiterhin geschlossen bleiben (`WEBLATE_REGISTRATION_OPEN=0`).
+
 ## Anti-Wildwuchs-Checkliste
 
 - [ ] App UI-Filter ohne Org-Varianten  
@@ -99,4 +117,5 @@ Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
 ## Weblate Setup-Skripte
 
 - `docs/weblate-setup-org-variants.sh` — Sprachen + DE/FR/IT-Components  
-- `docs/weblate-switch-to-develop.sh` — Branch `develop` + Clone neu
+- `docs/weblate-switch-to-develop.sh` — Branch `develop` + Clone neu  
+- `docs/weblate-enable-public-badges.sh` — Projekt Public + Hinweise für Live-Badges

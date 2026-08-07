@@ -2,7 +2,7 @@
     "name": "ematchef/backend",
     "type": "project",
     "description": "eMatChef Backend API",
-    "license": "proprietary",
+    "license": "AGPL-3.0-or-later",
     "minimum-stability": "stable",
     "prefer-stable": true,
     "require": {
