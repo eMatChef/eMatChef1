@@ -70,8 +70,8 @@ if [[ -n "${STAGING_BASIC_AUTH_USER:-}" && -n "${STAGING_BASIC_AUTH_PASSWORD:-}"
     echo "htpasswd fehlt (apache2-utils / httpd-tools). Fuer Basic Auth installieren oder in CI bereitstellen." >&2
     exit 1
   fi
-  # -nbB: stdout, bcrypt (kein Klartext in Datei)
-  HASH_LINE="$(htpasswd -nbB "$STAGING_BASIC_AUTH_USER" "$STAGING_BASIC_AUTH_PASSWORD")"
+  # -nbm: Apache MD5 (apr1) — bcrypt (-B) liefert auf Hostpoint oft HTTP 500
+  HASH_LINE="$(htpasswd -nbm "$STAGING_BASIC_AUTH_USER" "$STAGING_BASIC_AUTH_PASSWORD")"
   printf '%s\n' "$HASH_LINE" >"$OUT_BASE/home/.htpasswd"
   printf '%s\n' "$HASH_LINE" >"$OUT_BASE/app/.htpasswd"
   chmod 644 "$OUT_BASE/home/.htpasswd" "$OUT_BASE/app/.htpasswd"
