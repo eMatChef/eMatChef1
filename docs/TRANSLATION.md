@@ -31,16 +31,16 @@ Org-Varianten sind **Deltas** (`{}` reicht als Stub). Fehlende Keys fallen in de
 | **Org-Typ-Delta** | Org-Wortschatz (Pfadi/Cevi/Jubla) pro Sprache | Weblate Components „DE/FR/IT Varianten“ |
 | **Org-Wörterbuch** (später) | wenige Overrides pro einzelner Org | DB, nicht Weblate |
 
-## Branch-Modell (wie eCamp: am Dev-Branch hängen)
+## Branch-Modell (Übersetzungen am Dev-Branch)
 
 | Rolle | Branch |
 |-------|--------|
 | Weblate liest (neue Keys aus der Entwicklung) | **`develop`** |
 | Weblate pusht Commits | **`weblate`** |
 | Auto-Integration | GitHub Action **Weblate integrate develop** → nur `frontend/src/locales/**` nach **`develop`** |
-| Prod | später per Release `develop` → `prod` (kein Staging-Zwang) |
+| Staging / Prod | per Release `develop` → `staging` → `prod` (Texte kommen mit dem Branch) |
 
-Staging/Prod-Kette wie eCamp ist optional für später — jetzt reicht develop + Release nach prod.
+Weblate bleibt auf **`develop`**; Staging und Prod bekommen Locales nur über den normalen Release-Pfad.
 
 ## Weblate-Component (Pflicht-Setup)
 
@@ -88,7 +88,7 @@ Umstellung Droplet: `docs/weblate-switch-to-develop.sh`.
 
 ## Translate-Droplet / Weblate-Betrieb (Checkliste)
 
-App-Droplets (develop/prod) brauchen für Übersetzungen **nichts Extra** — CD holt Locales mit dem Branch.
+App-Droplets (develop/staging/prod) brauchen für Übersetzungen **nichts Extra** — CD holt Locales mit dem Branch.
 
 Auf **translate.ematchef.ch** einmal prüfen:
 

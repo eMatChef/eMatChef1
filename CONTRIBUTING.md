@@ -1,11 +1,12 @@
 # Contributing Guide
 
 Danke, dass du zu eMatChef beitraegst.
-Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch und geschuetztem `prod`.
+Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch, `staging` als Release-Kandidat und geschuetztem `prod`.
 
 ## Branch-Strategie
 
 - `prod`: stabiler Stand, nur fuer Releases und produktionsnahe Deployments
+- `staging`: Release-Kandidat (Vollstack hinter Basic Auth), vor Prod
 - `develop`: Integrations-Branch fuer laufende Entwicklung
 - `feature/*`: neue Funktionen
 - `fix/*`: Bugfixes
@@ -22,10 +23,10 @@ Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch
 
 ## Grundregeln
 
-- Nie direkt auf `prod` committen oder pushen.
+- Nie direkt auf `staging` oder `prod` committen oder pushen.
 - Neue Arbeit immer von `develop` abzweigen.
 - Jede Aenderung geht per Pull Request (PR) zurueck nach `develop`.
-- `prod` wird nur ueber einen Release-PR aus `develop` aktualisiert und per Kommentar **`/fast-forward`** (kein normaler Merge-Button auf `prod`).
+- Release-Kette: `develop` → `staging` → `prod`, jeweils per Release-PR und Kommentar **`/fast-forward`** (kein normaler Merge-Button auf `staging`/`prod`).
 - Kleine, klare PRs bevorzugen (ein Thema pro PR).
 
 ## Lokaler Ablauf fuer Features und Fixes
@@ -51,10 +52,10 @@ Anschliessend auf GitHub einen PR erstellen:
 
 Wenn ein Entwicklungsstand bereit ist:
 
-1. PR von `develop` nach `prod` erstellen
-2. Tests und Review abschliessen (CI und Regeln aus dem `prod`-Ruleset)
-3. **Nicht** den GitHub-Merge-Button auf `prod` nutzen; stattdessen auf dem PR den Kommentar **`/fast-forward`** setzen (nur **Maintain**/**Admin** im Repository; siehe `docs/SETUP-GITHUB.md`)
-4. Der Workflow **Fast forward** setzt `prod` per Fast-forward auf den Stand von `develop`; anschliessend startet **CD Prod** automatisch
+1. PR von `develop` nach `staging` erstellen, CI/Review, Kommentar **`/fast-forward`** (nur **Maintain**/**Admin**; siehe `docs/SETUP-GITHUB.md`)
+2. Auf Staging pruefen (Basic Auth, dann App-Login) — Hosts siehe `deploy/SERVER-UPDATE.md`
+3. PR von `staging` nach `prod` erstellen, CI/Review, erneut **`/fast-forward`**
+4. **CD Staging** bzw. **CD Prod** starten nach dem jeweiligen Push; FTP-Deploy bei Frontend-Aenderungen
 5. Optional ein Release-Tag setzen (z. B. `v1.0.0`)
 
 ## Pull-Request-Richtlinien
@@ -67,14 +68,14 @@ Wenn ein Entwicklungsstand bereit ist:
 
 ## Schutz von Branches (GitHub)
 
-### Empfohlen fuer `prod`
+### Empfohlen fuer `staging` und `prod`
 
 - Require a pull request before merging
 - Require approvals (mindestens 1 bei Teamarbeit)
-- Require status checks to pass before merging (CI-Checks: `Frontend Build`, `Backend Composer`)
+- Require status checks to pass before merging (`CI ok`)
 - Require branches to be up to date before merging
 - Restrict who can push to matching branches
-- Do not allow bypassing the above settings
+- Do not allow bypassing the above settings (ausser Ruleset-Bypass fuer GitHub Actions beim Fast-forward)
 - Allow force pushes: OFF
 - Allow deletions: OFF
 
@@ -89,18 +90,14 @@ Wenn ein Entwicklungsstand bereit ist:
 ### Aktive Workflows
 
 - `CI` in `.github/workflows/ci.yml`
-  - Jobs: Locales, Frontend (ESLint, Vitest, Build), Backend (Composer, PHPUnit, PHPStan), Aggregator **CI ok**
-  - Trigger: Push/PR auf `develop` und `prod`
-- `E2E Smoke` in `.github/workflows/e2e-smoke.yml` (Playwright gegen Develop; Secrets siehe [docs/E2E.md](docs/E2E.md); vorerst nicht Teil von **CI ok**)
-- `CD Develop` in `.github/workflows/cd-develop.yml`
-  - Trigger: Push auf `develop` (zusaetzlich manuell startbar)
-  - Deploy auf Develop-Server per SSH
-- `CD Prod` in `.github/workflows/cd-prod.yml`
-  - Trigger: Push auf `prod` (zusaetzlich manuell startbar)
-  - Deploy auf Produktions-Server per SSH
+  - Jobs: Locales, Frontend (ESLint, Vitest, Build), Backend (Composer, PHPUnit, PHPStan), **Playwright smoke** (gegen Develop), Aggregator **CI ok**
+  - Trigger: Push/PR auf `develop`, `staging` und `prod`
+  - Smoke-Secrets: siehe [docs/E2E.md](docs/E2E.md)
+- `CD Develop` / `CD Staging` / `CD Prod` — Push auf den jeweiligen Branch (SSH); Staging teilt den Develop-Droplet (`/opt/ematchef/staging`)
+- `FTP Deploy *` — Hostpoint-Frontends (Staging inkl. Basic Auth)
 - `Fast forward` in `.github/workflows/fast-forward.yml`
-  - Kommentar **`/fast-forward`** auf dem Release-PR (`develop` -> `prod`)
-  - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions auf `prod`)
+  - Kommentar **`/fast-forward`**: `develop` → `staging` oder `staging` → `prod`
+  - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions)
 - Übersetzungen: self-hosted [Weblate](https://translate.ematchef.ch) — Setup und erlaubte Sprachen in [docs/TRANSLATION.md](docs/TRANSLATION.md)
 
 
@@ -121,6 +118,14 @@ Fuer `CD Develop`:
 - `DEVELOP_SSH_KEY`
 - `DEVELOP_SSH_PORT`
 - `DEVELOP_DEPLOY_PATH`
+
+Fuer `CD Staging` (API auf dem Develop-Droplet):
+
+- `STAGING_DEPLOY_PATH` (z. B. `/opt/ematchef/staging`) — Pflicht
+- Optional `STAGING_SSH_*` (sonst Fallback auf `DEVELOP_SSH_*`)
+- Hostpoint: `FTP_PATH_MAIN_STAGING`, `FTP_PATH_APP_STAGING`
+- Basic Auth: `STAGING_BASIC_AUTH_USER`, `STAGING_BASIC_AUTH_PASSWORD`
+- Optional absolute `.htpasswd`-Pfade: `STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME`, `STAGING_BASIC_AUTH_HTPASSWD_PATH_APP`
 
 Fuer `CD Prod`:
 

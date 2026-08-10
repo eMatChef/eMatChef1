@@ -1,6 +1,7 @@
-# Nach Review und gruenen Checks setzt das Core-Team auf dem Release-PR den Kommentar /fast-forward.
-# Kein separater Bot-Account: Merge per github.token (siehe docs/SETUP-GITHUB.md: Branch-Regeln + Bypass fuer GitHub Actions).
-name: Fast forward (develop → prod)
+# Nach Review und gruenen Checks: Kommentar /fast-forward auf dem Release-PR.
+# Erlaubt: develop → staging und staging → prod.
+# Kein separater Bot-Account: Merge per github.token (siehe docs/SETUP-GITHUB.md).
+name: Fast forward (release)
 
 on:
   issue_comment:
@@ -11,7 +12,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: fast-forward-prod
+  group: fast-forward-release
   cancel-in-progress: false
 
 jobs:
@@ -40,7 +41,8 @@ jobs:
         if: steps.permission.outputs.require-result != 'true'
         run: exit 1
 
-      - name: Validate PR (prod ← develop, ff-faehig)
+      - name: Validate PR (staging ← develop oder prod ← staging)
+        id: validate
         uses: actions/github-script@v9
         with:
           script: |
@@ -53,28 +55,36 @@ jobs:
               core.setFailed('Fast-forward nicht fuer Draft-PRs.');
               return;
             }
-            if (pr.base.ref !== 'prod' || pr.head.ref !== 'develop') {
+            const allowed = [
+              { base: 'staging', head: 'develop' },
+              { base: 'prod', head: 'staging' },
+            ];
+            const ok = allowed.some((p) => pr.base.ref === p.base && pr.head.ref === p.head);
+            if (!ok) {
               core.setFailed(
-                `Nur PRs **prod** <- **develop**. Dieser PR: **${pr.base.ref}** <- **${pr.head.ref}**.`
+                `Nur PRs **staging** <- **develop** oder **prod** <- **staging**. ` +
+                `Dieser PR: **${pr.base.ref}** <- **${pr.head.ref}**.`
               );
               return;
             }
             if (pr.mergeable_state !== 'clean') {
               core.setFailed(
                 `Kein sauberer Fast-forward (mergeable_state: **${pr.mergeable_state}**). ` +
-                'Ist `develop` mit `prod` zusammengefuehrt / Konflikte geloest?'
+                'Branche zusammengefuehrt / Konflikte geloest?'
               );
               return;
             }
+            core.setOutput('base', pr.base.ref);
+            core.setOutput('head', pr.head.ref);
 
       - name: Fast-forward merge
         uses: endre-spotlab/fast-forward-js-action@2.1
         with:
           GITHUB_TOKEN: ${{ github.token }}
           success_message: |
-            Erfolg: **prod** wurde per Fast-forward auf **develop** gesetzt.
+            Erfolg: **${{ steps.validate.outputs.base }}** wurde per Fast-forward auf **${{ steps.validate.outputs.head }}** gesetzt.
 
             ```bash
-            git checkout prod && git merge develop --ff-only
+            git checkout ${{ steps.validate.outputs.base }} && git merge ${{ steps.validate.outputs.head }} --ff-only
             ```
           failure_message: 'Fast-forward fehlgeschlagen (Branch-Historie erlaubt kein FF).'

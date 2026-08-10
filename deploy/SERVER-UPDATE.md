@@ -1,16 +1,18 @@
 # Server: aktuellen Stand holen, Cache, Start
 
-Für den **API-Server** (z. B. DigitalOcean), Projektverzeichnis z. B. `/opt/ematchef/prod`.
+Für den **API-Server** (z. B. Hetzner), Projektverzeichnis z. B. `/opt/ematchef/prod`.
 
 ## Branch- und Domain-Zuordnung
 
-- `prod` -> Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`)
-- `develop` -> Entwicklungsumgebung (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`)
+- `prod` → Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`, API `api.ematchef.ch`)
+- `staging` → Release-Kandidat (`staging.ematchef.ch`, `app-staging.ematchef.ch`, `qr-staging.ematchef.ch`, `devices-staging.ematchef.ch`, API `api-staging.ematchef.ch`) — Hostpoint Basic Auth
+- `develop` → Entwicklung (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`, API `api-dev.ematchef.ch`)
 
-Empfohlene Verzeichnisse auf dem Server:
+Empfohlene Verzeichnisse:
 
-- `/opt/ematchef/prod` (tracked auf Branch `prod`)
-- `/opt/ematchef/develop` (tracked auf Branch `develop`)
+- `/opt/ematchef/prod` (Branch `prod`, eigener Droplet oder Pfad)
+- `/opt/ematchef/develop` (Branch `develop`, Develop-Droplet)
+- `/opt/ematchef/staging` (Branch `staging`, **derselbe** Develop-Droplet, eigener Ordner + Compose `ematchef-staging`)
 
 **Git auf dem Droplet:** Per SSH einloggen, ins Repo-Verzeichnis wechseln, dort die Befehle unten ausführen (die IDE führt kein Git auf deinem Server aus).
 
@@ -42,7 +44,20 @@ COMPOSE_PROJECT_NAME=ematchef-develop \
 ./deploy/prod-update.sh reset
 ```
 
+Beispiel Staging (`staging` → `api-staging.ematchef.ch`, gleicher Develop-Droplet):
+
+```bash
+cd /opt/ematchef/staging
+chmod +x deploy/prod-update.sh
+EMATCHEF_PROD_ROOT=/opt/ematchef/staging \
+EMATCHEF_GIT_BRANCH=staging \
+COMPOSE_PROJECT_NAME=ematchef-staging \
+./deploy/prod-update.sh reset
+```
+
 **Develop-API / CORS:** Wenn der Browser von `https://app-dev.ematchef.ch` oder `https://devices-dev.ematchef.ch` aus `https://api-dev.ematchef.ch` blockiert („No Access-Control-Allow-Origin“), muss auf dem Develop-Server `CORS_ALLOW_ORIGIN` alle genutzten Frontends erlauben (siehe `deploy/CROSS-SUBDOMAIN-LOGIN.md`, `deploy/develop-droplet.env.example` und optional `deploy/docker-compose.override.develop.example.yml`).
+
+**Staging-API / CORS:** analog mit `deploy/staging-droplet.env.example` und `deploy/docker-compose.override.staging.example.yml` (Backend-Host-Port z. B. `127.0.0.1:8082`, nicht derselbe Port wie develop).
 
 ### Einmalig: Geheimnisse & URLs (überleben `git reset --hard`)
 
@@ -79,7 +94,7 @@ chmod 600 .env
 EMATCHEF_PROD_ROOT=/opt/ematchef/develop EMATCHEF_GIT_BRANCH=develop COMPOSE_PROJECT_NAME=ematchef-develop ./deploy/prod-update.sh up
 ```
 
-**Backend-Port 8081 (Override):** `docker-compose.yml` mappt bereits `8081:8081`. Die Override-Vorlagen setzen `ports: !override` mit nur `127.0.0.1:8081:8081` — sonst zwei Bindings auf demselben Host-Port (`address already in use`, Backend bleibt `Created`). Nicht `!reset` verwenden: das leert `ports` komplett (Container läuft, aber kein Host-Port). Prüfen:
+**Backend-Port 8081 (Override):** `docker-compose.yml` mappt bereits `8081:8081`. Die Override-Vorlagen setzen `ports: !override` mit nur `127.0.0.1:8081:8081` (develop) bzw. `127.0.0.1:8082:8081` (staging) — sonst zwei Bindings auf demselben Host-Port (`address already in use`, Backend bleibt `Created`). Nicht `!reset` verwenden: das leert `ports` komplett (Container läuft, aber kein Host-Port). Prüfen:
 
 ```bash
 docker compose -p ematchef-develop config | awk '/^  backend:/{p=1} p{print} /^  [a-z]+:/ && !/^  backend:/{if(p&&NR>1) exit}' | grep -A10 ports
@@ -87,6 +102,35 @@ docker compose -p ematchef-develop config | awk '/^  backend:/{p=1} p{print} /^ 
 ```
 
 Bestehende `docker-compose.override.yml` auf dem Server: `ports: !override` ergänzen (siehe `deploy/docker-compose.override.develop.example.yml`).
+
+**Staging auf dem Develop-Droplet** (eigener Ordner `/opt/ematchef/staging`, Compose `ematchef-staging`, Host-Port z. B. `8082`):
+
+```bash
+mkdir -p /opt/ematchef && cd /opt/ematchef
+git clone git@github.com:eMatChef/eMatChef1.git staging
+cd staging
+git fetch origin staging && git checkout staging
+git config --global --add safe.directory /opt/ematchef/staging
+cp deploy/docker-compose.override.staging.example.yml docker-compose.override.yml
+cp deploy/staging-droplet.env.example .env
+nano .env   # Domains, CORS, JWT_PASSPHRASE, optional MAILER_*
+chmod 600 .env
+# Nginx: api-staging.ematchef.ch → 127.0.0.1:8082 + TLS (nicht denselben Port wie api-dev)
+EMATCHEF_PROD_ROOT=/opt/ematchef/staging \
+EMATCHEF_GIT_BRANCH=staging \
+COMPOSE_PROJECT_NAME=ematchef-staging \
+./deploy/prod-update.sh up
+```
+
+### Staging: Ops-Checkliste (Cloudflare / Hostpoint / Hetzner / AWS / GitHub)
+
+1. **Cloudflare DNS:** `staging`, `app-staging`, `qr-staging`, `devices-staging` → Hostpoint; `api-staging` → Develop-Droplet (gleiche IP wie `api-dev`).
+2. **Hostpoint:** Document Roots für `staging` und `app-staging`; `qr-staging`/`devices-staging` auf denselben Ordner wie `app-staging`; SSL; FTP-Pfade notieren.
+3. **Hetzner:** Schritte oben (Ordner, Port ≠ develop, Nginx).
+4. **AWS SES:** nichts Neues — Domain bereits verifiziert; `MAILER_DSN` in Staging-`.env` übernehmen.
+5. **Turnstile:** Staging-Hosts im Widget erlauben (Cloudflare).
+6. **GitHub:** Branch `staging` + Protection (`CI ok`); Secrets `STAGING_DEPLOY_PATH`, `FTP_PATH_MAIN_STAGING`, `FTP_PATH_APP_STAGING`, `STAGING_BASIC_AUTH_USER`, `STAGING_BASIC_AUTH_PASSWORD` (optional `STAGING_SSH_*`, `STAGING_BASIC_AUTH_HTPASSWD_PATH_*`).
+7. Ersten Deploy: CD Staging + FTP Deploy Staging (`workflow_dispatch`), dann Browser: Basic Auth → App-Login.
 
 **Prod-Droplet** (Reihenfolge wie in den Kommentaren der Beispieldateien):
 
@@ -277,7 +321,7 @@ Der Versand laeuft **nicht** über klassisches SMTP vom VPS, sondern per **HTTPS
 
 Falls es am Provider liegt: ausgehendes **HTTPS (443)** vom Server pruefen.
 
-## 3b. Hostpoint: Frontend bauen und per FTP hochladen (prod + dev)
+## 3b. Hostpoint: Frontend bauen und per FTP hochladen (prod + staging + dev)
 
 Das **API-Backend** läuft z. B. auf dem Droplet; die Websites auf Hostpoint sind in der Regel **statische Dateien**.
 Dafuer erzeugt das Repo lokal passende Ordner; du laedst **den Inhalt** dieser Ordner in die passenden **Document Roots** hoch (FTP/SFTP).
@@ -292,6 +336,16 @@ Fuer Produktion:
   - `deploy/hostpoint/prod/home/` (**ematchef.ch**)
   - `deploy/hostpoint/prod/app/` (**app.ematchef.ch**)
 
+Fuer Staging (inkl. HTTP Basic Auth):
+
+- Script: **`scripts/build-hostpoint-deploy-staging.sh`**
+- Vorlage `.htaccess`: **`scripts/hostpoint-staging.htaccess`**
+- Ausgabeordner:
+  - `deploy/hostpoint/staging/home/` (**staging.ematchef.ch**)
+  - `deploy/hostpoint/staging/app/` (**app-staging.ematchef.ch**)
+- CI setzt `.htpasswd` aus Secrets `STAGING_BASIC_AUTH_USER` / `STAGING_BASIC_AUTH_PASSWORD` (wichtig wegen `dangerous-clean-slate` beim FTP).
+- Optional absolute `AuthUserFile`-Pfade: `STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME` / `_APP` (sonst `.htpasswd` im Document Root). Wenn Hostpoint mit relativem Pfad 500 liefert: in der Dateiverwaltung den absoluten Pfad zur `.htpasswd` ermitteln und als Secret setzen.
+
 Fuer Development:
 
 - Script: **`scripts/build-hostpoint-deploy-dev.sh`**
@@ -299,7 +353,7 @@ Fuer Development:
   - `deploy/hostpoint/dev/home/` (**dev.ematchef.ch**)
   - `deploy/hostpoint/dev/app/` (**app-dev.ematchef.ch**)
 
-**GitHub Actions FTP:** Secrets `FTP_PATH_MAIN_*` und `FTP_PATH_APP_*` muessen **zwei verschiedene Document Roots** sein (Hauptdomain vs. App-Subdomain). Wenn `FTP_PATH_APP_*` fehlt, auf die Hauptdomain zeigt oder in dieselbe Verzeichnisstruktur wie MAIN zeigt, wirkt die App-Seite leer oder falsch — trotz erfolgreichem Build von `prod/app` bzw. `dev/app`.
+**GitHub Actions FTP:** Secrets `FTP_PATH_MAIN_*` und `FTP_PATH_APP_*` muessen **zwei verschiedene Document Roots** sein (Hauptdomain vs. App-Subdomain). Wenn `FTP_PATH_APP_*` fehlt, auf die Hauptdomain zeigt oder in dieselbe Verzeichnisstruktur wie MAIN zeigt, wirkt die App-Seite leer oder falsch — trotz erfolgreichem Build von `prod/app`, `staging/app` bzw. `dev/app`.
 
 Produktion:
 
@@ -308,6 +362,13 @@ Produktion:
 | **`deploy/hostpoint/prod/home/`** (Inhalt inkl. Unterordner) | die **Hauptdomain** bzw. den VHost fuer **`ematchef.ch`** |
 | **`deploy/hostpoint/prod/app/`** (Inhalt inkl. Unterordner) | die **Subdomain** / den VHost fuer **`app.ematchef.ch`** (und **`qr.ematchef.ch`**, **`devices.ematchef.ch`** — gleicher Document Root auf Hostpoint) |
 
+Staging:
+
+| Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
+|----------------------------------|-----------------------------------------|
+| **`deploy/hostpoint/staging/home/`** | **`staging.ematchef.ch`** |
+| **`deploy/hostpoint/staging/app/`** | **`app-staging.ematchef.ch`** (und **`qr-staging.ematchef.ch`**, **`devices-staging.ematchef.ch`** — gleicher Document Root) |
+
 Development:
 
 | Lokaler Ordner (nach dem Script) | Typisch ins Hostpoint-Webverzeichnis für |
@@ -315,9 +376,9 @@ Development:
 | **`deploy/hostpoint/dev/home/`** (Inhalt inkl. Unterordner) | die **Dev-Hauptdomain** / den VHost fuer **`dev.ematchef.ch`** |
 | **`deploy/hostpoint/dev/app/`** (Inhalt inkl. Unterordner) | die **Dev-App-Subdomain** / den VHost fuer **`app-dev.ematchef.ch`** (und **`qr-dev.ematchef.ch`**, **`devices-dev.ematchef.ch`** — gleicher Document Root) |
 
-**Hostpoint (einmalig):** Subdomains `devices.ematchef.ch` bzw. `devices-dev.ematchef.ch` anlegen und auf **denselben Webordner** wie `app` / `app-dev` zeigen (kein separater FTP-Upload). Nach dem nächsten Frontend-Deploy reicht der bestehende `FTP_PATH_APP_*`-Lauf.
+**Hostpoint (einmalig):** Subdomains `devices*.ematchef.ch` / `qr*.ematchef.ch` anlegen und auf **denselben Webordner** wie `app` / `app-staging` / `app-dev` zeigen (kein separater FTP-Upload). Nach dem nächsten Frontend-Deploy reicht der bestehende `FTP_PATH_APP_*`-Lauf.
 
-**API (Droplet):** `CORS_ALLOW_ORIGIN` auf Prod und Develop um `devices.ematchef.ch` bzw. `devices-dev.ematchef.ch` erweitern (siehe `deploy/docker-compose.override.*.example.yml`, `deploy/develop-droplet.env.example`), dann Backend neu starten.
+**API (Droplet):** `CORS_ALLOW_ORIGIN` auf Prod, Staging und Develop um die jeweiligen `devices-*.ematchef.ch` erweitern (siehe `deploy/docker-compose.override.*.example.yml`), dann Backend neu starten.
 
 Dazu zählt jeweils **`index.html`**, der Ordner **`assets/`** und die Datei **`.htaccess`** ( Apache-Routing für die SPA). Ohne **`.htaccess` funktionieren direkte URLs** (z. B. Reload auf einer App-Route) **nicht**; beim FTP prüfen, ob versteckte Dateien wirklich mit hochgeladen werden.
 
@@ -339,6 +400,10 @@ Beide Zielordner (`home` und `app`) stammen von **derselben** Vue-Codebase (die 
    cd /opt/ematchef/prod
    # Produktion
    bash scripts/build-hostpoint-deploy-prod.sh
+
+   # Staging (Basic Auth: User/Pass als Env setzen, sonst Warnung ohne .htpasswd)
+   STAGING_BASIC_AUTH_USER=… STAGING_BASIC_AUTH_PASSWORD=… \
+     bash scripts/build-hostpoint-deploy-staging.sh
 
    # Development
    bash scripts/build-hostpoint-deploy-dev.sh
@@ -558,12 +623,14 @@ Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMA
 
 **Pfad anders?** In den YAML-Workflows die Zeile `export EMATCHEF_GIT_SSH_IDENTITY=…` an euren echten Key-Pfad anpassen (oder denselben Dateinamen auf dem Server verwenden).
 
-### Develop Auto-Deploy: API vs Hostpoint
+### Develop / Staging Auto-Deploy: API vs Hostpoint
 
 | Was | Workflow | Wann |
 |-----|----------|------|
 | **API** (`api-dev`) | `.github/workflows/cd-develop.yml` | Push auf `develop`, plus alle **30 Minuten** (Cron). Ist der Server schon auf `origin/develop`, wird der Deploy übersprungen. |
 | **Frontend Dev** (Hostpoint `dev` / `app-dev`) | `.github/workflows/ftp-deploy-develop.yml` | Nur wenn sich `frontend/**` (oder die Hostpoint-Build-Skripte) ändern — **nicht** bei reinen Backend-Pushes. Manuell: `workflow_dispatch`. |
+| **API** (`api-staging`, Pfad `/opt/ematchef/staging`) | `.github/workflows/cd-staging.yml` | Push auf `staging`, plus Cron; Skip wenn schon aktuell. Secrets: `STAGING_DEPLOY_PATH` (+ optional `STAGING_SSH_*`, sonst `DEVELOP_SSH_*`). |
+| **Frontend Staging** (Hostpoint + Basic Auth) | `.github/workflows/ftp-deploy-staging.yml` | Frontend-Pfade auf `staging`; braucht `FTP_PATH_*_STAGING` und Basic-Auth-Secrets. |
 
 Hostpoint muss also **nicht** bei jedem API-Deploy erneuert werden. Ein SPA-Teilupdate einzelner Vue-Dateien geht nicht (Vite-Hashes); bei Frontend-Änderungen baut CI `home` + `app` neu und lädt die Ordner vollständig hoch.
 

@@ -1,0 +1,80 @@
+name: FTP Deploy Staging (Hostpoint)
+
+on:
+  push:
+    branches:
+      - staging
+    paths:
+      - "frontend/**"
+      - "scripts/build-hostpoint-deploy-staging.sh"
+      - "scripts/hostpoint-staging.htaccess"
+      - ".github/workflows/ftp-deploy-staging.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ftp-deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy-staging-hostpoint:
+    name: Build and upload staging frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install htpasswd (apache2-utils)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apache2-utils
+
+      - name: Build staging hostpoint artifacts
+        working-directory: ${{ github.workspace }}
+        env:
+          EMATCHEF_REPO_ROOT: ${{ github.workspace }}
+          STAGING_BASIC_AUTH_USER: ${{ secrets.STAGING_BASIC_AUTH_USER }}
+          STAGING_BASIC_AUTH_PASSWORD: ${{ secrets.STAGING_BASIC_AUTH_PASSWORD }}
+          STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME: ${{ secrets.STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME }}
+          STAGING_BASIC_AUTH_HTPASSWD_PATH_APP: ${{ secrets.STAGING_BASIC_AUTH_HTPASSWD_PATH_APP }}
+        run: bash scripts/build-hostpoint-deploy-staging.sh
+
+      - name: Verify staging hostpoint output (home + app + auth)
+        run: |
+          test -f deploy/hostpoint/staging/home/index.html
+          test -f deploy/hostpoint/staging/app/index.html
+          test -f deploy/hostpoint/staging/home/.htaccess
+          test -f deploy/hostpoint/staging/app/.htaccess
+          test -f deploy/hostpoint/staging/home/.htpasswd
+          test -f deploy/hostpoint/staging/app/.htpasswd
+          du -sh deploy/hostpoint/staging/home deploy/hostpoint/staging/app
+
+      - name: Upload staging home
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: deploy/hostpoint/staging/home/
+          server-dir: ${{ secrets.FTP_PATH_MAIN_STAGING }}
+          dangerous-clean-slate: true
+
+      - name: Upload staging app
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          port: ${{ secrets.FTP_PORT }}
+          local-dir: deploy/hostpoint/staging/app/
+          server-dir: ${{ secrets.FTP_PATH_APP_STAGING }}
+          dangerous-clean-slate: true

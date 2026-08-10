@@ -1,0 +1,20 @@
+# Staging: HTTP Basic Auth + SPA-Fallback (Apache auf Hostpoint)
+# AuthUserFile: absoluter Server-Pfad (Secret STAGING_BASIC_AUTH_HTPASSWD_PATH_*)
+# oder relativ ".htpasswd" im Document Root — siehe deploy/SERVER-UPDATE.md
+
+AuthType Basic
+AuthName "Authentication Required - staging.ematchef.ch is protected and needs authentication"
+AuthUserFile "__AUTH_USER_FILE__"
+Require valid-user
+
+RewriteEngine On
+
+# Fehlende Dateien unter /assets/ nicht durch index.html ersetzen — sonst liefert der Server
+# text/html für *.js (SPA-Rewrite) und der Browser meldet MIME-/Modul-Fehler statt 404.
+RewriteCond %{REQUEST_URI} ^/assets/ [NC]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ - [R=404,L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
