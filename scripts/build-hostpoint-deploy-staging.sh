@@ -3,10 +3,10 @@
 #   deploy/hostpoint/staging/home  (staging.ematchef.ch)
 #   deploy/hostpoint/staging/app   (app-staging / qr-staging / devices-staging — gleicher Document Root)
 #
-# Optional (CI / lokal):
-#   STAGING_BASIC_AUTH_USER + STAGING_BASIC_AUTH_PASSWORD → erzeugt .htpasswd (bcrypt)
-#   STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME / _APP → absoluter AuthUserFile-Pfad auf Hostpoint
-#   Sonst AuthUserFile ".htpasswd" (gleiche DocRoot-Datei)
+# Auth (Hostpoint):
+#   STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME / _APP = AuthUserFile (z. B. /home/…/.htpasswds/htpasswd.… aus dem Panel)
+#   User/Pass im Hostpoint-Passwortschutz pflegen — CI schreibt keine DocRoot-.htpasswd, wenn Pfad unter .htpasswds liegt.
+#   Fallback: relative ".htpasswd" + STAGING_BASIC_AUTH_USER/PASSWORD → Apache-MD5 (.htpasswd im Upload)
 set -euo pipefail
 
 ROOT="${EMATCHEF_REPO_ROOT:-}"
@@ -60,25 +60,36 @@ write_htaccess() {
   sed "s|__AUTH_USER_FILE__|${auth_file}|g" "$HTACCESS_TEMPLATE" >"$dest"
 }
 
+is_hostpoint_htpasswds() {
+  [[ "$1" == *".htpasswds"* ]]
+}
+
 AUTH_HOME="${STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME:-.htpasswd}"
 AUTH_APP="${STAGING_BASIC_AUTH_HTPASSWD_PATH_APP:-.htpasswd}"
 write_htaccess "$OUT_BASE/home/.htaccess" "$AUTH_HOME"
 write_htaccess "$OUT_BASE/app/.htaccess" "$AUTH_APP"
 
-if [[ -n "${STAGING_BASIC_AUTH_USER:-}" && -n "${STAGING_BASIC_AUTH_PASSWORD:-}" ]]; then
+# Hostpoint verwaltet User unter .htpasswds — keine DocRoot-.htpasswd erzeugen/hochladen
+if is_hostpoint_htpasswds "$AUTH_HOME" && is_hostpoint_htpasswds "$AUTH_APP"; then
+  echo "Basic Auth: Hostpoint-.htpasswds Pfade — keine DocRoot-.htpasswd (Panel-User)."
+elif [[ -n "${STAGING_BASIC_AUTH_USER:-}" && -n "${STAGING_BASIC_AUTH_PASSWORD:-}" ]]; then
   if ! command -v htpasswd >/dev/null 2>&1; then
     echo "htpasswd fehlt (apache2-utils / httpd-tools). Fuer Basic Auth installieren oder in CI bereitstellen." >&2
     exit 1
   fi
-  # -nbB: stdout, bcrypt (kein Klartext in Datei)
-  HASH_LINE="$(htpasswd -nbB "$STAGING_BASIC_AUTH_USER" "$STAGING_BASIC_AUTH_PASSWORD")"
-  printf '%s\n' "$HASH_LINE" >"$OUT_BASE/home/.htpasswd"
-  printf '%s\n' "$HASH_LINE" >"$OUT_BASE/app/.htpasswd"
-  chmod 644 "$OUT_BASE/home/.htpasswd" "$OUT_BASE/app/.htpasswd"
-  echo "Basic Auth: .htpasswd erzeugt (user=${STAGING_BASIC_AUTH_USER})"
+  # -nbm: Apache MD5 (apr1) — bcrypt (-B) liefert auf Hostpoint oft HTTP 500
+  HASH_LINE="$(htpasswd -nbm "$STAGING_BASIC_AUTH_USER" "$STAGING_BASIC_AUTH_PASSWORD")"
+  if ! is_hostpoint_htpasswds "$AUTH_HOME"; then
+    printf '%s\n' "$HASH_LINE" >"$OUT_BASE/home/.htpasswd"
+    chmod 644 "$OUT_BASE/home/.htpasswd"
+  fi
+  if ! is_hostpoint_htpasswds "$AUTH_APP"; then
+    printf '%s\n' "$HASH_LINE" >"$OUT_BASE/app/.htpasswd"
+    chmod 644 "$OUT_BASE/app/.htpasswd"
+  fi
+  echo "Basic Auth: DocRoot-.htpasswd erzeugt (user=${STAGING_BASIC_AUTH_USER}, Apache-MD5)"
 else
-  echo "Hinweis: STAGING_BASIC_AUTH_USER/PASSWORD nicht gesetzt — kein .htpasswd erzeugt." >&2
-  echo "         Deploy ohne Credentials → Basic Auth auf Hostpoint schlaegt fehl, bis Secrets gesetzt sind." >&2
+  echo "Hinweis: Keine Hostpoint-.htpasswds-Pfade und keine STAGING_BASIC_AUTH_USER/PASSWORD — Auth ggf. unvollstaendig." >&2
 fi
 
 for d in home app; do

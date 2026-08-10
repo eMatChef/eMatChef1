@@ -1,11 +1,14 @@
-# Staging: HTTP Basic Auth + SPA-Fallback (Apache auf Hostpoint)
-# AuthUserFile: absoluter Server-Pfad (Secret STAGING_BASIC_AUTH_HTPASSWD_PATH_*)
-# oder relativ ".htpasswd" im Document Root — siehe deploy/SERVER-UPDATE.md
+# Staging: Hostpoint Passwortschutz + SPA-Fallback
+# AuthUserFile: Secret STAGING_BASIC_AUTH_HTPASSWD_PATH_* (Hostpoint: /home/…/.htpasswds/htpasswd.…)
+# Hostpoint-UI schreibt denselben Block; alles nach #@__HCP_END__@# bleibt bei UI-Änderungen erhalten.
 
-AuthType Basic
-AuthName "Authentication Required - staging.ematchef.ch is protected and needs authentication"
-AuthUserFile "__AUTH_USER_FILE__"
 Require valid-user
+AuthType Basic
+AuthName "eMatChef Staging"
+AuthUserFile __AUTH_USER_FILE__
+
+#@__HCP_END__@#
+# Anything after the comment above is left alone
 
 RewriteEngine On
 
