@@ -1,9 +1,9 @@
-# Bei PRs nach prod: Beschreibung um Liste der enthaltenen Feature-PRs ergänzen.
+# Bei PRs nach staging oder prod: Beschreibung um Liste der enthaltenen Feature-PRs ergänzen.
 name: Release PR summary
 
 on:
   pull_request:
-    branches: [prod]
+    branches: [staging, prod]
     types: [opened, synchronize, reopened]
 
 permissions:

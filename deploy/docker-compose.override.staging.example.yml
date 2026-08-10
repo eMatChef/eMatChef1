@@ -1,0 +1,39 @@
+# Staging-Override für den API-Server auf dem Develop-Droplet
+# (z. B. /opt/ematchef/staging, Branch staging, api-staging.ematchef.ch).
+#
+#   cp deploy/docker-compose.override.staging.example.yml docker-compose.override.yml
+# Dann .env setzen und:
+#   docker compose -p ematchef-staging up -d db backend
+#
+# Wichtig: anderer Host-Port als develop (develop oft 8081) — sonst „address already in use“.
+# Nginx: api-staging.ematchef.ch → 127.0.0.1:8082
+
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
+
+  backend:
+    # !override: docker-compose.yml hat bereits 8081:8081 — ohne override doppeltes Host-Mapping
+    ports: !override
+      - "127.0.0.1:8082:8081"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      APP_ENV: prod
+      APP_DEBUG: "0"
+      APP_SECRET: ${APP_SECRET}
+      DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
+      JWT_PASSPHRASE: ${JWT_PASSPHRASE}
+      APP_FRONTEND_URL: "https://app-staging.ematchef.ch"
+      APP_MAIN_SITE_ORIGIN: "https://staging.ematchef.ch"
+      APP_PUBLIC_QR_URL: "https://qr-staging.ematchef.ch"
+      AUTH_COOKIE_DOMAIN: ".ematchef.ch"
+      AUTH_COOKIE_SECURE: "1"
+      EMATCHEF_DEV_TOOLS: "1"
+      CORS_ALLOW_ORIGIN: '^https://(staging\.ematchef\.ch|app-staging\.ematchef\.ch|qr-staging\.ematchef\.ch|devices-staging\.ematchef\.ch)$'
+      MAILER_DSN: "${MAILER_DSN:-null://null}"
+      MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
+      MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"

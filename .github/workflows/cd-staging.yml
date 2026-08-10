@@ -1,66 +1,67 @@
-name: CD Develop
+name: CD Staging
 
 on:
   push:
     branches:
-      - develop
+      - staging
   schedule:
     # Nachzieher: alle 30 Min, falls Push-CD ausfiel oder Server hinterherhinkt
     - cron: "*/30 * * * *"
   workflow_dispatch:
 
 concurrency:
-  group: cd-develop
+  group: cd-staging
   cancel-in-progress: true
 
 jobs:
-  deploy-develop:
-    name: Deploy to develop server
+  deploy-staging:
+    name: Deploy to staging (develop droplet path)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
         with:
-          host: ${{ secrets.DEVELOP_SSH_HOST }}
-          username: ${{ secrets.DEVELOP_SSH_USER }}
-          key: ${{ secrets.DEVELOP_SSH_KEY }}
-          port: ${{ secrets.DEVELOP_SSH_PORT }}
+          # Gleicher Droplet wie develop; eigener Pfad /opt/ematchef/staging
+          host: ${{ secrets.STAGING_SSH_HOST || secrets.DEVELOP_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER || secrets.DEVELOP_SSH_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY || secrets.DEVELOP_SSH_KEY }}
+          port: ${{ secrets.STAGING_SSH_PORT || secrets.DEVELOP_SSH_PORT }}
           script_stop: true
-          # Default ~10–15m: Compose/Entrypoint auf dem Droplet braucht oft länger
           command_timeout: 40m
           script: |
             set -euo pipefail
-            echo "==> CD Develop start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            # Server→GitHub Deploy-Key (Hetzner root; kein /home/root/…).
+            echo "==> CD Staging start $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_develop_ed25519
             if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then GIT_DEPLOY_KEY=/root/.ssh/ematchef_deploy_ed25519; fi
             if [[ ! -f "$GIT_DEPLOY_KEY" ]]; then echo "::error::Kein Git-Deploy-Key gefunden: $GIT_DEPLOY_KEY"; exit 1; fi
             echo "Using git deploy key: $GIT_DEPLOY_KEY"
             export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
             export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
-            cd "${{ secrets.DEVELOP_DEPLOY_PATH }}"
-            DEPLOY_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}"
+            DEPLOY_ROOT="${{ secrets.STAGING_DEPLOY_PATH }}"
+            if [[ -z "$DEPLOY_ROOT" ]]; then
+              echo "::error::Secret STAGING_DEPLOY_PATH fehlt (z. B. /opt/ematchef/staging)"
+              exit 1
+            fi
+            cd "$DEPLOY_ROOT"
             if [[ ! -w "${DEPLOY_ROOT}/.git/objects" ]]; then
               chown -R "$(id -u):$(id -g)" "${DEPLOY_ROOT}/.git" 2>/dev/null || \
               docker run --rm -u 0 -v "${DEPLOY_ROOT}/.git:/git" alpine:3.20 \
                 sh -c "chown -R $(id -u):$(id -g) /git && chmod -R u+rwX /git"
             fi
-            # Bootstrap: altes prod-update.sh auf dem Server macht ggf. noch `git fetch origin`
-            # und scheitert, bevor reset das neue Skript holen kann.
-            echo "==> git fetch develop $(date -u +%H:%M:%S)"
-            git fetch --no-tags origin "+refs/heads/develop:refs/remotes/origin/develop"
+            echo "==> git fetch staging $(date -u +%H:%M:%S)"
+            git fetch --no-tags origin "+refs/heads/staging:refs/remotes/origin/staging"
             LOCAL="$(git rev-parse HEAD)"
-            REMOTE="$(git rev-parse origin/develop)"
+            REMOTE="$(git rev-parse origin/staging)"
             if [[ "$LOCAL" == "$REMOTE" ]]; then
-              echo "Already at origin/develop ($LOCAL) — skip deploy."
+              echo "Already at origin/staging ($LOCAL) — skip deploy."
               exit 0
             fi
             echo "Updating $LOCAL -> $REMOTE"
-            git reset --hard origin/develop
+            git reset --hard origin/staging
             echo "==> prod-update.sh reset $(date -u +%H:%M:%S)"
-            EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
-            EMATCHEF_GIT_BRANCH=develop \
-            COMPOSE_PROJECT_NAME=ematchef-develop \
+            EMATCHEF_PROD_ROOT="$DEPLOY_ROOT" \
+            EMATCHEF_GIT_BRANCH=staging \
+            COMPOSE_PROJECT_NAME=ematchef-staging \
             ./deploy/prod-update.sh reset
-            echo "==> CD Develop done $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "==> CD Staging done $(date -u +%Y-%m-%dT%H:%M:%SZ)"
