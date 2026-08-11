@@ -1,14 +1,8 @@
 name: FTP Deploy Staging (Hostpoint)
 
+# Hostpoint-Staging nur noch manuell bis Droplet-Cutover Staging.
+
 on:
-  push:
-    branches:
-      - staging
-    paths:
-      - "frontend/**"
-      - "scripts/build-hostpoint-deploy-staging.sh"
-      - "scripts/hostpoint-staging.htaccess"
-      - ".github/workflows/ftp-deploy-staging.yml"
   workflow_dispatch:
 
 concurrency:

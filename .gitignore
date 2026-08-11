@@ -7,6 +7,8 @@ dist/
 **/dist/
 # Lokale Hostpoint-Kopien (Upload), nicht versionieren
 deploy/hostpoint/
+# Lokale Droplet-App-Builds (rsync), nicht versionieren
+deploy/droplet/
 
 # Weblate auf dem Translate-Droplet (Secrets nur auf dem Server)
 deploy/weblate/environment

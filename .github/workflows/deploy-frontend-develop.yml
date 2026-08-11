@@ -1,0 +1,73 @@
+name: Deploy Frontend Develop (Droplet)
+
+# Marketing (home) + App/QR/Devices auf den Develop-Droplet (Caddy).
+# Hostpoint-FTP ist bis zum DNS-Cutover nur noch manuell (workflow_dispatch).
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "frontend/**"
+      - "scripts/build-droplet-frontend.sh"
+      - "scripts/build-droplet-app.sh"
+      - ".github/workflows/deploy-frontend-develop.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-develop
+  cancel-in-progress: true
+
+jobs:
+  deploy-frontend-develop:
+    name: Build and rsync frontend to develop droplet
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build droplet frontend (develop)
+        working-directory: ${{ github.workspace }}
+        env:
+          EMATCHEF_REPO_ROOT: ${{ github.workspace }}
+        run: bash scripts/build-droplet-frontend.sh develop
+
+      - name: Verify output
+        run: |
+          test -f deploy/droplet/develop/home/index.html
+          test -f deploy/droplet/develop/app/index.html
+          du -sh deploy/droplet/develop/home deploy/droplet/develop/app
+
+      - name: Rsync home to droplet
+        uses: burnett01/rsync-deployments@7.1.0
+        with:
+          switches: -avz --delete
+          path: deploy/droplet/develop/home/
+          remote_path: ${{ secrets.DEVELOP_HOME_WEBROOT }}/
+          remote_host: ${{ secrets.DEVELOP_SSH_HOST }}
+          remote_user: ${{ secrets.DEVELOP_SSH_USER }}
+          remote_key: ${{ secrets.DEVELOP_SSH_KEY }}
+          remote_port: ${{ secrets.DEVELOP_SSH_PORT }}
+
+      - name: Rsync app to droplet
+        uses: burnett01/rsync-deployments@7.1.0
+        with:
+          switches: -avz --delete
+          path: deploy/droplet/develop/app/
+          remote_path: ${{ secrets.DEVELOP_APP_WEBROOT }}/
+          remote_host: ${{ secrets.DEVELOP_SSH_HOST }}
+          remote_user: ${{ secrets.DEVELOP_SSH_USER }}
+          remote_key: ${{ secrets.DEVELOP_SSH_KEY }}
+          remote_port: ${{ secrets.DEVELOP_SSH_PORT }}

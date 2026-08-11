@@ -1,0 +1,24 @@
+# Beispiel Caddyfile für den Develop-Droplet (API + Marketing + App-SPA).
+# Auf dem Server z. B. nach /etc/caddy/Caddyfile übernehmen, anpassen, dann:
+#   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+#
+# Webroots müssen zu den Secrets DEVELOP_HOME_WEBROOT / DEVELOP_APP_WEBROOT passen.
+
+api-dev.ematchef.ch {
+	reverse_proxy 127.0.0.1:8081
+}
+
+# Nach DNS-Cutover: Marketing + App/QR/Devices → diese Droplet-IP
+dev.ematchef.ch {
+	root * /var/www/ematchef-home-develop
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}
+
+app-dev.ematchef.ch, qr-dev.ematchef.ch, devices-dev.ematchef.ch {
+	root * /var/www/ematchef-app-develop
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}

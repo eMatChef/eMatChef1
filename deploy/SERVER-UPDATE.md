@@ -323,6 +323,8 @@ Falls es am Provider liegt: ausgehendes **HTTPS (443)** vom Server pruefen.
 
 ## 3b. Hostpoint: Frontend bauen und per FTP hochladen (prod + staging + dev)
 
+**Richtung:** Marketing/Landing bleibt auf Hostpoint. Die **App** (häufige Änderungen) soll auf dem API-Droplet per Caddy laufen — siehe **[docs/APP-ON-DROPLET.md](../docs/APP-ON-DROPLET.md)** und Workflow `Deploy App Develop (Droplet)`.
+
 Das **API-Backend** läuft z. B. auf dem Droplet; die Websites auf Hostpoint sind in der Regel **statische Dateien**.
 Dafuer erzeugt das Repo lokal passende Ordner; du laedst **den Inhalt** dieser Ordner in die passenden **Document Roots** hoch (FTP/SFTP).
 
