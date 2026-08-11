@@ -53,8 +53,13 @@ jobs:
           test -f deploy/hostpoint/staging/app/index.html
           test -f deploy/hostpoint/staging/home/.htaccess
           test -f deploy/hostpoint/staging/app/.htaccess
-          test -f deploy/hostpoint/staging/home/.htpasswd
-          test -f deploy/hostpoint/staging/app/.htpasswd
+          grep -q 'AuthUserFile' deploy/hostpoint/staging/home/.htaccess
+          grep -q '#@__HCP_END__@#' deploy/hostpoint/staging/home/.htaccess
+          # DocRoot-.htpasswd nur noetig, wenn nicht Hostpoint-.htpasswds
+          if ! grep -q '\.htpasswds' deploy/hostpoint/staging/home/.htaccess; then
+            test -f deploy/hostpoint/staging/home/.htpasswd
+            test -f deploy/hostpoint/staging/app/.htpasswd
+          fi
           du -sh deploy/hostpoint/staging/home deploy/hostpoint/staging/app
 
       - name: Upload staging home

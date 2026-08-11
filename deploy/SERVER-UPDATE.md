@@ -343,8 +343,8 @@ Fuer Staging (inkl. HTTP Basic Auth):
 - Ausgabeordner:
   - `deploy/hostpoint/staging/home/` (**staging.ematchef.ch**)
   - `deploy/hostpoint/staging/app/` (**app-staging.ematchef.ch**)
-- CI setzt `.htpasswd` aus Secrets `STAGING_BASIC_AUTH_USER` / `STAGING_BASIC_AUTH_PASSWORD` (wichtig wegen `dangerous-clean-slate` beim FTP).
-- Optional absolute `AuthUserFile`-Pfade: `STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME` / `_APP` (sonst `.htpasswd` im Document Root). Wenn Hostpoint mit relativem Pfad 500 liefert: in der Dateiverwaltung den absoluten Pfad zur `.htpasswd` ermitteln und als Secret setzen.
+- Basic Auth bevorzugt über **Hostpoint Passwortschutz** (User ohne `@`). `AuthUserFile` zeigt auf `/home/…/.htpasswds/htpasswd.…` — Secrets `STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME` / `_APP` setzen. SPA-Rewrite steht nach `#@__HCP_END__@#` und bleibt bei Panel-Änderungen erhalten.
+- Fallback ohne Hostpoint-Panel: DocRoot-`.htpasswd` via `STAGING_BASIC_AUTH_USER` / `PASSWORD` (Apache-MD5, nicht bcrypt).
 
 Fuer Development:
 
