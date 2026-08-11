@@ -1,5 +1,4 @@
 # Develop-Droplet: API + App-Hierarchie (kein Marketing auf dem Droplet).
-# api.dev / api.staging (+ kurze Übergangs-Aliase api-dev / api-staging).
 #
 #   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
 #
@@ -14,10 +13,14 @@ api.staging.ematchef.ch, api-staging.ematchef.ch {
 }
 
 app.dev.ematchef.ch, qr.dev.ematchef.ch, devices.dev.ematchef.ch,
-app-dev.ematchef.ch, qr-dev.ematchef.ch, devices-dev.ematchef.ch,
-dev.ematchef.ch {
+app-dev.ematchef.ch, qr-dev.ematchef.ch, devices-dev.ematchef.ch {
 	root * /var/www/ematchef-app-develop
 	encode gzip
 	try_files {path} /index.html
 	file_server
+}
+
+# bare dev. → App (nicht Marketing; isAppOrigin gilt nur für app.dev)
+dev.ematchef.ch {
+	redir https://app.dev.ematchef.ch{uri} permanent
 }

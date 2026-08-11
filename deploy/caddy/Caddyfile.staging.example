@@ -1,12 +1,8 @@
-# Staging-Hosts (oft auf dem Develop-Droplet). Basic Auth für App/QR/Devices.
+# Staging App-Hosts (+ Basic Auth). API steht in Caddyfile.develop.example.
 # Hash: caddy hash-password --plaintext '…'
-# Webroot z. B. /var/www/ematchef-app-staging
-#
-# Hinweis: api.staging steht typischerweise schon in Caddyfile.develop.example.
 
 app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
-app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch,
-staging.ematchef.ch {
+app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch {
 	basic_auth {
 		# user <caddy-hash>
 		staging JDJhJDEwJ...ersetzen
@@ -15,4 +11,8 @@ staging.ematchef.ch {
 	encode gzip
 	try_files {path} /index.html
 	file_server
+}
+
+staging.ematchef.ch {
+	redir https://app.staging.ematchef.ch{uri} permanent
 }
