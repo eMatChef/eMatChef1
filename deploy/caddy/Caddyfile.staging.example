@@ -1,0 +1,18 @@
+# Beispiel: Staging-API + App hinter Caddy (Basic Auth für App/QR/Devices).
+# htpasswd-Hash: caddy hash-password --plaintext '…'
+# Webroot z. B. /var/www/ematchef-app-staging (Secret STAGING_APP_WEBROOT).
+
+api-staging.ematchef.ch {
+	reverse_proxy 127.0.0.1:8082
+}
+
+app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch {
+	basic_auth {
+		# user <caddy-hash>
+		staging JDJhJDEwJ...ersetzen
+	}
+	root * /var/www/ematchef-app-staging
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}

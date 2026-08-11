@@ -1,0 +1,60 @@
+name: Deploy App Develop (Droplet)
+
+# App/QR/Devices-SPA auf den Develop-Droplet (Caddy), nicht Hostpoint.
+# Marketing (dev.ematchef.ch) bleibt FTP — siehe docs/APP-ON-DROPLET.md
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "frontend/**"
+      - "scripts/build-droplet-app.sh"
+      - ".github/workflows/deploy-app-develop.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-app-develop
+  cancel-in-progress: true
+
+jobs:
+  deploy-app-develop:
+    name: Build and rsync app to develop droplet
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build droplet app (develop)
+        working-directory: ${{ github.workspace }}
+        env:
+          EMATCHEF_REPO_ROOT: ${{ github.workspace }}
+        run: bash scripts/build-droplet-app.sh develop
+
+      - name: Verify output
+        run: |
+          test -f deploy/droplet/develop/app/index.html
+          du -sh deploy/droplet/develop/app
+
+      - name: Rsync to droplet
+        uses: burnett01/rsync-deployments@7.1.0
+        with:
+          switches: -avz --delete
+          path: deploy/droplet/develop/app/
+          remote_path: ${{ secrets.DEVELOP_APP_WEBROOT }}/
+          remote_host: ${{ secrets.DEVELOP_SSH_HOST }}
+          remote_user: ${{ secrets.DEVELOP_SSH_USER }}
+          remote_key: ${{ secrets.DEVELOP_SSH_KEY }}
+          remote_port: ${{ secrets.DEVELOP_SSH_PORT }}

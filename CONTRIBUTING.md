@@ -94,7 +94,9 @@ Wenn ein Entwicklungsstand bereit ist:
   - Trigger: Push/PR auf `develop`, `staging` und `prod`
   - Smoke-Secrets: siehe [docs/E2E.md](docs/E2E.md)
 - `CD Develop` / `CD Staging` / `CD Prod` — Push auf den jeweiligen Branch (SSH); Staging teilt den Develop-Droplet (`/opt/ematchef/staging`)
-- `FTP Deploy *` — Hostpoint-Frontends (Staging inkl. Basic Auth)
+- `Deploy App Develop (Droplet)` — App/QR/Devices-SPA per rsync auf den Develop-Droplet (Caddy); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+- `FTP Deploy *` — Hostpoint **Marketing**/Landing (App mittelfristig vom Droplet)
+- Dev-Tools-Ideen (Banner-Logins, Demo-Seed): [docs/DEV-TOOLS-BACKLOG.md](docs/DEV-TOOLS-BACKLOG.md)
 - `Fast forward` in `.github/workflows/fast-forward.yml`
   - Kommentar **`/fast-forward`**: `develop` → `staging` oder `staging` → `prod`
   - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions)
@@ -118,6 +120,8 @@ Fuer `CD Develop`:
 - `DEVELOP_SSH_KEY`
 - `DEVELOP_SSH_PORT`
 - `DEVELOP_DEPLOY_PATH`
+- `DEVELOP_APP_WEBROOT` — Zielordner der App-SPA auf dem Droplet (z. B. `/var/www/ematchef-app-develop`); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+
 
 Fuer `CD Staging` (API auf dem Develop-Droplet):
 
