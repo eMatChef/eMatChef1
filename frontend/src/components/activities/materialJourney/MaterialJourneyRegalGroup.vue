@@ -83,7 +83,9 @@ function showStoreForLooseRow(row: TaskRow): boolean {
 }
 
 function showReturnForLooseRow(row: TaskRow): boolean {
-  if (!isJourneyReturnStep(props.journeyStep) || row.kind !== 'loose' || !row.packItem) return false
+  if (!props.journeyStep || !isJourneyReturnStep(props.journeyStep) || row.kind !== 'loose' || !row.packItem) {
+    return false
+  }
   if (!row.isOpen) return false
   return row.canMove || row.maxForwardQty > 0 || (row.packItem.quantityWet ?? 0) > 0
 }
