@@ -184,7 +184,7 @@ export function createMaterialJourneyPackContextState(
     pendingStoreLooseQtyForPackItem: (pi) =>
       isPackUnpackStage(input.packStage)
         ? unpackPendingStoreLooseQtyForPackItem(pi, containerIds, unpackAccountingInput)
-        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
+        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0) - (pi.quantityWet ?? 0)),
   }
 
   function effectiveStageLeftQty(p: ActivityPackItem): number {
@@ -282,7 +282,7 @@ export function createMaterialJourneyPackContextState(
     pendingStoreLooseQtyForPackItem: (pi) =>
       isPackUnpackStage(input.packStage)
         ? unpackPendingStoreLooseQtyForPackItem(pi, containerIds, unpackAccountingInput)
-        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0)),
+        : Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0) - (pi.quantityWet ?? 0)),
     returnedLooseQtyForPackItem: (pi) => pi.quantityReturned ?? 0,
     storedLooseQtyForPackItem: (pi) => pi.quantityStored ?? 0,
     storedShellLooseQtyForPackItem: () => 0,
@@ -396,18 +396,27 @@ export function createMaterialJourneyPackContextState(
     let sum = 0
     for (const ci of input.containerItemsByContainerId[containerId] ?? []) {
       if (isNonActionableContainerLine(ci)) continue
-      sum += Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+      sum += Math.max(
+        0,
+        (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0) - (ci.quantity_wet ?? 0),
+      )
     }
     const sh = shellPackItemForContainer(containerId)
     if (sh) {
-      sum += Math.max(0, (sh.quantityReturned ?? 0) - (sh.quantityStored ?? 0))
+      sum += Math.max(
+        0,
+        (sh.quantityReturned ?? 0) - (sh.quantityStored ?? 0) - (sh.quantityWet ?? 0),
+      )
     }
     return sum
   }
 
   function containerLineRemainingStore(ci: ActivityPackContainerItem): number {
     if (!isPackUnpackStage(input.packStage)) {
-      return Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+      return Math.max(
+        0,
+        (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0) - (ci.quantity_wet ?? 0),
+      )
     }
     return unpackContainerLineRemainingStore(ci, unpackAccountingInput)
   }

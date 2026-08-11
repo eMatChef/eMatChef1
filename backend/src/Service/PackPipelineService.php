@@ -107,7 +107,7 @@ class PackPipelineService
             self::STAGE_TRANSPORT_BACK => $skipTransport
                 ? 0
                 : max(0, $item->getQuantityTransportBack() - $item->getQuantityReturned()),
-            self::STAGE_RETURNED => max(0, $item->getQuantityReturned() - $item->getQuantityStored()),
+            self::STAGE_RETURNED => max(0, $item->getQuantityReturned() - $item->getQuantityStored() - $item->getQuantityWet()),
             self::STAGE_STORED => max(0, $item->getQuantityStored()),
             default => 0,
         };
@@ -182,6 +182,7 @@ class PackPipelineService
                 $item->getQuantityIssued(),
                 $item->getQuantityReturned(),
                 $item->getQuantityStored(),
+                $item->getQuantityWet(),
             ),
             default => 0,
         };
@@ -191,9 +192,9 @@ class PackPipelineService
      * Einlagern: retournierte Restmenge plus gepackte, nie ans Event bewegte Stücke
      * (werden beim Einlagern automatisch als retourniert gebucht).
      */
-    private function maxStored(int $packed, int $issued, int $returned, int $stored): int
+    private function maxStored(int $packed, int $issued, int $returned, int $stored, int $wet = 0): int
     {
-        $returnedPending = max(0, $returned - $stored);
+        $returnedPending = max(0, $returned - $stored - $wet);
         $extraReturned = max(0, $returned - $issued);
         $neverIssuedOutstanding = max(0, $packed - $issued - $extraReturned);
 
@@ -215,6 +216,7 @@ class PackPipelineService
             $item->getQuantityIssued(),
             $item->getQuantityReturned(),
             $item->getQuantityStored(),
+            $item->getQuantityWet(),
         );
 
         if ($consumableConsumedQty <= 0) {
@@ -234,9 +236,55 @@ class PackPipelineService
         return min($base, $consumableCap);
     }
 
+    /** Max. Menge, die aus der Nass-/Trocknungs-Warteschlange eingelagert werden kann. */
+    public function maxStoreFromWet(ActivityPackItem $item): int
+    {
+        return max(0, $item->getQuantityWet());
+    }
+
+    public function maxStoreFromWetContainer(ActivityPackContainerItem $item): int
+    {
+        return max(0, $item->getQuantityWet());
+    }
+
+    /** Nach Trocknen: wet → stored. */
+    public function applyStoreFromWet(ActivityPackItem $item, int $qty): void
+    {
+        $qty = min($qty, $this->maxStoreFromWet($item));
+        if ($qty < 1) {
+            return;
+        }
+        $item->setQuantityWet($item->getQuantityWet() - $qty);
+        $item->setQuantityStored($item->getQuantityStored() + $qty);
+        if ($item->getQuantityWet() === 0) {
+            $item->setWetHung(null);
+            $item->setWetDryingStorageAddressId(null);
+            $item->setWetDryingRackId(null);
+            $item->setWetDryingSlotId(null);
+            $item->setWetDryingLocationLabel(null);
+        }
+    }
+
+    public function applyStoreFromWetContainer(ActivityPackContainerItem $item, int $qty): void
+    {
+        $qty = min($qty, $this->maxStoreFromWetContainer($item));
+        if ($qty < 1) {
+            return;
+        }
+        $item->setQuantityWet($item->getQuantityWet() - $qty);
+        $item->setQuantityStored($item->getQuantityStored() + $qty);
+        if ($item->getQuantityWet() === 0) {
+            $item->setWetHung(null);
+            $item->setWetDryingStorageAddressId(null);
+            $item->setWetDryingRackId(null);
+            $item->setWetDryingSlotId(null);
+            $item->setWetDryingLocationLabel(null);
+        }
+    }
+
     /**
      * Abschluss-Blocker: lose Einlager-Menge minus offene Kistenzeilen derselben Material-ID.
-     * Kistenzeilen wie Frontend: returned−stored + nie ausgegebene gepackte Menge.
+     * Kistenzeilen wie Frontend: returned−stored−wet + nie ausgegebene gepackte Menge.
      *
      * @param iterable<ActivityPackContainerItem> $containerItems
      */
@@ -249,7 +297,7 @@ class PackPipelineService
         int $repairQty = 0,
     ): int {
         $base = $this->maxForwardQty($item, self::STAGE_STORED, $profile, $consumableConsumedQty);
-        // Verlust/Reparatur: physisch nicht einlagerbar (FE: retourTotal − stored).
+        // Verlust/Reparatur: physisch nicht einlagerbar (FE: retourTotal − stored − wet).
         $goneExtra = max(0, $lossQty) + max(0, $repairQty);
         if ($goneExtra > 0) {
             $base = max(0, $base - $goneExtra);
@@ -271,6 +319,7 @@ class PackPipelineService
                 $ci->getQuantityIssued(),
                 $ci->getQuantityReturned(),
                 $ci->getQuantityStored(),
+                $ci->getQuantityWet(),
             );
         }
 
@@ -279,7 +328,7 @@ class PackPipelineService
 
     private function applyForwardStored(ActivityPackItem $item, int $qty, string $profile): void
     {
-        $returnedPending = max(0, $item->getQuantityReturned() - $item->getQuantityStored());
+        $returnedPending = max(0, $item->getQuantityReturned() - $item->getQuantityStored() - $item->getQuantityWet());
         $remainder = max(0, $qty - min($qty, $returnedPending));
 
         $item->setQuantityStored($item->getQuantityStored() + $qty);
@@ -291,7 +340,7 @@ class PackPipelineService
 
     private function applyForwardStoredContainer(ActivityPackContainerItem $item, int $qty, string $profile): void
     {
-        $returnedPending = max(0, $item->getQuantityReturned() - $item->getQuantityStored());
+        $returnedPending = max(0, $item->getQuantityReturned() - $item->getQuantityStored() - $item->getQuantityWet());
         $remainder = max(0, $qty - min($qty, $returnedPending));
 
         $item->setQuantityStored($item->getQuantityStored() + $qty);

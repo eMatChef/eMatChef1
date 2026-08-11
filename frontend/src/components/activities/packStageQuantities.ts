@@ -263,7 +263,7 @@ export function getStageLeftQty(
       }
       return item.quantityIssued - item.quantityReturned
     case 'returned_unpack':
-      return Math.max(0, item.quantityReturned - item.quantityStored)
+      return Math.max(0, item.quantityReturned - item.quantityStored - (item.quantityWet || 0))
     default:
       return 0
   }

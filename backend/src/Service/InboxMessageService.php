@@ -366,6 +366,67 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
+    /**
+     * Nass retourniert und noch nicht aufgehängt → MW soll Trocknungsplatz / Aufhängen klären.
+     */
+    public function notifyMaterialWetNotHung(
+        Activity $activity,
+        User $actor,
+        string $materialName,
+        int $quantityWet,
+    ): void {
+        if ($quantityWet < 1) {
+            return;
+        }
+
+        $existing = $this->entityManager->getRepository(InboxMessage::class)->createQueryBuilder('m')
+            ->andWhere('m.activityId = :aid')
+            ->andWhere('m.type = :type')
+            ->andWhere('m.recipientScope = :scope')
+            ->andWhere('m.readAt IS NULL')
+            ->setParameter('aid', $activity->getId())
+            ->setParameter('type', 'activity_material_wet_not_hung')
+            ->setParameter('scope', InboxMessage::RECIPIENT_DEPARTMENT_MW)
+            ->orderBy('m.createdAt', 'DESC')
+            ->setMaxResults(8)
+            ->getQuery()
+            ->getResult();
+
+        foreach ($existing as $row) {
+            if (!$row instanceof InboxMessage) {
+                continue;
+            }
+            $payload = $row->getPayload();
+            if (($payload['material_name'] ?? null) === $materialName) {
+                $payload['quantity_wet'] = $quantityWet;
+                $payload['activity_status'] = $activity->getStatus();
+                $payload['journey_step'] = 'store';
+                $payload['deeplink'] = 'pack-journey';
+                $row->setPayload($payload);
+                $this->entityManager->flush();
+
+                return;
+            }
+        }
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_material_wet_not_hung',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $payload = $row->getPayload();
+        $payload['journey_step'] = 'store';
+        $payload['deeplink'] = 'pack-journey';
+        $payload['material_name'] = $materialName;
+        $payload['quantity_wet'] = $quantityWet;
+        $row->setPayload($payload);
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
     public function notifyReplenishmentWishCreated(
         Activity $activity,
         User $requester,
@@ -735,6 +796,7 @@ class InboxMessageService
             'activity_packed' => $isLogistics ? 'transport_out' : 'issue',
             'activity_at_event' => $isLogistics ? 'transport_back' : 'return',
             'activity_returned', 'activity_returned_mw' => $forMwRecipient ? 'store' : 'return',
+            'activity_material_wet_not_hung' => 'store',
             'activity_replenishment_wish' => 'pack',
             'activity_replenishment_wish_fulfilled', 'activity_replenishment_wish_rejected' => 'pack',
             'activity_pack_crate_check_incomplete' => match ($activity->getStatus()) {

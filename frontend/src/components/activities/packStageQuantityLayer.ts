@@ -428,7 +428,7 @@ export function computeEffectiveStageLeftQty(
 ): number {
   if (isPackUnpackStage(ctx.stage)) {
     const acct = ctx.retourAccountingForUnpackLoose(pi)
-    return Math.max(0, acct.retourTotal - (pi.quantityStored ?? 0))
+    return Math.max(0, acct.retourTotal - (pi.quantityStored ?? 0) - (pi.quantityWet ?? 0))
   }
   if (!isPackConfirmedStage(ctx.stage)) {
     return stageLeft(pi, ctx)

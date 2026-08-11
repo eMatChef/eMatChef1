@@ -13,6 +13,7 @@ defineProps<{
   submitDisabled: boolean
   canReportConsumption?: boolean
   canReportIssues?: boolean
+  departmentId?: string
 }>()
 
 const emit = defineEmits<{
@@ -46,6 +47,7 @@ function onCancel(): void {
     :submitting="submitting"
     :submit-disabled="submitDisabled"
     :searchable-materials="[]"
+    :department-id="departmentId"
     @cancel="onCancel"
     @submit="emit('submit')"
     @update:lines="emit('update:lines', $event)"

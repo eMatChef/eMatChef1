@@ -28,6 +28,10 @@ export function formatActivityMwInboxPreview(
   if (entry.type === 'activity_issue_reported' && entry.material_name?.trim()) {
     parts.push(entry.material_name.trim())
   }
+  if (entry.type === 'activity_material_wet_not_hung') {
+    if (entry.material_name?.trim()) parts.push(entry.material_name.trim())
+    if (entry.quantity_wet != null) parts.push(`${entry.quantity_wet}`)
+  }
   if (entry.type === 'activity_pack_crate_check_incomplete') {
     const shell = entry.shell_material_name?.trim()
     const dev = entry.deviation_summary?.trim()

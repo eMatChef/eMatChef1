@@ -18,6 +18,13 @@ export interface ActivityPackItem {
   quantityTransportBack: number
   quantityReturned: number
   quantityStored: number
+  quantityWet: number
+  wetHung: boolean | null
+  wetDryingStorageAddressId: string | null
+  wetDryingRackId: string | null
+  wetDryingSlotId: string | null
+  wetDryingLocationLabel: string | null
+  wetWorkshopTicketId: string | null
   conditionOut: string | null
   notes: string | null
   isFullyPacked: boolean
@@ -72,6 +79,28 @@ function mapPackItem(raw: Record<string, unknown>): ActivityPackItem {
     quantityTransportBack: num(raw.quantity_transport_back),
     quantityReturned: num(raw.quantity_returned),
     quantityStored: num(raw.quantity_stored),
+    quantityWet: num(raw.quantity_wet),
+    wetHung: raw.wet_hung == null ? null : Boolean(raw.wet_hung),
+    wetDryingStorageAddressId:
+      raw.wet_drying_storage_address_id != null && String(raw.wet_drying_storage_address_id).trim() !== ''
+        ? String(raw.wet_drying_storage_address_id)
+        : null,
+    wetDryingRackId:
+      raw.wet_drying_rack_id != null && String(raw.wet_drying_rack_id).trim() !== ''
+        ? String(raw.wet_drying_rack_id)
+        : null,
+    wetDryingSlotId:
+      raw.wet_drying_slot_id != null && String(raw.wet_drying_slot_id).trim() !== ''
+        ? String(raw.wet_drying_slot_id)
+        : null,
+    wetDryingLocationLabel:
+      raw.wet_drying_location_label != null && String(raw.wet_drying_location_label).trim() !== ''
+        ? String(raw.wet_drying_location_label).trim()
+        : null,
+    wetWorkshopTicketId:
+      raw.wet_workshop_ticket_id != null && String(raw.wet_workshop_ticket_id).trim() !== ''
+        ? String(raw.wet_workshop_ticket_id)
+        : null,
     conditionOut: raw.condition_out != null ? String(raw.condition_out) : null,
     notes: raw.notes != null ? String(raw.notes) : null,
     isFullyPacked: Boolean(raw.is_fully_packed),
@@ -137,13 +166,34 @@ export type PackMoveSource = 'tap' | 'scan' | 'bulk'
 export async function postMovePackItem(
   activityId: string,
   packItemId: string,
-  body: { stage: PackMoveStage; quantity: number; source?: PackMoveSource },
+  body: { stage: PackMoveStage; quantity: number; source?: PackMoveSource; from_wet?: boolean },
 ): Promise<ActivityPackItem> {
   const { data } = await apiClient.post<Record<string, unknown>>(
     `/api/activities/${activityId}/pack-items/${packItemId}/move`,
     body,
   )
   return mapPackItem((data || {}) as Record<string, unknown>)
+}
+
+export type PackItemWetDisposition = {
+  quantity_wet: number
+  wet_hung?: boolean | null
+  wet_drying_storage_address_id?: string | null
+  wet_drying_rack_id?: string | null
+  wet_drying_slot_id?: string | null
+  wet_drying_location_label?: string | null
+}
+
+export async function postPackItemWet(
+  activityId: string,
+  packItemId: string,
+  data: PackItemWetDisposition,
+): Promise<ActivityPackItem> {
+  const { data: raw } = await apiClient.post<Record<string, unknown>>(
+    `/api/activities/${activityId}/pack-items/${packItemId}/wet`,
+    data,
+  )
+  return mapPackItem((raw || {}) as Record<string, unknown>)
 }
 
 export async function patchActivityPackItem(
