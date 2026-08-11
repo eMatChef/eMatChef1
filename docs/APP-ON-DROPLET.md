@@ -1,76 +1,69 @@
-# App-Frontend auf dem Droplet (statt Hostpoint-FTP)
+# Frontend auf dem Droplet (statt Hostpoint-FTP)
 
 ## Zielbild
 
 | Was | Host | Deploy |
 |-----|------|--------|
-| Marketing / Landing (`ematchef.ch`, `dev.ematchef.ch`, `staging.ematchef.ch`) | **Hostpoint** | FTP (selten) |
-| App + QR + Devices (`app*.ematchef.ch`, `qr*`, `devices*`) | **Hetzner** (gleicher API-Droplet) | CI → SSH/rsync, Caddy `file_server` |
+| Marketing (`ematchef.ch`, `dev.`, `staging.`) | **Hetzner** (API-Droplet) | CI → SSH/rsync, Caddy |
+| App + QR + Devices (`app*`, `qr*`, `devices*`) | **Hetzner** (gleicher Droplet) | CI → SSH/rsync, Caddy |
+| API | Hetzner Compose | CD-Workflows |
 
-Hostpoint kann **keine** Docker-Images wie ein Cluster. Stattdessen: statischen Vite-Build auf dem Droplet ausliefern (Caddy) — schneller und robuster als FTP mit tausenden Einzeldateien.
+Hostpoint-FTP bleibt nur als Notfall (`workflow_dispatch`) bis DNS umgestellt und verifiziert ist.
 
 ## Develop (erster Cutover)
 
-### 1. Build lokal / CI
+### 1. Build
 
 ```bash
-bash scripts/build-droplet-app.sh develop
-# → deploy/droplet/develop/app/ (index.html + assets/)
+bash scripts/build-droplet-frontend.sh develop
+# → deploy/droplet/develop/{home,app}/
 ```
 
 ### 2. Caddy auf dem Develop-Droplet
 
 Vorlage: [`deploy/caddy/Caddyfile.develop.example`](../deploy/caddy/Caddyfile.develop.example)
 
-Typisch:
-
-- `api-dev.ematchef.ch` → `127.0.0.1:8081` (wie bisher)
-- `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch` → `root` auf z. B. `/var/www/ematchef-app-develop`
-
 ```bash
-sudo mkdir -p /var/www/ematchef-app-develop
-sudo chown -R "$(whoami):$(whoami)" /var/www/ematchef-app-develop
+sudo mkdir -p /var/www/ematchef-home-develop /var/www/ematchef-app-develop
+sudo chown -R "$(whoami):$(whoami)" /var/www/ematchef-home-develop /var/www/ematchef-app-develop
 # Caddyfile anpassen, validate, reload
 ```
 
-### 3. GitHub Actions
+### 3. GitHub Actions / Secrets
 
-Workflow **Deploy App Develop (Droplet)**: baut nur die App-Variante und sync’t per SSH nach `DEVELOP_APP_WEBROOT` (Secret, z. B. `/var/www/ematchef-app-develop`).
+Workflow **Deploy Frontend Develop (Droplet)** baut home + app und rsync’t nach:
 
-Secrets: bestehende `DEVELOP_SSH_*` + neu `DEVELOP_APP_WEBROOT`.
+| Secret | Beispiel |
+|--------|----------|
+| `DEVELOP_HOME_WEBROOT` | `/var/www/ematchef-home-develop` |
+| `DEVELOP_APP_WEBROOT` | `/var/www/ematchef-app-develop` |
+
+Plus bestehende `DEVELOP_SSH_*`.
 
 ### 4. DNS-Cutover (Cloudflare)
 
-`app-dev`, `qr-dev`, `devices-dev` von Hostpoint-IP → **Hetzner-IP** (`api-dev`).  
-Marketing `dev.ematchef.ch` bleibt auf Hostpoint.
+`dev`, `app-dev`, `qr-dev`, `devices-dev` → **Hetzner-IP** (gleiche wie `api-dev`).
 
-### 5. FTP danach
+### 5. FTP
 
-Nur noch **home** (Marketing) per FTP; App-Upload aus `ftp-deploy-develop.yml` entfernen (nach erfolgreichem Cutover).
-
-Bis zum Cutover: Droplet-Deploy und Hostpoint-App dürfen parallel existieren — DNS entscheidet, welcher Host ausgeliefert wird.
+Develop/Staging-FTP: nur noch `workflow_dispatch`. Nach stabilem Cutover Workflows entfernen.
 
 ## Staging / Prod
 
-Gleiches Muster:
-
-| Env | Script-Arg | Webroot-Beispiel | Hosts |
-|-----|------------|------------------|--------|
-| staging | `staging` | `/var/www/ematchef-app-staging` | `app-staging`, `qr-staging`, `devices-staging` (+ Caddy `basic_auth`) |
-| prod | `prod` | `/var/www/ematchef-app-prod` | `app`, `qr`, `devices` |
-
-Marketing `staging.ematchef.ch` / `ematchef.ch` weiter Hostpoint.
+| Env | Script-Arg | Home / App Webroot | Hosts |
+|-----|------------|--------------------|--------|
+| staging | `staging` | `…-home-staging` / `…-app-staging` | `staging`, `app-staging`, … (+ Caddy `basic_auth`) |
+| prod | `prod` | `…-home-prod` / `…-app-prod` | `ematchef.ch`, `app`, … |
 
 ## Checkliste Cutover Develop
 
-1. [ ] Secret `DEVELOP_APP_WEBROOT` gesetzt  
-2. [ ] Caddy-Blöcke für App/QR/Devices aktiv, `caddy validate` + reload  
-3. [ ] Workflow **Deploy App Develop** einmal grün  
-4. [ ] `curl -sI https://app-dev.ematchef.ch` gegen Droplet-IP testen (Hosts-Datei oder nach DNS)  
-5. [ ] Cloudflare DNS umstellen  
-6. [ ] Login + SPA-Routen prüfen  
-7. [ ] FTP-Workflow auf nur-Marketing reduzieren  
+1. [ ] Secrets `DEVELOP_HOME_WEBROOT` + `DEVELOP_APP_WEBROOT` gesetzt  
+2. [ ] Caddy-Blöcke aktiv, `caddy validate` + reload  
+3. [ ] Workflow **Deploy Frontend Develop** einmal grün  
+4. [ ] Cloudflare DNS umstellen  
+5. [ ] Landing + Login + SPA-Routen prüfen  
+6. [ ] FTP nur noch Notfall / später löschen  
 
 ## Warum nicht Docker-Image fürs Frontend?
 
-Optional später (Nginx/Caddy-Container im Compose). Für den Start reicht **Host-Caddy + rsync**: weniger Moving Parts, gleiches TLS wie `api-dev`, kein Registry nötig.
+Optional später. Für den Start reicht **Host-Caddy + rsync**: weniger Moving Parts, gleiches TLS wie `api-dev`.

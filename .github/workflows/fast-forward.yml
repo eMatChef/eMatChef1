@@ -67,10 +67,13 @@ jobs:
               );
               return;
             }
-            if (pr.mergeable_state !== 'clean') {
+            // clean = alles gruen; unstable = oft nur optionale/cancelled Checks (z. B. FTP),
+            // waehrend required "CI ok" bereits gruen ist — Releases sonst unnoetig blockiert.
+            const allowedStates = new Set(['clean', 'unstable']);
+            if (!allowedStates.has(pr.mergeable_state)) {
               core.setFailed(
-                `Kein sauberer Fast-forward (mergeable_state: **${pr.mergeable_state}**). ` +
-                'Branche zusammengefuehrt / Konflikte geloest?'
+                `Kein Fast-forward (mergeable_state: **${pr.mergeable_state}**). ` +
+                'Konflikte / blocked Checks zuerst klaeren.'
               );
               return;
             }

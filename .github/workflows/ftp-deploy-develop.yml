@@ -1,14 +1,9 @@
 name: FTP Deploy Develop (Hostpoint)
 
+# Bis DNS-Cutover auf Hetzner: nur noch manuell (workflow_dispatch).
+# Automatik laeuft ueber Deploy Frontend Develop (Droplet).
+
 on:
-  push:
-    branches:
-      - develop
-    paths:
-      - "frontend/**"
-      - "scripts/build-hostpoint-deploy-dev.sh"
-      - "scripts/hostpoint-spa.htaccess"
-      - ".github/workflows/ftp-deploy-develop.yml"
   workflow_dispatch:
 
 concurrency:
