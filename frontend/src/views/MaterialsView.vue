@@ -63,6 +63,53 @@
               <v-btn value="virtual" size="small">{{ t('materialsView.comboFilterVirtual') }}</v-btn>
             </v-btn-toggle>
           </v-col>
+          <v-col v-if="activeTab === 'food'" cols="auto" class="materials-view-combo-toggle">
+            <v-btn-toggle
+              v-model="foodExpiryFilter"
+              density="compact"
+              color="primary"
+              variant="outlined"
+              mandatory
+            >
+              <v-btn value="all" size="small">{{ t('materialsView.foodFilterAll') }}</v-btn>
+              <v-btn value="soon" size="small">{{ t('materialsView.foodFilterSoon') }}</v-btn>
+              <v-btn value="expired" size="small">{{ t('materialsView.foodFilterExpired') }}</v-btn>
+              <v-btn value="none" size="small">{{ t('materialsView.foodFilterNoDate') }}</v-btn>
+            </v-btn-toggle>
+          </v-col>
+          <v-col
+            v-if="activeTab === 'food' && foodExpiryFilter === 'soon'"
+            cols="auto"
+            class="materials-view-combo-toggle"
+          >
+            <v-btn-toggle
+              v-model="foodSoonDays"
+              density="compact"
+              color="primary"
+              variant="outlined"
+              mandatory
+            >
+              <v-btn
+                v-for="n in foodSoonDayOptions"
+                :key="n"
+                :value="n"
+                size="small"
+              >{{ t('materialsView.foodSoonDays', { n }) }}</v-btn>
+            </v-btn-toggle>
+          </v-col>
+          <v-col v-if="activeTab === 'food'" cols="auto" class="materials-view-combo-toggle">
+            <v-btn-toggle
+              v-model="foodSortKey"
+              density="compact"
+              color="primary"
+              variant="outlined"
+              mandatory
+            >
+              <v-btn value="expiry" size="small">{{ t('materialsView.foodSortExpiry') }}</v-btn>
+              <v-btn value="name" size="small">{{ t('materialsView.foodSortName') }}</v-btn>
+              <v-btn value="stock" size="small">{{ t('materialsView.foodSortStock') }}</v-btn>
+            </v-btn-toggle>
+          </v-col>
           <v-col v-if="!isUserMaterialsBrowseOnly" cols="auto" class="e-filter-row__select">
             <ESelect
               v-model="selectedCategory"
@@ -155,10 +202,14 @@
                     :categories-by-id="categoriesById"
                     :show-combo-columns="showComboColumns"
                     :show-combo-expand-column="showComboExpandColumn"
+                    :show-food-columns="showFoodColumns"
+                    :show-food-expand-column="showFoodExpandColumn"
                     :show-stock-detail-columns="showStockDetailColumns"
                     :expanded-ids="expandedComboIds"
                     :combo-components-by-id="comboComponentsById"
                     :combo-components-loading="comboComponentsLoading"
+                    :food-batches-by-id="foodBatchesById"
+                    :food-batches-loading="foodBatchesLoading"
                     :assignment-labels="assignmentLabels"
                     @open="openMaterialDetail"
                     @open-component="openMaterialDetailById"
@@ -170,13 +221,17 @@
                     :items="filteredMaterials"
                     :categories-by-id="categoriesById"
                     :show-combo-expand-column="showComboExpandColumn"
+                    :show-food-columns="showFoodColumns"
+                    :show-food-expand-column="showFoodExpandColumn"
                     :show-stock-detail-columns="showStockDetailColumns"
                     :expanded-ids="expandedComboIds"
                     :combo-components-by-id="comboComponentsById"
                     :combo-components-loading="comboComponentsLoading"
+                    :food-batches-by-id="foodBatchesById"
+                    :food-batches-loading="foodBatchesLoading"
                     @open="openMaterialDetail"
                     @open-component="openMaterialDetailById"
-                    @toggle-expand="toggleComboExpand"
+                    @toggle-expand="toggleListExpand"
                   />
                 </template>
               </EResponsiveDataList>
@@ -291,10 +346,20 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   getMaterials,
   getComboComponents,
+  getMaterialBatches,
   addComboComponent,
   type Material,
+  type MaterialBatch,
   type ComboComponent,
 } from '@/api/materials'
+import {
+  compareFoodMaterials,
+  FOOD_SOON_DAY_OPTIONS,
+  FOOD_SOON_DEFAULT_DAYS,
+  matchesFoodExpiryFilter,
+  type FoodExpiryFilter,
+  type FoodSortKey,
+} from '@/utils/materialExpiry'
 import { getCategories, type Category } from '@/api/categories'
 import MaterialCreateWizard from '@/components/material/MaterialCreateWizard.vue'
 import MaterialDetailView from '@/components/material/MaterialDetailView.vue'
@@ -422,6 +487,10 @@ const searchQuery = ref('')
 const selectedCategory = ref('')
 const selectedCondition = ref('')
 const comboFilter = ref<'all' | 'physical' | 'virtual'>('physical')
+const foodExpiryFilter = ref<FoodExpiryFilter>('all')
+const foodSoonDays = ref<number>(FOOD_SOON_DEFAULT_DAYS)
+const foodSortKey = ref<FoodSortKey>('expiry')
+const foodSoonDayOptions = FOOD_SOON_DAY_OPTIONS
 
 // Wizard State
 const showCreateWizard = ref(false)
@@ -532,13 +601,18 @@ async function submitPostCreateComposition() {
   }
 }
 
-// Combo Expand State
+// Combo / Food Expand State
 const expandedComboIds = ref<string[]>([])
 const comboComponentsCache = ref<Map<string, ComboComponent[]>>(new Map())
 const comboComponentsLoading = ref<Set<string>>(new Set())
+const foodBatchesCache = ref<Map<string, MaterialBatch[]>>(new Map())
+const foodBatchesLoading = ref<Set<string>>(new Set())
 
 const comboComponentsById = computed(() =>
   Object.fromEntries(comboComponentsCache.value) as Record<string, ComboComponent[]>
+)
+const foodBatchesById = computed(() =>
+  Object.fromEntries(foodBatchesCache.value) as Record<string, MaterialBatch[]>
 )
 
 // Detail View State (gesteuert über Route-Parameter)
@@ -598,6 +672,9 @@ const showComboExpandColumn = computed(() =>
   activeTab.value === 'all' || activeTab.value === 'combos' || activeTab.value === 'virtual_combos'
 )
 
+const showFoodColumns = computed(() => activeTab.value === 'food')
+const showFoodExpandColumn = computed(() => activeTab.value === 'food')
+
 function isComboMaterial(material: Material): boolean {
   return isComboMaterialType(material)
 }
@@ -644,6 +721,14 @@ const filteredMaterials = computed(() => {
   if (selectedCondition.value) {
     result = result.filter(m => m.condition === selectedCondition.value)
   }
+
+  // 5. Esswaren: Verfall-Filter + Sortierung
+  if (activeTab.value === 'food') {
+    result = result.filter((m) =>
+      matchesFoodExpiryFilter(m.nearest_expiry_date, foodExpiryFilter.value, foodSoonDays.value),
+    )
+    result.sort((a, b) => compareFoodMaterials(a, b, foodSortKey.value))
+  }
   
   return result
 })
@@ -653,7 +738,10 @@ const hasActiveFilters = computed(() => {
     || (!isUserMaterialsBrowseOnly.value && selectedCategory.value)
     || (!isUserMaterialsBrowseOnly.value && selectedCondition.value)
   const comboTypeFilter = activeTab.value === 'combos' && comboFilter.value !== 'all'
-  return baseFilters || comboTypeFilter
+  const foodFilterActive =
+    activeTab.value === 'food'
+    && (foodExpiryFilter.value !== 'all' || foodSortKey.value !== 'expiry')
+  return baseFilters || comboTypeFilter || foodFilterActive
 })
 
 // Methods
@@ -721,19 +809,42 @@ async function ensureComboComponentsLoaded(materialId: string) {
   }
 }
 
+async function ensureFoodBatchesLoaded(materialId: string) {
+  if (foodBatchesCache.value.has(materialId)) return
+
+  foodBatchesLoading.value.add(materialId)
+  foodBatchesLoading.value = new Set(foodBatchesLoading.value)
+  try {
+    const batches = await getMaterialBatches(materialId)
+    foodBatchesCache.value.set(materialId, batches)
+    foodBatchesCache.value = new Map(foodBatchesCache.value)
+  } catch (err) {
+    console.error(t('materialsView.logErrorLoadBatches'), err)
+    foodBatchesCache.value.set(materialId, [])
+    foodBatchesCache.value = new Map(foodBatchesCache.value)
+  } finally {
+    foodBatchesLoading.value.delete(materialId)
+    foodBatchesLoading.value = new Set(foodBatchesLoading.value)
+  }
+}
+
 function onExpandedComboIdsUpdate(ids: string[]) {
   const previouslyExpanded = new Set(expandedComboIds.value)
   expandedComboIds.value = ids
   for (const id of ids) {
-    if (!previouslyExpanded.has(id)) {
+    if (previouslyExpanded.has(id)) continue
+    const row = materials.value.find((m) => m.id === id)
+    if (activeTab.value === 'food' || row?.is_food) {
+      void ensureFoodBatchesLoaded(id)
+    } else {
       void ensureComboComponentsLoaded(id)
     }
   }
 }
 
-async function toggleComboExpand(materialId: string) {
+async function toggleListExpand(materialId: string) {
   const row = materials.value.find((m) => m.id === materialId)
-  if (!row || !isComboMaterial(row)) return
+  if (!row) return
 
   if (expandedComboIds.value.includes(materialId)) {
     expandedComboIds.value = expandedComboIds.value.filter((id) => id !== materialId)
@@ -741,7 +852,11 @@ async function toggleComboExpand(materialId: string) {
   }
 
   expandedComboIds.value = [...expandedComboIds.value, materialId]
-  await ensureComboComponentsLoaded(materialId)
+  if (activeTab.value === 'food' || row.is_food) {
+    await ensureFoodBatchesLoaded(materialId)
+  } else if (isComboMaterial(row)) {
+    await ensureComboComponentsLoaded(materialId)
+  }
 }
 
 const { clearSearchFromRoute, stripQueryFromDetailRoute } = useListSearchQueryRoute({
@@ -758,6 +873,9 @@ function resetFilters() {
   selectedCategory.value = ''
   selectedCondition.value = ''
   comboFilter.value = 'physical'
+  foodExpiryFilter.value = 'all'
+  foodSoonDays.value = FOOD_SOON_DEFAULT_DAYS
+  foodSortKey.value = 'expiry'
 }
 
 function selectTab(tab: MaterialTab) {
