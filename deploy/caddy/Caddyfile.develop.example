@@ -1,8 +1,8 @@
-# Develop-Droplet: API + App-Hierarchie (kein Marketing auf dem Droplet).
+# Develop-Droplet: API + App (Einstieg bare host) + qr/devices Hierarchie.
 #
 #   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
 #
-# Webroot: Secret DEVELOP_APP_WEBROOT (z. B. /var/www/ematchef-app-develop)
+# Webroot: DEVELOP_APP_WEBROOT (z. B. /var/www/ematchef-app-develop)
 
 api.dev.ematchef.ch, api-dev.ematchef.ch {
 	reverse_proxy 127.0.0.1:8081
@@ -12,15 +12,11 @@ api.staging.ematchef.ch, api-staging.ematchef.ch {
 	reverse_proxy 127.0.0.1:8082
 }
 
-app.dev.ematchef.ch, qr.dev.ematchef.ch, devices.dev.ematchef.ch,
+# Develop-App: Einstieg https://dev.ematchef.ch (Login)
+dev.ematchef.ch, app.dev.ematchef.ch, qr.dev.ematchef.ch, devices.dev.ematchef.ch,
 app-dev.ematchef.ch, qr-dev.ematchef.ch, devices-dev.ematchef.ch {
 	root * /var/www/ematchef-app-develop
 	encode gzip
 	try_files {path} /index.html
 	file_server
-}
-
-# bare dev. → App (nicht Marketing; isAppOrigin gilt nur für app.dev)
-dev.ematchef.ch {
-	redir https://app.dev.ematchef.ch{uri} permanent
 }

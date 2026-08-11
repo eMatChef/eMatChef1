@@ -20,7 +20,7 @@
    | **API** (Backend) | `https://api.ematchef.ch/api/health` | Symfony + DB |
 
    Optional Develop (eigene Statusseite oder Sektion „Development“):
-   - App: `https://app.dev.ematchef.ch/`
+   - App: `https://dev.ematchef.ch/`
    - API: `https://api.dev.ematchef.ch/api/health`
 
    So siehst du z. B. „App ok, API down“ statt nur „alles rot“.

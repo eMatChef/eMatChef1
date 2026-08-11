@@ -4,7 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
  * Smoke-E2E gegen eine laufende Umgebung (typisch app-dev).
  * Secrets/ENV: siehe docs/E2E.md
  */
-const baseURL = process.env.E2E_BASE_URL || 'https://app.dev.ematchef.ch'
+const baseURL = process.env.E2E_BASE_URL || 'https://dev.ematchef.ch'
 
 export default defineConfig({
   testDir: './e2e',
