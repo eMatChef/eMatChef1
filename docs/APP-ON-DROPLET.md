@@ -4,66 +4,50 @@
 
 | Was | Host | Deploy |
 |-----|------|--------|
-| Marketing (`ematchef.ch`, `dev.`, `staging.`) | **Hetzner** (API-Droplet) | CI → SSH/rsync, Caddy |
-| App + QR + Devices (`app*`, `qr*`, `devices*`) | **Hetzner** (gleicher Droplet) | CI → SSH/rsync, Caddy |
+| Marketing Prod (`ematchef.ch`) | **Hostpoint** | selten FTP |
+| Develop/Staging App + QR + Devices | **Hetzner** (API-Droplet) | CI → rsync, Caddy |
+| Prod App + QR + Devices | **Hetzner** (Prod-Droplet) | CI → rsync (später) |
 | API | Hetzner Compose | CD-Workflows |
 
-Hostpoint-FTP bleibt nur als Notfall (`workflow_dispatch`) bis DNS umgestellt und verifiziert ist.
+### Hostnamen (Hierarchie)
 
-## Develop (erster Cutover)
+| Env | App | QR | Devices | API |
+|-----|-----|----|---------|-----|
+| develop | `app.dev.ematchef.ch` | `qr.dev` | `devices.dev` | `api.dev` |
+| staging | `app.staging.ematchef.ch` | `qr.staging` | `devices.staging` | `api.staging` |
+| prod | `app.ematchef.ch` | `qr` | `devices` | `api` |
 
-### 1. Build
+Alte flat-Namen (`app-dev`, …) redirecten kurz per Caddy auf die Hierarchie.
+
+## Develop
 
 ```bash
 bash scripts/build-droplet-frontend.sh develop
-# → deploy/droplet/develop/{home,app}/
+# → deploy/droplet/develop/app/
 ```
 
-### 2. Caddy auf dem Develop-Droplet
+Caddy: [`deploy/caddy/Caddyfile.develop.example`](../deploy/caddy/Caddyfile.develop.example)
 
-Vorlage: [`deploy/caddy/Caddyfile.develop.example`](../deploy/caddy/Caddyfile.develop.example)
+Secrets: `DEVELOP_APP_WEBROOT` = `/var/www/ematchef-app-develop` + `DEVELOP_SSH_*`.
 
-```bash
-sudo mkdir -p /var/www/ematchef-home-develop /var/www/ematchef-app-develop
-sudo chown -R "$(whoami):$(whoami)" /var/www/ematchef-home-develop /var/www/ematchef-app-develop
-# Caddyfile anpassen, validate, reload
-```
+### Cloudflare (Develop)
 
-### 3. GitHub Actions / Secrets
+A-Records auf **`94.130.231.112`** (Nur DNS):
 
-Workflow **Deploy Frontend Develop (Droplet)** baut home + app und rsync’t nach:
+- `app.dev` / `qr.dev` / `devices.dev`
+- optional Übergang: `app-dev`, `qr-dev`, `devices-dev`, `dev` (Redirects)
 
-| Secret | Beispiel |
-|--------|----------|
-| `DEVELOP_HOME_WEBROOT` | `/var/www/ematchef-home-develop` |
-| `DEVELOP_APP_WEBROOT` | `/var/www/ematchef-app-develop` |
+Kein neuer Hostpoint-VHost nötig.
 
-Plus bestehende `DEVELOP_SSH_*`.
+## Staging
 
-### 4. DNS-Cutover (Cloudflare)
-
-`dev`, `app-dev`, `qr-dev`, `devices-dev` → **Hetzner-IP** (gleiche wie `api-dev`).
-
-### 5. FTP
-
-Develop/Staging-FTP: nur noch `workflow_dispatch`. Nach stabilem Cutover Workflows entfernen.
-
-## Staging / Prod
-
-| Env | Script-Arg | Home / App Webroot | Hosts |
-|-----|------------|--------------------|--------|
-| staging | `staging` | `…-home-staging` / `…-app-staging` | `staging`, `app-staging`, … (+ Caddy `basic_auth`) |
-| prod | `prod` | `…-home-prod` / `…-app-prod` | `ematchef.ch`, `app`, … |
+Gleiches Muster mit `*.staging` + Caddy `basic_auth`. Siehe `Caddyfile.staging.example`.
 
 ## Checkliste Cutover Develop
 
-1. [ ] Secrets `DEVELOP_HOME_WEBROOT` + `DEVELOP_APP_WEBROOT` gesetzt  
-2. [ ] Caddy-Blöcke aktiv, `caddy validate` + reload  
-3. [ ] Workflow **Deploy Frontend Develop** einmal grün  
-4. [ ] Cloudflare DNS umstellen  
-5. [ ] Landing + Login + SPA-Routen prüfen  
-6. [ ] FTP nur noch Notfall / später löschen  
-
-## Warum nicht Docker-Image fürs Frontend?
-
-Optional später. Für den Start reicht **Host-Caddy + rsync**: weniger Moving Parts, gleiches TLS wie `api-dev`.
+1. [ ] Caddy Hierarchie + Reload  
+2. [ ] API `.env` / Compose: `APP_FRONTEND_URL`, `CORS_ALLOW_ORIGIN`  
+3. [ ] Workflow **Deploy Frontend Develop** grün  
+4. [ ] Cloudflare `app.dev` / `qr.dev` / `devices.dev`  
+5. [ ] Smoke Login auf `https://app.dev.ematchef.ch`  
+6. [ ] Hostpoint-Dev-Webordner später leeren (Daten/Mail behalten)  

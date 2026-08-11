@@ -1,10 +1,10 @@
-# Develop-Override für den API-Server (z. B. /opt/ematchef/develop, Branch develop, api-dev.ematchef.ch).
+# Develop-Override für den API-Server (z. B. /opt/ematchef/develop, Branch develop, api.dev.ematchef.ch).
 # Analog zu docker-compose.override.prod.example.yml — auf dem Develop-Droplet z. B.:
 #   cp deploy/docker-compose.override.develop.example.yml docker-compose.override.yml
 # Dann .env / Secrets setzen und: docker compose -p ematchef-develop up -d db backend
 #
 # Wichtig: Ohne passendes CORS_ALLOW_ORIGIN blockiert der Browser Aufrufe von
-# https://app-dev.ematchef.ch → https://api-dev.ematchef.ch (Fehler „No Access-Control-Allow-Origin“).
+# https://app.dev.ematchef.ch → https://api.dev.ematchef.ch (Fehler „No Access-Control-Allow-Origin“).
 
 services:
   db:
@@ -26,15 +26,15 @@ services:
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
-      APP_FRONTEND_URL: "https://app-dev.ematchef.ch"
-      APP_MAIN_SITE_ORIGIN: "https://dev.ematchef.ch"
-      APP_PUBLIC_QR_URL: "https://qr-dev.ematchef.ch"
+      APP_FRONTEND_URL: "https://app.dev.ematchef.ch"
+      APP_MAIN_SITE_ORIGIN: "https://ematchef.ch"
+      APP_PUBLIC_QR_URL: "https://qr.dev.ematchef.ch"
       # Alle Develop-Frontends unter *.ematchef.ch (JWT/Refresh-Cookies)
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
       EMATCHEF_DEV_TOOLS: "1"
-      # Alle Origins, die die API vom Browser aus aufrufen (kein * bei credentials)
-      CORS_ALLOW_ORIGIN: '^https://(dev\.ematchef\.ch|app-dev\.ematchef\.ch|qr-dev\.ematchef\.ch|devices-dev\.ematchef\.ch)$'
+      # Hierarchie + kurze Übergangs-Hosts (app-dev / bare dev)
+      CORS_ALLOW_ORIGIN: '^https://((app|qr|devices)\.dev\.ematchef\.ch|(dev|app-dev|qr-dev|devices-dev)\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
       MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"

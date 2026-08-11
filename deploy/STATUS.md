@@ -5,7 +5,7 @@
 ## Voraussetzungen im Code
 
 - Health-Check: `GET https://api.ematchef.ch/api/health` → `{ "status": "ok" }` bei erreichbarer DB, sonst HTTP 503.
-- Develop: `GET https://api-dev.ematchef.ch/api/health`
+- Develop: `GET https://api.dev.ematchef.ch/api/health`
 - Footer-Link auf der Marketing-Site zeigt auf `https://status.ematchef.ch` (anpassbar per `VITE_STATUS_PAGE_URL` beim Frontend-Build).
 
 ## Setup (einmalig)
@@ -20,8 +20,8 @@
    | **API** (Backend) | `https://api.ematchef.ch/api/health` | Symfony + DB |
 
    Optional Develop (eigene Statusseite oder Sektion „Development“):
-   - App: `https://app-dev.ematchef.ch/`
-   - API: `https://api-dev.ematchef.ch/api/health`
+   - App: `https://app.dev.ematchef.ch/`
+   - API: `https://api.dev.ematchef.ch/api/health`
 
    So siehst du z. B. „App ok, API down“ statt nur „alles rot“.
 3. **Status page** erstellen, alle Prod-Monitore zuordnen, Titel z. B. „eMatChef Status“. In der Status-Page-UI können Monitore als **Resources / Components** benannt und gruppiert werden (Website / App / API).

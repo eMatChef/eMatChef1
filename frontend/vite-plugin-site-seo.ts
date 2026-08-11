@@ -14,7 +14,12 @@ function isDevDeploy(env: Record<string, string>): boolean {
     return true
   }
   const origin = siteOrigin(env).toLowerCase()
-  return origin.includes('dev.ematchef.ch') || origin.includes('.ematchef.test')
+  return (
+    origin.includes('dev.ematchef.ch') ||
+    origin.includes('.dev.ematchef.ch') ||
+    origin.includes('.staging.ematchef.ch') ||
+    origin.includes('.ematchef.test')
+  )
 }
 
 function isMarketingVariant(env: Record<string, string>): boolean {
