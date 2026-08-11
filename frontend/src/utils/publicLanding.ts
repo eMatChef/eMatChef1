@@ -105,8 +105,13 @@ function normalizeFeatureRow(row: unknown, index: number): LandingFeatureItem {
     return { icon: fallbackIcon, title: '', text: '' }
   }
   const o = row as Record<string, unknown>
+  const rawIcon = String(o.icon ?? fallbackIcon).trim()
+  // Legacy: max. 8 Zeichen (Ein-Zeichen-Symbole). MDI-Namen (mdi-…) nicht kürzen.
+  const icon = rawIcon.startsWith('mdi-')
+    ? rawIcon.slice(0, 96)
+    : rawIcon.slice(0, 8) || fallbackIcon
   return {
-    icon: String(o.icon ?? fallbackIcon).slice(0, 8) || fallbackIcon,
+    icon,
     title: String(o.title ?? ''),
     text: String(o.text ?? ''),
   }
