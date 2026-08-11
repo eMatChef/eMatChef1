@@ -1,4 +1,6 @@
-name: FTP Deploy Prod (Hostpoint)
+name: FTP Deploy Prod Marketing (Hostpoint)
+
+# Nur Marketing (ematchef.ch) per FTP. App/QR/Devices → Prod-Droplet (Caddy/rsync).
 
 on:
   push:
@@ -7,7 +9,6 @@ on:
     paths:
       - "frontend/**"
       - "scripts/build-hostpoint-deploy-prod.sh"
-      - "scripts/build-hostpoint-deploy.sh"
       - "scripts/hostpoint-spa.htaccess"
       - ".github/workflows/ftp-deploy-prod.yml"
   workflow_dispatch:
@@ -17,9 +18,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy-prod-hostpoint:
-    name: Build and upload prod frontend
+  deploy-prod-marketing-hostpoint:
+    name: Build and upload prod marketing (home)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -35,17 +37,17 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: Build prod hostpoint artifacts
+      - name: Build prod hostpoint marketing
         working-directory: ${{ github.workspace }}
         env:
           EMATCHEF_REPO_ROOT: ${{ github.workspace }}
         run: bash scripts/build-hostpoint-deploy-prod.sh
 
-      - name: Verify prod hostpoint output (home + app)
+      - name: Verify prod home output
         run: |
           test -f deploy/hostpoint/prod/home/index.html
-          test -f deploy/hostpoint/prod/app/index.html
-          du -sh deploy/hostpoint/prod/home deploy/hostpoint/prod/app
+          test -f deploy/hostpoint/prod/home/.htaccess
+          du -sh deploy/hostpoint/prod/home
 
       - name: Upload prod home
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -56,16 +58,4 @@ jobs:
           port: ${{ secrets.FTP_PORT }}
           local-dir: deploy/hostpoint/prod/home/
           server-dir: ${{ secrets.FTP_PATH_MAIN_PROD }}
-          # Entfernt auf dem Server alles, was nicht im aktuellen Build liegt (verhindert doppelte Alt-Dateien / Case-Duplikate).
-          dangerous-clean-slate: true
-
-      - name: Upload prod app
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: ${{ secrets.FTP_PORT }}
-          local-dir: deploy/hostpoint/prod/app/
-          server-dir: ${{ secrets.FTP_PATH_APP_PROD }}
           dangerous-clean-slate: true
