@@ -6,7 +6,7 @@
 #   docker compose -p ematchef-staging up -d db backend
 #
 # Wichtig: anderer Host-Port als develop (develop oft 8081) — sonst „address already in use“.
-# Nginx: api-staging.ematchef.ch → 127.0.0.1:8082
+# Caddy: api-staging.ematchef.ch → 127.0.0.1:8082
 
 services:
   db:
@@ -27,13 +27,13 @@ services:
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
-      APP_FRONTEND_URL: "https://app-staging.ematchef.ch"
-      APP_MAIN_SITE_ORIGIN: "https://staging.ematchef.ch"
-      APP_PUBLIC_QR_URL: "https://qr-staging.ematchef.ch"
+      APP_FRONTEND_URL: "https://app.staging.ematchef.ch"
+      APP_MAIN_SITE_ORIGIN: "https://ematchef.ch"
+      APP_PUBLIC_QR_URL: "https://qr.staging.ematchef.ch"
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"
       AUTH_COOKIE_SECURE: "1"
       EMATCHEF_DEV_TOOLS: "1"
-      CORS_ALLOW_ORIGIN: '^https://(staging\.ematchef\.ch|app-staging\.ematchef\.ch|qr-staging\.ematchef\.ch|devices-staging\.ematchef\.ch)$'
+      CORS_ALLOW_ORIGIN: '^https://((app|qr|devices)\.staging\.ematchef\.ch|(staging|app-staging|qr-staging|devices-staging)\.ematchef\.ch)$'
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
       MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"

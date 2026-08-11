@@ -4,9 +4,9 @@ Für den **API-Server** (z. B. Hetzner), Projektverzeichnis z. B. `/opt/emat
 
 ## Branch- und Domain-Zuordnung
 
-- `prod` → Produktion (`ematchef.ch`, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`, API `api.ematchef.ch`)
-- `staging` → Release-Kandidat (`staging.ematchef.ch`, `app-staging.ematchef.ch`, `qr-staging.ematchef.ch`, `devices-staging.ematchef.ch`, API `api-staging.ematchef.ch`) — Hostpoint Basic Auth
-- `develop` → Entwicklung (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`, API `api-dev.ematchef.ch`)
+- `develop` → Entwicklung (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api-dev.ematchef.ch`)
+- `staging` → Release-Kandidat (`app.staging.ematchef.ch`, `qr.staging.ematchef.ch`, `devices.staging.ematchef.ch`, API `api-staging.ematchef.ch`)
+- `prod` → Produktion (`ematchef.ch` Marketing/Hostpoint, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`, API `api.ematchef.ch`)
 
 Empfohlene Verzeichnisse:
 

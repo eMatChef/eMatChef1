@@ -37,15 +37,15 @@ In `backend/.env` (lokal) bzw. **Server-Umgebung / Docker-Override** (Produktion
 | `AUTH_COOKIE_DOMAIN` | `.localhost` (nur sinnvoll bei Hosts `app.localhost`, `qr.localhost`, …) | `.ematchef.ch` |
 | `AUTH_COOKIE_SECURE` | `0` (HTTP) | **`1` (HTTPS)** — Pflicht sobald die API über `https://` erreichbar ist |
 
-Fuer die **öffentliche Develop-Umgebung** (`dev.ematchef.ch`, `app-dev.ematchef.ch`, `qr-dev.ematchef.ch`, `devices-dev.ematchef.ch`, API `api-dev.ematchef.ch`):
+Fuer die **öffentliche Develop-Umgebung** (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api-dev.ematchef.ch`):
 
 - `AUTH_COOKIE_SECURE=1`
-- `AUTH_COOKIE_DOMAIN=.ematchef.ch` — damit gelten HttpOnly-Cookies für **alle** diese Subdomains (nicht nur `dev.ematchef.ch`; sonst fehlen Cookies auf `app-dev.*`).
-- `CORS_ALLOW_ORIGIN` muss **jeden** Browser-Origin abdecken, von dem die SPA die API aufruft, z. B. Regex:
+- `AUTH_COOKIE_DOMAIN=.ematchef.ch` — damit gelten HttpOnly-Cookies für **alle** diese Subdomains.
+- `CORS_ALLOW_ORIGIN` muss **jeden** Browser-Origin abdecken, von dem die SPA die API aufruft, z. B.:
 
-  `^https://(dev\.ematchef\.ch|app-dev\.ematchef\.ch|qr-dev\.ematchef\.ch|devices-dev\.ematchef\.ch)$`
+  `^https://((app|qr|devices)\.dev\.ematchef\.ch|(dev|app-dev|qr-dev|devices-dev)\.ematchef\.ch)$`
 
-  Steht dort nur `dev.ematchef.ch`, schlägt der Login von **`https://app-dev.ematchef.ch`** mit CORS-Fehlern fehl („No Access-Control-Allow-Origin“).
+  Steht dort nur ein Host, schlägt der Login von anderen Frontends mit CORS-Fehlern fehl.
 
 Beispiel-Override: `deploy/docker-compose.override.develop.example.yml`
 

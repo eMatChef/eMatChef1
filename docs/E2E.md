@@ -29,7 +29,7 @@ unset E2E_PW
 
 | Secret | Wert |
 |--------|------|
-| `E2E_BASE_URL` | `https://app-dev.ematchef.ch` |
+| `E2E_BASE_URL` | `https://app.dev.ematchef.ch` |
 | `E2E_USER_EMAIL` | `e2e-smoke@ematchef.ch` |
 | `E2E_USER_PASSWORD` | dasselbe Passwort wie oben |
 
@@ -42,7 +42,7 @@ npx playwright install chromium
 # WSL/Ubuntu: Systembibliotheken (sonst: libasound.so.2 missing)
 sudo npx playwright install-deps chromium
 # oder: sudo apt-get install -y libasound2t64
-export E2E_BASE_URL=https://app-dev.ematchef.ch
+export E2E_BASE_URL=https://app.dev.ematchef.ch
 export E2E_USER_EMAIL='e2e-smoke@ematchef.ch'
 export E2E_USER_PASSWORD='…'   # nie in Chat/Git pasten
 npm run test:e2e

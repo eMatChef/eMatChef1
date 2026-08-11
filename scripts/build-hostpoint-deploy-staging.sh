@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Erzeugt Hostpoint-Artefakte für Staging (Basic Auth):
-#   deploy/hostpoint/staging/home  (staging.ematchef.ch)
-#   deploy/hostpoint/staging/app   (app-staging / qr-staging / devices-staging — gleicher Document Root)
+# Erzeugt Hostpoint-Artefakte für Staging (Notfall-FTP, Basic Auth):
+#   deploy/hostpoint/staging/home  (optional)
+#   deploy/hostpoint/staging/app   (app.staging / qr.staging / devices.staging — gleicher Document Root)
 #
 # Auth (Hostpoint):
 #   STAGING_BASIC_AUTH_HTPASSWD_PATH_HOME / _APP = AuthUserFile (z. B. /home/…/.htpasswds/htpasswd.… aus dem Panel)
@@ -34,9 +34,9 @@ export VITE_APP_VERSION VITE_APP_GIT_SHA
 # Staging-Hauptdomain (staging.ematchef.ch)
 VITE_DEPLOY_VARIANT=home \
 VITE_API_BASE=https://api-staging.ematchef.ch \
-VITE_MAIN_SITE_ORIGIN=https://staging.ematchef.ch \
-VITE_APP_ORIGIN=https://app-staging.ematchef.ch \
-VITE_QR_PUBLIC_HOST=qr-staging.ematchef.ch \
+VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
+VITE_APP_ORIGIN=https://app.staging.ematchef.ch \
+VITE_QR_PUBLIC_HOST=qr.staging.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
 VITE_APP_VERSION="$VITE_APP_VERSION" \
 VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
@@ -45,10 +45,10 @@ npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 # Staging-App (app-staging), inkl. qr-staging / devices-staging
 VITE_DEPLOY_VARIANT=app \
 VITE_API_BASE=https://api-staging.ematchef.ch \
-VITE_MAIN_SITE_ORIGIN=https://staging.ematchef.ch \
-VITE_APP_ORIGIN=https://app-staging.ematchef.ch \
-VITE_QR_PUBLIC_HOST=qr-staging.ematchef.ch \
-VITE_DEVICES_HOST=devices-staging.ematchef.ch \
+VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
+VITE_APP_ORIGIN=https://app.staging.ematchef.ch \
+VITE_QR_PUBLIC_HOST=qr.staging.ematchef.ch \
+VITE_DEVICES_HOST=devices.staging.ematchef.ch \
 VITE_SHOW_DEV_BANNER=1 \
 VITE_APP_VERSION="$VITE_APP_VERSION" \
 VITE_APP_GIT_SHA="$VITE_APP_GIT_SHA" \
