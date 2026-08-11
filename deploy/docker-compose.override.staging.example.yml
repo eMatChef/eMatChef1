@@ -27,7 +27,7 @@ services:
       APP_SECRET: ${APP_SECRET}
       DATABASE_URL: "postgresql://mvuser:${POSTGRES_PASSWORD}@db:5432/mvdb?serverVersion=16&charset=utf8"
       JWT_PASSPHRASE: ${JWT_PASSPHRASE}
-      APP_FRONTEND_URL: "https://app.staging.ematchef.ch"
+      APP_FRONTEND_URL: "https://staging.ematchef.ch"
       APP_MAIN_SITE_ORIGIN: "https://ematchef.ch"
       APP_PUBLIC_QR_URL: "https://qr.staging.ematchef.ch"
       AUTH_COOKIE_DOMAIN: ".ematchef.ch"

@@ -1,18 +1,12 @@
-# Staging App-Hosts (+ Basic Auth). API steht in Caddyfile.develop.example.
-# Hash: caddy hash-password --plaintext '…'
+# Staging App-Hosts. API in Caddyfile.develop.example (gleicher Droplet).
+# Optional: basic_auth ergänzen.
+# Webroot z. B. /var/www/ematchef-app-staging
 
-app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
+# Einstieg https://staging.ematchef.ch (Login)
+staging.ematchef.ch, app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
 app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch {
-	basic_auth {
-		# user <caddy-hash>
-		staging JDJhJDEwJ...ersetzen
-	}
 	root * /var/www/ematchef-app-staging
 	encode gzip
 	try_files {path} /index.html
 	file_server
-}
-
-staging.ematchef.ch {
-	redir https://app.staging.ematchef.ch{uri} permanent
 }
