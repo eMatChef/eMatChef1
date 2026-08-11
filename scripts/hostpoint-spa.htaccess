@@ -1,5 +1,15 @@
-# SPA-Fallback (Apache auf Hostpoint)
+# SPA-Fallback (Apache auf Hostpoint) + HTTPS erzwingen
 RewriteEngine On
+
+# HTTP → HTTPS (falls VHost-Redirect fehlt / Browser hängt an http://)
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# HSTS: Browser merkt sich HTTPS (1 Jahr, inkl. Subdomains optional weglassen —
+# Subdomains haben eigene Hosts; nur Apex/www hier)
+<IfModule mod_headers.c>
+	Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
 
 # Fehlende Dateien unter /assets/ nicht durch index.html ersetzen — sonst liefert der Server
 # text/html für *.js (SPA-Rewrite) und der Browser meldet MIME-/Modul-Fehler statt 404.
