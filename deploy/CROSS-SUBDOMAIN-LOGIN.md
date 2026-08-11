@@ -37,7 +37,7 @@ In `backend/.env` (lokal) bzw. **Server-Umgebung / Docker-Override** (Produktion
 | `AUTH_COOKIE_DOMAIN` | `.localhost` (nur sinnvoll bei Hosts `app.localhost`, `qr.localhost`, …) | `.ematchef.ch` |
 | `AUTH_COOKIE_SECURE` | `0` (HTTP) | **`1` (HTTPS)** — Pflicht sobald die API über `https://` erreichbar ist |
 
-Fuer die **öffentliche Develop-Umgebung** (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api-dev.ematchef.ch`):
+Fuer die **öffentliche Develop-Umgebung** (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api.dev.ematchef.ch`):
 
 - `AUTH_COOKIE_SECURE=1`
 - `AUTH_COOKIE_DOMAIN=.ematchef.ch` — damit gelten HttpOnly-Cookies für **alle** diese Subdomains.

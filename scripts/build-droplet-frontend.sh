@@ -35,8 +35,8 @@ VITE_APP_GIT_SHA="$(git -C "$ROOT" rev-parse --short=7 HEAD 2>/dev/null || true)
 
 case "$ENV_NAME" in
   develop)
-    # Hierarchie: app.dev / qr.dev / devices.dev — API bleibt api-dev
-    API=https://api-dev.ematchef.ch
+    # Hierarchie: app.dev / qr.dev / devices.dev / api.dev
+    API=https://api.dev.ematchef.ch
     MAIN=https://ematchef.ch
     APP=https://app.dev.ematchef.ch
     QR=qr.dev.ematchef.ch
@@ -45,7 +45,7 @@ case "$ENV_NAME" in
     BUILD_HOME=0
     ;;
   staging)
-    API=https://api-staging.ematchef.ch
+    API=https://api.staging.ematchef.ch
     MAIN=https://ematchef.ch
     APP=https://app.staging.ematchef.ch
     QR=qr.staging.ematchef.ch

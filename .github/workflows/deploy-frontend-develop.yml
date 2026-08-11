@@ -1,7 +1,7 @@
 name: Deploy Frontend Develop (Droplet)
 
 # App/QR/Devices (Hierarchie app.dev / qr.dev / devices.dev) auf den Develop-Droplet.
-# Marketing nur Prod (Hostpoint). API bleibt api-dev.ematchef.ch.
+# Marketing nur Prod (Hostpoint). API: api.dev.ematchef.ch.
 
 on:
   push:

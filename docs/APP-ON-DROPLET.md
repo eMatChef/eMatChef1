@@ -13,8 +13,8 @@
 
 | Env | App | QR | Devices | API |
 |-----|-----|----|---------|-----|
-| develop | `app.dev.ematchef.ch` | `qr.dev` | `devices.dev` | `api-dev` (unverändert) |
-| staging | `app.staging.ematchef.ch` | `qr.staging` | `devices.staging` | `api-staging` |
+| develop | `app.dev.ematchef.ch` | `qr.dev` | `devices.dev` | `api.dev` |
+| staging | `app.staging.ematchef.ch` | `qr.staging` | `devices.staging` | `api.staging` |
 | prod | `app.ematchef.ch` | `qr` | `devices` | `api` |
 
 Alte flat-Namen (`app-dev`, …) redirecten kurz per Caddy auf die Hierarchie.

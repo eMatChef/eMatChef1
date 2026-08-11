@@ -27,7 +27,7 @@ export VITE_APP_VERSION VITE_APP_GIT_SHA
 
 # Dev-Hauptdomain (dev.ematchef.ch) — npm --prefix: kein cd (CI-sicher)
 VITE_DEPLOY_VARIANT=home \
-VITE_API_BASE=https://api-dev.ematchef.ch \
+VITE_API_BASE=https://api.dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
 VITE_APP_ORIGIN=https://app.dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr.dev.ematchef.ch \
@@ -38,7 +38,7 @@ npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 # Dev nicht indexieren — keine Sitemap von der API holen
 VITE_DEPLOY_VARIANT=app \
-VITE_API_BASE=https://api-dev.ematchef.ch \
+VITE_API_BASE=https://api.dev.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
 VITE_APP_ORIGIN=https://app.dev.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr.dev.ematchef.ch \

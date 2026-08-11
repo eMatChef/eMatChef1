@@ -4,8 +4,8 @@ Für den **API-Server** (z. B. Hetzner), Projektverzeichnis z. B. `/opt/emat
 
 ## Branch- und Domain-Zuordnung
 
-- `develop` → Entwicklung (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api-dev.ematchef.ch`)
-- `staging` → Release-Kandidat (`app.staging.ematchef.ch`, `qr.staging.ematchef.ch`, `devices.staging.ematchef.ch`, API `api-staging.ematchef.ch`)
+- `develop` → Entwicklung (`app.dev.ematchef.ch`, `qr.dev.ematchef.ch`, `devices.dev.ematchef.ch`, API `api.dev.ematchef.ch`)
+- `staging` → Release-Kandidat (`app.staging.ematchef.ch`, `qr.staging.ematchef.ch`, `devices.staging.ematchef.ch`, API `api.staging.ematchef.ch`)
 - `prod` → Produktion (`ematchef.ch` Marketing/Hostpoint, `app.ematchef.ch`, `qr.ematchef.ch`, `devices.ematchef.ch`, API `api.ematchef.ch`)
 
 Empfohlene Verzeichnisse:

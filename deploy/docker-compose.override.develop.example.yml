@@ -1,10 +1,10 @@
-# Develop-Override für den API-Server (z. B. /opt/ematchef/develop, Branch develop, api-dev.ematchef.ch).
+# Develop-Override für den API-Server (z. B. /opt/ematchef/develop, Branch develop, api.dev.ematchef.ch).
 # Analog zu docker-compose.override.prod.example.yml — auf dem Develop-Droplet z. B.:
 #   cp deploy/docker-compose.override.develop.example.yml docker-compose.override.yml
 # Dann .env / Secrets setzen und: docker compose -p ematchef-develop up -d db backend
 #
 # Wichtig: Ohne passendes CORS_ALLOW_ORIGIN blockiert der Browser Aufrufe von
-# https://app.dev.ematchef.ch → https://api-dev.ematchef.ch (Fehler „No Access-Control-Allow-Origin“).
+# https://app.dev.ematchef.ch → https://api.dev.ematchef.ch (Fehler „No Access-Control-Allow-Origin“).
 
 services:
   db:

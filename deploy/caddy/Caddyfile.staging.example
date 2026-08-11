@@ -1,12 +1,12 @@
-# Staging auf dem Develop-Droplet: API + App-Hierarchie + Basic Auth.
+# Staging-Hosts (oft auf dem Develop-Droplet). Basic Auth für App/QR/Devices.
 # Hash: caddy hash-password --plaintext '…'
 # Webroot z. B. /var/www/ematchef-app-staging
+#
+# Hinweis: api.staging steht typischerweise schon in Caddyfile.develop.example.
 
-api-staging.ematchef.ch {
-	reverse_proxy 127.0.0.1:8082
-}
-
-app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch {
+app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
+app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch,
+staging.ematchef.ch {
 	basic_auth {
 		# user <caddy-hash>
 		staging JDJhJDEwJ...ersetzen
@@ -15,18 +15,4 @@ app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch {
 	encode gzip
 	try_files {path} /index.html
 	file_server
-}
-
-# Übergang von flat → Hierarchie
-app-staging.ematchef.ch {
-	redir https://app.staging.ematchef.ch{uri} permanent
-}
-qr-staging.ematchef.ch {
-	redir https://qr.staging.ematchef.ch{uri} permanent
-}
-devices-staging.ematchef.ch {
-	redir https://devices.staging.ematchef.ch{uri} permanent
-}
-staging.ematchef.ch {
-	redir https://app.staging.ematchef.ch{uri} permanent
 }

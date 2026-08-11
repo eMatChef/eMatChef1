@@ -33,7 +33,7 @@ export VITE_APP_VERSION VITE_APP_GIT_SHA
 
 # Staging-Hauptdomain (staging.ematchef.ch)
 VITE_DEPLOY_VARIANT=home \
-VITE_API_BASE=https://api-staging.ematchef.ch \
+VITE_API_BASE=https://api.staging.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
 VITE_APP_ORIGIN=https://app.staging.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr.staging.ematchef.ch \
@@ -44,7 +44,7 @@ npm --prefix "$FRONTEND" run build -- --outDir "$OUT_BASE/home" --emptyOutDir
 
 # Staging-App (app-staging), inkl. qr-staging / devices-staging
 VITE_DEPLOY_VARIANT=app \
-VITE_API_BASE=https://api-staging.ematchef.ch \
+VITE_API_BASE=https://api.staging.ematchef.ch \
 VITE_MAIN_SITE_ORIGIN=https://ematchef.ch \
 VITE_APP_ORIGIN=https://app.staging.ematchef.ch \
 VITE_QR_PUBLIC_HOST=qr.staging.ematchef.ch \
