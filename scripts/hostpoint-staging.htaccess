@@ -12,6 +12,14 @@ AuthUserFile __AUTH_USER_FILE__
 
 RewriteEngine On
 
+# HTTP → HTTPS
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+<IfModule mod_headers.c>
+	Header always set Strict-Transport-Security "max-age=31536000"
+</IfModule>
+
 # Fehlende Dateien unter /assets/ nicht durch index.html ersetzen — sonst liefert der Server
 # text/html für *.js (SPA-Rewrite) und der Browser meldet MIME-/Modul-Fehler statt 404.
 RewriteCond %{REQUEST_URI} ^/assets/ [NC]
