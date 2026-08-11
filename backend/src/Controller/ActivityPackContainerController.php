@@ -13,6 +13,7 @@ use App\Service\ActivityAccessService;
 use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityPackEventHistoryService;
+use App\Service\ActivityWetDryingService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -32,6 +33,7 @@ class ActivityPackContainerController extends AbstractController
         private PackPipelineService $packPipeline,
         private ActivityItemPipelineStatusService $activityItemPipelineStatus,
         private ActivityPackEventHistoryService $packEventHistory,
+        private ActivityWetDryingService $wetDrying,
     ) {}
 
     private function flushWithPipelineSync(Activity $activity): void
@@ -431,6 +433,87 @@ class ActivityPackContainerController extends AbstractController
             }
         }
         $item->touch();
+        $this->flushWithPipelineSync($activity);
+
+        return new JsonResponse($this->serializeContainerItem($item));
+    }
+
+    /**
+     * Nass-/Trocknungs-Disposition für Kistenzeile.
+     * Body: { quantity_wet, wet_hung, wet_drying_* }
+     */
+    #[Route('/pack-containers/{containerId}/items/{itemId}/wet', name: 'items_wet', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function setItemWet(string $activityId, string $containerId, string $itemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $container = $this->entityManager->getRepository(ActivityPackContainer::class)->find($containerId);
+        if (!$container || $container->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Container nicht gefunden'], 404);
+        }
+
+        $item = $this->entityManager->getRepository(ActivityPackContainerItem::class)->find($itemId);
+        if (!$item || $item->getPackContainerId() !== $containerId) {
+            return new JsonResponse(['error' => 'Container-Item nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger Body'], 400);
+        }
+
+        $user = $this->getUser();
+        try {
+            $this->wetDrying->applyWetDispositionToContainerItem(
+                $activity,
+                $item,
+                $data,
+                $user instanceof User ? $user : null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 422);
+        }
+        $item->touch();
+        $this->flushWithPipelineSync($activity);
+
+        return new JsonResponse($this->serializeContainerItem($item));
+    }
+
+    /**
+     * Nass einlagern (nach Trocknen): from_wet auf Container-Zeile.
+     * Body: { quantity: n }
+     */
+    #[Route('/pack-containers/{containerId}/items/{itemId}/store-from-wet', name: 'items_store_from_wet', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function storeItemFromWet(string $activityId, string $containerId, string $itemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityWithAccess($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $container = $this->entityManager->getRepository(ActivityPackContainer::class)->find($containerId);
+        if (!$container || $container->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Container nicht gefunden'], 404);
+        }
+
+        $item = $this->entityManager->getRepository(ActivityPackContainerItem::class)->find($itemId);
+        if (!$item || $item->getPackContainerId() !== $containerId) {
+            return new JsonResponse(['error' => 'Container-Item nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $qty = max(0, (int) ($data['quantity'] ?? 0));
+        $max = $this->packPipeline->maxStoreFromWetContainer($item);
+        if ($qty < 1 || $qty > $max) {
+            return new JsonResponse(['error' => "Maximal $max verfügbar (nass)"], 422);
+        }
+
+        $this->wetDrying->storeFromWetContainerItem($item, $qty);
         $this->flushWithPipelineSync($activity);
 
         return new JsonResponse($this->serializeContainerItem($item));
@@ -855,6 +938,13 @@ class ActivityPackContainerController extends AbstractController
             'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
             'quantity_stored' => $item->getQuantityStored(),
+            'quantity_wet' => $item->getQuantityWet(),
+            'wet_hung' => $item->getWetHung(),
+            'wet_drying_storage_address_id' => $item->getWetDryingStorageAddressId(),
+            'wet_drying_rack_id' => $item->getWetDryingRackId(),
+            'wet_drying_slot_id' => $item->getWetDryingSlotId(),
+            'wet_drying_location_label' => $item->getWetDryingLocationLabel(),
+            'wet_workshop_ticket_id' => $item->getWetWorkshopTicketId(),
             'condition_out' => $item->getConditionOut(),
             'notes' => $item->getNotes(),
             'material_name' => $item->getMaterialItem()->getName(),

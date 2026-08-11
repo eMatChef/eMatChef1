@@ -126,7 +126,8 @@ export function containerLineForwardStoreMax(ci: ActivityPackContainerItem): num
   const issued = ci.quantity_issued ?? 0
   const returned = ci.quantity_returned ?? 0
   const stored = ci.quantity_stored ?? 0
-  const returnedPending = Math.max(0, returned - stored)
+  const wet = ci.quantity_wet ?? 0
+  const returnedPending = Math.max(0, returned - stored - wet)
   const extraReturned = Math.max(0, returned - issued)
   const neverIssuedOutstanding = Math.max(0, packed - issued - extraReturned)
   return returnedPending + neverIssuedOutstanding
@@ -138,7 +139,8 @@ export function packItemForwardStoreMax(pi: ActivityPackItem): number {
   const issued = pi.quantityIssued ?? 0
   const returned = pi.quantityReturned ?? 0
   const stored = pi.quantityStored ?? 0
-  const returnedPending = Math.max(0, returned - stored)
+  const wet = pi.quantityWet ?? 0
+  const returnedPending = Math.max(0, returned - stored - wet)
   const extraReturned = Math.max(0, returned - issued)
   const neverIssuedOutstanding = Math.max(0, packed - issued - extraReturned)
   return returnedPending + neverIssuedOutstanding
@@ -197,7 +199,7 @@ export function containerShellPendingStoreQty(
   }
 
   const acct = retourAccountingForUnpackLoose(shell, input)
-  return Math.max(0, acct.retourTotal - (shell.quantityStored ?? 0))
+  return Math.max(0, acct.retourTotal - (shell.quantityStored ?? 0) - (shell.quantityWet ?? 0))
 }
 
 export function pendingStoreInContainersForMaterial(

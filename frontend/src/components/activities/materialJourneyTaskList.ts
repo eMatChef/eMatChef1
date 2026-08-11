@@ -1,4 +1,4 @@
-import type { ActivityPackContainer } from '@/api/activityContainers'
+import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/activityContainers'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import {
   isPhysicalComboPackItem,
@@ -140,7 +140,100 @@ function journeyLooseRowIsDone(
   isOpen: boolean,
 ): boolean {
   if (isOpen) return false
+  if ((pi.quantityWet ?? 0) > 0) return false
   return journeyLooseDoneQty(pi, ctx) > 0
+}
+
+function containerHasWetQty(
+  containerId: string,
+  ctx: MaterialJourneyTaskBuildContext,
+): boolean {
+  const items = ctx.containerCtx.containerItemsForContainer?.(containerId) ?? []
+  if (items.some((ci: ActivityPackContainerItem) => (ci.quantity_wet ?? 0) > 0)) {
+    return true
+  }
+  const shell = ctx.shellPackItemForContainer(containerId)
+  return (shell?.quantityWet ?? 0) > 0
+}
+
+export function materialJourneyTaskHasWetQty(
+  row: MaterialJourneyTaskRow,
+  containerItemsByContainerId?: Record<string, { quantity_wet?: number }[]>,
+  shellPackItemForContainer?: (containerId: string) => ActivityPackItem | undefined,
+): boolean {
+  if (row.kind === 'loose' || row.kind === 'combo') {
+    return (row.packItem?.quantityWet ?? 0) > 0
+  }
+  if (!isMaterialJourneyCrateKind(row.kind) || !row.container) return false
+  const items = containerItemsByContainerId?.[row.container.id] ?? []
+  if (items.some((ci) => (ci.quantity_wet ?? 0) > 0)) return true
+  const shell =
+    row.packItem ??
+    (shellPackItemForContainer ? shellPackItemForContainer(row.container.id) : undefined)
+  return (shell?.quantityWet ?? 0) > 0
+}
+
+/** Nur für Nass-Sektion: Aufgehängt-Status aggregieren (sonst null = nichts anzeigen). */
+export function materialJourneyWetHungSummary(
+  row: MaterialJourneyTaskRow,
+  containerItemsByContainerId?: Record<
+    string,
+    {
+      quantity_wet?: number
+      wet_hung?: boolean | null
+      wet_drying_location_label?: string | null
+    }[]
+  >,
+  shellPackItemForContainer?: (containerId: string) => ActivityPackItem | undefined,
+): { hung: boolean; locationLabel: string | null; qtyWet: number } | null {
+  type WetBits = {
+    qty: number
+    hung: boolean | null
+    locationLabel: string | null
+  }
+  const bits: WetBits[] = []
+
+  if (row.kind === 'loose' || row.kind === 'combo') {
+    const pi = row.packItem
+    const qty = pi?.quantityWet ?? 0
+    if (qty > 0 && pi) {
+      bits.push({
+        qty,
+        hung: pi.wetHung ?? null,
+        locationLabel: pi.wetDryingLocationLabel ?? null,
+      })
+    }
+  } else if (isMaterialJourneyCrateKind(row.kind) && row.container) {
+    for (const ci of containerItemsByContainerId?.[row.container.id] ?? []) {
+      const qty = ci.quantity_wet ?? 0
+      if (qty < 1) continue
+      bits.push({
+        qty,
+        hung: ci.wet_hung ?? null,
+        locationLabel: ci.wet_drying_location_label ?? null,
+      })
+    }
+    const shell =
+      row.packItem ??
+      (shellPackItemForContainer ? shellPackItemForContainer(row.container.id) : undefined)
+    const shellWet = shell?.quantityWet ?? 0
+    if (shell && shellWet > 0) {
+      bits.push({
+        qty: shellWet,
+        hung: shell.wetHung ?? null,
+        locationLabel: shell.wetDryingLocationLabel ?? null,
+      })
+    }
+  }
+
+  if (bits.length < 1) return null
+  const qtyWet = bits.reduce((sum, b) => sum + b.qty, 0)
+  const allHung = bits.every((b) => b.hung === true)
+  const locationLabel =
+    allHung
+      ? bits.map((b) => b.locationLabel?.trim()).find((l) => Boolean(l)) ?? null
+      : null
+  return { hung: allHung, locationLabel, qtyWet }
 }
 
 export type MaterialJourneyTaskKind = 'loose' | 'crate' | 'virtual_crate' | 'combo' | 'not_taken'
@@ -180,6 +273,8 @@ export type MaterialJourneyTaskRow = {
   shelfLabel: string
   shelfKey: string
   packCrateHint: string | null
+  /** Nur Nass-Sektion Einlagern: Anzeige «n nass» statt openQty. */
+  wetQueueQty?: number
 }
 
 export type MaterialJourneyFilterTab = 'open' | 'done' | 'byShelf'
@@ -374,10 +469,11 @@ export function buildMaterialJourneyCrateTask(
     isDone = !hasLooseOpen
   }
 
-  // Einlagern: offen solange Inhalt oder Kistenhülle noch nicht eingelagert.
+  // Einlagern: offen solange trockene Restmenge; nass separat (nicht «erledigt»).
   if (isPackUnpackStage(ctx.packStage)) {
+    const hasWet = containerHasWetQty(container.id, ctx)
     isOpen = issueable > 0
-    isDone = issueable <= 0
+    isDone = issueable <= 0 && !hasWet
   }
 
   // Packen: Inhalt-Menge für Anzeige; Transport/sonst: Kiste als Ganzes (1 Shell).
@@ -463,13 +559,13 @@ export function buildMaterialJourneyTasks(
     .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, crateBaseCtx))
     .filter((pi) => !isPackItemInVirtualTogetherContainer(pi, crateBaseCtx))
     .map((pi) => buildMaterialJourneyLooseTask(pi, crateBaseCtx))
-    .filter((row) => row.isOpen || row.isDone)
+    .filter((row) => row.isOpen || row.isDone || (row.packItem?.quantityWet ?? 0) > 0)
 
   const comboRows = journeyItems
     .filter((pi) => isPhysicalComboPackItem(pi))
     .filter((pi) => !shouldHideShellMaterialForJourneyCrateRow(pi, crateBaseCtx))
     .map((pi) => buildMaterialJourneyComboTask(pi, crateBaseCtx))
-    .filter((row) => row.isOpen || row.isDone)
+    .filter((row) => row.isOpen || row.isDone || (row.packItem?.quantityWet ?? 0) > 0)
 
   const hasOpenLooseComboPackWork =
     looseRows.some((row) => row.isOpen) || comboRows.some((row) => row.isOpen)
@@ -482,7 +578,12 @@ export function buildMaterialJourneyTasks(
     ctx.listCtx.showPackContainersUi
       ? ctx.packContainers
           .map((c) => buildMaterialJourneyCrateTask(c, crateCtx))
-          .filter((row) => row.isOpen || row.isDone)
+          .filter(
+            (row) =>
+              row.isOpen ||
+              row.isDone ||
+              (row.container != null && containerHasWetQty(row.container.id, crateCtx)),
+          )
       : []
 
   const notTakenRows = journeyItems

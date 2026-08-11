@@ -11,6 +11,7 @@ import {
 } from '@/components/activities/materialJourneyAccordionLines'
 import type { ActivityPackContainerItem, ActivityPackContainer } from '@/api/activityContainers'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import { isJourneyReturnStep } from '@/components/activities/materialJourneySteps'
 import { reassignTargetPackCrates } from '@/composables/useMaterialJourneyCrateTransfer'
 import type { ActivityPackItem } from '@/api/activityPackItems'
 import type { MaterialJourneyCratePeekMaps } from '@/composables/materialJourneyCratePeekLoad'
@@ -50,6 +51,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
+  wetReturn: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
   reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
@@ -78,6 +80,16 @@ function isExpandableRow(row: TaskRow): boolean {
 
 function showStoreForLooseRow(row: TaskRow): boolean {
   return props.journeyStep === 'store' && row.canMove && row.isOpen && row.maxForwardQty > 0
+}
+
+function showReturnForLooseRow(row: TaskRow): boolean {
+  if (!isJourneyReturnStep(props.journeyStep) || row.kind !== 'loose' || !row.packItem) return false
+  if (!row.isOpen) return false
+  return row.canMove || row.maxForwardQty > 0 || (row.packItem.quantityWet ?? 0) > 0
+}
+
+function showWetReturnForLooseRow(row: TaskRow): boolean {
+  return showReturnForLooseRow(row)
 }
 
 function previewLinesFor(row: TaskRow): MaterialJourneyAccordionLine[] {
@@ -223,9 +235,12 @@ function showIssueForAccordionLine(row: TaskRow, line: MaterialJourneyAccordionL
           :transport-target-tour-label="transportTargetTourLabel"
           :show-issue-actions="showIssueForRow?.(row) ?? false"
           :show-store-action="showStoreForLooseRow(row)"
+          :show-return-action="showReturnForLooseRow(row)"
+          :show-wet-return-action="showWetReturnForLooseRow(row)"
           :at-event-qty-label="atEventLabelForRow(row)"
           :is-consumable-for-material-id="isConsumableForMaterialId"
           @activate="emit('activate', row)"
+          @wet-return="emit('wetReturn', row)"
           @move-back="emit('moveBack', row, $event)"
           @update:move-back-qty="emit('update:moveBackQty', row, $event)"
           @move-forward="emit('moveForward', row, $event)"

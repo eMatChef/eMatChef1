@@ -108,7 +108,7 @@ CASE
     ELSE GREATEST(
         GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned),
         {$alias}.quantity_issued
-    ) - COALESCE({$alias}.quantity_stored, 0)
+    ) - COALESCE({$alias}.quantity_stored, 0) - COALESCE({$alias}.quantity_wet, 0)
 END
 SQL;
     }

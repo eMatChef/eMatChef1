@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ActivityIssueReportRow } from '@/api/activities'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
+import { getAddresses, type Address } from '@/api/addresses'
 import PackWorkflowModal from '@/components/activities/PackWorkflowModal.vue'
 import PackModalFooter from '@/components/activities/PackModalFooter.vue'
 import PackShellCheckToggle from '@/components/activities/PackShellCheckToggle.vue'
+import StorageLocationPicker from '@/components/storage/StorageLocationPicker.vue'
 import {
   formatReturnCrateLineMeta,
   returnCrateLineInputCap,
@@ -57,6 +59,13 @@ export type ReturnCrateLineEdit = {
   consumptionOpen: number
   /** Bereits vollständig retourniert — nur Anzeige. */
   isDone: boolean
+  wetEnabled: boolean
+  wetQty: number
+  wetHung: boolean | null
+  wetDryingStorageAddressId: string
+  wetDryingRackId: string
+  wetDryingSlotId: string
+  wetDryingLocationLabel: string
 }
 
 type ReturnCrateLineSection = {
@@ -81,6 +90,8 @@ const props = defineProps<{
   submitting: boolean
   submitDisabled: boolean
   searchableMaterials: ReturnCrateSearchMaterial[]
+  /** Für Trocknungs-Standortwahl (StorageLocationPicker). */
+  departmentId?: string
 }>()
 
 const emit = defineEmits<{
@@ -97,6 +108,51 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const materialSearch = ref('')
+const storageAddresses = ref<Address[]>([])
+
+watch(
+  () => [props.open, props.departmentId] as const,
+  ([isOpen, depId]) => {
+    if (!isOpen || !depId) {
+      storageAddresses.value = []
+      return
+    }
+    void getAddresses(depId, 'storage')
+      .then((result) => {
+        storageAddresses.value = result.addresses || []
+      })
+      .catch(() => {
+        storageAddresses.value = []
+      })
+  },
+  { immediate: true },
+)
+
+function storageAddressLabel(addr: Address): string {
+  const name = addr.name?.trim() || addr.street_line?.trim() || addr.full_address?.trim() || addr.id
+  return addr.is_primary ? `${name} · ${t('activities.packList.returnCrateModalWetAddressPrimary')}` : name
+}
+
+const storageAddressOptions = computed(() => {
+  const list = storageAddresses.value.map((addr) => ({
+    id: addr.id,
+    label: storageAddressLabel(addr),
+    isPrimary: addr.is_primary,
+  }))
+  list.sort((a, b) => {
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1
+    return a.label.localeCompare(b.label, 'de')
+  })
+  return list.map(({ id, label }) => ({ id, label }))
+})
+
+function buildWetLocationLabel(line: ReturnCrateLineEdit): string {
+  const addr = storageAddresses.value.find((a) => a.id === line.wetDryingStorageAddressId)
+  if (!addr) {
+    return storageAddressOptions.value.find((a) => a.id === line.wetDryingStorageAddressId)?.label?.trim() || ''
+  }
+  return addr.name?.trim() || addr.street_line?.trim() || addr.full_address?.trim() || ''
+}
 
 const lineSections = computed((): ReturnCrateLineSection[] => {
   const sections: ReturnCrateLineSection[] = []
@@ -190,6 +246,84 @@ function onQtyInput(line: ReturnCrateLineEdit, event: Event): void {
 
 function stepQty(line: ReturnCrateLineEdit, delta: number): void {
   setQty(line, line.qty + delta)
+}
+
+function wetQtyCap(line: ReturnCrateLineEdit): number {
+  return Math.max(0, line.qty)
+}
+
+function toggleWet(line: ReturnCrateLineEdit): void {
+  if (line.wetEnabled) {
+    patchLine(line.id, {
+      wetEnabled: false,
+      wetQty: 0,
+      wetHung: null,
+      wetDryingStorageAddressId: '',
+      wetDryingRackId: '',
+      wetDryingSlotId: '',
+      wetDryingLocationLabel: '',
+    })
+    return
+  }
+  const wetQty = Math.max(1, Math.min(line.qty, line.qty || 1))
+  patchLine(line.id, {
+    wetEnabled: true,
+    wetQty: line.qty > 0 ? line.qty : wetQty,
+    wetHung: false,
+  })
+}
+
+function setWetQty(line: ReturnCrateLineEdit, raw: number): void {
+  const cap = wetQtyCap(line)
+  const wetQty = Math.min(cap, Math.max(0, Math.floor(Number.isFinite(raw) ? raw : 0)))
+  patchLine(line.id, {
+    wetQty,
+    wetEnabled: wetQty > 0 ? true : line.wetEnabled,
+    wetHung: wetQty > 0 ? (line.wetHung ?? false) : null,
+  })
+}
+
+function stepWetQty(line: ReturnCrateLineEdit, delta: number): void {
+  setWetQty(line, line.wetQty + delta)
+}
+
+function onWetQtyInput(line: ReturnCrateLineEdit, event: Event): void {
+  setWetQty(line, Number((event.target as HTMLInputElement).value))
+}
+
+function setWetHung(line: ReturnCrateLineEdit, hung: boolean): void {
+  if (!hung) {
+    patchLine(line.id, {
+      wetHung: false,
+      wetDryingStorageAddressId: '',
+      wetDryingRackId: '',
+      wetDryingSlotId: '',
+      wetDryingLocationLabel: '',
+    })
+    return
+  }
+  const primary = storageAddresses.value.find((a) => a.is_primary) ?? storageAddresses.value[0]
+  const addressId = line.wetDryingStorageAddressId || primary?.id || ''
+  const next: Partial<ReturnCrateLineEdit> = {
+    wetHung: true,
+    wetDryingStorageAddressId: addressId,
+    wetDryingRackId: '',
+    wetDryingSlotId: '',
+  }
+  const labelLine = { ...line, ...next }
+  next.wetDryingLocationLabel = addressId ? buildWetLocationLabel(labelLine as ReturnCrateLineEdit) : ''
+  patchLine(line.id, next)
+}
+
+async function onWetAddressChange(line: ReturnCrateLineEdit, value: string): Promise<void> {
+  const next: Partial<ReturnCrateLineEdit> = {
+    wetDryingStorageAddressId: value,
+    wetDryingRackId: '',
+    wetDryingSlotId: '',
+  }
+  const labelLine = { ...line, ...next }
+  next.wetDryingLocationLabel = buildWetLocationLabel(labelLine as ReturnCrateLineEdit)
+  patchLine(line.id, next)
 }
 
 function missingQty(line: ReturnCrateLineEdit): number {
@@ -305,118 +439,204 @@ function onAddMaterialSelect(event: Event): void {
             </template>
             <template v-else>
               <div
-                class="pack-crate-shell-check-line"
+                class="pack-return-crate-line-card"
                 :class="{
-                  'pack-crate-shell-check-line--ok': varianceKind(line) === 'ok',
-                  'pack-crate-shell-check-line--short': varianceKind(line) === 'short',
-                  'pack-crate-shell-check-line--surplus': varianceKind(line) === 'surplus',
-                  'pack-crate-shell-check-line--pending': varianceKind(line) === 'unset',
+                  'pack-return-crate-line-card--ok': varianceKind(line) === 'ok',
+                  'pack-return-crate-line-card--short': varianceKind(line) === 'short',
+                  'pack-return-crate-line-card--surplus': varianceKind(line) === 'surplus',
+                  'pack-return-crate-line-card--pending': varianceKind(line) === 'unset',
+                  'pack-return-crate-line-card--wet': line.wetEnabled,
                 }"
               >
-                <div class="pack-crate-shell-check-line__main pack-shell-forward-li-meta">
-                  <div class="pack-shell-forward-li-name">
-                    {{ line.materialName }}
-                    <span v-if="line.isExtra" class="pack-return-crate-badge">{{
-                      t('activities.packList.returnCrateModalBadgeExtra')
-                    }}</span>
+                <div class="pack-crate-shell-check-line pack-return-crate-line-card__head">
+                  <div class="pack-crate-shell-check-line__main pack-shell-forward-li-meta">
+                    <div class="pack-shell-forward-li-name">
+                      {{ line.materialName }}
+                      <span v-if="line.isExtra" class="pack-return-crate-badge">{{
+                        t('activities.packList.returnCrateModalBadgeExtra')
+                      }}</span>
+                    </div>
+                    <div class="pack-shell-forward-li-sub text-muted">
+                      <span>{{
+                        t('activities.packList.shellForwardExpectedQty', { n: line.max })
+                      }}</span>
+                      <span v-if="lineMeta(line)">{{ lineMeta(line) }}</span>
+                    </div>
                   </div>
-                  <div class="pack-shell-forward-li-sub text-muted">
-                    <span>{{
-                      t('activities.packList.shellForwardExpectedQty', { n: line.max })
-                    }}</span>
-                    <span v-if="lineMeta(line)">{{ lineMeta(line) }}</span>
-                  </div>
-                </div>
-                <div class="pack-crate-shell-check-line__actions pack-shell-forward-variance-actions">
-                  <button
-                    type="button"
-                    class="shell-forward-variance-btn shell-forward-variance-btn--minus"
-                    :class="{ 'shell-forward-variance-btn--active': varianceKind(line) === 'short' }"
-                    :title="t('activities.packList.shellForwardMinusTitle')"
-                    :disabled="line.qty < 1 && !line.included"
-                    @click="stepQty(line, -1)"
-                  >
-                    −
-                  </button>
-                  <label class="pack-shell-forward-count-label">
-                    <span class="sr-only">{{ t('activities.packList.returnCrateModalReturnQty') }}</span>
-                    <input
-                      :value="line.qty"
-                      type="number"
-                      min="0"
-                      :max="returnCrateLineInputCap(line.ordered, line.max)"
-                      class="form-input pack-shell-forward-count-input"
-                      :aria-label="t('activities.packList.returnCrateModalReturnQty')"
-                      @input="onQtyInput(line, $event)"
+                  <div class="pack-crate-shell-check-line__actions pack-shell-forward-variance-actions">
+                    <button
+                      type="button"
+                      class="shell-forward-variance-btn shell-forward-variance-btn--minus"
+                      :class="{ 'shell-forward-variance-btn--active': varianceKind(line) === 'short' }"
+                      :title="t('activities.packList.shellForwardMinusTitle')"
+                      :disabled="line.qty < 1 && !line.included"
+                      @click="stepQty(line, -1)"
+                    >
+                      −
+                    </button>
+                    <label class="pack-shell-forward-count-label">
+                      <span class="sr-only">{{ t('activities.packList.returnCrateModalReturnQty') }}</span>
+                      <input
+                        :value="line.qty"
+                        type="number"
+                        min="0"
+                        :max="returnCrateLineInputCap(line.ordered, line.max)"
+                        class="form-input pack-shell-forward-count-input"
+                        :aria-label="t('activities.packList.returnCrateModalReturnQty')"
+                        @input="onQtyInput(line, $event)"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      class="shell-forward-variance-btn shell-forward-variance-btn--plus"
+                      :class="{ 'shell-forward-variance-btn--active': varianceKind(line) === 'surplus' }"
+                      :title="t('activities.packList.shellForwardPlusTitle')"
+                      @click="stepQty(line, 1)"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      class="pack-return-crate-wet-toggle pack-return-crate-wet-toggle--inline"
+                      :class="{ 'pack-return-crate-wet-toggle--active': line.wetEnabled }"
+                      :title="t('activities.packList.returnCrateModalWetToggle')"
+                      :aria-pressed="line.wetEnabled"
+                      :aria-label="t('activities.packList.returnCrateModalWetToggle')"
+                      @click="toggleWet(line)"
+                    >
+                      <v-icon icon="mdi-water" size="20" />
+                    </button>
+                    <PackShellCheckToggle
+                      ok-only
+                      :ok-active="line.included && varianceKind(line) === 'ok'"
+                      :ok-title="t('activities.packList.shellForwardLineOkTitle')"
+                      :ok-aria-label="t('activities.packList.returnCrateModalIncludeAria', { name: line.materialName })"
+                      @ok="onConfirmOk(line)"
                     />
-                  </label>
-                  <button
-                    type="button"
-                    class="shell-forward-variance-btn shell-forward-variance-btn--plus"
-                    :class="{ 'shell-forward-variance-btn--active': varianceKind(line) === 'surplus' }"
-                    :title="t('activities.packList.shellForwardPlusTitle')"
-                    @click="stepQty(line, 1)"
-                  >
-                    +
-                  </button>
-                  <PackShellCheckToggle
-                    ok-only
-                    :ok-active="line.included && varianceKind(line) === 'ok'"
-                    :ok-title="t('activities.packList.shellForwardLineOkTitle')"
-                    :ok-aria-label="t('activities.packList.returnCrateModalIncludeAria', { name: line.materialName })"
-                    @ok="onConfirmOk(line)"
-                  />
+                  </div>
                 </div>
-              </div>
-              <div
-                v-if="showMissingActions(line)"
-                class="pack-shell-forward-line-issue-row pack-shell-forward-line-issue-row--problem"
-              >
-                <span class="pack-return-crate-missing-hint text-muted">{{
-                  t('activities.packList.returnCrateModalMissingQty', { n: missingQty(line) })
-                }}</span>
-                <div class="pack-card-issue-quick-row">
-                  <button
-                    v-if="line.isConsumable && canReportConsumption && line.materialItemId"
-                    type="button"
-                    class="btn-issue-quick btn-issue-consumed"
-                    @click="emit('report-consumption', line.materialItemId!, line.materialName)"
-                  >
-                    {{ t('activities.common.issueConsumed') }}
-                  </button>
-                  <button
-                    v-if="canReportIssues && line.materialItemId"
-                    type="button"
-                    class="btn-issue-quick btn-issue-loss"
-                    @click="emit('report-loss', line.materialItemId!, missingQty(line))"
-                  >
-                    {{ t('activities.common.issueLoss') }}
-                  </button>
-                  <button
-                    v-if="canReportIssues && line.materialItemId"
-                    type="button"
-                    class="btn-issue-quick btn-issue-repair"
-                    @click="emit('report-repair', line.materialItemId!, missingQty(line))"
-                  >
-                    {{ t('activities.common.issueRepair') }}
-                  </button>
+                <div
+                  v-if="showMissingActions(line)"
+                  class="pack-shell-forward-line-issue-row pack-shell-forward-line-issue-row--problem"
+                >
+                  <span class="pack-return-crate-missing-hint text-muted">{{
+                    t('activities.packList.returnCrateModalMissingQty', { n: missingQty(line) })
+                  }}</span>
+                  <div class="pack-card-issue-quick-row">
+                    <button
+                      v-if="line.isConsumable && canReportConsumption && line.materialItemId"
+                      type="button"
+                      class="btn-issue-quick btn-issue-consumed"
+                      @click="emit('report-consumption', line.materialItemId!, line.materialName)"
+                    >
+                      {{ t('activities.common.issueConsumed') }}
+                    </button>
+                    <button
+                      v-if="canReportIssues && line.materialItemId"
+                      type="button"
+                      class="btn-issue-quick btn-issue-loss"
+                      @click="emit('report-loss', line.materialItemId!, missingQty(line))"
+                    >
+                      {{ t('activities.common.issueLoss') }}
+                    </button>
+                    <button
+                      v-if="canReportIssues && line.materialItemId"
+                      type="button"
+                      class="btn-issue-quick btn-issue-repair"
+                      @click="emit('report-repair', line.materialItemId!, missingQty(line))"
+                    >
+                      {{ t('activities.common.issueRepair') }}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div
-                v-if="showSurplusActions(line)"
-                class="pack-shell-forward-line-issue-row pack-return-crate-surplus-row"
-              >
-                <span class="pack-return-crate-missing-hint text-muted">{{
-                  t('activities.packList.returnCrateModalSurplusQty', { n: surplusQty(line) })
-                }}</span>
-                <div class="pack-card-issue-quick-row">
-                  <button
-                    type="button"
-                    class="btn-issue-quick btn-issue-extra"
-                    @click="emit('report-extra', line.materialItemId!, surplusQty(line), line.id)"
+                <div
+                  v-if="showSurplusActions(line)"
+                  class="pack-shell-forward-line-issue-row pack-return-crate-surplus-row"
+                >
+                  <span class="pack-return-crate-missing-hint text-muted">{{
+                    t('activities.packList.returnCrateModalSurplusQty', { n: surplusQty(line) })
+                  }}</span>
+                  <div class="pack-card-issue-quick-row">
+                    <button
+                      type="button"
+                      class="btn-issue-quick btn-issue-extra"
+                      @click="emit('report-extra', line.materialItemId!, surplusQty(line), line.id)"
+                    >
+                      {{ t('activities.packList.returnCrateModalBookExtra') }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="line.wetEnabled" class="pack-return-crate-wet-row" role="region">
+                  <div class="pack-return-crate-wet-qty">
+                    <span class="text-muted">{{ t('activities.packList.returnCrateModalWetQty') }}</span>
+                    <button
+                      type="button"
+                      class="shell-forward-variance-btn shell-forward-variance-btn--minus"
+                      :disabled="line.wetQty < 1"
+                      @click="stepWetQty(line, -1)"
+                    >
+                      −
+                    </button>
+                    <label class="pack-shell-forward-count-label">
+                      <span class="sr-only">{{ t('activities.packList.returnCrateModalWetQty') }}</span>
+                      <input
+                        :value="line.wetQty"
+                        type="number"
+                        min="0"
+                        :max="wetQtyCap(line)"
+                        class="form-input pack-shell-forward-count-input"
+                        @input="onWetQtyInput(line, $event)"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      class="shell-forward-variance-btn shell-forward-variance-btn--plus"
+                      :disabled="line.wetQty >= wetQtyCap(line)"
+                      @click="stepWetQty(line, 1)"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div v-if="line.wetQty > 0" class="pack-return-crate-wet-hung" role="radiogroup">
+                    <button
+                      type="button"
+                      class="pack-return-crate-wet-hung-btn"
+                      :class="{ 'pack-return-crate-wet-hung-btn--active': line.wetHung === true }"
+                      role="radio"
+                      :aria-checked="line.wetHung === true"
+                      @click="setWetHung(line, true)"
+                    >
+                      {{ t('activities.packList.returnCrateModalWetHungYes') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="pack-return-crate-wet-hung-btn"
+                      :class="{ 'pack-return-crate-wet-hung-btn--active': line.wetHung === false }"
+                      role="radio"
+                      :aria-checked="line.wetHung === false"
+                      @click="setWetHung(line, false)"
+                    >
+                      {{ t('activities.packList.returnCrateModalWetHungNo') }}
+                    </button>
+                  </div>
+                  <div
+                    v-if="line.wetQty > 0 && line.wetHung === true && departmentId"
+                    class="pack-return-crate-wet-location"
                   >
-                    {{ t('activities.packList.returnCrateModalBookExtra') }}
-                  </button>
+                    <StorageLocationPicker
+                      variant="compact"
+                      :show-storage-address="true"
+                      :show-rack="false"
+                      :show-slot="false"
+                      :storage-address-id="line.wetDryingStorageAddressId"
+                      :storage-address-options="storageAddressOptions"
+                      rack-id=""
+                      :racks="[]"
+                      :slot-list="[]"
+                      :storage-address-label="`${t('activities.packList.returnCrateModalWetDryingLocation')} *`"
+                      @update:storage-address-id="onWetAddressChange(line, $event)"
+                    />
+                  </div>
                 </div>
               </div>
             </template>
@@ -521,5 +741,113 @@ function onAddMaterialSelect(event: Event): void {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.pack-return-crate-line-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.pack-return-crate-line-card--ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.pack-return-crate-line-card--short {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.pack-return-crate-line-card--surplus {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.pack-return-crate-line-card--pending {
+  border-color: #e2e8f0;
+  background: #fafafa;
+}
+
+.pack-return-crate-line-card--wet {
+  border-color: color-mix(in srgb, #0284c7 45%, #bbf7d0);
+}
+
+.pack-return-crate-line-card__head {
+  border: none !important;
+  background: transparent !important;
+  margin-bottom: 0 !important;
+  border-radius: 0 !important;
+}
+
+.pack-return-crate-line-card .pack-shell-forward-line-issue-row {
+  margin: 0 8px 8px;
+}
+
+.pack-return-crate-wet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.55rem 0.65rem 0.65rem;
+  border-top: 1px solid color-mix(in srgb, #0284c7 28%, transparent);
+  background: color-mix(in srgb, #0ea5e9 8%, white);
+}
+
+.pack-return-crate-wet-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--border-color, #c5cdd8);
+  background: transparent;
+  color: #3b82c4;
+  border-radius: 6px;
+  padding: 0.25rem;
+  cursor: pointer;
+}
+
+.pack-return-crate-wet-toggle--inline {
+  width: 2rem;
+  height: 2rem;
+}
+
+.pack-return-crate-wet-toggle--active {
+  border-color: #3b82c4;
+  background: rgba(59, 130, 196, 0.12);
+  color: #1e5a8a;
+}
+
+.pack-return-crate-wet-qty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 13px;
+}
+
+.pack-return-crate-wet-hung {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.pack-return-crate-wet-hung-btn {
+  border: 1px solid var(--border-color, #c5cdd8);
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pack-return-crate-wet-hung-btn--active {
+  border-color: #3b82c4;
+  background: rgba(59, 130, 196, 0.12);
+}
+
+.pack-return-crate-wet-location {
+  margin-top: 0.1rem;
 }
 </style>

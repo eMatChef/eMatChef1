@@ -23,6 +23,7 @@ export interface ActivityMwNotification {
   issue_report_type?: string | null
   issue_report_quantity?: number | null
   material_name?: string | null
+  quantity_wet?: number | null
   shell_material_name?: string | null
   deviation_summary?: string | null
   journey_step?: string | null

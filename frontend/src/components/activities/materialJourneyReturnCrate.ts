@@ -89,6 +89,7 @@ export function buildMaterialJourneyReturnCrateLines(
       ci.quantity_packed ?? 0,
       ci.quantity_issued ?? 0,
     )
+    const existingWet = ci.quantity_wet ?? 0
     lines.push({
       id: ci.id,
       kind: 'line',
@@ -111,6 +112,13 @@ export function buildMaterialJourneyReturnCrateLines(
       consumptionDone: true,
       consumptionOpen: 0,
       isDone,
+      wetEnabled: existingWet > 0,
+      wetQty: existingWet,
+      wetHung: existingWet > 0 ? (ci.wet_hung ?? false) : null,
+      wetDryingStorageAddressId: ci.wet_drying_storage_address_id ?? '',
+      wetDryingRackId: ci.wet_drying_rack_id ?? '',
+      wetDryingSlotId: ci.wet_drying_slot_id ?? '',
+      wetDryingLocationLabel: ci.wet_drying_location_label ?? '',
     })
   }
 
@@ -120,6 +128,7 @@ export function buildMaterialJourneyReturnCrateLines(
     if (shellMax > 0) {
       const isConsumable = Boolean(shell.isConsumable)
       const counts = issueCountsForMaterial(shell.materialItemId, issues)
+      const existingWet = shell.quantityWet ?? 0
       lines.push({
         id: 'shell',
         kind: 'shell',
@@ -141,6 +150,13 @@ export function buildMaterialJourneyReturnCrateLines(
         consumptionDone: true,
         consumptionOpen: 0,
         isDone: false,
+        wetEnabled: existingWet > 0,
+        wetQty: existingWet,
+        wetHung: existingWet > 0 ? (shell.wetHung ?? false) : null,
+        wetDryingStorageAddressId: shell.wetDryingStorageAddressId ?? '',
+        wetDryingRackId: shell.wetDryingRackId ?? '',
+        wetDryingSlotId: shell.wetDryingSlotId ?? '',
+        wetDryingLocationLabel: shell.wetDryingLocationLabel ?? '',
       })
     }
   }
@@ -163,6 +179,15 @@ export function materialJourneyReturnCrateCanCompleteWithoutMoves(
   return !lines.some((line) => !line.isDone && line.max > 0)
 }
 
+export function returnCrateLineWetIncomplete(line: ReturnCrateLineEdit): boolean {
+  if (!line.wetEnabled || line.wetQty < 1) return false
+  if (line.wetHung === null) return true
+  if (line.wetHung !== true) return false
+  const hasAddress = Boolean(line.wetDryingStorageAddressId?.trim())
+  const hasLabel = Boolean(line.wetDryingLocationLabel?.trim())
+  return !(hasAddress || hasLabel)
+}
+
 export function materialJourneyReturnCrateSubmitDisabled(lines: ReturnCrateLineEdit[]): boolean {
   const hasUnresolvedVariance = lines.some((line) => {
     if (line.isDone) return false
@@ -172,6 +197,8 @@ export function materialJourneyReturnCrateSubmitDisabled(lines: ReturnCrateLineE
     )
   })
   if (hasUnresolvedVariance) return true
+
+  if (lines.some((line) => returnCrateLineWetIncomplete(line))) return true
 
   const returnable = lines.filter((line) => !line.isDone && line.max > 0)
   if (returnable.length < 1) return false

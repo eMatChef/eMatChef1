@@ -17,6 +17,7 @@ use App\Service\ActivityItemPipelineStatusService;
 use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityPackEventHistoryService;
 use App\Service\ActivityPackCrateCheckService;
+use App\Service\ActivityWetDryingService;
 use App\Service\InboxMessageService;
 use App\Service\Issue\IssuePhotoAccessService;
 use App\Service\Issue\IssuePhotoStorageService;
@@ -55,6 +56,7 @@ class ActivityWorkflowController extends AbstractController
         private IssuePhotoStorageService $issuePhotoStorage,
         private IssuePhotoAccessService $issuePhotoAccess,
         private ActivityPackEventHistoryService $packEventHistory,
+        private ActivityWetDryingService $wetDrying,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -361,6 +363,7 @@ class ActivityWorkflowController extends AbstractController
         $stage = $this->packPipeline->normalizeStage((string) ($data['stage'] ?? ''));
         $qty = max(0, (int)($data['quantity'] ?? 0));
         $profile = $this->packPipeline->profileForActivityType($activity->getType());
+        $fromWet = !empty($data['from_wet']);
 
         if ($qty === 0) {
             return new JsonResponse(['error' => 'Menge muss grösser als 0 sein'], 400);
@@ -378,12 +381,23 @@ class ActivityWorkflowController extends AbstractController
             }
         }
 
-        $maxAllowed = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
-        if ($qty > $maxAllowed) {
-            return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
-        }
+        if ($fromWet) {
+            if ($stage !== PackPipelineService::STAGE_STORED) {
+                return new JsonResponse(['error' => 'from_wet nur für Stufe stored'], 400);
+            }
+            $maxAllowed = $this->packPipeline->maxStoreFromWet($packItem);
+            if ($qty > $maxAllowed) {
+                return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar (nass)"], 422);
+            }
+            $this->wetDrying->storeFromWetPackItem($packItem, $qty);
+        } else {
+            $maxAllowed = $this->maxForwardAllowedForPackItem($activity, $packItem, $stage, $profile);
+            if ($qty > $maxAllowed) {
+                return new JsonResponse(['error' => "Maximal $maxAllowed verfügbar"], 422);
+            }
 
-        $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
+            $this->packPipeline->applyForward($packItem, $stage, $qty, $profile);
+        }
 
         $user = $this->getUser();
         $source = is_array($data) ? ($data['source'] ?? null) : null;
@@ -393,7 +407,7 @@ class ActivityWorkflowController extends AbstractController
             $stage,
             $qty,
             $user instanceof User ? $user : null,
-            is_string($source) ? $source : null,
+            is_string($source) ? $source : ($fromWet ? 'store_from_wet' : null),
         );
 
         if ($stage === PackPipelineService::STAGE_PACKED) {
@@ -417,6 +431,48 @@ class ActivityWorkflowController extends AbstractController
                 $this->activityAccountingCost->enqueueAccountingForMaterialOnStore($activity, $material->getId());
             }
         }
+
+        $d = $this->storageDisplayForPackItem($packItem);
+
+        return new JsonResponse($this->serializePackItem($packItem, $d['rack'], $d['slot'], $d['address']));
+    }
+
+    /**
+     * Nass-/Trocknungs-Disposition setzen (nach Retour).
+     * Body: { quantity_wet, wet_hung, wet_drying_* }
+     */
+    #[Route('/pack-items/{packItemId}/wet', name: 'pack_items_wet', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function setPackItemWet(string $activityId, string $packItemId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $packItem = $this->entityManager->getRepository(ActivityPackItem::class)->find($packItemId);
+        if (!$packItem || $packItem->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Pack-Position nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger Body'], 400);
+        }
+
+        $user = $this->getUser();
+        try {
+            $this->wetDrying->applyWetDispositionToPackItem(
+                $activity,
+                $packItem,
+                $data,
+                $user instanceof User ? $user : null,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 422);
+        }
+        $packItem->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
 
         $d = $this->storageDisplayForPackItem($packItem);
 
@@ -1536,6 +1592,13 @@ class ActivityWorkflowController extends AbstractController
             'quantity_transport_back' => $item->getQuantityTransportBack(),
             'quantity_returned' => $item->getQuantityReturned(),
             'quantity_stored' => $item->getQuantityStored(),
+            'quantity_wet' => $item->getQuantityWet(),
+            'wet_hung' => $item->getWetHung(),
+            'wet_drying_storage_address_id' => $item->getWetDryingStorageAddressId(),
+            'wet_drying_rack_id' => $item->getWetDryingRackId(),
+            'wet_drying_slot_id' => $item->getWetDryingSlotId(),
+            'wet_drying_location_label' => $item->getWetDryingLocationLabel(),
+            'wet_workshop_ticket_id' => $item->getWetWorkshopTicketId(),
             'condition_out' => $item->getConditionOut(),
             'batch_numbers' => $item->getBatchNumbers(),
             'notes' => $item->getNotes(),

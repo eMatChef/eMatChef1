@@ -406,6 +406,15 @@
                       {{ selectedTicket.activity.status }}
                     </span>
                   </div>
+                  <button
+                    v-if="selectedTicket.type === 'cleaning' && selectedTicket.activity?.id"
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    style="margin-top: 8px;"
+                    @click="openActivityDryingQueue(selectedTicket.activity.id)"
+                  >
+                    {{ t('workshop.openDryingQueue') }}
+                  </button>
                 </div>
               </div>
               <!-- Schadensmeldung-Info -->
@@ -1649,6 +1658,12 @@ function registerWorkshopDetailTab(ticket: WorkshopTicket) {
     departmentId: dept,
     path: `/${dept}/workshop?ticket=${encodeURIComponent(ticket.id)}`,
   })
+}
+
+function openActivityDryingQueue(activityId: string): void {
+  const dept = currentDepartmentId.value
+  if (!dept || !activityId) return
+  void router.push(`/${dept}/activities/${activityId}/pack-journey/store`)
 }
 
 async function openTicketDetail(ticket: WorkshopTicket) {

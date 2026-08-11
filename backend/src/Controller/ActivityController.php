@@ -30,6 +30,7 @@ use App\Service\ActivityKisteMaterialLinker;
 use App\Service\ActivityMwNotificationService;
 use App\Service\ActivitySharedVenueService;
 use App\Service\ActivityUserNotificationService;
+use App\Service\ActivityWetDryingService;
 use App\Service\Accounting\AccountingActivityInvoiceService;
 use App\Service\InboxMessageService;
 use App\Service\ComboResolutionService;
@@ -72,6 +73,7 @@ class ActivityController extends AbstractController
         private ComboResolutionService $comboResolution,
         private ActivitySharedVenueService $sharedVenueService,
         private AccountingActivityInvoiceService $activityInvoice,
+        private ActivityWetDryingService $wetDrying,
     ) {}
 
     private function getActorUserId(): ?string
@@ -1649,6 +1651,14 @@ class ActivityController extends AbstractController
         }
         $this->createHistoryEntry($activity, 'status_changed', $changes);
 
+        if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
+            $userForWet = $this->getUser();
+            $this->wetDrying->ensureDryingTicketsOnComplete(
+                $activity,
+                $userForWet instanceof User ? $userForWet : null,
+            );
+        }
+
         $this->entityManager->flush();
 
         if ($newStatus === Activity::STATUS_COMPLETED && $oldStatus !== Activity::STATUS_COMPLETED) {
@@ -1922,6 +1932,7 @@ class ActivityController extends AbstractController
                 'quantity_packed' => $row['item']->getQuantityPacked(),
                 'quantity_returned' => $row['item']->getQuantityReturned(),
                 'quantity_stored' => $row['item']->getQuantityStored(),
+                'quantity_wet' => $row['item']->getQuantityWet(),
                 'pending_store' => $row['pending'],
             ], $unstoredPackItems),
             'costs_released' => $activity->isCostsReleased(),
@@ -1979,7 +1990,10 @@ class ActivityController extends AbstractController
                 if ($ci->getMaterialItemId() === $materialId) {
                     continue;
                 }
-                $innerPending += max(0, $ci->getQuantityReturned() - $ci->getQuantityStored());
+                $innerPending += max(
+                    0,
+                    $ci->getQuantityReturned() - $ci->getQuantityStored() - $ci->getQuantityWet(),
+                );
             }
             if ($innerPending > 0) {
                 continue;
