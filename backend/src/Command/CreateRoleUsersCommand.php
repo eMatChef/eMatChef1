@@ -24,6 +24,9 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 )]
 class CreateRoleUsersCommand extends Command
 {
+    /** Seed-/Banner-Passwort für alle Rollen-User (@ematchef.ch) */
+    public const DEMO_PASSWORD = 'test!ematchef';
+
     public function __construct(
         private EntityManagerInterface $em,
         private UserPasswordHasherInterface $passwordHasher,
@@ -80,7 +83,7 @@ class CreateRoleUsersCommand extends Command
             true
         );
         $this->em->flush();
-        $io->success('Superadmin erstellt: superadmin@ematchef.ch / test');
+        $io->success('Superadmin erstellt: superadmin@ematchef.ch / ' . self::DEMO_PASSWORD);
 
         // Erstelle für jede andere Rolle einen Benutzer
         $io->section('Erstelle Benutzer für alle Rollen...');
@@ -113,14 +116,14 @@ class CreateRoleUsersCommand extends Command
                 false,
                 $superadminUser
             );
-            $io->text("✓ {$role->getLabel()}: $email / test");
+            $io->text("✓ {$role->getLabel()}: $email / " . self::DEMO_PASSWORD);
         }
 
         $this->em->flush();
         $io->success('Alle Benutzer erfolgreich erstellt!');
 
         $io->note([
-            'Alle Benutzer haben das Passwort: test',
+            'Alle Benutzer haben das Passwort: ' . self::DEMO_PASSWORD,
             'Login-Emails:',
             '  - superadmin@ematchef.ch (Superadmin)',
             '  - organisationschef@ematchef.ch (Organisationschef)',
@@ -153,6 +156,9 @@ class CreateRoleUsersCommand extends Command
             if ($existingUser) {
                 // Profile-Rollen aktualisieren (für sa/org/sub)
                 $existingProfile->setRoles($this->getProfileRolesForRole($role));
+                $existingUser->setPassword($this->passwordHasher->hashPassword($existingUser, self::DEMO_PASSWORD));
+                $existingUser->setState('active');
+                $existingUser->setEmailVerified(true);
                 $this->updateMembership($existingUser, $department, $role, $isPrimary);
                 return $existingUser;
             }
@@ -175,7 +181,7 @@ class CreateRoleUsersCommand extends Command
         $user->setProfileId($profile->getId());
         $user->setProfile($profile);
         $user->setState('active');
-        $hashedPassword = $this->passwordHasher->hashPassword($user, 'test');
+        $hashedPassword = $this->passwordHasher->hashPassword($user, self::DEMO_PASSWORD);
         $user->setPassword($hashedPassword);
         $user->setEmailVerified(true);
 

@@ -4,7 +4,7 @@
     "devEnvironmentBanner": "Environnement de test – pas les données de production.",
     "devDemoLoginsShow": "Comptes démo",
     "devDemoLoginsHide": "Fermer",
-    "devDemoLoginsHint": "Mot de passe pour tous : test — remplit le formulaire."
+    "devDemoLoginsHint": "Mot de passe pour tous : test!ematchef — remplit le formulaire."
   },
   "router": {
     "meta": {
