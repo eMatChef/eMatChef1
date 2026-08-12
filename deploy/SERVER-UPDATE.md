@@ -614,7 +614,7 @@ Die Workflows **`.github/workflows/cd-prod.yml`** und **`cd-develop.yml`** verbi
 
 | Workflow | Erwarteter private Key auf dem Server |
 |----------|----------------------------------------|
-| CD Prod | `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` (im Workflow fest verdrahtet; anderer System-User → Pfad in `cd-prod.yml` anpassen) |
+| CD Prod | bevorzugt `/root/.ssh/ematchef_deploy_prod_ed25519` (Hetzner); Fallback `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` (siehe `cd-prod.yml`) |
 | CD Develop | `/home/<DEVELOP_SSH_USER>/.ssh/ematchef_deploy_develop_ed25519` |
 
 Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMATCHEF_GIT_SSH_IDENTITY`** (siehe `deploy/prod-update.sh`). Ohne passende Datei: Fehlermeldung beim Deploy; ohne Variable (manuelles SSH als root mit `~/.ssh/config`) wie bisher.
