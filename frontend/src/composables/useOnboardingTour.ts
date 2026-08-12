@@ -1,5 +1,6 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import {
   getOnboardingTour,
   getOnboardingTourStepIndex,
@@ -92,6 +93,12 @@ export function useOnboardingTour() {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
+  /** Start nur ab md (≥960px). Laufende Tour bricht bei Hochformat/Resize nicht ab. */
+  const { mdAndUp } = useDisplay()
+
+  const canStartToursOnViewport = computed(() => mdAndUp.value)
+  /** Alias für Tour-Liste (Start-Erlaubnis). */
+  const toursSupportedOnViewport = canStartToursOnViewport
 
   const activeTourId = computed(() => {
     const raw = route.query[ONBOARDING_TOUR_QUERY]
@@ -128,6 +135,27 @@ export function useOnboardingTour() {
   })
 
   const expectsTargetClick = computed(() => activeStepMode.value === 'click')
+
+  function buildTourQuery(stepId: string) {
+    return {
+      [ONBOARDING_TOUR_QUERY]: activeTourId.value,
+      [ONBOARDING_TOUR_STEP_QUERY]: stepId,
+    }
+  }
+
+  function clearTourQuery() {
+    const nextQuery = { ...route.query }
+    delete nextQuery[ONBOARDING_TOUR_QUERY]
+    delete nextQuery[ONBOARDING_TOUR_STEP_QUERY]
+    return nextQuery
+  }
+
+  /** Tour abbrechen ohne als erledigt zu markieren. */
+  function abortTour() {
+    stopObservingTarget()
+    if (!activeTourId.value) return
+    void router.replace({ query: clearTourQuery() })
+  }
 
   async function syncTarget(onTargetClick?: () => void) {
     stopObservingTarget()
@@ -170,21 +198,8 @@ export function useOnboardingTour() {
     stopObservingTarget()
   })
 
-  function buildTourQuery(stepId: string) {
-    return {
-      [ONBOARDING_TOUR_QUERY]: activeTourId.value,
-      [ONBOARDING_TOUR_STEP_QUERY]: stepId,
-    }
-  }
-
-  function clearTourQuery() {
-    const nextQuery = { ...route.query }
-    delete nextQuery[ONBOARDING_TOUR_QUERY]
-    delete nextQuery[ONBOARDING_TOUR_STEP_QUERY]
-    return nextQuery
-  }
-
   function startTour(tourId: OnboardingTourId, departmentId: string) {
+    if (!canStartToursOnViewport.value) return
     const tour = getOnboardingTour(tourId)
     if (!tour) return
     const firstStep = tour.steps[0]
@@ -253,9 +268,12 @@ export function useOnboardingTour() {
     isLastStep,
     expectsTargetClick,
     targetRect,
+    toursSupportedOnViewport,
+    canStartToursOnViewport,
     startTour,
     next,
     skip,
     finish,
+    abortTour,
   }
 }

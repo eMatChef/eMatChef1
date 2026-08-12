@@ -122,7 +122,44 @@
           <v-tabs-window v-model="activeTab" class="material-detail-tabs-window">
           <!-- Tab: Daten (User: nur Anzeige, Felder mit Wert) -->
           <v-tabs-window-item value="data" class="material-detail-window-item">
-          <section v-if="isUserMaterialsBrowseOnly" class="tab-content">
+          <section v-if="isUserMaterialsBrowseOnly" class="tab-content user-readonly-detail">
+            <div class="section-card user-readonly-hero">
+              <h2 class="section-title">{{ t('common.material') }}</h2>
+              <div class="user-readonly-hero-grid">
+                <div class="user-readonly-hero-image">
+                  <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarImage') }}</span>
+                  <div class="image-slot image-slot--browse">
+                    <svg v-if="!materialPrimaryImageUrl" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <img v-else :src="materialPrimaryImageUrl" :alt="t('components.materialDetail.altMaterialImage')" />
+                  </div>
+                </div>
+                <div class="user-readonly-hero-meta">
+                  <div class="user-readonly-hero-stat">
+                    <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarStockQuick') }}</span>
+                    <span class="user-readonly-hero-stock">{{ formatMaterialStockQtyPrimary(material.total_stock) }}</span>
+                  </div>
+                  <div v-if="material.category" class="user-readonly-hero-stat">
+                    <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarCategory') }}</span>
+                    <span class="user-readonly-hero-value">{{ getCategoryPath() }}</span>
+                  </div>
+                  <dl v-if="userReadOnlyIdentityFields.length > 0" class="user-readonly-fields user-readonly-fields--compact">
+                    <div
+                      v-for="field in userReadOnlyIdentityFields"
+                      :key="field.label"
+                      class="user-readonly-row"
+                    >
+                      <dt>{{ field.label }}</dt>
+                      <dd>{{ field.value }}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
             <div
               v-for="section in userReadOnlySections"
               :key="section.title"
@@ -140,11 +177,15 @@
                 </div>
               </dl>
             </div>
+
             <div
-              v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
-              class="section-card"
+              v-if="material.linked_container_batch"
+              class="section-card user-readonly-loan-container"
             >
               <h2 class="section-title">{{ t('components.materialDetail.refKisteLabel') }}</h2>
+              <p class="user-readonly-loan-hint">
+                {{ t('components.materialDetail.refKisteLoanHint') }}
+              </p>
               <router-link
                 class="linked-kiste-link"
                 :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
@@ -152,7 +193,11 @@
                 {{ material.linked_container_batch.display_label }}
               </router-link>
             </div>
-            <p v-if="userReadOnlySections.length === 0" class="user-readonly-empty">
+
+            <p
+              v-if="userReadOnlySections.length === 0 && userReadOnlyIdentityFields.length === 0 && !material.linked_container_batch"
+              class="user-readonly-empty"
+            >
               {{ t('components.materialDetail.userReadOnlyNoFields') }}
             </p>
           </section>
@@ -1724,8 +1769,8 @@
           </v-tabs-window>
         </main>
 
-        <!-- Sidebar (Right) -->
-        <aside v-if="activeTab === 'data'" class="content-sidebar">
+        <!-- Sidebar (Right) — nur MW/DC; User-Ansicht hat Abbildung/Bestand oben -->
+        <aside v-if="activeTab === 'data' && !isUserMaterialsBrowseOnly" class="content-sidebar">
           <!-- Abbildung -->
           <div class="sidebar-card">
             <div class="sidebar-header">
@@ -5238,17 +5283,55 @@ function pushReadOnlyField(
   fields.push({ label, value: format ? format(value) : String(value) })
 }
 
+/** Hersteller/Modell im Hero-Block (Name/Kategorie sind Header bzw. Bestandszeile). */
+const userReadOnlyIdentityFields = computed((): ReadOnlyField[] => {
+  const m = material.value
+  const fields: ReadOnlyField[] = []
+  pushReadOnlyField(fields, t('common.manufacturer'), m?.manufacturer)
+  pushReadOnlyField(fields, t('components.materialDetail.labelModel'), m?.model)
+  return fields
+})
+
 const userReadOnlySections = computed((): ReadOnlySection[] => {
   const m = material.value
   const sections: ReadOnlySection[] = []
 
-  const materialFields: ReadOnlyField[] = []
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
-  pushReadOnlyField(materialFields, t('common.manufacturer'), m?.manufacturer)
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
-  if (materialFields.length > 0) {
-    sections.push({ title: t('common.material'), fields: materialFields })
+  const detailFields: ReadOnlyField[] = []
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWidthCm'), m?.size_width, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelHeightCm'), m?.size_height, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWarranty'), m?.warranty_until)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelDescription'), m?.description)
+  if (detailFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
+  }
+
+  const unitFields: ReadOnlyField[] = []
+  if (
+    m &&
+    !m.is_consumable &&
+    !m.is_food &&
+    (m.tracking_type === 'bulk' || m.tracking_type === 'serialized') &&
+    (!m.material_type || m.material_type === 'physical')
+  ) {
+    pushReadOnlyField(
+      unitFields,
+      t('components.materialDetail.labelStockUnitReadonly'),
+      formatStockUnitSettingLabel(m.pack_unit, m.pack_size),
+    )
+  }
+  if (m?.pack_size && m?.pack_unit && isPackagingUnit(m.pack_unit)) {
+    pushReadOnlyField(unitFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
+    pushReadOnlyField(unitFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
+  }
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackWeightKg'), m?.pack_weight, (v) => `${v} kg`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackLengthCm'), m?.pack_size_length, (v) => `${v} cm`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackWidthCm'), m?.pack_size_width, (v) => `${v} cm`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackHeightCm'), m?.pack_size_height, (v) => `${v} cm`)
+  if (unitFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionUnitsAndPackaging'), fields: unitFields })
   }
 
   const propertyFields: ReadOnlyField[] = []
@@ -5263,55 +5346,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
   }
   if (propertyFields.length > 0) {
     sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
-  }
-
-  const detailFields: ReadOnlyField[] = []
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWidthCm'), m?.size_width, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelHeightCm'), m?.size_height, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWarranty'), m?.warranty_until)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelDescription'), m?.description)
-  if (detailFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
-  }
-
-  if (
-    m &&
-    !m.is_consumable &&
-    !m.is_food &&
-    (m.tracking_type === 'bulk' || m.tracking_type === 'serialized') &&
-    (!m.material_type || m.material_type === 'physical')
-  ) {
-    const stockUnitFields: ReadOnlyField[] = []
-    pushReadOnlyField(
-      stockUnitFields,
-      t('components.materialDetail.labelStockUnitReadonly'),
-      formatStockUnitSettingLabel(m.pack_unit, m.pack_size),
-    )
-    pushReadOnlyField(
-      stockUnitFields,
-      t('components.materialDetail.labelNameDb'),
-      formatMaterialDisplayName(m.name, m.pack_unit, m.pack_size, m.size_length),
-    )
-    sections.push({ title: t('components.materialDetail.sectionStockUnit'), fields: stockUnitFields })
-  }
-
-  if (m?.pack_size && m?.pack_unit && isPackagingUnit(m.pack_unit)) {
-    const packFields: ReadOnlyField[] = []
-    pushReadOnlyField(packFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
-    pushReadOnlyField(packFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
-    sections.push({ title: t('components.materialDetail.sectionPackaging'), fields: packFields })
-  }
-
-  const packDimFields: ReadOnlyField[] = []
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWeightKg'), m?.pack_weight, (v) => `${v} kg`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackLengthCm'), m?.pack_size_length, (v) => `${v} cm`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWidthCm'), m?.pack_size_width, (v) => `${v} cm`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackHeightCm'), m?.pack_size_height, (v) => `${v} cm`)
-  if (packDimFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionPackDimensions'), fields: packDimFields })
   }
 
   if (m?.is_consumable || m?.is_food) {
@@ -6938,6 +6972,75 @@ onMounted(() => {
   line-height: 1.2;
 }
 
+.user-readonly-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 1.25rem 1.5rem;
+  align-items: start;
+}
+
+.user-readonly-hero-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.user-readonly-hero-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.user-readonly-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.user-readonly-hero-stock {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.user-readonly-hero-value {
+  font-size: 0.9375rem;
+  color: #111827;
+  line-height: 1.4;
+}
+
+/* Max. 220×220 — auf schmalen Screens kleiner, damit nichts aus dem Rahmen läuft */
+.image-slot--browse {
+  width: min(220px, 100%);
+  max-width: 220px;
+  aspect-ratio: 1;
+  height: auto;
+  flex-shrink: 1;
+}
+
+.user-readonly-hero-image {
+  min-width: 0;
+  max-width: 220px;
+  width: 100%;
+}
+
+.user-readonly-fields--compact {
+  margin-top: 0.25rem;
+}
+
+.user-readonly-loan-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
 .user-readonly-fields {
   margin: 0;
   display: flex;
@@ -6970,6 +7073,12 @@ onMounted(() => {
   margin: 0;
   color: #6b7280;
   font-size: 0.9375rem;
+}
+
+@media (max-width: 640px) {
+  .user-readonly-hero-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stock-qr-collapsible {

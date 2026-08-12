@@ -29,21 +29,36 @@
     </div>
   </v-main>
 
+  <button
+    v-if="showHelpShortcut"
+    type="button"
+    class="help-shortcut-btn"
+    :title="t('layout.header.helpTitle')"
+    :aria-label="t('layout.header.helpAria')"
+    @click="openHelp"
+  >
+    <v-icon icon="mdi-help-circle-outline" size="20" aria-hidden="true" />
+    <span>{{ t('layout.header.helpTitle') }}</span>
+  </button>
+
   <OnboardingTourOverlay v-if="canUseTours" />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUnsavedChangesReminder } from '@/composables/useUnsavedChangesReminder'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
+import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { refreshOnboardingCompletionStatus } from '@/utils/onboardingChecklist'
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay.vue'
 import SidebarNavigation from './SidebarNavigation.vue'
 import TopHeader from './TopHeader.vue'
 
 const route = useRoute()
+const { t } = useI18n()
 const authStore = useAuthStore()
 
 const isActivityDetailView = computed(() => {
@@ -60,6 +75,7 @@ useUnsavedChangesReminder()
 const drawerOpen = ref(false)
 
 const { departmentId, profileId, canUseOnboarding, canUseTours } = useDepartmentOnboardingAccess()
+const { showFloatingButton: showHelpShortcut, openHelp } = useHelpShortcut()
 
 watch(
   [departmentId, profileId, () => authStore.isLoggedIn, () => authStore.currentDepartmentRole],
@@ -140,5 +156,33 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.help-shortcut-btn {
+  position: fixed;
+  right: calc(18px + var(--emc-safe-right));
+  bottom: calc(18px + var(--emc-safe-bottom));
+  z-index: 1100;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: #0284c7;
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(2, 132, 199, 0.35);
+}
+
+.help-shortcut-btn:hover {
+  background: #0369a1;
+}
+
+.help-shortcut-btn:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
 }
 </style>
