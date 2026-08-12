@@ -20,6 +20,7 @@ use App\Service\DevEnvironmentService;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\VerificationEmailService;
+use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -535,7 +536,7 @@ class DepartmentController extends AbstractController
                 continue;
             }
             $profile = $user->getProfile();
-            if (!$profile) {
+            if (!$profile || E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
             }
 
@@ -1108,7 +1109,7 @@ class DepartmentController extends AbstractController
                 continue;
             }
             $profile = $user->getProfile();
-            if (!$profile) {
+            if (!$profile || E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
             }
 

@@ -20,11 +20,12 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
  * Legt (oder aktualisiert) den dedizierten Playwright-Smoke-User an.
+ * Standard: kein Department (nicht in User-Suche / Auto-Join).
  * Nur auf Develop/Staging verwenden — Passwort nicht committen.
  */
 #[AsCommand(
     name: 'app:ensure-e2e-user',
-    description: 'Stellt den E2E-Smoke-User sicher (email verified, aktiv, Dept-Membership)'
+    description: 'Stellt den E2E-Smoke-User sicher (email verified, aktiv, standardmäßig ohne Dept)'
 )]
 final class EnsureE2eUserCommand extends Command
 {
@@ -42,7 +43,12 @@ final class EnsureE2eUserCommand extends Command
         $this
             ->addOption('email', null, InputOption::VALUE_REQUIRED, 'E-Mail', self::DEFAULT_EMAIL)
             ->addOption('password', null, InputOption::VALUE_REQUIRED, 'Klartext-Passwort (nicht in Git/Historie speichern)')
-            ->addOption('department-id', null, InputOption::VALUE_OPTIONAL, 'Department-ID (sonst erstes gefundenes)');
+            ->addOption(
+                'department-id',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Optional: Department-ID zuweisen. Ohne Option: alle Memberships entfernen (kein Dept).'
+            );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -51,7 +57,8 @@ final class EnsureE2eUserCommand extends Command
 
         $email = strtolower(trim((string) $input->getOption('email')));
         $password = (string) $input->getOption('password');
-        $departmentId = trim((string) ($input->getOption('department-id') ?? ''));
+        $departmentIdRaw = $input->getOption('department-id');
+        $departmentId = \is_string($departmentIdRaw) ? trim($departmentIdRaw) : '';
 
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $io->error('Ungültige E-Mail.');
@@ -69,13 +76,6 @@ final class EnsureE2eUserCommand extends Command
             $department = $this->em->getRepository(Department::class)->find($departmentId);
             if (!$department) {
                 $io->error(sprintf('Department %s nicht gefunden.', $departmentId));
-
-                return Command::FAILURE;
-            }
-        } else {
-            $department = $this->em->getRepository(Department::class)->findOneBy([]);
-            if (!$department) {
-                $io->error('Kein Department vorhanden — zuerst Stammdaten anlegen.');
 
                 return Command::FAILURE;
             }
@@ -112,28 +112,37 @@ final class EnsureE2eUserCommand extends Command
         $user->setEmailVerificationExpiresAt(null);
         $user->setPassword($this->passwordHasher->hashPassword($user, $password));
 
-        $membership = $this->em->getRepository(Membership::class)->findOneBy([
+        $existingMemberships = $this->em->getRepository(Membership::class)->findBy([
             'userId' => $user->getId(),
-            'departmentId' => $department->getId(),
         ]);
-        if (!$membership) {
+        foreach ($existingMemberships as $membership) {
+            $this->em->remove($membership);
+        }
+        $this->em->flush();
+
+        if ($department !== null) {
             $membership = new Membership();
             $membership->setUser($user);
             $membership->setDepartment($department);
             $membership->setRole('u');
             $membership->setIsPrimary(true);
             $this->em->persist($membership);
+            $this->em->flush();
+
+            $io->success($created
+                ? sprintf('E2E-User angelegt: %s (User-ID %s)', $email, $user->getId())
+                : sprintf('E2E-User aktualisiert: %s (User-ID %s)', $email, $user->getId())
+            );
+            $io->writeln(sprintf('Department: %s (%s), Rolle: u', $department->getName(), $department->getId()));
         } else {
-            $membership->setIsPrimary(true);
+            $this->em->flush();
+            $io->success($created
+                ? sprintf('E2E-User angelegt: %s (User-ID %s)', $email, $user->getId())
+                : sprintf('E2E-User aktualisiert: %s (User-ID %s)', $email, $user->getId())
+            );
+            $io->writeln('Kein Department (Standard) — ausgeblendet in User-Suche.');
         }
 
-        $this->em->flush();
-
-        $io->success($created
-            ? sprintf('E2E-User angelegt: %s (User-ID %s)', $email, $user->getId())
-            : sprintf('E2E-User aktualisiert: %s (User-ID %s)', $email, $user->getId())
-        );
-        $io->writeln(sprintf('Department: %s (%s), Rolle: u', $department->getName(), $department->getId()));
         $io->note([
             'GitHub Secrets setzen: E2E_USER_EMAIL / E2E_USER_PASSWORD (und ggf. E2E_BASE_URL).',
             'Passwort nicht committen; --password erscheint in der Prozessliste — danach History säubern.',

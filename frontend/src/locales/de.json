@@ -1,7 +1,10 @@
 {
   "app": {
     "name": "eMatChef",
-    "devEnvironmentBanner": "Testumgebung – keine Produktionsdaten."
+    "devEnvironmentBanner": "Testumgebung – keine Produktionsdaten.",
+    "devDemoLoginsShow": "Demo-Logins",
+    "devDemoLoginsHide": "Schliessen",
+    "devDemoLoginsHint": "Passwort für alle: test — füllt das Login-Formular."
   },
   "addresses": {
     "search": {

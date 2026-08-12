@@ -30,11 +30,11 @@ class RecreateTestUsersCommand extends Command
         $output->writeln('Lösche alte Test-User und erstelle sie neu...');
         $output->writeln('');
 
-        // Test-User Emails
+        // Test-User Emails (Domain wie create-role-users / Banner-Demo)
         $testUsers = [
-            ['email' => 'admin@example.com', 'password' => 'password', 'firstName' => 'Admin', 'lastName' => 'User', 'nickname' => 'Admin'],
-            ['email' => 'manager@example.com', 'password' => 'password', 'firstName' => 'Manager', 'lastName' => 'User', 'nickname' => 'Manager'],
-            ['email' => 'user@example.com', 'password' => 'password', 'firstName' => 'Test', 'lastName' => 'User', 'nickname' => 'User'],
+            ['email' => 'admin@ematchef.ch', 'password' => 'test', 'firstName' => 'Admin', 'lastName' => 'User', 'nickname' => 'Admin'],
+            ['email' => 'manager@ematchef.ch', 'password' => 'test', 'firstName' => 'Manager', 'lastName' => 'User', 'nickname' => 'Manager'],
+            ['email' => 'user@ematchef.ch', 'password' => 'test', 'firstName' => 'Test', 'lastName' => 'User', 'nickname' => 'User'],
         ];
 
         $deleted = 0;

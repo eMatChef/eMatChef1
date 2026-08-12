@@ -1,7 +1,10 @@
 {
   "app": {
     "name": "eMatChef",
-    "devEnvironmentBanner": "Environnement de test – pas les données de production."
+    "devEnvironmentBanner": "Environnement de test – pas les données de production.",
+    "devDemoLoginsShow": "Comptes démo",
+    "devDemoLoginsHide": "Fermer",
+    "devDemoLoginsHint": "Mot de passe pour tous : test — remplit le formulaire."
   },
   "router": {
     "meta": {
