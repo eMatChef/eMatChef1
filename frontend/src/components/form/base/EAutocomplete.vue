@@ -32,10 +32,12 @@
           :no-filter="noFilter"
           :chips="chips"
           :closable-chips="closableChips"
+          :autocomplete="autocomplete"
           :menu="menu"
           :menu-props="mergedMenuProps"
           class="e-autocomplete"
           @update:model-value="onUpdate"
+          @update:menu="onMenuUpdate"
         >
           <template v-if="$slots.item" #item="slotProps">
             <slot name="item" v-bind="slotProps" />
@@ -84,6 +86,8 @@ const props = withDefaults(
     noFilter?: boolean
     chips?: boolean
     closableChips?: boolean
+    /** Browser-Autofill unterdrücken (sonst oft fremde Vorschläge über dem Menü) */
+    autocomplete?: string
     menu?: boolean
     menuProps?: Record<string, unknown>
   }>(),
@@ -99,9 +103,14 @@ const props = withDefaults(
     clearable: true,
     chips: false,
     closableChips: false,
+    autocomplete: 'off',
     menu: true,
   },
 )
+
+const emit = defineEmits<{
+  'update:menu': [value: boolean]
+}>()
 
 const model = defineModel<unknown>({ default: null })
 const search = defineModel<string | null>('search', { default: '' })
@@ -124,7 +133,7 @@ const passthroughAttrs = computed(() => {
 
 const mergedMenuProps = computed(() => ({
   maxHeight: 280,
-  zIndex: 2500,
+  zIndex: 2800,
   ...(props.menuProps ?? {}),
 }))
 
@@ -138,5 +147,9 @@ const hasError = computed(() => {
 
 function onUpdate(value: unknown) {
   model.value = value
+}
+
+function onMenuUpdate(open: boolean) {
+  emit('update:menu', open)
 }
 </script>
