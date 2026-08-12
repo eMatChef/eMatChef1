@@ -25,10 +25,24 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            # Fester Pfad (kein $HOME): non-login-SSH von Actions setzt HOME oft nicht; ${{ secrets.PROD_SSH_USER }} kann in Org/Env leer sein.
-            # SSH-Login-User bleibt secrets.PROD_SSH_USER — dieser Block betrifft nur den GitHub-Repo-Deploy-Key auf dem Server.
-            GIT_DEPLOY_KEY="/home/deploy-prod/.ssh/ematchef_deploy_ed25519"
-            test -f "$GIT_DEPLOY_KEY" || { echo "::error::Datei fehlt (git fetch): $GIT_DEPLOY_KEY — auf dem Droplet anlegen (siehe deploy/SERVER-UPDATE.md 6b)"; exit 1; }
+            # Droplet → GitHub Deploy-Key (nicht PROD_SSH_KEY). non-login-SSH: kein $HOME verlassen.
+            # Primär: /root/.ssh/ematchef_deploy_prod_ed25519 (Hetzner Prod); Fallback: Alias-Pfad aus Doku.
+            GIT_DEPLOY_KEY=""
+            for candidate in \
+              /root/.ssh/ematchef_deploy_prod_ed25519 \
+              /home/deploy-prod/.ssh/ematchef_deploy_ed25519 \
+              /root/.ssh/ematchef_deploy_ed25519
+            do
+              if [[ -e "$candidate" ]]; then
+                GIT_DEPLOY_KEY="$candidate"
+                break
+              fi
+            done
+            if [[ -z "$GIT_DEPLOY_KEY" ]]; then
+              echo "::error::Kein Deploy-Key gefunden (ematchef_deploy_prod_ed25519 o.ä.) — siehe deploy/SERVER-UPDATE.md 6b"
+              exit 1
+            fi
+            echo "Using git deploy key: $GIT_DEPLOY_KEY"
             export EMATCHEF_GIT_SSH_IDENTITY="$GIT_DEPLOY_KEY"
             export GIT_SSH_COMMAND="ssh -i ${GIT_DEPLOY_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
             cd "${{ secrets.PROD_DEPLOY_PATH }}"
