@@ -272,12 +272,13 @@
     <EDialog
       v-model="showAddModal"
       :max-width="640"
+      :retain-focus="false"
       :title="t('settings.departmentUsers.modalAddTitle')"
       card-class="modal-add-user modal-add-user-wide"
     >
       <div class="add-user-modal-body">
         <p
-              v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchTrimmed.length < 3"
+          v-if="!isLoadingAvailable && availableUsers.length === 0 && userSearchTrimmed.length < 3"
           class="no-users-hint"
         >
           {{ t('settings.departmentUsers.modalNoAvailableUsers') }}
@@ -286,6 +287,8 @@
         <EAutocomplete
           v-model="selectedAvailableUser"
           v-model:search="userSearchQuery"
+          autocomplete="off"
+          name="emc-add-user-search"
           :label="t('settings.departmentUsers.labelUserRequired')"
           :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
           :items="autocompleteUsers"
@@ -297,6 +300,7 @@
           :menu="userSearchMenuOpen"
           :loading="isLoadingAvailable"
           hide-details
+          @update:menu="onUserSearchMenuUpdate"
         >
           <template #item="{ item: user, props: itemProps }">
             <AvailableUserAutocompleteItem
@@ -311,15 +315,18 @@
           </template>
           <template #no-data>
             <div class="add-user-autocomplete-no-data">
-              <template v-if="userSearchTrimmed.length < 3">
-                {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchTrimmed.length) }) }}
-              </template>
-              <template v-else-if="isLoadingAvailable">
+              <template v-if="isLoadingAvailable">
                 {{ t('settings.departmentUsers.modalLoadingAvailable') }}
               </template>
             </div>
           </template>
         </EAutocomplete>
+        <p
+          v-if="!selectedAvailableUser && userSearchTrimmed.length < 3"
+          class="add-user-search-hint"
+        >
+          {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchTrimmed.length) }) }}
+        </p>
 
         <div v-if="showInviteByEmail" class="invite-by-email-box">
           <div class="invite-by-email-box__hero">
@@ -900,20 +907,38 @@ const autocompleteUsers = computed(() => {
   ).slice(0, 12)
 })
 
-/** Dropdown nur bei Treffern oder Ladezustand — kein «Kein Treffer» über dem Formular */
-const userSearchMenuOpen = computed(() => {
-  if (selectedAvailableUser.value) return false
-  if (userSearchTrimmed.value.length < 3) return false
-  if (showInviteByEmail.value) return false
-  return isLoadingAvailable.value || autocompleteUsers.value.length > 0
-})
-
 const showInviteByEmail = computed(() => {
   if (selectedAvailableUser.value) return false
   if (userSearchTrimmed.value.length < 3) return false
   if (isLoadingAvailable.value) return false
   return autocompleteUsers.value.length === 0
 })
+
+function shouldOpenUserSearchMenu(): boolean {
+  if (selectedAvailableUser.value) return false
+  if (userSearchTrimmed.value.length < 3) return false
+  if (showInviteByEmail.value) return false
+  return isLoadingAvailable.value || autocompleteUsers.value.length > 0
+}
+
+/** Kontrolliertes Menü — zu früh geöffnet + Browser-Autofill sonst Doppel-Dropdown */
+const userSearchMenuOpen = ref(false)
+
+function onUserSearchMenuUpdate(open: boolean) {
+  if (!open) {
+    userSearchMenuOpen.value = false
+    return
+  }
+  // Klick/Fokus bei < 3 Zeichen: Menü zu (Hinweis steht unter dem Feld)
+  userSearchMenuOpen.value = shouldOpenUserSearchMenu()
+}
+
+watch(
+  [userSearchTrimmed, selectedAvailableUser, isLoadingAvailable, autocompleteUsers, showInviteByEmail],
+  () => {
+    userSearchMenuOpen.value = shouldOpenUserSearchMenu()
+  },
+)
 
 const isInviteEmailValid = computed(() => isValidEmail(inviteEmail.value))
 
@@ -1810,6 +1835,13 @@ onUnmounted(() => {
   font-size: 13px;
   color: #64748b;
   line-height: 1.4;
+}
+
+.add-user-search-hint {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.35;
 }
 
 .add-user-groups-block__label {
