@@ -2058,6 +2058,63 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Chargen eines Materials (Liste / Expand) — leichtgewichtig.
+     */
+    #[Route('/{id}/batches', name: 'list_batches', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listBatches(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $rows = [];
+        foreach ($material->getBatches() as $batch) {
+            $rows[] = [
+                'id' => $batch->getId(),
+                'qty' => $batch->getQty(),
+                'status' => $batch->getStatus(),
+                'label' => $batch->getLabel(),
+                'serial_number' => $batch->getSerialNumber(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
+                'acquired_on' => $batch->getAcquiredOn()?->format('Y-m-d'),
+                'rack' => $batch->getRack() ? [
+                    'id' => $batch->getRack()->getId(),
+                    'name' => $batch->getRack()->getName(),
+                ] : null,
+                'slot' => $batch->getSlot() ? [
+                    'id' => $batch->getSlot()->getId(),
+                    'name' => $batch->getSlot()->getName(),
+                ] : null,
+                'storage_address_name' => $this->storageAddressNameFromRack($batch->getRack()),
+            ];
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            $ae = $a['expiry_date'] ?? null;
+            $be = $b['expiry_date'] ?? null;
+            if ($ae === null && $be === null) {
+                return strcmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+            }
+            if ($ae === null) {
+                return 1;
+            }
+            if ($be === null) {
+                return -1;
+            }
+
+            return strcmp((string) $ae, (string) $be);
+        });
+
+        return new JsonResponse($rows);
+    }
+
+    /**
      * Batch zu bestehendem Material hinzufügen
      */
     #[Route('/{id}/batches', name: 'add_batch', methods: ['POST'])]
@@ -4719,6 +4776,21 @@ class MaterialController extends AbstractController
             $openLossQty = $openLossData[$mid]['qty'] ?? 0;
         }
 
+        // Frühestes Ablaufdatum über aktive Chargen (Esswaren-Liste / Sortierung)
+        $nearestExpiry = null;
+        foreach ($batches as $batch) {
+            if ($batch->getStatus() !== 'active') {
+                continue;
+            }
+            $exp = $batch->getExpiryDate();
+            if ($exp === null) {
+                continue;
+            }
+            if ($nearestExpiry === null || $exp < $nearestExpiry) {
+                $nearestExpiry = $exp;
+            }
+        }
+
         $publicCodeEntry = $this->publicCodeService->getActiveMaterialPublicCode((string) $material->getId());
         $publicCode = $publicCodeEntry?->getPublicCode();
 
@@ -4758,6 +4830,7 @@ class MaterialController extends AbstractController
             'open_loss_reports' => $openLossReports,
             'open_loss_qty' => $openLossQty,
             'batch_count' => count($batches),
+            'nearest_expiry_date' => $nearestExpiry?->format('Y-m-d'),
             'is_container' => $material->getIsContainer(),
             'tent_type' => $material->getTentType(),
             'tent_capacity' => $material->getTentCapacity(),

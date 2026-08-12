@@ -24,6 +24,7 @@ use App\Service\Inventory\InventoryTaskLinkService;
 use App\Service\Workshop\WorkshopExternalCleaningService;
 use App\Service\Workshop\WorkshopSendToSupplierService;
 use App\Service\Workshop\WorkshopTicketPhaseService;
+use App\Service\ActivityWetDryingService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -48,6 +49,7 @@ class WorkshopController extends AbstractController
         private WorkshopSendToSupplierService $sendToSupplierService,
         private WorkshopExternalCleaningService $externalCleaningService,
         private InventoryTaskLinkService $inventoryTaskLinkService,
+        private ActivityWetDryingService $wetDrying,
     ) {}
 
     // ═══════════════════════════════════════════════
@@ -806,6 +808,10 @@ class WorkshopController extends AbstractController
         }
 
         if ($newStatus === WorkshopTicket::STATUS_COMPLETED) {
+            $wetBlock = $this->wetDrying->assertCleaningTicketCompletable($ticket);
+            if ($wetBlock !== null) {
+                return new JsonResponse(['error' => $wetBlock, 'code' => 'wet_not_stored'], 422);
+            }
             $resolutionAction = $data['resolution_action'] ?? 'repaired';
             $validationError = $this->ticketCompletionService->validateBeforeComplete($ticket, $resolutionAction);
             if ($validationError !== null) {

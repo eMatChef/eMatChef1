@@ -13,6 +13,7 @@ const PACK_JOURNEY_NOTIFICATION_TYPES = new Set([
   'activity_returned',
   'activity_returned_mw',
   'activity_pack_crate_check_incomplete',
+  'activity_material_wet_not_hung',
   'activity_replenishment_wish',
   'activity_replenishment_wish_fulfilled',
   'activity_replenishment_wish_rejected',
@@ -52,6 +53,9 @@ export function journeyStepForInboxNotification(
   }
   if (type === 'activity_returned' || type === 'activity_returned_mw') {
     return defaultJourneyStepForStatus('returned', profile, canManageMaterials)
+  }
+  if (type === 'activity_material_wet_not_hung') {
+    return 'store'
   }
   if (type === 'activity_pack_crate_check_incomplete') {
     if (status === 'at_event') {

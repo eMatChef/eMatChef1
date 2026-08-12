@@ -229,6 +229,9 @@ const kindIcon = computed(() => {
 
 const qtyLabel = computed(() => {
   if (props.atEventQtyLabel) return props.atEventQtyLabel
+  if (props.row.wetQueueQty != null && props.row.wetQueueQty > 0) {
+    return t('activities.materialJourney.row.wetQty', { count: props.row.wetQueueQty })
+  }
   if (isStoreStep.value && isCrate.value && props.row.isOpen) {
     const contentPending = visiblePreviewLines.value.length
     if (contentPending > 0) {

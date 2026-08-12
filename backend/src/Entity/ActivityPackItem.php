@@ -67,6 +67,32 @@ class ActivityPackItem
     #[ORM\Column(name: 'quantity_stored', type: 'integer', options: ['default' => 0])]
     private int $quantityStored = 0;
 
+    /**
+     * Nasse / zum Trocknen vorgesehene Menge (Teilmenge von returned − stored).
+     * Trockener Einlager-Rest = returned − stored − wet.
+     */
+    #[ORM\Column(name: 'quantity_wet', type: 'integer', options: ['default' => 0])]
+    private int $quantityWet = 0;
+
+    /** true = bereits aufgehängt; false = muss noch; null wenn quantity_wet = 0 */
+    #[ORM\Column(name: 'wet_hung', type: 'boolean', nullable: true)]
+    private ?bool $wetHung = null;
+
+    #[ORM\Column(name: 'wet_drying_storage_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $wetDryingStorageAddressId = null;
+
+    #[ORM\Column(name: 'wet_drying_rack_id', type: 'string', length: 64, nullable: true)]
+    private ?string $wetDryingRackId = null;
+
+    #[ORM\Column(name: 'wet_drying_slot_id', type: 'string', length: 64, nullable: true)]
+    private ?string $wetDryingSlotId = null;
+
+    #[ORM\Column(name: 'wet_drying_location_label', type: 'string', length: 255, nullable: true)]
+    private ?string $wetDryingLocationLabel = null;
+
+    #[ORM\Column(name: 'wet_workshop_ticket_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $wetWorkshopTicketId = null;
+
     /** Zustand bei Ausgabe: ok, leicht_beschaedigt, beschaedigt */
     #[ORM\Column(name: 'condition_out', type: 'string', length: 50, options: ['default' => 'ok'])]
     private string $conditionOut = 'ok';
@@ -151,6 +177,27 @@ class ActivityPackItem
     public function getQuantityStored(): int { return $this->quantityStored; }
     public function setQuantityStored(int $quantityStored): self { $this->quantityStored = $quantityStored; return $this; }
 
+    public function getQuantityWet(): int { return $this->quantityWet; }
+    public function setQuantityWet(int $quantityWet): self { $this->quantityWet = max(0, $quantityWet); return $this; }
+
+    public function getWetHung(): ?bool { return $this->wetHung; }
+    public function setWetHung(?bool $wetHung): self { $this->wetHung = $wetHung; return $this; }
+
+    public function getWetDryingStorageAddressId(): ?string { return $this->wetDryingStorageAddressId; }
+    public function setWetDryingStorageAddressId(?string $wetDryingStorageAddressId): self { $this->wetDryingStorageAddressId = $wetDryingStorageAddressId; return $this; }
+
+    public function getWetDryingRackId(): ?string { return $this->wetDryingRackId; }
+    public function setWetDryingRackId(?string $wetDryingRackId): self { $this->wetDryingRackId = $wetDryingRackId; return $this; }
+
+    public function getWetDryingSlotId(): ?string { return $this->wetDryingSlotId; }
+    public function setWetDryingSlotId(?string $wetDryingSlotId): self { $this->wetDryingSlotId = $wetDryingSlotId; return $this; }
+
+    public function getWetDryingLocationLabel(): ?string { return $this->wetDryingLocationLabel; }
+    public function setWetDryingLocationLabel(?string $wetDryingLocationLabel): self { $this->wetDryingLocationLabel = $wetDryingLocationLabel; return $this; }
+
+    public function getWetWorkshopTicketId(): ?string { return $this->wetWorkshopTicketId; }
+    public function setWetWorkshopTicketId(?string $wetWorkshopTicketId): self { $this->wetWorkshopTicketId = $wetWorkshopTicketId; return $this; }
+
     public function getConditionOut(): string { return $this->conditionOut; }
     public function setConditionOut(string $conditionOut): self { $this->conditionOut = $conditionOut; return $this; }
 
@@ -218,15 +265,15 @@ class ActivityPackItem
         return $this->quantityIssued - $this->quantityReturned;
     }
 
-    /** Differenz zwischen retourniert und eingelagert */
+    /** Trockener Einlager-Rest (ohne nasse Warteschlange) */
     public function getStoreDifference(): int
     {
-        return $this->quantityReturned - $this->quantityStored;
+        return max(0, $this->quantityReturned - $this->quantityStored - $this->quantityWet);
     }
 
-    /** Ist die retournierte Menge vollständig eingelagert? */
+    /** Ist die trockene retournierte Menge vollständig eingelagert (nass darf noch offen sein)? */
     public function isFullyStored(): bool
     {
-        return $this->quantityStored >= $this->quantityReturned && $this->quantityReturned > 0;
+        return $this->getStoreDifference() === 0 && $this->quantityReturned > 0;
     }
 }

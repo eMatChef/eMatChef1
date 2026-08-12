@@ -19,7 +19,7 @@
       </select>
     </div>
 
-    <div class="picker-field">
+    <div v-if="showRack" class="picker-field">
       <label>{{ rackLabel }}</label>
       <select
         :value="rackId"
@@ -40,7 +40,7 @@
       </select>
     </div>
 
-    <div v-if="showSlot" class="picker-field">
+    <div v-if="showRack && showSlot" class="picker-field">
       <label>{{ slotLabel }}</label>
       <select
         :value="slotId"
@@ -85,6 +85,7 @@ const props = withDefaults(defineProps<{
   /** Nicht „slots“ nennen – in Vue-Templates kollidiert das mit dem Slot-System (Dropdown blieb leer trotz API-Daten). */
   slotList: StorageSlot[]
   showStorageAddress?: boolean
+  showRack?: boolean
   showSlot?: boolean
   disabled?: boolean
   disableSlotWithoutRack?: boolean
@@ -110,6 +111,7 @@ const props = withDefaults(defineProps<{
   storageAddressOptions: () => [],
   slotId: '',
   showStorageAddress: false,
+  showRack: true,
   slotList: () => [],
   showSlot: true,
   disabled: false,

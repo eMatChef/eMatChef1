@@ -20,6 +20,15 @@
 
         <v-list-item-subtitle class="material-list-mobile__stock">
           {{ t('materialsView.colTotal') }} {{ formatListStockQty(item.total_stock, item) }}
+          <template v-if="showFoodColumns">
+            ·
+            <span :class="expiryToneClass(daysUntilExpiry(item.nearest_expiry_date))">
+              {{ formatExpiryDate(item.nearest_expiry_date) }}
+              <template v-if="daysUntilExpiry(item.nearest_expiry_date) !== null">
+                ({{ daysUntilExpiry(item.nearest_expiry_date) }}d)
+              </template>
+            </span>
+          </template>
           <template v-if="showStockDetailColumns">
             · {{ t('materialsView.colAvailable') }}
             <span
@@ -37,13 +46,17 @@
         <template #append>
           <div class="material-list-mobile__actions">
             <v-btn
-              v-if="showComboExpandColumn && isComboMaterial(item)"
+              v-if="(showComboExpandColumn && isComboMaterial(item)) || (showFoodExpandColumn && item.is_food)"
               icon
               variant="text"
               size="small"
               density="compact"
               :aria-expanded="expandedIds.includes(item.id)"
-              :aria-label="t('materialsView.expandComboTitle')"
+              :aria-label="
+                item.is_food && showFoodExpandColumn
+                  ? t('materialsView.expandBatchesTitle')
+                  : t('materialsView.expandComboTitle')
+              "
               @click.stop="emit('toggle-expand', item.id)"
             >
               <v-icon
@@ -97,14 +110,53 @@
           </template>
         </div>
       </v-expand-transition>
+
+      <v-expand-transition>
+        <div
+          v-if="showFoodExpandColumn && item.is_food && expandedIds.includes(item.id)"
+          class="material-list-mobile__combo-panel"
+        >
+          <div v-if="foodBatchesLoading.has(item.id)" class="material-list-mobile__loading">
+            <div class="spinner-sm"></div>
+            {{ t('materialsView.foodBatchesLoading') }}
+          </div>
+          <div v-else-if="(foodBatchesById[item.id] || []).length === 0" class="material-list-mobile__combo-empty">
+            {{ t('materialsView.foodBatchesEmpty') }}
+          </div>
+          <template v-else>
+            <p class="material-list-mobile__combo-heading">
+              {{ t('materialsView.subColBatch') }}
+            </p>
+            <ul class="material-list-mobile__combo-items">
+              <li v-for="batch in foodBatchesById[item.id]" :key="batch.id">
+                <span>
+                  {{ batch.label || batch.serial_number || batch.id }}
+                </span>
+                <span class="material-list-mobile__combo-meta">
+                  ×{{ batch.qty }}
+                  ·
+                  <span :class="expiryToneClass(daysUntilExpiry(batch.expiry_date))">
+                    {{ formatExpiryDate(batch.expiry_date) }}
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </template>
+        </div>
+      </v-expand-transition>
     </template>
   </v-list>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import type { ComboComponent, Material } from '@/api/materials'
+import type { ComboComponent, Material, MaterialBatch } from '@/api/materials'
 import { isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
+import {
+  daysUntilExpiry,
+  expiryToneClass,
+  formatExpiryDate,
+} from '@/utils/materialExpiry'
 import {
   canDisplayMeterStockAsPieces,
   formatMaterialDisplayName,
@@ -116,15 +168,27 @@ import '@/styles/components/material-list-mobile.css'
 
 defineOptions({ name: 'MaterialListMobile' })
 
-const props = defineProps<{
-  items: Material[]
-  categoriesById: Record<string, string>
-  showComboExpandColumn: boolean
-  showStockDetailColumns: boolean
-  expandedIds: readonly string[]
-  comboComponentsById: Record<string, ComboComponent[]>
-  comboComponentsLoading: ReadonlySet<string>
-}>()
+const props = withDefaults(
+  defineProps<{
+    items: Material[]
+    categoriesById: Record<string, string>
+    showComboExpandColumn: boolean
+    showFoodColumns?: boolean
+    showFoodExpandColumn?: boolean
+    showStockDetailColumns: boolean
+    expandedIds: readonly string[]
+    comboComponentsById: Record<string, ComboComponent[]>
+    comboComponentsLoading: ReadonlySet<string>
+    foodBatchesById?: Record<string, MaterialBatch[]>
+    foodBatchesLoading?: ReadonlySet<string>
+  }>(),
+  {
+    showFoodColumns: false,
+    showFoodExpandColumn: false,
+    foodBatchesById: () => ({}),
+    foodBatchesLoading: () => new Set(),
+  },
+)
 
 const emit = defineEmits<{
   open: [material: Material]
@@ -190,5 +254,4 @@ function formatListStockQty(qty: number, item: Material): string {
     item.name,
   )
 }
-
 </script>

@@ -215,6 +215,8 @@ export interface Material {
   open_loss_reports: number
   open_loss_qty: number
   batch_count: number
+  /** Frühestes Ablaufdatum aktiver Chargen (Y-m-d), null wenn keines */
+  nearest_expiry_date?: string | null
   is_container: boolean
   tent_type: string | null
   repair_template_key?: string | null
@@ -745,6 +747,14 @@ export interface AddBatchMultiResponse {
     public_code?: string | null
     public_url?: string | null
   }>
+}
+
+/**
+ * Lädt Chargen eines Materials (für Listen-Expand).
+ */
+export async function getMaterialBatches(materialId: string): Promise<MaterialBatch[]> {
+  const response = await apiClient.get<MaterialBatch[]>(`/api/materials/${materialId}/batches`)
+  return Array.isArray(response.data) ? response.data : []
 }
 
 /**
