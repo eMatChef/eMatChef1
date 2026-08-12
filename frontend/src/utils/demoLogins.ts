@@ -9,7 +9,7 @@ export type DemoLogin = {
   role: string
 }
 
-export const DEMO_LOGIN_PASSWORD = 'test'
+export const DEMO_LOGIN_PASSWORD = 'test!ematchef'
 
 export const DEMO_LOGINS: DemoLogin[] = [
   { email: 'superadmin@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Superadmin', role: 'sa' },

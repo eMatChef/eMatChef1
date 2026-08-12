@@ -1,7 +1,7 @@
 # Dev-Demo Seeds
 
 Rollen-User und Banner-Logins kommen aus `app:create-role-users` / `app:dev-demo:reset`
-(`*@ematchef.ch` / Passwort `test`).
+(`*@ematchef.ch` / Passwort `test!ematchef`).
 
 Org-Subset-Export für Material/Aktivitäten kann hier abgelegt werden, z. B.:
 

@@ -56,7 +56,7 @@ class ImportOrgSubsetCommand extends Command
                 null,
                 InputOption::VALUE_OPTIONAL,
                 'Superadmin Passwort',
-                'test'
+                'test!ematchef'
             );
     }
 

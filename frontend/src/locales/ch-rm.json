@@ -4,7 +4,7 @@
     "devEnvironmentBanner": "Testumgebung – keine Produktionsdaten.",
     "devDemoLoginsShow": "Demo-Logins",
     "devDemoLoginsHide": "Schliessen",
-    "devDemoLoginsHint": "Passwort für alle: test — füllt das Login-Formular."
+    "devDemoLoginsHint": "Passwort für alle: test!ematchef — füllt das Login-Formular."
   },
   "router": {
     "meta": {

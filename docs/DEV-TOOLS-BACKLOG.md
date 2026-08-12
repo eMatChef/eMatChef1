@@ -12,7 +12,7 @@ Verwandt: gelber Banner (`frontend/src/utils/devEnvironmentBanner.ts`, `DevEnvir
 
 **Regeln:**
 - Nur Dev/Staging-Hosts (`VITE_SHOW_DEV_BANNER`, Host-Liste in `devEnvironmentBanner.ts`)
-- Nur bekannte **Seed-Passwörter** (`test` für `*@ematchef.ch`) — nie Produktiv-Credentials
+- Nur bekannte **Seed-Passwörter** (`test!ematchef` für `*@ematchef.ch`) — nie Produktiv-Credentials
 - Frontend-Liste in `demoLogins.ts` (optional später `GET /api/dev/demo-logins` wenn `EMATCHEF_DEV_TOOLS=1`)
 
 **Nicht:** Banner auf `app.ematchef.ch` / Prod-Marketing.
