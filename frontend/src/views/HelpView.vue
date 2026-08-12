@@ -95,8 +95,8 @@ const menuItems = computed<SettingsNavItem[]>(() => {
   const items: SettingsNavItem[] = []
   if (canUseHelpEinrichtung.value) {
     items.push({
-      id: 'einrichtung',
-      label: t('help.nav.einrichtung'),
+      id: 'tours',
+      label: t('help.nav.touren'),
       mdiIcon: 'mdi-compass-outline',
     })
   }
@@ -127,6 +127,9 @@ function isHelpItemActive(itemId: string): boolean {
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'dokumentation') {
     return p === base || p === `${base}/dokumentation` || p === `${base}/overview`
+  }
+  if (itemId === 'tours') {
+    return p === `${base}/tours` || p === `${base}/einrichtung`
   }
   return p === `${base}/${itemId}`
 }

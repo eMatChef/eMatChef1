@@ -6,18 +6,23 @@ import {
 } from '@/config/onboardingTours'
 
 describe('onboarding tour audience filter', () => {
-  it('shows only activity tours for user/l1 without camp', () => {
+  it('shows only start + activity tours for user/l1 without camp', () => {
     const tours = filterOnboardingToursForRole('l1', { canCreateCamp: false })
-    expect(tours.map((t) => t.id)).toEqual(['activity-create'])
+    expect(tours.map((t) => t.id)).toEqual(['profile-overview', 'activity-create'])
   })
 
   it('includes camp tour when camp create is allowed', () => {
     const tours = filterOnboardingToursForRole('user', { canCreateCamp: true })
-    expect(tours.map((t) => t.id).sort()).toEqual(['activity-camp-create', 'activity-create'])
+    expect(tours.map((t) => t.id).sort()).toEqual([
+      'activity-camp-create',
+      'activity-create',
+      'profile-overview',
+    ])
   })
 
   it('shows all tours for mw', () => {
     const tours = filterOnboardingToursForRole('mw', { canCreateCamp: true })
+    expect(tours.map((t) => t.id)).toContain('profile-overview')
     expect(tours.map((t) => t.id)).toContain('material-create')
     expect(tours.map((t) => t.id)).toContain('issue-return')
     expect(tours.map((t) => t.id)).toContain('activity-create')
@@ -43,5 +48,16 @@ describe('onboarding tour audience filter', () => {
     const tour = getOnboardingTour('issue-return')!
     expect(tour.audience).toBe('mw')
     expect(tour.steps.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('profile-overview uses user avatar and start category', () => {
+    const tour = getOnboardingTour('profile-overview')!
+    expect(tour.category).toBe('start')
+    expect(tour.audience).toBe('all')
+    expect(tour.useUserAvatar).toBe(true)
+    expect(tour.version).toBeGreaterThanOrEqual(2)
+    expect(tour.steps.length).toBe(17)
+    expect(tour.steps[0]?.target).toContain('sidebar-nav')
+    expect(tour.steps.some((s) => s.target?.includes('profile-save'))).toBe(true)
   })
 })

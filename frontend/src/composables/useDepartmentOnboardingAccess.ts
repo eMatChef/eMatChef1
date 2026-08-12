@@ -63,8 +63,10 @@ export function useDepartmentOnboardingAccess() {
   /** Spotlight-Touren (MW/DC + User/L1–L3). */
   const canUseTours = computed(() => baseAccess.value && hasTourRole.value)
 
-  /** Hub Hilfe → Einrichtung. */
-  const canUseHelpEinrichtung = computed(() => canUseTours.value)
+  /** Hub Hilfe → Touren. */
+  const canUseHelpTours = computed(() => canUseTours.value)
+  /** @deprecated use canUseHelpTours */
+  const canUseHelpEinrichtung = canUseHelpTours
 
   /** @deprecated alias for canUseSetupChecklist (badge / checklist refresh) */
   const canUseOnboarding = canUseSetupChecklist
@@ -86,6 +88,7 @@ export function useDepartmentOnboardingAccess() {
     canUseOnboarding,
     canUseSetupChecklist,
     canUseTours,
+    canUseHelpTours,
     canUseHelpEinrichtung,
     hasOnboardingRole,
     hasSetupChecklistRole,

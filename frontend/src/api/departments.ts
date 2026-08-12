@@ -4,7 +4,13 @@ export interface DepartmentUser {
   id: string
   profile_id: string
   name: string
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
   email: string
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
   role: string
   is_primary: boolean
 }

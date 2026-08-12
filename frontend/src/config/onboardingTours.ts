@@ -9,6 +9,7 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 
 export type OnboardingTourId =
+  | 'profile-overview'
   | 'material-create'
   | 'activity-create'
   | 'activity-camp-create'
@@ -17,7 +18,7 @@ export type OnboardingTourId =
   | 'invite-users'
   | 'default-coach'
 
-export type OnboardingTourCategory = 'material' | 'activities' | 'settings'
+export type OnboardingTourCategory = 'start' | 'material' | 'activities' | 'settings'
 
 export type OnboardingTourStepMode = 'info' | 'click' | 'waitFor'
 
@@ -42,6 +43,8 @@ export interface OnboardingTourDef {
   titleKey: string
   descriptionKey: string
   mdiIcon: string
+  /** Tour-Karte zeigt den aktuellen User-Avatar statt MDI-Icon. */
+  useUserAvatar?: boolean
   /** Default `mw` — nur Materialwart/Depchef. `member` = User/L1–L3 (+ MW). `all` = beides. */
   audience?: OnboardingTourAudience
   /** Tour nur anzeigen wenn Camp/Event anlegen erlaubt (z. B. activity-camp-create). */
@@ -53,18 +56,152 @@ export const ONBOARDING_TOUR_QUERY = 'onboardingTour'
 export const ONBOARDING_TOUR_STEP_QUERY = 'onboardingTourStep'
 
 export const ONBOARDING_TOUR_CATEGORY_ORDER: OnboardingTourCategory[] = [
-  'material',
+  'start',
   'activities',
+  'material',
   'settings',
 ]
 
 export const ONBOARDING_TOUR_CATEGORY_LABEL_KEYS: Record<OnboardingTourCategory, string> = {
+  start: 'onboarding.tours.categories.start',
   material: 'onboarding.tours.categories.material',
   activities: 'onboarding.tours.categories.activities',
   settings: 'onboarding.tours.categories.settings',
 }
 
 export const ONBOARDING_TOURS: OnboardingTourDef[] = [
+  {
+    id: 'profile-overview',
+    category: 'start',
+    version: 2,
+    audience: 'all',
+    useUserAvatar: true,
+    routeName: 'Dashboard',
+    titleKey: 'onboarding.tours.profileOverview.title',
+    descriptionKey: 'onboarding.tours.profileOverview.description',
+    mdiIcon: 'mdi-account-circle-outline',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="sidebar-nav"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step1Title',
+        bodyKey: 'onboarding.tours.profileOverview.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="nav-dashboard"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step2Title',
+        bodyKey: 'onboarding.tours.profileOverview.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="nav-activities"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step3Title',
+        bodyKey: 'onboarding.tours.profileOverview.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="nav-materials"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step4Title',
+        bodyKey: 'onboarding.tours.profileOverview.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="nav-contacts"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step5Title',
+        bodyKey: 'onboarding.tours.profileOverview.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="nav-tasks"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step6Title',
+        bodyKey: 'onboarding.tours.profileOverview.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="nav-notifications"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step7Title',
+        bodyKey: 'onboarding.tours.profileOverview.step7Body',
+      },
+      {
+        id: '8',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step8Title',
+        bodyKey: 'onboarding.tours.profileOverview.step8Body',
+      },
+      {
+        id: '9',
+        target: '[data-onboarding="header-search"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step9Title',
+        bodyKey: 'onboarding.tours.profileOverview.step9Body',
+      },
+      {
+        id: '10',
+        target: '[data-onboarding="header-user-menu"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.profileOverview.step10Title',
+        bodyKey: 'onboarding.tours.profileOverview.step10Body',
+      },
+      {
+        id: '11',
+        target: '[data-onboarding="header-dept-switch"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.profileOverview.step11Title',
+        bodyKey: 'onboarding.tours.profileOverview.step11Body',
+      },
+      {
+        id: '12',
+        target: '[data-onboarding="header-edit-profile"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.profileOverview.step12Title',
+        bodyKey: 'onboarding.tours.profileOverview.step12Body',
+      },
+      {
+        id: '13',
+        target: '[data-onboarding="profile-identity"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.profileOverview.step13Title',
+        bodyKey: 'onboarding.tours.profileOverview.step13Body',
+      },
+      {
+        id: '14',
+        target: '[data-onboarding="profile-personal"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step14Title',
+        bodyKey: 'onboarding.tours.profileOverview.step14Body',
+      },
+      {
+        id: '15',
+        target: '[data-onboarding="profile-password"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step15Title',
+        bodyKey: 'onboarding.tours.profileOverview.step15Body',
+      },
+      {
+        id: '16',
+        target: '[data-onboarding="profile-colors"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step16Title',
+        bodyKey: 'onboarding.tours.profileOverview.step16Body',
+      },
+      {
+        id: '17',
+        target: '[data-onboarding="profile-save"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.profileOverview.step17Title',
+        bodyKey: 'onboarding.tours.profileOverview.step17Body',
+      },
+    ],
+  },
   {
     id: 'material-create',
     category: 'material',
@@ -347,6 +484,7 @@ export function groupOnboardingToursByCategory(
   tours: OnboardingTourDef[] = ONBOARDING_TOURS
 ): Record<OnboardingTourCategory, OnboardingTourDef[]> {
   const grouped: Record<OnboardingTourCategory, OnboardingTourDef[]> = {
+    start: [],
     material: [],
     activities: [],
     settings: [],

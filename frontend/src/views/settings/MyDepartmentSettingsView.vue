@@ -209,9 +209,7 @@
         
         <div v-if="department.users && department.users.length > 0" class="users-list">
           <div v-for="user in department.users" :key="user.id" class="user-item">
-            <div class="user-avatar" :style="{ backgroundColor: getAvatarColor(user.name) }">
-              {{ getInitials(user.name) }}
-            </div>
+            <UserAvatarBadge :user="user" size="md" />
             <div class="user-info">
               <span class="user-name">{{ user.name }}</span>
               <span class="user-email">{{ user.email }}</span>
@@ -292,6 +290,7 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { getDepartment, getDepartments, type Department } from '@/api/departments'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import { setPrimaryDepartment as apiSetPrimaryDepartment } from '@/api/auth'
 import {
   getAddresses,
@@ -455,7 +454,7 @@ const memberOnboardingDoneCount = computed(() => {
 function openOnboardingHub() {
   const depId = selectedDepartmentId.value
   if (!depId) return
-  router.push({ name: 'HelpEinrichtung', params: { departmentId: depId } })
+  router.push({ name: 'HelpTours', params: { departmentId: depId } })
 }
 
 const onboardingStatusLabel = computed(() => {
@@ -526,24 +525,6 @@ async function setAsPrimary() {
 
 function formatRole(role: string): string {
   return roleLabelsStore.labelFor(role, selectedDepartmentId.value || authStore.activeDepartmentId, t)
-}
-
-function getInitials(name: string): string {
-  if (!name) return '?'
-  const parts = name.split(' ')
-  if (parts.length >= 2) {
-    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
-  }
-  return name.charAt(0).toUpperCase()
-}
-
-function getAvatarColor(name: string): string {
-  const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4']
-  let hash = 0
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash)
-  }
-  return colors[Math.abs(hash) % colors.length]
 }
 
 async function loadDepartment(departmentId?: string) {
@@ -1259,19 +1240,6 @@ onMounted(() => {
   background: white;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
-}
-
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: 600;
-  font-size: 14px;
-  flex-shrink: 0;
 }
 
 .user-info {

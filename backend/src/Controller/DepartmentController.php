@@ -279,7 +279,13 @@ class DepartmentController extends AbstractController
                     'id' => $user->getId(),
                     'profile_id' => $profile->getId(),
                     'name' => $profile->getDisplayName(),
+                    'first_name' => $profile->getFirstName(),
+                    'last_name' => $profile->getLastName(),
+                    'nickname' => $profile->getNickname(),
                     'email' => $profile->getEmail(),
+                    'avatar_initials' => $profile->getAvatarInitials(),
+                    'background_color' => $profile->getBackgroundColor(),
+                    'text_color' => $profile->getTextColor(),
                     'role' => $m->getRole(),
                     'is_primary' => $m->getIsPrimary()
                 ];
@@ -1335,7 +1341,13 @@ class DepartmentController extends AbstractController
                     'id' => $user->getId(),
                     'profile_id' => $profile->getId(),
                     'name' => $profile->getDisplayName(),
+                    'first_name' => $profile->getFirstName(),
+                    'last_name' => $profile->getLastName(),
+                    'nickname' => $profile->getNickname(),
                     'email' => $profile->getEmail(),
+                    'avatar_initials' => $profile->getAvatarInitials(),
+                    'background_color' => $profile->getBackgroundColor(),
+                    'text_color' => $profile->getTextColor(),
                     'role' => $m->getRole(),
                     'is_primary' => $m->getIsPrimary()
                 ];

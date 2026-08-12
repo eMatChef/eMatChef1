@@ -29,7 +29,7 @@ function baseDepartmentAccess(authStore: AuthStore, departmentId: string): boole
   return true
 }
 
-/** Setup-Checkliste unter Hilfe → Einrichtung (nur MW/DC). */
+/** Setup-Checkliste unter Hilfe → Touren (nur MW/DC). */
 export function canUseDepartmentOnboarding(authStore: AuthStore, departmentId: string): boolean {
   if (!baseDepartmentAccess(authStore, departmentId)) return false
   return isDepartmentMwOrDcRole(authStore.currentDepartmentRole)
@@ -42,23 +42,38 @@ export function canUseDepartmentTours(authStore: AuthStore, departmentId: string
   return isDepartmentMwOrDcRole(role) || isDepartmentBasicMemberRole(role)
 }
 
-/** Hub unter Hilfe → Einrichtung (Touren und/oder Checkliste). */
-export function canUseHelpEinrichtung(authStore: AuthStore, departmentId: string): boolean {
+/** Hub unter Hilfe → Touren (Touren und/oder Checkliste). */
+export function canUseHelpTours(authStore: AuthStore, departmentId: string): boolean {
   return canUseDepartmentTours(authStore, departmentId)
 }
 
-export const HELP_EINRICHTUNG_ROLES = [
+/** @deprecated use canUseHelpTours */
+export const canUseHelpEinrichtung = canUseHelpTours
+
+export const HELP_TOURS_ROLES = [
   ...DEPARTMENT_MW_DC_ROLES,
   ...DEPARTMENT_BASIC_MEMBER_ROLES,
 ] as const
 
-export function isHelpEinrichtungPath(path: string, departmentId: string): boolean {
-  return path === `/${departmentId}/help/einrichtung`
+/** @deprecated use HELP_TOURS_ROLES */
+export const HELP_EINRICHTUNG_ROLES = HELP_TOURS_ROLES
+
+export function isHelpToursPath(path: string, departmentId: string): boolean {
+  const normalized = path.replace(/\/$/, '') || '/'
+  return (
+    normalized === `/${departmentId}/help/tours` ||
+    normalized === `/${departmentId}/help/einrichtung`
+  )
 }
 
-/** @deprecated use isHelpEinrichtungPath */
+/** @deprecated use isHelpToursPath */
+export function isHelpEinrichtungPath(path: string, departmentId: string): boolean {
+  return isHelpToursPath(path, departmentId)
+}
+
+/** @deprecated use isHelpToursPath */
 export function isOnboardingHubPath(path: string, departmentId: string): boolean {
-  return isHelpEinrichtungPath(path, departmentId)
+  return isHelpToursPath(path, departmentId)
 }
 
 export function isDepartmentHomePath(path: string, departmentId: string): boolean {
