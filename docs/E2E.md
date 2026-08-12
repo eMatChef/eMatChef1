@@ -23,7 +23,7 @@ docker compose exec -T backend php bin/console app:ensure-e2e-user \
 unset E2E_PW
 ```
 
-(Befehl legt User an oder setzt Passwort/Membership neu: aktiv, E-Mail verifiziert, Rolle `u` im ersten Department.)
+(Befehl legt User an oder aktualisiert: aktiv, E-Mail verifiziert, **standardmäßig ohne Department** — erscheint nicht in der User-Suche. Optional `--department-id=…` für Membership.)
 
 2. GitHub → Settings → Secrets and variables → Actions:
 

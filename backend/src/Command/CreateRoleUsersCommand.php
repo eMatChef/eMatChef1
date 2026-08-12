@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
 use App\Service\Bootstrap\DevBootstrapContextService;
+use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -46,18 +47,23 @@ class CreateRoleUsersCommand extends Command
         $deletedCount = 0;
         foreach ($allUsers as $user) {
             $profile = $user->getProfile();
-            if ($profile && str_ends_with($profile->getEmail(), '@ematchef.ch')) {
-                // Lösche Membership-Zuordnungen
-                $memberships = $this->em->getRepository(Membership::class)
-                    ->findBy(['userId' => $user->getId()]);
-                foreach ($memberships as $m) {
-                    $this->em->remove($m);
-                }
-                // Lösche User und Profile
-                $this->em->remove($user);
-                $this->em->remove($profile);
-                $deletedCount++;
+            if (!$profile || !str_ends_with($profile->getEmail(), '@ematchef.ch')) {
+                continue;
             }
+            // E2E-Smoke bleibt erhalten (wird von app:ensure-e2e-user / app:dev-demo:reset gepflegt)
+            if (E2eSmokeUser::isExcluded($profile->getEmail())) {
+                continue;
+            }
+            // Lösche Membership-Zuordnungen
+            $memberships = $this->em->getRepository(Membership::class)
+                ->findBy(['userId' => $user->getId()]);
+            foreach ($memberships as $m) {
+                $this->em->remove($m);
+            }
+            // Lösche User und Profile
+            $this->em->remove($user);
+            $this->em->remove($profile);
+            $deletedCount++;
         }
         $this->em->flush();
         $io->success("$deletedCount alte Test-User gelöscht");

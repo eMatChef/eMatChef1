@@ -42,21 +42,21 @@ class ImportOrgSubsetCommand extends Command
                 'ensure-superadmin',
                 null,
                 InputOption::VALUE_NONE,
-                'Legt superadmin@example.com an (oder aktualisiert Rollen/Membership)'
+                'Legt superadmin@ematchef.ch an (oder aktualisiert Rollen/Membership)'
             )
             ->addOption(
                 'superadmin-email',
                 null,
                 InputOption::VALUE_OPTIONAL,
                 'Superadmin E-Mail',
-                'superadmin@example.com'
+                'superadmin@ematchef.ch'
             )
             ->addOption(
                 'superadmin-password',
                 null,
                 InputOption::VALUE_OPTIONAL,
                 'Superadmin Passwort',
-                'password'
+                'test'
             );
     }
 

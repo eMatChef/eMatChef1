@@ -1,6 +1,9 @@
 {
   "app": {
-    "devEnvironmentBanner": "Test environment – not production data."
+    "devEnvironmentBanner": "Test environment – not production data.",
+    "devDemoLoginsShow": "Demo logins",
+    "devDemoLoginsHide": "Close",
+    "devDemoLoginsHint": "Password for all: test — fills the login form."
   },
   "router": {
     "meta": {

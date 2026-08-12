@@ -365,6 +365,7 @@ import RegisterDepartmentPicker, {
 import type { PublicDepartmentSearchResult } from '@/api/publicDepartments'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
+import { consumeDemoLogin } from '@/utils/demoLogins'
 
 /** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
 const turnstileSiteKey = computed(() => {
@@ -608,9 +609,20 @@ function applyForgotPrefillFromQuery() {
   stripForgotQueryFromRoute()
 }
 
+function applyDemoLoginPrefill() {
+  const demo = consumeDemoLogin()
+  if (!demo) return
+  mode.value = 'login'
+  email.value = demo.email
+  password.value = demo.password
+  clearMessages()
+}
+
 onMounted(() => {
   applyRegisterPrefillFromQuery()
   applyForgotPrefillFromQuery()
+  applyDemoLoginPrefill()
+  window.addEventListener('emc-demo-login', applyDemoLoginPrefill)
 })
 
 watch(
@@ -757,6 +769,7 @@ watch(mode, async (m, prev) => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('emc-demo-login', applyDemoLoginPrefill)
   cleanupTurnstile()
 })
 

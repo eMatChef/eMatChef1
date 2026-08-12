@@ -23,6 +23,7 @@ use App\Service\JoinRequestManagerNotificationService;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\VerificationEmailService;
+use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -339,6 +340,10 @@ class JoinRequestController extends AbstractController
                 continue;
             }
             if ($userWithoutDepartment->hasSuperAdminProfile()) {
+                continue;
+            }
+            $profile = $userWithoutDepartment->getProfile();
+            if ($profile && E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
             }
 

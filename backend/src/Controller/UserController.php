@@ -12,6 +12,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
 use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
+use App\Util\E2eSmokeUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -141,7 +142,7 @@ class UserController extends AbstractController
                 continue;
             }
 
-            if ($profile->hasSuperAdminRole()) {
+            if ($profile->hasSuperAdminRole() || E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
             }
 
@@ -204,7 +205,7 @@ class UserController extends AbstractController
                 continue;
             }
             $profile = $user->getProfile();
-            if (!$profile || $profile->hasSuperAdminRole()) {
+            if (!$profile || $profile->hasSuperAdminRole() || E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
             }
 
