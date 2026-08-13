@@ -24,13 +24,14 @@ let observedTarget: Element | null = null
 let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
 
-function findElevateRoot(el: Element): HTMLElement {
+function findElevateRoot(el: Element): HTMLElement | null {
+  // Sidebar-Drawer nicht elevaten — sonst überdeckt die transformierte Drawer-Fläche
+  // den Spotlight-Ring und schneidet ihn am rechten Rail-Rand ab.
   const userDropdown = el.closest('.user-dropdown')
   if (userDropdown instanceof HTMLElement) return userDropdown
   const userMenu = el.closest('.user-menu-wrapper')
   if (userMenu instanceof HTMLElement) return userMenu
-  const drawer = el.closest('.v-navigation-drawer')
-  if (drawer instanceof HTMLElement) return drawer
+  if (el.closest('.v-navigation-drawer')) return null
   const header = el.closest('.v-app-bar, .top-header, header.top-header')
   if (header instanceof HTMLElement) return header
   const overlay = el.closest('.v-overlay__content, .v-dialog, .v-menu__content, .profile-modal')
@@ -47,7 +48,9 @@ function clearElevateRoot() {
 
 function elevateTargetRoot(el: Element) {
   clearElevateRoot()
-  elevatedRoot = findElevateRoot(el)
+  const root = findElevateRoot(el)
+  if (!root) return
+  elevatedRoot = root
   elevatedRoot.classList.add(ELEVATE_ROOT_CLASS)
 }
 

@@ -22,14 +22,14 @@
         />
       </div>
 
-      <div
-        v-if="hole"
-        class="onboarding-tour-ring"
-        :style="ringStyle"
-        aria-hidden="true"
-      />
-
       <div class="onboarding-tour-card-layer">
+        <!-- Ring in der obersten Layer, sonst schneidet der elevatete Drawer den rechten Rand ab -->
+        <div
+          v-if="hole"
+          class="onboarding-tour-ring"
+          :style="ringStyle"
+          aria-hidden="true"
+        />
         <div class="onboarding-tour__card" :style="cardStyle" role="dialog" aria-modal="true">
           <header class="onboarding-tour__header">
             <p v-if="activeTour" class="onboarding-tour__eyebrow">
@@ -87,16 +87,21 @@ const CARD_WIDTH = 360
 const CARD_GAP = 20
 const CARD_EST_HEIGHT = 240
 const SIDEBAR_RIGHT_EDGE = 72
-const HOLE_PAD = 6
-/** Randabstand, damit Ring/Glow am Viewport-Rand nicht abgeschnitten wird */
+/** Innenabstand Loch/Ring — Border (2) + Glow (3) müssen hineinpassen */
+const HOLE_PAD = 10
 const VIEWPORT_INSET = 4
+/** Extra rechts bei Sidebar, damit Ring nicht am Rail-Rand endet */
+const SIDEBAR_EXTRA_RIGHT = 14
 
 type PaneStyle = Record<string, string>
 
 function clampHoleFrame(rect: DOMRect, viewportW: number, viewportH: number) {
-  const padL = rect.left < VIEWPORT_INSET + HOLE_PAD ? Math.max(0, rect.left - VIEWPORT_INSET) : HOLE_PAD
+  const isSidebarTarget = rect.left < SIDEBAR_RIGHT_EDGE
+  const padL = isSidebarTarget
+    ? Math.max(0, rect.left - VIEWPORT_INSET)
+    : HOLE_PAD
   const padT = rect.top < VIEWPORT_INSET + HOLE_PAD ? Math.max(0, rect.top - VIEWPORT_INSET) : HOLE_PAD
-  const padR = HOLE_PAD
+  const padR = isSidebarTarget ? HOLE_PAD + SIDEBAR_EXTRA_RIGHT : HOLE_PAD
   const padB = HOLE_PAD
 
   let top = Math.max(VIEWPORT_INSET, rect.top - padT)
@@ -236,13 +241,14 @@ const cardStyle = computed(() => {
 
 .onboarding-tour-ring {
   position: fixed;
-  z-index: 10055;
+  z-index: 1;
   pointer-events: none;
   border-radius: 10px;
   border: 2px solid #fff;
+  /* Glow nach innen + aussen, ohne am Rail abgeschnitten zu wirken */
   box-shadow:
-    0 0 0 3px rgba(22, 163, 74, 0.45),
-    0 8px 20px rgba(15, 23, 42, 0.22);
+    0 0 0 3px rgba(22, 163, 74, 0.5),
+    inset 0 0 0 1px rgba(22, 163, 74, 0.25);
   box-sizing: border-box;
 }
 
@@ -256,6 +262,7 @@ const cardStyle = computed(() => {
 .onboarding-tour__card {
   --tour-accent: #16a34a;
   position: fixed;
+  z-index: 2;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
