@@ -25,11 +25,15 @@ let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
 
 function findElevateRoot(el: Element): HTMLElement {
+  const userDropdown = el.closest('.user-dropdown')
+  if (userDropdown instanceof HTMLElement) return userDropdown
+  const userMenu = el.closest('.user-menu-wrapper')
+  if (userMenu instanceof HTMLElement) return userMenu
   const drawer = el.closest('.v-navigation-drawer')
   if (drawer instanceof HTMLElement) return drawer
   const header = el.closest('.v-app-bar, .top-header, header.top-header')
   if (header instanceof HTMLElement) return header
-  const overlay = el.closest('.v-overlay__content, .v-dialog, .v-menu__content')
+  const overlay = el.closest('.v-overlay__content, .v-dialog, .v-menu__content, .profile-modal')
   if (overlay instanceof HTMLElement) return overlay
   return el instanceof HTMLElement ? el : (el.parentElement as HTMLElement)
 }
@@ -84,6 +88,44 @@ async function waitForTarget(
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
   return null
+}
+
+/** Bleibt dran, bis das Ziel im DOM erscheint (z. B. User-Menü öffnet sich). */
+function waitForTargetPersistent(
+  selector: string,
+  isStillCurrent: () => boolean,
+  timeoutMs = 120_000
+): Promise<Element | null> {
+  return new Promise((resolve) => {
+    const existing = document.querySelector(selector)
+    if (existing && isTargetVisible(existing)) {
+      resolve(existing)
+      return
+    }
+
+    let done = false
+    const finish = (el: Element | null) => {
+      if (done) return
+      done = true
+      observer.disconnect()
+      window.clearTimeout(timer)
+      resolve(el)
+    }
+
+    const check = () => {
+      if (!isStillCurrent()) {
+        finish(null)
+        return
+      }
+      const el = document.querySelector(selector)
+      if (el && isTargetVisible(el)) finish(el)
+    }
+
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    const timer = window.setTimeout(() => finish(null), timeoutMs)
+    check()
+  })
 }
 
 function isTargetVisible(el: Element): boolean {
@@ -189,11 +231,18 @@ export function useOnboardingTour() {
     const step = activeStep.value
     if (!step?.target) return
 
+    const stepId = step.id
     const mode = step.mode ?? 'info'
     const maxAttempts = mode === 'waitFor' || mode === 'click' ? 80 : 40
     await nextTick()
-    const el = await waitForTarget(step.target, maxAttempts)
-    if (!el || activeStep.value?.id !== step.id) return
+    let el = await waitForTarget(step.target, maxAttempts)
+    if (!el && (mode === 'waitFor' || mode === 'click')) {
+      el = await waitForTargetPersistent(
+        step.target,
+        () => activeStep.value?.id === stepId && activeTourId.value !== null
+      )
+    }
+    if (!el || activeStep.value?.id !== stepId) return
 
     observeTarget(el)
     elevateTargetRoot(el)

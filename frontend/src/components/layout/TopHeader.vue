@@ -627,6 +627,10 @@ import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '../../stores/auth'
+import {
+  ONBOARDING_TOUR_QUERY,
+  ONBOARDING_TOUR_STEP_QUERY,
+} from '@/config/onboardingTours'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
 import { useToast } from '../../composables/useToast'
@@ -774,6 +778,27 @@ function toggleDrawer() {
 }
 
 const showUserDropdown = ref(false)
+
+/** Tour-Schritte, die Inhalt im offenen User-Menü brauchen (Department / Profil bearbeiten). */
+const tourKeepsUserMenuOpen = computed(() => {
+  if (route.query[ONBOARDING_TOUR_QUERY] !== 'profile-overview') return false
+  const step = route.query[ONBOARDING_TOUR_STEP_QUERY]
+  return step === '11' || step === '12'
+})
+
+watch(
+  tourKeepsUserMenuOpen,
+  async (keepOpen) => {
+    if (!keepOpen) return
+    try {
+      await authStore.loadDepartments()
+    } catch {
+      /* bestehende Liste beibehalten */
+    }
+    showUserDropdown.value = true
+  },
+  { immediate: true }
+)
 
 const searchDepartmentId = computed(() => {
   const deptId = route.params.departmentId as string | undefined
@@ -1103,6 +1128,10 @@ async function closeTab(tab: DetailTab) {
 }
 
 async function toggleUserMenu() {
+  // Während Tour-Schritten im Menü: nicht zuschlagen
+  if (tourKeepsUserMenuOpen.value && showUserDropdown.value) {
+    return
+  }
   const opening = !showUserDropdown.value
   if (opening) {
     try {
@@ -1886,7 +1915,8 @@ async function saveProfile() {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement
-  if (!target.closest('.user-menu-wrapper')) {
+  // Tour-Schritte 11/12: Menü offen lassen (Weiter-Klick liegt ausserhalb)
+  if (!tourKeepsUserMenuOpen.value && !target.closest('.user-menu-wrapper')) {
     showUserDropdown.value = false
   }
   if (!target.closest('.header-icon-btn') && !target.closest('.notifications-dropdown')) {
@@ -2270,6 +2300,10 @@ watch(
   min-width: 280px;
   z-index: 1000;
   overflow: hidden;
+}
+
+.user-dropdown.onboarding-tour-elevate-root {
+  z-index: 10050 !important;
 }
 
 .notifications-dropdown {
