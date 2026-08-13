@@ -31,24 +31,33 @@
 
       <div class="onboarding-tour-card-layer">
         <div class="onboarding-tour__card" :style="cardStyle" role="dialog" aria-modal="true">
-          <p v-if="activeTour" class="onboarding-tour__eyebrow">
-            {{ t(activeTour.titleKey) }}
-            ·
-            {{ t('onboarding.tours.stepOf', { current: activeStepIndex + 1, total: activeTour.steps.length }) }}
-          </p>
+          <header class="onboarding-tour__header">
+            <p v-if="activeTour" class="onboarding-tour__eyebrow">
+              {{ t(activeTour.titleKey) }}
+            </p>
+            <p v-if="activeTour" class="onboarding-tour__step">
+              {{ t('onboarding.tours.stepOf', { current: activeStepIndex + 1, total: activeTour.steps.length }) }}
+            </p>
+          </header>
           <h2 class="onboarding-tour__title">{{ t(activeStep.titleKey) }}</h2>
           <p class="onboarding-tour__body">{{ t(activeStep.bodyKey) }}</p>
           <p v-if="expectsTargetClick" class="onboarding-tour__hint">
             {{ t('onboarding.tours.clickTargetHint') }}
           </p>
-          <div class="onboarding-tour__actions">
-            <EButton variant="text" size="small" @click="skip">
+          <footer class="onboarding-tour__footer">
+            <EButton variant="text" size="small" class="onboarding-tour__skip" @click="skip">
               {{ t('onboarding.tours.skip') }}
             </EButton>
-            <EButton v-if="!expectsTargetClick" variant="primary" size="small" @click="next">
+            <EButton
+              v-if="!expectsTargetClick"
+              variant="primary"
+              size="small"
+              class="onboarding-tour__next"
+              @click="next"
+            >
               {{ isLastStep ? t('onboarding.tours.finish') : t('onboarding.tours.next') }}
             </EButton>
-          </div>
+          </footer>
         </div>
       </div>
     </template>
@@ -74,13 +83,39 @@ const {
   skip,
 } = useOnboardingTour()
 
-const CARD_WIDTH = 340
-const CARD_GAP = 16
-const CARD_EST_HEIGHT = 220
+const CARD_WIDTH = 360
+const CARD_GAP = 20
+const CARD_EST_HEIGHT = 240
 const SIDEBAR_RIGHT_EDGE = 72
-const HOLE_PAD = 8
+const HOLE_PAD = 6
+/** Randabstand, damit Ring/Glow am Viewport-Rand nicht abgeschnitten wird */
+const VIEWPORT_INSET = 4
 
 type PaneStyle = Record<string, string>
+
+function clampHoleFrame(rect: DOMRect, viewportW: number, viewportH: number) {
+  const padL = rect.left < VIEWPORT_INSET + HOLE_PAD ? Math.max(0, rect.left - VIEWPORT_INSET) : HOLE_PAD
+  const padT = rect.top < VIEWPORT_INSET + HOLE_PAD ? Math.max(0, rect.top - VIEWPORT_INSET) : HOLE_PAD
+  const padR = HOLE_PAD
+  const padB = HOLE_PAD
+
+  let top = Math.max(VIEWPORT_INSET, rect.top - padT)
+  let left = Math.max(VIEWPORT_INSET, rect.left - padL)
+  let right = Math.min(viewportW - VIEWPORT_INSET, rect.right + padR)
+  let bottom = Math.min(viewportH - VIEWPORT_INSET, rect.bottom + padB)
+
+  if (right <= left) right = left + Math.max(rect.width, 8)
+  if (bottom <= top) bottom = top + Math.max(rect.height, 8)
+
+  return {
+    top,
+    left,
+    width: right - left,
+    height: bottom - top,
+    right,
+    bottom,
+  }
+}
 
 const hole = computed(() => {
   const rect = targetRect.value
@@ -88,37 +123,31 @@ const hole = computed(() => {
 
   const viewportW = typeof window !== 'undefined' ? window.innerWidth : 800
   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 600
-
-  const top = Math.max(0, rect.top - HOLE_PAD)
-  const left = Math.max(0, rect.left - HOLE_PAD)
-  const width = Math.min(viewportW - left, rect.width + HOLE_PAD * 2)
-  const height = Math.min(viewportH - top, rect.height + HOLE_PAD * 2)
-  const right = left + width
-  const bottom = top + height
+  const frame = clampHoleFrame(rect, viewportW, viewportH)
 
   const topPane: PaneStyle = {
     top: '0',
     left: '0',
     width: '100%',
-    height: `${top}px`,
+    height: `${frame.top}px`,
   }
   const leftPane: PaneStyle = {
-    top: `${top}px`,
+    top: `${frame.top}px`,
     left: '0',
-    width: `${left}px`,
-    height: `${height}px`,
+    width: `${frame.left}px`,
+    height: `${frame.height}px`,
   }
   const rightPane: PaneStyle = {
-    top: `${top}px`,
-    left: `${right}px`,
-    width: `${Math.max(0, viewportW - right)}px`,
-    height: `${height}px`,
+    top: `${frame.top}px`,
+    left: `${frame.right}px`,
+    width: `${Math.max(0, viewportW - frame.right)}px`,
+    height: `${frame.height}px`,
   }
   const bottomPane: PaneStyle = {
-    top: `${bottom}px`,
+    top: `${frame.bottom}px`,
     left: '0',
     width: '100%',
-    height: `${Math.max(0, viewportH - bottom)}px`,
+    height: `${Math.max(0, viewportH - frame.bottom)}px`,
   }
 
   return {
@@ -126,7 +155,7 @@ const hole = computed(() => {
     left: leftPane,
     right: rightPane,
     bottom: bottomPane,
-    frame: { top, left, width, height },
+    frame,
   }
 })
 
@@ -161,7 +190,7 @@ const cardStyle = computed(() => {
 
   if (rect.left < SIDEBAR_RIGHT_EDGE + 40) {
     left = Math.max(SIDEBAR_RIGHT_EDGE + CARD_GAP, rect.right + CARD_GAP)
-    top = Math.min(Math.max(CARD_GAP, rect.top), viewportH - CARD_EST_HEIGHT - CARD_GAP)
+    top = Math.min(Math.max(CARD_GAP, rect.top - 8), viewportH - CARD_EST_HEIGHT - CARD_GAP)
   } else if (left > maxLeft) {
     left = Math.max(CARD_GAP, rect.left - CARD_WIDTH - CARD_GAP)
     if (left < SIDEBAR_RIGHT_EDGE && rect.left >= SIDEBAR_RIGHT_EDGE) {
@@ -197,7 +226,7 @@ const cardStyle = computed(() => {
 
 .onboarding-tour-dim__pane {
   position: fixed;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.52);
   pointer-events: auto;
 }
 
@@ -209,11 +238,12 @@ const cardStyle = computed(() => {
   position: fixed;
   z-index: 10055;
   pointer-events: none;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 2px solid #fff;
   box-shadow:
-    0 0 0 4px rgba(34, 197, 94, 0.4),
-    0 10px 28px rgba(15, 23, 42, 0.28);
+    0 0 0 3px rgba(22, 163, 74, 0.45),
+    0 8px 20px rgba(15, 23, 42, 0.22);
+  box-sizing: border-box;
 }
 
 .onboarding-tour-card-layer {
@@ -224,49 +254,110 @@ const cardStyle = computed(() => {
 }
 
 .onboarding-tour__card {
+  --tour-accent: #16a34a;
   position: fixed;
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   background: #fff;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.22);
-  max-height: min(70vh, 420px);
-  overflow-y: auto;
+  border-radius: 14px;
+  padding: 0;
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.04),
+    0 18px 40px rgba(15, 23, 42, 0.2);
+  max-height: min(70vh, 440px);
+  overflow: hidden;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.onboarding-tour__card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tour-accent);
+}
+
+.onboarding-tour__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 0 20px;
 }
 
 .onboarding-tour__eyebrow {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 12px;
+  font-weight: 500;
   color: #64748b;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-tour__step {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #16a34a;
+  background: #f0fdf4;
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
 }
 
 .onboarding-tour__title {
-  margin: 0 0 8px;
-  font-size: 1rem;
-  font-weight: 600;
+  margin: 10px 18px 0 20px;
+  font-size: 1.125rem;
+  font-weight: 650;
+  line-height: 1.25;
   color: #0f172a;
 }
 
 .onboarding-tour__body {
-  margin: 0 0 10px;
+  margin: 8px 18px 0 20px;
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   color: #475569;
   white-space: pre-line;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .onboarding-tour__hint {
-  margin: 0 0 14px;
+  margin: 10px 18px 0 20px;
   font-size: 13px;
   line-height: 1.4;
-  color: #0284c7;
+  color: #0369a1;
   font-weight: 500;
 }
 
-.onboarding-tour__actions {
+.onboarding-tour__footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 14px 12px 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.onboarding-tour__skip {
+  color: #64748b !important;
+  margin-inline-start: 4px;
+}
+
+.onboarding-tour__next {
+  min-width: 96px;
+  justify-content: center;
 }
 </style>
 
