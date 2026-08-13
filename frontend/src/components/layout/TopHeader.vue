@@ -336,6 +336,14 @@
           <span class="dept-switch-text">
             <span class="dept-switch-name">
               {{ dept.name }}
+              <span
+                v-if="dept.isPrimary"
+                class="dept-switch-tag dept-switch-tag--primary"
+                :title="t('layout.userMenu.primaryDepartment')"
+              >
+                <v-icon icon="mdi-star" size="12" aria-hidden="true" />
+                {{ t('layout.userMenu.primary') }}
+              </span>
               <span v-if="dept.isGrossanlass" class="dept-switch-tag">{{ t('grossanlass.label') }}</span>
             </span>
             <span class="dept-switch-hint">{{ dept.roleLabel }}</span>
@@ -719,6 +727,7 @@ const departmentSwitchItems = computed(() =>
   authStore.departments.map((dept) => ({
     id: dept.department_id,
     name: dept.department?.name || dept.department_id,
+    isPrimary: Boolean(dept.is_primary),
     isGrossanlass: Boolean(dept.department?.is_grossanlass),
     isActive: dept.department_id === authStore.activeDepartmentId,
     roleLabel: departmentRoleLabel(dept.role, dept.department_id),
@@ -2752,6 +2761,9 @@ watch(
 }
 
 .dept-switch-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -2760,6 +2772,11 @@ watch(
   background: #ecfdf5;
   border-radius: 4px;
   padding: 1px 6px;
+}
+
+.dept-switch-tag--primary {
+  color: #b45309;
+  background: #fffbeb;
 }
 
 .dept-switch-check {

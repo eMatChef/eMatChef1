@@ -1536,6 +1536,8 @@
       "devicesScanner": "Warehouse scanner",
       "devicesScannerHint": "Handheld or gun scanner — piece by piece",
       "switchDepartment": "Switch department",
+      "primary": "Primary",
+      "primaryDepartment": "Primary department",
       "departmentSettings": "Department settings",
       "switchSupplierCompany": "Switch company",
       "logout": "Log out",

@@ -1675,6 +1675,8 @@
       "devicesScanner": "Lager-Scanner",
       "devicesScannerHint": "Handheld oder Pistole — Stück für Stück scannen",
       "switchDepartment": "Department wechseln",
+      "primary": "Primär",
+      "primaryDepartment": "Primäres Department",
       "departmentSettings": "Abteilungseinstellungen",
       "switchSupplierCompany": "Firma wechseln",
       "logout": "Abmelden",
