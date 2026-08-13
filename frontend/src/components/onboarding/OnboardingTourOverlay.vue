@@ -11,15 +11,14 @@
         aria-hidden="true"
       >
         <template v-if="hole">
-          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--top" :style="hole.top" @click="onBackdropClick" />
-          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--left" :style="hole.left" @click="onBackdropClick" />
-          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--right" :style="hole.right" @click="onBackdropClick" />
-          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--bottom" :style="hole.bottom" @click="onBackdropClick" />
+          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--top" :style="hole.top" />
+          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--left" :style="hole.left" />
+          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--right" :style="hole.right" />
+          <div class="onboarding-tour-dim__pane onboarding-tour-dim__pane--bottom" :style="hole.bottom" />
         </template>
         <div
           v-else
           class="onboarding-tour-dim__pane onboarding-tour-dim__pane--full"
-          @click="onBackdropClick"
         />
       </div>
 
@@ -186,11 +185,6 @@ const cardStyle = computed(() => {
     width: `${Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)}px`,
   }
 })
-
-function onBackdropClick() {
-  if (expectsTargetClick.value) return
-  skip()
-}
 </script>
 
 <style scoped>
