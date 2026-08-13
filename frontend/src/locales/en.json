@@ -88,6 +88,7 @@
         "settingsStorage": "Settings · Storage · eMatChef",
         "settingsTemplates": "Settings · Templates · eMatChef",
         "globalMaterialTemplates": "Admin · Material templates · eMatChef",
+        "supplierDashboard": "My company · Dashboard · eMatChef",
         "supplierProfile": "My company · Profile · eMatChef",
         "supplierTeam": "My company · Team · eMatChef",
         "supplierCatalog": "My company · Catalog · eMatChef",
@@ -739,6 +740,7 @@
   },
   "sidebar": {
     "pendingNew": "New",
+    "dashboard": "Dashboard",
     "siteAdmin": "Site administration",
     "website": "Website",
     "activities": "Activities",
@@ -769,6 +771,18 @@
     "beschaffungHint": "Bundle material from planning rounds, quotes and orders",
     "beschaffung": "Procurement",
     "help": "Help"
+  },
+  "supplierDashboard": {
+    "title": "Dashboard",
+    "loading": "Loading dashboard…",
+    "loadFailed": "Could not load dashboard.",
+    "salesTitle": "Sales",
+    "workshopTitle": "Workshop",
+    "articleCount": "Items in catalog",
+    "openRepairs": "Open repairs",
+    "toCatalog": "Go to catalog →",
+    "toRepairs": "Go to repairs →",
+    "noOffers": "Neither sales nor workshop is enabled for this company."
   },
   "supplierProfile": {
     "title": "Profile & contact",
@@ -1403,10 +1417,12 @@
         "step14Body": "Nickname and initials appear on your avatar. Language applies to the whole app.",
         "step15Title": "Password",
         "step15Body": "Change your password here — only when you want to update it.",
-        "step16Title": "Avatar colours",
-        "step16Body": "Choose background and text colour for your avatar so you are recognised in lists and groups.",
-        "step17Title": "Save",
-        "step17Body": "Save your details. Preferably fill them in completely — they are reused, e.g. for J+S camp orders, so you do not have to type everything again."
+        "step16Title": "Home address",
+        "step16Body": "Optional: your home address. Used internally for orders to external parties (J+S and others) and stored as a user address in contacts.",
+        "step17Title": "Avatar colours",
+        "step17Body": "Choose background and text colour for your avatar so you are recognised in lists and groups.",
+        "step18Title": "Save",
+        "step18Body": "Click Save to finish the tour. Without changes the profile just closes — with data entered, it is saved (e.g. for J+S)."
       },
       "materialCreate": {
         "title": "Capture material",
@@ -1566,8 +1582,8 @@
       "confirmNewPassword": "Confirm new password",
       "confirmNewPasswordPlaceholder": "Repeat new password",
       "passwordOk": "Passwords match.",
-      "addressSection": "Home address (J+S)",
-      "addressHintJs": "For J+S orders — stored as a user address in contacts (hidden by default).",
+      "addressSection": "Home address",
+      "addressHintJs": "Used internally for orders to external parties (J+S and others).",
       "street": "Street",
       "streetPlaceholder": "Main Street",
       "streetNumber": "No.",

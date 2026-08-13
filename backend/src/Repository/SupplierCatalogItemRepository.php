@@ -18,6 +18,16 @@ class SupplierCatalogItemRepository extends ServiceEntityRepository
         parent::__construct($registry, SupplierCatalogItem::class);
     }
 
+    public function countByCompanyId(string $companyId): int
+    {
+        return (int) $this->createQueryBuilder('i')
+            ->select('COUNT(i.id)')
+            ->where('i.supplierCompanyId = :companyId')
+            ->setParameter('companyId', $companyId)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * @return list<SupplierCatalogItem>
      */

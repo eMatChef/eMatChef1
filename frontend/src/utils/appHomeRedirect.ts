@@ -21,7 +21,7 @@ export function resolveDefaultSupplierPath(authStore: AuthStoreLike): string | n
   const companies = authStore.activeSupplierCompanies
   if (companies.length === 0) return null
   const id = authStore.activeSupplierCompanyId || companies[0]?.id
-  return id ? `/supplier/${id}/profile` : null
+  return id ? `/supplier/${id}/dashboard` : null
 }
 
 /** Ziel nach Login oder app.ematchef.ch/ — gleiche Priorität wie Router-Guard. */

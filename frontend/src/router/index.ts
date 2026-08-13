@@ -50,7 +50,7 @@ function defaultSupplierPath(): string | null {
   const companies = authStore.activeSupplierCompanies
   if (companies.length === 0) return null
   const id = authStore.activeSupplierCompanyId || companies[0]?.id
-  return id ? `/supplier/${id}/profile` : null
+  return id ? `/supplier/${id}/dashboard` : null
 }
 
 function hasSupplierCompanyAccess(companyId: string): boolean {
@@ -602,9 +602,18 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         redirect: (to) => ({
-          name: 'SupplierProfile',
+          name: 'SupplierDashboard',
           params: { companyId: to.params.companyId },
         }),
+      },
+      {
+        path: 'dashboard',
+        name: 'SupplierDashboard',
+        component: () => import('@/views/supplier/SupplierDashboardView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          ...routeHead('supplierDashboard'),
+        },
       },
       {
         path: 'profile',
@@ -1711,6 +1720,10 @@ router.beforeEach(async (to, from, next) => {
         if (primaryDepartmentId) {
           return next(`/${primaryDepartmentId}`)
         }
+        const supplierHome = defaultSupplierPath()
+        if (supplierHome) {
+          return next(supplierHome)
+        }
         return next('/pending-assignment')
       }
       return next()
@@ -1848,19 +1861,19 @@ router.beforeEach(async (to, from, next) => {
       authStore.setActiveSupplierCompany(companyId)
     }
     if (to.meta.requiresSupplierAdmin && !authStore.isSupplierCompanyAdmin(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierCatalog && !hasSupplierCatalogCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierDelivery && !hasSupplierDeliveryCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierTemplates && !hasSupplierTemplatesCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierRepairs && !hasSupplierRepairsCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
   }
 

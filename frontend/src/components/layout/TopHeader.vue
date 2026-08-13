@@ -510,8 +510,14 @@
             </label>
             </div>
 
-            <div class="form-field form-field-full" data-onboarding="profile-password">
-              <span>{{ t('layout.profileModal.passwordSection') }}</span>
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-password"
+              :open="profileAccordion.password"
+              @toggle="onProfileAccordionToggle('password', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.passwordSection') }}</summary>
+              <div class="profile-accordion__body">
               <!-- Chrome-Autofill ablenken -->
               <input
                 type="text"
@@ -569,10 +575,17 @@
               </div>
               <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
               <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
-            </div>
+              </div>
+            </details>
 
-            <div class="form-field form-field-full" data-onboarding="profile-address">
-              <span>{{ t('layout.profileModal.addressSection') }}</span>
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-address"
+              :open="profileAccordion.address"
+              @toggle="onProfileAccordionToggle('address', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.addressSection') }}</summary>
+              <div class="profile-accordion__body">
               <p class="profile-address-hint">{{ t('layout.profileModal.addressHintJs') }}</p>
               <div class="profile-form-grid">
                 <label class="form-field form-field-full">
@@ -606,10 +619,17 @@
                   </select>
                 </label>
               </div>
-            </div>
+              </div>
+            </details>
 
-            <div class="form-field form-field-full" data-onboarding="profile-colors">
-              <span>{{ t('layout.profileModal.colorCombinations') }}</span>
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-colors"
+              :open="profileAccordion.colors"
+              @toggle="onProfileAccordionToggle('colors', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.colorCombinations') }}</summary>
+              <div class="profile-accordion__body">
               <div class="avatar-palette-wrap">
                 <div class="palette-row-label">{{ t('layout.profileModal.paletteWhiteInitials') }}</div>
                 <div class="avatar-palette-row">
@@ -666,15 +686,21 @@
                   />
                 </div>
               </label>
-            </div>
+              </div>
+            </details>
           </div>
 
-          <div class="profile-modal-footer" data-onboarding="profile-save">
-            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
-              <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
+          <div class="profile-modal-footer">
+            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges || hasAddressChanges }">
+              <span v-if="hasUnsavedProfileChanges || hasAddressChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
             <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
-            <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput && !hasAddressChanges) || !!passwordInlineError">
+            <button
+              type="submit"
+              class="btn-primary btn-sm"
+              data-onboarding="profile-save"
+              :disabled="savingProfile || (!isTourProfileSaveStep && !hasUnsavedProfileChanges && !hasPasswordInput && !hasAddressChanges) || !!passwordInlineError"
+            >
               {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
             </button>
           </div>
@@ -685,7 +711,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
@@ -859,6 +885,46 @@ const tourKeepsUserMenuOpen = computed(() => {
   const step = route.query[ONBOARDING_TOUR_STEP_QUERY]
   return step === '11' || step === '12'
 })
+
+const isTourProfileSaveStep = computed(
+  () =>
+    route.query[ONBOARDING_TOUR_QUERY] === 'profile-overview' &&
+    route.query[ONBOARDING_TOUR_STEP_QUERY] === '18'
+)
+
+const profileAccordion = reactive({
+  password: false,
+  address: false,
+  colors: false,
+})
+
+watch(
+  () => [route.query[ONBOARDING_TOUR_QUERY], route.query[ONBOARDING_TOUR_STEP_QUERY]] as const,
+  ([tour, step]) => {
+    if (tour !== 'profile-overview') return
+    if (step === '15') {
+      profileAccordion.password = true
+      profileAccordion.address = false
+      profileAccordion.colors = false
+    } else if (step === '16') {
+      profileAccordion.password = false
+      profileAccordion.address = true
+      profileAccordion.colors = false
+    } else if (step === '17') {
+      profileAccordion.password = false
+      profileAccordion.address = false
+      profileAccordion.colors = true
+    }
+  },
+  { immediate: true }
+)
+
+function onProfileAccordionToggle(key: 'password' | 'address' | 'colors', event: Event) {
+  const el = event.target as HTMLDetailsElement
+  if (el?.tagName === 'DETAILS') {
+    profileAccordion[key] = el.open
+  }
+}
 
 watch(
   tourKeepsUserMenuOpen,
@@ -1803,7 +1869,7 @@ function switchSupplierCompany() {
   const currentIdx = companies.findIndex((c) => c.id === authStore.activeSupplierCompanyId)
   const next = companies[(currentIdx + 1 + companies.length) % companies.length]
   authStore.setActiveSupplierCompany(next.id)
-  router.push(`/supplier/${next.id}/profile`)
+  router.push(`/supplier/${next.id}/dashboard`)
   showUserDropdown.value = false
 }
 
@@ -1968,6 +2034,10 @@ async function saveProfile() {
   const shouldChangePassword = hasPasswordInput.value
   const shouldSaveAddress = hasAddressChanges.value
   if (!shouldUpdateProfile && !shouldChangePassword && !shouldSaveAddress) {
+    if (isTourProfileSaveStep.value) {
+      closeEditProfileModal()
+      return
+    }
     toast.info(t('layout.toast.noChanges'))
     return
   }
@@ -3184,6 +3254,45 @@ watch(
   font-size: 12px;
   line-height: 1.4;
   color: #64748b;
+}
+
+.profile-accordion {
+  margin: 0 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.profile-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+}
+
+.profile-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-accordion__summary::after {
+  content: '▾';
+  float: right;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.profile-accordion[open] > .profile-accordion__summary::after {
+  transform: rotate(-180deg);
+}
+
+.profile-accordion__body {
+  padding: 0 14px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
 }
 
 .password-inline-success {

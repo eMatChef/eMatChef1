@@ -112,6 +112,7 @@
         "settingsTemplates": "Einstellungen · Vorlagen · eMatChef",
         "globalMaterialTemplates": "Verwaltung · Material-Vorlagen · eMatChef",
         "settingsMaterialImport": "Einstellungen · Material Import/Export · eMatChef",
+        "supplierDashboard": "Meine Firma · Dashboard · eMatChef",
         "supplierProfile": "Meine Firma · Profil · eMatChef",
         "supplierTeam": "Meine Firma · Team · eMatChef",
         "supplierCatalog": "Meine Firma · Katalog · eMatChef",
@@ -894,6 +895,18 @@
       "empty": "Keine Bewegungen im gewählten Zeitraum."
     }
   },
+  "supplierDashboard": {
+    "title": "Dashboard",
+    "loading": "Dashboard wird geladen…",
+    "loadFailed": "Dashboard konnte nicht geladen werden.",
+    "salesTitle": "Verkauf",
+    "workshopTitle": "Werkstatt",
+    "articleCount": "Artikel im Katalog",
+    "openRepairs": "offene Reparaturen",
+    "toCatalog": "Zum Katalog →",
+    "toRepairs": "Zu den Reparaturen →",
+    "noOffers": "Für diese Firma sind weder Verkauf noch Werkstatt freigeschaltet."
+  },
   "supplierProfile": {
     "title": "Profil & Kontakt",
     "readOnlyHint": "Du kannst die Firmendaten einsehen, aber nicht bearbeiten.",
@@ -1527,10 +1540,12 @@
         "step14Body": "Spitzname und Initialen erscheinen auf deinem Avatar. Die Sprache gilt für die ganze App.",
         "step15Title": "Passwort",
         "step15Body": "Hier kannst du dein Passwort ändern — nur nötig, wenn du es aktualisieren willst.",
-        "step16Title": "Avatar-Farben",
-        "step16Body": "Wähle Hintergrund- und Textfarbe für deinen Avatar — so wirst du in Listen und Gruppen erkannt.",
-        "step17Title": "Speichern",
-        "step17Body": "Speichere deine Angaben. Am besten vollständig ausfüllen — die Daten werden wiederverwendet, z. B. bei J+S-Lagerbestellungen, damit du nicht jedes Mal neu tippen musst."
+        "step16Title": "Privatadresse",
+        "step16Body": "Optional: deine Privatadresse. Sie wird intern für Bestellungen an Externe genutzt (J+S und andere) und als Benutzeradresse in den Kontakten hinterlegt.",
+        "step17Title": "Avatar-Farben",
+        "step17Body": "Wähle Hintergrund- und Textfarbe für deinen Avatar — so wirst du in Listen und Gruppen erkannt.",
+        "step18Title": "Speichern",
+        "step18Body": "Klicke auf Speichern, um die Tour abzuschliessen. Ohne Änderungen schliesst das Profil einfach — mit Angaben werden sie übernommen (z. B. für J+S)."
       },
       "materialCreate": {
         "title": "Material erfassen",
@@ -1705,8 +1720,8 @@
       "confirmNewPassword": "Neues Passwort bestätigen",
       "confirmNewPasswordPlaceholder": "Neues Passwort wiederholen",
       "passwordOk": "Passwort passt.",
-      "addressSection": "Privatadresse (J+S)",
-      "addressHintJs": "Für J+S-Bestellungen — wird als Benutzeradresse in den Kontakten gespeichert (standardmässig ausgeblendet).",
+      "addressSection": "Privatadresse",
+      "addressHintJs": "Wird intern für Bestellungen an Externe verwendet (J+S und andere).",
       "street": "Strasse",
       "streetPlaceholder": "Musterstrasse",
       "streetNumber": "Nr.",
