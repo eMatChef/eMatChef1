@@ -512,13 +512,33 @@
 
             <div class="form-field form-field-full" data-onboarding="profile-password">
               <span>{{ t('layout.profileModal.passwordSection') }}</span>
+              <!-- Chrome-Autofill ablenken -->
+              <input
+                type="text"
+                name="emc-username-decoy"
+                autocomplete="username"
+                tabindex="-1"
+                aria-hidden="true"
+                class="profile-autofill-decoy"
+              />
+              <input
+                type="password"
+                name="emc-password-decoy"
+                autocomplete="new-password"
+                tabindex="-1"
+                aria-hidden="true"
+                class="profile-autofill-decoy"
+              />
               <div class="profile-form-grid">
                 <label class="form-field">
                   <span>{{ t('layout.profileModal.currentPassword') }}</span>
                   <input
                     v-model="passwordForm.current_password"
                     type="password"
-                    autocomplete="current-password"
+                    name="emc-current-password"
+                    autocomplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.currentPasswordPlaceholder')"
                   />
                 </label>
@@ -527,7 +547,10 @@
                   <input
                     v-model="passwordForm.new_password"
                     type="password"
+                    name="emc-new-password"
                     autocomplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.newPasswordPlaceholder')"
                   />
                 </label>
@@ -536,13 +559,53 @@
                   <input
                     v-model="passwordForm.confirm_new_password"
                     type="password"
+                    name="emc-confirm-password"
                     autocomplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.confirmNewPasswordPlaceholder')"
                   />
                 </label>
               </div>
               <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
               <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
+            </div>
+
+            <div class="form-field form-field-full" data-onboarding="profile-address">
+              <span>{{ t('layout.profileModal.addressSection') }}</span>
+              <p class="profile-address-hint">{{ t('layout.profileModal.addressHintJs') }}</p>
+              <div class="profile-form-grid">
+                <label class="form-field form-field-full">
+                  <span>{{ t('layout.profileModal.street') }}</span>
+                  <input
+                    v-model="addressForm.street"
+                    type="text"
+                    autocomplete="street-address"
+                    :placeholder="t('layout.profileModal.streetPlaceholder')"
+                  />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.streetNumber') }}</span>
+                  <input v-model="addressForm.street_number" type="text" autocomplete="off" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.postalCode') }}</span>
+                  <input v-model="addressForm.postal_code" type="text" autocomplete="postal-code" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.city') }}</span>
+                  <input v-model="addressForm.city" type="text" autocomplete="address-level2" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.canton') }}</span>
+                  <select v-model="addressForm.canton">
+                    <option value="">{{ t('layout.profileModal.cantonEmpty') }}</option>
+                    <option v-for="(label, code) in swissCantons" :key="code" :value="code">
+                      {{ code }} – {{ label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div class="form-field form-field-full" data-onboarding="profile-colors">
@@ -611,7 +674,7 @@
               <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
             <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
-            <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
+            <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput && !hasAddressChanges) || !!passwordInlineError">
               {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
             </button>
           </div>
@@ -633,6 +696,17 @@ import {
 } from '@/config/onboardingTours'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
+import {
+  createAddress,
+  getAddresses,
+  updateAddress,
+  SWISS_CANTONS,
+} from '@/api/addresses'
+import {
+  findAddressForProfile,
+  profileAddressMarker,
+  USER_ADDRESS_TYPE,
+} from '@/utils/profileUserAddress'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
@@ -847,6 +921,16 @@ const passwordForm = ref({
   new_password: '',
   confirm_new_password: '',
 })
+const addressForm = ref({
+  street: '',
+  street_number: '',
+  postal_code: '',
+  city: '',
+  canton: '',
+})
+const addressRecordId = ref<string | null>(null)
+const initialAddressSnapshot = ref('')
+const swissCantons = SWISS_CANTONS
 const initialProfileFormSnapshot = ref('')
 const avatarPaletteColors = [
   '#2563EB',
@@ -910,10 +994,16 @@ const hasUnsavedProfileChanges = computed(() => {
   if (!initialProfileFormSnapshot.value) return false
   return serializeProfileForm(profileForm.value) !== initialProfileFormSnapshot.value
 })
+const hasAddressChanges = computed(() => {
+  if (!initialAddressSnapshot.value) return false
+  return serializeAddressForm(addressForm.value) !== initialAddressSnapshot.value
+})
 const hasPasswordInput = computed(() =>
-  !!passwordForm.value.current_password || !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
+  !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
 )
 const passwordInlineError = computed(() => {
+  // Nur validieren, wenn wirklich ein Passwort-Wechsel gestartet wurde
+  // (Autofill füllt oft nur «aktuelles Passwort» → sonst Blockade / Fehler)
   if (!hasPasswordInput.value) return ''
   const currentPassword = passwordForm.value.current_password
   const newPassword = passwordForm.value.new_password
@@ -1692,6 +1782,7 @@ function editProfile() {
   isEmailEditEnabled.value = false
   showEditProfileModal.value = true
   showUserDropdown.value = false
+  void loadProfileUserAddress()
 }
 
 async function selectDepartment(departmentId: string) {
@@ -1729,7 +1820,10 @@ function closeEditProfileModal() {
   showEditProfileModal.value = false
   isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
+  initialAddressSnapshot.value = ''
+  addressRecordId.value = null
   resetPasswordForm()
+  resetAddressForm()
 }
 
 function resetPasswordForm() {
@@ -1738,9 +1832,54 @@ function resetPasswordForm() {
   passwordForm.value.confirm_new_password = ''
 }
 
+function resetAddressForm() {
+  addressForm.value = {
+    street: '',
+    street_number: '',
+    postal_code: '',
+    city: '',
+    canton: '',
+  }
+}
+
+function serializeAddressForm(form: typeof addressForm.value): string {
+  return JSON.stringify({
+    street: form.street.trim(),
+    street_number: form.street_number.trim(),
+    postal_code: form.postal_code.trim(),
+    city: form.city.trim(),
+    canton: form.canton.trim(),
+  })
+}
+
+async function loadProfileUserAddress() {
+  resetAddressForm()
+  addressRecordId.value = null
+  initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+  const profileId = authStore.profileId
+  const departmentId = authStore.activeDepartmentId
+  if (!profileId || !departmentId) return
+  try {
+    const { addresses } = await getAddresses(departmentId, { type: USER_ADDRESS_TYPE })
+    const match = findAddressForProfile(addresses, profileId)
+    if (!match) return
+    addressRecordId.value = match.id
+    addressForm.value = {
+      street: match.street || '',
+      street_number: match.street_number || '',
+      postal_code: match.postal_code || '',
+      city: match.city || '',
+      canton: match.canton || '',
+    }
+    initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+  } catch {
+    /* Adresse optional — Fehler nicht blockierend */
+  }
+}
+
 async function requestCloseEditProfileModal() {
   if (savingProfile.value) return
-  if (hasUnsavedProfileChanges.value) {
+  if (hasUnsavedProfileChanges.value || hasAddressChanges.value) {
     const shouldClose = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
@@ -1827,7 +1966,8 @@ async function saveProfile() {
   }
   const shouldUpdateProfile = hasUnsavedProfileChanges.value
   const shouldChangePassword = hasPasswordInput.value
-  if (!shouldUpdateProfile && !shouldChangePassword) {
+  const shouldSaveAddress = hasAddressChanges.value
+  if (!shouldUpdateProfile && !shouldChangePassword && !shouldSaveAddress) {
     toast.info(t('layout.toast.noChanges'))
     return
   }
@@ -1898,10 +2038,57 @@ async function saveProfile() {
       resetPasswordForm()
     }
 
-    if (shouldUpdateProfile && !shouldChangePassword) {
-      toast.success(t('layout.toast.profileSaved'))
-    } else if (shouldUpdateProfile && shouldChangePassword) {
+    if (shouldSaveAddress) {
+      const departmentId = authStore.activeDepartmentId
+      if (!departmentId) {
+        toast.error(t('layout.toast.profileSaveFailed'))
+        return
+      }
+      const street = addressForm.value.street.trim()
+      const postal = addressForm.value.postal_code.trim()
+      const city = addressForm.value.city.trim()
+      const hasAny =
+        street ||
+        postal ||
+        city ||
+        addressForm.value.street_number.trim() ||
+        addressForm.value.canton.trim()
+      if (hasAny && (!street || !postal || !city)) {
+        toast.error(t('layout.profileModal.addressIncomplete'))
+        return
+      }
+      if (hasAny) {
+        const payload = {
+          department_id: departmentId,
+          type: USER_ADDRESS_TYPE,
+          name: t('layout.profileModal.addressContactName', {
+            name: `${profileForm.value.first_name} ${profileForm.value.last_name}`.trim() || 'Profil',
+          }),
+          street,
+          street_number: addressForm.value.street_number.trim() || null,
+          postal_code: postal,
+          city,
+          canton: addressForm.value.canton.trim() || null,
+          country: 'Schweiz',
+          contact_first_name: profileForm.value.first_name.trim() || null,
+          contact_last_name: profileForm.value.last_name.trim() || null,
+          email: (authStore.profile?.email || profileForm.value.email || '').trim() || null,
+          additional_info: profileAddressMarker(profileId),
+        }
+        if (addressRecordId.value) {
+          await updateAddress(addressRecordId.value, payload)
+        } else {
+          const created = await createAddress(payload)
+          addressRecordId.value = created.address.id
+        }
+        initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+      }
+    }
+
+    if (shouldUpdateProfile && shouldChangePassword) {
       toast.success(t('layout.toast.profileAndPasswordSaved'))
+    } else if (shouldUpdateProfile || shouldSaveAddress) {
+      toast.success(t('layout.toast.profileSaved'))
     }
 
     closeEditProfileModal()
@@ -2990,6 +3177,13 @@ watch(
 .password-inline-error {
   color: #b91c1c;
   font-size: 11px;
+}
+
+.profile-address-hint {
+  margin: 4px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
 }
 
 .password-inline-success {

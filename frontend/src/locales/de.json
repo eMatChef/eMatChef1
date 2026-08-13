@@ -504,6 +504,7 @@
     "openDetailsTitle": "Details öffnen",
     "tableHint": "Doppelklick auf eine Zeile öffnet die Detailansicht",
     "showDeleted": "Gelöschte anzeigen",
+    "showUserAddresses": "Benutzeradressen anzeigen",
     "deletedBadge": "Gelöscht",
     "restore": "Wiederherstellen",
     "restoreSuccess": "Adresse wiederhergestellt",
@@ -1704,6 +1705,17 @@
       "confirmNewPassword": "Neues Passwort bestätigen",
       "confirmNewPasswordPlaceholder": "Neues Passwort wiederholen",
       "passwordOk": "Passwort passt.",
+      "addressSection": "Privatadresse (J+S)",
+      "addressHintJs": "Für J+S-Bestellungen — wird als Benutzeradresse in den Kontakten gespeichert (standardmässig ausgeblendet).",
+      "street": "Strasse",
+      "streetPlaceholder": "Musterstrasse",
+      "streetNumber": "Nr.",
+      "postalCode": "PLZ",
+      "city": "Ort",
+      "canton": "Kanton",
+      "cantonEmpty": "— optional —",
+      "addressIncomplete": "Bitte Strasse, PLZ und Ort ausfüllen (oder leer lassen).",
+      "addressContactName": "Privatadresse {name}",
       "colorCombinations": "Farbkombinationen (mit Initialen)",
       "paletteWhiteInitials": "Weiße Initialen",
       "paletteBlackInitials": "Schwarze Initialen",
@@ -4660,7 +4672,8 @@
         "meeting": "Treffpunkt",
         "office": "Büro",
         "private": "Privat",
-        "postal": "Postadresse"
+        "postal": "Postadresse",
+        "user": "Benutzeradresse"
       }
     },
     "addressModal": {

@@ -64,6 +64,13 @@
               :label="t('contacts.showDeleted')"
               hide-details
             />
+            <ECheckbox
+              v-model="showUserAddresses"
+              class="e-filter-row__checkbox"
+              density="compact"
+              :label="t('contacts.showUserAddresses')"
+              hide-details
+            />
           </v-col>
         </EFilterRow>
       </template>
@@ -235,6 +242,7 @@ const searchQuery = ref('')
 const selectedType = ref('')
 const selectedCanton = ref('')
 const showDeleted = ref(false)
+const showUserAddresses = ref(false)
 
 // Create / Detail View State
 const showCreateModal = ref(false)
@@ -244,6 +252,11 @@ const showDetailView = computed(() => !!selectedContactId.value)
 // Computed: Filtered Contacts
 const filteredContacts = computed(() => {
   let result = [...contacts.value]
+
+  // Benutzeradressen (Profil/J+S) standardmässig ausblenden
+  if (!showUserAddresses.value) {
+    result = result.filter((c) => c.type !== 'user')
+  }
   
   // Textsuche
   if (searchQuery.value) {

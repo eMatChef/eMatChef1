@@ -678,6 +678,7 @@ class Address
             'office' => 'Büro',
             'private' => 'Privat',
             'postal' => 'Postadresse',
+            'user' => 'Benutzeradresse',
         ];
     }
 

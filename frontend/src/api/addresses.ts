@@ -226,4 +226,5 @@ export const ADDRESS_TYPES: AddressTypes = {
   'office': 'Büro',
   'private': 'Privat',
   'postal': 'Postadresse',
+  'user': 'Benutzeradresse',
 }
