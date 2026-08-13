@@ -139,6 +139,26 @@ function isTargetVisible(el: Element): boolean {
   return style.display !== 'none' && style.visibility !== 'hidden'
 }
 
+/** Ziel in den sichtbaren Bereich scrollen (z. B. Profil-Modal). */
+async function scrollTargetIntoView(el: Element) {
+  const htmlEl = el as HTMLElement
+  const rect = htmlEl.getBoundingClientRect()
+  const vh = window.innerHeight
+  const topMargin = 72
+  const bottomMargin = 96
+  const fullyVisible = rect.top >= topMargin && rect.bottom <= vh - bottomMargin
+  if (fullyVisible) return
+
+  const tall = rect.height > vh - topMargin - bottomMargin
+  htmlEl.scrollIntoView({
+    block: tall ? 'start' : 'center',
+    inline: 'nearest',
+    behavior: 'smooth',
+  })
+  // Smooth-Scroll abwarten, dann Rect neu messen
+  await new Promise((resolve) => setTimeout(resolve, 380))
+}
+
 function observeTarget(el: Element) {
   if (observedTarget === el) return
   clearTargetObserver()
@@ -246,6 +266,9 @@ export function useOnboardingTour() {
       )
     }
     if (!el || activeStep.value?.id !== stepId) return
+
+    await scrollTargetIntoView(el)
+    if (activeStep.value?.id !== stepId) return
 
     observeTarget(el)
     elevateTargetRoot(el)

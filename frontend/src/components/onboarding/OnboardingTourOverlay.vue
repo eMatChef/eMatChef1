@@ -378,5 +378,6 @@ const cardStyle = computed(() => {
   pointer-events: auto;
   filter: none !important;
   opacity: 1 !important;
+  scroll-margin: 88px 20px 120px;
 }
 </style>
