@@ -15,11 +15,37 @@ import { useAuthStore } from '@/stores/auth'
 import { markOnboardingTourCompleted } from '@/utils/onboardingTourProgress'
 
 const TARGET_ACTIVE_CLASS = 'onboarding-tour-target-active'
+/** Stacking-Context-Root über den Dimmer heben (Drawer/Header/Dialog). */
+const ELEVATE_ROOT_CLASS = 'onboarding-tour-elevate-root'
 
 const targetRect = ref<DOMRect | null>(null)
 let targetObserver: ResizeObserver | null = null
 let observedTarget: Element | null = null
+let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
+
+function findElevateRoot(el: Element): HTMLElement {
+  const drawer = el.closest('.v-navigation-drawer')
+  if (drawer instanceof HTMLElement) return drawer
+  const header = el.closest('.v-app-bar, .top-header, header.top-header')
+  if (header instanceof HTMLElement) return header
+  const overlay = el.closest('.v-overlay__content, .v-dialog, .v-menu__content')
+  if (overlay instanceof HTMLElement) return overlay
+  return el instanceof HTMLElement ? el : (el.parentElement as HTMLElement)
+}
+
+function clearElevateRoot() {
+  if (elevatedRoot) {
+    elevatedRoot.classList.remove(ELEVATE_ROOT_CLASS)
+    elevatedRoot = null
+  }
+}
+
+function elevateTargetRoot(el: Element) {
+  clearElevateRoot()
+  elevatedRoot = findElevateRoot(el)
+  elevatedRoot.classList.add(ELEVATE_ROOT_CLASS)
+}
 
 function clearTargetInteraction() {
   if (observedTarget) {
@@ -29,6 +55,7 @@ function clearTargetInteraction() {
       targetClickHandler = null
     }
   }
+  clearElevateRoot()
 }
 
 function clearTargetObserver() {
@@ -62,7 +89,7 @@ async function waitForTarget(
 function isTargetVisible(el: Element): boolean {
   const htmlEl = el as HTMLElement
   const rect = htmlEl.getBoundingClientRect()
-  if (rect.width <= 0 && rect.height <= 0) return false
+  if (rect.width <= 0 || rect.height <= 0) return false
   const style = window.getComputedStyle(htmlEl)
   return style.display !== 'none' && style.visibility !== 'hidden'
 }
@@ -169,6 +196,7 @@ export function useOnboardingTour() {
     if (!el || activeStep.value?.id !== step.id) return
 
     observeTarget(el)
+    elevateTargetRoot(el)
     el.classList.add(TARGET_ACTIVE_CLASS)
 
     if (mode === 'click' && onTargetClick) {
