@@ -330,7 +330,6 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     version: 1,
     audience: 'mw',
     requiresCompletedTours: ['material-create'],
-    requiresAnyCompletedTours: ['activity-create', 'activity-camp-create'],
     routeName: 'Materials',
     titleKey: 'onboarding.tours.materialConsumable.title',
     descriptionKey: 'onboarding.tours.materialConsumable.description',

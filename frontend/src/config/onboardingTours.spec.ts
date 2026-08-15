@@ -127,26 +127,19 @@ describe('onboarding tour audience filter', () => {
     ).toEqual([])
   })
 
-  it('locks consumable tour behind material + activity create', () => {
+  it('locks consumable tour behind material create only', () => {
     const tour = getOnboardingTour('material-consumable')!
     expect(tour.audience).toBe('mw')
     expect(tour.requiresCompletedTours).toContain('material-create')
-    expect(tour.requiresAnyCompletedTours).toEqual(
-      expect.arrayContaining(['activity-create', 'activity-camp-create'])
-    )
+    expect(tour.requiresAnyCompletedTours).toBeUndefined()
     expect(tour.steps.length).toBe(6)
+    expect(
+      getMissingTourPrerequisites(tour, 'mw', new Set(), { canCreateCamp: true })
+    ).toEqual(['material-create'])
     expect(
       getMissingTourPrerequisites(tour, 'mw', new Set(['material-create']), {
         canCreateCamp: true,
       })
-    ).toContain('activity-create')
-    expect(
-      getMissingTourPrerequisites(
-        tour,
-        'mw',
-        new Set(['material-create', 'activity-create']),
-        { canCreateCamp: true }
-      )
     ).toEqual([])
   })
 
