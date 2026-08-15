@@ -94,11 +94,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.activity-mat-qty-overlay {
-  /* Über Tour-Dimmer (10040), unter Tour-Karte (10060) — Mengenwahl während Spotlight nutzbar */
-  z-index: 10055;
-}
-
 .activity-mat-qty-dialog {
   max-width: 420px;
   width: 100%;
@@ -147,5 +142,12 @@ onMounted(() => {
 
 .text-muted {
   color: #6b7280;
+}
+</style>
+
+<!-- Unscoped: Teleport + Tour-Stacking — Mengenfeld (Spinbox) muss über Dimmer/Karte klickbar sein -->
+<style>
+.activity-mat-qty-overlay {
+  z-index: 10070 !important;
 }
 </style>
