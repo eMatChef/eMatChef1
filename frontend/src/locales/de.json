@@ -1426,7 +1426,7 @@
     },
     "hub": {
       "title": "Touren",
-      "subtitle": "Geführte Touren und Einrichtungs-Checkliste für Materialwart und Depchef.",
+      "subtitle": "Geführte Touren und Einrichtungs-Checkliste für E-Mat-Chef",
       "subtitleMember": "Geführte Touren für Aktivitäten in deinem Department.",
       "progressLabel": "{done} von {total} erledigt",
       "checklistTitle": "Einrichtungs-Checkliste",
@@ -1585,7 +1585,9 @@
         "step4Title": "Zeitraum",
         "step4Body": "Trage die Nutzungszeit ein — im Kalender helfen Schnellauswahl wie «Nächster Samstag». Abholung/Rückgabe erscheint direkt darunter; als Nächstes kommt das Material.",
         "step5Title": "Material",
-        "step5Body": "Füge benötigtes Material hinzu. Speichern legt die Aktivität an."
+        "step5Body": "Suche Material und füge Mengen hinzu. Als Nächstes: «Einreichen» an den Materialwart.",
+        "step6Title": "Einreichen",
+        "step6Body": "Mit «Einreichen» geht die Anfrage direkt an den Materialwart — bei Aktivität gibt es keinen Zwischenschritt Entwurf wie bei Lager oder Event."
       },
       "activityCampCreate": {
         "title": "Lager (Camp) anlegen",

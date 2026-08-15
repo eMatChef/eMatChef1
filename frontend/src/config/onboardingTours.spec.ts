@@ -75,9 +75,11 @@ describe('onboarding tour audience filter', () => {
 
   it('activity tours have expected wizard targets', () => {
     const activity = getOnboardingTour('activity-create')!
-    expect(activity.version).toBeGreaterThanOrEqual(3)
+    expect(activity.version).toBeGreaterThanOrEqual(7)
     expect(activity.steps.some((s) => s.target?.includes('activity-create-zeitraum'))).toBe(true)
     expect(activity.steps.some((s) => s.target?.includes('activity-create-material'))).toBe(true)
+    expect(activity.steps.some((s) => s.target?.includes('activity-wizard-submit'))).toBe(true)
+    expect(activity.steps).toHaveLength(6)
 
     const camp = getOnboardingTour('activity-camp-create')!
     expect(camp.steps.some((s) => s.target?.includes('activity-camp-js-material'))).toBe(true)

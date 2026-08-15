@@ -381,7 +381,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-create',
     category: 'activities',
-    version: 6,
+    version: 7,
     audience: 'all',
     requiresCompletedTours: ['material-create'],
     routeName: 'Activities',
@@ -423,6 +423,13 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         titleKey: 'onboarding.tours.activityCreate.step5Title',
         bodyKey: 'onboarding.tours.activityCreate.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="activity-wizard-submit"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityCreate.step6Title',
+        bodyKey: 'onboarding.tours.activityCreate.step6Body',
       },
     ],
   },

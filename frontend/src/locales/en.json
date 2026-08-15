@@ -1299,7 +1299,7 @@
     },
     "hub": {
       "title": "Tours",
-      "subtitle": "Guided tours and setup checklist for material managers.",
+      "subtitle": "Guided tours and setup checklist for E-Mat-Chef",
       "subtitleMember": "Guided tours for activities in your department.",
       "progressLabel": "{done} of {total} done",
       "checklistTitle": "Setup checklist",
@@ -1458,7 +1458,9 @@
         "step4Title": "Dates",
         "step4Body": "Enter the usage time — the calendar offers shortcuts like “Next Saturday”. Pickup/return appears just below; next comes material.",
         "step5Title": "Material",
-        "step5Body": "Add the material you need. Saving creates the activity."
+        "step5Body": "Search for material and add quantities. Next: «Submit» to the material manager.",
+        "step6Title": "Submit",
+        "step6Body": "«Submit» sends the request straight to the material manager — for activities there is no draft step like for camp or event."
       },
       "activityCampCreate": {
         "title": "Create camp",

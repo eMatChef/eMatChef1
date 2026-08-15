@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="cancel">
+    <div class="modal-overlay activity-mat-qty-overlay" @click.self="cancel">
       <div class="modal-dialog activity-mat-qty-dialog">
         <div class="amqd-head">
           <h3>{{ t('activities.materialAvailability.quantityDialogTitle') }}</h3>
@@ -94,6 +94,11 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.activity-mat-qty-overlay {
+  /* Über Tour-Dimmer (10040), unter Tour-Karte (10060) — Mengenwahl während Spotlight nutzbar */
+  z-index: 10055;
+}
+
 .activity-mat-qty-dialog {
   max-width: 420px;
   width: 100%;
