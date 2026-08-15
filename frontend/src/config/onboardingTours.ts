@@ -485,9 +485,10 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-approve',
     category: 'activities',
-    version: 1,
+    version: 2,
     audience: 'leader',
-    requiresAnyCompletedTours: ['activity-create', 'activity-camp-create'],
+    requiresCampCreate: true,
+    requiresCompletedTours: ['activity-camp-create'],
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityApprove.title',
     descriptionKey: 'onboarding.tours.activityApprove.description',

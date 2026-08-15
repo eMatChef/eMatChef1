@@ -1552,12 +1552,12 @@
         "step3Body": "Completing finishes the journey — the activity leaves the packing flow."
       },
       "activityApprove": {
-        "title": "Release activity",
-        "description": "As leader or group chef ★: review submitted activities and release them.",
+        "title": "Release camp & event",
+        "description": "As leader or group chef ★: review and release submitted camps and events — not for type «Activity» (those go straight to the material manager).",
         "step1Title": "Ready for release",
-        "step1Body": "In the activities list you find submitted activities and camps for your group or department.",
+        "step1Body": "In the list you find submitted camps and events for your group or department. Simple activities do not need this release step.",
         "step2Title": "Review",
-        "step2Body": "Open the activity and check dates, group and material needs — reject or ask for changes if needed.",
+        "step2Body": "Open the camp or event and check dates, group and material needs — reject or ask for changes if needed.",
         "step3Title": "Release",
         "step3Body": "Release sets status to confirmed. Then MW/DC can accept and pack."
       },

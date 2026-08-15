@@ -8,13 +8,12 @@ import {
 } from '@/config/onboardingTours'
 
 describe('onboarding tour audience filter', () => {
-  it('shows start + activity + approve for l1 without camp', () => {
+  it('shows start + activity for l1 without camp; approve only with camp', () => {
     const tours = filterOnboardingToursForRole('l1', { canCreateCamp: false })
-    expect(tours.map((t) => t.id)).toEqual([
-      'profile-overview',
-      'activity-create',
-      'activity-approve',
-    ])
+    expect(tours.map((t) => t.id)).toEqual(['profile-overview', 'activity-create'])
+    expect(
+      isTourVisibleForRole(getOnboardingTour('activity-approve')!, 'l1', { canCreateCamp: true })
+    ).toBe(true)
   })
 
   it('includes camp + approve when camp create is allowed for group leader user', () => {
@@ -28,17 +27,22 @@ describe('onboarding tour audience filter', () => {
       'activity-create',
       'profile-overview',
     ])
+    expect(getOnboardingTour('activity-approve')!.requiresCompletedTours).toContain(
+      'activity-camp-create'
+    )
   })
 
   it('hides approve from plain user without group leader', () => {
     expect(
       isTourVisibleForRole(getOnboardingTour('activity-approve')!, 'u', {
         isGroupLeader: false,
+        canCreateCamp: true,
       })
     ).toBe(false)
     expect(
       isTourVisibleForRole(getOnboardingTour('activity-approve')!, 'u', {
         isGroupLeader: true,
+        canCreateCamp: true,
       })
     ).toBe(true)
   })

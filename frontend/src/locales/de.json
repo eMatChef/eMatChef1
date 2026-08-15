@@ -1679,12 +1679,12 @@
         "step3Body": "Mit dem Abschluss ist die Journey fertig — die Aktivität erscheint nicht mehr im Pack-Flow."
       },
       "activityApprove": {
-        "title": "Aktivität freigeben",
-        "description": "Als Leiter oder Gruppenchef ★: eingereichte Aktivitäten prüfen und freigeben.",
+        "title": "Lager & Event freigeben",
+        "description": "Als Leiter oder Gruppenchef ★: eingereichte Lager und Events prüfen und freigeben — nicht für Typ «Aktivität» (die geht direkt an den Materialwart).",
         "step1Title": "Zur Freigabe",
-        "step1Body": "In der Aktivitäten-Liste findest du eingereichte Aktivitäten und Lager deiner Gruppe bzw. Abteilung.",
+        "step1Body": "In der Liste findest du eingereichte Lager und Events deiner Gruppe bzw. Abteilung. Einfache Aktivitäten brauchen diese Freigabe nicht.",
         "step2Title": "Prüfen",
-        "step2Body": "Öffne die Aktivität und prüfe Zeitraum, Gruppe und Materialbedarf — bei Bedarf zurückweisen oder anpassen lassen.",
+        "step2Body": "Öffne Lager oder Event und prüfe Zeitraum, Gruppe und Materialbedarf — bei Bedarf zurückweisen oder anpassen lassen.",
         "step3Title": "Freigeben",
         "step3Body": "Mit der Freigabe wird der Status «Bestätigt». Danach kann MW/DC annehmen und packen."
       },
