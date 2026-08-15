@@ -826,19 +826,23 @@ export function isTourVisibleForRole(
   if (audience === 'org') return isOrg || isSuperadmin
   if (audience === 'suborg') return isSuborg || isOrg || isSuperadmin
 
-  // dc-only: untere Rollen sehen diese Tour nicht
-  if (audience === 'dc') return isDc || isSuperadmin
-
-  // leader: L1–L3 / ★ — MW/DC sehen sie ebenfalls (höhere Rolle)
-  if (audience === 'leader') {
-    return isLeaderRole || isMw || isSuperadmin
+  let allowed = false
+  if (audience === 'dc') {
+    allowed = isDc || isSuperadmin
+  } else if (audience === 'leader') {
+    // L1–L3 / ★ — MW/DC sehen sie ebenfalls (höhere Rolle)
+    allowed = isLeaderRole || isMw || isSuperadmin
+  } else if (audience === 'mw') {
+    allowed = isMw || isSuperadmin
+  } else if (audience === 'member') {
+    allowed = isMember || isMw || isSuperadmin
+  } else if (audience === 'all') {
+    allowed = isMw || isMember || isSuperadmin
   }
 
-  if (audience === 'mw' && !isMw && !isSuperadmin) return false
-  if (audience === 'member' && !isMember && !isMw && !isSuperadmin) return false
-  if (audience === 'all' && !isMw && !isMember && !isSuperadmin) return false
-
-  if (tour.requiresCampCreate && !isMw && !options.canCreateCamp) return false
+  if (!allowed) return false
+  // Auch für leader/dc: Camp-Touren nur mit Camp-Recht (MW/SA immer)
+  if (tour.requiresCampCreate && !isMw && !isSuperadmin && !options.canCreateCamp) return false
   return true
 }
 
