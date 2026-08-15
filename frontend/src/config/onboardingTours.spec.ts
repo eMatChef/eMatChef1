@@ -122,23 +122,40 @@ describe('onboarding tour audience filter', () => {
     expect(tour.steps.some((s) => s.target?.includes('profile-save'))).toBe(true)
   })
 
-  it('locks activity tour behind material for mw, not for members', () => {
+  it('locks activity tour behind material + consumable for mw, not for members', () => {
     const activity = getOnboardingTour('activity-create')!
-    expect(activity.requiresCompletedTours).toContain('material-create')
+    expect(activity.requiresCompletedTours).toEqual(
+      expect.arrayContaining(['material-create', 'material-consumable'])
+    )
     expect(
       getMissingTourPrerequisites(activity, 'mw', new Set(), { canCreateCamp: false })
-    ).toEqual(['material-create'])
+    ).toEqual(expect.arrayContaining(['material-create', 'material-consumable']))
+    expect(
+      getMissingTourPrerequisites(activity, 'mw', new Set(['material-create']), {
+        canCreateCamp: false,
+      })
+    ).toEqual(['material-consumable'])
+    expect(
+      getMissingTourPrerequisites(
+        activity,
+        'mw',
+        new Set(['material-create', 'material-consumable']),
+        { canCreateCamp: false }
+      )
+    ).toEqual([])
     expect(
       getMissingTourPrerequisites(activity, 'l1', new Set(), { canCreateCamp: false })
     ).toEqual([])
   })
 
-  it('locks consumable tour behind material create only', () => {
+  it('locks consumable tour behind material create; step1 is click', () => {
     const tour = getOnboardingTour('material-consumable')!
     expect(tour.audience).toBe('mw')
     expect(tour.requiresCompletedTours).toContain('material-create')
     expect(tour.requiresAnyCompletedTours).toBeUndefined()
-    expect(tour.steps.length).toBe(6)
+    expect(tour.steps[0]?.mode).toBe('click')
+    expect(tour.steps[0]?.target).toContain('material-new')
+    expect(tour.steps.length).toBe(7)
     expect(
       getMissingTourPrerequisites(tour, 'mw', new Set(), { canCreateCamp: true })
     ).toEqual(['material-create'])
