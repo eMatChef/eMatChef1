@@ -443,10 +443,10 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-camp-create',
     category: 'activities',
-    version: 2,
+    version: 3,
     audience: 'all',
     requiresCampCreate: true,
-    requiresCompletedTours: ['material-create'],
+    requiresCompletedTours: ['material-create', 'material-consumable'],
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityCampCreate.title',
     descriptionKey: 'onboarding.tours.activityCampCreate.description',

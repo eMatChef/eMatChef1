@@ -88,6 +88,9 @@ describe('onboarding tour audience filter', () => {
     const camp = getOnboardingTour('activity-camp-create')!
     expect(camp.steps.some((s) => s.target?.includes('activity-camp-js-material'))).toBe(true)
     expect(camp.requiresCampCreate).toBe(true)
+    expect(camp.requiresCompletedTours).toEqual(
+      expect.arrayContaining(['material-create', 'material-consumable'])
+    )
   })
 
   it('issue-return is pack-only for mw with approved data gate', () => {
