@@ -14,6 +14,7 @@ use App\Service\Workshop\WorkshopSparePartsCategoryBootstrapService;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\DepartmentDefaultCoachSyncService;
 use App\Service\DepartmentResetService;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\DevEnvironmentService;
@@ -44,6 +45,7 @@ class DepartmentController extends AbstractController
         private AdminCapabilityChecker $adminCapabilityChecker,
         private GrossanlassDepartmentCreateService $grossanlassDepartmentCreateService,
         private DepartmentRoleLabelService $departmentRoleLabelService,
+        private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
     ) {}
 
     /**
@@ -653,7 +655,7 @@ class DepartmentController extends AbstractController
     /**
      * Rollen-Hierarchie: Index 0 = höchste Berechtigung
      */
-    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'];
     private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
 
     /**
@@ -804,6 +806,9 @@ class DepartmentController extends AbstractController
             );
 
             $this->entityManager->persist($membership);
+            if ($role === 'coach') {
+                $this->departmentDefaultCoachSync->applyCoachRole($department, $user);
+            }
             $this->entityManager->flush();
         } catch (\Exception $e) {
             return new JsonResponse([
@@ -945,6 +950,10 @@ class DepartmentController extends AbstractController
                     'is_primary' => ['old' => $oldIsPrimary, 'new' => $membership->getIsPrimary()],
                 ]
             );
+        }
+
+        if ($membership->getRole() === 'coach' && $oldRole !== 'coach') {
+            $this->departmentDefaultCoachSync->applyCoachRole($membership->getDepartment(), $membership->getUser());
         }
 
         $this->entityManager->flush();

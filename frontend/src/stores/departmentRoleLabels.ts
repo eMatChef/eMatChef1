@@ -96,7 +96,7 @@ export const useDepartmentRoleLabelsStore = defineStore('departmentRoleLabels', 
       if (custom) return custom
     }
 
-    if (['mw', 'dc', 'l1', 'l2', 'l3', 'u'].includes(code)) {
+    if (['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'].includes(code)) {
       return t(`settings.${ns}.roles.${code}`)
     }
 

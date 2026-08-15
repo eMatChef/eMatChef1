@@ -17,6 +17,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
+use App\Service\DepartmentDefaultCoachSyncService;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\InboxMessageService;
 use App\Service\JoinRequestManagerNotificationService;
@@ -39,7 +40,7 @@ class JoinRequestController extends AbstractController
     private const MANAGER_ROLES = ['mw', 'dc'];
     private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
     private const INVITE_CODE_SETTING_KEY = 'join.invite_code';
-    private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'];
     private const PENDING_INVITES_SETTING_KEY = 'join.pending_invites';
 
     public function __construct(
@@ -53,6 +54,7 @@ class JoinRequestController extends AbstractController
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
         private DepartmentRoleLabelService $departmentRoleLabelService,
+        private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -492,7 +494,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'target_department_id ist erforderlich'], 400);
         }
 
-        $validRoles = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+        $validRoles = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'];
         $requestedRole = trim((string) ($data['target_role'] ?? 'u'));
         if ($requestedRole === '') {
             $requestedRole = 'u';
@@ -1549,6 +1551,9 @@ class JoinRequestController extends AbstractController
             ]
         );
         $this->entityManager->persist($membership);
+        if ($role === 'coach') {
+            $this->departmentDefaultCoachSync->applyCoachRole($department, $user);
+        }
 
         return $membership;
     }

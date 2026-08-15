@@ -1504,9 +1504,9 @@
       },
       "defaultCoach": {
         "title": "Set default coach",
-        "description": "Speed up J+S orders with pre-filled coach data.",
+        "description": "Default coach for J+S orders — or add a department member with role «Coach».",
         "step1Title": "J+S settings",
-        "step1Body": "Under Settings → Activities you set defaults for camp and event orders.",
+        "step1Body": "Set the default coach here. Alternatively: under Users add someone with role «Coach» — name and email are copied automatically.",
         "step2Title": "Coach data",
         "step2Body": "Coach person number, name and email — pre-filled on new J+S orders."
       },
@@ -3783,6 +3783,7 @@
         "l1": "L1 – leader 1",
         "l2": "L2 – leader 2",
         "l3": "L3 – leader 3",
+        "coach": "C – coach",
         "u": "U – member"
       }
     },
@@ -3857,6 +3858,7 @@
         "l1": "Leader 1",
         "l2": "Leader 2",
         "l3": "Leader 3",
+        "coach": "Coach",
         "u": "Member"
       },
       "roleLabelsTitle": "Leader role names",

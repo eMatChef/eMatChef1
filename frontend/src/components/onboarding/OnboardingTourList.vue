@@ -98,6 +98,7 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { isOnboardingTourCompleted } from '@/utils/onboardingTourProgress'
+import { syncOnboardingTourAutoCompletion } from '@/utils/onboardingTourAutoComplete'
 import { useAuthStore } from '@/stores/auth'
 import apiClient from '@/api/apiClient'
 import type { UserAvatarFields } from '@/utils/userAvatar'
@@ -150,11 +151,23 @@ onMounted(() => {
   const depId = departmentId.value
   if (depId) void loadGroupsForDepartment(depId)
   void refreshApprovedActivityPrereq()
+  void syncAutoCompletedTours()
 })
 
 watch(departmentId, () => {
   void refreshApprovedActivityPrereq()
+  void syncAutoCompletedTours()
 })
+
+async function syncAutoCompletedTours() {
+  const depId = departmentId.value
+  const profId = profileId.value
+  if (!depId || !profId) return
+  const marked = await syncOnboardingTourAutoCompletion(profId, depId)
+  if (marked.length > 0) {
+    progressTick.value += 1
+  }
+}
 
 const tourFilterOptions = computed(() => ({
   canCreateCamp: canCreateCampAndEvent.value,

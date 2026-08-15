@@ -624,13 +624,14 @@ const DEPT_ROLES = {
   l1: { short: 'L1', color: '#10b981' },
   l2: { short: 'L2', color: '#f59e0b' },
   l3: { short: 'L3', color: '#ef4444' },
+  coach: { short: 'C', color: '#7c3aed' },
   u: { short: 'U', color: '#6b7280' },
 } as const
 
 type DeptRoleKey = keyof typeof DEPT_ROLES
 
 // Rollen-Hierarchie (Index = Rang, 0 = höchste)
-const ROLE_HIERARCHY: DeptRoleKey[] = ['mw', 'dc', 'l1', 'l2', 'l3', 'u']
+const ROLE_HIERARCHY: DeptRoleKey[] = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u']
 
 const hasGlobalAdminPrivilege = computed(() => {
   return authStore.userRoles.includes('ROLE_SUPERADMIN')

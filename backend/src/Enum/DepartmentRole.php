@@ -14,7 +14,8 @@ namespace App\Enum;
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
  * 8. leader3             - Hierarchische Leiter-Funktion (Ebene 3)
- * 9. user                - Basis-User
+ * 9. coach               - J+S-Standard-Coach (Rechte wie User)
+ * 10. user               - Basis-User
  */
 enum DepartmentRole: string
 {
@@ -26,6 +27,7 @@ enum DepartmentRole: string
     case LEADER1 = 'l1';              // leader1
     case LEADER2 = 'l2';              // leader2
     case LEADER3 = 'l3';              // leader3
+    case COACH = 'coach';             // J+S default coach (wie user)
     case USER = 'u';                  // user
 
     /**
@@ -58,6 +60,7 @@ enum DepartmentRole: string
             self::LEADER1 => 4,
             self::LEADER2 => 5,
             self::LEADER3 => 6,
+            self::COACH => 7,
             self::USER => 7,
         };
     }
@@ -106,6 +109,7 @@ enum DepartmentRole: string
             self::LEADER1 => 'ROLE_LEADER1',
             self::LEADER2 => 'ROLE_LEADER2',
             self::LEADER3 => 'ROLE_LEADER3',
+            self::COACH => 'ROLE_USER',
             self::USER => 'ROLE_USER',
         };
     }
@@ -124,6 +128,7 @@ enum DepartmentRole: string
             self::LEADER1 => 'leader1',
             self::LEADER2 => 'leader2',
             self::LEADER3 => 'leader3',
+            self::COACH => 'coach',
             self::USER => 'user',
         };
     }
@@ -142,6 +147,7 @@ enum DepartmentRole: string
             self::LEADER1 => 'Leader 1',
             self::LEADER2 => 'Leader 2',
             self::LEADER3 => 'Leader 3',
+            self::COACH => 'Coach',
             self::USER => 'User',
         };
     }

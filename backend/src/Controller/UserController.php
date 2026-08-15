@@ -24,7 +24,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/users', name: 'api_users_')]
 class UserController extends AbstractController
 {
-    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'];
 
     public function __construct(
         private UserRepository $userRepository,

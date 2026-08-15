@@ -23,6 +23,7 @@ class DepartmentRoleLabelService
         'l1' => 'Leiter 1',
         'l2' => 'Leiter 2',
         'l3' => 'Leiter 3',
+        'coach' => 'Coach',
         'u' => 'Mitglied',
     ];
 

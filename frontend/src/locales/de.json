@@ -1631,9 +1631,9 @@
       },
       "defaultCoach": {
         "title": "Standard-Coach hinterlegen",
-        "description": "J+S-Bestellungen mit vorausgefüllten Coach-Daten beschleunigen.",
+        "description": "Default-Coach für J+S-Bestellungen — oder Benutzer mit Rolle «Coach» im Department.",
         "step1Title": "J+S-Einstellungen",
-        "step1Body": "Unter Einstellungen → Aktivitäten hinterlegst du Defaults für Camp- und Event-Bestellungen.",
+        "step1Body": "Hier hinterlegst du den Standard-Coach. Alternativ: unter Benutzer jemanden mit Rolle «Coach» hinzufügen — dann werden Name und E-Mail übernommen.",
         "step2Title": "Coach-Daten",
         "step2Body": "Personennummer, Name und E-Mail des Coaches — werden bei neuen J+S-Bestellungen vorausgefüllt."
       },
@@ -5168,6 +5168,7 @@
         "l1": "L1 - Leader 1",
         "l2": "L2 - Leader 2",
         "l3": "L3 - Leader 3",
+        "coach": "C - Coach",
         "u": "U - Mitglied"
       },
       "columns": {
@@ -5383,6 +5384,7 @@
         "l1": "Leader 1",
         "l2": "Leader 2",
         "l3": "Leader 3",
+        "coach": "Coach",
         "u": "Mitglied"
       },
       "roleLabelsTitle": "Bezeichnungen der Leiter-Rollen",
