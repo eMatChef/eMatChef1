@@ -95,9 +95,9 @@ export const ONBOARDING_TOUR_STEP_QUERY = 'onboardingTourStep'
 
 export const ONBOARDING_TOUR_CATEGORY_ORDER: OnboardingTourCategory[] = [
   'start',
+  'settings',
   'material',
   'activities',
-  'settings',
   'admin',
 ]
 
@@ -252,8 +252,9 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'material-create',
     category: 'material',
-    version: 4,
+    version: 5,
     audience: 'mw',
+    requiresCompletedTours: ['categories'],
     routeName: 'Materials',
     titleKey: 'onboarding.tours.materialCreate.title',
     descriptionKey: 'onboarding.tours.materialCreate.description',

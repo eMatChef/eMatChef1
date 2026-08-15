@@ -5,6 +5,7 @@ import {
   getOnboardingTour,
   getMissingTourPrerequisites,
   isActivityReadyForIssueTour,
+  ONBOARDING_TOUR_CATEGORY_ORDER,
 } from '@/config/onboardingTours'
 
 describe('onboarding tour audience filter', () => {
@@ -164,6 +165,24 @@ describe('onboarding tour audience filter', () => {
     ).toEqual(['material-create'])
     expect(
       getMissingTourPrerequisites(tour, 'mw', new Set(['material-create']), {
+        canCreateCamp: true,
+      })
+    ).toEqual([])
+  })
+
+  it('orders categories start → settings → material and locks material behind categories', () => {
+    expect(ONBOARDING_TOUR_CATEGORY_ORDER.slice(0, 3)).toEqual([
+      'start',
+      'settings',
+      'material',
+    ])
+    const material = getOnboardingTour('material-create')!
+    expect(material.requiresCompletedTours).toContain('categories')
+    expect(
+      getMissingTourPrerequisites(material, 'mw', new Set(), { canCreateCamp: true })
+    ).toEqual(['categories'])
+    expect(
+      getMissingTourPrerequisites(material, 'mw', new Set(['categories']), {
         canCreateCamp: true,
       })
     ).toEqual([])
