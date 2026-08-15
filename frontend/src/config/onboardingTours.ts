@@ -667,7 +667,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'categories',
     category: 'settings',
-    version: 2,
+    version: 3,
     audience: 'mw',
     routeName: 'SettingsCategories',
     titleKey: 'onboarding.tours.categoriesTour.title',
@@ -676,17 +676,24 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     steps: [
       {
         id: '1',
-        target: '[data-onboarding="settings-category-new"]',
+        target: '[data-onboarding="settings-category-templates"]',
         mode: 'info',
         titleKey: 'onboarding.tours.categoriesTour.step1Title',
         bodyKey: 'onboarding.tours.categoriesTour.step1Body',
       },
       {
         id: '2',
-        target: '[data-onboarding="settings-category-list"]',
-        mode: 'waitFor',
+        target: '[data-onboarding="settings-category-new"]',
+        mode: 'info',
         titleKey: 'onboarding.tours.categoriesTour.step2Title',
         bodyKey: 'onboarding.tours.categoriesTour.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="settings-category-list"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.categoriesTour.step3Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step3Body',
       },
     ],
   },

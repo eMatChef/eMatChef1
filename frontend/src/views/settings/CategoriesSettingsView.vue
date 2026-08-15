@@ -5,9 +5,33 @@
         <h1>{{ t('settings.categories.title') }}</h1>
         <p class="subtitle">{{ t('settings.categories.subtitle') }}</p>
       </div>
-      <EButton variant="primary" data-onboarding="settings-category-new" @click="openCreateModal">
-        <v-icon icon="mdi-plus" start size="20" />
-        {{ t('settings.categories.newCategory') }}
+      <div class="settings-header-actions">
+        <EButton
+          variant="secondary"
+          data-onboarding="settings-category-templates"
+          @click="openTemplatesDialog"
+        >
+          <v-icon icon="mdi-file-tree-outline" start size="20" />
+          {{ t('settings.categories.applyTemplates') }}
+        </EButton>
+        <EButton variant="primary" data-onboarding="settings-category-new" @click="openCreateModal">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('settings.categories.newCategory') }}
+        </EButton>
+      </div>
+    </div>
+
+    <div
+      v-if="showTemplateSuggestion"
+      class="category-templates-suggestion"
+      data-onboarding="settings-category-templates-hint"
+    >
+      <div class="category-templates-suggestion__text">
+        <strong>{{ t('settings.categories.templatesSuggestionTitle') }}</strong>
+        <p>{{ t('settings.categories.templatesSuggestionBody') }}</p>
+      </div>
+      <EButton variant="primary" size="small" :loading="isApplyingTemplates" @click="openTemplatesDialog">
+        {{ t('settings.categories.applyTemplates') }}
       </EButton>
     </div>
 
@@ -116,7 +140,7 @@
       </div>
 
       <!-- Leerer Zustand -->
-      <div v-if="filteredCategories.length === 0" class="empty-state">
+      <div v-if="filteredCategories.length === 0 && !searchQuery.trim()" class="empty-state">
         <div class="empty-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -124,9 +148,18 @@
         </div>
         <h3>{{ t('settings.categories.emptyTitle') }}</h3>
         <p>{{ t('settings.categories.emptyDescription') }}</p>
-        <EButton variant="primary" @click="openCreateModal">
-          {{ t('settings.categories.firstCategory') }}
-        </EButton>
+        <div class="empty-actions">
+          <EButton variant="primary" :loading="isApplyingTemplates" @click="openTemplatesDialog">
+            {{ t('settings.categories.applyTemplates') }}
+          </EButton>
+          <EButton variant="secondary" @click="openCreateModal">
+            {{ t('settings.categories.firstCategory') }}
+          </EButton>
+        </div>
+      </div>
+      <div v-else-if="filteredCategories.length === 0" class="empty-state">
+        <h3>{{ t('settings.categories.emptyTitle') }}</h3>
+        <p>{{ t('settings.categories.searchNoResults', { query: searchQuery }) }}</p>
       </div>
     </div>
 
@@ -142,6 +175,46 @@
       @close="closeModal"
       @saved="handleCategorySaved"
     />
+
+    <!-- Vorlagen-Dialog -->
+    <EDialog
+      v-model="showTemplatesDialog"
+      :max-width="560"
+      :title="t('settings.categories.templatesDialogTitle')"
+    >
+      <p class="templates-dialog-intro">{{ t('settings.categories.templatesDialogIntro') }}</p>
+      <div class="templates-tree">
+        <div v-for="item in STANDARD_CATEGORY_TREE" :key="item.name" class="templates-tree__group">
+          <label class="templates-tree__main">
+            <input v-model="templateSelection.main[item.name]" type="checkbox" />
+            <span>{{ item.name }}</span>
+          </label>
+          <div v-if="item.children?.length" class="templates-tree__children">
+            <label
+              v-for="child in item.children"
+              :key="`${item.name}-${child}`"
+              class="templates-tree__child"
+            >
+              <input v-model="templateSelection.sub[item.name][child]" type="checkbox" />
+              <span>{{ child }}</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <template #actions>
+        <EButton variant="secondary" :disabled="isApplyingTemplates" @click="showTemplatesDialog = false">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          :disabled="!hasSelectedTemplates"
+          :loading="isApplyingTemplates"
+          @click="applySelectedTemplates"
+        >
+          {{ t('settings.categories.applyTemplatesConfirm') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <!-- Lösch-Bestätigung -->
     <EDialog v-model="showDeleteConfirm" :max-width="440" :title="t('settings.categories.deleteConfirmTitle')">
@@ -164,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -172,6 +245,13 @@ import { getCategories, deleteCategory, type Category } from '@/api/categories'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESearchField } from '@/components/form/base'
+import { filterUserSelectableCategories } from '@/utils/repairPartsCategory'
+import {
+  STANDARD_CATEGORY_TREE,
+  createDefaultCategoryTemplateSelection,
+  hasAnyCategoryTemplateSelected,
+  applyStandardCategoryTemplates,
+} from '@/config/standardCategoryTemplates'
 
 const route = useRoute()
 const toast = useToast()
@@ -182,6 +262,19 @@ const categories = ref<Category[]>([])
 const isLoading = ref(true)
 const searchQuery = ref('')
 const expandedCategories = ref(new Set<string>())
+
+const showTemplatesDialog = ref(false)
+const isApplyingTemplates = ref(false)
+const templateSelection = reactive(createDefaultCategoryTemplateSelection())
+const templatesDismissed = ref(false)
+
+const userSelectableCount = computed(
+  () => filterUserSelectableCategories(categories.value).length
+)
+const showTemplateSuggestion = computed(
+  () => !isLoading.value && userSelectableCount.value === 0 && !templatesDismissed.value
+)
+const hasSelectedTemplates = computed(() => hasAnyCategoryTemplateSelected(templateSelection))
 
 // Modal State
 const showModal = ref(false)
@@ -224,6 +317,38 @@ function openCreateModal() {
   editingCategory.value = null
   defaultParentId.value = null
   showModal.value = true
+}
+
+function openTemplatesDialog() {
+  Object.assign(templateSelection, createDefaultCategoryTemplateSelection())
+  showTemplatesDialog.value = true
+}
+
+async function applySelectedTemplates() {
+  if (!hasSelectedTemplates.value) {
+    toast.error(t('settings.categories.toastSelectCategory'))
+    return
+  }
+  isApplyingTemplates.value = true
+  try {
+    const { createdCount } = await applyStandardCategoryTemplates(
+      departmentId.value,
+      categories.value,
+      templateSelection
+    )
+    await loadCategories()
+    showTemplatesDialog.value = false
+    templatesDismissed.value = true
+    toast.success(
+      createdCount > 0
+        ? t('settings.categories.toastTemplatesNew', { count: createdCount })
+        : t('settings.categories.toastTemplatesNoNew')
+    )
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.categories.errCreateTemplates'))
+  } finally {
+    isApplyingTemplates.value = false
+  }
 }
 
 function openCreateChildModal(parent: Category) {
@@ -310,6 +435,99 @@ onMounted(() => {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+  gap: 16px;
+}
+
+.settings-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.category-templates-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+}
+
+.category-templates-suggestion__text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.category-templates-suggestion__text strong {
+  display: block;
+  font-size: 14px;
+  color: #166534;
+  margin-bottom: 4px;
+}
+
+.category-templates-suggestion__text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #3f6212;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.templates-dialog-intro {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.templates-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(50vh, 420px);
+  overflow: auto;
+}
+
+.templates-tree__group {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.templates-tree__main,
+.templates-tree__child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.templates-tree__main {
+  font-weight: 600;
+}
+
+.templates-tree__children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0 22px;
+}
+
+.templates-tree__child {
+  font-weight: 400;
+  color: #475569;
 }
 
 .settings-header h1 {

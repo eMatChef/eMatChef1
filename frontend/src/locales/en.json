@@ -1490,11 +1490,13 @@
       },
       "categoriesTour": {
         "title": "Manage categories",
-        "description": "Build your material structure with main and subcategories.",
-        "step1Title": "New category",
-        "step1Body": "Create main or subcategories — or adjust templates.",
-        "step2Title": "Category overview",
-        "step2Body": "See the hierarchy here. Categories drive filters, reports and material assignment."
+        "description": "Build your material structure with templates or your own categories.",
+        "step1Title": "Apply templates",
+        "step1Body": "Suggestion: apply standard categories (pioneer, kitchen, tent, …). You can adjust the selection — existing ones stay.",
+        "step2Title": "New category",
+        "step2Body": "Or create individual main and subcategories manually.",
+        "step3Title": "Category overview",
+        "step3Body": "See the hierarchy here. Categories drive filters, reports and material assignment."
       },
       "inviteUsers": {
         "title": "Invite team",
@@ -4256,6 +4258,47 @@
       "description": "Optional extensions for your department",
       "noPermission": "You do not have permission to change add-on settings.",
       "empty": "No add-ons are available at the moment."
+    },
+    "categories": {
+      "title": "Categories",
+      "subtitle": "Manage material categories for this department",
+      "newCategory": "New category",
+      "searchPlaceholder": "Search categories...",
+      "count": "{count} categories",
+      "articlesCount": "{count} items",
+      "subcategoriesCount": "{count} subcategories",
+      "addSubcategory": "Add subcategory",
+      "emptyTitle": "No categories",
+      "emptyDescription": "Apply the standard templates or create your own categories to organise materials.",
+      "firstCategory": "Create first category",
+      "applyTemplates": "Apply templates",
+      "applyTemplatesConfirm": "Create selected",
+      "templatesSuggestionTitle": "Suggestion: standard categories",
+      "templatesSuggestionBody": "To get started you can apply typical categories (pioneer, kitchen, tent, …) including subcategories — then adjust them.",
+      "templatesDialogTitle": "Categories from template",
+      "templatesDialogIntro": "Choose which categories to create. Existing names are skipped.",
+      "toastSelectCategory": "Please select at least one category.",
+      "toastTemplatesNew": "Templates created ({count} categories).",
+      "toastTemplatesNoNew": "Templates applied — all selected categories already existed.",
+      "errCreateTemplates": "Could not create templates.",
+      "loading": "Loading categories...",
+      "deleteConfirmTitle": "Delete category?",
+      "deleteConfirmMessage": "Really delete category {name}?",
+      "deleteWarning": "This category contains {count} materials.",
+      "deleteError": "Error deleting",
+      "loadError": "Error loading categories",
+      "modal": {
+        "editTitle": "Edit category",
+        "newTitle": "New category",
+        "namePlaceholder": "e.g. Audio, lighting, cables",
+        "parentLabel": "Parent category",
+        "parentMain": "-- Main category --",
+        "parentHint": "Leave empty for a main category",
+        "descriptionPlaceholder": "Optional: category description…",
+        "nameRequired": "Name is required",
+        "saveError": "Error saving"
+      },
+      "searchNoResults": "No results for «{query}»."
     }
   },
   "components": {

@@ -1617,11 +1617,13 @@
       },
       "categoriesTour": {
         "title": "Kategorien verwalten",
-        "description": "Material-Struktur mit Haupt- und Unterkategorien aufbauen.",
-        "step1Title": "Neue Kategorie",
-        "step1Body": "Lege Haupt- oder Unterkategorien an — oder passe Vorlagen an.",
-        "step2Title": "Kategorien-Übersicht",
-        "step2Body": "Hier siehst du die Hierarchie. Kategorien steuern Filter, Auswertungen und Material-Zuordnung."
+        "description": "Material-Struktur mit Vorlagen oder eigenen Kategorien aufbauen.",
+        "step1Title": "Vorlagen übernehmen",
+        "step1Body": "Als Vorschlag: übernimm Standard-Kategorien (Pionier, Küche, Zelt, …). Du kannst die Auswahl anpassen — vorhandene bleiben erhalten.",
+        "step2Title": "Neue Kategorie",
+        "step2Body": "Oder lege einzelne Haupt- und Unterkategorien manuell an.",
+        "step3Title": "Kategorien-Übersicht",
+        "step3Body": "Hier siehst du die Hierarchie. Kategorien steuern Filter, Auswertungen und Material-Zuordnung."
       },
       "inviteUsers": {
         "title": "Team einladen",
@@ -4898,8 +4900,18 @@
       "subcategoriesCount": "{count} Unterkategorien",
       "addSubcategory": "Unterkategorie hinzufügen",
       "emptyTitle": "Keine Kategorien",
-      "emptyDescription": "Erstellen Sie Ihre erste Kategorie, um Materialien zu organisieren.",
+      "emptyDescription": "Übernimm die Standard-Vorlagen oder erstelle eigene Kategorien, um Materialien zu organisieren.",
       "firstCategory": "Erste Kategorie erstellen",
+      "applyTemplates": "Vorlagen übernehmen",
+      "applyTemplatesConfirm": "Ausgewählte anlegen",
+      "templatesSuggestionTitle": "Vorschlag: Standard-Kategorien",
+      "templatesSuggestionBody": "Für den Start kannst du typische Kategorien (Pionier, Küche, Zelt, …) inkl. Unterkategorien übernehmen — und danach anpassen.",
+      "templatesDialogTitle": "Kategorien aus Vorlage",
+      "templatesDialogIntro": "Wähle, welche Kategorien angelegt werden sollen. Bereits vorhandene Namen werden übersprungen.",
+      "toastSelectCategory": "Bitte mindestens eine Kategorie auswählen.",
+      "toastTemplatesNew": "Vorlagen erfolgreich erstellt ({count} Kategorien).",
+      "toastTemplatesNoNew": "Vorlagen übernommen — alle ausgewählten Kategorien waren schon vorhanden.",
+      "errCreateTemplates": "Vorlagen konnten nicht erstellt werden.",
       "loading": "Kategorien werden geladen...",
       "deleteConfirmTitle": "Kategorie löschen?",
       "deleteConfirmMessage": "Möchten Sie die Kategorie {name} wirklich löschen?",
@@ -4916,7 +4928,8 @@
         "descriptionPlaceholder": "Optional: Beschreibung der Kategorie…",
         "nameRequired": "Name ist erforderlich",
         "saveError": "Fehler beim Speichern"
-      }
+      },
+      "searchNoResults": "Keine Treffer für «{query}»."
     },
     "templates": {
       "title": "Vorlagen",
