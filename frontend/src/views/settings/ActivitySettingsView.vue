@@ -1,6 +1,6 @@
 <template>
-  <div class="activity-settings">
-    <div class="settings-header">
+  <div class="activity-settings" :class="{ 'activity-settings--embedded': embedded }">
+    <div v-if="!embedded" class="settings-header">
       <div>
         <h1>{{ t('settings.activitySettings.title') }}</h1>
         <p class="subtitle">{{ t('settings.activitySettings.subtitle') }}</p>
@@ -241,6 +241,13 @@ import {
 import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ETimeField } from '@/components/form/base'
+
+withDefaults(
+  defineProps<{
+    embedded?: boolean
+  }>(),
+  { embedded: false },
+)
 
 const route = useRoute()
 const toast = useToast()

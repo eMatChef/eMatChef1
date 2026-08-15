@@ -1,4 +1,5 @@
 <template>
+  <Teleport to="body">
   <div v-if="isOpen" class="modal-overlay">
     <div class="modal-dialog department-details-dialog">
       <div class="modal-header">
@@ -66,6 +67,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

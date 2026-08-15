@@ -1,4 +1,5 @@
 <template>
+  <Teleport to="body">
   <div class="modal-overlay">
     <div class="modal-dialog modal-dialog--structured modal-dialog--wide">
       <!-- Header -->
@@ -364,6 +365,7 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

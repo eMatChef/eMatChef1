@@ -8,11 +8,11 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 
 ## Leitprinzipien
 
-- **Ein `MediaStorageService`**, aber **kein** generischer Upload-Endpoint — Routes bleiben pro Domäne (Retention, Rechte, URLs).
-- **`var/uploads/`** — nicht in Git; Ordnerstruktur **pro Kontext** (`workshop/`, `issues/`, `material/`).
+- **Ein `MediaStorageService`**, aber **kein** generischer Upload-Endpoint — Upload bleibt pro Domäne (`POST /api/…/photos`). Download einheitlich `GET /media/{departmentId}/{photos|documents}/…` (Rechte weiter pro Kontext).
+- **`var/uploads/{departmentId}/photos|documents/…`** — nicht in Git; ein Ordner pro Department, darunter Fotos vs. Dokumente, dann Kontext (`material`, `workshop`, `accounting`, …).
 - **Einheitliches Foto-JSON** in allen Entitäten; Legacy-URL-Strings (`legacy: true`) weiter lesen.
-- **Kompression beim Upload** — max. 1920 px, WebP/JPEG ~85 %.
-- **Retention nur wo sinnvoll** — abgeschlossene Werkstatt-Tickets nach X Jahren (Default 3).
+- **Kompression beim Upload** — Material 1600 px / Q80 WebP; Werkstatt+Schaden 2560 px / Q88; sonst (Beleg-Bilder) 1920 px / Q85; PDFs unverändert.
+- **Retention nur wo sinnvoll** — abgeschlossene Werkstatt-Tickets nach X Jahren (Default **10**, OR-Aufbewahrung). Materialfotos solange das Material existiert.
 - **Frontend wiederverwendbar** — `PhotoUpload` + `PhotoGallery`; Eintrag in [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md).
 - **Jedes Paket ist in einem Chat erledigbar** — Build grün, keine halben Migrationen.
 - **Übersetzung** — nur `de.json` und `en.json`.
@@ -114,7 +114,7 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 **Schritte:**
 - [x] Migration (optional): `activity_issue_report.photos` JSON; `photo_url` deprecate/migrieren (Dual-read)
 - [x] `POST /api/activities/{activityId}/issues/{issueId}/photos`
-- [x] `GET …/issues/{issueId}/photos/{filename}`
+- [x] Download über `GET /media/…` (kein `GET …/issues/{issueId}/photos/{filename}`)
 - [x] `ActivityWorkflowController::createIssue` — ohne URL-Pflicht; Upload separat nach Create
 - [x] Auto-Workshop-Ticket: `issue_report.photos` in Ticket-Detail und Lieferanten-Reparatur sichtbar
 - [x] `DamageReportWizard.vue`: Foto-Upload (max. 3, `<input type="file">` bis Paket 6)
@@ -146,7 +146,7 @@ Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen
 
 **Schritte:**
 - [x] Migration: `material_item.photos` JSON (Primary, max. 1)
-- [x] `POST/GET /api/materials/{materialId}/photos/…`
+- [x] `POST /api/materials/{materialId}/photos` (Download über `/media/…`)
 - [x] `MaterialDetailView.vue`: Upload statt Platzhalter; `image_url` aus erstem Foto
 - [x] Material löschen → Fotos mitlöschen (`MediaStorageService::deleteContextFolder`)
 - [x] i18n de/en

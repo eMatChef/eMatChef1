@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PublicContentPage from '@/components/layout/PublicContentPage.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
@@ -25,6 +25,7 @@ import { useSiteContentStore } from '@/stores/siteContent'
 import { localizedPublicContent } from '@/utils/publicSiteLocale'
 import { sanitizePublicHtml } from '@/utils/sanitizeHtml'
 import { plainToP } from '@/utils/siteHtmlMigrate'
+import { setFaqPageJsonLd } from '@/composables/usePageHead'
 
 const site = useSiteContentStore()
 const { t, locale } = useI18n()
@@ -57,6 +58,14 @@ const items = computed((): ItemRow[] => {
     })
     .filter((item) => item.q.trim())
 })
+
+watch(
+  items,
+  (rows) => {
+    setFaqPageJsonLd(rows)
+  },
+  { immediate: true },
+)
 
 function answerHtml(item: ItemRow): string {
   const s = item.aHtml?.trim()

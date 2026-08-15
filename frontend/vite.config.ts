@@ -74,9 +74,16 @@ export default defineConfig(({ mode }) => {
           target: apiProxyTarget,
           changeOrigin: true,
           secure: false,
-          // PHP Built-in Server (docker-compose: php -S) setzt fälschlich "Host" als
-          // *Response*-Header. Das verletzt HTTP; Node kopiert die Header beim Proxy
-          // und wirft → 500. Nginx toleriert es, Vite/http-proxy nicht.
+          configure: (proxy) => {
+            proxy.on('proxyRes', (proxyRes) => {
+              delete proxyRes.headers.host
+            })
+          },
+        },
+        '/media': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+          secure: false,
           configure: (proxy) => {
             proxy.on('proxyRes', (proxyRes) => {
               delete proxyRes.headers.host

@@ -300,23 +300,25 @@
     />
 
     <!-- Lösch-Bestätigung -->
-    <div v-if="showDeleteConfirm" class="modal-overlay">
-      <div class="modal-dialog modal-dialog--confirm">
-        <h3>{{ t('settings.templates.deleteConfirmTitle') }}</h3>
-        <p>
-          {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
-        </p>
-        <p class="warning-hint">
-          {{ t('settings.templates.deleteConfirmWarning') }}
-        </p>
-        <div class="confirm-actions">
-          <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
-          <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
-            {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
-          </button>
+    <Teleport to="body">
+      <div v-if="showDeleteConfirm" class="modal-overlay">
+        <div class="modal-dialog modal-dialog--confirm">
+          <h3>{{ t('settings.templates.deleteConfirmTitle') }}</h3>
+          <p>
+            {{ t('settings.templates.deleteConfirmMessage', { name: deletingTemplate?.name }) }}
+          </p>
+          <p class="warning-hint">
+            {{ t('settings.templates.deleteConfirmWarning') }}
+          </p>
+          <div class="confirm-actions">
+            <button class="btn-secondary" @click="showDeleteConfirm = false">{{ t('common.cancel') }}</button>
+            <button class="btn-danger" @click="executeDelete" :disabled="isDeleting">
+              {{ isDeleting ? t('common.deleteInProgress') : t('common.delete') }}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 

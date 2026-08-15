@@ -1,13 +1,19 @@
 <template>
-  <div class="users-settings">
-    <!-- Header -->
-    <div class="page-header">
+  <div class="users-settings" :class="{ 'users-settings--embedded': embedded }">
+    <!-- Header (auf eigener Settings-Seite) -->
+    <div v-if="!embedded" class="page-header">
       <div>
         <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
         <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
       </div>
       <EButton variant="primary" data-onboarding="settings-user-add" @click="openAddModal()">
         <v-icon icon="mdi-account-plus" start size="20" />
+        {{ t('settings.departmentUsers.addUser') }}
+      </EButton>
+    </div>
+    <div v-else class="embedded-toolbar">
+      <EButton variant="primary" size="small" data-onboarding="settings-user-add" @click="openAddModal()">
+        <v-icon icon="mdi-account-plus" start size="18" />
         {{ t('settings.departmentUsers.addUser') }}
       </EButton>
     </div>
@@ -522,13 +528,36 @@ import {
 } from '@/utils/grossanlassGroupHierarchy'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 
+const props = withDefaults(
+  defineProps<{
+    /** Override when embedded (e.g. Mein Department accordion). */
+    departmentId?: string
+    /** Hide page title; compact toolbar only. */
+    embedded?: boolean
+  }>(),
+  {
+    departmentId: undefined,
+    embedded: false,
+  },
+)
+
+const emit = defineEmits<{
+  changed: [memberCount: number]
+}>()
+
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
-const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
+const departmentId = computed(
+  () =>
+    (props.departmentId || '').trim()
+    || (route.params.departmentId as string)
+    || authStore.activeDepartmentId
+    || '',
+)
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
 const roleLabelForm = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
@@ -806,6 +835,7 @@ async function loadMembers() {
   error.value = null
   try {
     members.value = await getDepartmentMembers(departmentId.value)
+    emit('changed', members.value.length)
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.departmentUsers.errLoadMembers')
   } finally {
@@ -1155,6 +1185,17 @@ onUnmounted(() => {
 
 .users-settings {
   padding: 0;
+}
+
+.users-settings--embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.embedded-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .page-header {

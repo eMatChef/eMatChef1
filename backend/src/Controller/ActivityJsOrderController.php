@@ -16,11 +16,8 @@ use App\Service\JsOrderPrefillService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -348,51 +345,6 @@ class ActivityJsOrderController extends AbstractController
             'order' => $this->serializeOrder($order),
             'pdf_url' => $stored['url'],
         ]);
-    }
-
-    #[Route('/js-order/pdf/{filename}', name: 'pdf', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function showPdf(string $activityId, string $filename): Response
-    {
-        $activity = $this->findActivityWithAccess($activityId);
-        if ($activity instanceof JsonResponse) {
-            return $activity;
-        }
-
-        $deny = $this->assertJsOrderContext($activity);
-        if ($deny !== null) {
-            return $deny;
-        }
-
-        $order = $this->findOrderForActivity($activityId);
-        if (!$order instanceof ActivityJsOrder) {
-            return new JsonResponse(['error' => 'J+S-Bestellung nicht gefunden'], 404);
-        }
-
-        $mediaId = $order->getGeneratedPdfMediaId();
-        if ($mediaId === null || $mediaId === '') {
-            return new JsonResponse(['error' => 'PDF noch nicht erzeugt'], 404);
-        }
-
-        $expectedFilename = $mediaId . '.pdf';
-        if ($filename !== $expectedFilename) {
-            return new JsonResponse(['error' => 'PDF nicht gefunden'], 404);
-        }
-
-        try {
-            $path = $this->pdfStorage->resolveFilePath(
-                $activityId,
-                (string) $order->getId(),
-                $activity->getDepartmentId(),
-                $filename,
-            );
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
-        }
     }
 
     #[Route('/js-order/submit-to-coach', name: 'submit_to_coach', methods: ['POST'])]
@@ -1032,6 +984,10 @@ class ActivityJsOrderController extends AbstractController
             return null;
         }
 
-        return $this->pdfStorage->buildPdfUrl($order->getActivityId(), $mediaId . '.pdf');
+        return $this->pdfStorage->buildPdfUrl(
+            $order->getActivity()->getDepartmentId(),
+            (string) $order->getId(),
+            $mediaId . '.pdf',
+        );
     }
 }

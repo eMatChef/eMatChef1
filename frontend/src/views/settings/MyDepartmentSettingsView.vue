@@ -3,7 +3,6 @@
     <div class="header-section">
       <div>
         <h1>{{ t('settings.myDepartment.title') }}</h1>
-        <p class="description">{{ t('settings.myDepartment.subtitle') }}</p>
       </div>
     </div>
 
@@ -50,224 +49,296 @@
       <EButton variant="secondary" class="mt-3" @click="loadDepartment">{{ t('common.retry') }}</EButton>
     </div>
 
-    <!-- Department Info -->
     <div v-else-if="department" class="department-content">
-      <!-- Info Card -->
-      <div class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path
-              d="M3 7C3 5.89543 3.89543 5 5 5H9.58579C10.1162 5 10.6249 5.21071 11 5.58579L12.4142 7H19C20.1046 7 21 7.89543 21 9V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7Z"
-              fill="#3b82f6"
-            />
-          </svg>
-          <h2>{{ t('settings.myDepartment.departmentInfoTitle') }}</h2>
-        </div>
-        
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="info-label">{{ t('common.name') }}</span>
-            <span class="info-value">{{ department.name }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">{{ t('settings.myDepartment.fields.departmentId') }}</span>
-            <span class="info-value mono">{{ department.id }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">{{ t('settings.myDepartment.fields.organisationId') }}</span>
-            <span class="info-value mono">{{ department.organisation_id }}</span>
-          </div>
-          <div v-if="department.parent_id" class="info-item">
-            <span class="info-label">{{ t('settings.myDepartment.fields.parentDepartment') }}</span>
-            <span class="info-value mono">{{ department.parent_id }}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">{{ t('settings.myDepartment.fields.yourRole') }}</span>
-            <span class="info-value">
-              <span class="role-badge">{{ formatRole(currentRole) }}</span>
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="showMemberOnboardingSelfService" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
-          </svg>
-          <h2>{{ t('onboarding.settings.title') }}</h2>
-        </div>
-
-        <p class="onboarding-status">
-          {{ t('onboarding.settings.progress', { done: memberOnboardingDoneCount, total: memberOnboardingTotal }) }}
+      <div class="dept-identity">
+        <h2 class="dept-identity__name">{{ department.name }}</h2>
+        <p class="dept-identity__meta">
+          <span class="dept-identity__label">{{ t('settings.myDepartment.fields.departmentId') }}</span>
+          <span class="dept-identity__value mono">{{ department.id }}</span>
         </p>
-
-        <div class="onboarding-admin-row">
-          <EButton variant="primary" size="small" @click="openOnboardingHub">
-            {{ t('onboarding.settings.openHub') }}
-          </EButton>
-        </div>
-      </div>
-
-      <div v-if="canManageJoinCode && !isSelectedDepartmentGrossanlass" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M12 2L15 8H21L16 12L18 19L12 15L6 19L8 12L3 8H9L12 2Z" fill="#3b82f6"/>
-          </svg>
-          <h2>{{ t('settings.myDepartment.onboardingTitle') }}</h2>
-        </div>
-
-        <div class="onboarding-admin-row">
-          <p class="onboarding-status">
-            Status:
-            <strong :class="onboardingStatusClass">
-              {{ onboardingStatusLabel }}
-            </strong>
-          </p>
-          <EButton
-            variant="secondary"
-            size="small"
-            :disabled="isResettingOnboarding"
-            :loading="isResettingOnboarding"
-            @click="resetDepartmentOnboarding"
-          >
-            {{ isResettingOnboarding ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetOnboarding') }}
-          </EButton>
-        </div>
-        <p v-if="isExemptFromMemberOnboardingUi" class="selector-hint">
-          {{ t('settings.myDepartment.onboardingLeaderHint') }}
-        </p>
-        <p v-else class="selector-hint">
-          {{ t('settings.myDepartment.onboardingHint') }}
+        <p v-if="departmentHierarchyLabel" class="dept-identity__meta">
+          <span class="dept-identity__label">{{ t('settings.myDepartment.identityBelongsTo') }}</span>
+          <span class="dept-identity__value">{{ departmentHierarchyLabel }}</span>
         </p>
       </div>
 
-      <!-- Dev-Tools (nur Testumgebung, nie Produktion) -->
-      <div v-if="showDevTools && canManageJoinCode" class="info-card db-reset-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger">
-            <path d="M6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4Z" fill="#dc2626"/>
-          </svg>
-          <h2>{{ t('settings.myDepartment.activitiesResetTitle') }}</h2>
-        </div>
-        <div class="db-reset-row">
-          <p class="db-reset-desc">
-            {{ t('settings.myDepartment.activitiesResetDescription') }}
-            <strong>{{ t('settings.myDepartment.activitiesResetDescriptionStrong') }}</strong>
-          </p>
-          <EButton
-            variant="danger"
-            size="small"
-            :disabled="isResettingActivities"
-            :loading="isResettingActivities"
-            @click="resetDepartmentActivitiesAction"
-          >
-            {{ isResettingActivities ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetActivities') }}
-          </EButton>
-        </div>
-        <p class="selector-hint db-reset-warning">
-          {{ t('settings.myDepartment.activitiesResetWarning') }}
-        </p>
-      </div>
-
-      <div v-if="showDevTools && canManageJoinCode" class="info-card db-reset-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger">
-            <path d="M4 7V4H20V7M9 20H15V10H9V20M5 7H19V20H5V7Z" fill="#dc2626"/>
-          </svg>
-          <h2>{{ t('settings.myDepartment.dbResetTitle') }}</h2>
-        </div>
-        <div class="db-reset-row">
-          <p class="db-reset-desc">
-            {{ t('settings.myDepartment.dbResetDescription') }}
-            <strong>{{ t('settings.myDepartment.dbResetDescriptionStrong') }}</strong>
-          </p>
-          <EButton
-            variant="danger"
-            size="small"
-            :disabled="isResettingDb"
-            :loading="isResettingDb"
-            @click="resetDepartmentDb"
-          >
-            {{ isResettingDb ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetDb') }}
-          </EButton>
-        </div>
-        <p class="selector-hint db-reset-warning">
-          {{ t('settings.myDepartment.dbResetWarning') }}
-        </p>
-      </div>
-
-      <!-- Users Card -->
-      <div class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" fill="#3b82f6"/>
-            <path d="M3 20C3 16.6863 6.13401 14 10 14H14C17.866 14 21 16.6863 21 20V22H3V20Z" fill="#3b82f6"/>
-          </svg>
-          <h2>Mitglieder ({{ department.users?.length || 0 }})</h2>
-        </div>
-        
-        <div v-if="department.users && department.users.length > 0" class="users-list">
-          <div v-for="user in department.users" :key="user.id" class="user-item">
-            <UserAvatarBadge :user="user" size="md" />
-            <div class="user-info">
-              <span class="user-name">{{ user.name }}</span>
-              <span class="user-email">{{ user.email }}</span>
+      <details
+        v-if="canManageJoinCode"
+        class="info-card dept-accordion"
+        :open="openAccordion === 'join-code'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('join-code', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M3 11H11V13H3V11ZM3 7H11V9H3V7ZM3 15H11V17H3V15ZM13 7H21V17H13V7Z" fill="#3b82f6"/>
+            </svg>
+            {{ t('settings.nav.joinCode') }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <ELoadingState
+            v-if="isInviteLoading && !inviteData"
+            variant="inline"
+            :message="t('settings.joinCode.loading')"
+          />
+          <template v-else>
+            <div class="join-code-row">
+              <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
+              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
+                {{ t('settings.joinCode.copyCode') }}
+              </EButton>
+              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
+                {{ t('settings.joinCode.copyInviteLink') }}
+              </EButton>
+              <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
+                {{ t('settings.joinCode.copyRegisterLink') }}
+              </EButton>
+              <EButton variant="primary" size="small" :disabled="isInviteLoading" :loading="isInviteLoading" @click="regenerateInviteCode">
+                {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
+              </EButton>
             </div>
-            <span class="user-role-badge">{{ formatRole(user.role) }}</span>
-          </div>
+            <p v-if="inviteData?.invite_url" class="join-meta">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
+            <p v-if="inviteData?.register_invite_url" class="join-meta">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
+            <div v-if="inviteQrDataUrl" class="join-qr">
+              <img :src="inviteQrDataUrl" alt="" />
+            </div>
+            <div v-if="pendingInvites.length > 0" class="pending-invites-block">
+              <h3>{{ t('settings.joinCode.pendingTitle') }}</h3>
+              <div v-for="invite in pendingInvites" :key="invite.id" class="pending-invite-item">
+                <span>{{ invite.email }} ({{ formatRole(invite.role) }})</span>
+                <EButton variant="danger" size="small" @click="removePendingInviteItem(invite.id)">
+                  {{ t('common.delete') }}
+                </EButton>
+              </div>
+            </div>
+          </template>
         </div>
-        <p v-else class="empty-users">{{ t('settings.myDepartment.noMembers') }}</p>
-      </div>
+      </details>
 
-      <!-- Statistiken Card (nicht für User-Rolle u) -->
-      <div v-if="!isUserRole" class="info-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M4 20V10H8V20H4ZM10 20V4H14V20H10ZM16 20V14H20V20H16Z" fill="#3b82f6"/>
-          </svg>
-          <h2>Statistiken</h2>
+      <details
+        class="info-card dept-accordion"
+        :open="openAccordion === 'members'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('members', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" fill="#3b82f6"/>
+              <path d="M3 20C3 16.6863 6.13401 14 10 14H14C17.866 14 21 16.6863 21 20V22H3V20Z" fill="#3b82f6"/>
+            </svg>
+            {{ t('settings.myDepartment.membersTitle', { n: displayMembersCount }) }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <!-- Basis-Mitglieder: nur einfache Liste -->
+          <template v-if="isUserRole">
+            <div v-if="department.users && department.users.length > 0" class="users-list">
+              <div v-for="user in department.users" :key="user.id" class="user-item">
+                <UserAvatarBadge :user="user" size="md" />
+                <div class="user-info">
+                  <span class="user-name">{{ user.name }}</span>
+                  <span class="user-email">{{ user.email }}</span>
+                </div>
+                <span class="user-role-badge">{{ formatRole(user.role) }}</span>
+              </div>
+            </div>
+            <p v-else class="empty-users">{{ t('settings.myDepartment.noMembers') }}</p>
+          </template>
+          <!-- Leitung / MW: volle Benutzer-Verwaltung (wie /settings/users) -->
+          <UsersSettingsView
+            v-else-if="membersPanelMounted && selectedDepartmentId"
+            :department-id="selectedDepartmentId"
+            embedded
+            @changed="onMembersPanelChanged"
+          />
         </div>
-        
-        <div class="stats-grid">
-          <div class="stat-item">
-            <span class="stat-value">{{ department.users?.length || 0 }}</span>
-            <span class="stat-label">{{ t('settings.myDepartment.stats.members') }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ subDepartmentsCount }}</span>
-            <span class="stat-label">{{ t('settings.myDepartment.stats.subDepartments') }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ storageAddresses.length }}</span>
-            <span class="stat-label">{{ t('settings.myDepartment.stats.storageLocations') }}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value">{{ addresses.length }}</span>
-            <span class="stat-label">{{ t('settings.myDepartment.stats.addresses') }}</span>
-          </div>
-        </div>
-      </div>
+      </details>
 
-      <div v-if="!isUserRole" class="info-card address-pages-card">
-        <div class="card-header">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" class="card-icon">
-            <path d="M4 4H20V20H4V4ZM7 7H12V12H7V7ZM14 7H17V9H14V7ZM14 10H17V12H14V10ZM7 14H17V16H7V14Z" fill="#3b82f6"/>
-          </svg>
-          <h2>Standorte & Rechnungsadresse</h2>
+      <details
+        v-if="selectedDepartmentId"
+        class="info-card dept-accordion"
+        :open="openAccordion === 'groups'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('groups', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" fill="#3b82f6"/>
+              <circle cx="9" cy="7" r="4" fill="#3b82f6"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" stroke="#60a5fa" stroke-width="2"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" stroke="#60a5fa" stroke-width="2"/>
+            </svg>
+            {{ t('settings.myDepartment.groupsTitle', { n: displayGroupsCount }) }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <GroupsSettingsView
+            v-if="groupsPanelMounted && selectedDepartmentId"
+            :department-id="selectedDepartmentId"
+            embedded
+            @changed="onGroupsPanelChanged"
+          />
         </div>
-        <p class="selector-hint">
-          Standort- und Rechnungsadressen werden in eigenen Einstellungen verwaltet.
-        </p>
-        <div class="address-page-links">
-          <router-link class="address-page-link" :to="`/${selectedDepartmentId}/settings/my-department/storage-locations`">
-            {{ t('settings.myDepartment.openStorageLocations') }}
-          </router-link>
-          <router-link class="address-page-link" :to="`/${selectedDepartmentId}/settings/my-department/billing-address`">
-            {{ t('settings.myDepartment.openBillingAddress') }}
-          </router-link>
+      </details>
+
+      <details
+        v-if="!isUserRole"
+        class="info-card dept-accordion"
+        :open="openAccordion === 'stats'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('stats', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M4 20V10H8V20H4ZM10 20V4H14V20H10ZM16 20V14H20V20H16Z" fill="#3b82f6"/>
+            </svg>
+            {{ t('settings.myDepartment.statsTitle') }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-value">{{ department.users?.length || 0 }}</span>
+              <span class="stat-label">{{ t('settings.myDepartment.stats.members') }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ subDepartmentsCount }}</span>
+              <span class="stat-label">{{ t('settings.myDepartment.stats.subDepartments') }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ storageAddresses.length }}</span>
+              <span class="stat-label">{{ t('settings.myDepartment.stats.storageLocations') }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ addresses.length }}</span>
+              <span class="stat-label">{{ t('settings.myDepartment.stats.addresses') }}</span>
+            </div>
+          </div>
         </div>
-      </div>
+      </details>
+
+      <details
+        v-if="!isUserRole && selectedDepartmentId"
+        class="info-card dept-accordion"
+        :open="openAccordion === 'storage'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('storage', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="#3b82f6" />
+              <path d="M12 3L2 7H22L12 3Z" fill="#60a5fa" />
+            </svg>
+            {{ t('settings.myDepartment.storageTitle', { n: storageAddresses.length }) }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <DepartmentAddressKindPanel
+            v-if="storagePanelMounted && selectedDepartmentId"
+            :department-id="selectedDepartmentId"
+            address-kind="storage"
+            @changed="refreshAddressCounts"
+          />
+        </div>
+      </details>
+
+      <details
+        v-if="!isUserRole && selectedDepartmentId"
+        class="info-card dept-accordion"
+        :open="openAccordion === 'billing'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('billing', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
+              <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" fill="#3b82f6" />
+              <path d="M7 7H17V9H7V7ZM7 11H17V13H7V11ZM7 15H13V17H7V15Z" fill="white" />
+            </svg>
+            {{ t('settings.myDepartment.billingTitle', { n: billingAddresses.length }) }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <DepartmentAddressKindPanel
+            v-if="billingPanelMounted && selectedDepartmentId"
+            :department-id="selectedDepartmentId"
+            address-kind="billing"
+            @changed="refreshAddressCounts"
+          />
+        </div>
+      </details>
+
+      <details
+        v-if="showDevTools && canManageJoinCode"
+        class="info-card db-reset-card dept-accordion"
+        :open="openAccordion === 'activities-reset'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('activities-reset', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger" aria-hidden="true">
+              <path d="M6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4Z" fill="#dc2626"/>
+            </svg>
+            {{ t('settings.myDepartment.activitiesResetTitle') }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <div class="db-reset-row">
+            <p class="db-reset-desc">
+              {{ t('settings.myDepartment.activitiesResetDescription') }}
+              <strong>{{ t('settings.myDepartment.activitiesResetDescriptionStrong') }}</strong>
+            </p>
+            <EButton
+              variant="danger"
+              size="small"
+              :disabled="isResettingActivities"
+              :loading="isResettingActivities"
+              @click="resetDepartmentActivitiesAction"
+            >
+              {{ isResettingActivities ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetActivities') }}
+            </EButton>
+          </div>
+          <p class="selector-hint db-reset-warning">
+            {{ t('settings.myDepartment.activitiesResetWarning') }}
+          </p>
+        </div>
+      </details>
+
+      <details
+        v-if="showDevTools && canManageJoinCode"
+        class="info-card db-reset-card dept-accordion"
+        :open="openAccordion === 'db-reset'"
+      >
+        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('db-reset', $event)">
+          <span class="dept-accordion__title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon card-icon-danger" aria-hidden="true">
+              <path d="M4 7V4H20V7M9 20H15V10H9V20M5 7H19V20H5V7Z" fill="#dc2626"/>
+            </svg>
+            {{ t('settings.myDepartment.dbResetTitle') }}
+          </span>
+          <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="dept-accordion__body">
+          <div class="db-reset-row">
+            <p class="db-reset-desc">
+              {{ t('settings.myDepartment.dbResetDescription') }}
+              <strong>{{ t('settings.myDepartment.dbResetDescriptionStrong') }}</strong>
+            </p>
+            <EButton
+              variant="danger"
+              size="small"
+              :disabled="isResettingDb"
+              :loading="isResettingDb"
+              @click="resetDepartmentDb"
+            >
+              {{ isResettingDb ? t('settings.myDepartment.resetting') : t('settings.myDepartment.resetDb') }}
+            </EButton>
+          </div>
+          <p class="selector-hint db-reset-warning">
+            {{ t('settings.myDepartment.dbResetWarning') }}
+          </p>
+        </div>
+      </details>
     </div>
 
     <!-- No Department -->
@@ -281,8 +352,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
@@ -290,14 +361,14 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { getDepartment, getDepartments, type Department } from '@/api/departments'
+import { getOrganisation } from '@/api/organisations'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import { setPrimaryDepartment as apiSetPrimaryDepartment } from '@/api/auth'
 import {
   getAddresses,
-  deleteAddress as apiDeleteAddress,
-  setAddressPrimary,
   type Address,
 } from '@/api/addresses'
+import { getGroups } from '@/api/groups'
 import {
   deletePendingInvite,
   getDepartmentInvite,
@@ -308,49 +379,41 @@ import {
 } from '@/api/joinRequests'
 import {
   getPublicSharingSettings,
-  getCalendarSettings,
-  getDepartmentOnboardingStatus,
-  resetDepartmentOnboardingDone,
   resetDepartmentDb as apiResetDepartmentDb,
   resetDepartmentActivities as apiResetDepartmentActivities,
   savePublicSharingSettings,
-  saveCalendarSettings as saveCalendarSettingsApi,
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
-import { buildOnboardingDoneKey, buildOnboardingPausedKey, buildOnboardingStateKey, readOnboardingState } from '@/utils/departmentOnboarding'
-import { countResolvedChecklistItems, ONBOARDING_CHECKLIST_ITEMS } from '@/utils/onboardingChecklist'
+import { buildOnboardingDoneKey, buildOnboardingPausedKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
 import { departmentDisplayName, departmentHomePath, isGrossanlassDepartment } from '@/utils/departmentSwitch'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import DepartmentAddressKindPanel from '@/components/settings/DepartmentAddressKindPanel.vue'
+import UsersSettingsView from '@/views/settings/UsersSettingsView.vue'
+import GroupsSettingsView from '@/views/settings/GroupsSettingsView.vue'
 import { EButton, ESelect } from '@/components/form/base'
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
-const { t, te } = useI18n()
+const { t } = useI18n()
 const { isUserRole } = useDepartmentMemberRole()
-
-function addressTypeLabel(type: string): string {
-  const path = `settings.addressForm.types.${type}` as const
-  return te(path) ? t(path) : type
-}
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const department = ref<Department | null>(null)
 const subDepartmentsCount = ref(0)
 const selectedDepartmentId = ref<string | null>(null)
+const organisationName = ref('')
+const parentDepartmentNames = ref<string[]>([])
 const inviteData = ref<DepartmentInviteData | null>(null)
 const inviteQrDataUrl = ref('')
 const isInviteLoading = ref(false)
 const pendingInvites = ref<PendingInvite[]>([])
-const onboardingDone = ref(false)
-const isResettingOnboarding = ref(false)
 const isResettingDb = ref(false)
 const isResettingActivities = ref(false)
 const showDevTools = computed(() => isDevToolsEnvironment())
@@ -362,12 +425,6 @@ const publicShowContactEmail = ref(true)
 const publicShowContactNote = ref(true)
 const publicFoundContactDelivery = ref<PublicFoundContactDelivery>('both')
 
-const calendarFcalGeoId = ref('')
-const savedCalendarGeoId = ref('')
-const isSavingCalendar = ref(false)
-
-const calendarDirty = computed(() => calendarFcalGeoId.value.trim() !== savedCalendarGeoId.value.trim())
-
 // Primary Department State
 const isSavingPrimary = ref(false)
 
@@ -378,21 +435,118 @@ const isSelectedDeptPrimary = computed(() => {
   return dept?.is_primary === true
 })
 
-// Adressen State (Lagerplätze = type='storage', Rechnung = type='billing')
+// Adressen-Counts für Statistiken / Accordion-Titel
 const addresses = ref<Address[]>([])
-const isLoadingAddresses = ref(false)
-const isAddressModalOpen = ref(false)
-const editingAddress = ref<Address | null>(null)
-const newAddressType = ref<string>('storage')
+const storagePanelMounted = ref(false)
+const billingPanelMounted = ref(false)
+const membersPanelMounted = ref(false)
+const membersPanelCount = ref<number | null>(null)
+const groupsPanelMounted = ref(false)
+const groupsPanelCount = ref<number | null>(null)
 
-// Gefilterte Adressen nach Typ
 const storageAddresses = computed(() => addresses.value.filter(a => a.type === 'storage'))
 const billingAddresses = computed(() => addresses.value.filter(a => a.type === 'billing'))
 
-// Lagerplätze mit Koordinaten
-const storageAddressesWithCoords = computed(() => {
-  return storageAddresses.value.filter(a => a.has_coordinates)
+const displayMembersCount = computed(
+  () => membersPanelCount.value ?? department.value?.users?.length ?? 0,
+)
+
+const displayGroupsCount = computed(() => groupsPanelCount.value ?? 0)
+
+/** Organisation + Eltern-Departments (Namen, ohne IDs), Wurzel → Eltern. */
+const departmentHierarchyLabel = computed(() => {
+  const parts: string[] = []
+  if (organisationName.value.trim()) {
+    parts.push(organisationName.value.trim())
+  }
+  parts.push(...parentDepartmentNames.value)
+  return parts.join(' · ')
 })
+
+async function resolveParentDepartmentNames(dept: Department, catalog: Department[]) {
+  const byId = new Map(catalog.map((d) => [d.id, d]))
+  const namesClosestFirst: string[] = []
+  let parentId = dept.parent_id || null
+  const seen = new Set<string>()
+
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId)
+    let parent = byId.get(parentId) || null
+    if (!parent) {
+      try {
+        parent = await getDepartment(parentId)
+        byId.set(parent.id, parent)
+      } catch {
+        break
+      }
+    }
+    namesClosestFirst.push(parent.name)
+    parentId = parent.parent_id || null
+  }
+
+  // Wurzel → … → direktes Eltern-Department
+  parentDepartmentNames.value = namesClosestFirst.reverse()
+}
+
+type DeptAccordionId =
+  | 'join-code'
+  | 'members'
+  | 'groups'
+  | 'stats'
+  | 'storage'
+  | 'billing'
+  | 'activities-reset'
+  | 'db-reset'
+
+/** Nur ein Accordion gleichzeitig offen; Start: alle geschlossen. */
+const openAccordion = ref<DeptAccordionId | null>(null)
+/** Verhindert Scroll beim initialen Mount von :open. */
+const accordionScrollEnabled = ref(false)
+
+function mountAccordionPanel(id: DeptAccordionId) {
+  if (id === 'members') membersPanelMounted.value = true
+  if (id === 'groups') groupsPanelMounted.value = true
+  if (id === 'storage') storagePanelMounted.value = true
+  if (id === 'billing') billingPanelMounted.value = true
+}
+
+function scrollAccordionIntoView(el: HTMLElement) {
+  if (!accordionScrollEnabled.value) return
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  })
+}
+
+function onDeptAccordionSummaryClick(id: DeptAccordionId, event: MouseEvent) {
+  event.preventDefault()
+  const el = (event.currentTarget as HTMLElement).closest('details') as HTMLDetailsElement | null
+  if (!el) return
+
+  if (openAccordion.value === id) {
+    openAccordion.value = null
+    return
+  }
+
+  openAccordion.value = id
+  mountAccordionPanel(id)
+  scrollAccordionIntoView(el)
+}
+
+function onMembersPanelChanged(count: number) {
+  membersPanelCount.value = count
+}
+
+function onGroupsPanelChanged(count: number) {
+  groupsPanelCount.value = count
+}
+
+async function refreshAddressCounts() {
+  const deptId = selectedDepartmentId.value
+  if (!deptId) return
+  await loadAddresses(deptId)
+}
 
 // Liste aller Departments des Users
 const userDepartments = computed(() => authStore.departments || [])
@@ -418,60 +572,6 @@ const currentRole = computed(() => {
 const canManageJoinCode = computed(() => {
   const normalizedRole = String(currentRole.value || '').toLowerCase().trim()
   return ['dc', 'depchef', 'mw', 'matwart', 'sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(normalizedRole)
-})
-
-const isSelectedDepartmentGrossanlass = computed(() =>
-  authStore.isDepartmentGrossanlass(selectedDepartmentId.value),
-)
-
-/** SA / Org / Sub — kein persönliches Onboarding; Anzeige im UI */
-const isHierarchyLeaderDeptRole = computed(() => {
-  const r = String(currentRole.value || '').toLowerCase().trim()
-  return ['sa', 'superadmin', 'org', 'organisationschef', 'sub', 'suborgchef'].includes(r)
-})
-
-const isExemptFromMemberOnboardingUi = computed(() => {
-  return isHierarchyLeaderDeptRole.value || authStore.userRoles.includes('ROLE_SUPERADMIN')
-})
-
-const showMemberOnboardingSelfService = computed(() => {
-  if (!selectedDepartmentId.value || isSelectedDepartmentGrossanlass.value) return false
-  if (isExemptFromMemberOnboardingUi.value) return false
-  const r = String(currentRole.value || '').toLowerCase().trim()
-  return ['dc', 'depchef', 'mw', 'matwart'].includes(r)
-})
-
-const memberOnboardingTotal = ONBOARDING_CHECKLIST_ITEMS.length
-
-const memberOnboardingDoneCount = computed(() => {
-  const profileId = authStore.profileId
-  const depId = selectedDepartmentId.value
-  if (!profileId || !depId) return 0
-  const state = readOnboardingState(profileId, depId)
-  return countResolvedChecklistItems(state.completed, state.skipped || {})
-})
-
-function openOnboardingHub() {
-  const depId = selectedDepartmentId.value
-  if (!depId) return
-  router.push({ name: 'HelpTours', params: { departmentId: depId } })
-}
-
-const onboardingStatusLabel = computed(() => {
-  if (isHierarchyLeaderDeptRole.value) {
-    return t('settings.myDepartment.onboarding.notApplicableLeader')
-  }
-  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    return t('settings.myDepartment.onboarding.notApplicableSuperadmin')
-  }
-  return onboardingDone.value ? t('settings.myDepartment.onboarding.done') : t('settings.myDepartment.onboarding.open')
-})
-
-const onboardingStatusClass = computed(() => {
-  if (isExemptFromMemberOnboardingUi.value) {
-    return 'status-na'
-  }
-  return onboardingDone.value ? 'status-done' : 'status-open'
 })
 
 // Wenn sich das ausgewählte Department ändert – Store + URL, dann voller Seiten-Reload (frischer State)
@@ -541,13 +641,28 @@ async function loadDepartment(departmentId?: string) {
     // Lade Department mit Users
     department.value = await getDepartment(deptId)
     
-    // Zähle Unter-Departments
+    // Zähle Unter-Departments + Eltern-Namen für Zugehörigkeit
     const allDepartments = await getDepartments()
     subDepartmentsCount.value = allDepartments.filter(d => d.parent_id === deptId).length
+
+    organisationName.value = ''
+    parentDepartmentNames.value = []
+    try {
+      const org = await getOrganisation(department.value.organisation_id)
+      organisationName.value = org.name || ''
+    } catch {
+      organisationName.value = ''
+    }
+    await resolveParentDepartmentNames(department.value, allDepartments)
     
     // Lade Adressen (Lagerplätze, Rechnungsadressen, etc.)
     await loadAddresses(deptId)
-    await loadOnboardingStatus(deptId)
+    await loadGroupsCount(deptId)
+    await loadInviteCode(deptId)
+
+    if (!canManageJoinCode.value && openAccordion.value === 'join-code') {
+      openAccordion.value = null
+    }
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.myDepartment.loadError')
   } finally {
@@ -574,33 +689,6 @@ async function loadPublicSettings(deptId: string) {
   }
 }
 
-async function loadCalendarSettings(deptId: string) {
-  try {
-    const c = await getCalendarSettings(deptId)
-    calendarFcalGeoId.value = c.fcalGeoId
-    savedCalendarGeoId.value = c.fcalGeoId
-  } catch {
-    calendarFcalGeoId.value = ''
-    savedCalendarGeoId.value = ''
-  }
-}
-
-async function saveCalendarSettingsForDept() {
-  if (!selectedDepartmentId.value || isSavingCalendar.value || !calendarDirty.value) return
-  isSavingCalendar.value = true
-  try {
-    await saveCalendarSettingsApi(selectedDepartmentId.value, {
-      fcalGeoId: calendarFcalGeoId.value,
-    })
-    savedCalendarGeoId.value = calendarFcalGeoId.value.trim()
-    toast.success(t('settings.addons.toastSaved'))
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.addons.toastSaveError'))
-  } finally {
-    isSavingCalendar.value = false
-  }
-}
-
 async function savePublicSettings() {
   if (!selectedDepartmentId.value || isSavingPublicSettings.value) return
   isSavingPublicSettings.value = true
@@ -618,49 +706,6 @@ async function savePublicSettings() {
     toast.error(err.response?.data?.error || t('settings.publicMaterialPage.saveError'))
   } finally {
     isSavingPublicSettings.value = false
-  }
-}
-
-async function loadOnboardingStatus(deptId: string) {
-  try {
-    const status = await getDepartmentOnboardingStatus(deptId)
-    onboardingDone.value = status.doneAll
-  } catch (err) {
-    console.warn(t('settings.myDepartment.onboarding.loadStatusError'), err)
-    onboardingDone.value = false
-  }
-}
-
-async function resetDepartmentOnboarding() {
-  if (!selectedDepartmentId.value || isResettingOnboarding.value) return
-
-  const ok = await confirm.confirm({
-    title: t('settings.myDepartment.onboarding.confirmResetTitle'),
-    message: t('settings.myDepartment.onboarding.confirmResetMessage'),
-    confirmText: t('settings.myDepartment.onboarding.confirmResetAction'),
-    cancelText: t('common.cancel'),
-    variant: 'warning',
-  })
-  if (!ok) return
-
-  isResettingOnboarding.value = true
-  try {
-    await resetDepartmentOnboardingDone(selectedDepartmentId.value)
-    onboardingDone.value = false
-    const profileId = authStore.profileId
-    const departmentId = selectedDepartmentId.value
-    if (profileId && departmentId) {
-      localStorage.removeItem(buildOnboardingDoneKey(profileId, departmentId))
-      localStorage.removeItem(buildOnboardingPausedKey(profileId, departmentId))
-      localStorage.removeItem(buildOnboardingStateKey(profileId, departmentId))
-      sessionStorage.removeItem(`onboarding_prompted_${profileId}_${departmentId}`)
-    }
-    toast.success(t('settings.myDepartment.onboarding.toastResetSuccess'))
-    window.location.href = `/${departmentId}`
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.myDepartment.onboarding.toastResetError'))
-  } finally {
-    isResettingOnboarding.value = false
   }
 }
 
@@ -809,76 +854,24 @@ async function copyRegisterInviteLink() {
   toast.success(t('settings.joinCode.toastCopiedRegisterLink'))
 }
 
-// === Adressen (Lagerplätze = type='storage', Rechnung = type='billing') ===
+// === Adressen-Counts für Statistiken ===
 
 async function loadAddresses(deptId: string) {
-  isLoadingAddresses.value = true
   try {
     const result = await getAddresses(deptId)
     addresses.value = result.addresses
-  } catch (err: any) {
-    console.error(t('settings.myDepartment.toastDeleteAddressError'), err)
+  } catch (err: unknown) {
+    console.error(err)
     addresses.value = []
-  } finally {
-    isLoadingAddresses.value = false
   }
 }
 
-function openAddressModal(address?: Address, type: string = 'storage') {
-  editingAddress.value = address || null
-  newAddressType.value = type
-  isAddressModalOpen.value = true
-}
-
-function closeAddressModal() {
-  isAddressModalOpen.value = false
-  editingAddress.value = null
-}
-
-async function handleAddressSaved() {
-  // Liste neu laden
-  if (selectedDepartmentId.value) {
-    await loadAddresses(selectedDepartmentId.value)
-  }
-  closeAddressModal()
-}
-
-async function deleteAddressItem(address: Address) {
-  const typeLabel = addressTypeLabel(address.type)
-  const ok = await confirm.confirm({
-    title: t('settings.myDepartment.deleteAddressConfirmTitle', { type: typeLabel }),
-    message: t('settings.myDepartment.deleteAddressConfirmMessage', { name: address.name || address.street_line }),
-    confirmText: t('common.delete'),
-    cancelText: t('common.cancel'),
-    variant: 'danger',
-  })
-  if (!ok) return
-  
+async function loadGroupsCount(deptId: string) {
   try {
-    await apiDeleteAddress(address.id)
-    if (selectedDepartmentId.value) {
-      await loadAddresses(selectedDepartmentId.value)
-    }
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.myDepartment.toastDeleteAddressError'))
-  }
-}
-
-async function makePrimary(address: Address) {
-  try {
-    await setAddressPrimary(address.id)
-    if (selectedDepartmentId.value) {
-      await loadAddresses(selectedDepartmentId.value)
-    }
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.myDepartment.toastSetPrimaryAddressError'))
-  }
-}
-
-function showOnMap(address: Address) {
-  if (address.latitude && address.longitude) {
-    const url = `https://www.openstreetmap.org/?mlat=${address.latitude}&mlon=${address.longitude}#map=17/${address.latitude}/${address.longitude}`
-    window.open(url, '_blank')
+    const groups = await getGroups(deptId)
+    groupsPanelCount.value = groups.length
+  } catch {
+    groupsPanelCount.value = 0
   }
 }
 
@@ -898,6 +891,10 @@ onMounted(() => {
   if (selectedDepartmentId.value) {
     loadDepartment(selectedDepartmentId.value)
   }
+
+  nextTick(() => {
+    accordionScrollEnabled.value = true
+  })
 })
 </script>
 
@@ -923,6 +920,64 @@ onMounted(() => {
   font-weight: 600;
   color: #1f2937;
   margin: 0 0 4px 0;
+}
+
+.dept-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.dept-identity__name {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.dept-identity__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.dept-identity__label {
+  flex: 0 0 auto;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.dept-identity__label::after {
+  content: ':';
+}
+
+.dept-identity__value {
+  color: #374151;
+  word-break: break-word;
+}
+
+.dept-identity__value.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.join-qr {
+  margin-top: 12px;
+}
+
+.join-qr img {
+  width: 180px;
+  height: 180px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: white;
 }
 
 .description {
@@ -1566,53 +1621,6 @@ onMounted(() => {
   font-size: 14px;
 }
 
-.onboarding-admin-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.onboarding-status {
-  margin: 0;
-  font-size: 14px;
-  color: #1f2937;
-}
-
-.status-done {
-  color: #15803d;
-}
-
-.status-open {
-  color: #b45309;
-}
-
-.status-na {
-  color: #64748b;
-  font-weight: 600;
-}
-
-.onboarding-reset-btn {
-  padding: 8px 14px;
-  background: #f59e0b;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.onboarding-reset-btn:hover:not(:disabled) {
-  background: #d97706;
-}
-
-.onboarding-reset-btn:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-
 /* DB Reset Card */
 .db-reset-card {
   border-color: #fecaca;
@@ -1684,5 +1692,63 @@ onMounted(() => {
 
 .address-page-link:hover {
   background: #dbeafe;
+}
+
+.dept-accordion {
+  padding: 0;
+  overflow: hidden;
+  scroll-margin-top: 24px;
+}
+
+.dept-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.dept-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.dept-accordion__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1rem;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.dept-accordion__chevron {
+  flex-shrink: 0;
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+
+.dept-accordion[open] .dept-accordion__chevron {
+  transform: rotate(180deg);
+}
+
+.dept-accordion__body {
+  padding: 0 16px 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.dept-accordion__body .selector-hint {
+  margin-top: 12px;
+}
+
+.dept-accordion__body .info-grid,
+.dept-accordion__body .users-list,
+.dept-accordion__body .stats-grid,
+.dept-accordion__body .db-reset-row,
+.dept-accordion__body .users-settings,
+.dept-accordion__body .groups-settings {
+  margin-top: 12px;
 }
 </style>

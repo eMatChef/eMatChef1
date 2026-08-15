@@ -1,5 +1,11 @@
 <template>
-  <ActivityOutlinedDatetimeSection :id="usageBlockId" :title="usageSectionTitle" icon="calendar" :required="true">
+  <ActivityOutlinedDatetimeSection
+    :id="usageBlockId"
+    data-onboarding="activity-create-zeitraum"
+    :title="usageSectionTitle"
+    icon="calendar"
+    :required="true"
+  >
     <slot name="usage-before" />
     <ActivityDateTimeFields
       v-if="isActivityType"

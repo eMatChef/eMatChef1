@@ -57,6 +57,8 @@ class MediaCompressionLegacyService
 
             $changed = false;
             $updated = [];
+            $departmentId = $ticket->getDepartmentId();
+            $ticketId = (string) $ticket->getId();
             foreach ($photos as $photo) {
                 if (!\is_array($photo)) {
                     $updated[] = $photo;
@@ -93,7 +95,10 @@ class MediaCompressionLegacyService
                     continue;
                 }
 
-                $compressed = $this->compressionService->compressExistingFile($path);
+                $compressed = $this->compressionService->compressExistingFile(
+                    $path,
+                    MediaCompressionProfile::workshop(),
+                );
                 if ($compressed === null) {
                     ++$stats['skipped'];
                     $updated[] = $photo;
@@ -107,7 +112,12 @@ class MediaCompressionLegacyService
                 $newFilename = pathinfo($compressed['path'], PATHINFO_BASENAME);
                 if ($newFilename !== $filename) {
                     $photo['filename'] = $newFilename;
-                    $photo['url'] = $this->mediaStorage->buildWorkshopPhotoUrl((string) $ticket->getId(), $newFilename);
+                    $photo['url'] = $this->mediaStorage->buildPublicMediaUrl(
+                        MediaStorageService::CONTEXT_WORKSHOP_TICKET,
+                        $departmentId,
+                        $ticketId,
+                        $newFilename,
+                    );
                 }
 
                 ++$stats['compressed'];

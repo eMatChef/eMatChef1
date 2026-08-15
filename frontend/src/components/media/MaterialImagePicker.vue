@@ -1,12 +1,18 @@
 <template>
-  <div class="material-image-picker">
-    <v-menu v-model="menuOpen" location="bottom" :close-on-content-click="true">
+  <div class="material-image-picker" :class="{ 'material-image-picker--compact': compact }">
+    <v-menu
+      v-model="menuOpen"
+      :location="compact ? 'top' : 'bottom'"
+      :close-on-content-click="true"
+    >
       <template #activator="{ props: activatorProps }">
         <EButton
           v-bind="activatorProps"
           variant="secondary"
-          block
+          :block="!compact"
+          :size="compact ? 'small' : undefined"
           :disabled="disabled || uploading"
+          :loading="uploading"
         >
           {{ hasImage ? t('media.material.replaceImage') : t('media.material.addImage') }}
         </EButton>
@@ -14,7 +20,11 @@
       <v-list density="compact" class="material-image-picker-menu">
         <v-list-item :title="t('media.material.optionUpload')" @click="openFilePicker(false)" />
         <v-list-item :title="t('media.material.optionCamera')" @click="openFilePicker(true)" />
-        <v-list-item :title="t('media.material.optionUrl')" @click="openUrlPanel" />
+        <v-list-item
+          v-if="canImportUrl"
+          :title="t('media.material.optionUrl')"
+          @click="openUrlPanel"
+        />
       </v-list>
     </v-menu>
 
@@ -53,7 +63,7 @@
       </div>
     </div>
 
-    <p v-if="uploading" class="material-image-picker-status">{{ t('media.uploading') }}</p>
+    <p v-if="uploading && !compact" class="material-image-picker-status">{{ t('media.uploading') }}</p>
 
     <input
       ref="fileInputRef"
@@ -87,13 +97,16 @@ const props = withDefaults(
     hasImage?: boolean
     searchQuery?: string
     disabled?: boolean
+    compact?: boolean
     uploadFile: (file: File) => Promise<unknown>
-    importUrl: (url: string) => Promise<unknown>
+    importUrl?: (url: string) => Promise<unknown>
   }>(),
   {
     hasImage: false,
     searchQuery: '',
     disabled: false,
+    compact: false,
+    importUrl: undefined,
   },
 )
 
@@ -110,6 +123,8 @@ const uploading = ref(false)
 const imageUrl = ref('')
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const cameraInputRef = ref<HTMLInputElement | null>(null)
+
+const canImportUrl = computed(() => typeof props.importUrl === 'function')
 
 const googleImageSearchUrl = computed(() => {
   const q = props.searchQuery.trim() || 'material'
@@ -164,7 +179,7 @@ async function onFileSelected(event: Event) {
 
 async function submitUrl() {
   const url = imageUrl.value.trim()
-  if (!url || props.disabled || uploading.value) return
+  if (!url || props.disabled || uploading.value || !props.importUrl) return
 
   uploading.value = true
   try {
@@ -185,6 +200,15 @@ async function submitUrl() {
   flex-direction: column;
   gap: 10px;
   margin-top: 10px;
+}
+
+.material-image-picker--compact {
+  margin-top: 0;
+  gap: 8px;
+}
+
+.material-image-picker--compact:has(.material-image-picker-url) {
+  flex: 1 0 100%;
 }
 
 .material-image-picker-menu {

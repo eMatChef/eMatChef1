@@ -95,7 +95,11 @@ const SIDEBAR_EXTRA_RIGHT = 14
 
 type PaneStyle = Record<string, string>
 
-function clampHoleFrame(rect: DOMRect, viewportW: number, viewportH: number) {
+function clampHoleFrame(
+  rect: { top: number; left: number; right: number; bottom: number; width: number; height: number },
+  viewportW: number,
+  viewportH: number
+) {
   const isSidebarTarget = rect.left < SIDEBAR_RIGHT_EDGE
   const padL = isSidebarTarget
     ? Math.max(0, rect.left - VIEWPORT_INSET)
@@ -108,6 +112,19 @@ function clampHoleFrame(rect: DOMRect, viewportW: number, viewportH: number) {
   let left = Math.max(VIEWPORT_INSET, rect.left - padL)
   let right = Math.min(viewportW - VIEWPORT_INSET, rect.right + padR)
   let bottom = Math.min(viewportH - VIEWPORT_INSET, rect.bottom + padB)
+
+  // Sehr hohe Blöcke (z. B. Zeitraum mit Datetime-Feldern): Loch deckeln,
+  // sonst wächst/springt der Ring mit jeder Layout-Änderung.
+  // Offener Kalender/Uhr: nicht abschneiden — Union mit Picker-Overlay.
+  const pickerOpen =
+    typeof document !== 'undefined' &&
+    !!document.querySelector(
+      '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker',
+    )
+  const maxHoleH = Math.round(viewportH * (pickerOpen ? 0.9 : 0.42))
+  if (bottom - top > maxHoleH) {
+    bottom = top + maxHoleH
+  }
 
   if (right <= left) right = left + Math.max(rect.width, 8)
   if (bottom <= top) bottom = top + Math.max(rect.height, 8)

@@ -366,6 +366,7 @@ import type { PublicDepartmentSearchResult } from '@/api/publicDepartments'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { consumeDemoLogin } from '@/utils/demoLogins'
+import { parseInternalRedirectPath } from '@/utils/appHomeRedirect'
 
 /** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
 const turnstileSiteKey = computed(() => {
@@ -425,7 +426,7 @@ const showResendVerification = computed(
     !!error.value &&
     RESEND_VERIFICATION_ERROR_MARKERS.some((m) => error.value!.toLowerCase().includes(m))
 )
-const inviteRedirect = computed(() => parseInternalRedirect(route.query.redirect))
+const inviteRedirect = computed(() => parseInternalRedirectPath(route.query.redirect))
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteOrganisationLocked = computed(() => {
@@ -502,14 +503,6 @@ const resetPasswordConfirmError = computed(() => {
   return t('login.validationPasswordMismatch')
 })
 
-function parseInternalRedirect(rawRedirect: unknown): string | null {
-  if (typeof rawRedirect !== 'string') return null
-  const trimmed = rawRedirect.trim()
-  if (!trimmed || !trimmed.startsWith('/')) return null
-  if (trimmed.startsWith('//')) return null
-  return trimmed
-}
-
 function extractJoinCodeFromPath(path: string): string | null {
   if (!path.startsWith('/')) return null
   try {
@@ -525,7 +518,7 @@ function extractJoinCodeFromPath(path: string): string | null {
 function getStoredInviteRedirect(): string | null {
   const stored = localStorage.getItem(INVITE_REDIRECT_STORAGE_KEY)
   if (!stored) return null
-  return parseInternalRedirect(stored)
+  return parseInternalRedirectPath(stored)
 }
 
 function rememberInviteRedirect(redirectPath: string | null) {
@@ -540,7 +533,7 @@ function rememberInviteRedirect(redirectPath: string | null) {
 watch(
   () => route.query.redirect,
   (value) => {
-    rememberInviteRedirect(parseInternalRedirect(value))
+    rememberInviteRedirect(parseInternalRedirectPath(value))
   },
   { immediate: true }
 )
@@ -810,7 +803,7 @@ async function handleSubmit() {
   setLocale(authStore.profile?.language || 'de')
 
   isRedirecting.value = true // Button bleibt deaktiviert bis Weiterleitung
-  const routeRedirect = parseInternalRedirect(route.query.redirect)
+  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
   const storedInviteRedirect = getStoredInviteRedirect()
   const redirectTarget = routeRedirect || storedInviteRedirect
   if (redirectTarget) {

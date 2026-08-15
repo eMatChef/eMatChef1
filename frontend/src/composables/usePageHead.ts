@@ -104,6 +104,10 @@ function resolveOgImage(): string {
   return `${resolveSiteOrigin()}/og-image.png`
 }
 
+function resolveLogo(): string {
+  return `${resolveSiteOrigin()}/favicon-192.png`
+}
+
 function shouldNoindex(route: RouteLocationNormalized): boolean {
   if (isDevToolsEnvironment()) {
     return true
@@ -114,13 +118,20 @@ function shouldNoindex(route: RouteLocationNormalized): boolean {
   return !route.matched.some((m) => m.meta.publicMarketing === true)
 }
 
+function htmlToPlainText(html: string): string {
+  const el = document.createElement('div')
+  el.innerHTML = html
+  return (el.textContent || '').replace(/\s+/g, ' ').trim()
+}
+
 function organizationJsonLd(origin: string): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': `${origin}/#organization`,
     name: SITE_NAME,
     url: origin,
-    logo: `${origin}/favicon.svg`,
+    logo: resolveLogo(),
     description: defaultPageDescription(),
   }
 }
@@ -132,7 +143,57 @@ function websiteJsonLd(origin: string): Record<string, unknown> {
     name: SITE_NAME,
     url: origin,
     inLanguage: 'de-CH',
+    publisher: { '@id': `${origin}/#organization` },
   }
+}
+
+function softwareApplicationJsonLd(origin: string): Record<string, unknown> {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: SITE_NAME,
+    url: origin,
+    applicationCategory: 'BusinessApplication',
+    operatingSystem: 'Web browser',
+    inLanguage: 'de-CH',
+    description: defaultPageDescription(),
+    image: `${origin}/og-image.png`,
+    publisher: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: origin,
+    },
+  }
+}
+
+/** FAQ-Rich-Results: von der öffentlichen FAQ-Seite setzen, sonst entfernen. */
+export function setFaqPageJsonLd(items: Array<{ q: string; aHtml?: string; a?: string }>): void {
+  const mainEntity = items
+    .map((item) => {
+      const name = item.q.trim()
+      const text = htmlToPlainText(item.aHtml || item.a || '')
+      return { name, text }
+    })
+    .filter((item) => item.name && item.text)
+    .slice(0, 15)
+    .map((item) => ({
+      '@type': 'Question',
+      name: item.name,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.text,
+      },
+    }))
+  setJsonLd(
+    'faq',
+    mainEntity.length
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity,
+        }
+      : null,
+  )
 }
 
 export function applyPageHead(title: string, description: string, route?: RouteLocationNormalized): void {
@@ -160,6 +221,10 @@ export function applyPageHead(title: string, description: string, route?: RouteL
     const isLanding = route.name === 'LandingHome'
     setJsonLd('organization', isLanding ? organizationJsonLd(origin) : null)
     setJsonLd('website', isLanding ? websiteJsonLd(origin) : null)
+    setJsonLd('software', isLanding ? softwareApplicationJsonLd(origin) : null)
+    if (route.name !== 'Faq') {
+      setJsonLd('faq', null)
+    }
   }
 }
 

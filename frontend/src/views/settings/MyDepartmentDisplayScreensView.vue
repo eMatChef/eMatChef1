@@ -89,7 +89,7 @@
 
                 <p class="label label--tight content-label">{{ t('settings.displayScreens.showPanelsLabel') }}</p>
 
-                <details class="settings-accordion" open>
+                <details class="settings-accordion">
                   <summary>{{ t('settings.displayScreens.accordionActivities') }}</summary>
                   <div class="accordion-body">
                     <ECheckbox
@@ -428,7 +428,7 @@ const canManage = computed(() => {
   )
 })
 const activeScreens = computed(() => screens.value)
-const useAccordion = computed(() => activeScreens.value.length > 1)
+const useAccordion = computed(() => activeScreens.value.length >= 1)
 
 function isExpanded(screenId: string): boolean {
   return expandedIds.value.has(screenId)
@@ -444,16 +444,7 @@ function toggleExpanded(screenId: string) {
   expandedIds.value = next
 }
 
-function syncExpandedFromScreens(list: DisplayScreenSettings[]) {
-  const active = list.filter((s) => !s.revoked_at)
-  if (active.length === 1) {
-    expandedIds.value = new Set([active[0].id])
-    return
-  }
-  if (active.length > 1) {
-    expandedIds.value = new Set()
-    return
-  }
+function syncExpandedFromScreens(_list: DisplayScreenSettings[]) {
   expandedIds.value = new Set()
 }
 

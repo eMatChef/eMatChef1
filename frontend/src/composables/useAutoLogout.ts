@@ -51,8 +51,8 @@ export function useAutoLogout() {
   /** Letzte echte Nutzeraktivität (Klick/Tastatur/Scroll), persistiert für Reload & Tab-Rückkehr */
   const lastActivity = ref(readLastActivityMs())
 
-  const INACTIVITY_TIMEOUT = readEnvMs('VITE_AUTOLOGOUT_TIMEOUT_MS', 60 * 60 * 1000, 60 * 1000)
-  const WARNING_BEFORE_LOGOUT = readEnvMs('VITE_AUTOLOGOUT_WARNING_MS', 5 * 60 * 1000, 15 * 1000)
+  const INACTIVITY_TIMEOUT = readEnvMs('VITE_AUTOLOGOUT_TIMEOUT_MS', 30 * 60 * 1000, 60 * 1000)
+  const WARNING_BEFORE_LOGOUT = readEnvMs('VITE_AUTOLOGOUT_WARNING_MS', 3 * 60 * 1000, 15 * 1000)
   const ACTIVITY_THROTTLE = readEnvMs('VITE_AUTOLOGOUT_ACTIVITY_THROTTLE_MS', 5000, 500)
   const PERIODIC_REFRESH_INTERVAL = readEnvMs('VITE_AUTOLOGOUT_REFRESH_INTERVAL_MS', 25 * 60 * 1000, 60 * 1000)
   const ACTIVITY_EVENTS = readEnvEvents()
@@ -124,7 +124,6 @@ export function useAutoLogout() {
 
     clearInactivityTimers()
 
-    // Vorwarnung 5 Min vor Ablauf
     const warningDelay = Math.max(0, inactivityTimeoutMs.value - warningBeforeLogoutMs.value)
     warningTimer.value = setTimeout(async () => {
       warningTimer.value = null
@@ -145,7 +144,6 @@ export function useAutoLogout() {
       }
     }, warningDelay)
 
-    // Logout nach 60 Min Inaktivität
     inactivityTimer.value = setTimeout(async () => {
       inactivityTimer.value = null
       await logoutDueToInactivity()
@@ -200,6 +198,8 @@ export function useAutoLogout() {
   }
 
   async function loadRuntimeAutologoutConfig() {
+    // DEV: .env.development bleibt maßgeblich (länger). PROD: Server-Settings.
+    if (import.meta.env.DEV) return
     try {
       const cfg = await getPublicRuntimeConfig()
       if (!cfg.autologout) return

@@ -1,6 +1,6 @@
 <template>
-  <div class="accounting-settings">
-    <div class="settings-header">
+  <div class="accounting-settings" :class="{ 'accounting-settings--embedded': embedded }">
+    <div v-if="!embedded" class="settings-header">
       <div>
         <h1>{{ t('settings.accountingSettings.title') }}</h1>
         <p class="subtitle">{{ t('settings.accountingSettings.subtitle') }}</p>
@@ -67,6 +67,13 @@ import {
 } from '@/api/departmentSettings'
 
 defineOptions({ name: 'AccountingSettingsView' })
+
+withDefaults(
+  defineProps<{
+    embedded?: boolean
+  }>(),
+  { embedded: false },
+)
 
 const { t } = useI18n()
 const route = useRoute()

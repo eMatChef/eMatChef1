@@ -1,6 +1,6 @@
 <template>
-  <div class="general-settings">
-    <div class="settings-header">
+  <div class="general-settings" :class="{ 'general-settings--embedded': embedded }">
+    <div v-if="!embedded" class="settings-header">
       <div>
         <h1>{{ t('settings.generalSettings.title') }}</h1>
         <p class="subtitle">{{ t('settings.generalSettings.subtitle') }}</p>
@@ -124,6 +124,13 @@ import { useToast } from '@/composables/useToast'
 import { getGeneralSettings, saveGeneralSettings, type GeneralSettings } from '@/api/departmentSettings'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ESelect } from '@/components/form/base'
+
+withDefaults(
+  defineProps<{
+    embedded?: boolean
+  }>(),
+  { embedded: false },
+)
 
 const timezoneSelectItems = [
   { title: 'Europe/Zurich (CET/CEST)', value: 'Europe/Zurich' },

@@ -691,7 +691,7 @@ Health-Endpoint für Monitore: `GET /api/health` (ohne Auth, DB-Ping).
 
 ## Cron: Medien-Retention (Werkstatt-Fotos)
 
-Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **3**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).
+Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **10**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).
 
 **Dry-run (empfohlen vor erstem Live-Lauf):**
 
@@ -705,7 +705,7 @@ docker compose -p ematchef-prod exec backend php bin/console app:media:retention
 docker compose -p ematchef-prod exec backend php bin/console app:media:retention --env=prod
 ```
 
-Optional mit expliziter Frist: `--years=3`
+Optional mit expliziter Frist: `--years=10`
 
 **Legacy-Kompression** (Fotos ohne `bytes`-Metadaten in der DB, einmalig nach Migration):
 

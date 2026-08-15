@@ -9,6 +9,7 @@ import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
 import {
   parseInternalRedirectPath,
   resolveAuthenticatedHomePath,
+  sanitizeLoginRedirectPath,
 } from '@/utils/appHomeRedirect'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
 import {
@@ -27,6 +28,12 @@ import {
   canUseHelpTours,
   isHelpToursPath,
 } from '@/utils/onboardingGate'
+
+/** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
+function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
+  const target = sanitizeLoginRedirectPath(fullPath)
+  return target ? { redirect: target } : {}
+}
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
@@ -210,7 +217,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('landingHome'),
+          ...routeHead('landingHome', 'landingHome'),
         }
       },
       {
@@ -220,7 +227,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('blog'),
+          ...routeHead('blog', 'blog'),
         }
       },
       {
@@ -230,7 +237,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('blog'),
+          ...routeHead('blog', 'blog'),
         }
       },
       {
@@ -240,7 +247,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('faq'),
+          ...routeHead('faq', 'faq'),
         }
       },
       {
@@ -276,7 +283,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       publicMarketing: true,
-      ...routeHead('login'),
+      ...routeHead('login', 'login'),
     }
   },
   {
@@ -1245,15 +1252,11 @@ const routes: RouteRecordRaw[] = [
             redirect: { name: 'SettingsMyDepartment' },
           },
           {
-            path: 'general',
-            redirect: { name: 'SettingsZeit' },
-          },
-          {
-            path: 'zeit',
-            name: 'SettingsZeit',
-            component: () => import('@/views/settings/GeneralSettingsView.vue'),
+            path: 'module',
+            name: 'SettingsModule',
+            component: () => import('@/views/settings/ModuleSettingsView.vue'),
             meta: {
-              ...routeHead('settingsTime'),
+              ...routeHead('settingsModule'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
@@ -1367,41 +1370,21 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
-            path: 'activities',
-            name: 'SettingsActivities',
-            component: () => import('@/views/settings/ActivitySettingsView.vue'),
-            meta: {
-              ...routeHead('settingsActivities'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'workshop',
-            name: 'SettingsWorkshop',
-            component: () => import('@/views/settings/WorkshopSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsWorkshop'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'accounting',
-            name: 'SettingsAccounting',
-            component: () => import('@/views/settings/AccountingSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsAccounting'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
             path: 'storage',
             name: 'SettingsStorage',
             component: () => import('@/views/settings/StorageSettingsView.vue'),
             meta: {
               ...routeHead('settingsStorage'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'media',
+            name: 'SettingsMedia',
+            component: () => import('@/views/settings/MediaLibraryView.vue'),
+            meta: {
+              ...routeHead('settingsMedia'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
@@ -1654,7 +1637,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
     if (!authStore.isLoggedIn) {
-      return next({ path: '/login', query: { redirect: to.fullPath } })
+      return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
   }
 
@@ -1664,7 +1647,7 @@ router.beforeEach(async (to, from, next) => {
       await authStore.loadUserSessionFromCookie()
     } catch {
       if (to.path !== '/login') {
-        return next({ path: '/login', query: { redirect: to.fullPath } })
+        return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
       }
     }
   }
@@ -1672,7 +1655,7 @@ router.beforeEach(async (to, from, next) => {
   // Auth-Requirement prüfen
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     if (to.path !== '/login') {
-      return next({ path: '/login', query: { redirect: to.fullPath } })
+      return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
     return next()
   }
@@ -1685,7 +1668,7 @@ router.beforeEach(async (to, from, next) => {
         authStore.departments[0]?.department_id
       return next(id ? `/${id}` : '/login')
     }
-    return next({ path: '/login', query: { redirect: to.fullPath } })
+    return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
   }
 
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {

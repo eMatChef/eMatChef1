@@ -18,11 +18,68 @@ const TARGET_ACTIVE_CLASS = 'onboarding-tour-target-active'
 /** Stacking-Context-Root über den Dimmer heben (Drawer/Header/Dialog). */
 const ELEVATE_ROOT_CLASS = 'onboarding-tour-elevate-root'
 
-const targetRect = ref<DOMRect | null>(null)
+export type OnboardingTargetRect = {
+  top: number
+  left: number
+  right: number
+  bottom: number
+  width: number
+  height: number
+}
+
+const targetRect = ref<OnboardingTargetRect | null>(null)
 let targetObserver: ResizeObserver | null = null
+let pickerDomObserver: MutationObserver | null = null
 let observedTarget: Element | null = null
 let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
+let rectSyncRaf = 0
+let rectSyncStopTimer = 0
+
+function readTargetRect(el: Element): OnboardingTargetRect {
+  const r = el.getBoundingClientRect()
+  return {
+    top: r.top,
+    left: r.left,
+    right: r.right,
+    bottom: r.bottom,
+    width: r.width,
+    height: r.height,
+  }
+}
+
+/** Offene Datums-/Zeit-Picker (Teleport) in den Spotlight einbeziehen. */
+const PICKER_OVERLAY_SELECTOR =
+  '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker'
+
+function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetRect {
+  if (typeof document === 'undefined') return base
+  const pickers = document.querySelectorAll(PICKER_OVERLAY_SELECTOR)
+  if (pickers.length === 0) return base
+
+  let { top, left, right, bottom } = base
+  let expanded = false
+  pickers.forEach((node) => {
+    if (!(node instanceof HTMLElement)) return
+    if (!isTargetVisible(node)) return
+    const r = node.getBoundingClientRect()
+    if (r.width <= 0 || r.height <= 0) return
+    top = Math.min(top, r.top)
+    left = Math.min(left, r.left)
+    right = Math.max(right, r.right)
+    bottom = Math.max(bottom, r.bottom)
+    expanded = true
+  })
+  if (!expanded) return base
+  return {
+    top,
+    left,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+  }
+}
 
 function findElevateRoot(el: Element): HTMLElement | null {
   // Sidebar-Drawer nicht elevaten — sonst überdeckt die transformierte Drawer-Fläche
@@ -32,10 +89,12 @@ function findElevateRoot(el: Element): HTMLElement | null {
   const userMenu = el.closest('.user-menu-wrapper')
   if (userMenu instanceof HTMLElement) return userMenu
   if (el.closest('.v-navigation-drawer')) return null
+  // Dialog/Overlay: nicht elevaten. .v-overlay hat eigenen Stacking-Context unter dem
+  // Dimmer; Loch + Klicks reichen. Elevaten nur vom Content triggert oft Layout-Races
+  // (Spotlight versetzt zur Dialog-Open-Animation).
+  if (el.closest('.v-overlay, .v-dialog, .v-menu, .profile-modal')) return null
   const header = el.closest('.v-app-bar, .top-header, header.top-header')
   if (header instanceof HTMLElement) return header
-  const overlay = el.closest('.v-overlay__content, .v-dialog, .v-menu__content, .profile-modal')
-  if (overlay instanceof HTMLElement) return overlay
   return el instanceof HTMLElement ? el : (el.parentElement as HTMLElement)
 }
 
@@ -65,9 +124,40 @@ function clearTargetInteraction() {
   clearElevateRoot()
 }
 
+function stopRectSync() {
+  if (rectSyncRaf) {
+    cancelAnimationFrame(rectSyncRaf)
+    rectSyncRaf = 0
+  }
+  if (rectSyncStopTimer) {
+    window.clearTimeout(rectSyncStopTimer)
+    rectSyncStopTimer = 0
+  }
+}
+
+/** Während Dialog-/Scroll-Animationen Rect nachziehen (sonst Spotlight versetzt). */
+function startRectSync(el: Element, durationMs = 450) {
+  stopRectSync()
+  const started = performance.now()
+  const tick = (now: number) => {
+    if (observedTarget !== el) return
+    updateTargetRect(el)
+    if (now - started < durationMs) {
+      rectSyncRaf = requestAnimationFrame(tick)
+    } else {
+      rectSyncRaf = 0
+    }
+  }
+  rectSyncRaf = requestAnimationFrame(tick)
+  rectSyncStopTimer = window.setTimeout(() => stopRectSync(), durationMs + 50)
+}
+
 function clearTargetObserver() {
+  stopRectSync()
   targetObserver?.disconnect()
   targetObserver = null
+  pickerDomObserver?.disconnect()
+  pickerDomObserver = null
   observedTarget = null
   targetRect.value = null
 }
@@ -77,7 +167,19 @@ function updateTargetRect(el: Element | null) {
     targetRect.value = null
     return
   }
-  targetRect.value = el.getBoundingClientRect()
+  const next = unionRectWithOpenPickers(readTargetRect(el))
+  const prev = targetRect.value
+  // Subpixel-/Layout-Jitter ignorieren — sonst «springt» der Spotlight bei wachsenden Blöcken.
+  if (
+    prev &&
+    Math.abs(prev.top - next.top) < 1.5 &&
+    Math.abs(prev.left - next.left) < 1.5 &&
+    Math.abs(prev.width - next.width) < 1.5 &&
+    Math.abs(prev.height - next.height) < 1.5
+  ) {
+    return
+  }
+  targetRect.value = next
 }
 
 async function waitForTarget(
@@ -149,25 +251,42 @@ async function scrollTargetIntoView(el: Element) {
   const fullyVisible = rect.top >= topMargin && rect.bottom <= vh - bottomMargin
   if (fullyVisible) return
 
-  const tall = rect.height > vh - topMargin - bottomMargin
+  // Bereits teilweise sichtbar und nicht riesig: kein Scroll — vermeidet Spotlight-Springen.
+  const partiallyVisible = rect.bottom > topMargin && rect.top < vh - bottomMargin
+  const tall = rect.height > vh * 0.45
+  if (partiallyVisible && !tall) return
+
   htmlEl.scrollIntoView({
-    block: tall ? 'start' : 'center',
+    // Instant: nach smooth-Scroll war das Rect oft noch in Bewegung → Spotlight sprang.
+    behavior: 'auto',
+    block: tall ? 'start' : 'nearest',
     inline: 'nearest',
-    behavior: 'smooth',
   })
-  // Smooth-Scroll abwarten, dann Rect neu messen
-  await new Promise((resolve) => setTimeout(resolve, 380))
+  await new Promise((resolve) => setTimeout(resolve, 80))
 }
 
 function observeTarget(el: Element) {
-  if (observedTarget === el) return
+  if (observedTarget === el) {
+    updateTargetRect(el)
+    startRectSync(el)
+    return
+  }
   clearTargetObserver()
   observedTarget = el
   updateTargetRect(el)
   targetObserver = new ResizeObserver(() => updateTargetRect(el))
   targetObserver.observe(el)
+  // Kalender/Uhr öffnen sich als Teleport — Spotlight mitziehen
+  pickerDomObserver = new MutationObserver(() => {
+    if (observedTarget) {
+      updateTargetRect(observedTarget)
+      startRectSync(observedTarget, 600)
+    }
+  })
+  pickerDomObserver.observe(document.body, { childList: true, subtree: true, attributes: true })
   window.addEventListener('scroll', onScrollOrResize, true)
   window.addEventListener('resize', onScrollOrResize)
+  startRectSync(el)
 }
 
 function onScrollOrResize() {
@@ -179,6 +298,16 @@ function stopObservingTarget() {
   window.removeEventListener('resize', onScrollOrResize)
   clearTargetInteraction()
   clearTargetObserver()
+}
+
+function isDocumentReload(): boolean {
+  const nav = performance.getEntriesByType?.('navigation')?.[0] as
+    | PerformanceNavigationTiming
+    | undefined
+  if (nav?.type === 'reload') return true
+  // Legacy PerformanceNavigation (Safari/ältere Browser)
+  const legacy = (performance as Performance & { navigation?: { type?: number } }).navigation
+  return legacy?.type === 1
 }
 
 export function useOnboardingTour() {
@@ -228,6 +357,8 @@ export function useOnboardingTour() {
 
   const expectsTargetClick = computed(() => activeStepMode.value === 'click')
 
+  let hubRedirectInFlight = false
+
   function buildTourQuery(stepId: string) {
     return {
       [ONBOARDING_TOUR_QUERY]: activeTourId.value,
@@ -249,6 +380,29 @@ export function useOnboardingTour() {
     void router.replace({ query: clearTourQuery() })
   }
 
+  /**
+   * Hard-Reload / fehlendes Wizard-Target: zurück zum Touren-Hub.
+   * Wizard-Zustand lässt sich nach Reload nicht zuverlässig wiederherstellen.
+   */
+  async function returnToTourHub() {
+    if (hubRedirectInFlight) return
+    hubRedirectInFlight = true
+    stopObservingTarget()
+    const departmentId = route.params.departmentId
+    try {
+      if (typeof departmentId === 'string' && departmentId) {
+        await router.replace({
+          name: 'HelpTours',
+          params: { departmentId },
+        })
+      } else {
+        await router.replace({ query: clearTourQuery() })
+      }
+    } finally {
+      hubRedirectInFlight = false
+    }
+  }
+
   async function syncTarget(onTargetClick?: () => void) {
     stopObservingTarget()
     const step = activeStep.value
@@ -259,7 +413,14 @@ export function useOnboardingTour() {
     const maxAttempts = mode === 'waitFor' || mode === 'click' ? 80 : 40
     await nextTick()
     let el = await waitForTarget(step.target, maxAttempts)
-    if (!el && (mode === 'waitFor' || mode === 'click')) {
+    // waitFor = Dialog/Wizard-Inhalt: ohne Target nicht ewig warten → Touren-Hub
+    if (!el && mode === 'waitFor') {
+      if (activeStep.value?.id === stepId && activeTourId.value) {
+        await returnToTourHub()
+      }
+      return
+    }
+    if (!el && mode === 'click') {
       el = await waitForTargetPersistent(
         step.target,
         () => activeStep.value?.id === stepId && activeTourId.value !== null
@@ -270,8 +431,17 @@ export function useOnboardingTour() {
     await scrollTargetIntoView(el)
     if (activeStep.value?.id !== stepId) return
 
+    // Zwei Frames + kurze Pause: Dialog-Open/Layout erst abwarten, sonst Spotlight versetzt.
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    })
+    if (activeStep.value?.id !== stepId) return
+    updateTargetRect(el)
+
     observeTarget(el)
     elevateTargetRoot(el)
+    updateTargetRect(el)
+    startRectSync(el, 1000)
     el.classList.add(TARGET_ACTIVE_CLASS)
 
     if (mode === 'click' && onTargetClick) {
@@ -285,6 +455,7 @@ export function useOnboardingTour() {
   watch(
     [activeTourId, activeStepId, () => route.name],
     () => {
+      if (hubRedirectInFlight) return
       void syncTarget(() => {
         void next()
       })
@@ -292,6 +463,11 @@ export function useOnboardingTour() {
   )
 
   onMounted(() => {
+    // Hard-Reload mitten in der Tour: Zustand (Wizard etc.) ist weg → Touren-Hub
+    if (activeTourId.value && isDocumentReload()) {
+      void returnToTourHub()
+      return
+    }
     void syncTarget(() => {
       void next()
     })
@@ -348,8 +524,9 @@ export function useOnboardingTour() {
     await navigateToStep(activeStepIndex.value + 1)
   }
 
+  /** Abbrechen ohne «erledigt» — nur der letzte Schritt (Fertig) setzt den Fortschritt. */
   async function skip() {
-    finish()
+    abortTour()
   }
 
   function finish() {

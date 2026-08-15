@@ -38,13 +38,7 @@ class GrossanlassProcurementQuoteStorageService
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildPdfUrl(
-                    $departmentId,
-                    $quoteId,
-                    $filename,
-                ),
-            ],
+            [],
         );
 
         return [
@@ -57,21 +51,12 @@ class GrossanlassProcurementQuoteStorageService
 
     public function resolveFilePath(string $departmentId, string $quoteId, string $filename): string
     {
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafePathSegment($quoteId);
-        $this->mediaStorage->assertSafeFilename($filename);
-
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE,
             $departmentId,
             $quoteId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('PDF nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
     public function deleteFile(string $departmentId, string $quoteId, string $filename): void
@@ -86,11 +71,11 @@ class GrossanlassProcurementQuoteStorageService
 
     public function buildPdfUrl(string $departmentId, string $quoteId, string $filename): string
     {
-        return sprintf(
-            '/api/departments/%s/grossanlass/beschaffung/quotes/%s/pdf/%s',
-            rawurlencode($departmentId),
-            rawurlencode($quoteId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE,
+            $departmentId,
+            $quoteId,
+            $filename,
         );
     }
 }

@@ -1,14 +1,13 @@
 /**
  * Settings-Untermenü
- * - Desktop/Tablet: 64px-Spalte im Flex-Layout (wie App-Sidebar-Rail), Höhe = Einträge
- * - Hover/Pin: Panel 260px schwebt nach rechts über Inhalt
+ * - Desktop/Tablet: 64px-Spalte links bleibt stehen; nur der Inhalt scrollt
+ * - Hover/Pin: Panel 260px als Overlay über dem Inhalt
  * - Mobile: Hamburger + v-menu
  */
 
 .settings-view {
   position: relative;
   padding: 0;
-  height: 100%;
   max-width: 100%;
 }
 
@@ -75,35 +74,78 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Desktop/Tablet: Rail + Inhalt ── */
+/* ── Desktop/Tablet: Rail links fix, nur Inhalt scrollt ── */
 .settings-view--desktop {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 16px 16px 16px 8px;
-  overflow-x: hidden;
-}
-
-.settings-view--desktop:has(.settings-subnav-rail--expanded) {
-  overflow-x: visible;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px 12px 0;
+  overflow: hidden;
+  min-height: 0;
 }
 
 @media (min-width: 960px) {
-  /* Weniger Abstand zur App-Hauptnavigation (page-content + linkes Padding) */
+  /* Eng an die App-Sidebar — kein zentriertes max-width-Layout */
   .page-content:has(> .settings-view--desktop) {
-    padding-inline-start: 12px;
+    padding-inline-start: 4px;
+    padding-inline-end: 16px;
+  }
+
+  /*
+   * Äusserer Page-Scroll aus: Rail bleibt stehen, nur .settings-view__content scrollt.
+   * (position:sticky scheitert hier wegen overflow-Vorfahren in der App-Shell.)
+   */
+  .page-main:has(.settings-view--desktop) {
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .page-main:has(.settings-view--desktop) :is(.v-main__wrap) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .page-content:has(> .settings-view--desktop) {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding-block: 8px;
+    padding-bottom: calc(8px + var(--emc-safe-bottom, 0px));
   }
 
   .settings-view--desktop {
-    padding: 20px 24px 24px 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    padding: 8px 16px 8px 0;
+  }
+
+  /* Overlay darf über den Inhalt ragen */
+  .page-content:has(> .settings-view--desktop):has(.settings-subnav-rail--expanded),
+  .settings-view--desktop:has(.settings-subnav-rail--expanded) {
+    overflow: visible;
+  }
+
+  /* Inhalt darf optional begrenzt werden, Rail bleibt links */
+  .settings-view--desktop .settings-view__content {
+    max-width: 1200px;
   }
 }
 
 /**
- * Feste Spalte 64px — reserviert Platz zwischen App-Sidebar und Content.
- * Kein Overlay im eingeklappten Zustand.
+ * Feste Spalte 64px links — bleibt stehen (Inhalt daneben scrollt).
+ * Aufgeklappt: Panel 260px über dem Inhalt (negatives Margin, kein Layout-Shift, stabiler Hover).
  */
 .settings-subnav-rail {
   flex: 0 0 64px;
@@ -112,26 +154,27 @@
   position: relative;
   align-self: flex-start;
   z-index: 20;
-  overflow-x: hidden;
+  overflow: visible;
+  max-height: 100%;
 }
 
-/* Aufgeklappt: Panel 260px darf nicht vom 64px-Rail abgeschnitten werden */
 .settings-subnav-rail--expanded {
   overflow: visible;
+  z-index: 40;
 }
 
 .settings-subnav-rail__panel {
   box-sizing: border-box;
   width: 64px;
-  max-width: 100%;
+  max-width: none;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
   height: fit-content;
-  max-height: none;
+  max-height: 100%;
   overflow-x: hidden;
-  overflow-y: visible;
+  overflow-y: auto;
   cursor: default;
 }
 
@@ -142,20 +185,16 @@
   overflow-x: hidden;
 }
 
-/* Aufgeklappt: Panel wächst nach rechts, schwebt über Content */
 .settings-subnav-rail--expanded .settings-subnav-rail__panel {
   width: 260px;
-  max-width: 260px;
-  position: absolute;
-  left: 0;
-  top: 0;
+  /* Overlay: wächst über den Inhalt, Flex-Spalte bleibt 64px */
+  margin-right: -196px;
+  position: relative;
   z-index: 32;
   box-shadow:
     0 4px 6px rgba(15, 23, 42, 0.06),
     0 16px 40px rgba(15, 23, 42, 0.14);
-  max-height: none;
-  overflow-x: hidden;
-  overflow-y: visible;
+  max-height: min(100vh - 96px, 100%);
 }
 
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-drawer__title {
@@ -166,7 +205,7 @@
   text-overflow: clip;
 }
 
-/* Eingeklappt: Vuetify-Grid auf eine Spalte — Icon mittig (content-Spalte sonst links) */
+/* Eingeklappt: Vuetify-Grid auf eine Spalte — Icon mittig */
 .settings-subnav-rail:not(.settings-subnav-rail--expanded) .settings-shell-nav .v-list-item {
   min-height: 40px;
   max-width: 100%;
@@ -231,17 +270,20 @@
 .settings-view__content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  position: relative;
+  z-index: 1;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
   padding: 12px;
-  min-height: 600px;
   overflow-x: hidden;
-  overflow-y: visible;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @media (min-width: 960px) {
-  .settings-view__content {
+  .settings-view--desktop .settings-view__content {
     padding: 24px;
   }
 }

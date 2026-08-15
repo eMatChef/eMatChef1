@@ -35,33 +35,18 @@ class AccountingBookingReceiptStorageService
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildReceiptUrl(
-                    $departmentId,
-                    $bookingId,
-                    $filename,
-                ),
-            ],
+            [],
         );
     }
 
     public function resolveFilePath(string $departmentId, string $bookingId, string $filename): string
     {
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafePathSegment($bookingId);
-        $this->mediaStorage->assertSafeFilename($filename);
-
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_ACCOUNTING_BOOKING,
             $departmentId,
             $bookingId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('Datei nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
     public function deleteAllForBooking(AccountingBooking $booking): void
@@ -75,11 +60,11 @@ class AccountingBookingReceiptStorageService
 
     public function buildReceiptUrl(string $departmentId, string $bookingId, string $filename): string
     {
-        return sprintf(
-            '/api/departments/%s/accounting/bookings/%s/receipts/%s',
-            rawurlencode($departmentId),
-            rawurlencode($bookingId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_ACCOUNTING_BOOKING,
+            $departmentId,
+            $bookingId,
+            $filename,
         );
     }
 }
