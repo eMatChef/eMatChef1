@@ -1423,6 +1423,7 @@
       :submitting="returnCrateModalSubmitting"
       :submit-disabled="returnCrateModalSubmitDisabled"
       :searchable-materials="returnCrateSearchableMaterials"
+      :department-id="departmentId || undefined"
       @update:lines="returnCrateModalLines = $event"
       @add-material="onReturnCrateAddMaterial"
       @report-loss="(mid, qty) => emitIssueWizardByMaterialId(mid, 'loss', qty)"
@@ -1471,7 +1472,10 @@ import PackReturnCrateModal, {
   type ReturnCratePartitionView,
   type ReturnCrateSearchMaterial,
 } from '@/components/activities/PackReturnCrateModal.vue'
-import { materialJourneyReturnCrateContentStillOpen } from '@/components/activities/materialJourneyReturnCrate'
+import {
+  materialJourneyReturnCrateContentStillOpen,
+  returnCrateLineWetIncomplete,
+} from '@/components/activities/materialJourneyReturnCrate'
 import PackPhysComboStoreChecklistModal from '@/components/activities/PackPhysComboStoreChecklistModal.vue'
 import PackIssueQuickActions from '@/components/activities/PackIssueQuickActions.vue'
 import MaterialJourneyReturnSummaryTable from '@/components/activities/materialJourney/MaterialJourneyReturnSummaryTable.vue'
@@ -1673,7 +1677,9 @@ import {
   postMoveAllPackItems,
   postMoveBackPackItem,
   postMovePackItem,
+  postPackItemWet,
   type ActivityPackItem,
+  type PackItemWetDisposition,
   type PackMoveStage,
 } from '@/api/activityPackItems'
 import {
@@ -1684,11 +1690,13 @@ import {
   getActivityPackContainerItems,
   getActivityPackContainers,
   issueAllPackContainerItems,
+  postContainerItemWet,
   returnAllPackContainerItems,
   unissueAllPackContainerItems,
   updateActivityPackContainerItem,
   type ActivityPackContainer,
   type ActivityPackContainerItem,
+  type ContainerItemWetDisposition,
 } from '@/api/activityContainers'
 import {
   getContainerBatchContents,
@@ -3963,6 +3971,13 @@ function buildReturnCrateLineFromContainerItem(
     consumptionDone: true,
     consumptionOpen: 0,
     isDone,
+    wetEnabled: (actionable.quantity_wet ?? 0) > 0,
+    wetQty: actionable.quantity_wet ?? 0,
+    wetHung: (actionable.quantity_wet ?? 0) > 0 ? (actionable.wet_hung ?? false) : null,
+    wetDryingStorageAddressId: actionable.wet_drying_storage_address_id ?? '',
+    wetDryingRackId: actionable.wet_drying_rack_id ?? '',
+    wetDryingSlotId: actionable.wet_drying_slot_id ?? '',
+    wetDryingLocationLabel: actionable.wet_drying_location_label ?? '',
   }
 }
 
@@ -4051,6 +4066,8 @@ const returnCrateModalSubmitDisabled = computed(() => {
   })
   if (hasUnresolvedVariance) return true
 
+  if (returnCrateModalLines.value.some((line) => returnCrateLineWetIncomplete(line))) return true
+
   const returnable = returnCrateModalLines.value.filter((line) => !line.isDone && line.max > 0)
   if (returnable.length < 1) return false
 
@@ -4097,11 +4114,21 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       consumptionDone: true,
       consumptionOpen: 0,
       isDone: false,
+      wetEnabled: (pi.quantityWet ?? 0) > 0,
+      wetQty: pi.quantityWet ?? 0,
+      wetHung: (pi.quantityWet ?? 0) > 0 ? (pi.wetHung ?? false) : null,
+      wetDryingStorageAddressId: pi.wetDryingStorageAddressId ?? '',
+      wetDryingRackId: pi.wetDryingRackId ?? '',
+      wetDryingSlotId: pi.wetDryingSlotId ?? '',
+      wetDryingLocationLabel: pi.wetDryingLocationLabel ?? '',
     })
   }
 
   if (partition.shellQty > 0) {
     const shellConsumable = shellMaterialId ? isPackMaterialConsumable(shellMaterialId) : false
+    const shellPi = shellMaterialId
+      ? packItems.value.find((p) => p.materialItemId === shellMaterialId)
+      : undefined
     lines.push({
       id: 'shell',
       kind: 'shell',
@@ -4123,6 +4150,13 @@ function buildReturnCrateModalLines(containerId: string): ReturnCrateLineEdit[] 
       consumptionDone: true,
       consumptionOpen: 0,
       isDone: false,
+      wetEnabled: (shellPi?.quantityWet ?? 0) > 0,
+      wetQty: shellPi?.quantityWet ?? 0,
+      wetHung: (shellPi?.quantityWet ?? 0) > 0 ? (shellPi?.wetHung ?? false) : null,
+      wetDryingStorageAddressId: shellPi?.wetDryingStorageAddressId ?? '',
+      wetDryingRackId: shellPi?.wetDryingRackId ?? '',
+      wetDryingSlotId: shellPi?.wetDryingSlotId ?? '',
+      wetDryingLocationLabel: shellPi?.wetDryingLocationLabel ?? '',
     })
   }
 
@@ -4181,6 +4215,13 @@ function onReturnCrateAddMaterial(materialItemId: string): void {
       consumptionDone: true,
       consumptionOpen: 0,
       isDone: false,
+      wetEnabled: false,
+      wetQty: 0,
+      wetHung: null,
+      wetDryingStorageAddressId: '',
+      wetDryingRackId: '',
+      wetDryingSlotId: '',
+      wetDryingLocationLabel: '',
     },
   ]
 }
@@ -4195,10 +4236,19 @@ function syncReturnCrateModalLines(): void {
     if (!prev) return line
     const ordered = line.ordered ?? 0
     const softCap = Math.max(ordered * 2, Math.max(ordered, line.max) + 50, line.max + 50)
+    const qty = Math.min(Math.max(0, prev.qty), softCap)
+    const wetQty = Math.min(Math.max(0, prev.wetQty), qty)
     return {
       ...line,
       included: prev.included,
-      qty: Math.min(Math.max(0, prev.qty), softCap),
+      qty,
+      wetEnabled: prev.wetEnabled,
+      wetQty,
+      wetHung: wetQty > 0 ? prev.wetHung : null,
+      wetDryingStorageAddressId: prev.wetDryingStorageAddressId,
+      wetDryingRackId: prev.wetDryingRackId,
+      wetDryingSlotId: prev.wetDryingSlotId,
+      wetDryingLocationLabel: prev.wetDryingLocationLabel,
     }
   })
   const rebuiltMids = new Set(rebuilt.map((l) => l.materialItemId).filter(Boolean))
@@ -4280,6 +4330,42 @@ async function onReturnCrateReportExtra(
   }
 }
 
+async function applyReturnCrateWetForLine(
+  containerId: string,
+  line: ReturnCrateLineEdit,
+): Promise<void> {
+  if (!line.wetEnabled || line.wetQty < 1) return
+  const hung = line.wetHung === true
+  const body: PackItemWetDisposition = {
+    quantity_wet: line.wetQty,
+    wet_hung: line.wetHung ?? false,
+  }
+  if (hung) {
+    body.wet_drying_storage_address_id = line.wetDryingStorageAddressId || null
+    body.wet_drying_rack_id = line.wetDryingRackId || null
+    body.wet_drying_slot_id = line.wetDryingSlotId || null
+    body.wet_drying_location_label = line.wetDryingLocationLabel || null
+  }
+  if (line.kind === 'shell') {
+    const shell = shellPackItemForContainer(containerId)
+    if (shell) await postPackItemWet(props.activityId, shell.id, body)
+    return
+  }
+  if (line.containerItemId) {
+    await postContainerItemWet(
+      props.activityId,
+      containerId,
+      line.containerItemId,
+      body as ContainerItemWetDisposition,
+    )
+    return
+  }
+  if (line.materialItemId) {
+    const pi = packItems.value.find((p) => p.materialItemId === line.materialItemId)
+    if (pi) await postPackItemWet(props.activityId, pi.id, body)
+  }
+}
+
 async function continueReturnCrateBatch(): Promise<void> {
   const job = pendingReturnCrateBatch.value
   if (!job) return
@@ -4289,6 +4375,8 @@ async function continueReturnCrateBatch(): Promise<void> {
     if (step.kind === 'shell') {
       job.remaining.shift()
       await returnContainerShellToWarehouse(job.containerId, step.qty)
+      const shellLine = returnCrateModalLines.value.find((l) => l.kind === 'shell' || l.id === 'shell')
+      if (shellLine) await applyReturnCrateWetForLine(job.containerId, shellLine)
       continue
     }
 
@@ -4304,6 +4392,10 @@ async function continueReturnCrateBatch(): Promise<void> {
         await loadContainersData()
         emit('activityItemsChanged')
       }
+      const looseLine = returnCrateModalLines.value.find(
+        (l) => l.placement === 'loose' && l.materialItemId === step.materialItemId,
+      )
+      if (looseLine) await applyReturnCrateWetForLine(job.containerId, looseLine)
       continue
     }
 
@@ -4316,6 +4408,14 @@ async function continueReturnCrateBatch(): Promise<void> {
 
     job.remaining.shift()
     await executeReturnContainerLineToWarehouse(job.containerId, ci, step.qty)
+    const line = returnCrateModalLines.value.find((l) => l.containerItemId === step.containerItemId)
+    if (line) await applyReturnCrateWetForLine(job.containerId, line)
+  }
+
+  for (const line of returnCrateModalLines.value) {
+    if (line.isDone && line.wetEnabled && line.wetQty > 0) {
+      await applyReturnCrateWetForLine(job.containerId, line)
+    }
   }
 
   pendingReturnCrateBatch.value = null
@@ -4581,9 +4681,9 @@ async function returnContainerLineToWarehouse(containerId: string, ci: ActivityP
 function containerLineRemainingStore(ci: ActivityPackContainerItem): number {
   if (isPackUnpackStage(activePackStage.value)) {
     const acct = retourAccountingForContainerLine(ci)
-    return Math.max(0, acct.retourTotal - (ci.quantity_stored ?? 0))
+    return Math.max(0, acct.retourTotal - (ci.quantity_stored ?? 0) - (ci.quantity_wet ?? 0))
   }
-  return Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+  return Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0) - (ci.quantity_wet ?? 0))
 }
 
 function containerShellPendingStoreQty(containerId: string): number {
@@ -4613,9 +4713,9 @@ function containerShellPendingStoreQty(containerId: string): number {
 
   if (isPackUnpackStage(activePackStage.value)) {
     const acct = retourAccountingForUnpackLoose(sh)
-    return Math.max(0, acct.retourTotal - (sh.quantityStored ?? 0))
+    return Math.max(0, acct.retourTotal - (sh.quantityStored ?? 0) - (sh.quantityWet ?? 0))
   }
-  return Math.max(0, (sh.quantityReturned ?? 0) - (sh.quantityStored ?? 0))
+  return Math.max(0, (sh.quantityReturned ?? 0) - (sh.quantityStored ?? 0) - (sh.quantityWet ?? 0))
 }
 
 function containerShellStoreKey(containerId: string): string {
@@ -7901,11 +8001,17 @@ function pendingStoreInContainersForMaterial(materialItemId: string): number {
 function pendingStoreLooseQtyForPackItem(pi: ActivityPackItem): number {
   if (isPackUnpackStage(activePackStage.value)) {
     const acct = retourAccountingForUnpackLoose(pi)
-    const totalPending = Math.max(0, acct.retourTotal - (pi.quantityStored ?? 0))
+    const totalPending = Math.max(
+      0,
+      acct.retourTotal - (pi.quantityStored ?? 0) - (pi.quantityWet ?? 0),
+    )
     if (totalPending <= 0) return 0
     return Math.max(0, totalPending - pendingStoreInContainersForMaterial(pi.materialItemId))
   }
-  const pending = Math.max(0, (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0))
+  const pending = Math.max(
+    0,
+    (pi.quantityReturned ?? 0) - (pi.quantityStored ?? 0) - (pi.quantityWet ?? 0),
+  )
   if (pending <= 0) return 0
   return Math.max(0, pending - returnedQtyInContainersForMaterial(pi.materialItemId))
 }
@@ -7975,11 +8081,17 @@ function containerPendingStoreUnits(containerId: string): number {
   }
   let sum = 0
   for (const ci of containerItemsByContainerId.value[containerId] ?? []) {
-    sum += Math.max(0, (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0))
+    sum += Math.max(
+      0,
+      (ci.quantity_returned ?? 0) - (ci.quantity_stored ?? 0) - (ci.quantity_wet ?? 0),
+    )
   }
   const shell = shellPackItemForContainer(containerId)
   if (shell) {
-    sum += Math.max(0, (shell.quantityReturned ?? 0) - (shell.quantityStored ?? 0))
+    sum += Math.max(
+      0,
+      (shell.quantityReturned ?? 0) - (shell.quantityStored ?? 0) - (shell.quantityWet ?? 0),
+    )
   }
   return sum
 }

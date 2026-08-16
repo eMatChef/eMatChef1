@@ -1,20 +1,132 @@
 #!/usr/bin/env bash
-# Runs the same checks as .github/workflows/ci.yml before git push.
+# Gleiche deterministische Checks wie .github/workflows/ci.yml, bevor der PR rot wird.
+# Playwright-Smoke (live Develop + Secrets) bleibt CI-only.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-echo "pre-push: Frontend Build (vue-tsc + vite build)..."
-(
-  cd frontend
-  npm run build
-)
+z40="0000000000000000000000000000000000000000"
+run_frontend=0
+run_backend=0
+run_locales=0
 
-echo "pre-push: Backend Composer validate..."
-(
-  cd backend
-  composer validate --strict --no-interaction
-)
+classify_file() {
+  local f="$1"
+  case "$f" in
+    frontend/src/locales/*|scripts/check-locales.sh)
+      run_locales=1
+      run_frontend=1
+      ;;
+    .github/workflows/ci.yml|.githooks/pre-push)
+      run_frontend=1
+      run_backend=1
+      run_locales=1
+      ;;
+    frontend/*)
+      run_frontend=1
+      ;;
+    backend/*)
+      run_backend=1
+      ;;
+  esac
+}
+
+list_changed() {
+  local local_sha="$1"
+  local remote_sha="$2"
+  if [[ "$remote_sha" == "$z40" ]]; then
+    local base=""
+    if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+      base="$(git merge-base origin/develop "$local_sha" 2>/dev/null || true)"
+    fi
+    if [[ -z "$base" ]] && git rev-parse --verify develop >/dev/null 2>&1; then
+      base="$(git merge-base develop "$local_sha" 2>/dev/null || true)"
+    fi
+    if [[ -n "$base" ]]; then
+      git diff --name-only "$base" "$local_sha"
+    else
+      git diff-tree --no-commit-id --name-only -r "$local_sha"
+    fi
+  else
+    git diff --name-only "$remote_sha" "$local_sha"
+  fi
+}
+
+classify_range() {
+  local local_sha="$1"
+  local remote_sha="$2"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && classify_file "$f"
+  done < <(list_changed "$local_sha" "$remote_sha")
+}
+
+refs_read=0
+if [[ -t 0 ]]; then
+  # Manueller Aufruf (Terminal): volle Suite.
+  run_frontend=1
+  run_backend=1
+  run_locales=1
+else
+  while read -r local_ref local_sha _remote_ref remote_sha; do
+    [[ "$local_ref" == refs/heads/* ]] || continue
+    [[ "$local_sha" != "$z40" ]] || continue
+    refs_read=1
+    classify_range "$local_sha" "$remote_sha"
+  done
+fi
+
+# Agent-/CI-Shell: oft leere stdin → früher still übersprungen. Stattdessen HEAD vs Develop.
+if [[ "$refs_read" -eq 0 && ! -t 0 ]]; then
+  echo "pre-push: keine Push-Refs auf stdin — Fallback HEAD vs origin/develop" >&2
+  head_sha="$(git rev-parse HEAD)"
+  if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+    classify_range "$head_sha" "$(git rev-parse origin/develop)"
+  else
+    run_frontend=1
+    run_backend=1
+    run_locales=1
+  fi
+fi
+
+# Immer noch nichts erkannt → lieber einmal zu viel prüfen als GitHub-rot.
+if [[ "$run_frontend" -eq 0 && "$run_backend" -eq 0 && "$run_locales" -eq 0 ]]; then
+  echo "pre-push: Diff ohne Frontend/Backend/Locales — volle Suite zur Sicherheit" >&2
+  run_frontend=1
+  run_backend=1
+  run_locales=1
+fi
+
+if [[ "$run_locales" -eq 1 ]]; then
+  echo "pre-push: Locales..."
+  bash scripts/check-locales.sh
+fi
+
+if [[ "$run_frontend" -eq 1 ]]; then
+  echo "pre-push: Frontend ESLint..."
+  (cd frontend && npm run lint:ci)
+
+  echo "pre-push: Frontend Unit tests..."
+  (cd frontend && npm test)
+
+  echo "pre-push: Frontend Build (vue-tsc + vite build)..."
+  (cd frontend && npm run build)
+fi
+
+if [[ "$run_backend" -eq 1 ]]; then
+  echo "pre-push: Backend Composer validate..."
+  (cd backend && composer validate --strict --no-interaction)
+
+  if [[ ! -x backend/vendor/bin/phpunit || ! -x backend/vendor/bin/phpstan ]]; then
+    echo "pre-push: backend/vendor fehlt — bitte einmal: (cd backend && composer install)" >&2
+    exit 1
+  fi
+
+  echo "pre-push: Backend Unit tests..."
+  (cd backend && ./vendor/bin/phpunit)
+
+  echo "pre-push: PHPStan..."
+  (cd backend && ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress)
+fi
 
 echo "pre-push: all checks passed."

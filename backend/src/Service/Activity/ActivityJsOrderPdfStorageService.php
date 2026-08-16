@@ -25,7 +25,6 @@ class ActivityJsOrderPdfStorageService
     public function store(ActivityJsOrder $order, User $user, string $pdfBinary): array
     {
         $orderId = (string) $order->getId();
-        $activityId = $order->getActivityId();
         $departmentId = $order->getActivity()->getDepartmentId();
 
         $mediaId = IdGenerator::generate();
@@ -48,7 +47,12 @@ class ActivityJsOrderPdfStorageService
         return [
             'id' => $mediaId,
             'filename' => $filename,
-            'url' => $this->buildPdfUrl($activityId, $filename),
+            'url' => $this->mediaStorage->buildPublicMediaUrl(
+                MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER,
+                $departmentId,
+                $orderId,
+                $filename,
+            ),
             'bytes' => strlen($pdfBinary),
         ];
     }
@@ -56,21 +60,13 @@ class ActivityJsOrderPdfStorageService
     public function resolveFilePath(string $activityId, string $orderId, string $departmentId, string $filename): string
     {
         $this->mediaStorage->assertSafePathSegment($activityId);
-        $this->mediaStorage->assertSafePathSegment($orderId);
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafeFilename($filename);
 
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER,
             $departmentId,
             $orderId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('PDF nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
     public function deleteByMediaId(ActivityJsOrder $order, string $mediaId): void
@@ -92,12 +88,13 @@ class ActivityJsOrderPdfStorageService
         }
     }
 
-    public function buildPdfUrl(string $activityId, string $filename): string
+    public function buildPdfUrl(string $departmentId, string $orderId, string $filename): string
     {
-        return sprintf(
-            '/api/activities/%s/js-order/pdf/%s',
-            rawurlencode($activityId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER,
+            $departmentId,
+            $orderId,
+            $filename,
         );
     }
 }

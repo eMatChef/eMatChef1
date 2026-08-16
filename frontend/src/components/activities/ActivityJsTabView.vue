@@ -59,7 +59,10 @@
             returned: workflow.items_return_complete,
           }) }}
         </p>
-        <p v-if="workflow && (workflow.missing_on_receive > 0 || workflow.missing_on_return > 0)" class="activity-js-tab-warn">
+        <p
+          v-if="progressFlags.ordered && workflow && (workflow.missing_on_receive > 0 || workflow.missing_on_return > 0)"
+          class="activity-js-tab-warn"
+        >
           {{ t('activities.jsMaterial.tab.discrepancyHint', {
             missingReceive: workflow.missing_on_receive,
             missingReturn: workflow.missing_on_return,
@@ -744,7 +747,7 @@ async function ensureCoachEmailOnOrder(): Promise<boolean> {
       : t('activities.jsMaterial.tab.coachEmailPromptHintUser'),
     settingsLink: isMaterialwart.value
       ? {
-          to: { name: 'SettingsActivities', params: { departmentId: props.departmentId } },
+          to: { name: 'SettingsModule', params: { departmentId: props.departmentId } },
           label: t('activities.jsMaterial.tab.coachEmailPromptSettingsLink'),
         }
       : undefined,

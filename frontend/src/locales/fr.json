@@ -4,14 +4,14 @@
     "devEnvironmentBanner": "Environnement de test – pas les données de production.",
     "devDemoLoginsShow": "Comptes démo",
     "devDemoLoginsHide": "Fermer",
-    "devDemoLoginsHint": "Mot de passe pour tous : test — remplit le formulaire."
+    "devDemoLoginsHint": "Mot de passe pour tous : test!ematchef — remplit le formulaire."
   },
   "router": {
     "meta": {
       "titles": {
         "publicLookup": "Info matériel · eMatChef",
         "openFromQr": "QR · eMatChef",
-        "landingHome": "eMatChef · gestion du matériel",
+        "landingHome": "eMatChef – gestion du matériel pour associations et locations",
         "blog": "Blog · eMatChef",
         "faq": "FAQ · eMatChef",
         "tos": "Utilisation & confidentialité · eMatChef",
@@ -72,6 +72,10 @@
         "settingsTemplates": "Paramètres · Modèles · eMatChef"
       },
       "descriptions": {
+        "landingHome": "eMatChef centralise stocks, entrepôt, réservations et activités – pour associations, scouts et locations. Dans le navigateur, sans installation.",
+        "blog": "Actualités et conseils autour d’eMatChef – gestion du matériel pour associations et locations.",
+        "faq": "Questions fréquentes sur eMatChef : matériel, entrepôt, réservations, QR codes et premiers pas.",
+        "login": "Connexion à eMatChef – gestion du matériel pour votre département, dans le navigateur sans installation.",
         "publicLookup": "Informations publiques sur le matériel et les numéros de série dans eMatChef.",
         "tos": "Conditions d’utilisation et confidentialité pour eMatChef.",
         "impressum": "Mentions légales et informations sur l’éditeur pour eMatChef – gestion du matériel.",
@@ -1142,5 +1146,8 @@
     "imageUploadError": "Impossible de charger l'image.",
     "imageTooLarge": "L'image est trop volumineuse (max. 5 Mo).",
     "dropImageHint": "Déposez ou collez une image ici"
+  },
+  "onboarding": {
+    "tours": {}
   }
 }

@@ -36,10 +36,10 @@ MediaRetentionService        ← Aufräumen abgeschlossener Tickets (Cron/Comman
 
 | Kontext | Upload | Download |
 |---------|--------|----------|
-| Werkstatt-Ticket (MW) | `POST /api/workshop/tickets/{id}/photos` | `GET /api/workshop/tickets/{id}/photos/{filename}` |
-| Werkstatt-Ticket (Lieferant) | `POST /api/supplier-companies/{companyId}/repairs/{ticketId}/photos` | `GET …/repairs/{ticketId}/photos/{filename}` |
-| Schadenmeldung | `POST /api/activities/{activityId}/issues/{issueId}/photos` | `GET /api/activities/{activityId}/issues/{issueId}/photos/{filename}` |
-| Material | `POST /api/material/{materialId}/photos` | `GET /api/material/{materialId}/photos/{filename}` |
+| Werkstatt-Ticket (MW) | `POST /api/workshop/tickets/{id}/photos` | `GET /media/{deptId}/photos/workshop/{ticketId}/{filename}` |
+| Werkstatt-Ticket (Lieferant) | `POST /api/supplier-companies/{companyId}/repairs/{ticketId}/photos` | derselbe `/media/…`-Pfad |
+| Schadenmeldung | `POST /api/activities/{activityId}/issues/{issueId}/photos` | `GET /media/{deptId}/photos/issues/{issueId}/{filename}` |
+| Material | `POST /api/materials/{materialId}/photos` | `GET /media/{deptId}/photos/material/{materialId}/{filename}` |
 
 Vorteil kontextspezifischer Routes: klare Berechtigung, klare Retention-Regeln pro Domäne, keine «God-Endpoint»-Parameter.
 
@@ -48,23 +48,16 @@ Vorteil kontextspezifischer Routes: klare Berechtigung, klare Retention-Regeln p
 Basis wie heute bei Config: `%kernel.project_dir%/var/uploads/` — in Docker über `./backend`-Mount persistent.
 
 ```
-var/uploads/
-  workshop/
-    {departmentId}/
-      {ticketId}/
-        {YmdHis}_{userId}_{random8}.jpg
-  issues/
-    {departmentId}/
-      {issueReportId}/
-        …
-  material/
-    {departmentId}/
-      {materialItemId}/
-        …
-  accounting/
-    {departmentId}/
-      {bookingId}/
-        …
+var/uploads/{departmentId}/
+  photos/
+    material/{materialId}/
+    workshop/{ticketId}/
+    issues/{issueId}/
+  documents/
+    accounting/{bookingId}/          ← Bilder + PDFs derselben Buchung
+    accounting-followup/{followUpId}/
+    activity-js-order/{orderId}/
+    grossanlass-procurement-quote/{quoteId}/
 ```
 
 **Dateiname (überall gleich):** `{YmdHis}_{userId}_{random8}.{ext}`
@@ -85,7 +78,7 @@ var/uploads/
 {
   "id": "a1b2c3d4e5f67890",
   "filename": "20260530143022_usr_456_a1b2c3d4.jpg",
-  "url": "/api/workshop/tickets/wt_xyz/photos/20260530143022_usr_456_a1b2c3d4.jpg",
+  "url": "/media/dept_abc/photos/workshop/wt_xyz/20260530143022_usr_456_a1b2c3d4.webp",
   "uploaded_at": "2026-05-30T14:30:22+02:00",
   "uploaded_by_id": "usr_456",
   "uploaded_by_name": "Max Muster",

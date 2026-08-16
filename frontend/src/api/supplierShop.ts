@@ -73,6 +73,16 @@ export async function listSupplierShopCompanies(
   return data.companies
 }
 
+/** Ob der Lieferanten-Shop Katalog-Artikel hat (für Nav-Sichtbarkeit). */
+export async function getSupplierShopAvailability(
+  departmentId: string,
+): Promise<{ has_articles: boolean }> {
+  const { data } = await apiClient.get<{ has_articles: boolean }>(
+    `/api/departments/${departmentId}/supplier-shop/availability`,
+  )
+  return data
+}
+
 export async function listSupplierRepairCompanies(
   departmentId: string,
 ): Promise<Array<{ id: string; name: string; manufacturer_key: string | null }>> {

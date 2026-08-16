@@ -18,6 +18,31 @@ class SupplierCatalogItemRepository extends ServiceEntityRepository
         parent::__construct($registry, SupplierCatalogItem::class);
     }
 
+    public function countByCompanyId(string $companyId): int
+    {
+        return (int) $this->createQueryBuilder('i')
+            ->select('COUNT(i.id)')
+            ->where('i.supplierCompanyId = :companyId')
+            ->setParameter('companyId', $companyId)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    public function countShopVisibleByCompanyId(string $companyId): int
+    {
+        return (int) $this->createQueryBuilder('i')
+            ->select('COUNT(i.id)')
+            ->where('i.supplierCompanyId = :companyId')
+            ->andWhere('i.isActive = true')
+            ->andWhere('i.status = :status')
+            ->andWhere('i.visibility != :private')
+            ->setParameter('companyId', $companyId)
+            ->setParameter('status', SupplierCatalogItem::STATUS_PUBLISHED)
+            ->setParameter('private', SupplierCatalogItem::VISIBILITY_PRIVATE)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * @return list<SupplierCatalogItem>
      */

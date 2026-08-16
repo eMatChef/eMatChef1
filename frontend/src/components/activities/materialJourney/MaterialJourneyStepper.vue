@@ -98,6 +98,7 @@ function onStepClick(step: JourneyStep): void {
         <button
           type="button"
           class="material-journey-stepper__seg-btn"
+          :data-onboarding="`activity-pack-step-${step}`"
           :aria-current="step === currentStep ? 'step' : undefined"
           :aria-label="`${index + 1}. ${stepLabel(step)}`"
           :title="stepLabel(step)"

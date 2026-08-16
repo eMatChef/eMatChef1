@@ -53,3 +53,26 @@
   padding: 0 !important;
   background: #fafafa;
 }
+
+.material-list-dt__table .expiry-expired,
+.material-list-dt__table .expiry-days.expiry-expired {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.material-list-dt__table .expiry-critical {
+  color: #c2410c;
+  font-weight: 600;
+}
+
+.material-list-dt__table .expiry-soon {
+  color: #a16207;
+}
+
+.material-list-dt__table .expiry-ok {
+  color: #15803d;
+}
+
+.material-list-dt__table .expiry-none {
+  color: #9ca3af;
+}

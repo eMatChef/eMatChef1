@@ -9,5 +9,5 @@ git config core.hooksPath .githooks
 chmod +x .githooks/pre-push .githooks/prepare-commit-msg
 
 echo "Git hooks installed (core.hooksPath=.githooks)"
-echo "  pre-push → frontend npm run build + backend composer validate"
+echo "  pre-push → CI-Checks lokal (ESLint, Vitest, Build, Locales, PHPUnit, PHPStan; kein Playwright)"
 echo "  prepare-commit-msg → Cursor/cursoragent Co-Author-Zeilen entfernen"

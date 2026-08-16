@@ -1,5 +1,8 @@
 <template>
-  <div class="tour-columns">
+  <p v-if="!canStartToursOnViewport" class="tour-viewport-hint">
+    {{ t('onboarding.tours.desktopOnlyHint') }}
+  </p>
+  <div v-else class="tour-columns">
     <v-expansion-panels
       v-for="category in visibleCategories"
       :key="category"
@@ -23,18 +26,50 @@
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <ul class="tour-list">
-            <li v-for="tour in groupedTours[category]" :key="tour.id" class="tour-item">
+            <li
+              v-for="tour in groupedTours[category]"
+              :key="tour.id"
+              class="tour-item"
+              :class="{
+                'tour-item--done': isTourDone(tour.id),
+                'tour-item--new': !isTourDone(tour.id) && !isTourLocked(tour.id),
+                'tour-item--locked': isTourLocked(tour.id),
+              }"
+            >
               <span class="tour-icon" aria-hidden="true">
-                <v-icon :icon="tour.mdiIcon" size="22" color="#0284c7" />
+                <UserAvatarBadge
+                  v-if="tour.useUserAvatar"
+                  :user="currentUserAvatar"
+                  size="md"
+                  :show-tooltip="false"
+                />
+                <v-icon
+                  v-else
+                  :icon="isTourLocked(tour.id) ? 'mdi-lock-outline' : tour.mdiIcon"
+                  size="22"
+                  :color="isTourDone(tour.id) ? '#15803d' : isTourLocked(tour.id) ? '#94a3b8' : '#0284c7'"
+                />
               </span>
               <div class="tour-body">
                 <span class="tour-title">{{ t(tour.titleKey) }}</span>
                 <p class="tour-desc">{{ t(tour.descriptionKey) }}</p>
-                <span v-if="isTourDone(tour.id)" class="tour-status tour-status--done">
+                <span v-if="tour.optional && !isTourDone(tour.id)" class="tour-status tour-status--optional">
+                  {{ t('onboarding.tours.statusOptional') }}
+                </span>
+                <span v-else-if="isTourDone(tour.id)" class="tour-status tour-status--done">
                   {{ t('onboarding.tours.statusDone') }}
                 </span>
+                <span v-else-if="isTourLocked(tour.id)" class="tour-status tour-status--locked">
+                  {{ lockedHint(tour.id) }}
+                </span>
               </div>
-              <EButton variant="secondary" size="small" class="tour-start-btn" @click="startTour(tour.id)">
+              <EButton
+                :variant="isTourDone(tour.id) ? 'secondary' : 'primary'"
+                size="small"
+                class="tour-start-btn"
+                :disabled="isTourLocked(tour.id)"
+                @click="startTour(tour.id)"
+              >
                 {{ isTourDone(tour.id) ? t('onboarding.tours.restart') : t('onboarding.tours.start') }}
               </EButton>
             </li>
@@ -50,9 +85,13 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import {
   filterOnboardingToursForRole,
+  getMissingTourPrerequisites,
+  getOnboardingTour,
   groupOnboardingToursByCategory,
+  isActivityReadyForIssueTour,
   ONBOARDING_TOUR_CATEGORY_LABEL_KEYS,
   ONBOARDING_TOUR_CATEGORY_ORDER,
   type OnboardingTourCategory,
@@ -62,22 +101,84 @@ import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboardingAccess'
 import { useActivityGroupMemberScope } from '@/composables/useActivityGroupMemberScope'
 import { isOnboardingTourCompleted } from '@/utils/onboardingTourProgress'
+import { syncOnboardingTourAutoCompletion } from '@/utils/onboardingTourAutoComplete'
+import { useAuthStore } from '@/stores/auth'
+import apiClient from '@/api/apiClient'
+import type { UserAvatarFields } from '@/utils/userAvatar'
 
 const { t } = useI18n()
 const route = useRoute()
-const { startTour: launchTour } = useOnboardingTour()
+const authStore = useAuthStore()
+const { startTour: launchTour, canStartToursOnViewport } = useOnboardingTour()
 const { departmentId, profileId, departmentRole } = useDepartmentOnboardingAccess()
-const { canCreateCampAndEvent, loadGroupsForDepartment } = useActivityGroupMemberScope()
+const {
+  canCreateCampAndEvent,
+  isGroupLeaderInDepartment,
+  loadGroupsForDepartment,
+} = useActivityGroupMemberScope()
+
+const currentUserAvatar = computed((): UserAvatarFields => {
+  const profile = authStore.profile
+  return {
+    first_name: profile?.firstName || profile?.first_name || '',
+    last_name: profile?.lastName || profile?.last_name || '',
+    nickname: profile?.nickname || '',
+    avatar_initials: profile?.avatarInitials || profile?.avatar_initials || '',
+    background_color: profile?.backgroundColor || profile?.background_color || '#EC4899',
+    text_color: profile?.textColor || profile?.text_color || '#FFFFFF',
+  }
+})
+
+/** Mind. eine freigegebene Aktivität/Lager für Packen-Ausgabe-Tour. */
+const hasApprovedActivityOrCamp = ref(false)
+
+async function refreshApprovedActivityPrereq() {
+  const depId = departmentId.value
+  if (!depId) {
+    hasApprovedActivityOrCamp.value = false
+    return
+  }
+  try {
+    const { data } = await apiClient.get<Array<{ type?: string; status?: string }>>('/api/activities', {
+      params: { department_id: depId },
+    })
+    hasApprovedActivityOrCamp.value = (data || []).some((a) =>
+      isActivityReadyForIssueTour(a.type, a.status)
+    )
+  } catch {
+    hasApprovedActivityOrCamp.value = false
+  }
+}
 
 onMounted(() => {
   const depId = departmentId.value
   if (depId) void loadGroupsForDepartment(depId)
+  void refreshApprovedActivityPrereq()
+  void syncAutoCompletedTours()
 })
 
+watch(departmentId, () => {
+  void refreshApprovedActivityPrereq()
+  void syncAutoCompletedTours()
+})
+
+async function syncAutoCompletedTours() {
+  const depId = departmentId.value
+  const profId = profileId.value
+  if (!depId || !profId) return
+  const marked = await syncOnboardingTourAutoCompletion(profId, depId)
+  if (marked.length > 0) {
+    progressTick.value += 1
+  }
+}
+
+const tourFilterOptions = computed(() => ({
+  canCreateCamp: canCreateCampAndEvent.value,
+  isGroupLeader: isGroupLeaderInDepartment.value,
+}))
+
 const visibleTours = computed(() =>
-  filterOnboardingToursForRole(departmentRole.value, {
-    canCreateCamp: canCreateCampAndEvent.value,
-  })
+  filterOnboardingToursForRole(departmentRole.value, tourFilterOptions.value)
 )
 
 const groupedTours = computed(() => groupOnboardingToursByCategory(visibleTours.value))
@@ -87,9 +188,11 @@ const visibleCategories = computed(() =>
 )
 
 const expandedByCategory = reactive<Record<OnboardingTourCategory, OnboardingTourCategory[]>>({
+  start: ['start'],
   material: ['material'],
   activities: ['activities'],
   settings: ['settings'],
+  admin: ['admin'],
 })
 
 const progressTick = ref(0)
@@ -97,6 +200,7 @@ watch(
   () => route.fullPath,
   () => {
     progressTick.value += 1
+    void refreshApprovedActivityPrereq()
   }
 )
 
@@ -111,6 +215,38 @@ const completedTourIds = computed(() => {
       .map((tour) => tour.id)
   )
 })
+
+function missingPrereqs(tourId: OnboardingTourId): OnboardingTourId[] {
+  const tour = getOnboardingTour(tourId)
+  if (!tour) return []
+  return getMissingTourPrerequisites(
+    tour,
+    departmentRole.value,
+    completedTourIds.value,
+    tourFilterOptions.value
+  )
+}
+
+function needsApprovedActivity(tourId: OnboardingTourId): boolean {
+  return getOnboardingTour(tourId)?.requiresApprovedActivityOrCamp === true
+}
+
+function isTourLocked(tourId: OnboardingTourId): boolean {
+  if (isTourDone(tourId)) return false
+  if (missingPrereqs(tourId).length > 0) return true
+  // Pack-Tour: Sandbox ensure beim Start setzt Camp auf approved — Create-Tour reicht als Freigabe-Ersatz
+  if (needsApprovedActivity(tourId) && !hasApprovedActivityOrCamp.value) {
+    return false
+  }
+  return false
+}
+
+function lockedHint(tourId: OnboardingTourId): string {
+  const missing = missingPrereqs(tourId)
+  const first = missing[0] ? getOnboardingTour(missing[0]) : undefined
+  if (!first) return t('onboarding.tours.lockedGeneric')
+  return t('onboarding.tours.lockedRequires', { tour: t(first.titleKey) })
+}
 
 function isTourDone(tourId: OnboardingTourId): boolean {
   return completedTourIds.value.has(tourId)
@@ -129,12 +265,23 @@ function categoryDoneChip(category: OnboardingTourCategory) {
 
 function startTour(tourId: OnboardingTourId) {
   const depId = departmentId.value
-  if (!depId) return
+  if (!depId || !canStartToursOnViewport.value || isTourLocked(tourId)) return
   launchTour(tourId, depId)
 }
 </script>
 
 <style scoped>
+.tour-viewport-hint {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .tour-columns {
   display: grid;
   grid-template-columns: 1fr;
@@ -197,8 +344,34 @@ function startTour(tourId: OnboardingTourId) {
   gap: 8px;
   padding: 12px;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 2px solid #bae6fd;
   background: #fff;
+}
+
+.tour-item--new {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.08);
+}
+
+.tour-item--done {
+  border-color: #86efac;
+  background: #f0fdf4;
+  box-shadow: none;
+}
+
+.tour-item--locked {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  box-shadow: none;
+  opacity: 0.92;
+}
+
+.tour-status--locked {
+  color: #b45309;
+}
+
+.tour-status--optional {
+  color: #0369a1;
 }
 
 @media (min-width: 600px) {

@@ -4,7 +4,13 @@ export interface DepartmentUser {
   id: string
   profile_id: string
   name: string
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
   email: string
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
   role: string
   is_primary: boolean
 }
@@ -133,8 +139,11 @@ export interface DepartmentMember {
   avatar_initials?: string | null
   background_color?: string | null
   text_color?: string | null
+  language?: string | null
+  pending_email?: string | null
   role: string
   is_primary: boolean
+  is_js_coach?: boolean
   state: string
 }
 
@@ -168,6 +177,7 @@ export async function addDepartmentMember(departmentId: string, data: {
   user_id: string
   role?: string
   is_primary?: boolean
+  is_js_coach?: boolean
 }): Promise<AddDepartmentMemberResult> {
   const response = await apiClient.post<AddDepartmentMemberResult>(`/api/departments/${departmentId}/members`, data)
   return response.data
@@ -179,8 +189,50 @@ export async function addDepartmentMember(departmentId: string, data: {
 export async function updateDepartmentMember(departmentId: string, userId: string, data: {
   role?: string
   is_primary?: boolean
+  is_js_coach?: boolean
 }): Promise<DepartmentMember> {
   const response = await apiClient.patch<DepartmentMember>(`/api/departments/${departmentId}/members/${userId}`, data)
+  return response.data
+}
+
+export interface UpdateDepartmentMemberProfilePayload {
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
+  email?: string
+  avatar_initials?: string | null
+  language?: string
+}
+
+export interface DepartmentMemberProfileResult extends DepartmentMember {
+  pending_email?: string | null
+}
+
+/**
+ * Profil eines Department-Mitglieds bearbeiten (Hierarchie)
+ */
+export async function updateDepartmentMemberProfile(
+  departmentId: string,
+  userId: string,
+  data: UpdateDepartmentMemberProfilePayload,
+): Promise<DepartmentMemberProfileResult> {
+  const response = await apiClient.patch<DepartmentMemberProfileResult>(
+    `/api/departments/${departmentId}/members/${userId}/profile`,
+    data,
+  )
+  return response.data
+}
+
+/**
+ * Passwort-Reset an Mitglied senden
+ */
+export async function sendDepartmentMemberPasswordReset(
+  departmentId: string,
+  userId: string,
+): Promise<{ success: boolean; message: string }> {
+  const response = await apiClient.post<{ success: boolean; message: string }>(
+    `/api/departments/${departmentId}/members/${userId}/send-password-reset`,
+  )
   return response.data
 }
 

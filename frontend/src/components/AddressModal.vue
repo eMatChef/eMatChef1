@@ -6,6 +6,7 @@
     scrollable
     persistent
     card-class="address-modal-card"
+    :data-onboarding="isEventChildMode ? 'activity-venue-delivery-modal' : undefined"
   >
     <form id="address-modal-form" class="address-modal-body" @submit.prevent="handleSubmit">
         <!-- Adress-Suche (nicht für Event-Kinder / Eventstandort-Pin: nur Pin + Bezeichnung) -->
@@ -30,7 +31,7 @@
                   @keydown.enter.prevent="onAddressSearchInput"
                 />
                 <div v-if="isSearching" class="search-spinner"></div>
-                <div v-if="showSearchResults && searchResults.length > 0" class="address-search-dropdown">
+                <div v-if="showSearchResults && searchResults.length > 0" class="address-search-dropdown onboarding-tour-menu-union">
                   <div
                     v-for="(result, idx) in searchResults"
                     :key="idx"
@@ -283,6 +284,31 @@
               </svg>
               {{ formData.latitude?.toFixed(6) }}° N, {{ formData.longitude?.toFixed(6) }}° E
             </span>
+            <div class="coordinates-actions">
+              <button
+                v-if="!isSimplifiedLocationMode"
+                type="button"
+                class="coord-action-btn"
+                :disabled="isFillingAddressFromPin || !formData.latitude || !formData.longitude"
+                @click="fillAddressFromMapPin"
+              >
+                {{
+                  isFillingAddressFromPin
+                    ? t('settings.addressModal.fillAddressFromPinLoading')
+                    : t('settings.addressModal.fillAddressFromPin')
+                }}
+              </button>
+              <a
+                :href="googleMapsPinUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="coord-action-btn coord-action-btn--link"
+                :title="t('components.mapView.openGoogleMaps')"
+              >
+                {{ t('components.mapView.openGoogleMaps') }}
+              </a>
+            </div>
+            <p v-if="fillAddressFromPinHint" class="coord-fill-hint text-muted">{{ fillAddressFromPinHint }}</p>
           </div>
         </div>
 
@@ -300,17 +326,27 @@
     </form>
 
     <template #actions>
-      <EButton variant="secondary" size="small" @click="confirmClose">{{ t('common.cancel') }}</EButton>
-      <EButton
-        variant="primary"
-        size="small"
-        type="submit"
-        form="address-modal-form"
-        :loading="isSaving"
-        :disabled="isSaving"
-      >
-        {{ isEditing ? t('common.save') : t('common.create') }}
-      </EButton>
+      <div class="address-modal-actions" data-onboarding="activity-venue-delivery-actions">
+        <EButton
+          variant="secondary"
+          size="small"
+          data-onboarding="activity-venue-delivery-cancel"
+          @click="confirmClose"
+        >
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          type="submit"
+          form="address-modal-form"
+          data-onboarding="activity-venue-delivery-submit"
+          :loading="isSaving"
+          :disabled="isSaving"
+        >
+          {{ isEditing ? t('common.save') : t('common.create') }}
+        </EButton>
+      </div>
     </template>
   </EDialog>
 
@@ -325,7 +361,7 @@
       <EButton variant="secondary" size="small" @click="showCloseConfirm = false">
         {{ t('settings.addressModal.backToForm') }}
       </EButton>
-      <EButton variant="danger" size="small" @click="close">
+      <EButton variant="danger" size="small" data-onboarding="activity-venue-delivery-discard" @click="close">
         {{ t('settings.addressModal.discard') }}
       </EButton>
     </template>
@@ -338,6 +374,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import MapView from './MapView.vue'
 import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
+import { googleMapsCoordinatesUrl } from '@/utils/mapExternalLinks'
 import { 
   createAddress, 
   updateAddress, 
@@ -452,6 +489,8 @@ const isMapPinVenueMode = computed(() => {
 const isSimplifiedLocationMode = computed(() => isEventPoiMode.value || isMapPinVenueMode.value)
 const isSaving = ref(false)
 const error = ref<string | null>(null)
+const isFillingAddressFromPin = ref(false)
+const fillAddressFromPinHint = ref('')
 
 // Adress-Suche
 interface SearchResult {
@@ -779,6 +818,13 @@ const formData = ref<Partial<AddressFormData>>({
   is_primary: false,
 })
 
+const googleMapsPinUrl = computed(() => {
+  const lat = formData.value.latitude
+  const lng = formData.value.longitude
+  if (lat == null || lng == null) return '#'
+  return googleMapsCoordinatesUrl(lat, lng)
+})
+
 const modalTitle = computed(() => {
   if (isEventChildMode.value) {
     const childType = formData.value.type || props.address?.type || props.defaultType
@@ -949,6 +995,52 @@ function searchCoordinates() {
 function onMapCoordinatesChanged(lat: number, lng: number) {
   formData.value.latitude = lat
   formData.value.longitude = lng
+  fillAddressFromPinHint.value = ''
+}
+
+async function fillAddressFromMapPin() {
+  const lat = formData.value.latitude
+  const lng = formData.value.longitude
+  if (lat == null || lng == null) return
+
+  isFillingAddressFromPin.value = true
+  fillAddressFromPinHint.value = ''
+  try {
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+      { headers: { 'Accept-Language': 'de' } },
+    )
+    if (!response.ok) {
+      fillAddressFromPinHint.value = t('settings.addressModal.fillAddressFromPinFailed')
+      return
+    }
+    const data = await response.json()
+    const addr = data.address || {}
+    const street = addr.road || addr.pedestrian || addr.footway || ''
+    const houseNr = addr.house_number || ''
+    const city = addr.city || addr.town || addr.village || addr.municipality || ''
+    const postcode = addr.postcode || ''
+    const country = addr.country || ''
+
+    if (!street && !city && !postcode) {
+      fillAddressFromPinHint.value = t('settings.addressModal.fillAddressFromPinEmpty')
+      return
+    }
+
+    if (street) formData.value.street = street
+    if (houseNr) formData.value.street_number = houseNr
+    if (postcode) formData.value.postal_code = postcode
+    if (city) formData.value.city = city
+    const canton = mapSwissState(addr.state)
+    if (canton) formData.value.canton = canton
+    if (country) formData.value.country = country
+
+    fillAddressFromPinHint.value = t('settings.addressModal.fillAddressFromPinSuccess')
+  } catch {
+    fillAddressFromPinHint.value = t('settings.addressModal.fillAddressFromPinFailed')
+  } finally {
+    isFillingAddressFromPin.value = false
+  }
 }
 
 async function handleSubmit() {
@@ -1514,6 +1606,69 @@ function close() {
 
 .coordinates-info {
   margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.address-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.coordinates-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coord-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.coord-action-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.coord-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.coord-action-btn--link {
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.coord-action-btn--link:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+
+.coord-fill-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .coord-badge {

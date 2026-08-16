@@ -6,21 +6,28 @@
     :items-per-page="-1"
     item-value="id"
     :expanded="expandedIds"
-    :show-expand="showComboExpandColumn"
+    :show-expand="showComboExpandColumn || showFoodExpandColumn"
     hover
     hide-default-footer
     :row-props="rowProps"
     @update:expanded="emit('update:expandedIds', $event)"
   >
-    <template v-if="showComboExpandColumn" #item.data-table-expand="{ item, internalItem, isExpanded, toggleExpand }">
+    <template
+      v-if="showComboExpandColumn || showFoodExpandColumn"
+      #item.data-table-expand="{ item, internalItem, isExpanded, toggleExpand }"
+    >
       <v-btn
-        v-if="isComboMaterial(item)"
+        v-if="(showComboExpandColumn && isComboMaterial(item)) || (showFoodExpandColumn && item.is_food)"
         icon
         variant="text"
         size="small"
         density="compact"
         :aria-expanded="isExpanded(internalItem)"
-        :aria-label="t('materialsView.expandComboTitle')"
+        :aria-label="
+          item.is_food && showFoodExpandColumn
+            ? t('materialsView.expandBatchesTitle')
+            : t('materialsView.expandComboTitle')
+        "
         @click.stop="toggleExpand(internalItem)"
       >
         <v-icon
@@ -96,6 +103,21 @@
     <template v-if="showComboColumns" #item.combo_allocated="{ item }">
       <span v-if="item.combo_allocated > 0" class="stock-badge combo">{{ item.combo_allocated }}</span>
       <span v-else class="stock-zero">–</span>
+    </template>
+
+    <template v-if="showFoodColumns" #item.nearest_expiry_date="{ item }">
+      <span class="expiry-date" :class="expiryToneClass(daysUntilExpiry(item.nearest_expiry_date))">
+        {{ formatExpiryDate(item.nearest_expiry_date) }}
+      </span>
+    </template>
+
+    <template v-if="showFoodColumns" #item.days_until_expiry="{ item }">
+      <span
+        class="expiry-days"
+        :class="expiryToneClass(daysUntilExpiry(item.nearest_expiry_date))"
+      >
+        {{ formatDaysUntil(item.nearest_expiry_date) }}
+      </span>
     </template>
 
     <template v-if="showStockDetailColumns" #item.issued_out="{ item }">
@@ -182,6 +204,51 @@
           </div>
         </td>
       </tr>
+      <tr v-else-if="item.is_food && showFoodExpandColumn" class="combo-components-row food-batches-row">
+        <td :colspan="columns.length">
+          <div class="combo-components-container">
+            <div v-if="foodBatchesLoading.has(item.id)" class="combo-loading">
+              <div class="spinner-sm"></div>
+              {{ t('materialsView.foodBatchesLoading') }}
+            </div>
+            <div v-else-if="(foodBatchesById[item.id] || []).length === 0" class="combo-empty">
+              {{ t('materialsView.foodBatchesEmpty') }}
+            </div>
+            <table v-else class="combo-sub-table">
+              <thead>
+                <tr>
+                  <th>{{ t('materialsView.subColBatch') }}</th>
+                  <th>{{ t('materialsView.subColQty') }}</th>
+                  <th>{{ t('materialsView.colExpiry') }}</th>
+                  <th>{{ t('materialsView.colDaysUntilExpiry') }}</th>
+                  <th>{{ t('materialsView.subColLocation') }}</th>
+                  <th>{{ t('common.status') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="batch in foodBatchesById[item.id]" :key="batch.id">
+                  <td class="comp-name">
+                    {{ batch.label || batch.serial_number || batch.id }}
+                  </td>
+                  <td>{{ batch.qty }}</td>
+                  <td>
+                    <span :class="expiryToneClass(daysUntilExpiry(batch.expiry_date))">
+                      {{ formatExpiryDate(batch.expiry_date) }}
+                    </span>
+                  </td>
+                  <td>
+                    <span :class="expiryToneClass(daysUntilExpiry(batch.expiry_date))">
+                      {{ formatDaysUntil(batch.expiry_date) }}
+                    </span>
+                  </td>
+                  <td>{{ formatBatchLocation(batch) }}</td>
+                  <td>{{ batch.status || '–' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </td>
+      </tr>
     </template>
   </v-data-table>
 </template>
@@ -189,8 +256,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ComboComponent, Material } from '@/api/materials'
+import type { ComboComponent, Material, MaterialBatch } from '@/api/materials'
 import { comboBadgeEmoji, isComboMaterial as isComboMaterialType } from '@/utils/comboDisplay'
+import {
+  daysUntilExpiry,
+  expiryToneClass,
+  formatExpiryDate,
+} from '@/utils/materialExpiry'
 import {
   canDisplayMeterStockAsPieces,
   formatMaterialDisplayName,
@@ -204,17 +276,29 @@ import '@/styles/components/material-list-data-table.css'
 
 defineOptions({ name: 'MaterialListDataTable' })
 
-const props = defineProps<{
-  items: Material[]
-  categoriesById: Record<string, string>
-  showComboColumns: boolean
-  showComboExpandColumn: boolean
-  showStockDetailColumns: boolean
-  expandedIds: readonly string[]
-  comboComponentsById: Record<string, ComboComponent[]>
-  comboComponentsLoading: ReadonlySet<string>
-  assignmentLabels: Record<string, string>
-}>()
+const props = withDefaults(
+  defineProps<{
+    items: Material[]
+    categoriesById: Record<string, string>
+    showComboColumns: boolean
+    showComboExpandColumn: boolean
+    showFoodColumns?: boolean
+    showFoodExpandColumn?: boolean
+    showStockDetailColumns: boolean
+    expandedIds: readonly string[]
+    comboComponentsById: Record<string, ComboComponent[]>
+    comboComponentsLoading: ReadonlySet<string>
+    foodBatchesById?: Record<string, MaterialBatch[]>
+    foodBatchesLoading?: ReadonlySet<string>
+    assignmentLabels: Record<string, string>
+  }>(),
+  {
+    showFoodColumns: false,
+    showFoodExpandColumn: false,
+    foodBatchesById: () => ({}),
+    foodBatchesLoading: () => new Set(),
+  },
+)
 
 const emit = defineEmits<{
   open: [material: Material]
@@ -241,6 +325,23 @@ const headers = computed(() => {
   cols.push({ title: t('materialsView.colCategory'), key: 'category', sortable: false })
   cols.push({ title: t('materialsView.colTotal'), key: 'total_stock', sortable: true, align: 'center', width: '90px' })
 
+  if (props.showFoodColumns) {
+    cols.push({
+      title: t('materialsView.colExpiry'),
+      key: 'nearest_expiry_date',
+      sortable: true,
+      align: 'center',
+      width: '120px',
+    })
+    cols.push({
+      title: t('materialsView.colDaysUntilExpiry'),
+      key: 'days_until_expiry',
+      sortable: false,
+      align: 'center',
+      width: '110px',
+    })
+  }
+
   if (props.showComboColumns) {
     cols.push({ title: t('materialsView.colCombo'), key: 'combo_allocated', sortable: true, align: 'center', width: '80px' })
   }
@@ -254,6 +355,21 @@ const headers = computed(() => {
   cols.push({ title: '', key: 'actions', sortable: false, align: 'end', width: '72px' })
   return cols
 })
+
+function formatDaysUntil(expiry: string | null | undefined): string {
+  const days = daysUntilExpiry(expiry)
+  if (days === null) return '–'
+  return String(days)
+}
+
+function formatBatchLocation(batch: MaterialBatch): string {
+  const parts = [
+    batch.storage_address_name,
+    batch.rack?.name,
+    batch.slot?.name,
+  ].filter((p): p is string => !!p && p.trim() !== '')
+  return parts.length > 0 ? parts.join(' · ') : '–'
+}
 
 function rowProps({ item }: { item: Material }) {
   return {

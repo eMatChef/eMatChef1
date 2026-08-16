@@ -18,8 +18,6 @@ export function formatAddressOption(a: Address): string {
 
 export function addressMatchesQuery(a: Address, q: string): boolean {
   const hay = [
-    a.type,
-    a.type_label,
     a.name,
     a.company,
     a.street,
@@ -29,6 +27,8 @@ export function addressMatchesQuery(a: Address, q: string): boolean {
     a.full_address,
     a.email,
     a.phone,
+    // type-Code (z. B. event), nicht type_label — sonst matcht «d» in «Eventstandort» alles
+    a.type,
   ]
     .filter(Boolean)
     .join(' ')

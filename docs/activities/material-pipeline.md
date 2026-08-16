@@ -212,6 +212,13 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 - [x] Abschluss-Blocker Einlagerung über `PackPipelineService::maxForwardQty(stored)` (+ Verbrauch pro Material)
 - [x] UI: Abschluss-Checkliste bei Status `returned` (`ActivityCompletionChecklist`, Blocker aus `GET …/transitions`)
 
+### Überschüssige Esswaren / Verbrauch bei Retour (geplant)
+
+- [x] Schema `activity_surplus_report` + Spec — [surplus-return-food.md](./surplus-return-food.md)
+- [x] API surplus-reports (list/create/patch/delete) + Retour-UI Melden
+- [ ] Journey Einlagern: Abarbeiten → Suche / Wizard / Charge
+- [ ] Material-Detail Tab Ausgabe: Surplus-Chargen anzeigen
+
 ### Activity-Status & Journey (geplant)
 
 - [x] Neue Activity-Status: `transport_out`, `transport_back`, `storing` — [ADR](./newUI/ADR-workflow-layers.md)
@@ -227,3 +234,4 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 - [Pack-Workflow — einheitliche Regeln](./pack-workflow-rules.md)
 - [Pack-Step-UI](./pack-step-ui.md)
 - [Pack-Workflow Geräte](../devices/pack-workflow.md)
+- [Überschuss Retour Esswaren/Verbrauch](./surplus-return-food.md)

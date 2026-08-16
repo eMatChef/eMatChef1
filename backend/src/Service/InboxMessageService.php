@@ -23,6 +23,12 @@ class InboxMessageService
         protected EntityManagerInterface $entityManager,
     ) {}
 
+    /** Onboarding-Demo: keine Inbox-/Einladungs-Nebenwirkungen. */
+    protected function skipOnboardingSandboxActivity(Activity $activity): bool
+    {
+        return $activity->isOnboardingSandbox();
+    }
+
     public function sendUserMessage(
         Department $department,
         User $sender,
@@ -130,6 +136,10 @@ class InboxMessageService
 
     public function notifyActivitySubmitted(Activity $activity, User $actor): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $department = $activity->getDepartment();
         $this->removeUnreadActivityDuplicate(
             $department->getId(),
@@ -158,6 +168,10 @@ class InboxMessageService
         array $lines,
         array $actionsApplied,
     ): void {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $shellName = $shellPackItem->getMaterialItem()?->getName() ?? 'Kiste';
         $summary = $this->summarizePackCrateCheckDeviations($lines, $actionsApplied);
 
@@ -221,6 +235,10 @@ class InboxMessageService
 
     public function notifyActivityReturned(Activity $activity, User $actor): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $department = $activity->getDepartment();
         $this->removeUnreadActivityDuplicate(
             $department->getId(),
@@ -245,6 +263,10 @@ class InboxMessageService
 
     public function notifyActivityUserStatus(Activity $activity, User $actor, string $type): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $recipient = $activity->getResponsibleUser() ?? $activity->getCreatedByUser();
         if (!$recipient || $recipient->getId() === $actor->getId()) {
             return;
@@ -259,6 +281,10 @@ class InboxMessageService
      */
     public function notifyActivityPacked(Activity $activity, User $actor): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $recipients = $this->collectActivityPackedRecipients($activity, $actor);
         if ($recipients === []) {
             return;
@@ -329,6 +355,10 @@ class InboxMessageService
      */
     public function notifyActivityIssueReported(Activity $activity, User $actor, ActivityIssueReport $report): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         if (!\in_array($report->getType(), [
             ActivityIssueReport::TYPE_LOSS,
             ActivityIssueReport::TYPE_REPAIR,
@@ -366,11 +396,80 @@ class InboxMessageService
         $this->entityManager->flush();
     }
 
+    /**
+     * Nass retourniert und noch nicht aufgehängt → MW soll Trocknungsplatz / Aufhängen klären.
+     */
+    public function notifyMaterialWetNotHung(
+        Activity $activity,
+        User $actor,
+        string $materialName,
+        int $quantityWet,
+    ): void {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
+        if ($quantityWet < 1) {
+            return;
+        }
+
+        $existing = $this->entityManager->getRepository(InboxMessage::class)->createQueryBuilder('m')
+            ->andWhere('m.activityId = :aid')
+            ->andWhere('m.type = :type')
+            ->andWhere('m.recipientScope = :scope')
+            ->andWhere('m.readAt IS NULL')
+            ->setParameter('aid', $activity->getId())
+            ->setParameter('type', 'activity_material_wet_not_hung')
+            ->setParameter('scope', InboxMessage::RECIPIENT_DEPARTMENT_MW)
+            ->orderBy('m.createdAt', 'DESC')
+            ->setMaxResults(8)
+            ->getQuery()
+            ->getResult();
+
+        foreach ($existing as $row) {
+            if (!$row instanceof InboxMessage) {
+                continue;
+            }
+            $payload = $row->getPayload();
+            if (($payload['material_name'] ?? null) === $materialName) {
+                $payload['quantity_wet'] = $quantityWet;
+                $payload['activity_status'] = $activity->getStatus();
+                $payload['journey_step'] = 'store';
+                $payload['deeplink'] = 'pack-journey';
+                $row->setPayload($payload);
+                $this->entityManager->flush();
+
+                return;
+            }
+        }
+
+        $row = $this->buildActivityRow(
+            $activity,
+            $actor,
+            'activity_material_wet_not_hung',
+            InboxMessage::CATEGORY_ACTIVITY_MW,
+            InboxMessage::RECIPIENT_DEPARTMENT_MW,
+            null,
+        );
+        $payload = $row->getPayload();
+        $payload['journey_step'] = 'store';
+        $payload['deeplink'] = 'pack-journey';
+        $payload['material_name'] = $materialName;
+        $payload['quantity_wet'] = $quantityWet;
+        $row->setPayload($payload);
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
     public function notifyReplenishmentWishCreated(
         Activity $activity,
         User $requester,
         \App\Entity\ActivityReplenishmentWish $wish,
     ): void {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $material = $wish->getMaterialItem();
         $extra = [
             'wish_id' => $wish->getId(),
@@ -402,6 +501,10 @@ class InboxMessageService
         \App\Entity\ActivityReplenishmentWish $wish,
         bool $fulfilled,
     ): void {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $recipient = $this->entityManager->getRepository(User::class)->find($wish->getRequestedByUserId());
         if (!$recipient || $recipient->getId() === $decider->getId()) {
             return;
@@ -453,6 +556,10 @@ class InboxMessageService
     /** Storno durch MW/DC: persönliche Meldung an den Ersteller (bleibt nach purgeByActivity erhalten). */
     public function notifyActivityCancelled(Activity $activity, User $actor): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $recipient = $activity->getCreatedByUser();
         if (!$recipient || $recipient->getId() === $actor->getId()) {
             return;
@@ -735,6 +842,7 @@ class InboxMessageService
             'activity_packed' => $isLogistics ? 'transport_out' : 'issue',
             'activity_at_event' => $isLogistics ? 'transport_back' : 'return',
             'activity_returned', 'activity_returned_mw' => $forMwRecipient ? 'store' : 'return',
+            'activity_material_wet_not_hung' => 'store',
             'activity_replenishment_wish' => 'pack',
             'activity_replenishment_wish_fulfilled', 'activity_replenishment_wish_rejected' => 'pack',
             'activity_pack_crate_check_incomplete' => match ($activity->getStatus()) {

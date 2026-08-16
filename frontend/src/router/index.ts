@@ -9,6 +9,7 @@ import { getMainSiteOrigin, isAppOrigin } from '@/utils/appLoginUrl'
 import {
   parseInternalRedirectPath,
   resolveAuthenticatedHomePath,
+  sanitizeLoginRedirectPath,
 } from '@/utils/appHomeRedirect'
 import { shouldProbeUserSession } from '@/api/unauthorizedRedirect'
 import {
@@ -24,9 +25,15 @@ import {
 } from '@/composables/useDepartmentMemberRole'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import {
-  canUseHelpEinrichtung,
-  isHelpEinrichtungPath,
+  canUseHelpTours,
+  isHelpToursPath,
 } from '@/utils/onboardingGate'
+
+/** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
+function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
+  const target = sanitizeLoginRedirectPath(fullPath)
+  return target ? { redirect: target } : {}
+}
 
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
@@ -50,7 +57,7 @@ function defaultSupplierPath(): string | null {
   const companies = authStore.activeSupplierCompanies
   if (companies.length === 0) return null
   const id = authStore.activeSupplierCompanyId || companies[0]?.id
-  return id ? `/supplier/${id}/profile` : null
+  return id ? `/supplier/${id}/dashboard` : null
 }
 
 function hasSupplierCompanyAccess(companyId: string): boolean {
@@ -210,7 +217,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('landingHome'),
+          ...routeHead('landingHome', 'landingHome'),
         }
       },
       {
@@ -220,7 +227,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('blog'),
+          ...routeHead('blog', 'blog'),
         }
       },
       {
@@ -230,7 +237,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('blog'),
+          ...routeHead('blog', 'blog'),
         }
       },
       {
@@ -240,7 +247,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           publicMarketing: true,
           requiresAuth: false,
-          ...routeHead('faq'),
+          ...routeHead('faq', 'faq'),
         }
       },
       {
@@ -276,7 +283,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       publicMarketing: true,
-      ...routeHead('login'),
+      ...routeHead('login', 'login'),
     }
   },
   {
@@ -602,9 +609,18 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         redirect: (to) => ({
-          name: 'SupplierProfile',
+          name: 'SupplierDashboard',
           params: { companyId: to.params.companyId },
         }),
+      },
+      {
+        path: 'dashboard',
+        name: 'SupplierDashboard',
+        component: () => import('@/views/supplier/SupplierDashboardView.vue'),
+        meta: {
+          requiresSupplierAccess: true,
+          ...routeHead('supplierDashboard'),
+        },
       },
       {
         path: 'profile',
@@ -1236,15 +1252,11 @@ const routes: RouteRecordRaw[] = [
             redirect: { name: 'SettingsMyDepartment' },
           },
           {
-            path: 'general',
-            redirect: { name: 'SettingsZeit' },
-          },
-          {
-            path: 'zeit',
-            name: 'SettingsZeit',
-            component: () => import('@/views/settings/GeneralSettingsView.vue'),
+            path: 'module',
+            name: 'SettingsModule',
+            component: () => import('@/views/settings/ModuleSettingsView.vue'),
             meta: {
-              ...routeHead('settingsTime'),
+              ...routeHead('settingsModule'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
@@ -1345,7 +1357,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/UsersSettingsView.vue'),
             meta: {
               ...routeHead('settingsUsers'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyDepartmentRoles: ['u', 'user'],
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
@@ -1358,41 +1370,21 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
-            path: 'activities',
-            name: 'SettingsActivities',
-            component: () => import('@/views/settings/ActivitySettingsView.vue'),
-            meta: {
-              ...routeHead('settingsActivities'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'workshop',
-            name: 'SettingsWorkshop',
-            component: () => import('@/views/settings/WorkshopSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsWorkshop'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
-            path: 'accounting',
-            name: 'SettingsAccounting',
-            component: () => import('@/views/settings/AccountingSettingsView.vue'),
-            meta: {
-              ...routeHead('settingsAccounting'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
-              denyRedirectTo: { name: 'SettingsMyDepartment' },
-            }
-          },
-          {
             path: 'storage',
             name: 'SettingsStorage',
             component: () => import('@/views/settings/StorageSettingsView.vue'),
             meta: {
               ...routeHead('settingsStorage'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'media',
+            name: 'SettingsMedia',
+            component: () => import('@/views/settings/MediaLibraryView.vue'),
+            meta: {
+              ...routeHead('settingsMedia'),
               denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
@@ -1443,8 +1435,9 @@ const routes: RouteRecordRaw[] = [
             }),
           },
           {
-            path: 'einrichtung',
-            name: 'HelpEinrichtung',
+            path: 'tours',
+            name: 'HelpTours',
+            alias: ['einrichtung'],
             component: () => import('@/views/onboarding/OnboardingHubView.vue'),
             meta: {
               requireDepartmentRoles: [
@@ -1459,7 +1452,7 @@ const routes: RouteRecordRaw[] = [
                 'user',
               ],
               denyRedirectTo: { name: 'HelpDokumentation' },
-              ...routeHead('helpEinrichtung'),
+              ...routeHead('helpTours'),
             },
           },
           {
@@ -1644,7 +1637,7 @@ router.beforeEach(async (to, from, next) => {
       }
     }
     if (!authStore.isLoggedIn) {
-      return next({ path: '/login', query: { redirect: to.fullPath } })
+      return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
   }
 
@@ -1654,7 +1647,7 @@ router.beforeEach(async (to, from, next) => {
       await authStore.loadUserSessionFromCookie()
     } catch {
       if (to.path !== '/login') {
-        return next({ path: '/login', query: { redirect: to.fullPath } })
+        return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
       }
     }
   }
@@ -1662,7 +1655,7 @@ router.beforeEach(async (to, from, next) => {
   // Auth-Requirement prüfen
   if (to.meta.requiresAuth && !authStore.isLoggedIn) {
     if (to.path !== '/login') {
-      return next({ path: '/login', query: { redirect: to.fullPath } })
+      return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
     }
     return next()
   }
@@ -1675,7 +1668,7 @@ router.beforeEach(async (to, from, next) => {
         authStore.departments[0]?.department_id
       return next(id ? `/${id}` : '/login')
     }
-    return next({ path: '/login', query: { redirect: to.fullPath } })
+    return next({ path: '/login', query: loginAuthRedirectQuery(to.fullPath) })
   }
 
   if (to.meta.requiresSiteEditor && !canEditPublicSite()) {
@@ -1709,6 +1702,10 @@ router.beforeEach(async (to, from, next) => {
       if (!isSuperAdmin()) {
         if (primaryDepartmentId) {
           return next(`/${primaryDepartmentId}`)
+        }
+        const supplierHome = defaultSupplierPath()
+        if (supplierHome) {
+          return next(supplierHome)
         }
         return next('/pending-assignment')
       }
@@ -1847,19 +1844,19 @@ router.beforeEach(async (to, from, next) => {
       authStore.setActiveSupplierCompany(companyId)
     }
     if (to.meta.requiresSupplierAdmin && !authStore.isSupplierCompanyAdmin(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierCatalog && !hasSupplierCatalogCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierDelivery && !hasSupplierDeliveryCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierTemplates && !hasSupplierTemplatesCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
     if (to.meta.requiresSupplierRepairs && !hasSupplierRepairsCapability(companyId)) {
-      return next({ name: 'SupplierProfile', params: { companyId } })
+      return next({ name: 'SupplierDashboard', params: { companyId } })
     }
   }
 
@@ -2039,9 +2036,9 @@ router.beforeEach(async (to, from, next) => {
 
   const deptIdForOnboarding = to.params.departmentId as string | undefined
   if (deptIdForOnboarding && authStore.isLoggedIn && !isSuperAdmin()) {
-    const onHelpEinrichtung = isHelpEinrichtungPath(to.path, deptIdForOnboarding)
+    const onHelpTours = isHelpToursPath(to.path, deptIdForOnboarding)
 
-    if (onHelpEinrichtung && !canUseHelpEinrichtung(authStore, deptIdForOnboarding)) {
+    if (onHelpTours && !canUseHelpTours(authStore, deptIdForOnboarding)) {
       return next({
         name: 'HelpDokumentation',
         params: { departmentId: deptIdForOnboarding },

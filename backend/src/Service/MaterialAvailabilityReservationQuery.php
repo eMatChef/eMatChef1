@@ -68,6 +68,7 @@ LEFT JOIN LATERAL (
         INNER JOIN activity a ON a.id = ai.activity_id
         WHERE ai.material_item_id = mi.id
           AND a.deleted_at IS NULL
+          AND COALESCE(a.onboarding_sandbox, false) = false
           AND a.status IN ({$orderStatuses})
           {$periodOverlapSql}
           {$excludeActivitySql}
@@ -80,6 +81,7 @@ LEFT JOIN LATERAL (
         INNER JOIN activity a ON a.id = pi.activity_id
         WHERE pi.material_item_id = mi.id
           AND a.deleted_at IS NULL
+          AND COALESCE(a.onboarding_sandbox, false) = false
           AND a.status IN ({$pipelineStatuses})
           AND (
               pi.quantity_packed > 0
@@ -108,7 +110,7 @@ CASE
     ELSE GREATEST(
         GREATEST({$alias}.quantity_packed, {$alias}.quantity_returned),
         {$alias}.quantity_issued
-    ) - COALESCE({$alias}.quantity_stored, 0)
+    ) - COALESCE({$alias}.quantity_stored, 0) - COALESCE({$alias}.quantity_wet, 0)
 END
 SQL;
     }

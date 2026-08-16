@@ -6,6 +6,7 @@ use App\Entity\Activity;
 use App\Entity\ActivityJsOrder;
 use App\Entity\ActivityJsOrderItem;
 use App\Entity\MaterialItem;
+use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\Activity\ActivityJsOrderPdfService;
 use App\Service\Activity\ActivityJsOrderPdfStorageService;
@@ -16,11 +17,8 @@ use App\Service\JsOrderPrefillService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -113,6 +111,13 @@ class ActivityJsOrderController extends AbstractController
 
         if (\array_key_exists('delivery_type', $data)) {
             $order->setDeliveryType($this->normalizeDeliveryType($data['delivery_type']));
+        }
+
+        if (\array_key_exists('js_coach_user_id', $data)) {
+            $coachError = $this->applyJsCoachUserId($order, $activity, $data['js_coach_user_id']);
+            if ($coachError !== null) {
+                return $coachError;
+            }
         }
 
         if (\array_key_exists('status', $data) && \in_array($data['status'], [ActivityJsOrder::STATUS_DRAFT, ActivityJsOrder::STATUS_READY], true)) {
@@ -348,51 +353,6 @@ class ActivityJsOrderController extends AbstractController
             'order' => $this->serializeOrder($order),
             'pdf_url' => $stored['url'],
         ]);
-    }
-
-    #[Route('/js-order/pdf/{filename}', name: 'pdf', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function showPdf(string $activityId, string $filename): Response
-    {
-        $activity = $this->findActivityWithAccess($activityId);
-        if ($activity instanceof JsonResponse) {
-            return $activity;
-        }
-
-        $deny = $this->assertJsOrderContext($activity);
-        if ($deny !== null) {
-            return $deny;
-        }
-
-        $order = $this->findOrderForActivity($activityId);
-        if (!$order instanceof ActivityJsOrder) {
-            return new JsonResponse(['error' => 'J+S-Bestellung nicht gefunden'], 404);
-        }
-
-        $mediaId = $order->getGeneratedPdfMediaId();
-        if ($mediaId === null || $mediaId === '') {
-            return new JsonResponse(['error' => 'PDF noch nicht erzeugt'], 404);
-        }
-
-        $expectedFilename = $mediaId . '.pdf';
-        if ($filename !== $expectedFilename) {
-            return new JsonResponse(['error' => 'PDF nicht gefunden'], 404);
-        }
-
-        try {
-            $path = $this->pdfStorage->resolveFilePath(
-                $activityId,
-                (string) $order->getId(),
-                $activity->getDepartmentId(),
-                $filename,
-            );
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
-        }
     }
 
     #[Route('/js-order/submit-to-coach', name: 'submit_to_coach', methods: ['POST'])]
@@ -989,6 +949,7 @@ class ActivityJsOrderController extends AbstractController
             'ordered_by_user_id' => $order->getOrderedByUserId(),
             'submitted_to_coach_at' => $order->getSubmittedToCoachAt()?->format(\DateTimeInterface::ATOM),
             'submitted_by_user_id' => $order->getSubmittedByUserId(),
+            'js_coach_user_id' => $order->getJsCoachUserId(),
             'coach_email_sent_at' => $order->getCoachEmailSentAt()?->format(\DateTimeInterface::ATOM),
             'return_confirmed_at' => $order->getReturnConfirmedAt()?->format(\DateTimeInterface::ATOM),
             'generated_pdf_media_id' => $order->getGeneratedPdfMediaId(),
@@ -999,6 +960,34 @@ class ActivityJsOrderController extends AbstractController
             'created_at' => $order->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $order->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
+    }
+
+    private function applyJsCoachUserId(ActivityJsOrder $order, Activity $activity, mixed $rawUserId): ?JsonResponse
+    {
+        if ($rawUserId === null || $rawUserId === '') {
+            $order->setJsCoachUser(null);
+
+            return null;
+        }
+
+        $userId = trim((string) $rawUserId);
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $userId,
+            'departmentId' => $activity->getDepartmentId(),
+            'isJsCoach' => true,
+        ]);
+        if (!$membership instanceof Membership) {
+            return new JsonResponse(['error' => 'Gewählter Coach muss Mitglied mit J+S-Coach-Flag sein'], 422);
+        }
+
+        $user = $this->entityManager->getRepository(User::class)->find($userId);
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Coach-Benutzer nicht gefunden'], 404);
+        }
+
+        $order->setJsCoachUser($user);
+
+        return null;
     }
 
     /** @return list<string> */
@@ -1032,6 +1021,10 @@ class ActivityJsOrderController extends AbstractController
             return null;
         }
 
-        return $this->pdfStorage->buildPdfUrl($order->getActivityId(), $mediaId . '.pdf');
+        return $this->pdfStorage->buildPdfUrl(
+            $order->getActivity()->getDepartmentId(),
+            (string) $order->getId(),
+            $mediaId . '.pdf',
+        );
     }
 }

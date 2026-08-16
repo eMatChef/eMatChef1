@@ -7,13 +7,13 @@ namespace App\Service\Media;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
- * Bild-Kompression beim Upload: max. 1920 px, WebP/JPEG ~85 %.
+ * Bild-Kompression beim Upload: WebP, Kantenlänge und Qualität per Profil.
  */
 class MediaCompressionService
 {
-    public const MAX_EDGE_PX = 1920;
-    public const JPEG_QUALITY = 85;
-    public const WEBP_QUALITY = 85;
+    public const MAX_EDGE_PX = MediaCompressionProfile::DEFAULT_MAX_EDGE;
+    public const JPEG_QUALITY = MediaCompressionProfile::DEFAULT_QUALITY;
+    public const WEBP_QUALITY = MediaCompressionProfile::DEFAULT_QUALITY;
     public const MAX_BYTES = 10 * 1024 * 1024;
 
     /** @var array<string, string> */
@@ -81,7 +81,7 @@ class MediaCompressionService
             return $this->storeBinaryCopy($file->getPathname(), $targetPathWithoutExt, $mime);
         }
 
-        return $this->compressAndSave($file, $targetPathWithoutExt);
+        return $this->compressAndSave($file, $targetPathWithoutExt, MediaCompressionProfile::default());
     }
 
     /**
@@ -110,8 +110,12 @@ class MediaCompressionService
      *
      * @return array{path: string, filename_ext: string, mime: string, bytes: int, width: int, height: int}
      */
-    public function compressAndSave(UploadedFile $file, string $targetPathWithoutExt): array
-    {
+    public function compressAndSave(
+        UploadedFile $file,
+        string $targetPathWithoutExt,
+        ?MediaCompressionProfile $profile = null,
+    ): array {
+        $profile ??= MediaCompressionProfile::default();
         $mime = $this->assertValidUpload($file);
         $sourcePath = $file->getPathname();
 
@@ -130,7 +134,7 @@ class MediaCompressionService
 
         $width = \imagesx($image);
         $height = \imagesy($image);
-        [$newWidth, $newHeight] = $this->scaleDimensions($width, $height);
+        [$newWidth, $newHeight] = $this->scaleDimensions($width, $height, $profile->maxEdgePx);
 
         if ($newWidth !== $width || $newHeight !== $height) {
             $resized = \imagecreatetruecolor($newWidth, $newHeight);
@@ -148,7 +152,7 @@ class MediaCompressionService
         [$ext, $outMime] = $this->preferredOutputFormat();
         $targetPath = $targetPathWithoutExt . '.' . $ext;
 
-        if (!$this->saveImage($image, $targetPath, $ext)) {
+        if (!$this->saveImage($image, $targetPath, $ext, $profile->quality)) {
             \imagedestroy($image);
             throw new \RuntimeException('Bild konnte nicht gespeichert werden');
         }
@@ -169,8 +173,9 @@ class MediaCompressionService
      *
      * @return array{path: string, mime: string, bytes: int, width: int, height: int, filename_ext: string}|null
      */
-    public function compressExistingFile(string $path): ?array
+    public function compressExistingFile(string $path, ?MediaCompressionProfile $profile = null): ?array
     {
+        $profile ??= MediaCompressionProfile::default();
         if (!$this->settingsStore->isCompressionEnabled() || !is_file($path)) {
             return null;
         }
@@ -205,7 +210,7 @@ class MediaCompressionService
 
         $width = \imagesx($image);
         $height = \imagesy($image);
-        [$newWidth, $newHeight] = $this->scaleDimensions($width, $height);
+        [$newWidth, $newHeight] = $this->scaleDimensions($width, $height, $profile->maxEdgePx);
 
         if ($newWidth !== $width || $newHeight !== $height) {
             $resized = \imagecreatetruecolor($newWidth, $newHeight);
@@ -224,7 +229,7 @@ class MediaCompressionService
         [$ext, $outMime] = $this->preferredOutputFormat();
         $targetPath = dirname($path) . '/' . pathinfo($path, PATHINFO_FILENAME) . '.' . $ext;
 
-        if (!$this->saveImage($image, $targetPath, $ext)) {
+        if (!$this->saveImage($image, $targetPath, $ext, $profile->quality)) {
             \imagedestroy($image);
 
             return null;
@@ -257,14 +262,14 @@ class MediaCompressionService
     }
 
     /** @return array{0: int, 1: int} */
-    private function scaleDimensions(int $width, int $height): array
+    public function scaleDimensions(int $width, int $height, int $maxEdgePx = self::MAX_EDGE_PX): array
     {
         $maxEdge = max($width, $height);
-        if ($maxEdge <= self::MAX_EDGE_PX) {
+        if ($maxEdge <= $maxEdgePx) {
             return [$width, $height];
         }
 
-        $ratio = self::MAX_EDGE_PX / $maxEdge;
+        $ratio = $maxEdgePx / $maxEdge;
 
         return [
             (int) round($width * $ratio),
@@ -330,11 +335,13 @@ class MediaCompressionService
         };
     }
 
-    private function saveImage(\GdImage $image, string $path, string $ext): bool
+    private function saveImage(\GdImage $image, string $path, string $ext, int $quality = self::JPEG_QUALITY): bool
     {
+        $quality = max(1, min(100, $quality));
+
         return match ($ext) {
-            'webp' => \function_exists('imagewebp') && \imagewebp($image, $path, self::WEBP_QUALITY),
-            'jpg' => \function_exists('imagejpeg') && \imagejpeg($image, $path, self::JPEG_QUALITY),
+            'webp' => \function_exists('imagewebp') && \imagewebp($image, $path, $quality),
+            'jpg' => \function_exists('imagejpeg') && \imagejpeg($image, $path, $quality),
             'png' => \function_exists('imagepng') && \imagepng($image, $path),
             default => false,
         };

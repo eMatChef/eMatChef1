@@ -57,6 +57,14 @@ class ActivityJsOrder
     #[ORM\Column(name: 'coach_email_sent_at', type: 'datetime', nullable: true)]
     private ?\DateTime $coachEmailSentAt = null;
 
+    /** Zugewiesener J+S-Coach (Department-Mitglied mit is_js_coach). */
+    #[ORM\Column(name: 'js_coach_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $jsCoachUserId = null;
+
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(name: 'js_coach_user_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?User $jsCoachUser = null;
+
     #[ORM\Column(name: 'return_confirmed_at', type: 'datetime', nullable: true)]
     private ?\DateTime $returnConfirmedAt = null;
 
@@ -217,6 +225,24 @@ class ActivityJsOrder
     public function setCoachEmailSentAt(?\DateTime $coachEmailSentAt): self
     {
         $this->coachEmailSentAt = $coachEmailSentAt;
+
+        return $this;
+    }
+
+    public function getJsCoachUserId(): ?string
+    {
+        return $this->jsCoachUserId;
+    }
+
+    public function getJsCoachUser(): ?User
+    {
+        return $this->jsCoachUser;
+    }
+
+    public function setJsCoachUser(?User $user): self
+    {
+        $this->jsCoachUser = $user;
+        $this->jsCoachUserId = $user?->getId();
 
         return $this;
     }

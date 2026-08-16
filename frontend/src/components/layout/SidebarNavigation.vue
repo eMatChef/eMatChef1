@@ -23,7 +23,7 @@
     </div>
     
     <!-- Navigation Items -->
-    <nav class="sidebar-nav">
+    <nav class="sidebar-nav" data-onboarding="sidebar-nav">
       <router-link
         v-if="isPendingAssignmentRoute"
         to="/pending-assignment"
@@ -40,13 +40,33 @@
         :to="mainDashboardLink"
         class="nav-item"
         :class="{ active: isMainDashboardNavActive }"
+        data-onboarding="nav-dashboard"
+        :title="!showNavLabels ? t('sidebar.dashboard') : undefined"
       >
         <v-icon icon="mdi-view-grid" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.dashboard') }}</span>
       </router-link>
 
-      <!-- Meine Firma (Supplier-Portal) -->
-      <div v-if="!isPendingAssignmentRoute && showMyCompanySection" class="nav-section">
+      <!-- Supplier-only: gleiche Top-Level-Icons wie die Abteilungs-App -->
+      <template v-if="!isPendingAssignmentRoute && showMyCompanySection && authStore.isSupplierOnly">
+        <router-link
+          v-for="item in supplierNavItems"
+          :key="item.id"
+          :to="supplierLink(item.path)"
+          class="nav-item"
+          :class="{ active: item.active }"
+          :title="!showNavLabels ? item.label : undefined"
+        >
+          <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="20" />
+          <span class="nav-label" :class="{ visible: showNavLabels }">{{ item.label }}</span>
+        </router-link>
+      </template>
+
+      <!-- Department + Supplier: «Meine Firma» mit Icons auch im Rail -->
+      <div
+        v-else-if="!isPendingAssignmentRoute && showMyCompanySection"
+        class="nav-section"
+      >
         <button
           type="button"
           class="nav-item nav-item--toggle"
@@ -68,72 +88,16 @@
         </button>
         <template v-if="myCompanyExpanded">
           <router-link
-            :to="supplierLink('/profile')"
+            v-for="item in mixedSupplierNavItems"
+            :key="item.id"
+            :to="supplierLink(item.path)"
             class="nav-item nav-item--sub"
-            :class="{ active: isSupplierProfileActive }"
+            :class="{ active: item.active }"
+            :title="!showNavLabels ? item.label : undefined"
           >
+            <v-icon :icon="item.icon" class="nav-icon nav-icon--mdi" size="18" />
             <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyProfile') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="showSupplierCatalogLink"
-            :to="supplierLink('/catalog')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierCatalogActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyCatalog') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="showSupplierDeliveryLink"
-            :to="supplierLink('/deliveries')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierDeliveriesActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyDeliveries') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="showSupplierTemplatesLink"
-            :to="supplierLink('/templates')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierTemplatesActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyTemplates') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="showSupplierRepairsLink"
-            :to="supplierLink('/repairs')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierRepairsActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyRepairs') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="showSupplierRepairsLink"
-            :to="supplierLink('/repair-templates')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierRepairTemplatesActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyRepairTemplates') }}
-            </span>
-          </router-link>
-          <router-link
-            v-if="isCurrentSupplierAdmin"
-            :to="supplierLink('/team')"
-            class="nav-item nav-item--sub"
-            :class="{ active: isSupplierTeamActive }"
-          >
-            <span class="nav-label nav-label--sub" :class="{ visible: showNavLabels }">
-              {{ t('sidebar.myCompanyTeam') }}
+              {{ item.label }}
             </span>
           </router-link>
         </template>
@@ -171,6 +135,7 @@
         :to="getLink('/activities')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('activities') }"
+        data-onboarding="nav-activities"
       >
         <v-icon icon="mdi-calendar" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
@@ -230,6 +195,7 @@
         :to="getLink('/materials')"
         class="nav-item"
         :class="{ active: $route.path.includes('/materials') }"
+        data-onboarding="nav-materials"
       >
         <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
@@ -252,6 +218,7 @@
         :to="getLink('/contacts')"
         class="nav-item"
         :class="{ active: $route.path.includes('/contacts') }"
+        data-onboarding="nav-contacts"
       >
         <v-icon icon="mdi-account-group" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.contacts') }}</span>
@@ -263,6 +230,7 @@
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
+        data-onboarding="nav-tasks"
       >
         <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
@@ -274,6 +242,7 @@
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
+        data-onboarding="nav-notifications"
       >
         <v-icon icon="mdi-bell-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.notifications') }}</span>
@@ -307,9 +276,9 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.statistics') }}</span>
       </router-link>
 
-      <!-- Lieferanten-Shop (MW/DC, vor Konfiguration) -->
+      <!-- Lieferanten-Shop (MW/DC, nur wenn Katalog-Artikel vorhanden) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext && !isGrossanlassDept"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopNav && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/supplier-shop')"
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
@@ -333,6 +302,7 @@
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
+        data-onboarding="nav-settings"
       >
         <v-icon icon="mdi-cog-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.settings') }}</span>
@@ -378,6 +348,7 @@ import {
 } from '@/utils/departmentOnboarding'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
+import { getSupplierShopAvailability } from '@/api/supplierShop'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -472,19 +443,112 @@ function supplierLink(subpath: string): string {
   return `/supplier/${id}${subpath}`
 }
 
+type SupplierNavItem = {
+  id: string
+  path: string
+  icon: string
+  label: string
+  active: boolean
+}
+
+const isSupplierDashboardActive = computed(
+  () => isSupplierRoute.value && /\/dashboard\/?$/.test(route.path),
+)
 const isSupplierProfileActive = computed(
-  () => isSupplierRoute.value && route.path.includes('/profile')
+  () => isSupplierRoute.value && route.path.includes('/profile'),
 )
 const isSupplierTeamActive = computed(() => isSupplierRoute.value && route.path.includes('/team'))
 const isSupplierCatalogActive = computed(() => isSupplierRoute.value && route.path.includes('/catalog'))
 const isSupplierDeliveriesActive = computed(() => isSupplierRoute.value && route.path.includes('/deliveries'))
-const isSupplierTemplatesActive = computed(() => isSupplierRoute.value && route.path.includes('/templates'))
+const isSupplierTemplatesActive = computed(
+  () =>
+    isSupplierRoute.value &&
+    route.path.includes('/templates') &&
+    !route.path.includes('/repair-templates'),
+)
 const isSupplierRepairsActive = computed(
   () => isSupplierRoute.value && /\/repairs(\/|$)/.test(route.path) && !route.path.includes('/repair-templates'),
 )
 const isSupplierRepairTemplatesActive = computed(
   () => isSupplierRoute.value && route.path.includes('/repair-templates'),
 )
+
+/** Lieferanten-Menü ohne Dashboard (das sitzt oben). */
+const supplierNavItems = computed((): SupplierNavItem[] => {
+  const items: SupplierNavItem[] = []
+  if (showSupplierCatalogLink.value) {
+    items.push({
+      id: 'catalog',
+      path: '/catalog',
+      icon: 'mdi-storefront',
+      label: t('sidebar.myCompanyCatalog'),
+      active: isSupplierCatalogActive.value,
+    })
+  }
+  if (showSupplierDeliveryLink.value) {
+    items.push({
+      id: 'deliveries',
+      path: '/deliveries',
+      icon: 'mdi-truck-delivery',
+      label: t('sidebar.myCompanyDeliveries'),
+      active: isSupplierDeliveriesActive.value,
+    })
+  }
+  if (showSupplierTemplatesLink.value) {
+    items.push({
+      id: 'templates',
+      path: '/templates',
+      icon: 'mdi-file-document-multiple',
+      label: t('sidebar.myCompanyTemplates'),
+      active: isSupplierTemplatesActive.value,
+    })
+  }
+  if (showSupplierRepairsLink.value) {
+    items.push({
+      id: 'repairs',
+      path: '/repairs',
+      icon: 'mdi-hammer-wrench',
+      label: t('sidebar.myCompanyRepairs'),
+      active: isSupplierRepairsActive.value,
+    })
+    items.push({
+      id: 'repair-templates',
+      path: '/repair-templates',
+      icon: 'mdi-clipboard-text',
+      label: t('sidebar.myCompanyRepairTemplates'),
+      active: isSupplierRepairTemplatesActive.value,
+    })
+  }
+  items.push({
+    id: 'profile',
+    path: '/profile',
+    icon: 'mdi-card-account-details',
+    label: t('sidebar.myCompanyProfile'),
+    active: isSupplierProfileActive.value,
+  })
+  if (isCurrentSupplierAdmin.value) {
+    items.push({
+      id: 'team',
+      path: '/team',
+      icon: 'mdi-account-group',
+      label: t('sidebar.myCompanyTeam'),
+      active: isSupplierTeamActive.value,
+    })
+  }
+  return items
+})
+
+/** Mit Department: Dashboard der Firma als erster Unterpunkt. */
+const mixedSupplierNavItems = computed((): SupplierNavItem[] => [
+  {
+    id: 'dashboard',
+    path: '/dashboard',
+    icon: 'mdi-view-grid',
+    label: t('sidebar.dashboard'),
+    active: isSupplierDashboardActive.value,
+  },
+  ...supplierNavItems.value,
+])
 
 const isPendingAssignmentRoute = computed(() => route.path === '/pending-assignment')
 const isAdminDashboardRoute = computed(() => route.path.startsWith('/admin-dashboard'))
@@ -521,11 +585,11 @@ const isVerwaltungNavActive = computed(() => {
   return true
 })
 
-/** Home = Department-Dashboard; Supplier-only → Profil; Superadmin → /dashboard */
+/** Home = Department-Dashboard; Supplier-only → Firmen-Dashboard; Superadmin → /dashboard */
 const mainDashboardLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
   if (authStore.isSupplierOnly && supplierCompanyId.value) {
-    return `/supplier/${supplierCompanyId.value}/profile`
+    return `/supplier/${supplierCompanyId.value}/dashboard`
   }
   if (isSuperAdmin.value) return '/dashboard'
   const id = departmentId.value || authStore.activeDepartmentId
@@ -536,7 +600,7 @@ const mainDashboardLink = computed(() => {
 
 const isMainDashboardNavActive = computed(() => {
   const p = route.path
-  if (authStore.isSupplierOnly && isSupplierProfileActive.value) return true
+  if (authStore.isSupplierOnly && isSupplierDashboardActive.value) return true
   const id = departmentId.value || authStore.activeDepartmentId
   if (id && (p === `/${id}` || p === `/${id}/` || p === `/${id}/dashboard`)) return true
   if (p === '/dashboard') return true
@@ -620,14 +684,42 @@ const showSupplierShopLink = computed(() => {
   return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
 })
 
+const supplierShopHasArticles = ref(false)
+
+const showSupplierShopNav = computed(
+  () => showSupplierShopLink.value && supplierShopHasArticles.value,
+)
+
+async function refreshSupplierShopAvailability() {
+  const depId = departmentId.value
+  if (!depId || !showSupplierShopLink.value || isGrossanlassDept.value) {
+    supplierShopHasArticles.value = false
+    return
+  }
+  try {
+    const result = await getSupplierShopAvailability(depId)
+    supplierShopHasArticles.value = !!result.has_articles
+  } catch {
+    supplierShopHasArticles.value = false
+  }
+}
+
+watch(
+  [departmentId, showSupplierShopLink, isGrossanlassDept],
+  () => {
+    void refreshSupplierShopAvailability()
+  },
+  { immediate: true },
+)
+
 const helpNavLink = computed(() => {
   const depId = departmentId.value
   if (!depId) return getLink('/help/dokumentation')
   if (canUseDepartmentOnboarding(authStore, depId) && helpOnboardingBadgeCount.value > 0) {
-    return getLink('/help/einrichtung')
+    return getLink('/help/tours')
   }
   if (canUseHelpEinrichtung(authStore, depId)) {
-    return getLink('/help/einrichtung')
+    return getLink('/help/tours')
   }
   return getLink('/help/dokumentation')
 })

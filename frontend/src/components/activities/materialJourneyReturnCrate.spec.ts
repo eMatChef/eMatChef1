@@ -6,6 +6,8 @@ import {
   buildMaterialJourneyReturnCrateLines,
   materialJourneyReturnCrateBatchSteps,
   materialJourneyReturnCrateContentStillOpen,
+  materialJourneyReturnCrateSubmitDisabled,
+  returnCrateLineWetIncomplete,
 } from '@/components/activities/materialJourneyReturnCrate'
 import type { PackQuantityContext } from '@/components/activities/packStageQuantityLayer'
 
@@ -29,11 +31,38 @@ function line(partial: Partial<ReturnCrateLineEdit> & Pick<ReturnCrateLineEdit, 
     consumptionDone: true,
     consumptionOpen: 0,
     isDone: false,
+    wetEnabled: false,
+    wetQty: 0,
+    wetHung: null,
+    wetDryingStorageAddressId: '',
+    wetDryingRackId: '',
+    wetDryingSlotId: '',
+    wetDryingLocationLabel: '',
     ...partial,
   }
 }
 
 describe('materialJourneyReturnCrate', () => {
+  it('blocks submit when wet hung without drying location', () => {
+    const wetHungNoLoc = line({
+      id: 'l1',
+      kind: 'line',
+      wetEnabled: true,
+      wetQty: 2,
+      wetHung: true,
+      wetDryingStorageAddressId: '',
+      wetDryingLocationLabel: '',
+      included: true,
+      qty: 2,
+      max: 2,
+    })
+    expect(returnCrateLineWetIncomplete(wetHungNoLoc)).toBe(true)
+    expect(materialJourneyReturnCrateSubmitDisabled([wetHungNoLoc])).toBe(true)
+
+    const wetHungWithLoc = { ...wetHungNoLoc, wetDryingStorageAddressId: 'addr-1' }
+    expect(returnCrateLineWetIncomplete(wetHungWithLoc)).toBe(false)
+  })
+
   it('includes shell together with open content lines', () => {
     const container = { id: 'c1', label: 'Rakokiste' } as ActivityPackContainer
     const shell: ActivityPackItem = {

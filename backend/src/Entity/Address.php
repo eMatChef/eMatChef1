@@ -159,6 +159,10 @@ class Address
     #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $deletedAt = null;
 
+    /** Onboarding Hybrid-Sandbox: Demodata-Eventstandort */
+    #[ORM\Column(name: 'onboarding_sandbox', type: 'boolean', options: ['default' => false])]
+    private bool $onboardingSandbox = false;
+
     #[ORM\Column(name: 'deleted_by_user_id', type: 'string', length: 12, nullable: true)]
     private ?string $deletedByUserId = null;
 
@@ -502,6 +506,17 @@ class Address
         return $this;
     }
 
+    public function isOnboardingSandbox(): bool
+    {
+        return $this->onboardingSandbox;
+    }
+
+    public function setOnboardingSandbox(bool $onboardingSandbox): self
+    {
+        $this->onboardingSandbox = $onboardingSandbox;
+        return $this;
+    }
+
     public function getDeletedByUserId(): ?string
     {
         return $this->deletedByUserId;
@@ -678,6 +693,7 @@ class Address
             'office' => 'Büro',
             'private' => 'Privat',
             'postal' => 'Postadresse',
+            'user' => 'Benutzeradresse',
         ];
     }
 

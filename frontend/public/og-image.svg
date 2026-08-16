@@ -22,19 +22,19 @@
   <g transform="translate(96 145)">
     <g filter="url(#shadow)">
       <rect width="120" height="120" rx="28" fill="#10b981" stroke="#ffffff" stroke-opacity="0.18" stroke-width="2"/>
-      <text x="60" y="78" text-anchor="middle" fill="#ffffff" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.06em">EMC</text>
+      <text x="60" y="78" text-anchor="middle" fill="#ffffff" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" letter-spacing="-0.06em">EMC</text>
     </g>
 
-    <text x="156" y="58" fill="#ffffff" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="72" font-weight="800" letter-spacing="-0.03em">eMatChef</text>
-    <text x="156" y="112" fill="#ecfdf5" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="34" font-weight="600">Material im Griff, Team im Blick</text>
-    <text x="156" y="158" fill="#d1fae5" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="24" font-weight="500">Materialverwaltung f&#252;r Vereine mit Aktivit&#228;ten/Anl&#228;sse</text>
+    <text x="156" y="58" fill="#ffffff" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="72" font-weight="800" letter-spacing="-0.03em">eMatChef</text>
+    <text x="156" y="112" fill="#ecfdf5" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="34" font-weight="600">Material im Griff, Team im Blick</text>
+    <text x="156" y="158" fill="#d1fae5" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="24" font-weight="500">Materialverwaltung f&#252;r Vereine mit Aktivit&#228;ten/Anl&#228;sse</text>
   </g>
 
   <g transform="translate(96 430)">
     <rect x="0" y="0" width="210" height="52" rx="26" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.22"/>
-    <text x="24" y="34" fill="#ffffff" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">ematchef.ch</text>
+    <text x="24" y="34" fill="#ffffff" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">ematchef.ch</text>
 
     <rect x="230" y="0" width="340" height="52" rx="26" fill="#ffffff" fill-opacity="0.14" stroke="#ffffff" stroke-opacity="0.22"/>
-    <text x="254" y="34" fill="#ffffff" font-family="system-ui, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Im Browser ohne Installation</text>
+    <text x="254" y="34" fill="#ffffff" font-family="system-ui, Ubuntu, DejaVu Sans, Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Im Browser ohne Installation</text>
   </g>
 </svg>

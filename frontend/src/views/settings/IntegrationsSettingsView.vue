@@ -147,8 +147,8 @@ async function removeKey() {
       status.value?.authSessionLimitPerMinute ?? 120,
       status.value?.authRefreshLimitPerMinute ?? 30,
       status.value?.autologout ?? {
-        timeoutMs: 3600000,
-        warningMs: 300000,
+        timeoutMs: 1800000,
+        warningMs: 180000,
         activityThrottleMs: 5000,
         refreshIntervalMs: 1500000,
         activityEvents: 'click,keydown,scroll',

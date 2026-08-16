@@ -1,5 +1,11 @@
 <template>
-  <ActivityOutlinedDatetimeSection :id="usageBlockId" :title="usageSectionTitle" icon="calendar" :required="true">
+  <ActivityOutlinedDatetimeSection
+    :id="usageBlockId"
+    data-onboarding="activity-create-zeitraum"
+    :title="usageSectionTitle"
+    icon="calendar"
+    :required="true"
+  >
     <slot name="usage-before" />
     <ActivityDateTimeFields
       v-if="isActivityType"
@@ -34,7 +40,7 @@
     />
   </ActivityOutlinedDatetimeSection>
 
-  <ActivityOutlinedDatetimeSection :id="planningBlockId" :title="materialSectionTitle" icon="truck" :required="true">
+  <ActivityOutlinedDatetimeSection :id="planningBlockId" data-onboarding="activity-create-planning" :title="materialSectionTitle" icon="truck" :required="true">
     <slot name="planning-before" />
     <ActivityDateTimeFields
       v-model:range="matRange"

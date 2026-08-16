@@ -1,0 +1,134 @@
+.media-browser {
+  max-width: 72rem;
+}
+
+.media-browser .settings-header {
+  margin-bottom: 1.25rem;
+}
+
+.media-browser .settings-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+}
+
+.media-browser .subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.media-browser-toolbar {
+  display: grid;
+  grid-template-columns: minmax(12rem, auto) minmax(12rem, 1fr) minmax(10rem, 14rem);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 1.25rem;
+}
+
+.media-browser-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+
+.media-browser-tab {
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: #475569;
+}
+
+.media-browser-tab--active {
+  background: #fff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.media-browser-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.media-browser-card {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.media-browser-card:hover {
+  border-color: #94a3b8;
+}
+
+.media-browser-thumb-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.media-browser-thumb-btn img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.media-browser-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+}
+
+.media-browser-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-browser-meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-browser-empty,
+.media-browser-error,
+.media-browser-count {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.media-browser-error {
+  color: #b91c1c;
+}
+
+@media (max-width: 800px) {
+  .media-browser-toolbar {
+    grid-template-columns: 1fr;
+  }
+}

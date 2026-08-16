@@ -93,19 +93,32 @@ import '@/styles/components/activity-list-data-table.css'
 
 defineOptions({ name: 'ActivityListDataTable' })
 
-const props = defineProps<{
-  items: ActivityListItem[]
-  departmentId: string
-  selectedId: string | null
-  sortField: string
-  sortDir: 'asc' | 'desc'
-  typeLabel: (type: string) => string
-  statusLabel: (status: string) => string
-  periodLabel: (item: ActivityListItem) => string
-  groupPathLines: (item: ActivityListItem) => GroupPathLine[]
-  shareHint: (item: ActivityListItem) => string | null
-  shareStatus: (item: ActivityListItem) => string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    items: ActivityListItem[]
+    departmentId: string
+    selectedId: string | null
+    sortField: string
+    sortDir: 'asc' | 'desc'
+    typeLabel: (type: string) => string
+    statusLabel: (status: string) => string
+    periodLabel: (item: ActivityListItem) => string
+    groupPathLines: (item: ActivityListItem) => GroupPathLine[]
+    shareHint: (item: ActivityListItem) => string | null
+    shareStatus: (item: ActivityListItem) => string | null
+    /** Ein Klick öffnet (z. B. Filter «Eingereicht»). */
+    openOnRowClick?: boolean
+    /** Erste eingereichte Zeile für Tour-Spotlight markieren. */
+    markFirstSubmittedForTour?: boolean
+    /** Erste packbare Zeile (Lager bevorzugt) für Pack-Tour markieren. */
+    markFirstPackingForTour?: boolean
+  }>(),
+  {
+    openOnRowClick: false,
+    markFirstSubmittedForTour: false,
+    markFirstPackingForTour: false,
+  },
+)
 
 const emit = defineEmits<{
   open: [item: ActivityListItem]
@@ -114,6 +127,31 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+
+const firstSubmittedId = computed(() => {
+  if (!props.markFirstSubmittedForTour) return null
+  const prefer = props.items.find(
+    (i) => i.status === 'submitted' && (i.type === 'camp' || i.type === 'event'),
+  )
+  return prefer?.id ?? props.items.find((i) => i.status === 'submitted')?.id ?? null
+})
+
+const firstPackingId = computed(() => {
+  if (!props.markFirstPackingForTour) return null
+  const preferCamp = props.items.find((i) => i.type === 'camp')
+  if (preferCamp) return preferCamp.id
+  const preferEvent = props.items.find((i) => i.type === 'event')
+  if (preferEvent) return preferEvent.id
+  return props.items.find((i) => i.type === 'activity')?.id ?? props.items[0]?.id ?? null
+})
+
+const tourHighlightId = computed(() => firstSubmittedId.value ?? firstPackingId.value)
+
+const tourHighlightAttr = computed(() => {
+  if (firstSubmittedId.value) return 'activities-submitted-row'
+  if (firstPackingId.value) return 'activities-packing-row'
+  return null
+})
 
 const headers = computed(() => [
   { title: '', key: 'statusDot', sortable: false, width: '44px' },
@@ -137,14 +175,31 @@ function rowProps({ item }: { item: ActivityListItem }) {
   const classes = ['activity-list-dt__row']
   if (item.status === 'draft') classes.push('activity-list-dt__row--draft')
   if (item.id === props.selectedId) classes.push('activity-list-dt__row--selected')
-  return {
+  const isTourRow = !!tourHighlightId.value && item.id === tourHighlightId.value
+  const openOnClick = props.openOnRowClick || isTourRow
+  const attrs: Record<string, unknown> = {
     class: classes.join(' '),
     onDblclick: () => emit('open', item),
+    // Native click: Tour dismissOnNext / Einfachklick (Vuetify @click:row reicht nicht für el.click())
+    onClick: () => {
+      emit('select', item.id)
+      if (openOnClick) emit('open', item)
+    },
   }
+  if (isTourRow && tourHighlightAttr.value) {
+    attrs['data-onboarding'] = tourHighlightAttr.value
+  }
+  return attrs
 }
 
 function onRowClick(_event: Event, { item }: { item: ActivityListItem }) {
   emit('select', item.id)
+  if (
+    props.openOnRowClick ||
+    (!!tourHighlightId.value && item.id === tourHighlightId.value)
+  ) {
+    emit('open', item)
+  }
 }
 
 function onSortBy(value: Array<{ key: string; order: 'asc' | 'desc' }>) {

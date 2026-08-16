@@ -68,6 +68,7 @@
           v-if="showSubmitButton"
           variant="primary"
           size="small"
+          data-onboarding="activity-wizard-submit"
           :disabled="!canSubmit"
           :loading="isSubmitting"
           :title="submitButtonTitle"

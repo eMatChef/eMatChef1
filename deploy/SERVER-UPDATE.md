@@ -614,7 +614,7 @@ Die Workflows **`.github/workflows/cd-prod.yml`** und **`cd-develop.yml`** verbi
 
 | Workflow | Erwarteter private Key auf dem Server |
 |----------|----------------------------------------|
-| CD Prod | `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` (im Workflow fest verdrahtet; anderer System-User → Pfad in `cd-prod.yml` anpassen) |
+| CD Prod | bevorzugt `/root/.ssh/ematchef_deploy_prod_ed25519` (Hetzner); Fallback `/home/deploy-prod/.ssh/ematchef_deploy_ed25519` (siehe `cd-prod.yml`) |
 | CD Develop | `/home/<DEVELOP_SSH_USER>/.ssh/ematchef_deploy_develop_ed25519` |
 
 Das Skript setzt intern **`GIT_SSH_COMMAND`** über die Umgebungsvariable **`EMATCHEF_GIT_SSH_IDENTITY`** (siehe `deploy/prod-update.sh`). Ohne passende Datei: Fehlermeldung beim Deploy; ohne Variable (manuelles SSH als root mit `~/.ssh/config`) wie bisher.
@@ -691,7 +691,7 @@ Health-Endpoint für Monitore: `GET /api/health` (ohne Auth, DB-Ping).
 
 ## Cron: Medien-Retention (Werkstatt-Fotos)
 
-Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **3**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).
+Abgeschlossene Werkstatt-Tickets: Fotos werden **X Jahre nach `completed_at`** gelöscht (Default: **10**, konfigurierbar in `backend/var/app/media_settings.json` → `retention_years`).
 
 **Dry-run (empfohlen vor erstem Live-Lauf):**
 
@@ -705,7 +705,7 @@ docker compose -p ematchef-prod exec backend php bin/console app:media:retention
 docker compose -p ematchef-prod exec backend php bin/console app:media:retention --env=prod
 ```
 
-Optional mit expliziter Frist: `--years=3`
+Optional mit expliziter Frist: `--years=10`
 
 **Legacy-Kompression** (Fotos ohne `bytes`-Metadaten in der DB, einmalig nach Migration):
 

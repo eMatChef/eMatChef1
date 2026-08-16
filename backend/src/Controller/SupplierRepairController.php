@@ -8,15 +8,10 @@ use App\Entity\User;
 use App\Security\Voter\SupplierCompanyVoter;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\Supplier\SupplierRepairTicketService;
-use App\Service\Workshop\WorkshopPhotoAccessService;
-use App\Service\Workshop\WorkshopPhotoStorageService;
 use App\Service\Workshop\WorkshopTicketCompletionException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -26,8 +21,6 @@ class SupplierRepairController extends AbstractController
     public function __construct(
         private SupplierCompanyAccessService $accessService,
         private SupplierRepairTicketService $repairTicketService,
-        private WorkshopPhotoStorageService $photoStorage,
-        private WorkshopPhotoAccessService $photoAccess,
     ) {
     }
 
@@ -86,35 +79,6 @@ class SupplierRepairController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
-        }
-    }
-
-    #[Route('/{ticketId}/photos/{filename}', name: 'show_photo', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    #[IsGranted(SupplierCompanyVoter::ACCESS, subject: 'companyId')]
-    public function showPhoto(string $companyId, string $ticketId, string $filename): Response
-    {
-        try {
-            $user = $this->requireUser();
-            $this->accessService->requireRepairsAccess($user, $companyId);
-            $ticket = $this->photoAccess->requireTicketById($ticketId);
-            $this->photoAccess->assertSupplierCanViewTicket($user, $companyId, $ticket);
-
-            $legacyCompanyId = $this->photoAccess->resolveLegacySupplierCompanyIdForPhoto($ticket, $filename);
-            $path = $this->photoStorage->resolveWorkshopTicketFilePath(
-                $ticket->getDepartmentId(),
-                $ticketId,
-                $filename,
-                $legacyCompanyId ?? $companyId,
-            );
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 403);
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
     }
 

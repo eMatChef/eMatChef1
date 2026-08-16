@@ -16,6 +16,7 @@
       }}</button>
       <button 
         class="btn-primary btn-sm" 
+        data-onboarding="material-wizard-submit"
         :disabled="!canSubmit || isSubmitting"
         :title="missingSteps.length > 0 ? missingSteps.map((s) => s.label).join(', ') : ''"
         @click="$emit('submit')"

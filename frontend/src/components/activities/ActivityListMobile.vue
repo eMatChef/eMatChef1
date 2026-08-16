@@ -5,6 +5,9 @@
       :key="item.id"
       class="activity-list-mobile__item"
       :class="{ 'activity-list-mobile__item--draft': item.status === 'draft' }"
+      :data-onboarding="
+        tourHighlightId && item.id === tourHighlightId ? tourHighlightAttr ?? undefined : undefined
+      "
       @click="emit('open', item)"
     >
       <template #prepend>
@@ -71,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { GroupPathLine } from '@/utils/groupHierarchy'
 import { activityStatusClass } from '@/utils/activityStatus'
@@ -80,17 +84,47 @@ import '@/styles/components/activity-list-mobile.css'
 
 defineOptions({ name: 'ActivityListMobile' })
 
-defineProps<{
-  items: ActivityListItem[]
-  typeLabel: (type: string) => string
-  statusLabel: (status: string) => string
-  periodLabel: (item: ActivityListItem) => string
-  groupPathLines: (item: ActivityListItem) => GroupPathLine[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    items: ActivityListItem[]
+    typeLabel: (type: string) => string
+    statusLabel: (status: string) => string
+    periodLabel: (item: ActivityListItem) => string
+    groupPathLines: (item: ActivityListItem) => GroupPathLine[]
+    markFirstSubmittedForTour?: boolean
+    markFirstPackingForTour?: boolean
+  }>(),
+  { markFirstSubmittedForTour: false, markFirstPackingForTour: false },
+)
 
 const emit = defineEmits<{
   open: [item: ActivityListItem]
 }>()
 
 const { t } = useI18n()
+
+const firstSubmittedId = computed(() => {
+  if (!props.markFirstSubmittedForTour) return null
+  const prefer = props.items.find(
+    (i) => i.status === 'submitted' && (i.type === 'camp' || i.type === 'event'),
+  )
+  return prefer?.id ?? props.items.find((i) => i.status === 'submitted')?.id ?? null
+})
+
+const firstPackingId = computed(() => {
+  if (!props.markFirstPackingForTour) return null
+  const preferCamp = props.items.find((i) => i.type === 'camp')
+  if (preferCamp) return preferCamp.id
+  const preferEvent = props.items.find((i) => i.type === 'event')
+  if (preferEvent) return preferEvent.id
+  return props.items.find((i) => i.type === 'activity')?.id ?? props.items[0]?.id ?? null
+})
+
+const tourHighlightId = computed(() => firstSubmittedId.value ?? firstPackingId.value)
+
+const tourHighlightAttr = computed(() => {
+  if (firstSubmittedId.value) return 'activities-submitted-row'
+  if (firstPackingId.value) return 'activities-packing-row'
+  return null
+})
 </script>

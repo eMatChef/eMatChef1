@@ -54,7 +54,7 @@
         {{ t('activities.materialAvailability.hintDraftNoPeriod') }}
       </span>
     </p>
-    <div class="activity-material-lookup">
+    <div class="activity-material-lookup" data-onboarding="activity-create-material-search">
       <MaterialLookupInput
         ref="materialLookupRef"
         :key="`${materialLookupScopeKey}-s${searchResetKey}`"

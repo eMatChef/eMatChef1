@@ -18,6 +18,16 @@
         @toggle="$emit('toggle-sort', $event)"
       />
     </template>
+    <template v-if="showExpiry" #header.expiry_date>
+      <SortHeaderButton
+        :label="t('materialsView.colExpiry')"
+        :title="t('materialsView.colExpiry')"
+        sort-key="expiry_date"
+        :active-key="sortKey"
+        :direction="sortDir"
+        @toggle="$emit('toggle-sort', $event)"
+      />
+    </template>
     <template #header.qty>
       <SortHeaderButton
         :label="qtyColumnLabel"
@@ -81,6 +91,16 @@
 
     <template #item.acquired_on="{ item }">
       {{ formatDate(item.acquired_on) }}
+    </template>
+    <template v-if="showExpiry" #item.expiry_date="{ item }">
+      <span
+        v-if="item.expiry_date"
+        class="expiry-date"
+        :class="expiryToneClass(daysUntilExpiry(item.expiry_date))"
+      >
+        {{ formatExpiryDate(item.expiry_date) }}
+      </span>
+      <span v-else>{{ emDash }}</span>
     </template>
     <template #item.qty="{ item }">
       <span class="qty-cell">{{ formatBatchQty(item.qty) }}</span>
@@ -163,6 +183,7 @@ import {
   formatStockQtyWithPackHint,
   getStockUnitLabel,
 } from '@/utils/materialStockUnit'
+import { daysUntilExpiry, expiryToneClass, formatExpiryDate } from '@/utils/materialExpiry'
 
 defineOptions({ name: 'MaterialStockBatchesDataTable' })
 
@@ -173,22 +194,27 @@ export type BatchLocationEntry = {
   containerSearchSeed?: string
 }
 
-const props = defineProps<{
-  items: MaterialBatch[]
-  canManageMaterials: boolean
-  showMoveQty: boolean
-  materialName: string
-  packUnit?: string | null
-  packSize?: number | null
-  sizeLengthCm?: string | number | null
-  statusLabels: Record<string, string>
-  sortKey: string | null
-  sortDir: 'asc' | 'desc'
-  emDash: string
-  currencyFr: string
-  formatDate: (value: string | null | undefined) => string
-  locationEntries: (batch: MaterialBatch) => BatchLocationEntry[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    items: MaterialBatch[]
+    canManageMaterials: boolean
+    showMoveQty: boolean
+    materialName: string
+    packUnit?: string | null
+    packSize?: number | null
+    sizeLengthCm?: string | number | null
+    statusLabels: Record<string, string>
+    sortKey: string | null
+    sortDir: 'asc' | 'desc'
+    emDash: string
+    currencyFr: string
+    formatDate: (value: string | null | undefined) => string
+    locationEntries: (batch: MaterialBatch) => BatchLocationEntry[]
+    /** Ablaufdatum-Spalte (Esswaren / Chargen mit Verfall) */
+    showExpiry?: boolean
+  }>(),
+  { showExpiry: false },
+)
 
 const { t } = useI18n()
 
@@ -229,8 +255,11 @@ defineEmits<{
 const headers = computed(() => {
   const h: { title: string; key: string; sortable: boolean; width?: string }[] = [
     { title: '', key: 'acquired_on', sortable: false, width: '110px' },
-    { title: '', key: 'qty', sortable: false, width: '72px' },
   ]
+  if (props.showExpiry) {
+    h.push({ title: '', key: 'expiry_date', sortable: false, width: '110px' })
+  }
+  h.push({ title: '', key: 'qty', sortable: false, width: '72px' })
   if (props.canManageMaterials) {
     h.push({ title: t('components.materialDetail.thQr'), key: 'qr', sortable: false, width: '72px' })
   }

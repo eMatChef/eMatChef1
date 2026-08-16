@@ -30,7 +30,10 @@ export function useDepartmentOnboardingAccess() {
   const hasSetupChecklistRole = computed(() => isDepartmentMwOrDcRole(departmentRole.value))
 
   const hasTourRole = computed(
-    () => isDepartmentMwOrDcRole(departmentRole.value) || isDepartmentBasicMemberRole(departmentRole.value)
+    () =>
+      isDepartmentMwOrDcRole(departmentRole.value) ||
+      isDepartmentBasicMemberRole(departmentRole.value) ||
+      ['org', 'organisationschef', 'sub', 'suborgchef', 'sa', 'superadmin'].includes(departmentRole.value)
   )
 
   /** @deprecated use hasSetupChecklistRole — historically MW/DC only */
@@ -60,11 +63,21 @@ export function useDepartmentOnboardingAccess() {
   /** Setup-Checkliste (MW/DC). */
   const canUseSetupChecklist = computed(() => baseAccess.value && hasSetupChecklistRole.value)
 
-  /** Spotlight-Touren (MW/DC + User/L1–L3). */
-  const canUseTours = computed(() => baseAccess.value && hasTourRole.value)
+  /** Hub Hilfe → Touren (Department-Mitglieder + Org/Suborg). */
+  const canUseHelpTours = computed(
+    () =>
+      authStore.isLoggedIn &&
+      !!departmentId.value &&
+      !!profileId.value &&
+      hasTourRole.value &&
+      !isGrossanlassDepartment.value
+  )
 
-  /** Hub Hilfe → Einrichtung. */
-  const canUseHelpEinrichtung = computed(() => canUseTours.value)
+  /** Spotlight-Touren starten. */
+  const canUseTours = canUseHelpTours
+
+  /** @deprecated use canUseHelpTours */
+  const canUseHelpEinrichtung = canUseHelpTours
 
   /** @deprecated alias for canUseSetupChecklist (badge / checklist refresh) */
   const canUseOnboarding = canUseSetupChecklist
@@ -86,6 +99,7 @@ export function useDepartmentOnboardingAccess() {
     canUseOnboarding,
     canUseSetupChecklist,
     canUseTours,
+    canUseHelpTours,
     canUseHelpEinrichtung,
     hasOnboardingRole,
     hasSetupChecklistRole,

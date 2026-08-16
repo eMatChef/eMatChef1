@@ -10,7 +10,7 @@ use App\Service\Media\MediaStorageService;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
- * Material-Abbildungen unter var/uploads/material/{departmentId}/{materialItemId}/.
+ * Material-Abbildungen unter var/uploads/{departmentId}/photos/material/{materialItemId}/.
  */
 class MaterialPhotoStorageService
 {
@@ -29,38 +29,30 @@ class MaterialPhotoStorageService
         $materialId = (string) $material->getId();
         $departmentId = $material->getDepartmentId();
 
+        $options = [];
+        $materialName = trim($material->getName());
+        if ($materialName !== '') {
+            $options['original_filename'] = $materialName;
+        }
+
         return $this->mediaStorage->store(
             MediaStorageService::CONTEXT_MATERIAL_ITEM,
             $materialId,
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildMaterialPhotoUrl(
-                    $materialId,
-                    $filename,
-                ),
-            ],
+            $options,
         );
     }
 
     public function resolveFilePath(string $departmentId, string $materialId, string $filename): string
     {
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafePathSegment($materialId);
-        $this->mediaStorage->assertSafeFilename($filename);
-
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_MATERIAL_ITEM,
             $departmentId,
             $materialId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('Datei nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
     public function deleteAllForMaterial(MaterialItem $material): void
@@ -72,12 +64,13 @@ class MaterialPhotoStorageService
         );
     }
 
-    public function buildMaterialPhotoUrl(string $materialId, string $filename): string
+    public function buildMaterialPhotoUrl(string $departmentId, string $materialId, string $filename): string
     {
-        return sprintf(
-            '/api/materials/%s/photos/%s',
-            rawurlencode($materialId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_MATERIAL_ITEM,
+            $departmentId,
+            $materialId,
+            $filename,
         );
     }
 }

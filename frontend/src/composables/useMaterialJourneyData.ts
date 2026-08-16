@@ -1,4 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { getActivity, type ActivityDetail } from '@/api/activities'
 import {
   getActivityPackContainerItems,
@@ -13,6 +14,7 @@ import {
   journeyStepsForViewer,
   type JourneyStep,
 } from '@/components/activities/materialJourneySteps'
+import { ONBOARDING_TOUR_QUERY } from '@/config/onboardingTours'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { isJourneyStepWorkComplete } from '@/utils/materialJourneyStepWorkStatus'
@@ -42,6 +44,7 @@ export function useMaterialJourneyData(
     isPollBusy?: () => boolean
   },
 ) {
+  const route = useRoute()
   const { canManageMaterials } = useDepartmentMemberRole()
 
   const activity = ref<ActivityDetail | null>(null)
@@ -54,6 +57,13 @@ export function useMaterialJourneyData(
   const error = ref<string | null>(null)
 
   const profile = computed(() => packWorkflowProfileForActivityType(activity.value?.type ?? 'activity'))
+
+  /** Tour darf Journey-Schritte vor dem DB-Checkpoint zeigen, wenn der User sie anklickt (Spotlight). */
+  const allowFutureJourneyStepForTour = computed(() => {
+    const raw = route.query[ONBOARDING_TOUR_QUERY]
+    const tourId = Array.isArray(raw) ? raw[0] : raw
+    return typeof tourId === 'string' && tourId.length > 0
+  })
 
   const journeyMaterialContext = computed(() => ({
     packItems: packItems.value,
@@ -118,6 +128,8 @@ export function useMaterialJourneyData(
     if (!param) return true
     if (!isValidJourneyStepForViewer(param, profile.value, canManageMaterials.value)) return true
     if (!activity.value) return false
+    // Onboarding: packStep aus der Tour nicht auf den DB-Checkpoint zurückzwingen
+    if (allowFutureJourneyStepForTour.value) return false
     const paramStep = param as JourneyStep
     const activeIdx = journeyStepIndex(activeJourneyStep.value, profile.value)
     const paramIdx = journeyStepIndex(paramStep, profile.value)

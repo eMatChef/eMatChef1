@@ -6,6 +6,7 @@ import type { ActivityPackContainer, ActivityPackContainerItem } from '@/api/act
 import {
   createActivityPackContainer,
   createActivityPackContainerItem,
+  postContainerItemStoreFromWet,
   updateActivityPackContainerItem,
 } from '@/api/activityContainers'
 import { postMovePackItem, type ActivityPackItem, type PackMoveSource } from '@/api/activityPackItems'
@@ -86,6 +87,7 @@ export function useMaterialJourneyTasks(options: {
   const activeStoreContainerId = ref<string | null>(null)
   const activeStoreContainerItem = ref<ActivityPackContainerItem | null>(null)
   const activeStoreIsShell = ref(false)
+  const activeStoreFromWet = ref(false)
   const lastFailedMove = ref<{ row: MaterialJourneyTaskRow; source: PackMoveSource } | null>(null)
   const assignCrateSheetOpen = ref(false)
   const assignCratePackItem = ref<ActivityPackItem | null>(null)
@@ -471,11 +473,17 @@ export function useMaterialJourneyTasks(options: {
     }
   }
 
-  function openStoreShelve(pi: ActivityPackItem, maxQty: number, fromScan = false): void {
+  function openStoreShelve(
+    pi: ActivityPackItem,
+    maxQty: number,
+    fromScan = false,
+    fromWet = false,
+  ): void {
     activeStoreItem.value = pi
     activeStoreMaxQty.value = maxQty
     storeShelveQty.value = maxQty
     storeShelveOpenedFromScan.value = fromScan
+    activeStoreFromWet.value = fromWet
     storeShelveOpen.value = true
   }
 
@@ -483,6 +491,7 @@ export function useMaterialJourneyTasks(options: {
     containerId: string,
     ci: ActivityPackContainerItem,
     pi: ActivityPackItem,
+    fromWet = false,
   ): number {
     const resolved = resolveActionableContainerLine(
       containerId,
@@ -490,6 +499,9 @@ export function useMaterialJourneyTasks(options: {
       options.containerItemsByContainerId.value,
     )
     if (isNonActionableContainerLine(resolved)) return 0
+    if (fromWet) {
+      return Math.max(0, resolved.quantity_wet ?? 0)
+    }
     const lineMax = containerLineRemainingStore(resolved)
     const packMax = packIssueForwardMax(pi)
     return Math.min(lineMax, packMax)
@@ -501,6 +513,7 @@ export function useMaterialJourneyTasks(options: {
     pi: ActivityPackItem,
     maxQty: number,
     fromScan = false,
+    fromWet = false,
   ): void {
     const resolved = resolveActionableContainerLine(
       containerId,
@@ -508,12 +521,15 @@ export function useMaterialJourneyTasks(options: {
       options.containerItemsByContainerId.value,
     )
     if (isNonActionableContainerLine(resolved)) return
-    const cappedMax = Math.min(maxQty, maxStoreQtyForContainerLine(containerId, resolved, pi))
+    const cappedMax = Math.min(
+      maxQty,
+      maxStoreQtyForContainerLine(containerId, resolved, pi, fromWet),
+    )
     if (cappedMax < 1) return
     activeStoreContainerId.value = containerId
     activeStoreContainerItem.value = resolved
     activeStoreIsShell.value = false
-    openStoreShelve(pi, cappedMax, fromScan)
+    openStoreShelve(pi, cappedMax, fromScan, fromWet)
   }
 
   function openStoreShelveForContainerShell(
@@ -521,11 +537,52 @@ export function useMaterialJourneyTasks(options: {
     pi: ActivityPackItem,
     maxQty: number,
     fromScan = false,
+    fromWet = false,
   ): void {
     activeStoreContainerId.value = containerId
     activeStoreContainerItem.value = null
     activeStoreIsShell.value = true
-    openStoreShelve(pi, maxQty, fromScan)
+    openStoreShelve(pi, maxQty, fromScan, fromWet)
+  }
+
+  function openStoreShelveFromWet(row: MaterialJourneyTaskRow, fromScan = false): boolean {
+    if (row.kind === 'loose' && row.packItem) {
+      const wetQty = row.packItem.quantityWet ?? 0
+      if (wetQty < 1) return false
+      activeStoreContainerId.value = null
+      activeStoreContainerItem.value = null
+      activeStoreIsShell.value = false
+      openStoreShelve(row.packItem, wetQty, fromScan, true)
+      return true
+    }
+    if (isMaterialJourneyCrateKind(row.kind) && row.container) {
+      const containerId = row.container.id
+      const wetLine = (options.containerItemsByContainerId.value[containerId] ?? []).find(
+        (ci) => (ci.quantity_wet ?? 0) > 0,
+      )
+      if (wetLine) {
+        const pi =
+          options.packItems.value.find((p) => p.materialItemId === wetLine.material_item_id) ??
+          null
+        if (!pi) return false
+        openStoreShelveForContainerLine(
+          containerId,
+          wetLine,
+          pi,
+          wetLine.quantity_wet ?? 0,
+          fromScan,
+          true,
+        )
+        return true
+      }
+      const shell = shellPackItemForContainer(containerId)
+      const shellWet = shell?.quantityWet ?? 0
+      if (shell && shellWet > 0) {
+        openStoreShelveForContainerShell(containerId, shell, shellWet, fromScan, true)
+        return true
+      }
+    }
+    return false
   }
 
   function closeStoreShelve(): void {
@@ -535,6 +592,7 @@ export function useMaterialJourneyTasks(options: {
     activeStoreContainerId.value = null
     activeStoreContainerItem.value = null
     activeStoreIsShell.value = false
+    activeStoreFromWet.value = false
   }
 
   async function submitStoreShelve(): Promise<void> {
@@ -542,11 +600,14 @@ export function useMaterialJourneyTasks(options: {
     const activityId = options.activity.value?.id
     const containerId = activeStoreContainerId.value
     const containerItem = activeStoreContainerItem.value
+    const fromWet = activeStoreFromWet.value
     if (!pi || !activityId) return
 
     let qty = storeShelveQty.value
     if (containerItem && containerId) {
-      qty = Math.min(qty, maxStoreQtyForContainerLine(containerId, containerItem, pi))
+      qty = Math.min(qty, maxStoreQtyForContainerLine(containerId, containerItem, pi, fromWet))
+    } else if (fromWet) {
+      qty = Math.min(qty, pi.quantityWet ?? 0)
     } else {
       qty = Math.min(qty, packIssueForwardMax(pi))
     }
@@ -554,22 +615,39 @@ export function useMaterialJourneyTasks(options: {
 
     storeShelveSubmitting.value = true
     try {
-      const updated = await postMovePackItem(activityId, pi.id, {
-        stage: 'stored',
-        quantity: qty,
-        source: storeShelveOpenedFromScan.value ? 'scan' : 'tap',
-      })
-      applyUpdatedItem(updated)
-      if (containerId && containerItem) {
-        const storedCap = Math.max(containerItem.quantity_returned ?? 0, qty)
-        await updateActivityPackContainerItem(activityId, containerId, containerItem.id, {
-          quantity_stored: Math.min((containerItem.quantity_stored ?? 0) + qty, storedCap),
+      if (fromWet && containerId && containerItem) {
+        // Nass liegt auf der Kistenzeile; Pack-Item wird normal nach «stored» gebucht.
+        await postContainerItemStoreFromWet(activityId, containerId, containerItem.id, qty)
+        const updated = await postMovePackItem(activityId, pi.id, {
+          stage: 'stored',
+          quantity: qty,
+          source: storeShelveOpenedFromScan.value ? 'scan' : 'tap',
         })
+        applyUpdatedItem(updated)
         if (options.reloadSilent) await options.reloadSilent()
         else await options.reload()
-      } else if (containerId && activeStoreIsShell.value) {
-        if (options.reloadSilent) await options.reloadSilent()
-        else await options.reload()
+      } else {
+        const updated = await postMovePackItem(activityId, pi.id, {
+          stage: 'stored',
+          quantity: qty,
+          ...(fromWet ? { from_wet: true } : {}),
+          source: storeShelveOpenedFromScan.value ? 'scan' : 'tap',
+        })
+        applyUpdatedItem(updated)
+        if (containerId && containerItem) {
+          const storedCap = Math.max(containerItem.quantity_returned ?? 0, qty)
+          await updateActivityPackContainerItem(activityId, containerId, containerItem.id, {
+            quantity_stored: Math.min((containerItem.quantity_stored ?? 0) + qty, storedCap),
+          })
+          if (options.reloadSilent) await options.reloadSilent()
+          else await options.reload()
+        } else if (containerId && activeStoreIsShell.value) {
+          if (options.reloadSilent) await options.reloadSilent()
+          else await options.reload()
+        } else if (fromWet) {
+          if (options.reloadSilent) await options.reloadSilent()
+          else await options.reload()
+        }
       }
       toast.success(t('activities.materialJourney.storeSheet.toastSuccess'))
       closeStoreShelve()
@@ -631,6 +709,9 @@ export function useMaterialJourneyTasks(options: {
       return
     }
     if (isMaterialJourneyCrateKind(row.kind) && row.container) {
+      if (isJourneyStoreStep(options.journeyStep.value) && !row.isOpen) {
+        if (openStoreShelveFromWet(row, source === 'scan')) return
+      }
       if (!row.canOpenSheet) {
         showReadonlyToast(row)
         return
@@ -675,9 +756,24 @@ export function useMaterialJourneyTasks(options: {
       openComboPackItem(row.packItem)
       return
     }
-    if (isJourneyStoreStep(options.journeyStep.value) && row.kind === 'loose' && row.packItem && row.canMove) {
-      openStoreShelve(row.packItem, row.maxForwardQty, source === 'scan')
-      return
+    if (row.kind === 'loose' && row.packItem) {
+      if (isJourneyReturnStep(options.journeyStep.value)) {
+        if (!row.canMove && (row.packItem.quantityWet ?? 0) < 1 && row.maxForwardQty < 1) {
+          showReadonlyToast(row)
+          return
+        }
+        returnCrate.openForLoose(row.packItem, Math.max(row.maxForwardQty, 0))
+        return
+      }
+    }
+    if (isJourneyStoreStep(options.journeyStep.value) && row.kind === 'loose' && row.packItem) {
+      if (row.canMove) {
+        openStoreShelve(row.packItem, row.maxForwardQty, source === 'scan')
+        return
+      }
+      if ((row.packItem.quantityWet ?? 0) > 0 && openStoreShelveFromWet(row, source === 'scan')) {
+        return
+      }
     }
     void moveTaskRow(row, source)
   }
@@ -952,6 +1048,7 @@ export function useMaterialJourneyTasks(options: {
     submitStoreShelve,
     openStoreShelveForContainerLine,
     openStoreShelveForContainerShell,
+    openStoreShelveFromWet,
     containerLineRemainingStore,
     containerInnerPendingStoreUnits,
     containerShellPendingStoreQty,

@@ -68,7 +68,7 @@ services:
         condition: service_healthy
     # Entrypoint: Migrationen + JWT-Keys (siehe backend/docker-entrypoint.sh)
     entrypoint: ["/var/www/html/docker-entrypoint.sh"]
-    command: ["php", "-S", "0.0.0.0:8081", "-t", "public"]
+    command: ["php", "-S", "0.0.0.0:8081", "-t", "public", "public/router.php"]
 
   frontend:
     # Root nur für Entrypoint (chown node_modules-Volume), danach su-exec auf HOST_UID

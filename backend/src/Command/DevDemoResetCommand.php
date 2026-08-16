@@ -14,7 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Fixe Dev-Vorlage: Rollen-User (@ematchef.ch / test) + E2E-Smoke ohne Department.
+ * Fixe Dev-Vorlage: Rollen-User (@ematchef.ch / test!ematchef) + E2E-Smoke ohne Department.
  * Nur wenn EMATCHEF_DEV_TOOLS aktiv (bzw. nicht APP_ENV=prod ohne Override).
  */
 #[AsCommand(
@@ -98,7 +98,7 @@ final class DevDemoResetCommand extends Command
 
         $io->success([
             'Dev-Demo bereit.',
-            'Banner-Logins: *@ematchef.ch / test',
+            'Banner-Logins: *@ematchef.ch / ' . CreateRoleUsersCommand::DEMO_PASSWORD,
             'E2E: ' . EnsureE2eUserCommand::DEFAULT_EMAIL . ' (ohne Department, ausgeblendet in User-Suche)',
         ]);
 

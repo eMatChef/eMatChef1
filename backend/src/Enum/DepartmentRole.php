@@ -4,7 +4,7 @@ namespace App\Enum;
 
 /**
  * Department Rollen - Hierarchische Struktur
- * 
+ *
  * Hierarchie (von oben nach unten):
  * 1. superadmin          - Chef über alles
  * 2. organisationschef   - Über seine Organisation und untere Departments
@@ -15,38 +15,31 @@ namespace App\Enum;
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
  * 8. leader3             - Hierarchische Leiter-Funktion (Ebene 3)
  * 9. user                - Basis-User
+ *
+ * J+S-Coach ist kein Rollenwert, sondern Flag membership.is_js_coach.
  */
 enum DepartmentRole: string
 {
-    case SUPERADMIN = 'sa';           // superadmin
-    case ORGANISATIONSCHEF = 'org';   // organisationschef
-    case SUBORGCHEF = 'sub';          // suborgchef
-    case MATWART = 'mw';              // matwart
-    case DEPCHEF = 'dc';              // depchef
-    case LEADER1 = 'l1';              // leader1
-    case LEADER2 = 'l2';              // leader2
-    case LEADER3 = 'l3';              // leader3
-    case USER = 'u';                  // user
+    case SUPERADMIN = 'sa';
+    case ORGANISATIONSCHEF = 'org';
+    case SUBORGCHEF = 'sub';
+    case MATWART = 'mw';
+    case DEPCHEF = 'dc';
+    case LEADER1 = 'l1';
+    case LEADER2 = 'l2';
+    case LEADER3 = 'l3';
+    case USER = 'u';
 
-    /**
-     * Gibt alle verfügbaren Rollen zurück
-     */
     public static function all(): array
     {
         return array_map(fn($case) => $case->value, self::cases());
     }
 
-    /**
-     * Prüft ob eine Rolle gültig ist
-     */
     public static function isValid(string $role): bool
     {
         return in_array($role, self::all(), true);
     }
 
-    /**
-     * Gibt die Hierarchie-Ebene zurück (0 = höchste, 8 = niedrigste)
-     */
     public function getLevel(): int
     {
         return match($this) {
@@ -62,24 +55,15 @@ enum DepartmentRole: string
         };
     }
 
-    /**
-     * Prüft ob diese Rolle eine andere Rolle verwalten kann
-     * Eine Rolle kann nur Rollen verwalten, die unter ihr in der Hierarchie stehen
-     */
     public function canManageRole(DepartmentRole $otherRole): bool
     {
-        // Superadmin kann alles verwalten
         if ($this === self::SUPERADMIN) {
             return true;
         }
 
-        // Eine Rolle kann nur Rollen verwalten, die eine höhere Level-Nummer haben (also tiefer in der Hierarchie)
         return $this->getLevel() < $otherRole->getLevel();
     }
 
-    /**
-     * Gibt alle Rollen zurück, die diese Rolle verwalten kann
-     */
     public function getManageableRoles(): array
     {
         if ($this === self::SUPERADMIN) {
@@ -92,9 +76,6 @@ enum DepartmentRole: string
         );
     }
 
-    /**
-     * Gibt die Symfony ROLE_* Konstante zurück
-     */
     public function toSymfonyRole(): string
     {
         return match($this) {
@@ -110,9 +91,6 @@ enum DepartmentRole: string
         };
     }
 
-    /**
-     * Gibt den vollständigen Namen der Rolle zurück (für Anzeige)
-     */
     public function getFullName(): string
     {
         return match($this) {
@@ -128,9 +106,6 @@ enum DepartmentRole: string
         };
     }
 
-    /**
-     * Gibt die Anzeige-Bezeichnung zurück
-     */
     public function getLabel(): string
     {
         return match($this) {

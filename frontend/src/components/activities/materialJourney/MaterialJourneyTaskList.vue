@@ -7,12 +7,13 @@ import MaterialJourneyCrateTaskRow from '@/components/activities/materialJourney
 import MaterialJourneyRegalGroup from '@/components/activities/materialJourney/MaterialJourneyRegalGroup.vue'
 import type { MaterialJourneyRegalGroup as RegalGroup } from '@/components/activities/materialJourneyRegalGroups'
 import type { JourneyStep } from '@/components/activities/materialJourneySteps'
+import { isJourneyReturnStep } from '@/components/activities/materialJourneySteps'
 import type { ActivityPackContainerItem } from '@/api/activityContainers'
 import type {
   MaterialJourneyFilterTab,
   MaterialJourneyTaskRow as TaskRow,
 } from '@/components/activities/materialJourneyTaskList'
-import { isMaterialJourneyCrateKind } from '@/components/activities/materialJourneyTaskList'
+import { isMaterialJourneyCrateKind, materialJourneyWetHungSummary } from '@/components/activities/materialJourneyTaskList'
 import {
   materialJourneyAccordionLinesForRow,
   type MaterialJourneyAccordionLine,
@@ -61,13 +62,16 @@ const props = defineProps<{
   shellStorePendingQtyForRow?: (row: TaskRow) => number
   showCrateContentActions?: boolean
   deleteEmptySubmittingForRow?: (row: TaskRow) => boolean
-  /** Einlagern: oben offen (Regal), unten bereits eingelagert */
+  /** Einlagern: oben offen (Regal), Mitte nass, unten bereits eingelagert */
   showStoreSplitSections?: boolean
+  storeWetTasks?: TaskRow[]
   storeDoneTasks?: TaskRow[]
 }>()
 
 const emit = defineEmits<{
   activate: [row: TaskRow]
+  activateWet: [row: TaskRow]
+  wetReturn: [row: TaskRow]
   selectTarget: [row: TaskRow]
   looseTake: [row: TaskRow, line: MaterialJourneyAccordionLine]
   reassignTo: [row: TaskRow, line: MaterialJourneyAccordionLine, targetContainerId: string]
@@ -90,7 +94,43 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
+const storeWetRows = computed(() =>
+  (props.storeWetTasks ?? []).map((row) => {
+    const hung = materialJourneyWetHungSummary(
+      row,
+      props.containerItemsByContainerId,
+      props.shellPackItemForContainer,
+    )
+    let wetSubtitle: string | null = null
+    if (hung) {
+      if (hung.hung) {
+        wetSubtitle = hung.locationLabel
+          ? t('activities.materialJourney.storeSections.wetHungAt', {
+              location: hung.locationLabel,
+            })
+          : t('activities.materialJourney.storeSections.wetHungYes')
+      } else {
+        wetSubtitle = t('activities.materialJourney.storeSections.wetHungNo')
+      }
+    }
+    return {
+      ...row,
+      // Nass-Zeilen sind sonst nicht klickbar (canMove/canOpenSheet false).
+      canMove: true,
+      canOpenSheet: true,
+      isOpen: true,
+      maxForwardQty: Math.max(1, row.maxForwardQty, row.packItem?.quantityWet ?? 0, hung?.qtyWet ?? 0),
+      wetQueueQty: hung?.qtyWet ?? row.packItem?.quantityWet ?? 0,
+      // Nur in Nass-Sektion: Aufgehängt-Hinweis; sonst unverändert.
+      subtitle: wetSubtitle ?? row.subtitle,
+    }
+  }),
+)
 const storeDoneRows = computed(() => props.storeDoneTasks ?? [])
+
+const showStoreWetSection = computed(
+  () => Boolean(props.showStoreSplitSections) && storeWetRows.value.length > 0,
+)
 
 const showStoreDoneSection = computed(
   () => Boolean(props.showStoreSplitSections) && storeDoneRows.value.length > 0,
@@ -105,6 +145,18 @@ function isExpandableRow(row: TaskRow): boolean {
 
 function showStoreForLooseRow(row: TaskRow): boolean {
   return props.journeyStep === 'store' && row.canMove && row.isOpen && row.maxForwardQty > 0
+}
+
+function showReturnForLooseRow(row: TaskRow): boolean {
+  if (!props.journeyStep || !isJourneyReturnStep(props.journeyStep) || row.kind !== 'loose' || !row.packItem) {
+    return false
+  }
+  if (!row.isOpen) return false
+  return row.canMove || row.maxForwardQty > 0 || (row.packItem.quantityWet ?? 0) > 0
+}
+
+function showWetReturnForLooseRow(row: TaskRow): boolean {
+  return showReturnForLooseRow(row)
 }
 
 function previewLinesFor(row: TaskRow): MaterialJourneyAccordionLine[] {
@@ -175,7 +227,10 @@ function reassignTargetsFor(row: TaskRow): { id: string; label: string }[] {
 }
 
 const listIsEmpty = computed(() => {
-  if (isByShelf.value) return props.regalGroups.length === 0
+  if (isByShelf.value) {
+    if (showStoreWetSection.value || showStoreDoneSection.value) return false
+    return props.regalGroups.length === 0
+  }
   return primaryTasks.value.length === 0 && notTakenTasks.value.length === 0
 })
 
@@ -223,7 +278,7 @@ const emptyDescription = computed(() => {
 </script>
 
 <template>
-  <div class="material-journey-task-list">
+  <div class="material-journey-task-list" data-onboarding="activity-pack-list">
     <EEmptyState
       v-if="isEarlyPackPreview"
       class="material-journey-task-list__empty"
@@ -246,7 +301,7 @@ const emptyDescription = computed(() => {
       :class="{ 'material-journey-task-list__store-split': showStoreSplitSections }"
     >
       <section
-        v-if="showStoreSplitSections"
+        v-if="showStoreSplitSections && regalGroups.length > 0"
         class="material-journey-store-section"
         aria-labelledby="material-journey-store-open-title"
       >
@@ -297,6 +352,7 @@ const emptyDescription = computed(() => {
             :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
             :has-reassign-targets-for-row="hasReassignTargetsFor"
             @activate="emit('activate', $event)"
+            @wet-return="emit('wetReturn', $event)"
             @select-target="emit('selectTarget', $event)"
             @loose-take="(row, line) => emit('looseTake', row, line)"
             @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
@@ -354,6 +410,7 @@ const emptyDescription = computed(() => {
           :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
           :has-reassign-targets-for-row="hasReassignTargetsFor"
           @activate="emit('activate', $event)"
+          @wet-return="emit('wetReturn', $event)"
           @select-target="emit('selectTarget', $event)"
           @loose-take="(row, line) => emit('looseTake', row, line)"
           @reassign-to="(row, line, targetId) => emit('reassignTo', row, line, targetId)"
@@ -374,6 +431,44 @@ const emptyDescription = computed(() => {
           @store-shell="(row) => emit('storeShell', row)"
         />
       </template>
+
+      <section
+        v-if="showStoreWetSection"
+        class="material-journey-store-section material-journey-store-section--wet"
+        aria-labelledby="material-journey-store-wet-title"
+      >
+        <header class="material-journey-store-section__header">
+          <h2 id="material-journey-store-wet-title" class="material-journey-store-section__title">
+            {{ t('activities.materialJourney.storeSections.wetTitle') }}
+          </h2>
+          <span class="material-journey-store-section__meta text-muted">
+            {{ t('activities.materialJourney.storeSections.wetCount', { count: storeWetRows.length }) }}
+          </span>
+        </header>
+        <ul class="material-journey-task-list__items">
+          <li v-for="row in storeWetRows" :key="`wet-${row.id}`">
+            <MaterialJourneyCrateTaskRow
+              v-if="isExpandableRow(row)"
+              :row="row"
+              :moving="false"
+              :readonly="false"
+              :preview-lines="previewLinesFor(row)"
+              :journey-step="journeyStep"
+              :container-items-by-container-id="containerItemsByContainerId"
+              :is-consumable-for-material-id="isConsumableForMaterialId"
+              @activate="emit('activateWet', row)"
+            />
+            <MaterialJourneyTaskRow
+              v-else
+              :row="row"
+              :moving="false"
+              :readonly="false"
+              :is-consumable-for-material-id="isConsumableForMaterialId"
+              @activate="emit('activateWet', row)"
+            />
+          </li>
+        </ul>
+      </section>
 
       <section
         v-if="showStoreDoneSection"
@@ -479,9 +574,12 @@ const emptyDescription = computed(() => {
             :transport-target-tour-label="transportTargetTourLabel"
             :show-issue-actions="showIssueForRow?.(row) ?? false"
             :show-store-action="showStoreForLooseRow(row)"
+            :show-return-action="showReturnForLooseRow(row)"
+            :show-wet-return-action="showWetReturnForLooseRow(row)"
             :at-event-qty-label="atEventLabelForRow(row)"
             :is-consumable-for-material-id="isConsumableForMaterialId"
             @activate="emit('activate', row)"
+            @wet-return="emit('wetReturn', row)"
             @move-back="emit('moveBack', row, $event)"
             @update:move-back-qty="emit('update:moveBackQty', row, $event)"
             @move-forward="emit('moveForward', row, $event)"

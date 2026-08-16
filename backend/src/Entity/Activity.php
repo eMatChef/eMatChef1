@@ -224,6 +224,10 @@ class Activity
     #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $deletedAt = null;
 
+    /** Onboarding Hybrid-Sandbox: Übungsfall, in Normal-Listen ausgeblendet */
+    #[ORM\Column(name: 'onboarding_sandbox', type: 'boolean', options: ['default' => false])]
+    private bool $onboardingSandbox = false;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -760,6 +764,17 @@ class Activity
     public function setDeletedAt(?\DateTime $deletedAt): self
     {
         $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function isOnboardingSandbox(): bool
+    {
+        return $this->onboardingSandbox;
+    }
+
+    public function setOnboardingSandbox(bool $onboardingSandbox): self
+    {
+        $this->onboardingSandbox = $onboardingSandbox;
         return $this;
     }
 

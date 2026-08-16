@@ -49,9 +49,15 @@ security:
             pattern: ^/api/health
             stateless: true
             security: false
+
+        # robots.txt + API-Root: öffentlich, explizit noindex (Search Console Domain-Property).
+        api_discovery:
+            pattern: ^/($|robots\.txt$)
+            stateless: true
+            security: false
         
         api:
-            pattern: ^/api
+            pattern: ^/(api|media)
             stateless: true
             jwt: ~
 
@@ -68,6 +74,9 @@ security:
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }
+        - { path: ^/robots\.txt$, roles: PUBLIC_ACCESS }
+        - { path: ^/$, roles: PUBLIC_ACCESS }
         # CORS-Preflight (OPTIONS) muss Security passieren, bevor Nelmio antwortet — sonst fehlen Access-Control-* Header.
         - { path: ^/api, roles: PUBLIC_ACCESS, methods: [OPTIONS] }
+        - { path: ^/media, roles: PUBLIC_ACCESS, methods: [OPTIONS] }
         - { path: .*, roles: [ROLE_USER] }

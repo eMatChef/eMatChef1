@@ -46,6 +46,18 @@ class SupplierShopService
         return $items;
     }
 
+    /** Mindestens ein shop-sichtbarer Katalog-Artikel bei einer aktiven Lieferantenfirma. */
+    public function hasShopArticles(): bool
+    {
+        foreach ($this->listCatalogCompanies() as $company) {
+            if ($this->catalogItemRepository->countShopVisibleByCompanyId($company->getId()) > 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return list<array<string, mixed>>
      */

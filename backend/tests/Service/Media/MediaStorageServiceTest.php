@@ -50,7 +50,41 @@ class MediaStorageServiceTest extends TestCase
             'wt_xyz',
         );
 
-        $this->assertStringEndsWith('/var/uploads/workshop/dept_abc/wt_xyz', $dir);
+        $this->assertStringEndsWith('/var/uploads/dept_abc/photos/workshop/wt_xyz', $dir);
+    }
+
+    public function testSanitizeOriginalFilenameStripsPathAndLimitsLength(): void
+    {
+        $service = $this->createService();
+
+        $this->assertSame('Rechnung Mai.pdf', $service->sanitizeOriginalFilename('Rechnung Mai.pdf'));
+        $this->assertSame('file.jpg', $service->sanitizeOriginalFilename('../evil/file.jpg'));
+        $this->assertSame('Rechnung_Mai.pdf', $service->sanitizeOriginalFilename('Rechnung:Mai.pdf'));
+        $this->assertSame(200, mb_strlen($service->sanitizeOriginalFilename(str_repeat('ä', 250))));
+    }
+
+    public function testBuildPublicMediaUrl(): void
+    {
+        $service = $this->createService();
+
+        $url = $service->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_MATERIAL_ITEM,
+            'dept_abc',
+            'mat_xyz',
+            'photo.webp',
+        );
+
+        $this->assertSame('/media/dept_abc/photos/material/mat_xyz/photo.webp', $url);
+    }
+
+    public function testContextFromKindAndFolder(): void
+    {
+        $service = $this->createService();
+
+        $this->assertSame(
+            MediaStorageService::CONTEXT_ACCOUNTING_BOOKING,
+            $service->contextFromKindAndFolder('documents', 'accounting'),
+        );
     }
 
     public function testResolveWorkshopTicketFilePathUsesLegacyFallback(): void

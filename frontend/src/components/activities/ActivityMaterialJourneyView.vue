@@ -35,6 +35,7 @@ import MaterialScanResultCard from '@/components/activities/materialJourney/Mate
 import MaterialScanShelfResultCard from '@/components/activities/materialJourney/MaterialScanShelfResultCard.vue'
 import MaterialReplenishmentWishPanel from '@/components/activities/materialJourney/MaterialReplenishmentWishPanel.vue'
 import MaterialReplenishmentWishList from '@/components/activities/materialJourney/MaterialReplenishmentWishList.vue'
+import MaterialSurplusReturnPanel from '@/components/activities/materialJourney/MaterialSurplusReturnPanel.vue'
 import PackAddContainerModal from '@/components/activities/PackAddContainerModal.vue'
 import PhysicalComboIssueComponentModal from '@/components/activities/PhysicalComboIssueComponentModal.vue'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
@@ -72,12 +73,14 @@ import { useMaterialJourneyPresence } from '@/composables/useMaterialJourneyPres
 import { useMaterialJourneyIssueActions } from '@/composables/useMaterialJourneyIssueActions'
 import { useMaterialJourneyAtEventInventoryIssues } from '@/composables/useMaterialJourneyAtEventInventoryIssues'
 import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
+import { useActivitySurplusReports } from '@/composables/useActivitySurplusReports'
 import type { PackIssueWizardEmitPayload } from '@/components/activities/physicalComboIssueFlow'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
 import {
   isMaterialJourneyCrateKind,
   materialJourneyFilterVariantForStep,
+  materialJourneyTaskHasWetQty,
 } from '@/components/activities/materialJourneyTaskList'
 import type { MaterialJourneyAccordionLine } from '@/components/activities/materialJourneyAccordionLines'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
@@ -318,6 +321,7 @@ const {
   submitStoreShelve,
   openStoreShelveForContainerLine,
   openStoreShelveForContainerShell,
+  openStoreShelveFromWet,
   containerLineRemainingStore,
   containerInnerPendingStoreUnits,
   containerShellPendingStoreQty,
@@ -992,6 +996,7 @@ const selectedPackCrateHasContents = computed(() =>
 const {
   open: returnCrateOpen,
   container: returnCrateContainer,
+  sheetLabel: returnCrateSheetLabel,
   lines: returnCrateLines,
   partition: returnCratePartition,
   submitting: returnCrateSubmitting,
@@ -1037,6 +1042,21 @@ const replenishment = useReplenishmentWishes({
   canManageMaterials,
   onFulfilled: reload,
 })
+
+const showSurplusReturnPanel = computed(
+  () =>
+    !isEarlyPackPreview.value &&
+    activity.value != null &&
+    isJourneyReturnStep(resolvedStep.value) &&
+    !stepUiLocked.value,
+)
+
+const surplusReports = useActivitySurplusReports({
+  activityId: toRef(props, 'activityId'),
+  enabled: showSurplusReturnPanel,
+})
+
+const surplusPanelRef = ref<InstanceType<typeof MaterialSurplusReturnPanel> | null>(null)
 
 const wishPanelRef = ref<InstanceType<typeof MaterialReplenishmentWishPanel> | null>(null)
 
@@ -1090,6 +1110,28 @@ async function onWishReject(wishId: string): Promise<void> {
   toast.success(t('activities.materialJourney.replenishmentWish.toastRejected'))
 }
 
+async function onSurplusSubmit(payload: {
+  nameFreeText: string
+  qty: number
+  kind: 'food' | 'consumable' | 'other'
+  expiryDate: string | null
+  notes: string | null
+}): Promise<void> {
+  await surplusReports.createReport(payload)
+  surplusPanelRef.value?.resetForm()
+  toast.success(t('activities.materialJourney.surplusReturn.toastSubmitted'))
+}
+
+async function onSurplusRemove(reportId: string): Promise<void> {
+  await surplusReports.removeReport(reportId)
+  toast.success(t('activities.materialJourney.surplusReturn.toastDeleted'))
+}
+
+async function onSurplusDismiss(reportId: string): Promise<void> {
+  await surplusReports.dismissReport(reportId)
+  toast.success(t('activities.materialJourney.surplusReturn.toastDismissed'))
+}
+
 async function onWishCancel(wishId: string): Promise<void> {
   await replenishment.cancelWish(wishId)
 }
@@ -1107,12 +1149,30 @@ const displayedRegalGroups = computed(() => {
   )
 })
 
-const mwStoreWorkComplete = computed(
+const mwDryStoreWorkComplete = computed(
   () =>
     journeyStepWorkComplete.value('store') ||
     (resolvedStep.value === 'store' &&
       progress.value.total > 0 &&
       progress.value.open === 0),
+)
+
+/** Trockene Einlagerung fertig — Alias für Auto-Advance / Complete-CTA. */
+const mwStoreWorkComplete = computed(() => mwDryStoreWorkComplete.value)
+
+const remainingWetTaskRows = computed(() => {
+  if (!canManageMaterials.value) return []
+  return allTasks.value.filter((row) =>
+    materialJourneyTaskHasWetQty(row, containerItemsByContainerId.value, shellPackItemForContainer),
+  )
+})
+
+/** Nach Abschluss: nasse Warteschlange bleibt bedienbar bis qty_wet = 0. */
+const showPostCompleteWetQueue = computed(
+  () =>
+    isActivityCompleted.value &&
+    canManageMaterials.value &&
+    remainingWetTaskRows.value.length > 0,
 )
 
 const showMwStoreCompletionReview = computed(
@@ -1121,29 +1181,71 @@ const showMwStoreCompletionReview = computed(
     profile.value !== 'logistics' &&
     resolvedStep.value === 'store' &&
     activeJourneyStep.value === 'store' &&
-    mwStoreWorkComplete.value &&
+    mwDryStoreWorkComplete.value &&
+    remainingWetTaskRows.value.length === 0 &&
     ['returned', 'storing'].includes(activity.value?.status ?? ''),
 )
 
-/** Während Einlagern: oben offen, unten bereits eingelagert. */
+/** Trocken fertig, Nass noch offen: Complete-CTA über der Nass-Sektion. */
+const showMwStoreCompleteWithWetPending = computed(
+  () =>
+    canManageMaterials.value &&
+    profile.value !== 'logistics' &&
+    resolvedStep.value === 'store' &&
+    activeJourneyStep.value === 'store' &&
+    mwDryStoreWorkComplete.value &&
+    remainingWetTaskRows.value.length > 0 &&
+    ['returned', 'storing'].includes(activity.value?.status ?? ''),
+)
+
+const storeWetTasks = computed(() => {
+  if (!canManageMaterials.value) return []
+  if (showPostCompleteWetQueue.value) return remainingWetTaskRows.value
+  if (resolvedStep.value !== 'store' || !useRegalGroupingOnStore.value) return []
+  return remainingWetTaskRows.value
+})
+
+/** Während Einlagern: oben offen, Mitte nass, unten bereits eingelagert. */
 const showStoreSplitSections = computed(
   () =>
-    useRegalGroupingOnStore.value &&
+    (useRegalGroupingOnStore.value || showPostCompleteWetQueue.value) &&
     !showMwStoreCompletionReview.value &&
-    progress.value.open > 0,
+    (progress.value.open > 0 || storeWetTasks.value.length > 0),
 )
 
 const storeDoneTasks = computed(() =>
-  showStoreSplitSections.value ? allTasks.value.filter((row) => row.isDone) : [],
+  showStoreSplitSections.value && !showPostCompleteWetQueue.value
+    ? allTasks.value.filter((row) => row.isDone)
+    : [],
 )
+
+function onActivateStoreWetTask(row: MaterialJourneyTaskRow): void {
+  if (openStoreShelveFromWet(row, false)) return
+  onActivateTaskRow(row, 'tap')
+}
+
+/** Retour-Liste: Regentropfen → Sheet öffnen, Nass vorausgewählt + Accordion. */
+function onWetReturnFromList(row: MaterialJourneyTaskRow): void {
+  if (row.kind === 'loose' && row.packItem) {
+    returnCrate.openForLoose(row.packItem, Math.max(row.maxForwardQty, 0), { preselectWet: true })
+    return
+  }
+  if (isMaterialJourneyCrateKind(row.kind) && row.container) {
+    returnCrate.openFor(row.container)
+    return
+  }
+  onActivateTaskRow(row, 'tap')
+}
 
 /** Gruppe-Retour-Abschluss / abgeschlossene Aktivität — keine Scan-Leiste/Checkliste mehr. */
 const hideJourneyWorkUi = computed(
-  () => showQuickGroupCompletionOnly.value || isActivityCompleted.value,
+  () => showQuickGroupCompletionOnly.value || (isActivityCompleted.value && !showPostCompleteWetQueue.value),
 )
 
 /** Einlagern fertig: Scan/Hint aus; Verräum-Liste wird durch Erfolgs-Panel ersetzt. */
-const hideJourneyScanOnMwStoreComplete = computed(() => showMwStoreCompletionReview.value)
+const hideJourneyScanOnMwStoreComplete = computed(
+  () => showMwStoreCompletionReview.value || showPostCompleteWetQueue.value,
+)
 
 const showStoreShelfHint = computed(
   () =>
@@ -1152,6 +1254,7 @@ const showStoreShelfHint = computed(
     canManageMaterials.value &&
     !isEarlyPackPreview.value &&
     !showMwStoreCompletionReview.value &&
+    !showPostCompleteWetQueue.value &&
     progress.value.total > 0,
 )
 
@@ -1186,9 +1289,13 @@ const scanBarPlaceholderKey = computed(() => {
   return 'activities.materialJourney.scan.placeholderNoShelf'
 })
 
-/** Einlagern: Position antippen → Regal-Sheet (kein →-Pfeil, der würde ohne Regal buchen). */
+/** Einlagern: Position antippen → Regal-Sheet. Retour lose: Sheet mit Regentropfen (kein stiller →). */
 const showLooseMoveForward = computed(
-  () => movesEnabledForStep.value && resolvedStep.value !== 'store' && !stepUiLocked.value,
+  () =>
+    movesEnabledForStep.value &&
+    resolvedStep.value !== 'store' &&
+    !isJourneyReturnStep(resolvedStep.value) &&
+    !stepUiLocked.value,
 )
 
 /** Kisten-Inhalt: «Lose mitnehmen» / «In andere Packkiste» nur beim Packen. */
@@ -1912,6 +2019,10 @@ function onMoveForwardTask(row: MaterialJourneyTaskRow, qty: number): void {
     activateTaskRow(row, 'tap')
     return
   }
+  if (isJourneyReturnStep(resolvedStep.value) && row.kind === 'loose' && row.packItem) {
+    activateTaskRow(row, 'tap')
+    return
+  }
   if (
     row.kind === 'loose' &&
     row.packItem &&
@@ -2171,7 +2282,9 @@ const showQuickGroupCompletionOnly = computed(
 )
 
 /** Abgeschlossen: Material als Übersichtstabelle (statt operativer Packliste). */
-const showCompletedMaterialArchive = computed(() => isActivityCompleted.value)
+const showCompletedMaterialArchive = computed(
+  () => isActivityCompleted.value && !showPostCompleteWetQueue.value,
+)
 
 const materialSummaryMode = computed(() =>
   showCompletedMaterialArchive.value ? 'archive' : 'return',
@@ -2535,7 +2648,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }">
+  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }" data-onboarding="activity-pack-root">
     <header v-if="!embedded" class="material-journey-header">
       <EButton variant="secondary" size="small" class="material-journey-header__back" @click="goBackToActivity">
         <v-icon icon="mdi-arrow-left" start size="20" />
@@ -2598,6 +2711,17 @@ defineExpose({
         v-if="showMaterialSummaryTable"
         :rows="returnSummaryRows"
         :mode="materialSummaryMode"
+      />
+
+      <MaterialSurplusReturnPanel
+        v-if="showSurplusReturnPanel && !hideJourneyWorkUi"
+        ref="surplusPanelRef"
+        :reports="surplusReports.reports.value"
+        :submitting="surplusReports.submitting.value"
+        :can-edit="!isPastStep || canManageMaterials"
+        @submit="onSurplusSubmit"
+        @remove="onSurplusRemove"
+        @dismiss="onSurplusDismiss"
       />
 
       <div
@@ -2680,9 +2804,19 @@ defineExpose({
         @continue="onCompleteStoreActivity()"
       />
 
+      <MaterialJourneyStoreCompletePanel
+        v-else-if="showMwStoreCompleteWithWetPending"
+        :total-count="progress.total"
+        :wet-pending-count="storeWetTasks.length"
+        :loading="completingStoreActivity"
+        :disabled="Boolean(completedTransition && !completedTransition.allowed)"
+        @continue="onCompleteStoreActivity()"
+      />
+
       <div
         v-else-if="!hideJourneyWorkUi && !hideJourneyScanOnMwStoreComplete && !isEarlyPackPreview && !isLogisticsAtEventInventory && !hideIssueScanBar"
         class="material-journey-scan-wrap"
+        data-onboarding="activity-pack-scan"
       >
         <MaterialJourneyScanBar
           v-model="scanQuery"
@@ -2906,11 +3040,20 @@ defineExpose({
         :show-issue-ack="resolvedStep === 'issue'"
       />
 
+      <p
+        v-if="showPostCompleteWetQueue"
+        class="material-journey-readonly-banner section-card text-muted"
+      >
+        {{ t('activities.materialJourney.storeComplete.wetQueueAfterComplete') }}
+      </p>
+
       <MaterialJourneyTaskList
         v-if="!showPhaseCompletePanel && !hideJourneyWorkUi && !showMwStoreCompletionReview"
-        :tasks="displayedTasks"
-        :regal-groups="displayedRegalGroups"
-        :group-by-shelf="useRegalGroupingOnStore"
+        :tasks="showPostCompleteWetQueue || showMwStoreCompleteWithWetPending ? [] : displayedTasks"
+        :regal-groups="
+          showPostCompleteWetQueue || showMwStoreCompleteWithWetPending ? [] : displayedRegalGroups
+        "
+        :group-by-shelf="useRegalGroupingOnStore && !showPostCompleteWetQueue"
         :journey-step="resolvedStep"
         :filter-tab="filterTab"
         :filter-variant="journeyFilterVariant"
@@ -2943,8 +3086,11 @@ defineExpose({
         :show-crate-content-actions="showCrateContentActions"
         :delete-empty-submitting-for-row="deleteEmptySubmittingForRow"
         :show-store-split-sections="showStoreSplitSections"
+        :store-wet-tasks="storeWetTasks"
         :store-done-tasks="storeDoneTasks"
         @activate="onActivateTaskRow"
+        @activate-wet="onActivateStoreWetTask"
+        @wet-return="onWetReturnFromList"
         @select-target="onSelectPackTarget"
         @move-forward="onMoveForwardTask"
         @consumed="onIssueConsumed"
@@ -3022,13 +3168,14 @@ defineExpose({
 
       <MaterialReturnCrateSheet
         v-model:open="returnCrateOpen"
-        :container-label="returnCrateContainer?.label ?? ''"
+        :container-label="returnCrateSheetLabel"
         :partition="returnCratePartition"
         :lines="returnCrateLines"
         :submitting="returnCrateSubmitting"
         :submit-disabled="returnCrateSubmitDisabled"
         :can-report-consumption="canReportConsumptionRef"
         :can-report-issues="canReportIssuesRef"
+        :department-id="departmentId"
         @update:lines="onReturnCrateLinesUpdate"
         @report-consumption="onReturnCrateReportConsumption"
         @report-loss="onReturnCrateReportLoss"

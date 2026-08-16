@@ -1,6 +1,6 @@
 <template>
-  <div class="workshop-settings">
-    <div class="settings-header">
+  <div class="workshop-settings" :class="{ 'workshop-settings--embedded': embedded }">
+    <div v-if="!embedded" class="settings-header">
       <div>
         <h1>{{ t('settings.workshopSettings.title') }}</h1>
         <p class="subtitle">{{ t('settings.workshopSettings.subtitle') }}</p>
@@ -231,6 +231,13 @@ import DepartmentRepairTemplateEditorDialog from '@/components/workshop/Departme
 import RepairSheetPreviewDialog from '@/components/workshop/RepairSheetPreviewDialog.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+
+withDefaults(
+  defineProps<{
+    embedded?: boolean
+  }>(),
+  { embedded: false },
+)
 
 const route = useRoute()
 const { t } = useI18n()

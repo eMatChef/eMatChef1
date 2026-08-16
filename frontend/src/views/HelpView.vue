@@ -40,7 +40,7 @@
       v-if="mdAndUp"
       class="settings-subnav-rail"
       :class="{ 'settings-subnav-rail--expanded': desktopNavExpanded }"
-      @mouseenter="desktopNavHovered = true"
+      @mouseenter="onDesktopNavEnter"
       @mouseleave="onDesktopNavLeave"
     >
       <div class="settings-subnav-rail__panel" @click="onDesktopRailBackgroundClick">
@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
@@ -84,6 +84,7 @@ const { canUseHelpEinrichtung } = useDepartmentOnboardingAccess()
 const mobileMenuOpen = ref(false)
 const desktopNavHovered = ref(false)
 const desktopNavPinned = ref(false)
+let desktopNavLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const desktopNavExpanded = computed(() => desktopNavPinned.value || desktopNavHovered.value)
 
@@ -95,8 +96,8 @@ const menuItems = computed<SettingsNavItem[]>(() => {
   const items: SettingsNavItem[] = []
   if (canUseHelpEinrichtung.value) {
     items.push({
-      id: 'einrichtung',
-      label: t('help.nav.einrichtung'),
+      id: 'tours',
+      label: t('help.nav.tours'),
       mdiIcon: 'mdi-compass-outline',
     })
   }
@@ -128,13 +129,27 @@ function isHelpItemActive(itemId: string): boolean {
   if (itemId === 'dokumentation') {
     return p === base || p === `${base}/dokumentation` || p === `${base}/overview`
   }
+  if (itemId === 'tours') {
+    return p === `${base}/tours` || p === `${base}/einrichtung`
+  }
   return p === `${base}/${itemId}`
 }
 
-function onDesktopNavLeave() {
-  if (!desktopNavPinned.value) {
-    desktopNavHovered.value = false
+function onDesktopNavEnter() {
+  if (desktopNavLeaveTimer) {
+    clearTimeout(desktopNavLeaveTimer)
+    desktopNavLeaveTimer = null
   }
+  desktopNavHovered.value = true
+}
+
+function onDesktopNavLeave() {
+  if (desktopNavPinned.value) return
+  if (desktopNavLeaveTimer) clearTimeout(desktopNavLeaveTimer)
+  desktopNavLeaveTimer = setTimeout(() => {
+    desktopNavHovered.value = false
+    desktopNavLeaveTimer = null
+  }, 160)
 }
 
 function onDesktopRailBackgroundClick(event: MouseEvent) {
@@ -148,6 +163,10 @@ function onDesktopNavClick() {
     desktopNavHovered.value = false
   }
 }
+
+onUnmounted(() => {
+  if (desktopNavLeaveTimer) clearTimeout(desktopNavLeaveTimer)
+})
 
 const NAV_ITEM_ROW_PX = 46
 const NAV_TITLE_PX = 40

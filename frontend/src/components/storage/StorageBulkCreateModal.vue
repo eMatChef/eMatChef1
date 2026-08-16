@@ -1,6 +1,7 @@
 <template>
+  <Teleport to="body">
   <div v-if="isOpen" class="modal-overlay">
-    <div class="modal-dialog">
+    <div class="modal-dialog" data-onboarding="settings-storage-rack-modal">
       <h3>{{ title }}</h3>
       <p v-if="contextText" class="modal-context">{{ contextText }}</p>
 
@@ -77,16 +78,19 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-secondary" @click="$emit('close')">Abbrechen</button>
+        <button class="btn-secondary" @click="$emit('close')">{{ t('common.cancel') }}</button>
         <button class="btn-primary" :disabled="saveDisabled" @click="$emit('save')">
-          {{ isSaving ? 'Speichern...' : 'Speichern' }}
+          {{ isSaving ? t('common.saving') : t('common.save') }}
         </button>
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 interface SelectOption {
   id: string
   label: string
@@ -97,6 +101,8 @@ interface PairItem {
   leftLabel: string
   rightValue: string
 }
+
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
@@ -124,21 +130,21 @@ const props = withDefaults(defineProps<{
   isSaving: boolean
 }>(), {
   contextText: '',
-  selectLabel: 'Auswahl',
-  selectPlaceholder: 'Bitte wählen...',
+  selectLabel: '',
+  selectPlaceholder: '',
   selectOptions: () => [],
   selectedValue: '',
-  baseLabel: 'Basisname',
+  baseLabel: '',
   suggestions: () => [],
   basePlaceholder: '',
   extraFieldLabel: '',
   extraFieldValue: '',
   extraFieldPlaceholder: '',
-  pairFieldLabel: 'Fach je Regal',
-  pairFieldPlaceholder: 'z.B. A1',
+  pairFieldLabel: '',
+  pairFieldPlaceholder: '',
   pairItems: () => [],
-  countLabel: 'Anzahl',
-  previewLabel: 'Es werden folgende Einträge erstellt:',
+  countLabel: '',
+  previewLabel: '',
 })
 
 const emit = defineEmits<{
@@ -175,6 +181,11 @@ function onPairInputChange(index: number, event: Event) {
 .modal-dialog {
   width: min(460px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
+}
+
+/* Über Tour-Dimmer (20040), unter Tour-Karte (20060) — Spotlight-Loch trifft den Dialog */
+.modal-overlay {
+  z-index: 20045;
 }
 
 .modal-dialog h3 {

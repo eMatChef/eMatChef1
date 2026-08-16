@@ -87,6 +87,7 @@ export interface ActivityJsOrderApi {
   ordered_by_user_id?: string | null
   submitted_to_coach_at?: string | null
   submitted_by_user_id?: string | null
+  js_coach_user_id?: string | null
   coach_email_sent_at?: string | null
   return_confirmed_at?: string | null
   generated_pdf_media_id?: string | null
@@ -277,6 +278,7 @@ function mapOrder(raw: Record<string, unknown>): ActivityJsOrderApi {
     ordered_by_user_id: raw.ordered_by_user_id != null ? str(raw.ordered_by_user_id) : null,
     submitted_to_coach_at: raw.submitted_to_coach_at != null ? str(raw.submitted_to_coach_at) : null,
     submitted_by_user_id: raw.submitted_by_user_id != null ? str(raw.submitted_by_user_id) : null,
+    js_coach_user_id: raw.js_coach_user_id != null ? str(raw.js_coach_user_id) : null,
     coach_email_sent_at: raw.coach_email_sent_at != null ? str(raw.coach_email_sent_at) : null,
     return_confirmed_at: raw.return_confirmed_at != null ? str(raw.return_confirmed_at) : null,
     generated_pdf_media_id:
@@ -320,6 +322,7 @@ export async function saveActivityJsOrder(
     form_data: JsOrderFormData
     participant_count?: number | null
     delivery_type?: JsOrderDeliveryType
+    js_coach_user_id?: string | null
     status?: 'draft' | 'ready'
     items?: JsOrderItemSaveRow[]
   },

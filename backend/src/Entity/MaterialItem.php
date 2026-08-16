@@ -129,6 +129,9 @@ class MaterialItem
     private ?\DateTime $warrantyUntil = null;
 
     // Verleih
+    #[ORM\Column(name: 'is_rentable', type: 'boolean', options: ['default' => true])]
+    private bool $isRentable = true;
+
     #[ORM\Column(name: 'rental_external_allowed', type: 'boolean', options: ['default' => false])]
     private bool $rentalExternalAllowed = false;
 
@@ -176,6 +179,13 @@ class MaterialItem
 
     #[ORM\Column(name: 'pack_unit', type: 'string', length: 40, nullable: true)]
     private ?string $packUnit = null;
+
+    /**
+     * VE-Bezeichnung bei Meterware (pack_unit=m), z. B. Rolle — pack_size dann = Meter pro VE.
+     * Bei Stückware bleibt die VE-Bezeichnung in pack_unit.
+     */
+    #[ORM\Column(name: 'packaging_unit', type: 'string', length: 40, nullable: true)]
+    private ?string $packagingUnit = null;
 
     /** Optional: Verkaufspreis pro Verpackungseinheit (CHF/VE), z. B. für Aufteilen auf Stückpreis */
     #[ORM\Column(name: 'pack_sale_price_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
@@ -229,6 +239,10 @@ class MaterialItem
 
     #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $deletedAt = null;
+
+    /** Onboarding Hybrid-Sandbox: Kit-Material */
+    #[ORM\Column(name: 'onboarding_sandbox', type: 'boolean', options: ['default' => false])]
+    private bool $onboardingSandbox = false;
 
     #[ORM\OneToMany(mappedBy: 'materialItem', targetEntity: MaterialBatch::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $batches;
@@ -461,6 +475,9 @@ class MaterialItem
     public function getRentalScope(): ?string { return $this->rentalScope; }
     public function setRentalScope(?string $rentalScope): self { $this->rentalScope = $rentalScope; return $this; }
 
+    public function getIsRentable(): bool { return $this->isRentable; }
+    public function setIsRentable(bool $isRentable): self { $this->isRentable = $isRentable; return $this; }
+
     public function getRentalRequiresApproval(): bool { return $this->rentalRequiresApproval; }
     public function setRentalRequiresApproval(bool $rentalRequiresApproval): self { $this->rentalRequiresApproval = $rentalRequiresApproval; return $this; }
 
@@ -509,6 +526,9 @@ class MaterialItem
 
     public function getPackUnit(): ?string { return $this->packUnit; }
     public function setPackUnit(?string $packUnit): self { $this->packUnit = $packUnit; return $this; }
+
+    public function getPackagingUnit(): ?string { return $this->packagingUnit; }
+    public function setPackagingUnit(?string $packagingUnit): self { $this->packagingUnit = $packagingUnit; return $this; }
 
     public function getPackSalePriceChf(): ?string { return $this->packSalePriceChf; }
     public function setPackSalePriceChf(?string $packSalePriceChf): self
@@ -639,6 +659,17 @@ class MaterialItem
     public function setDeletedAt(?\DateTime $deletedAt): self
     {
         $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function isOnboardingSandbox(): bool
+    {
+        return $this->onboardingSandbox;
+    }
+
+    public function setOnboardingSandbox(bool $onboardingSandbox): self
+    {
+        $this->onboardingSandbox = $onboardingSandbox;
         return $this;
     }
 

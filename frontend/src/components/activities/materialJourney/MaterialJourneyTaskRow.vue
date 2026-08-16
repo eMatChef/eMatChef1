@@ -35,6 +35,10 @@ const props = defineProps<{
   showIssueActions?: boolean
   /** Einlagern: sichtbarer Button (öffnet Regal-Sheet); ohne ihn blockieren Issue-Buttons den Zeilen-Tap. */
   showStoreAction?: boolean
+  /** Retour lose: Button öffnet Retour-Sheet inkl. Regentropfen. */
+  showReturnAction?: boolean
+  /** Retour: sichtbares Nass-Icon neben Schaden/Verlust/Reparatur. */
+  showWetReturnAction?: boolean
   /** Am Anlass: «6 total · 4 mitgenommen · …» statt «erledigt». */
   atEventQtyLabel?: string | null
   isConsumableForMaterialId?: (materialItemId: string) => boolean
@@ -42,6 +46,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   activate: []
+  wetReturn: []
   moveBack: [qty: number]
   'update:moveBackQty': [qty: number]
   moveForward: [qty: number]
@@ -68,6 +73,9 @@ const statusClass = computed(() => {
 
 const qtyLabel = computed(() => {
   if (props.atEventQtyLabel) return props.atEventQtyLabel
+  if (props.row.wetQueueQty != null && props.row.wetQueueQty > 0) {
+    return t('activities.materialJourney.row.wetQty', { count: props.row.wetQueueQty })
+  }
   if (props.showMoveBack && props.row.isDone) {
     return t('activities.materialJourney.row.transportedQty', { count: props.row.doneQty })
   }
@@ -136,11 +144,32 @@ const showStoreControls = computed(
     !props.readonly,
 )
 
+const showReturnControls = computed(
+  () =>
+    Boolean(props.showReturnAction) &&
+    props.row.isOpen &&
+    (props.row.canMove || (props.row.packItem?.quantityWet ?? 0) > 0 || props.row.maxForwardQty > 0) &&
+    !props.readonly,
+)
+
+const showWetReturnControl = computed(
+  () =>
+    Boolean(props.showWetReturnAction) &&
+    props.row.kind === 'loose' &&
+    Boolean(props.row.packItem) &&
+    props.row.isOpen &&
+    !props.readonly,
+)
+
+const wetReturnActive = computed(() => (props.row.packItem?.quantityWet ?? 0) > 0)
+
 const hasInlineControls = computed(
   () =>
     showMoveForwardControls.value ||
     showMoveBackControls.value ||
     showStoreControls.value ||
+    showReturnControls.value ||
+    showWetReturnControl.value ||
     props.showIssueActions,
 )
 
@@ -225,6 +254,19 @@ function onRowClick(): void {
         @repair="emit('repair')"
         @damage="emit('damage')"
       />
+      <button
+        v-if="showWetReturnControl"
+        type="button"
+        class="material-journey-task-row__wet-btn"
+        data-onboarding="activity-pack-wet-return"
+        :class="{ 'material-journey-task-row__wet-btn--active': wetReturnActive }"
+        :aria-pressed="wetReturnActive"
+        :aria-label="t('activities.packList.returnCrateModalWetToggle')"
+        :title="t('activities.packList.returnCrateModalWetToggle')"
+        @click.stop="emit('wetReturn')"
+      >
+        <v-icon icon="mdi-water" size="20" />
+      </button>
       <EButton
         v-if="showStoreControls"
         variant="primary"
@@ -233,6 +275,19 @@ function onRowClick(): void {
         @click.stop="emit('activate')"
       >
         {{ t('activities.packList.storeLineTitle', { count: row.maxForwardQty }) }}
+      </EButton>
+      <EButton
+        v-if="showReturnControls"
+        variant="primary"
+        size="small"
+        :disabled="moving"
+        @click.stop="emit('activate')"
+      >
+        {{
+          t('activities.packList.returnLineTitle', {
+            count: Math.max(row.maxForwardQty, row.packItem?.quantityWet ?? 0),
+          })
+        }}
       </EButton>
       <PackMoveControls
         v-if="showMoveForwardControls"
@@ -261,4 +316,24 @@ function onRowClick(): void {
 
 <style scoped>
 @import '@/styles/views/activities/material-journey.css';
+
+.material-journey-task-row__wet-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, #0284c7 40%, transparent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, #0ea5e9 12%, white);
+  color: #0284c7;
+  cursor: pointer;
+}
+
+.material-journey-task-row__wet-btn--active {
+  background: color-mix(in srgb, #0284c7 28%, white);
+  border-color: #0369a1;
+  color: #0369a1;
+}
 </style>

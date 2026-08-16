@@ -32,9 +32,9 @@ class RecreateTestUsersCommand extends Command
 
         // Test-User Emails (Domain wie create-role-users / Banner-Demo)
         $testUsers = [
-            ['email' => 'admin@ematchef.ch', 'password' => 'test', 'firstName' => 'Admin', 'lastName' => 'User', 'nickname' => 'Admin'],
-            ['email' => 'manager@ematchef.ch', 'password' => 'test', 'firstName' => 'Manager', 'lastName' => 'User', 'nickname' => 'Manager'],
-            ['email' => 'user@ematchef.ch', 'password' => 'test', 'firstName' => 'Test', 'lastName' => 'User', 'nickname' => 'User'],
+            ['email' => 'admin@ematchef.ch', 'password' => 'test!ematchef', 'firstName' => 'Admin', 'lastName' => 'User', 'nickname' => 'Admin'],
+            ['email' => 'manager@ematchef.ch', 'password' => 'test!ematchef', 'firstName' => 'Manager', 'lastName' => 'User', 'nickname' => 'Manager'],
+            ['email' => 'user@ematchef.ch', 'password' => 'test!ematchef', 'firstName' => 'Test', 'lastName' => 'User', 'nickname' => 'User'],
         ];
 
         $deleted = 0;

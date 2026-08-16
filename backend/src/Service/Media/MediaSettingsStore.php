@@ -11,14 +11,14 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  *
  * Schema:
  * {
- *   "retention_years": 3,
+ *   "retention_years": 10,
  *   "compression_enabled": true,
  *   "updated_at": "2026-05-30T12:00:00+02:00"
  * }
  */
 final class MediaSettingsStore
 {
-    public const RETENTION_YEARS_DEFAULT = 3;
+    public const RETENTION_YEARS_DEFAULT = 10;
     public const RETENTION_YEARS_MIN = 1;
     public const RETENTION_YEARS_MAX = 20;
 

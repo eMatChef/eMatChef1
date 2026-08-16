@@ -10,11 +10,8 @@ use App\Service\Grossanlass\GrossanlassProcurementService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -339,33 +336,6 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         return new JsonResponse($quote);
-    }
-
-    #[Route('/quotes/{quoteId}/pdf/{filename}', name: 'quotes_show_pdf', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function showQuotePdf(string $departmentId, string $quoteId, string $filename): Response
-    {
-        $department = $this->resolveGrossanlassDepartment($departmentId);
-        if ($department instanceof JsonResponse) {
-            return $department;
-        }
-
-        $currentUser = $this->requireMember($departmentId);
-        if ($currentUser instanceof JsonResponse) {
-            return $currentUser;
-        }
-
-        try {
-            $path = $this->procurementService->resolveQuotePdfPath($department, $currentUser, $quoteId, $filename);
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
-        } catch (\RuntimeException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 403);
-        }
     }
 
     #[Route('/lines/{lineId}/quotes/{quoteId}/select', name: 'quotes_select', methods: ['POST'])]

@@ -14,6 +14,7 @@ use App\Repository\SupplierCompanyRepository;
 use App\Security\Voter\SupplierCompanyVoter;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\Supplier\SupplierCompanyFactory;
+use App\Service\Supplier\SupplierDashboardService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,6 +30,7 @@ class SupplierCompanyController extends AbstractController
         private SupplierCompanyRepository $supplierCompanyRepository,
         private SupplierCompanyAccessService $accessService,
         private SupplierCompanyFactory $supplierCompanyFactory,
+        private SupplierDashboardService $dashboardService,
     ) {
     }
 
@@ -51,6 +53,18 @@ class SupplierCompanyController extends AbstractController
                 fn (SupplierCompany $company) => $this->serializePublicCompany($company),
                 $companies
             ),
+        ]);
+    }
+
+    #[Route('/{id}/dashboard', name: 'dashboard', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    #[IsGranted(SupplierCompanyVoter::ACCESS, subject: 'id')]
+    public function dashboard(string $id): JsonResponse
+    {
+        $company = $this->requireCompany($id);
+
+        return new JsonResponse([
+            'dashboard' => $this->dashboardService->getDashboard($company),
         ]);
     }
 

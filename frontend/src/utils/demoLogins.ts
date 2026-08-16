@@ -9,7 +9,7 @@ export type DemoLogin = {
   role: string
 }
 
-export const DEMO_LOGIN_PASSWORD = 'test'
+export const DEMO_LOGIN_PASSWORD = 'test!ematchef'
 
 export const DEMO_LOGINS: DemoLogin[] = [
   { email: 'superadmin@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Superadmin', role: 'sa' },
@@ -21,6 +21,7 @@ export const DEMO_LOGINS: DemoLogin[] = [
   { email: 'leader2@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Leader 2', role: 'l2' },
   { email: 'leader3@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Leader 3', role: 'l3' },
   { email: 'user@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'User', role: 'u' },
+  { email: 'supplier@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Lieferant', role: 'supplier' },
 ]
 
 const SESSION_KEY = 'emc_demo_login'

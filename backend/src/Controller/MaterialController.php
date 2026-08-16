@@ -21,6 +21,7 @@ use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
 use App\Service\JsDotationRulesService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\JsLeihkatalogCatalogService;
 use App\Service\JsPdfCatalogSyncService;
 use App\Service\Material\MaterialItemPhotoService;
@@ -73,6 +74,9 @@ class MaterialController extends AbstractController
             ->leftJoin('m.storageAddress', 's')
             ->andWhere('m.deletedAt IS NULL')
             ->orderBy('m.name', 'ASC');
+
+        $includeSandbox = OnboardingSandboxVisibility::includeFromRequest($request);
+        $qb->andWhere(OnboardingSandboxVisibility::kitListConstraint('m', $includeSandbox));
 
         if (!in_array($materialSource, ['internal', 'js', 'all'], true)) {
             $materialSource = 'internal';
@@ -559,6 +563,7 @@ class MaterialController extends AbstractController
             }
             
             // Verleih
+            if (isset($data['is_rentable'])) $material->setIsRentable((bool)$data['is_rentable']);
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
             if (array_key_exists('rental_scope', $data)) {
                 $rs = $data['rental_scope'];
@@ -599,6 +604,9 @@ class MaterialController extends AbstractController
             // Verpackungseinheit (Bündel)
             if (isset($data['pack_size'])) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (isset($data['pack_unit'])) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('packaging_unit', $data)) {
+                $material->setPackagingUnit($data['packaging_unit'] !== null && $data['packaging_unit'] !== '' ? (string) $data['packaging_unit'] : null);
+            }
             if (array_key_exists('pack_sale_price_chf', $data)) {
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
@@ -841,6 +849,7 @@ class MaterialController extends AbstractController
                 $batch->setIsContainer($material->getIsContainer());
 
                 $this->applyBatchScanCodesFromPayload($batch, $data);
+                $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
                 $this->entityManager->persist($batch);
                 if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
@@ -1767,6 +1776,7 @@ class MaterialController extends AbstractController
             }
             
             // Verleih
+            if (isset($data['is_rentable'])) $material->setIsRentable((bool)$data['is_rentable']);
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
             if (array_key_exists('rental_scope', $data)) {
                 $rs = $data['rental_scope'];
@@ -1820,6 +1830,9 @@ class MaterialController extends AbstractController
             // Verpackungseinheit (Bündel)
             if (array_key_exists('pack_size', $data)) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (array_key_exists('pack_unit', $data)) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('packaging_unit', $data)) {
+                $material->setPackagingUnit($data['packaging_unit'] !== null && $data['packaging_unit'] !== '' ? (string) $data['packaging_unit'] : null);
+            }
             if (array_key_exists('pack_sale_price_chf', $data)) {
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
@@ -2058,6 +2071,63 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Chargen eines Materials (Liste / Expand) — leichtgewichtig.
+     */
+    #[Route('/{id}/batches', name: 'list_batches', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listBatches(string $id): JsonResponse
+    {
+        $material = $this->entityManager->getRepository(MaterialItem::class)->find($id);
+        if (!$material) {
+            return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+        }
+        $accessCheck = $this->assertDepartmentAccess($material->getDepartmentId());
+        if ($accessCheck instanceof JsonResponse) {
+            return $accessCheck;
+        }
+
+        $rows = [];
+        foreach ($material->getBatches() as $batch) {
+            $rows[] = [
+                'id' => $batch->getId(),
+                'qty' => $batch->getQty(),
+                'status' => $batch->getStatus(),
+                'label' => $batch->getLabel(),
+                'serial_number' => $batch->getSerialNumber(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
+                'acquired_on' => $batch->getAcquiredOn()?->format('Y-m-d'),
+                'rack' => $batch->getRack() ? [
+                    'id' => $batch->getRack()->getId(),
+                    'name' => $batch->getRack()->getName(),
+                ] : null,
+                'slot' => $batch->getSlot() ? [
+                    'id' => $batch->getSlot()->getId(),
+                    'name' => $batch->getSlot()->getName(),
+                ] : null,
+                'storage_address_name' => $this->storageAddressNameFromRack($batch->getRack()),
+            ];
+        }
+
+        usort($rows, static function (array $a, array $b): int {
+            $ae = $a['expiry_date'] ?? null;
+            $be = $b['expiry_date'] ?? null;
+            if ($ae === null && $be === null) {
+                return strcmp((string) ($a['label'] ?? ''), (string) ($b['label'] ?? ''));
+            }
+            if ($ae === null) {
+                return 1;
+            }
+            if ($be === null) {
+                return -1;
+            }
+
+            return strcmp((string) $ae, (string) $be);
+        });
+
+        return new JsonResponse($rows);
+    }
+
+    /**
      * Batch zu bestehendem Material hinzufügen
      */
     #[Route('/{id}/batches', name: 'add_batch', methods: ['POST'])]
@@ -2132,6 +2202,7 @@ class MaterialController extends AbstractController
             }
 
             $this->applyBatchScanCodesFromPayload($batch, $data);
+            $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
             if (array_key_exists('is_container', $data)) {
                 $batch->setIsContainer((bool) $data['is_container']);
@@ -2552,6 +2623,7 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'ean' => $batch->getEan(),
                 'barcode_tag' => $batch->getBarcodeTag(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -2596,6 +2668,19 @@ class MaterialController extends AbstractController
             if (array_key_exists('barcode_tag', $data)) {
                 $batch->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
             }
+
+            if (array_key_exists('expiry_date', $data)) {
+                if ($data['expiry_date']) {
+                    $batch->setExpiryDate(new \DateTime((string) $data['expiry_date']));
+                } else {
+                    if ($material->getIsFood()) {
+                        return new JsonResponse(['error' => 'Ablaufdatum (expiry_date) ist für Esswaren Pflicht'], 400);
+                    }
+                    $batch->setExpiryDate(null);
+                }
+            }
+
+            $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
             if (array_key_exists('rack_id', $data)) {
                 if ($data['rack_id']) {
@@ -2650,6 +2735,7 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'ean' => $batch->getEan(),
                 'barcode_tag' => $batch->getBarcodeTag(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -4483,6 +4569,47 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Länge / VE pro Charge aus Request (Wareneingang kann vom Stamm abweichen).
+     * Akzeptiert auch initial_* Keys bei Material-Erstellung.
+     * Fallback: Material-Stamm, wenn Keys fehlen.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyBatchPackAndLengthFromPayload(MaterialBatch $batch, array $data, ?MaterialItem $material = null): void
+    {
+        if (array_key_exists('size_length', $data) || array_key_exists('initial_size_length', $data)) {
+            $raw = array_key_exists('size_length', $data) ? $data['size_length'] : $data['initial_size_length'];
+            $batch->setSizeLength($raw !== null && $raw !== '' ? (string) $raw : null);
+        } elseif ($material && $batch->getSizeLength() === null && $material->getSizeLength()) {
+            $batch->setSizeLength($material->getSizeLength());
+        }
+
+        if (array_key_exists('pack_size', $data) || array_key_exists('initial_pack_size', $data) || array_key_exists('batch_pack_size', $data)) {
+            $raw = $data['batch_pack_size'] ?? $data['pack_size'] ?? $data['initial_pack_size'] ?? null;
+            // Bei Create ist pack_size oft die Material-VE; für Meterware mit packaging_unit ist das korrekt auch für die Charge.
+            $batch->setPackSize($raw ? (int) $raw : null);
+        } elseif ($material && $batch->getPackSize() === null && $material->getPackSize()) {
+            $batch->setPackSize($material->getPackSize());
+        }
+
+        // Charge.pack_unit = VE-Bezeichnung (Rolle), nicht Bestandseinheit m/Stk.
+        if (array_key_exists('batch_pack_unit', $data) || array_key_exists('packaging_unit', $data) || array_key_exists('initial_packaging_unit', $data)) {
+            $raw = $data['batch_pack_unit'] ?? $data['packaging_unit'] ?? $data['initial_packaging_unit'] ?? null;
+            $batch->setPackUnit($raw !== null && $raw !== '' ? (string) $raw : null);
+        } elseif ($material && $batch->getPackUnit() === null) {
+            $ve = $material->getPackagingUnit();
+            if ($ve) {
+                $batch->setPackUnit($ve);
+            } elseif ($material->getPackUnit()) {
+                $pu = strtolower(trim((string) $material->getPackUnit()));
+                if (!in_array($pu, ['m', 'meter', 'metre', 'stk'], true)) {
+                    $batch->setPackUnit($material->getPackUnit());
+                }
+            }
+        }
+    }
+
+    /**
      * Erstellt einen History-Eintrag für ein Material
      */
     private function createHistoryEntry(MaterialItem $material, string $action, array $changes = []): void
@@ -4553,6 +4680,7 @@ class MaterialController extends AbstractController
             'model' => $material->getModel(),
             'warranty_until' => $material->getWarrantyUntil()?->format('Y-m-d'),
             'rental_external_allowed' => $material->getRentalExternalAllowed(),
+            'is_rentable' => $material->getIsRentable(),
             'rental_scope' => $material->getRentalScope(),
             'rental_requires_approval' => $material->getRentalRequiresApproval(),
             'rental_price_day' => $material->getRentalPriceDay(),
@@ -4572,6 +4700,7 @@ class MaterialController extends AbstractController
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'packaging_unit' => $material->getPackagingUnit(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'pack_weight' => $material->getPackWeight(),
             'pack_size_length' => $material->getPackSizeLength(),
@@ -4719,6 +4848,21 @@ class MaterialController extends AbstractController
             $openLossQty = $openLossData[$mid]['qty'] ?? 0;
         }
 
+        // Frühestes Ablaufdatum über aktive Chargen (Esswaren-Liste / Sortierung)
+        $nearestExpiry = null;
+        foreach ($batches as $batch) {
+            if ($batch->getStatus() !== 'active') {
+                continue;
+            }
+            $exp = $batch->getExpiryDate();
+            if ($exp === null) {
+                continue;
+            }
+            if ($nearestExpiry === null || $exp < $nearestExpiry) {
+                $nearestExpiry = $exp;
+            }
+        }
+
         $publicCodeEntry = $this->publicCodeService->getActiveMaterialPublicCode((string) $material->getId());
         $publicCode = $publicCodeEntry?->getPublicCode();
 
@@ -4758,6 +4902,7 @@ class MaterialController extends AbstractController
             'open_loss_reports' => $openLossReports,
             'open_loss_qty' => $openLossQty,
             'batch_count' => count($batches),
+            'nearest_expiry_date' => $nearestExpiry?->format('Y-m-d'),
             'is_container' => $material->getIsContainer(),
             'tent_type' => $material->getTentType(),
             'tent_capacity' => $material->getTentCapacity(),
@@ -4773,6 +4918,7 @@ class MaterialController extends AbstractController
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'packaging_unit' => $material->getPackagingUnit(),
             'size_length' => $material->getSizeLength(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'image_url' => $material->getPrimaryPhotoUrl(),
@@ -4799,6 +4945,7 @@ class MaterialController extends AbstractController
             $result['warranty_until'] = $material->getWarrantyUntil()?->format('Y-m-d');
             
             // Verleih
+            $result['is_rentable'] = $material->getIsRentable();
             $result['rental_external_allowed'] = $material->getRentalExternalAllowed();
             $result['rental_scope'] = $material->getRentalScope();
             $result['rental_requires_approval'] = $material->getRentalRequiresApproval();
@@ -4832,6 +4979,9 @@ class MaterialController extends AbstractController
                     'serial_number' => $batch->getSerialNumber(),
                     'ean' => $batch->getEan(),
                     'barcode_tag' => $batch->getBarcodeTag(),
+                    'size_length' => $batch->getSizeLength(),
+                    'pack_size' => $batch->getPackSize(),
+                    'pack_unit' => $batch->getPackUnit(),
                     'rack_id' => $batch->getRackId(),
                     'slot_id' => $batch->getSlotId(),
                     'rack' => $batch->getRack() ? [

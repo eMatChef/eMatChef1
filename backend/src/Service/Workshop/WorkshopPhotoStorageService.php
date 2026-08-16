@@ -10,9 +10,7 @@ use App\Service\Media\MediaStorageService;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
- * Werkstatt-Fotos — delegiert an MediaStorageService (var/uploads/workshop/{departmentId}/{ticketId}/).
- *
- * Legacy-Pfade workshop/supplier/{companyId}/{ticketId}/ werden beim Lesen weiter unterstützt.
+ * Werkstatt-Fotos unter var/uploads/{departmentId}/photos/workshop/{ticketId}/.
  */
 class WorkshopPhotoStorageService
 {
@@ -38,12 +36,7 @@ class WorkshopPhotoStorageService
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildWorkshopPhotoUrl(
-                    $ticketId,
-                    $filename,
-                ),
-            ],
+            [],
         );
     }
 
@@ -66,11 +59,6 @@ class WorkshopPhotoStorageService
             $user,
             $file,
             [
-                'url_builder' => fn (string $filename): string => $this->buildSupplierPhotoUrl(
-                    $supplierCompanyId,
-                    $ticketId,
-                    $filename,
-                ),
                 'uploaded_by_supplier_company_id' => $supplierCompanyId,
             ],
         );
@@ -90,13 +78,23 @@ class WorkshopPhotoStorageService
         );
     }
 
-    public function buildSupplierPhotoUrl(string $supplierCompanyId, string $ticketId, string $filename): string
+    public function buildSupplierPhotoUrl(string $departmentId, string $ticketId, string $filename): string
     {
-        return $this->mediaStorage->buildSupplierPhotoUrl($supplierCompanyId, $ticketId, $filename);
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_WORKSHOP_TICKET,
+            $departmentId,
+            $ticketId,
+            $filename,
+        );
     }
 
-    public function buildWorkshopPhotoUrl(string $ticketId, string $filename): string
+    public function buildWorkshopPhotoUrl(string $departmentId, string $ticketId, string $filename): string
     {
-        return $this->mediaStorage->buildWorkshopPhotoUrl($ticketId, $filename);
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_WORKSHOP_TICKET,
+            $departmentId,
+            $ticketId,
+            $filename,
+        );
     }
 }

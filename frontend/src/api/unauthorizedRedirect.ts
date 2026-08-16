@@ -1,5 +1,6 @@
 import { isAppOrigin } from '@/utils/appLoginUrl'
 import { isDevicesHost } from '@/utils/devicesHost'
+import { sanitizeLoginRedirectPath } from '@/utils/appHomeRedirect'
 
 /** Pfade, auf denen 401 keinen Login-Redirect auslösen (Formular zeigt Fehler selbst). */
 export function isAuthFormPath(pathname: string): boolean {
@@ -69,5 +70,10 @@ export function loginRedirectUrl(currentFullPath?: string): string {
   if (!path || path === '/' || path === '/login' || path.startsWith('/login?')) {
     return '/login'
   }
-  return `/login?redirect=${encodeURIComponent(path)}`
+  // Tour-URL nicht als Redirect merken → Department-Dashboard (oder kein redirect)
+  const sanitized = sanitizeLoginRedirectPath(path)
+  if (!sanitized || sanitized === '/' || sanitized === '/login') {
+    return '/login'
+  }
+  return `/login?redirect=${encodeURIComponent(sanitized)}`
 }

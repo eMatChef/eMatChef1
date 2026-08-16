@@ -4,14 +4,14 @@
     "devEnvironmentBanner": "Ambiente di test – non sono dati di produzione.",
     "devDemoLoginsShow": "Accessi demo",
     "devDemoLoginsHide": "Chiudi",
-    "devDemoLoginsHint": "Password per tutti: test — riempie il form di login."
+    "devDemoLoginsHint": "Password per tutti: test!ematchef — riempie il form di login."
   },
   "router": {
     "meta": {
       "titles": {
         "publicLookup": "Info materiale · eMatChef",
         "openFromQr": "QR · eMatChef",
-        "landingHome": "eMatChef · gestione materiali",
+        "landingHome": "eMatChef – gestione materiali per associazioni e noleggi",
         "blog": "Blog · eMatChef",
         "faq": "FAQ · eMatChef",
         "tos": "Utilizzo e privacy · eMatChef",
@@ -72,6 +72,10 @@
         "settingsTemplates": "Impostazioni · Modelli · eMatChef"
       },
       "descriptions": {
+        "landingHome": "eMatChef tiene sotto controllo scorte, magazzino, prenotazioni e attività – per associazioni, scout e noleggi. Nel browser, senza installazione.",
+        "blog": "Novità e consigli su eMatChef – gestione materiali per associazioni e noleggi.",
+        "faq": "Domande frequenti su eMatChef: materiale, magazzino, prenotazioni, QR code e primi passi.",
+        "login": "Accedi a eMatChef – gestione materiali per il tuo dipartimento, nel browser senza installazione.",
         "publicLookup": "Informazioni pubbliche su materiali e numeri di serie in eMatChef.",
         "tos": "Condizioni d’uso e privacy in eMatChef.",
         "impressum": "Impressum e note legali per eMatChef – gestione materiali.",
@@ -1026,5 +1030,8 @@
     "internal": {
       "lossResolutionNotes": "Segnalazione di perdita accettata e rottamata."
     }
+  },
+  "onboarding": {
+    "tours": {}
   }
 }

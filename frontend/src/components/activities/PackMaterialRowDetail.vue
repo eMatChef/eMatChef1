@@ -45,7 +45,12 @@ const totalQty = () => getStageTotalQty(props.item, props.stage, props.workflowP
 
 const unpackPendingStoreTotal = computed(() => {
   if (isPackUnpackStage(props.stage) && props.retourAccounting) {
-    return Math.max(0, props.retourAccounting.retourTotal - (props.item.quantityStored ?? 0))
+    return Math.max(
+      0,
+      props.retourAccounting.retourTotal -
+        (props.item.quantityStored ?? 0) -
+        (props.item.quantityWet ?? 0),
+    )
   }
   return leftQty()
 })

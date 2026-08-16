@@ -5,9 +5,33 @@
         <h1>{{ t('settings.categories.title') }}</h1>
         <p class="subtitle">{{ t('settings.categories.subtitle') }}</p>
       </div>
-      <EButton variant="primary" data-onboarding="settings-category-new" @click="openCreateModal">
-        <v-icon icon="mdi-plus" start size="20" />
-        {{ t('settings.categories.newCategory') }}
+      <div class="settings-header-actions">
+        <EButton
+          variant="secondary"
+          data-onboarding="settings-category-templates"
+          @click="openTemplatesDialog"
+        >
+          <v-icon icon="mdi-file-tree-outline" start size="20" />
+          {{ t('settings.categories.applyTemplates') }}
+        </EButton>
+        <EButton variant="primary" data-onboarding="settings-category-new" @click="openCreateModal">
+          <v-icon icon="mdi-plus" start size="20" />
+          {{ t('settings.categories.newCategory') }}
+        </EButton>
+      </div>
+    </div>
+
+    <div
+      v-if="showTemplateSuggestion"
+      class="category-templates-suggestion"
+      data-onboarding="settings-category-templates-hint"
+    >
+      <div class="category-templates-suggestion__text">
+        <strong>{{ t('settings.categories.templatesSuggestionTitle') }}</strong>
+        <p>{{ t('settings.categories.templatesSuggestionBody') }}</p>
+      </div>
+      <EButton variant="primary" size="small" :loading="isApplyingTemplates" @click="openTemplatesDialog">
+        {{ t('settings.categories.applyTemplates') }}
       </EButton>
     </div>
 
@@ -28,7 +52,7 @@
     <div class="categories-list" v-if="!isLoading" data-onboarding="settings-category-list">
       <!-- Hauptkategorien -->
       <div 
-        v-for="mainCat in mainCategories" 
+        v-for="(mainCat, mainIndex) in mainCategories" 
         :key="mainCat.id"
         class="category-group"
       >
@@ -45,17 +69,27 @@
               </svg>
             </div>
             <div class="category-info">
-              <span class="category-name">{{ mainCat.name }}</span>
+              <span class="category-name">
+                {{ mainCat.name }}
+                <span v-if="getChildren(mainCat.id).length > 0" class="category-name-count">
+                  ({{ getChildren(mainCat.id).length }})
+                </span>
+              </span>
               <span class="category-meta">
                 {{ t('settings.categories.articlesCount', { count: mainCat.material_count }) }}
-                <span v-if="getChildren(mainCat.id).length > 0" class="child-count">
-                  · {{ t('settings.categories.subcategoriesCount', { count: getChildren(mainCat.id).length }) }}
-                </span>
               </span>
             </div>
           </div>
-          <div class="category-actions">
-            <button class="action-btn" @click.stop="openEditModal(mainCat)" :title="t('common.edit')">
+          <div
+            class="category-actions"
+            :class="{ 'category-actions--tour-hover': mainIndex === 0 && isCategoriesTourStep('8') }"
+            :data-onboarding="mainIndex === 0 ? 'settings-category-actions' : undefined"
+          >
+            <button
+              class="action-btn"
+              @click.stop="openEditModal(mainCat)"
+              :title="t('common.edit')"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
@@ -116,7 +150,7 @@
       </div>
 
       <!-- Leerer Zustand -->
-      <div v-if="filteredCategories.length === 0" class="empty-state">
+      <div v-if="filteredCategories.length === 0 && !searchQuery.trim()" class="empty-state">
         <div class="empty-icon">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -124,9 +158,18 @@
         </div>
         <h3>{{ t('settings.categories.emptyTitle') }}</h3>
         <p>{{ t('settings.categories.emptyDescription') }}</p>
-        <EButton variant="primary" @click="openCreateModal">
-          {{ t('settings.categories.firstCategory') }}
-        </EButton>
+        <div class="empty-actions">
+          <EButton variant="primary" :loading="isApplyingTemplates" @click="openTemplatesDialog">
+            {{ t('settings.categories.applyTemplates') }}
+          </EButton>
+          <EButton variant="secondary" @click="openCreateModal">
+            {{ t('settings.categories.firstCategory') }}
+          </EButton>
+        </div>
+      </div>
+      <div v-else-if="filteredCategories.length === 0" class="empty-state">
+        <h3>{{ t('settings.categories.emptyTitle') }}</h3>
+        <p>{{ t('settings.categories.searchNoResults', { query: searchQuery }) }}</p>
       </div>
     </div>
 
@@ -142,6 +185,73 @@
       @close="closeModal"
       @saved="handleCategorySaved"
     />
+
+    <!-- Vorlagen-Dialog -->
+    <EDialog
+      v-model="showTemplatesDialog"
+      :max-width="560"
+      :title="t('settings.categories.templatesDialogTitle')"
+      data-onboarding="settings-category-templates-dialog"
+    >
+      <p class="templates-dialog-intro">{{ t('settings.categories.templatesDialogIntro') }}</p>
+      <div class="templates-tree">
+        <div v-for="item in STANDARD_CATEGORY_TREE" :key="item.name" class="templates-tree__group">
+          <label
+            class="templates-tree__main"
+            :class="{ 'templates-tree__row--existing': isTemplateMainExisting(categories, item.name) }"
+          >
+            <input
+              v-model="templateSelection.main[item.name]"
+              type="checkbox"
+              :disabled="isTemplateMainExisting(categories, item.name)"
+            />
+            <span>{{ item.name }}</span>
+            <span
+              v-if="isTemplateMainExisting(categories, item.name)"
+              class="templates-tree__existing-tag"
+            >
+              {{ t('settings.categories.templateAlreadyExists') }}
+            </span>
+          </label>
+          <div v-if="item.children?.length" class="templates-tree__children">
+            <label
+              v-for="child in item.children"
+              :key="`${item.name}-${child}`"
+              class="templates-tree__child"
+              :class="{
+                'templates-tree__row--existing': isTemplateSubExisting(categories, item.name, child),
+              }"
+            >
+              <input
+                v-model="templateSelection.sub[item.name][child]"
+                type="checkbox"
+                :disabled="isTemplateSubExisting(categories, item.name, child)"
+              />
+              <span>{{ child }}</span>
+              <span
+                v-if="isTemplateSubExisting(categories, item.name, child)"
+                class="templates-tree__existing-tag"
+              >
+                {{ t('settings.categories.templateAlreadyExists') }}
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <template #actions>
+        <EButton variant="secondary" :disabled="isApplyingTemplates" @click="showTemplatesDialog = false">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          :disabled="!hasSelectedTemplates"
+          :loading="isApplyingTemplates"
+          @click="applySelectedTemplates"
+        >
+          {{ t('settings.categories.applyTemplatesConfirm') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <!-- Lösch-Bestätigung -->
     <EDialog v-model="showDeleteConfirm" :max-width="440" :title="t('settings.categories.deleteConfirmTitle')">
@@ -164,40 +274,94 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useOnboardingTour } from '@/composables/useOnboardingTour'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
 import { getCategories, deleteCategory, type Category } from '@/api/categories'
 import CategoryModal from '@/components/CategoryModal.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESearchField } from '@/components/form/base'
+import { filterUserSelectableCategories } from '@/utils/repairPartsCategory'
+import {
+  STANDARD_CATEGORY_TREE,
+  createCategoryTemplateSelectionSkippingExisting,
+  hasAnyCategoryTemplateSelected,
+  applyStandardCategoryTemplates,
+  isTemplateMainExisting,
+  isTemplateSubExisting,
+} from '@/config/standardCategoryTemplates'
 
 const route = useRoute()
 const toast = useToast()
 const { t } = useI18n()
+const { next: advanceTourStep } = useOnboardingTour()
 const departmentId = computed(() => route.params.departmentId as string)
+
+function isCategoriesTourStep(stepId: string): boolean {
+  return (
+    route.query[ONBOARDING_TOUR_QUERY] === 'categories'
+    && route.query[ONBOARDING_TOUR_STEP_QUERY] === stepId
+  )
+}
 
 const categories = ref<Category[]>([])
 const isLoading = ref(true)
 const searchQuery = ref('')
 const expandedCategories = ref(new Set<string>())
 
+const showTemplatesDialog = ref(false)
+const isApplyingTemplates = ref(false)
+const templateSelection = reactive(createCategoryTemplateSelectionSkippingExisting([]))
+const templatesDismissed = ref(false)
+
+/** Tour Schritt 4: Dialog schliessen ↔ Tour weiter (Weiter oder Abbrechen/Übernehmen). */
+watch(showTemplatesDialog, (open, wasOpen) => {
+  if (wasOpen && !open && isCategoriesTourStep('4')) {
+    void advanceTourStep()
+  }
+})
+
+const userSelectableCount = computed(
+  () => filterUserSelectableCategories(categories.value).length
+)
+const showTemplateSuggestion = computed(
+  () => !isLoading.value && userSelectableCount.value === 0 && !templatesDismissed.value
+)
+const hasSelectedTemplates = computed(() => hasAnyCategoryTemplateSelected(templateSelection))
+
 // Modal State
 const showModal = ref(false)
 const editingCategory = ref<Category | null>(null)
 const defaultParentId = ref<string | null>(null)
+
+watch(
+  () => route.query[ONBOARDING_TOUR_STEP_QUERY],
+  (stepId, prevStepId) => {
+    if (route.query[ONBOARDING_TOUR_QUERY] !== 'categories') return
+    if (prevStepId === '4' && stepId === '5' && showTemplatesDialog.value) {
+      showTemplatesDialog.value = false
+    }
+    // Schritt 7 «Weiter» → Formular schliessen, damit Schritt 8 die Listen-Actions sieht
+    if (prevStepId === '7' && stepId === '8' && showModal.value) {
+      showModal.value = false
+    }
+  },
+)
 
 // Delete State
 const showDeleteConfirm = ref(false)
 const deletingCategory = ref<Category | null>(null)
 const isDeleting = ref(false)
 
-// Gefilterte Kategorien
+// Gefilterte Kategorien (ohne System-Kategorie Repair-Parts)
 const filteredCategories = computed(() => {
-  if (!searchQuery.value.trim()) return categories.value
+  const selectable = filterUserSelectableCategories(categories.value)
+  if (!searchQuery.value.trim()) return selectable
   const query = searchQuery.value.toLowerCase()
-  return categories.value.filter(c => c.name.toLowerCase().includes(query))
+  return selectable.filter(c => c.name.toLowerCase().includes(query))
 })
 
 // Hauptkategorien (ohne Parent)
@@ -224,6 +388,38 @@ function openCreateModal() {
   editingCategory.value = null
   defaultParentId.value = null
   showModal.value = true
+}
+
+function openTemplatesDialog() {
+  Object.assign(templateSelection, createCategoryTemplateSelectionSkippingExisting(categories.value))
+  showTemplatesDialog.value = true
+}
+
+async function applySelectedTemplates() {
+  if (!hasSelectedTemplates.value) {
+    toast.error(t('settings.categories.toastSelectCategory'))
+    return
+  }
+  isApplyingTemplates.value = true
+  try {
+    const { createdCount } = await applyStandardCategoryTemplates(
+      departmentId.value,
+      categories.value,
+      templateSelection
+    )
+    await loadCategories()
+    showTemplatesDialog.value = false
+    templatesDismissed.value = true
+    toast.success(
+      createdCount > 0
+        ? t('settings.categories.toastTemplatesNew', { count: createdCount })
+        : t('settings.categories.toastTemplatesNoNew')
+    )
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.categories.errCreateTemplates'))
+  } finally {
+    isApplyingTemplates.value = false
+  }
 }
 
 function openCreateChildModal(parent: Category) {
@@ -281,19 +477,37 @@ async function loadCategories() {
   isLoading.value = true
   try {
     categories.value = await getCategories(departmentId.value)
-    
-    // Alle Hauptkategorien standardmäßig expandieren
-    mainCategories.value.forEach(cat => {
-      if (getChildren(cat.id).length > 0) {
-        expandedCategories.value.add(cat.id)
-      }
-    })
+    // Übersicht standardmässig zugeklappt; bei Suche passende Gruppen öffnen
+    if (searchQuery.value.trim()) {
+      expandCategoriesMatchingSearch()
+    }
   } catch (err) {
     console.error(t('settings.categories.loadError'), err)
   } finally {
     isLoading.value = false
   }
 }
+
+function expandCategoriesMatchingSearch() {
+  const query = searchQuery.value.trim().toLowerCase()
+  if (!query) return
+  for (const main of mainCategories.value) {
+    const children = getChildren(main.id)
+    const matchMain = main.name.toLowerCase().includes(query)
+    const matchChild = children.some((c) => c.name.toLowerCase().includes(query))
+    if (matchMain || matchChild) {
+      expandedCategories.value.add(main.id)
+    }
+  }
+}
+
+watch(searchQuery, () => {
+  if (!searchQuery.value.trim()) {
+    expandedCategories.value = new Set()
+    return
+  }
+  expandCategoriesMatchingSearch()
+})
 
 onMounted(() => {
   loadCategories()
@@ -310,6 +524,120 @@ onMounted(() => {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+  gap: 16px;
+}
+
+.settings-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.category-templates-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+}
+
+.category-templates-suggestion__text {
+  flex: 1;
+  min-width: 200px;
+}
+
+.category-templates-suggestion__text strong {
+  display: block;
+  font-size: 14px;
+  color: #166534;
+  margin-bottom: 4px;
+}
+
+.category-templates-suggestion__text p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #3f6212;
+}
+
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.templates-dialog-intro {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.templates-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(50vh, 420px);
+  overflow: auto;
+}
+
+.templates-tree__group {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.templates-tree__main,
+.templates-tree__child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.templates-tree__row--existing {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.templates-tree__row--existing > span:first-of-type {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.templates-tree__existing-tag {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #ccfbf1;
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.templates-tree__main {
+  font-weight: 600;
+}
+
+.templates-tree__children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0 22px;
+}
+
+.templates-tree__child {
+  font-weight: 400;
+  color: #475569;
 }
 
 .settings-header h1 {
@@ -452,6 +780,11 @@ onMounted(() => {
   color: var(--color-text, #111827);
 }
 
+.category-name-count {
+  font-weight: 600;
+  color: var(--color-text-muted, #6b7280);
+}
+
 .category-meta {
   font-size: 12px;
   color: var(--color-text-muted, #6b7280);
@@ -469,8 +802,26 @@ onMounted(() => {
   transition: opacity 0.2s;
 }
 
-.category-item:hover .category-actions {
+.category-item:hover .category-actions,
+.category-actions.onboarding-tour-target-active,
+.category-actions--tour-hover,
+.category-item:has(.onboarding-tour-target-active) .category-actions {
   opacity: 1;
+}
+
+/* Tour-Spotlight: etwas Luft um Stift / Plus / Löschen */
+.category-actions[data-onboarding='settings-category-actions'] {
+  padding: 6px;
+  margin: -6px;
+  border-radius: 8px;
+  min-width: 120px;
+  box-sizing: border-box;
+}
+
+/* Tour-Schritt: Zeile wie bei Hover hervorheben */
+.category-item:has(.onboarding-tour-target-active),
+.category-item:has(.category-actions--tour-hover) {
+  background: var(--color-primary-muted-bg, #ecfdf5);
 }
 
 .action-btn {

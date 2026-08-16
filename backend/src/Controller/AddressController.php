@@ -7,6 +7,8 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivitySharedVenueService;
+use App\Service\Onboarding\OnboardingSandboxService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\MaterialWizardSupplierService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,13 +25,14 @@ class AddressController extends AbstractController
     /** Kontakte: User-Rolle – lesbare Typen. */
     private const USER_CONTACT_VIEW_TYPES = ['general', 'storage', 'event', 'meeting', 'event_delivery', 'event_poi'];
 
-    /** Kontakte: User-Rolle – anlegen/bearbeiten/löschen nur diese Typen. */
-    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery', 'event_poi'];
+    /** Kontakte: User-Rolle – anlegen/bearbeiten/löschen nur diese Typen (+ eigene Benutzeradresse). */
+    private const USER_CONTACT_CREATE_TYPES = ['meeting', 'event', 'event_delivery', 'event_poi', 'user'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,
         private MaterialWizardSupplierService $materialWizardSupplierService,
         private ActivitySharedVenueService $activitySharedVenueService,
+        private \App\Service\Onboarding\OnboardingSandboxService $onboardingSandbox,
     ) {}
 
     /**
@@ -62,6 +65,9 @@ class AddressController extends AbstractController
             ->orderBy('a.type', 'ASC')
             ->addOrderBy('a.name', 'ASC');
 
+        $includeSandbox = OnboardingSandboxVisibility::includeFromRequest($request);
+        $qb->andWhere(OnboardingSandboxVisibility::kitListConstraint('a', $includeSandbox));
+
         if (!$includeDeleted) {
             $qb->andWhere('a.deletedAt IS NULL');
         }
@@ -76,6 +82,28 @@ class AddressController extends AbstractController
         }
 
         if ($this->isUserContactReader($role)) {
+            // Eigene Benutzeradresse (Profil / J+S) — nur die eigene, nicht alle User-Adressen
+            if ($type === 'user') {
+                $profileId = $this->currentProfileId();
+                if (!$profileId) {
+                    return new JsonResponse([
+                        'addresses' => [],
+                        'types' => $this->filterTypesForRole(Address::getAvailableTypes(), $role),
+                        'cantons' => Address::getSwissCantons(),
+                    ]);
+                }
+                $qb->andWhere('a.type = :type')
+                    ->andWhere('a.additionalInfo = :profileMarker')
+                    ->setParameter('type', 'user')
+                    ->setParameter('profileMarker', $this->profileAddressMarker($profileId));
+                $addresses = $qb->getQuery()->getResult();
+
+                return new JsonResponse([
+                    'addresses' => array_map(fn ($a) => $a->toArray(), $addresses),
+                    'types' => $this->filterTypesForRole(Address::getAvailableTypes(), $role),
+                    'cantons' => Address::getSwissCantons(),
+                ]);
+            }
             $qb->andWhere('a.type IN (:userContactTypes)')
                 ->setParameter('userContactTypes', self::USER_CONTACT_VIEW_TYPES);
             if ($type && !in_array($type, self::USER_CONTACT_VIEW_TYPES, true)) {
@@ -181,13 +209,39 @@ class AddressController extends AbstractController
             $address->setDepartmentId($data['department_id']);
             
             $this->updateAddressFromData($address, $data);
+            if ($address->getType() === 'user') {
+                $profileId = $this->currentProfileId();
+                if ($profileId) {
+                    $address->setAdditionalInfo($this->profileAddressMarker($profileId));
+                }
+            }
             $parentError = $this->validateAddressParentLink($address);
             if ($parentError !== null) {
                 return new JsonResponse(['error' => $parentError], 400);
             }
+
+            $isSandboxTour = OnboardingSandboxVisibility::includeFromRequest($request)
+                || !empty($data['onboarding_sandbox']);
+            if ($isSandboxTour) {
+                $address->setOnboardingSandbox(true);
+                $type = $address->getType();
+                if (
+                    in_array($type, [Address::TYPE_EVENT, Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
+                    && (trim((string) $address->getName()) === '' || $address->getName() === OnboardingSandboxService::VENUE_NAME)
+                ) {
+                    if ($type === Address::TYPE_EVENT) {
+                        $address->setName(OnboardingSandboxService::VENUE_NAME);
+                    }
+                }
+            }
             
             $this->entityManager->persist($address);
             $this->entityManager->flush();
+
+            $user = $this->getUser();
+            if ($address->isOnboardingSandbox() && $user instanceof User) {
+                $this->onboardingSandbox->registerVenue($address, $user);
+            }
             
             return new JsonResponse([
                 'address' => $address->toArray(),
@@ -227,14 +281,31 @@ class AddressController extends AbstractController
                 $this->assertCanCreateContact($address->getDepartmentId(), (string) $data['type']);
             }
             $this->updateAddressFromData($address, $data);
+            if ($address->getType() === 'user') {
+                $profileId = $this->currentProfileId();
+                if ($profileId) {
+                    $address->setAdditionalInfo($this->profileAddressMarker($profileId));
+                }
+            }
             $parentError = $this->validateAddressParentLink($address);
             if ($parentError !== null) {
                 return new JsonResponse(['error' => $parentError], 400);
             }
+
+            if (OnboardingSandboxVisibility::includeFromRequest($request)
+                || !empty($data['onboarding_sandbox'])) {
+                $address->setOnboardingSandbox(true);
+            }
+
             $address->updateTimestamps();
             
             $this->entityManager->flush();
             $this->activitySharedVenueService->syncSharedVenueFromAddressUpdate($address);
+
+            $user = $this->getUser();
+            if ($address->isOnboardingSandbox() && $user instanceof User) {
+                $this->onboardingSandbox->registerVenue($address, $user);
+            }
             
             return new JsonResponse([
                 'address' => $address->toArray(),
@@ -481,6 +552,34 @@ class AddressController extends AbstractController
         return $role !== null && in_array($role, ['u', 'user'], true);
     }
 
+    private function currentProfileId(): ?string
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        return $user->getProfileId() ?: null;
+    }
+
+    private function profileAddressMarker(string $profileId): string
+    {
+        return '__emc_profile__:' . $profileId;
+    }
+
+    private function isOwnUserAddress(Address $address): bool
+    {
+        if ($address->getType() !== 'user') {
+            return false;
+        }
+        $profileId = $this->currentProfileId();
+        if (!$profileId) {
+            return false;
+        }
+
+        return trim((string) $address->getAdditionalInfo()) === $this->profileAddressMarker($profileId);
+    }
+
     private function assertCanCreateContact(string $departmentId, string $type): void
     {
         $role = $this->resolveDepartmentRole($departmentId);
@@ -493,6 +592,9 @@ class AddressController extends AbstractController
     {
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
+        if ($this->isOwnUserAddress($address)) {
+            return;
         }
         if (
             in_array($address->getType(), [Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
@@ -515,6 +617,9 @@ class AddressController extends AbstractController
     {
         if ($address->getScope() !== Address::SCOPE_DEPARTMENT || $address->getDepartmentId() === null) {
             throw new AccessDeniedHttpException('Adresse nicht gefunden');
+        }
+        if ($this->isOwnUserAddress($address)) {
+            return;
         }
         if (
             in_array($address->getType(), [Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)

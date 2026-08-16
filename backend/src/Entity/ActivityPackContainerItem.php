@@ -55,6 +55,27 @@ class ActivityPackContainerItem
     #[ORM\Column(name: 'quantity_stored', type: 'integer', options: ['default' => 0])]
     private int $quantityStored = 0;
 
+    #[ORM\Column(name: 'quantity_wet', type: 'integer', options: ['default' => 0])]
+    private int $quantityWet = 0;
+
+    #[ORM\Column(name: 'wet_hung', type: 'boolean', nullable: true)]
+    private ?bool $wetHung = null;
+
+    #[ORM\Column(name: 'wet_drying_storage_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $wetDryingStorageAddressId = null;
+
+    #[ORM\Column(name: 'wet_drying_rack_id', type: 'string', length: 64, nullable: true)]
+    private ?string $wetDryingRackId = null;
+
+    #[ORM\Column(name: 'wet_drying_slot_id', type: 'string', length: 64, nullable: true)]
+    private ?string $wetDryingSlotId = null;
+
+    #[ORM\Column(name: 'wet_drying_location_label', type: 'string', length: 255, nullable: true)]
+    private ?string $wetDryingLocationLabel = null;
+
+    #[ORM\Column(name: 'wet_workshop_ticket_id', type: 'string', length: 13, nullable: true, columnDefinition: 'CHARACTER(13) NULL')]
+    private ?string $wetWorkshopTicketId = null;
+
     #[ORM\Column(name: 'condition_out', type: 'string', length: 50, options: ['default' => 'ok'])]
     private string $conditionOut = 'ok';
 
@@ -99,6 +120,24 @@ class ActivityPackContainerItem
     public function setQuantityReturned(int $quantityReturned): self { $this->quantityReturned = $quantityReturned; return $this; }
     public function getQuantityStored(): int { return $this->quantityStored; }
     public function setQuantityStored(int $quantityStored): self { $this->quantityStored = $quantityStored; return $this; }
+    public function getQuantityWet(): int { return $this->quantityWet; }
+    public function setQuantityWet(int $quantityWet): self { $this->quantityWet = max(0, $quantityWet); return $this; }
+    public function getWetHung(): ?bool { return $this->wetHung; }
+    public function setWetHung(?bool $wetHung): self { $this->wetHung = $wetHung; return $this; }
+    public function getWetDryingStorageAddressId(): ?string { return $this->wetDryingStorageAddressId; }
+    public function setWetDryingStorageAddressId(?string $id): self { $this->wetDryingStorageAddressId = $id; return $this; }
+    public function getWetDryingRackId(): ?string { return $this->wetDryingRackId; }
+    public function setWetDryingRackId(?string $id): self { $this->wetDryingRackId = $id; return $this; }
+    public function getWetDryingSlotId(): ?string { return $this->wetDryingSlotId; }
+    public function setWetDryingSlotId(?string $id): self { $this->wetDryingSlotId = $id; return $this; }
+    public function getWetDryingLocationLabel(): ?string { return $this->wetDryingLocationLabel; }
+    public function setWetDryingLocationLabel(?string $label): self { $this->wetDryingLocationLabel = $label; return $this; }
+    public function getWetWorkshopTicketId(): ?string { return $this->wetWorkshopTicketId; }
+    public function setWetWorkshopTicketId(?string $id): self { $this->wetWorkshopTicketId = $id; return $this; }
+    public function getStoreDifference(): int
+    {
+        return max(0, $this->quantityReturned - $this->quantityStored - $this->quantityWet);
+    }
     public function getConditionOut(): string { return $this->conditionOut; }
     public function setConditionOut(string $conditionOut): self { $this->conditionOut = $conditionOut; return $this; }
     public function getNotes(): ?string { return $this->notes; }

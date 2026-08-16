@@ -122,7 +122,44 @@
           <v-tabs-window v-model="activeTab" class="material-detail-tabs-window">
           <!-- Tab: Daten (User: nur Anzeige, Felder mit Wert) -->
           <v-tabs-window-item value="data" class="material-detail-window-item">
-          <section v-if="isUserMaterialsBrowseOnly" class="tab-content">
+          <section v-if="isUserMaterialsBrowseOnly" class="tab-content user-readonly-detail">
+            <div class="section-card user-readonly-hero">
+              <h2 class="section-title">{{ t('common.material') }}</h2>
+              <div class="user-readonly-hero-grid">
+                <div class="user-readonly-hero-image">
+                  <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarImage') }}</span>
+                  <div class="image-slot image-slot--browse">
+                    <svg v-if="!materialPrimaryImageUrl" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <img v-else :src="materialPrimaryImageUrl" :alt="t('components.materialDetail.altMaterialImage')" />
+                  </div>
+                </div>
+                <div class="user-readonly-hero-meta">
+                  <div class="user-readonly-hero-stat">
+                    <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarStockQuick') }}</span>
+                    <span class="user-readonly-hero-stock">{{ formatMaterialStockQtyPrimary(material.total_stock) }}</span>
+                  </div>
+                  <div v-if="material.category" class="user-readonly-hero-stat">
+                    <span class="user-readonly-hero-label">{{ t('components.materialDetail.sidebarCategory') }}</span>
+                    <span class="user-readonly-hero-value">{{ getCategoryPath() }}</span>
+                  </div>
+                  <dl v-if="userReadOnlyIdentityFields.length > 0" class="user-readonly-fields user-readonly-fields--compact">
+                    <div
+                      v-for="field in userReadOnlyIdentityFields"
+                      :key="field.label"
+                      class="user-readonly-row"
+                    >
+                      <dt>{{ field.label }}</dt>
+                      <dd>{{ field.value }}</dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+
             <div
               v-for="section in userReadOnlySections"
               :key="section.title"
@@ -140,11 +177,15 @@
                 </div>
               </dl>
             </div>
+
             <div
-              v-if="material.material_type === 'physical_combo' && material.linked_container_batch"
-              class="section-card"
+              v-if="material.linked_container_batch"
+              class="section-card user-readonly-loan-container"
             >
               <h2 class="section-title">{{ t('components.materialDetail.refKisteLabel') }}</h2>
+              <p class="user-readonly-loan-hint">
+                {{ t('components.materialDetail.refKisteLoanHint') }}
+              </p>
               <router-link
                 class="linked-kiste-link"
                 :to="`/${departmentId}/materials/${material.linked_container_batch.material_id}`"
@@ -152,7 +193,11 @@
                 {{ material.linked_container_batch.display_label }}
               </router-link>
             </div>
-            <p v-if="userReadOnlySections.length === 0" class="user-readonly-empty">
+
+            <p
+              v-if="userReadOnlySections.length === 0 && userReadOnlyIdentityFields.length === 0 && !material.linked_container_batch"
+              class="user-readonly-empty"
+            >
               {{ t('components.materialDetail.userReadOnlyNoFields') }}
             </p>
           </section>
@@ -262,6 +307,7 @@
                   />
                   
                   <AutoSaveField
+                    v-if="!(formData.is_food || material.is_food)"
                     v-model="formData.model"
                     :baseline="savedFormBaselines.model"
                     :label="t('components.materialDetail.labelModel')"
@@ -302,7 +348,7 @@
                     <span class="property-value">{{ t('components.materialDetail.propRental') }}</span>
                   </div>
                   <div
-                    v-if="material.tracking_type === 'bulk'"
+                    v-if="material.tracking_type === 'bulk' && !(formData.is_food || material.is_food)"
                     class="property-item property-item--checkbox"
                   >
                     <AutoSaveField
@@ -390,6 +436,7 @@
                   :save="(v) => saveMaterialField('weight', v)"
                 />
                 <AutoSaveField
+                  v-if="!(formData.is_food || material.is_food)"
                   v-model="formData.color"
                   :baseline="savedFormBaselines.color"
                   :label="t('components.materialDetail.labelColor')"
@@ -417,6 +464,7 @@
                   :save="(v) => saveMaterialField('size_height', v)"
                 />
                 <AutoSaveField
+                  v-if="!(formData.is_food || material.is_food)"
                   v-model="formData.warranty_until"
                   :baseline="savedFormBaselines.warranty_until"
                   :label="t('components.materialDetail.labelWarranty')"
@@ -453,25 +501,32 @@
               />
             </div>
 
-            <!-- Verpackungseinheit -->
+            <!-- Verpackungseinheit (Stück oder Meter: m pro VE) — nicht bei Esswaren -->
             <div
-              v-if="!isVirtualComboView && !isMeterStockMaterial"
+              v-if="!isVirtualComboView && !(formData.is_food || material.is_food)"
               class="section-card"
             >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
-              <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
+              <p class="section-hint">{{
+                isMeterStockMaterial
+                  ? t('components.materialDetail.packagingHintMeter')
+                  : t('components.materialDetail.packagingHint')
+              }}</p>
               
               <div class="form-grid">
                 <AutoSaveField
                   v-model="formData.pack_size"
                   :baseline="savedFormBaselines.pack_size"
-                  :label="t('components.materialDetail.labelPiecesPerUnit')"
+                  :label="isMeterStockMaterial
+                    ? t('components.materialDetail.labelMetersPerUnit')
+                    : t('components.materialDetail.labelPiecesPerUnit')"
                   type="number"
                   :min="2"
                   :placeholder="t('components.materialDetail.packSizePlaceholder')"
                   :save="(v) => saveMaterialField('pack_size', v)"
                 />
                 <AutoSaveField
+                  v-if="!isMeterStockMaterial"
                   v-model="formData.pack_unit"
                   :baseline="savedFormBaselines.pack_unit"
                   :label="t('components.materialDetail.labelDesignation')"
@@ -480,7 +535,16 @@
                   :save="(v) => saveMaterialField('pack_unit', v)"
                 />
                 <AutoSaveField
-                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
+                  v-if="isMeterStockMaterial"
+                  v-model="formData.packaging_unit"
+                  :baseline="savedFormBaselines.packaging_unit"
+                  :label="t('components.materialDetail.labelDesignation')"
+                  type="select"
+                  :options="packUnitSelectOptions"
+                  :save="(v) => saveMaterialField('packaging_unit', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit) && !isMeterStockMaterial"
                   v-model="formData.pack_unit"
                   :baseline="savedFormBaselines.pack_unit"
                   :label="t('components.materialDetail.packUnitCustomPlaceholder')"
@@ -489,9 +553,23 @@
                   :save="(v) => saveMaterialField('pack_unit', v)"
                 />
               </div>
-              <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 80, packs: Math.floor((material.total_stock || 80) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
-                <span v-if="(material.total_stock || 80) % formData.pack_size !== 0">{{ t('components.materialDetail.packPreviewRemain', { rem: (material.total_stock || 80) % formData.pack_size }) }}</span>
+              <p
+                v-if="formData.pack_size && (isMeterStockMaterial ? formData.packaging_unit : formData.pack_unit)"
+                class="pack-preview"
+              >
+                {{
+                  t('components.materialDetail.packPreview', {
+                    stock: material.total_stock || 0,
+                    packs: Math.floor((material.total_stock || 0) / formData.pack_size),
+                    unit: isMeterStockMaterial ? formData.packaging_unit : formData.pack_unit,
+                    per: formData.pack_size,
+                  })
+                }}
+                <span v-if="(material.total_stock || 0) % formData.pack_size !== 0">{{
+                  t('components.materialDetail.packPreviewRemain', {
+                    rem: (material.total_stock || 0) % formData.pack_size,
+                  })
+                }}</span>
               </p>
             </div>
 
@@ -688,13 +766,14 @@
                 :items="sortedActiveBatches"
                 :can-manage-materials="canManageMaterials"
                 :show-move-qty="material.tracking_type !== 'serialized'"
+                :show-expiry="!!(material.is_food || formData.is_food || activeBatches.some((b) => !!b.expiry_date))"
                 :material-name="material.name"
                 :pack-unit="material.pack_unit"
                 :pack-size="material.pack_size"
                 :size-length-cm="material.size_length"
                 :status-labels="statusLabels"
-                :sort-key="stockSortKey"
-                :sort-dir="stockSortDir"
+                :sort-key="stockSortKeyForUi"
+                :sort-dir="stockSortDirForUi"
                 :em-dash="t('components.materialDetail.emDash')"
                 :currency-fr="t('components.materialDetail.currencyFr')"
                 :format-date="formatDate"
@@ -1202,7 +1281,8 @@
           </v-tabs-window-item>
 
           <!-- Tab: Werkstatt -->
-          <v-tabs-window-item v-if="!isVirtualComboView" value="workshop" class="material-detail-window-item">
+          <!-- Tab: Werkstatt -->
+          <v-tabs-window-item v-if="!isVirtualComboView && !material.is_food" value="workshop" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionWorkshopTitle') }}</h2>
@@ -1257,7 +1337,8 @@
                 v-model:pack-sale-price-chf="formData.pack_sale_price_chf"
                 v-model:min-stock="formData.min_stock"
                 :pack-size="formData.pack_size"
-                :pack-unit="formData.pack_unit"
+                :pack-unit="isMeterStockMaterial ? (formData.packaging_unit || formData.pack_unit) : formData.pack_unit"
+                :is-meter-stock="isMeterStockMaterial"
                 :batches="batches"
                 :is-consumable="formData.is_consumable || material.is_consumable"
                 :is-food="formData.is_food || material.is_food"
@@ -1271,12 +1352,60 @@
           </section>
           </v-tabs-window-item>
 
+          <!-- Tab: Ausgabe an Aktivität / Camp / Event (Esswaren) -->
+          <v-tabs-window-item v-if="material.is_food" value="activity-issues" class="material-detail-window-item">
+          <section class="tab-content">
+            <div class="section-card">
+              <h2 class="section-title">{{ t('components.materialDetail.sectionActivityIssuesTitle') }}</h2>
+              <p class="form-hint mb-3">{{ t('components.materialDetail.sectionActivityIssuesIntro') }}</p>
+              <div v-if="rentalActivityBookingsLoading" class="loading-inline combo-rental-loading">
+                <div class="spinner"></div>
+                <span>{{ t('components.materialDetail.rentalActivityBookingsLoading') }}</span>
+              </div>
+              <p v-else-if="rentalActivityBookingsError" class="form-hint text-warning">{{ rentalActivityBookingsError }}</p>
+              <p v-else-if="rentalActivityBookings.length === 0" class="empty-serials combo-rental-empty">
+                {{ t('components.materialDetail.activityIssuesEmpty') }}
+              </p>
+              <MaterialRentalActivityBookingsDataTable
+                v-else
+                :items="rentalActivityBookings"
+                :department-id="departmentId"
+                :em-dash="t('components.materialDetail.emDash')"
+                :format-period="formatRentalActivityPeriod"
+                :status-label="rentalActivityStatusLabel"
+                :kind-label="rentalBookingKindLabel"
+                :kind-class="rentalBookingKindClass"
+              />
+            </div>
+          </section>
+          </v-tabs-window-item>
+
           <!-- Tab: Vermietung -->
           <v-tabs-window-item v-if="!isVirtualComboView && !showConsumableFoodUi" value="rental" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
 
+              <div class="slider-toggle-group pack-toggle-inline mb-3">
+                <label class="toggle-label">
+                  <span class="toggle-wrapper">
+                    <input
+                      type="checkbox"
+                      class="toggle-input"
+                      :checked="formData.is_rentable"
+                      :disabled="!canManageMaterials"
+                      @change="onIsRentableToggle(($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="toggle-slider toggle-slider--blue"></span>
+                  </span>
+                  <span class="toggle-text">
+                    <span class="toggle-title">{{ t('components.materialDetail.toggleRentableTitle') }}</span>
+                    <span class="toggle-desc">{{ t('components.materialDetail.toggleRentableDesc') }}</span>
+                  </span>
+                </label>
+              </div>
+
+              <div v-if="formData.is_rentable">
               <div class="rental-accordion-item">
                 <button
                   type="button"
@@ -1465,6 +1594,7 @@
               />
                 </div>
               </div>
+              </div>
             </div>
           </section>
           </v-tabs-window-item>
@@ -1510,7 +1640,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Verwendet in -->
-          <v-tabs-window-item value="used-in" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!material.is_food" value="used-in" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
@@ -1724,8 +1854,8 @@
           </v-tabs-window>
         </main>
 
-        <!-- Sidebar (Right) -->
-        <aside v-if="activeTab === 'data'" class="content-sidebar">
+        <!-- Sidebar (Right) — nur MW/DC; User-Ansicht hat Abbildung/Bestand oben -->
+        <aside v-if="activeTab === 'data' && !isUserMaterialsBrowseOnly" class="content-sidebar">
           <!-- Abbildung -->
           <div class="sidebar-card">
             <div class="sidebar-header">
@@ -1855,9 +1985,11 @@
       :existing-batches="batches"
       :pack-unit="material.pack_unit"
       :pack-size="material.pack_size"
+      :packaging-unit="material.packaging_unit"
       :size-length-cm="material.size_length"
       :reference-purchase-unit-chf="material.reference_purchase_unit_chf"
       :unit-price-optional="isRepairPartMaterial"
+      :is-food="!!(material.is_food || formData.is_food)"
       :combo-storage-context="editingBatchComboContext"
       @close="closeBatchModal"
       @saved="handleBatchSaved"
@@ -3311,12 +3443,14 @@ const formData = reactive({
   rental_lead_days: null as number | null,
   rental_max_days: null as number | null,
   rental_external_allowed: false,
+  is_rentable: true,
   rental_scope: '' as string,
   rental_requires_approval: false,
   rental_notes: '',
   rental_calc_params: null as RentalCalcParams | null,
   pack_size: null as number | null,
   pack_unit: '',
+  packaging_unit: '',
   pack_weight: '',
   pack_size_length: '',
   pack_size_width: '',
@@ -3391,6 +3525,7 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
       break
     case 'rental_external_allowed':
     case 'rental_requires_approval':
+    case 'is_rentable':
       payload[field] = !!value
       break
     case 'rental_scope':
@@ -3477,6 +3612,12 @@ async function onFoodFlagChange(enabled: boolean): Promise<void> {
   formData.is_food = enabled
   if (enabled) formData.is_consumable = false
   await persistConsumableFoodFlags()
+}
+
+async function onIsRentableToggle(checked: boolean): Promise<void> {
+  formData.is_rentable = checked
+  if (!canManageMaterials.value) return
+  await saveMaterialField('is_rentable', checked)
 }
 
 async function persistConsumableFoodFlags(): Promise<void> {
@@ -3735,8 +3876,10 @@ const tabs = computed(() => {
       { id: 'data', label: t('components.materialDetail.tabData') },
       { id: 'stored-in', label: t('components.materialDetail.tabStoredIn') },
       { id: 'composition', label: t('components.materialDetail.tabComposition') },
-      { id: 'workshop', label: t('components.materialDetail.tabWorkshop') },
     ]
+    if (!material.value.is_food) {
+      comboTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+    }
     if (showContainerContentTab.value) {
       comboTabs.splice(3, 0, {
         id: 'container-content',
@@ -3773,15 +3916,27 @@ const tabs = computed(() => {
   if (showContainerContentTab.value) {
     baseTabs.push({ id: 'container-content', label: t('components.materialDetail.tabContainerContent') })
   }
-  const usedCount = usedInEntries.value.length
-  baseTabs.push({
-    id: 'used-in',
-    label:
-      usedCount > 0
-        ? t('components.materialDetail.tabUsedInCount', { count: usedCount })
-        : t('components.materialDetail.tabUsedIn'),
-  })
-  baseTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+  if (!material.value.is_food) {
+    const usedCount = usedInEntries.value.length
+    baseTabs.push({
+      id: 'used-in',
+      label:
+        usedCount > 0
+          ? t('components.materialDetail.tabUsedInCount', { count: usedCount })
+          : t('components.materialDetail.tabUsedIn'),
+    })
+    baseTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+  } else {
+    // Esswaren: Ausgaben an Aktivität/Camp/Event statt Kombi/Werkstatt
+    const issueCount = rentalActivityBookingsTotalQty.value
+    baseTabs.push({
+      id: 'activity-issues',
+      label:
+        issueCount > 0
+          ? t('components.materialDetail.tabActivityIssuesCount', { count: issueCount })
+          : t('components.materialDetail.tabActivityIssues'),
+    })
+  }
   if (material.value.is_consumable || material.value.is_food) {
     baseTabs.push({ id: 'pricing', label: t('components.materialDetail.tabConsumablePricing') })
   } else {
@@ -4035,12 +4190,20 @@ const packSaleCalcLine = computed(() => {
   const up = packSaleDerivedUnitPrice.value
   if (up == null) return ''
   const pp = formData.pack_sale_price_chf
-  return t('components.materialDetail.packSaleCalcLine', {
-    packPrice: pp != null ? Number(pp).toFixed(2) : '—',
-    packUnit: formData.pack_unit?.trim() ? formData.pack_unit : t('components.materialDetail.unitGeneric'),
-    packSize: formData.pack_size != null ? String(formData.pack_size) : '—',
-    unitPrice: up.toFixed(2),
-  })
+  const packUnitLabel = isMeterStockMaterial.value
+    ? (formData.packaging_unit?.trim() || formData.pack_unit || t('components.materialDetail.unitGeneric'))
+    : (formData.pack_unit?.trim() ? formData.pack_unit : t('components.materialDetail.unitGeneric'))
+  return t(
+    isMeterStockMaterial.value
+      ? 'components.materialDetail.packSaleCalcLineMeter'
+      : 'components.materialDetail.packSaleCalcLine',
+    {
+      packPrice: pp != null ? Number(pp).toFixed(2) : '—',
+      packUnit: packUnitLabel,
+      packSize: formData.pack_size != null ? String(formData.pack_size) : '—',
+      unitPrice: up.toFixed(2),
+    },
+  )
 })
 
 function applyPackSaleToUnitSalePrice() {
@@ -4062,8 +4225,9 @@ const statusLabels = computed((): Record<string, string> => ({
 // Archiv-Status: Batches die nicht mehr aktiv im Bestand sind
 const archivedStatuses = ['lost', 'disposed', 'split_to_serial']
 
-// Aktive Batches (für Bestand-Tab) – sortiert nach Kaufdatum (neueste zuerst)
+// Aktive Batches (für Bestand-Tab)
 // Batches mit qty=0 (z.B. nach Split) ausblenden – bleiben in DB für Historie
+// Basis-Reihenfolge: Kaufdatum neueste zuerst; Esswaren/Ablauf → FEFO in sortedActiveBatches
 const activeBatches = computed(() => {
   return batches.value
     .filter(b => !archivedStatuses.includes(b.status) && (b.qty || 0) > 0)
@@ -5010,12 +5174,14 @@ function populateFormData(m: Material) {
   formData.rental_lead_days = m.rental_lead_days || null
   formData.rental_max_days = m.rental_max_days || null
   formData.rental_external_allowed = m.rental_external_allowed || false
+  formData.is_rentable = m.is_rentable !== false
   formData.rental_scope = m.rental_scope || ''
   formData.rental_requires_approval = m.rental_requires_approval || false
   formData.rental_notes = m.rental_notes || ''
   formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
   formData.pack_size = m.pack_size || null
   formData.pack_unit = m.pack_unit || ''
+  formData.packaging_unit = m.packaging_unit || ''
   formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
   formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
@@ -5097,6 +5263,9 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
     case 'rental_external_allowed':
       formData.rental_external_allowed = m.rental_external_allowed || false
       break
+    case 'is_rentable':
+      formData.is_rentable = m.is_rentable !== false
+      break
     case 'rental_scope':
       formData.rental_scope = m.rental_scope || ''
       break
@@ -5114,6 +5283,9 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
       break
     case 'pack_unit':
       formData.pack_unit = m.pack_unit || ''
+      break
+    case 'packaging_unit':
+      formData.packaging_unit = m.packaging_unit || ''
       break
     case 'pack_weight':
       formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
@@ -5238,17 +5410,55 @@ function pushReadOnlyField(
   fields.push({ label, value: format ? format(value) : String(value) })
 }
 
+/** Hersteller/Modell im Hero-Block (Name/Kategorie sind Header bzw. Bestandszeile). */
+const userReadOnlyIdentityFields = computed((): ReadOnlyField[] => {
+  const m = material.value
+  const fields: ReadOnlyField[] = []
+  pushReadOnlyField(fields, t('common.manufacturer'), m?.manufacturer)
+  pushReadOnlyField(fields, t('components.materialDetail.labelModel'), m?.model)
+  return fields
+})
+
 const userReadOnlySections = computed((): ReadOnlySection[] => {
   const m = material.value
   const sections: ReadOnlySection[] = []
 
-  const materialFields: ReadOnlyField[] = []
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelNameDb'), m?.name)
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelCategory'), getCategoryPath())
-  pushReadOnlyField(materialFields, t('common.manufacturer'), m?.manufacturer)
-  pushReadOnlyField(materialFields, t('components.materialDetail.labelModel'), m?.model)
-  if (materialFields.length > 0) {
-    sections.push({ title: t('common.material'), fields: materialFields })
+  const detailFields: ReadOnlyField[] = []
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWidthCm'), m?.size_width, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelHeightCm'), m?.size_height, (v) => `${v} cm`)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelWarranty'), m?.warranty_until)
+  pushReadOnlyField(detailFields, t('components.materialDetail.labelDescription'), m?.description)
+  if (detailFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
+  }
+
+  const unitFields: ReadOnlyField[] = []
+  if (
+    m &&
+    !m.is_consumable &&
+    !m.is_food &&
+    (m.tracking_type === 'bulk' || m.tracking_type === 'serialized') &&
+    (!m.material_type || m.material_type === 'physical')
+  ) {
+    pushReadOnlyField(
+      unitFields,
+      t('components.materialDetail.labelStockUnitReadonly'),
+      formatStockUnitSettingLabel(m.pack_unit, m.pack_size),
+    )
+  }
+  if (m?.pack_size && m?.pack_unit && isPackagingUnit(m.pack_unit)) {
+    pushReadOnlyField(unitFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
+    pushReadOnlyField(unitFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
+  }
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackWeightKg'), m?.pack_weight, (v) => `${v} kg`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackLengthCm'), m?.pack_size_length, (v) => `${v} cm`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackWidthCm'), m?.pack_size_width, (v) => `${v} cm`)
+  pushReadOnlyField(unitFields, t('components.materialDetail.labelPackHeightCm'), m?.pack_size_height, (v) => `${v} cm`)
+  if (unitFields.length > 0) {
+    sections.push({ title: t('components.materialDetail.sectionUnitsAndPackaging'), fields: unitFields })
   }
 
   const propertyFields: ReadOnlyField[] = []
@@ -5263,55 +5473,6 @@ const userReadOnlySections = computed((): ReadOnlySection[] => {
   }
   if (propertyFields.length > 0) {
     sections.push({ title: t('components.materialDetail.sectionProperties'), fields: propertyFields })
-  }
-
-  const detailFields: ReadOnlyField[] = []
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWeightKg'), m?.weight, (v) => `${v} kg`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelColor'), m?.color)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelLengthCm'), m?.size_length, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWidthCm'), m?.size_width, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelHeightCm'), m?.size_height, (v) => `${v} cm`)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelWarranty'), m?.warranty_until)
-  pushReadOnlyField(detailFields, t('components.materialDetail.labelDescription'), m?.description)
-  if (detailFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionDetails'), fields: detailFields })
-  }
-
-  if (
-    m &&
-    !m.is_consumable &&
-    !m.is_food &&
-    (m.tracking_type === 'bulk' || m.tracking_type === 'serialized') &&
-    (!m.material_type || m.material_type === 'physical')
-  ) {
-    const stockUnitFields: ReadOnlyField[] = []
-    pushReadOnlyField(
-      stockUnitFields,
-      t('components.materialDetail.labelStockUnitReadonly'),
-      formatStockUnitSettingLabel(m.pack_unit, m.pack_size),
-    )
-    pushReadOnlyField(
-      stockUnitFields,
-      t('components.materialDetail.labelNameDb'),
-      formatMaterialDisplayName(m.name, m.pack_unit, m.pack_size, m.size_length),
-    )
-    sections.push({ title: t('components.materialDetail.sectionStockUnit'), fields: stockUnitFields })
-  }
-
-  if (m?.pack_size && m?.pack_unit && isPackagingUnit(m.pack_unit)) {
-    const packFields: ReadOnlyField[] = []
-    pushReadOnlyField(packFields, t('components.materialDetail.labelPiecesPerUnit'), m.pack_size)
-    pushReadOnlyField(packFields, t('components.materialDetail.labelDesignation'), m.pack_unit)
-    sections.push({ title: t('components.materialDetail.sectionPackaging'), fields: packFields })
-  }
-
-  const packDimFields: ReadOnlyField[] = []
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWeightKg'), m?.pack_weight, (v) => `${v} kg`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackLengthCm'), m?.pack_size_length, (v) => `${v} cm`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackWidthCm'), m?.pack_size_width, (v) => `${v} cm`)
-  pushReadOnlyField(packDimFields, t('components.materialDetail.labelPackHeightCm'), m?.pack_size_height, (v) => `${v} cm`)
-  if (packDimFields.length > 0) {
-    sections.push({ title: t('components.materialDetail.sectionPackDimensions'), fields: packDimFields })
   }
 
   if (m?.is_consumable || m?.is_food) {
@@ -5574,7 +5735,7 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
       },
     ]
   }
-  return [{ text: '-', containerMaterialId: null, containerBatchId: null, containerSearchSeed: '' }]
+  return [{ text: t('components.materialDetail.batchLocationLoose'), containerMaterialId: null, containerBatchId: null, containerSearchSeed: '' }]
 }
 
 function getBatchLocationSortText(batch: any): string {
@@ -5593,6 +5754,15 @@ function compareStockBatches(a: any, b: any, key: string): number {
   switch (key) {
     case 'acquired_on':
       return (a.acquired_on || '').localeCompare(b.acquired_on || '', sortLocale())
+    case 'expiry_date': {
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      // Ohne Ablaufdatum ans Ende (FEFO: zuerst verbrauchen, was abläuft)
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return ea.localeCompare(eb, sortLocale())
+    }
     case 'qty':
       return (a.qty || 0) - (b.qty || 0)
     case 'label':
@@ -5638,13 +5808,43 @@ function compareSerialBatches(a: any, b: any, key: string): number {
   }
 }
 
+const prefersExpiryStockSort = computed(
+  () =>
+    !!(material.value?.is_food || formData.is_food) ||
+    activeBatches.value.some((b) => !!b.expiry_date),
+)
+
 const sortedActiveBatches = computed(() => {
   const rows = [...activeBatches.value]
-  const key = stockSortKey.value
+  const key = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
   if (!key) return rows
-  const factor = stockSortDir.value === 'asc' ? 1 : -1
-  rows.sort((a, b) => factor * compareStockBatches(a, b, key))
+  const dir =
+    stockSortKey.value == null && key === 'expiry_date'
+      ? 'asc'
+      : stockSortDir.value
+  const factor = dir === 'asc' ? 1 : -1
+  rows.sort((a, b) => {
+    if (key === 'expiry_date') {
+      // Nulls immer ans Ende, unabhängig von asc/desc
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return factor * ea.localeCompare(eb, sortLocale())
+    }
+    return factor * compareStockBatches(a, b, key)
+  })
   return rows
+})
+
+/** Sort-Header: bei Esswaren/Ablauf Standard = Ablaufdatum aufsteigend (FEFO) */
+const stockSortKeyForUi = computed(
+  () => stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null),
+)
+const stockSortDirForUi = computed(() => {
+  if (stockSortKey.value == null && prefersExpiryStockSort.value) return 'asc' as const
+  return stockSortDir.value
 })
 
 const sortedSerialBatches = computed(() => {
@@ -5657,11 +5857,17 @@ const sortedSerialBatches = computed(() => {
 })
 
 function toggleStockSort(key: string) {
-  if (stockSortKey.value === key) {
-    stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
+  const effectiveKey = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
+  const effectiveDir =
+    stockSortKey.value == null && prefersExpiryStockSort.value ? 'asc' : stockSortDir.value
+
+  if (effectiveKey === key) {
+    stockSortKey.value = key
+    stockSortDir.value = effectiveDir === 'asc' ? 'desc' : 'asc'
   } else {
     stockSortKey.value = key
-    stockSortDir.value = 'desc'
+    // Ablauf: zuerst verbrauchen (früh zuerst); sonst üblich absteigend
+    stockSortDir.value = key === 'expiry_date' ? 'asc' : 'desc'
   }
 }
 
@@ -6210,12 +6416,14 @@ async function save() {
       rental_lead_days: formData.rental_lead_days,
       rental_max_days: formData.rental_max_days,
       rental_external_allowed: formData.rental_external_allowed,
+      is_rentable: formData.is_rentable,
       rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
       rental_requires_approval: formData.rental_requires_approval,
       rental_notes: formData.rental_notes || null,
       rental_calc_params: formData.rental_calc_params,
       pack_size: formData.pack_size || null,
       pack_unit: formData.pack_unit || null,
+      packaging_unit: formData.packaging_unit || null,
       pack_sale_price_chf:
         formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
           ? String(formData.pack_sale_price_chf)
@@ -6653,9 +6861,9 @@ watch(activeTab, (newTab) => {
   if (newTab === 'workshop') {
     void loadWorkshopTicketsForMaterial()
   }
-  if (newTab === 'rental') {
+  if (newTab === 'rental' || newTab === 'activity-issues') {
     void loadRentalActivityBookings()
-    if (isComboMaterialView.value) {
+    if (newTab === 'rental' && isComboMaterialView.value) {
       void loadComboRentalBreakdown()
     }
   }
@@ -6938,6 +7146,75 @@ onMounted(() => {
   line-height: 1.2;
 }
 
+.user-readonly-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 220px) minmax(0, 1fr);
+  gap: 1.25rem 1.5rem;
+  align-items: start;
+}
+
+.user-readonly-hero-label {
+  display: block;
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.user-readonly-hero-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.user-readonly-hero-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.user-readonly-hero-stock {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.user-readonly-hero-value {
+  font-size: 0.9375rem;
+  color: #111827;
+  line-height: 1.4;
+}
+
+/* Max. 220×220 — auf schmalen Screens kleiner, damit nichts aus dem Rahmen läuft */
+.image-slot--browse {
+  width: min(220px, 100%);
+  max-width: 220px;
+  aspect-ratio: 1;
+  height: auto;
+  flex-shrink: 1;
+}
+
+.user-readonly-hero-image {
+  min-width: 0;
+  max-width: 220px;
+  width: 100%;
+}
+
+.user-readonly-fields--compact {
+  margin-top: 0.25rem;
+}
+
+.user-readonly-loan-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #4b5563;
+}
+
 .user-readonly-fields {
   margin: 0;
   display: flex;
@@ -6970,6 +7247,12 @@ onMounted(() => {
   margin: 0;
   color: #6b7280;
   font-size: 0.9375rem;
+}
+
+@media (max-width: 640px) {
+  .user-readonly-hero-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .stock-qr-collapsible {

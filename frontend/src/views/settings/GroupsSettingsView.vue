@@ -1,7 +1,7 @@
 <template>
-  <div class="groups-settings">
-    <!-- Header -->
-    <div class="page-header">
+  <div class="groups-settings" :class="{ 'groups-settings--embedded': embedded }">
+    <!-- Header (auf eigener Settings-Seite) -->
+    <div v-if="!embedded" class="page-header">
       <div>
         <h2 class="settings-title">{{ t('settings.groups.title') }}</h2>
         <p class="settings-description">
@@ -10,6 +10,12 @@
       </div>
       <EButton v-if="canFullyManageGroups" variant="primary" @click="openCreateModal()">
         <v-icon icon="mdi-plus" start size="20" />
+        {{ t('settings.groups.newGroup') }}
+      </EButton>
+    </div>
+    <div v-else-if="canFullyManageGroups" class="embedded-toolbar">
+      <EButton variant="primary" size="small" @click="openCreateModal()">
+        <v-icon icon="mdi-plus" start size="18" />
         {{ t('settings.groups.newGroup') }}
       </EButton>
     </div>
@@ -322,12 +328,33 @@ import {
   type DepartmentMember
 } from '@/api/departments'
 
+const props = withDefaults(
+  defineProps<{
+    departmentId?: string
+    embedded?: boolean
+  }>(),
+  {
+    departmentId: undefined,
+    embedded: false,
+  },
+)
+
+const emit = defineEmits<{
+  changed: [groupCount: number]
+}>()
+
 const { t } = useI18n()
 const route = useRoute()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
-const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
+const departmentId = computed(
+  () =>
+    (props.departmentId || '').trim()
+    || (route.params.departmentId as string)
+    || authStore.activeDepartmentId
+    || '',
+)
 
 // === State ===
 const groups = ref<Group[]>([])
@@ -452,6 +479,7 @@ async function loadGroups() {
   error.value = null
   try {
     groups.value = await getGroups(departmentId.value)
+    emit('changed', groups.value.length)
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.groups.errorLoadGroups')
   } finally {
@@ -624,6 +652,17 @@ onMounted(() => {
 
 .groups-settings {
   padding: 0;
+}
+
+.groups-settings--embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.embedded-toolbar {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .page-header {

@@ -41,7 +41,7 @@ class CreateTestUserCommand extends Command
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
             'admin@ematchef.ch',
-            'test',
+            CreateRoleUsersCommand::DEMO_PASSWORD,
             'Admin',
             'User',
             'Admin',
@@ -54,7 +54,7 @@ class CreateTestUserCommand extends Command
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
             'manager@ematchef.ch',
-            'test',
+            CreateRoleUsersCommand::DEMO_PASSWORD,
             'Manager',
             'User',
             'Manager',
@@ -67,7 +67,7 @@ class CreateTestUserCommand extends Command
             IdGenerator::generateUnique($this->em, User::class),
             IdGenerator::generateUnique($this->em, Profile::class),
             'user@ematchef.ch',
-            'test',
+            CreateRoleUsersCommand::DEMO_PASSWORD,
             'Test',
             'User',
             'User',
@@ -78,9 +78,9 @@ class CreateTestUserCommand extends Command
         $this->em->flush();
 
         $output->writeln('Test-User erstellt:');
-        $output->writeln('  - admin@ematchef.ch / test (Admin, Primary)');
-        $output->writeln('  - manager@ematchef.ch / test (Manager)');
-        $output->writeln('  - user@ematchef.ch / test (User)');
+        $output->writeln('  - admin@ematchef.ch / ' . CreateRoleUsersCommand::DEMO_PASSWORD . ' (Admin, Primary)');
+        $output->writeln('  - manager@ematchef.ch / ' . CreateRoleUsersCommand::DEMO_PASSWORD . ' (Manager)');
+        $output->writeln('  - user@ematchef.ch / ' . CreateRoleUsersCommand::DEMO_PASSWORD . ' (User)');
         $output->writeln('Alle User sind dem Department "' . $department->getName() . '" zugeordnet.');
 
         return Command::SUCCESS;

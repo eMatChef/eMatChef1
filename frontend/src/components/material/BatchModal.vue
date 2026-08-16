@@ -43,6 +43,14 @@
                     >
                       {{ t('components.batchModal.storageModeBox') }}
                     </button>
+                    <button
+                      type="button"
+                      class="lagerung-btn"
+                      :class="{ active: stockLocationMode === 'loose' }"
+                      @click="setStockLocationMode('loose')"
+                    >
+                      {{ t('components.materialCreateWizard.tabLooseStorage') }}
+                    </button>
                   </div>
                 </div>
                 <template v-if="stockLocationMode === 'slot'">
@@ -72,6 +80,9 @@
                     @update:slotId="form.slot_id = $event"
                     @slotChange="onSlotChange"
                   />
+                </template>
+                <template v-else-if="stockLocationMode === 'loose'">
+                  <p class="batch-field-hint">{{ t('components.materialCreateWizard.looseStorageHint') }}</p>
                 </template>
                 <template v-else>
                   <label class="form-label-sm">{{ t('components.batchModal.storageModeBox') }}</label>
@@ -368,6 +379,21 @@
               </div>
               <p class="batch-field-hint">{{ batchStockUnitHint }}</p>
             </div>
+            <div
+              v-if="(isMeterStockUnit(packUnit) || batchStockUnit === 'm') && !isSerializedAddMode"
+              class="form-group span-full"
+            >
+              <label>{{ t('components.batchModal.labelBatchLengthM') }}</label>
+              <input
+                v-model.number="batchLengthMeters"
+                type="number"
+                min="0.01"
+                step="0.01"
+                class="form-input"
+                :placeholder="t('components.batchModal.phBatchLengthM')"
+              />
+              <p class="batch-field-hint">{{ t('components.batchModal.hintBatchLengthM') }}</p>
+            </div>
             <div class="form-group">
               <label>{{ quantityLabel }} <span class="required" v-if="!isEditMode">*</span></label>
               <p v-if="batchMeterLengthHint" class="batch-field-hint">{{ batchMeterLengthHint }}</p>
@@ -424,6 +450,18 @@
                 {{ formatDate(form.acquired_on) }}
                 <span class="batch-readonly-hint">{{ t('components.batchModal.acquiredOnLockedHint') }}</span>
               </div>
+            </div>
+            <div v-if="isFood || form.expiry_date || showExpiryForEdit" class="form-group">
+              <label>
+                {{ t('materialsView.colExpiry') }}
+                <span v-if="isFood" class="required">*</span>
+              </label>
+              <input
+                v-model="form.expiry_date"
+                type="date"
+                class="form-input"
+                :class="{ 'is-invalid': submitted && isFood && !form.expiry_date }"
+              />
             </div>
             <div class="form-group">
               <label>
@@ -820,7 +858,31 @@
               </p>
             </div>
             <div class="batch-form-group full-width">
+              <div class="stock-location-mode mb-2">
+                <div class="lagerung-switch" role="tablist">
+                  <button
+                    type="button"
+                    class="lagerung-btn"
+                    :class="{ active: stockLocationMode !== 'loose' }"
+                    @click="setStockLocationMode('slot')"
+                  >
+                    {{ t('components.batchModal.storageModeSlot') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lagerung-btn"
+                    :class="{ active: stockLocationMode === 'loose' }"
+                    @click="setStockLocationMode('loose')"
+                  >
+                    {{ t('components.materialCreateWizard.tabLooseStorage') }}
+                  </button>
+                </div>
+              </div>
+              <p v-if="stockLocationMode === 'loose'" class="batch-field-hint">
+                {{ t('components.materialCreateWizard.looseStorageHint') }}
+              </p>
               <StorageLocationPicker
+                v-else
                 :show-storage-address="true"
                 :storage-address-id="form.storage_address_id"
                 :storage-address-options="storageAddressOptions"
@@ -954,6 +1016,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   departmentHasAccountingRole,
   enqueuePendingCostBookingAfterPurchase,
@@ -1003,6 +1066,7 @@ import {
   getStockUnitKind,
   getStockUnitLabel,
   hasContentPerPiece,
+  hasMeterPackaging,
   isMeterStockUnit,
   isPackagingUnit,
   parseMaterialChfInput,
@@ -1023,10 +1087,14 @@ interface Props {
   existingBatches?: MaterialBatch[]
   packUnit?: string | null
   packSize?: number | null
+  /** VE-Bezeichnung bei Meterware (pack_unit=m) */
+  packagingUnit?: string | null
   sizeLengthCm?: string | number | null
   referencePurchaseUnitChf?: string | number | null
   /** Reparaturteile / Abschreibung: Preis nicht erzwingen */
   unitPriceOptional?: boolean
+  /** Esswaren: Ablaufdatum Pflicht */
+  isFood?: boolean
   /** Physische Kombi: Sack/Kiste + Gestell der Kombination als Standard-Lagerort */
   comboStorageContext?: BatchComboStorageContext | null
 }
@@ -1041,9 +1109,11 @@ const props = withDefaults(defineProps<Props>(), {
   existingBatches: () => [],
   packUnit: null,
   packSize: null,
+  packagingUnit: null,
   sizeLengthCm: null,
   referencePurchaseUnitChf: null,
   unitPriceOptional: false,
+  isFood: false,
 })
 
 const emit = defineEmits<{
@@ -1053,6 +1123,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
@@ -1118,6 +1189,7 @@ const storageOverviewCache = ref<StorageOverviewResponse | null>(null)
 
 const form = reactive({
   acquired_on: '',
+  expiry_date: '',
   qty: 1,
   unit_price: '',
   invoice_number: '',
@@ -1146,19 +1218,31 @@ function parseBatchChfInput(s: string): number {
 
 const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
 const batchStockUnit = ref<'Stk' | 'm'>('Stk')
+/** Länge dieser Charge in m (Meterware) — kann vom Stamm abweichen */
+const batchLengthMeters = ref<number | null>(null)
 
 const batchStockUnitOptions = computed(() => [
   { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
   { value: 'm' as const, label: 'm' },
 ])
 
-const meterPieceLengthM = computed(() => sizeLengthCmToMeters(props.sizeLengthCm))
+const meterPieceLengthM = computed(() => {
+  if (batchLengthMeters.value != null && batchLengthMeters.value > 0) return batchLengthMeters.value
+  return sizeLengthCmToMeters(props.sizeLengthCm)
+})
 
 const batchMeterLengthHint = computed(() => {
   const per = meterPieceLengthM.value
   if (!isMeterStockUnit(effectivePackUnit.value) || per == null) return ''
   return t('components.batchModal.meterQtyByCountHint', { per })
 })
+
+function initBatchLengthFromProps() {
+  const fromBatch = props.batch?.size_length
+  const fromMaterial = props.sizeLengthCm
+  const m = sizeLengthCmToMeters(fromBatch ?? fromMaterial)
+  batchLengthMeters.value = m
+}
 
 function initBatchStockUnitFromProps() {
   const pu = (props.packUnit || '').trim()
@@ -1175,25 +1259,49 @@ function setQtyEntryMode(mode: 'base' | 'pack' | 'content') {
 }
 
 const effectivePackUnit = computed((): string | null => {
-  if (isEditMode.value) return props.packUnit ?? null
-  if (batchStockUnit.value === 'm') return 'm'
+  if (isEditMode.value) {
+    if (isMeterStockUnit(props.packUnit) && (props.batch?.pack_unit || props.packagingUnit)) {
+      return props.batch?.pack_unit || props.packagingUnit || 'm'
+    }
+    return props.packUnit ?? null
+  }
+  if (batchStockUnit.value === 'm' || isMeterStockUnit(props.packUnit)) {
+    if (hasMeterPackaging(props.packUnit || 'm', props.packagingUnit, props.packSize)) {
+      return props.packagingUnit ?? 'm'
+    }
+    return 'm'
+  }
   if (isPackagingUnit(props.packUnit)) return props.packUnit ?? 'Stk'
   return 'Stk'
 })
 
 const effectivePackSize = computed((): number | null => {
   if (isEditMode.value) {
+    const batchSize = props.batch?.pack_size
+    if (batchSize && batchSize >= 2) return batchSize
     return props.packSize && props.packSize >= 2 ? props.packSize : null
   }
-  if (batchStockUnit.value === 'm') return null
+  if (isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm') {
+    if (hasMeterPackaging(props.packUnit || 'm', props.packagingUnit, props.packSize)) {
+      return props.packSize && props.packSize >= 2 ? props.packSize : null
+    }
+    return null
+  }
   if (isPackagingUnit(props.packUnit) && props.packSize && props.packSize >= 2) {
     return props.packSize
   }
   return null
 })
 
+const canUsePackEntry = computed(
+  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
+)
+
 const useMeterQtyByCount = computed(
-  () => isMeterStockUnit(effectivePackUnit.value) && meterPieceLengthM.value != null,
+  () =>
+    isMeterStockUnit(props.packUnit || (batchStockUnit.value === 'm' ? 'm' : null)) &&
+    meterPieceLengthM.value != null &&
+    !canUsePackEntry.value,
 )
 
 const effectivePackUnitName = computed(() => effectivePackUnit.value || '')
@@ -1240,11 +1348,12 @@ const batchStockUnitHint = computed(() => {
   return t('components.materialCreateWizard.stockUnitHintStk')
 })
 
-const stockUnitLabel = computed(() => getStockUnitLabel(effectivePackUnit.value))
-
-const canUsePackEntry = computed(
-  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
+const stockUnitLabel = computed(() =>
+  isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm'
+    ? 'm'
+    : getStockUnitLabel(effectivePackUnit.value),
 )
+
 const canUseContentEntry = computed(() =>
   hasContentPerPiece(effectivePackUnit.value, effectivePackSize.value),
 )
@@ -1398,7 +1507,10 @@ function batchPackFieldsChanged(): boolean {
 }
 
 /** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
-const stockLocationMode = ref<'slot' | 'kiste'>('slot')
+const stockLocationMode = ref<'slot' | 'kiste' | 'loose'>('slot')
+const showExpiryForEdit = computed(
+  () => isEditMode.value && !!(props.isFood || props.batch?.expiry_date),
+)
 const serialLocationSameForAll = ref(true)
 const serialAutoGenerateEnabled = ref(false)
 const autoGenPrefix = ref('')
@@ -1597,18 +1709,19 @@ function formatSlotOptionLabel(rackId: string, slot: StorageSlot): string {
 }
 
 function formatRackOptionLabel(rack: StorageRack): string {
-  const preview = (rackPreviewTitles.value[rack.id] || '').trim()
-  if (!preview) return rack.name
-  const oneLine = preview.replace(/\n/g, ' · ')
-  const short = oneLine.length > 72 ? `${oneLine.slice(0, 69)}…` : oneLine
-  return `${rack.name} · ${short}`
+  // Nur Gestellname — Inhaltsvorschau bleibt im title-Tooltip
+  return rack.name
 }
 
-function setStockLocationMode(mode: 'slot' | 'kiste') {
+function setStockLocationMode(mode: 'slot' | 'kiste' | 'loose') {
   stockLocationMode.value = mode
   if (mode === 'slot') {
     form.container_batch_id = ''
+  } else if (mode === 'kiste') {
+    form.rack_id = ''
+    form.slot_id = ''
   } else {
+    form.container_batch_id = ''
     form.rack_id = ''
     form.slot_id = ''
   }
@@ -2073,7 +2186,10 @@ onMounted(async () => {
 
   if (props.batch) {
     // Edit-Modus: Werte aus bestehendem Batch übernehmen
+    initBatchStockUnitFromProps()
+    initBatchLengthFromProps()
     form.acquired_on = props.batch.acquired_on || ''
+    form.expiry_date = props.batch.expiry_date || ''
     form.qty = props.batch.qty
     form.unit_price = displayMeterStockUnitPrice(
       props.batch.unit_price,
@@ -2107,6 +2223,7 @@ onMounted(async () => {
     }
   } else {
     form.acquired_on = getTodayIsoDate()
+    form.expiry_date = ''
     form.invoice_number = ''
     form.serial_number = ''
     form.label = ''
@@ -2115,6 +2232,7 @@ onMounted(async () => {
     form.notes = ''
     pickPreferredLocation()
     initBatchStockUnitFromProps()
+    initBatchLengthFromProps()
     purchasePriceInputMode.value = 'unit'
     purchaseTotalWaresChf.value = ''
     purchaseShippingChf.value = ''
@@ -2307,16 +2425,20 @@ function batchAddUnitPriceValid(): boolean {
 
 const canSubmit = computed(() => {
   if (isEditMode.value) {
-    return form.qty >= 1
+    if (form.qty < 1) return false
+    if (props.isFood && !form.expiry_date) return false
+    return true
   }
   if (!batchAddUnitPriceValid()) return false
   if (!form.acquired_on) return false
+  if (props.isFood && !form.expiry_date) return false
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) return false
     if (serialDuplicateHint.value) return false
     if (hasInvalidSerialLocations.value) return false
     if (serialLocationSameForAll.value) {
       if (stockLocationMode.value === 'kiste') return !!form.container_batch_id
+      if (stockLocationMode.value === 'loose') return true
       return !!(form.rack_id && form.slot_id)
     }
     return true
@@ -2333,6 +2455,9 @@ const missingFields = computed(() => {
   }
   if (!isEditMode.value && !form.acquired_on) {
     missing.push(t('components.batchModal.valPurchaseDate'))
+  }
+  if (props.isFood && !form.expiry_date) {
+    missing.push(t('materialsView.colExpiry'))
   }
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) missing.push(t('components.batchModal.valAtLeastOneSerial'))
@@ -2441,6 +2566,22 @@ async function handleSubmit() {
   if (!isEditMode.value) {
     const containerIds = collectContainerBatchIdsForPendingAdd()
     if (!(await physicalComboWarningStore.confirmContainerMove(containerIds))) return
+
+    const hasLocation =
+      form.split_allocations ||
+      !!form.rack_id ||
+      !!form.slot_id ||
+      !!form.container_batch_id ||
+      (isSerializedAddMode.value && !serialLocationSameForAll.value)
+    if (!hasLocation || stockLocationMode.value === 'loose') {
+      const ok = await confirmDialog({
+        title: t('components.materialCreateWizard.looseStorageConfirmTitle'),
+        message: t('components.materialCreateWizard.looseStorageConfirmMessage'),
+        confirmText: t('components.materialCreateWizard.looseStorageConfirmOk'),
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
   }
   
   isSaving.value = true
@@ -2458,6 +2599,7 @@ async function handleSubmit() {
       if (form.serial_number !== (props.batch.serial_number || '')) payload.serial_number = form.serial_number || null
       if (form.ean !== (props.batch.ean || '')) payload.ean = form.ean.trim() || null
       if (form.barcode_tag !== (props.batch.barcode_tag || '')) payload.barcode_tag = form.barcode_tag.trim() || null
+      if (form.expiry_date !== (props.batch.expiry_date || '')) payload.expiry_date = form.expiry_date || null
       if (form.rack_id !== (props.batch.rack_id || '')) payload.rack_id = form.rack_id || null
       if (form.slot_id !== (props.batch.slot_id || '')) payload.slot_id = form.slot_id || null
       if (form.label !== ((props.batch as any).label || '')) payload.label = form.label.trim() || null
@@ -2469,8 +2611,9 @@ async function handleSubmit() {
       if (isSerializedAddMode.value) {
         const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
         const qty = rows.length
-        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
+        const base: Pick<AddBatchRequest, 'acquired_on' | 'expiry_date' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
           acquired_on: form.acquired_on,
+          expiry_date: form.expiry_date || null,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
@@ -2534,11 +2677,29 @@ async function handleSubmit() {
         const payload: AddBatchRequest = {
           qty: form.qty,
           acquired_on: form.acquired_on,
+          expiry_date: form.expiry_date || null,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
           ean: form.ean.trim() || null,
           barcode_tag: form.barcode_tag.trim() || null,
+          ...(isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm'
+            ? {
+                size_length:
+                  batchLengthMeters.value != null && batchLengthMeters.value > 0
+                    ? String(Math.round(batchLengthMeters.value * 100))
+                    : props.sizeLengthCm != null
+                      ? String(props.sizeLengthCm)
+                      : null,
+                packaging_unit: props.packagingUnit || null,
+                pack_size:
+                  props.packSize && props.packSize >= 2
+                    ? props.packSize
+                    : batchLengthMeters.value != null && batchLengthMeters.value >= 2
+                      ? Math.round(batchLengthMeters.value)
+                      : null,
+              }
+            : {}),
           ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
             ? {
                 allocations: allocationRows.value
@@ -2549,7 +2710,11 @@ async function handleSubmit() {
                       : { rack_id: r.rack_id, slot_id: r.slot_id || undefined, qty: r.qty }
                   ),
               }
-            : {
+            : stockLocationMode.value === 'loose' || (!form.rack_id && !form.slot_id)
+              ? (form.container_batch_id
+                  ? { container_batch_id: form.container_batch_id }
+                  : {})
+              : {
                 rack_id: form.rack_id || null,
                 slot_id: form.slot_id || null,
               }),
@@ -2567,11 +2732,12 @@ async function handleSubmit() {
         await updateMaterial(props.materialId, {
           pack_unit: packFields.pack_unit,
           pack_size: packFields.pack_size,
+          packaging_unit: props.packagingUnit ?? undefined,
         })
       }
     }
 
-    if (!isEditMode.value) {
+    if (!isEditMode.value && !props.isFood) {
       const batchId = batchIdFromAddBatchResult(result)
       if (
         await enqueuePendingCostBookingAfterPurchase({

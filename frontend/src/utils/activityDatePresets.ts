@@ -12,6 +12,8 @@ export interface ActivityDatePresetItem {
   value: ActivityDatePresetValue
   /** Fixe-Daten-Art — Farbe in Schnellauswahl (nur camp_week / other) */
   periodLabel?: CalendarPeriodLabel
+  /** Mat-Büro geschlossen o. ä. — nicht anwendbar, Klick zeigt Hinweis */
+  disabled?: boolean
 }
 
 function presetEndDate(value: ActivityDatePresetValue): Date {
