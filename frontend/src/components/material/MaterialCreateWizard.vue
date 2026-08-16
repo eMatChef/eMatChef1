@@ -4375,7 +4375,7 @@ const suggestedSerialPrefix = computed(() => {
 
 type WizardStockPrefs = {
   storage_address_id?: string
-  stock_location_mode?: 'slot' | 'kiste'
+  stock_location_mode?: 'slot' | 'kiste' | 'loose'
   autoGenPrefix?: string
   autoGenStart?: number
   autoGenPad?: number
@@ -4420,7 +4420,11 @@ function saveWizardStockPrefs() {
 function applyWizardStockPrefs() {
   const prefs = loadWizardStockPrefs()
   if (prefs.storage_address_id) formData.storage_address_id = String(prefs.storage_address_id)
-  if (prefs.stock_location_mode === 'slot' || prefs.stock_location_mode === 'kiste') {
+  if (
+    prefs.stock_location_mode === 'slot' ||
+    prefs.stock_location_mode === 'kiste' ||
+    prefs.stock_location_mode === 'loose'
+  ) {
     formData.stock_location_mode = prefs.stock_location_mode
   }
   if (typeof prefs.autoGenPrefix === 'string') {
