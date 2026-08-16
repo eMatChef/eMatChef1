@@ -56,7 +56,7 @@ class SupplierMembershipController extends AbstractController
                 'supplier_company_name' => $company->getName(),
                 'role' => $membership->getRole(),
                 'auto_joined' => true,
-                'redirect_path' => '/supplier/' . $company->getId() . '/profile',
+                'redirect_path' => '/supplier/' . $company->getId() . '/dashboard',
             ], 201);
         } catch (\InvalidArgumentException $exception) {
             return new JsonResponse(['error' => $exception->getMessage()], 404);

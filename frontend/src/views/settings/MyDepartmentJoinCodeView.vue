@@ -29,18 +29,6 @@
     <div v-else class="card">
       <div class="join-code-row">
         <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
-        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
-          {{ t('settings.joinCode.copyCode') }}
-        </EButton>
-        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
-          {{ t('settings.joinCode.copyInviteLink') }}
-        </EButton>
-        <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
-          {{ t('settings.joinCode.copyRegisterLink') }}
-        </EButton>
-        <EButton variant="primary" size="small" :disabled="isInviteLoading" :loading="isInviteLoading" @click="regenerateInviteCode">
-          {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
-        </EButton>
       </div>
       <p v-if="inviteData?.invite_url" class="muted">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
       <p v-if="inviteData?.register_invite_url" class="muted">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
@@ -54,6 +42,27 @@
             {{ t('common.delete') }}
           </EButton>
         </div>
+      </div>
+
+      <div class="join-actions-row">
+        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
+          {{ t('settings.joinCode.copyCode') }}
+        </EButton>
+        <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
+          {{ t('settings.joinCode.copyInviteLink') }}
+        </EButton>
+        <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
+          {{ t('settings.joinCode.copyRegisterLink') }}
+        </EButton>
+        <EButton
+          variant="secondary"
+          size="x-small"
+          :disabled="isInviteLoading"
+          :loading="isInviteLoading"
+          @click="regenerateInviteCode"
+        >
+          {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
+        </EButton>
       </div>
     </div>
   </div>
@@ -213,4 +222,20 @@ onMounted(async () => {
 .pending-block { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #d1d5db; }
 .pending-block h3 { margin: 0 0 10px; font-size: 15px; }
 .pending-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; flex-wrap: wrap; }
+.join-regenerate-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  justify-content: flex-start;
+}
+.join-actions-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
 </style>

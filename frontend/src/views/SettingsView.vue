@@ -36,12 +36,12 @@
       <span class="settings-view__mobile-title">{{ t('settings.menuTitle') }}</span>
     </header>
 
-    <!-- Tablet/Desktop: 64px-Spalte im Layout; Hover/Pin → Panel klappt nach rechts auf -->
+    <!-- Tablet/Desktop: Subnav links, sticky — bleibt beim Scrollen sichtbar -->
     <aside
       v-if="mdAndUp"
       class="settings-subnav-rail"
       :class="{ 'settings-subnav-rail--expanded': desktopNavExpanded }"
-      @mouseenter="desktopNavHovered = true"
+      @mouseenter="onDesktopNavEnter"
       @mouseleave="onDesktopNavLeave"
     >
       <div class="settings-subnav-rail__panel" @click="onDesktopRailBackgroundClick">
@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
@@ -84,6 +84,7 @@ const { isUserRole, canManageMaterials } = useDepartmentMemberRole()
 const mobileMenuOpen = ref(false)
 const desktopNavHovered = ref(false)
 const desktopNavPinned = ref(false)
+let desktopNavLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const desktopNavExpanded = computed(() => desktopNavPinned.value || desktopNavHovered.value)
 
@@ -104,13 +105,18 @@ function isSettingsItemActive(itemId: string): boolean {
   const base = departmentId.value ? `/${departmentId.value}/settings`.replace(/\/$/, '') : ''
   const p = (route.path || '').replace(/\/$/, '') || '/'
   if (itemId === 'my-department') {
-    return p === base || p === `${base}/my-department`
+    return (
+      p === base ||
+      p === `${base}/my-department` ||
+      p === `${base}/my-department/storage-locations` ||
+      p === `${base}/my-department/billing-address` ||
+      p === `${base}/my-department/join-code` ||
+      p === `${base}/users` ||
+      p === `${base}/groups`
+    )
   }
-  if (itemId === 'zeit') {
-    return p === `${base}/zeit`
-  }
-  if (itemId === 'my-department/join-code') {
-    return p === `${base}/my-department/join-code`
+  if (itemId === 'module') {
+    return p === `${base}/module`
   }
   if (itemId === 'my-department/fixed-dates') {
     return p === `${base}/my-department/fixed-dates`
@@ -118,22 +124,28 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'my-department/display-screens') {
     return p === `${base}/my-department/display-screens`
   }
-  if (itemId === 'my-department/storage-locations') {
-    return p === `${base}/my-department/storage-locations`
-  }
-  if (itemId === 'my-department/billing-address') {
-    return p === `${base}/my-department/billing-address`
-  }
   if (itemId === 'my-department/public-material-page') {
     return p === `${base}/my-department/public-material-page`
   }
   return p === `${base}/${itemId}` || p.startsWith(`${base}/${itemId}/`)
 }
 
-function onDesktopNavLeave() {
-  if (!desktopNavPinned.value) {
-    desktopNavHovered.value = false
+function onDesktopNavEnter() {
+  if (desktopNavLeaveTimer) {
+    clearTimeout(desktopNavLeaveTimer)
+    desktopNavLeaveTimer = null
   }
+  desktopNavHovered.value = true
+}
+
+function onDesktopNavLeave() {
+  if (desktopNavPinned.value) return
+  if (desktopNavLeaveTimer) clearTimeout(desktopNavLeaveTimer)
+  // Kurz verzögern: Layout-Shift beim Aufklappen soll nicht sofort wieder schliessen
+  desktopNavLeaveTimer = setTimeout(() => {
+    desktopNavHovered.value = false
+    desktopNavLeaveTimer = null
+  }, 160)
 }
 
 function onDesktopRailBackgroundClick(event: MouseEvent) {
@@ -148,13 +160,15 @@ function onDesktopNavClick() {
   }
 }
 
+onUnmounted(() => {
+  if (desktopNavLeaveTimer) clearTimeout(desktopNavLeaveTimer)
+})
+
 const allMenuItems = computed(() => [
   { id: 'my-department', label: t('settings.nav.myDepartment'), mdiIcon: 'mdi-view-grid' },
-  { id: 'users', label: t('settings.nav.users'), mdiIcon: 'mdi-account-group' },
-  { id: 'groups', label: t('settings.nav.groups'), mdiIcon: 'mdi-account-multiple' },
   { id: 'categories', label: t('settings.nav.categories'), mdiIcon: 'mdi-shape-outline' },
   { id: 'storage', label: t('settings.nav.storage'), mdiIcon: 'mdi-package-variant' },
-  { id: 'my-department/join-code', label: t('settings.nav.joinCode'), mdiIcon: 'mdi-qrcode' },
+  { id: 'media', label: t('settings.nav.media'), mdiIcon: 'mdi-image-multiple-outline' },
   {
     id: 'my-department/fixed-dates',
     label: t('settings.nav.fixedDates'),
@@ -162,11 +176,7 @@ const allMenuItems = computed(() => [
     requiresMaterialManage: true,
   },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
-  { id: 'activities', label: t('settings.nav.activities'), mdiIcon: 'mdi-calendar' },
-  { id: 'workshop', label: t('settings.nav.workshop'), mdiIcon: 'mdi-wrench' },
-  { id: 'accounting', label: t('settings.nav.accounting'), mdiIcon: 'mdi-cash-register' },
-  { id: 'my-department/storage-locations', label: t('settings.nav.storageLocations'), mdiIcon: 'mdi-map-marker' },
-  { id: 'my-department/billing-address', label: t('settings.nav.billingAddress'), mdiIcon: 'mdi-receipt' },
+  { id: 'module', label: t('settings.nav.module'), mdiIcon: 'mdi-tune' },
   {
     id: 'my-department/public-material-page',
     label: t('settings.nav.publicMaterialPage'),
@@ -179,14 +189,13 @@ const allMenuItems = computed(() => [
     mdiIcon: 'mdi-database-import',
     requiresMaterialManage: true,
   },
-  { id: 'zeit', label: t('settings.nav.timeLocation'), mdiIcon: 'mdi-clock-outline' },
   { id: 'addons', label: t('settings.nav.addons'), mdiIcon: 'mdi-puzzle-outline' },
 ])
 
-const USER_ALLOWED_MENU_IDS = new Set(['my-department', 'groups'])
+const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
-/** Grossanlass-Dept: nur Mein Department + Benutzer (+ Zeit/Ort für MW/DC) — README §3.6 */
-const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'users', 'zeit', 'my-department/fixed-dates'])
+/** Grossanlass-Dept: Mein Department (+ Module/Zeit für MW/DC) — README §3.6 */
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'module', 'my-department/fixed-dates'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))

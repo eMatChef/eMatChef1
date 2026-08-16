@@ -10,6 +10,7 @@
         :to="getLink(item.id)"
         :active="isActive(item.id)"
         :title="item.label"
+        :data-onboarding="`settings-nav-${item.id.replace(/\//g, '-')}`"
         rounded="lg"
         @click="emit('navigate')"
       >

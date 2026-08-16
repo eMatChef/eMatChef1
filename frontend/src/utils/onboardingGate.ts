@@ -20,6 +20,12 @@ function skipsPersonalDepartmentOnboarding(authStore: AuthStore, role: string): 
   return authStore.userRoles.includes('ROLE_SUPERADMIN')
 }
 
+function isOrgOrSuborgRole(role: string): boolean {
+  return ['org', 'organisationschef', 'sub', 'suborgchef', 'sa', 'superadmin'].includes(
+    normalizeDeptRole(role)
+  )
+}
+
 function baseDepartmentAccess(authStore: AuthStore, departmentId: string): boolean {
   if (!authStore.isLoggedIn || !departmentId || !authStore.profileId) return false
   if (skipsPersonalDepartmentOnboarding(authStore, normalizeDeptRole(authStore.currentDepartmentRole))) {
@@ -42,8 +48,16 @@ export function canUseDepartmentTours(authStore: AuthStore, departmentId: string
   return isDepartmentMwOrDcRole(role) || isDepartmentBasicMemberRole(role)
 }
 
-/** Hub unter Hilfe → Touren (Touren und/oder Checkliste). */
+/** Org-/Suborg-Admin-Touren (ohne Department-Checkliste). */
+export function canUseAdminTours(authStore: AuthStore): boolean {
+  if (!authStore.isLoggedIn || !authStore.profileId) return false
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) return true
+  return isOrgOrSuborgRole(authStore.currentDepartmentRole)
+}
+
+/** Hub unter Hilfe → Touren (Department- und/oder Admin-Touren). */
 export function canUseHelpTours(authStore: AuthStore, departmentId: string): boolean {
+  if (canUseAdminTours(authStore)) return true
   return canUseDepartmentTours(authStore, departmentId)
 }
 
@@ -53,6 +67,12 @@ export const canUseHelpEinrichtung = canUseHelpTours
 export const HELP_TOURS_ROLES = [
   ...DEPARTMENT_MW_DC_ROLES,
   ...DEPARTMENT_BASIC_MEMBER_ROLES,
+  'org',
+  'organisationschef',
+  'sub',
+  'suborgchef',
+  'sa',
+  'superadmin',
 ] as const
 
 /** @deprecated use HELP_TOURS_ROLES */

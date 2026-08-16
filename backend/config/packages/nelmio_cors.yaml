@@ -16,3 +16,11 @@ nelmio_cors:
             expose_headers: ['Link', 'X-Total-Count']
             allow_credentials: true
             max_age: 3600
+        '^/media':
+            allow_origin: ['%env(CORS_ALLOW_ORIGIN)%']
+            origin_regex: true
+            allow_headers: ['*']
+            allow_methods: ['GET', 'OPTIONS']
+            expose_headers: ['Link']
+            allow_credentials: true
+            max_age: 3600

@@ -26,6 +26,16 @@ export function isDepartmentBasicMemberRole(role: string | null | undefined): bo
   )
 }
 
+/** Department-Leiter L1–L3 (ohne Gruppenchef ★). */
+export function isDepartmentLeaderRole(role: string | null | undefined): boolean {
+  return ['l1', 'l2', 'l3'].includes(String(role || '').toLowerCase().trim())
+}
+
+/** Depchef (DC) — Einlagern / Aktivität abschliessen. */
+export function isDepartmentDcRole(role: string | null | undefined): boolean {
+  return ['dc', 'depchef'].includes(String(role || '').toLowerCase().trim())
+}
+
 /** Department-Mitgliedschaftsrolle (u, l1–l3, mw, dc, …). */
 export function useDepartmentMemberRole() {
   const authStore = useAuthStore()

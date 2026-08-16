@@ -15,7 +15,12 @@
         </div>
       </div>
       <div class="settings-header-actions">
-        <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
+        <EButton
+          variant="primary"
+          data-onboarding="settings-storage-new-rack"
+          :disabled="storageAddresses.length === 0"
+          @click="openRackModal()"
+        >
           <v-icon icon="mdi-plus" start size="20" />
           {{ t('settings.storage.newRack') }}
         </EButton>
@@ -34,7 +39,12 @@
       <span>{{ t('settings.storage.qrQueueOnCreate') }}</span>
     </label>
 
-    <!-- Suchleiste -->
+    <!-- Suchleiste + Baum: Lagerstandort -> Regale -> Fächer (Tour-Spotlight Schritt 8) -->
+    <div
+      v-if="!isLoading"
+      class="storage-overview"
+      data-onboarding="settings-storage-overview"
+    >
     <div class="search-bar">
       <div class="search-box">
         <ESearchField
@@ -47,8 +57,7 @@
       </div>
     </div>
 
-    <!-- Baum: Lagerstandort -> Regale -> Faecher -->
-    <div class="racks-grid" v-if="!isLoading">
+    <div class="racks-grid">
       <div
         v-for="location in groupedFilteredRacks"
         :key="location.id"
@@ -197,10 +206,15 @@
         </div>
         <h3>{{ t('settings.storage.noRacksTitle') }}</h3>
         <p>{{ t('settings.storage.noRacksDescription') }}</p>
-        <EButton variant="primary" :disabled="storageAddresses.length === 0" @click="openRackModal()">
+        <EButton
+          variant="primary"
+          :disabled="storageAddresses.length === 0"
+          @click="openRackModal()"
+        >
           {{ t('settings.storage.createFirstRack') }}
         </EButton>
       </div>
+    </div>
     </div>
 
     <!-- Ladezustand -->
@@ -354,7 +368,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -388,6 +402,7 @@ import {
   type StorageSlot
 } from '@/api/storageLocations'
 import { queueStorageQrPrint } from '@/api/storageQr'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
 
 const route = useRoute()
 const toast = useToast()
@@ -765,6 +780,28 @@ function closeRackModal() {
   editingRack.value = null
 }
 
+/** Tour «Department-Details»: ab Übersicht (Schritt 8) Create-Dialoge schliessen und Baum aufklappen. */
+watch(
+  () => [route.query[ONBOARDING_TOUR_QUERY], route.query[ONBOARDING_TOUR_STEP_QUERY]] as const,
+  async ([tourId, stepId]) => {
+    if (tourId !== 'department-details') return
+    const step = Number(stepId || 0)
+    if (step < 8) return
+    if (showRackModal.value) closeRackModal()
+    if (showSlotModal.value) closeSlotModal()
+    if (step !== 8) return
+
+    await nextTick()
+    const firstLocation = groupedFilteredRacks.value[0]
+    if (!firstLocation) return
+    expandedLocations.value = new Set([firstLocation.id])
+    // Erste Regale inkl. Fächer sichtbar machen — Spotlight deckt Standort → Regal → Fach ab
+    const racksToOpen = firstLocation.racks.slice(0, Math.min(3, firstLocation.racks.length))
+    expandedRacks.value = new Set(racksToOpen.map((rack) => rack.id))
+    await Promise.all(racksToOpen.map((rack) => loadSlotsForRack(rack.id)))
+  },
+)
+
 async function saveRack() {
   const storageAddressId = rackForm.value.storage_address_id
   if (!storageAddressId) {
@@ -1081,6 +1118,13 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.storage-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
 .location-group {

@@ -7,21 +7,6 @@
       </div>
     </div>
 
-    <ECard v-if="userDepartments.length > 1" class="department-card" variant="outlined">
-      <div class="department-card__body">
-      <ESelect
-        id="department-select"
-        v-model="selectedDepartmentId"
-        :items="departmentSelectItems"
-        :label="t('settings.common.selectDepartment')"
-        item-title="title"
-        item-value="value"
-        hide-details
-        @update:model-value="onDepartmentChange"
-      />
-      </div>
-    </ECard>
-
     <ECard v-if="!canManageDepartmentSensitiveSettings" variant="outlined">
       <div class="card-body">
         <p class="muted">{{ t('settings.publicMaterialPage.noPermission') }}</p>
@@ -201,7 +186,10 @@ const authStore = useAuthStore()
 const toast = useToast()
 const { t } = useI18n()
 
-const selectedDepartmentId = ref<string | null>(null)
+const selectedDepartmentId = computed(
+  () => String(route.params.departmentId || authStore.activeDepartmentId || '').trim() || null,
+)
+
 const isSavingPublicSettings = ref(false)
 const publicContactEmail = ref('')
 const publicContactNote = ref('')
@@ -217,13 +205,6 @@ const {
   canManageDepartmentSensitiveSettings,
 } = useDepartmentSettingsManagerAccess(selectedDepartmentId)
 
-const departmentSelectItems = computed(() =>
-  userDepartments.value.map((dept) => ({
-    title: dept.department?.name || dept.department_id,
-    value: dept.department_id,
-  })),
-)
-
 const deliverySelectItems = computed(() => [
   { title: t('settings.publicMaterialPage.deliveryEmail'), value: 'email' as const },
   { title: t('settings.publicMaterialPage.deliveryInApp'), value: 'in_app' as const },
@@ -231,7 +212,9 @@ const deliverySelectItems = computed(() => [
 ])
 
 const selectedDepartmentName = computed(
-  () => userDepartments.value.find((d) => d.department_id === selectedDepartmentId.value)?.department?.name || '-',
+  () =>
+    userDepartments.value.find((d) => d.department_id === effectiveDepartmentId.value)?.department
+      ?.name || '-',
 )
 
 const previewCanDeliverMessage = computed(() => {
@@ -325,26 +308,10 @@ async function savePublicSettings() {
   }
 }
 
-async function onDepartmentChange() {
-  if (!selectedDepartmentId.value) return
-  const newDeptId = selectedDepartmentId.value
-  await authStore.setActiveDepartment(newDeptId)
-  const oldDeptId = route.params.departmentId as string | undefined
-  if (oldDeptId && oldDeptId !== newDeptId) {
-    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
-    window.location.assign(newPath)
-    return
-  }
-  await loadPublicSettings(newDeptId)
-}
-
 watch(
   [effectiveDepartmentId, () => authStore.departments?.length ?? 0],
   async ([deptId]) => {
     if (!deptId) return
-    if (selectedDepartmentId.value !== deptId) {
-      selectedDepartmentId.value = deptId
-    }
     await loadPublicSettings(deptId)
   },
   { immediate: true },
@@ -386,23 +353,17 @@ watch(
   line-height: 1.4;
 }
 
-.department-card {
-  max-width: 480px;
-}
-
 .public-material-settings :deep(.e-card.v-card) {
   overflow: visible;
 }
 
 .card-body,
-.department-card__body,
 .settings-form-fields {
   box-sizing: border-box;
   padding: 20px 24px 24px;
   overflow: visible;
 }
 
-.department-card__body :deep(.e-form-field.autosave-field),
 .settings-form-fields :deep(.e-form-field.autosave-field) {
   margin-bottom: 0;
 }

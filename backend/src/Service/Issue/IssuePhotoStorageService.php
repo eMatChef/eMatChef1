@@ -32,7 +32,6 @@ class IssuePhotoStorageService
         UploadedFile $file,
     ): array {
         $issueId = (string) $report->getId();
-        $activityId = $activity->getId();
         $departmentId = $activity->getDepartmentId();
 
         return $this->mediaStorage->store(
@@ -41,13 +40,7 @@ class IssuePhotoStorageService
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildIssuePhotoUrl(
-                    $activityId,
-                    $issueId,
-                    $filename,
-                ),
-            ],
+            [],
         );
     }
 
@@ -56,30 +49,21 @@ class IssuePhotoStorageService
         string $issueReportId,
         string $filename,
     ): string {
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafePathSegment($issueReportId);
-        $this->mediaStorage->assertSafeFilename($filename);
-
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_ISSUE_REPORT,
             $departmentId,
             $issueReportId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('Datei nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
-    public function buildIssuePhotoUrl(string $activityId, string $issueId, string $filename): string
+    public function buildIssuePhotoUrl(string $departmentId, string $issueId, string $filename): string
     {
-        return sprintf(
-            '/api/activities/%s/issues/%s/photos/%s',
-            rawurlencode($activityId),
-            rawurlencode($issueId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_ISSUE_REPORT,
+            $departmentId,
+            $issueId,
+            $filename,
         );
     }
 }

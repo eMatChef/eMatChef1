@@ -224,6 +224,19 @@
               @update:end="markOverridden('block2', 'return_date')"
             />
           </div>
+          <div class="js-order-field span-2">
+            <ESelect
+              v-model="selectedCoachUserId"
+              :label="t('activities.jsMaterial.order.fields.coach')"
+              :items="coachSelectItems"
+              :disabled="readOnly || coachMembers.length === 0"
+              hide-details
+              @update:model-value="onCoachSelected"
+            />
+            <p v-if="coachMembers.length === 0" class="field-hint text-muted">
+              {{ t('activities.jsMaterial.order.noCoachesHint') }}
+            </p>
+          </div>
           <div class="js-order-field">
             <ETextField
               v-model="form.block2.coach_first_name"
@@ -656,6 +669,8 @@ import {
 } from '@/api/activityJsOrder'
 import { getActivity, type ActivityDetail } from '@/api/activities'
 import { getAddresses, getAddress, type Address } from '@/api/addresses'
+import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
+import { getJsMaterialDepartmentDefaults } from '@/api/departmentSettings'
 
 type JsOrderFormBlockKey = 'block1' | 'block2' | 'block3'
 
@@ -711,9 +726,44 @@ const loadError = ref('')
 const order = ref<ActivityJsOrderApi | null>(null)
 const activityDetail = ref<ActivityDetail | null>(null)
 const departmentAddresses = ref<Address[]>([])
+const coachMembers = ref<DepartmentMember[]>([])
+const selectedCoachUserId = ref<string | null>(null)
+const defaultCoachPersonNr = ref('')
 const form = reactive<JsOrderFormData>(structuredClone(EMPTY_JS_ORDER_FORM))
 const deliveryType = ref<JsOrderDeliveryType>('franko')
 const orderItems = ref<JsOrderItemDraft[]>([])
+
+const coachSelectItems = computed(() =>
+  coachMembers.value.map((m) => ({
+    title: m.email ? `${m.name} (${m.email})` : m.name,
+    value: m.user_id,
+  })),
+)
+
+function onCoachSelected(userId: string | null) {
+  selectedCoachUserId.value = userId
+  const member = coachMembers.value.find((m) => m.user_id === userId)
+  if (!member) {
+    scheduleAutoSave()
+    return
+  }
+  if (member.first_name) {
+    form.block2.coach_first_name = member.first_name
+    markOverridden('block2', 'coach_first_name')
+  }
+  if (member.last_name) {
+    form.block2.coach_last_name = member.last_name
+    markOverridden('block2', 'coach_last_name')
+  }
+  if (member.email) {
+    form.block2.coach_email = member.email
+    markOverridden('block2', 'coach_email')
+  }
+  if (defaultCoachPersonNr.value && !form.block2.coach_person_nr) {
+    form.block2.coach_person_nr = defaultCoachPersonNr.value
+  }
+  scheduleAutoSave()
+}
 const catalogSearch = ref('')
 const catalogSearchQuery = computed(() => catalogSearch.value.trim())
 const catalogItems = ref<JsCatalogItem[]>([])
@@ -963,6 +1013,7 @@ function buildSaveSnapshot(): string {
     form: cloneForm(form),
     deliveryType: deliveryType.value,
     participant,
+    js_coach_user_id: selectedCoachUserId.value || null,
     items: orderItemsPayload(),
   })
 }
@@ -1023,6 +1074,13 @@ function applyOrderToForm(next: ActivityJsOrderApi) {
   order.value = next
   Object.assign(form, cloneForm(next.form_data))
   deliveryType.value = next.delivery_type
+  selectedCoachUserId.value = next.js_coach_user_id || null
+  if (
+    !selectedCoachUserId.value &&
+    coachMembers.value.length > 0
+  ) {
+    // Fallback: if order has no coach yet, keep empty — backend prefills default on create
+  }
   if (next.participant_count != null && next.participant_count >= 1) {
     form.block2.participant_count = next.participant_count
   }
@@ -1424,11 +1482,15 @@ async function loadOrder() {
   loading.value = true
   loadError.value = ''
   try {
-    const [loaded, activity, addrRes] = await Promise.all([
+    const [loaded, activity, addrRes, members, jsDefaults] = await Promise.all([
       loadOrCreateActivityJsOrder(props.activityId),
       getActivity(props.activityId, props.departmentId),
       getAddresses(props.departmentId),
+      getDepartmentMembers(props.departmentId),
+      getJsMaterialDepartmentDefaults(props.departmentId),
     ])
+    coachMembers.value = members.filter((m) => !!m.is_js_coach)
+    defaultCoachPersonNr.value = jsDefaults.defaultCoachPersonNr || ''
     activityDetail.value = activity
     departmentAddresses.value = addrRes.addresses
     venueDeliveryChildByVenueId.value = {}
@@ -1445,6 +1507,27 @@ async function loadOrder() {
       }
     }
     applyOrderToForm(loaded)
+    if (!selectedCoachUserId.value && jsDefaults.defaultCoachUserId) {
+      const stillCoach = coachMembers.value.some((m) => m.user_id === jsDefaults.defaultCoachUserId)
+      if (stillCoach) {
+        selectedCoachUserId.value = jsDefaults.defaultCoachUserId
+        const member = coachMembers.value.find((m) => m.user_id === jsDefaults.defaultCoachUserId)
+        if (member) {
+          if (!form.block2.coach_first_name && member.first_name) {
+            form.block2.coach_first_name = member.first_name
+          }
+          if (!form.block2.coach_last_name && member.last_name) {
+            form.block2.coach_last_name = member.last_name
+          }
+          if (!form.block2.coach_email && member.email) {
+            form.block2.coach_email = member.email
+          }
+          if (!form.block2.coach_person_nr && defaultCoachPersonNr.value) {
+            form.block2.coach_person_nr = defaultCoachPersonNr.value
+          }
+        }
+      }
+    }
     stepIndex.value = resolveInitialStepIndex()
   } catch (err) {
     console.error(err)
@@ -1491,6 +1574,7 @@ async function persistOrder(options: { silent?: boolean } = {}): Promise<Activit
       form_data: cloneForm(form),
       participant_count: participant,
       delivery_type: deliveryType.value,
+      js_coach_user_id: selectedCoachUserId.value || null,
       status: 'draft',
       items: orderItemsPayload(),
     })

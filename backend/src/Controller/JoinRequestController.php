@@ -492,7 +492,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'target_department_id ist erforderlich'], 400);
         }
 
-        $validRoles = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+        $validRoles = self::VALID_MEMBER_ROLES;
         $requestedRole = trim((string) ($data['target_role'] ?? 'u'));
         if ($requestedRole === '') {
             $requestedRole = 'u';

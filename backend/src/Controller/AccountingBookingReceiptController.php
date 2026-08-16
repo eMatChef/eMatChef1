@@ -8,14 +8,10 @@ use App\Controller\Trait\AccountingMwOrDcTrait;
 use App\Entity\AccountingBooking;
 use App\Entity\User;
 use App\Service\Accounting\AccountingBookingReceiptService;
-use App\Service\Accounting\AccountingBookingReceiptStorageService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -27,7 +23,6 @@ class AccountingBookingReceiptController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private AccountingBookingReceiptService $receiptService,
-        private AccountingBookingReceiptStorageService $receiptStorage,
     ) {
     }
 
@@ -53,31 +48,6 @@ class AccountingBookingReceiptController extends AbstractController
             return new JsonResponse([...$result, 'message' => 'Beleg hochgeladen']);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
-        }
-    }
-
-    #[Route('/{filename}', name: 'show', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function show(string $departmentId, string $bookingId, string $filename): Response
-    {
-        $deny = $this->assertAccountingMwOrDc($this->entityManager, $departmentId);
-        if ($deny instanceof JsonResponse) {
-            return $deny;
-        }
-
-        $booking = $this->requireBooking($departmentId, $bookingId);
-
-        try {
-            $path = $this->receiptStorage->resolveFilePath($departmentId, $bookingId, $filename);
-            $response = new BinaryFileResponse($path);
-            $disposition = str_ends_with(strtolower($filename), '.pdf')
-                ? ResponseHeaderBag::DISPOSITION_INLINE
-                : ResponseHeaderBag::DISPOSITION_INLINE;
-            $response->setContentDisposition($disposition, $filename);
-
-            return $response;
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
     }
 

@@ -91,7 +91,7 @@
     </div>
     </template>
 
-    <div class="workshop-body">
+    <div class="workshop-body" data-onboarding="workshop-list">
       <div v-if="stats" class="workshop-stats">
         <div
           v-for="phase in statsPhases"

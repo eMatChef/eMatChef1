@@ -744,7 +744,7 @@ async function ensureCoachEmailOnOrder(): Promise<boolean> {
       : t('activities.jsMaterial.tab.coachEmailPromptHintUser'),
     settingsLink: isMaterialwart.value
       ? {
-          to: { name: 'SettingsActivities', params: { departmentId: props.departmentId } },
+          to: { name: 'SettingsModule', params: { departmentId: props.departmentId } },
           label: t('activities.jsMaterial.tab.coachEmailPromptSettingsLink'),
         }
       : undefined,

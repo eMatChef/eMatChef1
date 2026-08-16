@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
 use App\Service\Bootstrap\DevBootstrapContextService;
+use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -31,6 +32,7 @@ class CreateRoleUsersCommand extends Command
         private EntityManagerInterface $em,
         private UserPasswordHasherInterface $passwordHasher,
         private DevBootstrapContextService $bootstrapContext,
+        private DemoSupplierSeedService $demoSupplierSeed,
     ) {
         parent::__construct();
     }
@@ -120,7 +122,11 @@ class CreateRoleUsersCommand extends Command
         }
 
         $this->em->flush();
-        $io->success('Alle Benutzer erfolgreich erstellt!');
+        $io->success('Alle Rollen-Benutzer erfolgreich erstellt!');
+
+        $io->section('Erstelle Demo-Lieferant...');
+        $this->demoSupplierSeed->ensure($superadminUser);
+        $io->success('Demo-Lieferant: ' . DemoSupplierSeedService::EMAIL . ' / ' . self::DEMO_PASSWORD);
 
         $io->note([
             'Alle Benutzer haben das Passwort: ' . self::DEMO_PASSWORD,
@@ -134,6 +140,7 @@ class CreateRoleUsersCommand extends Command
             '  - leader2@ematchef.ch (Leader 2)',
             '  - leader3@ematchef.ch (Leader 3)',
             '  - user@ematchef.ch (User)',
+            '  - supplier@ematchef.ch (Lieferant / Testfirma, ohne Department)',
         ]);
 
         return Command::SUCCESS;

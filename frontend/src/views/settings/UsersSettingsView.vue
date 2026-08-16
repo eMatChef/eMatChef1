@@ -1,160 +1,173 @@
 <template>
-  <div class="users-settings">
-    <!-- Header -->
-    <div class="page-header">
+  <div class="users-settings" :class="{ 'users-settings--embedded': embedded }">
+    <!-- Header (auf eigener Settings-Seite) -->
+    <div v-if="!embedded" class="page-header">
       <div>
         <h2 class="settings-title">{{ t('settings.departmentUsers.title') }}</h2>
         <p class="settings-description">{{ t('settings.departmentUsers.subtitle') }}</p>
       </div>
-      <EButton variant="primary" data-onboarding="settings-user-add" @click="openAddModal()">
-        <v-icon icon="mdi-account-plus" start size="20" />
+    </div>
+
+    <!-- Kompakte Zeile: Anzahl + Hinzufügen -->
+    <div v-if="!isLoading" class="members-toolbar">
+      <span v-if="members.length > 0" class="members-count">
+        <strong>{{ members.length }}</strong>
+        {{ t('settings.departmentUsers.statsUsers') }}
+      </span>
+      <span v-else class="members-count members-count--empty"></span>
+      <EButton
+        variant="primary"
+        :size="embedded ? 'small' : undefined"
+        data-onboarding="settings-user-add"
+        @click="openAddModal()"
+      >
+        <v-icon icon="mdi-account-plus" start :size="embedded ? 18 : 20" />
         {{ t('settings.departmentUsers.addUser') }}
       </EButton>
     </div>
 
-    <!-- Stats Bar -->
-    <div v-if="!isLoading && members.length > 0" class="stats-bar">
-      <div class="stat-item">
-        <span class="stat-value">{{ members.length }}</span>
-        <span class="stat-label">{{ t('settings.departmentUsers.statsUsers') }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ leaderCount }}</span>
-        <span class="stat-label">{{ t('settings.departmentUsers.statsLeaders') }}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ memberCount }}</span>
-        <span class="stat-label">{{ t('settings.departmentUsers.statsMembers') }}</span>
-      </div>
-    </div>
-
-    <div
+    <details
       v-if="canEditRoleLabels && !isGrossanlassDept && !isLoading"
-      class="role-labels-card"
+      class="members-accordion"
     >
-      <div class="role-labels-head">
-        <div>
-          <h3>{{ t('settings.departmentUsers.roleLabelsTitle') }}</h3>
-          <p class="role-labels-hint">{{ t('settings.departmentUsers.roleLabelsHint') }}</p>
+      <summary class="members-accordion__summary">
+        {{ t('settings.departmentUsers.roleLabelsTitle') }}
+      </summary>
+      <div class="members-accordion__body">
+        <p class="role-labels-hint">{{ t('settings.departmentUsers.roleLabelsHint') }}</p>
+        <div class="role-labels-grid">
+          <AutoSaveField
+            v-model="roleLabelForm.l1"
+            :baseline="roleLabelBaselines.l1"
+            :label="t('settings.departmentUsers.roleLabels.l1')"
+            :placeholder="t('settings.departmentUsers.roles.l1')"
+            :save="(v) => saveRoleLabelField('l1', v)"
+          />
+          <AutoSaveField
+            v-model="roleLabelForm.l2"
+            :baseline="roleLabelBaselines.l2"
+            :label="t('settings.departmentUsers.roleLabels.l2')"
+            :placeholder="t('settings.departmentUsers.roles.l2')"
+            :save="(v) => saveRoleLabelField('l2', v)"
+          />
+          <AutoSaveField
+            v-model="roleLabelForm.l3"
+            :baseline="roleLabelBaselines.l3"
+            :label="t('settings.departmentUsers.roleLabels.l3')"
+            :placeholder="t('settings.departmentUsers.roles.l3')"
+            :save="(v) => saveRoleLabelField('l3', v)"
+          />
         </div>
-        <EButton
-          variant="primary"
-          size="small"
-          :disabled="isSavingRoleLabels || !roleLabelsDirty"
-          :loading="isSavingRoleLabels"
-          @click="saveRoleLabels"
-        >
-          {{ isSavingRoleLabels ? t('common.saving') : t('common.save') }}
-        </EButton>
       </div>
-      <div class="role-labels-grid">
-        <ETextField
-          v-model="roleLabelForm.l1"
-          :label="t('settings.departmentUsers.roleLabels.l1')"
-          :placeholder="t('settings.departmentUsers.roles.l1')"
-          maxlength="60"
-          hide-details
-        />
-        <ETextField
-          v-model="roleLabelForm.l2"
-          :label="t('settings.departmentUsers.roleLabels.l2')"
-          :placeholder="t('settings.departmentUsers.roles.l2')"
-          maxlength="60"
-          hide-details
-        />
-        <ETextField
-          v-model="roleLabelForm.l3"
-          :label="t('settings.departmentUsers.roleLabels.l3')"
-          :placeholder="t('settings.departmentUsers.roles.l3')"
-          maxlength="60"
-          hide-details
-        />
-      </div>
-    </div>
+    </details>
 
-    <!-- Search -->
-    <div v-if="!isLoading && members.length > 3" class="search-bar">
+    <details
+      v-if="canManagePendingInvites && !isLoading"
+      class="members-accordion"
+      :open="pendingInvitesAccordionOpen"
+      @toggle="onPendingInvitesAccordionToggle"
+    >
+      <summary class="members-accordion__summary">
+        {{
+          openPendingInviteCount > 0
+            ? t('settings.departmentUsers.pendingInvitesTitleCount', { n: openPendingInviteCount })
+            : t('settings.departmentUsers.pendingInvitesTitle')
+        }}
+      </summary>
+      <div class="members-accordion__body">
+        <p v-if="pendingInvitesError" class="pending-error">{{ pendingInvitesError }}</p>
+        <p v-else-if="isLoadingPendingInvites" class="pending-muted">{{ t('settings.departmentUsers.pendingLoading') }}</p>
+        <ul v-else-if="pendingInvites.length > 0" class="pending-list">
+          <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
+            <div class="pending-item-main">
+              <span class="pending-email">{{ invite.email }}</span>
+              <span v-if="invite.user_name" class="pending-user-name">{{ invite.user_name }}</span>
+              <span
+                class="invite-status-badge"
+                :class="{
+                  'invite-status-badge--accepted': isInviteAccepted(invite),
+                  'invite-status-badge--pending': isInviteOpen(invite),
+                  'invite-status-badge--declined': isInviteDeclined(invite),
+                }"
+              >
+                {{
+                  isInviteAccepted(invite)
+                    ? t('settings.departmentUsers.inviteStatusAccepted')
+                    : isInviteDeclined(invite)
+                      ? t('settings.departmentUsers.inviteStatusDeclined')
+                      : t('settings.departmentUsers.inviteStatusPending')
+                }}
+              </span>
+              <span v-if="invite.user_registered && isInviteOpen(invite)" class="invite-registered-hint">
+                {{ t('settings.departmentUsers.inviteUserRegistered') }}
+              </span>
+              <span class="pending-role">{{ getRoleLabel(invite.role) }}</span>
+              <span v-if="isInviteAccepted(invite) && invite.accepted_at" class="invite-accepted-at">
+                {{ t('settings.departmentUsers.inviteAcceptedAt', { date: formatInviteDate(invite.accepted_at) }) }}
+              </span>
+            </div>
+            <EButton
+              variant="secondary"
+              size="small"
+              @click.stop="removePendingInviteItem(invite.id)"
+            >
+              {{ isInviteOpen(invite) ? t('common.delete') : t('settings.departmentUsers.inviteDismiss') }}
+            </EButton>
+          </li>
+        </ul>
+        <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
+      </div>
+    </details>
+
+    <details
+      v-if="canManagePendingInvites && !isLoading"
+      class="members-accordion"
+      :open="pendingJoinRequestsAccordionOpen"
+      @toggle="onPendingJoinRequestsAccordionToggle"
+    >
+      <summary class="members-accordion__summary">
+        {{
+          pendingJoinRequests.length > 0
+            ? t('settings.departmentUsers.pendingJoinRequestsTitleCount', { n: pendingJoinRequests.length })
+            : t('settings.departmentUsers.pendingJoinRequestsTitle')
+        }}
+      </summary>
+      <div class="members-accordion__body">
+        <p v-if="pendingJoinRequestsError" class="pending-error">{{ pendingJoinRequestsError }}</p>
+        <p v-else-if="isLoadingPendingJoinRequests" class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsLoading') }}</p>
+        <ul v-else-if="pendingJoinRequests.length > 0" class="pending-list">
+          <li v-for="jr in pendingJoinRequests" :key="jr.id" class="pending-item">
+            <div class="pending-item-main">
+              <span class="pending-email">{{ jr.name }}</span>
+              <span v-if="jr.email" class="pending-user-name">{{ jr.email }}</span>
+              <p v-if="jr.message" class="pending-join-message">{{ t('settings.departmentUsers.pendingJoinMessage', { text: jr.message }) }}</p>
+            </div>
+            <div class="pending-join-actions">
+              <EButton variant="primary" size="small" type="button" @click="decidePendingJoin(jr.id, 'approved')">
+                {{ t('settings.departmentUsers.pendingJoinApprove') }}
+              </EButton>
+              <EButton variant="secondary" size="small" type="button" @click="decidePendingJoin(jr.id, 'rejected')">
+                {{ t('settings.departmentUsers.pendingJoinReject') }}
+              </EButton>
+            </div>
+          </li>
+        </ul>
+        <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsNone') }}</p>
+      </div>
+    </details>
+
+    <!-- Suche direkt oberhalb der Benutzerliste -->
+    <div
+      v-if="!isLoading && (members.length > 3 || showSearchForTour)"
+      class="search-bar"
+      data-onboarding="settings-user-search"
+    >
       <div class="search-box">
         <ESearchField
           v-model="searchQuery"
           :label="t('settings.departmentUsers.searchPlaceholder')"
         />
       </div>
-    </div>
-
-    <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
-      <div class="pending-head">
-        <h3>{{ t('settings.departmentUsers.pendingInvitesTitle') }}</h3>
-        <span v-if="openPendingInviteCount > 0" class="pending-count">{{ openPendingInviteCount }}</span>
-      </div>
-      <p v-if="pendingInvitesError" class="pending-error">{{ pendingInvitesError }}</p>
-      <p v-else-if="isLoadingPendingInvites" class="pending-muted">{{ t('settings.departmentUsers.pendingLoading') }}</p>
-      <ul v-else-if="pendingInvites.length > 0" class="pending-list">
-        <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
-          <div class="pending-item-main">
-            <span class="pending-email">{{ invite.email }}</span>
-            <span v-if="invite.user_name" class="pending-user-name">{{ invite.user_name }}</span>
-            <span
-              class="invite-status-badge"
-              :class="{
-                'invite-status-badge--accepted': isInviteAccepted(invite),
-                'invite-status-badge--pending': isInviteOpen(invite),
-                'invite-status-badge--declined': isInviteDeclined(invite),
-              }"
-            >
-              {{
-                isInviteAccepted(invite)
-                  ? t('settings.departmentUsers.inviteStatusAccepted')
-                  : isInviteDeclined(invite)
-                    ? t('settings.departmentUsers.inviteStatusDeclined')
-                    : t('settings.departmentUsers.inviteStatusPending')
-              }}
-            </span>
-            <span v-if="invite.user_registered && isInviteOpen(invite)" class="invite-registered-hint">
-              {{ t('settings.departmentUsers.inviteUserRegistered') }}
-            </span>
-            <span class="pending-role">{{ getRoleLabel(invite.role) }}</span>
-            <span v-if="isInviteAccepted(invite) && invite.accepted_at" class="invite-accepted-at">
-              {{ t('settings.departmentUsers.inviteAcceptedAt', { date: formatInviteDate(invite.accepted_at) }) }}
-            </span>
-          </div>
-          <EButton
-            variant="secondary"
-            size="small"
-            @click.stop="removePendingInviteItem(invite.id)"
-          >
-            {{ isInviteOpen(invite) ? t('common.delete') : t('settings.departmentUsers.inviteDismiss') }}
-          </EButton>
-        </li>
-      </ul>
-      <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
-    </div>
-
-    <div v-if="canManagePendingInvites && !isLoading" class="pending-invites-card">
-      <div class="pending-head">
-        <h3>{{ t('settings.departmentUsers.pendingJoinRequestsTitle') }}</h3>
-        <span v-if="pendingJoinRequests.length > 0" class="pending-count">{{ pendingJoinRequests.length }}</span>
-      </div>
-      <p v-if="pendingJoinRequestsError" class="pending-error">{{ pendingJoinRequestsError }}</p>
-      <p v-else-if="isLoadingPendingJoinRequests" class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsLoading') }}</p>
-      <ul v-else-if="pendingJoinRequests.length > 0" class="pending-list">
-        <li v-for="jr in pendingJoinRequests" :key="jr.id" class="pending-item">
-          <div class="pending-item-main">
-            <span class="pending-email">{{ jr.name }}</span>
-            <span v-if="jr.email" class="pending-user-name">{{ jr.email }}</span>
-            <p v-if="jr.message" class="pending-join-message">{{ t('settings.departmentUsers.pendingJoinMessage', { text: jr.message }) }}</p>
-          </div>
-          <div class="pending-join-actions">
-            <EButton variant="primary" size="small" type="button" @click="decidePendingJoin(jr.id, 'approved')">
-              {{ t('settings.departmentUsers.pendingJoinApprove') }}
-            </EButton>
-            <EButton variant="secondary" size="small" type="button" @click="decidePendingJoin(jr.id, 'rejected')">
-              {{ t('settings.departmentUsers.pendingJoinReject') }}
-            </EButton>
-          </div>
-        </li>
-      </ul>
-      <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsNone') }}</p>
     </div>
 
     <ELoadingState
@@ -229,6 +242,13 @@
                 <span class="role-short">{{ getRoleShort(member.role) }}</span>
                 {{ getRoleLabel(member.role) }}
               </span>
+              <span
+                v-if="member.is_js_coach"
+                class="coach-flag-badge"
+                :title="t('settings.departmentUsers.jsCoachFlagTitle')"
+              >
+                {{ t('settings.departmentUsers.jsCoachFlagShort') }}
+              </span>
             </td>
 
             <!-- Primär -->
@@ -239,10 +259,18 @@
 
             <!-- Aktionen -->
             <td class="col-actions">
-              <div class="action-buttons">
-                <button 
-                  class="action-btn" 
-                  :title="t('settings.departmentUsers.titleEditRole')"
+              <div
+                class="action-buttons"
+                :class="{
+                  'action-buttons--tour-hover':
+                    member.user_id === firstEditableMemberId && isUserEditTourHoverStep(),
+                }"
+                :data-onboarding="member.user_id === firstEditableMemberId ? 'settings-user-edit' : undefined"
+              >
+                <button
+                  v-if="canManageMember(member)"
+                  class="action-btn"
+                  :title="t('settings.departmentUsers.titleEditMember')"
                   @click="openEditModal(member)"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -251,7 +279,7 @@
                   </svg>
                 </button>
                 <button 
-                  v-if="!isCurrentUser(member)"
+                  v-if="canManageMember(member)"
                   class="action-btn action-btn-danger" 
                   :title="t('settings.departmentUsers.titleRemoveFromDept')"
                   @click="handleRemove(member)"
@@ -275,6 +303,7 @@
       :retain-focus="false"
       :title="t('settings.departmentUsers.modalAddTitle')"
       card-class="modal-add-user modal-add-user-wide"
+      data-onboarding="settings-user-add-dialog"
     >
       <div class="add-user-modal-body">
         <p
@@ -284,74 +313,77 @@
           {{ t('settings.departmentUsers.modalNoAvailableUsers') }}
         </p>
 
-        <EAutocomplete
-          v-model="selectedAvailableUser"
-          v-model:search="userSearchQuery"
-          autocomplete="off"
-          name="emc-add-user-search"
-          :label="t('settings.departmentUsers.labelUserRequired')"
-          :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
-          :items="autocompleteUsers"
-          item-title="name"
-          item-value="id"
-          return-object
-          chips
-          closable-chips
-          :menu="userSearchMenuOpen"
-          :loading="isLoadingAvailable"
-          hide-details
-          @update:menu="onUserSearchMenuUpdate"
-        >
-          <template #item="{ item: user, props: itemProps }">
-            <AvailableUserAutocompleteItem
-              :user="user"
-              :item-props="itemProps"
-              :search-query="userSearchTrimmed"
-              :first-name-label="t('settings.departmentUsers.autocompleteFieldFirstName')"
-              :email-label="t('settings.departmentUsers.autocompleteFieldEmail')"
-              :department-label="t('settings.departmentUsers.autocompleteFieldDepartment')"
-              :no-department-text="t('settings.departmentUsers.autocompleteNoDepartment')"
-            />
-          </template>
-          <template #no-data>
-            <div class="add-user-autocomplete-no-data">
-              <template v-if="isLoadingAvailable">
-                {{ t('settings.departmentUsers.modalLoadingAvailable') }}
-              </template>
-            </div>
-          </template>
-        </EAutocomplete>
-        <p
-          v-if="!selectedAvailableUser && userSearchTrimmed.length < 3"
-          class="add-user-search-hint"
-        >
-          {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchTrimmed.length) }) }}
-        </p>
+        <div data-onboarding="settings-user-add-search" class="settings-user-add-search-spotlight">
+          <EAutocomplete
+            v-model="selectedAvailableUser"
+            v-model:search="userSearchQuery"
+            autocomplete="off"
+            name="emc-add-user-search"
+            :label="t('settings.departmentUsers.labelUserRequired')"
+            :placeholder="t('settings.departmentUsers.userSearchPlaceholder')"
+            :items="autocompleteUsers"
+            item-title="name"
+            item-value="id"
+            return-object
+            chips
+            closable-chips
+            :menu="userSearchMenuOpen"
+            :menu-props="addUserAutocompleteMenuProps"
+            :loading="isLoadingAvailable"
+            hide-details
+            @update:menu="onUserSearchMenuUpdate"
+          >
+            <template #item="{ item: user, props: itemProps }">
+              <AvailableUserAutocompleteItem
+                :user="user"
+                :item-props="itemProps"
+                :search-query="userSearchTrimmed"
+                :first-name-label="t('settings.departmentUsers.autocompleteFieldFirstName')"
+                :email-label="t('settings.departmentUsers.autocompleteFieldEmail')"
+                :department-label="t('settings.departmentUsers.autocompleteFieldDepartment')"
+                :no-department-text="t('settings.departmentUsers.autocompleteNoDepartment')"
+              />
+            </template>
+            <template #no-data>
+              <div class="add-user-autocomplete-no-data">
+                <template v-if="isLoadingAvailable">
+                  {{ t('settings.departmentUsers.modalLoadingAvailable') }}
+                </template>
+              </div>
+            </template>
+          </EAutocomplete>
+          <p
+            v-if="!selectedAvailableUser && userSearchTrimmed.length < 3"
+            class="add-user-search-hint"
+          >
+            {{ t('settings.departmentUsers.autocompleteCharsHint', { n: Math.max(0, 3 - userSearchTrimmed.length) }) }}
+          </p>
 
-        <div v-if="showInviteByEmail" class="invite-by-email-box">
-          <div class="invite-by-email-box__hero">
-            <v-icon icon="mdi-account-search-outline" class="invite-by-email-box__icon" aria-hidden="true" />
-            <div class="invite-by-email-box__hero-text">
-              <p class="invite-by-email-lead">
-                {{ t('settings.departmentUsers.inviteNoUserFoundForQuery', { query: userSearchTrimmed }) }}
-              </p>
-              <p class="invite-by-email-box__hint">{{ t('settings.departmentUsers.inviteByEmailHint') }}</p>
+          <div v-if="showInviteByEmailPanel" class="invite-by-email-box">
+            <div class="invite-by-email-box__hero">
+              <v-icon icon="mdi-account-search-outline" class="invite-by-email-box__icon" aria-hidden="true" />
+              <div class="invite-by-email-box__hero-text">
+                <p class="invite-by-email-lead">
+                  {{ t('settings.departmentUsers.inviteNoUserFoundForQuery', { query: inviteByEmailSearchHint }) }}
+                </p>
+                <p class="invite-by-email-box__hint">{{ t('settings.departmentUsers.inviteByEmailHint') }}</p>
+              </div>
             </div>
+            <p class="invite-by-email-box__divider-label">{{ t('settings.departmentUsers.inviteByEmailDivider') }}</p>
+            <ETextField
+              v-model="inviteEmail"
+              type="email"
+              :label="t('settings.departmentUsers.inviteEmailLabel')"
+              :placeholder="t('settings.departmentUsers.inviteEmailPlaceholder')"
+              hide-details
+            />
+            <ESelect
+              v-model="addForm.role"
+              :label="t('common.role')"
+              :items="editRoleSelectItems"
+              hide-details
+            />
           </div>
-          <p class="invite-by-email-box__divider-label">{{ t('settings.departmentUsers.inviteByEmailDivider') }}</p>
-          <ETextField
-            v-model="inviteEmail"
-            type="email"
-            :label="t('settings.departmentUsers.inviteEmailLabel')"
-            :placeholder="t('settings.departmentUsers.inviteEmailPlaceholder')"
-            hide-details
-          />
-          <ESelect
-            v-model="addForm.role"
-            :label="t('common.role')"
-            :items="editRoleSelectItems"
-            hide-details
-          />
         </div>
 
         <template v-if="selectedAvailableUser">
@@ -360,6 +392,11 @@
             v-model="addForm.role"
             :label="t('common.role')"
             :items="editRoleSelectItems"
+            hide-details
+          />
+          <ECheckbox
+            v-model="addForm.is_js_coach"
+            :label="t('settings.departmentUsers.jsCoachFlag')"
             hide-details
           />
           <ECheckbox
@@ -418,47 +455,219 @@
         </template>
       </div>
       <template #actions>
-        <EButton variant="secondary" size="small" @click="closeAddModal">{{ t('common.cancel') }}</EButton>
-        <EButton
-          v-if="showInviteByEmail"
-          variant="primary"
-          size="small"
-          :disabled="!isInviteEmailValid || isSendingInvite"
-          :loading="isSendingInvite"
-          @click="sendEmailInvite"
-        >
-          {{ isSendingInvite ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
-        </EButton>
-        <EButton
-          v-else
-          variant="primary"
-          size="small"
-          :disabled="!addForm.user_id || isSaving"
-          :loading="isSaving"
-          @click="handleAdd"
-        >
-          {{ isSaving ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
-        </EButton>
+        <div class="add-user-modal-actions" data-onboarding="settings-user-add-actions">
+          <EButton variant="secondary" size="small" @click="closeAddModal">{{ t('common.cancel') }}</EButton>
+          <EButton
+            v-if="showInviteByEmailPanel"
+            variant="primary"
+            size="small"
+            :disabled="!isInviteEmailValid || isSendingInvite"
+            :loading="isSendingInvite"
+            @click="sendEmailInvite"
+          >
+            {{ isSendingInvite ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
+          </EButton>
+          <EButton
+            v-else
+            variant="primary"
+            size="small"
+            :disabled="!addForm.user_id || isSaving"
+            :loading="isSaving"
+            @click="handleAdd"
+          >
+            {{ isSaving ? t('settings.departmentUsers.sendingInvite') : t('settings.departmentUsers.sendInvite') }}
+          </EButton>
+        </div>
       </template>
     </EDialog>
 
     <EDialog
       v-model="showEditModal"
-      :max-width="480"
-      :title="editingMember ? t('settings.departmentUsers.modalEditTitle', { name: editingMember.name }) : ''"
+      :max-width="620"
+      :title="t('layout.profileModal.title')"
+      data-onboarding="settings-user-edit-dialog"
     >
       <template v-if="editingMember">
-        <ESelect
-          v-model="editForm.role"
-          :label="t('common.role')"
-          :items="editRoleSelectItems"
-          hide-details
-        />
-        <ECheckbox
-          v-model="editForm.is_primary"
-          :label="t('settings.departmentUsers.primaryDepartment')"
-          hide-details
-        />
+        <div class="member-profile-edit">
+          <details class="member-profile-accordion" open>
+            <summary class="member-profile-accordion__summary">
+              {{ t('settings.departmentUsers.editSectionProfile') }}
+            </summary>
+            <div class="member-profile-accordion__body" data-onboarding="settings-user-edit-profile">
+              <div class="member-profile-top-row">
+                <UserAvatarBadge
+                  class="member-profile-avatar"
+                  :user="editPreviewAvatarUser"
+                  variant="profile"
+                  size="lg"
+                  :show-tooltip="false"
+                />
+                <div class="member-profile-top-fields">
+                  <label class="member-form-field">
+                    <span>{{ t('layout.profileModal.lastName') }}</span>
+                    <input v-model="editForm.last_name" type="text" maxlength="100" />
+                  </label>
+                  <label class="member-form-field">
+                    <span>{{ t('layout.profileModal.firstName') }}</span>
+                    <input v-model="editForm.first_name" type="text" maxlength="100" />
+                  </label>
+                  <label class="member-form-field">
+                    <span>{{ t('layout.profileModal.email') }}</span>
+                    <div class="member-email-edit-row">
+                      <input
+                        v-model="editForm.email"
+                        type="email"
+                        maxlength="180"
+                        autocomplete="off"
+                        :disabled="!isEditEmailEnabled"
+                        :class="{ 'is-readonly': !isEditEmailEnabled }"
+                      />
+                      <button
+                        type="button"
+                        class="member-email-edit-btn"
+                        :class="{ active: isEditEmailEnabled }"
+                        :title="t('layout.profileModal.editEmailTitle')"
+                        @click="isEditEmailEnabled = !isEditEmailEnabled"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                          <path d="M12 20h9" stroke-width="2" stroke-linecap="round" />
+                          <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" stroke-width="2" stroke-linejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
+                    <small v-if="isEditEmailEnabled" class="member-field-hint">
+                      {{ t('layout.profileModal.emailNewMustVerify') }}
+                    </small>
+                    <small v-if="editPendingEmail" class="member-field-hint member-field-hint--pending">
+                      {{
+                        t('layout.profileModal.emailPendingSent', {
+                          pending: editPendingEmail,
+                          current: editingMember.email,
+                        })
+                      }}
+                    </small>
+                  </label>
+                </div>
+              </div>
+
+              <div class="member-profile-form-grid">
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.nickname') }}</span>
+                  <input
+                    v-model="editForm.nickname"
+                    type="text"
+                    maxlength="50"
+                    :placeholder="t('layout.profileModal.nicknamePlaceholder')"
+                  />
+                </label>
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.initialsMax2') }}</span>
+                  <input
+                    v-model="editForm.avatar_initials"
+                    type="text"
+                    maxlength="2"
+                    :placeholder="editGeneratedInitials"
+                    @input="editForm.avatar_initials = editForm.avatar_initials.toUpperCase()"
+                  />
+                </label>
+                <label class="member-form-field member-form-field--full">
+                  <span>{{ t('layout.profileModal.language') }}</span>
+                  <select v-model="editForm.language">
+                    <option value="de">{{ t('languageNames.de') }}</option>
+                    <option value="en">{{ t('languageNames.en') }}</option>
+                    <option value="fr">{{ t('languageNames.fr') }}</option>
+                    <option value="it">{{ t('languageNames.it') }}</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </details>
+
+          <details class="member-profile-accordion">
+            <summary class="member-profile-accordion__summary">
+              {{ t('layout.profileModal.passwordSection') }}
+            </summary>
+            <div class="member-profile-accordion__body">
+              <p class="member-field-hint">{{ t('settings.departmentUsers.passwordResetHint') }}</p>
+              <EButton
+                variant="secondary"
+                size="small"
+                :disabled="isSendingPasswordReset || isSaving"
+                :loading="isSendingPasswordReset"
+                @click="handleSendPasswordReset"
+              >
+                {{ t('settings.departmentUsers.sendPasswordReset') }}
+              </EButton>
+            </div>
+          </details>
+
+          <details class="member-profile-accordion" :open="editAddressAccordionOpen || undefined">
+            <summary class="member-profile-accordion__summary">
+              {{ t('layout.profileModal.addressSection') }}
+            </summary>
+            <div class="member-profile-accordion__body" data-onboarding="settings-user-edit-address">
+              <p class="member-field-hint">{{ t('layout.profileModal.addressHintJs') }}</p>
+              <div class="member-profile-form-grid">
+                <label class="member-form-field member-form-field--full">
+                  <span>{{ t('layout.profileModal.street') }}</span>
+                  <input
+                    v-model="editAddressForm.street"
+                    type="text"
+                    autocomplete="street-address"
+                    :placeholder="t('layout.profileModal.streetPlaceholder')"
+                  />
+                </label>
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.streetNumber') }}</span>
+                  <input v-model="editAddressForm.street_number" type="text" autocomplete="off" />
+                </label>
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.postalCode') }}</span>
+                  <input v-model="editAddressForm.postal_code" type="text" autocomplete="postal-code" />
+                </label>
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.city') }}</span>
+                  <input v-model="editAddressForm.city" type="text" autocomplete="address-level2" />
+                </label>
+                <label class="member-form-field">
+                  <span>{{ t('layout.profileModal.canton') }}</span>
+                  <select v-model="editAddressForm.canton">
+                    <option value="">{{ t('layout.profileModal.cantonEmpty') }}</option>
+                    <option v-for="(label, code) in swissCantons" :key="code" :value="code">
+                      {{ code }} – {{ label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          </details>
+
+          <details class="member-profile-accordion" :open="editMembershipAccordionOpen || undefined">
+            <summary class="member-profile-accordion__summary">
+              {{ t('settings.departmentUsers.editSectionMembership') }}
+            </summary>
+            <div class="member-profile-accordion__body member-membership-fields">
+              <ESelect
+                v-model="editForm.role"
+                :label="t('common.role')"
+                :items="editRoleSelectItems"
+                hide-details
+              />
+              <div data-onboarding="settings-user-edit-coach">
+                <ECheckbox
+                  v-model="editForm.is_js_coach"
+                  :label="t('settings.departmentUsers.jsCoachFlag')"
+                  hide-details
+                />
+              </div>
+              <ECheckbox
+                v-model="editForm.is_primary"
+                :label="t('settings.departmentUsers.primaryDepartment')"
+                hide-details
+              />
+            </div>
+          </details>
+        </div>
       </template>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeEditModal">{{ t('common.cancel') }}</EButton>
@@ -485,11 +694,28 @@ import { useToast } from '@/composables/useToast'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import EAutocomplete from '@/components/form/base/EAutocomplete.vue'
+import { AutoSaveField } from '@/components/common/autoSave'
+import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import ETextField from '@/components/form/base/ETextField.vue'
 import AvailableUserAutocompleteItem from '@/components/settings/AvailableUserAutocompleteItem.vue'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import { filterAvailableUsersByQuery } from '@/utils/availableUserSearch'
+import { buildAvatarInitials, type UserAvatarFields } from '@/utils/userAvatar'
+import {
+  createAddress,
+  getAddresses,
+  SWISS_CANTONS,
+  updateAddress,
+} from '@/api/addresses'
+import {
+  findAddressForProfile,
+  profileAddressMarker,
+  USER_ADDRESS_TYPE,
+} from '@/utils/profileUserAddress'
 import { EButton, EDialog, ESearchField, ESelect, ECheckbox } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
+import { useOnboardingTour } from '@/composables/useOnboardingTour'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
 import {
   createPendingInvite,
   decideJoinRequest,
@@ -502,6 +728,8 @@ import {
 import {
   getDepartmentMembers,
   updateDepartmentMember,
+  updateDepartmentMemberProfile,
+  sendDepartmentMemberPasswordReset,
   removeDepartmentMember,
   getAvailableUsersForDepartment,
   type DepartmentMember,
@@ -520,7 +748,23 @@ import {
   isBauprojektGroup,
   type GrossanlassGroupWithLevel,
 } from '@/utils/grossanlassGroupHierarchy'
-import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+
+const props = withDefaults(
+  defineProps<{
+    /** Override when embedded (e.g. Mein Department accordion). */
+    departmentId?: string
+    /** Hide page title; compact toolbar only. */
+    embedded?: boolean
+  }>(),
+  {
+    departmentId: undefined,
+    embedded: false,
+  },
+)
+
+const emit = defineEmits<{
+  changed: [memberCount: number]
+}>()
 
 const route = useRoute()
 const { t } = useI18n()
@@ -528,46 +772,65 @@ const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
-const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
+const { next: advanceTourStep } = useOnboardingTour()
+const departmentId = computed(
+  () =>
+    (props.departmentId || '').trim()
+    || (route.params.departmentId as string)
+    || authStore.activeDepartmentId
+    || '',
+)
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
-const roleLabelForm = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
-const roleLabelSaved = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
-const isSavingRoleLabels = ref(false)
+function isInviteUsersTourStep(stepId: string): boolean {
+  return (
+    route.query[ONBOARDING_TOUR_QUERY] === 'invite-users'
+    && route.query[ONBOARDING_TOUR_STEP_QUERY] === stepId
+  )
+}
 
-const roleLabelsDirty = computed(() =>
-  roleLabelForm.value.l1 !== roleLabelSaved.value.l1
-  || roleLabelForm.value.l2 !== roleLabelSaved.value.l2
-  || roleLabelForm.value.l3 !== roleLabelSaved.value.l3
+function isDefaultCoachTourStep(stepId: string): boolean {
+  return (
+    route.query[ONBOARDING_TOUR_QUERY] === 'default-coach'
+    && route.query[ONBOARDING_TOUR_STEP_QUERY] === stepId
+  )
+}
+
+function isUserEditTourHoverStep(): boolean {
+  return isInviteUsersTourStep('7') || isDefaultCoachTourStep('3')
+}
+
+const showSearchForTour = computed(
+  () =>
+    route.query[ONBOARDING_TOUR_QUERY] === 'invite-users'
+    && ['3', '4', '7'].includes(String(route.query[ONBOARDING_TOUR_STEP_QUERY] || '')),
 )
+
+const roleLabelForm = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
+const roleLabelBaselines = ref<DepartmentRoleLabels>({ l1: '', l2: '', l3: '' })
 
 async function loadRoleLabels() {
   if (!departmentId.value || isGrossanlassDept.value) return
   await roleLabelsStore.load(departmentId.value)
   const cached = roleLabelsStore.getCached(departmentId.value)
   roleLabelForm.value = { ...cached }
-  roleLabelSaved.value = { ...cached }
+  roleLabelBaselines.value = { ...cached }
 }
 
-async function saveRoleLabels() {
-  if (!departmentId.value || !roleLabelsDirty.value) return
-  isSavingRoleLabels.value = true
-  try {
-    await saveDepartmentRoleLabels(departmentId.value, roleLabelForm.value)
-    const next = {
-      l1: roleLabelForm.value.l1.trim(),
-      l2: roleLabelForm.value.l2.trim(),
-      l3: roleLabelForm.value.l3.trim(),
-    }
-    roleLabelForm.value = { ...next }
-    roleLabelSaved.value = { ...next }
-    roleLabelsStore.setLocal(departmentId.value, next)
-    toast.success(t('settings.departmentUsers.toastRoleLabelsSaved'))
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.departmentUsers.errSaveRoleLabels'))
-  } finally {
-    isSavingRoleLabels.value = false
+async function saveRoleLabelField(
+  key: keyof DepartmentRoleLabels,
+  value: AutoSaveFieldValue,
+): Promise<void> {
+  if (!departmentId.value) return
+  const next: DepartmentRoleLabels = {
+    l1: (key === 'l1' ? String(value ?? '') : roleLabelForm.value.l1).trim(),
+    l2: (key === 'l2' ? String(value ?? '') : roleLabelForm.value.l2).trim(),
+    l3: (key === 'l3' ? String(value ?? '') : roleLabelForm.value.l3).trim(),
   }
+  await saveDepartmentRoleLabels(departmentId.value, next)
+  roleLabelForm.value = { ...next }
+  roleLabelBaselines.value = { ...next }
+  roleLabelsStore.setLocal(departmentId.value, next)
 }
 
 const addUserUnitLabels = computed(() => {
@@ -617,7 +880,7 @@ const canManagePendingInvites = computed(() => {
 
 const canEditRoleLabels = computed(() => canManagePendingInvites.value)
 
-// Nur Rollen die der aktuelle User vergeben darf (eigene Rolle + darunter)
+// Nur Rollen die der aktuelle User vergeben darf (streng niedriger als eigene)
 const assignableRoles = computed(() => {
   // Globale Admin-Rollen dürfen alle Department-Rollen verwalten
   if (hasGlobalAdminPrivilege.value) {
@@ -630,8 +893,8 @@ const assignableRoles = computed(() => {
   const myRole = (authStore.currentDepartmentRole || 'u').toLowerCase() as DeptRoleKey
   const myIndex = ROLE_HIERARCHY.indexOf(myRole)
 
-  // Wenn Rolle nicht gefunden (z.B. 'user'), nur 'u' erlauben
-  const startIndex = myIndex >= 0 ? myIndex : ROLE_HIERARCHY.length - 1
+  // Streng darunter: startIndex = myIndex + 1
+  const startIndex = myIndex >= 0 ? myIndex + 1 : ROLE_HIERARCHY.length
 
   const result: Partial<Record<DeptRoleKey, (typeof DEPT_ROLES)[DeptRoleKey]>> = {}
   for (let i = startIndex; i < ROLE_HIERARCHY.length; i++) {
@@ -666,6 +929,21 @@ function isCurrentUser(member: DepartmentMember): boolean {
   return uid !== null && member.user_id === uid
 }
 
+function roleIndex(role: string): number {
+  const normalized = role === 'user' ? 'u' : role.toLowerCase()
+  return ROLE_HIERARCHY.indexOf(normalized as DeptRoleKey)
+}
+
+/** Streng: nur niedrigere Rollen (nicht Self, nicht gleiche/höhere). */
+function canManageMember(member: DepartmentMember): boolean {
+  if (isCurrentUser(member)) return false
+  if (hasGlobalAdminPrivilege.value) return true
+  const myIndex = roleIndex(authStore.currentDepartmentRole || 'u')
+  const targetIndex = roleIndex(member.role)
+  if (myIndex < 0 || targetIndex < 0) return false
+  return targetIndex > myIndex
+}
+
 // === State ===
 const members = ref<DepartmentMember[]>([])
 const isLoading = ref(false)
@@ -689,6 +967,7 @@ const addForm = ref({
   user_id: '',
   role: 'u',
   is_primary: false,
+  is_js_coach: false,
 })
 
 const userSearchQuery = ref('')
@@ -704,18 +983,153 @@ const isSendingInvite = ref(false)
 // Edit Modal
 const showEditModal = ref(false)
 const editingMember = ref<DepartmentMember | null>(null)
+const editMembershipAccordionOpen = ref(false)
+const editAddressAccordionOpen = ref(false)
 const editForm = ref({
   role: 'u',
   is_primary: false,
+  is_js_coach: false,
+  first_name: '',
+  last_name: '',
+  nickname: '',
+  email: '',
+  avatar_initials: '',
+  language: 'de',
 })
+const isSendingPasswordReset = ref(false)
+const isEditEmailEnabled = ref(false)
+const editPendingEmail = ref<string | null>(null)
+const swissCantons = SWISS_CANTONS
+const editAddressRecordId = ref<string | null>(null)
+const editAddressForm = ref({
+  street: '',
+  street_number: '',
+  postal_code: '',
+  city: '',
+  canton: '',
+})
+
+const editGeneratedInitials = computed(() =>
+  buildAvatarInitials(
+    '',
+    editForm.value.nickname,
+    editForm.value.first_name,
+    editForm.value.last_name,
+  ),
+)
+
+const editPreviewAvatarUser = computed((): UserAvatarFields => ({
+  first_name: editForm.value.first_name,
+  last_name: editForm.value.last_name,
+  nickname: editForm.value.nickname,
+  avatar_initials: editForm.value.avatar_initials,
+  background_color: editingMember.value?.background_color ?? null,
+  text_color: editingMember.value?.text_color ?? null,
+}))
+
+function resetEditAddressForm() {
+  editAddressForm.value = {
+    street: '',
+    street_number: '',
+    postal_code: '',
+    city: '',
+    canton: '',
+  }
+  editAddressRecordId.value = null
+}
+
+async function loadMemberPrivateAddress(member: DepartmentMember) {
+  resetEditAddressForm()
+  try {
+    const { addresses } = await getAddresses(departmentId.value, { type: USER_ADDRESS_TYPE })
+    const match = findAddressForProfile(addresses, member.profile_id)
+    if (!match) return
+    editAddressRecordId.value = match.id
+    editAddressForm.value = {
+      street: match.street || '',
+      street_number: match.street_number || '',
+      postal_code: match.postal_code || '',
+      city: match.city || '',
+      canton: match.canton || '',
+    }
+  } catch {
+    /* Adresse optional */
+  }
+}
+
+async function saveMemberPrivateAddress(member: DepartmentMember) {
+  const street = editAddressForm.value.street.trim()
+  const postal = editAddressForm.value.postal_code.trim()
+  const city = editAddressForm.value.city.trim()
+  const hasAny =
+    street ||
+    postal ||
+    city ||
+    editAddressForm.value.street_number.trim() ||
+    editAddressForm.value.canton.trim()
+  if (!hasAny) return
+  if (!street || !postal || !city) {
+    throw new Error(t('layout.profileModal.addressIncomplete'))
+  }
+  const payload = {
+    department_id: departmentId.value,
+    type: USER_ADDRESS_TYPE,
+    name: t('layout.profileModal.addressContactName', {
+      name: `${editForm.value.first_name} ${editForm.value.last_name}`.trim() || member.name,
+    }),
+    street,
+    street_number: editAddressForm.value.street_number.trim() || null,
+    postal_code: postal,
+    city,
+    canton: editAddressForm.value.canton.trim() || null,
+    country: 'Schweiz',
+    contact_first_name: editForm.value.first_name.trim() || null,
+    contact_last_name: editForm.value.last_name.trim() || null,
+    email: editForm.value.email.trim() || member.email || null,
+    additional_info: profileAddressMarker(member.profile_id),
+  }
+  if (editAddressRecordId.value) {
+    await updateAddress(editAddressRecordId.value, payload)
+  } else {
+    const created = await createAddress(payload)
+    editAddressRecordId.value = created.address.id
+  }
+}
 
 // === Computed ===
 
-const leaderCount = computed(() => members.value.filter(m => !['u'].includes(m.role)).length)
-const memberCount = computed(() => members.value.filter(m => m.role === 'u').length)
-
 const openPendingInviteCount = computed(() =>
   pendingInvites.value.filter((inv) => isInviteOpen(inv)).length
+)
+
+const pendingInvitesAccordionOpen = ref(false)
+const pendingJoinRequestsAccordionOpen = ref(false)
+
+function onPendingInvitesAccordionToggle(event: Event) {
+  pendingInvitesAccordionOpen.value = (event.target as HTMLDetailsElement).open
+}
+
+function onPendingJoinRequestsAccordionToggle(event: Event) {
+  pendingJoinRequestsAccordionOpen.value = (event.target as HTMLDetailsElement).open
+}
+
+watch(openPendingInviteCount, (count, previous) => {
+  if (count > 0 && (previous === undefined || previous === 0)) {
+    pendingInvitesAccordionOpen.value = true
+  } else if (count === 0) {
+    pendingInvitesAccordionOpen.value = false
+  }
+})
+
+watch(
+  () => pendingJoinRequests.value.length,
+  (count, previous) => {
+    if (count > 0 && (previous === undefined || previous === 0)) {
+      pendingJoinRequestsAccordionOpen.value = true
+    } else if (count === 0) {
+      pendingJoinRequestsAccordionOpen.value = false
+    }
+  },
 )
 
 function isInviteAccepted(invite: PendingInvite): boolean {
@@ -787,6 +1201,43 @@ const filteredMembers = computed(() => {
   return result
 })
 
+const firstEditableMemberId = computed(
+  () => filteredMembers.value.find((m) => canManageMember(m))?.user_id ?? null,
+)
+
+/** Tour: Add-Dialog schliessen ↔ weiter; Edit-Accordions öffnen. */
+watch(showAddModal, (open, wasOpen) => {
+  if (wasOpen && !open && isInviteUsersTourStep('6')) {
+    void advanceTourStep()
+  }
+})
+
+watch(
+  () => route.query[ONBOARDING_TOUR_STEP_QUERY],
+  (stepId, prevStepId) => {
+    const tourId = route.query[ONBOARDING_TOUR_QUERY]
+    if (tourId === 'invite-users') {
+      if (prevStepId === '6' && stepId === '7' && showAddModal.value) {
+        closeAddModal()
+      }
+      if (stepId === '9') {
+        editAddressAccordionOpen.value = true
+      }
+      if (prevStepId === '9' && stepId === '10' && showEditModal.value) {
+        closeEditModal()
+      }
+    }
+    if (tourId === 'default-coach') {
+      if (stepId === '4') {
+        editMembershipAccordionOpen.value = true
+      }
+      if (prevStepId === '4' && stepId === '5' && showEditModal.value) {
+        closeEditModal()
+      }
+    }
+  },
+)
+
 // === Helpers ===
 
 function toggleSort(field: 'name' | 'role') {
@@ -806,6 +1257,7 @@ async function loadMembers() {
   error.value = null
   try {
     members.value = await getDepartmentMembers(departmentId.value)
+    emit('changed', members.value.length)
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.departmentUsers.errLoadMembers')
   } finally {
@@ -914,15 +1366,46 @@ const showInviteByEmail = computed(() => {
   return autocompleteUsers.value.length === 0
 })
 
+/**
+ * Autocomplete leert die Suche oft beim Blur (Fokus auf E-Mail-Feld) —
+ * Panel einmal gezeigt → latched halten bis Modal zu / User gewählt / neue Treffer.
+ */
+const inviteByEmailLatched = ref(false)
+const inviteByEmailSearchHint = ref('')
+
+const showInviteByEmailPanel = computed(
+  () => !selectedAvailableUser.value && (inviteByEmailLatched.value || showInviteByEmail.value),
+)
+
+watch(showInviteByEmail, (show) => {
+  if (!show) return
+  inviteByEmailLatched.value = true
+  inviteByEmailSearchHint.value = userSearchTrimmed.value
+})
+
+watch([userSearchTrimmed, autocompleteUsers, isLoadingAvailable], () => {
+  if (selectedAvailableUser.value || isLoadingAvailable.value) return
+  if (userSearchTrimmed.value.length >= 3 && autocompleteUsers.value.length > 0) {
+    inviteByEmailLatched.value = false
+    inviteByEmailSearchHint.value = ''
+  }
+})
+
 function shouldOpenUserSearchMenu(): boolean {
   if (selectedAvailableUser.value) return false
   if (userSearchTrimmed.value.length < 3) return false
-  if (showInviteByEmail.value) return false
+  if (showInviteByEmailPanel.value) return false
   return isLoadingAvailable.value || autocompleteUsers.value.length > 0
 }
 
 /** Kontrolliertes Menü — zu früh geöffnet + Browser-Autofill sonst Doppel-Dropdown */
 const userSearchMenuOpen = ref(false)
+/** Spotlight nimmt Trefferliste mit (Teleport-Menu) */
+const addUserAutocompleteMenuProps = {
+  contentClass: 'settings-user-add-autocomplete-menu onboarding-tour-menu-union',
+  maxHeight: 280,
+  zIndex: 2800,
+}
 
 function onUserSearchMenuUpdate(open: boolean) {
   if (!open) {
@@ -934,7 +1417,7 @@ function onUserSearchMenuUpdate(open: boolean) {
 }
 
 watch(
-  [userSearchTrimmed, selectedAvailableUser, isLoadingAvailable, autocompleteUsers, showInviteByEmail],
+  [userSearchTrimmed, selectedAvailableUser, isLoadingAvailable, autocompleteUsers, showInviteByEmailPanel],
   () => {
     userSearchMenuOpen.value = shouldOpenUserSearchMenu()
   },
@@ -976,10 +1459,12 @@ function openAddModal() {
   // Default-Rolle = niedrigste erlaubte Rolle (letzter Eintrag in assignableRoles)
   const allowedKeys = Object.keys(assignableRoles.value) as DeptRoleKey[]
   const defaultRole = allowedKeys.length > 0 ? allowedKeys[allowedKeys.length - 1] : 'u'
-  addForm.value = { user_id: '', role: defaultRole, is_primary: false }
+  addForm.value = { user_id: '', role: defaultRole, is_primary: false, is_js_coach: false }
   selectedAvailableUser.value = null
   userSearchQuery.value = ''
   inviteEmail.value = ''
+  inviteByEmailLatched.value = false
+  inviteByEmailSearchHint.value = ''
   selectedGroupIds.value = []
   showAddModal.value = true
   loadAvailableUsers()
@@ -988,6 +1473,8 @@ function openAddModal() {
 
 function closeAddModal() {
   showAddModal.value = false
+  inviteByEmailLatched.value = false
+  inviteByEmailSearchHint.value = ''
 }
 
 async function sendDepartmentInvite(email: string) {
@@ -1032,31 +1519,83 @@ async function handleAdd() {
 // === Edit Member ===
 
 function openEditModal(member: DepartmentMember) {
+  if (!canManageMember(member)) return
   editingMember.value = member
   editForm.value = {
     role: member.role,
     is_primary: member.is_primary,
+    is_js_coach: !!member.is_js_coach,
+    first_name: member.first_name || '',
+    last_name: member.last_name || '',
+    nickname: member.nickname || '',
+    email: member.email || '',
+    avatar_initials: member.avatar_initials || '',
+    language: member.language || 'de',
   }
+  isEditEmailEnabled.value = false
+  editPendingEmail.value = member.pending_email || null
+  editMembershipAccordionOpen.value = isDefaultCoachTourStep('4')
+  editAddressAccordionOpen.value = isInviteUsersTourStep('9')
   showEditModal.value = true
+  void loadMemberPrivateAddress(member)
 }
 
 function closeEditModal() {
   showEditModal.value = false
   editingMember.value = null
+  isEditEmailEnabled.value = false
+  editPendingEmail.value = null
+  editMembershipAccordionOpen.value = false
+  editAddressAccordionOpen.value = false
+  resetEditAddressForm()
+}
+
+async function handleSendPasswordReset() {
+  if (!editingMember.value || isSendingPasswordReset.value) return
+  isSendingPasswordReset.value = true
+  try {
+    const result = await sendDepartmentMemberPasswordReset(
+      departmentId.value,
+      editingMember.value.user_id,
+    )
+    toast.success(result.message || t('settings.departmentUsers.toastPasswordResetSent'))
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errPasswordReset'))
+  } finally {
+    isSendingPasswordReset.value = false
+  }
 }
 
 async function handleUpdate() {
   if (!editingMember.value || isSaving.value) return
   isSaving.value = true
   try {
-    await updateDepartmentMember(departmentId.value, editingMember.value.user_id, {
-      role: editForm.value.role,
-      is_primary: editForm.value.is_primary,
-    })
+    const member = editingMember.value
+    await Promise.all([
+      updateDepartmentMemberProfile(departmentId.value, member.user_id, {
+        first_name: editForm.value.first_name.trim() || null,
+        last_name: editForm.value.last_name.trim() || null,
+        nickname: editForm.value.nickname.trim() || null,
+        email: editForm.value.email.trim(),
+        avatar_initials: editForm.value.avatar_initials.trim() || null,
+        language: editForm.value.language,
+      }),
+      updateDepartmentMember(departmentId.value, member.user_id, {
+        role: editForm.value.role,
+        is_primary: editForm.value.is_primary,
+        is_js_coach: editForm.value.is_js_coach,
+      }),
+    ])
+    await saveMemberPrivateAddress(member)
     closeEditModal()
     await loadMembers()
+    toast.success(t('settings.departmentUsers.toastMemberUpdated'))
   } catch (err: any) {
-    toast.error(err.response?.data?.error || t('settings.departmentUsers.errUpdateMember'))
+    const message =
+      (typeof err?.message === 'string' && !err?.response ? err.message : null) ||
+      err.response?.data?.error ||
+      t('settings.departmentUsers.errUpdateMember')
+    toast.error(message)
   } finally {
     isSaving.value = false
   }
@@ -1065,6 +1604,10 @@ async function handleUpdate() {
 // === Remove Member ===
 
 async function handleRemove(member: DepartmentMember) {
+  if (!canManageMember(member)) {
+    toast.error(t('settings.departmentUsers.errCannotManageMember'))
+    return
+  }
   if (isCurrentUser(member)) {
     toast.error(t('settings.departmentUsers.errCannotRemoveSelf'))
     return
@@ -1117,7 +1660,10 @@ watch(selectedAvailableUser, (user) => {
   addForm.value.user_id = user?.id ?? ''
   if (!user) {
     selectedGroupIds.value = []
+    return
   }
+  inviteByEmailLatched.value = false
+  inviteByEmailSearchHint.value = ''
 })
 
 watch(userSearchQuery, (value) => {
@@ -1157,11 +1703,41 @@ onUnmounted(() => {
   padding: 0;
 }
 
+.users-settings--embedded {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.members-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.users-settings--embedded .members-toolbar {
+  margin-bottom: 0;
+}
+
+.members-count {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.members-count strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-right: 4px;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .settings-title {
@@ -1195,62 +1771,51 @@ onUnmounted(() => {
 
 /* Buttons use shared ui/buttons.css */
 
-/* ========================================
-   Stats Bar
-   ======================================== */
-.stats-bar {
-  display: flex;
-  gap: 24px;
-  padding: 14px 20px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+.members-accordion {
+  margin: 0;
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
-  margin-bottom: 20px;
+  background: #fafafa;
+  overflow: hidden;
 }
 
-.stat-item {
+.members-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1e293b;
+.members-accordion__summary::-webkit-details-marker {
+  display: none;
 }
 
-.stat-label {
-  font-size: 13px;
-  color: #64748b;
+.members-accordion__summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
 }
 
-.role-labels-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 14px 16px;
-  margin-bottom: 16px;
+.members-accordion[open] > .members-accordion__summary::after {
+  transform: rotate(-180deg);
 }
 
-.role-labels-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.role-labels-head h3 {
-  margin: 0 0 4px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1e293b;
+.members-accordion__body {
+  padding: 0 14px 12px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
 }
 
 .role-labels-hint {
-  margin: 0;
-  font-size: 13px;
+  margin: 10px 0 8px;
+  font-size: 12px;
   line-height: 1.4;
   color: #64748b;
 }
@@ -1258,16 +1823,12 @@ onUnmounted(() => {
 .role-labels-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
 @media (max-width: 720px) {
   .role-labels-grid {
     grid-template-columns: 1fr;
-  }
-
-  .role-labels-head {
-    flex-direction: column;
   }
 }
 
@@ -1276,7 +1837,7 @@ onUnmounted(() => {
    ======================================== */
 .search-bar {
   position: relative;
-  margin-bottom: 16px;
+  margin-bottom: 4px;
 }
 
 .search-icon {
@@ -1289,30 +1850,9 @@ onUnmounted(() => {
 
 /* Search input base uses shared ui/page-layout.css */
 
-.pending-invites-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #f9fafb;
-  padding: 12px 14px;
-  margin-bottom: 14px;
-}
-
-.pending-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.pending-head h3 {
-  margin: 0;
-  font-size: 14px;
-  color: #1e293b;
-}
-
 .pending-count {
   font-size: 12px;
+  font-weight: 600;
   color: #475569;
   background: #e2e8f0;
   border-radius: 999px;
@@ -1594,10 +2134,209 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
+.coach-flag-badge {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #0f766e;
+  background: #ccfbf1;
+  vertical-align: middle;
+}
+
 /* Primary */
 .primary-star {
   color: #d97706;
   font-size: 18px;
+}
+
+.edit-section-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.edit-section-label:not(:first-child) {
+  margin-top: 16px;
+}
+
+.edit-section-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.edit-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.edit-profile-grid__full {
+  grid-column: 1 / -1;
+}
+
+.edit-password-row {
+  margin: 12px 0 4px;
+}
+
+.member-profile-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.member-profile-top-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.member-profile-top-fields {
+  display: grid;
+  gap: 7px;
+}
+
+.member-profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.member-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-form-field--full {
+  grid-column: 1 / -1;
+}
+
+.member-form-field span {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.member-form-field input,
+.member-form-field select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.member-form-field input.is-readonly {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.member-form-field input:focus,
+.member-form-field select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.member-email-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-email-edit-row input {
+  flex: 1;
+}
+
+.member-email-edit-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.member-email-edit-btn.active {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.member-email-edit-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.member-field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.member-field-hint--pending {
+  color: #b45309;
+}
+
+.member-profile-accordion {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.member-profile-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+}
+
+.member-profile-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-profile-accordion__summary::after {
+  content: '▾';
+  float: right;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.member-profile-accordion[open] > .member-profile-accordion__summary::after {
+  transform: rotate(-180deg);
+}
+
+.member-profile-accordion__body {
+  padding: 12px 14px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.member-profile-accordion__body .member-profile-form-grid {
+  margin-top: 10px;
+}
+
+.member-membership-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .text-muted {
@@ -1614,10 +2353,23 @@ onUnmounted(() => {
   gap: 4px;
   opacity: 0;
   transition: opacity 0.15s;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 8px;
+  min-width: 76px;
+  box-sizing: border-box;
 }
 
-.user-row:hover .action-buttons {
+.user-row:hover .action-buttons,
+.action-buttons.onboarding-tour-target-active,
+.action-buttons--tour-hover,
+.user-row:has(.onboarding-tour-target-active) .action-buttons {
   opacity: 1;
+}
+
+.user-row:has(.onboarding-tour-target-active),
+.user-row:has(.action-buttons--tour-hover) {
+  background: #f0fdf4;
 }
 
 .action-btn {
@@ -1704,6 +2456,21 @@ onUnmounted(() => {
 
 .modal-add-user-wide {
   max-width: 520px;
+}
+
+.add-user-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.settings-user-add-search-spotlight {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .groups-hint {

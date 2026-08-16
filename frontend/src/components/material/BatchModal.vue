@@ -368,6 +368,21 @@
               </div>
               <p class="batch-field-hint">{{ batchStockUnitHint }}</p>
             </div>
+            <div
+              v-if="(isMeterStockUnit(packUnit) || batchStockUnit === 'm') && !isSerializedAddMode"
+              class="form-group span-full"
+            >
+              <label>{{ t('components.batchModal.labelBatchLengthM') }}</label>
+              <input
+                v-model.number="batchLengthMeters"
+                type="number"
+                min="0.01"
+                step="0.01"
+                class="form-input"
+                :placeholder="t('components.batchModal.phBatchLengthM')"
+              />
+              <p class="batch-field-hint">{{ t('components.batchModal.hintBatchLengthM') }}</p>
+            </div>
             <div class="form-group">
               <label>{{ quantityLabel }} <span class="required" v-if="!isEditMode">*</span></label>
               <p v-if="batchMeterLengthHint" class="batch-field-hint">{{ batchMeterLengthHint }}</p>
@@ -1003,6 +1018,7 @@ import {
   getStockUnitKind,
   getStockUnitLabel,
   hasContentPerPiece,
+  hasMeterPackaging,
   isMeterStockUnit,
   isPackagingUnit,
   parseMaterialChfInput,
@@ -1023,6 +1039,8 @@ interface Props {
   existingBatches?: MaterialBatch[]
   packUnit?: string | null
   packSize?: number | null
+  /** VE-Bezeichnung bei Meterware (pack_unit=m) */
+  packagingUnit?: string | null
   sizeLengthCm?: string | number | null
   referencePurchaseUnitChf?: string | number | null
   /** Reparaturteile / Abschreibung: Preis nicht erzwingen */
@@ -1041,6 +1059,7 @@ const props = withDefaults(defineProps<Props>(), {
   existingBatches: () => [],
   packUnit: null,
   packSize: null,
+  packagingUnit: null,
   sizeLengthCm: null,
   referencePurchaseUnitChf: null,
   unitPriceOptional: false,
@@ -1146,19 +1165,31 @@ function parseBatchChfInput(s: string): number {
 
 const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
 const batchStockUnit = ref<'Stk' | 'm'>('Stk')
+/** Länge dieser Charge in m (Meterware) — kann vom Stamm abweichen */
+const batchLengthMeters = ref<number | null>(null)
 
 const batchStockUnitOptions = computed(() => [
   { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
   { value: 'm' as const, label: 'm' },
 ])
 
-const meterPieceLengthM = computed(() => sizeLengthCmToMeters(props.sizeLengthCm))
+const meterPieceLengthM = computed(() => {
+  if (batchLengthMeters.value != null && batchLengthMeters.value > 0) return batchLengthMeters.value
+  return sizeLengthCmToMeters(props.sizeLengthCm)
+})
 
 const batchMeterLengthHint = computed(() => {
   const per = meterPieceLengthM.value
   if (!isMeterStockUnit(effectivePackUnit.value) || per == null) return ''
   return t('components.batchModal.meterQtyByCountHint', { per })
 })
+
+function initBatchLengthFromProps() {
+  const fromBatch = props.batch?.size_length
+  const fromMaterial = props.sizeLengthCm
+  const m = sizeLengthCmToMeters(fromBatch ?? fromMaterial)
+  batchLengthMeters.value = m
+}
 
 function initBatchStockUnitFromProps() {
   const pu = (props.packUnit || '').trim()
@@ -1175,25 +1206,49 @@ function setQtyEntryMode(mode: 'base' | 'pack' | 'content') {
 }
 
 const effectivePackUnit = computed((): string | null => {
-  if (isEditMode.value) return props.packUnit ?? null
-  if (batchStockUnit.value === 'm') return 'm'
+  if (isEditMode.value) {
+    if (isMeterStockUnit(props.packUnit) && (props.batch?.pack_unit || props.packagingUnit)) {
+      return props.batch?.pack_unit || props.packagingUnit || 'm'
+    }
+    return props.packUnit ?? null
+  }
+  if (batchStockUnit.value === 'm' || isMeterStockUnit(props.packUnit)) {
+    if (hasMeterPackaging(props.packUnit || 'm', props.packagingUnit, props.packSize)) {
+      return props.packagingUnit ?? 'm'
+    }
+    return 'm'
+  }
   if (isPackagingUnit(props.packUnit)) return props.packUnit ?? 'Stk'
   return 'Stk'
 })
 
 const effectivePackSize = computed((): number | null => {
   if (isEditMode.value) {
+    const batchSize = props.batch?.pack_size
+    if (batchSize && batchSize >= 2) return batchSize
     return props.packSize && props.packSize >= 2 ? props.packSize : null
   }
-  if (batchStockUnit.value === 'm') return null
+  if (isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm') {
+    if (hasMeterPackaging(props.packUnit || 'm', props.packagingUnit, props.packSize)) {
+      return props.packSize && props.packSize >= 2 ? props.packSize : null
+    }
+    return null
+  }
   if (isPackagingUnit(props.packUnit) && props.packSize && props.packSize >= 2) {
     return props.packSize
   }
   return null
 })
 
+const canUsePackEntry = computed(
+  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
+)
+
 const useMeterQtyByCount = computed(
-  () => isMeterStockUnit(effectivePackUnit.value) && meterPieceLengthM.value != null,
+  () =>
+    isMeterStockUnit(props.packUnit || (batchStockUnit.value === 'm' ? 'm' : null)) &&
+    meterPieceLengthM.value != null &&
+    !canUsePackEntry.value,
 )
 
 const effectivePackUnitName = computed(() => effectivePackUnit.value || '')
@@ -1240,11 +1295,12 @@ const batchStockUnitHint = computed(() => {
   return t('components.materialCreateWizard.stockUnitHintStk')
 })
 
-const stockUnitLabel = computed(() => getStockUnitLabel(effectivePackUnit.value))
-
-const canUsePackEntry = computed(
-  () => isPackagingUnit(effectivePackUnit.value) && !!effectivePackSize.value,
+const stockUnitLabel = computed(() =>
+  isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm'
+    ? 'm'
+    : getStockUnitLabel(effectivePackUnit.value),
 )
+
 const canUseContentEntry = computed(() =>
   hasContentPerPiece(effectivePackUnit.value, effectivePackSize.value),
 )
@@ -1597,11 +1653,8 @@ function formatSlotOptionLabel(rackId: string, slot: StorageSlot): string {
 }
 
 function formatRackOptionLabel(rack: StorageRack): string {
-  const preview = (rackPreviewTitles.value[rack.id] || '').trim()
-  if (!preview) return rack.name
-  const oneLine = preview.replace(/\n/g, ' · ')
-  const short = oneLine.length > 72 ? `${oneLine.slice(0, 69)}…` : oneLine
-  return `${rack.name} · ${short}`
+  // Nur Gestellname — Inhaltsvorschau bleibt im title-Tooltip
+  return rack.name
 }
 
 function setStockLocationMode(mode: 'slot' | 'kiste') {
@@ -2073,6 +2126,8 @@ onMounted(async () => {
 
   if (props.batch) {
     // Edit-Modus: Werte aus bestehendem Batch übernehmen
+    initBatchStockUnitFromProps()
+    initBatchLengthFromProps()
     form.acquired_on = props.batch.acquired_on || ''
     form.qty = props.batch.qty
     form.unit_price = displayMeterStockUnitPrice(
@@ -2115,6 +2170,7 @@ onMounted(async () => {
     form.notes = ''
     pickPreferredLocation()
     initBatchStockUnitFromProps()
+    initBatchLengthFromProps()
     purchasePriceInputMode.value = 'unit'
     purchaseTotalWaresChf.value = ''
     purchaseShippingChf.value = ''
@@ -2539,6 +2595,23 @@ async function handleSubmit() {
           notes: form.notes || null,
           ean: form.ean.trim() || null,
           barcode_tag: form.barcode_tag.trim() || null,
+          ...(isMeterStockUnit(props.packUnit) || batchStockUnit.value === 'm'
+            ? {
+                size_length:
+                  batchLengthMeters.value != null && batchLengthMeters.value > 0
+                    ? String(Math.round(batchLengthMeters.value * 100))
+                    : props.sizeLengthCm != null
+                      ? String(props.sizeLengthCm)
+                      : null,
+                packaging_unit: props.packagingUnit || null,
+                pack_size:
+                  props.packSize && props.packSize >= 2
+                    ? props.packSize
+                    : batchLengthMeters.value != null && batchLengthMeters.value >= 2
+                      ? Math.round(batchLengthMeters.value)
+                      : null,
+              }
+            : {}),
           ...(form.split_allocations && allocationRows.value.length > 0 && allocationSumValid.value
             ? {
                 allocations: allocationRows.value
@@ -2567,6 +2640,7 @@ async function handleSubmit() {
         await updateMaterial(props.materialId, {
           pack_unit: packFields.pack_unit,
           pack_size: packFields.pack_size,
+          packaging_unit: props.packagingUnit ?? undefined,
         })
       }
     }

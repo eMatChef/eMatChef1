@@ -20,17 +20,14 @@ use App\Service\ActivityPackCrateCheckService;
 use App\Service\ActivityWetDryingService;
 use App\Service\InboxMessageService;
 use App\Service\Issue\IssuePhotoAccessService;
-use App\Service\Issue\IssuePhotoStorageService;
 use App\Service\Issue\IssueReportPhotoService;
 use App\Service\PackPipelineService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -53,7 +50,6 @@ class ActivityWorkflowController extends AbstractController
         private ActivityAccountingCostService $activityAccountingCost,
         private InboxMessageService $inboxMessageService,
         private IssueReportPhotoService $issueReportPhotoService,
-        private IssuePhotoStorageService $issuePhotoStorage,
         private IssuePhotoAccessService $issuePhotoAccess,
         private ActivityPackEventHistoryService $packEventHistory,
         private ActivityWetDryingService $wetDrying,
@@ -912,36 +908,6 @@ class ActivityWorkflowController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
-        }
-    }
-
-    #[Route('/issues/{issueId}/photos/{filename}', name: 'issues_show_photo', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function showIssuePhoto(string $activityId, string $issueId, string $filename): Response
-    {
-        try {
-            $activity = $this->findActivityForUser($activityId);
-            if ($activity instanceof JsonResponse) {
-                return $activity;
-            }
-
-            $user = $this->requireUser();
-            $report = $this->issuePhotoAccess->requireIssueReport($activityId, $issueId);
-            $this->issuePhotoAccess->assertCanViewPhoto($user, $activity, $report);
-
-            $path = $this->issuePhotoStorage->resolveFilePath(
-                $activity->getDepartmentId(),
-                $issueId,
-                $filename,
-            );
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 403);
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
     }
 

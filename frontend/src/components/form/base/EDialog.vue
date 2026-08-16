@@ -7,7 +7,11 @@
     :retain-focus="retainFocus"
     @update:model-value="onUpdate"
   >
-    <ECard :variant="cardVariant" :card-class="cardClass">
+    <ECard
+      :variant="cardVariant"
+      :card-class="cardClass"
+      :data-onboarding="dataOnboarding || undefined"
+    >
       <v-card-title v-if="title || $slots.title" class="e-dialog__title">
         <slot name="title">{{ title }}</slot>
       </v-card-title>
@@ -37,6 +41,8 @@ withDefaults(
     cardVariant?: 'elevated' | 'flat' | 'tonal' | 'outlined' | 'text' | 'plain'
     /** Zusätzliche Klassen auf der inneren ECard (z. B. Confirm-Rahmen) */
     cardClass?: string | string[] | Record<string, boolean>
+    /** Tour-Spotlight: Target auf der ganzen Dialog-Karte (inkl. Actions) */
+    dataOnboarding?: string
   }>(),
   {
     maxWidth: 560,

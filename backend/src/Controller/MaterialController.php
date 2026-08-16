@@ -599,6 +599,9 @@ class MaterialController extends AbstractController
             // Verpackungseinheit (Bündel)
             if (isset($data['pack_size'])) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (isset($data['pack_unit'])) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('packaging_unit', $data)) {
+                $material->setPackagingUnit($data['packaging_unit'] !== null && $data['packaging_unit'] !== '' ? (string) $data['packaging_unit'] : null);
+            }
             if (array_key_exists('pack_sale_price_chf', $data)) {
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
@@ -841,6 +844,7 @@ class MaterialController extends AbstractController
                 $batch->setIsContainer($material->getIsContainer());
 
                 $this->applyBatchScanCodesFromPayload($batch, $data);
+                $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
                 $this->entityManager->persist($batch);
                 if (!$this->shouldSkipBatchPublicCode($material, $batch)) {
@@ -1820,6 +1824,9 @@ class MaterialController extends AbstractController
             // Verpackungseinheit (Bündel)
             if (array_key_exists('pack_size', $data)) $material->setPackSize($data['pack_size'] ? (int)$data['pack_size'] : null);
             if (array_key_exists('pack_unit', $data)) $material->setPackUnit($data['pack_unit'] ?: null);
+            if (array_key_exists('packaging_unit', $data)) {
+                $material->setPackagingUnit($data['packaging_unit'] !== null && $data['packaging_unit'] !== '' ? (string) $data['packaging_unit'] : null);
+            }
             if (array_key_exists('pack_sale_price_chf', $data)) {
                 $pp = $data['pack_sale_price_chf'];
                 $material->setPackSalePriceChf($pp !== null && $pp !== '' ? (string) $pp : null);
@@ -2189,6 +2196,7 @@ class MaterialController extends AbstractController
             }
 
             $this->applyBatchScanCodesFromPayload($batch, $data);
+            $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
             if (array_key_exists('is_container', $data)) {
                 $batch->setIsContainer((bool) $data['is_container']);
@@ -2653,6 +2661,8 @@ class MaterialController extends AbstractController
             if (array_key_exists('barcode_tag', $data)) {
                 $batch->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
             }
+
+            $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
 
             if (array_key_exists('rack_id', $data)) {
                 if ($data['rack_id']) {
@@ -4540,6 +4550,47 @@ class MaterialController extends AbstractController
     }
 
     /**
+     * Länge / VE pro Charge aus Request (Wareneingang kann vom Stamm abweichen).
+     * Akzeptiert auch initial_* Keys bei Material-Erstellung.
+     * Fallback: Material-Stamm, wenn Keys fehlen.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyBatchPackAndLengthFromPayload(MaterialBatch $batch, array $data, ?MaterialItem $material = null): void
+    {
+        if (array_key_exists('size_length', $data) || array_key_exists('initial_size_length', $data)) {
+            $raw = array_key_exists('size_length', $data) ? $data['size_length'] : $data['initial_size_length'];
+            $batch->setSizeLength($raw !== null && $raw !== '' ? (string) $raw : null);
+        } elseif ($material && $batch->getSizeLength() === null && $material->getSizeLength()) {
+            $batch->setSizeLength($material->getSizeLength());
+        }
+
+        if (array_key_exists('pack_size', $data) || array_key_exists('initial_pack_size', $data) || array_key_exists('batch_pack_size', $data)) {
+            $raw = $data['batch_pack_size'] ?? $data['pack_size'] ?? $data['initial_pack_size'] ?? null;
+            // Bei Create ist pack_size oft die Material-VE; für Meterware mit packaging_unit ist das korrekt auch für die Charge.
+            $batch->setPackSize($raw ? (int) $raw : null);
+        } elseif ($material && $batch->getPackSize() === null && $material->getPackSize()) {
+            $batch->setPackSize($material->getPackSize());
+        }
+
+        // Charge.pack_unit = VE-Bezeichnung (Rolle), nicht Bestandseinheit m/Stk.
+        if (array_key_exists('batch_pack_unit', $data) || array_key_exists('packaging_unit', $data) || array_key_exists('initial_packaging_unit', $data)) {
+            $raw = $data['batch_pack_unit'] ?? $data['packaging_unit'] ?? $data['initial_packaging_unit'] ?? null;
+            $batch->setPackUnit($raw !== null && $raw !== '' ? (string) $raw : null);
+        } elseif ($material && $batch->getPackUnit() === null) {
+            $ve = $material->getPackagingUnit();
+            if ($ve) {
+                $batch->setPackUnit($ve);
+            } elseif ($material->getPackUnit()) {
+                $pu = strtolower(trim((string) $material->getPackUnit()));
+                if (!in_array($pu, ['m', 'meter', 'metre', 'stk'], true)) {
+                    $batch->setPackUnit($material->getPackUnit());
+                }
+            }
+        }
+    }
+
+    /**
      * Erstellt einen History-Eintrag für ein Material
      */
     private function createHistoryEntry(MaterialItem $material, string $action, array $changes = []): void
@@ -4629,6 +4680,7 @@ class MaterialController extends AbstractController
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'packaging_unit' => $material->getPackagingUnit(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'pack_weight' => $material->getPackWeight(),
             'pack_size_length' => $material->getPackSizeLength(),
@@ -4846,6 +4898,7 @@ class MaterialController extends AbstractController
             'min_stock' => $material->getMinStock(),
             'pack_size' => $material->getPackSize(),
             'pack_unit' => $material->getPackUnit(),
+            'packaging_unit' => $material->getPackagingUnit(),
             'size_length' => $material->getSizeLength(),
             'pack_sale_price_chf' => $material->getPackSalePriceChf(),
             'image_url' => $material->getPrimaryPhotoUrl(),
@@ -4905,6 +4958,9 @@ class MaterialController extends AbstractController
                     'serial_number' => $batch->getSerialNumber(),
                     'ean' => $batch->getEan(),
                     'barcode_tag' => $batch->getBarcodeTag(),
+                    'size_length' => $batch->getSizeLength(),
+                    'pack_size' => $batch->getPackSize(),
+                    'pack_unit' => $batch->getPackUnit(),
                     'rack_id' => $batch->getRackId(),
                     'slot_id' => $batch->getSlotId(),
                     'rack' => $batch->getRack() ? [

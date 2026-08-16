@@ -49,4 +49,4 @@ RUN chmod +x /var/www/html/docker-entrypoint.sh
 EXPOSE 8081
 
 ENTRYPOINT ["/var/www/html/docker-entrypoint.sh"]
-CMD ["php", "-S", "0.0.0.0:8081", "-t", "public"]
+CMD ["php", "-S", "0.0.0.0:8081", "-t", "public", "public/router.php"]

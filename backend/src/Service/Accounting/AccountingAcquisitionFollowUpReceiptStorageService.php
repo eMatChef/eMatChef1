@@ -35,33 +35,18 @@ class AccountingAcquisitionFollowUpReceiptStorageService
             $departmentId,
             $user,
             $file,
-            [
-                'url_builder' => fn (string $filename): string => $this->buildReceiptUrl(
-                    $departmentId,
-                    $followUpId,
-                    $filename,
-                ),
-            ],
+            [],
         );
     }
 
     public function resolveFilePath(string $departmentId, string $followUpId, string $filename): string
     {
-        $this->mediaStorage->assertSafePathSegment($departmentId);
-        $this->mediaStorage->assertSafePathSegment($followUpId);
-        $this->mediaStorage->assertSafeFilename($filename);
-
-        $path = $this->mediaStorage->resolveContextDir(
+        return $this->mediaStorage->resolveStoredFilePath(
             MediaStorageService::CONTEXT_ACCOUNTING_FOLLOW_UP,
             $departmentId,
             $followUpId,
-        ) . '/' . $filename;
-
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('Datei nicht gefunden');
-        }
-
-        return $path;
+            $filename,
+        );
     }
 
     public function deleteAllForFollowUp(AccountingAcquisitionFollowUp $followUp): void
@@ -75,11 +60,11 @@ class AccountingAcquisitionFollowUpReceiptStorageService
 
     public function buildReceiptUrl(string $departmentId, string $followUpId, string $filename): string
     {
-        return sprintf(
-            '/api/departments/%s/accounting/acquisition-followups/%s/receipts/%s',
-            rawurlencode($departmentId),
-            rawurlencode($followUpId),
-            rawurlencode($filename),
+        return $this->mediaStorage->buildPublicMediaUrl(
+            MediaStorageService::CONTEXT_ACCOUNTING_FOLLOW_UP,
+            $departmentId,
+            $followUpId,
+            $filename,
         );
     }
 }

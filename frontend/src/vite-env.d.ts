@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_GIT_SHA?: string
   /** Public Better Stack status page URL (optional). */
   readonly VITE_STATUS_PAGE_URL?: string
+  /** Google Search Console HTML-Tag (content=…). Nur Marketing-Build. */
+  readonly VITE_GOOGLE_SITE_VERIFICATION?: string
 }
 
 interface ImportMeta {

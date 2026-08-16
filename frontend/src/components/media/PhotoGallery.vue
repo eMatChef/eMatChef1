@@ -6,7 +6,7 @@
       class="photo-gallery-item"
     >
       <img
-        :src="photo.url"
+        :src="resolveMediaPreviewUrl(photo.url)"
         :alt="photo.original_filename || ''"
         class="photo-gallery-thumb"
       />
@@ -28,7 +28,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { MediaPhoto } from '@/api/media'
-import { mediaPhotoKey } from '@/api/media'
+import { mediaPhotoKey, resolveMediaPreviewUrl } from '@/api/media'
 import '@/styles/components/photo-gallery.css'
 
 const props = withDefaults(

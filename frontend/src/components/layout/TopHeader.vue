@@ -336,6 +336,14 @@
           <span class="dept-switch-text">
             <span class="dept-switch-name">
               {{ dept.name }}
+              <span
+                v-if="dept.isPrimary"
+                class="dept-switch-tag dept-switch-tag--primary"
+                :title="t('layout.userMenu.primaryDepartment')"
+              >
+                <v-icon icon="mdi-star" size="12" aria-hidden="true" />
+                {{ t('layout.userMenu.primary') }}
+              </span>
               <span v-if="dept.isGrossanlass" class="dept-switch-tag">{{ t('grossanlass.label') }}</span>
             </span>
             <span class="dept-switch-hint">{{ dept.roleLabel }}</span>
@@ -502,15 +510,41 @@
             </label>
             </div>
 
-            <div class="form-field form-field-full" data-onboarding="profile-password">
-              <span>{{ t('layout.profileModal.passwordSection') }}</span>
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-password"
+              :open="profileAccordion.password"
+              @toggle="onProfileAccordionToggle('password', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.passwordSection') }}</summary>
+              <div class="profile-accordion__body">
+              <!-- Chrome-Autofill ablenken -->
+              <input
+                type="text"
+                name="emc-username-decoy"
+                autocomplete="username"
+                tabindex="-1"
+                aria-hidden="true"
+                class="profile-autofill-decoy"
+              />
+              <input
+                type="password"
+                name="emc-password-decoy"
+                autocomplete="new-password"
+                tabindex="-1"
+                aria-hidden="true"
+                class="profile-autofill-decoy"
+              />
               <div class="profile-form-grid">
                 <label class="form-field">
                   <span>{{ t('layout.profileModal.currentPassword') }}</span>
                   <input
                     v-model="passwordForm.current_password"
                     type="password"
-                    autocomplete="current-password"
+                    name="emc-current-password"
+                    autocomplete="off"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.currentPasswordPlaceholder')"
                   />
                 </label>
@@ -519,7 +553,10 @@
                   <input
                     v-model="passwordForm.new_password"
                     type="password"
+                    name="emc-new-password"
                     autocomplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.newPasswordPlaceholder')"
                   />
                 </label>
@@ -528,17 +565,71 @@
                   <input
                     v-model="passwordForm.confirm_new_password"
                     type="password"
+                    name="emc-confirm-password"
                     autocomplete="new-password"
+                    data-lpignore="true"
+                    data-1p-ignore="true"
                     :placeholder="t('layout.profileModal.confirmNewPasswordPlaceholder')"
                   />
                 </label>
               </div>
               <small v-if="passwordInlineError" class="password-inline-error">{{ passwordInlineError }}</small>
               <small v-else-if="passwordInlineSuccess" class="password-inline-success">{{ t('layout.profileModal.passwordOk') }}</small>
-            </div>
+              </div>
+            </details>
 
-            <div class="form-field form-field-full" data-onboarding="profile-colors">
-              <span>{{ t('layout.profileModal.colorCombinations') }}</span>
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-address"
+              :open="profileAccordion.address"
+              @toggle="onProfileAccordionToggle('address', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.addressSection') }}</summary>
+              <div class="profile-accordion__body">
+              <p class="profile-address-hint">{{ t('layout.profileModal.addressHintJs') }}</p>
+              <div class="profile-form-grid">
+                <label class="form-field form-field-full">
+                  <span>{{ t('layout.profileModal.street') }}</span>
+                  <input
+                    v-model="addressForm.street"
+                    type="text"
+                    autocomplete="street-address"
+                    :placeholder="t('layout.profileModal.streetPlaceholder')"
+                  />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.streetNumber') }}</span>
+                  <input v-model="addressForm.street_number" type="text" autocomplete="off" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.postalCode') }}</span>
+                  <input v-model="addressForm.postal_code" type="text" autocomplete="postal-code" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.city') }}</span>
+                  <input v-model="addressForm.city" type="text" autocomplete="address-level2" />
+                </label>
+                <label class="form-field">
+                  <span>{{ t('layout.profileModal.canton') }}</span>
+                  <select v-model="addressForm.canton">
+                    <option value="">{{ t('layout.profileModal.cantonEmpty') }}</option>
+                    <option v-for="(label, code) in swissCantons" :key="code" :value="code">
+                      {{ code }} – {{ label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              </div>
+            </details>
+
+            <details
+              class="profile-accordion"
+              data-onboarding="profile-colors"
+              :open="profileAccordion.colors"
+              @toggle="onProfileAccordionToggle('colors', $event)"
+            >
+              <summary class="profile-accordion__summary">{{ t('layout.profileModal.colorCombinations') }}</summary>
+              <div class="profile-accordion__body">
               <div class="avatar-palette-wrap">
                 <div class="palette-row-label">{{ t('layout.profileModal.paletteWhiteInitials') }}</div>
                 <div class="avatar-palette-row">
@@ -595,15 +686,21 @@
                   />
                 </div>
               </label>
-            </div>
+              </div>
+            </details>
           </div>
 
-          <div class="profile-modal-footer" data-onboarding="profile-save">
-            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges }">
-              <span v-if="hasUnsavedProfileChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
+          <div class="profile-modal-footer">
+            <div class="profile-status-hint" :class="{ visible: hasUnsavedProfileChanges || hasAddressChanges }">
+              <span v-if="hasUnsavedProfileChanges || hasAddressChanges">{{ t('layout.profileModal.unsavedChanges') }}</span>
             </div>
             <button type="button" class="btn-secondary btn-sm" @click="requestCloseEditProfileModal" :disabled="savingProfile">{{ t('common.cancel') }}</button>
-            <button type="submit" class="btn-primary btn-sm" :disabled="savingProfile || (!hasUnsavedProfileChanges && !hasPasswordInput) || !!passwordInlineError">
+            <button
+              type="submit"
+              class="btn-primary btn-sm"
+              data-onboarding="profile-save"
+              :disabled="savingProfile || (!isTourProfileSaveStep && !hasUnsavedProfileChanges && !hasPasswordInput && !hasAddressChanges) || !!passwordInlineError"
+            >
               {{ savingProfile ? t('layout.profileModal.saving') : t('common.save') }}
             </button>
           </div>
@@ -614,13 +711,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, reactive } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '../../stores/auth'
+import {
+  ONBOARDING_TOUR_QUERY,
+  ONBOARDING_TOUR_STEP_QUERY,
+} from '@/config/onboardingTours'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { changePassword, login as apiLogin, updateProfile } from '../../api/auth'
+import {
+  createAddress,
+  getAddresses,
+  updateAddress,
+  SWISS_CANTONS,
+} from '@/api/addresses'
+import {
+  findAddressForProfile,
+  profileAddressMarker,
+  USER_ADDRESS_TYPE,
+} from '@/utils/profileUserAddress'
 import { useToast } from '../../composables/useToast'
 import { useConfirm } from '../../composables/useConfirm'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
@@ -719,6 +831,7 @@ const departmentSwitchItems = computed(() =>
   authStore.departments.map((dept) => ({
     id: dept.department_id,
     name: dept.department?.name || dept.department_id,
+    isPrimary: Boolean(dept.is_primary),
     isGrossanlass: Boolean(dept.department?.is_grossanlass),
     isActive: dept.department_id === authStore.activeDepartmentId,
     roleLabel: departmentRoleLabel(dept.role, dept.department_id),
@@ -765,6 +878,67 @@ function toggleDrawer() {
 }
 
 const showUserDropdown = ref(false)
+
+/** Tour-Schritte, die Inhalt im offenen User-Menü brauchen (Department / Profil bearbeiten). */
+const tourKeepsUserMenuOpen = computed(() => {
+  if (route.query[ONBOARDING_TOUR_QUERY] !== 'profile-overview') return false
+  const step = route.query[ONBOARDING_TOUR_STEP_QUERY]
+  return step === '11' || step === '12'
+})
+
+const isTourProfileSaveStep = computed(
+  () =>
+    route.query[ONBOARDING_TOUR_QUERY] === 'profile-overview' &&
+    route.query[ONBOARDING_TOUR_STEP_QUERY] === '18'
+)
+
+const profileAccordion = reactive({
+  password: false,
+  address: false,
+  colors: false,
+})
+
+watch(
+  () => [route.query[ONBOARDING_TOUR_QUERY], route.query[ONBOARDING_TOUR_STEP_QUERY]] as const,
+  ([tour, step]) => {
+    if (tour !== 'profile-overview') return
+    if (step === '15') {
+      profileAccordion.password = true
+      profileAccordion.address = false
+      profileAccordion.colors = false
+    } else if (step === '16') {
+      profileAccordion.password = false
+      profileAccordion.address = true
+      profileAccordion.colors = false
+    } else if (step === '17') {
+      profileAccordion.password = false
+      profileAccordion.address = false
+      profileAccordion.colors = true
+    }
+  },
+  { immediate: true }
+)
+
+function onProfileAccordionToggle(key: 'password' | 'address' | 'colors', event: Event) {
+  const el = event.target as HTMLDetailsElement
+  if (el?.tagName === 'DETAILS') {
+    profileAccordion[key] = el.open
+  }
+}
+
+watch(
+  tourKeepsUserMenuOpen,
+  async (keepOpen) => {
+    if (!keepOpen) return
+    try {
+      await authStore.loadDepartments()
+    } catch {
+      /* bestehende Liste beibehalten */
+    }
+    showUserDropdown.value = true
+  },
+  { immediate: true }
+)
 
 const searchDepartmentId = computed(() => {
   const deptId = route.params.departmentId as string | undefined
@@ -813,6 +987,16 @@ const passwordForm = ref({
   new_password: '',
   confirm_new_password: '',
 })
+const addressForm = ref({
+  street: '',
+  street_number: '',
+  postal_code: '',
+  city: '',
+  canton: '',
+})
+const addressRecordId = ref<string | null>(null)
+const initialAddressSnapshot = ref('')
+const swissCantons = SWISS_CANTONS
 const initialProfileFormSnapshot = ref('')
 const avatarPaletteColors = [
   '#2563EB',
@@ -876,10 +1060,16 @@ const hasUnsavedProfileChanges = computed(() => {
   if (!initialProfileFormSnapshot.value) return false
   return serializeProfileForm(profileForm.value) !== initialProfileFormSnapshot.value
 })
+const hasAddressChanges = computed(() => {
+  if (!initialAddressSnapshot.value) return false
+  return serializeAddressForm(addressForm.value) !== initialAddressSnapshot.value
+})
 const hasPasswordInput = computed(() =>
-  !!passwordForm.value.current_password || !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
+  !!passwordForm.value.new_password || !!passwordForm.value.confirm_new_password
 )
 const passwordInlineError = computed(() => {
+  // Nur validieren, wenn wirklich ein Passwort-Wechsel gestartet wurde
+  // (Autofill füllt oft nur «aktuelles Passwort» → sonst Blockade / Fehler)
   if (!hasPasswordInput.value) return ''
   const currentPassword = passwordForm.value.current_password
   const newPassword = passwordForm.value.new_password
@@ -1094,6 +1284,10 @@ async function closeTab(tab: DetailTab) {
 }
 
 async function toggleUserMenu() {
+  // Während Tour-Schritten im Menü: nicht zuschlagen
+  if (tourKeepsUserMenuOpen.value && showUserDropdown.value) {
+    return
+  }
   const opening = !showUserDropdown.value
   if (opening) {
     try {
@@ -1654,6 +1848,7 @@ function editProfile() {
   isEmailEditEnabled.value = false
   showEditProfileModal.value = true
   showUserDropdown.value = false
+  void loadProfileUserAddress()
 }
 
 async function selectDepartment(departmentId: string) {
@@ -1674,7 +1869,7 @@ function switchSupplierCompany() {
   const currentIdx = companies.findIndex((c) => c.id === authStore.activeSupplierCompanyId)
   const next = companies[(currentIdx + 1 + companies.length) % companies.length]
   authStore.setActiveSupplierCompany(next.id)
-  router.push(`/supplier/${next.id}/profile`)
+  router.push(`/supplier/${next.id}/dashboard`)
   showUserDropdown.value = false
 }
 
@@ -1691,7 +1886,10 @@ function closeEditProfileModal() {
   showEditProfileModal.value = false
   isEmailEditEnabled.value = false
   initialProfileFormSnapshot.value = ''
+  initialAddressSnapshot.value = ''
+  addressRecordId.value = null
   resetPasswordForm()
+  resetAddressForm()
 }
 
 function resetPasswordForm() {
@@ -1700,9 +1898,54 @@ function resetPasswordForm() {
   passwordForm.value.confirm_new_password = ''
 }
 
+function resetAddressForm() {
+  addressForm.value = {
+    street: '',
+    street_number: '',
+    postal_code: '',
+    city: '',
+    canton: '',
+  }
+}
+
+function serializeAddressForm(form: typeof addressForm.value): string {
+  return JSON.stringify({
+    street: form.street.trim(),
+    street_number: form.street_number.trim(),
+    postal_code: form.postal_code.trim(),
+    city: form.city.trim(),
+    canton: form.canton.trim(),
+  })
+}
+
+async function loadProfileUserAddress() {
+  resetAddressForm()
+  addressRecordId.value = null
+  initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+  const profileId = authStore.profileId
+  const departmentId = authStore.activeDepartmentId
+  if (!profileId || !departmentId) return
+  try {
+    const { addresses } = await getAddresses(departmentId, { type: USER_ADDRESS_TYPE })
+    const match = findAddressForProfile(addresses, profileId)
+    if (!match) return
+    addressRecordId.value = match.id
+    addressForm.value = {
+      street: match.street || '',
+      street_number: match.street_number || '',
+      postal_code: match.postal_code || '',
+      city: match.city || '',
+      canton: match.canton || '',
+    }
+    initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+  } catch {
+    /* Adresse optional — Fehler nicht blockierend */
+  }
+}
+
 async function requestCloseEditProfileModal() {
   if (savingProfile.value) return
-  if (hasUnsavedProfileChanges.value) {
+  if (hasUnsavedProfileChanges.value || hasAddressChanges.value) {
     const shouldClose = await confirm.confirm({
       title: t('layout.confirm.unsavedTitle'),
       message: t('layout.confirm.unsavedMessage'),
@@ -1789,7 +2032,12 @@ async function saveProfile() {
   }
   const shouldUpdateProfile = hasUnsavedProfileChanges.value
   const shouldChangePassword = hasPasswordInput.value
-  if (!shouldUpdateProfile && !shouldChangePassword) {
+  const shouldSaveAddress = hasAddressChanges.value
+  if (!shouldUpdateProfile && !shouldChangePassword && !shouldSaveAddress) {
+    if (isTourProfileSaveStep.value) {
+      closeEditProfileModal()
+      return
+    }
     toast.info(t('layout.toast.noChanges'))
     return
   }
@@ -1860,10 +2108,57 @@ async function saveProfile() {
       resetPasswordForm()
     }
 
-    if (shouldUpdateProfile && !shouldChangePassword) {
-      toast.success(t('layout.toast.profileSaved'))
-    } else if (shouldUpdateProfile && shouldChangePassword) {
+    if (shouldSaveAddress) {
+      const departmentId = authStore.activeDepartmentId
+      if (!departmentId) {
+        toast.error(t('layout.toast.profileSaveFailed'))
+        return
+      }
+      const street = addressForm.value.street.trim()
+      const postal = addressForm.value.postal_code.trim()
+      const city = addressForm.value.city.trim()
+      const hasAny =
+        street ||
+        postal ||
+        city ||
+        addressForm.value.street_number.trim() ||
+        addressForm.value.canton.trim()
+      if (hasAny && (!street || !postal || !city)) {
+        toast.error(t('layout.profileModal.addressIncomplete'))
+        return
+      }
+      if (hasAny) {
+        const payload = {
+          department_id: departmentId,
+          type: USER_ADDRESS_TYPE,
+          name: t('layout.profileModal.addressContactName', {
+            name: `${profileForm.value.first_name} ${profileForm.value.last_name}`.trim() || 'Profil',
+          }),
+          street,
+          street_number: addressForm.value.street_number.trim() || null,
+          postal_code: postal,
+          city,
+          canton: addressForm.value.canton.trim() || null,
+          country: 'Schweiz',
+          contact_first_name: profileForm.value.first_name.trim() || null,
+          contact_last_name: profileForm.value.last_name.trim() || null,
+          email: (authStore.profile?.email || profileForm.value.email || '').trim() || null,
+          additional_info: profileAddressMarker(profileId),
+        }
+        if (addressRecordId.value) {
+          await updateAddress(addressRecordId.value, payload)
+        } else {
+          const created = await createAddress(payload)
+          addressRecordId.value = created.address.id
+        }
+        initialAddressSnapshot.value = serializeAddressForm(addressForm.value)
+      }
+    }
+
+    if (shouldUpdateProfile && shouldChangePassword) {
       toast.success(t('layout.toast.profileAndPasswordSaved'))
+    } else if (shouldUpdateProfile || shouldSaveAddress) {
+      toast.success(t('layout.toast.profileSaved'))
     }
 
     closeEditProfileModal()
@@ -1877,7 +2172,8 @@ async function saveProfile() {
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement
-  if (!target.closest('.user-menu-wrapper')) {
+  // Tour-Schritte 11/12: Menü offen lassen (Weiter-Klick liegt ausserhalb)
+  if (!tourKeepsUserMenuOpen.value && !target.closest('.user-menu-wrapper')) {
     showUserDropdown.value = false
   }
   if (!target.closest('.header-icon-btn') && !target.closest('.notifications-dropdown')) {
@@ -2261,6 +2557,10 @@ watch(
   min-width: 280px;
   z-index: 1000;
   overflow: hidden;
+}
+
+.user-dropdown.onboarding-tour-elevate-root {
+  z-index: 20050 !important;
 }
 
 .notifications-dropdown {
@@ -2752,6 +3052,9 @@ watch(
 }
 
 .dept-switch-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -2760,6 +3063,11 @@ watch(
   background: #ecfdf5;
   border-radius: 4px;
   padding: 1px 6px;
+}
+
+.dept-switch-tag--primary {
+  color: #b45309;
+  background: #fffbeb;
 }
 
 .dept-switch-check {
@@ -2939,6 +3247,52 @@ watch(
 .password-inline-error {
   color: #b91c1c;
   font-size: 11px;
+}
+
+.profile-address-hint {
+  margin: 4px 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.profile-accordion {
+  margin: 0 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.profile-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+}
+
+.profile-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-accordion__summary::after {
+  content: '▾';
+  float: right;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.profile-accordion[open] > .profile-accordion__summary::after {
+  transform: rotate(-180deg);
+}
+
+.profile-accordion__body {
+  padding: 0 14px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
 }
 
 .password-inline-success {

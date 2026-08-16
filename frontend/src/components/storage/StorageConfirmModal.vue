@@ -1,16 +1,18 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay">
-    <div class="confirm-dialog">
-      <h3>{{ title }}</h3>
-      <p>{{ message }}</p>
-      <div class="modal-actions">
-        <button class="btn-secondary" @click="$emit('close')">{{ t('common.cancel') }}</button>
-        <button class="btn-danger" :disabled="isLoading" @click="$emit('confirm')">
-          {{ isLoading ? loadingLabel : confirmLabel }}
-        </button>
+  <Teleport to="body">
+    <div v-if="isOpen" class="modal-overlay">
+      <div class="confirm-dialog">
+        <h3>{{ title }}</h3>
+        <p>{{ message }}</p>
+        <div class="modal-actions">
+          <button class="btn-secondary" @click="$emit('close')">{{ t('common.cancel') }}</button>
+          <button class="btn-danger" :disabled="isLoading" @click="$emit('confirm')">
+            {{ isLoading ? loadingLabel : confirmLabel }}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">

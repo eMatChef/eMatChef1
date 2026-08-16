@@ -208,6 +208,7 @@ class DepartmentSetting
     public static function getJsMaterialDefaults(): array
     {
         return [
+            'js.default_coach_user_id' => '',
             'js.default_coach_person_nr' => '',
             'js.default_coach_first_name' => '',
             'js.default_coach_last_name' => '',

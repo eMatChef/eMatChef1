@@ -7,13 +7,9 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Service\Material\MaterialItemPhotoService;
 use App\Service\Material\MaterialPhotoAccessService;
-use App\Service\Material\MaterialPhotoStorageService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -22,7 +18,6 @@ class MaterialPhotoController extends AbstractController
 {
     public function __construct(
         private MaterialPhotoAccessService $photoAccess,
-        private MaterialPhotoStorageService $photoStorage,
         private MaterialItemPhotoService $itemPhotoService,
     ) {
     }
@@ -84,31 +79,6 @@ class MaterialPhotoController extends AbstractController
                     ? $e->getMessage()
                     : 'Bild konnte nicht importiert werden',
             ], 400);
-        }
-    }
-
-    #[Route('/{materialId}/photos/{filename}', name: 'show', methods: ['GET'])]
-    #[IsGranted('ROLE_USER')]
-    public function show(string $materialId, string $filename): Response
-    {
-        try {
-            $user = $this->requireUser();
-            $material = $this->photoAccess->requireMaterialById($materialId);
-            $this->photoAccess->assertCanViewPhoto($user, $material);
-
-            $path = $this->photoStorage->resolveFilePath(
-                $material->getDepartmentId(),
-                $materialId,
-                $filename,
-            );
-            $response = new BinaryFileResponse($path);
-            $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $filename);
-
-            return $response;
-        } catch (\Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 403);
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 404);
         }
     }
 

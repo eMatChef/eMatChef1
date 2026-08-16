@@ -1,5 +1,7 @@
 # Frontend auf dem Droplet (statt Hostpoint-FTP)
 
+Chat-Chronik / Cutover-Stand: [`HETZNER-CUTOVER.md`](HETZNER-CUTOVER.md)
+
 ## Zielbild
 
 | Was | Host | Deploy |

@@ -44,6 +44,19 @@ class DepartmentSupplierShopController extends AbstractController
         ]);
     }
 
+    #[Route('/availability', name: 'availability', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function availability(string $departmentId): JsonResponse
+    {
+        if (!$this->canAccessShop($departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        return new JsonResponse([
+            'has_articles' => $this->shopService->hasShopArticles(),
+        ]);
+    }
+
     #[Route('/repair-companies', name: 'repair_companies', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function repairCompanies(string $departmentId): JsonResponse

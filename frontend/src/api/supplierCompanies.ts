@@ -106,3 +106,16 @@ export async function patchSupplierCompany(
   const { data } = await apiClient.patch(`/api/supplier-companies/${id}`, payload)
   return data
 }
+
+export interface SupplierDashboard {
+  company_id: string
+  company_name: string
+  capabilities: string[]
+  sales: { offered: boolean; item_count: number }
+  workshop: { offered: boolean; open_count: number }
+}
+
+export async function getSupplierDashboard(id: string): Promise<{ dashboard: SupplierDashboard }> {
+  const { data } = await apiClient.get(`/api/supplier-companies/${id}/dashboard`)
+  return data
+}

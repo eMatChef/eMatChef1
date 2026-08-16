@@ -46,6 +46,11 @@ class SecurityHeadersSubscriber implements EventSubscriberInterface
         if ($request->isSecure() && !$headers->has('Strict-Transport-Security')) {
             $headers->set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
         }
+
+        // API-Domain (api.ematchef.ch) gehört nicht in die Google-Suche.
+        if (!$headers->has('X-Robots-Tag')) {
+            $headers->set('X-Robots-Tag', 'noindex, nofollow');
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="cancel">
+    <div class="modal-overlay activity-mat-qty-overlay" @click.self="cancel">
       <div class="modal-dialog activity-mat-qty-dialog">
         <div class="amqd-head">
           <h3>{{ t('activities.materialAvailability.quantityDialogTitle') }}</h3>
@@ -142,5 +142,12 @@ onMounted(() => {
 
 .text-muted {
   color: #6b7280;
+}
+</style>
+
+<!-- Unscoped: Teleport + Tour-Stacking — Mengenfeld (Spinbox) muss über Dimmer/Karte klickbar sein -->
+<style>
+.activity-mat-qty-overlay {
+  z-index: 10070 !important;
 }
 </style>

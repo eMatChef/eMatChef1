@@ -47,7 +47,7 @@ export const ONBOARDING_CHECKLIST_ITEMS: OnboardingChecklistItemDef[] = [
     labelKey: 'onboarding.hub.items.settingsInitialized.label',
     descriptionKey: 'onboarding.hub.items.settingsInitialized.description',
     wizardStep: 2,
-    routeName: 'SettingsZeit',
+    routeName: 'SettingsModule',
     tier: 'recommended',
     alwaysResolved: true,
   },

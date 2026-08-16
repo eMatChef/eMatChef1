@@ -117,7 +117,11 @@
         </div>
       </section>
 
-      <section id="activity-create-material" class="activity-create-section">
+      <section
+        id="activity-create-material"
+        class="activity-create-section"
+        data-onboarding="activity-create-material"
+      >
         <ActivityOutlinedSection :title="t('common.material')" :required="true">
           <ActivityCreateMaterialStep
             :department-id="departmentId"
@@ -378,7 +382,11 @@
         </div>
       </section>
 
-      <section v-show="currentStepKey === 'zeitraum'" id="activity-create-zeitraum" class="activity-create-section">
+      <section
+        v-show="currentStepKey === 'zeitraum'"
+        id="activity-create-zeitraum"
+        class="activity-create-section"
+      >
         <div class="step-header">
           <span class="step-title">{{ stepTitles.zeitraum }}</span>
         </div>
@@ -459,7 +467,12 @@
         </div>
       </section>
 
-      <section v-show="currentStepKey === 'material'" id="activity-create-material" class="activity-create-section">
+      <section
+        v-show="currentStepKey === 'material'"
+        id="activity-create-material"
+        class="activity-create-section"
+        data-onboarding="activity-create-material"
+      >
         <ActivityOutlinedSection :title="stepTitles.material" :required="true">
           <p v-if="wantsJsMaterial" class="field-hint text-muted activity-js-material-step-hint">
             {{ t('activities.jsMaterial.materialStepHint') }}

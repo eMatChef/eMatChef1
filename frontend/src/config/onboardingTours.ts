@@ -5,25 +5,50 @@
  */
 import {
   isDepartmentBasicMemberRole,
+  isDepartmentDcRole,
+  isDepartmentLeaderRole,
   isDepartmentMwOrDcRole,
 } from '@/composables/useDepartmentMemberRole'
 
 export type OnboardingTourId =
   | 'profile-overview'
   | 'material-create'
+  | 'material-consumable'
+  | 'material-food'
   | 'activity-create'
   | 'activity-camp-create'
+  | 'activity-approve'
   | 'issue-return'
+  | 'issue-handoff'
+  | 'activity-close'
+  | 'workshop-overview'
   | 'categories'
   | 'invite-users'
   | 'default-coach'
+  | 'department-details'
+  | 'org-overview'
+  | 'suborg-overview'
 
-export type OnboardingTourCategory = 'start' | 'material' | 'activities' | 'settings'
+export type OnboardingTourCategory = 'start' | 'material' | 'activities' | 'settings' | 'admin'
 
 export type OnboardingTourStepMode = 'info' | 'click' | 'waitFor'
 
-/** Wer darf die Tour im Hub sehen? */
-export type OnboardingTourAudience = 'mw' | 'member' | 'all'
+export interface OnboardingTourCompletionCta {
+  labelKey: string
+  /** stay = aktuelle Seite; helpTours = Touren-Hub */
+  action: 'stay' | 'helpTours'
+}
+
+/**
+ * Wer darf die Tour im Hub sehen?
+ * Höhere Rollen sehen immer auch die Touren darunter.
+ * - all / member: Basis
+ * - leader: L1–L3 / Gruppenchef ★ — und darüber MW/DC
+ * - mw: Materialwart + Depchef
+ * - dc: nur Depchef (und Superadmin)
+ * - org / suborg: wie bisher
+ */
+export type OnboardingTourAudience = 'mw' | 'dc' | 'leader' | 'member' | 'all' | 'org' | 'suborg'
 
 export interface OnboardingTourStepDef {
   id: string
@@ -31,8 +56,21 @@ export interface OnboardingTourStepDef {
   /** Optional route override when entering this step (named route). */
   routeName?: string
   mode?: OnboardingTourStepMode
+  /** Ziel an den oberen Viewport-Rand scrollen (statt nearest). */
+  scroll?: 'start' | 'nearest'
+  /**
+   * Spotlight darf fast die volle Viewport-Höhe nutzen (z. B. Lager-Übersicht mit Regalen/Fächern).
+   * Sonst wird das Loch auf ~42% Höhe begrenzt.
+   */
+  tallSpotlight?: boolean
+  /**
+   * Tour-Karte fest positionieren (z. B. bei sehr grossem Spotlight, damit sie nicht abgeschnitten wird).
+   */
+  cardPlacement?: 'auto' | 'bottom-right'
   titleKey: string
   bodyKey: string
+  /** Optional: i18n-Key auf string[] — strukturierte Bullet-Punkte unter dem Body. */
+  bodyItemsKey?: string
 }
 
 export interface OnboardingTourDef {
@@ -45,11 +83,34 @@ export interface OnboardingTourDef {
   mdiIcon: string
   /** Tour-Karte zeigt den aktuellen User-Avatar statt MDI-Icon. */
   useUserAvatar?: boolean
-  /** Default `mw` — nur Materialwart/Depchef. `member` = User/L1–L3 (+ MW). `all` = beides. */
+  /** Default `mw`. */
   audience?: OnboardingTourAudience
   /** Tour nur anzeigen wenn Camp/Event anlegen erlaubt (z. B. activity-camp-create). */
   requiresCampCreate?: boolean
+  /**
+   * Tour erst starten, wenn diese Touren abgeschlossen sind.
+   * Prereqs, die für die Rolle ohnehin unsichtbar sind, werden ignoriert.
+   */
+  requiresCompletedTours?: OnboardingTourId[]
+  /**
+   * Mindestens eine dieser Touren muss erledigt sein (OR).
+   * Unsichtbare Touren für die Rolle zählen nicht als Pflicht.
+   */
+  requiresAnyCompletedTours?: OnboardingTourId[]
+  /**
+   * Packen: mind. eine Aktivität vom Typ activity oder camp
+   * im Status freigegeben (approved) oder weiter im Pack-Flow.
+   */
+  requiresApprovedActivityOrCamp?: boolean
+  /** Optionale Abschluss-Buttons (letzter Schritt). */
+  completionCtas?: OnboardingTourCompletionCta[]
   steps: OnboardingTourStepDef[]
+}
+
+export type OnboardingTourFilterOptions = {
+  canCreateCamp?: boolean
+  /** User ist Gruppenchef (★) in mind. einer Gruppe dieses Departments. */
+  isGroupLeader?: boolean
 }
 
 export const ONBOARDING_TOUR_QUERY = 'onboardingTour'
@@ -57,9 +118,10 @@ export const ONBOARDING_TOUR_STEP_QUERY = 'onboardingTourStep'
 
 export const ONBOARDING_TOUR_CATEGORY_ORDER: OnboardingTourCategory[] = [
   'start',
-  'activities',
-  'material',
   'settings',
+  'material',
+  'activities',
+  'admin',
 ]
 
 export const ONBOARDING_TOUR_CATEGORY_LABEL_KEYS: Record<OnboardingTourCategory, string> = {
@@ -67,13 +129,14 @@ export const ONBOARDING_TOUR_CATEGORY_LABEL_KEYS: Record<OnboardingTourCategory,
   material: 'onboarding.tours.categories.material',
   activities: 'onboarding.tours.categories.activities',
   settings: 'onboarding.tours.categories.settings',
+  admin: 'onboarding.tours.categories.admin',
 }
 
 export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'profile-overview',
     category: 'start',
-    version: 2,
+    version: 3,
     audience: 'all',
     useUserAvatar: true,
     routeName: 'Dashboard',
@@ -188,25 +251,33 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       },
       {
         id: '16',
-        target: '[data-onboarding="profile-colors"]',
+        target: '[data-onboarding="profile-address"]',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step16Title',
         bodyKey: 'onboarding.tours.profileOverview.step16Body',
       },
       {
         id: '17',
-        target: '[data-onboarding="profile-save"]',
+        target: '[data-onboarding="profile-colors"]',
         mode: 'info',
         titleKey: 'onboarding.tours.profileOverview.step17Title',
         bodyKey: 'onboarding.tours.profileOverview.step17Body',
+      },
+      {
+        id: '18',
+        target: '[data-onboarding="profile-save"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.profileOverview.step18Title',
+        bodyKey: 'onboarding.tours.profileOverview.step18Body',
       },
     ],
   },
   {
     id: 'material-create',
     category: 'material',
-    version: 2,
+    version: 11,
     audience: 'mw',
+    requiresCompletedTours: ['categories'],
     routeName: 'Materials',
     titleKey: 'onboarding.tours.materialCreate.title',
     descriptionKey: 'onboarding.tours.materialCreate.description',
@@ -214,39 +285,309 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     steps: [
       {
         id: '1',
-        target: '[data-onboarding="material-new"]',
+        target: '[data-onboarding="nav-materials"]',
         mode: 'click',
         titleKey: 'onboarding.tours.materialCreate.step1Title',
         bodyKey: 'onboarding.tours.materialCreate.step1Body',
       },
       {
         id: '2',
-        target: '[data-onboarding="material-creation-individual"]',
+        target: '[data-onboarding="material-new"]',
         mode: 'click',
         titleKey: 'onboarding.tours.materialCreate.step2Title',
         bodyKey: 'onboarding.tours.materialCreate.step2Body',
       },
       {
         id: '3',
-        target: '[data-onboarding="material-wizard-general"]',
-        mode: 'waitFor',
+        target: '[data-onboarding="material-creation-individual"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.materialCreate.step3Title',
         bodyKey: 'onboarding.tours.materialCreate.step3Body',
       },
       {
         id: '4',
-        target: '[data-onboarding="material-wizard-category"]',
+        target: '[data-onboarding="material-wizard-article-name"]',
         mode: 'waitFor',
         titleKey: 'onboarding.tours.materialCreate.step4Title',
         bodyKey: 'onboarding.tours.materialCreate.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="material-wizard-type-toggles"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step5Title',
+        bodyKey: 'onboarding.tours.materialCreate.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="material-wizard-category"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialCreate.step6Title',
+        bodyKey: 'onboarding.tours.materialCreate.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="material-wizard-tracking"]',
+        mode: 'click',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step7Title',
+        bodyKey: 'onboarding.tours.materialCreate.step7Body',
+      },
+      {
+        id: '8',
+        target: '[data-onboarding="material-wizard-stock-unit"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step8Title',
+        bodyKey: 'onboarding.tours.materialCreate.step8Body',
+      },
+      {
+        id: '9',
+        target: '[data-onboarding="material-wizard-stock-qty"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step9Title',
+        bodyKey: 'onboarding.tours.materialCreate.step9Body',
+      },
+      {
+        id: '10',
+        target: '[data-onboarding="material-wizard-stock-purchase-date"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step10Title',
+        bodyKey: 'onboarding.tours.materialCreate.step10Body',
+      },
+      {
+        id: '11',
+        target: '[data-onboarding="material-wizard-stock-purchase-price"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step11Title',
+        bodyKey: 'onboarding.tours.materialCreate.step11Body',
+      },
+      {
+        id: '12',
+        target: '[data-onboarding="material-wizard-stock-codes"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step12Title',
+        bodyKey: 'onboarding.tours.materialCreate.step12Body',
+      },
+      {
+        id: '13',
+        target: '[data-onboarding="material-wizard-stock-split"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step13Title',
+        bodyKey: 'onboarding.tours.materialCreate.step13Body',
+      },
+      {
+        id: '14',
+        target: '[data-onboarding="material-wizard-stock-storage"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step14Title',
+        bodyKey: 'onboarding.tours.materialCreate.step14Body',
+      },
+      {
+        id: '15',
+        target: '[data-onboarding="material-wizard-details"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialCreate.step15Title',
+        bodyKey: 'onboarding.tours.materialCreate.step15Body',
+        bodyItemsKey: 'onboarding.tours.materialCreate.step15Items',
+      },
+      {
+        id: '16',
+        target: '[data-onboarding="material-wizard-rental"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialCreate.step16Title',
+        bodyKey: 'onboarding.tours.materialCreate.step16Body',
+      },
+      {
+        id: '17',
+        target: '[data-onboarding="material-wizard-submit"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialCreate.step17Title',
+        bodyKey: 'onboarding.tours.materialCreate.step17Body',
+      },
+    ],
+  },
+  {
+    id: 'material-consumable',
+    category: 'material',
+    version: 9,
+    audience: 'mw',
+    requiresCompletedTours: ['material-create'],
+    routeName: 'Materials',
+    titleKey: 'onboarding.tours.materialConsumable.title',
+    descriptionKey: 'onboarding.tours.materialConsumable.description',
+    mdiIcon: 'mdi-candle',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="nav-materials"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialConsumable.step1Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="material-new"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialConsumable.step2Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="material-creation-individual"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialConsumable.step3Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="material-wizard-article-name"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialConsumable.step4Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="material-wizard-toggle-consumable"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialConsumable.step5Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="material-wizard-category"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialConsumable.step6Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="material-wizard-tracking"]',
+        mode: 'click',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialConsumable.step7Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step7Body',
+      },
+      {
+        id: '8',
+        target: '[data-onboarding="material-wizard-stock-unit"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialConsumable.step8Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step8Body',
+      },
+      {
+        id: '9',
+        target: '[data-onboarding="material-wizard-stock-qty"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialConsumable.step9Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step9Body',
+      },
+      {
+        id: '10',
+        target: '[data-onboarding="material-wizard-consumable-pricing"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialConsumable.step10Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step10Body',
+      },
+      {
+        id: '11',
+        target: '[data-onboarding="material-wizard-submit"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialConsumable.step11Title',
+        bodyKey: 'onboarding.tours.materialConsumable.step11Body',
+      },
+    ],
+  },
+  {
+    id: 'material-food',
+    category: 'material',
+    version: 1,
+    audience: 'mw',
+    requiresCompletedTours: ['material-create'],
+    routeName: 'Materials',
+    titleKey: 'onboarding.tours.materialFood.title',
+    descriptionKey: 'onboarding.tours.materialFood.description',
+    mdiIcon: 'mdi-food-apple-outline',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.materialFood.ctaStay',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.materialFood.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="nav-materials"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialFood.step1Title',
+        bodyKey: 'onboarding.tours.materialFood.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="material-new"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialFood.step2Title',
+        bodyKey: 'onboarding.tours.materialFood.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="material-creation-individual"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.materialFood.step3Title',
+        bodyKey: 'onboarding.tours.materialFood.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="material-wizard-toggle-food"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.materialFood.step4Title',
+        bodyKey: 'onboarding.tours.materialFood.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="material-wizard-category"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialFood.step5Title',
+        bodyKey: 'onboarding.tours.materialFood.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="material-wizard-stock"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.materialFood.step6Title',
+        bodyKey: 'onboarding.tours.materialFood.step6Body',
+      },
+      {
+        id: '7',
+        mode: 'info',
+        titleKey: 'onboarding.tours.materialFood.step7Title',
+        bodyKey: 'onboarding.tours.materialFood.step7Body',
       },
     ],
   },
   {
     id: 'activity-create',
     category: 'activities',
-    version: 3,
+    version: 7,
     audience: 'all',
+    requiresCompletedTours: ['material-create', 'material-consumable'],
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityCreate.title',
     descriptionKey: 'onboarding.tours.activityCreate.description',
@@ -275,19 +616,34 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       },
       {
         id: '4',
-        target: '#activity-create-zeitraum',
+        target: '[data-onboarding="activity-create-zeitraum"]',
         mode: 'waitFor',
         titleKey: 'onboarding.tours.activityCreate.step4Title',
         bodyKey: 'onboarding.tours.activityCreate.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="activity-create-material"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.activityCreate.step5Title',
+        bodyKey: 'onboarding.tours.activityCreate.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="activity-wizard-submit"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityCreate.step6Title',
+        bodyKey: 'onboarding.tours.activityCreate.step6Body',
       },
     ],
   },
   {
     id: 'activity-camp-create',
     category: 'activities',
-    version: 2,
+    version: 3,
     audience: 'all',
     requiresCampCreate: true,
+    requiresCompletedTours: ['material-create', 'material-consumable'],
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityCampCreate.title',
     descriptionKey: 'onboarding.tours.activityCampCreate.description',
@@ -331,14 +687,49 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
     ],
   },
   {
-    id: 'issue-return',
+    id: 'activity-approve',
     category: 'activities',
     version: 2,
+    audience: 'leader',
+    requiresCampCreate: true,
+    requiresCompletedTours: ['activity-camp-create'],
+    routeName: 'Activities',
+    titleKey: 'onboarding.tours.activityApprove.title',
+    descriptionKey: 'onboarding.tours.activityApprove.description',
+    mdiIcon: 'mdi-check-decagram-outline',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="activities-list-filters"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityApprove.step1Title',
+        bodyKey: 'onboarding.tours.activityApprove.step1Body',
+      },
+      {
+        id: '2',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityApprove.step2Title',
+        bodyKey: 'onboarding.tours.activityApprove.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityApprove.step3Title',
+        bodyKey: 'onboarding.tours.activityApprove.step3Body',
+      },
+    ],
+  },
+  {
+    id: 'issue-return',
+    category: 'activities',
+    version: 4,
     audience: 'mw',
+    requiresAnyCompletedTours: ['activity-create', 'activity-camp-create'],
+    requiresApprovedActivityOrCamp: true,
     routeName: 'Activities',
     titleKey: 'onboarding.tours.issueReturn.title',
     descriptionKey: 'onboarding.tours.issueReturn.description',
-    mdiIcon: 'mdi-swap-horizontal',
+    mdiIcon: 'mdi-package-variant-closed',
     steps: [
       {
         id: '1',
@@ -356,84 +747,524 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
       },
       {
         id: '3',
+        mode: 'info',
         titleKey: 'onboarding.tours.issueReturn.step3Title',
         bodyKey: 'onboarding.tours.issueReturn.step3Body',
       },
       {
         id: '4',
+        mode: 'info',
         titleKey: 'onboarding.tours.issueReturn.step4Title',
         bodyKey: 'onboarding.tours.issueReturn.step4Body',
       },
     ],
   },
   {
+    id: 'issue-handoff',
+    category: 'activities',
+    version: 1,
+    audience: 'mw',
+    requiresCompletedTours: ['issue-return'],
+    routeName: 'Activities',
+    titleKey: 'onboarding.tours.issueHandoff.title',
+    descriptionKey: 'onboarding.tours.issueHandoff.description',
+    mdiIcon: 'mdi-swap-horizontal',
+    steps: [
+      {
+        id: '1',
+        mode: 'info',
+        titleKey: 'onboarding.tours.issueHandoff.step1Title',
+        bodyKey: 'onboarding.tours.issueHandoff.step1Body',
+      },
+      {
+        id: '2',
+        mode: 'info',
+        titleKey: 'onboarding.tours.issueHandoff.step2Title',
+        bodyKey: 'onboarding.tours.issueHandoff.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.issueHandoff.step3Title',
+        bodyKey: 'onboarding.tours.issueHandoff.step3Body',
+      },
+      {
+        id: '4',
+        mode: 'info',
+        titleKey: 'onboarding.tours.issueHandoff.step4Title',
+        bodyKey: 'onboarding.tours.issueHandoff.step4Body',
+      },
+    ],
+  },
+  {
+    id: 'activity-close',
+    category: 'activities',
+    version: 1,
+    audience: 'dc',
+    requiresCompletedTours: ['issue-handoff'],
+    routeName: 'Activities',
+    titleKey: 'onboarding.tours.activityClose.title',
+    descriptionKey: 'onboarding.tours.activityClose.description',
+    mdiIcon: 'mdi-archive-check-outline',
+    steps: [
+      {
+        id: '1',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityClose.step1Title',
+        bodyKey: 'onboarding.tours.activityClose.step1Body',
+      },
+      {
+        id: '2',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityClose.step2Title',
+        bodyKey: 'onboarding.tours.activityClose.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.activityClose.step3Title',
+        bodyKey: 'onboarding.tours.activityClose.step3Body',
+      },
+    ],
+  },
+  {
+    id: 'workshop-overview',
+    category: 'activities',
+    version: 2,
+    audience: 'mw',
+    requiresCompletedTours: ['issue-handoff'],
+    routeName: 'Workshop',
+    titleKey: 'onboarding.tours.workshopOverview.title',
+    descriptionKey: 'onboarding.tours.workshopOverview.description',
+    mdiIcon: 'mdi-hammer-wrench',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="nav-workshop"]',
+        mode: 'info',
+        titleKey: 'onboarding.tours.workshopOverview.step1Title',
+        bodyKey: 'onboarding.tours.workshopOverview.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="workshop-list"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.workshopOverview.step2Title',
+        bodyKey: 'onboarding.tours.workshopOverview.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.workshopOverview.step3Title',
+        bodyKey: 'onboarding.tours.workshopOverview.step3Body',
+      },
+    ],
+  },
+  {
     id: 'categories',
     category: 'settings',
-    version: 2,
+    version: 8,
     audience: 'mw',
     routeName: 'SettingsCategories',
     titleKey: 'onboarding.tours.categoriesTour.title',
     descriptionKey: 'onboarding.tours.categoriesTour.description',
     mdiIcon: 'mdi-shape-outline',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.categoriesTour.ctaCreate',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.categoriesTour.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
     steps: [
       {
         id: '1',
-        target: '[data-onboarding="settings-category-new"]',
-        mode: 'info',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.categoriesTour.step1Title',
         bodyKey: 'onboarding.tours.categoriesTour.step1Body',
       },
       {
         id: '2',
-        target: '[data-onboarding="settings-category-list"]',
-        mode: 'waitFor',
+        target: '[data-onboarding="settings-nav-categories"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.categoriesTour.step2Title',
         bodyKey: 'onboarding.tours.categoriesTour.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="settings-category-templates"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.categoriesTour.step3Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="settings-category-templates-dialog"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.categoriesTour.step4Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="settings-category-new"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.categoriesTour.step5Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="category-modal-fields"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.categoriesTour.step6Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="category-modal-actions"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.categoriesTour.step7Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step7Body',
+      },
+      {
+        id: '8',
+        target: '[data-onboarding="settings-category-actions"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.categoriesTour.step8Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step8Body',
+      },
+      {
+        id: '9',
+        mode: 'info',
+        titleKey: 'onboarding.tours.categoriesTour.step9Title',
+        bodyKey: 'onboarding.tours.categoriesTour.step9Body',
+      },
+    ],
+  },
+  {
+    id: 'department-details',
+    category: 'settings',
+    version: 6,
+    audience: 'mw',
+    routeName: 'SettingsMyDepartment',
+    titleKey: 'onboarding.tours.departmentDetails.title',
+    descriptionKey: 'onboarding.tours.departmentDetails.description',
+    mdiIcon: 'mdi-map-marker-radius-outline',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.departmentDetails.ctaStay',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.departmentDetails.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.departmentDetails.step1Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="settings-nav-my-department"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.departmentDetails.step2Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="settings-dept-storage-accordion"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.departmentDetails.step3Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="settings-dept-storage-panel"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.departmentDetails.step4Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="settings-nav-storage"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.departmentDetails.step5Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step5Body',
+      },
+      {
+        id: '6',
+        routeName: 'SettingsStorage',
+        target: '[data-onboarding="settings-storage-new-rack"]',
+        mode: 'click',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.departmentDetails.step6Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step6Body',
+      },
+      {
+        id: '7',
+        routeName: 'SettingsStorage',
+        target: '[data-onboarding="settings-storage-rack-modal"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.departmentDetails.step7Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step7Body',
+      },
+      {
+        id: '8',
+        routeName: 'SettingsStorage',
+        target: '[data-onboarding="settings-storage-overview"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        tallSpotlight: true,
+        cardPlacement: 'bottom-right',
+        titleKey: 'onboarding.tours.departmentDetails.step8Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step8Body',
+      },
+      {
+        id: '9',
+        routeName: 'SettingsMyDepartment',
+        target: '[data-onboarding="settings-dept-billing-accordion"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.departmentDetails.step9Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step9Body',
+      },
+      {
+        id: '10',
+        routeName: 'SettingsMyDepartment',
+        target: '[data-onboarding="settings-dept-billing-panel"]',
+        mode: 'waitFor',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.departmentDetails.step10Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step10Body',
+      },
+      {
+        id: '11',
+        routeName: 'SettingsMyDepartment',
+        mode: 'info',
+        titleKey: 'onboarding.tours.departmentDetails.step11Title',
+        bodyKey: 'onboarding.tours.departmentDetails.step11Body',
       },
     ],
   },
   {
     id: 'invite-users',
     category: 'settings',
-    version: 2,
+    version: 7,
     audience: 'mw',
-    routeName: 'SettingsUsers',
+    routeName: 'SettingsMyDepartment',
     titleKey: 'onboarding.tours.inviteUsers.title',
     descriptionKey: 'onboarding.tours.inviteUsers.description',
     mdiIcon: 'mdi-account-plus-outline',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.inviteUsers.ctaStay',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.inviteUsers.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
     steps: [
       {
         id: '1',
-        target: '[data-onboarding="settings-user-add"]',
-        mode: 'info',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.inviteUsers.step1Title',
         bodyKey: 'onboarding.tours.inviteUsers.step1Body',
+      },
+      {
+        id: '2',
+        target: '[data-onboarding="settings-nav-my-department"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.inviteUsers.step2Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="settings-user-search"]',
+        mode: 'info',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.inviteUsers.step3Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="settings-user-add"]',
+        mode: 'click',
+        titleKey: 'onboarding.tours.inviteUsers.step4Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="settings-user-add-search"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.inviteUsers.step5Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step5Body',
+      },
+      {
+        id: '6',
+        target: '[data-onboarding="settings-user-add-actions"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.inviteUsers.step6Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step6Body',
+      },
+      {
+        id: '7',
+        target: '[data-onboarding="settings-user-edit"]',
+        mode: 'click',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.inviteUsers.step7Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step7Body',
+      },
+      {
+        id: '8',
+        target: '[data-onboarding="settings-user-edit-profile"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.inviteUsers.step8Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step8Body',
+      },
+      {
+        id: '9',
+        target: '[data-onboarding="settings-user-edit-address"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.inviteUsers.step9Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step9Body',
+      },
+      {
+        id: '10',
+        mode: 'info',
+        titleKey: 'onboarding.tours.inviteUsers.step10Title',
+        bodyKey: 'onboarding.tours.inviteUsers.step10Body',
       },
     ],
   },
   {
     id: 'default-coach',
     category: 'settings',
-    version: 1,
+    version: 2,
     audience: 'mw',
-    routeName: 'SettingsActivities',
+    routeName: 'SettingsMyDepartment',
     titleKey: 'onboarding.tours.defaultCoach.title',
     descriptionKey: 'onboarding.tours.defaultCoach.description',
     mdiIcon: 'mdi-account-tie-outline',
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.defaultCoach.ctaStay',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.defaultCoach.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
     steps: [
       {
         id: '1',
-        target: '[data-onboarding="settings-js-coach"]',
-        mode: 'info',
+        target: '[data-onboarding="nav-settings"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.defaultCoach.step1Title',
         bodyKey: 'onboarding.tours.defaultCoach.step1Body',
       },
       {
         id: '2',
-        target: '#js-default-coach-person-nr',
-        mode: 'waitFor',
+        target: '[data-onboarding="settings-nav-my-department"]',
+        mode: 'click',
         titleKey: 'onboarding.tours.defaultCoach.step2Title',
         bodyKey: 'onboarding.tours.defaultCoach.step2Body',
+      },
+      {
+        id: '3',
+        target: '[data-onboarding="settings-user-edit"]',
+        mode: 'click',
+        scroll: 'start',
+        titleKey: 'onboarding.tours.defaultCoach.step3Title',
+        bodyKey: 'onboarding.tours.defaultCoach.step3Body',
+      },
+      {
+        id: '4',
+        target: '[data-onboarding="settings-user-edit-coach"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.defaultCoach.step4Title',
+        bodyKey: 'onboarding.tours.defaultCoach.step4Body',
+      },
+      {
+        id: '5',
+        mode: 'info',
+        titleKey: 'onboarding.tours.defaultCoach.step5Title',
+        bodyKey: 'onboarding.tours.defaultCoach.step5Body',
+      },
+    ],
+  },
+  {
+    id: 'org-overview',
+    category: 'admin',
+    version: 1,
+    audience: 'org',
+    routeName: 'DepartmentVerwaltungOrganisations',
+    titleKey: 'onboarding.tours.orgOverview.title',
+    descriptionKey: 'onboarding.tours.orgOverview.description',
+    mdiIcon: 'mdi-office-building-outline',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="admin-orgs"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.orgOverview.step1Title',
+        bodyKey: 'onboarding.tours.orgOverview.step1Body',
+      },
+      {
+        id: '2',
+        mode: 'info',
+        titleKey: 'onboarding.tours.orgOverview.step2Title',
+        bodyKey: 'onboarding.tours.orgOverview.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.orgOverview.step3Title',
+        bodyKey: 'onboarding.tours.orgOverview.step3Body',
+      },
+    ],
+  },
+  {
+    id: 'suborg-overview',
+    category: 'admin',
+    version: 1,
+    audience: 'suborg',
+    routeName: 'DepartmentVerwaltungOrganisations',
+    titleKey: 'onboarding.tours.suborgOverview.title',
+    descriptionKey: 'onboarding.tours.suborgOverview.description',
+    mdiIcon: 'mdi-sitemap-outline',
+    steps: [
+      {
+        id: '1',
+        target: '[data-onboarding="admin-orgs"]',
+        mode: 'waitFor',
+        titleKey: 'onboarding.tours.suborgOverview.step1Title',
+        bodyKey: 'onboarding.tours.suborgOverview.step1Body',
+      },
+      {
+        id: '2',
+        mode: 'info',
+        titleKey: 'onboarding.tours.suborgOverview.step2Title',
+        bodyKey: 'onboarding.tours.suborgOverview.step2Body',
+      },
+      {
+        id: '3',
+        mode: 'info',
+        titleKey: 'onboarding.tours.suborgOverview.step3Title',
+        bodyKey: 'onboarding.tours.suborgOverview.step3Body',
       },
     ],
   },
@@ -459,23 +1290,101 @@ export function getRouteNameForTourStep(
 export function isTourVisibleForRole(
   tour: OnboardingTourDef,
   role: string,
-  options: { canCreateCamp?: boolean } = {}
+  options: OnboardingTourFilterOptions = {}
 ): boolean {
   const audience = tour.audience ?? 'mw'
+  const normalized = String(role || '').toLowerCase().trim()
   const isMw = isDepartmentMwOrDcRole(role)
   const isMember = isDepartmentBasicMemberRole(role)
+  const isLeaderRole = isDepartmentLeaderRole(role) || !!options.isGroupLeader
+  const isDc = isDepartmentDcRole(role)
+  const isOrg = ['org', 'organisationschef'].includes(normalized)
+  const isSuborg = ['sub', 'suborgchef'].includes(normalized)
+  const isSuperadmin = ['sa', 'superadmin'].includes(normalized)
 
-  if (audience === 'mw' && !isMw) return false
-  if (audience === 'member' && !isMember && !isMw) return false
-  if (audience === 'all' && !isMw && !isMember) return false
+  if (audience === 'org') return isOrg || isSuperadmin
+  if (audience === 'suborg') return isSuborg || isOrg || isSuperadmin
 
-  if (tour.requiresCampCreate && !isMw && !options.canCreateCamp) return false
+  let allowed = false
+  if (audience === 'dc') {
+    allowed = isDc || isSuperadmin
+  } else if (audience === 'leader') {
+    // L1–L3 / ★ — MW/DC sehen sie ebenfalls (höhere Rolle)
+    allowed = isLeaderRole || isMw || isSuperadmin
+  } else if (audience === 'mw') {
+    allowed = isMw || isSuperadmin
+  } else if (audience === 'member') {
+    allowed = isMember || isMw || isSuperadmin
+  } else if (audience === 'all') {
+    allowed = isMw || isMember || isSuperadmin
+  }
+
+  if (!allowed) return false
+  // Auch für leader/dc: Camp-Touren nur mit Camp-Recht (MW/SA immer)
+  if (tour.requiresCampCreate && !isMw && !isSuperadmin && !options.canCreateCamp) return false
   return true
+}
+
+/**
+ * Fehlende Vorgänger-Touren (nur solche, die die Rolle überhaupt sehen kann).
+ * `requiresCompletedTours` = alle nötig; `requiresAnyCompletedTours` = mindestens eine.
+ */
+export function getMissingTourPrerequisites(
+  tour: OnboardingTourDef,
+  role: string,
+  completedTourIds: ReadonlySet<OnboardingTourId>,
+  options: OnboardingTourFilterOptions = {}
+): OnboardingTourId[] {
+  const missingAll = (tour.requiresCompletedTours ?? []).filter((prereqId) => {
+    const prereq = getOnboardingTour(prereqId)
+    if (!prereq) return false
+    if (!isTourVisibleForRole(prereq, role, options)) return false
+    return !completedTourIds.has(prereqId)
+  })
+
+  const anyRequired = (tour.requiresAnyCompletedTours ?? []).filter((prereqId) => {
+    const prereq = getOnboardingTour(prereqId)
+    if (!prereq) return false
+    return isTourVisibleForRole(prereq, role, options)
+  })
+
+  const missingAny: OnboardingTourId[] = []
+  if (anyRequired.length > 0) {
+    const anyDone = anyRequired.some((id) => completedTourIds.has(id))
+    if (!anyDone) {
+      missingAny.push(anyRequired[0]!)
+    }
+  }
+
+  return [...missingAll, ...missingAny]
+}
+
+/** Status ab «freigegeben» — Packen/Ausgabe möglich. */
+export const ONBOARDING_ISSUE_READY_STATUSES = new Set([
+  'approved',
+  'packing',
+  'packed',
+  'transport_out',
+  'at_event',
+  'transport_back',
+  'returned',
+  'storing',
+  'completed',
+])
+
+export function isActivityReadyForIssueTour(
+  type: string | null | undefined,
+  status: string | null | undefined
+): boolean {
+  const t = String(type || '').toLowerCase()
+  if (t !== 'activity' && t !== 'camp') return false
+  const s = status === 'issued' ? 'at_event' : String(status || '').toLowerCase()
+  return ONBOARDING_ISSUE_READY_STATUSES.has(s)
 }
 
 export function filterOnboardingToursForRole(
   role: string,
-  options: { canCreateCamp?: boolean } = {}
+  options: OnboardingTourFilterOptions = {}
 ): OnboardingTourDef[] {
   return ONBOARDING_TOURS.filter((tour) => isTourVisibleForRole(tour, role, options))
 }
@@ -488,6 +1397,7 @@ export function groupOnboardingToursByCategory(
     material: [],
     activities: [],
     settings: [],
+    admin: [],
   }
   for (const tour of tours) {
     grouped[tour.category].push(tour)

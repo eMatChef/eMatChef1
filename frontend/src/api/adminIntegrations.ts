@@ -31,8 +31,8 @@ export async function getFcalIntegration(): Promise<FcalIntegrationStatus> {
     authSessionLimitPerMinute: Number(data.auth_session_limit_per_minute || 120),
     authRefreshLimitPerMinute: Number(data.auth_refresh_limit_per_minute || 30),
     autologout: {
-      timeoutMs: Number(data.autologout?.timeout_ms || 3600000),
-      warningMs: Number(data.autologout?.warning_ms || 300000),
+      timeoutMs: Number(data.autologout?.timeout_ms || 1800000),
+      warningMs: Number(data.autologout?.warning_ms || 180000),
       activityThrottleMs: Number(data.autologout?.activity_throttle_ms || 5000),
       refreshIntervalMs: Number(data.autologout?.refresh_interval_ms || 1500000),
       activityEvents: String((data.autologout?.activity_events || ['click', 'keydown', 'scroll']).join(',')),
@@ -81,8 +81,8 @@ export async function saveFcalIntegration(
     authSessionLimitPerMinute: Number(data.auth_session_limit_per_minute || 120),
     authRefreshLimitPerMinute: Number(data.auth_refresh_limit_per_minute || 30),
     autologout: {
-      timeoutMs: Number(data.autologout?.timeout_ms || 3600000),
-      warningMs: Number(data.autologout?.warning_ms || 300000),
+      timeoutMs: Number(data.autologout?.timeout_ms || 1800000),
+      warningMs: Number(data.autologout?.warning_ms || 180000),
       activityThrottleMs: Number(data.autologout?.activity_throttle_ms || 5000),
       refreshIntervalMs: Number(data.autologout?.refresh_interval_ms || 1500000),
       activityEvents: String((data.autologout?.activity_events || ['click', 'keydown', 'scroll']).join(',')),
