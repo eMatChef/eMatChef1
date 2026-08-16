@@ -18,9 +18,10 @@ classify_file() {
       run_locales=1
       run_frontend=1
       ;;
-    .github/workflows/ci.yml)
+    .github/workflows/ci.yml|.githooks/pre-push)
       run_frontend=1
       run_backend=1
+      run_locales=1
       ;;
     frontend/*)
       run_frontend=1
@@ -52,8 +53,17 @@ list_changed() {
   fi
 }
 
+classify_range() {
+  local local_sha="$1"
+  local remote_sha="$2"
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && classify_file "$f"
+  done < <(list_changed "$local_sha" "$remote_sha")
+}
+
+refs_read=0
 if [[ -t 0 ]]; then
-  # Manueller Aufruf: volle Suite.
+  # Manueller Aufruf (Terminal): volle Suite.
   run_frontend=1
   run_backend=1
   run_locales=1
@@ -61,10 +71,30 @@ else
   while read -r local_ref local_sha _remote_ref remote_sha; do
     [[ "$local_ref" == refs/heads/* ]] || continue
     [[ "$local_sha" != "$z40" ]] || continue
-    while IFS= read -r f; do
-      [[ -n "$f" ]] && classify_file "$f"
-    done < <(list_changed "$local_sha" "$remote_sha")
+    refs_read=1
+    classify_range "$local_sha" "$remote_sha"
   done
+fi
+
+# Agent-/CI-Shell: oft leere stdin → früher still übersprungen. Stattdessen HEAD vs Develop.
+if [[ "$refs_read" -eq 0 && ! -t 0 ]]; then
+  echo "pre-push: keine Push-Refs auf stdin — Fallback HEAD vs origin/develop" >&2
+  head_sha="$(git rev-parse HEAD)"
+  if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+    classify_range "$head_sha" "$(git rev-parse origin/develop)"
+  else
+    run_frontend=1
+    run_backend=1
+    run_locales=1
+  fi
+fi
+
+# Immer noch nichts erkannt → lieber einmal zu viel prüfen als GitHub-rot.
+if [[ "$run_frontend" -eq 0 && "$run_backend" -eq 0 && "$run_locales" -eq 0 ]]; then
+  echo "pre-push: Diff ohne Frontend/Backend/Locales — volle Suite zur Sicherheit" >&2
+  run_frontend=1
+  run_backend=1
+  run_locales=1
 fi
 
 if [[ "$run_locales" -eq 1 ]]; then
@@ -97,10 +127,6 @@ if [[ "$run_backend" -eq 1 ]]; then
 
   echo "pre-push: PHPStan..."
   (cd backend && ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress)
-fi
-
-if [[ "$run_frontend" -eq 0 && "$run_backend" -eq 0 && "$run_locales" -eq 0 ]]; then
-  echo "pre-push: keine Frontend/Backend/Locale-Änderungen — Checks übersprungen."
 fi
 
 echo "pre-push: all checks passed."
