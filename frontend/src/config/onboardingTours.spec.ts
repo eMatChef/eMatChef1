@@ -158,8 +158,9 @@ describe('onboarding tour audience filter', () => {
     expect(tour.requiresCompletedTours).toContain('material-create')
     expect(tour.requiresAnyCompletedTours).toBeUndefined()
     expect(tour.steps[0]?.mode).toBe('click')
-    expect(tour.steps[0]?.target).toContain('material-new')
-    expect(tour.steps.length).toBe(7)
+    expect(tour.steps[0]?.target).toContain('nav-materials')
+    expect(tour.steps[1]?.target).toContain('material-new')
+    expect(tour.steps.length).toBe(11)
     expect(
       getMissingTourPrerequisites(tour, 'mw', new Set(), { canCreateCamp: true })
     ).toEqual(['material-create'])
