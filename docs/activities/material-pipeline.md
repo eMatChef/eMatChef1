@@ -215,8 +215,7 @@ Gruppe sieht in der Packliste **4 Transport-Tabs** (ohne «Bestätigt → Gepack
 ### Überschüssige Esswaren / Verbrauch bei Retour (geplant)
 
 - [x] Schema `activity_surplus_report` + Spec — [surplus-return-food.md](./surplus-return-food.md)
-- [ ] API Melden / Liste / Resolve
-- [ ] Journey Retour: Liste «Überschüssiges Material»
+- [x] API surplus-reports (list/create/patch/delete) + Retour-UI Melden
 - [ ] Journey Einlagern: Abarbeiten → Suche / Wizard / Charge
 - [ ] Material-Detail Tab Ausgabe: Surplus-Chargen anzeigen
 

@@ -773,6 +773,40 @@ class ActivityAccessService
     }
 
     /**
+     * Überschüssige Esswaren/Verbrauch bei Retour melden.
+     * Gruppe: ab «Am Anlass» bis inkl. «Retour»; MW/DC in allen Meldungs-Status.
+     */
+    public function canUserReportActivitySurplus(User $user, Activity $activity): bool
+    {
+        if (!$activity->canReportIssues()) {
+            return false;
+        }
+
+        if ($this->isHostDepartmentMwOrDc($user, $activity) || $this->isInvitedDepartmentMwOrDc($user, $activity)) {
+            return true;
+        }
+
+        if (!$this->canUserOperateActivityPackHandoff($user, $activity)) {
+            return false;
+        }
+
+        return \in_array($activity->getStatus(), [
+            Activity::STATUS_AT_EVENT,
+            Activity::STATUS_TRANSPORT_BACK,
+            Activity::STATUS_RETURNED,
+        ], true);
+    }
+
+    /**
+     * Überschuss-Meldung auflösen (Material matchen, Charge, dismiss) — MW/DC.
+     */
+    public function canUserResolveActivitySurplus(User $user, Activity $activity): bool
+    {
+        return $this->isHostDepartmentMwOrDc($user, $activity)
+            || $this->isInvitedDepartmentMwOrDc($user, $activity);
+    }
+
+    /**
      * Verbrauchsmaterial-Nachlieferung (POST items mit replenishment): MW/DC oder Gruppe/Ersteller nur ab «Am Event».
      */
     public function canUserRequestConsumableReplenishment(User $user, Activity $activity): bool

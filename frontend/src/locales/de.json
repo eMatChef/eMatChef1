@@ -3392,6 +3392,32 @@
         "toastFulfilled": "Nachlieferung erfüllt",
         "toastRejected": "Wunsch abgelehnt"
       },
+      "surplusReturn": {
+        "title": "Überschüssiges Material",
+        "hint": "Reste melden, die nicht auf der Packliste standen (z. B. Esswaren). Der Materialwart lagert sie später ein.",
+        "nameLabel": "Bezeichnung",
+        "namePlaceholder": "z. B. Pasta, Milch, Geschirrtücher",
+        "qtyLabel": "Menge",
+        "kindLabel": "Art",
+        "kindFood": "Esswaren",
+        "kindConsumable": "Verbrauch",
+        "kindOther": "Sonstiges",
+        "expiryLabel": "Ablaufdatum (optional)",
+        "expiryShort": "Ablauf {date}",
+        "notesLabel": "Hinweis",
+        "notesPlaceholder": "Optional, z. B. geöffnet / gekühlt",
+        "submit": "Rest melden",
+        "listTitle": "Gemeldete Reste",
+        "empty": "Noch keine Überschuss-Meldungen.",
+        "dismiss": "Verwerfen",
+        "statusOpen": "offen",
+        "statusMatched": "zugeordnet",
+        "statusResolved": "eingelagert",
+        "statusDismissed": "verworfen",
+        "toastSubmitted": "Rest gemeldet",
+        "toastDeleted": "Meldung gelöscht",
+        "toastDismissed": "Meldung verworfen"
+      },
       "retryMove": {
         "hint": "Letzte Buchung fehlgeschlagen.",
         "action": "Erneut versuchen"

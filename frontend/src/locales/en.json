@@ -2974,6 +2974,32 @@
         "doneDescriptionQuickIssue": "Issued material appears here — report loss, consumption or repair on each line.",
         "listTitle": "Checklist coming soon",
         "listDescription": "{count} lines loaded — rows and actions arrive in phase 2."
+      },
+      "surplusReturn": {
+        "title": "Surplus material",
+        "hint": "Report leftovers that were not on the packing list (e.g. food). Material staff will store them later.",
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g. pasta, milk, tea towels",
+        "qtyLabel": "Quantity",
+        "kindLabel": "Type",
+        "kindFood": "Food",
+        "kindConsumable": "Consumable",
+        "kindOther": "Other",
+        "expiryLabel": "Expiry date (optional)",
+        "expiryShort": "Expires {date}",
+        "notesLabel": "Note",
+        "notesPlaceholder": "Optional, e.g. opened / refrigerated",
+        "submit": "Report leftover",
+        "listTitle": "Reported leftovers",
+        "empty": "No surplus reports yet.",
+        "dismiss": "Dismiss",
+        "statusOpen": "open",
+        "statusMatched": "matched",
+        "statusResolved": "stored",
+        "statusDismissed": "dismissed",
+        "toastSubmitted": "Leftover reported",
+        "toastDeleted": "Report deleted",
+        "toastDismissed": "Report dismissed"
       }
     },
     "packList": {

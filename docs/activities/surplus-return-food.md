@@ -64,8 +64,8 @@ Keine Buchhaltungs-Kostenbuchung bei Esswaren-Resten (bereits über Aktivität b
 ## Slice-Reihenfolge
 
 1. **Schema + Entity** — erledigt (diese Migration/Entity)
-2. **API** — CRUD Melden / Liste offen / resolve (Batch/Material verknüpfen)
-3. **Retour-UI** — Liste erfassen
+2. **API** — erledigt (`GET|POST /surplus-reports`, `PATCH|DELETE /surplus-reports/{id}`)
+3. **Retour-UI** — erledigt (`MaterialSurplusReturnPanel` im Journey-Return)
 4. **Store-UI** — Abarbeiten + Deep-Link Wizard/Batch
 5. **Detail-Tab** — Surplus-Zeilen anzeigen
 6. **Feinschliff** — ähnliche Suche, Benachrichtigung MW, Abgrenzung Kistencheck
