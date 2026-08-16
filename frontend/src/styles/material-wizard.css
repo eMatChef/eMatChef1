@@ -1231,6 +1231,66 @@ body.material-wizard-open .help-shortcut-btn {
   background: #fecaca;
 }
 
+.food-extra-lots {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.food-lots {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  margin-bottom: 0 !important;
+}
+
+.food-lot-row {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 2.5rem;
+  align-items: end;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px dashed #d1d5db;
+}
+
+.food-lot-row:first-child {
+  padding-top: 0;
+}
+
+.food-lot-num {
+  margin-bottom: 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.food-lot-fields {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 0 !important;
+}
+
+.food-lot-fields > .form-group {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.food-lot-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.food-lot-actions .combo-remove {
+  flex: 0 0 auto;
+}
+
 .combo-empty-hint {
   text-align: center;
   padding: 24px;

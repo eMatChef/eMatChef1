@@ -129,6 +129,9 @@ class MaterialItem
     private ?\DateTime $warrantyUntil = null;
 
     // Verleih
+    #[ORM\Column(name: 'is_rentable', type: 'boolean', options: ['default' => true])]
+    private bool $isRentable = true;
+
     #[ORM\Column(name: 'rental_external_allowed', type: 'boolean', options: ['default' => false])]
     private bool $rentalExternalAllowed = false;
 
@@ -467,6 +470,9 @@ class MaterialItem
 
     public function getRentalScope(): ?string { return $this->rentalScope; }
     public function setRentalScope(?string $rentalScope): self { $this->rentalScope = $rentalScope; return $this; }
+
+    public function getIsRentable(): bool { return $this->isRentable; }
+    public function setIsRentable(bool $isRentable): self { $this->isRentable = $isRentable; return $this; }
 
     public function getRentalRequiresApproval(): bool { return $this->rentalRequiresApproval; }
     public function setRentalRequiresApproval(bool $rentalRequiresApproval): self { $this->rentalRequiresApproval = $rentalRequiresApproval; return $this; }
