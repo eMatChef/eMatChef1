@@ -352,6 +352,7 @@
             :department-id="departmentId"
             :contact-id="venueContactModalId"
             default-type="event"
+            :initial-name="venueContactInitialName"
             @close="closeVenueContactModal"
             @created="onVenueContactCreated"
             @updated="onVenueContactUpdated"
@@ -422,6 +423,7 @@ const saving = ref(false)
 const showVenueContactModal = ref(false)
 const venueContactModalMode = ref<'view' | 'create'>('view')
 const venueContactModalId = ref<string | null>(null)
+const venueContactInitialName = ref('')
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const zeitraumSaving = ref(false)
 const zeitraumShowSaved = ref(false)
@@ -742,9 +744,12 @@ const venueContactModalKey = computed(() =>
     : `venue-view-${venueContactModalId.value ?? 'none'}`,
 )
 
-function openAddVenueAddressModal(_presetName = '') {
+function openAddVenueAddressModal(presetName = '') {
   venueContactModalMode.value = 'create'
   venueContactModalId.value = null
+  const fromSearch = String(presetName ?? '').trim()
+  const fromActivity = String(form.value.name ?? '').trim()
+  venueContactInitialName.value = fromSearch || fromActivity
   showVenueContactModal.value = true
 }
 

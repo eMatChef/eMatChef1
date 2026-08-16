@@ -1,5 +1,6 @@
 import { startOfLocalDay } from '@/utils/swissMovableFeasts'
 import { toIsoDateKey } from '@/utils/activityDateIso'
+import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
 
 /** VDatePicker-Range: Ende als Tagesende, damit isWithinRange den Bereich färbt. */
 export function normalizeRangeForVDatePicker(dates: Date[] | null | undefined): Date[] {
@@ -44,4 +45,21 @@ export function rangeContainsDepartmentClosedDate(
     cur.setDate(cur.getDate() + 1)
   }
   return false
+}
+
+/** Schnellauswahl: Presets markieren, die Mat-Büro-geschlossene Tage treffen. */
+export function withDepartmentClosedPresetFlags(
+  presets: readonly ActivityDatePresetItem[],
+  departmentClosedKeys: ReadonlySet<string>,
+  blockClosedDates: boolean,
+): ActivityDatePresetItem[] {
+  if (!blockClosedDates || departmentClosedKeys.size === 0) {
+    return presets.map((p) => (p.disabled ? { ...p, disabled: false } : p))
+  }
+  return presets.map((p) => {
+    const start = p.value instanceof Date ? p.value : p.value[0]
+    const end = p.value instanceof Date ? p.value : p.value[1]
+    const blocked = rangeContainsDepartmentClosedDate(start, end, departmentClosedKeys)
+    return blocked ? { ...p, disabled: true } : { ...p, disabled: false }
+  })
 }

@@ -43,6 +43,14 @@
                     >
                       {{ t('components.batchModal.storageModeBox') }}
                     </button>
+                    <button
+                      type="button"
+                      class="lagerung-btn"
+                      :class="{ active: stockLocationMode === 'loose' }"
+                      @click="setStockLocationMode('loose')"
+                    >
+                      {{ t('components.materialCreateWizard.tabLooseStorage') }}
+                    </button>
                   </div>
                 </div>
                 <template v-if="stockLocationMode === 'slot'">
@@ -72,6 +80,9 @@
                     @update:slotId="form.slot_id = $event"
                     @slotChange="onSlotChange"
                   />
+                </template>
+                <template v-else-if="stockLocationMode === 'loose'">
+                  <p class="batch-field-hint">{{ t('components.materialCreateWizard.looseStorageHint') }}</p>
                 </template>
                 <template v-else>
                   <label class="form-label-sm">{{ t('components.batchModal.storageModeBox') }}</label>
@@ -439,6 +450,18 @@
                 {{ formatDate(form.acquired_on) }}
                 <span class="batch-readonly-hint">{{ t('components.batchModal.acquiredOnLockedHint') }}</span>
               </div>
+            </div>
+            <div v-if="isFood || form.expiry_date || showExpiryForEdit" class="form-group">
+              <label>
+                {{ t('materialsView.colExpiry') }}
+                <span v-if="isFood" class="required">*</span>
+              </label>
+              <input
+                v-model="form.expiry_date"
+                type="date"
+                class="form-input"
+                :class="{ 'is-invalid': submitted && isFood && !form.expiry_date }"
+              />
             </div>
             <div class="form-group">
               <label>
@@ -835,7 +858,31 @@
               </p>
             </div>
             <div class="batch-form-group full-width">
+              <div class="stock-location-mode mb-2">
+                <div class="lagerung-switch" role="tablist">
+                  <button
+                    type="button"
+                    class="lagerung-btn"
+                    :class="{ active: stockLocationMode !== 'loose' }"
+                    @click="setStockLocationMode('slot')"
+                  >
+                    {{ t('components.batchModal.storageModeSlot') }}
+                  </button>
+                  <button
+                    type="button"
+                    class="lagerung-btn"
+                    :class="{ active: stockLocationMode === 'loose' }"
+                    @click="setStockLocationMode('loose')"
+                  >
+                    {{ t('components.materialCreateWizard.tabLooseStorage') }}
+                  </button>
+                </div>
+              </div>
+              <p v-if="stockLocationMode === 'loose'" class="batch-field-hint">
+                {{ t('components.materialCreateWizard.looseStorageHint') }}
+              </p>
               <StorageLocationPicker
+                v-else
                 :show-storage-address="true"
                 :storage-address-id="form.storage_address_id"
                 :storage-address-options="storageAddressOptions"
@@ -969,6 +1016,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import {
   departmentHasAccountingRole,
   enqueuePendingCostBookingAfterPurchase,
@@ -1045,6 +1093,8 @@ interface Props {
   referencePurchaseUnitChf?: string | number | null
   /** Reparaturteile / Abschreibung: Preis nicht erzwingen */
   unitPriceOptional?: boolean
+  /** Esswaren: Ablaufdatum Pflicht */
+  isFood?: boolean
   /** Physische Kombi: Sack/Kiste + Gestell der Kombination als Standard-Lagerort */
   comboStorageContext?: BatchComboStorageContext | null
 }
@@ -1063,6 +1113,7 @@ const props = withDefaults(defineProps<Props>(), {
   sizeLengthCm: null,
   referencePurchaseUnitChf: null,
   unitPriceOptional: false,
+  isFood: false,
 })
 
 const emit = defineEmits<{
@@ -1072,6 +1123,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 const headerNotificationsStore = useHeaderNotificationsStore()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const isEditMode = computed(() => !!props.batch)
@@ -1137,6 +1189,7 @@ const storageOverviewCache = ref<StorageOverviewResponse | null>(null)
 
 const form = reactive({
   acquired_on: '',
+  expiry_date: '',
   qty: 1,
   unit_price: '',
   invoice_number: '',
@@ -1454,7 +1507,10 @@ function batchPackFieldsChanged(): boolean {
 }
 
 /** Nur „Charge hinzufügen“ serialisiert: gleiche Logik wie Wizard */
-const stockLocationMode = ref<'slot' | 'kiste'>('slot')
+const stockLocationMode = ref<'slot' | 'kiste' | 'loose'>('slot')
+const showExpiryForEdit = computed(
+  () => isEditMode.value && !!(props.isFood || props.batch?.expiry_date),
+)
 const serialLocationSameForAll = ref(true)
 const serialAutoGenerateEnabled = ref(false)
 const autoGenPrefix = ref('')
@@ -1657,11 +1713,15 @@ function formatRackOptionLabel(rack: StorageRack): string {
   return rack.name
 }
 
-function setStockLocationMode(mode: 'slot' | 'kiste') {
+function setStockLocationMode(mode: 'slot' | 'kiste' | 'loose') {
   stockLocationMode.value = mode
   if (mode === 'slot') {
     form.container_batch_id = ''
+  } else if (mode === 'kiste') {
+    form.rack_id = ''
+    form.slot_id = ''
   } else {
+    form.container_batch_id = ''
     form.rack_id = ''
     form.slot_id = ''
   }
@@ -2129,6 +2189,7 @@ onMounted(async () => {
     initBatchStockUnitFromProps()
     initBatchLengthFromProps()
     form.acquired_on = props.batch.acquired_on || ''
+    form.expiry_date = props.batch.expiry_date || ''
     form.qty = props.batch.qty
     form.unit_price = displayMeterStockUnitPrice(
       props.batch.unit_price,
@@ -2162,6 +2223,7 @@ onMounted(async () => {
     }
   } else {
     form.acquired_on = getTodayIsoDate()
+    form.expiry_date = ''
     form.invoice_number = ''
     form.serial_number = ''
     form.label = ''
@@ -2363,16 +2425,20 @@ function batchAddUnitPriceValid(): boolean {
 
 const canSubmit = computed(() => {
   if (isEditMode.value) {
-    return form.qty >= 1
+    if (form.qty < 1) return false
+    if (props.isFood && !form.expiry_date) return false
+    return true
   }
   if (!batchAddUnitPriceValid()) return false
   if (!form.acquired_on) return false
+  if (props.isFood && !form.expiry_date) return false
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) return false
     if (serialDuplicateHint.value) return false
     if (hasInvalidSerialLocations.value) return false
     if (serialLocationSameForAll.value) {
       if (stockLocationMode.value === 'kiste') return !!form.container_batch_id
+      if (stockLocationMode.value === 'loose') return true
       return !!(form.rack_id && form.slot_id)
     }
     return true
@@ -2389,6 +2455,9 @@ const missingFields = computed(() => {
   }
   if (!isEditMode.value && !form.acquired_on) {
     missing.push(t('components.batchModal.valPurchaseDate'))
+  }
+  if (props.isFood && !form.expiry_date) {
+    missing.push(t('materialsView.colExpiry'))
   }
   if (isSerializedAddMode.value) {
     if (serializedQty.value < 1) missing.push(t('components.batchModal.valAtLeastOneSerial'))
@@ -2497,6 +2566,22 @@ async function handleSubmit() {
   if (!isEditMode.value) {
     const containerIds = collectContainerBatchIdsForPendingAdd()
     if (!(await physicalComboWarningStore.confirmContainerMove(containerIds))) return
+
+    const hasLocation =
+      form.split_allocations ||
+      !!form.rack_id ||
+      !!form.slot_id ||
+      !!form.container_batch_id ||
+      (isSerializedAddMode.value && !serialLocationSameForAll.value)
+    if (!hasLocation || stockLocationMode.value === 'loose') {
+      const ok = await confirmDialog({
+        title: t('components.materialCreateWizard.looseStorageConfirmTitle'),
+        message: t('components.materialCreateWizard.looseStorageConfirmMessage'),
+        confirmText: t('components.materialCreateWizard.looseStorageConfirmOk'),
+        variant: 'warning',
+      })
+      if (!ok) return
+    }
   }
   
   isSaving.value = true
@@ -2514,6 +2599,7 @@ async function handleSubmit() {
       if (form.serial_number !== (props.batch.serial_number || '')) payload.serial_number = form.serial_number || null
       if (form.ean !== (props.batch.ean || '')) payload.ean = form.ean.trim() || null
       if (form.barcode_tag !== (props.batch.barcode_tag || '')) payload.barcode_tag = form.barcode_tag.trim() || null
+      if (form.expiry_date !== (props.batch.expiry_date || '')) payload.expiry_date = form.expiry_date || null
       if (form.rack_id !== (props.batch.rack_id || '')) payload.rack_id = form.rack_id || null
       if (form.slot_id !== (props.batch.slot_id || '')) payload.slot_id = form.slot_id || null
       if (form.label !== ((props.batch as any).label || '')) payload.label = form.label.trim() || null
@@ -2525,8 +2611,9 @@ async function handleSubmit() {
       if (isSerializedAddMode.value) {
         const rows = serialRows.value.filter((e) => (e.serial_number || '').trim())
         const qty = rows.length
-        const base: Pick<AddBatchRequest, 'acquired_on' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
+        const base: Pick<AddBatchRequest, 'acquired_on' | 'expiry_date' | 'unit_price' | 'supplier_id' | 'notes' | 'ean' | 'barcode_tag'> = {
           acquired_on: form.acquired_on,
+          expiry_date: form.expiry_date || null,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
@@ -2590,6 +2677,7 @@ async function handleSubmit() {
         const payload: AddBatchRequest = {
           qty: form.qty,
           acquired_on: form.acquired_on,
+          expiry_date: form.expiry_date || null,
           unit_price: resolveBatchUnitPriceForPayload(),
           supplier_id: form.supplier_id || null,
           notes: form.notes || null,
@@ -2622,7 +2710,11 @@ async function handleSubmit() {
                       : { rack_id: r.rack_id, slot_id: r.slot_id || undefined, qty: r.qty }
                   ),
               }
-            : {
+            : stockLocationMode.value === 'loose' || (!form.rack_id && !form.slot_id)
+              ? (form.container_batch_id
+                  ? { container_batch_id: form.container_batch_id }
+                  : {})
+              : {
                 rack_id: form.rack_id || null,
                 slot_id: form.slot_id || null,
               }),
@@ -2645,7 +2737,7 @@ async function handleSubmit() {
       }
     }
 
-    if (!isEditMode.value) {
+    if (!isEditMode.value && !props.isFood) {
       const batchId = batchIdFromAddBatchResult(result)
       if (
         await enqueuePendingCostBookingAfterPurchase({

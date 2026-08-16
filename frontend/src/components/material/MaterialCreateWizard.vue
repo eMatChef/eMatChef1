@@ -334,7 +334,7 @@
               </div>
             </div>
 
-            <!-- Bestandsverfolgung (Einzelartikel ohne Vorlage — direkt nach Kategorie, erst wenn Kategorie gewählt) -->
+            <!-- Bestandsverfolgung — bei Esswaren übersprungen (immer Massenartikel) -->
             <div
               v-if="!isAddBatchMode && !isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && !formData.is_food && formData.category_id"
               class="step-section"
@@ -349,7 +349,6 @@
                 <div class="tracking-options" data-onboarding="material-wizard-tracking">
                   <button
                     :class="['tracking-option', { active: formData.tracking_type === 'serialized' }]"
-                    :disabled="formData.is_food"
                     type="button"
                     @click="selectTrackingType('serialized')"
                   >
@@ -363,13 +362,7 @@
                     </div>
                     <div class="tracking-text">
                       <span class="tracking-name">{{ t('components.materialCreateWizard.trackingSerialized') }}</span>
-                      <span class="tracking-desc">
-                        {{
-                          formData.is_food
-                            ? t('components.materialCreateWizard.trackingSerializedDescFood')
-                            : t('components.materialCreateWizard.trackingSerializedDesc')
-                        }}
-                      </span>
+                      <span class="tracking-desc">{{ t('components.materialCreateWizard.trackingSerializedDesc') }}</span>
                     </div>
                   </button>
 
@@ -1409,7 +1402,7 @@
                 <div class="batch-form">
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
                     <div
-                      v-if="!isAddBatchMode"
+                      v-if="!isAddBatchMode && !formData.is_food"
                       class="form-group span-full"
                       data-onboarding="material-wizard-stock-unit"
                     >
@@ -1427,6 +1420,116 @@
                       </div>
                       <p class="field-hint">{{ wizardStockUnitHint }}</p>
                     </div>
+                    <!-- Esswaren: Chargen zeilenweise (#1, #2 …) — Menge, Kaufdatum, Ablaufdatum -->
+                    <template v-if="formData.is_food && !isAddBatchMode">
+                      <div
+                        class="food-lots form-group span-full"
+                        data-onboarding="material-wizard-food-lots"
+                      >
+                        <div class="food-lot-row">
+                          <span class="food-lot-num" aria-hidden="true">#1</span>
+                          <div class="food-lot-fields">
+                            <div class="form-group" data-onboarding="material-wizard-stock-qty">
+                              <label>{{ t('components.materialCreateWizard.labelFoodExtraLotQty') }}</label>
+                              <input
+                                v-model.number="wizardDisplayQty"
+                                type="number"
+                                min="0"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phFoodExtraLotQty')"
+                              />
+                            </div>
+                            <div class="form-group" data-onboarding="material-wizard-stock-purchase-date">
+                              <label>{{ t('components.materialCreateWizard.labelPurchaseDateFoodOptional') }}</label>
+                              <input
+                                v-model="formData.purchase_date"
+                                type="date"
+                                class="form-input"
+                              />
+                            </div>
+                            <div class="form-group">
+                              <label>
+                                {{ t('components.materialCreateWizard.labelExpiryDate') }}
+                                <span class="required">*</span>
+                              </label>
+                              <input
+                                v-model="formData.expiry_date"
+                                type="date"
+                                class="form-input"
+                                :class="{ 'is-invalid': !formData.expiry_date && formData.initial_qty > 0 }"
+                              />
+                            </div>
+                          </div>
+                          <!-- Platzhalter: gleiche Feldbreite wie Zeilen mit × -->
+                          <div class="food-lot-actions" aria-hidden="true" />
+                        </div>
+
+                        <div
+                          v-for="(lot, lotIndex) in foodExtraLots"
+                          :key="lot.id"
+                          class="food-lot-row"
+                        >
+                          <span class="food-lot-num" aria-hidden="true">#{{ lotIndex + 2 }}</span>
+                          <div class="food-lot-fields">
+                            <div class="form-group">
+                              <label>{{ t('components.materialCreateWizard.labelFoodExtraLotQty') }}</label>
+                              <input
+                                v-model.number="lot.qty"
+                                type="number"
+                                min="1"
+                                step="1"
+                                class="form-input"
+                                :class="{ 'is-invalid': lot.qty < 1 }"
+                                :placeholder="t('components.materialCreateWizard.phFoodExtraLotQty')"
+                              />
+                            </div>
+                            <div class="form-group">
+                              <label>{{ t('components.materialCreateWizard.labelPurchaseDateFoodOptional') }}</label>
+                              <input
+                                v-model="lot.purchase_date"
+                                type="date"
+                                class="form-input"
+                              />
+                            </div>
+                            <div class="form-group">
+                              <label>
+                                {{ t('components.materialCreateWizard.labelExpiryDate') }}
+                                <span class="required">*</span>
+                              </label>
+                              <input
+                                v-model="lot.expiry_date"
+                                type="date"
+                                class="form-input"
+                                :class="{ 'is-invalid': !lot.expiry_date }"
+                              />
+                            </div>
+                          </div>
+                          <div class="food-lot-actions">
+                            <button
+                              type="button"
+                              class="combo-remove"
+                              :title="t('components.materialCreateWizard.btnRemoveFoodExtraLot')"
+                              :aria-label="t('components.materialCreateWizard.btnRemoveFoodExtraLot')"
+                              @click="removeFoodExtraLot(lotIndex)"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="btn-outline-small"
+                          @click="addFoodExtraLot"
+                        >
+                          {{ t('components.materialCreateWizard.btnAddFoodExtraLot') }}
+                        </button>
+                        <p class="field-hint mt-1">{{ t('components.materialCreateWizard.hintFoodExtraLots') }}</p>
+                      </div>
+                    </template>
+
+                    <!-- Nicht-Esswaren / Charge hinzufügen: bisherige Felder -->
+                    <template v-else>
                     <div class="form-group" data-onboarding="material-wizard-stock-qty">
                       <label>{{ wizardQuantityLabel }}</label>
                       <div v-if="wizardShowQtyEntryModes" class="qty-entry-modes" role="tablist">
@@ -1491,11 +1594,15 @@
                         :class="{ 'is-invalid': formData.is_food && !formData.expiry_date && formData.initial_qty > 0 }"
                       />
                     </div>
+                    </template>
                   </div>
 
                   <!-- Anschaffungspreis / Rechnung – bei Menge (Neuanlage + Add-Batch) -->
                   <div data-onboarding="material-wizard-stock-purchase-price">
-                  <div v-if="purchasePriceRequired" class="slider-toggle-group pack-toggle-inline mt-2 mb-2">
+                  <div
+                    v-if="purchasePriceRequired || foodPurchasePriceSectionVisible"
+                    class="slider-toggle-group pack-toggle-inline mt-2 mb-2"
+                  >
                     <label class="toggle-label">
                       <span class="toggle-wrapper">
                         <input
@@ -1614,7 +1721,10 @@
                     </div>
                   </div>
 
-                  <div v-if="purchasePriceRequired && departmentHasAccountingRole(props.departmentId)" class="form-row mt-2">
+                  <div
+                    v-if="purchasePriceRequired && !formData.is_food && departmentHasAccountingRole(props.departmentId)"
+                    class="form-row mt-2"
+                  >
                     <div class="form-group span-full">
                       <PurchaseReceiptFileInput
                         v-model="purchaseReceiptFile"
@@ -2035,7 +2145,10 @@
                   <!-- Massenartikel: Normale Mengen-Eingabe -->
                   <div v-else>
                     <!-- Verpackungseinheit – sobald eine Anzahl eingetragen wurde (Stk oder Meter) -->
-                    <div v-if="formData.initial_qty > 0 && (stock_unit === 'Stk' || stock_unit === 'm')" class="slider-toggle-group pack-toggle-inline">
+                    <div
+                      v-if="!formData.is_food && formData.initial_qty > 0 && (stock_unit === 'Stk' || stock_unit === 'm')"
+                      class="slider-toggle-group pack-toggle-inline"
+                    >
                       <label class="toggle-label">
                         <span class="toggle-wrapper">
                           <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
@@ -2505,6 +2618,14 @@
                         >
                           {{ t('components.materialCreateWizard.tabKisteTasche') }}
                         </button>
+                        <button
+                          type="button"
+                          class="lagerung-btn"
+                          :class="{ active: formData.stock_location_mode === 'loose' }"
+                          @click="setLooseStorageMode"
+                        >
+                          {{ t('components.materialCreateWizard.tabLooseStorage') }}
+                        </button>
                       </div>
                     </div>
                     <template v-if="formData.stock_location_mode === 'slot'">
@@ -2530,6 +2651,9 @@
                         @update:slotId="(v) => (formData.slot_id = String(v ?? ''))"
                       />
                     </template>
+                    <template v-else-if="formData.stock_location_mode === 'loose'">
+                      <p class="field-hint">{{ t('components.materialCreateWizard.looseStorageHint') }}</p>
+                    </template>
                     <template v-else>
                       <select
                         v-model="formData.stock_container_batch_id"
@@ -2553,7 +2677,10 @@
                   </div>
                   </div>
 
-                  <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate" class="form-row mb-2">
+                  <div
+                    v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate && !formData.is_food"
+                    class="form-row mb-2"
+                  >
                     <label class="checkbox-label material-wizard-container-flag">
                       <input type="checkbox" v-model="formData.is_container" />
                       <span>{{ t('components.materialCreateWizard.checkboxContainerLong') }}</span>
@@ -2682,8 +2809,8 @@
 
                 </div>
 
-                <!-- Material-Details -->
-                <div class="details-subsection">
+                <!-- Material-Details (nicht bei Esswaren) -->
+                <div v-if="!formData.is_food" class="details-subsection">
                   <h4 class="subsection-title">{{ t('common.material') }}</h4>
                   <div class="form-grid-details">
                     <div class="form-group">
@@ -2702,11 +2829,11 @@
                       :label="t('components.materialDetail.labelWeightKg')"
                       unit="kg"
                     />
-                    <div class="form-group">
+                    <div v-if="!formData.is_food" class="form-group">
                       <label>{{ t('components.materialDetail.labelColor') }}</label>
                       <input v-model="formData.color" type="text" class="form-input" />
                     </div>
-                    <div class="form-group">
+                    <div v-if="!formData.is_food" class="form-group">
                       <label>{{ t('components.materialDetail.labelWarranty') }}</label>
                       <input v-model="formData.warranty_until" type="date" class="form-input" />
                     </div>
@@ -2739,8 +2866,8 @@
                   </div>
                 </div>
 
-                <!-- Packmaß (Verpackungseinheit) -->
-                <div class="details-subsection">
+                <!-- Packmaß (Verpackungseinheit) — nicht bei Esswaren -->
+                <div v-if="!formData.is_food" class="details-subsection">
                   <h4 class="subsection-title">{{ t('components.materialDetail.sectionPackDimensions') }}</h4>
                   <p class="step-hint">{{ t('components.materialDetail.packDimensionsHint') }}</p>
                   <div class="form-grid-details">
@@ -2782,6 +2909,7 @@
                     v-model:min-stock="formData.min_stock"
                     :pack-size="formData.pack_size"
                     :pack-unit="formData.pack_unit"
+                    :is-meter-stock="stock_unit === 'm'"
                     :batches="wizardDraftBatches"
                     :is-consumable="formData.is_consumable"
                     :is-food="formData.is_food"
@@ -2811,6 +2939,19 @@
               <div v-show="isStepOpen('rental')" class="step-content">
                 <p class="step-hint">{{ t('components.materialCreateWizard.stepRentalHint') }}</p>
                 <div class="details-subsection">
+                  <div class="slider-toggle-group pack-toggle-inline mb-3">
+                    <label class="toggle-label">
+                      <span class="toggle-wrapper">
+                        <input type="checkbox" v-model="formData.is_rentable" class="toggle-input" />
+                        <span class="toggle-slider toggle-slider--blue"></span>
+                      </span>
+                      <span class="toggle-text">
+                        <span class="toggle-title">{{ t('components.materialDetail.toggleRentableTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialDetail.toggleRentableDesc') }}</span>
+                      </span>
+                    </label>
+                  </div>
+                  <template v-if="formData.is_rentable">
                   <RentalPriceAmortizationCalculator
                     v-if="formData.material_type === 'physical' && formData.tracking_type && !formData.is_consumable && !formData.is_food"
                     v-model="formData.rental_calc_params"
@@ -2918,6 +3059,7 @@
                       ></textarea>
                     </div>
                   </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -3126,6 +3268,7 @@ import {
 } from '@/utils/allocationStorageHints'
 import { getTemplates, getTemplate, createMaterialFromTemplate, type Template, type TemplateComponent, type CreateMaterialComponentInput } from '@/api/templates'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useI18n } from 'vue-i18n'
 import {
   departmentHasAccountingRole,
@@ -3217,7 +3360,17 @@ const emit = defineEmits<{
 }>()
 
 const toast = useToast()
+const { confirm: confirmDialog } = useConfirm()
 const { t } = useI18n()
+
+function setLooseStorageMode() {
+  formData.stock_location_mode = 'loose'
+  formData.stock_container_batch_id = ''
+  formData.rack_id = ''
+  formData.slot_id = ''
+  formData.location_rack = ''
+  formData.location_slot = ''
+}
 const headerNotificationsStore = useHeaderNotificationsStore()
 const PACK_UNIT_BUNDLE = 'Bündel'
 const articleNameInputRef = ref<HTMLInputElement | null>(null)
@@ -3496,6 +3649,78 @@ const qtyEntryMode = ref<'base' | 'pack' | 'content'>('base')
 const stockLengthDialogOpen = ref(false)
 const stockLengthMetersInput = ref('')
 
+/** Esswaren: zusätzliche Chargen beim Anlegen (je Menge + Kaufdatum + Ablaufdatum). */
+type FoodExtraLotDraft = { id: string; qty: number; purchase_date: string; expiry_date: string }
+let foodExtraLotSeq = 0
+const foodExtraLots = ref<FoodExtraLotDraft[]>([])
+
+function addFoodExtraLot() {
+  foodExtraLots.value.push({
+    id: `food-extra-${++foodExtraLotSeq}`,
+    qty: 0,
+    purchase_date: formData.purchase_date || getTodayIso(),
+    expiry_date: '',
+  })
+}
+
+function removeFoodExtraLot(index: number) {
+  foodExtraLots.value.splice(index, 1)
+}
+
+function clearFoodExtraLots() {
+  foodExtraLots.value = []
+}
+
+const foodExtraLotsValid = computed(() => {
+  if (!formData.is_food || isAddBatchMode.value) return true
+  return foodExtraLots.value.every((lot) => lot.qty >= 1 && !!lot.expiry_date)
+})
+
+const foodLotsTotalQty = computed(() => {
+  if (!formData.is_food || isAddBatchMode.value) {
+    return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
+  }
+  const base = Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
+  const extra = foodExtraLots.value.reduce(
+    (sum, lot) => sum + (lot.qty >= 1 ? Math.floor(lot.qty) : 0),
+    0,
+  )
+  return base + extra
+})
+
+function locationPayloadForExtraFoodLot(): Pick<
+  AddBatchRequest,
+  'rack_id' | 'slot_id' | 'container_batch_id'
+> {
+  if (formData.split_allocations && hasRelevantAllocationRows.value) {
+    const first = initialAllocations.value.find(
+      (r) => r.qty > 0 && (r.mode === 'slot' ? r.rack_id : r.container_batch_id),
+    )
+    if (first?.mode === 'kiste' && first.container_batch_id) {
+      return { container_batch_id: first.container_batch_id, rack_id: null, slot_id: null }
+    }
+    if (first?.mode === 'slot' && first.rack_id) {
+      return {
+        rack_id: first.rack_id,
+        slot_id: first.slot_id || null,
+        container_batch_id: undefined,
+      }
+    }
+  }
+  if (formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id) {
+    return {
+      container_batch_id: formData.stock_container_batch_id,
+      rack_id: null,
+      slot_id: null,
+    }
+  }
+  return {
+    rack_id: formData.rack_id || null,
+    slot_id: formData.slot_id || null,
+    container_batch_id: undefined,
+  }
+}
+
 const stockUnitOptions = computed(() => [
   { value: 'Stk' as const, label: t('workshop.repairPartsList.unitStkShort') },
   { value: 'm' as const, label: 'm' },
@@ -3527,7 +3752,8 @@ function resolveWizardStoredUnitPrice(): string | null {
 }
 
 function resolveWizardReferencePurchaseFromUnitPrice(uiUnitPrice: number): number {
-  if (!Number.isFinite(uiUnitPrice) || uiUnitPrice <= 0) return 0
+  if (!Number.isFinite(uiUnitPrice) || uiUnitPrice < 0) return 0
+  if (uiUnitPrice === 0) return 0
   const per = wizardMeterPieceLengthM.value
   if (wizardUseMeterQtyByCount.value && per != null) {
     const perM = meterUnitPricePerMeterFromPerPiece(uiUnitPrice, per)
@@ -3912,9 +4138,10 @@ function wizardAccordionStepForMaterialTour(): StepId | null {
     if (step === 10) return 'details'
   }
   if (tourId === 'material-food') {
-    if (step === 4) return 'general'
-    if (step === 5) return 'category'
-    if (step === 6) return 'stock'
+    if (step === 4 || step === 5) return 'general'
+    if (step === 6) return 'category'
+    if (step === 7) return 'stock'
+    if (step === 8) return 'details'
   }
   return null
 }
@@ -3965,13 +4192,21 @@ watch(
         9: 'material-wizard-stock-qty',
         10: 'material-wizard-consumable-pricing',
       }
+      const foodByTourStep: Record<number, string> = {
+        4: 'material-wizard-article-name',
+        5: 'material-wizard-toggle-food',
+        7: 'material-wizard-food-lots',
+        8: 'material-wizard-consumable-pricing',
+      }
       const tourId = route.query[ONBOARDING_TOUR_QUERY]
       const attr =
-        tourId === 'material-consumable' && consumableByTourStep[tourStep]
-          ? consumableByTourStep[tourStep]
-          : (target === 'stock' || target === 'storage') && stockByTourStep[tourStep]
-            ? stockByTourStep[tourStep]
-            : onboardingByStep[target]
+        tourId === 'material-food' && foodByTourStep[tourStep]
+          ? foodByTourStep[tourStep]
+          : tourId === 'material-consumable' && consumableByTourStep[tourStep]
+            ? consumableByTourStep[tourStep]
+            : (target === 'stock' || target === 'storage') && stockByTourStep[tourStep]
+              ? stockByTourStep[tourStep]
+              : onboardingByStep[target]
       if (!attr) return
       const el = document.querySelector(`[data-onboarding="${attr}"]`) as HTMLElement | null
       const form = document.querySelector('.material-wizard-form') as HTMLElement | null
@@ -4045,12 +4280,13 @@ const formData = reactive({
   rental_lead_days: null as number | null,
   rental_max_days: null as number | null,
   rental_external_allowed: false,
+  is_rentable: true,
   rental_scope: '' as string,
   rental_requires_approval: false,
   rental_notes: '' as string,
   rental_calc_params: null as RentalCalcParams | null,
   split_allocations: false,
-  stock_location_mode: 'slot' as 'slot' | 'kiste',
+  stock_location_mode: 'slot' as 'slot' | 'kiste' | 'loose',
   stock_container_batch_id: '' as string,
   /** Massenartikel: gesamter Artikel ist Behälter; bei serialisiert pro Zeile in serialNumbers */
   is_container: false
@@ -4139,7 +4375,7 @@ const suggestedSerialPrefix = computed(() => {
 
 type WizardStockPrefs = {
   storage_address_id?: string
-  stock_location_mode?: 'slot' | 'kiste'
+  stock_location_mode?: 'slot' | 'kiste' | 'loose'
   autoGenPrefix?: string
   autoGenStart?: number
   autoGenPad?: number
@@ -4184,7 +4420,11 @@ function saveWizardStockPrefs() {
 function applyWizardStockPrefs() {
   const prefs = loadWizardStockPrefs()
   if (prefs.storage_address_id) formData.storage_address_id = String(prefs.storage_address_id)
-  if (prefs.stock_location_mode === 'slot' || prefs.stock_location_mode === 'kiste') {
+  if (
+    prefs.stock_location_mode === 'slot' ||
+    prefs.stock_location_mode === 'kiste' ||
+    prefs.stock_location_mode === 'loose'
+  ) {
     formData.stock_location_mode = prefs.stock_location_mode
   }
   if (typeof prefs.autoGenPrefix === 'string') {
@@ -4403,15 +4643,25 @@ const purchasePriceContextQty = computed(() => {
   if (isAddBatchMode.value) return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
   if (formData.material_type !== 'physical') return 0
   if (formData.tracking_type === 'serialized') return serializedQty.value
+  if (formData.is_food) return foodLotsTotalQty.value
   return Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
 })
 
 const purchasePriceRequired = computed(() => {
+  // Esswaren: Anschaffung oft über Aktivität/Camp/Event — Preis darf 0.00 sein, Quittung/Buchhaltung entfällt.
+  if (formData.is_food) return false
   if (isAddBatchMode.value) return formData.initial_qty > 0
   if (formData.material_type !== 'physical') return false
   if (!formData.tracking_type) return false
   if (formData.tracking_type === 'serialized') return serializedQty.value > 0
   return formData.initial_qty > 0
+})
+
+/** Esswaren: Anschaffungspreis optional (inkl. 0.00 als Referenz). */
+const foodPurchasePriceSectionVisible = computed(() => {
+  if (!formData.is_food) return false
+  if (isAddBatchMode.value) return formData.initial_qty > 0
+  return foodLotsTotalQty.value > 0
 })
 
 const effectivePurchaseUnitPrice = computed(() => {
@@ -4429,34 +4679,104 @@ const effectivePurchaseUnitPrice = computed(() => {
   return Math.round((sum / qty) * 100) / 100
 })
 
-/** Entwurfs-Charge für Anschaffungs-Akkordeon (Wizard hat noch keine Chargen-API). */
+/** Entwurfs-Chargen für Anschaffungs-Akkordeon (Wizard hat noch keine Chargen-API). */
 const wizardDraftBatches = computed((): MaterialBatch[] => {
   const up = effectivePurchaseUnitPrice.value
   if (up <= 0) return []
+  const unitPrice = String(up)
+  const fallbackDate = formData.purchase_date || new Date().toISOString().slice(0, 10)
+
+  if (formData.is_food && !isAddBatchMode.value) {
+    const rows: MaterialBatch[] = []
+    const q1 = Math.max(0, Math.floor(Number(formData.initial_qty) || 0))
+    if (q1 > 0) {
+      rows.push({
+        id: 'wizard-draft-1',
+        qty: q1,
+        unit_price: unitPrice,
+        acquired_on: formData.purchase_date || fallbackDate,
+        expiry_date: formData.expiry_date || null,
+        is_initial: true,
+      } as MaterialBatch)
+    }
+    foodExtraLots.value.forEach((lot, i) => {
+      if (lot.qty < 1) return
+      rows.push({
+        id: `wizard-draft-${i + 2}`,
+        qty: Math.floor(lot.qty),
+        unit_price: unitPrice,
+        acquired_on: lot.purchase_date || fallbackDate,
+        expiry_date: lot.expiry_date || null,
+        is_initial: false,
+      } as MaterialBatch)
+    })
+    return rows
+  }
+
   const qty = purchasePriceContextQty.value || formData.initial_qty || 0
+  if (qty <= 0) return []
   return [
     {
       id: 'wizard-draft',
       qty,
-      unit_price: String(up),
-      acquired_on: formData.purchase_date || new Date().toISOString().slice(0, 10),
+      unit_price: unitPrice,
+      acquired_on: fallbackDate,
       is_initial: true,
     } as MaterialBatch,
   ]
 })
 
-/** Einkaufspreis Referenz (Kosten) aus Anschaffung vorausfüllen, solange Referenz noch leer */
+/** Einkaufspreis Referenz (Kosten) aus Anschaffung vorausfüllen; Esswaren inkl. 0.00 */
 watch(
-  () => [effectivePurchaseUnitPrice.value, formData.is_consumable, formData.is_food],
+  () => [effectivePurchaseUnitPrice.value, formData.is_consumable, formData.is_food, formData.unit_price],
   () => {
     if (!(formData.is_consumable || formData.is_food)) return
     const up = effectivePurchaseUnitPrice.value
+    const unitEntered =
+      formData.unit_price != null && Number.isFinite(Number(formData.unit_price))
+        ? Number(formData.unit_price)
+        : null
+
+    // Esswaren: Referenz aus Anschaffung (auch 0.00), Verkaufspreis = EK (kein Aufschlag / keine Doppelzahlung)
+    if (formData.is_food) {
+      const source =
+        up > 0
+          ? up
+          : unitEntered != null && unitEntered >= 0
+            ? unitEntered
+            : null
+      if (source == null) return
+      const perM = resolveWizardReferencePurchaseFromUnitPrice(source)
+      const rounded = Math.round(perM * 100) / 100
+      formData.reference_purchase_unit_chf = rounded
+      formData.sale_price = rounded
+      return
+    }
+
     if (up <= 0) return
     const ref = formData.reference_purchase_unit_chf
     if (ref == null || Number(ref) <= 0) {
       const perM = resolveWizardReferencePurchaseFromUnitPrice(up)
       formData.reference_purchase_unit_chf = Math.round(perM * 100) / 100
     }
+  }
+)
+
+/** Esswaren: Verkaufspreis immer = Referenz-EK (manuelle Referenz-Änderung mitziehen). */
+watch(
+  () => [formData.is_food, formData.reference_purchase_unit_chf, foodLotsTotalQty.value],
+  () => {
+    if (!formData.is_food) return
+    const rp = formData.reference_purchase_unit_chf
+    if (rp == null || !Number.isFinite(Number(rp))) {
+      // Ohne Anschaffung: 0.00 als gültige Referenz von Anfang an
+      if (foodLotsTotalQty.value > 0 && formData.reference_purchase_unit_chf == null) {
+        formData.reference_purchase_unit_chf = 0
+        formData.sale_price = 0
+      }
+      return
+    }
+    formData.sale_price = Math.round(Number(rp) * 100) / 100
   }
 )
 
@@ -4869,19 +5189,34 @@ const canSubmit = computed(() => {
       if (formData.initial_qty < 1) return false
       if (formData.split_allocations && (!allocationSumValid.value || !hasRelevantAllocationRows.value || hasInvalidAllocationRows.value)) return false
     }
+    if (!foodExtraLotsValid.value) return false
     if (formData.tracking_type === 'serialized') {
       if (!serialLocationSameForAll.value && hasInvalidSerialLocations.value) return false
       if (serialLocationSameForAll.value && formData.stock_location_mode === 'kiste' && serializedQty.value > 0 && !formData.stock_container_batch_id) return false
       if (serialLocationSameForAll.value && formData.stock_location_mode === 'slot' && serializedQty.value > 0 && (!formData.rack_id || !formData.slot_id)) return false
     } else {
       if (!formData.split_allocations && formData.stock_location_mode === 'kiste' && formData.initial_qty > 0 && !formData.stock_container_batch_id) return false
-      if (!formData.split_allocations && formData.stock_location_mode === 'slot' && formData.initial_qty > 0 && (!formData.rack_id || !formData.slot_id)) return false
+      if (
+        !formData.split_allocations &&
+        formData.stock_location_mode === 'slot' &&
+        formData.initial_qty > 0 &&
+        (!formData.rack_id || !formData.slot_id)
+      ) {
+        return false
+      }
+      // 'loose': Gestell/Fach bewusst leer — erlaubt (Bestätigung beim Speichern)
     }
     if (purchasePriceRequired.value && effectivePurchaseUnitPrice.value <= 0) return false
     if (formData.is_consumable || formData.is_food) {
       const sp = formData.sale_price
       const rp = formData.reference_purchase_unit_chf
-      if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) return false
+      // Esswaren: 0.00 ist gültig (bereits über Aktivität/Camp/Event bezahlt)
+      if (formData.is_food) {
+        if (sp == null || !Number.isFinite(Number(sp)) || Number(sp) < 0) return false
+        if (rp == null || !Number.isFinite(Number(rp)) || Number(rp) < 0) return false
+      } else if (sp == null || Number(sp) <= 0 || rp == null || Number(rp) <= 0) {
+        return false
+      }
     }
   }
 
@@ -5057,6 +5392,9 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
       } else if (formData.initial_qty < 1) {
         push('stock', `${m}.missingMinOnePiece`)
       }
+      if (!foodExtraLotsValid.value) {
+        push('stock', `${m}.missingFoodExtraLot`)
+      }
       if (formData.tracking_type === 'serialized') {
         if (!serialLocationSameForAll.value) {
           if (hasInvalidSerialLocations.value) {
@@ -5088,11 +5426,20 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     if (formData.is_consumable || formData.is_food) {
       const sp = formData.sale_price
       const rp = formData.reference_purchase_unit_chf
-      if (sp == null || Number(sp) <= 0) {
-        push('details', `${m}.missingEnterSalePrice`)
-      }
-      if (rp == null || Number(rp) <= 0) {
-        push('details', `${m}.missingEnterRefPurchasePrice`)
+      if (formData.is_food) {
+        if (sp == null || !Number.isFinite(Number(sp)) || Number(sp) < 0) {
+          push('details', `${m}.missingEnterSalePrice`)
+        }
+        if (rp == null || !Number.isFinite(Number(rp)) || Number(rp) < 0) {
+          push('details', `${m}.missingEnterRefPurchasePrice`)
+        }
+      } else {
+        if (sp == null || Number(sp) <= 0) {
+          push('details', `${m}.missingEnterSalePrice`)
+        }
+        if (rp == null || Number(rp) <= 0) {
+          push('details', `${m}.missingEnterRefPurchasePrice`)
+        }
       }
     }
   }
@@ -5198,6 +5545,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   qtyEntryMode.value = 'base'
   formData.purchase_date = getTodayIso()
   formData.expiry_date = ''
+  clearFoodExtraLots()
   showExpiryDateForNonFood.value = false
   formData.manufacturer = ''
   formData.supplier_id = ''
@@ -5226,6 +5574,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   formData.rental_lead_days = null
   formData.rental_max_days = null
   formData.rental_external_allowed = false
+  formData.is_rentable = true
   formData.rental_scope = ''
   formData.rental_requires_approval = false
   formData.rental_notes = ''
@@ -5389,33 +5738,6 @@ function checkNameDebounced() {
   }, 350)
 }
 
-/** Nach Verlassen des Artikelnamens: Kategorie sofort öffnen (Duplikat-Check läuft parallel). */
-async function maybeOpenCategoryAfterNameBlur(): Promise<void> {
-  // Während Tour-Schritten auf «Allgemeines» nicht wegspringen — sonst falsches Spotlight.
-  if (wizardAccordionStepForMaterialTour() === 'general') return
-  if (isAddBatchMode.value) return
-  if (isFromTemplate.value) return
-  if (
-    creationMode.value !== 'individual' &&
-    creationMode.value !== 'physical_combo' &&
-    creationMode.value !== 'virtual_combo'
-  ) {
-    return
-  }
-  if (!formData.name.trim()) return
-  expandAllVisibleSteps.value = false
-  accordionUserControlled.value = true
-  activeStep.value = 'category'
-  await nextTick()
-  const el = document.querySelector('.material-wizard-form .step-section[data-step="category"]')
-  if (el && 'scrollIntoView' in el) {
-    ;(el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-  await nextTick()
-  const inp = categoryAutocompleteRef.value?.querySelector<HTMLInputElement>('input')
-  inp?.focus()
-}
-
 function hideNameSuggestionsDelayed() {
   setTimeout(() => { showNameSuggestions.value = false }, 200)
 }
@@ -5434,7 +5756,8 @@ async function handleNameInputBlur() {
     nameCheckTimeout = null
   }
   void performNameDuplicateCheck()
-  await maybeOpenCategoryAfterNameBlur()
+  // Kein Auto-Sprung zur Kategorie: sonst schließt «Allgemeines» und Verbrauch/Esswaren
+  // sind nicht mehr wählbar. Kategorie bleibt als geschlossenes Akkordeon sichtbar.
 }
 
 function selectNameSuggestion(material: any) {
@@ -7116,6 +7439,16 @@ function batchIdFromAddBatchResult(r: MaterialBatch | AddBatchMultiResponse): st
 
 async function handleSubmit() {
   if (!canSubmit.value || isSubmitting.value) return
+
+  if (formData.stock_location_mode === 'loose') {
+    const ok = await confirmDialog({
+      title: t('components.materialCreateWizard.looseStorageConfirmTitle'),
+      message: t('components.materialCreateWizard.looseStorageConfirmMessage'),
+      confirmText: t('components.materialCreateWizard.looseStorageConfirmOk'),
+      variant: 'warning',
+    })
+    if (!ok) return
+  }
   
   isSubmitting.value = true
   
@@ -7391,14 +7724,19 @@ async function handleSubmit() {
         is_food: formData.is_food,
         is_js_material: formData.is_js_material,
         external_source: formData.is_js_material ? (formData.external_source || 'js_ch') : null,
-        sale_price: formData.sale_price ? String(formData.sale_price) : null,
+        sale_price:
+          formData.sale_price != null && Number.isFinite(Number(formData.sale_price))
+            ? String(formData.sale_price)
+            : null,
         external_sale_price_chf:
           formData.external_sale_price_chf != null && formData.external_sale_price_chf > 0
             ? String(formData.external_sale_price_chf)
             : null,
-        reference_purchase_unit_chf: formData.reference_purchase_unit_chf
-          ? String(formData.reference_purchase_unit_chf)
-          : null,
+        reference_purchase_unit_chf:
+          formData.reference_purchase_unit_chf != null &&
+          Number.isFinite(Number(formData.reference_purchase_unit_chf))
+            ? String(formData.reference_purchase_unit_chf)
+            : null,
         min_stock: formData.min_stock,
         pack_size: resolvedPack.pack_size,
         pack_unit: resolvedPack.pack_unit,
@@ -7427,10 +7765,12 @@ async function handleSubmit() {
             }
           : formData.stock_location_mode === 'kiste' && formData.stock_container_batch_id
             ? { initial_container_batch_id: formData.stock_container_batch_id }
-            : {
-                initial_rack_id: formData.rack_id || undefined,
-                initial_slot_id: formData.slot_id || undefined
-              }),
+            : formData.stock_location_mode === 'loose'
+              ? {}
+              : {
+                  initial_rack_id: formData.rack_id || undefined,
+                  initial_slot_id: formData.slot_id || undefined
+                }),
         // Details (wie in MaterialDetailView)
         description: formData.description || null,
         model: formData.model || null,
@@ -7450,6 +7790,7 @@ async function handleSubmit() {
         rental_lead_days: formData.rental_lead_days,
         rental_max_days: formData.rental_max_days,
         rental_external_allowed: formData.rental_external_allowed,
+        is_rentable: formData.is_rentable,
         rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
         rental_requires_approval: formData.rental_requires_approval,
         rental_notes: formData.rental_notes || null,
@@ -7482,14 +7823,44 @@ async function handleSubmit() {
       followUpMaterialItemId = material.id
       followUpBatchId =
         material.batches?.find((b) => b.is_initial)?.id ?? material.batches?.[0]?.id
-      emit('created', material)
+
+      if (formData.is_food && foodExtraLots.value.length > 0) {
+        const loc = locationPayloadForExtraFoodLot()
+        const unitPrice = resolveWizardStoredUnitPrice()
+        for (const lot of foodExtraLots.value) {
+          if (lot.qty < 1 || !lot.expiry_date) continue
+          await addBatch(material.id, {
+            qty: lot.qty,
+            acquired_on: lot.purchase_date || formData.purchase_date || undefined,
+            expiry_date: lot.expiry_date,
+            unit_price: unitPrice,
+            supplier_id: formData.supplier_id || null,
+            ean: formData.ean || null,
+            barcode_tag: formData.barcode_tag || null,
+            ...loc,
+          })
+        }
+        // Bestand in Emit-Payload grob aktualisieren (Detail lädt sonst neu)
+        const extraQty = foodExtraLots.value.reduce(
+          (sum, lot) => sum + (lot.qty >= 1 && lot.expiry_date ? lot.qty : 0),
+          0,
+        )
+        emit('created', {
+          ...material,
+          total_stock: (material.total_stock || 0) + extraQty,
+        })
+      } else {
+        emit('created', material)
+      }
       successMessage = t('components.materialCreateWizard.successMaterialCreated')
     }
 
     toast.success(successMessage)
 
+    // Esswaren: bereits über Aktivität/Camp/Event bezahlt — keine Buchhaltungs-Kostenbuchung
     if (
-      await enqueuePendingCostBookingAfterPurchase({
+      !formData.is_food &&
+      (await enqueuePendingCostBookingAfterPurchase({
         departmentId: props.departmentId,
         totalChf: computeWizardPurchaseTotalChf(),
         purchaseDateIso: formData.purchase_date || undefined,
@@ -7497,7 +7868,7 @@ async function handleSubmit() {
         materialBatchId: followUpBatchId ?? null,
         materialItemId: followUpMaterialItemId ?? null,
         receiptFile: purchaseReceiptFile.value,
-      })
+      }))
     ) {
       toast.info(t('components.batchModal.costBookingInfo'))
       headerNotificationsStore.requestRefresh()
@@ -7745,21 +8116,47 @@ watch(
   (id) => {
     if (!id || expandAllVisibleSteps.value || !accordionUserControlled.value || templateLoadInProgress.value) return
     if (wizardAccordionStepForMaterialTour()) return
+    // Esswaren: Tracking entfällt → direkt Bestand
+    if (formData.is_food && visibleStepIds.value.includes('stock')) {
+      activeStep.value = 'stock'
+      return
+    }
     const next = nextVisibleStepAfter('category')
     if (next) activeStep.value = next
   }
 )
 
 watch(() => formData.is_food, (isFood) => {
-  if (!isFood) return
+  if (!isFood) {
+    clearFoodExtraLots()
+    return
+  }
   showExpiryDateForNonFood.value = false
   // Esswaren bleiben ein physischer Einzelartikel.
   formData.material_type = 'physical'
   selectedComboMaterials.value = []
   comboMaterialSearch.value = ''
-  // Esswaren dürfen nur als Massenartikel geführt werden.
+  // Esswaren: immer Massenartikel — kein Serialisiert, Tracking-Schritt entfällt.
   formData.tracking_type = 'bulk'
+  // Esswaren: immer Stück, nie Meter / keine VE / kein Behälter.
+  stock_unit.value = 'Stk'
+  qtyEntryMode.value = 'base'
+  packUnitEnabled.value = false
+  formData.is_container = false
+  formData.model = ''
+  formData.color = ''
+  formData.warranty_until = ''
   applyFoodCategoryIfAvailable()
+  void nextTick(() => {
+    if (wizardAccordionStepForMaterialTour()) return
+    if (expandAllVisibleSteps.value) return
+    // Nach Esswaren: direkt Bestand (Tracking-Wahl überspringen)
+    if (formData.category_id && visibleStepIds.value.includes('stock')) {
+      expandAllVisibleSteps.value = false
+      accordionUserControlled.value = true
+      activeStep.value = 'stock'
+    }
+  })
 }, { immediate: true })
 
 /** Verbrauchsmaterial bleibt physischer Einzelartikel; Bestandsverfolgung wählt der User nach Kategorie. */

@@ -107,7 +107,7 @@ import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
 import { useActivityDateRangePicker } from '@/composables/useActivityDateRangePicker'
 import { useToast } from '@/composables/useToast'
 import { formatActivityDateRangeDe } from '@/utils/activityDateIso'
-import { rangeContainsDepartmentClosedDate } from '@/utils/activityDatePickerModel'
+import { rangeContainsDepartmentClosedDate, withDepartmentClosedPresetFlags } from '@/utils/activityDatePickerModel'
 import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
 import { startOfToday } from '@/utils/swissMovableFeasts'
 import ActivityDatePickerControlsBar from './ActivityDatePickerControlsBar.vue'
@@ -171,7 +171,14 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
+const rawPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
+const menuPresets = computed(() =>
+  withDepartmentClosedPresetFlags(
+    rawPresets.value,
+    departmentClosedDateKeys.value,
+    props.blockClosedDates,
+  ),
+)
 
 const {
   displayRange,
@@ -227,9 +234,14 @@ function applyPreset(preset: ActivityDatePresetItem) {
   const range: [Date, Date] = v instanceof Date ? [v, v] : [v[0], v[1]]
   if (
     props.blockClosedDates &&
-    rangeContainsDepartmentClosedDate(range[0], range[1], departmentClosedDateKeys.value)
+    (preset.disabled ||
+      rangeContainsDepartmentClosedDate(range[0], range[1], departmentClosedDateKeys.value))
   ) {
-    toast.warning(t('activities.dateRangePicker.rangeBlockedByDepartmentBreak'))
+    toast.warning(
+      preset.periodLabel
+        ? t('activities.dateRangePicker.rangeBlockedByDepartmentBreak')
+        : t('activities.dateRangePicker.saturdayBlockedByDepartmentBreak'),
+    )
     return
   }
   pickerRange.value = range

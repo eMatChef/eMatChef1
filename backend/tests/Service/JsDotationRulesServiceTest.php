@@ -31,11 +31,30 @@ final class JsDotationRulesServiceTest extends TestCase
         self::assertSame(70, $this->service->suggestQuantityForMaterial($material, 33));
     }
 
-    public function testBindestrickCapsAtFifty(): void
+    public function testBindestrickDoesNotCapSuggestionAtFifty(): void
     {
         $material = $this->material('Bindestrick Hanf blau/grau');
 
-        self::assertSame(50, $this->service->suggestQuantityForMaterial($material, 60));
+        self::assertSame(60, $this->service->suggestQuantityForMaterial($material, 60));
+    }
+
+    public function testBindestrickOverMaxDoesNotBlockValidation(): void
+    {
+        $errors = $this->service->validateOrderItems(60, [
+            ['material_name' => 'Bindestrick Hanf blau/grau', 'quantity_ordered' => 60],
+        ]);
+
+        self::assertSame([], $errors);
+    }
+
+    public function testBindestrickOverMaxProducesWarning(): void
+    {
+        $warnings = $this->service->collectOrderWarnings(60, [
+            ['material_name' => 'Bindestrick Hanf blau/grau', 'quantity_ordered' => 60],
+        ], 'lager');
+
+        self::assertNotEmpty($warnings);
+        self::assertStringContainsString('max. 50', $warnings[0]);
     }
 
     public function testSchneeschaufelHasCourseMaxFifteenInWinter(): void

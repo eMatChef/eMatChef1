@@ -63,53 +63,6 @@
               <v-btn value="virtual" size="small">{{ t('materialsView.comboFilterVirtual') }}</v-btn>
             </v-btn-toggle>
           </v-col>
-          <v-col v-if="activeTab === 'food'" cols="auto" class="materials-view-combo-toggle">
-            <v-btn-toggle
-              v-model="foodExpiryFilter"
-              density="compact"
-              color="primary"
-              variant="outlined"
-              mandatory
-            >
-              <v-btn value="all" size="small">{{ t('materialsView.foodFilterAll') }}</v-btn>
-              <v-btn value="soon" size="small">{{ t('materialsView.foodFilterSoon') }}</v-btn>
-              <v-btn value="expired" size="small">{{ t('materialsView.foodFilterExpired') }}</v-btn>
-              <v-btn value="none" size="small">{{ t('materialsView.foodFilterNoDate') }}</v-btn>
-            </v-btn-toggle>
-          </v-col>
-          <v-col
-            v-if="activeTab === 'food' && foodExpiryFilter === 'soon'"
-            cols="auto"
-            class="materials-view-combo-toggle"
-          >
-            <v-btn-toggle
-              v-model="foodSoonDays"
-              density="compact"
-              color="primary"
-              variant="outlined"
-              mandatory
-            >
-              <v-btn
-                v-for="n in foodSoonDayOptions"
-                :key="n"
-                :value="n"
-                size="small"
-              >{{ t('materialsView.foodSoonDays', { n }) }}</v-btn>
-            </v-btn-toggle>
-          </v-col>
-          <v-col v-if="activeTab === 'food'" cols="auto" class="materials-view-combo-toggle">
-            <v-btn-toggle
-              v-model="foodSortKey"
-              density="compact"
-              color="primary"
-              variant="outlined"
-              mandatory
-            >
-              <v-btn value="expiry" size="small">{{ t('materialsView.foodSortExpiry') }}</v-btn>
-              <v-btn value="name" size="small">{{ t('materialsView.foodSortName') }}</v-btn>
-              <v-btn value="stock" size="small">{{ t('materialsView.foodSortStock') }}</v-btn>
-            </v-btn-toggle>
-          </v-col>
           <v-col v-if="!isUserMaterialsBrowseOnly" cols="auto" class="e-filter-row__select">
             <ESelect
               v-model="selectedCategory"
@@ -138,6 +91,51 @@
             </EButton>
           </v-col>
         </EFilterRow>
+
+        <!-- Esswaren: Verfall-Filter + Sortierung auf zweiter Zeile -->
+        <div v-if="activeTab === 'food'" class="materials-view-food-filters">
+          <v-btn-toggle
+            v-model="foodExpiryFilter"
+            density="compact"
+            color="primary"
+            variant="outlined"
+            mandatory
+            class="materials-view-food-filters__group"
+          >
+            <v-btn value="all" size="small">{{ t('materialsView.foodFilterAll') }}</v-btn>
+            <v-btn value="soon" size="small">{{ t('materialsView.foodFilterSoon') }}</v-btn>
+            <v-btn value="expired" size="small">{{ t('materialsView.foodFilterExpired') }}</v-btn>
+            <v-btn value="none" size="small">{{ t('materialsView.foodFilterNoDate') }}</v-btn>
+          </v-btn-toggle>
+          <v-btn-toggle
+            v-if="foodExpiryFilter === 'soon'"
+            v-model="foodSoonDays"
+            density="compact"
+            color="primary"
+            variant="outlined"
+            mandatory
+            class="materials-view-food-filters__group"
+          >
+            <v-btn
+              v-for="n in foodSoonDayOptions"
+              :key="n"
+              :value="n"
+              size="small"
+            >{{ t('materialsView.foodSoonDays', { n }) }}</v-btn>
+          </v-btn-toggle>
+          <v-btn-toggle
+            v-model="foodSortKey"
+            density="compact"
+            color="primary"
+            variant="outlined"
+            mandatory
+            class="materials-view-food-filters__group"
+          >
+            <v-btn value="expiry" size="small">{{ t('materialsView.foodSortExpiry') }}</v-btn>
+            <v-btn value="name" size="small">{{ t('materialsView.foodSortName') }}</v-btn>
+            <v-btn value="stock" size="small">{{ t('materialsView.foodSortStock') }}</v-btn>
+          </v-btn-toggle>
+        </div>
         </div>
       </template>
 

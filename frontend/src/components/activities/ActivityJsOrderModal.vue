@@ -467,8 +467,13 @@
                   :disabled="readOnly"
                 />
               </td>
-              <td class="text-muted">
-                {{ row.dotation_suggested != null && row.dotation_suggested >= 1 ? row.dotation_suggested : '–' }}
+              <td class="js-order-dotation-cell">
+                <span class="js-order-dotation-qty text-muted">
+                  {{ row.dotation_suggested != null && row.dotation_suggested >= 1 ? row.dotation_suggested : '–' }}
+                </span>
+                <span v-if="row.dotation_hint" class="js-order-dotation-why text-muted">
+                  {{ row.dotation_hint }}
+                </span>
               </td>
               <td v-if="!readOnly">
                 <button type="button" class="link-btn js-order-remove-btn" @click="removeOrderItem(row.material_item_id)">
@@ -479,52 +484,60 @@
           </tbody>
         </table>
 
-        <div v-if="!readOnly" class="js-order-catalog-toolbar">
-          <div ref="catalogSearchWrapRef" class="js-order-catalog-search-wrap">
-            <ESearchField
-              v-model="catalogSearch"
-              :placeholder="t('activities.jsMaterial.order.catalogSearchPlaceholder')"
-              :clearable="true"
-              @focus="onCatalogSearchFocus"
-              @blur="onCatalogSearchBlur"
-            />
-          </div>
-          <EButton
-            variant="secondary"
-            size="small"
-            :disabled="dotationLoading"
-            :loading="dotationLoading"
-            @click="onApplyDotation"
-          >
-            {{ t('activities.jsMaterial.order.applyDotationButton') }}
-          </EButton>
-        </div>
-
-        <Teleport to="body">
-          <Transition name="dropdown-fade">
-            <div
-              v-if="catalogDropdownOpen && !readOnly"
-              class="js-order-catalog-dropdown"
-              :style="catalogDropdownStyle"
-              @mousedown.prevent
+        <div v-if="!readOnly" class="js-order-catalog-panel">
+          <div class="js-order-catalog-toolbar">
+            <div class="js-order-catalog-search-wrap">
+              <ESearchField
+                v-model="catalogSearch"
+                :placeholder="t('activities.jsMaterial.order.catalogSearchPlaceholder')"
+                :clearable="true"
+                @focus="onCatalogSearchFocus"
+              />
+            </div>
+            <EButton
+              variant="secondary"
+              size="small"
+              :disabled="dotationLoading"
+              :loading="dotationLoading"
+              @click="onApplyDotation"
             >
-              <div v-if="catalogLoading" class="js-order-catalog-dropdown-status text-muted">
-                {{ t('activities.jsMaterial.order.catalogLoading') }}
+              {{ t('activities.jsMaterial.order.applyDotationButton') }}
+            </EButton>
+          </div>
+
+          <p
+            v-if="effectiveParticipantCount"
+            class="js-order-dotation-explain text-muted"
+            role="note"
+          >
+            {{
+              t('activities.jsMaterial.order.dotationExplainBanner', {
+                count: effectiveParticipantCount,
+              })
+            }}
+          </p>
+          <p v-else class="js-order-dotation-explain text-muted" role="note">
+            {{ t('activities.jsMaterial.order.dotationExplainNoParticipants') }}
+          </p>
+
+          <div class="js-order-catalog-results">
+            <div v-if="catalogLoading" class="js-order-catalog-dropdown-status text-muted">
+              {{ t('activities.jsMaterial.order.catalogLoading') }}
+            </div>
+            <div v-else-if="catalogItems.length === 0" class="js-order-catalog-dropdown-status text-muted">
+              {{ t('activities.jsMaterial.order.catalogLoadError') }}
+            </div>
+            <template v-else>
+              <div class="js-order-catalog-dropdown-head">
+                {{ t('activities.jsMaterial.order.catalogPdfListTitle', { count: catalogItems.length }) }}
+                <span v-if="catalogSearchQuery" class="js-order-catalog-filter-count text-muted">
+                  · {{ t('activities.jsMaterial.order.catalogFilterCount', { count: filteredCatalogItems.length }) }}
+                </span>
               </div>
-              <div v-else-if="catalogItems.length === 0" class="js-order-catalog-dropdown-status text-muted">
-                {{ t('activities.jsMaterial.order.catalogLoadError') }}
+              <div v-if="filteredCatalogItems.length === 0" class="js-order-catalog-dropdown-status text-muted">
+                {{ t('activities.jsMaterial.order.catalogNoMatch') }}
               </div>
-              <template v-else>
-                <div class="js-order-catalog-dropdown-head">
-                  {{ t('activities.jsMaterial.order.catalogPdfListTitle', { count: catalogItems.length }) }}
-                  <span v-if="catalogSearchQuery" class="js-order-catalog-filter-count text-muted">
-                    · {{ t('activities.jsMaterial.order.catalogFilterCount', { count: filteredCatalogItems.length }) }}
-                  </span>
-                </div>
-                <div v-if="filteredCatalogItems.length === 0" class="js-order-catalog-dropdown-status text-muted">
-                  {{ t('activities.jsMaterial.order.catalogNoMatch') }}
-                </div>
-                <div v-else class="activity-mat-result-list js-order-catalog-list js-order-catalog-list--compact">
+              <div v-else class="activity-mat-result-list js-order-catalog-list js-order-catalog-list--compact">
                 <div
                   v-for="cat in filteredCatalogItems"
                   :key="cat.id"
@@ -545,32 +558,35 @@
                       <span class="activity-js-tag">{{ t('activities.common.jsBadge') }}</span>
                       {{ cat.name }}
                     </span>
+                    <span v-if="dotationWhyLabel(cat)" class="js-order-catalog-dotation-why">
+                      {{ dotationWhyLabel(cat) }}
+                    </span>
                   </div>
                   <div class="activity-mat-result-actions">
-              <span v-if="isMaterialInOrder(cat.id)" class="mat-already-badge">
-                {{ t('activities.materialAvailability.inList') }}
-              </span>
-              <span v-else-if="isOtherVariantSelected(cat)" class="mat-variant-badge">
-                {{ t('activities.jsMaterial.order.otherVariantInList') }}
-              </span>
-              <span v-else-if="getAddableRemaining(cat) === 0" class="mat-max-badge">
+                    <span v-if="isMaterialInOrder(cat.id)" class="mat-already-badge">
+                      {{ t('activities.materialAvailability.inList') }}
+                    </span>
+                    <span v-else-if="isOtherVariantSelected(cat)" class="mat-variant-badge">
+                      {{ t('activities.jsMaterial.order.otherVariantInList') }}
+                    </span>
+                    <span v-else-if="getAddableRemaining(cat) === 0" class="mat-max-badge">
                       {{ t('activities.jsMaterial.order.maxReachedShort') }}
                     </span>
                     <template v-if="getDotationAddQty(cat) > 0 && !isOtherVariantSelected(cat)">
                       <button
                         type="button"
                         class="activity-mat-quick-btn activity-mat-set-btn js-order-dotation-btn"
-                        :title="t('activities.jsMaterial.order.addSuggestedTitle', { count: getDotationAddQty(cat) })"
+                        :title="dotationSuggestButtonTitle(cat)"
                         @click="onAddCatalogDotationQty(cat)"
                       >
                         +{{ getDotationAddQty(cat) }}
                       </button>
                       <span v-if="catalogIncrementOptions(cat).length > 0" class="activity-mat-btn-divider" aria-hidden="true">|</span>
                     </template>
-              <button
-                v-for="inc in catalogIncrementOptions(cat)"
-                v-show="!isOtherVariantSelected(cat)"
-                :key="inc"
+                    <button
+                      v-for="inc in catalogIncrementOptions(cat)"
+                      v-show="!isOtherVariantSelected(cat)"
+                      :key="inc"
                       type="button"
                       class="activity-mat-quick-btn"
                       :title="`+${inc}`"
@@ -580,11 +596,10 @@
                     </button>
                   </div>
                 </div>
-                </div>
-              </template>
-            </div>
-          </Transition>
-        </Teleport>
+              </div>
+            </template>
+          </div>
+        </div>
       </section>
     </template>
 
@@ -646,7 +661,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onUnmounted, reactive, ref, toRaw, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, toRaw, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { usePrompt } from '@/composables/usePrompt'
@@ -679,6 +694,7 @@ interface JsOrderItemDraft {
   material_name: string
   quantity_ordered: number
   dotation_suggested: number | null
+  dotation_hint?: string | null
   dotation_max?: number | null
   dotation_group?: string | null
   dotation_group_max?: number | null
@@ -689,8 +705,6 @@ interface JsOrderItemDraft {
 }
 
 const CATALOG_INCREMENT_CANDIDATES = [1, 2, 3, 5, 10] as const
-const CATALOG_DROPDOWN_Z_INDEX = 2600
-const CATALOG_DROPDOWN_MAX_HEIGHT = 340
 const AUTO_SAVE_DELAY_MS = 600
 const AUTO_SAVE_SAVED_ICON_MS = 2000
 const JS_REFERENCE_CATALOG_URL = '/docs/js-order/250821_JS_Leihmaterial_Katalog_DE.pdf'
@@ -781,13 +795,8 @@ const filteredCatalogItems = computed(() => {
   })
 })
 const catalogLoading = ref(false)
-const catalogSearchWrapRef = ref<HTMLElement | null>(null)
-const catalogDropdownOpen = ref(false)
-const catalogDropdownStyle = ref<Record<string, string>>({})
 const dotationLoading = ref(false)
 const pdfGenerating = ref(false)
-let catalogDropdownCloseTimer: ReturnType<typeof setTimeout> | null = null
-let catalogDropdownPositionBound = false
 let participantPromptInFlight = false
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
 let autoSaveSavedTimer: ReturnType<typeof setTimeout> | null = null
@@ -1139,18 +1148,13 @@ function getGroupTotalInOrder(group: string): number {
 
 function getAddableRemaining(cat: JsCatalogItem): number | null {
   const limits = limitsForCatalogItem(cat)
+  // Kurs-Max (`dotation_max`) ist nur Hinweis — nicht hart begrenzen.
   const hasLimit =
-    limits.max != null ||
-    (limits.group != null && limits.groupMax != null) ||
-    limits.stock != null
+    (limits.group != null && limits.groupMax != null) || limits.stock != null
   if (!hasLimit) return null
 
   const current = getOrderItem(cat.id)?.quantity_ordered ?? 0
   let remaining = Number.POSITIVE_INFINITY
-
-  if (limits.max != null) {
-    remaining = Math.min(remaining, Math.max(0, limits.max - current))
-  }
 
   if (limits.group != null && limits.groupMax != null) {
     remaining = Math.min(remaining, Math.max(0, limits.groupMax - getGroupTotalInOrder(limits.group)))
@@ -1198,12 +1202,45 @@ function getDotationAddQty(cat: JsCatalogItem): number {
   return Math.min(suggested, remaining)
 }
 
+/** Begründung der Dotation (Regel + optional TN/Vorschlag). */
+function dotationWhyLabel(cat: JsCatalogItem): string {
+  const hint = (cat.dotation_hint || '').trim()
+  const suggested = cat.dotation_suggested
+  const tn = effectiveParticipantCount.value
+  if (hint && tn != null && tn >= 1 && suggested != null && suggested >= 1) {
+    return t('activities.jsMaterial.order.dotationWhyWithSuggestion', {
+      hint,
+      participants: tn,
+      count: suggested,
+    })
+  }
+  if (hint) return hint
+  if (tn != null && tn >= 1 && suggested != null && suggested >= 1) {
+    return t('activities.jsMaterial.order.dotationWhySuggestionOnly', {
+      participants: tn,
+      count: suggested,
+    })
+  }
+  return ''
+}
+
+function dotationSuggestButtonTitle(cat: JsCatalogItem): string {
+  const why = dotationWhyLabel(cat)
+  const count = getDotationAddQty(cat)
+  if (why) {
+    return t('activities.jsMaterial.order.addSuggestedTitleWithWhy', { count, why })
+  }
+  return t('activities.jsMaterial.order.addSuggestedTitle', { count })
+}
+
 function enrichOrderItemsFromCatalog() {
   orderItems.value = orderItems.value.map((row) => {
     const cat = catalogItemFor(row.material_item_id)
     if (!cat) return row
     return {
       ...row,
+      dotation_suggested: row.dotation_suggested ?? cat.dotation_suggested ?? null,
+      dotation_hint: cat.dotation_hint ?? row.dotation_hint ?? null,
       dotation_max: row.dotation_max ?? cat.dotation_max ?? null,
       dotation_group: row.dotation_group ?? cat.dotation_group ?? null,
       dotation_group_max: row.dotation_group_max ?? cat.dotation_group_max ?? null,
@@ -1282,6 +1319,9 @@ function addCatalogQty(cat: JsCatalogItem, qty: number) {
     if (existing.dotation_suggested == null && cat.dotation_suggested != null) {
       existing.dotation_suggested = cat.dotation_suggested
     }
+    if (!existing.dotation_hint && cat.dotation_hint) {
+      existing.dotation_hint = cat.dotation_hint
+    }
     return
   }
   orderItems.value.push({
@@ -1289,6 +1329,7 @@ function addCatalogQty(cat: JsCatalogItem, qty: number) {
     material_name: cat.name,
     quantity_ordered: add,
     dotation_suggested: cat.dotation_suggested ?? null,
+    dotation_hint: cat.dotation_hint ?? null,
     dotation_max: limits.max,
     dotation_group: limits.group,
     dotation_group_max: limits.groupMax,
@@ -1369,83 +1410,8 @@ async function loadCatalog() {
   }
 }
 
-function syncCatalogDropdownPosition() {
-  const el = catalogSearchWrapRef.value
-  if (!el) return
-
-  const rect = el.getBoundingClientRect()
-  const vw = window.innerWidth
-  const vh = window.innerHeight
-  const width = Math.min(Math.max(rect.width, 320), vw - 16)
-  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
-  const spaceBelow = vh - rect.bottom - 8
-  const spaceAbove = rect.top - 8
-  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
-
-  if (openBelow) {
-    catalogDropdownStyle.value = {
-      position: 'fixed',
-      top: `${rect.bottom + 4}px`,
-      left: `${left}px`,
-      width: `${width}px`,
-      maxHeight: `min(${CATALOG_DROPDOWN_MAX_HEIGHT}px, ${Math.max(spaceBelow - 4, 80)}px)`,
-      zIndex: String(CATALOG_DROPDOWN_Z_INDEX),
-    }
-    return
-  }
-
-  catalogDropdownStyle.value = {
-    position: 'fixed',
-    left: `${left}px`,
-    width: `${width}px`,
-    bottom: `${vh - rect.top + 4}px`,
-    maxHeight: `min(${CATALOG_DROPDOWN_MAX_HEIGHT}px, ${Math.max(spaceAbove - 4, 80)}px)`,
-    zIndex: String(CATALOG_DROPDOWN_Z_INDEX),
-  }
-}
-
-function bindCatalogDropdownPositionListeners() {
-  if (catalogDropdownPositionBound) return
-  catalogDropdownPositionBound = true
-  window.addEventListener('resize', syncCatalogDropdownPosition, { passive: true })
-  window.addEventListener('scroll', syncCatalogDropdownPosition, { passive: true, capture: true })
-}
-
-function unbindCatalogDropdownPositionListeners() {
-  if (!catalogDropdownPositionBound) return
-  catalogDropdownPositionBound = false
-  window.removeEventListener('resize', syncCatalogDropdownPosition)
-  window.removeEventListener('scroll', syncCatalogDropdownPosition, true)
-}
-
-function closeCatalogDropdownNow() {
-  if (catalogDropdownCloseTimer) {
-    clearTimeout(catalogDropdownCloseTimer)
-    catalogDropdownCloseTimer = null
-  }
-  catalogDropdownOpen.value = false
-  unbindCatalogDropdownPositionListeners()
-}
-
 function onCatalogSearchFocus() {
-  if (catalogDropdownCloseTimer) {
-    clearTimeout(catalogDropdownCloseTimer)
-    catalogDropdownCloseTimer = null
-  }
-  catalogDropdownOpen.value = true
   void loadCatalog()
-  void nextTick(() => {
-    syncCatalogDropdownPosition()
-    bindCatalogDropdownPositionListeners()
-  })
-}
-
-function onCatalogSearchBlur() {
-  if (catalogDropdownCloseTimer) clearTimeout(catalogDropdownCloseTimer)
-  catalogDropdownCloseTimer = setTimeout(() => {
-    catalogDropdownCloseTimer = null
-    closeCatalogDropdownNow()
-  }, 160)
 }
 
 async function onApplyDotation() {
@@ -1696,7 +1662,6 @@ watch(
       stepIndex.value = 0
       void loadOrder()
     } else {
-      closeCatalogDropdownNow()
       clearAutoSaveSavedTimer()
       if (autoSaveTimer) {
         clearTimeout(autoSaveTimer)
@@ -1709,10 +1674,7 @@ watch(
 )
 
 watch(stepIndex, async (idx) => {
-  if (idx !== 3) {
-    closeCatalogDropdownNow()
-    return
-  }
+  if (idx !== 3) return
   if (!props.isOpen || props.readOnly) return
   void loadCatalog()
   if (!effectiveParticipantCount.value) {
@@ -1721,20 +1683,9 @@ watch(stepIndex, async (idx) => {
   }
 })
 
-watch(catalogDropdownOpen, async (open) => {
-  if (!open) return
-  await nextTick()
-  syncCatalogDropdownPosition()
-})
-
 onBeforeUnmount(() => {
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   clearAutoSaveSavedTimer()
-})
-
-onUnmounted(() => {
-  unbindCatalogDropdownPositionListeners()
-  if (catalogDropdownCloseTimer) clearTimeout(catalogDropdownCloseTimer)
 })
 
 watch(effectiveParticipantCount, () => {
@@ -2042,12 +1993,50 @@ watch(
   margin-top: 4px;
 }
 
+.js-order-catalog-panel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .js-order-catalog-toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  margin-top: 16px;
+}
+
+.js-order-dotation-explain {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.js-order-dotation-cell {
+  vertical-align: top;
+  min-width: 7rem;
+}
+
+.js-order-dotation-qty {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.js-order-dotation-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  max-width: 14rem;
+}
+
+.js-order-catalog-dotation-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #047857;
 }
 
 .js-order-catalog-search-wrap {
@@ -2059,6 +2048,14 @@ watch(
   width: 100%;
 }
 
+.js-order-catalog-results {
+  max-height: min(420px, 50vh);
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
 .js-order-catalog-dropdown-head {
   padding: 8px 12px;
   font-size: 12px;
@@ -2066,6 +2063,9 @@ watch(
   color: #374151;
   border-bottom: 1px solid #f3f4f6;
   background: #f9fafb;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .js-order-catalog-line-num {
@@ -2085,20 +2085,12 @@ watch(
 
 .js-order-catalog-list--compact .activity-mat-result-row {
   padding: 6px 10px;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .js-order-catalog-list--compact .activity-mat-result-meta {
   font-size: 12px;
   color: #6b7280;
-}
-
-.js-order-catalog-dropdown {
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
 }
 
 .js-order-catalog-dropdown-status {
@@ -2112,17 +2104,6 @@ watch(
   max-height: none;
   overflow: visible;
   margin-bottom: 0;
-}
-
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition: opacity 0.15s, transform 0.15s;
-}
-
-.dropdown-fade-enter-from,
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 
 .activity-mat-result-list {

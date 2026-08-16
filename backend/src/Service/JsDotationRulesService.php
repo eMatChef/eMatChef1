@@ -333,11 +333,7 @@ class JsDotationRulesService
             $qty = 0;
         }
 
-        $max = $rule['max'] ?? null;
-        if ($max !== null) {
-            $qty = min($qty, (int) $max);
-        }
-
+        // Kurs-Maxima (z. B. Bindestrick 50) sind Hinweise — Vorschlag nicht kappen.
         $roundUp = $rule['round_up'] ?? null;
         if ($roundUp !== null && (int) $roundUp > 1 && $qty > 0) {
             $qty = (int) (ceil($qty / (int) $roundUp) * (int) $roundUp);
@@ -374,16 +370,7 @@ class JsDotationRulesService
                 continue;
             }
 
-            $max = $rule['max'] ?? null;
-            if ($max !== null && $qty > (int) $max) {
-                $errors[] = sprintf(
-                    '%s: max. %d laut Dotation (bestellt: %d)',
-                    $row['material_name'] ?? $rule['key'],
-                    (int) $max,
-                    $qty,
-                );
-            }
-
+            // Kurs-Max (`max`) blockiert nicht — nur Hinweis in collectOrderWarnings.
             $group = $rule['group'] ?? null;
             if ($group !== null) {
                 $groupTotals[$group] = ($groupTotals[$group] ?? 0) + $qty;
@@ -427,6 +414,16 @@ class JsDotationRulesService
             $rule = $this->findRuleByName($name);
             if ($rule === null) {
                 continue;
+            }
+
+            $max = $rule['max'] ?? null;
+            if ($max !== null && $qty > (int) $max) {
+                $warnings[] = sprintf(
+                    '%s: %d bestellt — J+S-Dotation sieht max. %d/Kurs vor (kann Rückfragen auslösen).',
+                    $row['material_name'] ?? $rule['key'],
+                    $qty,
+                    (int) $max,
+                );
             }
 
             $group = $rule['group'] ?? null;

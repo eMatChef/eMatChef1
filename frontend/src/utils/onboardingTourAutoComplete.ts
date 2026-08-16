@@ -1,7 +1,12 @@
 import { getCategories } from '@/api/categories'
 import { getJsMaterialDepartmentDefaults } from '@/api/departmentSettings'
 import { getDepartmentMembers } from '@/api/departments'
-import type { OnboardingTourId } from '@/config/onboardingTours'
+import { getMaterials } from '@/api/materials'
+import apiClient from '@/api/apiClient'
+import {
+  isExistingActivityOfType,
+  type OnboardingTourId,
+} from '@/config/onboardingTours'
 import { filterUserSelectableCategories } from '@/utils/repairPartsCategory'
 import {
   isOnboardingTourCompleted,
@@ -25,7 +30,7 @@ function hasDefaultCoachConfigured(js: {
 }
 
 /**
- * Markiert Settings-Touren als erledigt, wenn die Daten bereits im Department existieren
+ * Markiert Touren als erledigt, wenn die Daten bereits im Department existieren
  * (ohne dass die Spotlight-Tour durchgeklickt werden muss).
  */
 export async function syncOnboardingTourAutoCompletion(
@@ -34,11 +39,16 @@ export async function syncOnboardingTourAutoCompletion(
 ): Promise<OnboardingTourId[]> {
   if (!profileId || !departmentId) return []
 
-  const [categoriesResult, membersResult, coachResult] = await Promise.allSettled([
-    getCategories(departmentId),
-    getDepartmentMembers(departmentId),
-    getJsMaterialDepartmentDefaults(departmentId),
-  ])
+  const [categoriesResult, membersResult, coachResult, materialsResult, activitiesResult] =
+    await Promise.allSettled([
+      getCategories(departmentId),
+      getDepartmentMembers(departmentId),
+      getJsMaterialDepartmentDefaults(departmentId),
+      getMaterials(departmentId, { material_source: 'all', include_global_js: false }),
+      apiClient.get<Array<{ type?: string; status?: string }>>('/api/activities', {
+        params: { department_id: departmentId },
+      }),
+    ])
 
   const marked: OnboardingTourId[] = []
 
@@ -63,6 +73,22 @@ export async function syncOnboardingTourAutoCompletion(
 
   if (coachResult.status === 'fulfilled' && hasDefaultCoachConfigured(coachResult.value)) {
     markIfNeeded('default-coach')
+  }
+
+  // Esswaren-Tour ist optional: bereits vorhandene Esswaren = Tour erledigt
+  if (materialsResult.status === 'fulfilled' && materialsResult.value.some((m) => m.is_food)) {
+    markIfNeeded('material-food')
+  }
+
+  // Anlege-Touren: vorhandene Aktivität/Camp freigibt Folge-Touren (Packen & Co.)
+  if (activitiesResult.status === 'fulfilled') {
+    const activities = activitiesResult.value.data || []
+    if (activities.some((a) => isExistingActivityOfType(a.type, a.status, 'activity'))) {
+      markIfNeeded('activity-create')
+    }
+    if (activities.some((a) => isExistingActivityOfType(a.type, a.status, 'camp'))) {
+      markIfNeeded('activity-camp-create')
+    }
   }
 
   return marked

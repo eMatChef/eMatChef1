@@ -268,6 +268,7 @@ export interface Material {
   
   // Verleih
   rental_external_allowed?: boolean
+  is_rentable?: boolean
   rental_scope?: string | null
   rental_requires_approval?: boolean
   rental_price_day?: string | null
@@ -364,6 +365,7 @@ export interface CreateMaterialRequest {
   
   // Verleih
   rental_external_allowed?: boolean
+  is_rentable?: boolean
   rental_scope?: string | null
   rental_requires_approval?: boolean
   rental_price_day?: string | null
@@ -414,6 +416,7 @@ export interface UpdateMaterialRequest {
   
   // Verleih
   rental_external_allowed?: boolean
+  is_rentable?: boolean
   rental_scope?: string | null
   rental_requires_approval?: boolean
   rental_price_day?: string | null
@@ -723,6 +726,7 @@ export interface UpdateBatchRequest {
   supplier_id?: string | null
   rack_id?: string | null
   slot_id?: string | null
+  expiry_date?: string | null
   is_container?: boolean
 }
 

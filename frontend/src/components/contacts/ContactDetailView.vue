@@ -1,8 +1,18 @@
 <template>
-  <div class="contact-detail-view" :class="{ 'contact-detail-view--modal': asModal }">
+  <div
+    class="contact-detail-view"
+    :class="{ 'contact-detail-view--modal': asModal }"
+    :data-onboarding="asModal ? 'activity-venue-create' : undefined"
+  >
     <header class="detail-header">
       <div class="detail-header-toolbar">
-        <EButton variant="secondary" size="small" class="contact-detail-back-btn" @click="goBack">
+        <EButton
+          variant="secondary"
+          size="small"
+          class="contact-detail-back-btn"
+          :data-onboarding="asModal ? 'activity-venue-create-close' : undefined"
+          @click="goBack"
+        >
           <v-icon :icon="asModal ? 'mdi-close' : 'mdi-arrow-left'" start size="20" />
           {{ backLabel }}
         </EButton>
@@ -603,6 +613,8 @@
               :allow-children="isEventContactType"
               :location-kind="isMeetingContactType ? 'meeting' : 'event'"
               :highlight-delivery="highlightDelivery"
+              :suggested-name="draft.name ?? ''"
+              @update:suggested-name="onVenueSuggestedName"
               @edit-child="openChildEditModal"
               @create-child="openChildCreateModal"
               @edit-venue-details="openVenueDetailsModal"
@@ -743,6 +755,8 @@ const props = withDefaults(
     defaultType?: string
     /** Als Dialog über der Liste (gleicher Stil wie Detail). */
     asModal?: boolean
+    /** Vorbelegung Bezeichnung (z. B. Lagername oder Suchbegriff). */
+    initialName?: string | null
     /** Nach Laden zu Standorte scrollen (z. B. aus J+S-Tab). */
     initialFocus?: 'locations' | null
     /** Zustellpunkt / Lieferort-Zeile hervorheben. */
@@ -753,6 +767,7 @@ const props = withDefaults(
     mode: 'view',
     defaultType: 'customer',
     asModal: false,
+    initialName: null,
     initialFocus: null,
     highlightDelivery: false,
   },
@@ -978,9 +993,10 @@ const locationBaselineLat = ref<number | null>(null)
 const locationBaselineLng = ref<number | null>(null)
 
 function emptyDraft(type = props.defaultType): Partial<AddressFormData> {
+  const preset = (props.initialName ?? '').trim()
   return {
     type,
-    name: '',
+    name: preset,
     company: null,
     address_line2: null,
     street: '',
@@ -998,6 +1014,12 @@ function emptyDraft(type = props.defaultType): Partial<AddressFormData> {
     pin_color: '#16a34a',
     is_primary: false,
   }
+}
+
+function onVenueSuggestedName(name: string) {
+  const next = name.trim()
+  if ((draft.value.name ?? '').trim() === next) return
+  draft.value = { ...draft.value, name: next || null }
 }
 
 const hasDeliveryChild = computed(() => childAddresses.value.some((a) => a.type === 'event_delivery'))

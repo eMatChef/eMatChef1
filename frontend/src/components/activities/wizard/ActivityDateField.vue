@@ -71,7 +71,12 @@ import { useActivityDatePickerDelayedClose } from '@/composables/useActivityDate
 import { useActivityDatePickerEvents } from '@/composables/useActivityDatePickerEvents'
 import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePickerPaneMonth'
 import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
+import { useToast } from '@/composables/useToast'
 import { formatActivityDateDe } from '@/utils/activityDateIso'
+import {
+  rangeContainsDepartmentClosedDate,
+  withDepartmentClosedPresetFlags,
+} from '@/utils/activityDatePickerModel'
 import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
 import { startOfToday } from '@/utils/swissMovableFeasts'
 import ActivityDatePickerControlsBar from './ActivityDatePickerControlsBar.vue'
@@ -113,6 +118,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const toast = useToast()
 const menuOpen = ref(false)
 const activatorRef = ref<{ $el: HTMLElement } | null>(null)
 const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
@@ -139,7 +145,14 @@ const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKe
     showMarkers: () => props.showMarkers,
     blockClosedDates: () => props.blockClosedDates,
   })
-const menuPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
+const rawPresets = useActivityDatePresets(() => props.presetMode, calendarPeriods, () => props.departmentId)
+const menuPresets = computed(() =>
+  withDepartmentClosedPresetFlags(
+    rawPresets.value,
+    departmentClosedDateKeys.value,
+    props.blockClosedDates,
+  ),
+)
 
 const displayText = computed(() => formatActivityDateDe(props.modelValue))
 
@@ -161,6 +174,14 @@ function onPickerUpdate(value: Date | Date[] | null) {
 
 function applyPreset(preset: ActivityDatePresetItem) {
   const d = preset.value instanceof Date ? preset.value : preset.value[0]
+  if (
+    props.blockClosedDates &&
+    (preset.disabled ||
+      rangeContainsDepartmentClosedDate(d, d, departmentClosedDateKeys.value))
+  ) {
+    toast.warning(t('activities.dateRangePicker.saturdayBlockedByDepartmentBreak'))
+    return
+  }
   emit('update:modelValue', d)
   syncAnchorFromDate(d)
   scheduleClose()

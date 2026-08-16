@@ -5,6 +5,8 @@ import {
   getOnboardingTour,
   getMissingTourPrerequisites,
   isActivityReadyForIssueTour,
+  isAcceptPackTourListCandidate,
+  acceptPackTourTypeRank,
   ONBOARDING_TOUR_CATEGORY_ORDER,
 } from '@/config/onboardingTours'
 
@@ -56,6 +58,7 @@ describe('onboarding tour audience filter', () => {
     expect(ids).toContain('activity-approve')
     expect(ids).toContain('issue-return')
     expect(ids).toContain('issue-handoff')
+    expect(ids).toContain('activity-store')
     expect(ids).toContain('workshop-overview')
     expect(ids).toContain('activity-create')
     expect(ids).toContain('categories')
@@ -67,8 +70,10 @@ describe('onboarding tour audience filter', () => {
     expect(isTourVisibleForRole(getOnboardingTour('activity-close')!, 'dc')).toBe(true)
     expect(isTourVisibleForRole(getOnboardingTour('activity-approve')!, 'dc')).toBe(true)
     expect(isTourVisibleForRole(getOnboardingTour('issue-return')!, 'dc')).toBe(true)
+    expect(isTourVisibleForRole(getOnboardingTour('activity-store')!, 'dc')).toBe(true)
     const ids = filterOnboardingToursForRole('dc').map((t) => t.id)
     expect(ids).toContain('activity-close')
+    expect(ids).toContain('activity-store')
     expect(ids).toContain('activity-approve')
     expect(ids).toContain('issue-handoff')
   })
@@ -84,10 +89,14 @@ describe('onboarding tour audience filter', () => {
     expect(activity.steps.some((s) => s.target?.includes('activity-create-zeitraum'))).toBe(true)
     expect(activity.steps.some((s) => s.target?.includes('activity-create-material'))).toBe(true)
     expect(activity.steps.some((s) => s.target?.includes('activity-wizard-submit'))).toBe(true)
-    expect(activity.steps).toHaveLength(6)
+    expect(activity.steps.length).toBeGreaterThanOrEqual(8)
 
     const camp = getOnboardingTour('activity-camp-create')!
+    expect(camp.steps.some((s) => s.target?.includes('nav-activities'))).toBe(true)
     expect(camp.steps.some((s) => s.target?.includes('activity-camp-js-material'))).toBe(true)
+    expect(camp.steps.some((s) => s.target?.includes('activity-detail-submit'))).toBe(true)
+    expect(camp.steps.some((s) => s.target?.includes('activity-detail-approve'))).toBe(true)
+    expect(camp.browseComplete).toBe(true)
     expect(camp.requiresCampCreate).toBe(true)
     expect(camp.requiresCompletedTours).toEqual(
       expect.arrayContaining(['material-create', 'material-consumable'])
@@ -97,22 +106,40 @@ describe('onboarding tour audience filter', () => {
   it('issue-return is pack-only for mw with approved data gate', () => {
     const tour = getOnboardingTour('issue-return')!
     expect(tour.audience).toBe('mw')
-    expect(tour.version).toBeGreaterThanOrEqual(4)
-    expect(tour.steps.length).toBeGreaterThanOrEqual(3)
+    expect(tour.version).toBeGreaterThanOrEqual(7)
+    expect(tour.steps.length).toBeGreaterThanOrEqual(9)
+    expect(tour.browseComplete).toBe(true)
     expect(tour.requiresApprovedActivityOrCamp).toBe(true)
     expect(tour.requiresAnyCompletedTours).toEqual(
       expect.arrayContaining(['activity-create', 'activity-camp-create'])
     )
+    expect(tour.steps.some((s) => s.target?.includes('activities-packing-row'))).toBe(true)
+    expect(tour.steps.some((s) => s.target?.includes('activity-detail-accept-pack'))).toBe(true)
+    expect(tour.steps.some((s) => s.target?.includes('activity-pack-scan'))).toBe(true)
+    expect(tour.steps.some((s) => s.target?.includes('activity-pack-list'))).toBe(true)
   })
 
-  it('chains handoff → close (dc) / workshop (mw)', () => {
+  it('chains handoff → store (mw/dc) → close (dc) / workshop (mw)', () => {
     expect(getOnboardingTour('issue-handoff')!.requiresCompletedTours).toContain('issue-return')
-    expect(getOnboardingTour('activity-close')!.requiresCompletedTours).toContain('issue-handoff')
+    expect(getOnboardingTour('activity-store')!.requiresCompletedTours).toContain('issue-handoff')
+    expect(getOnboardingTour('activity-store')!.audience).toBe('mw')
+    expect(getOnboardingTour('activity-close')!.requiresCompletedTours).toContain('activity-store')
     expect(getOnboardingTour('workshop-overview')!.requiresCompletedTours).toContain('issue-handoff')
     expect(isActivityReadyForIssueTour('activity', 'approved')).toBe(true)
+    expect(isActivityReadyForIssueTour('activity', 'submitted')).toBe(true)
     expect(isActivityReadyForIssueTour('camp', 'packing')).toBe(true)
+    expect(isActivityReadyForIssueTour('camp', 'submitted')).toBe(false)
     expect(isActivityReadyForIssueTour('activity', 'draft')).toBe(false)
     expect(isActivityReadyForIssueTour('external', 'approved')).toBe(false)
+  })
+
+  it('accept-pack tour list prefers camp/event approved and allows submitted activity', () => {
+    expect(isAcceptPackTourListCandidate('camp', 'approved')).toBe(true)
+    expect(isAcceptPackTourListCandidate('event', 'approved')).toBe(true)
+    expect(isAcceptPackTourListCandidate('camp', 'submitted')).toBe(false)
+    expect(isAcceptPackTourListCandidate('activity', 'submitted')).toBe(true)
+    expect(isAcceptPackTourListCandidate('activity', 'approved')).toBe(true)
+    expect(acceptPackTourTypeRank('camp')).toBeLessThan(acceptPackTourTypeRank('activity'))
   })
 
   it('profile-overview uses user avatar and start category', () => {

@@ -307,6 +307,7 @@
                   />
                   
                   <AutoSaveField
+                    v-if="!(formData.is_food || material.is_food)"
                     v-model="formData.model"
                     :baseline="savedFormBaselines.model"
                     :label="t('components.materialDetail.labelModel')"
@@ -347,7 +348,7 @@
                     <span class="property-value">{{ t('components.materialDetail.propRental') }}</span>
                   </div>
                   <div
-                    v-if="material.tracking_type === 'bulk'"
+                    v-if="material.tracking_type === 'bulk' && !(formData.is_food || material.is_food)"
                     class="property-item property-item--checkbox"
                   >
                     <AutoSaveField
@@ -435,6 +436,7 @@
                   :save="(v) => saveMaterialField('weight', v)"
                 />
                 <AutoSaveField
+                  v-if="!(formData.is_food || material.is_food)"
                   v-model="formData.color"
                   :baseline="savedFormBaselines.color"
                   :label="t('components.materialDetail.labelColor')"
@@ -462,6 +464,7 @@
                   :save="(v) => saveMaterialField('size_height', v)"
                 />
                 <AutoSaveField
+                  v-if="!(formData.is_food || material.is_food)"
                   v-model="formData.warranty_until"
                   :baseline="savedFormBaselines.warranty_until"
                   :label="t('components.materialDetail.labelWarranty')"
@@ -498,9 +501,9 @@
               />
             </div>
 
-            <!-- Verpackungseinheit (Stück oder Meter: m pro VE) -->
+            <!-- Verpackungseinheit (Stück oder Meter: m pro VE) — nicht bei Esswaren -->
             <div
-              v-if="!isVirtualComboView"
+              v-if="!isVirtualComboView && !(formData.is_food || material.is_food)"
               class="section-card"
             >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
@@ -763,13 +766,14 @@
                 :items="sortedActiveBatches"
                 :can-manage-materials="canManageMaterials"
                 :show-move-qty="material.tracking_type !== 'serialized'"
+                :show-expiry="!!(material.is_food || formData.is_food || activeBatches.some((b) => !!b.expiry_date))"
                 :material-name="material.name"
                 :pack-unit="material.pack_unit"
                 :pack-size="material.pack_size"
                 :size-length-cm="material.size_length"
                 :status-labels="statusLabels"
-                :sort-key="stockSortKey"
-                :sort-dir="stockSortDir"
+                :sort-key="stockSortKeyForUi"
+                :sort-dir="stockSortDirForUi"
                 :em-dash="t('components.materialDetail.emDash')"
                 :currency-fr="t('components.materialDetail.currencyFr')"
                 :format-date="formatDate"
@@ -1277,7 +1281,8 @@
           </v-tabs-window-item>
 
           <!-- Tab: Werkstatt -->
-          <v-tabs-window-item v-if="!isVirtualComboView" value="workshop" class="material-detail-window-item">
+          <!-- Tab: Werkstatt -->
+          <v-tabs-window-item v-if="!isVirtualComboView && !material.is_food" value="workshop" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionWorkshopTitle') }}</h2>
@@ -1332,7 +1337,8 @@
                 v-model:pack-sale-price-chf="formData.pack_sale_price_chf"
                 v-model:min-stock="formData.min_stock"
                 :pack-size="formData.pack_size"
-                :pack-unit="formData.pack_unit"
+                :pack-unit="isMeterStockMaterial ? (formData.packaging_unit || formData.pack_unit) : formData.pack_unit"
+                :is-meter-stock="isMeterStockMaterial"
                 :batches="batches"
                 :is-consumable="formData.is_consumable || material.is_consumable"
                 :is-food="formData.is_food || material.is_food"
@@ -1346,12 +1352,60 @@
           </section>
           </v-tabs-window-item>
 
+          <!-- Tab: Ausgabe an Aktivität / Camp / Event (Esswaren) -->
+          <v-tabs-window-item v-if="material.is_food" value="activity-issues" class="material-detail-window-item">
+          <section class="tab-content">
+            <div class="section-card">
+              <h2 class="section-title">{{ t('components.materialDetail.sectionActivityIssuesTitle') }}</h2>
+              <p class="form-hint mb-3">{{ t('components.materialDetail.sectionActivityIssuesIntro') }}</p>
+              <div v-if="rentalActivityBookingsLoading" class="loading-inline combo-rental-loading">
+                <div class="spinner"></div>
+                <span>{{ t('components.materialDetail.rentalActivityBookingsLoading') }}</span>
+              </div>
+              <p v-else-if="rentalActivityBookingsError" class="form-hint text-warning">{{ rentalActivityBookingsError }}</p>
+              <p v-else-if="rentalActivityBookings.length === 0" class="empty-serials combo-rental-empty">
+                {{ t('components.materialDetail.activityIssuesEmpty') }}
+              </p>
+              <MaterialRentalActivityBookingsDataTable
+                v-else
+                :items="rentalActivityBookings"
+                :department-id="departmentId"
+                :em-dash="t('components.materialDetail.emDash')"
+                :format-period="formatRentalActivityPeriod"
+                :status-label="rentalActivityStatusLabel"
+                :kind-label="rentalBookingKindLabel"
+                :kind-class="rentalBookingKindClass"
+              />
+            </div>
+          </section>
+          </v-tabs-window-item>
+
           <!-- Tab: Vermietung -->
           <v-tabs-window-item v-if="!isVirtualComboView && !showConsumableFoodUi" value="rental" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <h2 class="section-title">{{ t('components.materialDetail.sectionRentalTitle') }}</h2>
 
+              <div class="slider-toggle-group pack-toggle-inline mb-3">
+                <label class="toggle-label">
+                  <span class="toggle-wrapper">
+                    <input
+                      type="checkbox"
+                      class="toggle-input"
+                      :checked="formData.is_rentable"
+                      :disabled="!canManageMaterials"
+                      @change="onIsRentableToggle(($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="toggle-slider toggle-slider--blue"></span>
+                  </span>
+                  <span class="toggle-text">
+                    <span class="toggle-title">{{ t('components.materialDetail.toggleRentableTitle') }}</span>
+                    <span class="toggle-desc">{{ t('components.materialDetail.toggleRentableDesc') }}</span>
+                  </span>
+                </label>
+              </div>
+
+              <div v-if="formData.is_rentable">
               <div class="rental-accordion-item">
                 <button
                   type="button"
@@ -1540,6 +1594,7 @@
               />
                 </div>
               </div>
+              </div>
             </div>
           </section>
           </v-tabs-window-item>
@@ -1585,7 +1640,7 @@
           </v-tabs-window-item>
 
           <!-- Tab: Verwendet in -->
-          <v-tabs-window-item value="used-in" class="material-detail-window-item">
+          <v-tabs-window-item v-if="!material.is_food" value="used-in" class="material-detail-window-item">
           <section class="tab-content">
             <div class="section-card">
               <div class="section-header-row">
@@ -1934,6 +1989,7 @@
       :size-length-cm="material.size_length"
       :reference-purchase-unit-chf="material.reference_purchase_unit_chf"
       :unit-price-optional="isRepairPartMaterial"
+      :is-food="!!(material.is_food || formData.is_food)"
       :combo-storage-context="editingBatchComboContext"
       @close="closeBatchModal"
       @saved="handleBatchSaved"
@@ -3387,6 +3443,7 @@ const formData = reactive({
   rental_lead_days: null as number | null,
   rental_max_days: null as number | null,
   rental_external_allowed: false,
+  is_rentable: true,
   rental_scope: '' as string,
   rental_requires_approval: false,
   rental_notes: '',
@@ -3468,6 +3525,7 @@ function buildMaterialFieldPayload(field: MaterialFormField, value: unknown, m: 
       break
     case 'rental_external_allowed':
     case 'rental_requires_approval':
+    case 'is_rentable':
       payload[field] = !!value
       break
     case 'rental_scope':
@@ -3554,6 +3612,12 @@ async function onFoodFlagChange(enabled: boolean): Promise<void> {
   formData.is_food = enabled
   if (enabled) formData.is_consumable = false
   await persistConsumableFoodFlags()
+}
+
+async function onIsRentableToggle(checked: boolean): Promise<void> {
+  formData.is_rentable = checked
+  if (!canManageMaterials.value) return
+  await saveMaterialField('is_rentable', checked)
 }
 
 async function persistConsumableFoodFlags(): Promise<void> {
@@ -3812,8 +3876,10 @@ const tabs = computed(() => {
       { id: 'data', label: t('components.materialDetail.tabData') },
       { id: 'stored-in', label: t('components.materialDetail.tabStoredIn') },
       { id: 'composition', label: t('components.materialDetail.tabComposition') },
-      { id: 'workshop', label: t('components.materialDetail.tabWorkshop') },
     ]
+    if (!material.value.is_food) {
+      comboTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+    }
     if (showContainerContentTab.value) {
       comboTabs.splice(3, 0, {
         id: 'container-content',
@@ -3850,15 +3916,27 @@ const tabs = computed(() => {
   if (showContainerContentTab.value) {
     baseTabs.push({ id: 'container-content', label: t('components.materialDetail.tabContainerContent') })
   }
-  const usedCount = usedInEntries.value.length
-  baseTabs.push({
-    id: 'used-in',
-    label:
-      usedCount > 0
-        ? t('components.materialDetail.tabUsedInCount', { count: usedCount })
-        : t('components.materialDetail.tabUsedIn'),
-  })
-  baseTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+  if (!material.value.is_food) {
+    const usedCount = usedInEntries.value.length
+    baseTabs.push({
+      id: 'used-in',
+      label:
+        usedCount > 0
+          ? t('components.materialDetail.tabUsedInCount', { count: usedCount })
+          : t('components.materialDetail.tabUsedIn'),
+    })
+    baseTabs.push({ id: 'workshop', label: t('components.materialDetail.tabWorkshop') })
+  } else {
+    // Esswaren: Ausgaben an Aktivität/Camp/Event statt Kombi/Werkstatt
+    const issueCount = rentalActivityBookingsTotalQty.value
+    baseTabs.push({
+      id: 'activity-issues',
+      label:
+        issueCount > 0
+          ? t('components.materialDetail.tabActivityIssuesCount', { count: issueCount })
+          : t('components.materialDetail.tabActivityIssues'),
+    })
+  }
   if (material.value.is_consumable || material.value.is_food) {
     baseTabs.push({ id: 'pricing', label: t('components.materialDetail.tabConsumablePricing') })
   } else {
@@ -4112,12 +4190,20 @@ const packSaleCalcLine = computed(() => {
   const up = packSaleDerivedUnitPrice.value
   if (up == null) return ''
   const pp = formData.pack_sale_price_chf
-  return t('components.materialDetail.packSaleCalcLine', {
-    packPrice: pp != null ? Number(pp).toFixed(2) : '—',
-    packUnit: formData.pack_unit?.trim() ? formData.pack_unit : t('components.materialDetail.unitGeneric'),
-    packSize: formData.pack_size != null ? String(formData.pack_size) : '—',
-    unitPrice: up.toFixed(2),
-  })
+  const packUnitLabel = isMeterStockMaterial.value
+    ? (formData.packaging_unit?.trim() || formData.pack_unit || t('components.materialDetail.unitGeneric'))
+    : (formData.pack_unit?.trim() ? formData.pack_unit : t('components.materialDetail.unitGeneric'))
+  return t(
+    isMeterStockMaterial.value
+      ? 'components.materialDetail.packSaleCalcLineMeter'
+      : 'components.materialDetail.packSaleCalcLine',
+    {
+      packPrice: pp != null ? Number(pp).toFixed(2) : '—',
+      packUnit: packUnitLabel,
+      packSize: formData.pack_size != null ? String(formData.pack_size) : '—',
+      unitPrice: up.toFixed(2),
+    },
+  )
 })
 
 function applyPackSaleToUnitSalePrice() {
@@ -4139,8 +4225,9 @@ const statusLabels = computed((): Record<string, string> => ({
 // Archiv-Status: Batches die nicht mehr aktiv im Bestand sind
 const archivedStatuses = ['lost', 'disposed', 'split_to_serial']
 
-// Aktive Batches (für Bestand-Tab) – sortiert nach Kaufdatum (neueste zuerst)
+// Aktive Batches (für Bestand-Tab)
 // Batches mit qty=0 (z.B. nach Split) ausblenden – bleiben in DB für Historie
+// Basis-Reihenfolge: Kaufdatum neueste zuerst; Esswaren/Ablauf → FEFO in sortedActiveBatches
 const activeBatches = computed(() => {
   return batches.value
     .filter(b => !archivedStatuses.includes(b.status) && (b.qty || 0) > 0)
@@ -5087,6 +5174,7 @@ function populateFormData(m: Material) {
   formData.rental_lead_days = m.rental_lead_days || null
   formData.rental_max_days = m.rental_max_days || null
   formData.rental_external_allowed = m.rental_external_allowed || false
+  formData.is_rentable = m.is_rentable !== false
   formData.rental_scope = m.rental_scope || ''
   formData.rental_requires_approval = m.rental_requires_approval || false
   formData.rental_notes = m.rental_notes || ''
@@ -5174,6 +5262,9 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
       break
     case 'rental_external_allowed':
       formData.rental_external_allowed = m.rental_external_allowed || false
+      break
+    case 'is_rentable':
+      formData.is_rentable = m.is_rentable !== false
       break
     case 'rental_scope':
       formData.rental_scope = m.rental_scope || ''
@@ -5644,7 +5735,7 @@ const buildBatchLocationEntries = (batch: any): BatchLocationEntry[] => {
       },
     ]
   }
-  return [{ text: '-', containerMaterialId: null, containerBatchId: null, containerSearchSeed: '' }]
+  return [{ text: t('components.materialDetail.batchLocationLoose'), containerMaterialId: null, containerBatchId: null, containerSearchSeed: '' }]
 }
 
 function getBatchLocationSortText(batch: any): string {
@@ -5663,6 +5754,15 @@ function compareStockBatches(a: any, b: any, key: string): number {
   switch (key) {
     case 'acquired_on':
       return (a.acquired_on || '').localeCompare(b.acquired_on || '', sortLocale())
+    case 'expiry_date': {
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      // Ohne Ablaufdatum ans Ende (FEFO: zuerst verbrauchen, was abläuft)
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return ea.localeCompare(eb, sortLocale())
+    }
     case 'qty':
       return (a.qty || 0) - (b.qty || 0)
     case 'label':
@@ -5708,13 +5808,43 @@ function compareSerialBatches(a: any, b: any, key: string): number {
   }
 }
 
+const prefersExpiryStockSort = computed(
+  () =>
+    !!(material.value?.is_food || formData.is_food) ||
+    activeBatches.value.some((b) => !!b.expiry_date),
+)
+
 const sortedActiveBatches = computed(() => {
   const rows = [...activeBatches.value]
-  const key = stockSortKey.value
+  const key = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
   if (!key) return rows
-  const factor = stockSortDir.value === 'asc' ? 1 : -1
-  rows.sort((a, b) => factor * compareStockBatches(a, b, key))
+  const dir =
+    stockSortKey.value == null && key === 'expiry_date'
+      ? 'asc'
+      : stockSortDir.value
+  const factor = dir === 'asc' ? 1 : -1
+  rows.sort((a, b) => {
+    if (key === 'expiry_date') {
+      // Nulls immer ans Ende, unabhängig von asc/desc
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return factor * ea.localeCompare(eb, sortLocale())
+    }
+    return factor * compareStockBatches(a, b, key)
+  })
   return rows
+})
+
+/** Sort-Header: bei Esswaren/Ablauf Standard = Ablaufdatum aufsteigend (FEFO) */
+const stockSortKeyForUi = computed(
+  () => stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null),
+)
+const stockSortDirForUi = computed(() => {
+  if (stockSortKey.value == null && prefersExpiryStockSort.value) return 'asc' as const
+  return stockSortDir.value
 })
 
 const sortedSerialBatches = computed(() => {
@@ -5727,11 +5857,17 @@ const sortedSerialBatches = computed(() => {
 })
 
 function toggleStockSort(key: string) {
-  if (stockSortKey.value === key) {
-    stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
+  const effectiveKey = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
+  const effectiveDir =
+    stockSortKey.value == null && prefersExpiryStockSort.value ? 'asc' : stockSortDir.value
+
+  if (effectiveKey === key) {
+    stockSortKey.value = key
+    stockSortDir.value = effectiveDir === 'asc' ? 'desc' : 'asc'
   } else {
     stockSortKey.value = key
-    stockSortDir.value = 'desc'
+    // Ablauf: zuerst verbrauchen (früh zuerst); sonst üblich absteigend
+    stockSortDir.value = key === 'expiry_date' ? 'asc' : 'desc'
   }
 }
 
@@ -6280,6 +6416,7 @@ async function save() {
       rental_lead_days: formData.rental_lead_days,
       rental_max_days: formData.rental_max_days,
       rental_external_allowed: formData.rental_external_allowed,
+      is_rentable: formData.is_rentable,
       rental_scope: formData.rental_external_allowed ? (formData.rental_scope || null) : null,
       rental_requires_approval: formData.rental_requires_approval,
       rental_notes: formData.rental_notes || null,
@@ -6724,9 +6861,9 @@ watch(activeTab, (newTab) => {
   if (newTab === 'workshop') {
     void loadWorkshopTicketsForMaterial()
   }
-  if (newTab === 'rental') {
+  if (newTab === 'rental' || newTab === 'activity-issues') {
     void loadRentalActivityBookings()
-    if (isComboMaterialView.value) {
+    if (newTab === 'rental' && isComboMaterialView.value) {
       void loadComboRentalBreakdown()
     }
   }

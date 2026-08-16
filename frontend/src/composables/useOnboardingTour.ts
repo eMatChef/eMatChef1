@@ -34,13 +34,39 @@ export type OnboardingTargetRect = {
 const targetRect = ref<OnboardingTargetRect | null>(null)
 let targetObserver: ResizeObserver | null = null
 let pickerDomObserver: MutationObserver | null = null
+let advanceWhenVisibleObserver: MutationObserver | null = null
 let observedTarget: Element | null = null
 let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
+let advanceOnClickEl: Element | null = null
+let advanceOnClickHandler: ((event: Event) => void) | null = null
+let advanceOnClickWaitObserver: MutationObserver | null = null
 let rectSyncRaf = 0
 let rectSyncStopTimer = 0
 let sidebarExpandRoot: Element | null = null
 let sidebarExpandHandler: (() => void) | null = null
+let scrollParentEls: Element[] = []
+let advanceInFlight = false
+
+/** Scrollcontainer des Targets (Dialog-Body, Wizard-Form, …) — window-scroll reicht nicht. */
+function findScrollParents(el: Element): Element[] {
+  const parents: Element[] = []
+  let node: Element | null = el.parentElement
+  while (node && node !== document.documentElement) {
+    if (node instanceof HTMLElement) {
+      const style = window.getComputedStyle(node)
+      const oy = style.overflowY
+      const ox = style.overflowX
+      const canY = oy === 'auto' || oy === 'scroll' || oy === 'overlay'
+      const canX = ox === 'auto' || ox === 'scroll' || ox === 'overlay'
+      if (canY || canX) {
+        parents.push(node)
+      }
+    }
+    node = node.parentElement
+  }
+  return parents
+}
 
 function readTargetRect(el: Element): OnboardingTargetRect {
   const r = el.getBoundingClientRect()
@@ -62,7 +88,7 @@ function readTargetRect(el: Element): OnboardingTargetRect {
   }
 }
 
-/** Offene Datums-/Zeit-Picker (Teleport) in den Spotlight einbeziehen. */
+/** Offene Datums-/Zeit-Picker, Select-/Autocomplete- und Material-Lookup-Menüs (Teleport) in den Spotlight. */
 const PICKER_OVERLAY_SELECTOR =
   [
     '.activity-date-picker-menu',
@@ -71,18 +97,44 @@ const PICKER_OVERLAY_SELECTOR =
     '.v-overlay--active .v-picker',
     '.onboarding-tour-menu-union',
     '.v-overlay--active .v-autocomplete__content',
+    '.v-overlay--active .v-select__content',
+    '.v-overlay--active .v-combobox__content',
+    /* VSelect/VMenu: Listen-Inhalt im Teleport */
+    '.v-overlay.v-menu > .v-overlay__content',
+    '.v-overlay--active.v-menu > .v-overlay__content',
+    /* Material-Suche (Teleport an body) */
+    '.material-lookup-dropdown',
+    '.material-lookup-dropdown--teleported',
+    /* Eventstandort-Autocomplete (Teleport an body) */
+    '.activity-address-autocomplete-dropdown--teleported',
+    /* Adress-Suche im AddressModal */
+    '.address-search-dropdown',
   ].join(', ')
 
-function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetRect {
+/** Ziele innerhalb/neben dem Spotlight-Target («+», Pin setzen, Dialog-Actions). */
+const RELATED_TARGET_SELECTOR = [
+  '[data-onboarding="activity-venue-add"]',
+  '[data-onboarding="activity-venue-set-pin"]',
+  '[data-onboarding="activity-venue-delivery-actions"]',
+  '[data-onboarding="activity-venue-delivery-submit"]',
+  '.address-modal-actions',
+  '.e-dialog__actions',
+  '.v-card-actions',
+].join(', ')
+
+function unionRectWithOpenPickers(
+  base: OnboardingTargetRect,
+  targetEl?: Element | null,
+): OnboardingTargetRect {
   if (typeof document === 'undefined') return base
-  const pickers = document.querySelectorAll(PICKER_OVERLAY_SELECTOR)
-  if (pickers.length === 0) return base
 
   let { top, left, right, bottom } = base
   let expanded = false
-  pickers.forEach((node) => {
+  let inOverlay = !!base.inOverlay
+
+  const expandWith = (node: Element) => {
     if (!(node instanceof HTMLElement)) return
-    if (!isTargetVisible(node)) return
+    if (!isTargetPresent(node)) return
     const r = node.getBoundingClientRect()
     if (r.width <= 0 || r.height <= 0) return
     top = Math.min(top, r.top)
@@ -90,7 +142,48 @@ function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetR
     right = Math.max(right, r.right)
     bottom = Math.max(bottom, r.bottom)
     expanded = true
-  })
+    if (
+      node.closest(
+        '.v-overlay, .v-dialog, .v-overlay__content, .material-wizard-overlay, .material-wizard-modal, .modal-overlay, .modal-dialog',
+      )
+    ) {
+      inOverlay = true
+    }
+  }
+
+  document.querySelectorAll(PICKER_OVERLAY_SELECTOR).forEach(expandWith)
+
+  if (targetEl) {
+    // Nur Elemente innerhalb des Targets (oder des Adress-Wraps selbst) — keine Geschwister im Formular.
+    targetEl.querySelectorAll(RELATED_TARGET_SELECTOR).forEach(expandWith)
+    if (
+      targetEl.matches('.activity-external-address-wrap, [data-onboarding="activity-camp-venue"]') ||
+      targetEl.closest('[data-onboarding="activity-camp-venue"]')
+    ) {
+      const venueRoot =
+        targetEl.closest('[data-onboarding="activity-camp-venue"]') ??
+        targetEl.closest('.activity-external-address-wrap') ??
+        targetEl
+      venueRoot.querySelectorAll(RELATED_TARGET_SELECTOR).forEach(expandWith)
+    }
+    if (
+      targetEl.matches('[data-onboarding="activity-venue-create"]') ||
+      targetEl.closest('[data-onboarding="activity-venue-create"]')
+    ) {
+      const createRoot =
+        targetEl.closest('[data-onboarding="activity-venue-create"]') ?? targetEl
+      createRoot.querySelectorAll(RELATED_TARGET_SELECTOR).forEach(expandWith)
+    }
+    if (
+      targetEl.matches('[data-onboarding="activity-venue-delivery-modal"]') ||
+      targetEl.closest('[data-onboarding="activity-venue-delivery-modal"]')
+    ) {
+      const modalRoot =
+        targetEl.closest('[data-onboarding="activity-venue-delivery-modal"]') ?? targetEl
+      modalRoot.querySelectorAll(RELATED_TARGET_SELECTOR).forEach(expandWith)
+    }
+  }
+
   if (!expanded) return base
   return {
     top,
@@ -99,7 +192,7 @@ function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetR
     bottom,
     width: right - left,
     height: bottom - top,
-    inOverlay: true,
+    inOverlay,
     inSidebar: base.inSidebar,
   }
 }
@@ -142,7 +235,21 @@ function elevateTargetRoot(el: Element) {
   elevatedRoot.classList.add(ELEVATE_ROOT_CLASS)
 }
 
+function clearAdvanceHooks() {
+  if (advanceOnClickEl && advanceOnClickHandler) {
+    advanceOnClickEl.removeEventListener('click', advanceOnClickHandler)
+  }
+  advanceOnClickEl = null
+  advanceOnClickHandler = null
+  advanceOnClickWaitObserver?.disconnect()
+  advanceOnClickWaitObserver = null
+  advanceWhenVisibleObserver?.disconnect()
+  advanceWhenVisibleObserver = null
+  advanceInFlight = false
+}
+
 function clearTargetInteraction() {
+  clearAdvanceHooks()
   if (observedTarget) {
     observedTarget.classList.remove(TARGET_ACTIVE_CLASS)
     if (targetClickHandler) {
@@ -181,8 +288,24 @@ function startRectSync(el: Element, durationMs = 450) {
   rectSyncStopTimer = window.setTimeout(() => stopRectSync(), durationMs + 50)
 }
 
+function clearScrollParentListeners() {
+  for (const parent of scrollParentEls) {
+    parent.removeEventListener('scroll', onScrollOrResize)
+  }
+  scrollParentEls = []
+}
+
+function bindScrollParentListeners(el: Element) {
+  clearScrollParentListeners()
+  scrollParentEls = findScrollParents(el)
+  for (const parent of scrollParentEls) {
+    parent.addEventListener('scroll', onScrollOrResize, { passive: true })
+  }
+}
+
 function clearTargetObserver() {
   stopRectSync()
+  clearScrollParentListeners()
   targetObserver?.disconnect()
   targetObserver = null
   pickerDomObserver?.disconnect()
@@ -203,7 +326,7 @@ function updateTargetRect(el: Element | null) {
     targetRect.value = null
     return
   }
-  const next = unionRectWithOpenPickers(readTargetRect(el))
+  const next = unionRectWithOpenPickers(readTargetRect(el), el)
   const prev = targetRect.value
   // Subpixel-/Layout-Jitter ignorieren — sonst «springt» der Spotlight bei wachsenden Blöcken.
   // Breite/Höhe: kleinere Schwelle, damit Sidebar-Hover-Expand flüssig mitgeht.
@@ -340,14 +463,17 @@ async function scrollTargetIntoView(el: Element, preferStart = false) {
 function observeTarget(el: Element) {
   if (observedTarget === el) {
     updateTargetRect(el)
+    bindScrollParentListeners(el)
     startRectSync(el)
     return
   }
   clearTargetObserver()
   observedTarget = el
   updateTargetRect(el)
+  bindScrollParentListeners(el)
   targetObserver = new ResizeObserver(() => {
     updateTargetRect(el)
+    bindScrollParentListeners(el)
     startRectSync(el, 450)
   })
   targetObserver.observe(el)
@@ -370,6 +496,7 @@ function observeTarget(el: Element) {
   pickerDomObserver = new MutationObserver(() => {
     if (observedTarget) {
       updateTargetRect(observedTarget)
+      bindScrollParentListeners(observedTarget)
       startRectSync(observedTarget, 600)
     }
   })
@@ -503,10 +630,28 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     const mode = step.mode ?? 'info'
     const maxAttempts = mode === 'waitFor' || mode === 'click' ? 80 : 40
     await nextTick()
+
+    // Tab/Panel zuerst öffnen, bevor auf den (dann erst sichtbaren) Inhalt gewartet wird
+    if (step.clickOnEnter && step.clickOnEnter !== step.target) {
+      const openEl = document.querySelector(step.clickOnEnter)
+      if (openEl instanceof HTMLElement && isTargetPresent(openEl)) {
+        openEl.click()
+        await nextTick()
+        await new Promise((resolve) => setTimeout(resolve, 80))
+      }
+    }
+
     let el = await waitForTarget(step.target, maxAttempts)
     // waitFor = Dialog/Wizard-Inhalt: ohne Target nicht ewig warten → Touren-Hub
+    // Optional-Touren (browseComplete): weiterklicken ohne Pflicht-UI erlauben
     if (!el && mode === 'waitFor') {
       if (activeStep.value?.id === stepId && activeTourId.value) {
+        if (activeTour.value?.browseComplete) {
+          targetRect.value = null
+          // Modal kann trotzdem schon offen sein (z. B. nach «+» ohne Spotlight-Ziel)
+          bindAdvanceHooks(step, stepId, onTargetClick)
+          return
+        }
         await returnToTourHub()
       }
       return
@@ -547,11 +692,111 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     updateTargetRect(el)
     startRectSync(el, 1000)
 
+    if (step.clickOnEnter && step.clickOnEnter === step.target) {
+      if (el instanceof HTMLElement && isTargetPresent(el)) {
+        el.click()
+        await nextTick()
+        updateTargetRect(el)
+      }
+    }
+
     if (mode === 'click' && onTargetClick) {
       targetClickHandler = () => {
         onTargetClick()
       }
       el.addEventListener('click', targetClickHandler, { once: true })
+    }
+
+    bindAdvanceHooks(step, stepId, onTargetClick)
+  }
+
+  function bindAdvanceHooks(
+    step: NonNullable<typeof activeStep.value>,
+    stepId: string,
+    onTargetClick?: () => void,
+  ) {
+    clearAdvanceHooks()
+
+    const runAdvance = () => {
+      if (advanceInFlight) return
+      if (activeStep.value?.id !== stepId || !activeTourId.value) return
+      advanceInFlight = true
+      const toId = step.advanceToStepId
+      if (toId && activeTour.value) {
+        const idx = getOnboardingTourStepIndex(activeTour.value, toId)
+        if (idx >= 0) {
+          void navigateToStep(idx)
+          return
+        }
+      }
+      if (onTargetClick) {
+        onTargetClick()
+        return
+      }
+      void next()
+    }
+
+    if (step.advanceOnClick) {
+      const selector = step.advanceOnClick
+      const attach = () => {
+        if (advanceOnClickEl && advanceOnClickHandler) return
+        const clickEl = document.querySelector(selector)
+        if (!clickEl) return
+        advanceOnClickEl = clickEl
+        advanceOnClickHandler = () => {
+          void (async () => {
+            const waitGone = step.advanceOnClickWaitGone
+            if (waitGone) {
+              for (let i = 0; i < 50; i += 1) {
+                const still = document.querySelector(waitGone)
+                if (!still || !isTargetPresent(still)) break
+                await new Promise((resolve) => setTimeout(resolve, 100))
+              }
+            } else {
+              await new Promise((resolve) => setTimeout(resolve, 50))
+            }
+            for (const dismissSel of step.advanceOnClickThenDismiss ?? []) {
+              const el = document.querySelector(dismissSel)
+              if (el instanceof HTMLElement && isTargetPresent(el)) {
+                el.click()
+                await new Promise((resolve) => setTimeout(resolve, 80))
+              }
+            }
+            runAdvance()
+          })()
+        }
+        clickEl.addEventListener('click', advanceOnClickHandler)
+        advanceOnClickWaitObserver?.disconnect()
+        advanceOnClickWaitObserver = null
+      }
+      attach()
+      // Button kann erst nach Accordion/Pin erscheinen
+      if (!advanceOnClickEl) {
+        advanceOnClickWaitObserver = new MutationObserver(() => {
+          attach()
+        })
+        advanceOnClickWaitObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+        })
+      }
+    }
+
+    if (step.advanceWhenVisible) {
+      const selector = step.advanceWhenVisible
+      const check = () => {
+        if (activeStep.value?.id !== stepId || !activeTourId.value) return
+        const visible = document.querySelector(selector)
+        if (visible && isTargetPresent(visible)) runAdvance()
+      }
+      advanceWhenVisibleObserver = new MutationObserver(check)
+      advanceWhenVisibleObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      })
+      check()
     }
   }
 
@@ -575,12 +820,115 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     const step = activeTour.value.steps[stepIndex]
     if (!step) return
 
-    const targetRouteName = getRouteNameForTourStep(activeTour.value, stepIndex)
     const departmentId = route.params.departmentId
     const query = {
       ...route.query,
       ...buildTourQuery(step.id),
     }
+
+    // Nach Einreichen: auf Aktivitäts-Detail bleiben (nicht zurück zur Liste)
+    const activityCreateDetailSteps = step.id === '8' || step.id === '9'
+    if (
+      activeTour.value.id === 'activity-create' &&
+      activityCreateDetailSteps &&
+      typeof route.params.activityId === 'string' &&
+      route.params.activityId
+    ) {
+      const detailQuery: Record<string, string | string[] | null | undefined> = { ...query }
+      if (step.id === '8') detailQuery.tab = 'overview'
+      if (step.id === '9') detailQuery.tab = 'material'
+      await router.replace({
+        name: route.name ?? 'ActivityDetail',
+        params: { ...route.params },
+        query: detailQuery,
+      })
+      return
+    }
+    if (activeTour.value.id === 'activity-create' && activityCreateDetailSteps) {
+      // Submit noch unterwegs → nur Query setzen; ActivitiesView navigiert zum Detail
+      await router.replace({ query })
+      return
+    }
+
+    // Camp-Tour: nach Entwurf speichern auf Detail bleiben + Tabs öffnen
+    const campDetailSteps = ['20', '21', '22', '23', '24', '25', '26']
+    if (
+      activeTour.value.id === 'activity-camp-create' &&
+      campDetailSteps.includes(step.id) &&
+      typeof route.params.activityId === 'string' &&
+      route.params.activityId
+    ) {
+      const detailQuery: Record<string, string | string[] | null | undefined> = { ...query }
+      if (step.id === '20' || step.id === '21' || step.id === '25' || step.id === '26') {
+        detailQuery.tab = 'overview'
+      } else if (step.id === '22') {
+        detailQuery.tab = 'material'
+      } else if (step.id === '23') {
+        detailQuery.tab = 'vehicles'
+      } else if (step.id === '24') {
+        detailQuery.tab = 'js'
+      }
+      await router.replace({
+        name: route.name ?? 'ActivityDetail',
+        params: { ...route.params },
+        query: detailQuery,
+      })
+      return
+    }
+    if (activeTour.value.id === 'activity-camp-create' && campDetailSteps.includes(step.id)) {
+      await router.replace({ query })
+      return
+    }
+
+    // Freigabe-Tour: Detail-Schritte auf geöffnetem Lager/Event halten
+    const approveDetailSteps = ['3', '4', '5']
+    if (
+      activeTour.value.id === 'activity-approve' &&
+      approveDetailSteps.includes(step.id) &&
+      typeof route.params.activityId === 'string' &&
+      route.params.activityId
+    ) {
+      const detailQuery: Record<string, string | string[] | null | undefined> = { ...query }
+      if (step.id === '4') detailQuery.tab = 'material'
+      else detailQuery.tab = 'overview'
+      await router.replace({
+        name: route.name ?? 'ActivityDetail',
+        params: { ...route.params },
+        query: detailQuery,
+      })
+      return
+    }
+    if (activeTour.value.id === 'activity-approve' && approveDetailSteps.includes(step.id)) {
+      await router.replace({ query })
+      return
+    }
+
+    // Pack-Tour: Detail-Schritte auf geöffnetem Lager/Aktivität halten
+    const packDetailSteps = ['3', '4', '5', '6', '7', '8', '9']
+    if (
+      activeTour.value.id === 'issue-return' &&
+      packDetailSteps.includes(step.id) &&
+      typeof route.params.activityId === 'string' &&
+      route.params.activityId
+    ) {
+      const detailQuery: Record<string, string | string[] | null | undefined> = { ...query }
+      if (step.id === '4') detailQuery.tab = 'material'
+      else if (step.id === '6' || step.id === '7' || step.id === '8') detailQuery.tab = 'packs'
+      else if (step.id === '9') detailQuery.tab = 'packs'
+      else detailQuery.tab = 'overview'
+      await router.replace({
+        name: route.name ?? 'ActivityDetail',
+        params: { ...route.params },
+        query: detailQuery,
+      })
+      return
+    }
+    if (activeTour.value.id === 'issue-return' && packDetailSteps.includes(step.id)) {
+      await router.replace({ query })
+      return
+    }
+
+    const targetRouteName = getRouteNameForTourStep(activeTour.value, stepIndex)
 
     if (route.name === targetRouteName) {
       await router.replace({ query })
@@ -593,12 +941,65 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     }
   }
 
+  async function runDismissOnNext(step: NonNullable<typeof activeStep.value>): Promise<boolean> {
+    const selectors = step.dismissOnNext
+    if (!selectors?.length || typeof document === 'undefined') return true
+
+    const clickIfPresent = (selector: string) => {
+      const el = document.querySelector(selector)
+      if (!(el instanceof HTMLElement) || !isTargetPresent(el)) return false
+      // Disabled Buttons (z. B. Wizard-Weiter) nicht klicken
+      if (el instanceof HTMLButtonElement && el.disabled) return false
+      if (el.getAttribute('aria-disabled') === 'true') return false
+      if (el.classList.contains('v-btn--disabled')) return false
+      el.click()
+      return true
+    }
+
+    for (const selector of selectors) {
+      clickIfPresent(selector)
+      await new Promise((resolve) => setTimeout(resolve, 80))
+    }
+
+    // Bestätigung «Verwerfen» kann erst nach Abbrechen erscheinen
+    if (selectors.some((s) => s.includes('activity-venue-delivery'))) {
+      clickIfPresent('[data-onboarding="activity-venue-delivery-discard"]')
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      clickIfPresent('[data-onboarding="activity-venue-create-close"]')
+
+      for (let i = 0; i < 30; i += 1) {
+        const deliveryOpen = !!document.querySelector('[data-onboarding="activity-venue-delivery-modal"]')
+        const venueOpen = !!document.querySelector('[data-onboarding="activity-venue-create"]')
+        if (!deliveryOpen && !venueOpen) break
+        if (deliveryOpen) {
+          clickIfPresent('[data-onboarding="activity-venue-delivery-discard"]')
+          clickIfPresent('[data-onboarding="activity-venue-delivery-cancel"]')
+        }
+        if (venueOpen) clickIfPresent('[data-onboarding="activity-venue-create-close"]')
+        await new Promise((resolve) => setTimeout(resolve, 80))
+      }
+    }
+
+    const waitSel = step.waitVisibleOnNext
+    if (waitSel) {
+      for (let i = 0; i < 40; i += 1) {
+        const el = document.querySelector(waitSel)
+        if (el && isTargetPresent(el)) return true
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+      return false
+    }
+    return true
+  }
+
   async function next() {
     if (!activeTour.value || !activeStep.value) return
     if (isLastStep.value) {
       finish('stay')
       return
     }
+    const dismissed = await runDismissOnNext(activeStep.value)
+    if (!dismissed) return
     await navigateToStep(activeStepIndex.value + 1)
   }
 

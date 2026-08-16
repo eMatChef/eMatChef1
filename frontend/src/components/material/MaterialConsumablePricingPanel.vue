@@ -19,6 +19,8 @@ const props = withDefaults(
     batches?: MaterialBatch[]
     isConsumable?: boolean
     isFood?: boolean
+    /** Bestandseinheit Meter (VE = m pro Rolle/…) — Preise/Hinweise in CHF/m */
+    isMeterStock?: boolean
     totalStock?: number
     packSize?: number | null
     packUnit?: string | null
@@ -37,6 +39,7 @@ const props = withDefaults(
     batches: () => [],
     isConsumable: false,
     isFood: false,
+    isMeterStock: false,
     totalStock: 0,
     packSize: null,
     packUnit: null,
@@ -73,6 +76,42 @@ const packSalePricingAvailable = computed(() => {
 
 const packUnitLabel = computed(
   () => props.packUnit?.trim() || t('components.materialCreateWizard.packUnitFallbackGeneric'),
+)
+
+const labelSalePrice = computed(() =>
+  props.isMeterStock
+    ? t('components.materialDetail.labelSalePriceMeter')
+    : t('components.materialDetail.labelSalePrice'),
+)
+
+const labelRefPurchase = computed(() =>
+  props.isMeterStock
+    ? t('components.materialDetail.labelRefPurchaseMeter')
+    : t('components.materialDetail.labelRefPurchase'),
+)
+
+const packSaleModePackDesc = computed(() =>
+  props.isMeterStock
+    ? t('components.consumablePricing.packSaleModePackDescMeter')
+    : t('components.consumablePricing.packSaleModePackDesc'),
+)
+
+const hintSalePerUnit = computed(() =>
+  props.isMeterStock
+    ? t('components.materialDetail.hintSalePerMeter')
+    : t('components.materialDetail.hintSalePerPiece'),
+)
+
+const packSaleCalcLineKey = computed(() =>
+  props.isMeterStock
+    ? 'components.materialDetail.packSaleCalcLineMeter'
+    : 'components.materialDetail.packSaleCalcLine',
+)
+
+const hintDerivedPackPriceKey = computed(() =>
+  props.isMeterStock
+    ? 'components.consumablePricing.hintDerivedPackPriceMeter'
+    : 'components.consumablePricing.hintDerivedPackPrice',
 )
 
 const batchHistory = computed(() => batchPurchaseHistory(props.batches))
@@ -348,7 +387,7 @@ function save(field: string) {
           aria-hidden="true"
         />
         <span class="rental-accordion-title">{{ t('components.consumablePricing.accordionPrices') }}</span>
-        <span v-if="salePrice != null && salePrice > 0" class="rental-accordion-badge">
+        <span v-if="salePrice != null && salePrice >= 0" class="rental-accordion-badge">
           {{ formatChfDisplay(salePrice) }} {{ t('components.materialDetail.currencyFr') }}
         </span>
       </button>
@@ -475,7 +514,13 @@ function save(field: string) {
                 :placeholder="t('components.materialDetail.phPriceZero')"
               />
             </div>
-            <p class="form-hint">{{ t('components.materialDetail.hintRefPurchase') }}</p>
+            <p class="form-hint">
+              {{
+                isFood
+                  ? t('components.materialDetail.hintRefPurchaseFood')
+                  : t('components.materialDetail.hintRefPurchase')
+              }}
+            </p>
           </div>
 
           <template v-if="packSalePricingAvailable">
@@ -566,9 +611,16 @@ function save(field: string) {
                 min="0"
                 class="form-input"
                 :placeholder="t('components.materialDetail.phPriceZero')"
+                :readonly="isFood"
               />
             </div>
-            <p class="form-hint">{{ t('components.materialDetail.hintSalePerPiece') }}</p>
+            <p class="form-hint">
+              {{
+                isFood
+                  ? t('components.materialDetail.hintSaleEqualsPurchaseFood')
+                  : t('components.materialDetail.hintSalePerPiece')
+              }}
+            </p>
           </div>
 
           <div v-if="isConsumable" class="form-group">
@@ -588,8 +640,8 @@ function save(field: string) {
       </div>
     </div>
 
-    <!-- Accordion 3: Extern (Zusatz + Rechner) -->
-    <div class="rental-accordion-item">
+    <!-- Accordion 3: Extern (Zusatz + Rechner) — nicht bei Esswaren -->
+    <div v-if="!isFood" class="rental-accordion-item">
       <button
         type="button"
         class="rental-accordion-trigger"

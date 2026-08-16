@@ -7,7 +7,9 @@ use App\Entity\ActivityItem;
 use App\Entity\ActivityPackItem;
 use App\Entity\ActivityReturnItem;
 use App\Entity\ActivityIssueReport;
+use App\Entity\ActivitySurplusReport;
 use App\Entity\ActivityHistory;
+use App\Entity\MaterialBatch;
 use App\Entity\MaterialItem;
 use App\Entity\User;
 use App\Controller\WorkshopController;
@@ -1080,6 +1082,331 @@ class ActivityWorkflowController extends AbstractController
         }
 
         $this->activityAccountingCost->syncActivityAccountingFollowUps($activity);
+    }
+
+    // ═══════════════════════════════════════════════
+    // ÜBERSCHUSS RETOUR (Esswaren / Verbrauch)
+    // ═══════════════════════════════════════════════
+
+    /**
+     * Überschuss-Meldungen einer Aktivität laden.
+     * Query: ?status=open|matched|resolved|dismissed (optional, komma-getrennt)
+     */
+    #[Route('/surplus-reports', name: 'surplus_reports_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listSurplusReports(string $activityId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $qb = $this->entityManager->getRepository(ActivitySurplusReport::class)
+            ->createQueryBuilder('sr')
+            ->leftJoin('sr.materialItem', 'mi')
+            ->addSelect('mi')
+            ->leftJoin('sr.reportedByUser', 'ru')
+            ->addSelect('ru')
+            ->where('sr.activityId = :activityId')
+            ->setParameter('activityId', $activityId)
+            ->orderBy('sr.createdAt', 'DESC');
+
+        $statusParam = trim((string) $request->query->get('status', ''));
+        if ($statusParam !== '') {
+            $statuses = array_values(array_filter(array_map('trim', explode(',', $statusParam))));
+            $statuses = array_values(array_intersect($statuses, ActivitySurplusReport::ALL_STATUSES));
+            if ($statuses !== []) {
+                $qb->andWhere('sr.status IN (:statuses)')->setParameter('statuses', $statuses);
+            }
+        }
+
+        $result = [];
+        foreach ($qb->getQuery()->getResult() as $report) {
+            $result[] = $this->serializeSurplusReport($report);
+        }
+
+        return new JsonResponse(['reports' => $result]);
+    }
+
+    /**
+     * Neue Überschuss-Meldung (Freitext-Rest bei Retour).
+     * Body: { name_free_text, qty?, kind?, expiry_date?, notes? }
+     */
+    #[Route('/surplus-reports', name: 'surplus_reports_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createSurplusReport(string $activityId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->activityAccess->canUserReportActivitySurplus($user, $activity)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung, Überschuss zu melden'], 403);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        $name = trim((string) ($data['name_free_text'] ?? ''));
+        if ($name === '') {
+            return new JsonResponse(['error' => 'name_free_text ist Pflicht'], 400);
+        }
+        if (mb_strlen($name) > 255) {
+            return new JsonResponse(['error' => 'name_free_text max. 255 Zeichen'], 400);
+        }
+
+        $qty = max(1, (int) ($data['qty'] ?? 1));
+        $kind = (string) ($data['kind'] ?? ActivitySurplusReport::KIND_FOOD);
+        if (!\in_array($kind, ActivitySurplusReport::ALL_KINDS, true)) {
+            return new JsonResponse(['error' => 'Ungültiger kind. Erlaubt: ' . implode(', ', ActivitySurplusReport::ALL_KINDS)], 400);
+        }
+
+        $report = new ActivitySurplusReport();
+        $report->setId(IdGenerator::generate13Unique($this->entityManager, ActivitySurplusReport::class, 'sr'));
+        $report->setDepartment($activity->getDepartment());
+        $report->setActivity($activity);
+        $report->setReportedByUser($user);
+        $report->setNameFreeText($name);
+        $report->setQty($qty);
+        $report->setKind($kind);
+        $report->setNotes(isset($data['notes']) ? (trim((string) $data['notes']) ?: null) : null);
+        $report->setStatus(ActivitySurplusReport::STATUS_OPEN);
+
+        if (!empty($data['expiry_date']) && \is_string($data['expiry_date'])) {
+            try {
+                $report->setExpiryDate(new \DateTime($data['expiry_date']));
+            } catch (\Exception) {
+                return new JsonResponse(['error' => 'Ungültiges expiry_date (YYYY-MM-DD)'], 400);
+            }
+        }
+
+        if (!empty($data['material_item_id']) && \is_string($data['material_item_id'])) {
+            $material = $this->entityManager->getRepository(MaterialItem::class)->find($data['material_item_id']);
+            if (!$material || $material->getDepartmentId() !== $activity->getDepartmentId()) {
+                return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+            }
+            $report->setMaterialItem($material);
+            $report->setStatus(ActivitySurplusReport::STATUS_MATCHED);
+        }
+
+        $this->entityManager->persist($report);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeSurplusReport($report), 201);
+    }
+
+    /**
+     * Überschuss-Meldung aktualisieren / auflösen.
+     * Body: status?, name_free_text?, qty?, kind?, expiry_date?, notes?,
+     *       material_item_id?, resolved_batch_id?, inventory_task_id?
+     */
+    #[Route('/surplus-reports/{reportId}', name: 'surplus_reports_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateSurplusReport(string $activityId, string $reportId, Request $request): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $report = $this->entityManager->getRepository(ActivitySurplusReport::class)->find($reportId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Ungültiger JSON-Body'], 400);
+        }
+
+        $wantsResolveFields = array_key_exists('material_item_id', $data)
+            || array_key_exists('resolved_batch_id', $data)
+            || array_key_exists('inventory_task_id', $data)
+            || (isset($data['status']) && \in_array($data['status'], [
+                ActivitySurplusReport::STATUS_MATCHED,
+                ActivitySurplusReport::STATUS_RESOLVED,
+            ], true));
+
+        $isReporter = $report->getReportedByUserId() === $user->getId();
+        $canResolve = $this->activityAccess->canUserResolveActivitySurplus($user, $activity);
+        $canEditOwn = $isReporter
+            && $this->activityAccess->canUserReportActivitySurplus($user, $activity)
+            && $report->getStatus() === ActivitySurplusReport::STATUS_OPEN;
+
+        if ($wantsResolveFields && !$canResolve) {
+            return new JsonResponse(['error' => 'Nur MW/DC können Überschuss auflösen'], 403);
+        }
+        if (!$canResolve && !$canEditOwn) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+
+        if (array_key_exists('name_free_text', $data) && ($canEditOwn || $canResolve)) {
+            $name = trim((string) $data['name_free_text']);
+            if ($name === '') {
+                return new JsonResponse(['error' => 'name_free_text darf nicht leer sein'], 400);
+            }
+            $report->setNameFreeText($name);
+        }
+        if (array_key_exists('qty', $data) && ($canEditOwn || $canResolve)) {
+            $report->setQty(max(1, (int) $data['qty']));
+        }
+        if (array_key_exists('kind', $data) && ($canEditOwn || $canResolve)) {
+            $kind = (string) $data['kind'];
+            if (!\in_array($kind, ActivitySurplusReport::ALL_KINDS, true)) {
+                return new JsonResponse(['error' => 'Ungültiger kind'], 400);
+            }
+            $report->setKind($kind);
+        }
+        if (array_key_exists('notes', $data) && ($canEditOwn || $canResolve)) {
+            $notes = $data['notes'];
+            $report->setNotes($notes === null || $notes === '' ? null : trim((string) $notes));
+        }
+        if (array_key_exists('expiry_date', $data) && ($canEditOwn || $canResolve)) {
+            if ($data['expiry_date'] === null || $data['expiry_date'] === '') {
+                $report->setExpiryDate(null);
+            } else {
+                try {
+                    $report->setExpiryDate(new \DateTime((string) $data['expiry_date']));
+                } catch (\Exception) {
+                    return new JsonResponse(['error' => 'Ungültiges expiry_date'], 400);
+                }
+            }
+        }
+
+        if ($canResolve) {
+            if (array_key_exists('material_item_id', $data)) {
+                if ($data['material_item_id'] === null || $data['material_item_id'] === '') {
+                    $report->setMaterialItem(null);
+                } else {
+                    $material = $this->entityManager->getRepository(MaterialItem::class)->find((string) $data['material_item_id']);
+                    if (!$material || $material->getDepartmentId() !== $activity->getDepartmentId()) {
+                        return new JsonResponse(['error' => 'Material nicht gefunden'], 404);
+                    }
+                    $report->setMaterialItem($material);
+                    if ($report->getStatus() === ActivitySurplusReport::STATUS_OPEN) {
+                        $report->setStatus(ActivitySurplusReport::STATUS_MATCHED);
+                    }
+                }
+            }
+            if (array_key_exists('resolved_batch_id', $data)) {
+                if ($data['resolved_batch_id'] === null || $data['resolved_batch_id'] === '') {
+                    $report->setResolvedBatch(null);
+                } else {
+                    $batch = $this->entityManager->getRepository(MaterialBatch::class)->find((string) $data['resolved_batch_id']);
+                    if (!$batch || $batch->getMaterialItem()?->getDepartmentId() !== $activity->getDepartmentId()) {
+                        return new JsonResponse(['error' => 'Charge nicht gefunden'], 404);
+                    }
+                    $report->setResolvedBatch($batch);
+                    if ($report->getMaterialItem() === null) {
+                        $report->setMaterialItem($batch->getMaterialItem());
+                    }
+                    $report->setStatus(ActivitySurplusReport::STATUS_RESOLVED);
+                }
+            }
+            if (array_key_exists('inventory_task_id', $data)) {
+                $report->setInventoryTaskId(
+                    $data['inventory_task_id'] === null || $data['inventory_task_id'] === ''
+                        ? null
+                        : (string) $data['inventory_task_id']
+                );
+            }
+        }
+
+        if (array_key_exists('status', $data)) {
+            $status = (string) $data['status'];
+            if (!\in_array($status, ActivitySurplusReport::ALL_STATUSES, true)) {
+                return new JsonResponse(['error' => 'Ungültiger status'], 400);
+            }
+            if ($status === ActivitySurplusReport::STATUS_DISMISSED && ($canEditOwn || $canResolve)) {
+                $report->setStatus(ActivitySurplusReport::STATUS_DISMISSED);
+            } elseif ($canResolve) {
+                $report->setStatus($status);
+            } elseif ($status !== $report->getStatus()) {
+                return new JsonResponse(['error' => 'Statuswechsel nicht erlaubt'], 403);
+            }
+        }
+
+        $report->touch();
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeSurplusReport($report));
+    }
+
+    /**
+     * Offene eigene Überschuss-Meldung löschen (oder MW jede offene).
+     */
+    #[Route('/surplus-reports/{reportId}', name: 'surplus_reports_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteSurplusReport(string $activityId, string $reportId): JsonResponse
+    {
+        $activity = $this->findActivityForUser($activityId);
+        if ($activity instanceof JsonResponse) {
+            return $activity;
+        }
+
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $report = $this->entityManager->getRepository(ActivitySurplusReport::class)->find($reportId);
+        if (!$report || $report->getActivityId() !== $activityId) {
+            return new JsonResponse(['error' => 'Meldung nicht gefunden'], 404);
+        }
+
+        $canResolve = $this->activityAccess->canUserResolveActivitySurplus($user, $activity);
+        $isReporter = $report->getReportedByUserId() === $user->getId();
+        if (!$canResolve && !($isReporter && $report->getStatus() === ActivitySurplusReport::STATUS_OPEN)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+        if (!$canResolve && $report->getStatus() !== ActivitySurplusReport::STATUS_OPEN) {
+            return new JsonResponse(['error' => 'Nur offene Meldungen können gelöscht werden'], 422);
+        }
+
+        $this->entityManager->remove($report);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['ok' => true]);
+    }
+
+    private function serializeSurplusReport(ActivitySurplusReport $report): array
+    {
+        $mi = $report->getMaterialItem();
+        $user = $report->getReportedByUser();
+        $batch = $report->getResolvedBatch();
+
+        return [
+            'id' => $report->getId(),
+            'activity_id' => $report->getActivityId(),
+            'department_id' => $report->getDepartmentId(),
+            'name_free_text' => $report->getNameFreeText(),
+            'qty' => $report->getQty(),
+            'kind' => $report->getKind(),
+            'expiry_date' => $report->getExpiryDate()?->format('Y-m-d'),
+            'material_item_id' => $report->getMaterialItemId(),
+            'material_name' => $mi?->getName(),
+            'resolved_batch_id' => $report->getResolvedBatchId(),
+            'inventory_task_id' => $report->getInventoryTaskId(),
+            'status' => $report->getStatus(),
+            'notes' => $report->getNotes(),
+            'reported_by_user_id' => $report->getReportedByUserId(),
+            'reported_by_display_name' => $this->userDisplayName($user),
+            'batch_label' => $batch?->getLabel(),
+            'created_at' => $report->getCreatedAt()->format('c'),
+            'updated_at' => $report->getUpdatedAt()->format('c'),
+        ];
     }
 
     // ═══════════════════════════════════════════════

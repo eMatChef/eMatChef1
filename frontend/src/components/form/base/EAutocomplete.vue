@@ -131,11 +131,19 @@ const passthroughAttrs = computed(() => {
   return rest
 })
 
-const mergedMenuProps = computed(() => ({
-  maxHeight: 280,
-  zIndex: 2800,
-  ...(props.menuProps ?? {}),
-}))
+const mergedMenuProps = computed(() => {
+  const fromProps = props.menuProps ?? {}
+  const contentClass = [fromProps.contentClass, 'onboarding-tour-menu-union']
+    .flat()
+    .filter(Boolean)
+    .join(' ')
+  return {
+    maxHeight: 280,
+    zIndex: 2800,
+    ...fromProps,
+    contentClass,
+  }
+})
 
 const hasError = computed(() => {
   if (props.errorMessages) {

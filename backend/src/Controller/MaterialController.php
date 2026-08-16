@@ -559,6 +559,7 @@ class MaterialController extends AbstractController
             }
             
             // Verleih
+            if (isset($data['is_rentable'])) $material->setIsRentable((bool)$data['is_rentable']);
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
             if (array_key_exists('rental_scope', $data)) {
                 $rs = $data['rental_scope'];
@@ -1771,6 +1772,7 @@ class MaterialController extends AbstractController
             }
             
             // Verleih
+            if (isset($data['is_rentable'])) $material->setIsRentable((bool)$data['is_rentable']);
             if (isset($data['rental_external_allowed'])) $material->setRentalExternalAllowed((bool)$data['rental_external_allowed']);
             if (array_key_exists('rental_scope', $data)) {
                 $rs = $data['rental_scope'];
@@ -2617,6 +2619,7 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'ean' => $batch->getEan(),
                 'barcode_tag' => $batch->getBarcodeTag(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -2660,6 +2663,17 @@ class MaterialController extends AbstractController
             }
             if (array_key_exists('barcode_tag', $data)) {
                 $batch->setBarcodeTag($data['barcode_tag'] !== null && $data['barcode_tag'] !== '' ? (string) $data['barcode_tag'] : null);
+            }
+
+            if (array_key_exists('expiry_date', $data)) {
+                if ($data['expiry_date']) {
+                    $batch->setExpiryDate(new \DateTime((string) $data['expiry_date']));
+                } else {
+                    if ($material->getIsFood()) {
+                        return new JsonResponse(['error' => 'Ablaufdatum (expiry_date) ist für Esswaren Pflicht'], 400);
+                    }
+                    $batch->setExpiryDate(null);
+                }
             }
 
             $this->applyBatchPackAndLengthFromPayload($batch, $data, $material);
@@ -2717,6 +2731,7 @@ class MaterialController extends AbstractController
                 'serial_number' => $batch->getSerialNumber(),
                 'ean' => $batch->getEan(),
                 'barcode_tag' => $batch->getBarcodeTag(),
+                'expiry_date' => $batch->getExpiryDate()?->format('Y-m-d'),
                 'rack_id' => $batch->getRackId(),
                 'slot_id' => $batch->getSlotId(),
                 'supplier' => $batch->getSupplier() ? ($batch->getSupplier()->getName() ?: $batch->getSupplier()->getCompany()) : null,
@@ -4661,6 +4676,7 @@ class MaterialController extends AbstractController
             'model' => $material->getModel(),
             'warranty_until' => $material->getWarrantyUntil()?->format('Y-m-d'),
             'rental_external_allowed' => $material->getRentalExternalAllowed(),
+            'is_rentable' => $material->getIsRentable(),
             'rental_scope' => $material->getRentalScope(),
             'rental_requires_approval' => $material->getRentalRequiresApproval(),
             'rental_price_day' => $material->getRentalPriceDay(),
@@ -4925,6 +4941,7 @@ class MaterialController extends AbstractController
             $result['warranty_until'] = $material->getWarrantyUntil()?->format('Y-m-d');
             
             // Verleih
+            $result['is_rentable'] = $material->getIsRentable();
             $result['rental_external_allowed'] = $material->getRentalExternalAllowed();
             $result['rental_scope'] = $material->getRentalScope();
             $result['rental_requires_approval'] = $material->getRentalRequiresApproval();

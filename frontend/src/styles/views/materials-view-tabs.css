@@ -57,6 +57,17 @@
   margin-top: 0;
 }
 
+.materials-view-food-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.materials-view-food-filters__group {
+  flex: 0 1 auto;
+}
+
 .materials-view-content {
   margin-top: 0;
 }

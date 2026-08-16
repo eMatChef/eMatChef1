@@ -35,6 +35,7 @@ import MaterialScanResultCard from '@/components/activities/materialJourney/Mate
 import MaterialScanShelfResultCard from '@/components/activities/materialJourney/MaterialScanShelfResultCard.vue'
 import MaterialReplenishmentWishPanel from '@/components/activities/materialJourney/MaterialReplenishmentWishPanel.vue'
 import MaterialReplenishmentWishList from '@/components/activities/materialJourney/MaterialReplenishmentWishList.vue'
+import MaterialSurplusReturnPanel from '@/components/activities/materialJourney/MaterialSurplusReturnPanel.vue'
 import PackAddContainerModal from '@/components/activities/PackAddContainerModal.vue'
 import PhysicalComboIssueComponentModal from '@/components/activities/PhysicalComboIssueComponentModal.vue'
 import { isPhysicalComboPackItem } from '@/components/activities/packMaterialDisplay'
@@ -72,6 +73,7 @@ import { useMaterialJourneyPresence } from '@/composables/useMaterialJourneyPres
 import { useMaterialJourneyIssueActions } from '@/composables/useMaterialJourneyIssueActions'
 import { useMaterialJourneyAtEventInventoryIssues } from '@/composables/useMaterialJourneyAtEventInventoryIssues'
 import { useReplenishmentWishes } from '@/composables/useReplenishmentWishes'
+import { useActivitySurplusReports } from '@/composables/useActivitySurplusReports'
 import type { PackIssueWizardEmitPayload } from '@/components/activities/physicalComboIssueFlow'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { MaterialJourneyTaskRow } from '@/components/activities/materialJourneyTaskList'
@@ -1041,6 +1043,21 @@ const replenishment = useReplenishmentWishes({
   onFulfilled: reload,
 })
 
+const showSurplusReturnPanel = computed(
+  () =>
+    !isEarlyPackPreview.value &&
+    activity.value != null &&
+    isJourneyReturnStep(resolvedStep.value) &&
+    !stepUiLocked.value,
+)
+
+const surplusReports = useActivitySurplusReports({
+  activityId: toRef(props, 'activityId'),
+  enabled: showSurplusReturnPanel,
+})
+
+const surplusPanelRef = ref<InstanceType<typeof MaterialSurplusReturnPanel> | null>(null)
+
 const wishPanelRef = ref<InstanceType<typeof MaterialReplenishmentWishPanel> | null>(null)
 
 const showReplenishmentPanel = computed(
@@ -1091,6 +1108,28 @@ async function onWishFulfill(wishId: string): Promise<void> {
 async function onWishReject(wishId: string): Promise<void> {
   await replenishment.rejectWish(wishId)
   toast.success(t('activities.materialJourney.replenishmentWish.toastRejected'))
+}
+
+async function onSurplusSubmit(payload: {
+  nameFreeText: string
+  qty: number
+  kind: 'food' | 'consumable' | 'other'
+  expiryDate: string | null
+  notes: string | null
+}): Promise<void> {
+  await surplusReports.createReport(payload)
+  surplusPanelRef.value?.resetForm()
+  toast.success(t('activities.materialJourney.surplusReturn.toastSubmitted'))
+}
+
+async function onSurplusRemove(reportId: string): Promise<void> {
+  await surplusReports.removeReport(reportId)
+  toast.success(t('activities.materialJourney.surplusReturn.toastDeleted'))
+}
+
+async function onSurplusDismiss(reportId: string): Promise<void> {
+  await surplusReports.dismissReport(reportId)
+  toast.success(t('activities.materialJourney.surplusReturn.toastDismissed'))
 }
 
 async function onWishCancel(wishId: string): Promise<void> {
@@ -2609,7 +2648,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }">
+  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }" data-onboarding="activity-pack-root">
     <header v-if="!embedded" class="material-journey-header">
       <EButton variant="secondary" size="small" class="material-journey-header__back" @click="goBackToActivity">
         <v-icon icon="mdi-arrow-left" start size="20" />
@@ -2672,6 +2711,17 @@ defineExpose({
         v-if="showMaterialSummaryTable"
         :rows="returnSummaryRows"
         :mode="materialSummaryMode"
+      />
+
+      <MaterialSurplusReturnPanel
+        v-if="showSurplusReturnPanel && !hideJourneyWorkUi"
+        ref="surplusPanelRef"
+        :reports="surplusReports.reports.value"
+        :submitting="surplusReports.submitting.value"
+        :can-edit="!isPastStep || canManageMaterials"
+        @submit="onSurplusSubmit"
+        @remove="onSurplusRemove"
+        @dismiss="onSurplusDismiss"
       />
 
       <div
@@ -2766,6 +2816,7 @@ defineExpose({
       <div
         v-else-if="!hideJourneyWorkUi && !hideJourneyScanOnMwStoreComplete && !isEarlyPackPreview && !isLogisticsAtEventInventory && !hideIssueScanBar"
         class="material-journey-scan-wrap"
+        data-onboarding="activity-pack-scan"
       >
         <MaterialJourneyScanBar
           v-model="scanQuery"

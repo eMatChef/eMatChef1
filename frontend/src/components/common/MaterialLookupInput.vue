@@ -23,7 +23,7 @@
     <Transition v-if="!teleportDropdown" name="dropdown-fade">
       <div
         v-if="lookup.isOpen.value && shouldShowDropdown"
-        class="material-lookup-dropdown"
+        class="material-lookup-dropdown onboarding-tour-menu-union"
       >
         <slot
           name="results"
@@ -59,7 +59,7 @@
       <Transition name="dropdown-fade">
         <div
           v-if="lookup.isOpen.value && shouldShowDropdown"
-          class="material-lookup-dropdown material-lookup-dropdown--teleported"
+          class="material-lookup-dropdown material-lookup-dropdown--teleported onboarding-tour-menu-union"
           :style="dropdownStyle"
         >
           <slot
@@ -102,8 +102,8 @@ import { useMaterialLookup, type UseMaterialLookupOptions } from '@/composables/
 
 const DROPDOWN_MAX_HEIGHT = 260
 const DROPDOWN_Z_INDEX = 2500
-/** Über Onboarding-Tour-Dimmer (10040) / Elevate (10050), unter Mengen-Dialog (10070). */
-const DROPDOWN_Z_INDEX_OVER_TOUR = 10052
+/** Über Onboarding-Tour-Dimmer (20040) / Elevate (20050), unter Tour-Karte (20060). */
+const DROPDOWN_Z_INDEX_OVER_TOUR = 20055
 
 function resolveDropdownZIndex(): number {
   if (typeof document === 'undefined') return DROPDOWN_Z_INDEX

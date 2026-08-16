@@ -278,7 +278,7 @@ const emptyDescription = computed(() => {
 </script>
 
 <template>
-  <div class="material-journey-task-list">
+  <div class="material-journey-task-list" data-onboarding="activity-pack-list">
     <EEmptyState
       v-if="isEarlyPackPreview"
       class="material-journey-task-list__empty"
