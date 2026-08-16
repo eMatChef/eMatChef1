@@ -93,6 +93,7 @@ Wenn ein Entwicklungsstand bereit ist:
   - Jobs: Locales, Frontend (ESLint, Vitest, Build), Backend (Composer, PHPUnit, PHPStan), **Playwright smoke** (gegen Develop), Aggregator **CI ok**
   - Trigger: Push/PR auf `develop`, `staging` und `prod`
   - Smoke-Secrets: siehe [docs/E2E.md](docs/E2E.md)
+  - Lokal dasselbe (ohne Playwright) via `.githooks/pre-push` — aktivieren mit `./scripts/install-git-hooks.sh`
 - `CD Develop` / `CD Staging` / `CD Prod` — Push auf den jeweiligen Branch (SSH); Staging teilt den Develop-Droplet (`/opt/ematchef/staging`)
 - `Deploy App Develop (Droplet)` — App/QR/Devices-SPA per rsync auf den Develop-Droplet (Caddy); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
 - `FTP Deploy *` — Hostpoint **Marketing**/Landing (App mittelfristig vom Droplet)
