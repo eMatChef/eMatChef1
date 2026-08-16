@@ -60,7 +60,7 @@ export interface OnboardingTourStepDef {
   scroll?: 'start' | 'nearest'
   /**
    * Spotlight darf fast die volle Viewport-Höhe nutzen (z. B. Lager-Übersicht mit Regalen/Fächern).
-   * Sonst wird das Loch auf ~42 % Höhe begrenzt.
+   * Sonst wird das Loch auf ~42% Höhe begrenzt.
    */
   tallSpotlight?: boolean
   /**
