@@ -1,0 +1,56 @@
+name: Deploy Frontend Prod (Droplet)
+
+# App/QR/Devices auf dem Prod-Droplet (app.ematchef.ch).
+# Marketing (ematchef.ch) → FTP Hostpoint (ftp-deploy-prod.yml).
+
+on:
+  push:
+    branches:
+      - prod
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy-frontend-prod:
+    name: Build and rsync app to prod webroot
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build droplet frontend (prod)
+        working-directory: ${{ github.workspace }}
+        env:
+          EMATCHEF_REPO_ROOT: ${{ github.workspace }}
+        run: bash scripts/build-droplet-frontend.sh prod
+
+      - name: Verify output
+        run: |
+          test -f deploy/droplet/prod/app/index.html
+          du -sh deploy/droplet/prod/app
+
+      - name: Rsync app to droplet
+        uses: burnett01/rsync-deployments@7.1.0
+        with:
+          switches: -avz --delete
+          path: deploy/droplet/prod/app/
+          remote_path: ${{ secrets.PROD_APP_WEBROOT }}/
+          remote_host: ${{ secrets.PROD_SSH_HOST }}
+          remote_user: ${{ secrets.PROD_SSH_USER }}
+          remote_key: ${{ secrets.PROD_SSH_KEY }}
+          remote_port: ${{ secrets.PROD_SSH_PORT }}
