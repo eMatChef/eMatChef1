@@ -20,6 +20,20 @@
   max-height: 220px;
 }
 
+/* Teleport an body: über Tour-Dimmer, Position via inline style (fixed). */
+.activity-address-autocomplete-dropdown--teleported {
+  right: auto;
+  left: auto;
+  top: auto;
+  margin-top: 0;
+  z-index: 20055;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+}
+
 .department-address-autocomplete .activity-address-ac-main {
   display: flex;
   flex-wrap: wrap;
@@ -36,14 +50,32 @@
   gap: 8px;
 }
 
-.department-address-autocomplete .activity-address-ac-item .item-city {
+.activity-address-autocomplete-dropdown--teleported .activity-address-ac-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.activity-address-autocomplete-dropdown--teleported .activity-address-ac-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.department-address-autocomplete .activity-address-ac-item .item-city,
+.activity-address-autocomplete-dropdown--teleported .activity-address-ac-item .item-city {
   margin-left: auto;
   flex-shrink: 0;
   max-width: 42%;
   text-align: right;
 }
 
-.department-address-autocomplete .autocomplete-divider {
+.department-address-autocomplete .autocomplete-divider,
+.activity-address-autocomplete-dropdown--teleported .autocomplete-divider {
   margin: 4px 0 2px;
   padding: 7px 12px 5px;
   font-size: 11px;
@@ -58,15 +90,18 @@
   user-select: none;
 }
 
-.department-address-autocomplete .autocomplete-item--create {
+.department-address-autocomplete .autocomplete-item--create,
+.activity-address-autocomplete-dropdown--teleported .autocomplete-item--create {
   color: #059669;
   cursor: pointer;
 }
 
-.department-address-autocomplete .autocomplete-item--create:hover {
+.department-address-autocomplete .autocomplete-item--create:hover,
+.activity-address-autocomplete-dropdown--teleported .autocomplete-item--create:hover {
   background: #ecfdf5;
 }
 
-.department-address-autocomplete .autocomplete-item--create .item-name {
+.department-address-autocomplete .autocomplete-item--create .item-name,
+.activity-address-autocomplete-dropdown--teleported .autocomplete-item--create .item-name {
   font-weight: 600;
 }

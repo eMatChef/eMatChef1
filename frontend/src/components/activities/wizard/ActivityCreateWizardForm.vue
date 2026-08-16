@@ -140,40 +140,46 @@
 
     <template v-else>
       <section v-show="currentStepKey === 'grunddaten'" id="activity-create-grunddaten" class="activity-create-section">
-        <ActivityOutlinedSection :title="stepTitles.grunddaten" :required="true">
-          <ETextField
-            id="activity-create-name-s"
-            :model-value="formName"
-            :placeholder="t('activities.wizard.form.namePlaceholder')"
-            autocomplete="off"
-            hide-details
-            :aria-label="stepTitles.grunddaten"
-            @update:model-value="emit('update:formName', String($event ?? ''))"
-          />
-        </ActivityOutlinedSection>
         <div
-          v-if="showGroupOnGrunddatenStep"
-          id="activity-create-group-stepper"
-          class="activity-create-group-wrap"
+          data-onboarding="activity-camp-name-group"
+          class="activity-camp-name-group-spotlight"
         >
-          <p v-if="showFixedGroupSelection" class="activity-readonly-value">
-            {{ displayGroupLabel }}
-          </p>
-          <ESelect
-            v-else
-            id="activity-create-group-select-s"
-            :model-value="selectedGroupId ?? ''"
-            :items="groupSelectItems"
-            :label="groupFieldLabel"
-            :placeholder="groupSelectPlaceholder"
-            hide-details
-            @update:model-value="onGroupSelectChange"
-          />
+          <ActivityOutlinedSection :title="stepTitles.grunddaten" :required="true">
+            <ETextField
+              id="activity-create-name-s"
+              :model-value="formName"
+              :placeholder="t('activities.wizard.form.namePlaceholder')"
+              autocomplete="off"
+              hide-details
+              :aria-label="stepTitles.grunddaten"
+              @update:model-value="emit('update:formName', String($event ?? ''))"
+            />
+          </ActivityOutlinedSection>
+          <div
+            v-if="showGroupOnGrunddatenStep"
+            id="activity-create-group-stepper"
+            class="activity-create-group-wrap"
+          >
+            <p v-if="showFixedGroupSelection" class="activity-readonly-value">
+              {{ displayGroupLabel }}
+            </p>
+            <ESelect
+              v-else
+              id="activity-create-group-select-s"
+              :model-value="selectedGroupId ?? ''"
+              :items="groupSelectItems"
+              :label="groupFieldLabel"
+              :placeholder="groupSelectPlaceholder"
+              hide-details
+              @update:model-value="onGroupSelectChange"
+            />
+          </div>
         </div>
 
         <div
           v-if="showVenueOnGrunddatenStep"
           class="form-group activity-external-address-wrap"
+          data-onboarding="activity-camp-venue"
         >
           <label for="activity-venue-address-search">{{ t('activities.wizard.form.venueLabel') }} <span class="req">*</span></label>
           <p class="field-hint text-muted">
@@ -306,7 +312,11 @@
           </p>
         </div>
 
-        <div v-if="showInviteDepartmentsStep" class="form-group activity-invite-departments-wrap">
+        <div
+          v-if="showInviteDepartmentsStep"
+          class="form-group activity-invite-departments-wrap"
+          data-onboarding="activity-camp-invite"
+        >
           <label for="activity-invite-dept-search">{{ t('activities.wizard.form.inviteDepartmentsLabel') }}</label>
           <p class="field-hint text-muted">
             {{ t('activities.wizard.form.inviteDepartmentsHint') }}
@@ -449,6 +459,7 @@
         <div
           v-if="showJsMaterialOptionOnGrunddaten && wantsJsMaterial"
           class="form-group activity-js-participant-wrap"
+          data-onboarding="activity-camp-participants"
         >
           <label for="activity-js-participant-count">{{ t('activities.jsMaterial.participantCountLabel') }}</label>
           <input
@@ -491,7 +502,7 @@
         </ActivityOutlinedSection>
       </section>
 
-      <section v-show="currentStepKey === 'uebersicht'" class="activity-create-section">
+      <section v-show="currentStepKey === 'uebersicht'" class="activity-create-section" data-onboarding="activity-camp-overview">
         <div class="step-header">
           <span class="step-title">{{ stepTitles.uebersicht }}</span>
         </div>
@@ -597,6 +608,7 @@
             :department-id="departmentId"
             :contact-id="venueContactModalId"
             default-type="event"
+            :initial-name="venueContactInitialName"
             @close="closeVenueContactModal"
             @created="onVenueContactCreated"
             @updated="onVenueContactUpdated"
@@ -1040,6 +1052,7 @@ const addressModalEditId = ref<string | null>(null)
 const showVenueContactModal = ref(false)
 const venueContactModalMode = ref<'view' | 'create'>('view')
 const venueContactModalId = ref<string | null>(null)
+const venueContactInitialName = ref('')
 const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const customerAddressSearch = ref('')
 const showCustomerAddressDropdown = ref(false)
@@ -1182,9 +1195,12 @@ function closeVenueContactModal() {
   venueContactModalId.value = null
 }
 
-function openAddVenueAddressModal(_presetName = '') {
+function openAddVenueAddressModal(presetName = '') {
   venueContactModalMode.value = 'create'
   venueContactModalId.value = null
+  const fromSearch = String(presetName ?? '').trim()
+  const fromActivity = props.formName.trim()
+  venueContactInitialName.value = fromSearch || fromActivity
   showVenueContactModal.value = true
 }
 

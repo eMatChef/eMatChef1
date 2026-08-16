@@ -772,8 +772,8 @@
                 :pack-size="material.pack_size"
                 :size-length-cm="material.size_length"
                 :status-labels="statusLabels"
-                :sort-key="stockSortKey"
-                :sort-dir="stockSortDir"
+                :sort-key="stockSortKeyForUi"
+                :sort-dir="stockSortDirForUi"
                 :em-dash="t('components.materialDetail.emDash')"
                 :currency-fr="t('components.materialDetail.currencyFr')"
                 :format-date="formatDate"
@@ -4225,8 +4225,9 @@ const statusLabels = computed((): Record<string, string> => ({
 // Archiv-Status: Batches die nicht mehr aktiv im Bestand sind
 const archivedStatuses = ['lost', 'disposed', 'split_to_serial']
 
-// Aktive Batches (für Bestand-Tab) – sortiert nach Kaufdatum (neueste zuerst)
+// Aktive Batches (für Bestand-Tab)
 // Batches mit qty=0 (z.B. nach Split) ausblenden – bleiben in DB für Historie
+// Basis-Reihenfolge: Kaufdatum neueste zuerst; Esswaren/Ablauf → FEFO in sortedActiveBatches
 const activeBatches = computed(() => {
   return batches.value
     .filter(b => !archivedStatuses.includes(b.status) && (b.qty || 0) > 0)
@@ -5753,8 +5754,15 @@ function compareStockBatches(a: any, b: any, key: string): number {
   switch (key) {
     case 'acquired_on':
       return (a.acquired_on || '').localeCompare(b.acquired_on || '', sortLocale())
-    case 'expiry_date':
-      return (a.expiry_date || '').localeCompare(b.expiry_date || '', sortLocale())
+    case 'expiry_date': {
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      // Ohne Ablaufdatum ans Ende (FEFO: zuerst verbrauchen, was abläuft)
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return ea.localeCompare(eb, sortLocale())
+    }
     case 'qty':
       return (a.qty || 0) - (b.qty || 0)
     case 'label':
@@ -5800,13 +5808,43 @@ function compareSerialBatches(a: any, b: any, key: string): number {
   }
 }
 
+const prefersExpiryStockSort = computed(
+  () =>
+    !!(material.value?.is_food || formData.is_food) ||
+    activeBatches.value.some((b) => !!b.expiry_date),
+)
+
 const sortedActiveBatches = computed(() => {
   const rows = [...activeBatches.value]
-  const key = stockSortKey.value
+  const key = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
   if (!key) return rows
-  const factor = stockSortDir.value === 'asc' ? 1 : -1
-  rows.sort((a, b) => factor * compareStockBatches(a, b, key))
+  const dir =
+    stockSortKey.value == null && key === 'expiry_date'
+      ? 'asc'
+      : stockSortDir.value
+  const factor = dir === 'asc' ? 1 : -1
+  rows.sort((a, b) => {
+    if (key === 'expiry_date') {
+      // Nulls immer ans Ende, unabhängig von asc/desc
+      const ea = a.expiry_date || ''
+      const eb = b.expiry_date || ''
+      if (!ea && !eb) return 0
+      if (!ea) return 1
+      if (!eb) return -1
+      return factor * ea.localeCompare(eb, sortLocale())
+    }
+    return factor * compareStockBatches(a, b, key)
+  })
   return rows
+})
+
+/** Sort-Header: bei Esswaren/Ablauf Standard = Ablaufdatum aufsteigend (FEFO) */
+const stockSortKeyForUi = computed(
+  () => stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null),
+)
+const stockSortDirForUi = computed(() => {
+  if (stockSortKey.value == null && prefersExpiryStockSort.value) return 'asc' as const
+  return stockSortDir.value
 })
 
 const sortedSerialBatches = computed(() => {
@@ -5819,11 +5857,17 @@ const sortedSerialBatches = computed(() => {
 })
 
 function toggleStockSort(key: string) {
-  if (stockSortKey.value === key) {
-    stockSortDir.value = stockSortDir.value === 'asc' ? 'desc' : 'asc'
+  const effectiveKey = stockSortKey.value ?? (prefersExpiryStockSort.value ? 'expiry_date' : null)
+  const effectiveDir =
+    stockSortKey.value == null && prefersExpiryStockSort.value ? 'asc' : stockSortDir.value
+
+  if (effectiveKey === key) {
+    stockSortKey.value = key
+    stockSortDir.value = effectiveDir === 'asc' ? 'desc' : 'asc'
   } else {
     stockSortKey.value = key
-    stockSortDir.value = 'desc'
+    // Ablauf: zuerst verbrauchen (früh zuerst); sonst üblich absteigend
+    stockSortDir.value = key === 'expiry_date' ? 'asc' : 'desc'
   }
 }
 

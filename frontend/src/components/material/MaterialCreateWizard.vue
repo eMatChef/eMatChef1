@@ -4138,9 +4138,10 @@ function wizardAccordionStepForMaterialTour(): StepId | null {
     if (step === 10) return 'details'
   }
   if (tourId === 'material-food') {
-    if (step === 4) return 'general'
-    if (step === 5) return 'category'
-    if (step === 6) return 'stock'
+    if (step === 4 || step === 5) return 'general'
+    if (step === 6) return 'category'
+    if (step === 7) return 'stock'
+    if (step === 8) return 'details'
   }
   return null
 }
@@ -4191,13 +4192,21 @@ watch(
         9: 'material-wizard-stock-qty',
         10: 'material-wizard-consumable-pricing',
       }
+      const foodByTourStep: Record<number, string> = {
+        4: 'material-wizard-article-name',
+        5: 'material-wizard-toggle-food',
+        7: 'material-wizard-food-lots',
+        8: 'material-wizard-consumable-pricing',
+      }
       const tourId = route.query[ONBOARDING_TOUR_QUERY]
       const attr =
-        tourId === 'material-consumable' && consumableByTourStep[tourStep]
-          ? consumableByTourStep[tourStep]
-          : (target === 'stock' || target === 'storage') && stockByTourStep[tourStep]
-            ? stockByTourStep[tourStep]
-            : onboardingByStep[target]
+        tourId === 'material-food' && foodByTourStep[tourStep]
+          ? foodByTourStep[tourStep]
+          : tourId === 'material-consumable' && consumableByTourStep[tourStep]
+            ? consumableByTourStep[tourStep]
+            : (target === 'stock' || target === 'storage') && stockByTourStep[tourStep]
+              ? stockByTourStep[tourStep]
+              : onboardingByStep[target]
       if (!attr) return
       const el = document.querySelector(`[data-onboarding="${attr}"]`) as HTMLElement | null
       const form = document.querySelector('.material-wizard-form') as HTMLElement | null

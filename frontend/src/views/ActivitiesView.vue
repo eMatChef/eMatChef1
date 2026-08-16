@@ -10,7 +10,11 @@
     <div v-if="isPackJourneyRoute" class="dept-page activities-detail-root activities-pack-journey-root">
       <router-view />
     </div>
-    <div v-else-if="activityRouteId" class="dept-page activities-detail-root">
+    <div
+      v-else-if="activityRouteId"
+      class="dept-page activities-detail-root"
+      data-onboarding="activity-detail-root"
+    >
       <ActivityDetailView :department-id="departmentId" :activity-id="activityRouteId" />
     </div>
 
@@ -48,6 +52,7 @@
         <button
           type="button"
           class="stat-item stat-item-btn"
+          data-onboarding="activities-submitted-filter"
           :class="{ 'stat-item-active': activeTab === 'all' && statusFilter === 'submitted' }"
           @click="applyStatFilter('submitted')"
         >
@@ -168,6 +173,9 @@
               :group-path-lines="getActivityGroupPathLines"
               :share-hint="getActivityShareHint"
               :share-status="getActivityShareStatus"
+              :open-on-row-click="statusFilter === 'submitted' || isPackTourActive"
+              :mark-first-submitted-for-tour="isApproveTourActive"
+              :mark-first-packing-for-tour="isPackTourActive"
               @open="openActivityDetail"
               @select="selectedActivityId = $event"
               @sort="onTableSort"
@@ -180,6 +188,8 @@
               :status-label="getStatusLabel"
               :period-label="(a) => formatPeriodCompact(a.usageStart, a.usageEnd)"
               :group-path-lines="getActivityGroupPathLines"
+              :mark-first-submitted-for-tour="isApproveTourActive"
+              :mark-first-packing-for-tour="isPackTourActive"
               @open="openActivityDetail"
             />
           </template>
@@ -226,6 +236,12 @@ import { useDetailTabsStore } from '@/stores/detailTabs'
 import { useDepartmentLiveRefresh } from '@/composables/useDepartmentLiveRefresh'
 import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { activityStatusClass, activityStatusI18nKey } from '@/utils/activityStatus'
+import {
+  ONBOARDING_TOUR_QUERY,
+  ONBOARDING_TOUR_STEP_QUERY,
+  acceptPackTourTypeRank,
+  isAcceptPackTourListCandidate,
+} from '@/config/onboardingTours'
 
 const route = useRoute()
 const router = useRouter()
@@ -238,6 +254,12 @@ const headerNotificationsStore = useHeaderNotificationsStore()
 const detailTabsStore = useDetailTabsStore()
 const pageHeadStore = usePageHeadStore()
 
+const isApproveTourActive = computed(
+  () => route.query[ONBOARDING_TOUR_QUERY] === 'activity-approve',
+)
+const isPackTourActive = computed(
+  () => route.query[ONBOARDING_TOUR_QUERY] === 'issue-return',
+)
 const departmentId = computed(() => route.params.departmentId as string)
 const isPackJourneyRoute = computed(() => route.name === 'ActivityPackJourney')
 const activityRouteId = computed(() => {
@@ -469,6 +491,28 @@ function applyStatFilter(filter: StatusFilter) {
   statusFilter.value = filter
 }
 
+watch(
+  isApproveTourActive,
+  (on) => {
+    if (!on || activityRouteId.value) return
+    activeTab.value = 'all'
+    statusFilter.value = 'submitted'
+    activeTypeFilter.value = ''
+  },
+  { immediate: true },
+)
+
+watch(
+  isPackTourActive,
+  (on) => {
+    if (!on || activityRouteId.value) return
+    activeTab.value = 'all'
+    statusFilter.value = 'in_progress'
+    activeTypeFilter.value = ''
+  },
+  { immediate: true },
+)
+
 const filteredActivities = computed(() => {
   let result = activities.value
 
@@ -478,12 +522,20 @@ const filteredActivities = computed(() => {
     result = result.filter(isUpcomingActivity)
   }
 
-  if (activeTab.value === 'all' && statusFilter.value) {
+  // Pack-Tour: annehmbare Lager/Events + Aktivitäten (Statusfilter «In Bearbeitung» nur UI)
+  if (isPackTourActive.value) {
+    result = result.filter((a) => isAcceptPackTourListCandidate(a.type, a.status))
+  } else if (activeTab.value === 'all' && statusFilter.value) {
     result = result.filter((a) => matchesStatusFilter(a, statusFilter.value))
   }
 
   if (activeTab.value === 'all' && activeTypeFilter.value) {
     result = result.filter((a) => a.type === activeTypeFilter.value)
+  }
+
+  // Freigabe-Tour: nur Lager/Event (Typ «Aktivität» braucht keine Leiter-Freigabe)
+  if (isApproveTourActive.value) {
+    result = result.filter((a) => a.type === 'camp' || a.type === 'event')
   }
 
   if (activeTab.value === 'all' && searchQuery.value) {
@@ -492,6 +544,10 @@ const filteredActivities = computed(() => {
   }
 
   result = [...result].sort((a, b) => {
+    if (isPackTourActive.value) {
+      const typeCmp = acceptPackTourTypeRank(a.type) - acceptPackTourTypeRank(b.type)
+      if (typeCmp !== 0) return typeCmp
+    }
     let cmp = 0
     if (activeTab.value === 'all' && statusFilter.value === 'completed') {
       const da = new Date(a.usageEnd || a.usageStart || 0).getTime()
@@ -599,7 +655,15 @@ function openActivityDetail(activity: ActivityListItem) {
   }
 
   if (route.params.activityId === id) return
-  void router.push(`/${departmentId.value}/activities/${id}`)
+  const query: Record<string, string | string[]> = {}
+  const tour = route.query[ONBOARDING_TOUR_QUERY]
+  const step = route.query[ONBOARDING_TOUR_STEP_QUERY]
+  if (typeof tour === 'string' && tour) query[ONBOARDING_TOUR_QUERY] = tour
+  if (typeof step === 'string' && step) query[ONBOARDING_TOUR_STEP_QUERY] = step
+  void router.push({
+    path: `/${departmentId.value}/activities/${id}`,
+    query,
+  })
 }
 
 function openCreateActivityWizard() {
@@ -641,7 +705,20 @@ async function onActivityCreateWizardCreated(id: string) {
     router.replace({ path: route.path, query: q })
   }
   if (id) {
-    await router.push(`/${departmentId.value}/activities/${id}`)
+    // Tour-Query behalten + nach Einreichen auf Detail-Schritt (Details anschauen)
+    const query = { ...route.query }
+    delete query.from
+    delete query.new
+    if (query[ONBOARDING_TOUR_QUERY] === 'activity-create') {
+      query[ONBOARDING_TOUR_STEP_QUERY] = '8'
+    }
+    if (query[ONBOARDING_TOUR_QUERY] === 'activity-camp-create') {
+      query[ONBOARDING_TOUR_STEP_QUERY] = '21'
+    }
+    await router.push({
+      path: `/${departmentId.value}/activities/${id}`,
+      query,
+    })
   }
 }
 

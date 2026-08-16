@@ -1,68 +1,19 @@
 <template>
   <div class="department-address-autocomplete activity-address-select-row">
-    <div class="autocomplete-wrapper activity-address-autocomplete">
+    <div ref="wrapperRef" class="autocomplete-wrapper activity-address-autocomplete">
       <input
         :id="inputId"
+        ref="inputRef"
         v-model="search"
         type="text"
         class="form-input"
         :placeholder="placeholder"
         autocomplete="off"
         @input="onSearchInput"
-        @focus="showDropdown = true"
+        @focus="onSearchFocus"
         @blur="hideDropdownDelayed"
+        @keydown="onSearchKeydown"
       />
-      <div
-        v-if="showDropdown && grouped.totalCount > 0"
-        class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-      >
-        <div
-          v-for="a in grouped.primary"
-          :key="a.id"
-          class="autocomplete-item activity-address-ac-item"
-          @mousedown.prevent="selectAddress(a)"
-        >
-          <div class="activity-address-ac-main">
-            <span class="item-name">{{ addressDisplayName(a) }}</span>
-            <span class="address-type-badge address-type-badge--compact" :class="a.type" :title="typeTitle(a)">{{ a.type_label }}</span>
-          </div>
-          <span class="item-city">{{ a.city_line || a.city || '' }}</span>
-        </div>
-        <div v-if="grouped.showDivider" class="autocomplete-divider" role="separator">
-          {{ otherAddressesDividerLabel }}
-        </div>
-        <div
-          v-for="a in grouped.other"
-          :key="a.id"
-          class="autocomplete-item activity-address-ac-item"
-          @mousedown.prevent="selectAddress(a)"
-        >
-          <div class="activity-address-ac-main">
-            <span class="item-name">{{ addressDisplayName(a) }}</span>
-            <span class="address-type-badge address-type-badge--compact" :class="a.type" :title="typeTitle(a)">{{ a.type_label }}</span>
-          </div>
-          <span class="item-city">{{ a.city_line || a.city || '' }}</span>
-        </div>
-      </div>
-      <div
-        v-else-if="showDropdown && showInlineCreate"
-        class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-      >
-        <div
-          class="autocomplete-item autocomplete-item--create"
-          @mousedown.prevent="onInlineCreate"
-        >
-          <span class="item-name">{{ inlineCreateLabel }}</span>
-        </div>
-      </div>
-      <div
-        v-else-if="showDropdown && addresses.length === 0"
-        class="autocomplete-dropdown activity-address-autocomplete-dropdown"
-      >
-        <div class="autocomplete-item autocomplete-empty">
-          <span class="item-name">{{ emptyAddressesLabel }}</span>
-        </div>
-      </div>
     </div>
     <button
       v-if="showEditButton && selectedId"
@@ -86,23 +37,95 @@
       v-if="showAddButton"
       type="button"
       class="add-inline-btn"
+      data-onboarding="activity-venue-add"
       :title="addButtonTitle"
       :aria-label="addButtonTitle"
       @click="onAddButtonClick"
     >
       +
     </button>
+
+    <Teleport to="body">
+      <div
+        v-if="showDropdown && showAddressResults"
+        class="autocomplete-dropdown activity-address-autocomplete-dropdown activity-address-autocomplete-dropdown--teleported"
+        :style="dropdownStyle"
+        @mousedown.prevent
+      >
+        <div
+          v-for="a in grouped.primary"
+          :key="a.id"
+          class="autocomplete-item activity-address-ac-item"
+          @mousedown.prevent="selectAddress(a)"
+        >
+          <div class="activity-address-ac-main">
+            <span class="item-name">{{ addressDisplayName(a) }}</span>
+            <span
+              class="address-type-badge address-type-badge--compact"
+              :class="a.type"
+              :title="typeTitle(a)"
+            >{{ a.type_label }}</span>
+          </div>
+          <span class="item-city">{{ a.city_line || a.city || '' }}</span>
+        </div>
+        <div v-if="grouped.showDivider" class="autocomplete-divider" role="separator">
+          {{ otherAddressesDividerLabel }}
+        </div>
+        <div
+          v-for="a in grouped.other"
+          :key="a.id"
+          class="autocomplete-item activity-address-ac-item"
+          @mousedown.prevent="selectAddress(a)"
+        >
+          <div class="activity-address-ac-main">
+            <span class="item-name">{{ addressDisplayName(a) }}</span>
+            <span
+              class="address-type-badge address-type-badge--compact"
+              :class="a.type"
+              :title="typeTitle(a)"
+            >{{ a.type_label }}</span>
+          </div>
+          <span class="item-city">{{ a.city_line || a.city || '' }}</span>
+        </div>
+      </div>
+      <div
+        v-else-if="showDropdown && showInlineCreate"
+        class="autocomplete-dropdown activity-address-autocomplete-dropdown activity-address-autocomplete-dropdown--teleported"
+        :style="dropdownStyle"
+        @mousedown.prevent
+      >
+        <div
+          class="autocomplete-item autocomplete-item--create"
+          @mousedown.prevent="onInlineCreate"
+        >
+          <span class="item-name">{{ inlineCreateLabel }}</span>
+        </div>
+      </div>
+      <div
+        v-else-if="showDropdown && showEmptyAddressesHint"
+        class="autocomplete-dropdown activity-address-autocomplete-dropdown activity-address-autocomplete-dropdown--teleported"
+        :style="dropdownStyle"
+        @mousedown.prevent
+      >
+        <div class="autocomplete-item autocomplete-empty">
+          <span class="item-name">{{ emptyAddressesLabel }}</span>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch, type CSSProperties } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Address } from '@/api/addresses'
 import {
   formatAddressSelectionLabel,
   groupDepartmentAddressesForSearch,
 } from '@/utils/departmentAddressSearch'
+
+/** Über Tour-Dimmer (20040), unter Tour-Karte (20060). */
+const DROPDOWN_Z_INDEX = 20055
 
 const props = withDefaults(
   defineProps<{
@@ -147,18 +170,37 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const search = ref('')
 const showDropdown = ref(false)
+const inputRef = ref<HTMLInputElement | null>(null)
+const wrapperRef = ref<HTMLElement | null>(null)
+const dropdownStyle = ref<CSSProperties>({})
+let positionListenersBound = false
 
 const searchTrimmed = computed(() => search.value.trim())
 
 const grouped = computed(() =>
-  groupDepartmentAddressesForSearch(props.addresses, searchTrimmed.value, props.primaryType),
+  groupDepartmentAddressesForSearch(props.addresses, searchTrimmed.value, props.primaryType, {
+    // Ohne Suche: nur Primärtyp (z. B. Eventstandorte), nicht alle Adresstypen
+    maxOther: searchTrimmed.value ? 20 : 0,
+  }),
 )
+
+const showAddressResults = computed(() => grouped.value.totalCount > 0)
 
 const showInlineCreate = computed(
   () =>
     searchTrimmed.value.length >= props.minQueryLength &&
     grouped.value.totalCount === 0 &&
     props.addresses.length >= 0,
+)
+
+const showEmptyAddressesHint = computed(
+  () => props.addresses.length === 0 && !!props.emptyAddressesLabel,
+)
+
+const dropdownOpen = computed(
+  () =>
+    showDropdown.value &&
+    (showAddressResults.value || showInlineCreate.value || showEmptyAddressesHint.value),
 )
 
 const inlineCreateLabel = computed(() => {
@@ -182,6 +224,16 @@ watch(
   { immediate: true },
 )
 
+watch(dropdownOpen, async (open) => {
+  if (!open) {
+    unbindPositionListeners()
+    return
+  }
+  await nextTick()
+  syncDropdownPosition()
+  bindPositionListeners()
+})
+
 function addressDisplayName(a: Address): string {
   return (
     a.name ||
@@ -195,9 +247,77 @@ function typeTitle(a: Address): string {
   return t(props.addressTypeTitleKey, { type: a.type_label })
 }
 
+function syncDropdownPosition() {
+  const el = wrapperRef.value ?? inputRef.value
+  if (!el) return
+
+  const rect = el.getBoundingClientRect()
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+  const width = Math.min(Math.max(rect.width, 240), vw - 16)
+  const left = Math.max(8, Math.min(rect.left, vw - width - 8))
+  const spaceBelow = vh - rect.bottom - 8
+  const spaceAbove = rect.top - 8
+  const openBelow = spaceBelow >= 120 || spaceBelow >= spaceAbove
+
+  if (openBelow) {
+    dropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 4}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      maxHeight: `${Math.min(220, Math.max(spaceBelow - 4, 80))}px`,
+      zIndex: DROPDOWN_Z_INDEX,
+    }
+    return
+  }
+
+  dropdownStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    width: `${width}px`,
+    bottom: `${vh - rect.top + 4}px`,
+    maxHeight: `${Math.min(220, Math.max(spaceAbove - 4, 80))}px`,
+    zIndex: DROPDOWN_Z_INDEX,
+  }
+}
+
+function bindPositionListeners() {
+  if (positionListenersBound) return
+  positionListenersBound = true
+  window.addEventListener('resize', syncDropdownPosition, { passive: true })
+  window.addEventListener('scroll', syncDropdownPosition, { passive: true, capture: true })
+}
+
+function unbindPositionListeners() {
+  if (!positionListenersBound) return
+  positionListenersBound = false
+  window.removeEventListener('resize', syncDropdownPosition)
+  window.removeEventListener('scroll', syncDropdownPosition, true)
+}
+
+function onSearchFocus() {
+  showDropdown.value = true
+}
+
 function onSearchInput() {
   showDropdown.value = true
   if (props.selectedId) emit('update:selectedId', null)
+}
+
+function onSearchKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Enter') return
+  event.preventDefault()
+  event.stopPropagation()
+  if (!showDropdown.value) return
+  const first = grouped.value.primary[0] ?? grouped.value.other[0]
+  if (first) {
+    selectAddress(first)
+    return
+  }
+  if (showInlineCreate.value) {
+    onInlineCreate()
+  }
 }
 
 function selectAddress(a: Address) {
@@ -230,6 +350,8 @@ function clearSearch() {
   search.value = ''
   showDropdown.value = false
 }
+
+onUnmounted(unbindPositionListeners)
 
 defineExpose({ clearSearch })
 </script>

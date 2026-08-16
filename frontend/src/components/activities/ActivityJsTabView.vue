@@ -59,7 +59,10 @@
             returned: workflow.items_return_complete,
           }) }}
         </p>
-        <p v-if="workflow && (workflow.missing_on_receive > 0 || workflow.missing_on_return > 0)" class="activity-js-tab-warn">
+        <p
+          v-if="progressFlags.ordered && workflow && (workflow.missing_on_receive > 0 || workflow.missing_on_return > 0)"
+          class="activity-js-tab-warn"
+        >
           {{ t('activities.jsMaterial.tab.discrepancyHint', {
             missingReceive: workflow.missing_on_receive,
             missingReturn: workflow.missing_on_return,

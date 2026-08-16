@@ -40,7 +40,7 @@
     />
   </ActivityOutlinedDatetimeSection>
 
-  <ActivityOutlinedDatetimeSection :id="planningBlockId" :title="materialSectionTitle" icon="truck" :required="true">
+  <ActivityOutlinedDatetimeSection :id="planningBlockId" data-onboarding="activity-create-planning" :title="materialSectionTitle" icon="truck" :required="true">
     <slot name="planning-before" />
     <ActivityDateTimeFields
       v-model:range="matRange"

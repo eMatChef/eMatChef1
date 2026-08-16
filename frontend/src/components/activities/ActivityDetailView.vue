@@ -65,6 +65,15 @@
             variant="secondary"
             size="small"
             class="activity-header-action-btn"
+            :data-onboarding="
+              tr.status === 'submitted'
+                ? 'activity-detail-submit'
+                : tr.status === 'approved'
+                  ? 'activity-detail-approve'
+                  : tr.status === 'packing'
+                    ? 'activity-detail-accept-pack'
+                    : undefined
+            "
             :disabled="isTransitioning || !tr.allowed"
             :title="!tr.allowed && tr.reason ? tr.reason : transitionActionLabel(tr)"
             @click="onTransition(tr)"
@@ -115,7 +124,19 @@
         v-for="tab in tabs"
         :key="tab.id"
         :value="tab.id"
-        :data-onboarding="tab.id === 'packs' ? 'activity-detail-packs-tab' : undefined"
+        :data-onboarding="
+          tab.id === 'overview'
+            ? 'activity-detail-overview-tab'
+            : tab.id === 'packs'
+              ? 'activity-detail-packs-tab'
+              : tab.id === 'material'
+                ? 'activity-detail-material-tab'
+                : tab.id === 'vehicles'
+                  ? 'activity-detail-vehicles-tab'
+                  : tab.id === 'js'
+                    ? 'activity-detail-js-tab'
+                    : undefined
+        "
       >
         {{ tab.label }}
       </v-tab>
@@ -221,7 +242,10 @@
             />
             <template v-else-if="activity">
               <ActivityTabHeader :title="t('activities.detail.tabOverview')" />
-              <div class="section-card activity-tab-panel-card">
+              <div
+                class="section-card activity-tab-panel-card"
+                data-onboarding="activity-detail-period"
+              >
                 <h2 class="section-title activity-tab-subsection-title">{{ t('activities.detail.sectionPeriod') }}</h2>
                 <div class="form-grid">
                   <div class="form-group span-2">
@@ -353,7 +377,10 @@
           </ActivityDetailTabPane>
 
           <ActivityDetailTabPane tab-id="material" :active-tab="activeTab" eager>
-            <div class="activity-detail-tab-panel tab-content activity-material-tab">
+            <div
+              class="activity-detail-tab-panel tab-content activity-material-tab"
+              data-onboarding="activity-detail-material"
+            >
             <ActivityTabHeader :title="t('common.material')">
               <p class="activity-material-tab-hint text-muted">
                 {{ t('activities.materialTab.planningHint') }}

@@ -107,7 +107,10 @@
               v-model="createName"
               :label="t('activities.venueLocations.createNameLabel')"
               :placeholder="t('activities.venueLocations.createNamePlaceholder')"
+              :hint="t('activities.venueLocations.createNameHint')"
+              :persistent-hint="true"
               hide-details="auto"
+              @update:model-value="onCreateNameInput"
             />
             <p class="field-hint text-muted">
               {{
@@ -120,6 +123,7 @@
               <EButton
                 variant="primary"
                 size="small"
+                data-onboarding="activity-venue-set-pin"
                 :loading="isSavingVenue"
                 :disabled="!canAcceptVenue"
                 @click="acceptVenueDraft"
@@ -170,6 +174,7 @@
         v-if="!readOnly && allowChildren && !createPinMode"
         type="button"
         class="event-venue-detail-add-row"
+        data-onboarding="activity-venue-delivery-add"
         :class="{ 'is-highlighted': highlightPulseId === 'add-delivery' }"
         @click="emit('create-child')"
       >
@@ -225,6 +230,8 @@ const props = withDefaults(
     hideTitle?: boolean
     /** Zustellpunkt / «Lieferort erfassen» hervorheben (Blinken + Scroll). */
     highlightDelivery?: boolean
+    /** Bezeichnung von oben (Kontaktformular) — vorausfüllen / synchron halten. */
+    suggestedName?: string
   }>(),
   {
     eventAddress: null,
@@ -235,6 +242,7 @@ const props = withDefaults(
     locationKind: 'event',
     hideTitle: false,
     highlightDelivery: false,
+    suggestedName: '',
   },
 )
 
@@ -244,6 +252,7 @@ const emit = defineEmits<{
   'edit-venue-details': []
   'venue-updated': [address: Address]
   'pin-accepted': [payload: { latitude: number; longitude: number; name: string }]
+  'update:suggestedName': [name: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -262,6 +271,25 @@ const draftLng = ref<number | null>(null)
 const baselineLat = ref<number | null>(null)
 const baselineLng = ref<number | null>(null)
 const createName = ref('')
+/** Letzter von oben übernommener Wert — damit manuelle Edits nicht überschrieben werden. */
+const lastSyncedSuggested = ref('')
+
+function applySuggestedName(raw: string | undefined, force = false) {
+  if (!props.createPinMode) return
+  const next = (raw ?? '').trim()
+  if (!force && createName.value.trim() && createName.value !== lastSyncedSuggested.value) {
+    return
+  }
+  createName.value = next
+  lastSyncedSuggested.value = next
+}
+
+function onCreateNameInput(value: string | number | null) {
+  const next = String(value ?? '')
+  createName.value = next
+  lastSyncedSuggested.value = next.trim()
+  emit('update:suggestedName', next.trim())
+}
 
 const deliveryAddress = computed(
   () => props.childAddresses.find((a) => a.type === 'event_delivery') ?? null,
@@ -575,10 +603,18 @@ watch(
 )
 
 watch(
+  () => props.suggestedName,
+  (name) => {
+    applySuggestedName(name)
+  },
+)
+
+watch(
   () => props.createPinMode,
   (active, wasActive) => {
     if (active) {
-      createName.value = ''
+      lastSyncedSuggested.value = ''
+      applySuggestedName(props.suggestedName, true)
       startVenueEdit()
       return
     }
@@ -591,7 +627,10 @@ watch(
 )
 
 onMounted(() => {
-  if (props.createPinMode) startVenueEdit()
+  if (props.createPinMode) {
+    applySuggestedName(props.suggestedName, true)
+    startVenueEdit()
+  }
 })
 
 onBeforeUnmount(() => {

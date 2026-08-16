@@ -49,8 +49,13 @@
             {{ t('onboarding.tours.clickTargetHint') }}
           </p>
           <footer class="onboarding-tour__footer">
-            <EButton variant="text" size="small" class="onboarding-tour__skip" @click="skip">
-              {{ t('onboarding.tours.skip') }}
+            <EButton
+              variant="text"
+              size="small"
+              class="onboarding-tour__skip"
+              @click="onSkipOrMarkDone"
+            >
+              {{ skipOrMarkDoneLabel }}
             </EButton>
             <div v-if="showCompletionCtas" class="onboarding-tour__cta-group">
               <EButton
@@ -112,6 +117,21 @@ watch(
   (active) => {
     if (typeof document === 'undefined') return
     document.body.classList.toggle('onboarding-tour-active', active)
+    if (!active) {
+      document.body.classList.remove('onboarding-tour-overlay-passthrough')
+    }
+  },
+  { immediate: true },
+)
+
+/** Nur bei fullPageSpotlight (Eventstandort/Lieferort): Dialog scrollen/klicken über dem Dimmer.
+ *  Nicht bei jedem Overlay — sonst bleibt der Wizard (Schritt 4) unausgegraut. */
+watch(
+  [isActive, activeStep],
+  () => {
+    if (typeof document === 'undefined') return
+    const passthrough = !!isActive.value && !!activeStep.value?.fullPageSpotlight
+    document.body.classList.toggle('onboarding-tour-overlay-passthrough', passthrough)
   },
   { immediate: true },
 )
@@ -119,6 +139,7 @@ watch(
 onUnmounted(() => {
   if (typeof document !== 'undefined') {
     document.body.classList.remove('onboarding-tour-active')
+    document.body.classList.remove('onboarding-tour-overlay-passthrough')
   }
 })
 
@@ -129,9 +150,30 @@ const showCompletionCtas = computed(
     (activeTour.value?.completionCtas?.length ?? 0) > 0,
 )
 
+/** Optional-Tour (z. B. Esswaren): letzter Schritt → «Tour erledigt» statt Abbruch. */
+const canMarkDoneWithoutAction = computed(
+  () => isLastStep.value && !!activeTour.value?.browseComplete,
+)
+
+const skipOrMarkDoneLabel = computed(() =>
+  canMarkDoneWithoutAction.value
+    ? t('onboarding.tours.markDone')
+    : t('onboarding.tours.skip'),
+)
+
+function onSkipOrMarkDone() {
+  if (canMarkDoneWithoutAction.value) {
+    finish('stay')
+    return
+  }
+  skip()
+}
+
 const CARD_WIDTH = 360
 const CARD_GAP = 20
 const CARD_EST_HEIGHT = 240
+/** Festplatzierung unten rechts: Abstand zum Viewport-Rand */
+const CARD_EDGE_INSET = 40
 /** Unter App-Header / Drawer — Karte und Spotlight nicht in die Kopfzeile schieben */
 const HEADER_SAFE_TOP = 72
 /** Fallback für Karten-Position neben Rail (wenn noch nicht expandiert) */
@@ -175,13 +217,23 @@ function clampHoleFrame(
   const pickerOpen =
     typeof document !== 'undefined' &&
     !!document.querySelector(
-      '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker, .onboarding-tour-menu-union, .v-overlay--active .v-autocomplete__content',
+      '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker, .onboarding-tour-menu-union, .v-overlay--active .v-autocomplete__content, .v-overlay--active .v-select__content, .v-overlay--active .v-combobox__content, .v-overlay.v-menu > .v-overlay__content, .v-overlay--active.v-menu > .v-overlay__content, .material-lookup-dropdown, .material-lookup-dropdown--teleported, .activity-address-autocomplete-dropdown--teleported, .address-search-dropdown',
     )
   const allowTallHole =
-    pickerOpen || !!rect.inOverlay || !!activeStep.value?.tallSpotlight
-  const maxHoleH = Math.round(viewportH * (allowTallHole ? 0.88 : 0.42))
+    pickerOpen ||
+    !!rect.inOverlay ||
+    !!activeStep.value?.tallSpotlight ||
+    !!activeStep.value?.fullPageSpotlight
+  const maxHoleH = Math.round(
+    viewportH * (activeStep.value?.fullPageSpotlight ? 0.98 : allowTallHole ? 0.92 : 0.42),
+  )
   if (bottom - top > maxHoleH) {
-    bottom = top + maxHoleH
+    // Dialoge/Footer: unteren Rand (Speichern/Erstellen) sichtbar halten
+    if (rect.inOverlay || activeStep.value?.fullPageSpotlight || activeStep.value?.tallSpotlight) {
+      top = Math.max(VIEWPORT_INSET, bottom - maxHoleH)
+    } else {
+      bottom = top + maxHoleH
+    }
   }
 
   if (right <= left) right = left + Math.max(rect.width, 8)
@@ -291,16 +343,56 @@ const cardStyle = computed(() => {
     )
   }
 
-  // Grosse Übersicht (z. B. Lager): Karte fest rechts unten — volle Breite, nichts abschneiden
-  if (activeStep.value?.cardPlacement === 'bottom-right' || activeStep.value?.tallSpotlight) {
-    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - CARD_GAP * 2))
-    const left = Math.max(CARD_GAP, viewportW - width - CARD_GAP)
-    const top = Math.max(HEADER_SAFE_TOP, viewportH - CARD_EST_HEIGHT - CARD_GAP)
+  // Explizite Platzierung vor fullPageSpotlight-Default
+  if (activeStep.value?.cardPlacement === 'bottom-left') {
+    const edge = CARD_EDGE_INSET
+    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - edge * 2))
     return {
-      top: `${top}px`,
-      left: `${left}px`,
+      top: 'auto',
+      left: `${edge}px`,
+      right: 'auto',
+      bottom: `${edge}px`,
       width: `${width}px`,
-      minWidth: `${Math.min(width, CARD_WIDTH)}px`,
+      maxWidth: `calc(100vw - ${edge * 2}px)`,
+      maxHeight: `calc(100vh - ${edge * 2}px)`,
+      overflowY: 'auto',
+    }
+  }
+
+  // Dialoge / hohe Spotlights: Tour-Karte rechts mittig, Spotlight bleibt frei
+  if (activeStep.value?.cardPlacement === 'right-middle' || activeStep.value?.tallSpotlight) {
+    const edge = CARD_EDGE_INSET
+    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - edge * 2))
+    return {
+      top: '50%',
+      left: 'auto',
+      right: `${edge}px`,
+      bottom: 'auto',
+      transform: 'translateY(-50%)',
+      width: `${width}px`,
+      maxWidth: `calc(100vw - ${edge * 2}px)`,
+      maxHeight: `calc(100vh - ${edge * 2}px)`,
+      overflowY: 'auto',
+    }
+  }
+
+  // Grosse Übersicht / volle Seite ohne Placement: Karte unten rechts
+  if (
+    activeStep.value?.cardPlacement === 'bottom-right' ||
+    (activeStep.value?.fullPageSpotlight &&
+      (!activeStep.value?.cardPlacement || activeStep.value?.cardPlacement === 'auto'))
+  ) {
+    const edge = CARD_EDGE_INSET
+    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - edge * 2))
+    return {
+      top: 'auto',
+      left: 'auto',
+      right: `${edge}px`,
+      bottom: `${edge}px`,
+      width: `${width}px`,
+      maxWidth: `calc(100vw - ${edge * 2}px)`,
+      maxHeight: `calc(100vh - ${edge * 2}px)`,
+      overflowY: 'auto',
     }
   }
 
@@ -566,9 +658,42 @@ const cardStyle = computed(() => {
 </style>
 
 <style>
+/* Dialog unter Dimmer: Interaktion (Klick/Scroll) nicht von Abdunkelungs-Panes blockieren */
+body.onboarding-tour-overlay-passthrough .onboarding-tour-dim__pane {
+  pointer-events: none;
+}
+
+/*
+ * Nur Eventstandort-/Lieferort-Dialoge über den Dimmer heben (Scroll + Speichern).
+ * Nicht den Aktivitäts-Wizard — dort muss der Dimmer den Rest ausgrauen.
+ */
+body.onboarding-tour-overlay-passthrough .v-overlay--active:has([data-onboarding="activity-venue-delivery-modal"]),
+body.onboarding-tour-overlay-passthrough .v-overlay--active:has([data-onboarding="activity-venue-create"]),
+body.onboarding-tour-overlay-passthrough .v-overlay--active:has(.contact-detail-view--modal) {
+  z-index: 20050 !important;
+}
+
 /* Ziel-Root über den Dimmer (zusätzlich zum echten Loch) */
 .onboarding-tour-elevate-root {
   z-index: 20050 !important;
+}
+
+/*
+ * Select-/Menu-Overlays (Teleport) während der Tour über den Dimmer heben,
+ * sonst liegt die Liste unter der Abdunkelung obwohl das Feld im Spotlight ist.
+ */
+body.onboarding-tour-active .v-overlay--active.v-menu,
+body.onboarding-tour-active .v-overlay.v-menu--active,
+body.onboarding-tour-active .v-overlay--active:has(.v-select__content),
+body.onboarding-tour-active .v-overlay--active:has(.v-autocomplete__content),
+body.onboarding-tour-active .v-overlay--active:has(.v-combobox__content),
+body.onboarding-tour-active .v-overlay--active:has(.onboarding-tour-menu-union),
+body.onboarding-tour-active .material-lookup-dropdown,
+body.onboarding-tour-active .material-lookup-dropdown--teleported,
+body.onboarding-tour-active .activity-address-autocomplete-dropdown,
+body.onboarding-tour-active .activity-address-autocomplete-dropdown--teleported,
+body.onboarding-tour-active .address-search-dropdown {
+  z-index: 20055 !important;
 }
 
 .onboarding-tour-target-active {
@@ -576,6 +701,23 @@ const cardStyle = computed(() => {
   filter: none !important;
   opacity: 1 !important;
   scroll-margin: 88px 20px 120px;
+}
+
+/*
+ * Accordion/Dropdowns nicht abschneiden — aber NICHT in Dialogen:
+ * overflow:visible am v-card killt den scrollbaren Dialog-Body.
+ */
+body.onboarding-tour-active:not(.onboarding-tour-overlay-passthrough)
+  .onboarding-tour-target-active {
+  overflow: visible !important;
+}
+
+/* Dialog-Inhalt muss unter dem Dimmer weiter scrollbar/klickbar bleiben */
+body.onboarding-tour-overlay-passthrough .v-overlay--active .v-card-text,
+body.onboarding-tour-overlay-passthrough .v-overlay--active .e-dialog__body,
+body.onboarding-tour-overlay-passthrough .v-overlay--active .contact-create-dialog__body {
+  pointer-events: auto;
+  touch-action: pan-y;
 }
 
 /* App-Header hinter Tour-Dimmer/Karte — sonst liegt das Modal «unter» dem Header */

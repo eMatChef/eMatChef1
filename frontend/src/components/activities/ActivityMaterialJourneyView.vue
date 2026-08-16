@@ -2648,7 +2648,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }">
+  <div class="activity-material-journey-view" :class="{ 'activity-material-journey-view--embedded': embedded }" data-onboarding="activity-pack-root">
     <header v-if="!embedded" class="material-journey-header">
       <EButton variant="secondary" size="small" class="material-journey-header__back" @click="goBackToActivity">
         <v-icon icon="mdi-arrow-left" start size="20" />
@@ -2816,6 +2816,7 @@ defineExpose({
       <div
         v-else-if="!hideJourneyWorkUi && !hideJourneyScanOnMwStoreComplete && !isEarlyPackPreview && !isLogisticsAtEventInventory && !hideIssueScanBar"
         class="material-journey-scan-wrap"
+        data-onboarding="activity-pack-scan"
       >
         <MaterialJourneyScanBar
           v-model="scanQuery"
