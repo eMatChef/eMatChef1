@@ -498,25 +498,32 @@
               />
             </div>
 
-            <!-- Verpackungseinheit -->
+            <!-- Verpackungseinheit (Stück oder Meter: m pro VE) -->
             <div
-              v-if="!isVirtualComboView && !isMeterStockMaterial"
+              v-if="!isVirtualComboView"
               class="section-card"
             >
               <h2 class="section-title">{{ t('components.materialDetail.sectionPackaging') }}</h2>
-              <p class="section-hint">{{ t('components.materialDetail.packagingHint') }}</p>
+              <p class="section-hint">{{
+                isMeterStockMaterial
+                  ? t('components.materialDetail.packagingHintMeter')
+                  : t('components.materialDetail.packagingHint')
+              }}</p>
               
               <div class="form-grid">
                 <AutoSaveField
                   v-model="formData.pack_size"
                   :baseline="savedFormBaselines.pack_size"
-                  :label="t('components.materialDetail.labelPiecesPerUnit')"
+                  :label="isMeterStockMaterial
+                    ? t('components.materialDetail.labelMetersPerUnit')
+                    : t('components.materialDetail.labelPiecesPerUnit')"
                   type="number"
                   :min="2"
                   :placeholder="t('components.materialDetail.packSizePlaceholder')"
                   :save="(v) => saveMaterialField('pack_size', v)"
                 />
                 <AutoSaveField
+                  v-if="!isMeterStockMaterial"
                   v-model="formData.pack_unit"
                   :baseline="savedFormBaselines.pack_unit"
                   :label="t('components.materialDetail.labelDesignation')"
@@ -525,7 +532,16 @@
                   :save="(v) => saveMaterialField('pack_unit', v)"
                 />
                 <AutoSaveField
-                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit)"
+                  v-if="isMeterStockMaterial"
+                  v-model="formData.packaging_unit"
+                  :baseline="savedFormBaselines.packaging_unit"
+                  :label="t('components.materialDetail.labelDesignation')"
+                  type="select"
+                  :options="packUnitSelectOptions"
+                  :save="(v) => saveMaterialField('packaging_unit', v)"
+                />
+                <AutoSaveField
+                  v-if="formData.pack_unit && !PACK_UNIT_VALUES.includes(formData.pack_unit) && !isMeterStockMaterial"
                   v-model="formData.pack_unit"
                   :baseline="savedFormBaselines.pack_unit"
                   :label="t('components.materialDetail.packUnitCustomPlaceholder')"
@@ -534,9 +550,23 @@
                   :save="(v) => saveMaterialField('pack_unit', v)"
                 />
               </div>
-              <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                {{ t('components.materialDetail.packPreview', { stock: material.total_stock || 80, packs: Math.floor((material.total_stock || 80) / formData.pack_size), unit: formData.pack_unit, per: formData.pack_size }) }}
-                <span v-if="(material.total_stock || 80) % formData.pack_size !== 0">{{ t('components.materialDetail.packPreviewRemain', { rem: (material.total_stock || 80) % formData.pack_size }) }}</span>
+              <p
+                v-if="formData.pack_size && (isMeterStockMaterial ? formData.packaging_unit : formData.pack_unit)"
+                class="pack-preview"
+              >
+                {{
+                  t('components.materialDetail.packPreview', {
+                    stock: material.total_stock || 0,
+                    packs: Math.floor((material.total_stock || 0) / formData.pack_size),
+                    unit: isMeterStockMaterial ? formData.packaging_unit : formData.pack_unit,
+                    per: formData.pack_size,
+                  })
+                }}
+                <span v-if="(material.total_stock || 0) % formData.pack_size !== 0">{{
+                  t('components.materialDetail.packPreviewRemain', {
+                    rem: (material.total_stock || 0) % formData.pack_size,
+                  })
+                }}</span>
               </p>
             </div>
 
@@ -1900,6 +1930,7 @@
       :existing-batches="batches"
       :pack-unit="material.pack_unit"
       :pack-size="material.pack_size"
+      :packaging-unit="material.packaging_unit"
       :size-length-cm="material.size_length"
       :reference-purchase-unit-chf="material.reference_purchase_unit_chf"
       :unit-price-optional="isRepairPartMaterial"
@@ -3362,6 +3393,7 @@ const formData = reactive({
   rental_calc_params: null as RentalCalcParams | null,
   pack_size: null as number | null,
   pack_unit: '',
+  packaging_unit: '',
   pack_weight: '',
   pack_size_length: '',
   pack_size_width: '',
@@ -5061,6 +5093,7 @@ function populateFormData(m: Material) {
   formData.rental_calc_params = m.rental_calc_params ? { ...m.rental_calc_params } : null
   formData.pack_size = m.pack_size || null
   formData.pack_unit = m.pack_unit || ''
+  formData.packaging_unit = m.packaging_unit || ''
   formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
   formData.pack_size_length = normalizeMaterialMetricInput(m.pack_size_length, 'cm') ?? ''
   formData.pack_size_width = normalizeMaterialMetricInput(m.pack_size_width, 'cm') ?? ''
@@ -5159,6 +5192,9 @@ function assignFormFieldFromMaterial(field: MaterialFormField, m: Material) {
       break
     case 'pack_unit':
       formData.pack_unit = m.pack_unit || ''
+      break
+    case 'packaging_unit':
+      formData.packaging_unit = m.packaging_unit || ''
       break
     case 'pack_weight':
       formData.pack_weight = normalizeMaterialMetricInput(m.pack_weight, 'kg') ?? ''
@@ -6250,6 +6286,7 @@ async function save() {
       rental_calc_params: formData.rental_calc_params,
       pack_size: formData.pack_size || null,
       pack_unit: formData.pack_unit || null,
+      packaging_unit: formData.packaging_unit || null,
       pack_sale_price_chf:
         formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
           ? String(formData.pack_sale_price_chf)

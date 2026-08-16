@@ -177,6 +177,13 @@ class MaterialItem
     #[ORM\Column(name: 'pack_unit', type: 'string', length: 40, nullable: true)]
     private ?string $packUnit = null;
 
+    /**
+     * VE-Bezeichnung bei Meterware (pack_unit=m), z. B. Rolle — pack_size dann = Meter pro VE.
+     * Bei Stückware bleibt die VE-Bezeichnung in pack_unit.
+     */
+    #[ORM\Column(name: 'packaging_unit', type: 'string', length: 40, nullable: true)]
+    private ?string $packagingUnit = null;
+
     /** Optional: Verkaufspreis pro Verpackungseinheit (CHF/VE), z. B. für Aufteilen auf Stückpreis */
     #[ORM\Column(name: 'pack_sale_price_chf', type: 'decimal', precision: 10, scale: 2, nullable: true)]
     private ?string $packSalePriceChf = null;
@@ -509,6 +516,9 @@ class MaterialItem
 
     public function getPackUnit(): ?string { return $this->packUnit; }
     public function setPackUnit(?string $packUnit): self { $this->packUnit = $packUnit; return $this; }
+
+    public function getPackagingUnit(): ?string { return $this->packagingUnit; }
+    public function setPackagingUnit(?string $packagingUnit): self { $this->packagingUnit = $packagingUnit; return $this; }
 
     public function getPackSalePriceChf(): ?string { return $this->packSalePriceChf; }
     public function setPackSalePriceChf(?string $packSalePriceChf): self

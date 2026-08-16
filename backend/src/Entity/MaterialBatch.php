@@ -73,6 +73,25 @@ class MaterialBatch
     #[ORM\Column(name: 'barcode_tag', type: 'string', length: 50, nullable: true)]
     private ?string $barcodeTag = null;
 
+    /**
+     * Standardlänge / Inhalt dieser Charge in cm (Meterware).
+     * Kann vom Material-Stamm abweichen (Lieferant wechselt z. B. 10 m → 12 m Rollen).
+     */
+    #[ORM\Column(name: 'size_length', type: 'string', length: 120, nullable: true)]
+    private ?string $sizeLength = null;
+
+    /**
+     * Verpackungseinheit dieser Charge:
+     * - bei Stückware: Stück pro VE
+     * - bei Meterware (Material pack_unit=m): Meter pro VE
+     */
+    #[ORM\Column(name: 'pack_size', type: 'integer', nullable: true)]
+    private ?int $packSize = null;
+
+    /** Bezeichnung der VE dieser Charge (z. B. Rolle, Karton) — unabhängig von Material.pack_unit=m. */
+    #[ORM\Column(name: 'pack_unit', type: 'string', length: 40, nullable: true)]
+    private ?string $packUnit = null;
+
     #[ORM\Column(name: 'expiry_date', type: 'date', nullable: true)]
     private ?\DateTime $expiryDate = null;
 
@@ -333,6 +352,39 @@ class MaterialBatch
     public function setBarcodeTag(?string $barcodeTag): self
     {
         $this->barcodeTag = $barcodeTag;
+        return $this;
+    }
+
+    public function getSizeLength(): ?string
+    {
+        return $this->sizeLength;
+    }
+
+    public function setSizeLength(?string $sizeLength): self
+    {
+        $this->sizeLength = $sizeLength;
+        return $this;
+    }
+
+    public function getPackSize(): ?int
+    {
+        return $this->packSize;
+    }
+
+    public function setPackSize(?int $packSize): self
+    {
+        $this->packSize = $packSize;
+        return $this;
+    }
+
+    public function getPackUnit(): ?string
+    {
+        return $this->packUnit;
+    }
+
+    public function setPackUnit(?string $packUnit): self
+    {
+        $this->packUnit = $packUnit;
         return $this;
     }
 

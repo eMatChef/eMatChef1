@@ -25,6 +25,10 @@ export type OnboardingTargetRect = {
   bottom: number
   width: number
   height: number
+  /** Target liegt in Dialog/Overlay → Spotlight darf höher sein */
+  inOverlay?: boolean
+  /** Haupt-Sidebar oder Settings-Subnav (Hover-Expand) */
+  inSidebar?: boolean
 }
 
 const targetRect = ref<OnboardingTargetRect | null>(null)
@@ -35,9 +39,17 @@ let elevatedRoot: HTMLElement | null = null
 let targetClickHandler: ((event: Event) => void) | null = null
 let rectSyncRaf = 0
 let rectSyncStopTimer = 0
+let sidebarExpandRoot: Element | null = null
+let sidebarExpandHandler: (() => void) | null = null
 
 function readTargetRect(el: Element): OnboardingTargetRect {
   const r = el.getBoundingClientRect()
+  const inOverlay = !!el.closest(
+    '.v-overlay, .v-dialog, .v-overlay__content, .material-wizard-overlay, .material-wizard-modal, .modal-overlay, .modal-dialog'
+  )
+  const inSidebar = !!el.closest(
+    '.v-navigation-drawer, .emc-sidebar-drawer, .settings-subnav-rail'
+  )
   return {
     top: r.top,
     left: r.left,
@@ -45,12 +57,21 @@ function readTargetRect(el: Element): OnboardingTargetRect {
     bottom: r.bottom,
     width: r.width,
     height: r.height,
+    inOverlay,
+    inSidebar,
   }
 }
 
 /** Offene Datums-/Zeit-Picker (Teleport) in den Spotlight einbeziehen. */
 const PICKER_OVERLAY_SELECTOR =
-  '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker'
+  [
+    '.activity-date-picker-menu',
+    '.activity-date-picker-bottom-sheet__content',
+    '.v-time-picker',
+    '.v-overlay--active .v-picker',
+    '.onboarding-tour-menu-union',
+    '.v-overlay--active .v-autocomplete__content',
+  ].join(', ')
 
 function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetRect {
   if (typeof document === 'undefined') return base
@@ -78,6 +99,8 @@ function unionRectWithOpenPickers(base: OnboardingTargetRect): OnboardingTargetR
     bottom,
     width: right - left,
     height: bottom - top,
+    inOverlay: true,
+    inSidebar: base.inSidebar,
   }
 }
 
@@ -92,7 +115,13 @@ function findElevateRoot(el: Element): HTMLElement | null {
   // Dialog/Overlay: nicht elevaten. .v-overlay hat eigenen Stacking-Context unter dem
   // Dimmer; Loch + Klicks reichen. Elevaten nur vom Content triggert oft Layout-Races
   // (Spotlight versetzt zur Dialog-Open-Animation).
-  if (el.closest('.v-overlay, .v-dialog, .v-menu, .profile-modal')) return null
+  if (
+    el.closest(
+      '.v-overlay, .v-dialog, .v-menu, .profile-modal, .material-wizard-overlay, .material-wizard-modal, .modal-overlay, .modal-dialog'
+    )
+  ) {
+    return null
+  }
   const header = el.closest('.v-app-bar, .top-header, header.top-header')
   if (header instanceof HTMLElement) return header
   return el instanceof HTMLElement ? el : (el.parentElement as HTMLElement)
@@ -158,6 +187,13 @@ function clearTargetObserver() {
   targetObserver = null
   pickerDomObserver?.disconnect()
   pickerDomObserver = null
+  if (sidebarExpandRoot && sidebarExpandHandler) {
+    sidebarExpandRoot.removeEventListener('mouseenter', sidebarExpandHandler)
+    sidebarExpandRoot.removeEventListener('mouseleave', sidebarExpandHandler)
+    sidebarExpandRoot.removeEventListener('transitionend', sidebarExpandHandler)
+  }
+  sidebarExpandRoot = null
+  sidebarExpandHandler = null
   observedTarget = null
   targetRect.value = null
 }
@@ -170,12 +206,15 @@ function updateTargetRect(el: Element | null) {
   const next = unionRectWithOpenPickers(readTargetRect(el))
   const prev = targetRect.value
   // Subpixel-/Layout-Jitter ignorieren — sonst «springt» der Spotlight bei wachsenden Blöcken.
+  // Breite/Höhe: kleinere Schwelle, damit Sidebar-Hover-Expand flüssig mitgeht.
+  const posEps = 1.5
+  const sizeEps = next.inSidebar ? 0.5 : 1.5
   if (
     prev &&
-    Math.abs(prev.top - next.top) < 1.5 &&
-    Math.abs(prev.left - next.left) < 1.5 &&
-    Math.abs(prev.width - next.width) < 1.5 &&
-    Math.abs(prev.height - next.height) < 1.5
+    Math.abs(prev.top - next.top) < posEps &&
+    Math.abs(prev.left - next.left) < posEps &&
+    Math.abs(prev.width - next.width) < sizeEps &&
+    Math.abs(prev.height - next.height) < sizeEps
   ) {
     return
   }
@@ -189,7 +228,8 @@ async function waitForTarget(
 ): Promise<Element | null> {
   for (let i = 0; i < attempts; i += 1) {
     const el = document.querySelector(selector)
-    if (el && isTargetVisible(el)) return el
+    // Auch Elemente unterhalb des Viewports akzeptieren — danach scrollt syncTarget.
+    if (el && isTargetPresent(el)) return el
     await new Promise((resolve) => setTimeout(resolve, delayMs))
   }
   return null
@@ -203,7 +243,7 @@ function waitForTargetPersistent(
 ): Promise<Element | null> {
   return new Promise((resolve) => {
     const existing = document.querySelector(selector)
-    if (existing && isTargetVisible(existing)) {
+    if (existing && isTargetPresent(existing)) {
       resolve(existing)
       return
     }
@@ -223,7 +263,7 @@ function waitForTargetPersistent(
         return
       }
       const el = document.querySelector(selector)
-      if (el && isTargetVisible(el)) finish(el)
+      if (el && isTargetPresent(el)) finish(el)
     }
 
     const observer = new MutationObserver(check)
@@ -233,33 +273,65 @@ function waitForTargetPersistent(
   })
 }
 
-function isTargetVisible(el: Element): boolean {
+/** Im DOM vorhanden und messbar (auch ausserhalb des Viewports). */
+function isTargetPresent(el: Element): boolean {
   const htmlEl = el as HTMLElement
   const rect = htmlEl.getBoundingClientRect()
   if (rect.width <= 0 || rect.height <= 0) return false
   const style = window.getComputedStyle(htmlEl)
-  return style.display !== 'none' && style.visibility !== 'hidden'
+  if (style.display === 'none' || style.visibility === 'hidden') return false
+  return true
 }
 
-/** Ziel in den sichtbaren Bereich scrollen (z. B. Profil-Modal). */
-async function scrollTargetIntoView(el: Element) {
+/** Nach Scroll: Spotlicht braucht sichtbares Ziel im Viewport. */
+function isTargetVisible(el: Element): boolean {
+  if (!isTargetPresent(el)) return false
   const htmlEl = el as HTMLElement
+  const rect = htmlEl.getBoundingClientRect()
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+  if (rect.bottom < 56 || rect.top > vh - 40 || rect.right < 8 || rect.left > vw - 8) return false
+  return true
+}
+
+/** Ziel in den sichtbaren Bereich scrollen (Wizard-Formular oder Viewport). */
+async function scrollTargetIntoView(el: Element, preferStart = false) {
+  const htmlEl = el as HTMLElement
+
+  // Material-Wizard: im Form-Scrollcontainer zentrieren — nicht window.scrollIntoView
+  // (sonst wandert das Ziel unter den App-Header → Spotlight auf «HardScout» o.ä.).
+  const wizardForm = htmlEl.closest('.material-wizard-form') as HTMLElement | null
+  if (wizardForm) {
+    const parentRect = wizardForm.getBoundingClientRect()
+    const elRect = htmlEl.getBoundingClientRect()
+    const offset = elRect.top - parentRect.top + wizardForm.scrollTop
+    const targetScroll = Math.max(0, offset - Math.min(48, parentRect.height * 0.12))
+    wizardForm.scrollTo({ top: targetScroll, behavior: 'auto' })
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    return
+  }
+
   const rect = htmlEl.getBoundingClientRect()
   const vh = window.innerHeight
   const topMargin = 72
   const bottomMargin = 96
   const fullyVisible = rect.top >= topMargin && rect.bottom <= vh - bottomMargin
-  if (fullyVisible) return
+  if (fullyVisible && !preferStart) return
 
-  // Bereits teilweise sichtbar und nicht riesig: kein Scroll — vermeidet Spotlight-Springen.
-  const partiallyVisible = rect.bottom > topMargin && rect.top < vh - bottomMargin
+  // Unterer Viewport / explizit start: nach oben holen (Tour-Karten brauchen Platz darunter)
+  const inLowerHalf = rect.top > vh * 0.4
   const tall = rect.height > vh * 0.45
-  if (partiallyVisible && !tall) return
+  const useStart = preferStart || inLowerHalf || tall
+
+  if (!useStart) {
+    const partiallyVisible = rect.bottom > topMargin && rect.top < vh - bottomMargin
+    if (partiallyVisible) return
+  }
 
   htmlEl.scrollIntoView({
     // Instant: nach smooth-Scroll war das Rect oft noch in Bewegung → Spotlight sprang.
     behavior: 'auto',
-    block: tall ? 'start' : 'nearest',
+    block: useStart ? 'start' : 'nearest',
     inline: 'nearest',
   })
   await new Promise((resolve) => setTimeout(resolve, 80))
@@ -274,8 +346,26 @@ function observeTarget(el: Element) {
   clearTargetObserver()
   observedTarget = el
   updateTargetRect(el)
-  targetObserver = new ResizeObserver(() => updateTargetRect(el))
+  targetObserver = new ResizeObserver(() => {
+    updateTargetRect(el)
+    startRectSync(el, 450)
+  })
   targetObserver.observe(el)
+  // Sidebar / Settings-Subnav: beim Hover-Expand Spotlight mitziehen
+  const expandRoot = el.closest(
+    '.v-navigation-drawer, .emc-sidebar-drawer, .settings-subnav-rail'
+  )
+  if (expandRoot) {
+    targetObserver.observe(expandRoot)
+    sidebarExpandRoot = expandRoot
+    sidebarExpandHandler = () => {
+      updateTargetRect(el)
+      startRectSync(el, 550)
+    }
+    expandRoot.addEventListener('mouseenter', sidebarExpandHandler)
+    expandRoot.addEventListener('mouseleave', sidebarExpandHandler)
+    expandRoot.addEventListener('transitionend', sidebarExpandHandler)
+  }
   // Kalender/Uhr öffnen sich als Teleport — Spotlight mitziehen
   pickerDomObserver = new MutationObserver(() => {
     if (observedTarget) {
@@ -310,7 +400,10 @@ function isDocumentReload(): boolean {
   return legacy?.type === 1
 }
 
-export function useOnboardingTour() {
+/** Nur das Overlay darf Target-Sync + Cleanup besitzen — sonst killt TourList-Unmount den Spotlight. */
+let hubRedirectInFlight = false
+
+export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
@@ -356,8 +449,6 @@ export function useOnboardingTour() {
   })
 
   const expectsTargetClick = computed(() => activeStepMode.value === 'click')
-
-  let hubRedirectInFlight = false
 
   function buildTourQuery(stepId: string) {
     return {
@@ -428,7 +519,20 @@ export function useOnboardingTour() {
     }
     if (!el || activeStep.value?.id !== stepId) return
 
-    await scrollTargetIntoView(el)
+    await scrollTargetIntoView(el, step.scroll === 'start')
+    if (activeStep.value?.id !== stepId) return
+
+    // Nach Scroll nochmals prüfen / ggf. erneut scrollen (Accordion unter dem Fold)
+    if (!isTargetVisible(el)) {
+      await scrollTargetIntoView(el, true)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    if (activeStep.value?.id !== stepId) return
+    if (!isTargetPresent(el)) return
+
+    // Hover-/Opacity-Reveals zuerst aktivieren, dann messen (sonst zu kleines Spotlight)
+    el.classList.add(TARGET_ACTIVE_CLASS)
+    await nextTick()
     if (activeStep.value?.id !== stepId) return
 
     // Zwei Frames + kurze Pause: Dialog-Open/Layout erst abwarten, sonst Spotlight versetzt.
@@ -442,7 +546,6 @@ export function useOnboardingTour() {
     elevateTargetRoot(el)
     updateTargetRect(el)
     startRectSync(el, 1000)
-    el.classList.add(TARGET_ACTIVE_CLASS)
 
     if (mode === 'click' && onTargetClick) {
       targetClickHandler = () => {
@@ -451,31 +554,6 @@ export function useOnboardingTour() {
       el.addEventListener('click', targetClickHandler, { once: true })
     }
   }
-
-  watch(
-    [activeTourId, activeStepId, () => route.name],
-    () => {
-      if (hubRedirectInFlight) return
-      void syncTarget(() => {
-        void next()
-      })
-    }
-  )
-
-  onMounted(() => {
-    // Hard-Reload mitten in der Tour: Zustand (Wizard etc.) ist weg → Touren-Hub
-    if (activeTourId.value && isDocumentReload()) {
-      void returnToTourHub()
-      return
-    }
-    void syncTarget(() => {
-      void next()
-    })
-  })
-
-  onUnmounted(() => {
-    stopObservingTarget()
-  })
 
   function startTour(tourId: OnboardingTourId, departmentId: string) {
     if (!canStartToursOnViewport.value) return
@@ -518,7 +596,7 @@ export function useOnboardingTour() {
   async function next() {
     if (!activeTour.value || !activeStep.value) return
     if (isLastStep.value) {
-      finish()
+      finish('stay')
       return
     }
     await navigateToStep(activeStepIndex.value + 1)
@@ -529,14 +607,48 @@ export function useOnboardingTour() {
     abortTour()
   }
 
-  function finish() {
+  function finish(action: 'stay' | 'helpTours' = 'stay') {
     const profileId = authStore.profileId
     const departmentId = route.params.departmentId
     if (profileId && typeof departmentId === 'string' && activeTourId.value) {
       markOnboardingTourCompleted(profileId, departmentId, activeTourId.value as OnboardingTourId)
     }
     stopObservingTarget()
-    router.replace({ query: clearTourQuery() })
+    if (action === 'helpTours' && typeof departmentId === 'string') {
+      void router.replace({
+        name: 'HelpTours',
+        params: { departmentId },
+      })
+      return
+    }
+    void router.replace({ query: clearTourQuery() })
+  }
+
+  if (options?.bindTargetSync) {
+    watch(
+      [activeTourId, activeStepId, () => route.name],
+      () => {
+        if (hubRedirectInFlight) return
+        void syncTarget(() => {
+          void next()
+        })
+      }
+    )
+
+    onMounted(() => {
+      // Hard-Reload mitten in der Tour: Zustand (Wizard etc.) ist weg → Touren-Hub
+      if (activeTourId.value && isDocumentReload()) {
+        void returnToTourHub()
+        return
+      }
+      void syncTarget(() => {
+        void next()
+      })
+    })
+
+    onUnmounted(() => {
+      stopObservingTarget()
+    })
   }
 
   return {

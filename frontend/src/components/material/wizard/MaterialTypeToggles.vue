@@ -1,7 +1,7 @@
 <template>
   <div class="slider-toggles-section">
     <!-- Verbrauchsmaterial -->
-    <div class="slider-toggle-group">
+    <div class="slider-toggle-group" data-onboarding="material-wizard-toggle-consumable">
       <label class="toggle-label">
         <span class="toggle-wrapper">
           <input type="checkbox" :checked="isConsumable" @change="onConsumableChange(($event.target as HTMLInputElement).checked)" class="toggle-input" />
@@ -15,7 +15,7 @@
     </div>
 
     <!-- Esswaren -->
-    <div class="slider-toggle-group">
+    <div class="slider-toggle-group" data-onboarding="material-wizard-toggle-food">
       <label class="toggle-label">
         <span class="toggle-wrapper">
           <input type="checkbox" :checked="isFood" @change="onFoodChange(($event.target as HTMLInputElement).checked)" class="toggle-input" />

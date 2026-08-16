@@ -1357,7 +1357,7 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/settings/UsersSettingsView.vue'),
             meta: {
               ...routeHead('settingsUsers'),
-              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyDepartmentRoles: ['u', 'user'],
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },

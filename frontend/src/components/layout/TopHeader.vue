@@ -2560,7 +2560,7 @@ watch(
 }
 
 .user-dropdown.onboarding-tour-elevate-root {
-  z-index: 10050 !important;
+  z-index: 20050 !important;
 }
 
 .notifications-dropdown {

@@ -7,24 +7,25 @@
     persistent
   >
     <form id="category-modal-form" @submit.prevent="handleSubmit">
-      <ETextField
-        ref="nameInputRef"
-        v-model="formData.name"
-        :label="t('common.name')"
-        :placeholder="t('settings.categories.modal.namePlaceholder')"
-        :rules="[requiredNameRule]"
-        hide-details="auto"
-        class="mb-3"
-      />
+      <div data-onboarding="category-modal-fields">
+        <ETextField
+          ref="nameInputRef"
+          v-model="formData.name"
+          :label="t('common.name')"
+          :placeholder="t('settings.categories.modal.namePlaceholder')"
+          :rules="[requiredNameRule]"
+          hide-details="auto"
+          class="mb-3"
+        />
 
-      <ESelect
-        v-model="formData.parent_id"
-        :items="parentSelectItems"
-        :label="t('settings.categories.modal.parentLabel')"
-        hide-details="auto"
-        class="mb-1"
-      />
-      <p class="form-hint">{{ t('settings.categories.modal.parentHint') }}</p>
+        <ESelect
+          v-model="formData.parent_id"
+          :items="parentSelectItems"
+          :label="t('settings.categories.modal.parentLabel')"
+          hide-details="auto"
+          class="mb-3"
+        />
+      </div>
 
       <ETextarea
         v-model="formData.description"
@@ -32,24 +33,25 @@
         :placeholder="t('settings.categories.modal.descriptionPlaceholder')"
         rows="2"
         hide-details="auto"
-        class="mt-3"
       />
 
       <v-alert v-if="error" type="error" variant="tonal" class="mt-3" :text="error" />
     </form>
 
     <template #actions>
-      <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
-      <EButton
-        variant="primary"
-        size="small"
-        type="submit"
-        form="category-modal-form"
-        :disabled="isLoading || !formData.name.trim()"
-        :loading="isLoading"
-      >
-        {{ isLoading ? t('common.saving') : (isEditing ? t('common.save') : t('common.create')) }}
-      </EButton>
+      <div class="category-modal-actions" data-onboarding="category-modal-actions">
+        <EButton variant="secondary" size="small" @click="close">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          type="submit"
+          form="category-modal-form"
+          :disabled="isLoading || !formData.name.trim()"
+          :loading="isLoading"
+        >
+          {{ isLoading ? t('common.saving') : (isEditing ? t('common.save') : t('common.create')) }}
+        </EButton>
+      </div>
     </template>
   </EDialog>
 </template>
@@ -121,13 +123,27 @@ const availableParents = computed(() => {
   return allCategories.value.filter((c) => !excludeIds.has(c.id) && !c.parent_id)
 })
 
-const parentSelectItems = computed(() => [
-  { title: t('settings.categories.modal.parentMain'), value: null },
-  ...availableParents.value.map((cat) => ({
-    title: cat.parent_id ? `  └ ${cat.name}` : cat.name,
-    value: cat.id,
-  })),
-])
+/** Hierarchie im Dropdown: Hauptkategorie wählbar, Kinder eingerückt (nur Orientierung). */
+const parentSelectItems = computed(() => {
+  const items: Array<{ title: string; value: string | null; disabled?: boolean }> = [
+    { title: t('settings.categories.modal.parentMain'), value: null },
+  ]
+  for (const main of availableParents.value) {
+    items.push({ title: main.name, value: main.id })
+    const children = allCategories.value
+      .filter((c) => c.parent_id === main.id)
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    for (const child of children) {
+      if (isEditing.value && child.id === props.category?.id) continue
+      items.push({
+        title: `\u00A0\u00A0\u00A0└ ${child.name}`,
+        value: child.id,
+        disabled: true,
+      })
+    }
+  }
+  return items
+})
 
 function close() {
   dialogOpen.value = false
@@ -190,9 +206,11 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.form-hint {
-  font-size: 12px;
-  color: var(--color-text-muted, #6b7280);
-  margin: 4px 0 0;
+.category-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  width: 100%;
 }
 </style>

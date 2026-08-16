@@ -147,6 +147,35 @@
         <div class="setting-fields">
           <div class="field-row">
             <div class="field-group">
+              <label for="js-default-coach-user">{{ t('settings.activitySettings.fields.jsCoachUser') }}</label>
+              <select
+                id="js-default-coach-user"
+                v-model="jsForm.defaultCoachUserId"
+                class="form-input"
+                @change="onDefaultCoachUserChange"
+              >
+                <option value="">{{ t('settings.activitySettings.jsCoachUserNone') }}</option>
+                <option
+                  v-for="coach in coachMembers"
+                  :key="coach.user_id"
+                  :value="coach.user_id"
+                >
+                  {{ coach.name }}{{ coach.email ? ` (${coach.email})` : '' }}
+                </option>
+              </select>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.jsCoachUser') }}</span>
+            </div>
+            <div class="field-group">
+              <label for="js-default-delivery-type">{{ t('settings.activitySettings.fields.jsDeliveryType') }}</label>
+              <select id="js-default-delivery-type" v-model="jsForm.defaultDeliveryType" class="form-input">
+                <option value="franko">{{ t('settings.activitySettings.jsDeliveryOptions.franko') }}</option>
+                <option value="pickup_thun">{{ t('settings.activitySettings.jsDeliveryOptions.pickupThun') }}</option>
+              </select>
+              <span class="field-hint">{{ t('settings.activitySettings.hints.jsDeliveryType') }}</span>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
               <label for="js-default-coach-person-nr">{{ t('settings.activitySettings.fields.jsCoachPersonNr') }}</label>
               <input
                 id="js-default-coach-person-nr"
@@ -156,14 +185,6 @@
                 :placeholder="t('settings.activitySettings.placeholders.jsCoachPersonNr')"
               />
               <span class="field-hint">{{ t('settings.activitySettings.hints.jsCoachPersonNr') }}</span>
-            </div>
-            <div class="field-group">
-              <label for="js-default-delivery-type">{{ t('settings.activitySettings.fields.jsDeliveryType') }}</label>
-              <select id="js-default-delivery-type" v-model="jsForm.defaultDeliveryType" class="form-input">
-                <option value="franko">{{ t('settings.activitySettings.jsDeliveryOptions.franko') }}</option>
-                <option value="pickup_thun">{{ t('settings.activitySettings.jsDeliveryOptions.pickupThun') }}</option>
-              </select>
-              <span class="field-hint">{{ t('settings.activitySettings.hints.jsDeliveryType') }}</span>
             </div>
           </div>
           <div class="field-row">
@@ -238,6 +259,7 @@ import {
   type JsMaterialDepartmentDefaults,
   DEFAULT_JS_MATERIAL_SETTINGS,
 } from '@/api/departmentSettings'
+import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
 import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ETimeField } from '@/components/form/base'
@@ -281,8 +303,19 @@ const savedJsForm = ref<JsMaterialDepartmentDefaults>({ ...DEFAULT_JS_MATERIAL_S
 
 const jsForm = reactive<JsMaterialDepartmentDefaults>({ ...DEFAULT_JS_MATERIAL_SETTINGS })
 
+const coachMembers = ref<DepartmentMember[]>([])
+
+function onDefaultCoachUserChange() {
+  const selected = coachMembers.value.find((m) => m.user_id === jsForm.defaultCoachUserId)
+  if (!selected) return
+  if (selected.first_name) jsForm.defaultCoachFirstName = selected.first_name
+  if (selected.last_name) jsForm.defaultCoachLastName = selected.last_name
+  if (selected.email) jsForm.defaultCoachEmail = selected.email
+}
+
 function jsFormEquals(a: JsMaterialDepartmentDefaults, b: JsMaterialDepartmentDefaults): boolean {
   return (
+    a.defaultCoachUserId === b.defaultCoachUserId &&
     a.defaultCoachPersonNr === b.defaultCoachPersonNr &&
     a.defaultCoachFirstName === b.defaultCoachFirstName &&
     a.defaultCoachLastName === b.defaultCoachLastName &&
@@ -336,10 +369,12 @@ const computeCampLagExample = computed(() => {
 async function loadSettings() {
   isLoading.value = true
   try {
-    const [defaults, jsDefaults] = await Promise.all([
+    const [defaults, jsDefaults, members] = await Promise.all([
       getActivityDefaults(departmentId.value),
       getJsMaterialDepartmentDefaults(departmentId.value),
+      getDepartmentMembers(departmentId.value),
     ])
+    coachMembers.value = members.filter((m) => !!m.is_js_coach)
     const normalized: ActivityDefaults = {
       ...defaults,
       defaultTimeStart: normalizeDepartmentTimeHHMM(defaults.defaultTimeStart),

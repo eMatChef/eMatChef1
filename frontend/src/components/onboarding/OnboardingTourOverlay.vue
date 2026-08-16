@@ -7,7 +7,6 @@
       -->
       <div
         class="onboarding-tour-dim"
-        :class="{ 'onboarding-tour-dim--passive': expectsTargetClick }"
         aria-hidden="true"
       >
         <template v-if="hole">
@@ -40,7 +39,12 @@
             </p>
           </header>
           <h2 class="onboarding-tour__title">{{ t(activeStep.titleKey) }}</h2>
-          <p class="onboarding-tour__body">{{ t(activeStep.bodyKey) }}</p>
+          <div class="onboarding-tour__content">
+            <p class="onboarding-tour__body">{{ t(activeStep.bodyKey) }}</p>
+            <ul v-if="bodyItems.length" class="onboarding-tour__list">
+              <li v-for="(item, idx) in bodyItems" :key="idx">{{ item }}</li>
+            </ul>
+          </div>
           <p v-if="expectsTargetClick" class="onboarding-tour__hint">
             {{ t('onboarding.tours.clickTargetHint') }}
           </p>
@@ -48,8 +52,19 @@
             <EButton variant="text" size="small" class="onboarding-tour__skip" @click="skip">
               {{ t('onboarding.tours.skip') }}
             </EButton>
+            <div v-if="showCompletionCtas" class="onboarding-tour__cta-group">
+              <EButton
+                v-for="cta in activeTour?.completionCtas"
+                :key="cta.labelKey"
+                :variant="cta.action === 'helpTours' ? 'primary' : 'secondary'"
+                size="small"
+                @click="finish(cta.action)"
+              >
+                {{ t(cta.labelKey) }}
+              </EButton>
+            </div>
             <EButton
-              v-if="!expectsTargetClick"
+              v-else-if="!expectsTargetClick"
               variant="primary"
               size="small"
               class="onboarding-tour__next"
@@ -65,12 +80,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 
-const { t } = useI18n()
+const { t, tm, te } = useI18n()
 const {
   activeTour,
   activeStep,
@@ -81,47 +96,90 @@ const {
   targetRect,
   next,
   skip,
-} = useOnboardingTour()
+  finish,
+} = useOnboardingTour({ bindTargetSync: true })
+
+const bodyItems = computed((): string[] => {
+  const key = activeStep.value?.bodyItemsKey
+  if (!key || !te(key)) return []
+  const raw = tm(key)
+  if (!Array.isArray(raw)) return []
+  return raw.map((item) => String(item)).filter(Boolean)
+})
+
+watch(
+  isActive,
+  (active) => {
+    if (typeof document === 'undefined') return
+    document.body.classList.toggle('onboarding-tour-active', active)
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('onboarding-tour-active')
+  }
+})
+
+const showCompletionCtas = computed(
+  () =>
+    isLastStep.value &&
+    !expectsTargetClick.value &&
+    (activeTour.value?.completionCtas?.length ?? 0) > 0,
+)
 
 const CARD_WIDTH = 360
 const CARD_GAP = 20
 const CARD_EST_HEIGHT = 240
-const SIDEBAR_RIGHT_EDGE = 72
+/** Unter App-Header / Drawer — Karte und Spotlight nicht in die Kopfzeile schieben */
+const HEADER_SAFE_TOP = 72
+/** Fallback für Karten-Position neben Rail (wenn noch nicht expandiert) */
+const SIDEBAR_RIGHT_EDGE = 64
 /** Innenabstand Loch/Ring — Border (2) + Glow (3) müssen hineinpassen */
 const HOLE_PAD = 10
 const VIEWPORT_INSET = 4
-/** Extra rechts bei Sidebar, damit Ring nicht am Rail-Rand endet */
-const SIDEBAR_EXTRA_RIGHT = 14
+/** Sidebar/Subnav: enger Pad am Element — Breite folgt dem Hover-Expand */
+const SIDEBAR_HOLE_PAD = 6
 
 type PaneStyle = Record<string, string>
 
 function clampHoleFrame(
-  rect: { top: number; left: number; right: number; bottom: number; width: number; height: number },
+  rect: {
+    top: number
+    left: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+    inOverlay?: boolean
+    inSidebar?: boolean
+  },
   viewportW: number,
   viewportH: number
 ) {
-  const isSidebarTarget = rect.left < SIDEBAR_RIGHT_EDGE
-  const padL = isSidebarTarget
-    ? Math.max(0, rect.left - VIEWPORT_INSET)
-    : HOLE_PAD
-  const padT = rect.top < VIEWPORT_INSET + HOLE_PAD ? Math.max(0, rect.top - VIEWPORT_INSET) : HOLE_PAD
-  const padR = isSidebarTarget ? HOLE_PAD + SIDEBAR_EXTRA_RIGHT : HOLE_PAD
-  const padB = HOLE_PAD
+  const isSidebarTarget = !!rect.inSidebar || rect.left < SIDEBAR_RIGHT_EDGE
+  const pad = isSidebarTarget ? SIDEBAR_HOLE_PAD : HOLE_PAD
+  const padT =
+    rect.top < VIEWPORT_INSET + pad ? Math.max(0, rect.top - VIEWPORT_INSET) : pad
 
   let top = Math.max(VIEWPORT_INSET, rect.top - padT)
-  let left = Math.max(VIEWPORT_INSET, rect.left - padL)
-  let right = Math.min(viewportW - VIEWPORT_INSET, rect.right + padR)
-  let bottom = Math.min(viewportH - VIEWPORT_INSET, rect.bottom + padB)
+  let left = Math.max(VIEWPORT_INSET, rect.left - pad)
+  let right = Math.min(viewportW - VIEWPORT_INSET, rect.right + pad)
+  let bottom = Math.min(viewportH - VIEWPORT_INSET, rect.bottom + pad)
 
   // Sehr hohe Blöcke (z. B. Zeitraum mit Datetime-Feldern): Loch deckeln,
   // sonst wächst/springt der Ring mit jeder Layout-Änderung.
   // Offener Kalender/Uhr: nicht abschneiden — Union mit Picker-Overlay.
+  // Dialoge/Overlays: fast volle Höhe, damit z. B. Vorlagen-Dialog inkl. Actions sichtbar ist.
   const pickerOpen =
     typeof document !== 'undefined' &&
     !!document.querySelector(
-      '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker',
+      '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .v-time-picker, .v-overlay--active .v-picker, .onboarding-tour-menu-union, .v-overlay--active .v-autocomplete__content',
     )
-  const maxHoleH = Math.round(viewportH * (pickerOpen ? 0.9 : 0.42))
+  const allowTallHole =
+    pickerOpen || !!rect.inOverlay || !!activeStep.value?.tallSpotlight
+  const maxHoleH = Math.round(viewportH * (allowTallHole ? 0.88 : 0.42))
   if (bottom - top > maxHoleH) {
     bottom = top + maxHoleH
   }
@@ -205,35 +263,124 @@ const cardStyle = computed(() => {
 
   const viewportW = typeof window !== 'undefined' ? window.innerWidth : 800
   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 600
-  const maxLeft = viewportW - CARD_WIDTH - CARD_GAP
+  const frame = hole.value?.frame
+  const guideTop = frame?.top ?? rect.top
+  const guideLeft = frame?.left ?? rect.left
+  const guideRight = frame?.right ?? rect.right
+  const guideBottom = frame?.bottom ?? rect.bottom
 
-  let top = rect.top
-  let left = rect.right + CARD_GAP
+  const gutterLeft = Math.max(0, guideLeft - CARD_GAP)
+  const gutterRight = Math.max(0, viewportW - guideRight - CARD_GAP)
+  const spaceBelow = viewportH - guideBottom - CARD_GAP
+  const spaceAbove = guideTop - HEADER_SAFE_TOP - CARD_GAP
 
-  if (rect.left < SIDEBAR_RIGHT_EDGE + 40) {
-    left = Math.max(SIDEBAR_RIGHT_EDGE + CARD_GAP, rect.right + CARD_GAP)
-    top = Math.min(Math.max(CARD_GAP, rect.top - 8), viewportH - CARD_EST_HEIGHT - CARD_GAP)
-  } else if (left > maxLeft) {
-    left = Math.max(CARD_GAP, rect.left - CARD_WIDTH - CARD_GAP)
-    if (left < SIDEBAR_RIGHT_EDGE && rect.left >= SIDEBAR_RIGHT_EDGE) {
-      left = SIDEBAR_RIGHT_EDGE + CARD_GAP
-    }
-    if (left + CARD_WIDTH > rect.left - 8) {
-      left = Math.min(maxLeft, Math.max(SIDEBAR_RIGHT_EDGE + CARD_GAP, rect.left))
-      top = rect.bottom + CARD_GAP
-      if (top + CARD_EST_HEIGHT > viewportH) {
-        top = Math.max(CARD_GAP, rect.top - CARD_EST_HEIGHT - CARD_GAP)
-      }
+  // Breite Accordion-/Content-Ziele wie Overlays behandeln — sonst liegt die Karte im Loch
+  const isWideContentTarget = rect.width > Math.min(420, viewportW * 0.45)
+  const isOverlayTarget =
+    !!rect.inOverlay || (rect.width > 400 && rect.height > viewportH * 0.35) || isWideContentTarget
+
+  /** Karte darf das Spotlight (frame) nicht überdecken. */
+  function overlapsSpotlight(left: number, top: number, width: number, height: number) {
+    const right = left + width
+    const bottom = top + height
+    return !(
+      right <= guideLeft + 2 ||
+      left >= guideRight - 2 ||
+      bottom <= guideTop + 2 ||
+      top >= guideBottom - 2
+    )
+  }
+
+  // Grosse Übersicht (z. B. Lager): Karte fest rechts unten — volle Breite, nichts abschneiden
+  if (activeStep.value?.cardPlacement === 'bottom-right' || activeStep.value?.tallSpotlight) {
+    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - CARD_GAP * 2))
+    const left = Math.max(CARD_GAP, viewportW - width - CARD_GAP)
+    const top = Math.max(HEADER_SAFE_TOP, viewportH - CARD_EST_HEIGHT - CARD_GAP)
+    return {
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${width}px`,
+      minWidth: `${Math.min(width, CARD_WIDTH)}px`,
     }
   }
 
-  left = Math.min(Math.max(CARD_GAP, left), maxLeft)
-  top = Math.min(Math.max(CARD_GAP, top), viewportH - CARD_EST_HEIGHT - CARD_GAP)
+  let top = Math.max(HEADER_SAFE_TOP, guideTop)
+  let left = guideRight + CARD_GAP
+  let width = Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)
+
+  if (rect.left < SIDEBAR_RIGHT_EDGE + 40 && !isWideContentTarget) {
+    left = Math.max(SIDEBAR_RIGHT_EDGE + CARD_GAP, guideRight + CARD_GAP)
+    top = Math.min(Math.max(HEADER_SAFE_TOP, guideTop - 8), viewportH - CARD_EST_HEIGHT - CARD_GAP)
+  } else if (isOverlayTarget || left + width > viewportW - CARD_GAP) {
+    const preferLeft = gutterLeft >= gutterRight
+
+    if (preferLeft && gutterLeft >= 240) {
+      width = Math.min(CARD_WIDTH, Math.max(240, gutterLeft - CARD_GAP))
+      left = Math.max(CARD_GAP, guideLeft - width - CARD_GAP)
+      top = Math.min(Math.max(HEADER_SAFE_TOP, guideTop), viewportH - CARD_EST_HEIGHT - CARD_GAP)
+    } else if (gutterRight >= 240) {
+      width = Math.min(CARD_WIDTH, Math.max(240, gutterRight - CARD_GAP))
+      left = Math.min(guideRight + CARD_GAP, viewportW - width - CARD_GAP)
+      top = Math.min(Math.max(HEADER_SAFE_TOP, guideTop), viewportH - CARD_EST_HEIGHT - CARD_GAP)
+    } else if (spaceBelow >= CARD_EST_HEIGHT) {
+      width = Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)
+      left = Math.min(
+        viewportW - width - CARD_GAP,
+        Math.max(CARD_GAP, guideLeft + (guideRight - guideLeft - width) / 2),
+      )
+      top = Math.max(HEADER_SAFE_TOP, guideBottom + CARD_GAP)
+    } else if (spaceAbove >= CARD_EST_HEIGHT) {
+      width = Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)
+      left = Math.min(
+        viewportW - width - CARD_GAP,
+        Math.max(CARD_GAP, guideLeft + (guideRight - guideLeft - width) / 2),
+      )
+      top = Math.max(HEADER_SAFE_TOP, guideTop - CARD_EST_HEIGHT - CARD_GAP)
+    } else {
+      const side = gutterLeft >= gutterRight ? 'left' : 'right'
+      width = Math.min(
+        CARD_WIDTH,
+        Math.max(200, (side === 'left' ? gutterLeft : gutterRight) - CARD_GAP),
+      )
+      left = side === 'left' ? CARD_GAP : viewportW - width - CARD_GAP
+      top = HEADER_SAFE_TOP
+    }
+  }
+
+  // Immer: Überlappung mit Spotlight vermeiden (Accordion, breite Panels, …)
+  if (overlapsSpotlight(left, top, width, CARD_EST_HEIGHT)) {
+    if (spaceBelow >= CARD_EST_HEIGHT) {
+      width = Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)
+      left = Math.min(
+        viewportW - width - CARD_GAP,
+        Math.max(CARD_GAP, guideLeft + Math.max(0, (guideRight - guideLeft - width) / 2)),
+      )
+      top = Math.max(HEADER_SAFE_TOP, guideBottom + CARD_GAP)
+    } else if (spaceAbove >= CARD_EST_HEIGHT) {
+      width = Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)
+      left = Math.min(
+        viewportW - width - CARD_GAP,
+        Math.max(CARD_GAP, guideLeft + Math.max(0, (guideRight - guideLeft - width) / 2)),
+      )
+      top = Math.max(HEADER_SAFE_TOP, guideTop - CARD_EST_HEIGHT - CARD_GAP)
+    } else if (gutterRight >= 200) {
+      width = Math.min(CARD_WIDTH, gutterRight - CARD_GAP)
+      left = viewportW - width - CARD_GAP
+      top = HEADER_SAFE_TOP
+    } else if (gutterLeft >= 200) {
+      width = Math.min(CARD_WIDTH, gutterLeft - CARD_GAP)
+      left = CARD_GAP
+      top = HEADER_SAFE_TOP
+    }
+  }
+
+  left = Math.min(Math.max(CARD_GAP, left), Math.max(CARD_GAP, viewportW - width - CARD_GAP))
+  top = Math.min(Math.max(HEADER_SAFE_TOP, top), viewportH - CARD_EST_HEIGHT - CARD_GAP)
 
   return {
     top: `${top}px`,
     left: `${left}px`,
-    width: `${Math.min(CARD_WIDTH, viewportW - CARD_GAP * 2)}px`,
+    width: `${width}px`,
   }
 })
 </script>
@@ -242,7 +389,7 @@ const cardStyle = computed(() => {
 .onboarding-tour-dim {
   position: fixed;
   inset: 0;
-  z-index: 10040;
+  z-index: 20040;
   pointer-events: none;
 }
 
@@ -250,10 +397,6 @@ const cardStyle = computed(() => {
   position: fixed;
   background: rgba(15, 23, 42, 0.52);
   pointer-events: auto;
-}
-
-.onboarding-tour-dim--passive .onboarding-tour-dim__pane {
-  pointer-events: none;
 }
 
 .onboarding-tour-ring {
@@ -272,7 +415,7 @@ const cardStyle = computed(() => {
 .onboarding-tour-card-layer {
   position: fixed;
   inset: 0;
-  z-index: 10060;
+  z-index: 20060;
   pointer-events: none;
 }
 
@@ -345,14 +488,39 @@ const cardStyle = computed(() => {
   color: #0f172a;
 }
 
-.onboarding-tour__body {
+.onboarding-tour__content {
   margin: 8px 18px 0 20px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  max-height: min(48vh, 320px);
+}
+
+.onboarding-tour__body {
+  margin: 0;
   font-size: 14px;
   line-height: 1.5;
   color: #475569;
   white-space: pre-line;
-  flex: 1 1 auto;
-  overflow-y: auto;
+}
+
+.onboarding-tour__list {
+  margin: 10px 0 0;
+  padding: 0 0 0 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.onboarding-tour__list li {
+  padding-left: 2px;
+}
+
+.onboarding-tour__list li::marker {
+  color: #16a34a;
 }
 
 .onboarding-tour__hint {
@@ -372,23 +540,35 @@ const cardStyle = computed(() => {
   padding: 12px 14px 12px 12px;
   border-top: 1px solid #e2e8f0;
   background: #f8fafc;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .onboarding-tour__skip {
   color: #64748b !important;
   margin-inline-start: 4px;
+  flex-shrink: 0;
 }
 
 .onboarding-tour__next {
   min-width: 96px;
   justify-content: center;
+  flex-shrink: 0;
+}
+
+.onboarding-tour__cta-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 </style>
 
 <style>
 /* Ziel-Root über den Dimmer (zusätzlich zum echten Loch) */
 .onboarding-tour-elevate-root {
-  z-index: 10050 !important;
+  z-index: 20050 !important;
 }
 
 .onboarding-tour-target-active {
@@ -396,5 +576,12 @@ const cardStyle = computed(() => {
   filter: none !important;
   opacity: 1 !important;
   scroll-margin: 88px 20px 120px;
+}
+
+/* App-Header hinter Tour-Dimmer/Karte — sonst liegt das Modal «unter» dem Header */
+body.onboarding-tour-active .top-header.v-app-bar,
+body.onboarding-tour-active .v-app-bar.top-header,
+body.onboarding-tour-active .v-app-bar {
+  z-index: 100 !important;
 }
 </style>

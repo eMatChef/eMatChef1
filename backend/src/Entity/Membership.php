@@ -34,6 +34,10 @@ class Membership
     #[ORM\Column(name: 'is_primary', type: 'boolean', options: ['default' => false])]
     private bool $isPrimary = false;
 
+    /** J+S-Coach-Flag (Zusatz zur Rolle, wie Gruppenchef ★). */
+    #[ORM\Column(name: 'is_js_coach', type: 'boolean', options: ['default' => false])]
+    private bool $isJsCoach = false;
+
     public function getUserId(): string
     {
         return $this->userId;
@@ -99,6 +103,17 @@ class Membership
     public function setIsPrimary(bool $isPrimary): self
     {
         $this->isPrimary = $isPrimary;
+        return $this;
+    }
+
+    public function getIsJsCoach(): bool
+    {
+        return $this->isJsCoach;
+    }
+
+    public function setIsJsCoach(bool $isJsCoach): self
+    {
+        $this->isJsCoach = $isJsCoach;
         return $this;
     }
 }

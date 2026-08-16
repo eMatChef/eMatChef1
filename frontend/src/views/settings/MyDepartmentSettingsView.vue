@@ -85,18 +85,6 @@
           <template v-else>
             <div class="join-code-row">
               <code class="join-code">{{ inviteData?.join_code || '...' }}</code>
-              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
-                {{ t('settings.joinCode.copyCode') }}
-              </EButton>
-              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
-                {{ t('settings.joinCode.copyInviteLink') }}
-              </EButton>
-              <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
-                {{ t('settings.joinCode.copyRegisterLink') }}
-              </EButton>
-              <EButton variant="primary" size="small" :disabled="isInviteLoading" :loading="isInviteLoading" @click="regenerateInviteCode">
-                {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
-              </EButton>
             </div>
             <p v-if="inviteData?.invite_url" class="join-meta">{{ t('settings.joinCode.withAccount') }} {{ inviteData.invite_url }}</p>
             <p v-if="inviteData?.register_invite_url" class="join-meta">{{ t('settings.joinCode.withoutAccount') }} {{ inviteData.register_invite_url }}</p>
@@ -112,12 +100,33 @@
                 </EButton>
               </div>
             </div>
+            <div class="join-actions-row">
+              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyJoinCode">
+                {{ t('settings.joinCode.copyCode') }}
+              </EButton>
+              <EButton variant="secondary" size="small" :disabled="!inviteData" @click="copyInviteLink">
+                {{ t('settings.joinCode.copyInviteLink') }}
+              </EButton>
+              <EButton variant="secondary" size="small" :disabled="!inviteData?.register_invite_url" @click="copyRegisterInviteLink">
+                {{ t('settings.joinCode.copyRegisterLink') }}
+              </EButton>
+              <EButton
+                variant="secondary"
+                size="x-small"
+                :disabled="isInviteLoading"
+                :loading="isInviteLoading"
+                @click="regenerateInviteCode"
+              >
+                {{ isInviteLoading ? t('settings.joinCode.loading') : t('settings.joinCode.regenerate') }}
+              </EButton>
+            </div>
           </template>
         </div>
       </details>
 
       <details
         class="info-card dept-accordion"
+        data-onboarding="settings-members-accordion"
         :open="openAccordion === 'members'"
       >
         <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('members', $event)">
@@ -131,8 +140,8 @@
           <span class="dept-accordion__chevron" aria-hidden="true">▾</span>
         </summary>
         <div class="dept-accordion__body">
-          <!-- Basis-Mitglieder: nur einfache Liste -->
-          <template v-if="isUserRole">
+          <!-- Basis-Mitglieder (u): nur einfache Liste -->
+          <template v-if="membersReadOnly">
             <div v-if="department.users && department.users.length > 0" class="users-list">
               <div v-for="user in department.users" :key="user.id" class="user-item">
                 <UserAvatarBadge :user="user" size="md" />
@@ -145,7 +154,7 @@
             </div>
             <p v-else class="empty-users">{{ t('settings.myDepartment.noMembers') }}</p>
           </template>
-          <!-- Leitung / MW: volle Benutzer-Verwaltung (wie /settings/users) -->
+          <!-- MW/DC / L1–L3: volle Benutzer-Verwaltung (wie /settings/users) -->
           <UsersSettingsView
             v-else-if="membersPanelMounted && selectedDepartmentId"
             :department-id="selectedDepartmentId"
@@ -223,7 +232,11 @@
         class="info-card dept-accordion"
         :open="openAccordion === 'storage'"
       >
-        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('storage', $event)">
+        <summary
+          class="dept-accordion__summary"
+          data-onboarding="settings-dept-storage-accordion"
+          @click="onDeptAccordionSummaryClick('storage', $event)"
+        >
           <span class="dept-accordion__title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
               <path d="M20 7H4C2.9 7 2 7.9 2 9V19C2 20.1 2.9 21 4 21H20C21.1 21 22 20.1 22 19V9C22 7.9 21.1 7 20 7Z" fill="#3b82f6" />
@@ -248,7 +261,11 @@
         class="info-card dept-accordion"
         :open="openAccordion === 'billing'"
       >
-        <summary class="dept-accordion__summary" @click="onDeptAccordionSummaryClick('billing', $event)">
+        <summary
+          class="dept-accordion__summary"
+          data-onboarding="settings-dept-billing-accordion"
+          @click="onDeptAccordionSummaryClick('billing', $event)"
+        >
           <span class="dept-accordion__title">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" class="card-icon" aria-hidden="true">
               <path d="M19 3H5C3.9 3 3 3.9 3 5V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V5C21 3.9 20.1 3 19 3Z" fill="#3b82f6" />
@@ -394,6 +411,7 @@ import DepartmentAddressKindPanel from '@/components/settings/DepartmentAddressK
 import UsersSettingsView from '@/views/settings/UsersSettingsView.vue'
 import GroupsSettingsView from '@/views/settings/GroupsSettingsView.vue'
 import { EButton, ESelect } from '@/components/form/base'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -401,7 +419,10 @@ const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const { t } = useI18n()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, isDepartmentLeader } = useDepartmentMemberRole()
+
+/** Reines Mitglied «u»: nur Liste; L1–L3 und MW/DC: volle Verwaltung. */
+const membersReadOnly = computed(() => isUserRole.value && !isDepartmentLeader.value)
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -502,6 +523,70 @@ type DeptAccordionId =
 const openAccordion = ref<DeptAccordionId | null>(null)
 /** Verhindert Scroll beim initialen Mount von :open. */
 const accordionScrollEnabled = ref(false)
+
+/** Touren: passendes Accordion öffnen und bei Schlüssel-Schritten nach oben scrollen. */
+watch(
+  () => [route.query[ONBOARDING_TOUR_QUERY], route.query[ONBOARDING_TOUR_STEP_QUERY]] as const,
+  async ([tourId, stepId]) => {
+    const step = Number(stepId || 0)
+    const inviteTour = tourId === 'invite-users' && step >= 2 && step <= 10
+    const coachTour = tourId === 'default-coach' && step >= 2 && step <= 5
+    const detailsTour = tourId === 'department-details' && step >= 3
+
+    if (inviteTour || coachTour) {
+      openAccordion.value = 'members'
+      membersPanelMounted.value = true
+      if (
+        (tourId === 'invite-users' && (step === 3 || step === 7))
+        || (tourId === 'default-coach' && step === 3)
+      ) {
+        await nextTick()
+        requestAnimationFrame(() => {
+          const panel = document.querySelector(
+            '[data-onboarding="settings-members-accordion"]'
+          ) as HTMLElement | null
+          panel?.scrollIntoView({ behavior: 'auto', block: 'start' })
+        })
+      }
+      return
+    }
+
+    if (!detailsTour) return
+
+    // Schritte 5–8: Einstellungen → Lager (andere View / Modal)
+    if (step >= 5 && step <= 8) return
+
+    if (step <= 4) {
+      openAccordion.value = 'storage'
+      storagePanelMounted.value = true
+    } else if (step >= 9 && step <= 10) {
+      openAccordion.value = 'billing'
+      billingPanelMounted.value = true
+    } else if (step === 11) {
+      // Abschluss: Billing sichtbar lassen (Kontext der Tour)
+      openAccordion.value = 'billing'
+      billingPanelMounted.value = true
+    } else {
+      return
+    }
+
+    if (step === 3 || step === 9 || step === 10) {
+      await nextTick()
+      await nextTick()
+      requestAnimationFrame(() => {
+        const sel =
+          step === 3
+            ? '[data-onboarding="settings-dept-storage-accordion"]'
+            : step === 10
+              ? '[data-onboarding="settings-dept-billing-panel"]'
+              : '[data-onboarding="settings-dept-billing-accordion"]'
+        const panel = document.querySelector(sel) as HTMLElement | null
+        panel?.scrollIntoView({ behavior: 'auto', block: 'start' })
+      })
+    }
+  },
+  { immediate: true },
+)
 
 function mountAccordionPanel(id: DeptAccordionId) {
   if (id === 'members') membersPanelMounted.value = true
@@ -1178,6 +1263,24 @@ onMounted(() => {
   color: #6b7280;
   font-size: 0.85rem;
   word-break: break-all;
+}
+
+.join-regenerate-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.join-actions-row {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .pending-invites-block {

@@ -6,6 +6,7 @@ use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\Organisation;
+use App\Entity\Profile;
 use App\Entity\User;
 use App\Entity\Membership;
 use App\Repository\DepartmentRepository;
@@ -23,8 +24,10 @@ use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\VerificationEmailService;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -46,6 +49,8 @@ class DepartmentController extends AbstractController
         private GrossanlassDepartmentCreateService $grossanlassDepartmentCreateService,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
+        #[Autowire('%kernel.secret%')]
+        private string $appSecret,
     ) {}
 
     /**
@@ -642,8 +647,11 @@ class DepartmentController extends AbstractController
                     'avatar_initials' => $profile->getAvatarInitials(),
                     'background_color' => $profile->getBackgroundColor(),
                     'text_color' => $profile->getTextColor(),
+                    'language' => $profile->getLanguage(),
+                    'pending_email' => $user->getPendingEmail(),
                     'role' => $m->getRole(),
                     'is_primary' => $m->getIsPrimary(),
+                    'is_js_coach' => $m->getIsJsCoach(),
                     'state' => $user->getState(),
                 ];
             }
@@ -655,11 +663,14 @@ class DepartmentController extends AbstractController
     /**
      * Rollen-Hierarchie: Index 0 = höchste Berechtigung
      */
-    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'coach', 'u'];
+    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
     private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
+    private const PASSWORD_RESET_CODE_TTL_MINUTES = 10;
+    private const PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = 60;
+    private const PASSWORD_RESET_MAX_REQUESTS_PER_HOUR = 5;
 
     /**
-     * Prüft ob der aktuelle User die Ziellolle vergeben darf (eigene Rolle oder darunter)
+     * Prüft ob der aktuelle User die Zielrolle vergeben darf (streng niedriger als eigene).
      */
     private function canAssignRole(string $departmentId, string $targetRole): bool|JsonResponse
     {
@@ -697,21 +708,64 @@ class DepartmentController extends AbstractController
         }
 
         $myRole = $myMembership->getRole();
-        $myIndex = array_search($myRole, self::MEMBERSHIP_ROLE_HIERARCHY);
-        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY);
+        $myIndex = array_search($myRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
+        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
 
         if ($myIndex === false || $targetIndex === false) {
             return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
         }
 
-        // Eigene Rolle oder darunter = erlaubt (höherer Index = niedrigere Rolle)
-        if ($targetIndex < $myIndex) {
+        // Streng niedriger: gleiche Rolle und darüber = verboten (höherer Index = niedrigere Rolle)
+        if ($targetIndex <= $myIndex) {
             return new JsonResponse([
-                'error' => 'Du kannst keine Rolle vergeben, die über deiner eigenen liegt'
+                'error' => 'Du kannst nur Rollen unterhalb deiner eigenen vergeben',
             ], 403);
         }
 
         return true;
+    }
+
+    /**
+     * Darf der aktuelle User ein bestehendes Mitglied (mit gegebener Rolle) verwalten?
+     * Streng: nur niedrigere Rollen; Global-Admin immer.
+     */
+    private function canManageMembershipTarget(string $departmentId, string $targetRole): bool|JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        if ($this->adminCapabilityChecker->hasGlobalAdminRole($currentUser)) {
+            return true;
+        }
+
+        $myMembership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $currentUser->getId(), 'departmentId' => $departmentId]);
+
+        if (!$myMembership) {
+            return new JsonResponse(['error' => 'Du bist kein Mitglied dieses Departments'], 403);
+        }
+
+        $myIndex = array_search($myMembership->getRole(), self::MEMBERSHIP_ROLE_HIERARCHY, true);
+        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
+
+        if ($myIndex === false || $targetIndex === false) {
+            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
+        }
+
+        if ($targetIndex <= $myIndex) {
+            return new JsonResponse([
+                'error' => 'Du kannst nur Mitglieder mit niedrigerer Rolle bearbeiten',
+            ], 403);
+        }
+
+        return true;
+    }
+
+    private function hashPasswordResetCode(string $email, string $code): string
+    {
+        return hash('sha256', strtolower($email) . '|' . strtoupper($code) . '|' . $this->appSecret);
     }
 
     /**
@@ -791,6 +845,7 @@ class DepartmentController extends AbstractController
             $membership->setDepartment($department);
             $membership->setRole($role);
             $membership->setIsPrimary($data['is_primary'] ?? false);
+            $membership->setIsJsCoach(!empty($data['is_js_coach']));
 
             $this->auditLogger->log(
                 'membership',
@@ -802,12 +857,13 @@ class DepartmentController extends AbstractController
                 [
                     'role' => ['old' => null, 'new' => $membership->getRole()],
                     'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
+                    'is_js_coach' => ['old' => null, 'new' => $membership->getIsJsCoach()],
                 ]
             );
 
             $this->entityManager->persist($membership);
-            if ($role === 'coach') {
-                $this->departmentDefaultCoachSync->applyCoachRole($department, $user);
+            if ($membership->getIsJsCoach()) {
+                $this->departmentDefaultCoachSync->refreshDefaultAfterFlagChange($department, $user->getId());
             }
             $this->entityManager->flush();
         } catch (\Exception $e) {
@@ -851,6 +907,7 @@ class DepartmentController extends AbstractController
             'email' => $profile ? $profile->getEmail() : '',
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
+            'is_js_coach' => $membership->getIsJsCoach(),
             'notification_email_sent' => $notificationEmailSent,
         ], 201);
     }
@@ -879,9 +936,15 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Superadmin-Konten haben keine Abteilungsrollen in der Verwaltung'], 403);
         }
 
+        $manageCheck = $this->canManageMembershipTarget($departmentId, $membership->getRole());
+        if ($manageCheck instanceof JsonResponse) {
+            return $manageCheck;
+        }
+
         $data = json_decode($request->getContent(), true);
         $oldRole = $membership->getRole();
         $oldIsPrimary = $membership->getIsPrimary();
+        $oldIsJsCoach = $membership->getIsJsCoach();
 
         if (isset($data['role'])) {
             if (!in_array($data['role'], self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
@@ -924,6 +987,10 @@ class DepartmentController extends AbstractController
             $membership->setIsPrimary((bool) $data['is_primary']);
         }
 
+        if (array_key_exists('is_js_coach', $data)) {
+            $membership->setIsJsCoach((bool) $data['is_js_coach']);
+        }
+
         if ($oldRole !== $membership->getRole()) {
             $this->auditLogger->log(
                 'membership',
@@ -952,8 +1019,22 @@ class DepartmentController extends AbstractController
             );
         }
 
-        if ($membership->getRole() === 'coach' && $oldRole !== 'coach') {
-            $this->departmentDefaultCoachSync->applyCoachRole($membership->getDepartment(), $membership->getUser());
+        if ($oldIsJsCoach !== $membership->getIsJsCoach()) {
+            $this->auditLogger->log(
+                'membership',
+                AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
+                'membership_js_coach_changed',
+                $currentUser,
+                $membership->getUser(),
+                $membership->getDepartment(),
+                [
+                    'is_js_coach' => ['old' => $oldIsJsCoach, 'new' => $membership->getIsJsCoach()],
+                ]
+            );
+            $this->departmentDefaultCoachSync->refreshDefaultAfterFlagChange(
+                $membership->getDepartment(),
+                $membership->getIsJsCoach() ? $membership->getUserId() : null,
+            );
         }
 
         $this->entityManager->flush();
@@ -967,6 +1048,307 @@ class DepartmentController extends AbstractController
             'email' => $profile ? $profile->getEmail() : '',
             'role' => $membership->getRole(),
             'is_primary' => $membership->getIsPrimary(),
+            'is_js_coach' => $membership->getIsJsCoach(),
+        ]);
+    }
+
+    /**
+     * Profil eines Department-Mitglieds bearbeiten (Hierarchie-streng).
+     */
+    #[Route('/{departmentId}/members/{userId}/profile', name: 'update_member_profile', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateMemberProfile(string $departmentId, string $userId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        if ($currentUser->getId() === $userId) {
+            return new JsonResponse(['error' => 'Eigenes Profil bitte über «Profil bearbeiten» ändern'], 400);
+        }
+
+        $targetUser = $membership->getUser();
+        if ($targetUser->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten können hier nicht bearbeitet werden'], 403);
+        }
+
+        $manageCheck = $this->canManageMembershipTarget($departmentId, $membership->getRole());
+        if ($manageCheck instanceof JsonResponse) {
+            return $manageCheck;
+        }
+
+        $profile = $targetUser->getProfile();
+        if (!$profile instanceof Profile) {
+            return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $profileChanges = [];
+        $emailChangeRequested = null;
+
+        if (array_key_exists('email', $data)) {
+            $email = trim((string) $data['email']);
+            if ($email === '') {
+                return new JsonResponse(['error' => 'E-Mail darf nicht leer sein'], 400);
+            }
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return new JsonResponse(['error' => 'Ungültige E-Mail-Adresse'], 400);
+            }
+            $currentEmail = strtolower($profile->getEmail());
+            $requestedEmail = strtolower($email);
+
+            if ($requestedEmail !== $currentEmail) {
+                $existing = $this->entityManager->getRepository(Profile::class)->findOneBy(['email' => $requestedEmail]);
+                if ($existing && $existing->getId() !== $profile->getId()) {
+                    return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
+                }
+
+                $pendingToken = bin2hex(random_bytes(32));
+                $pendingExpiresAt = (new \DateTime())->modify('+10 days');
+                $previousPendingEmail = $targetUser->getPendingEmail();
+
+                $targetUser->setPendingEmail($requestedEmail);
+                $targetUser->setEmailVerificationToken($pendingToken);
+                $targetUser->setEmailVerificationExpiresAt($pendingExpiresAt);
+
+                try {
+                    $this->verificationEmailService->sendPendingEmailChangeVerification(
+                        $targetUser,
+                        $requestedEmail,
+                        $pendingToken,
+                        $pendingExpiresAt
+                    );
+                } catch (\Throwable) {
+                    $targetUser->setPendingEmail(null);
+                    $targetUser->setEmailVerificationToken(null);
+                    $targetUser->setEmailVerificationExpiresAt(null);
+
+                    return new JsonResponse([
+                        'error' => 'Bestätigungslink konnte nicht gesendet werden. Bitte E-Mail-Adresse prüfen.',
+                    ], 400);
+                }
+
+                $emailChangeRequested = [
+                    'email' => ['old' => $currentEmail, 'new' => $requestedEmail],
+                    'pending_email' => ['old' => $previousPendingEmail, 'new' => $requestedEmail],
+                ];
+            }
+        }
+
+        if (array_key_exists('first_name', $data)) {
+            $oldFirstName = $profile->getFirstName();
+            $firstName = trim((string) ($data['first_name'] ?? ''));
+            $newFirstName = $firstName !== '' ? $firstName : null;
+            $profile->setFirstName($newFirstName);
+            if ($oldFirstName !== $newFirstName) {
+                $profileChanges['first_name'] = ['old' => $oldFirstName, 'new' => $newFirstName];
+            }
+        }
+
+        if (array_key_exists('last_name', $data)) {
+            $oldLastName = $profile->getLastName();
+            $lastName = trim((string) ($data['last_name'] ?? ''));
+            $newLastName = $lastName !== '' ? $lastName : null;
+            $profile->setLastName($newLastName);
+            if ($oldLastName !== $newLastName) {
+                $profileChanges['last_name'] = ['old' => $oldLastName, 'new' => $newLastName];
+            }
+        }
+
+        if (array_key_exists('nickname', $data)) {
+            $oldNickname = $profile->getNickname();
+            $nickname = trim((string) ($data['nickname'] ?? ''));
+            $newNickname = $nickname !== '' ? $nickname : null;
+            $profile->setNickname($newNickname);
+            if ($oldNickname !== $newNickname) {
+                $profileChanges['nickname'] = ['old' => $oldNickname, 'new' => $newNickname];
+            }
+        }
+
+        if (array_key_exists('avatar_initials', $data)) {
+            $oldAvatarInitials = $profile->getAvatarInitials();
+            $avatarInitials = strtoupper(trim((string) ($data['avatar_initials'] ?? '')));
+            if ($avatarInitials !== '' && mb_strlen($avatarInitials) > 2) {
+                return new JsonResponse(['error' => 'Initialen dürfen maximal 2 Zeichen haben'], 400);
+            }
+            $newAvatarInitials = $avatarInitials !== '' ? $avatarInitials : null;
+            $profile->setAvatarInitials($newAvatarInitials);
+            if ($oldAvatarInitials !== $newAvatarInitials) {
+                $profileChanges['avatar_initials'] = ['old' => $oldAvatarInitials, 'new' => $newAvatarInitials];
+            }
+        }
+
+        if (array_key_exists('language', $data)) {
+            $oldLanguage = $profile->getLanguage();
+            $language = strtolower(trim((string) ($data['language'] ?? '')));
+            $allowedLanguages = ['de', 'en', 'fr', 'it'];
+            if (!in_array($language, $allowedLanguages, true)) {
+                return new JsonResponse(['error' => 'Ungültige Sprache'], 400);
+            }
+            $profile->setLanguage($language);
+            if ($oldLanguage !== $language) {
+                $profileChanges['language'] = ['old' => $oldLanguage, 'new' => $language];
+            }
+        }
+
+        if ($emailChangeRequested !== null || $profileChanges !== []) {
+            $profile->setUpdatedAt(new \DateTime());
+        }
+
+        if ($emailChangeRequested !== null) {
+            $this->auditLogger->log(
+                'profile',
+                $profile->getId(),
+                'profile_email_change_requested',
+                $currentUser,
+                $targetUser,
+                $membership->getDepartment(),
+                $emailChangeRequested
+            );
+        }
+
+        if ($profileChanges !== []) {
+            $this->auditLogger->log(
+                'profile',
+                $profile->getId(),
+                'profile_updated',
+                $currentUser,
+                $targetUser,
+                $membership->getDepartment(),
+                $profileChanges
+            );
+        }
+
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
+        }
+
+        return new JsonResponse([
+            'user_id' => $targetUser->getId(),
+            'profile_id' => $profile->getId(),
+            'name' => $profile->getDisplayName(),
+            'first_name' => $profile->getFirstName(),
+            'last_name' => $profile->getLastName(),
+            'nickname' => $profile->getNickname(),
+            'email' => $profile->getEmail(),
+            'avatar_initials' => $profile->getAvatarInitials(),
+            'background_color' => $profile->getBackgroundColor(),
+            'text_color' => $profile->getTextColor(),
+            'language' => $profile->getLanguage(),
+            'pending_email' => $targetUser->getPendingEmail(),
+            'role' => $membership->getRole(),
+            'is_primary' => $membership->getIsPrimary(),
+            'is_js_coach' => $membership->getIsJsCoach(),
+        ]);
+    }
+
+    /**
+     * Passwort-Reset-Code an ein Department-Mitglied senden (Hierarchie-streng).
+     */
+    #[Route('/{departmentId}/members/{userId}/send-password-reset', name: 'send_member_password_reset', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function sendMemberPasswordReset(string $departmentId, string $userId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)
+            ->findOneBy(['userId' => $userId, 'departmentId' => $departmentId]);
+        if (!$membership) {
+            return new JsonResponse(['error' => 'Mitgliedschaft nicht gefunden'], 404);
+        }
+
+        if ($currentUser->getId() === $userId) {
+            return new JsonResponse(['error' => 'Eigenen Passwort-Reset bitte über Login anfordern'], 400);
+        }
+
+        $targetUser = $membership->getUser();
+        if ($targetUser->hasSuperAdminProfile()) {
+            return new JsonResponse(['error' => 'Superadmin-Konten können hier nicht bearbeitet werden'], 403);
+        }
+
+        $manageCheck = $this->canManageMembershipTarget($departmentId, $membership->getRole());
+        if ($manageCheck instanceof JsonResponse) {
+            return $manageCheck;
+        }
+
+        $profile = $targetUser->getProfile();
+        if (!$profile instanceof Profile) {
+            return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
+        }
+
+        $email = strtolower(trim($profile->getEmail()));
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return new JsonResponse(['error' => 'Mitglied hat keine gültige E-Mail-Adresse'], 400);
+        }
+
+        $now = new \DateTime();
+        $lockedUntil = $targetUser->getPasswordResetLockedUntil();
+        if ($lockedUntil && $lockedUntil > $now) {
+            return new JsonResponse(['error' => 'Passwort-Reset ist vorübergehend gesperrt. Bitte später erneut versuchen.'], 429);
+        }
+
+        $windowStartedAt = $targetUser->getPasswordResetWindowStartedAt();
+        $windowExpired = !$windowStartedAt || $windowStartedAt < (clone $now)->modify('-1 hour');
+        if ($windowExpired) {
+            $targetUser->setPasswordResetWindowStartedAt(clone $now);
+            $targetUser->setPasswordResetRequestCount(0);
+        }
+
+        if ($targetUser->getPasswordResetRequestCount() >= self::PASSWORD_RESET_MAX_REQUESTS_PER_HOUR) {
+            $targetUser->setPasswordResetLockedUntil((clone $now)->modify('+1 hour'));
+            $this->entityManager->flush();
+
+            return new JsonResponse(['error' => 'Zu viele Reset-Anfragen. Bitte später erneut versuchen.'], 429);
+        }
+
+        $lastRequestedAt = $targetUser->getPasswordResetLastRequestedAt();
+        if ($lastRequestedAt && $lastRequestedAt > (clone $now)->modify('-' . self::PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS . ' seconds')) {
+            return new JsonResponse(['error' => 'Bitte kurz warten, bevor erneut ein Reset gesendet wird.'], 429);
+        }
+
+        $code = strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+        $expiresAt = (clone $now)->modify('+' . self::PASSWORD_RESET_CODE_TTL_MINUTES . ' minutes');
+
+        $targetUser->setPasswordResetCodeHash($this->hashPasswordResetCode($email, $code));
+        $targetUser->setPasswordResetExpiresAt($expiresAt);
+        $targetUser->setPasswordResetLastRequestedAt(clone $now);
+        $targetUser->setPasswordResetAttemptCount(0);
+        $targetUser->setPasswordResetLockedUntil(null);
+        $targetUser->setPasswordResetRequestCount($targetUser->getPasswordResetRequestCount() + 1);
+
+        try {
+            $this->verificationEmailService->sendPasswordResetCode($targetUser, $code, $expiresAt);
+        } catch (\Throwable) {
+            return new JsonResponse(['error' => 'Reset-E-Mail konnte nicht gesendet werden'], 500);
+        }
+
+        $this->auditLogger->log(
+            'user',
+            $targetUser->getId(),
+            'password_reset_sent_by_manager',
+            $currentUser,
+            $targetUser,
+            $membership->getDepartment(),
+            ['email' => $email]
+        );
+
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Passwort-Reset wurde an ' . $email . ' gesendet.',
         ]);
     }
 
@@ -995,16 +1377,25 @@ class DepartmentController extends AbstractController
             ], 400);
         }
 
+        $manageCheck = $this->canManageMembershipTarget($departmentId, $membership->getRole());
+        if ($manageCheck instanceof JsonResponse) {
+            return $manageCheck;
+        }
+
+        $wasJsCoach = $membership->getIsJsCoach();
+        $department = $membership->getDepartment();
+
         $this->auditLogger->log(
             'membership',
             AuditLogger::buildMembershipEntityId($membership->getUserId(), $membership->getDepartmentId()),
             'membership_removed',
             $currentUser,
             $membership->getUser(),
-            $membership->getDepartment(),
+            $department,
             [
                 'role' => ['old' => $membership->getRole(), 'new' => null],
                 'is_primary' => ['old' => $membership->getIsPrimary(), 'new' => null],
+                'is_js_coach' => ['old' => $wasJsCoach, 'new' => null],
             ]
         );
 
@@ -1029,6 +1420,9 @@ class DepartmentController extends AbstractController
         }
 
         $this->entityManager->remove($membership);
+        if ($wasJsCoach) {
+            $this->departmentDefaultCoachSync->refreshDefaultAfterFlagChange($department);
+        }
         $this->entityManager->flush();
 
         return new JsonResponse(['success' => true]);

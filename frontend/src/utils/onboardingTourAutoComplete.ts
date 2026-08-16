@@ -9,13 +9,15 @@ import {
 } from '@/utils/onboardingTourProgress'
 
 function hasDefaultCoachConfigured(js: {
+  defaultCoachUserId?: string
   defaultCoachPersonNr: string
   defaultCoachFirstName: string
   defaultCoachLastName: string
   defaultCoachEmail: string
 }): boolean {
   return Boolean(
-    js.defaultCoachPersonNr.trim() ||
+    (js.defaultCoachUserId || '').trim() ||
+      js.defaultCoachPersonNr.trim() ||
       js.defaultCoachEmail.trim() ||
       js.defaultCoachFirstName.trim() ||
       js.defaultCoachLastName.trim()
@@ -54,7 +56,7 @@ export async function syncOnboardingTourAutoCompletion(
   if (membersResult.status === 'fulfilled') {
     const members = membersResult.value
     if (members.length > 1) markIfNeeded('invite-users')
-    if (members.some((m) => String(m.role || '').toLowerCase() === 'coach')) {
+    if (members.some((m) => !!m.is_js_coach)) {
       markIfNeeded('default-coach')
     }
   }

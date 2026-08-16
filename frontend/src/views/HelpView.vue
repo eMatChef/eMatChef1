@@ -97,7 +97,7 @@ const menuItems = computed<SettingsNavItem[]>(() => {
   if (canUseHelpEinrichtung.value) {
     items.push({
       id: 'tours',
-      label: t('help.nav.touren'),
+      label: t('help.nav.tours'),
       mdiIcon: 'mdi-compass-outline',
     })
   }

@@ -6,6 +6,7 @@ use App\Entity\Activity;
 use App\Entity\ActivityJsOrder;
 use App\Entity\Address;
 use App\Entity\DepartmentSetting;
+use App\Entity\Membership;
 use App\Entity\Profile;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -122,12 +123,56 @@ class JsOrderPrefillService
         $form['block2']['coach_person_nr'] = trim($deptDefaults['js.default_coach_person_nr'] ?? '');
         $form['block2']['coach_email'] = trim($deptDefaults['js.default_coach_email'] ?? '');
 
+        $defaultCoach = $this->resolveDefaultCoachUser($activity->getDepartmentId(), $deptDefaults);
+        if ($defaultCoach instanceof User) {
+            $coachProfile = $defaultCoach->getProfile();
+            if ($coachProfile instanceof Profile) {
+                $fn = trim((string) ($coachProfile->getFirstName() ?? ''));
+                $ln = trim((string) ($coachProfile->getLastName() ?? ''));
+                $em = trim((string) ($coachProfile->getEmail() ?? ''));
+                if ($fn !== '') {
+                    $form['block2']['coach_first_name'] = $fn;
+                }
+                if ($ln !== '') {
+                    $form['block2']['coach_last_name'] = $ln;
+                }
+                if ($em !== '') {
+                    $form['block2']['coach_email'] = $em;
+                }
+            }
+        }
+
         $deliveryAddress = $this->resolveDeliveryAddressForActivity($activity);
         if ($deliveryAddress instanceof Address) {
             $this->applyAddressToBlock3($form, $deliveryAddress, $profile, $leader);
         }
 
         return $form;
+    }
+
+    /**
+     * Default-Coach-User aus Department-Setting, falls Flag is_js_coach noch gesetzt.
+     */
+    public function resolveDefaultCoachUser(string $departmentId, ?array $deptDefaults = null): ?User
+    {
+        $defaults = $deptDefaults ?? $this->loadDepartmentJsDefaults($departmentId);
+        $userId = trim((string) ($defaults['js.default_coach_user_id'] ?? ''));
+        if ($userId === '') {
+            return null;
+        }
+
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $userId,
+            'departmentId' => $departmentId,
+            'isJsCoach' => true,
+        ]);
+        if (!$membership instanceof Membership) {
+            return null;
+        }
+
+        $user = $this->entityManager->getRepository(User::class)->find($userId);
+
+        return $user instanceof User ? $user : null;
     }
 
     private function resolveDeliveryAddressForActivity(Activity $activity): ?Address
@@ -204,6 +249,13 @@ class JsOrderPrefillService
         $current = $order->getFormData() ?? self::emptyFormData();
         $merged = $this->mergeFormData($current, $suggested, $onlyEmpty);
         $order->setFormData($merged);
+
+        if ($order->getJsCoachUserId() === null || $order->getJsCoachUserId() === '') {
+            $defaultCoach = $this->resolveDefaultCoachUser($activity->getDepartmentId());
+            if ($defaultCoach instanceof User) {
+                $order->setJsCoachUser($defaultCoach);
+            }
+        }
 
         if ($order->getParticipantCount() === null) {
             $pc = $activity->getParticipantCount();

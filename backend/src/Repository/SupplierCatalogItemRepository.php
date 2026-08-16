@@ -28,6 +28,21 @@ class SupplierCatalogItemRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    public function countShopVisibleByCompanyId(string $companyId): int
+    {
+        return (int) $this->createQueryBuilder('i')
+            ->select('COUNT(i.id)')
+            ->where('i.supplierCompanyId = :companyId')
+            ->andWhere('i.isActive = true')
+            ->andWhere('i.status = :status')
+            ->andWhere('i.visibility != :private')
+            ->setParameter('companyId', $companyId)
+            ->setParameter('status', SupplierCatalogItem::STATUS_PUBLISHED)
+            ->setParameter('private', SupplierCatalogItem::VISIBILITY_PRIVATE)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * @return list<SupplierCatalogItem>
      */

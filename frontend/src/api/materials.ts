@@ -57,6 +57,12 @@ export interface MaterialBatch {
   serial_number: string | null
   ean?: string | null
   barcode_tag?: string | null
+  /** Länge dieser Charge in cm (Meterware; kann vom Stamm abweichen) */
+  size_length?: string | null
+  /** VE dieser Charge: bei Meterware = Meter pro VE */
+  pack_size?: number | null
+  /** VE-Bezeichnung dieser Charge (z. B. Rolle) */
+  pack_unit?: string | null
   /** Pro Instanz: Behälter (kann anderen Lagerinhalt aufnehmen) */
   is_container?: boolean
   rack_id?: string | null
@@ -234,6 +240,8 @@ export interface Material {
   min_stock: number | null
   pack_size: number | null
   pack_unit: string | null
+  /** VE-Bezeichnung bei Meterware (pack_unit=m), z. B. Rolle */
+  packaging_unit?: string | null
   /** Optional: CHF pro Verpackungseinheit (Aufteilen auf Stückpreis) */
   pack_sale_price_chf?: string | null
   pack_weight?: string | null
@@ -338,6 +346,7 @@ export interface CreateMaterialRequest {
   min_stock?: number | null
   pack_size?: number | null
   pack_unit?: string | null
+  packaging_unit?: string | null
   pack_sale_price_chf?: string | null
   pack_weight?: string | null
   pack_size_length?: string | null
@@ -387,6 +396,7 @@ export interface UpdateMaterialRequest {
   min_stock?: number | null
   pack_size?: number | null
   pack_unit?: string | null
+  packaging_unit?: string | null
   pack_sale_price_chf?: string | null
   pack_weight?: string | null
   pack_size_length?: string | null
@@ -679,6 +689,13 @@ export interface AddBatchRequest {
   label?: string | null
   ean?: string | null
   barcode_tag?: string | null
+  /** Länge dieser Charge in cm (Meterware) */
+  size_length?: string | null
+  pack_size?: number | null
+  /** VE-Bezeichnung der Charge (Rolle …); Alias packaging_unit */
+  packaging_unit?: string | null
+  batch_pack_unit?: string | null
+  batch_pack_size?: number | null
   rack_id?: string | null
   slot_id?: string | null
   is_container?: boolean

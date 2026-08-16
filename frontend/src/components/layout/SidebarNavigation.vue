@@ -276,9 +276,9 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.statistics') }}</span>
       </router-link>
 
-      <!-- Lieferanten-Shop (MW/DC, vor Konfiguration) -->
+      <!-- Lieferanten-Shop (MW/DC, nur wenn Katalog-Artikel vorhanden) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopLink && hasDepartmentContext && !isGrossanlassDept"
+        v-if="!isPendingAssignmentRoute && !isAdminDashboardRoute && showSupplierShopNav && hasDepartmentContext && !isGrossanlassDept"
         :to="getLink('/supplier-shop')"
         class="nav-item"
         :class="{ active: $route.path.includes('/supplier-shop') }"
@@ -348,6 +348,7 @@ import {
 } from '@/utils/departmentOnboarding'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
+import { getSupplierShopAvailability } from '@/api/supplierShop'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -682,6 +683,34 @@ const showSupplierShopLink = computed(() => {
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
   return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
 })
+
+const supplierShopHasArticles = ref(false)
+
+const showSupplierShopNav = computed(
+  () => showSupplierShopLink.value && supplierShopHasArticles.value,
+)
+
+async function refreshSupplierShopAvailability() {
+  const depId = departmentId.value
+  if (!depId || !showSupplierShopLink.value || isGrossanlassDept.value) {
+    supplierShopHasArticles.value = false
+    return
+  }
+  try {
+    const result = await getSupplierShopAvailability(depId)
+    supplierShopHasArticles.value = !!result.has_articles
+  } catch {
+    supplierShopHasArticles.value = false
+  }
+}
+
+watch(
+  [departmentId, showSupplierShopLink, isGrossanlassDept],
+  () => {
+    void refreshSupplierShopAvailability()
+  },
+  { immediate: true },
+)
 
 const helpNavLink = computed(() => {
   const depId = departmentId.value

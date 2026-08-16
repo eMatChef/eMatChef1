@@ -58,10 +58,23 @@ export function formatStockQty(
   sizeLengthCm?: string | number | null,
   formatPiecesAtLength?: (count: number, per: string, total: string) => string,
   materialName?: string | null,
+  packagingUnit?: string | null,
 ): string {
   const n = Number(qty)
   if (!Number.isFinite(n)) return '—'
   if (isMeterStockUnit(packUnit)) {
+    if (hasMeterPackaging(packUnit, packagingUnit, packSize)) {
+      const packParts = getMeterPackQtyParts(n, packSize!)
+      if (packParts && packagingUnit) {
+        const totalStr = Number.isInteger(packParts.totalM)
+          ? String(packParts.totalM)
+          : packParts.totalM.toFixed(2)
+        if (packParts.remM > 0) {
+          return `${packParts.packs} ${packagingUnit} + ${formatMetersForDisplay(packParts.remM)} m (${totalStr} m)`
+        }
+        return `${packParts.packs} ${packagingUnit} (${totalStr} m)`
+      }
+    }
     const parts = getMeterStockQtyParts(n, sizeLengthCm, materialName)
     if (parts && formatPiecesAtLength) {
       return formatPiecesAtLength(
@@ -202,6 +215,37 @@ export type StockUnitOption = (typeof STOCK_UNIT_OPTIONS)[number]
 
 export function isMeterStockUnit(packUnit?: string | null): boolean {
   return getStockUnitKind(packUnit) === 'length'
+}
+
+/** Meterware mit VE: pack_unit=m, packaging_unit=Rolle, pack_size=Meter pro VE. */
+export function hasMeterPackaging(
+  packUnit?: string | null,
+  packagingUnit?: string | null,
+  packSize?: number | null,
+): boolean {
+  return isMeterStockUnit(packUnit) && isPackagingUnit(packagingUnit) && !!packSize && packSize >= 2
+}
+
+/** Bestand in m → VE-Anzeige (z. B. 4 Rolle + 5 m). */
+export function getMeterPackQtyParts(
+  qtyMeters: number,
+  metersPerPack: number,
+): { packs: number; remM: number; totalM: number } | null {
+  const totalM = Number(qtyMeters)
+  const per = Number(metersPerPack)
+  if (!Number.isFinite(totalM) || totalM <= 0 || !Number.isFinite(per) || per < 2) return null
+  const packs = Math.floor(totalM / per)
+  const remM = Math.round((totalM - packs * per) * 100) / 100
+  return { packs, remM, totalM }
+}
+
+/** Länge für Charge: Batch-Wert, sonst Material-Stamm. */
+export function resolveBatchSizeLengthCm(
+  batchSizeLength?: string | number | null,
+  materialSizeLength?: string | number | null,
+): string | number | null {
+  if (batchSizeLength != null && String(batchSizeLength).trim() !== '') return batchSizeLength
+  return materialSizeLength ?? null
 }
 
 export function formatStockUnitSettingLabel(

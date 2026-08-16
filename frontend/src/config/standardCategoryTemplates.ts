@@ -52,6 +52,44 @@ function findCategoryByName(
   )
 }
 
+/** Ob die Hauptkategorie aus der Vorlage schon existiert. */
+export function isTemplateMainExisting(categories: Category[], mainName: string): boolean {
+  return Boolean(findCategoryByName(categories, mainName, null))
+}
+
+/** Ob die Unterkategorie (unter Vorlagen-Hauptname) schon existiert. */
+export function isTemplateSubExisting(
+  categories: Category[],
+  mainName: string,
+  childName: string
+): boolean {
+  const main = findCategoryByName(categories, mainName, null)
+  if (!main) return false
+  return Boolean(findCategoryByName(categories, childName, main.id))
+}
+
+/**
+ * Standard-Auswahl, aber bereits vorhandene Namen abgewählt
+ * (UI: durchgestrichen / disabled).
+ */
+export function createCategoryTemplateSelectionSkippingExisting(
+  existingCategories: Category[]
+): CategoryTemplateSelection {
+  const selection = createDefaultCategoryTemplateSelection()
+  for (const item of STANDARD_CATEGORY_TREE) {
+    if (isTemplateMainExisting(existingCategories, item.name)) {
+      selection.main[item.name] = false
+    }
+    if (!item.children?.length) continue
+    for (const child of item.children) {
+      if (isTemplateSubExisting(existingCategories, item.name, child)) {
+        selection.sub[item.name]![child] = false
+      }
+    }
+  }
+  return selection
+}
+
 export function hasAnyCategoryTemplateSelected(selection: CategoryTemplateSelection): boolean {
   for (const item of STANDARD_CATEGORY_TREE) {
     if (selection.main[item.name]) return true

@@ -1,7 +1,14 @@
 <template>
   <Teleport to="body">
-    <div v-if="showDialog" key="material-wizard" class="material-wizard-overlay">
-      <div class="material-wizard-modal">
+    <div
+      v-if="showDialog"
+      key="material-wizard"
+      class="material-wizard-overlay"
+      role="presentation"
+      @mousedown.self.prevent
+      @click.self.prevent
+    >
+      <div class="material-wizard-modal" role="dialog" aria-modal="true" @click.stop>
         <!-- Header -->
         <div class="material-wizard-header">
           <div class="material-wizard-header-title">
@@ -224,30 +231,38 @@
                 </div>
 
                 <!-- Name-Eingabe (bei Kombo-Modi oder normalem Modus) -->
-                <MaterialNameInput
+                <div
                   v-if="creationMode !== 'virtual_combo' && (!isFromTemplate || creationMode !== 'individual')"
-                  ref="articleNameInputRef"
-                  :model-value="formData.name"
-                  :label="isFromTemplate ? t('components.materialCreateWizard.comboNameLabel') : t('components.materialCreateWizard.articleNameLabel')"
-                  :placeholder="isFromTemplate ? t('components.materialCreateWizard.comboNamePlaceholder') : t('components.materialCreateWizard.articleNamePlaceholder')"
-                  :is-checking-name="isCheckingName"
-                  :name-exists="nameExists"
-                  :show-suggestions="showNameSuggestions"
-                  :name-suggestions="nameSuggestions"
-                  @update:model-value="formData.name = $event"
-                  @input="checkNameDebounced"
-                  @focus="handleNameInputFocus"
-                  @blur="handleNameInputBlur"
-                  @select-suggestion="selectNameSuggestion"
-                />
+                  data-onboarding="material-wizard-article-name"
+                >
+                  <MaterialNameInput
+                    ref="articleNameInputRef"
+                    :model-value="formData.name"
+                    :label="isFromTemplate ? t('components.materialCreateWizard.comboNameLabel') : t('components.materialCreateWizard.articleNameLabel')"
+                    :placeholder="isFromTemplate ? t('components.materialCreateWizard.comboNamePlaceholder') : t('components.materialCreateWizard.articleNamePlaceholder')"
+                    :is-checking-name="isCheckingName"
+                    :name-exists="nameExists"
+                    :show-suggestions="showNameSuggestions"
+                    :name-suggestions="nameSuggestions"
+                    @update:model-value="formData.name = $event"
+                    @input="checkNameDebounced"
+                    @focus="handleNameInputFocus"
+                    @blur="handleNameInputBlur"
+                    @select-suggestion="selectNameSuggestion"
+                  />
+                </div>
                 <!-- Slider-Toggles (nicht bei Vorlage) -->
-                <MaterialTypeToggles
+                <div
                   v-if="!isFromTemplate || creationMode === 'individual'"
-                  :is-consumable="formData.is_consumable"
-                  :is-food="formData.is_food"
-                  @update:is-consumable="formData.is_consumable = $event"
-                  @update:is-food="formData.is_food = $event"
-                />
+                  data-onboarding="material-wizard-type-toggles"
+                >
+                  <MaterialTypeToggles
+                    :is-consumable="formData.is_consumable"
+                    :is-food="formData.is_food"
+                    @update:is-consumable="formData.is_consumable = $event"
+                    @update:is-food="formData.is_food = $event"
+                  />
+                </div>
               </div>
             </div>
 
@@ -331,7 +346,7 @@
               </div>
 
               <div v-show="isStepOpen('tracking')" class="step-content">
-                <div class="tracking-options">
+                <div class="tracking-options" data-onboarding="material-wizard-tracking">
                   <button
                     :class="['tracking-option', { active: formData.tracking_type === 'serialized' }]"
                     :disabled="formData.is_food"
@@ -1374,10 +1389,15 @@
               </div>
             </div>
 
-            <!-- Details & Vermietung wird unter Initialer Bestand angezeigt -->
+            <!-- Lagerplatz / Details / Vermietung folgen als eigene Akkordeons -->
 
             <!-- Batch Formular: Im Batch-Modus ODER bei physical Einzelartikel ohne Vorlage mit tracking -->
-            <div v-if="isAddBatchMode || (!isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && formData.tracking_type)" class="step-section" data-step="stock">
+            <div
+              v-if="isAddBatchMode || (!isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && formData.tracking_type)"
+              class="step-section"
+              data-step="stock"
+              data-onboarding="material-wizard-stock"
+            >
               <div class="step-header step-header--clickable" @click="toggleStep('stock')">
                 <span class="step-title">{{
                   isAddBatchMode ? t('components.materialCreateWizard.stepNewLot') : t('components.materialCreateWizard.stepInitialStock')
@@ -1388,8 +1408,11 @@
               <div v-show="isStepOpen('stock')" class="step-content">
                 <div class="batch-form">
                   <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
-                    <div v-if="!isAddBatchMode" class="form-group span-full">
-                      <label>{{ t('components.materialCreateWizard.labelStockUnit') }}</label>
+                    <div
+                      v-if="!isAddBatchMode"
+                      class="form-group span-full"
+                      data-onboarding="material-wizard-stock-unit"
+                    >
                       <div class="stock-unit-options" role="tablist">
                         <button
                           v-for="opt in stockUnitOptions"
@@ -1404,7 +1427,7 @@
                       </div>
                       <p class="field-hint">{{ wizardStockUnitHint }}</p>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-onboarding="material-wizard-stock-qty">
                       <label>{{ wizardQuantityLabel }}</label>
                       <div v-if="wizardShowQtyEntryModes" class="qty-entry-modes" role="tablist">
                         <button
@@ -1443,7 +1466,7 @@
                       />
                       <p v-if="wizardQtyEntryHint" class="field-hint">{{ wizardQtyEntryHint }}</p>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" data-onboarding="material-wizard-stock-purchase-date">
                       <label>
                         {{ t('components.materialCreateWizard.labelPurchaseDateFoodOptional') }}
                         <span v-if="!formData.is_food" class="required">*</span>
@@ -1470,7 +1493,143 @@
                     </div>
                   </div>
 
+                  <!-- Anschaffungspreis / Rechnung – bei Menge (Neuanlage + Add-Batch) -->
+                  <div data-onboarding="material-wizard-stock-purchase-price">
+                  <div v-if="purchasePriceRequired" class="slider-toggle-group pack-toggle-inline mt-2 mb-2">
+                    <label class="toggle-label">
+                      <span class="toggle-wrapper">
+                        <input
+                          type="checkbox"
+                          class="toggle-input"
+                          :checked="purchasePriceInputMode === 'total'"
+                          @change="onPurchasePriceModeToggle"
+                        />
+                        <span class="toggle-slider toggle-slider--blue"></span>
+                      </span>
+                      <span class="toggle-text">
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleDistributeTotalTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleDistributeTotalDesc') }}</span>
+                      </span>
+                    </label>
+                    <transition name="slide-down">
+                      <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="slider-details pack-details mt-2">
+                        <div class="form-row">
+                        <div class="form-group">
+                            <label>{{ wizardPurchasePriceLabel }}</label>
+                          <div class="price-input">
+                            <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                            <input
+                              v-model.number="formData.unit_price"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              class="form-input"
+                              :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                            />
+                          </div>
+                          <p
+                            v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
+                            class="field-hint"
+                          >
+                            {{
+                              t('components.materialCreateWizard.packApproxPerPiece', {
+                                price: packSaleToUnitSaleChf.toFixed(2),
+                              })
+                            }}
+                          </p>
+                        </div>
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="purchaseShippingChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p v-if="purchasePriceContextQty > 0 && parseChfInput(purchaseShippingChf) > 0" class="field-hint">
+                          {{
+                            t('components.materialCreateWizard.hintShippingPerPiece', {
+                              price: effectivePurchaseUnitPrice.toFixed(2),
+                              qty: purchasePriceContextQty,
+                            })
+                          }}
+                        </p>
+                      </div>
+                      <div v-else key="pp-total" class="slider-details pack-details mt-2">
+                        <div class="form-row">
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseTotalWaresChf') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="purchaseTotalWaresChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
+                            <div class="price-input">
+                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                              <input
+                                v-model="purchaseShippingChf"
+                                type="text"
+                                inputmode="decimal"
+                                class="form-input"
+                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <p v-if="purchasePriceContextQty > 0" class="field-hint">
+                          {{
+                            t('components.materialCreateWizard.hintDerivedUnitPrice', {
+                              price: effectivePurchaseUnitPrice.toFixed(2),
+                              qty: purchasePriceContextQty,
+                            })
+                          }}
+                        </p>
+                      </div>
+                    </transition>
+                  </div>
+
                   <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('components.materialCreateWizard.labelInvoiceNumber') }}</label>
+                      <input 
+                        v-model="formData.invoice_number" 
+                        type="text" 
+                        class="form-input"
+                        :placeholder="t('common.optional')"
+                      />
+                    </div>
+                  </div>
+
+                  <div v-if="purchasePriceRequired && departmentHasAccountingRole(props.departmentId)" class="form-row mt-2">
+                    <div class="form-group span-full">
+                      <PurchaseReceiptFileInput
+                        v-model="purchaseReceiptFile"
+                        :label="t('components.purchaseReceipt.label')"
+                        :hint="t('components.purchaseReceipt.hint')"
+                      />
+                    </div>
+                  </div>
+                  </div>
+
+                  <div
+                    v-if="formData.tracking_type !== 'serialized'"
+                    class="form-row"
+                    data-onboarding="material-wizard-stock-codes"
+                  >
                     <div class="form-group">
                       <label>
                         {{ t('components.materialDetail.labelCode') }}
@@ -1492,7 +1651,620 @@
                     </div>
                   </div>
 
-                  <div v-if="formData.tracking_type === 'bulk' || isAddBatchMode" class="form-row mb-2">
+                  <div v-if="!formData.is_food && formData.tracking_type !== 'serialized'" class="slider-toggle-group pack-toggle-inline">
+                    <label class="toggle-label">
+                      <span class="toggle-wrapper">
+                        <input type="checkbox" v-model="showExpiryDateForNonFood" class="toggle-input" />
+                        <span class="toggle-slider toggle-slider--blue"></span>
+                      </span>
+                      <span class="toggle-text">
+                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleShowExpiryTitle') }}</span>
+                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleShowExpiryDesc') }}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <!-- Serialisiert: Seriennummer-Tabelle -->
+                  <div v-if="formData.tracking_type === 'serialized'" class="serial-numbers-section">
+                    <div class="serial-header">
+                      <label>{{
+                        t('components.materialCreateWizard.serialNumbersWithCount', { count: serializedQty })
+                      }}</label>
+                      <div style="display:flex; gap:8px; align-items:center;">
+                        <button type="button" class="add-serial-btn" @click="addSerialNumber">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                          </svg>
+                          {{ t('components.materialCreateWizard.btnAddRow') }}
+                        </button>
+                        <button type="button" class="add-serial-btn" @click="toggleSerialScanner()">
+                          {{
+                            serialScannerActive
+                              ? t('components.materialCreateWizard.scannerStop')
+                              : t('components.materialCreateWizard.scannerStart')
+                          }}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="slider-toggle-group">
+                      <label class="toggle-label">
+                        <span class="toggle-wrapper">
+                          <input type="checkbox" v-model="serialAutoGenerateEnabled" class="toggle-input" />
+                          <span class="toggle-slider toggle-slider--blue"></span>
+                        </span>
+                        <span class="toggle-text">
+                          <span class="toggle-title">{{ t('components.materialCreateWizard.serialAutoGenTitle') }}</span>
+                          <span class="toggle-desc">{{ t('components.materialCreateWizard.serialAutoGenDesc') }}</span>
+                        </span>
+                      </label>
+                      <transition name="slide-down">
+                        <div v-if="serialAutoGenerateEnabled" class="slider-details">
+                          <div class="serial-auto-generate-row">
+                            <div class="serial-auto-field serial-auto-field-prefix">
+                              <label>{{ t('components.materialCreateWizard.labelPrefixShort') }}</label>
+                              <input
+                                v-model="autoGenPrefix"
+                                type="text"
+                                class="form-input form-input-sm"
+                                :placeholder="suggestedSerialPrefix || ''"
+                              />
+                            </div>
+                            <div class="serial-auto-field">
+                              <label>{{ t('components.materialCreateWizard.labelStartNumberShort') }}</label>
+                              <input v-model.number="autoGenStart" type="number" min="1" class="form-input form-input-sm" />
+                            </div>
+                            <div class="serial-auto-field">
+                              <label>{{ t('components.materialCreateWizard.labelDigitsShort') }}</label>
+                              <input v-model.number="autoGenPad" type="number" min="1" max="6" class="form-input form-input-sm" />
+                            </div>
+                            <div class="serial-auto-field">
+                              <label>{{ t('components.materialCreateWizard.labelCountShort') }}</label>
+                              <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
+                            </div>
+                            <label
+                              v-if="serialNumbers.length === 0"
+                              class="serial-auto-container-flag checkbox-label"
+                            >
+                              <input type="checkbox" v-model="serialAllAsContainers" />
+                              <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                            </label>
+                            <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
+                              {{ t('components.materialCreateWizard.btnGenerateSerialList') }}
+                            </button>
+                            <span class="serial-auto-preview">{{ autoGenPreview }}</span>
+                          </div>
+                          <p
+                            v-if="serialNumbers.length === 0"
+                            class="field-hint serial-all-containers-hint"
+                          >{{ t('components.materialCreateWizard.serialAllAsContainersDesc') }}</p>
+                        </div>
+                      </transition>
+                    </div>
+                    <div v-if="serialNumbers.length > 0" class="serial-bulk-container-row">
+                      <label class="checkbox-label">
+                        <input type="checkbox" v-model="serialAllAsContainers" />
+                        <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
+                      </label>
+                    </div>
+                    <BarcodeScannerPanel
+                      v-if="serialScannerActive"
+                      :active="serialScannerActive"
+                      mode="all"
+                      :hint="t('components.materialCreateWizard.serialScannerHint')"
+                      @detected="onSerialDetected"
+                      @error="onSerialScannerError"
+                    />
+                    
+                    <div v-if="serialNumbers.length > 0" class="serial-cards" data-onboarding="material-wizard-stock-codes">
+                      <article
+                        v-for="(entry, index) in serialNumbers"
+                        :key="entry.id"
+                        class="serial-card"
+                      >
+                        <header class="serial-card__header">
+                          <span class="serial-card__index">#{{ index + 1 }}</span>
+                          <div class="serial-card__actions">
+                            <button
+                              type="button"
+                              class="remove-serial-btn"
+                              @click="openSerialScannerFor(entry.id)"
+                              :title="t('components.materialCreateWizard.titleScanSerialRow')"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="5" width="18" height="14" rx="2"/>
+                                <line x1="7" y1="9" x2="17" y2="9"/>
+                                <line x1="7" y1="13" x2="12" y2="13"/>
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="remove-serial-btn"
+                              @click="removeSerialNumber(entry.id)"
+                              :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </header>
+
+                        <div class="serial-card__grid">
+                          <div class="form-group serial-card__field serial-card__field--serial">
+                            <label>{{ t('components.materialDetail.thSerial') }}</label>
+                            <input
+                              v-model="entry.serial_number"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
+                              @keydown.enter.prevent="addSerialNumber"
+                            />
+                          </div>
+                          <div class="form-group serial-card__field">
+                            <label>{{ t('components.materialDetail.thLabel') }}</label>
+                            <input
+                              v-model="entry.label"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
+                            />
+                          </div>
+                          <div class="form-group serial-card__field">
+                            <label>{{ t('components.materialDetail.labelCode') }}</label>
+                            <input
+                              v-model="entry.barcode_tag"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('components.materialDetail.codePlaceholder')"
+                            />
+                          </div>
+                          <div class="form-group serial-card__field">
+                            <label>{{ t('components.materialDetail.labelEan') }}</label>
+                            <input
+                              v-model="entry.ean"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('components.batchModal.eanPlaceholder')"
+                            />
+                          </div>
+                          <div class="form-group serial-card__field serial-card__field--note">
+                            <label>{{ t('components.materialDetail.thNote') }}</label>
+                            <input
+                              v-model="entry.notes"
+                              type="text"
+                              class="form-input"
+                              :placeholder="t('common.optional')"
+                            />
+                          </div>
+                          <label class="checkbox-label serial-card__container">
+                            <input
+                              type="checkbox"
+                              v-model="entry.is_container"
+                              :title="t('components.materialCreateWizard.serialIsContainerLong')"
+                            />
+                            <span>{{ t('components.materialDetail.thContainer') }}</span>
+                          </label>
+                        </div>
+
+                        <div v-if="!serialLocationSameForAll" class="serial-card__location">
+                          <div class="form-group serial-card__field serial-card__field--mode">
+                            <label>{{ t('components.materialCreateWizard.labelLocationKindShort') }}</label>
+                            <select
+                              v-model="entry.location_mode"
+                              class="form-select"
+                              @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''"
+                            >
+                              <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
+                              <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
+                            </select>
+                          </div>
+                          <template v-if="entry.location_mode === 'slot'">
+                            <div class="form-group serial-card__field">
+                              <label>{{ t('components.materialCreateWizard.labelStorageSiteSm') }}</label>
+                              <select
+                                v-model="entry.storage_address_id"
+                                class="form-select"
+                                @change="onSerialEntryStorageAddressChange(entry)"
+                              >
+                                <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
+                              </select>
+                            </div>
+                            <div class="form-group serial-card__field">
+                              <label>{{ t('components.materialCreateWizard.rackLabel') }}</label>
+                              <select
+                                v-model="entry.rack_id"
+                                class="form-select"
+                                @change="onSerialEntryRackChange(entry)"
+                                @mouseenter="prefetchRackPreview(entry.rack_id)"
+                                :title="getRackPreviewTitle(entry.rack_id)"
+                              >
+                                <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
+                                <option
+                                  v-for="rack in getRacksForSerialEntry(entry)"
+                                  :key="rack.id"
+                                  :value="String(rack.id)"
+                                  :title="getRackPreviewTitle(rack.id)"
+                                >
+                                  {{ rack.name }}
+                                </option>
+                              </select>
+                            </div>
+                            <div class="form-group serial-card__field">
+                              <label>{{ t('components.materialCreateWizard.slotLabel') }}</label>
+                              <select
+                                v-model="entry.slot_id"
+                                class="form-select"
+                                :disabled="!entry.rack_id"
+                                @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
+                                :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
+                              >
+                                <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
+                                <option
+                                  v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
+                                  :key="slot.id"
+                                  :value="String(slot.id)"
+                                  :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
+                                >
+                                  {{ formatSlotOptionLabel(entry.rack_id, slot) }}
+                                </option>
+                              </select>
+                            </div>
+                          </template>
+                          <div v-else class="form-group serial-card__field serial-card__field--box">
+                            <label>{{ t('components.materialCreateWizard.labelBoxBagSm') }}</label>
+                            <select
+                              v-model="entry.container_batch_id"
+                              class="form-select"
+                              @mouseenter="prefetchContainerPreviews()"
+                              :title="getContainerPreviewTitle(entry.container_batch_id)"
+                            >
+                              <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
+                              <option
+                                v-for="cb in containerBatches"
+                                :key="cb.id"
+                                :value="cb.id"
+                                :title="formatContainerBatchOptionFullLabel(cb)"
+                              >
+                                {{ formatContainerBatchOptionFullLabel(cb) }}
+                              </option>
+                            </select>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+                    
+                    <div v-else class="empty-serials">
+                      <p>{{ t('components.materialCreateWizard.emptySerialsHint') }}</p>
+                      <button type="button" class="add-first-btn" @click="addSerialNumber">
+                        + {{ t('components.materialCreateWizard.btnAddFirstSerial') }}
+                      </button>
+                    </div>
+                    <p v-if="!serialLocationSameForAll && hasInvalidSerialLocations" class="field-hint is-invalid">
+                      {{ t('components.materialCreateWizard.invalidSerialLocationHint') }}
+                    </p>
+                    <p v-if="serialDuplicateHint" class="field-hint is-invalid">
+                      {{ serialDuplicateHint }}
+                    </p>
+
+                    <!-- Verpackungseinheit – sobald Menge (Seriennummern) erfasst -->
+                    <div v-if="serializedQty > 0" class="slider-toggle-group pack-toggle-inline mt-3">
+                      <label class="toggle-label">
+                        <span class="toggle-wrapper">
+                          <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
+                          <span class="toggle-slider toggle-slider--blue"></span>
+                        </span>
+                        <span class="toggle-text">
+                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
+                          <span class="toggle-desc">{{ t('components.materialDetail.packagingHint') }}</span>
+                        </span>
+                      </label>
+                      <transition name="slide-down">
+                        <div v-if="packUnitEnabled" class="slider-details pack-details">
+                          <div class="form-row">
+                            <div class="form-group">
+                              <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
+                              <input
+                                v-model.number="formData.pack_size"
+                                type="number"
+                                min="2"
+                                class="form-input"
+                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                              />
+                            </div>
+                            <div class="form-group">
+                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
+                              <select v-model="formData.pack_unit" class="form-input">
+                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
+                              </select>
+                            </div>
+                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
+                              <label>
+                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
+                                <span class="optional-label">({{ t('common.optional') }})</span>
+                              </label>
+                              <div class="price-input">
+                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                                <input
+                                  v-model.number="formData.pack_sale_price_chf"
+                                  type="number"
+                                  step="0.05"
+                                  min="0"
+                                  class="form-input"
+                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                                />
+                              </div>
+                              <p
+                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
+                                class="field-hint"
+                              >
+                                {{
+                                  t('components.materialCreateWizard.packApproxPerPiece', {
+                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
+                                  })
+                                }}
+                              </p>
+                            </div>
+                          </div>
+                          <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
+                            {{
+                              t('components.materialDetail.packPreview', {
+                                stock: serializedQty,
+                                packs: Math.floor(serializedQty / formData.pack_size),
+                                unit: formData.pack_unit,
+                                per: formData.pack_size,
+                              })
+                            }}<span v-if="serializedQty % formData.pack_size !== 0">{{
+                              t('components.materialDetail.packPreviewRemain', { rem: serializedQty % formData.pack_size })
+                            }}</span>
+                          </p>
+                        </div>
+                      </transition>
+                    </div>
+                  </div>
+
+                  <!-- Massenartikel: Normale Mengen-Eingabe -->
+                  <div v-else>
+                    <!-- Verpackungseinheit – sobald eine Anzahl eingetragen wurde (Stk oder Meter) -->
+                    <div v-if="formData.initial_qty > 0 && (stock_unit === 'Stk' || stock_unit === 'm')" class="slider-toggle-group pack-toggle-inline">
+                      <label class="toggle-label">
+                        <span class="toggle-wrapper">
+                          <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
+                          <span class="toggle-slider toggle-slider--blue"></span>
+                        </span>
+                        <span class="toggle-text">
+                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
+                          <span class="toggle-desc">{{
+                            stock_unit === 'm'
+                              ? t('components.materialDetail.packagingHintMeter')
+                              : t('components.materialDetail.packagingHint')
+                          }}</span>
+                        </span>
+                      </label>
+                      <transition name="slide-down">
+                        <div v-if="packUnitEnabled" class="slider-details pack-details">
+                          <div class="form-row">
+                            <div class="form-group">
+                              <label>{{
+                                stock_unit === 'm'
+                                  ? t('components.materialDetail.labelMetersPerUnit')
+                                  : t('components.materialDetail.labelPiecesPerUnit')
+                              }}</label>
+                              <input
+                                v-model.number="formData.pack_size"
+                                type="number"
+                                min="2"
+                                class="form-input"
+                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
+                              />
+                            </div>
+                            <div class="form-group">
+                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
+                              <select v-model="formData.pack_unit" class="form-input">
+                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
+                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
+                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
+                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
+                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
+                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
+                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
+                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
+                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
+                              </select>
+                            </div>
+                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
+                              <label>
+                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
+                                <span class="optional-label">({{ t('common.optional') }})</span>
+                              </label>
+                              <div class="price-input">
+                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
+                                <input
+                                  v-model.number="formData.pack_sale_price_chf"
+                                  type="number"
+                                  step="0.05"
+                                  min="0"
+                                  class="form-input"
+                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
+                                />
+                              </div>
+                              <p
+                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
+                                class="field-hint"
+                              >
+                                {{
+                                  t('components.materialCreateWizard.packApproxPerPiece', {
+                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
+                                  })
+                                }}
+                              </p>
+                            </div>
+                          </div>
+                          <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
+                            {{
+                              t('components.materialDetail.packPreview', {
+                                stock: formData.initial_qty || 0,
+                                packs: Math.floor((formData.initial_qty || 0) / formData.pack_size),
+                                unit: formData.pack_unit,
+                                per: formData.pack_size,
+                              })
+                            }}<span v-if="formData.initial_qty && (formData.initial_qty % formData.pack_size) !== 0">{{
+                              t('components.materialDetail.packPreviewRemain', {
+                                rem: formData.initial_qty % formData.pack_size,
+                              })
+                            }}</span>
+                          </p>
+                        </div>
+                      </transition>
+                    </div>
+                  </div>
+
+                  <!-- Gemeinsame Felder (Kaufdatum bei Serialisiert) -->
+                  <div v-if="formData.tracking_type === 'serialized'" class="form-row mt-3">
+                    <div class="form-group">
+                      <label>
+                        {{ t('components.materialCreateWizard.labelPurchaseDate') }}
+                        <span v-if="!formData.is_food" class="required">*</span>
+                      </label>
+                      <input 
+                        v-model="formData.purchase_date" 
+                        type="date" 
+                        class="form-input"
+                        :class="{ 'is-invalid': !formData.is_food && !formData.purchase_date && serializedQty > 0 }"
+                        :required="!formData.is_food"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- Kauf/Lieferant: im Add-Batch-Modus hier; bei Neuanlage unter Details -->
+                  <template v-if="isAddBatchMode">
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label>{{ t('common.manufacturer') }}</label>
+                      <div class="autocomplete-wrapper">
+                        <input 
+                          v-model="manufacturerSearch" 
+                          type="text" 
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phSearchManufacturer')"
+                          @input="searchManufacturers"
+                          @focus="showManufacturerDropdown = true"
+                          @blur="hideManufacturerDropdownDelayed"
+                        />
+                        <button
+                          type="button"
+                          class="add-inline-btn"
+                          @click="openAddManufacturerModal"
+                          :title="t('components.materialCreateWizard.addManufacturerInlineTitle')"
+                        >
+                          +
+                        </button>
+                        <div v-if="showManufacturerDropdown && manufacturerSearch.length >= 2" class="autocomplete-dropdown">
+                          <div 
+                            v-for="addr in filteredManufacturers" 
+                            :key="addr.id"
+                            class="autocomplete-item"
+                            @mousedown="selectManufacturer(addr)"
+                          >
+                            <span class="item-name">{{ addr.name || addr.company }}</span>
+                            <span class="item-city">{{ addr.city }}</span>
+                          </div>
+                          <div 
+                            v-if="filteredManufacturers.length === 0" 
+                            class="autocomplete-item create-new"
+                            @mousedown="openAddManufacturerModal"
+                          >
+                            <span class="item-name">{{
+                              t('components.materialCreateWizard.createManufacturerNamed', { name: manufacturerSearch })
+                            }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p v-if="selectedManufacturer" class="selected-address">
+                        ✓ {{ selectedManufacturer.name || selectedManufacturer.company }}
+                        <button type="button" class="clear-selection" @click="clearManufacturer">×</button>
+                      </p>
+                    </div>
+                    <div class="form-group">
+                      <label>{{ t('components.materialCreateWizard.labelPurchasedFrom') }}</label>
+                      <div class="autocomplete-wrapper">
+                        <input 
+                          v-model="supplierSearch" 
+                          type="text" 
+                          class="form-input"
+                          :placeholder="t('components.materialCreateWizard.phSearchSupplier')"
+                          @input="searchSuppliers"
+                          @focus="showSupplierDropdown = true"
+                          @blur="hideSupplierDropdownDelayed"
+                        />
+                        <button
+                          type="button"
+                          class="add-inline-btn"
+                          @click="openAddSupplierModal"
+                          :title="t('components.materialCreateWizard.addSupplierInlineTitle')"
+                        >
+                          +
+                        </button>
+                        <div v-if="showSupplierDropdown && supplierSearch.length >= 2" class="autocomplete-dropdown">
+                          <div 
+                            v-for="addr in filteredSuppliers" 
+                            :key="addr.id"
+                            class="autocomplete-item"
+                            @mousedown="selectSupplier(addr)"
+                          >
+                            <span class="item-name">{{ addr.name || addr.company }}</span>
+                            <span class="item-city">{{ addr.city }}</span>
+                          </div>
+                          <div 
+                            v-if="filteredSuppliers.length === 0" 
+                            class="autocomplete-item create-new"
+                            @mousedown="openAddSupplierModal"
+                          >
+                            <span class="item-name">{{
+                              t('components.materialCreateWizard.createSupplierNamed', { name: supplierSearch })
+                            }}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p v-if="selectedSupplier" class="selected-address">
+                        ✓ {{ selectedSupplier.name || selectedSupplier.company }}
+                        <button type="button" class="clear-selection" @click="clearSupplier">×</button>
+                      </p>
+                    </div>
+                  </div>
+
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lagerplatz -->
+            <div
+              v-if="isAddBatchMode || (!isFromTemplate && creationMode === 'individual' && formData.material_type === 'physical' && formData.tracking_type)"
+              class="step-section"
+              data-step="storage"
+              data-onboarding="material-wizard-storage"
+            >
+              <div class="step-header step-header--clickable" @click="toggleStep('storage')">
+                <span class="step-title">{{ t('components.materialCreateWizard.sectionStorageLocation') }}</span>
+                <span class="step-chevron" :class="{ open: isStepOpen('storage') }">▾</span>
+              </div>
+
+              <div v-show="isStepOpen('storage')" class="step-content">
+                  <div
+                    v-if="formData.tracking_type === 'bulk' || isAddBatchMode"
+                    class="form-row mb-2"
+                    data-onboarding="material-wizard-stock-split"
+                  >
                     <label class="toggle-label">
                       <span class="toggle-wrapper">
                         <input type="checkbox" v-model="formData.split_allocations" class="toggle-input" :disabled="!stockInputReady" />
@@ -1504,15 +2276,6 @@
                       </span>
                     </label>
                   </div>
-                  <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate" class="form-row mb-2">
-                    <label class="checkbox-label material-wizard-container-flag">
-                      <input type="checkbox" v-model="formData.is_container" />
-                      <span>{{ t('components.materialCreateWizard.checkboxContainerLong') }}</span>
-                    </label>
-                  </div>
-                  <p v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !stockInputReady" class="field-hint">
-                    {{ t('components.materialCreateWizard.hintQtyBeforeLocations') }}
-                  </p>
 
                   <div v-if="formData.tracking_type === 'serialized'" class="form-row mb-2">
                     <label class="toggle-label">
@@ -1527,7 +2290,11 @@
                     </label>
                   </div>
 
-                  <div v-if="formData.tracking_type === 'serialized' || stockInputReady" class="form-group">
+                  <div
+                    v-if="formData.tracking_type === 'serialized' || formData.tracking_type === 'bulk' || isAddBatchMode"
+                    data-onboarding="material-wizard-stock-storage"
+                  >
+                  <div class="form-group">
                     <template v-if="!(formData.tracking_type === 'serialized' && !serialLocationSameForAll)">
                     <template v-if="!((formData.tracking_type === 'bulk' || isAddBatchMode) && formData.split_allocations)">
                       <label>{{ t('components.materialCreateWizard.labelStorageSite') }}</label>
@@ -1783,493 +2550,41 @@
                     </template>
                   </div>
                     </template>
+                  </div>
+                  </div>
 
-                  <div v-if="!formData.is_food && formData.tracking_type !== 'serialized'" class="slider-toggle-group pack-toggle-inline">
-                    <label class="toggle-label">
-                      <span class="toggle-wrapper">
-                        <input type="checkbox" v-model="showExpiryDateForNonFood" class="toggle-input" />
-                        <span class="toggle-slider toggle-slider--blue"></span>
-                      </span>
-                      <span class="toggle-text">
-                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleShowExpiryTitle') }}</span>
-                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleShowExpiryDesc') }}</span>
-                      </span>
+                  <div v-if="(formData.tracking_type === 'bulk' || isAddBatchMode) && !isFromTemplate" class="form-row mb-2">
+                    <label class="checkbox-label material-wizard-container-flag">
+                      <input type="checkbox" v-model="formData.is_container" />
+                      <span>{{ t('components.materialCreateWizard.checkboxContainerLong') }}</span>
                     </label>
                   </div>
 
-                  <!-- Serialisiert: Seriennummer-Tabelle -->
-                  <div v-if="formData.tracking_type === 'serialized'" class="serial-numbers-section">
-                    <div class="serial-header">
-                      <label>{{
-                        t('components.materialCreateWizard.serialNumbersWithCount', { count: serializedQty })
-                      }}</label>
-                      <div style="display:flex; gap:8px; align-items:center;">
-                        <button type="button" class="add-serial-btn" @click="addSerialNumber">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                            <line x1="12" y1="5" x2="12" y2="19"/>
-                            <line x1="5" y1="12" x2="19" y2="12"/>
-                          </svg>
-                          {{ t('components.materialCreateWizard.btnAddRow') }}
-                        </button>
-                        <button type="button" class="add-serial-btn" @click="toggleSerialScanner()">
-                          {{
-                            serialScannerActive
-                              ? t('components.materialCreateWizard.scannerStop')
-                              : t('components.materialCreateWizard.scannerStart')
-                          }}
-                        </button>
-                      </div>
-                    </div>
-                    <div class="slider-toggle-group">
-                      <label class="toggle-label">
-                        <span class="toggle-wrapper">
-                          <input type="checkbox" v-model="serialAutoGenerateEnabled" class="toggle-input" />
-                          <span class="toggle-slider toggle-slider--blue"></span>
-                        </span>
-                        <span class="toggle-text">
-                          <span class="toggle-title">{{ t('components.materialCreateWizard.serialAutoGenTitle') }}</span>
-                          <span class="toggle-desc">{{ t('components.materialCreateWizard.serialAutoGenDesc') }}</span>
-                        </span>
-                      </label>
-                      <transition name="slide-down">
-                        <div v-if="serialAutoGenerateEnabled" class="slider-details">
-                          <div class="serial-auto-generate-row">
-                            <div class="serial-auto-field serial-auto-field-prefix">
-                              <label>{{ t('components.materialCreateWizard.labelPrefixShort') }}</label>
-                              <input
-                                v-model="autoGenPrefix"
-                                type="text"
-                                class="form-input form-input-sm"
-                                :placeholder="suggestedSerialPrefix || ''"
-                              />
-                            </div>
-                            <div class="serial-auto-field">
-                              <label>{{ t('components.materialCreateWizard.labelStartNumberShort') }}</label>
-                              <input v-model.number="autoGenStart" type="number" min="1" class="form-input form-input-sm" />
-                            </div>
-                            <div class="serial-auto-field">
-                              <label>{{ t('components.materialCreateWizard.labelDigitsShort') }}</label>
-                              <input v-model.number="autoGenPad" type="number" min="1" max="6" class="form-input form-input-sm" />
-                            </div>
-                            <div class="serial-auto-field">
-                              <label>{{ t('components.materialCreateWizard.labelCountShort') }}</label>
-                              <input v-model.number="autoGenCount" type="number" min="1" class="form-input form-input-sm" />
-                            </div>
-                            <label
-                              v-if="serialNumbers.length === 0"
-                              class="serial-auto-container-flag checkbox-label"
-                            >
-                              <input type="checkbox" v-model="serialAllAsContainers" />
-                              <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
-                            </label>
-                            <button type="button" class="add-serial-btn add-serial-btn-secondary" @click="generateSerialNumbers">
-                              {{ t('components.materialCreateWizard.btnGenerateSerialList') }}
-                            </button>
-                            <span class="serial-auto-preview">{{ autoGenPreview }}</span>
-                          </div>
-                          <p
-                            v-if="serialNumbers.length === 0"
-                            class="field-hint serial-all-containers-hint"
-                          >{{ t('components.materialCreateWizard.serialAllAsContainersDesc') }}</p>
-                        </div>
-                      </transition>
-                    </div>
-                    <div v-if="serialNumbers.length > 0" class="serial-bulk-container-row">
-                      <label class="checkbox-label">
-                        <input type="checkbox" v-model="serialAllAsContainers" />
-                        <span>{{ t('components.materialCreateWizard.serialAllAsContainersTitle') }}</span>
-                      </label>
-                    </div>
-                    <BarcodeScannerPanel
-                      v-if="serialScannerActive"
-                      :active="serialScannerActive"
-                      mode="all"
-                      :hint="t('components.materialCreateWizard.serialScannerHint')"
-                      @detected="onSerialDetected"
-                      @error="onSerialScannerError"
-                    />
-                    
-                    <div v-if="serialNumbers.length > 0" class="serial-table-wrap">
-                      <table class="serial-table serial-table--wizard">
-                        <thead>
-                          <tr>
-                            <th class="col-num">#</th>
-                            <th>{{ t('components.materialDetail.thSerial') }}</th>
-                            <th>{{ t('components.materialDetail.thLabel') }}</th>
-                            <th
-                              class="col-container"
-                              :title="t('components.materialCreateWizard.serialIsContainerLong')"
-                            >
-                              {{ t('components.materialDetail.thContainer') }}
-                            </th>
-                            <th v-if="!serialLocationSameForAll">{{ t('components.materialCreateWizard.labelLocationKindShort') }}</th>
-                            <th v-if="!serialLocationSameForAll">{{ t('components.materialDetail.thStorageSlot') }}</th>
-                            <th>{{ t('components.materialDetail.thNote') }}</th>
-                            <th class="col-actions"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="(entry, index) in serialNumbers" :key="entry.id">
-                            <td class="col-num">{{ index + 1 }}</td>
-                            <td>
-                              <input
-                                v-model="entry.serial_number"
-                                type="text"
-                                class="form-input form-input-sm serial-table-input"
-                                :placeholder="t('components.materialCreateWizard.phEnterSerialNumber')"
-                                @keydown.enter.prevent="addSerialNumber"
-                              />
-                            </td>
-                            <td>
-                              <input
-                                v-model="entry.label"
-                                type="text"
-                                class="form-input form-input-sm serial-table-input"
-                                :placeholder="t('components.materialCreateWizard.phInstanceLabelExample')"
-                              />
-                            </td>
-                            <td class="col-container">
-                              <label class="checkbox-label serial-table-container-cell">
-                                <input
-                                  type="checkbox"
-                                  v-model="entry.is_container"
-                                  :title="t('components.materialCreateWizard.serialIsContainerLong')"
-                                />
-                              </label>
-                            </td>
-                            <td v-if="!serialLocationSameForAll">
-                              <select
-                                v-model="entry.location_mode"
-                                class="form-select form-select--sm serial-table-input"
-                                @change="entry.rack_id=''; entry.slot_id=''; entry.container_batch_id=''"
-                              >
-                                <option value="slot">{{ t('components.materialCreateWizard.tabGestellFach') }}</option>
-                                <option value="kiste">{{ t('components.materialCreateWizard.tabKisteTasche') }}</option>
-                              </select>
-                            </td>
-                            <td v-if="!serialLocationSameForAll" class="serial-table-location-cell">
-                              <template v-if="entry.location_mode === 'slot'">
-                                <select
-                                  v-model="entry.storage_address_id"
-                                  class="form-select form-select--sm serial-table-input"
-                                  @change="onSerialEntryStorageAddressChange(entry)"
-                                >
-                                  <option v-for="addr in storageAddresses" :key="addr.id" :value="addr.id">{{ addr.name || addr.street_line }}</option>
-                                </select>
-                                <select
-                                  v-model="entry.rack_id"
-                                  class="form-select form-select--sm serial-table-input"
-                                  @change="onSerialEntryRackChange(entry)"
-                                  @mouseenter="prefetchRackPreview(entry.rack_id)"
-                                  :title="getRackPreviewTitle(entry.rack_id)"
-                                >
-                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectRackDash') }}</option>
-                                  <option
-                                    v-for="rack in getRacksForSerialEntry(entry)"
-                                    :key="rack.id"
-                                    :value="String(rack.id)"
-                                    :title="getRackPreviewTitle(rack.id)"
-                                  >
-                                    {{ rack.name }}
-                                  </option>
-                                </select>
-                                <select
-                                  v-model="entry.slot_id"
-                                  class="form-select form-select--sm serial-table-input"
-                                  :disabled="!entry.rack_id"
-                                  @mouseenter="prefetchSlotPreview(entry.rack_id, entry.slot_id)"
-                                  :title="getSlotPreviewTitle(entry.rack_id, entry.slot_id)"
-                                >
-                                  <option value="" disabled>{{ t('components.materialCreateWizard.selectPickSlotDash') }}</option>
-                                  <option
-                                    v-for="slot in (entry.rack_id ? (slotsByRackId[String(entry.rack_id)] || []) : [])"
-                                    :key="slot.id"
-                                    :value="String(slot.id)"
-                                    :title="getSlotPreviewTitle(entry.rack_id, slot.id)"
-                                  >
-                                    {{ formatSlotOptionLabel(entry.rack_id, slot) }}
-                                  </option>
-                                </select>
-                              </template>
-                              <template v-else>
-                                <select
-                                  v-model="entry.container_batch_id"
-                                  class="form-select form-select--sm serial-table-input"
-                                  @mouseenter="prefetchContainerPreviews()"
-                                  :title="getContainerPreviewTitle(entry.container_batch_id)"
-                                >
-                                  <option value="">{{ t('components.materialCreateWizard.selectPickBoxDash') }}</option>
-                                  <option
-                                    v-for="cb in containerBatches"
-                                    :key="cb.id"
-                                    :value="cb.id"
-                                    :title="formatContainerBatchOptionFullLabel(cb)"
-                                  >
-                                    {{ formatContainerBatchOptionFullLabel(cb) }}
-                                  </option>
-                                </select>
-                              </template>
-                            </td>
-                            <td>
-                              <input
-                                v-model="entry.notes"
-                                type="text"
-                                class="form-input form-input-sm serial-table-input"
-                                :placeholder="t('components.materialCreateWizard.optionalPlain')"
-                              />
-                            </td>
-                            <td class="col-actions">
-                              <button
-                                type="button"
-                                class="remove-serial-btn"
-                                @click="openSerialScannerFor(entry.id)"
-                                :title="t('components.materialCreateWizard.titleScanSerialRow')"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                  <rect x="3" y="5" width="18" height="14" rx="2"/>
-                                  <line x1="7" y1="9" x2="17" y2="9"/>
-                                  <line x1="7" y1="13" x2="12" y2="13"/>
-                                </svg>
-                              </button>
-                              <button
-                                type="button"
-                                class="remove-serial-btn"
-                                @click="removeSerialNumber(entry.id)"
-                                :title="t('components.materialCreateWizard.btnRemoveRowTitle')"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                  <line x1="18" y1="6" x2="6" y2="18"/>
-                                  <line x1="6" y1="6" x2="18" y2="18"/>
-                                </svg>
-                              </button>
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    
-                    <div v-else class="empty-serials">
-                      <p>{{ t('components.materialCreateWizard.emptySerialsHint') }}</p>
-                      <button type="button" class="add-first-btn" @click="addSerialNumber">
-                        + {{ t('components.materialCreateWizard.btnAddFirstSerial') }}
-                      </button>
-                    </div>
-                    <p v-if="!serialLocationSameForAll && hasInvalidSerialLocations" class="field-hint is-invalid">
-                      {{ t('components.materialCreateWizard.invalidSerialLocationHint') }}
-                    </p>
-                    <p v-if="serialDuplicateHint" class="field-hint is-invalid">
-                      {{ serialDuplicateHint }}
-                    </p>
+              </div>
+            </div>
 
-                    <!-- Verpackungseinheit – sobald Menge (Seriennummern) erfasst -->
-                    <div v-if="serializedQty > 0" class="slider-toggle-group pack-toggle-inline mt-3">
-                      <label class="toggle-label">
-                        <span class="toggle-wrapper">
-                          <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
-                          <span class="toggle-slider toggle-slider--blue"></span>
-                        </span>
-                        <span class="toggle-text">
-                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
-                          <span class="toggle-desc">{{ t('components.materialDetail.packagingHint') }}</span>
-                        </span>
-                      </label>
-                      <transition name="slide-down">
-                        <div v-if="packUnitEnabled" class="slider-details pack-details">
-                          <div class="form-row">
-                            <div class="form-group">
-                              <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
-                              <input
-                                v-model.number="formData.pack_size"
-                                type="number"
-                                min="2"
-                                class="form-input"
-                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                              />
-                            </div>
-                            <div class="form-group">
-                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
-                              <select v-model="formData.pack_unit" class="form-input">
-                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
-                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
-                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
-                              </select>
-                            </div>
-                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
-                              <label>
-                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
-                                <span class="optional-label">({{ t('common.optional') }})</span>
-                              </label>
-                              <div class="price-input">
-                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                                <input
-                                  v-model.number="formData.pack_sale_price_chf"
-                                  type="number"
-                                  step="0.05"
-                                  min="0"
-                                  class="form-input"
-                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                                />
-                              </div>
-                              <p
-                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
-                                class="field-hint"
-                              >
-                                {{
-                                  t('components.materialCreateWizard.packApproxPerPiece', {
-                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
-                                  })
-                                }}
-                              </p>
-                            </div>
-                          </div>
-                          <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                            {{
-                              t('components.materialDetail.packPreview', {
-                                stock: serializedQty,
-                                packs: Math.floor(serializedQty / formData.pack_size),
-                                unit: formData.pack_unit,
-                                per: formData.pack_size,
-                              })
-                            }}<span v-if="serializedQty % formData.pack_size !== 0">{{
-                              t('components.materialDetail.packPreviewRemain', { rem: serializedQty % formData.pack_size })
-                            }}</span>
-                          </p>
-                        </div>
-                      </transition>
-                    </div>
-                  </div>
+            <!-- Details (optional) – bei Kombi erst nach Name + Kategorie (gleiche Stufe wie Materialwahl) -->
+            <div
+              v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id))"
+              class="step-section"
+              data-step="details"
+              data-onboarding="material-wizard-details"
+            >
+              <div class="step-header step-header--clickable" @click="toggleStep('details')">
+                <span class="step-title">{{ t('components.materialCreateWizard.stepDetails') }}</span>
+                <span class="step-badge optional">{{ t('common.optional') }}</span>
+                <span class="step-chevron" :class="{ open: isStepOpen('details') }">▾</span>
+              </div>
 
-                  <!-- Massenartikel: Normale Mengen-Eingabe -->
-                  <div v-else>
-                    <!-- Verpackungseinheit – sobald eine Anzahl eingetragen wurde -->
-                    <div v-if="formData.initial_qty > 0 && stock_unit === 'Stk'" class="slider-toggle-group pack-toggle-inline">
-                      <label class="toggle-label">
-                        <span class="toggle-wrapper">
-                          <input type="checkbox" v-model="packUnitEnabled" class="toggle-input" />
-                          <span class="toggle-slider toggle-slider--blue"></span>
-                        </span>
-                        <span class="toggle-text">
-                          <span class="toggle-title">{{ t('components.materialDetail.sectionPackaging') }}</span>
-                          <span class="toggle-desc">{{ t('components.materialDetail.packagingHint') }}</span>
-                        </span>
-                      </label>
-                      <transition name="slide-down">
-                        <div v-if="packUnitEnabled" class="slider-details pack-details">
-                          <div class="form-row">
-                            <div class="form-group">
-                              <label>{{ t('components.materialDetail.labelPiecesPerUnit') }}</label>
-                              <input
-                                v-model.number="formData.pack_size"
-                                type="number"
-                                min="2"
-                                class="form-input"
-                                :placeholder="t('components.materialDetail.packSizePlaceholder')"
-                              />
-                            </div>
-                            <div class="form-group">
-                              <label>{{ t('components.materialDetail.labelDesignation') }}</label>
-                              <select v-model="formData.pack_unit" class="form-input">
-                                <option value="">{{ t('components.materialDetail.packUnitNone') }}</option>
-                                <option :value="PACK_UNIT_BUNDLE">{{ t('components.materialDetail.packUnitBundle') }}</option>
-                                <option value="Kiste">{{ t('components.materialDetail.packUnitKiste') }}</option>
-                                <option value="Karton">{{ t('components.materialDetail.packUnitKarton') }}</option>
-                                <option value="Sack">{{ t('components.materialDetail.packUnitSack') }}</option>
-                                <option value="Rolle">{{ t('components.materialDetail.packUnitRolle') }}</option>
-                                <option value="Palette">{{ t('components.materialDetail.packUnitPalette') }}</option>
-                                <option value="Set">{{ t('components.materialDetail.packUnitSet') }}</option>
-                                <option value="Paket">{{ t('components.materialDetail.packUnitPaket') }}</option>
-                              </select>
-                            </div>
-                            <div v-if="formData.is_consumable || formData.is_food" class="form-group">
-                              <label>
-                                {{ t('components.materialCreateWizard.labelPackSalePriceChf') }}
-                                <span class="optional-label">({{ t('common.optional') }})</span>
-                              </label>
-                              <div class="price-input">
-                                <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                                <input
-                                  v-model.number="formData.pack_sale_price_chf"
-                                  type="number"
-                                  step="0.05"
-                                  min="0"
-                                  class="form-input"
-                                  :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                                />
-                              </div>
-                              <p
-                                v-if="formData.pack_size && formData.pack_size >= 2 && formData.pack_sale_price_chf && formData.pack_sale_price_chf > 0"
-                                class="field-hint"
-                              >
-                                {{
-                                  t('components.materialCreateWizard.packApproxPerPiece', {
-                                    price: (formData.pack_sale_price_chf / formData.pack_size).toFixed(2),
-                                  })
-                                }}
-                              </p>
-                            </div>
-                          </div>
-                          <p v-if="formData.pack_size && formData.pack_unit" class="pack-preview">
-                            {{
-                              t('components.materialDetail.packPreview', {
-                                stock: formData.initial_qty || 0,
-                                packs: Math.floor((formData.initial_qty || 0) / formData.pack_size),
-                                unit: formData.pack_unit,
-                                per: formData.pack_size,
-                              })
-                            }}<span v-if="formData.initial_qty && (formData.initial_qty % formData.pack_size) !== 0">{{
-                              t('components.materialDetail.packPreviewRemain', {
-                                rem: formData.initial_qty % formData.pack_size,
-                              })
-                            }}</span>
-                          </p>
-                        </div>
-                      </transition>
-                    </div>
-                  </div>
+              <div v-show="isStepOpen('details')" class="step-content">
+                <p class="step-hint">{{ t('components.materialCreateWizard.stepDetailsHint') }}</p>
 
-                  <!-- Gemeinsame Felder (Kaufdatum bei Serialisiert) -->
-                  <div v-if="formData.tracking_type === 'serialized'" class="form-row mt-3">
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialCreateWizard.labelPurchaseDate') }}
-                        <span v-if="!formData.is_food" class="required">*</span>
-                      </label>
-                      <input 
-                        v-model="formData.purchase_date" 
-                        type="date" 
-                        class="form-input"
-                        :class="{ 'is-invalid': !formData.is_food && !formData.purchase_date && serializedQty > 0 }"
-                        :required="!formData.is_food"
-                      />
-                    </div>
-
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelCode') }}
-                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
-                      </label>
-                      <input
-                        v-model="formData.barcode_tag"
-                        type="text"
-                        class="form-input"
-                        :placeholder="t('components.materialDetail.codePlaceholder')"
-                      />
-                    </div>
-                    <div class="form-group">
-                      <label>
-                        {{ t('components.materialDetail.labelEan') }}
-                        <span class="optional">{{ t('components.materialDetail.optionalShort') }}</span>
-                      </label>
-                      <input v-model="formData.ean" type="text" class="form-input" :placeholder="t('components.batchModal.eanPlaceholder')" />
-                    </div>
-                  </div>
-
+                <!-- Kauf & Lieferant (bei physical + tracking; Add-Batch bleibt im Bestands-Schritt) -->
+                <div
+                  v-if="formData.material_type === 'physical' && formData.tracking_type"
+                  class="details-subsection"
+                >
+                  <h4 class="subsection-title">{{ t('components.materialCreateWizard.sectionPurchaseAndSupplier') }}</h4>
                   <div class="form-row">
                     <div class="form-group">
                       <label>{{ t('common.manufacturer') }}</label>
@@ -2365,148 +2680,7 @@
                     </div>
                   </div>
 
-                  <div v-if="purchasePriceRequired" class="slider-toggle-group pack-toggle-inline mt-2 mb-2">
-                    <label class="toggle-label">
-                      <span class="toggle-wrapper">
-                        <input
-                          type="checkbox"
-                          class="toggle-input"
-                          :checked="purchasePriceInputMode === 'total'"
-                          @change="onPurchasePriceModeToggle"
-                        />
-                        <span class="toggle-slider toggle-slider--blue"></span>
-                      </span>
-                      <span class="toggle-text">
-                        <span class="toggle-title">{{ t('components.materialCreateWizard.toggleDistributeTotalTitle') }}</span>
-                        <span class="toggle-desc">{{ t('components.materialCreateWizard.toggleDistributeTotalDesc') }}</span>
-                      </span>
-                    </label>
-                    <transition name="slide-down">
-                      <div v-if="purchasePriceInputMode === 'unit'" key="pp-unit" class="slider-details pack-details mt-2">
-                        <div class="form-row">
-                        <div class="form-group">
-                            <label>{{ wizardPurchasePriceLabel }}</label>
-                          <div class="price-input">
-                            <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                            <input
-                              v-model.number="formData.unit_price"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              class="form-input"
-                              :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                            />
-                          </div>
-                          <p
-                            v-if="packSaleToUnitSaleChf != null && purchasePriceInputMode === 'unit'"
-                            class="field-hint"
-                          >
-                            {{
-                              t('components.materialCreateWizard.packApproxPerPiece', {
-                                price: packSaleToUnitSaleChf.toFixed(2),
-                              })
-                            }}
-                          </p>
-                        </div>
-                          <div class="form-group">
-                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
-                            <div class="price-input">
-                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                              <input
-                                v-model="purchaseShippingChf"
-                                type="text"
-                                inputmode="decimal"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <p v-if="purchasePriceContextQty > 0 && parseChfInput(purchaseShippingChf) > 0" class="field-hint">
-                          {{
-                            t('components.materialCreateWizard.hintShippingPerPiece', {
-                              price: effectivePurchaseUnitPrice.toFixed(2),
-                              qty: purchasePriceContextQty,
-                            })
-                          }}
-                        </p>
-                      </div>
-                      <div v-else key="pp-total" class="slider-details pack-details mt-2">
-                        <div class="form-row">
-                          <div class="form-group">
-                            <label>{{ t('components.materialCreateWizard.labelPurchaseTotalWaresChf') }}</label>
-                            <div class="price-input">
-                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                              <input
-                                v-model="purchaseTotalWaresChf"
-                                type="text"
-                                inputmode="decimal"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                              />
-                            </div>
-                          </div>
-                          <div class="form-group">
-                            <label>{{ t('components.materialCreateWizard.labelPurchaseShippingChf') }}</label>
-                            <div class="price-input">
-                              <span class="currency">{{ t('components.materialDetail.currencyFr') }}</span>
-                              <input
-                                v-model="purchaseShippingChf"
-                                type="text"
-                                inputmode="decimal"
-                                class="form-input"
-                                :placeholder="t('components.materialCreateWizard.phPriceZero')"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <p v-if="purchasePriceContextQty > 0" class="field-hint">
-                          {{
-                            t('components.materialCreateWizard.hintDerivedUnitPrice', {
-                              price: effectivePurchaseUnitPrice.toFixed(2),
-                              qty: purchasePriceContextQty,
-                            })
-                          }}
-                        </p>
-                      </div>
-                    </transition>
-                  </div>
-
-                  <div class="form-row">
-                    <div class="form-group">
-                      <label>{{ t('components.materialCreateWizard.labelInvoiceNumber') }}</label>
-                      <input 
-                        v-model="formData.invoice_number" 
-                        type="text" 
-                        class="form-input"
-                        :placeholder="t('common.optional')"
-                      />
-                    </div>
-                  </div>
-
-                  <div v-if="purchasePriceRequired && departmentHasAccountingRole(props.departmentId)" class="form-row mt-2">
-                    <div class="form-group span-full">
-                      <PurchaseReceiptFileInput
-                        v-model="purchaseReceiptFile"
-                        :label="t('components.purchaseReceipt.label')"
-                        :hint="t('components.purchaseReceipt.hint')"
-                      />
-                    </div>
-                  </div>
                 </div>
-              </div>
-            </div>
-
-            <!-- Details & Vermietung (optional) – bei Kombi erst nach Name + Kategorie (gleiche Stufe wie Materialwahl) -->
-            <div v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id))" class="step-section" data-step="details">
-              <div class="step-header step-header--clickable" @click="toggleStep('details')">
-                <span class="step-title">{{ t('components.materialCreateWizard.stepDetailsAndRental') }}</span>
-                <span class="step-badge optional">{{ t('common.optional') }}</span>
-                <span class="step-chevron" :class="{ open: isStepOpen('details') }">▾</span>
-              </div>
-
-              <div v-show="isStepOpen('details')" class="step-content">
-                <p class="step-hint">{{ t('components.materialCreateWizard.stepDetailsHint') }}</p>
 
                 <!-- Material-Details -->
                 <div class="details-subsection">
@@ -2532,6 +2706,12 @@
                       <label>{{ t('components.materialDetail.labelColor') }}</label>
                       <input v-model="formData.color" type="text" class="form-input" />
                     </div>
+                    <div class="form-group">
+                      <label>{{ t('components.materialDetail.labelWarranty') }}</label>
+                      <input v-model="formData.warranty_until" type="date" class="form-input" />
+                    </div>
+                  </div>
+                  <div class="form-grid-details form-grid-details--dims">
                     <MaterialMetricInput
                       v-model="formData.size_length"
                       :label="wizardSizeLengthLabel"
@@ -2547,10 +2727,6 @@
                       :label="t('components.materialDetail.labelHeightCm')"
                       unit="cm"
                     />
-                    <div class="form-group">
-                      <label>{{ t('components.materialDetail.labelWarranty') }}</label>
-                      <input v-model="formData.warranty_until" type="date" class="form-input" />
-                    </div>
                   </div>
                   <div class="form-group mt-2">
                     <label>{{ t('components.materialDetail.labelDescription') }}</label>
@@ -2592,7 +2768,11 @@
                 </div>
 
                 <!-- Preise & Verrechnung (Verbrauch / Esswaren) -->
-                <div v-if="formData.is_consumable || formData.is_food" class="details-subsection">
+                <div
+                  v-if="formData.is_consumable || formData.is_food"
+                  class="details-subsection"
+                  data-onboarding="material-wizard-consumable-pricing"
+                >
                   <h4 class="subsection-title">{{ t('components.materialDetail.tabConsumablePricing') }}</h4>
                   <MaterialConsumablePricingPanel
                     v-model:sale-price="formData.sale_price"
@@ -2612,10 +2792,25 @@
                     {{ t('components.materialCreateWizard.hintPackUnitAtQuantityStep') }}
                   </p>
                 </div>
+              </div>
+            </div>
 
-                <!-- Vermietung (nicht bei Verbrauch / Esswaren) -->
-                <div v-if="!formData.is_consumable && !formData.is_food" class="details-subsection">
-                  <h4 class="subsection-title">{{ t('components.materialDetail.tabRental') }}</h4>
+            <!-- Vermietung (optional) – nicht bei Verbrauch / Esswaren -->
+            <div
+              v-if="!isAddBatchMode && !isFromTemplate && creationMode && ((formData.material_type === 'physical' && formData.tracking_type) || ((formData.material_type === 'physical_combo' || formData.material_type === 'virtual_combo') && formData.name.trim() && !nameExists && formData.category_id)) && !formData.is_consumable && !formData.is_food"
+              class="step-section"
+              data-step="rental"
+              data-onboarding="material-wizard-rental"
+            >
+              <div class="step-header step-header--clickable" @click="toggleStep('rental')">
+                <span class="step-title">{{ t('components.materialCreateWizard.stepRental') }}</span>
+                <span class="step-badge optional">{{ t('common.optional') }}</span>
+                <span class="step-chevron" :class="{ open: isStepOpen('rental') }">▾</span>
+              </div>
+
+              <div v-show="isStepOpen('rental')" class="step-content">
+                <p class="step-hint">{{ t('components.materialCreateWizard.stepRentalHint') }}</p>
+                <div class="details-subsection">
                   <RentalPriceAmortizationCalculator
                     v-if="formData.material_type === 'physical' && formData.tracking_type && !formData.is_consumable && !formData.is_food"
                     v-model="formData.rental_calc_params"
@@ -2693,42 +2888,42 @@
                       />
                     </div>
                   </div>
-                  <div class="checkbox-group mt-2">
-                    <label class="checkbox-label">
-                      <input type="checkbox" v-model="formData.rental_external_allowed" />
-                      <span>{{ t('components.materialCreateWizard.rentalCheckboxExternalAllowed') }}</span>
-                    </label>
-                    <label class="checkbox-label">
-                      <input type="checkbox" v-model="formData.rental_requires_approval" />
-                      <span>{{ t('components.materialCreateWizard.rentalCheckboxRequiresApproval') }}</span>
-                    </label>
-                  </div>
-                  <div v-if="formData.rental_external_allowed" class="form-group mt-2">
-                    <label>{{ t('components.materialCreateWizard.labelRentalExternalScope') }}</label>
-                    <select v-model="formData.rental_scope" class="form-input">
-                      <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
-                      <option value="department">{{ t('components.materialCreateWizard.rentalScopeOptionDepartment') }}</option>
-                      <option value="organisation">{{ t('components.materialCreateWizard.rentalScopeOptionOrganisation') }}</option>
-                      <option value="public">{{ t('components.materialCreateWizard.rentalScopeOptionPublic') }}</option>
-                    </select>
-                  </div>
-                  <div class="form-group mt-2">
-                    <label>{{ t('components.materialDetail.historyFields.rental_notes') }}</label>
-                    <textarea
-                      v-model="formData.rental_notes"
-                      class="form-textarea"
-                      rows="2"
-                      :placeholder="t('components.materialCreateWizard.phRentalNotes')"
-                    ></textarea>
+                  <div class="rental-options">
+                    <div class="checkbox-group rental-options__checks">
+                      <label class="checkbox-label">
+                        <input type="checkbox" v-model="formData.rental_external_allowed" />
+                        <span>{{ t('components.materialCreateWizard.rentalCheckboxExternalAllowed') }}</span>
+                      </label>
+                      <label class="checkbox-label">
+                        <input type="checkbox" v-model="formData.rental_requires_approval" />
+                        <span>{{ t('components.materialCreateWizard.rentalCheckboxRequiresApproval') }}</span>
+                      </label>
+                    </div>
+                    <div v-if="formData.rental_external_allowed" class="form-group rental-options__field">
+                      <label>{{ t('components.materialCreateWizard.labelRentalExternalScope') }}</label>
+                      <select v-model="formData.rental_scope" class="form-input">
+                        <option value="">{{ t('components.materialDetail.reservationUnset') }}</option>
+                        <option value="department">{{ t('components.materialCreateWizard.rentalScopeOptionDepartment') }}</option>
+                        <option value="organisation">{{ t('components.materialCreateWizard.rentalScopeOptionOrganisation') }}</option>
+                        <option value="public">{{ t('components.materialCreateWizard.rentalScopeOptionPublic') }}</option>
+                      </select>
+                    </div>
+                    <div class="form-group rental-options__field">
+                      <label>{{ t('components.materialDetail.historyFields.rental_notes') }}</label>
+                      <textarea
+                        v-model="formData.rental_notes"
+                        class="form-textarea"
+                        rows="2"
+                        :placeholder="t('components.materialCreateWizard.phRentalNotes')"
+                      ></textarea>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
           </div>
-
         </div>
-      </div>
 
         <!-- Right: Sidebar "Mein Material" (Geschwister von material-wizard-content innerhalb body) -->
         <MaterialPreviewSidebar
@@ -2882,7 +3077,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
 import {
   createMaterial,
   getMaterials,
@@ -2955,6 +3150,7 @@ import {
   applyMaterialUnitSuffixToName,
   getStockUnitLabel,
   hasContentPerPiece,
+  isMeterStockUnit,
   isPackagingUnit,
   meterUnitPricePerMeterFromPerPiece,
   parseMaterialChfInput,
@@ -2981,7 +3177,10 @@ import { useStorageStructure } from '@/composables/useStorageStructure'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { localizedBarcodeScannerError } from '@/utils/barcodeScannerErrors'
 import { buildMaterialWizardPrefillFromMaterial } from '@/utils/materialWizardPrefill'
+import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
 import '@/styles/material-wizard.css'
+
+const route = useRoute()
 
 const props = withDefaults(
   defineProps<{
@@ -3305,7 +3504,10 @@ const stockUnitOptions = computed(() => [
 const wizardMeterPieceLengthM = computed(() => sizeLengthCmToMeters(formData.size_length))
 
 const wizardUseMeterQtyByCount = computed(
-  () => stock_unit.value === 'm' && wizardMeterPieceLengthM.value != null,
+  () =>
+    stock_unit.value === 'm' &&
+    wizardMeterPieceLengthM.value != null &&
+    !wizardCanUsePackEntry.value,
 )
 
 const wizardPurchasePriceLabel = computed(() => {
@@ -3349,9 +3551,16 @@ const wizardParsedLengthMeters = computed((): number | null => {
 
 const wizardEffectivePackUnit = computed((): string | null => {
   if (isAddBatchMode.value && selectedExistingMaterial.value) {
-    return selectedExistingMaterial.value.pack_unit ?? null
+    const m = selectedExistingMaterial.value
+    if (isMeterStockUnit(m.pack_unit) && m.packaging_unit) return m.packaging_unit
+    return m.pack_unit ?? null
   }
-  if (stock_unit.value === 'm') return stock_unit.value
+  if (stock_unit.value === 'm') {
+    if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
+      return formData.pack_unit
+    }
+    return stock_unit.value
+  }
   if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
     return formData.pack_unit
   }
@@ -3363,14 +3572,15 @@ const wizardEffectivePackSize = computed((): number | null => {
     const size = selectedExistingMaterial.value.pack_size
     return size && size >= 2 ? size : null
   }
-  if (stock_unit.value === 'm') return null
   if (packUnitEnabled.value && isPackagingUnit(formData.pack_unit)) {
     return formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null
   }
   return null
 })
 
-const wizardStockUnitLabel = computed(() => getStockUnitLabel(wizardEffectivePackUnit.value))
+const wizardStockUnitLabel = computed(() =>
+  stock_unit.value === 'm' ? 'm' : getStockUnitLabel(wizardEffectivePackUnit.value),
+)
 
 const wizardQuantityLabel = computed(() => {
   if (wizardUseMeterQtyByCount.value) return t('components.batchModal.quantityCountLabel')
@@ -3399,6 +3609,9 @@ function confirmStockLengthDialog() {
   formData.size_length = String(Math.round(meters * 100))
   stock_unit.value = 'm'
   qtyEntryMode.value = 'base'
+  if (packUnitEnabled.value && (!formData.pack_size || formData.pack_size < 2)) {
+    formData.pack_size = Math.max(2, Math.round(meters))
+  }
   stockLengthDialogOpen.value = false
   stockLengthMetersInput.value = ''
 }
@@ -3509,17 +3722,29 @@ const wizardQtyEntryHint = computed(() => {
   return ''
 })
 
-function resolveWizardPackFields(): { pack_unit: string | null; pack_size: number | null } {
+function resolveWizardPackFields(): {
+  pack_unit: string | null
+  pack_size: number | null
+  packaging_unit: string | null
+} {
   if (stock_unit.value === 'm') {
-    return { pack_unit: 'm', pack_size: null }
+    if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
+      return {
+        pack_unit: 'm',
+        pack_size: formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null,
+        packaging_unit: formData.pack_unit,
+      }
+    }
+    return { pack_unit: 'm', pack_size: null, packaging_unit: null }
   }
   if (packUnitEnabled.value && formData.pack_unit && isPackagingUnit(formData.pack_unit)) {
     return {
       pack_unit: formData.pack_unit,
       pack_size: formData.pack_size && formData.pack_size >= 2 ? formData.pack_size : null,
+      packaging_unit: null,
     }
   }
-  return { pack_unit: stock_unit.value === 'Stk' ? 'Stk' : null, pack_size: null }
+  return { pack_unit: stock_unit.value === 'Stk' ? 'Stk' : null, pack_size: null, packaging_unit: null }
 }
 
 watch(stock_unit, () => {
@@ -3529,7 +3754,6 @@ watch(stock_unit, () => {
 // Verpackungseinheit Toggle – setzt Verpackungsfelder zurück wenn deaktiviert
 const packUnitEnabled = computed({
   get: () => {
-    if (stock_unit.value === 'm') return false
     return !!(formData.pack_size && formData.pack_unit && isPackagingUnit(formData.pack_unit))
   },
   set: (val: boolean) => {
@@ -3540,7 +3764,11 @@ const packUnitEnabled = computed({
       }
       formData.pack_sale_price_chf = null
     } else if (!formData.pack_size) {
-      formData.pack_size = 10
+      const fromLength = wizardMeterPieceLengthM.value
+      formData.pack_size =
+        stock_unit.value === 'm' && fromLength != null && fromLength >= 2
+          ? Math.round(fromLength)
+          : 10
       if (!formData.pack_unit) formData.pack_unit = 'Rolle'
     }
   },
@@ -3649,7 +3877,9 @@ type StepId =
   | 'tracking'
   | 'combo_articles'
   | 'details'
+  | 'rental'
   | 'stock'
+  | 'storage'
 
 const activeStep = ref<StepId | ''>('')
 const expandAllVisibleSteps = ref(true)
@@ -3658,9 +3888,104 @@ const accordionUserControlled = ref(false)
 /** Während Vorlagen-Laden: keine Schritt-Syncs / kein Kategorie-Sprung, bis „Allgemeines“ gesetzt ist */
 const templateLoadInProgress = ref(false)
 
+/**
+ * Material-Touren steuern das Wizard-Akkordeon: sonst springt Blur vom Artikelnamen
+ * sofort auf Kategorie und blendet Name/Toggles aus — Spotlight und Tour-Text passen dann nicht.
+ */
+function wizardAccordionStepForMaterialTour(): StepId | null {
+  const tourId = route.query[ONBOARDING_TOUR_QUERY]
+  const step = Number(route.query[ONBOARDING_TOUR_STEP_QUERY] || 0)
+  if (tourId === 'material-create') {
+    if (step === 4 || step === 5) return 'general'
+    if (step === 6) return 'category'
+    if (step === 7) return 'tracking'
+    if (step >= 8 && step <= 12) return 'stock'
+    if (step === 13 || step === 14) return 'storage'
+    if (step === 15) return 'details'
+    if (step === 16) return 'rental'
+  }
+  if (tourId === 'material-consumable') {
+    if (step === 4 || step === 5) return 'general'
+    if (step === 6) return 'category'
+    if (step === 7) return 'tracking'
+    if (step === 8 || step === 9) return 'stock'
+    if (step === 10) return 'details'
+  }
+  if (tourId === 'material-food') {
+    if (step === 4) return 'general'
+    if (step === 5) return 'category'
+    if (step === 6) return 'stock'
+  }
+  return null
+}
+
 // Erstellungsmodus
 const creationMode = ref<'' | 'individual' | 'physical_combo' | 'virtual_combo'>('')
 const getTodayIso = () => new Date().toISOString().slice(0, 10)
+
+watch(
+  () =>
+    [
+      route.query[ONBOARDING_TOUR_QUERY],
+      route.query[ONBOARDING_TOUR_STEP_QUERY],
+      showDialog.value,
+      creationMode.value,
+    ] as const,
+  async () => {
+    if (!showDialog.value || !creationMode.value) return
+    const target = wizardAccordionStepForMaterialTour()
+    if (!target) return
+    expandAllVisibleSteps.value = false
+    accordionUserControlled.value = true
+    activeStep.value = target
+    await nextTick()
+    requestAnimationFrame(() => {
+      const onboardingByStep: Record<string, string> = {
+        general: 'material-wizard-article-name',
+        category: 'material-wizard-category',
+        tracking: 'material-wizard-tracking',
+        stock: 'material-wizard-stock-unit',
+        storage: 'material-wizard-stock-storage',
+        details: 'material-wizard-details',
+        rental: 'material-wizard-rental',
+      }
+      const tourStep = Number(route.query[ONBOARDING_TOUR_STEP_QUERY] || 0)
+      const stockByTourStep: Record<number, string> = {
+        8: 'material-wizard-stock-unit',
+        9: 'material-wizard-stock-qty',
+        10: 'material-wizard-stock-purchase-date',
+        11: 'material-wizard-stock-purchase-price',
+        12: 'material-wizard-stock-codes',
+        13: 'material-wizard-stock-split',
+        14: 'material-wizard-stock-storage',
+      }
+      const consumableByTourStep: Record<number, string> = {
+        7: 'material-wizard-tracking',
+        8: 'material-wizard-stock-unit',
+        9: 'material-wizard-stock-qty',
+        10: 'material-wizard-consumable-pricing',
+      }
+      const tourId = route.query[ONBOARDING_TOUR_QUERY]
+      const attr =
+        tourId === 'material-consumable' && consumableByTourStep[tourStep]
+          ? consumableByTourStep[tourStep]
+          : (target === 'stock' || target === 'storage') && stockByTourStep[tourStep]
+            ? stockByTourStep[tourStep]
+            : onboardingByStep[target]
+      if (!attr) return
+      const el = document.querySelector(`[data-onboarding="${attr}"]`) as HTMLElement | null
+      const form = document.querySelector('.material-wizard-form') as HTMLElement | null
+      if (el && form) {
+        const parentRect = form.getBoundingClientRect()
+        const elRect = el.getBoundingClientRect()
+        const offset = elRect.top - parentRect.top + form.scrollTop
+        form.scrollTo({ top: Math.max(0, offset - 32), behavior: 'auto' })
+      } else {
+        el?.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+      }
+    })
+  },
+)
 
 // Zelt-Details
 const tentForm = reactive({
@@ -3774,6 +4099,10 @@ interface SerialNumberEntry {
   serial_number: string
   label: string
   notes: string
+  /** eMatChef-/Intern-Code (scanbar) */
+  barcode_tag: string
+  /** Hersteller-/Fremdcode / EAN (scanbar) */
+  ean: string
   /** Diese Instanz ist ein Behälter (erscheint in Container-Listen) */
   is_container: boolean
   location_mode: 'slot' | 'kiste'
@@ -3794,7 +4123,7 @@ const autoGenStart = ref(1)
 const autoGenPad = ref(3)
 const autoGenCount = ref(5)
 const serialAutoGenerateEnabled = ref(false)
-const serialLocationSameForAll = ref(false)
+const serialLocationSameForAll = ref(true)
 const serialAllAsContainers = ref(false)
 
 watch(serialAllAsContainers, (value) => {
@@ -3893,6 +4222,8 @@ function generateSerialNumbers() {
     serial_number: prefix + String(start + i).padStart(pad, '0'),
     label: '',
     notes: '',
+    barcode_tag: '',
+    ean: '',
     is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
@@ -3908,6 +4239,8 @@ function addSerialNumber() {
     serial_number: '',
     label: '',
     notes: '',
+    barcode_tag: '',
+    ean: '',
     is_container: serialAllAsContainers.value,
     location_mode: 'slot',
     storage_address_id: getPreferredStorageAddressId(),
@@ -4334,7 +4667,12 @@ const visibleStepIds = computed<StepId[]>(() => {
     steps.push('tracking')
   }
 
-  // Details & Vermietung (optional) – vor Stock, wenn Material-Typ feststeht; bei Kombi wie Materialwahl erst nach Namen
+  // Bestandseinheit + Lagerplatz + Details + Vermietung (peer-Akkordeons)
+  if (isAddBatchMode.value || (!isFromTemplate.value && creationMode.value === 'individual' && formData.material_type === 'physical' && formData.tracking_type)) {
+    steps.push('stock')
+    steps.push('storage')
+  }
+
   if (
     !isAddBatchMode.value &&
     !isFromTemplate.value &&
@@ -4345,10 +4683,9 @@ const visibleStepIds = computed<StepId[]>(() => {
         !!formData.category_id))
   ) {
     steps.push('details')
-  }
-
-  if (isAddBatchMode.value || (!isFromTemplate.value && creationMode.value === 'individual' && formData.material_type === 'physical' && formData.tracking_type)) {
-    steps.push('stock')
+    if (!formData.is_consumable && !formData.is_food) {
+      steps.push('rental')
+    }
   }
 
   return steps
@@ -4361,18 +4698,23 @@ function nextVisibleStepAfter(from: StepId): StepId | null {
   return steps[i + 1]
 }
 
-/** Nach Wahl der Bestandsverfolgung: Details & Vermietung + Initialer Bestand gleichzeitig sichtbar (nicht nur ein Akkordeon). */
+/** Nach Wahl der Bestandsverfolgung: Bestandseinheit + Lagerplatz + Details (+ Vermietung) gleichzeitig sichtbar. */
 const isDetailsAndStockPairVisible = computed(() => {
-  if (!formData.tracking_type) return false
   const steps = visibleStepIds.value
+  if (steps.includes('stock') && steps.includes('storage')) return true
+  if (!formData.tracking_type) return false
   return steps.includes('details') && steps.includes('stock')
 })
+
+function isDetailsStockRentalGroupStep(step: StepId): boolean {
+  return step === 'details' || step === 'stock' || step === 'storage' || step === 'rental'
+}
 
 function isStepOpen(step: StepId): boolean {
   if (expandAllVisibleSteps.value) {
     return visibleStepIds.value.includes(step)
   }
-  if (isDetailsAndStockPairVisible.value && (step === 'details' || step === 'stock')) {
+  if (isDetailsAndStockPairVisible.value && isDetailsStockRentalGroupStep(step)) {
     return true
   }
   return activeStep.value === step
@@ -4385,7 +4727,7 @@ function toggleStep(step: StepId): void {
     activeStep.value = step
     return
   }
-  if (isDetailsAndStockPairVisible.value && (step === 'details' || step === 'stock')) {
+  if (isDetailsAndStockPairVisible.value && isDetailsStockRentalGroupStep(step)) {
     activeStep.value = step
     return
   }
@@ -4394,6 +4736,8 @@ function toggleStep(step: StepId): void {
 
 function onWizardFormFocusIn(e: FocusEvent) {
   if (expandAllVisibleSteps.value) return
+  // Tour hält den passenden Wizard-Schritt offen (kein Fokus-Sprung auf Kategorie etc.)
+  if (wizardAccordionStepForMaterialTour()) return
   const el = e.target as HTMLElement | null
   if (!el?.closest) return
   const section = el.closest('.step-section[data-step]')
@@ -4577,7 +4921,7 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
     }
     if (formData.split_allocations) {
       if (!allocationSumValid.value || !hasRelevantAllocationRows.value || hasInvalidAllocationRows.value) {
-        push('stock', `${m}.missingAllocationsSum`, {
+        push('storage', `${m}.missingAllocationsSum`, {
           qty: formData.initial_qty,
           unit: wizardStockUnitLabel.value,
         })
@@ -4720,20 +5064,20 @@ const missingSteps = computed((): Array<{ step: StepId; label: string }> => {
           }
         } else if (serializedQty.value > 0) {
           if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-            push('stock', `${m}.missingPickBox`)
+            push('storage', `${m}.missingPickBox`)
           }
           if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-            push('stock', `${m}.missingPickRackSlot`)
+            push('storage', `${m}.missingPickRackSlot`)
           }
         }
       } else {
         const hasStockInput = formData.initial_qty > 0
         if (hasStockInput && !formData.split_allocations) {
           if (formData.stock_location_mode === 'kiste' && !formData.stock_container_batch_id) {
-            push('stock', `${m}.missingPickBox`)
+            push('storage', `${m}.missingPickBox`)
           }
           if (formData.stock_location_mode === 'slot' && (!formData.rack_id || !formData.slot_id)) {
-            push('stock', `${m}.missingPickRackSlot`)
+            push('storage', `${m}.missingPickRackSlot`)
           }
         }
       }
@@ -4908,7 +5252,7 @@ function resetForm(options: { restoreStockPrefs?: boolean } = {}) {
   serialIdCounter = 0
   serialScannerActive.value = false
   serialScannerTargetId.value = null
-  serialLocationSameForAll.value = false
+  serialLocationSameForAll.value = true
   serialAllAsContainers.value = false
   serialAutoGenerateEnabled.value = false
   autoGenPrefix.value = ''
@@ -4955,8 +5299,10 @@ function selectTrackingType(type: 'serialized' | 'bulk') {
   void goToStepAfterTrackingSelected()
 }
 
-/** Nach Wahl „Wie wird der Lagerbestand verfolgt?“: zu „Initialer Bestand“ (nicht „Details & Vermietung“, das davor in der Schrittliste steht). */
+/** Nach Wahl „Wie wird der Lagerbestand verfolgt?“: zu „Bestandseinheit“ (peer mit Lagerplatz / Details / Vermietung). */
 async function goToStepAfterTrackingSelected(): Promise<void> {
+  // Tour hält den Tracking-Schritt offen — sonst scrollt der Abschnitt weg und das Spotlight landet am Header.
+  if (wizardAccordionStepForMaterialTour()) return
   if (isAddBatchMode.value || isFromTemplate.value || creationMode.value !== 'individual') return
   await nextTick()
   const steps = visibleStepIds.value
@@ -5045,6 +5391,8 @@ function checkNameDebounced() {
 
 /** Nach Verlassen des Artikelnamens: Kategorie sofort öffnen (Duplikat-Check läuft parallel). */
 async function maybeOpenCategoryAfterNameBlur(): Promise<void> {
+  // Während Tour-Schritten auf «Allgemeines» nicht wegspringen — sonst falsches Spotlight.
+  if (wizardAccordionStepForMaterialTour() === 'general') return
   if (isAddBatchMode.value) return
   if (isFromTemplate.value) return
   if (
@@ -5445,11 +5793,8 @@ function formatSlotOptionLabel(rackId: string, slot: StorageSlot): string {
 }
 
 function formatRackOptionLabel(rack: StorageRack): string {
-  const preview = (rackPreviewTitles.value[rack.id] || '').trim()
-  if (!preview) return rack.name
-  const oneLine = preview.replace(/\n/g, ' · ')
-  const short = oneLine.length > 72 ? `${oneLine.slice(0, 69)}…` : oneLine
-  return `${rack.name} · ${short}`
+  // Nur Gestellname in der Liste — Inhaltsvorschau bleibt im title-Tooltip (weniger Verwirrung).
+  return rack.name
 }
 
 async function prefetchRackPreview(rackId: string) {
@@ -7023,6 +7368,10 @@ async function handleSubmit() {
     } else {
       // Normaler Modus: Neues Material erstellen
       const resolvedPack = resolveWizardPackFields()
+      // Meter + VE: Stammlänge an Meter/VE anbinden (Charge speichert eigene Länge beim Wareneingang)
+      if (stock_unit.value === 'm' && resolvedPack.pack_size && resolvedPack.pack_size >= 2) {
+        formData.size_length = String(Math.round(resolvedPack.pack_size * 100))
+      }
       const payload: CreateMaterialRequest = {
         department_id: props.departmentId,
         name: applyMaterialUnitSuffixToName(
@@ -7053,6 +7402,7 @@ async function handleSubmit() {
         min_stock: formData.min_stock,
         pack_size: resolvedPack.pack_size,
         pack_unit: resolvedPack.pack_unit,
+        packaging_unit: resolvedPack.packaging_unit,
         pack_sale_price_chf:
           formData.pack_sale_price_chf != null && formData.pack_sale_price_chf > 0
             ? String(formData.pack_sale_price_chf)
@@ -7084,8 +7434,8 @@ async function handleSubmit() {
         // Details (wie in MaterialDetailView)
         description: formData.description || null,
         model: formData.model || null,
-        initial_barcode_tag: formData.barcode_tag || null,
-        initial_ean: formData.ean || null,
+        initial_barcode_tag: formData.tracking_type === 'serialized' ? null : formData.barcode_tag || null,
+        initial_ean: formData.tracking_type === 'serialized' ? null : formData.ean || null,
         weight: normalizeMaterialMetricInput(formData.weight, 'kg'),
         color: formData.color || null,
         size_length: normalizeMaterialMetricInput(formData.size_length, 'cm'),
@@ -7114,6 +7464,8 @@ async function handleSubmit() {
             serial_number: s.serial_number.trim(),
             label: s.label?.trim() || '',
             notes: s.notes || '',
+            barcode_tag: s.barcode_tag?.trim() || null,
+            ean: s.ean?.trim() || null,
             is_container: !!s.is_container,
             ...(serialLocationSameForAll.value
               ? {}
@@ -7314,6 +7666,11 @@ watch(visibleStepIds, (steps) => {
     return
   }
 
+  // Material-Tour: Wizard-Schritt bleibt am Tour-Schritt (kein Auto-Sprung)
+  if (wizardAccordionStepForMaterialTour()) {
+    return
+  }
+
   // Kombi ohne Vorlage: erst Kategorie — nicht erzwingen bei „Combo aus Kiste“ (Name/Label zuerst im Allgemeinen-Block)
   if (
     !expandAllVisibleSteps.value &&
@@ -7387,6 +7744,7 @@ watch(
   () => formData.category_id,
   (id) => {
     if (!id || expandAllVisibleSteps.value || !accordionUserControlled.value || templateLoadInProgress.value) return
+    if (wizardAccordionStepForMaterialTour()) return
     const next = nextVisibleStepAfter('category')
     if (next) activeStep.value = next
   }
@@ -7403,6 +7761,15 @@ watch(() => formData.is_food, (isFood) => {
   formData.tracking_type = 'bulk'
   applyFoodCategoryIfAvailable()
 }, { immediate: true })
+
+/** Verbrauchsmaterial bleibt physischer Einzelartikel; Bestandsverfolgung wählt der User nach Kategorie. */
+watch(
+  () => formData.is_consumable,
+  (isConsumable) => {
+    if (!isConsumable) return
+    formData.material_type = 'physical'
+  },
+)
 
 watch(showExpiryDateForNonFood, (enabled) => {
   if (!enabled && !formData.is_food) {
@@ -7425,11 +7792,14 @@ watch(showCategoryDropdown, async (open) => {
 })
 
 watch(showDialog, (open) => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.toggle('material-wizard-open', open)
+  }
   if (!open) {
     showCategoryDropdown.value = false
     unbindCategoryDropdownPositionListeners()
   }
-})
+}, { immediate: true })
 
 watch(() => formData.split_allocations, (isSplit) => {
   if (isSplit) {
@@ -7503,6 +7873,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (typeof document !== 'undefined') {
+    document.body.classList.remove('material-wizard-open')
+  }
   unbindCategoryDropdownPositionListeners()
 })
 </script>

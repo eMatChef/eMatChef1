@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\Activity;
+use App\Entity\ActivityJsOrder;
 use App\Entity\ActivityVehicle;
 use App\Entity\GroupMembership;
 use App\Entity\Membership;
@@ -213,6 +214,7 @@ class ActivityAccessService
      * Aktivitätenliste im Department:
      * - eigene erstellte Aktivitäten (createdByUserId)
      * - oder Gruppe im gleichen Zweig (eigene Gruppe, Unter- und Elterngruppen)
+     * - oder als J+S-Coach zugewiesen (activity_js_order.js_coach_user_id)
      */
     public function canUserSeeActivityInDepartmentList(User $user, Activity $activity, string $departmentId): bool
     {
@@ -224,6 +226,10 @@ class ActivityAccessService
             return true;
         }
 
+        if ($this->isAssignedJsCoachOnActivity($user, $activity)) {
+            return true;
+        }
+
         $userRootGroupIds = $this->getUserRootGroupIdsInDepartment($user, $departmentId);
         $activityGroupId = trim((string) ($activity->getGroupId() ?? ''));
 
@@ -232,6 +238,21 @@ class ActivityAccessService
         }
 
         return $this->groupHierarchy->isInSameGroupBranch($departmentId, $activityGroupId, $userRootGroupIds);
+    }
+
+    /** Zugewiesener J+S-Coach auf dem Auftrag dieser Aktivität. */
+    public function isAssignedJsCoachOnActivity(User $user, Activity $activity): bool
+    {
+        $order = $this->entityManager->getRepository(ActivityJsOrder::class)->findOneBy([
+            'activityId' => $activity->getId(),
+        ]);
+        if (!$order instanceof ActivityJsOrder) {
+            return false;
+        }
+
+        $coachUserId = trim((string) ($order->getJsCoachUserId() ?? ''));
+
+        return $coachUserId !== '' && $coachUserId === $user->getId();
     }
 
     /**
@@ -477,6 +498,10 @@ class ActivityAccessService
         }
 
         if ($this->isDepartmentWideManager((string) $membership->getRole())) {
+            return true;
+        }
+
+        if ($this->isAssignedJsCoachOnActivity($user, $activity)) {
             return true;
         }
 

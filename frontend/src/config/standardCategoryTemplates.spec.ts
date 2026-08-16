@@ -2,8 +2,22 @@ import { describe, expect, it } from 'vitest'
 import {
   STANDARD_CATEGORY_TREE,
   createDefaultCategoryTemplateSelection,
+  createCategoryTemplateSelectionSkippingExisting,
   hasAnyCategoryTemplateSelected,
+  isTemplateMainExisting,
+  isTemplateSubExisting,
 } from '@/config/standardCategoryTemplates'
+import type { Category } from '@/api/categories'
+
+function cat(partial: Partial<Category> & Pick<Category, 'id' | 'name'>): Category {
+  return {
+    description: null,
+    parent_id: null,
+    sort_order: 0,
+    material_count: 0,
+    ...partial,
+  }
+}
 
 describe('standardCategoryTemplates', () => {
   it('has pioneer and kitchen with children', () => {
@@ -29,5 +43,21 @@ describe('standardCategoryTemplates', () => {
       }
     }
     expect(hasAnyCategoryTemplateSelected(selection)).toBe(false)
+  })
+
+  it('skips existing names in selection and detects them', () => {
+    const existing: Category[] = [
+      cat({ id: 'main1', name: 'Pionier', parent_id: null }),
+      cat({ id: 'sub1', name: 'Werkzeug', parent_id: 'main1' }),
+    ]
+    expect(isTemplateMainExisting(existing, 'Pionier')).toBe(true)
+    expect(isTemplateSubExisting(existing, 'Pionier', 'Werkzeug')).toBe(true)
+    expect(isTemplateSubExisting(existing, 'Pionier', 'Seil')).toBe(false)
+
+    const selection = createCategoryTemplateSelectionSkippingExisting(existing)
+    expect(selection.main['Pionier']).toBe(false)
+    expect(selection.sub['Pionier']?.['Werkzeug']).toBe(false)
+    expect(selection.sub['Pionier']?.['Seil']).toBe(true)
+    expect(selection.main['Küche']).toBe(true)
   })
 })

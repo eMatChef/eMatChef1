@@ -1,5 +1,11 @@
 <template>
-  <div class="department-address-kind-panel" :class="`department-address-kind-panel--${addressKind}`">
+  <div
+    class="department-address-kind-panel"
+    :class="`department-address-kind-panel--${addressKind}`"
+    :data-onboarding="
+      addressKind === 'storage' ? 'settings-dept-storage-panel' : 'settings-dept-billing-panel'
+    "
+  >
     <div class="panel-toolbar">
       <EButton
         v-if="addressKind === 'storage' || filteredAddresses.length === 0"

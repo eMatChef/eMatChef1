@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
  * Department-Rollen mit Basissicht wie «u» (ohne MW/DC-Rechte).
  * L1–L3: gleiche Menüs, Aktivitäten-Filter, Einstellungen — Rechte später per Matrix.
  */
-export const DEPARTMENT_BASIC_MEMBER_ROLES = ['u', 'user', 'coach', 'l1', 'l2', 'l3'] as const
+export const DEPARTMENT_BASIC_MEMBER_ROLES = ['u', 'user', 'l1', 'l2', 'l3'] as const
 
 /** MW/DC — u. a. Fixe Daten verwalten und sehen. */
 export const DEPARTMENT_MW_DC_ROLES = ['mw', 'matwart', 'dc', 'depchef'] as const

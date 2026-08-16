@@ -187,6 +187,7 @@ export type JsMaterialDeliveryType = 'franko' | 'pickup_thun'
 
 /** Department-Defaults für J+S-Bestellformular (Camp/Event) */
 export interface JsMaterialDepartmentDefaults {
+  defaultCoachUserId: string
   defaultCoachPersonNr: string
   defaultCoachFirstName: string
   defaultCoachLastName: string
@@ -195,6 +196,7 @@ export interface JsMaterialDepartmentDefaults {
 }
 
 export const DEFAULT_JS_MATERIAL_SETTINGS: JsMaterialDepartmentDefaults = {
+  defaultCoachUserId: '',
   defaultCoachPersonNr: '',
   defaultCoachFirstName: '',
   defaultCoachLastName: '',
@@ -208,6 +210,7 @@ export async function getJsMaterialDepartmentDefaults(
   const raw = await getDepartmentSettingsGroup(departmentId, 'js')
   const delivery = String(raw['js.default_delivery_type'] || 'franko').trim()
   return {
+    defaultCoachUserId: String(raw['js.default_coach_user_id'] || '').trim(),
     defaultCoachPersonNr: String(raw['js.default_coach_person_nr'] || '').trim(),
     defaultCoachFirstName: String(raw['js.default_coach_first_name'] || '').trim(),
     defaultCoachLastName: String(raw['js.default_coach_last_name'] || '').trim(),
@@ -223,6 +226,7 @@ export async function saveJsMaterialDepartmentDefaults(
   const delivery: JsMaterialDeliveryType =
     settings.defaultDeliveryType === 'pickup_thun' ? 'pickup_thun' : 'franko'
   return updateDepartmentSettings(departmentId, {
+    'js.default_coach_user_id': settings.defaultCoachUserId.trim(),
     'js.default_coach_person_nr': settings.defaultCoachPersonNr.trim(),
     'js.default_coach_first_name': settings.defaultCoachFirstName.trim(),
     'js.default_coach_last_name': settings.defaultCoachLastName.trim(),

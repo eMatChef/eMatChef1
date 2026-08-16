@@ -4,7 +4,7 @@ namespace App\Enum;
 
 /**
  * Department Rollen - Hierarchische Struktur
- * 
+ *
  * Hierarchie (von oben nach unten):
  * 1. superadmin          - Chef über alles
  * 2. organisationschef   - Über seine Organisation und untere Departments
@@ -14,41 +14,32 @@ namespace App\Enum;
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
  * 8. leader3             - Hierarchische Leiter-Funktion (Ebene 3)
- * 9. coach               - J+S-Standard-Coach (Rechte wie User)
- * 10. user               - Basis-User
+ * 9. user                - Basis-User
+ *
+ * J+S-Coach ist kein Rollenwert, sondern Flag membership.is_js_coach.
  */
 enum DepartmentRole: string
 {
-    case SUPERADMIN = 'sa';           // superadmin
-    case ORGANISATIONSCHEF = 'org';   // organisationschef
-    case SUBORGCHEF = 'sub';          // suborgchef
-    case MATWART = 'mw';              // matwart
-    case DEPCHEF = 'dc';              // depchef
-    case LEADER1 = 'l1';              // leader1
-    case LEADER2 = 'l2';              // leader2
-    case LEADER3 = 'l3';              // leader3
-    case COACH = 'coach';             // J+S default coach (wie user)
-    case USER = 'u';                  // user
+    case SUPERADMIN = 'sa';
+    case ORGANISATIONSCHEF = 'org';
+    case SUBORGCHEF = 'sub';
+    case MATWART = 'mw';
+    case DEPCHEF = 'dc';
+    case LEADER1 = 'l1';
+    case LEADER2 = 'l2';
+    case LEADER3 = 'l3';
+    case USER = 'u';
 
-    /**
-     * Gibt alle verfügbaren Rollen zurück
-     */
     public static function all(): array
     {
         return array_map(fn($case) => $case->value, self::cases());
     }
 
-    /**
-     * Prüft ob eine Rolle gültig ist
-     */
     public static function isValid(string $role): bool
     {
         return in_array($role, self::all(), true);
     }
 
-    /**
-     * Gibt die Hierarchie-Ebene zurück (0 = höchste, 8 = niedrigste)
-     */
     public function getLevel(): int
     {
         return match($this) {
@@ -60,29 +51,19 @@ enum DepartmentRole: string
             self::LEADER1 => 4,
             self::LEADER2 => 5,
             self::LEADER3 => 6,
-            self::COACH => 7,
             self::USER => 7,
         };
     }
 
-    /**
-     * Prüft ob diese Rolle eine andere Rolle verwalten kann
-     * Eine Rolle kann nur Rollen verwalten, die unter ihr in der Hierarchie stehen
-     */
     public function canManageRole(DepartmentRole $otherRole): bool
     {
-        // Superadmin kann alles verwalten
         if ($this === self::SUPERADMIN) {
             return true;
         }
 
-        // Eine Rolle kann nur Rollen verwalten, die eine höhere Level-Nummer haben (also tiefer in der Hierarchie)
         return $this->getLevel() < $otherRole->getLevel();
     }
 
-    /**
-     * Gibt alle Rollen zurück, die diese Rolle verwalten kann
-     */
     public function getManageableRoles(): array
     {
         if ($this === self::SUPERADMIN) {
@@ -95,9 +76,6 @@ enum DepartmentRole: string
         );
     }
 
-    /**
-     * Gibt die Symfony ROLE_* Konstante zurück
-     */
     public function toSymfonyRole(): string
     {
         return match($this) {
@@ -109,14 +87,10 @@ enum DepartmentRole: string
             self::LEADER1 => 'ROLE_LEADER1',
             self::LEADER2 => 'ROLE_LEADER2',
             self::LEADER3 => 'ROLE_LEADER3',
-            self::COACH => 'ROLE_USER',
             self::USER => 'ROLE_USER',
         };
     }
 
-    /**
-     * Gibt den vollständigen Namen der Rolle zurück (für Anzeige)
-     */
     public function getFullName(): string
     {
         return match($this) {
@@ -128,14 +102,10 @@ enum DepartmentRole: string
             self::LEADER1 => 'leader1',
             self::LEADER2 => 'leader2',
             self::LEADER3 => 'leader3',
-            self::COACH => 'coach',
             self::USER => 'user',
         };
     }
 
-    /**
-     * Gibt die Anzeige-Bezeichnung zurück
-     */
     public function getLabel(): string
     {
         return match($this) {
@@ -147,7 +117,6 @@ enum DepartmentRole: string
             self::LEADER1 => 'Leader 1',
             self::LEADER2 => 'Leader 2',
             self::LEADER3 => 'Leader 3',
-            self::COACH => 'Coach',
             self::USER => 'User',
         };
     }
