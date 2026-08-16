@@ -53,7 +53,10 @@
               <div class="tour-body">
                 <span class="tour-title">{{ t(tour.titleKey) }}</span>
                 <p class="tour-desc">{{ t(tour.descriptionKey) }}</p>
-                <span v-if="isTourDone(tour.id)" class="tour-status tour-status--done">
+                <span v-if="tour.optional && !isTourDone(tour.id)" class="tour-status tour-status--optional">
+                  {{ t('onboarding.tours.statusOptional') }}
+                </span>
+                <span v-else-if="isTourDone(tour.id)" class="tour-status tour-status--done">
                   {{ t('onboarding.tours.statusDone') }}
                 </span>
                 <span v-else-if="isTourLocked(tour.id)" class="tour-status tour-status--locked">
@@ -230,14 +233,15 @@ function needsApprovedActivity(tourId: OnboardingTourId): boolean {
 
 function isTourLocked(tourId: OnboardingTourId): boolean {
   if (isTourDone(tourId)) return false
-  if (needsApprovedActivity(tourId) && !hasApprovedActivityOrCamp.value) return true
-  return missingPrereqs(tourId).length > 0
+  if (missingPrereqs(tourId).length > 0) return true
+  // Pack-Tour: Sandbox ensure beim Start setzt Camp auf approved — Create-Tour reicht als Freigabe-Ersatz
+  if (needsApprovedActivity(tourId) && !hasApprovedActivityOrCamp.value) {
+    return false
+  }
+  return false
 }
 
 function lockedHint(tourId: OnboardingTourId): string {
-  if (needsApprovedActivity(tourId) && !hasApprovedActivityOrCamp.value) {
-    return t('onboarding.tours.lockedRequiresApprovedActivity')
-  }
   const missing = missingPrereqs(tourId)
   const first = missing[0] ? getOnboardingTour(missing[0]) : undefined
   if (!first) return t('onboarding.tours.lockedGeneric')
@@ -364,6 +368,10 @@ function startTour(tourId: OnboardingTourId) {
 
 .tour-status--locked {
   color: #b45309;
+}
+
+.tour-status--optional {
+  color: #0369a1;
 }
 
 @media (min-width: 600px) {

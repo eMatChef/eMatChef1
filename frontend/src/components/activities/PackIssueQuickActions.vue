@@ -43,7 +43,11 @@ const showConsumptionButton = computed(() => props.showConsumption !== false)
 </script>
 
 <template>
-  <div class="pack-card-issue-quick-row" :class="{ 'pack-card-issue-quick-row--compact': compact }">
+  <div
+    class="pack-card-issue-quick-row"
+    :class="{ 'pack-card-issue-quick-row--compact': compact }"
+    data-onboarding="activity-pack-issue-actions"
+  >
     <PackConsumableQuickRow
       v-if="isConsumable && useInlineConsumption && materialItemId"
       :material-item-id="materialItemId"

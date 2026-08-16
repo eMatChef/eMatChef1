@@ -48,6 +48,9 @@
           <p v-if="expectsTargetClick" class="onboarding-tour__hint">
             {{ t('onboarding.tours.clickTargetHint') }}
           </p>
+          <p v-else-if="showSandboxHint" class="onboarding-tour__hint onboarding-tour__hint--sandbox">
+            {{ t('onboarding.tours.sandboxHint') }}
+          </p>
           <footer class="onboarding-tour__footer">
             <EButton
               variant="text"
@@ -148,6 +151,10 @@ const showCompletionCtas = computed(
     isLastStep.value &&
     !expectsTargetClick.value &&
     (activeTour.value?.completionCtas?.length ?? 0) > 0,
+)
+
+const showSandboxHint = computed(
+  () => activeTour.value?.category === 'activities' && !expectsTargetClick.value,
 )
 
 /** Optional-Tour (z. B. Esswaren): letzter Schritt → «Tour erledigt» statt Abbruch. */
@@ -359,8 +366,29 @@ const cardStyle = computed(() => {
     }
   }
 
-  // Dialoge / hohe Spotlights: Tour-Karte rechts mittig, Spotlight bleibt frei
-  if (activeStep.value?.cardPlacement === 'right-middle' || activeStep.value?.tallSpotlight) {
+  if (
+    activeStep.value?.cardPlacement === 'bottom-center' ||
+    // Hohe Spotlights: Karte unten mittig, damit der Inhalt im Loch lesbar bleibt
+    (activeStep.value?.tallSpotlight &&
+      (!activeStep.value?.cardPlacement || activeStep.value?.cardPlacement === 'auto'))
+  ) {
+    const edge = CARD_EDGE_INSET
+    const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - edge * 2))
+    return {
+      top: 'auto',
+      left: '50%',
+      right: 'auto',
+      bottom: `${edge}px`,
+      transform: 'translateX(-50%)',
+      width: `${width}px`,
+      maxWidth: `calc(100vw - ${edge * 2}px)`,
+      maxHeight: `calc(100vh - ${edge * 2}px)`,
+      overflowY: 'auto',
+    }
+  }
+
+  // Dialoge: Tour-Karte rechts mittig, Spotlight bleibt frei
+  if (activeStep.value?.cardPlacement === 'right-middle') {
     const edge = CARD_EDGE_INSET
     const width = Math.min(CARD_WIDTH, Math.max(280, viewportW - edge * 2))
     return {

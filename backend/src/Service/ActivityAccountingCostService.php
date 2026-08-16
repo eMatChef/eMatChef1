@@ -30,6 +30,11 @@ class ActivityAccountingCostService
      */
     public function syncActivityAccountingFollowUps(Activity $activity): void
     {
+        // Übungs-/Demo-Aktivitäten: keine Buchhaltungs-Aufträge und keine Accounting-Inbox
+        if ($activity->isOnboardingSandbox()) {
+            return;
+        }
+
         if (!in_array($activity->getStatus(), [
             Activity::STATUS_RETURNED,
             Activity::STATUS_STORING,
@@ -56,7 +61,7 @@ class ActivityAccountingCostService
     public function enqueueFromWorkshopTicket(WorkshopTicket $ticket): void
     {
         $activity = $ticket->getActivity();
-        if ($activity === null) {
+        if ($activity === null || $activity->isOnboardingSandbox()) {
             return;
         }
         $this->syncWorkshopFollowUps($activity);

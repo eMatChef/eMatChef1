@@ -240,6 +240,10 @@ class MaterialItem
     #[ORM\Column(name: 'deleted_at', type: 'datetime', nullable: true)]
     private ?\DateTime $deletedAt = null;
 
+    /** Onboarding Hybrid-Sandbox: Kit-Material */
+    #[ORM\Column(name: 'onboarding_sandbox', type: 'boolean', options: ['default' => false])]
+    private bool $onboardingSandbox = false;
+
     #[ORM\OneToMany(mappedBy: 'materialItem', targetEntity: MaterialBatch::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $batches;
 
@@ -655,6 +659,17 @@ class MaterialItem
     public function setDeletedAt(?\DateTime $deletedAt): self
     {
         $this->deletedAt = $deletedAt;
+        return $this;
+    }
+
+    public function isOnboardingSandbox(): bool
+    {
+        return $this->onboardingSandbox;
+    }
+
+    public function setOnboardingSandbox(bool $onboardingSandbox): self
+    {
+        $this->onboardingSandbox = $onboardingSandbox;
         return $this;
     }
 

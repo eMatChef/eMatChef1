@@ -81,7 +81,7 @@ export interface OnboardingTourStepDef {
   /**
    * Tour-Karte fest positionieren (z. B. bei sehr grossem Spotlight, damit sie nicht abgeschnitten wird).
    */
-  cardPlacement?: 'auto' | 'bottom-right' | 'right-middle' | 'bottom-left'
+  cardPlacement?: 'auto' | 'bottom-right' | 'bottom-center' | 'right-middle' | 'bottom-left'
   /**
    * Vor «Weiter»: diese Elemente nacheinander klicken (z. B. Modal Abbrechen/Schliessen),
    * damit der nächste Schritt sichtbar wird.
@@ -101,6 +101,14 @@ export interface OnboardingTourStepDef {
    * Beim Betreten des Schritts einmal klicken (z. B. Status-Filter «Eingereicht»).
    */
   clickOnEnter?: string
+  /**
+   * Beim Betreten Fokus auf dieses Input (z. B. Materialsuche).
+   */
+  focusOnEnter?: string
+  /**
+   * Text in focusOnEnter (oder target) tippen und Input-Event feuern — öffnet z. B. Material-Dropdown.
+   */
+  typeIntoOnEnter?: string
   titleKey: string
   bodyKey: string
   /** Optional: i18n-Key auf string[] — strukturierte Bullet-Punkte unter dem Body. */
@@ -143,6 +151,11 @@ export interface OnboardingTourDef {
    * Letzter Schritt: «Tour erledigt» statt «Tour beenden» (markiert als erledigt).
    */
   browseComplete?: boolean
+  /**
+   * Tour ist empfohlen im Block (z. B. Freigabe bei Sandbox-Auto-Approve).
+   * Wird im Hub als überspringbar gekennzeichnet; blockiert nachfolgende Touren nicht.
+   */
+  optional?: boolean
   steps: OnboardingTourStepDef[]
 }
 
@@ -642,7 +655,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-create',
     category: 'activities',
-    version: 13,
+    version: 14,
     audience: 'all',
     requiresCompletedTours: ['material-create', 'material-consumable'],
     routeName: 'Activities',
@@ -703,6 +716,8 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         scroll: 'start',
         cardPlacement: 'bottom-right',
         tallSpotlight: true,
+        focusOnEnter: '[data-onboarding="activity-create-material-search"]',
+        typeIntoOnEnter: 'Onboarding',
         titleKey: 'onboarding.tours.activityCreate.step6Title',
         bodyKey: 'onboarding.tours.activityCreate.step6Body',
       },
@@ -739,7 +754,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-camp-create',
     category: 'activities',
-    version: 11,
+    version: 12,
     audience: 'all',
     requiresCampCreate: true,
     requiresCompletedTours: ['material-create', 'material-consumable'],
@@ -909,6 +924,8 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         scroll: 'start',
         cardPlacement: 'bottom-right',
         tallSpotlight: true,
+        focusOnEnter: '[data-onboarding="activity-create-material-search"]',
+        typeIntoOnEnter: 'Onboarding',
         advanceOnClick: '[data-onboarding="activity-wizard-next"]',
         advanceWhenVisible: '[data-onboarding="activity-camp-overview"]',
         advanceToStepId: '18',
@@ -990,10 +1007,11 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'activity-approve',
     category: 'activities',
-    version: 7,
+    version: 8,
     audience: 'leader',
     requiresCampCreate: true,
     requiresCompletedTours: ['activity-camp-create'],
+    optional: true,
     routeName: 'Activities',
     titleKey: 'onboarding.tours.activityApprove.title',
     descriptionKey: 'onboarding.tours.activityApprove.description',
@@ -1024,7 +1042,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         target: '[data-onboarding="activity-detail-period"]',
         mode: 'waitFor',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.activityApprove.step3Title',
         bodyKey: 'onboarding.tours.activityApprove.step3Body',
@@ -1035,7 +1053,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         clickOnEnter: '[data-onboarding="activity-detail-material-tab"]',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.activityApprove.step4Title',
         bodyKey: 'onboarding.tours.activityApprove.step4Body',
@@ -1052,7 +1070,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'issue-return',
     category: 'activities',
-    version: 7,
+    version: 8,
     audience: 'mw',
     requiresAnyCompletedTours: ['activity-create', 'activity-camp-create'],
     requiresApprovedActivityOrCamp: true,
@@ -1097,7 +1115,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         target: '[data-onboarding="activity-detail-period"]',
         mode: 'waitFor',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.issueReturn.step3Title',
         bodyKey: 'onboarding.tours.issueReturn.step3Body',
@@ -1108,7 +1126,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         clickOnEnter: '[data-onboarding="activity-detail-material-tab"]',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.issueReturn.step4Title',
         bodyKey: 'onboarding.tours.issueReturn.step4Body',
@@ -1126,7 +1144,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         clickOnEnter: '[data-onboarding="activity-detail-packs-tab"]',
         scroll: 'start',
-        cardPlacement: 'bottom-right',
+        cardPlacement: 'bottom-center',
         titleKey: 'onboarding.tours.issueReturn.step6Title',
         bodyKey: 'onboarding.tours.issueReturn.step6Body',
       },
@@ -1136,7 +1154,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         clickOnEnter: '[data-onboarding="activity-detail-packs-tab"]',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.issueReturn.step7Title',
         bodyKey: 'onboarding.tours.issueReturn.step7Body',
@@ -1147,7 +1165,7 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
         mode: 'waitFor',
         clickOnEnter: '[data-onboarding="activity-detail-packs-tab"]',
         scroll: 'start',
-        cardPlacement: 'right-middle',
+        cardPlacement: 'bottom-center',
         tallSpotlight: true,
         titleKey: 'onboarding.tours.issueReturn.step8Title',
         bodyKey: 'onboarding.tours.issueReturn.step8Body',
@@ -1163,37 +1181,78 @@ export const ONBOARDING_TOURS: OnboardingTourDef[] = [
   {
     id: 'issue-handoff',
     category: 'activities',
-    version: 1,
+    version: 6,
     audience: 'mw',
     requiresCompletedTours: ['issue-return'],
     routeName: 'Activities',
     titleKey: 'onboarding.tours.issueHandoff.title',
     descriptionKey: 'onboarding.tours.issueHandoff.description',
     mdiIcon: 'mdi-swap-horizontal',
+    browseComplete: true,
+    completionCtas: [
+      {
+        labelKey: 'onboarding.tours.issueHandoff.ctaStay',
+        action: 'stay',
+      },
+      {
+        labelKey: 'onboarding.tours.issueHandoff.ctaMoreTours',
+        action: 'helpTours',
+      },
+    ],
     steps: [
       {
         id: '1',
-        mode: 'info',
+        target: '[data-onboarding="activities-packing-filter"]',
+        mode: 'waitFor',
+        clickOnEnter: '[data-onboarding="activities-packing-filter"]',
         titleKey: 'onboarding.tours.issueHandoff.step1Title',
         bodyKey: 'onboarding.tours.issueHandoff.step1Body',
       },
       {
         id: '2',
-        mode: 'info',
+        target: '[data-onboarding="activities-packing-row"]',
+        mode: 'waitFor',
+        dismissOnNext: ['[data-onboarding="activities-packing-row"]'],
+        waitVisibleOnNext: '[data-onboarding="activity-detail-root"]',
+        advanceOnClick: '[data-onboarding="activities-packing-row"]',
+        advanceWhenVisible: '[data-onboarding="activity-detail-root"]',
+        advanceToStepId: '3',
         titleKey: 'onboarding.tours.issueHandoff.step2Title',
         bodyKey: 'onboarding.tours.issueHandoff.step2Body',
       },
       {
         id: '3',
-        mode: 'info',
+        target: '[data-onboarding="activity-pack-step-issue"]',
+        mode: 'click',
+        clickOnEnter: '[data-onboarding="activity-detail-packs-tab"]',
+        // «Weiter» ohne Klick: trotzdem Ausleihen öffnen
+        dismissOnNext: ['[data-onboarding="activity-pack-step-issue"]'],
+        scroll: 'start',
+        cardPlacement: 'bottom-center',
         titleKey: 'onboarding.tours.issueHandoff.step3Title',
         bodyKey: 'onboarding.tours.issueHandoff.step3Body',
       },
       {
         id: '4',
-        mode: 'info',
+        target: '[data-onboarding="activity-pack-issue-actions"]',
+        mode: 'waitFor',
+        clickOnEnter: '[data-onboarding="activity-pack-step-issue"]',
+        scroll: 'start',
+        cardPlacement: 'bottom-center',
+        tallSpotlight: true,
         titleKey: 'onboarding.tours.issueHandoff.step4Title',
         bodyKey: 'onboarding.tours.issueHandoff.step4Body',
+      },
+      {
+        id: '5',
+        target: '[data-onboarding="activity-pack-step-return"]',
+        mode: 'click',
+        clickOnEnter: '[data-onboarding="activity-pack-step-return"]',
+        dismissOnNext: ['[data-onboarding="activity-pack-step-return"]'],
+        scroll: 'start',
+        cardPlacement: 'bottom-center',
+        titleKey: 'onboarding.tours.issueHandoff.step5Title',
+        bodyKey: 'onboarding.tours.issueHandoff.step5Body',
       },
     ],
   },
@@ -1857,6 +1916,17 @@ export function isAcceptPackTourListCandidate(
   if (t === 'camp' || t === 'event') return s === 'approved'
   if (t === 'activity') return s === 'approved' || s === 'submitted'
   return false
+}
+
+/** Liste in der Handoff-Tour: gepackte / am Event (Ausgabe & Retour). */
+export function isHandoffTourListCandidate(
+  type: string | null | undefined,
+  status: string | null | undefined
+): boolean {
+  const t = String(type || '').toLowerCase()
+  const s = String(status || '').toLowerCase()
+  if (t !== 'activity' && t !== 'camp' && t !== 'event') return false
+  return s === 'packed' || s === 'transport_out' || s === 'at_event'
 }
 
 /** Sortier-Rang für Pack-Tour: Camp vor Event vor Aktivität. */

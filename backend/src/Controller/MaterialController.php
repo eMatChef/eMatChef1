@@ -21,6 +21,7 @@ use App\Entity\StorageRack;
 use App\Entity\StorageSlot;
 use App\Entity\User;
 use App\Service\JsDotationRulesService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\JsLeihkatalogCatalogService;
 use App\Service\JsPdfCatalogSyncService;
 use App\Service\Material\MaterialItemPhotoService;
@@ -73,6 +74,9 @@ class MaterialController extends AbstractController
             ->leftJoin('m.storageAddress', 's')
             ->andWhere('m.deletedAt IS NULL')
             ->orderBy('m.name', 'ASC');
+
+        $includeSandbox = OnboardingSandboxVisibility::includeFromRequest($request);
+        $qb->andWhere(OnboardingSandboxVisibility::kitListConstraint('m', $includeSandbox));
 
         if (!in_array($materialSource, ['internal', 'js', 'all'], true)) {
             $materialSource = 'internal';

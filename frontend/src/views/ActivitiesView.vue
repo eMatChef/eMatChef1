@@ -173,9 +173,9 @@
               :group-path-lines="getActivityGroupPathLines"
               :share-hint="getActivityShareHint"
               :share-status="getActivityShareStatus"
-              :open-on-row-click="statusFilter === 'submitted' || isPackTourActive"
+              :open-on-row-click="statusFilter === 'submitted' || isPackOrHandoffTourActive"
               :mark-first-submitted-for-tour="isApproveTourActive"
-              :mark-first-packing-for-tour="isPackTourActive"
+              :mark-first-packing-for-tour="isPackOrHandoffTourActive"
               @open="openActivityDetail"
               @select="selectedActivityId = $event"
               @sort="onTableSort"
@@ -189,7 +189,7 @@
               :period-label="(a) => formatPeriodCompact(a.usageStart, a.usageEnd)"
               :group-path-lines="getActivityGroupPathLines"
               :mark-first-submitted-for-tour="isApproveTourActive"
-              :mark-first-packing-for-tour="isPackTourActive"
+              :mark-first-packing-for-tour="isPackOrHandoffTourActive"
               @open="openActivityDetail"
             />
           </template>
@@ -241,6 +241,7 @@ import {
   ONBOARDING_TOUR_STEP_QUERY,
   acceptPackTourTypeRank,
   isAcceptPackTourListCandidate,
+  isHandoffTourListCandidate,
 } from '@/config/onboardingTours'
 
 const route = useRoute()
@@ -259,6 +260,12 @@ const isApproveTourActive = computed(
 )
 const isPackTourActive = computed(
   () => route.query[ONBOARDING_TOUR_QUERY] === 'issue-return',
+)
+const isHandoffTourActive = computed(
+  () => route.query[ONBOARDING_TOUR_QUERY] === 'issue-handoff',
+)
+const isPackOrHandoffTourActive = computed(
+  () => isPackTourActive.value || isHandoffTourActive.value,
 )
 const departmentId = computed(() => route.params.departmentId as string)
 const isPackJourneyRoute = computed(() => route.name === 'ActivityPackJourney')
@@ -376,6 +383,7 @@ function mapActivityListItem(a: Record<string, unknown>): ActivityListItem {
       a.js_list_phase === 'draft' || a.js_list_phase === 'coach' || a.js_list_phase === 'return'
         ? a.js_list_phase
         : null,
+    onboardingSandbox: a.onboarding_sandbox === true,
     createdAt: String(a.created_at ?? ''),
     updatedAt: String(a.updated_at ?? ''),
   }
@@ -436,6 +444,14 @@ useDepartmentLiveRefresh({
   isBusy: () =>
     showCreateActivityWizard.value || (isLoading.value && activities.value.length === 0),
 })
+
+/** Tour start/stop: Liste neu laden (Sandbox-Include via API-Interceptor). */
+watch(
+  () => route.query[ONBOARDING_TOUR_QUERY],
+  () => {
+    if (departmentId.value) void loadActivities({ silent: true })
+  },
+)
 
 function isOpenActivity(a: ActivityListItem): boolean {
   return a.status !== 'completed' && a.status !== 'cancelled'
@@ -513,6 +529,17 @@ watch(
   { immediate: true },
 )
 
+watch(
+  isHandoffTourActive,
+  (on) => {
+    if (!on || activityRouteId.value) return
+    activeTab.value = 'all'
+    statusFilter.value = 'in_progress'
+    activeTypeFilter.value = ''
+  },
+  { immediate: true },
+)
+
 const filteredActivities = computed(() => {
   let result = activities.value
 
@@ -525,6 +552,8 @@ const filteredActivities = computed(() => {
   // Pack-Tour: annehmbare Lager/Events + Aktivitäten (Statusfilter «In Bearbeitung» nur UI)
   if (isPackTourActive.value) {
     result = result.filter((a) => isAcceptPackTourListCandidate(a.type, a.status))
+  } else if (isHandoffTourActive.value) {
+    result = result.filter((a) => isHandoffTourListCandidate(a.type, a.status))
   } else if (activeTab.value === 'all' && statusFilter.value) {
     result = result.filter((a) => matchesStatusFilter(a, statusFilter.value))
   }
@@ -544,7 +573,11 @@ const filteredActivities = computed(() => {
   }
 
   result = [...result].sort((a, b) => {
-    if (isPackTourActive.value) {
+    if (isPackOrHandoffTourActive.value || isApproveTourActive.value) {
+      const sandboxCmp = Number(!!b.onboardingSandbox) - Number(!!a.onboardingSandbox)
+      if (sandboxCmp !== 0) return sandboxCmp
+    }
+    if (isPackTourActive.value || isHandoffTourActive.value) {
       const typeCmp = acceptPackTourTypeRank(a.type) - acceptPackTourTypeRank(b.type)
       if (typeCmp !== 0) return typeCmp
     }

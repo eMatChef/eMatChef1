@@ -21,6 +21,11 @@ import {
 } from '@/utils/activityPlanningUsageConstraint'
 import { pickUserHomeGroupId } from '@/utils/groupHierarchy'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { ONBOARDING_TOUR_QUERY } from '@/config/onboardingTours'
+import {
+  ONBOARDING_DEMO_ACTIVITY_NAME,
+  ONBOARDING_DEMO_CAMP_NAME,
+} from '@/api/onboardingSandbox'
 
 export type ActivityCreateType = 'activity' | 'camp' | 'event' | 'external'
 
@@ -472,6 +477,17 @@ export function useActivityCreateWizard() {
     wizardStepIndex.value = 0
     if (previous !== null) {
       formName.value = ''
+    }
+    // Onboarding Create-Tour: Demo-Namen vorbefüllen
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const tour = params.get(ONBOARDING_TOUR_QUERY)
+      if (tour === 'activity-create' && t === 'activity' && !formName.value.trim()) {
+        formName.value = ONBOARDING_DEMO_ACTIVITY_NAME
+      }
+      if (tour === 'activity-camp-create' && (t === 'camp' || t === 'event') && !formName.value.trim()) {
+        formName.value = ONBOARDING_DEMO_CAMP_NAME
+      }
     }
     if (t === 'activity' || t === 'camp' || t === 'event') {
       selectedGroupId.value = pickDefaultGroup(

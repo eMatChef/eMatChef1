@@ -212,6 +212,7 @@ final class AccountingActivityInvoiceService
             SELECT DISTINCT a.id AS activity_id
             FROM activity a
             WHERE a.deleted_at IS NULL
+              AND COALESCE(a.onboarding_sandbox, false) = false
               AND (
                 EXISTS (
                   SELECT 1 FROM accounting_acquisition_follow_up f
@@ -241,7 +242,7 @@ final class AccountingActivityInvoiceService
                 continue;
             }
             $activity = $this->entityManager->find(Activity::class, $id);
-            if (!$activity instanceof Activity || $activity->isDeleted()) {
+            if (!$activity instanceof Activity || $activity->isDeleted() || $activity->isOnboardingSandbox()) {
                 continue;
             }
             $invoice = $this->buildForActivity($activity);

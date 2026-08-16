@@ -27,6 +27,8 @@ export interface ActivityListItem {
   totalPrice?: number
   wantsJsMaterial?: boolean
   jsListPhase?: JsListPhase | null
+  /** Onboarding Hybrid-Sandbox Übungsfall */
+  onboardingSandbox?: boolean
   createdAt: string
   updatedAt: string
 }

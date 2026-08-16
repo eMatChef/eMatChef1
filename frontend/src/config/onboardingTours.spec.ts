@@ -6,6 +6,7 @@ import {
   getMissingTourPrerequisites,
   isActivityReadyForIssueTour,
   isAcceptPackTourListCandidate,
+  isHandoffTourListCandidate,
   acceptPackTourTypeRank,
   ONBOARDING_TOUR_CATEGORY_ORDER,
 } from '@/config/onboardingTours'
@@ -106,7 +107,7 @@ describe('onboarding tour audience filter', () => {
   it('issue-return is pack-only for mw with approved data gate', () => {
     const tour = getOnboardingTour('issue-return')!
     expect(tour.audience).toBe('mw')
-    expect(tour.version).toBeGreaterThanOrEqual(7)
+    expect(tour.version).toBeGreaterThanOrEqual(8)
     expect(tour.steps.length).toBeGreaterThanOrEqual(9)
     expect(tour.browseComplete).toBe(true)
     expect(tour.requiresApprovedActivityOrCamp).toBe(true)
@@ -119,8 +120,27 @@ describe('onboarding tour audience filter', () => {
     expect(tour.steps.some((s) => s.target?.includes('activity-pack-list'))).toBe(true)
   })
 
+  it('activity-approve is optional (sandbox auto-approves demo camp)', () => {
+    const tour = getOnboardingTour('activity-approve')!
+    expect(tour.optional).toBe(true)
+    expect(tour.requiresCompletedTours).toContain('activity-camp-create')
+  })
+
   it('chains handoff → store (mw/dc) → close (dc) / workshop (mw)', () => {
-    expect(getOnboardingTour('issue-handoff')!.requiresCompletedTours).toContain('issue-return')
+    const handoff = getOnboardingTour('issue-handoff')!
+    expect(handoff.requiresCompletedTours).toContain('issue-return')
+    expect(handoff.version).toBeGreaterThanOrEqual(6)
+    expect(handoff.browseComplete).toBe(true)
+    expect(handoff.steps.length).toBeGreaterThanOrEqual(5)
+    expect(handoff.steps.some((s) => s.target?.includes('activities-packing-filter'))).toBe(true)
+    expect(handoff.steps.some((s) => s.target?.includes('activities-packing-row'))).toBe(true)
+    expect(handoff.steps.some((s) => s.mode === 'click' && s.target?.includes('activity-pack-step-issue'))).toBe(
+      true,
+    )
+    expect(handoff.steps.some((s) => s.target?.includes('activity-pack-issue-actions'))).toBe(true)
+    expect(handoff.steps.some((s) => s.mode === 'click' && s.target?.includes('activity-pack-step-return'))).toBe(
+      true,
+    )
     expect(getOnboardingTour('activity-store')!.requiresCompletedTours).toContain('issue-handoff')
     expect(getOnboardingTour('activity-store')!.audience).toBe('mw')
     expect(getOnboardingTour('activity-close')!.requiresCompletedTours).toContain('activity-store')
@@ -140,6 +160,13 @@ describe('onboarding tour audience filter', () => {
     expect(isAcceptPackTourListCandidate('activity', 'submitted')).toBe(true)
     expect(isAcceptPackTourListCandidate('activity', 'approved')).toBe(true)
     expect(acceptPackTourTypeRank('camp')).toBeLessThan(acceptPackTourTypeRank('activity'))
+  })
+
+  it('handoff tour list shows packed / at_event candidates', () => {
+    expect(isHandoffTourListCandidate('camp', 'packed')).toBe(true)
+    expect(isHandoffTourListCandidate('activity', 'at_event')).toBe(true)
+    expect(isHandoffTourListCandidate('camp', 'approved')).toBe(false)
+    expect(isHandoffTourListCandidate('external', 'packed')).toBe(false)
   })
 
   it('profile-overview uses user avatar and start category', () => {

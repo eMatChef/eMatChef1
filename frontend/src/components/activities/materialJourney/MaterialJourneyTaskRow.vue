@@ -258,6 +258,7 @@ function onRowClick(): void {
         v-if="showWetReturnControl"
         type="button"
         class="material-journey-task-row__wet-btn"
+        data-onboarding="activity-pack-wet-return"
         :class="{ 'material-journey-task-row__wet-btn--active': wetReturnActive }"
         :aria-pressed="wetReturnActive"
         :aria-label="t('activities.packList.returnCrateModalWetToggle')"
