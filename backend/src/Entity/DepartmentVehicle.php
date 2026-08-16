@@ -45,6 +45,10 @@ class DepartmentVehicle
     #[ORM\Column(name: 'is_active', type: 'boolean', options: ['default' => true])]
     private bool $isActive = true;
 
+    /** Onboarding Hybrid-Sandbox: Demofahrzeug */
+    #[ORM\Column(name: 'onboarding_sandbox', type: 'boolean', options: ['default' => false])]
+    private bool $onboardingSandbox = false;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
@@ -93,6 +97,8 @@ class DepartmentVehicle
     public function setMaxVolumeM3(?string $v): self { $this->maxVolumeM3 = $v; return $this; }
     public function getIsActive(): bool { return $this->isActive; }
     public function setIsActive(bool $isActive): self { $this->isActive = $isActive; return $this; }
+    public function isOnboardingSandbox(): bool { return $this->onboardingSandbox; }
+    public function setOnboardingSandbox(bool $onboardingSandbox): self { $this->onboardingSandbox = $onboardingSandbox; return $this; }
     public function getNotes(): ?string { return $this->notes; }
     public function setNotes(?string $notes): self { $this->notes = $notes; return $this; }
     public function getOwnerAddressId(): ?string { return $this->ownerAddressId; }

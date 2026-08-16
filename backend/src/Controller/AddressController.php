@@ -7,6 +7,8 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivitySharedVenueService;
+use App\Service\Onboarding\OnboardingSandboxService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\MaterialWizardSupplierService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -30,6 +32,7 @@ class AddressController extends AbstractController
         private EntityManagerInterface $entityManager,
         private MaterialWizardSupplierService $materialWizardSupplierService,
         private ActivitySharedVenueService $activitySharedVenueService,
+        private \App\Service\Onboarding\OnboardingSandboxService $onboardingSandbox,
     ) {}
 
     /**
@@ -61,6 +64,9 @@ class AddressController extends AbstractController
             ->setParameter('departmentId', $departmentId)
             ->orderBy('a.type', 'ASC')
             ->addOrderBy('a.name', 'ASC');
+
+        $includeSandbox = OnboardingSandboxVisibility::includeFromRequest($request);
+        $qb->andWhere(OnboardingSandboxVisibility::kitListConstraint('a', $includeSandbox));
 
         if (!$includeDeleted) {
             $qb->andWhere('a.deletedAt IS NULL');
@@ -213,9 +219,29 @@ class AddressController extends AbstractController
             if ($parentError !== null) {
                 return new JsonResponse(['error' => $parentError], 400);
             }
+
+            $isSandboxTour = OnboardingSandboxVisibility::includeFromRequest($request)
+                || !empty($data['onboarding_sandbox']);
+            if ($isSandboxTour) {
+                $address->setOnboardingSandbox(true);
+                $type = $address->getType();
+                if (
+                    in_array($type, [Address::TYPE_EVENT, Address::TYPE_EVENT_DELIVERY, Address::TYPE_EVENT_POI], true)
+                    && (trim((string) $address->getName()) === '' || $address->getName() === OnboardingSandboxService::VENUE_NAME)
+                ) {
+                    if ($type === Address::TYPE_EVENT) {
+                        $address->setName(OnboardingSandboxService::VENUE_NAME);
+                    }
+                }
+            }
             
             $this->entityManager->persist($address);
             $this->entityManager->flush();
+
+            $user = $this->getUser();
+            if ($address->isOnboardingSandbox() && $user instanceof User) {
+                $this->onboardingSandbox->registerVenue($address, $user);
+            }
             
             return new JsonResponse([
                 'address' => $address->toArray(),
@@ -265,10 +291,21 @@ class AddressController extends AbstractController
             if ($parentError !== null) {
                 return new JsonResponse(['error' => $parentError], 400);
             }
+
+            if (OnboardingSandboxVisibility::includeFromRequest($request)
+                || !empty($data['onboarding_sandbox'])) {
+                $address->setOnboardingSandbox(true);
+            }
+
             $address->updateTimestamps();
             
             $this->entityManager->flush();
             $this->activitySharedVenueService->syncSharedVenueFromAddressUpdate($address);
+
+            $user = $this->getUser();
+            if ($address->isOnboardingSandbox() && $user instanceof User) {
+                $this->onboardingSandbox->registerVenue($address, $user);
+            }
             
             return new JsonResponse([
                 'address' => $address->toArray(),

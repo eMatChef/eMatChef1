@@ -2,6 +2,7 @@ import axios from 'axios'
 import { logSessionEvent } from '@/utils/sessionDiagnostics'
 import { clearAuthStorage } from '@/utils/authStorage'
 import { shouldSkipLoginRedirect, loginRedirectUrl } from '@/api/unauthorizedRedirect'
+import { isOnboardingSandboxIncludeActive } from '@/api/onboardingSandboxFlag'
 
 /** Handler für abgelaufene Session (401) – wird in main.ts registriert */
 let sessionExpiredHandler: (() => void | Promise<void>) | null = null
@@ -108,6 +109,20 @@ apiClient.interceptors.request.use((config) => {
   }
 
   stripAuthorizationHeader(config)
+
+  if (isOnboardingSandboxIncludeActive()) {
+    const headers = (config.headers ?? {}) as Record<string, unknown>
+    if (!headers['X-Onboarding-Tour']) {
+      headers['X-Onboarding-Tour'] = '1'
+    }
+    config.headers = headers as typeof config.headers
+    const params = (config.params ?? {}) as Record<string, unknown>
+    if (params.include_onboarding_sandbox === undefined) {
+      params.include_onboarding_sandbox = '1'
+      config.params = params
+    }
+  }
+
   return config
 })
 

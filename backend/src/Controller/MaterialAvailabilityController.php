@@ -10,6 +10,7 @@ use App\Entity\MaterialComboOptionDelta;
 use App\Entity\WorkshopTicket;
 use App\Service\ComboResolutionService;
 use App\Service\MaterialAvailabilityReservationQuery;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -233,6 +234,9 @@ class MaterialAvailabilityController extends AbstractController
                 ? ' AND a.id != :exclude_activity_id'
                 : '';
 
+            $sandboxInclude = OnboardingSandboxVisibility::includeFromRequest($request);
+            $sandboxSql = OnboardingSandboxVisibility::kitSqlConstraint('mi', $sandboxInclude);
+
             if ($hasPeriod) {
                 // Zeitraum-basierte Verfügbarkeit (Department + globales J&S Material)
                 $sql = "SELECT 
@@ -296,6 +300,7 @@ class MaterialAvailabilityController extends AbstractController
                         WHERE mi.deleted_at IS NULL
                           AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql
+                          $sandboxSql
                           " . $this->excludeSelfProvidedOnlyComponentsSql();
 
                 $params = array_merge([
@@ -357,6 +362,7 @@ class MaterialAvailabilityController extends AbstractController
                         WHERE mi.deleted_at IS NULL
                           AND mi.combo_status <> 'draft'
                           AND $scopeWhere $materialIdFilterSql
+                          $sandboxSql
                           " . $this->excludeSelfProvidedOnlyComponentsSql() . "
                         GROUP BY mi.id, mi.name, mi.category_id, mi.material_type, mi.department_id, d.name, reserved.reserved_qty";
 

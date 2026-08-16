@@ -12,7 +12,14 @@ import {
   type OnboardingTourStepMode,
 } from '@/config/onboardingTours'
 import { useAuthStore } from '@/stores/auth'
+import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { markOnboardingTourCompleted } from '@/utils/onboardingTourProgress'
+import {
+  ensureOnboardingSandbox,
+  getLastOnboardingSandboxResult,
+  preferredSandboxActivityId,
+  setOnboardingSandboxIncludeActive,
+} from '@/api/onboardingSandbox'
 
 const TARGET_ACTIVE_CLASS = 'onboarding-tour-target-active'
 /** Stacking-Context-Root über den Dimmer heben (Drawer/Header/Dialog). */
@@ -534,6 +541,7 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
   const route = useRoute()
   const router = useRouter()
   const authStore = useAuthStore()
+  const { canManageMaterials } = useDepartmentMemberRole()
   /** Start nur ab md (≥960px). Laufende Tour bricht bei Hochformat/Resize nicht ab. */
   const { mdAndUp } = useDisplay()
 
@@ -570,6 +578,18 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
 
   const isActive = computed(() => !!activeTour.value && !!activeStep.value)
 
+  watch(
+    activeTour,
+    (tour) => {
+      if (tour?.category === 'activities') {
+        setOnboardingSandboxIncludeActive(true)
+      } else if (!tour) {
+        setOnboardingSandboxIncludeActive(false)
+      }
+    },
+    { immediate: true }
+  )
+
   const isLastStep = computed(() => {
     if (!activeTour.value) return true
     return activeStepIndex.value >= activeTour.value.steps.length - 1
@@ -594,6 +614,7 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
   /** Tour abbrechen ohne als erledigt zu markieren. */
   function abortTour() {
     stopObservingTarget()
+    setOnboardingSandboxIncludeActive(false)
     if (!activeTourId.value) return
     void router.replace({ query: clearTourQuery() })
   }
@@ -700,6 +721,10 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
       }
     }
 
+    await applyFocusAndTypeOnEnter(step)
+    if (activeStep.value?.id !== stepId) return
+    updateTargetRect(el)
+
     if (mode === 'click' && onTargetClick) {
       targetClickHandler = () => {
         onTargetClick()
@@ -708,6 +733,41 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     }
 
     bindAdvanceHooks(step, stepId, onTargetClick)
+  }
+
+  /**
+   * Materialsuche u. ä.: Fokus setzen und optional Text tippen → Dropdown mit Treffern.
+   */
+  async function applyFocusAndTypeOnEnter(step: NonNullable<typeof activeStep.value>) {
+    if (!step.focusOnEnter && step.typeIntoOnEnter == null) return
+
+    const rootSel = step.focusOnEnter || step.target
+    if (!rootSel) return
+
+    let attempts = 0
+    let input: HTMLInputElement | null = null
+    while (attempts < 20 && !input) {
+      const root = document.querySelector(rootSel)
+      if (root instanceof HTMLInputElement) {
+        input = root
+      } else if (root instanceof Element) {
+        input = root.querySelector('input')
+      }
+      if (input) break
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      attempts += 1
+    }
+    if (!input) return
+
+    if (step.typeIntoOnEnter != null && step.typeIntoOnEnter !== '') {
+      const nativeSet = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      nativeSet?.call(input, step.typeIntoOnEnter)
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    input.focus()
+    // Debounce der Materialsuche abwarten, damit Dropdown mit Mengen sichtbar wird
+    await new Promise((resolve) => setTimeout(resolve, 360))
   }
 
   function bindAdvanceHooks(
@@ -804,15 +864,46 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
     if (!canStartToursOnViewport.value) return
     const tour = getOnboardingTour(tourId)
     if (!tour) return
-    const firstStep = tour.steps[0]
-    router.push({
-      name: getRouteNameForTourStep(tour, 0),
-      params: { departmentId },
-      query: {
+
+    void (async () => {
+      let sandboxActivityId: string | null = null
+      if (tour.category === 'activities') {
+        try {
+          setOnboardingSandboxIncludeActive(true)
+          // Create-Touren: alten User-Übungsfall ersetzen. Pack-/Folge-Touren: Demo behalten.
+          const reset =
+            tourId === 'activity-create' || tourId === 'activity-camp-create'
+          const sandbox = await ensureOnboardingSandbox(departmentId, tourId, { reset })
+          sandboxActivityId = preferredSandboxActivityId(tourId, sandbox)
+        } catch {
+          // Tour trotzdem starten — Nutzer kann ohne Demodata fortfahren
+          setOnboardingSandboxIncludeActive(true)
+        }
+      }
+
+      const firstStep = tour.steps[0]
+      const query: Record<string, string> = {
         [ONBOARDING_TOUR_QUERY]: tour.id,
         [ONBOARDING_TOUR_STEP_QUERY]: firstStep?.id ?? '1',
-      },
-    })
+      }
+
+      // Folge-Touren ohne Listen-Einstieg: direkt auf Sandbox-Detail
+      const openDetailFirst = ['activity-store', 'activity-close'].includes(tourId)
+      if (openDetailFirst && sandboxActivityId) {
+        await router.push({
+          name: 'ActivityDetail',
+          params: { departmentId, activityId: sandboxActivityId },
+          query,
+        })
+        return
+      }
+
+      await router.push({
+        name: getRouteNameForTourStep(tour, 0),
+        params: { departmentId },
+        query,
+      })
+    })()
   }
 
   async function navigateToStep(stepIndex: number) {
@@ -928,6 +1019,36 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
       return
     }
 
+    // Handoff-Tour: Detail + Journey. Schritt 3: MW klickt «Ausleihen»; ab 4/5 packStep setzen.
+    const handoffDetailSteps = ['3', '4', '5']
+    if (activeTour.value.id === 'issue-handoff' && handoffDetailSteps.includes(step.id)) {
+      const sandboxId =
+        (typeof route.params.activityId === 'string' && route.params.activityId) ||
+        preferredSandboxActivityId('issue-handoff', getLastOnboardingSandboxResult())
+      if (sandboxId && typeof departmentId === 'string') {
+        const detailQuery: Record<string, string | string[] | null | undefined> = {
+          ...query,
+          tab: 'packs',
+        }
+        if (step.id === '4') {
+          detailQuery.packStep = 'issue'
+        } else if (step.id === '5') {
+          detailQuery.packStep = 'return'
+        } else if (!canManageMaterials.value) {
+          // Schritt 3 ohne MW-Recht: Ausleihen direkt zeigen
+          detailQuery.packStep = 'issue'
+        }
+        await router.replace({
+          name: 'ActivityDetail',
+          params: { departmentId, activityId: sandboxId },
+          query: detailQuery,
+        })
+        return
+      }
+      await router.replace({ query })
+      return
+    }
+
     const targetRouteName = getRouteNameForTourStep(activeTour.value, stepIndex)
 
     if (route.name === targetRouteName) {
@@ -1015,6 +1136,7 @@ export function useOnboardingTour(options?: { bindTargetSync?: boolean }) {
       markOnboardingTourCompleted(profileId, departmentId, activeTourId.value as OnboardingTourId)
     }
     stopObservingTarget()
+    setOnboardingSandboxIncludeActive(false)
     if (action === 'helpTours' && typeof departmentId === 'string') {
       void router.replace({
         name: 'HelpTours',

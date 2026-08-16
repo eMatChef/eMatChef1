@@ -23,6 +23,8 @@ use App\Entity\WorkshopTicket;
 use App\Entity\Address;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\Onboarding\OnboardingSandboxService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Service\AccountingAcquisitionFollowUpSerializer;
 use App\Service\ActivityAccountingCostService;
 use App\Service\ActivityItemPipelineStatusService;
@@ -74,6 +76,7 @@ class ActivityController extends AbstractController
         private ActivitySharedVenueService $sharedVenueService,
         private AccountingActivityInvoiceService $activityInvoice,
         private ActivityWetDryingService $wetDrying,
+        private OnboardingSandboxService $onboardingSandbox,
     ) {}
 
     private function getActorUserId(): ?string
@@ -215,6 +218,16 @@ class ActivityController extends AbstractController
             ->setParameter('departmentId', $departmentId)
             ->orderBy('a.usageStart', 'DESC');
 
+        [$sandboxDql, $sandboxParams] = OnboardingSandboxVisibility::activityListConstraint(
+            'a',
+            OnboardingSandboxVisibility::includeFromRequest($request),
+            $currentUser->getId(),
+        );
+        $qb->andWhere($sandboxDql);
+        foreach ($sandboxParams as $key => $value) {
+            $qb->setParameter($key, $value);
+        }
+
         // Statusfilter
         $status = $request->query->get('status');
         if ($status) {
@@ -310,6 +323,16 @@ class ActivityController extends AbstractController
             ->andWhere('a.type IN (:invitedTypes)')
             ->setParameter('departmentId', $departmentId)
             ->setParameter('invitedTypes', ['camp', 'event']);
+
+        [$invitedSandboxDql, $invitedSandboxParams] = OnboardingSandboxVisibility::activityListConstraint(
+            'a',
+            OnboardingSandboxVisibility::includeFromRequest($request),
+            $currentUser->getId(),
+        );
+        $invitedQb->andWhere($invitedSandboxDql);
+        foreach ($invitedSandboxParams as $key => $value) {
+            $invitedQb->setParameter($key, $value);
+        }
 
         if ($status) {
             $invitedQb->andWhere('a.status IN (:statuses)')
@@ -871,6 +894,21 @@ class ActivityController extends AbstractController
             $activity->setDepartment($department);
             $activity->setName($data['name']);
             $activity->setType($requestedType);
+
+            $isSandboxTour = OnboardingSandboxVisibility::includeFromRequest($request)
+                || !empty($data['onboarding_sandbox']);
+            if ($isSandboxTour) {
+                $activity->setOnboardingSandbox(true);
+                $nameTrim = trim((string) $data['name']);
+                if ($nameTrim === '' || $nameTrim === 'demo_activity' || $nameTrim === 'demo_camp') {
+                    $activity->setName(
+                        in_array($requestedType, ['camp', 'event'], true)
+                            ? OnboardingSandboxService::CAMP_NAME
+                            : OnboardingSandboxService::ACTIVITY_NAME
+                    );
+                }
+            }
+
             if (\in_array($requestedType, ['camp', 'event'], true)) {
                 $activity->setStatus(Activity::STATUS_DRAFT);
             } else {
@@ -1002,6 +1040,10 @@ class ActivityController extends AbstractController
 
             $this->entityManager->persist($activity);
             $this->entityManager->flush();
+
+            if ($activity->isOnboardingSandbox() && $currentUser instanceof User) {
+                $this->onboardingSandbox->registerActivity($activity, $currentUser);
+            }
 
             // History-Eintrag: Erstellung
             $this->createHistoryEntry($activity, 'created');
@@ -1223,6 +1265,10 @@ class ActivityController extends AbstractController
             }
 
             $this->entityManager->flush();
+
+            if ($activity->isOnboardingSandbox() && $currentUser instanceof User) {
+                $this->onboardingSandbox->registerActivity($activity, $currentUser);
+            }
 
             if (array_key_exists('invited_departments', $data)) {
                 $this->inboxMessageService->syncActivityDepartmentInvites($activity);
@@ -4894,6 +4940,7 @@ class ActivityController extends AbstractController
             'color' => $activity->getColor(),
             'type' => $activity->getType(),
             'status' => $activity->getStatus(),
+            'onboarding_sandbox' => $activity->isOnboardingSandbox(),
             'pack_journey_step' => $this->legacyJourneyStepFromStatus($activity),
             'create_wizard_completed' => $activity->isCreateWizardCompleted(),
             'usage_start' => $activity->getUsageStart()?->format('c'),

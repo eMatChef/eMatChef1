@@ -51,6 +51,7 @@ final class AccountingExpectedCostsService
             INNER JOIN material_item mi ON mi.id = wt.material_item_id
             LEFT JOIN department d ON d.id = COALESCE(mi.department_id, a.department_id)
             WHERE COALESCE(mi.department_id, a.department_id) = :d
+              AND COALESCE(a.onboarding_sandbox, false) = false
               AND wt.status IN ({$statusList})
             ORDER BY a.name ASC, wt.title ASC, wt.id ASC
             SQL;

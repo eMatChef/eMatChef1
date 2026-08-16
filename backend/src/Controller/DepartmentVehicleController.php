@@ -9,6 +9,7 @@ use App\Entity\DepartmentVehicle;
 use App\Entity\Membership;
 use App\Entity\User;
 use App\Service\ActivityAccessService;
+use App\Service\Onboarding\OnboardingSandboxVisibility;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -41,6 +42,9 @@ class DepartmentVehicleController extends AbstractController
             ->setParameter('deptIds', $departmentIds)
             ->andWhere('v.isActive = true')
             ->orderBy('v.name', 'ASC');
+
+        $includeSandbox = OnboardingSandboxVisibility::includeFromRequest($request);
+        $vehicles->andWhere(OnboardingSandboxVisibility::kitListConstraint('v', $includeSandbox));
 
         $search = trim((string) $request->query->get('search', ''));
         if ($search !== '') {

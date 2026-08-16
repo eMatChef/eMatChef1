@@ -597,6 +597,10 @@ trait InboxMessageKindsTrait
 
     public function syncActivityDepartmentInvites(Activity $activity): void
     {
+        if ($this->skipOnboardingSandboxActivity($activity)) {
+            return;
+        }
+
         $activityId = $activity->getId();
         $this->entityManager->createQueryBuilder()
             ->delete(InboxMessage::class, 'm')

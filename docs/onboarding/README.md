@@ -11,6 +11,7 @@
 - [`HelpDokumentationView.vue`](../../frontend/src/views/help/HelpDokumentationView.vue) — Happy Path + Mini-FAQ
 - [`onboardingChecklist.ts`](../../frontend/src/utils/onboardingChecklist.ts) — Checkliste + Auto-Erkennung
 - [`onboardingTours.ts`](../../frontend/src/config/onboardingTours.ts) · [`useOnboardingTour.ts`](../../frontend/src/composables/useOnboardingTour.ts) · [`OnboardingTourOverlay.vue`](../../frontend/src/components/onboarding/OnboardingTourOverlay.vue)
+- [`sandboxtoolactivities/`](sandboxtoolactivities/) — Hybrid-Sandbox (Demodata + User-Übungen) für den Aktivitäten-Touren-Block
 - [`onboardingGate.ts`](../../frontend/src/utils/onboardingGate.ts) — `canUseDepartmentOnboarding` (Checkliste) vs. `canUseDepartmentTours` / `canUseHelpEinrichtung`
 - [`MyDepartmentSettingsView.vue`](../../frontend/src/views/settings/MyDepartmentSettingsView.vue) — Admin-Reset
 
@@ -469,6 +470,7 @@ i18n-Keys unter `onboarding.*` anlegen.
 - Inventory ONE Getting Started: Sidebar-Hub + Tour-Query auf Zielseite
 - Tour-Config: [`frontend/src/config/onboardingTours.ts`](../../frontend/src/config/onboardingTours.ts)
 - J+S (Camp-Tour-Abhängigkeit): [`docs/activities/js-material/README.md`](../activities/js-material/README.md)
+- Aktivitäten-Sandbox: [`sandboxtoolactivities/`](sandboxtoolactivities/)
 
 ---
 
