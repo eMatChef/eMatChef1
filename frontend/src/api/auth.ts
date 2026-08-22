@@ -196,6 +196,15 @@ export interface UserDepartmentResponse {
 /**
  * Login mit E-Mail und Passwort
  */
+export function googleAuthStartUrl(redirectPath?: string | null): string {
+  const params = new URLSearchParams()
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    params.set('redirect', redirectPath)
+  }
+  const query = params.toString()
+  return `/api/auth/google${query ? `?${query}` : ''}`
+}
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
   const raw: unknown = response.data

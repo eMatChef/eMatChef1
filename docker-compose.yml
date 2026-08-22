@@ -56,6 +56,7 @@ services:
       CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-^https?://(ematchef\.test|app\.ematchef\.test|qr\.ematchef\.test|devices\.ematchef\.test|localhost|127\.0\.0\.1)(:[0-9]+)?$}
       # Lokal Registrierung ohne Turnstile testen: 1 (Produktion nie)
       TURNSTILE_SKIP_VERIFY: "${TURNSTILE_SKIP_VERIFY:-0}"
+      # Google OAuth: GOOGLE_OAUTH_CLIENT_ID/SECRET in backend/.env.local (nicht hier, sonst leere Compose-Env überschreibt).
       # E-Mail: MAILER_DSN in backend/.env.local (siehe backend/.env.local.example).
       # MAILER_DSN/MAILER_FROM nicht in environment setzen — sonst überschreibt Container-Env die .env.local.
       PHP_OPCACHE_ENABLE: "1"

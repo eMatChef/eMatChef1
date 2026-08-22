@@ -112,7 +112,34 @@
   color: var(--color-text, #111827) !important;
 }
 
+.e-form-field .v-field__append-inner {
+  padding-inline-end: 10px;
+  align-items: center;
+  background: transparent !important;
+}
+
+/* Auge-Icon im Passwortfeld: nicht in eigener weißer Spalte, sondern über dem Input */
+.e-form-field:has(.password-reveal-toggle) .v-input__control > .v-field {
+  grid-template-columns: min-content minmax(0, 1fr);
+  grid-template-areas: "prepend-inner field";
+}
+
+.e-form-field:has(.password-reveal-toggle) .v-field__append-inner {
+  grid-area: field;
+  justify-self: end;
+  align-self: center;
+  z-index: 2;
+  padding-inline-end: 12px;
+  background: transparent !important;
+}
+
+.e-form-field:has(.password-reveal-toggle) .v-field__input {
+  padding-inline-end: 40px;
+}
+
 .e-form-field .v-field__input {
+  display: flex;
+  align-items: center;
   min-height: 48px;
   padding: 16px 12px 10px;
   font-size: 14px;
@@ -137,9 +164,13 @@
 
 .e-form-field .v-field__input input,
 .e-form-field .v-field__input textarea {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: 1.4em;
   font-size: inherit;
   line-height: inherit;
   caret-color: var(--color-primary, #059669);
+  background-color: transparent !important;
 }
 
 .e-form-field .v-field__input input::placeholder,
@@ -149,24 +180,33 @@
   opacity: 1;
 }
 
-/* Browser-Autofill: Chrome/Edge setzen sonst hellblau — auf E-Feld-Look zurückführen */
+/* Browser-Autofill: Chrome/Edge malen sonst ein hellblaues Rechteck über das ganze Feld.
+   Hintergrund auf die Glyphen clippen + Textfarbe setzen → keine blaue Box, Autofill bleibt aktiv. */
 .e-form-field .v-field__input input:-webkit-autofill,
 .e-form-field .v-field__input input:-webkit-autofill:hover,
 .e-form-field .v-field__input input:-webkit-autofill:focus,
 .e-form-field .v-field__input input:-webkit-autofill:active,
+.e-form-field .v-field__input input:autofill,
 .e-form-field .v-field__input textarea:-webkit-autofill,
 .e-form-field .v-field__input textarea:-webkit-autofill:hover,
 .e-form-field .v-field__input textarea:-webkit-autofill:focus,
-.e-form-field .v-field__input textarea:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #fff inset !important;
-  box-shadow: 0 0 0 1000px #fff inset !important;
+.e-form-field .v-field__input textarea:-webkit-autofill:active,
+.e-form-field .v-field__input textarea:autofill {
+  background-color: transparent !important;
+  background-image: none !important;
+  -webkit-box-shadow: none !important;
+  box-shadow: none !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
   -webkit-text-fill-color: var(--color-text, #111827) !important;
   caret-color: var(--color-primary, #059669);
   transition: background-color 9999s ease-out 0s;
 }
 
 .e-form-field .v-field:not(.v-field--focused) .v-field__input input:-webkit-autofill,
-.e-form-field .v-field:not(.v-field--focused) .v-field__input textarea:-webkit-autofill {
+.e-form-field .v-field:not(.v-field--focused) .v-field__input input:autofill,
+.e-form-field .v-field:not(.v-field--focused) .v-field__input textarea:-webkit-autofill,
+.e-form-field .v-field:not(.v-field--focused) .v-field__input textarea:autofill {
   -webkit-text-fill-color: var(--color-text-muted, #6b7280) !important;
 }
 
