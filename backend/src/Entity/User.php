@@ -98,6 +98,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(name: 'last_used_supplier_company_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?SupplierCompany $lastUsedSupplierCompany = null;
 
+    #[ORM\Column(name: 'google_id', type: 'string', length: 64, nullable: true, unique: true)]
+    private ?string $googleId = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -485,5 +488,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         } catch (EntityNotFoundException) {
             return null;
         }
+    }
+
+    public function getGoogleId(): ?string
+    {
+        return $this->googleId;
+    }
+
+    public function setGoogleId(?string $googleId): self
+    {
+        $this->googleId = $googleId;
+        return $this;
     }
 }
