@@ -1,4 +1,4 @@
-import apiClient, { refreshSessionCookie } from './apiClient'
+import apiClient, { absoluteApiUrl, refreshSessionCookie } from './apiClient'
 import { clearAuthStorage, purgeLegacyAuthSecrets } from '@/utils/authStorage'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 import type { SupplierCompanySession } from '@/api/supplier'
@@ -202,7 +202,7 @@ export function googleAuthStartUrl(redirectPath?: string | null): string {
     params.set('redirect', redirectPath)
   }
   const query = params.toString()
-  return `/api/auth/google${query ? `?${query}` : ''}`
+  return absoluteApiUrl(`/api/auth/google${query ? `?${query}` : ''}`)
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
