@@ -118,13 +118,19 @@ jobs:
       - name: PHPStan
         run: ./vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 
-  # Gegen live Develop (Secrets: docs/E2E.md). Nur Signal, nie Merge-Blocker:
-  # sonst blockiert ein kaputtes/altes Develop den Fix, der Develop erst heilen soll.
+  # Live-E2E (docs/E2E.md): auf Staging/Prod Pflicht. Auf Develop nur Signal —
+  # sonst blockiert ein hängendes Develop den Merge, der den Droplet erst heilen soll.
   e2e:
     name: Playwright smoke
     needs: changes
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
-    continue-on-error: true
+    if: >
+      needs.changes.outputs.frontend == 'true' ||
+      needs.changes.outputs.backend == 'true' ||
+      github.event.pull_request.base.ref == 'staging' ||
+      github.event.pull_request.base.ref == 'prod' ||
+      github.ref_name == 'staging' ||
+      github.ref_name == 'prod'
+    continue-on-error: ${{ (github.event.pull_request.base.ref || github.ref_name) == 'develop' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -170,12 +176,16 @@ jobs:
           front="${{ needs.frontend.result }}"
           back="${{ needs.backend.result }}"
           e2e="${{ needs.e2e.result }}"
+          target="${{ github.event.pull_request.base.ref || github.ref_name }}"
           # Path-gefilterte Jobs: success | skipped = ok
-          # Live-E2E: skipped / success / failure — kein Merge-Blocker (CD deployt Develop unabhängig)
           ok_optional() { [[ "$1" == "success" || "$1" == "skipped" ]]; }
-          if ok_optional "$locales" && ok_optional "$front" && ok_optional "$back"; then
-            echo "CI ok (locales=$locales frontend=$front backend=$back e2e=$e2e)"
+          e2e_ok=1
+          if [[ "$target" == "staging" || "$target" == "prod" ]]; then
+            [[ "$e2e" == "success" ]] || e2e_ok=0
+          fi
+          if ok_optional "$locales" && ok_optional "$front" && ok_optional "$back" && [[ "$e2e_ok" == "1" ]]; then
+            echo "CI ok (target=$target locales=$locales frontend=$front backend=$back e2e=$e2e)"
             exit 0
           fi
-          echo "::error::CI failed (locales=$locales frontend=$front backend=$back e2e=$e2e)"
+          echo "::error::CI failed (target=$target locales=$locales frontend=$front backend=$back e2e=$e2e)"
           exit 1

@@ -57,8 +57,8 @@ Workflow **E2E Smoke** (`.github/workflows/e2e-smoke.yml`):
 - Läuft auf Push/PR zu `develop` / `prod`
 - Installiert Chromium und führt `npm run test:e2e` aus
 - Fehlt Login-Secret → nur öffentlicher Login-Seiten-Test
-- Job ist vorerst **nicht** Teil von **CI ok** (weder `e2e-smoke.yml` noch der Playwright-Job in `ci.yml`)
-- Live-Develop darf Merges nicht blockieren: CD aktualisiert den Droplet unabhängig vom Smoke.
+- Auf **Staging** und **Prod** ist der Playwright-Job in `ci.yml` **Pflicht** für «CI ok».
+- Auf **Develop** ist er nur Signal (`continue-on-error`): ein hängender Droplet darf Merges nicht blockieren. CD aktualisiert Develop unabhängig.
 
 ## Preview-Deploy
 
