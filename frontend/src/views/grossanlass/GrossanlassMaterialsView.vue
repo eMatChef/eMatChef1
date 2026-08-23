@@ -1,8 +1,12 @@
 <template>
+  <div v-if="isDetail" class="ga-materials-detail-host">
+    <router-view />
+  </div>
   <PageShell
-    class="grossanlass-beschaffung-shell"
-    :title="t('grossanlass.beschaffung.title')"
-    :subtitle="t('grossanlass.beschaffung.subtitle')"
+    v-else
+    class="grossanlass-materials-shell"
+    :title="t('grossanlass.materials.title')"
+    :subtitle="t('grossanlass.materials.subtitle')"
   >
     <template #filters>
       <v-tabs
@@ -44,25 +48,41 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
+const isDetail = computed(() => route.name === 'GrossanlassMaterialsArtikel')
+
 const tabItems = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
-  { id: 'uebersicht', label: t('grossanlass.beschaffung.tabUebersicht'), icon: 'mdi-chart-box-outline' },
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
+  { id: 'eigen', label: t('grossanlass.materials.tabEigen'), icon: 'mdi-warehouse' },
+  { id: 'leihweise', label: t('grossanlass.materials.tabLeihweise'), icon: 'mdi-handshake-outline' },
+  { id: 'fahrzeuge', label: t('grossanlass.materials.tabFahrzeuge'), icon: 'mdi-truck-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
+const activeTab = computed(() => (route.meta.materialsTab as string) || 'eigen')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/beschaffung/${tab}`)
+  void router.push(`/${id}/materialien/${tab}`)
 }
 </script>
 
 <style scoped>
-.grossanlass-beschaffung-shell :deep(.page-shell__header) {
+.grossanlass-materials-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
+}
+
+.ga-materials-detail-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ga-materials-detail-host :deep(.material-detail-view) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

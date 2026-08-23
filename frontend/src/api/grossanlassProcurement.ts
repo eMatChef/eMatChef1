@@ -85,6 +85,10 @@ export interface GrossanlassProcurementLine {
   quantity: number
   location: string
   notes: string | null
+  category_id: string | null
+  category_name: string | null
+  category_parent_id: string | null
+  category_parent_name: string | null
   status: GrossanlassProcurementStatus
   wish_line_ids: string[]
   wish_count: number
@@ -99,9 +103,29 @@ export interface GrossanlassProcurementLine {
   updated_at: string
 }
 
+export interface GrossanlassProcurementCategory {
+  id: string
+  department_id: string
+  parent_id: string | null
+  parent_name: string | null
+  name: string
+  sort_order: number
+}
+
+export interface GrossanlassProcurementBundleSuggestion {
+  key: string
+  suggested_label: string
+  wish_ids: string[]
+  quantity_sum: number
+  wish_count: number
+  wishes: GrossanlassProcurementPoolWish[]
+}
+
 export interface GrossanlassBedarfOverview {
   pool: GrossanlassProcurementPoolWish[]
   lines: GrossanlassProcurementLine[]
+  categories: GrossanlassProcurementCategory[]
+  suggestions: GrossanlassProcurementBundleSuggestion[]
 }
 
 export interface GrossanlassProcurementOverview {
@@ -117,6 +141,15 @@ export interface GrossanlassProcurementOverview {
   by_group: Array<{
     group_id: string
     group_name: string
+    soll_chf: number
+    ist_chf: number
+    line_count: number
+  }>
+  by_category: Array<{
+    category_id: string | null
+    category_name: string | null
+    parent_id: string | null
+    parent_name: string | null
     soll_chf: number
     ist_chf: number
     line_count: number
@@ -176,6 +209,7 @@ export async function createGrossanlassProcurementLine(
     location?: string
     group_id?: string
     notes?: string | null
+    category_id?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.post<GrossanlassProcurementLine>(
@@ -210,6 +244,7 @@ export async function updateGrossanlassProcurementLine(
     location: string
     group_id: string
     notes: string | null
+    category_id: string | null
   }>,
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(
@@ -224,6 +259,55 @@ export async function deleteGrossanlassProcurementLine(
   lineId: string,
 ): Promise<void> {
   await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/lines/${lineId}`)
+}
+
+export async function listGrossanlassProcurementCategories(
+  departmentId: string,
+): Promise<GrossanlassProcurementCategory[]> {
+  const response = await apiClient.get<GrossanlassProcurementCategory[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories`,
+  )
+  return response.data
+}
+
+export async function createGrossanlassProcurementCategory(
+  departmentId: string,
+  data: {
+    name: string
+    parent_id?: string | null
+    sort_order?: number
+  },
+): Promise<GrossanlassProcurementCategory> {
+  const response = await apiClient.post<GrossanlassProcurementCategory>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories`,
+    data,
+  )
+  return response.data
+}
+
+export async function updateGrossanlassProcurementCategory(
+  departmentId: string,
+  categoryId: string,
+  data: Partial<{
+    name: string
+    parent_id: string | null
+    sort_order: number
+  }>,
+): Promise<GrossanlassProcurementCategory> {
+  const response = await apiClient.put<GrossanlassProcurementCategory>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function deleteGrossanlassProcurementCategory(
+  departmentId: string,
+  categoryId: string,
+): Promise<void> {
+  await apiClient.delete(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+  )
 }
 
 export async function removeWishFromGrossanlassProcurementLine(

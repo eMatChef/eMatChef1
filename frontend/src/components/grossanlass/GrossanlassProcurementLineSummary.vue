@@ -10,6 +10,7 @@
       <slot name="actions" />
     </div>
     <div class="proc-line-summary__meta">{{ line.group_name }} · {{ line.location }}</div>
+    <div v-if="categoryLabel" class="proc-line-summary__meta">{{ categoryLabel }}</div>
     <div v-if="line.budget_chf != null" class="proc-line-summary__meta">
       {{ t('grossanlass.beschaffung.budgetSoll') }}: {{ formatChf(line.budget_chf) }}
     </div>
@@ -20,13 +21,22 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatChf, type GrossanlassProcurementLine } from '@/api/grossanlassProcurement'
 import { procurementStatusClass, procurementStatusLabel } from '@/utils/grossanlassProcurementStatus'
 
-defineProps<{ line: GrossanlassProcurementLine }>()
+const props = defineProps<{ line: GrossanlassProcurementLine }>()
 
 const { t } = useI18n()
+
+const categoryLabel = computed(() => {
+  if (!props.line.category_name) return ''
+  if (props.line.category_parent_name) {
+    return `${props.line.category_parent_name} / ${props.line.category_name}`
+  }
+  return props.line.category_name
+})
 </script>
 
 <style scoped>

@@ -56,12 +56,34 @@
           </tbody>
         </table>
       </div>
+
+      <h3 class="section-title section-title--spaced">{{ t('grossanlass.beschaffung.uebersicht.byCategory') }}</h3>
+      <div v-if="categoryRows.length > 0" class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>{{ t('grossanlass.beschaffung.uebersicht.colCategory') }}</th>
+              <th>{{ t('grossanlass.beschaffung.uebersicht.colLines') }}</th>
+              <th>{{ t('grossanlass.beschaffung.uebersicht.colSoll') }}</th>
+              <th>{{ t('grossanlass.beschaffung.uebersicht.colIst') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in categoryRows" :key="row.category_id ?? 'uncategorized'">
+              <td>{{ categoryRowLabel(row) }}</td>
+              <td>{{ row.line_count }}</td>
+              <td>{{ formatChf(row.soll_chf) }}</td>
+              <td>{{ formatChf(row.ist_chf) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -80,6 +102,18 @@ const toast = useToast()
 const departmentId = () => String(route.params.departmentId || '')
 const isLoading = ref(true)
 const overview = ref<GrossanlassProcurementOverview | null>(null)
+
+const categoryRows = computed(() => overview.value?.by_category ?? [])
+
+function categoryRowLabel(row: GrossanlassProcurementOverview['by_category'][number]): string {
+  if (!row.category_name) {
+    return t('grossanlass.beschaffung.bedarf.categoryUncategorized')
+  }
+  if (row.parent_name) {
+    return `${row.parent_name} / ${row.category_name}`
+  }
+  return row.category_name
+}
 
 async function load() {
   if (!departmentId()) return
@@ -114,6 +148,7 @@ onMounted(load)
 .stat-label { display: block; font-size: 0.75rem; color: #64748b; margin-bottom: 4px; }
 .stat-value { font-size: 1.1rem; color: #0f172a; }
 .section-title { margin: 0 0 10px; font-size: 0.95rem; font-weight: 600; }
+.section-title--spaced { margin-top: 24px; }
 .table-wrap { overflow-x: auto; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .data-table th, .data-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; text-align: left; }

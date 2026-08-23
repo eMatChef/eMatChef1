@@ -8,13 +8,15 @@
 
     <ELoadingState v-if="loading" variant="inline" :message="t('common.loading')" />
     <template v-else-if="draft">
-      <ETextField
-        v-model="draft.intro_text"
+      <AutoSaveField
+        :model-value="draft.intro_text ?? ''"
+        :baseline="introBaseline"
         :label="t('grossanlass.formBuilder.introLabel')"
         :placeholder="t('grossanlass.formBuilder.introPlaceholder')"
-        hide-details="auto"
-        class="mb-4"
-        @blur="onFieldBlur"
+        :disabled="readonly"
+        span-class="form-builder-autosave mb-4"
+        :save="saveIntroText"
+        @update:model-value="onIntroModel"
       />
 
       <div class="fields-toolbar">
@@ -102,13 +104,15 @@
                 <span v-else-if="isLegacySystemInputField(field)" class="meta-hint">{{ t('grossanlass.formBuilder.legacySystemHint') }}</span>
               </div>
 
-              <ETextField
+              <AutoSaveField
                 v-if="isEditableCustomField(field)"
-                v-model="field.label"
+                :model-value="field.label"
+                :baseline="labelBaseline(field)"
                 :label="t('grossanlass.formBuilder.fieldLabel')"
-                density="compact"
-                hide-details="auto"
-                @blur="onFieldBlur"
+                :disabled="readonly"
+                span-class="form-builder-autosave"
+                :save="(value) => saveFieldLabel(field, value)"
+                @update:model-value="(value) => onFieldLabelModel(field, value)"
               />
               <div v-else-if="field.system_key === 'ressort_wahl' || field.system_key === 'bauprojekt'" class="system-field-label">
                 <strong>{{ field.label }}</strong>
@@ -123,12 +127,14 @@
                   class="select-options-row"
                 >
                   <div class="select-options-input">
-                    <ETextField
-                      v-model="selectOptionsDraft[field.id][optIndex]"
+                    <AutoSaveField
+                      :model-value="selectOptionsDraft[field.id][optIndex]"
+                      :baseline="selectOptionBaseline(field.id, optIndex)"
                       :label="t('grossanlass.formBuilder.selectOptionLabel', { n: optIndex + 1 })"
-                      density="compact"
-                      hide-details="auto"
-                      @blur="onSelectOptionBlur(field)"
+                      :disabled="readonly"
+                      span-class="form-builder-autosave"
+                      :save="(value) => saveSelectOption(field, optIndex, value)"
+                      @update:model-value="(value) => onSelectOptionModel(field.id, optIndex, value)"
                     />
                   </div>
                   <button
@@ -239,18 +245,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import draggable from 'vuedraggable'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, ETextField } from '@/components/form/base'
+import { EButton } from '@/components/form/base'
+import { AutoSaveField } from '@/components/common/autoSave'
+import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import {
   availableFormBuilderAddOptions,
   createFormBuilderField,
-  normalizeSystemFieldLabels,
-  orderFormFieldsForRound,
+  applyFormBuilderFieldOrder,
+  applySystemFieldDefaultLabels,
+  ensureFixedSystemFields,
+  listFormBuilderInputFields,
+  listFormBuilderMetaFields,
   formBuilderFieldTypeLabel,
   getGrossanlassRoundForm,
   isEditableCustomField,
@@ -305,19 +316,19 @@ let localEditGeneration = 0
 
 const autoSaveEnabled = computed(() => props.autoSave !== false && !props.readonly)
 
-const orderedInputFields = computed(() =>
-  orderFormFieldsForRound(draft.value?.fields || []).filter((f) => f.role === 'input'),
-)
+const orderedInputFields = computed(() => listFormBuilderInputFields(draft.value?.fields || []))
 
-const metaFields = computed(() =>
-  orderFormFieldsForRound(draft.value?.fields || []).filter((f) => f.role === 'meta'),
-)
+const metaFields = computed(() => listFormBuilderMetaFields(draft.value?.fields || []))
+
+const introBaseline = ref('')
+const labelBaselines = ref<Record<string, string>>({})
+const selectOptionBaselines = ref<Record<string, string[]>>({})
 
 const orderedInputFieldsModel = computed({
   get: () => orderedInputFields.value,
   set: (list: GrossanlassRoundFormField[]) => {
     if (!draft.value) return
-    draft.value.fields = orderFormFieldsForRound([...list, ...metaFields.value])
+    draft.value.fields = applyFormBuilderFieldOrder([...list, ...metaFields.value])
   },
 })
 
@@ -422,19 +433,119 @@ function initSelectDrafts(fields: GrossanlassRoundFormField[], mergeLocal = fals
   selectOptionRowKeys.value = keysMap
 }
 
-function normalizeDraftFields() {
-  if (!draft.value) return
-  draft.value.fields = normalizeSystemFieldLabels(orderFormFieldsForRound(draft.value.fields)).map(
-    (f) => ({ ...f, enabled: true }),
-  )
-  for (const f of draft.value.fields) {
-    if (f.system_key === 'bauprojekt') {
-      bauprojektConfig(f)
-    }
-    if (f.system_key === 'ressort_wahl') {
-      ressortWahlConfig(f)
+function captureBaselines(form: GrossanlassRoundForm) {
+  introBaseline.value = form.intro_text ?? ''
+  const labels: Record<string, string> = {}
+  const options: Record<string, string[]> = {}
+  for (const f of form.fields) {
+    labels[f.id] = f.label
+    if (f.custom_type === 'select') {
+      options[f.id] = [...(selectOptionsDraft.value[f.id] || f.options?.choices || [])]
     }
   }
+  labelBaselines.value = labels
+  selectOptionBaselines.value = options
+}
+
+function labelBaseline(field: GrossanlassRoundFormField): string {
+  return labelBaselines.value[field.id] ?? ''
+}
+
+function selectOptionBaseline(fieldId: string, index: number): string {
+  return selectOptionBaselines.value[fieldId]?.[index] ?? ''
+}
+
+function asSaveString(value: AutoSaveFieldValue): string {
+  if (value == null) return ''
+  return String(value)
+}
+
+function onIntroModel(value: AutoSaveFieldValue) {
+  if (!draft.value) return
+  draft.value.intro_text = asSaveString(value)
+}
+
+function onFieldLabelModel(field: GrossanlassRoundFormField, value: AutoSaveFieldValue) {
+  field.label = asSaveString(value)
+}
+
+function onSelectOptionModel(fieldId: string, index: number, value: AutoSaveFieldValue) {
+  const rows = ensureSelectOptionsDraft(fieldId)
+  rows[index] = asSaveString(value)
+}
+
+function remapSelectDraftId(oldId: string, newId: string) {
+  if (oldId === newId) return
+  if (selectOptionsDraft.value[oldId]) {
+    selectOptionsDraft.value[newId] = selectOptionsDraft.value[oldId]
+    delete selectOptionsDraft.value[oldId]
+  }
+  if (selectOptionRowKeys.value[oldId]) {
+    selectOptionRowKeys.value[newId] = selectOptionRowKeys.value[oldId]
+    delete selectOptionRowKeys.value[oldId]
+  }
+  if (labelBaselines.value[oldId] !== undefined) {
+    labelBaselines.value[newId] = labelBaselines.value[oldId]
+    delete labelBaselines.value[oldId]
+  }
+  if (selectOptionBaselines.value[oldId]) {
+    selectOptionBaselines.value[newId] = selectOptionBaselines.value[oldId]
+    delete selectOptionBaselines.value[oldId]
+  }
+}
+
+function applySavedForm(saved: GrossanlassRoundForm, preserveLocalEdits: boolean) {
+  if (!draft.value) return
+
+  draft.value.id = saved.id
+  draft.value.round_id = saved.round_id
+  draft.value.created_at = saved.created_at
+  draft.value.updated_at = saved.updated_at
+
+  if (!preserveLocalEdits) {
+    draft.value.intro_text = saved.intro_text
+    draft.value.fields = cloneForm(saved).fields
+    normalizeDraftFields()
+    initSelectDrafts(saved.fields)
+    captureBaselines(draft.value)
+    return
+  }
+
+  const taken = new Set<string>()
+  for (const local of draft.value.fields) {
+    if (!local.id.startsWith('new_')) {
+      taken.add(local.id)
+      const remote = saved.fields.find((s) => s.id === local.id)
+      if (remote) local.has_response_values = remote.has_response_values
+      continue
+    }
+    const remote = saved.fields.find((s) => {
+      if (taken.has(s.id)) return false
+      return (
+        s.role === local.role &&
+        s.system_key === local.system_key &&
+        s.custom_type === local.custom_type &&
+        s.sort_order === local.sort_order
+      )
+    })
+    if (!remote) continue
+    taken.add(remote.id)
+    remapSelectDraftId(local.id, remote.id)
+    local.id = remote.id
+    local.has_response_values = remote.has_response_values
+  }
+}
+
+function normalizeDraftFields() {
+  if (!draft.value) return
+  const next = ensureFixedSystemFields(draft.value.fields)
+  applySystemFieldDefaultLabels(next)
+  for (const f of next) {
+    f.enabled = true
+    if (f.system_key === 'bauprojekt') bauprojektConfig(f)
+    if (f.system_key === 'ressort_wahl') ressortWahlConfig(f)
+  }
+  draft.value.fields = applyFormBuilderFieldOrder(next)
 }
 
 async function load() {
@@ -448,6 +559,8 @@ async function load() {
     draft.value = cloneForm(form)
     normalizeDraftFields()
     initSelectDrafts(form.fields)
+    captureBaselines(draft.value)
+    await nextTick()
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.formBuilder.errorLoad'))
   } finally {
@@ -470,19 +583,42 @@ function cancelPendingAutoSave() {
   }
 }
 
-function onFieldBlur() {
-  if (!autoSaveEnabled.value || !hasUnsavedChanges.value) return
-  scheduleAutoSave()
-}
-
-function onSelectOptionBlur(field: GrossanlassRoundFormField) {
-  syncSelectOptions(field)
-  onFieldBlur()
-}
-
 function onCheckboxChange() {
   markDirty()
   scheduleAutoSave()
+}
+
+async function persistFormFromAutoSave(): Promise<void> {
+  if (props.readonly) return
+  markDirty()
+  const ok = await runAutoSave()
+  if (!ok) {
+    throw new Error(t('grossanlass.formBuilder.errorSave'))
+  }
+}
+
+async function saveIntroText(value: AutoSaveFieldValue): Promise<void> {
+  onIntroModel(value)
+  await persistFormFromAutoSave()
+}
+
+async function saveFieldLabel(field: GrossanlassRoundFormField, value: AutoSaveFieldValue): Promise<void> {
+  const next = asSaveString(value).trim()
+  if (!next) {
+    throw new Error(t('grossanlass.formBuilder.labelRequired'))
+  }
+  field.label = next
+  await persistFormFromAutoSave()
+}
+
+async function saveSelectOption(
+  field: GrossanlassRoundFormField,
+  index: number,
+  value: AutoSaveFieldValue,
+): Promise<void> {
+  onSelectOptionModel(field.id, index, value)
+  syncSelectOptions(field)
+  await persistFormFromAutoSave()
 }
 
 function scheduleAutoSave() {
@@ -494,13 +630,17 @@ function scheduleAutoSave() {
 }
 
 async function runAutoSave(): Promise<boolean> {
-  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value || saving.value || !hasUnsavedChanges.value) {
+  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value || !hasUnsavedChanges.value) {
     return true
   }
   autoSaveStatus.value = 'saving'
   const result = await save({ auto: true })
   if (result === 'stale') {
     autoSaveStatus.value = 'pending'
+    if (autoSaveTimer) clearTimeout(autoSaveTimer)
+    autoSaveTimer = setTimeout(() => {
+      void runAutoSave()
+    }, 800)
     return true
   }
   const ok = result === true
@@ -529,7 +669,9 @@ function addField(kind: FormBuilderAddKind) {
   if (field.custom_type === 'select') {
     selectOptionsDraft.value[field.id] = ['']
     selectOptionRowKeys.value[field.id] = [newOptionRowKey()]
+    selectOptionBaselines.value[field.id] = ['']
   }
+  labelBaselines.value[field.id] = field.label
   addMenuOpen.value = false
   markDirty()
   scheduleAutoSave()
@@ -576,6 +718,10 @@ function addSelectOption(fieldId: string) {
   cancelPendingAutoSave()
   ensureSelectOptionsDraft(fieldId).push('')
   ensureSelectOptionKeys(fieldId).push(newOptionRowKey())
+  if (!selectOptionBaselines.value[fieldId]) {
+    selectOptionBaselines.value[fieldId] = []
+  }
+  selectOptionBaselines.value[fieldId].push('')
   markDirty()
 }
 
@@ -604,7 +750,15 @@ function syncSelectOptions(field: GrossanlassRoundFormField) {
   field.options = { choices, multiple: opts.multiple === true }
 }
 
+let saveChain: Promise<unknown> = Promise.resolve()
+
 async function save(options?: { auto?: boolean }): Promise<boolean | 'stale'> {
+  const queued = saveChain.then(() => saveNow(options), () => saveNow(options))
+  saveChain = queued.then(() => undefined, () => undefined)
+  return queued
+}
+
+async function saveNow(options?: { auto?: boolean }): Promise<boolean | 'stale'> {
   if (!draft.value || props.readonly) return false
   const editGenAtStart = localEditGeneration
   saving.value = true
@@ -632,16 +786,19 @@ async function save(options?: { auto?: boolean }): Promise<boolean | 'stale'> {
     }
     const saved = await updateGrossanlassRoundForm(props.departmentId, props.roundId, payload as any)
 
+    skipAutoSave.value = true
+    applySavedForm(saved, options?.auto === true)
+    if (options?.auto) {
+      captureBaselines(draft.value)
+    }
+    await nextTick()
+    skipAutoSave.value = false
+
     if (options?.auto && editGenAtStart !== localEditGeneration) {
-      skipAutoSave.value = false
+      hasUnsavedChanges.value = true
       return 'stale'
     }
 
-    skipAutoSave.value = true
-    draft.value = cloneForm(saved)
-    normalizeDraftFields()
-    initSelectDrafts(saved.fields, options?.auto === true)
-    skipAutoSave.value = false
     hasUnsavedChanges.value = false
     const silent = props.silentSave || options?.auto
     if (!silent) {
@@ -832,6 +989,20 @@ onBeforeUnmount(() => {
 
 .mt-2 {
   margin-top: 8px;
+}
+
+.form-builder-autosave {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.form-builder-autosave.mb-4 {
+  margin-bottom: 16px;
+}
+
+.field-row-body :deep(.form-builder-autosave.autosave-field),
+.select-options-input :deep(.form-builder-autosave.autosave-field) {
+  margin-bottom: 0;
 }
 
 .order-index {

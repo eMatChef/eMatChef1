@@ -133,10 +133,7 @@
           class="mb-3"
         />
 
-        <div
-          v-if="!editingRound || editingRound.status === 'scheduled'"
-          class="activity-datetime-host round-single-time mb-3"
-        >
+        <div class="activity-datetime-host round-single-time mb-3">
           <ActivityOutlinedDatetimeSection
             :title="t('grossanlass.planung.rounds.opensAtLabel')"
             icon="calendar"
@@ -150,6 +147,8 @@
               :show-presets="true"
               :show-markers="true"
               preset-mode="fixed-periods"
+              :disabled="!canEditOpens"
+              :times-locked="!canEditOpens"
               :label-from="t('activities.zeitraum.timeFrom')"
               :label-to="t('activities.zeitraum.timeTo')"
               :aria-label="t('grossanlass.planung.rounds.opensAtLabel')"
@@ -157,7 +156,16 @@
           </ActivityOutlinedDatetimeSection>
         </div>
 
-        <div class="activity-datetime-host round-single-time mb-3">
+        <ECheckbox
+          v-model="hasClosesAt"
+          :label="t('grossanlass.planung.rounds.closesAtEnable')"
+          :hint="t('grossanlass.planung.rounds.closesAtEnableHint')"
+          hide-details="auto"
+          class="mb-2"
+          @update:model-value="onHasClosesAtToggle"
+        />
+
+        <div v-if="hasClosesAt" class="activity-datetime-host round-single-time mb-3">
           <ActivityOutlinedDatetimeSection
             :title="t('grossanlass.planung.rounds.closesAtLabel')"
             icon="calendar"
@@ -183,6 +191,7 @@
           :label="t('grossanlass.planung.rounds.autoScheduleLabel')"
           :hint="t('grossanlass.planung.rounds.autoScheduleHint')"
           hide-details="auto"
+          @update:model-value="onAutoScheduleToggle"
         />
       </template>
 
@@ -290,11 +299,30 @@ const form = ref({
 
 const opensAt = ref<Date | null>(null)
 const closesAt = ref<Date | null>(null)
+const hasClosesAt = ref(false)
 const opensAtTimeToDummy = ref<Date | null>(null)
 const closesAtTimeToDummy = ref<Date | null>(null)
 
+const canEditOpens = computed(
+  () => !editingRound.value || editingRound.value.status === 'scheduled',
+)
+
 function defaultQuarterTime(day: Date, hour: number, minute: number): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0)
+}
+
+function defaultOpensAt(): Date {
+  return defaultQuarterTime(new Date(), 9, 0)
+}
+
+function defaultClosesAt(after: Date | null): Date {
+  const candidate = defaultQuarterTime(after ?? new Date(), 17, 0)
+  if (after && candidate <= after) {
+    const nextDay = new Date(after)
+    nextDay.setDate(nextDay.getDate() + 1)
+    return defaultQuarterTime(nextDay, 17, 0)
+  }
+  return candidate
 }
 
 function parseIsoDate(iso: string | null): Date | null {
@@ -373,13 +401,27 @@ function formatWindow(round: GrossanlassPlanningRound): string {
   return t('grossanlass.planung.rounds.windowRange', { open, close })
 }
 
+function onHasClosesAtToggle(checked: boolean | null) {
+  if (checked && !closesAt.value) {
+    closesAt.value = defaultClosesAt(opensAt.value)
+  }
+}
+
+function onAutoScheduleToggle(checked: boolean | null) {
+  if (!checked) return
+  if (canEditOpens.value && !opensAt.value) {
+    opensAt.value = defaultOpensAt()
+  }
+}
+
 function resetForm() {
   form.value = {
     name: '',
     useAutoSchedule: false,
   }
-  opensAt.value = null
+  opensAt.value = defaultOpensAt()
   closesAt.value = null
+  hasClosesAt.value = false
 }
 
 function openCreateModal() {
@@ -400,8 +442,11 @@ function openEditModal(round: GrossanlassPlanningRound) {
     name: round.name,
     useAutoSchedule: round.use_auto_schedule,
   }
-  opensAt.value = parseIsoDate(round.opens_at)
+  const parsedOpens = parseIsoDate(round.opens_at) ?? parseIsoDate(round.opened_at)
+  const isScheduled = round.status === 'scheduled'
+  opensAt.value = parsedOpens ?? (isScheduled ? defaultOpensAt() : null)
   closesAt.value = parseIsoDate(round.closes_at)
+  hasClosesAt.value = closesAt.value != null
   showModal.value = true
 }
 
@@ -425,7 +470,7 @@ function buildRoundPayload() {
   return {
     name: form.value.name.trim(),
     opens_at: opensAt.value?.toISOString() ?? null,
-    closes_at: closesAt.value?.toISOString() ?? null,
+    closes_at: hasClosesAt.value ? closesAt.value?.toISOString() ?? null : null,
     use_auto_schedule: form.value.useAutoSchedule,
   }
 }
@@ -435,6 +480,18 @@ async function persistRoundStep(): Promise<GrossanlassPlanningRound | null> {
   const name = form.value.name.trim()
   if (!name) {
     toast.error(t('grossanlass.planung.rounds.nameRequired'))
+    return null
+  }
+  if (form.value.useAutoSchedule && canEditOpens.value && !opensAt.value) {
+    toast.error(t('grossanlass.planung.rounds.autoScheduleNeedsOpens'))
+    return null
+  }
+  if (hasClosesAt.value && !closesAt.value) {
+    toast.error(t('grossanlass.planung.rounds.closesAtRequired'))
+    return null
+  }
+  if (opensAt.value && hasClosesAt.value && closesAt.value && closesAt.value < opensAt.value) {
+    toast.error(t('grossanlass.planung.rounds.windowInvalid'))
     return null
   }
 

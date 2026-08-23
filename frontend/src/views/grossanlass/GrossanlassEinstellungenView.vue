@@ -1,8 +1,8 @@
 <template>
   <PageShell
-    class="grossanlass-beschaffung-shell"
-    :title="t('grossanlass.beschaffung.title')"
-    :subtitle="t('grossanlass.beschaffung.subtitle')"
+    class="grossanlass-einstellungen-shell"
+    :title="t('grossanlass.einstellungen.title')"
+    :subtitle="t('grossanlass.einstellungen.subtitle')"
   >
     <template #filters>
       <v-tabs
@@ -45,24 +45,25 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
-  { id: 'uebersicht', label: t('grossanlass.beschaffung.tabUebersicht'), icon: 'mdi-chart-box-outline' },
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
+  { id: 'ressorts', label: t('grossanlass.planung.tabRessorts'), icon: 'mdi-sitemap' },
+  { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
+  { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-warehouse' },
+  { id: 'struktur', label: t('grossanlass.planung.tabStruktur'), icon: 'mdi-file-tree-outline' },
+  { id: 'activities', label: t('grossanlass.planung.tabActivities'), icon: 'mdi-calendar-plus' },
+  { id: 'freigabe', label: t('grossanlass.planung.tabFreigabe'), icon: 'mdi-check-decagram-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
+const activeTab = computed(() => (route.meta.einstellungenTab as string) || 'ressorts')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/beschaffung/${tab}`)
+  void router.push(`/${id}/einstellungen/${tab}`)
 }
 </script>
 
 <style scoped>
-.grossanlass-beschaffung-shell :deep(.page-shell__header) {
+.grossanlass-einstellungen-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
 }
 </style>

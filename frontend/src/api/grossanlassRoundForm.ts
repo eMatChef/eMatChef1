@@ -140,12 +140,17 @@ export function canRemoveFormBuilderField(field: GrossanlassRoundFormField): boo
 }
 
 export function normalizeSystemFieldLabels(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
-  return fields.map((f) => {
-    if (!f.system_key) return f
+  applySystemFieldDefaultLabels(fields)
+  return fields
+}
+
+/** Setzt System-Beschriftungen in-place — Objektidentität bleibt für v-model erhalten. */
+export function applySystemFieldDefaultLabels(fields: GrossanlassRoundFormField[]): void {
+  for (const f of fields) {
+    if (!f.system_key) continue
     const def = SYSTEM_FIELD_DEFS.find((d) => d.system_key === f.system_key)
-    if (!def) return f
-    return { ...f, label: def.defaultLabel }
-  })
+    if (def) f.label = def.defaultLabel
+  }
 }
 
 export function isEditableCustomField(field: GrossanlassRoundFormField): boolean {
@@ -263,6 +268,24 @@ export function ensureMetaSystemFields(fields: GrossanlassRoundFormField[]): Gro
 
 export function sortFormFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
   return [...fields].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id))
+}
+
+/** Dieselben Objekt-Referenzen wie `fields` — für den Form-Builder (v-model). */
+export function listFormBuilderInputFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  return sortFormFields(fields.filter((f) => f.role === 'input'))
+}
+
+export function listFormBuilderMetaFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  return sortFormFields(fields.filter((f) => f.role === 'meta'))
+}
+
+/** Sortiert Eingabe- vor Metafeldern und schreibt sort_order in-place. */
+export function applyFormBuilderFieldOrder(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  const ordered = [...listFormBuilderInputFields(fields), ...listFormBuilderMetaFields(fields)]
+  ordered.forEach((f, i) => {
+    f.sort_order = (i + 1) * 10
+  })
+  return ordered
 }
 
 export function nextFormFieldSortOrder(fields: GrossanlassRoundFormField[]): number {
