@@ -1,7 +1,7 @@
 <template>
   <PageShell
     class="grossanlass-rounds-shell"
-    :title="t('grossanlass.planung.rounds.pageTitle')"
+    :title="t('grossanlass.planung.tabWishes')"
   >
     <GrossanlassKeyDatesPanel v-if="departmentId" :department-id="departmentId" />
     <GrossanlassRoundsTab />

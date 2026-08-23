@@ -230,6 +230,16 @@
           <p>{{ t('grossanlass.planung.ressorts.emptyNoMembers') }}</p>
         </div>
 
+        <div v-if="canManageMembersForGroup(selectedGroup)" class="add-helper-section">
+          <h4 class="section-title">{{ t('grossanlass.planung.ressorts.helperHeading') }}</h4>
+          <GrossanlassHelperInviteForm
+            :department-id="departmentId"
+            :groups="groups"
+            :fixed-group-id="selectedGroup.id"
+            @created="onHelperCreated"
+          />
+        </div>
+
         <div v-if="canManageMembersForGroup(selectedGroup)" class="add-member-section">
           <h4 class="section-title">{{ t('grossanlass.planung.ressorts.addMemberHeading') }}</h4>
           <div v-if="isLoadingUsers" class="loading-inline">
@@ -281,6 +291,7 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import GrossanlassHelperInviteForm from '@/components/grossanlass/GrossanlassHelperInviteForm.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, EDialog, ETextField, ESelect } from '@/components/form/base'
@@ -594,6 +605,13 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
   }
 }
 
+async function onHelperCreated() {
+  await loadGroups()
+  const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+  if (updated) selectedGroup.value = updated
+  await loadDepartmentMembers()
+}
+
 async function handleRemoveMember(member: GroupMember) {
   if (!selectedGroup.value || !departmentId.value) return
   const ok = await confirm.confirm({
@@ -803,8 +821,14 @@ onMounted(() => loadGroups())
 }
 
 .members-section,
-.add-member-section {
+.add-member-section,
+.add-helper-section {
   margin-bottom: 20px;
+}
+
+.add-helper-section {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .section-title {

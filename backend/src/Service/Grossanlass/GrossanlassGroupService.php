@@ -8,7 +8,7 @@ use App\Entity\GroupMembership;
 use App\Entity\User;
 use App\Service\GroupAccessService;
 use App\Service\GroupHierarchyService;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GrossanlassGroupService
@@ -79,7 +79,7 @@ class GrossanlassGroupService
         }
 
         $group = new Group();
-        $group->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, Group::class, 'grp'));
+        $group->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::GROUP, Group::class));
         $group->setDepartment($department);
         $group->setName(trim((string) $data['name']));
         if ($parent !== null) {

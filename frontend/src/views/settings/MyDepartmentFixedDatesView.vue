@@ -119,11 +119,16 @@ import {
   deleteDepartmentCalendarPeriod,
   listDepartmentCalendarPeriods,
   updateDepartmentCalendarPeriod,
+  GROSSANLASS_TIME_MODULE_LABELS,
   type CalendarPeriodLabel,
   type DepartmentCalendarPeriod,
 } from '@/api/calendarPeriods'
 
-const GROSSANLASS_LABELS: CalendarPeriodLabel[] = ['grossanlass', 'other', 'department_break']
+const GROSSANLASS_LABELS: CalendarPeriodLabel[] = [
+  ...GROSSANLASS_TIME_MODULE_LABELS,
+  'other',
+  'department_break',
+]
 const MATERIAL_LABELS: CalendarPeriodLabel[] = ['school_vacation', 'department_break', 'camp_week', 'other']
 
 const route = useRoute()
@@ -179,7 +184,7 @@ const defaultLabel = (): CalendarPeriodLabel =>
 
 const emptyForm = () => ({
   label: defaultLabel(),
-  name: '',
+  name: isGrossanlassDept.value ? labelText(defaultLabel()) : '',
   start_date: '',
   end_date: '',
 })
@@ -197,6 +202,17 @@ const labelOptions = computed(() => {
 function labelText(label: CalendarPeriodLabel): string {
   return t(`settings.fixedDates.labels.${label}`)
 }
+
+watch(
+  () => form.label,
+  (next, prev) => {
+    if (!isGrossanlassDept.value) return
+    const prevDefault = prev ? labelText(prev) : ''
+    if (!form.name.trim() || form.name.trim() === prevDefault) {
+      form.name = labelText(next)
+    }
+  },
+)
 
 function formatDisplayDate(iso: string): string {
   const [y, m, d] = iso.split('-').map((x) => parseInt(x, 10))
@@ -235,10 +251,10 @@ function resetForm() {
 
 function startEdit(row: DepartmentCalendarPeriod) {
   editingId.value = row.id
-  form.label = row.label
   form.name = row.name
   form.start_date = row.start_date
   form.end_date = row.end_date
+  form.label = row.label
 }
 
 function cancelEdit() {
@@ -464,6 +480,16 @@ watch(
 .type-tag--grossanlass {
   background: #dbeafe;
   color: #1d4ed8;
+}
+
+.type-tag--aufbau {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.type-tag--abbau {
+  background: #fae8ff;
+  color: #86198f;
 }
 
 .actions {

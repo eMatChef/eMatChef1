@@ -79,6 +79,39 @@
       </div>
     </section>
 
+    <section class="plt-section plt-section--alt" aria-labelledby="section-qr-overview">
+      <div class="plt-container">
+        <h2 id="section-qr-overview">{{ t('public.qrOverview.title') }}</h2>
+        <p class="plt-lead plt-qr-lead">{{ t('public.qrOverview.lead') }}</p>
+        <div class="plt-features">
+          <ECard variant="outlined" class="plt-feature-card">
+            <div class="plt-feature-card__body">
+              <h3>{{ t('public.qrOverview.materialTitle') }}</h3>
+              <p>{{ t('public.qrOverview.materialText') }}</p>
+            </div>
+          </ECard>
+          <ECard variant="outlined" class="plt-feature-card">
+            <div class="plt-feature-card__body">
+              <h3>{{ t('public.qrOverview.activityTitle') }}</h3>
+              <p>{{ t('public.qrOverview.activityText') }}</p>
+            </div>
+          </ECard>
+          <ECard variant="outlined" class="plt-feature-card">
+            <div class="plt-feature-card__body">
+              <h3>{{ t('public.qrOverview.workshopTitle') }}</h3>
+              <p>{{ t('public.qrOverview.workshopText') }}</p>
+            </div>
+          </ECard>
+          <ECard variant="outlined" class="plt-feature-card">
+            <div class="plt-feature-card__body">
+              <h3>{{ t('public.qrOverview.cardTitle') }}</h3>
+              <p>{{ t('public.qrOverview.cardText') }}</p>
+            </div>
+          </ECard>
+        </div>
+      </div>
+    </section>
+
     <section v-if="showCta" class="plt-cta" aria-labelledby="section-cta">
       <div class="plt-container">
         <h2 v-if="landing.ctaTitleSrOnly" id="section-cta" class="sr-only">{{ landing.ctaTitleSrOnly }}</h2>
@@ -184,6 +217,12 @@ const secondaryIsInternal = computed(() => landing.value.secondaryCtaPath.starts
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+.plt-qr-lead {
+  max-width: 40rem;
+  margin: 0 0 1.25rem;
+  color: var(--plt-text-soft);
 }
 
 .plt-feature-card {

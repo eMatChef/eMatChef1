@@ -3,7 +3,7 @@ parameters:
     env(MAILER_FROM): 'noreply@ematchef.ch'
     # Optional: Reply-To für System-Mails (wenn gesetzt und gültige E-Mail). Sonst optional in mail_outbound.json.
     env(MAILER_REPLY_TO): ''
-    # Optional: Basis-URL für öffentliche QR-Links (/i/m/…/b/…, /i/a/, /i/w/). Leer = APP_FRONTEND_URL.
+    # Optional: Basis-URL für öffentliche QR-Links (/i/m/…/b/…, /i/a/, /i/w/, /i/c/). Leer = APP_FRONTEND_URL.
     env(APP_PUBLIC_QR_URL): ''
     # Optional: Fallback für fcal API-Key (Schulferien); bevorzugt zentral in var/app/integration_settings.json (Superadmin).
     env(FCAL_API_KEY): ''
@@ -14,6 +14,7 @@ parameters:
     env(GOOGLE_OAUTH_CLIENT_ID): ''
     env(GOOGLE_OAUTH_CLIENT_SECRET): ''
     env(GOOGLE_OAUTH_REDIRECT_URI): ''
+    env(GOOGLE_GMAIL_REDIRECT_URI): ''
     # Sprachen: de|fr|it|en|ch-rm = Hauptsprachen; de|fr|it × pfadi|cevi|jubla = Org-Deltas — siehe docs/TRANSLATION.md
     app.supported_languages: ['de', 'de-pfadi', 'de-cevi', 'de-jubla', 'en', 'fr', 'fr-pfadi', 'fr-cevi', 'fr-jubla', 'it', 'it-pfadi', 'it-cevi', 'it-jubla', 'ch-rm']
     app.default_language: 'de'

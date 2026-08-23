@@ -7,6 +7,7 @@ use App\Entity\Group;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassAccessService;
 use App\Service\Grossanlass\GrossanlassGroupService;
+use App\Service\Grossanlass\GrossanlassHelperService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,6 +22,7 @@ class GrossanlassGroupController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassGroupService $groupService,
+        private GrossanlassHelperService $helperService,
         private GrossanlassAccessService $access,
         private GroupAccessService $groupAccess,
     ) {}
@@ -176,6 +178,40 @@ class GrossanlassGroupController extends AbstractController
         }
 
         return new JsonResponse($member, 201);
+    }
+
+    #[Route('/{groupId}/helpers', name: 'add_helper', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addHelper(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if ($group === null || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $result = $this->helperService->inviteOrCreate($department, $currentUser, $group, $data);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Fehler beim Anlegen: ' . $e->getMessage()], 500);
+        }
+
+        return new JsonResponse($result, 201);
     }
 
     #[Route('/{groupId}/members/{userId}', name: 'update_member', methods: ['PATCH'])]

@@ -165,7 +165,7 @@
       </details>
 
       <details
-        v-if="selectedDepartmentId"
+        v-if="selectedDepartmentId && !isSelectedDeptGrossanlass"
         class="info-card dept-accordion"
         :open="openAccordion === 'groups'"
       >
@@ -423,6 +423,11 @@ const { isUserRole, isDepartmentLeader } = useDepartmentMemberRole()
 
 /** Reines Mitglied «u»: nur Liste; L1–L3 und MW/DC: volle Verwaltung. */
 const membersReadOnly = computed(() => isUserRole.value && !isDepartmentLeader.value)
+
+const isSelectedDeptGrossanlass = computed(() => {
+  const id = selectedDepartmentId.value || authStore.activeDepartmentId
+  return authStore.isDepartmentGrossanlass(id)
+})
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -742,7 +747,12 @@ async function loadDepartment(departmentId?: string) {
     
     // Lade Adressen (Lagerplätze, Rechnungsadressen, etc.)
     await loadAddresses(deptId)
-    await loadGroupsCount(deptId)
+    if (authStore.isDepartmentGrossanlass(deptId)) {
+      groupsPanelCount.value = 0
+      if (openAccordion.value === 'groups') openAccordion.value = null
+    } else {
+      await loadGroupsCount(deptId)
+    }
     await loadInviteCode(deptId)
 
     if (!canManageJoinCode.value && openAccordion.value === 'join-code') {

@@ -11,7 +11,7 @@ use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\User;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use App\Service\GroupHierarchyService;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -224,7 +224,7 @@ class GrossanlassWishService
         }
 
         $response = new ActivityGrossanlassWishResponse();
-        $response->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponse::class, 'wr'));
+        $response->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_RESPONSE, ActivityGrossanlassWishResponse::class));
         $response->setRound($round);
         $response->setForm($form);
         $response->setGroup($parsed['group']);
@@ -232,7 +232,7 @@ class GrossanlassWishService
         $response->setStatus(ActivityGrossanlassWishResponse::STATUS_REQUESTED);
 
         $line = new ActivityGrossanlassWishLine();
-        $line->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishLine::class, 'gw'));
+        $line->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_LINE, ActivityGrossanlassWishLine::class));
         $line->setRound($round);
         $line->setGroup($parsed['group']);
         $line->setWishKind($parsed['wish_kind']);
@@ -288,7 +288,7 @@ class GrossanlassWishService
         $response = $line->getResponse();
         if ($response === null) {
             $response = new ActivityGrossanlassWishResponse();
-            $response->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponse::class, 'wr'));
+            $response->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_RESPONSE, ActivityGrossanlassWishResponse::class));
             $response->setRound($line->getRound());
             $response->setForm($form);
             $response->setCreatedByUser($line->getCreatedByUser());
@@ -563,7 +563,7 @@ class GrossanlassWishService
                 continue;
             }
             $value = new ActivityGrossanlassWishResponseValue();
-            $value->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponseValue::class, 'wv'));
+            $value->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_VALUE, ActivityGrossanlassWishResponseValue::class));
             $value->setResponse($response);
             $value->setField($field);
             $this->applyValueToEntity($value, $field, $raw);

@@ -217,15 +217,14 @@ class DepartmentCalendarPeriodController extends AbstractController
 
     private function assertLabelAllowedForDepartment(Department $department, string $label): void
     {
-        if ($label === DepartmentCalendarPeriod::LABEL_GROSSANLASS && !$department->isGrossanlass()) {
-            throw new \InvalidArgumentException('Art «Grossanlass» ist nur in Grossanlass-Departments erlaubt');
+        $isGaModule = \in_array($label, DepartmentCalendarPeriod::GROSSANLASS_MODULE_LABELS, true);
+        if ($isGaModule && !$department->isGrossanlass()) {
+            throw new \InvalidArgumentException('Dieses Zeitmodul ist nur in Grossanlass-Departments erlaubt');
         }
         if ($department->isGrossanlass()) {
             if (\in_array($label, [DepartmentCalendarPeriod::LABEL_SCHOOL_VACATION, DepartmentCalendarPeriod::LABEL_CAMP_WEEK], true)) {
                 throw new \InvalidArgumentException('Schulferien und Lagerwoche sind in Grossanlass-Departments nicht verfügbar');
             }
-        } elseif ($label === DepartmentCalendarPeriod::LABEL_GROSSANLASS) {
-            throw new \InvalidArgumentException('Art «Grossanlass» ist nur in Grossanlass-Departments erlaubt');
         }
     }
 

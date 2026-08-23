@@ -11,7 +11,7 @@ use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\User;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GrossanlassRoundFormService
@@ -74,12 +74,12 @@ class GrossanlassRoundFormService
         }
 
         $form = new ActivityGrossanlassRoundForm();
-        $form->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassRoundForm::class, 'gf'));
+        $form->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::FORM, ActivityGrossanlassRoundForm::class));
         $form->setRound($round);
 
         $this->entityManager->persist($form);
 
-        foreach (GrossanlassFormFieldCatalog::defaultRessortWuenscheFields() as $def) {
+        foreach (GrossanlassFormFieldCatalog::defaultFieldsForPurpose($round->getFormPurpose()) as $def) {
             $field = $this->createFieldFromDefinition($form, $def);
             $this->entityManager->persist($field);
         }
@@ -264,7 +264,7 @@ class GrossanlassRoundFormService
     private function createFieldFromDefinition(ActivityGrossanlassRoundForm $form, array $def): ActivityGrossanlassRoundFormField
     {
         $field = new ActivityGrossanlassRoundFormField();
-        $field->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassRoundFormField::class, 'ff'));
+        $field->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::FORM_FIELD, ActivityGrossanlassRoundFormField::class));
         $field->setForm($form);
         $this->applyFieldDefinition($field, $def);
 

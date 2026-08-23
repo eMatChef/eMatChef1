@@ -118,6 +118,9 @@ function isSettingsItemActive(itemId: string): boolean {
   if (itemId === 'module') {
     return p === `${base}/module`
   }
+  if (itemId === 'zeit') {
+    return p === `${base}/zeit`
+  }
   if (itemId === 'my-department/fixed-dates') {
     return p === `${base}/my-department/fixed-dates`
   }
@@ -176,6 +179,7 @@ const allMenuItems = computed(() => [
     requiresMaterialManage: true,
   },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
+  { id: 'zeit', label: t('settings.nav.timeLocation'), mdiIcon: 'mdi-clock-outline' },
   { id: 'module', label: t('settings.nav.module'), mdiIcon: 'mdi-tune' },
   {
     id: 'my-department/public-material-page',
@@ -194,8 +198,8 @@ const allMenuItems = computed(() => [
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
-/** Grossanlass-Dept: Mein Department (+ Module/Zeit für MW/DC) — README §3.6 */
-const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'module', 'my-department/fixed-dates'])
+/** Grossanlass-Dept: Mein Department, Zeit/Ort, Fixe Daten für MW/DC — README §3.6 */
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
@@ -219,7 +223,7 @@ const visibleMenuItems = computed(() => {
 
   let items = isUserRole.value
     ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
-    : allMenuItems.value
+    : allMenuItems.value.filter((item) => item.id !== 'zeit')
   if (!canManageMaterials.value) {
     items = items.filter((item) => !(item as { requiresMaterialManage?: boolean }).requiresMaterialManage)
   }

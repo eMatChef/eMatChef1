@@ -4,7 +4,7 @@
       <div>
         <p class="tab-description">{{ roundsSubtitle }}</p>
       </div>
-      <EButton v-if="canManage" variant="primary" @click="openCreateModal">
+      <EButton v-if="canManage" variant="primary" @click="openCreateModal()">
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('grossanlass.planung.rounds.addAction') }}
       </EButton>
@@ -16,108 +16,150 @@
       :message="t('grossanlass.planung.rounds.loading')"
     />
 
-    <div v-else-if="error" class="rounds-error">
-      <v-alert type="error" variant="tonal" :text="error" />
-      <EButton variant="secondary" class="mt-3" @click="loadRounds">{{ t('common.retry') }}</EButton>
-    </div>
+    <template v-else>
+      <section
+        v-for="group in formGroups"
+        :key="group.purpose"
+        class="wish-form-group"
+      >
+        <div class="wish-form-group__head">
+          <h2 class="wish-form-group__title">
+            <span class="purpose-badge" :class="'purpose-' + group.purpose">{{ group.title }}</span>
+          </h2>
+          <p class="wish-form-group__landing">{{ group.landing }}</p>
+        </div>
 
-    <EEmptyState
-      v-else-if="rounds.length === 0"
-      variant="create"
-      icon="mdi-calendar-clock"
-      :title="t('grossanlass.planung.rounds.emptyTitle')"
-      :description="t('grossanlass.planung.rounds.emptyDescription')"
+        <v-alert
+          v-if="error"
+          type="error"
+          variant="tonal"
+          :text="error"
+          class="mb-3"
+        />
+        <EButton
+          v-if="error"
+          variant="secondary"
+          class="mb-3"
+          @click="loadRounds"
+        >
+          {{ t('common.retry') }}
+        </EButton>
+
+        <EEmptyState
+          v-if="!group.rows.length"
+          compact
+          variant="create"
+          :heading-level="3"
+          icon="mdi-form-select"
+          :title="group.emptyTitle"
+          :description="group.emptyDescription"
+        >
+          <template v-if="canManage" #actions>
+            <EButton size="small" @click="openCreateModal(group.purpose)">
+              {{ t('grossanlass.planung.rounds.addAction') }}
+            </EButton>
+          </template>
+        </EEmptyState>
+
+        <div v-else class="table-wrapper">
+          <table class="rounds-table">
+            <thead>
+              <tr>
+                <th class="col-name">{{ t('grossanlass.planung.rounds.colName') }}</th>
+                <th class="col-status">{{ t('grossanlass.planung.rounds.colStatus') }}</th>
+                <th class="col-window">{{ t('grossanlass.planung.rounds.colWindow') }}</th>
+                <th class="col-auto">{{ t('grossanlass.planung.rounds.colAuto') }}</th>
+                <th v-if="canManage" class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in group.rows"
+                :key="row.id"
+                class="round-row"
+                @click="openRow(row)"
+              >
+                <td class="col-name col-name--link">
+                  <span class="round-name">{{ row.name }}</span>
+                  <span class="round-type">{{ purposeLabel(row.purpose) }}</span>
+                </td>
+                <td class="col-status">
+                  <span class="status-badge" :class="'status-' + row.status">
+                    {{ statusLabel(row.status) }}
+                  </span>
+                </td>
+                <td class="col-window">
+                  <span class="window-text">{{ formatWindow(row.opens_at, row.closes_at) }}</span>
+                </td>
+                <td class="col-auto">
+                  <v-icon
+                    v-if="row.use_auto_schedule"
+                    icon="mdi-clock-check-outline"
+                    size="18"
+                    color="primary"
+                    :title="t('grossanlass.planung.rounds.autoEnabled')"
+                  />
+                  <span v-else class="text-muted">–</span>
+                </td>
+                <td v-if="canManage" class="col-actions" @click="stopRowClick">
+                  <div v-if="row.live" class="action-buttons">
+                    <button
+                      v-if="canEditForm && row.live.status !== 'closed'"
+                      class="action-btn"
+                      :title="t('grossanlass.formBuilder.editFormAction')"
+                      @click="openFormModal(row.live)"
+                    >
+                      <v-icon icon="mdi-form-select" size="16" />
+                    </button>
+                    <button
+                      v-if="row.live.status !== 'closed'"
+                      class="action-btn"
+                      :title="t('common.edit')"
+                      @click="openEditModal(row.live)"
+                    >
+                      <v-icon icon="mdi-pencil-outline" size="16" />
+                    </button>
+                    <button
+                      v-if="row.live.status === 'scheduled'"
+                      class="action-btn action-btn-primary"
+                      :title="t('grossanlass.planung.rounds.openAction')"
+                      @click="handleOpen(row.live)"
+                    >
+                      <v-icon icon="mdi-play-circle-outline" size="16" />
+                    </button>
+                    <button
+                      v-if="row.live.status === 'open'"
+                      class="action-btn action-btn-warning"
+                      :title="t('grossanlass.planung.rounds.closeAction')"
+                      @click="handleClose(row.live)"
+                    >
+                      <v-icon icon="mdi-stop-circle-outline" size="16" />
+                    </button>
+                    <button
+                      v-if="row.live.status === 'closed'"
+                      class="action-btn action-btn-primary"
+                      :title="t('grossanlass.planung.rounds.reopenAction')"
+                      @click="handleReopen(row.live)"
+                    >
+                      <v-icon icon="mdi-replay" size="16" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </template>
+
+    <EDialog
+      v-model="showModal"
+      :max-width="wizardStep === 2 ? 920 : 800"
+      :title="modalTitle"
+      scrollable
+      :retain-focus="false"
+      card-class="grossanlass-form-dialog-card"
     >
-      <template v-if="canManage" #actions>
-        <EButton @click="openCreateModal">{{ t('grossanlass.planung.rounds.addAction') }}</EButton>
-      </template>
-    </EEmptyState>
-
-    <div v-else class="table-wrapper">
-      <table class="rounds-table">
-        <thead>
-          <tr>
-            <th class="col-name">{{ t('grossanlass.planung.rounds.colName') }}</th>
-            <th class="col-status">{{ t('grossanlass.planung.rounds.colStatus') }}</th>
-            <th class="col-window">{{ t('grossanlass.planung.rounds.colWindow') }}</th>
-            <th class="col-auto">{{ t('grossanlass.planung.rounds.colAuto') }}</th>
-            <th v-if="canManage" class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="round in rounds" :key="round.id" class="round-row" @click="openRound(round)">
-            <td class="col-name col-name--link">
-              <span class="round-name">{{ round.name }}</span>
-              <span class="round-type">{{ t('grossanlass.planung.rounds.typeRessortWuensche') }}</span>
-            </td>
-            <td class="col-status">
-              <span class="status-badge" :class="'status-' + round.status">
-                {{ statusLabel(round.status) }}
-              </span>
-            </td>
-            <td class="col-window">
-              <span class="window-text">{{ formatWindow(round) }}</span>
-            </td>
-            <td class="col-auto">
-              <v-icon
-                v-if="round.use_auto_schedule"
-                icon="mdi-clock-check-outline"
-                size="18"
-                color="primary"
-                :title="t('grossanlass.planung.rounds.autoEnabled')"
-              />
-              <span v-else class="text-muted">–</span>
-            </td>
-            <td v-if="canManage" class="col-actions" @click="stopRowClick">
-              <div class="action-buttons">
-                <button
-                  v-if="canEditForm && round.status !== 'closed'"
-                  class="action-btn"
-                  :title="t('grossanlass.formBuilder.editFormAction')"
-                  @click="openFormModal(round)"
-                >
-                  <v-icon icon="mdi-form-select" size="16" />
-                </button>
-                <button
-                  v-if="round.status !== 'closed'"
-                  class="action-btn"
-                  :title="t('common.edit')"
-                  @click="openEditModal(round)"
-                >
-                  <v-icon icon="mdi-pencil-outline" size="16" />
-                </button>
-                <button
-                  v-if="round.status === 'scheduled'"
-                  class="action-btn action-btn-primary"
-                  :title="t('grossanlass.planung.rounds.openAction')"
-                  @click="handleOpen(round)"
-                >
-                  <v-icon icon="mdi-play-circle-outline" size="16" />
-                </button>
-                <button
-                  v-if="round.status === 'open'"
-                  class="action-btn action-btn-warning"
-                  :title="t('grossanlass.planung.rounds.closeAction')"
-                  @click="handleClose(round)"
-                >
-                  <v-icon icon="mdi-stop-circle-outline" size="16" />
-                </button>
-                <button
-                  v-if="round.status === 'closed'"
-                  class="action-btn action-btn-primary"
-                  :title="t('grossanlass.planung.rounds.reopenAction')"
-                  @click="handleReopen(round)"
-                >
-                  <v-icon icon="mdi-replay" size="16" />
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <EDialog v-model="showModal" :max-width="wizardStep === 2 ? 920 : 720" :title="modalTitle" scrollable>
       <div v-if="showWizardSteps && !formOnlyModal" class="wizard-steps">
         <span class="wizard-step" :class="{ active: wizardStep === 1 }">{{ t('grossanlass.planung.rounds.wizardStepRound') }}</span>
         <v-icon icon="mdi-chevron-right" size="16" class="wizard-step-sep" />
@@ -125,18 +167,35 @@
       </div>
 
       <template v-if="wizardStep === 1">
+        <ESelect
+          v-if="!editingRound"
+          v-model="form.purpose"
+          :items="purposeItems"
+          item-title="title"
+          item-value="value"
+          :label="t('grossanlass.planung.wishForms.purposeLabel')"
+          hide-details="auto"
+          class="mb-3"
+        />
+        <p class="purpose-hint">{{ purposeHint }}</p>
+        <v-alert
+          v-if="form.purpose === 'material_wish'"
+          type="info"
+          variant="tonal"
+          density="compact"
+          class="mb-3 grob-fein-alert"
+        >
+          {{ t('grossanlass.planung.wishForms.grobFeinHint') }}
+        </v-alert>
         <ETextField
           v-model="form.name"
           :label="t('grossanlass.planung.rounds.nameLabel')"
-          :placeholder="t('grossanlass.planung.rounds.namePlaceholder')"
+          :placeholder="namePlaceholder"
           hide-details="auto"
           class="mb-3"
         />
 
-        <div
-          v-if="!editingRound || editingRound.status === 'scheduled'"
-          class="activity-datetime-host round-single-time mb-3"
-        >
+        <div class="activity-datetime-host round-single-time mb-3">
           <ActivityOutlinedDatetimeSection
             :title="t('grossanlass.planung.rounds.opensAtLabel')"
             icon="calendar"
@@ -146,10 +205,13 @@
               v-model:time-from="opensAt"
               v-model:time-to="opensAtTimeToDummy"
               date-mode="single"
+              layout="stacked"
               :department-id="departmentId"
               :show-presets="true"
               :show-markers="true"
               preset-mode="fixed-periods"
+              :disabled="!canEditOpens"
+              :times-locked="!canEditOpens"
               :label-from="t('activities.zeitraum.timeFrom')"
               :label-to="t('activities.zeitraum.timeTo')"
               :aria-label="t('grossanlass.planung.rounds.opensAtLabel')"
@@ -157,7 +219,16 @@
           </ActivityOutlinedDatetimeSection>
         </div>
 
-        <div class="activity-datetime-host round-single-time mb-3">
+        <ECheckbox
+          v-model="hasClosesAt"
+          :label="t('grossanlass.planung.rounds.closesAtEnable')"
+          :hint="t('grossanlass.planung.rounds.closesAtEnableHint')"
+          hide-details="auto"
+          class="mb-2"
+          @update:model-value="onHasClosesAtToggle"
+        />
+
+        <div v-if="hasClosesAt" class="activity-datetime-host round-single-time mb-3">
           <ActivityOutlinedDatetimeSection
             :title="t('grossanlass.planung.rounds.closesAtLabel')"
             icon="calendar"
@@ -167,6 +238,7 @@
               v-model:time-from="closesAt"
               v-model:time-to="closesAtTimeToDummy"
               date-mode="single"
+              layout="stacked"
               :department-id="departmentId"
               :show-presets="true"
               :show-markers="true"
@@ -183,6 +255,7 @@
           :label="t('grossanlass.planung.rounds.autoScheduleLabel')"
           :hint="t('grossanlass.planung.rounds.autoScheduleHint')"
           hide-details="auto"
+          @update:model-value="onAutoScheduleToggle"
         />
       </template>
 
@@ -197,13 +270,13 @@
       />
 
       <template #actions>
-        <EButton variant="secondary" @click="closeModal">{{ t('common.cancel') }}</EButton>
+        <EButton variant="secondary" @click.stop="closeModal">{{ t('common.cancel') }}</EButton>
         <template v-if="wizardStep === 1">
           <EButton
             v-if="editingRound && showWizardSteps"
             variant="secondary"
             :loading="isSaving"
-            @click="saveRoundAndClose"
+            @click.stop="saveRoundAndClose"
           >
             {{ t('common.save') }}
           </EButton>
@@ -211,7 +284,7 @@
             v-if="showWizardSteps"
             variant="primary"
             :loading="isSaving"
-            @click="goToFormStep"
+            @click.stop="goToFormStep"
           >
             {{ t('grossanlass.planung.rounds.wizardNext') }}
           </EButton>
@@ -219,14 +292,14 @@
             v-else
             variant="primary"
             :loading="isSaving"
-            @click="saveRoundAndClose"
+            @click.stop="saveRoundAndClose"
           >
             {{ isSaving ? t('grossanlass.planung.rounds.saving') : t('common.save') }}
           </EButton>
         </template>
         <template v-else>
-          <EButton v-if="!formOnlyModal" variant="secondary" @click="wizardStep = 1">{{ t('grossanlass.planung.rounds.wizardBack') }}</EButton>
-          <EButton variant="primary" :loading="isSavingForm" @click="finishWizard">
+          <EButton v-if="!formOnlyModal" variant="secondary" @click.stop="wizardStep = 1">{{ t('grossanlass.planung.rounds.wizardBack') }}</EButton>
+          <EButton variant="primary" :loading="isSavingForm" @click.stop="finishWizard">
             {{ formOnlyModal ? t('common.save') : t('grossanlass.planung.rounds.wizardFinish') }}
           </EButton>
         </template>
@@ -236,7 +309,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -244,7 +317,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, ECheckbox, EDialog, ETextField } from '@/components/form/base'
+import { EButton, ECheckbox, EDialog, ESelect, ETextField } from '@/components/form/base'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
 import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
@@ -256,9 +329,21 @@ import {
   openGrossanlassPlanningRound,
   reopenGrossanlassPlanningRound,
   updateGrossanlassPlanningRound,
+  type GrossanlassFormPurpose,
   type GrossanlassPlanningRound,
   type GrossanlassRoundStatus,
 } from '@/api/grossanlassRounds'
+
+type WishFormRow = {
+  id: string
+  name: string
+  purpose: GrossanlassFormPurpose
+  status: GrossanlassRoundStatus
+  opens_at: string | null
+  closes_at: string | null
+  use_auto_schedule: boolean
+  live: GrossanlassPlanningRound | null
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -285,16 +370,120 @@ const formOnlyModal = ref(false)
 
 const form = ref({
   name: '',
+  purpose: 'material_wish' as GrossanlassFormPurpose,
   useAutoSchedule: false,
 })
 
 const opensAt = ref<Date | null>(null)
 const closesAt = ref<Date | null>(null)
+const hasClosesAt = ref(false)
 const opensAtTimeToDummy = ref<Date | null>(null)
 const closesAtTimeToDummy = ref<Date | null>(null)
 
+const canEditOpens = computed(
+  () => !editingRound.value || editingRound.value.status === 'scheduled',
+)
+
+const purposeItems = computed(() => [
+  { title: t('grossanlass.planung.wishForms.purposeMaterial'), value: 'material_wish' },
+  { title: t('grossanlass.planung.wishForms.purposeCompany'), value: 'company_tip' },
+  { title: t('grossanlass.planung.wishForms.purposeFree'), value: 'free' },
+])
+
+const purposeHint = computed(() => {
+  switch (form.value.purpose) {
+    case 'company_tip':
+      return t('grossanlass.planung.wishForms.purposeHintCompany')
+    case 'free':
+      return t('grossanlass.planung.wishForms.purposeHintFree')
+    default:
+      return t('grossanlass.planung.wishForms.purposeHintMaterial')
+  }
+})
+
+const namePlaceholder = computed(() => {
+  switch (form.value.purpose) {
+    case 'company_tip':
+      return t('grossanlass.planung.wishForms.namePlaceholderCompany')
+    case 'free':
+      return t('grossanlass.planung.wishForms.namePlaceholderFree')
+    default:
+      return t('grossanlass.planung.wishForms.namePlaceholderMaterial')
+  }
+})
+
+function purposeLabel(purpose: GrossanlassFormPurpose): string {
+  switch (purpose) {
+    case 'company_tip':
+      return t('grossanlass.planung.wishForms.purposeCompany')
+    case 'free':
+      return t('grossanlass.planung.wishForms.purposeFree')
+    default:
+      return t('grossanlass.planung.wishForms.purposeMaterial')
+  }
+}
+
+function purposeOf(round: GrossanlassPlanningRound): GrossanlassFormPurpose {
+  return round.form_purpose || 'material_wish'
+}
+
+function toLiveRows(purpose: GrossanlassFormPurpose): WishFormRow[] {
+  return rounds.value
+    .filter((round) => purposeOf(round) === purpose)
+    .map((round) => ({
+      id: round.id,
+      name: round.name,
+      purpose: purposeOf(round),
+      status: round.status,
+      opens_at: round.opens_at,
+      closes_at: round.closes_at,
+      use_auto_schedule: round.use_auto_schedule,
+      live: round,
+    }))
+}
+
+const formGroups = computed(() => [
+  {
+    purpose: 'material_wish' as const,
+    title: t('grossanlass.planung.wishForms.groupMaterialTitle'),
+    landing: t('grossanlass.planung.wishForms.landingMaterial'),
+    emptyTitle: t('grossanlass.planung.wishForms.emptyMaterialTitle'),
+    emptyDescription: t('grossanlass.planung.wishForms.emptyMaterialDescription'),
+    rows: toLiveRows('material_wish'),
+  },
+  {
+    purpose: 'company_tip' as const,
+    title: t('grossanlass.planung.wishForms.groupCompanyTitle'),
+    landing: t('grossanlass.planung.wishForms.landingCompany'),
+    emptyTitle: t('grossanlass.planung.wishForms.emptyCompanyTitle'),
+    emptyDescription: t('grossanlass.planung.wishForms.emptyCompanyDescription'),
+    rows: toLiveRows('company_tip'),
+  },
+  {
+    purpose: 'free' as const,
+    title: t('grossanlass.planung.wishForms.groupFreeTitle'),
+    landing: t('grossanlass.planung.wishForms.landingFree'),
+    emptyTitle: t('grossanlass.planung.wishForms.emptyFreeTitle'),
+    emptyDescription: t('grossanlass.planung.wishForms.emptyFreeDescription'),
+    rows: toLiveRows('free'),
+  },
+])
+
 function defaultQuarterTime(day: Date, hour: number, minute: number): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0)
+}
+
+function defaultOpensAt(): Date {
+  return defaultQuarterTime(new Date(), 9, 0)
+}
+function defaultClosesAt(after: Date | null): Date {
+  const candidate = defaultQuarterTime(after ?? new Date(), 17, 0)
+  if (after && candidate <= after) {
+    const nextDay = new Date(after)
+    nextDay.setDate(nextDay.getDate() + 1)
+    return defaultQuarterTime(nextDay, 17, 0)
+  }
+  return candidate
 }
 
 function parseIsoDate(iso: string | null): Date | null {
@@ -341,8 +530,8 @@ const modalTitle = computed(() => {
 })
 
 const showWizardSteps = computed(() => {
-  if (!canEditForm.value) return false
   if (editingRound.value?.status === 'closed') return false
+  if (!canEditForm.value) return false
   return true
 })
 
@@ -366,28 +555,43 @@ function formatDateTime(iso: string | null): string {
   }
 }
 
-function formatWindow(round: GrossanlassPlanningRound): string {
-  const open = formatDateTime(round.opens_at)
-  const close = formatDateTime(round.closes_at)
+function formatWindow(opensAtIso: string | null, closesAtIso: string | null): string {
+  const open = formatDateTime(opensAtIso)
+  const close = formatDateTime(closesAtIso)
   if (open === '–' && close === '–') return t('grossanlass.planung.rounds.windowManual')
   return t('grossanlass.planung.rounds.windowRange', { open, close })
 }
 
-function resetForm() {
-  form.value = {
-    name: '',
-    useAutoSchedule: false,
+function onHasClosesAtToggle(checked: boolean | null) {
+  if (checked && !closesAt.value) {
+    closesAt.value = defaultClosesAt(opensAt.value)
   }
-  opensAt.value = null
-  closesAt.value = null
 }
 
-function openCreateModal() {
+function onAutoScheduleToggle(checked: boolean | null) {
+  if (!checked) return
+  if (canEditOpens.value && !opensAt.value) {
+    opensAt.value = defaultOpensAt()
+  }
+}
+
+function resetForm(purpose: GrossanlassFormPurpose = 'material_wish') {
+  form.value = {
+    name: '',
+    purpose,
+    useAutoSchedule: false,
+  }
+  opensAt.value = defaultOpensAt()
+  closesAt.value = null
+  hasClosesAt.value = false
+}
+
+function openCreateModal(purpose: GrossanlassFormPurpose = 'material_wish') {
   editingRound.value = null
   wizardStep.value = 1
   wizardRoundId.value = null
   formOnlyModal.value = false
-  resetForm()
+  resetForm(purpose)
   showModal.value = true
 }
 
@@ -398,10 +602,14 @@ function openEditModal(round: GrossanlassPlanningRound) {
   formOnlyModal.value = false
   form.value = {
     name: round.name,
+    purpose: purposeOf(round),
     useAutoSchedule: round.use_auto_schedule,
   }
-  opensAt.value = parseIsoDate(round.opens_at)
+  const parsedOpens = parseIsoDate(round.opens_at) ?? parseIsoDate(round.opened_at)
+  const isScheduled = round.status === 'scheduled'
+  opensAt.value = parsedOpens ?? (isScheduled ? defaultOpensAt() : null)
   closesAt.value = parseIsoDate(round.closes_at)
+  hasClosesAt.value = closesAt.value != null
   showModal.value = true
 }
 
@@ -413,30 +621,45 @@ function openFormModal(round: GrossanlassPlanningRound) {
   showModal.value = true
 }
 
-function closeModal() {
+async function closeModal() {
+  await nextTick()
   showModal.value = false
-  wizardStep.value = 1
-  wizardRoundId.value = null
-  editingRound.value = null
-  formOnlyModal.value = false
+}
+
+function validateRoundFields(): boolean {
+  const name = form.value.name.trim()
+  if (!name) {
+    toast.error(t('grossanlass.planung.rounds.nameRequired'))
+    return false
+  }
+  if (form.value.useAutoSchedule && canEditOpens.value && !opensAt.value) {
+    toast.error(t('grossanlass.planung.rounds.autoScheduleNeedsOpens'))
+    return false
+  }
+  if (hasClosesAt.value && !closesAt.value) {
+    toast.error(t('grossanlass.planung.rounds.closesAtRequired'))
+    return false
+  }
+  if (opensAt.value && hasClosesAt.value && closesAt.value && closesAt.value < opensAt.value) {
+    toast.error(t('grossanlass.planung.rounds.windowInvalid'))
+    return false
+  }
+  return true
 }
 
 function buildRoundPayload() {
   return {
     name: form.value.name.trim(),
+    form_purpose: form.value.purpose,
     opens_at: opensAt.value?.toISOString() ?? null,
-    closes_at: closesAt.value?.toISOString() ?? null,
+    closes_at: hasClosesAt.value ? closesAt.value?.toISOString() ?? null : null,
     use_auto_schedule: form.value.useAutoSchedule,
   }
 }
 
 async function persistRoundStep(): Promise<GrossanlassPlanningRound | null> {
   if (!departmentId.value) return null
-  const name = form.value.name.trim()
-  if (!name) {
-    toast.error(t('grossanlass.planung.rounds.nameRequired'))
-    return null
-  }
+  if (!validateRoundFields()) return null
 
   isSaving.value = true
   try {
@@ -555,8 +778,10 @@ async function handleReopen(round: GrossanlassPlanningRound) {
   }
 }
 
-function openRound(round: GrossanlassPlanningRound) {
-  void router.push(`/${departmentId.value}/planung/runden/${round.id}`)
+function openRow(row: WishFormRow) {
+  if (row.live) {
+    void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
+  }
 }
 
 function stopRowClick(event: Event) {
@@ -585,6 +810,96 @@ onMounted(loadRounds)
   font-size: 0.9rem;
   line-height: 1.45;
   max-width: 42rem;
+}
+
+.wish-form-group {
+  margin-bottom: 28px;
+}
+
+.wish-form-group__head {
+  margin-bottom: 10px;
+}
+
+.wish-form-group__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.wish-form-group__landing {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.purpose-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.purpose-material_wish {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.purpose-company_tip {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.purpose-free {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.purpose-hint {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.preview-detail-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+
+.preview-samples-title {
+  margin: 16px 0 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.preview-samples {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.preview-samples li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 0.88rem;
+}
+
+.preview-samples span {
+  color: #6b7280;
+  font-size: 0.8rem;
 }
 
 .table-wrapper {
@@ -718,9 +1033,29 @@ onMounted(loadRounds)
   width: 120px;
 }
 
+.round-single-time {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.round-single-time :deep(.activity-outlined-fieldset) {
+  min-inline-size: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.round-single-time :deep(.activity-datetime-mobile__times) {
+  grid-template-columns: 1fr;
+}
+
 .round-single-time :deep(.activity-datetime-mobile__time-slot:last-child),
 .round-single-time :deep(.activity-pill-cell--time:last-child) {
   display: none;
+}
+
+.grob-fein-alert :deep(.v-alert__content) {
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .wizard-steps {
@@ -749,4 +1084,14 @@ onMounted(loadRounds)
 <style>
 @import '@/styles/components/activity-datetime-field.css';
 @import '@/styles/components/activity-datetime-layout.css';
+
+.grossanlass-form-dialog-card .v-card-text.e-dialog__body {
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.grossanlass-form-dialog-card .grob-fein-alert .v-alert__content {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
 </style>

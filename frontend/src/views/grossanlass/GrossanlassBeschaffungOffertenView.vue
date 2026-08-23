@@ -48,6 +48,14 @@
                   {{ t('grossanlass.beschaffung.offerten.selectQuote') }}
                 </EButton>
                 <span v-if="quote.selected" class="selected-badge">{{ t('grossanlass.beschaffung.offerten.selected') }}</span>
+                <EButton
+                  v-if="quote.selected"
+                  variant="secondary"
+                  size="small"
+                  @click="goToZusage(line, quote)"
+                >
+                  {{ t('grossanlass.beschaffung.zusagen.fromQuote') }}
+                </EButton>
                 <button
                   v-if="canEditQuotes(line)"
                   type="button"
@@ -96,7 +104,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -116,6 +124,7 @@ import {
 } from '@/api/grossanlassProcurement'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
@@ -195,6 +204,21 @@ async function deleteQuote(line: GrossanlassProcurementLine, quoteId: string) {
   }
 }
 
+function goToZusage(line: GrossanlassProcurementLine, quote: GrossanlassProcurementQuote) {
+  const id = departmentId()
+  if (!id) return
+  const family = /fahrzeug|gator|bagger|lader|transporter|anhänger/i.test(line.label) ? 'vehicle' : 'material'
+  void router.push({
+    path: `/${id}/beschaffung/zusagen`,
+    query: {
+      name: line.label,
+      partner: quote.supplier,
+      family,
+      line: line.id,
+    },
+  })
+}
+
 onMounted(load)
 </script>
 
@@ -212,7 +236,7 @@ onMounted(load)
 .quote-supplier-meta { font-size: 0.78rem; color: #64748b; }
 .quote-notes { margin: 4px 0 0; font-size: 0.75rem; color: #64748b; }
 .quote-pdf-link { display: inline-block; margin-top: 4px; font-size: 0.75rem; color: #2563eb; }
-.quote-actions { display: flex; align-items: center; gap: 6px; }
+.quote-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .selected-badge { font-size: 0.72rem; font-weight: 600; color: #1d4ed8; }
 .muted { font-size: 0.8rem; color: #94a3b8; margin: 0 0 8px; }
 .icon-btn { border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; width: 28px; height: 28px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }

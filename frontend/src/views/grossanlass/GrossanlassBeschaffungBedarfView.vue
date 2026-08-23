@@ -4,13 +4,50 @@
 
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
-    <div v-else class="bedarf-layout">
+    <template v-else>
+    <GrossanlassProcurementCategoryManager
+      :department-id="departmentId"
+      :categories="categories"
+      @created="onCategoryCreated"
+      @deleted="onCategoryDeleted"
+    />
+
+    <div class="bedarf-layout">
       <section class="bedarf-panel bedarf-panel--pool">
         <div class="panel-head">
           <h3>{{ t('grossanlass.beschaffung.bedarf.poolTitle') }}</h3>
           <span class="panel-count">{{ pool.length }}</span>
         </div>
         <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.poolHint') }}</p>
+
+        <div v-if="suggestions.length > 0" class="suggestions">
+          <h4 class="suggestions-title">{{ t('grossanlass.beschaffung.bedarf.suggestionsTitle') }}</h4>
+          <p class="suggestions-hint">{{ t('grossanlass.beschaffung.bedarf.suggestionsHint') }}</p>
+          <div
+            v-for="suggestion in suggestions"
+            :key="suggestion.key"
+            class="suggestion-card"
+          >
+            <div class="suggestion-card__head">
+              <strong>{{ suggestion.suggested_label }}</strong>
+              <span>{{
+                t('grossanlass.beschaffung.bedarf.suggestionMeta', {
+                  count: suggestion.wish_count,
+                  sum: suggestion.quantity_sum,
+                })
+              }}</span>
+            </div>
+            <ul class="suggestion-card__list">
+              <li v-for="wish in suggestion.wishes" :key="wish.id">
+                {{ wish.quantity }}× {{ wish.label }}
+                <span class="suggestion-card__meta">· {{ wish.group_name }}</span>
+              </li>
+            </ul>
+            <EButton variant="secondary" size="small" @click="openBundleFromSuggestion(suggestion)">
+              {{ t('grossanlass.beschaffung.bedarf.suggestionReview') }}
+            </EButton>
+          </div>
+        </div>
 
         <EEmptyState
           v-if="pool.length === 0"
@@ -32,7 +69,7 @@
             size="small"
             :disabled="selectedWishIds.length === 0 || isSaving"
             :loading="isSaving"
-            @click="bundleSelected"
+            @click="openBundleFromSelection"
           >
             {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: selectedWishIds.length }) }}
           </EButton>
@@ -101,6 +138,15 @@
           <span class="panel-count">{{ lines.length }}</span>
         </div>
         <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.linesHint') }}</p>
+        <ESelect
+          v-if="lines.length > 0"
+          v-model="categoryFilter"
+          class="category-filter"
+          :items="categoryFilterItems"
+          :label="t('grossanlass.beschaffung.bedarf.categoryFilter')"
+          hide-details
+          density="compact"
+        />
 
         <EEmptyState
           v-if="lines.length === 0"
@@ -109,9 +155,24 @@
           :title="t('grossanlass.beschaffung.bedarf.linesEmptyTitle')"
           :description="t('grossanlass.beschaffung.bedarf.linesEmptyDescription')"
         />
+        <p v-else-if="groupedLines.length === 0" class="panel-hint">
+          {{ t('grossanlass.beschaffung.bedarf.categoryFilterEmpty') }}
+        </p>
 
         <div v-else class="lines-list">
-          <div v-for="line in lines" :key="line.id" class="line-card">
+          <section
+            v-for="group in groupedLines"
+            :key="group.parentId ?? 'uncategorized'"
+            class="line-group"
+          >
+            <h4 class="line-group__title">{{ group.parentName }}</h4>
+            <div
+              v-for="sub in group.subgroups"
+              :key="sub.categoryId ?? 'parent'"
+              class="line-subgroup"
+            >
+              <h5 v-if="sub.categoryName" class="line-subgroup__title">{{ sub.categoryName }}</h5>
+              <div v-for="line in sub.lines" :key="line.id" class="line-card">
             <div class="line-card__head">
               <div>
                 <strong>{{ line.quantity }}× {{ line.label }}</strong>
@@ -140,6 +201,7 @@
             </div>
             <div class="line-card__meta">
               {{ line.group_name }} · {{ line.location }}
+              <span v-if="categoryPath(line)" class="category-chip">{{ categoryPath(line) }}</span>
             </div>
             <div class="line-card__total">
               <span class="line-card__total-label">{{ t('grossanlass.beschaffung.bedarf.totalQuantity') }}</span>
@@ -203,16 +265,21 @@
               </ul>
             </div>
           </div>
+            </div>
+          </section>
         </div>
       </section>
     </div>
+    </template>
 
     <GrossanlassProcurementLineEditDialog
       v-if="editLine"
       v-model="editDialogOpen"
       :department-id="departmentId"
       :line="editLine"
+      :categories="categories"
       @saved="onLineEdited"
+      @category-created="onCategoryCreated"
     />
 
     <GrossanlassProcurementWishEditDialog
@@ -221,6 +288,17 @@
       :department-id="departmentId"
       :wish="editWish"
       @saved="onWishEdited"
+    />
+
+    <GrossanlassProcurementBundleDialog
+      v-if="bundleWishes.length > 0"
+      v-model="bundleDialogOpen"
+      :department-id="departmentId"
+      :wishes="bundleWishes"
+      :suggested-label="bundleSuggestedLabel"
+      :categories="categories"
+      @saved="onBundleSaved"
+      @category-created="onCategoryCreated"
     />
   </div>
 </template>
@@ -235,14 +313,17 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassProcurementLineEditDialog from '@/components/grossanlass/GrossanlassProcurementLineEditDialog.vue'
 import GrossanlassProcurementWishEditDialog from '@/components/grossanlass/GrossanlassProcurementWishEditDialog.vue'
+import GrossanlassProcurementBundleDialog from '@/components/grossanlass/GrossanlassProcurementBundleDialog.vue'
+import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
 import { EButton, ESelect } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,
-  createGrossanlassProcurementLine,
   deleteGrossanlassProcurementLine,
   getGrossanlassBedarfOverview,
   removeWishFromGrossanlassProcurementLine,
   type GrossanlassBedarfOverview,
+  type GrossanlassProcurementBundleSuggestion,
+  type GrossanlassProcurementCategory,
   type GrossanlassProcurementLine,
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
@@ -258,6 +339,8 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const pool = ref<GrossanlassProcurementPoolWish[]>([])
 const lines = ref<GrossanlassProcurementLine[]>([])
+const categories = ref<GrossanlassProcurementCategory[]>([])
+const suggestions = ref<GrossanlassProcurementBundleSuggestion[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const selectedWishIds = ref<string[]>([])
@@ -267,6 +350,11 @@ const editDialogOpen = ref(false)
 const editLine = ref<GrossanlassProcurementLine | null>(null)
 const editWishDialogOpen = ref(false)
 const editWish = ref<GrossanlassProcurementPoolWish | null>(null)
+const bundleDialogOpen = ref(false)
+const bundleWishes = ref<GrossanlassProcurementPoolWish[]>([])
+const bundleSuggestedLabel = ref('')
+const categoryFilter = ref('all')
+const UNCATEGORIZED_FILTER = '__uncategorized'
 
 const selectedQuantitySum = computed(() =>
   pool.value
@@ -282,6 +370,72 @@ const lineSelectItems = computed(() =>
       value: l.id,
     })),
 )
+
+const categoryFilterItems = computed(() => {
+  const items: Array<{ title: string; value: string }> = [
+    { title: t('grossanlass.beschaffung.bedarf.categoryFilterAll'), value: 'all' },
+    { title: t('grossanlass.beschaffung.bedarf.categoryUncategorized'), value: UNCATEGORIZED_FILTER },
+  ]
+  for (const parent of categories.value.filter((c) => !c.parent_id)) {
+    items.push({ title: parent.name, value: parent.id })
+    for (const child of categories.value.filter((c) => c.parent_id === parent.id)) {
+      items.push({ title: `${parent.name} / ${child.name}`, value: child.id })
+    }
+  }
+  return items
+})
+
+const groupedLines = computed(() => {
+  const filter = categoryFilter.value
+  let visible = lines.value
+  if (filter === UNCATEGORIZED_FILTER) {
+    visible = lines.value.filter((l) => !l.category_id)
+  } else if (filter !== 'all') {
+    const childIds = new Set(
+      categories.value.filter((c) => c.parent_id === filter).map((c) => c.id),
+    )
+    visible = lines.value.filter(
+      (l) => l.category_id === filter || (l.category_id != null && childIds.has(l.category_id)),
+    )
+  }
+
+  const groups: Array<{
+    parentId: string | null
+    parentName: string
+    subgroups: Array<{ categoryId: string | null; categoryName: string | null; lines: GrossanlassProcurementLine[] }>
+  }> = []
+
+  for (const parent of categories.value.filter((c) => !c.parent_id)) {
+    const children = categories.value.filter((c) => c.parent_id === parent.id)
+    const parentLines = visible.filter((l) => l.category_id === parent.id)
+    const subgroups = [
+      ...(parentLines.length
+        ? [{ categoryId: parent.id, categoryName: null, lines: parentLines }]
+        : []),
+      ...children
+        .map((child) => ({
+          categoryId: child.id,
+          categoryName: child.name,
+          lines: visible.filter((l) => l.category_id === child.id),
+        }))
+        .filter((s) => s.lines.length > 0),
+    ]
+    if (subgroups.length) {
+      groups.push({ parentId: parent.id, parentName: parent.name, subgroups })
+    }
+  }
+
+  const uncategorized = visible.filter((l) => !l.category_id)
+  if (uncategorized.length) {
+    groups.push({
+      parentId: null,
+      parentName: t('grossanlass.beschaffung.bedarf.categoryUncategorized'),
+      subgroups: [{ categoryId: null, categoryName: null, lines: uncategorized }],
+    })
+  }
+
+  return groups
+})
 
 function toggleLineSources(lineId: string) {
   if (expandedLineIds.value.includes(lineId)) {
@@ -332,22 +486,58 @@ async function load() {
 function applyBedarfOverview(data: GrossanlassBedarfOverview) {
   pool.value = data.pool
   lines.value = data.lines
+  categories.value = data.categories ?? []
+  suggestions.value = data.suggestions ?? []
 }
 
-async function bundleSelected() {
-  if (!departmentId.value || selectedWishIds.value.length === 0) return
-  isSaving.value = true
-  try {
-    await createGrossanlassProcurementLine(departmentId.value, {
-      wish_line_ids: selectedWishIds.value,
-    })
-    toast.success(t('grossanlass.beschaffung.bedarf.bundleSuccess'))
-    await load()
-  } catch (e: any) {
-    toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorBundle'))
-  } finally {
-    isSaving.value = false
-  }
+function categoryPath(line: GrossanlassProcurementLine): string {
+  if (!line.category_name) return ''
+  if (line.category_parent_name) return `${line.category_parent_name} / ${line.category_name}`
+  return line.category_name
+}
+
+function onCategoryCreated(category: GrossanlassProcurementCategory) {
+  if (categories.value.some((c) => c.id === category.id)) return
+  categories.value = [...categories.value, category]
+}
+
+function onCategoryDeleted(categoryId: string) {
+  const removed = new Set(
+    categories.value
+      .filter((c) => c.id === categoryId || c.parent_id === categoryId)
+      .map((c) => c.id),
+  )
+  categories.value = categories.value.filter((c) => !removed.has(c.id))
+  lines.value = lines.value.map((line) =>
+    line.category_id && removed.has(line.category_id)
+      ? {
+          ...line,
+          category_id: null,
+          category_name: null,
+          category_parent_id: null,
+          category_parent_name: null,
+        }
+      : line,
+  )
+}
+
+function openBundleFromSelection() {
+  bundleWishes.value = pool.value.filter((w) => selectedWishIds.value.includes(w.id))
+  bundleSuggestedLabel.value = bundleWishes.value[0]?.label ?? ''
+  bundleDialogOpen.value = true
+}
+
+function openBundleFromSuggestion(suggestion: GrossanlassProcurementBundleSuggestion) {
+  bundleWishes.value = suggestion.wishes?.length
+    ? suggestion.wishes
+    : pool.value.filter((w) => suggestion.wish_ids.includes(w.id))
+  bundleSuggestedLabel.value = suggestion.suggested_label
+  bundleDialogOpen.value = true
+}
+
+async function onBundleSaved() {
+  toast.success(t('grossanlass.beschaffung.bedarf.bundleSuccess'))
+  await load()
 }
 
 async function mergeIntoLine() {
@@ -486,6 +676,101 @@ onMounted(load)
 .merge-select {
   flex: 1 1 200px;
   min-width: 160px;
+}
+
+.category-filter {
+  margin-bottom: 12px;
+}
+
+.suggestions {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.suggestions-title {
+  margin: 0 0 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.suggestions-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.suggestion-card {
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+  margin-bottom: 8px;
+}
+
+.suggestion-card:last-child {
+  margin-bottom: 0;
+}
+
+.suggestion-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.suggestion-card__list {
+  margin: 0 0 10px;
+  padding-left: 18px;
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.suggestion-card__meta {
+  color: #94a3b8;
+}
+
+.line-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line-group__title {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.line-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line-subgroup__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.category-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .wish-pool-list {

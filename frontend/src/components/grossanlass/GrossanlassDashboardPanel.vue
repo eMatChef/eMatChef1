@@ -20,8 +20,8 @@
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statOpenRounds') }}</span>
         </div>
         <div v-if="canManageProcurement && procurementOverview" class="stat-card">
-          <span class="stat-card__value">{{ formatChf(procurementOverview.totals.soll_chf) }}</span>
-          <span class="stat-card__label">{{ t('grossanlass.dashboard.statBudgetSoll') }}</span>
+          <span class="stat-card__value">{{ formatChf(dashboardBudgetAmount) }}</span>
+          <span class="stat-card__label">{{ t(dashboardBudgetLabelKey) }}</span>
         </div>
         <div v-if="canManageProcurement && procurementOverview" class="stat-card">
           <span class="stat-card__value">{{ procurementOverview.totals.ordered_not_received_count }}</span>
@@ -109,12 +109,75 @@
           </router-link>
           <router-link
             v-if="canManageProcurement"
+            :to="materialsLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-package-variant" size="22" />
+            <span>{{ t('sidebar.materials') }}</span>
+          </router-link>
+          <router-link
+            v-if="canManageProcurement"
+            :to="materialUebersichtLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-truck-delivery-outline" size="22" />
+            <span>{{ t('sidebar.materialUebersicht') }}</span>
+          </router-link>
+          <router-link
+            v-if="canManageProcurement"
             :to="beschaffungLink"
             class="quick-link-card"
           >
             <v-icon icon="mdi-cart-outline" size="22" />
             <span>{{ t('sidebar.beschaffung') }}</span>
           </router-link>
+        </div>
+      </section>
+
+      <!-- Design-Vorschau (keine Live-Daten) -->
+      <section class="ga-dashboard__section ga-dashboard__preview">
+        <GrossanlassPreviewBanner />
+        <h2 class="section-title">{{ t('grossanlass.dashboard.previewTitle') }}</h2>
+
+        <div class="preview-freigabe">
+          <div>
+            <h3>{{ t('grossanlass.dashboard.previewFreigabeTitle') }}</h3>
+            <p>{{ t('grossanlass.dashboard.previewFreigabeText') }}</p>
+          </div>
+          <router-link :to="freigabeLink">
+            <EButton variant="secondary" size="small">
+              {{ t('grossanlass.dashboard.previewFreigabeAction') }}
+            </EButton>
+          </router-link>
+        </div>
+
+        <div class="ga-dashboard__stats">
+          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+            <span class="stat-card__value">{{ stock.lager }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockLager') }}</span>
+          </router-link>
+          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+            <span class="stat-card__value">{{ stock.assigned }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockAssigned') }}</span>
+          </router-link>
+          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+            <span class="stat-card__value">{{ stock.out }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockOut') }}</span>
+          </router-link>
+        </div>
+        <p class="preview-conflicts-link">
+          <router-link :to="konflikteLink">{{ t('grossanlass.dashboard.previewConflictsLink') }}</router-link>
+        </p>
+
+        <div class="preview-participants">
+          <h3>{{ t('grossanlass.dashboard.previewParticipantsTitle') }}</h3>
+          <p>{{ t('grossanlass.dashboard.previewParticipantsText') }}</p>
+          <ul class="preview-participants__list">
+            <li v-for="row in participants" :key="row.id">
+              {{ t(row.nameKey) }}
+              · {{ t(`grossanlass.chain.participantStatus.${row.status}`) }}
+            </li>
+          </ul>
         </div>
       </section>
     </template>
@@ -138,6 +201,11 @@ import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
+import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
+import {
+  listChainParticipants,
+  stockCounts,
+} from '@/views/grossanlass/grossanlassChainPreviewStore'
 import {
   getGrossanlassPlanningRounds,
   type GrossanlassPlanningRound,
@@ -184,9 +252,27 @@ const otherRounds = computed(() =>
 )
 
 const planungLink = computed(() => `/${props.departmentId}/planung`)
-const ressortsLink = computed(() => `/${props.departmentId}/ressorts`)
+const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
-const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung`)
+const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/finanzen`)
+const dashboardBudgetAmount = computed(() => {
+  const totals = procurementOverview.value?.totals
+  if (!totals) return null
+  return totals.rahmen_chf ?? totals.soll_chf
+})
+const dashboardBudgetLabelKey = computed(() =>
+  procurementOverview.value?.totals.rahmen_chf != null
+    ? 'grossanlass.dashboard.statBudgetRahmen'
+    : 'grossanlass.dashboard.statBudgetSoll',
+)
+const materialsLink = computed(() => `/${props.departmentId}/materialien`)
+const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
+const einsaetzeLink = computed(() => `/${props.departmentId}/material-uebersicht/einsaetze`)
+const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
+const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
+const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
+const stock = computed(() => stockCounts())
+const participants = computed(() => listChainParticipants())
 
 function roundDetailLink(roundId: string, tab?: 'input' | 'responses') {
   const base = `/${props.departmentId}/planung/runden/${roundId}`
@@ -290,11 +376,13 @@ onMounted(load)
 
 .ga-dashboard__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 12px;
 }
 
 .stat-card {
+  container-type: inline-size;
+  min-width: 0;
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 10px;
@@ -305,10 +393,12 @@ onMounted(load)
 }
 
 .stat-card__value {
-  font-size: 1.35rem;
+  font-size: clamp(0.95rem, 10cqi, 1.35rem);
   font-weight: 700;
   line-height: 1.2;
   color: var(--color-text, #111827);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card__label {
@@ -447,6 +537,88 @@ onMounted(load)
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
+}
+
+.ga-dashboard__preview {
+  padding: 16px;
+  border: 1px dashed #fed7aa;
+  border-radius: 12px;
+  background: #fffbeb;
+}
+
+.preview-freigabe {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-freigabe h3,
+.preview-participants h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.preview-freigabe p,
+.preview-participants p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.stat-card--preview {
+  background: #fff;
+  opacity: 0.9;
+}
+
+.stat-card--link {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stat-card--link:hover {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 1px #fde68a;
+}
+
+.preview-conflicts-link {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.preview-conflicts-link a {
+  color: #b45309;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.preview-conflicts-link a:hover {
+  text-decoration: underline;
+}
+
+.preview-participants {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-participants__empty {
+  margin-top: 8px !important;
+  font-style: italic;
+}
+
+.preview-participants__list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 0.85rem;
+  color: #334155;
 }
 
 .quick-link-card {

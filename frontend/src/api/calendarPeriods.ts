@@ -6,6 +6,15 @@ export type CalendarPeriodLabel =
   | 'camp_week'
   | 'other'
   | 'grossanlass'
+  | 'aufbau'
+  | 'abbau'
+
+/** Event Durchführung, Aufbau, Abbau — Schnellauswahl + Wichtige Zeiträume. */
+export const GROSSANLASS_TIME_MODULE_LABELS: CalendarPeriodLabel[] = [
+  'grossanlass',
+  'aufbau',
+  'abbau',
+]
 
 export interface DepartmentCalendarPeriod {
   id: string
