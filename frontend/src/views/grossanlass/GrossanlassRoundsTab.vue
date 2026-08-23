@@ -29,17 +29,15 @@
           <p class="wish-form-group__landing">{{ group.landing }}</p>
         </div>
 
-        <GrossanlassPreviewBanner v-if="group.preview" />
-
         <v-alert
-          v-if="group.purpose === 'material_wish' && error"
+          v-if="error"
           type="error"
           variant="tonal"
           :text="error"
           class="mb-3"
         />
         <EButton
-          v-if="group.purpose === 'material_wish' && error"
+          v-if="error"
           variant="secondary"
           class="mb-3"
           @click="loadRounds"
@@ -70,7 +68,7 @@
                 <th class="col-name">{{ t('grossanlass.planung.rounds.colName') }}</th>
                 <th class="col-status">{{ t('grossanlass.planung.rounds.colStatus') }}</th>
                 <th class="col-window">{{ t('grossanlass.planung.rounds.colWindow') }}</th>
-                <th v-if="!group.preview" class="col-auto">{{ t('grossanlass.planung.rounds.colAuto') }}</th>
+                <th class="col-auto">{{ t('grossanlass.planung.rounds.colAuto') }}</th>
                 <th v-if="canManage" class="col-actions"></th>
               </tr>
             </thead>
@@ -93,7 +91,7 @@
                 <td class="col-window">
                   <span class="window-text">{{ formatWindow(row.opens_at, row.closes_at) }}</span>
                 </td>
-                <td v-if="!group.preview" class="col-auto">
+                <td class="col-auto">
                   <v-icon
                     v-if="row.use_auto_schedule"
                     icon="mdi-clock-check-outline"
@@ -104,16 +102,7 @@
                   <span v-else class="text-muted">–</span>
                 </td>
                 <td v-if="canManage" class="col-actions" @click="stopRowClick">
-                  <div v-if="row.preview" class="action-buttons">
-                    <button
-                      class="action-btn"
-                      :title="t('grossanlass.formBuilder.editFormAction')"
-                      @click="openPreviewFormModal(row.preview)"
-                    >
-                      <v-icon icon="mdi-form-select" size="16" />
-                    </button>
-                  </div>
-                  <div v-else-if="row.live" class="action-buttons">
+                  <div v-if="row.live" class="action-buttons">
                     <button
                       v-if="canEditForm && row.live.status !== 'closed'"
                       class="action-btn"
@@ -198,8 +187,6 @@
         >
           {{ t('grossanlass.planung.wishForms.grobFeinHint') }}
         </v-alert>
-        <GrossanlassPreviewBanner v-if="isPreviewPurpose" />
-
         <ETextField
           v-model="form.name"
           :label="t('grossanlass.planung.rounds.nameLabel')"
@@ -264,7 +251,6 @@
         </div>
 
         <ECheckbox
-          v-if="!isPreviewPurpose"
           v-model="form.useAutoSchedule"
           :label="t('grossanlass.planung.rounds.autoScheduleLabel')"
           :hint="t('grossanlass.planung.rounds.autoScheduleHint')"
@@ -273,10 +259,6 @@
         />
       </template>
 
-      <GrossanlassPreviewFormBuilder
-        v-else-if="wizardPreviewId"
-        :form-id="wizardPreviewId"
-      />
       <GrossanlassRoundFormBuilder
         v-else-if="wizardRoundId"
         ref="formBuilderRef"
@@ -323,54 +305,6 @@
         </template>
       </template>
     </EDialog>
-
-    <EDialog
-      v-model="showPreviewDetail"
-      :title="previewDetail?.name || t('grossanlass.planung.wishForms.groupCompanyTitle')"
-      :max-width="560"
-      scrollable
-    >
-      <GrossanlassPreviewBanner />
-      <p v-if="previewDetail" class="preview-detail-meta">
-        <span class="purpose-badge" :class="'purpose-' + previewDetail.purpose">
-          {{ purposeLabel(previewDetail.purpose) }}
-        </span>
-        <span class="status-badge" :class="'status-' + previewDetail.status">
-          {{ statusLabel(previewDetail.status) }}
-        </span>
-      </p>
-      <p class="purpose-hint">{{ previewDetailLanding }}</p>
-      <p class="window-text">{{ previewDetailWindow }}</p>
-      <h3 class="preview-samples-title">{{ t('grossanlass.formBuilder.fieldsTitle') }}</h3>
-      <ul v-if="previewDetail?.fields.length" class="preview-samples">
-        <li v-for="field in previewDetail.fields" :key="field.id">
-          <strong>{{ field.label }}</strong>
-          <span>
-            {{ t(`grossanlass.formBuilder.customTypes.${field.type}`) }}
-            <template v-if="field.core"> · {{ t('grossanlass.planung.wishForms.coreField') }}</template>
-          </span>
-        </li>
-      </ul>
-      <p v-else class="purpose-hint">{{ t('grossanlass.formBuilder.noFields') }}</p>
-      <h3 class="preview-samples-title">{{ t('grossanlass.planung.wishForms.samplesTitle') }}</h3>
-      <ul v-if="previewDetail?.samples.length" class="preview-samples">
-        <li v-for="sample in previewDetail.samples" :key="sample.title">
-          <strong>{{ sample.title }}</strong>
-          <span>{{ sample.meta }}</span>
-        </li>
-      </ul>
-      <p v-else class="purpose-hint">{{ t('grossanlass.planung.wishForms.samplesEmpty') }}</p>
-      <template #actions>
-        <EButton variant="secondary" @click="showPreviewDetail = false">{{ t('common.close') }}</EButton>
-        <EButton
-          v-if="canManage && previewDetail"
-          variant="primary"
-          @click="openPreviewFormModal(previewDetail)"
-        >
-          {{ t('grossanlass.formBuilder.editFormAction') }}
-        </EButton>
-      </template>
-    </EDialog>
   </div>
 </template>
 
@@ -383,13 +317,11 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import { EButton, ECheckbox, EDialog, ESelect, ETextField } from '@/components/form/base'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
 import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
 import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
 import GrossanlassRoundFormBuilder from '@/components/grossanlass/GrossanlassRoundFormBuilder.vue'
-import GrossanlassPreviewFormBuilder from '@/components/grossanlass/GrossanlassPreviewFormBuilder.vue'
 import {
   closeGrossanlassPlanningRound,
   createGrossanlassPlanningRound,
@@ -397,27 +329,20 @@ import {
   openGrossanlassPlanningRound,
   reopenGrossanlassPlanningRound,
   updateGrossanlassPlanningRound,
+  type GrossanlassFormPurpose,
   type GrossanlassPlanningRound,
   type GrossanlassRoundStatus,
 } from '@/api/grossanlassRounds'
-import type { GaPreviewWishForm, GaWishFormPurpose } from '@/views/grossanlass/grossanlassWishFormsPreviewData'
-import {
-  addPreviewWishForm,
-  ensureMutablePreviewForm,
-  listPreviewWishForms,
-  updatePreviewWishForm,
-} from '@/views/grossanlass/grossanlassWishFormsPreviewStore'
 
 type WishFormRow = {
   id: string
   name: string
-  purpose: GaWishFormPurpose
+  purpose: GrossanlassFormPurpose
   status: GrossanlassRoundStatus
   opens_at: string | null
   closes_at: string | null
   use_auto_schedule: boolean
   live: GrossanlassPlanningRound | null
-  preview: GaPreviewWishForm | null
 }
 
 const route = useRoute()
@@ -439,16 +364,13 @@ const showModal = ref(false)
 const editingRound = ref<GrossanlassPlanningRound | null>(null)
 const wizardStep = ref<1 | 2>(1)
 const wizardRoundId = ref<string | null>(null)
-const wizardPreviewId = ref<string | null>(null)
 const formBuilderRef = ref<InstanceType<typeof GrossanlassRoundFormBuilder> | null>(null)
 const isSavingForm = ref(false)
 const formOnlyModal = ref(false)
-const showPreviewDetail = ref(false)
-const previewDetail = ref<GaPreviewWishForm | null>(null)
 
 const form = ref({
   name: '',
-  purpose: 'material_wish' as GaWishFormPurpose,
+  purpose: 'material_wish' as GrossanlassFormPurpose,
   useAutoSchedule: false,
 })
 
@@ -461,8 +383,6 @@ const closesAtTimeToDummy = ref<Date | null>(null)
 const canEditOpens = computed(
   () => !editingRound.value || editingRound.value.status === 'scheduled',
 )
-
-const isPreviewPurpose = computed(() => form.value.purpose !== 'material_wish')
 
 const purposeItems = computed(() => [
   { title: t('grossanlass.planung.wishForms.purposeMaterial'), value: 'material_wish' },
@@ -492,7 +412,7 @@ const namePlaceholder = computed(() => {
   }
 })
 
-function purposeLabel(purpose: GaWishFormPurpose): string {
+function purposeLabel(purpose: GrossanlassFormPurpose): string {
   switch (purpose) {
     case 'company_tip':
       return t('grossanlass.planung.wishForms.purposeCompany')
@@ -503,71 +423,51 @@ function purposeLabel(purpose: GaWishFormPurpose): string {
   }
 }
 
-function toPreviewRows(purpose: Exclude<GaWishFormPurpose, 'material_wish'>): WishFormRow[] {
-  return listPreviewWishForms(t, purpose).map((row) => ({
-    id: row.id,
-    name: row.name,
-    purpose: row.purpose,
-    status: row.status,
-    opens_at: row.opens_at,
-    closes_at: row.closes_at,
-    use_auto_schedule: false,
-    live: null,
-    preview: row,
-  }))
+function purposeOf(round: GrossanlassPlanningRound): GrossanlassFormPurpose {
+  return round.form_purpose || 'material_wish'
 }
 
-const formGroups = computed(() => [
-  {
-    purpose: 'material_wish' as const,
-    preview: false,
-    title: t('grossanlass.planung.wishForms.groupMaterialTitle'),
-    landing: t('grossanlass.planung.wishForms.landingMaterial'),
-    emptyTitle: t('grossanlass.planung.wishForms.emptyMaterialTitle'),
-    emptyDescription: t('grossanlass.planung.wishForms.emptyMaterialDescription'),
-    rows: rounds.value.map((round) => ({
+function toLiveRows(purpose: GrossanlassFormPurpose): WishFormRow[] {
+  return rounds.value
+    .filter((round) => purposeOf(round) === purpose)
+    .map((round) => ({
       id: round.id,
       name: round.name,
-      purpose: 'material_wish' as const,
+      purpose: purposeOf(round),
       status: round.status,
       opens_at: round.opens_at,
       closes_at: round.closes_at,
       use_auto_schedule: round.use_auto_schedule,
       live: round,
-      preview: null,
-    })),
+    }))
+}
+
+const formGroups = computed(() => [
+  {
+    purpose: 'material_wish' as const,
+    title: t('grossanlass.planung.wishForms.groupMaterialTitle'),
+    landing: t('grossanlass.planung.wishForms.landingMaterial'),
+    emptyTitle: t('grossanlass.planung.wishForms.emptyMaterialTitle'),
+    emptyDescription: t('grossanlass.planung.wishForms.emptyMaterialDescription'),
+    rows: toLiveRows('material_wish'),
   },
   {
     purpose: 'company_tip' as const,
-    preview: true,
     title: t('grossanlass.planung.wishForms.groupCompanyTitle'),
     landing: t('grossanlass.planung.wishForms.landingCompany'),
     emptyTitle: t('grossanlass.planung.wishForms.emptyCompanyTitle'),
     emptyDescription: t('grossanlass.planung.wishForms.emptyCompanyDescription'),
-    rows: toPreviewRows('company_tip'),
+    rows: toLiveRows('company_tip'),
   },
   {
     purpose: 'free' as const,
-    preview: true,
     title: t('grossanlass.planung.wishForms.groupFreeTitle'),
     landing: t('grossanlass.planung.wishForms.landingFree'),
     emptyTitle: t('grossanlass.planung.wishForms.emptyFreeTitle'),
     emptyDescription: t('grossanlass.planung.wishForms.emptyFreeDescription'),
-    rows: toPreviewRows('free'),
+    rows: toLiveRows('free'),
   },
 ])
-
-const previewDetailLanding = computed(() => {
-  if (previewDetail.value?.purpose === 'free') {
-    return t('grossanlass.planung.wishForms.purposeHintFree')
-  }
-  return t('grossanlass.planung.wishForms.purposeHintCompany')
-})
-
-const previewDetailWindow = computed(() => {
-  if (!previewDetail.value) return ''
-  return formatWindow(previewDetail.value.opens_at, previewDetail.value.closes_at)
-})
 
 function defaultQuarterTime(day: Date, hour: number, minute: number): Date {
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), hour, minute, 0, 0)
@@ -576,7 +476,6 @@ function defaultQuarterTime(day: Date, hour: number, minute: number): Date {
 function defaultOpensAt(): Date {
   return defaultQuarterTime(new Date(), 9, 0)
 }
-
 function defaultClosesAt(after: Date | null): Date {
   const candidate = defaultQuarterTime(after ?? new Date(), 17, 0)
   if (after && candidate <= after) {
@@ -632,7 +531,6 @@ const modalTitle = computed(() => {
 
 const showWizardSteps = computed(() => {
   if (editingRound.value?.status === 'closed') return false
-  if (isPreviewPurpose.value) return canManage.value
   if (!canEditForm.value) return false
   return true
 })
@@ -677,7 +575,7 @@ function onAutoScheduleToggle(checked: boolean | null) {
   }
 }
 
-function resetForm(purpose: GaWishFormPurpose = 'material_wish') {
+function resetForm(purpose: GrossanlassFormPurpose = 'material_wish') {
   form.value = {
     name: '',
     purpose,
@@ -688,11 +586,10 @@ function resetForm(purpose: GaWishFormPurpose = 'material_wish') {
   hasClosesAt.value = false
 }
 
-function openCreateModal(purpose: GaWishFormPurpose = 'material_wish') {
+function openCreateModal(purpose: GrossanlassFormPurpose = 'material_wish') {
   editingRound.value = null
   wizardStep.value = 1
   wizardRoundId.value = null
-  wizardPreviewId.value = null
   formOnlyModal.value = false
   resetForm(purpose)
   showModal.value = true
@@ -705,7 +602,7 @@ function openEditModal(round: GrossanlassPlanningRound) {
   formOnlyModal.value = false
   form.value = {
     name: round.name,
-    purpose: 'material_wish',
+    purpose: purposeOf(round),
     useAutoSchedule: round.use_auto_schedule,
   }
   const parsedOpens = parseIsoDate(round.opens_at) ?? parseIsoDate(round.opened_at)
@@ -720,22 +617,7 @@ function openFormModal(round: GrossanlassPlanningRound) {
   editingRound.value = round
   wizardStep.value = 2
   wizardRoundId.value = round.id
-  wizardPreviewId.value = null
   formOnlyModal.value = true
-  showModal.value = true
-}
-
-function openPreviewFormModal(row: GaPreviewWishForm) {
-  const mutable = ensureMutablePreviewForm(t, row.id)
-  if (!mutable) return
-  wizardPreviewId.value = mutable.id
-  wizardRoundId.value = null
-  editingRound.value = null
-  form.value.purpose = mutable.purpose
-  form.value.name = mutable.name
-  formOnlyModal.value = true
-  wizardStep.value = 2
-  showPreviewDetail.value = false
   showModal.value = true
 }
 
@@ -765,34 +647,10 @@ function validateRoundFields(): boolean {
   return true
 }
 
-function persistPreviewForm(): GaPreviewWishForm | null {
-  if (!validateRoundFields()) return null
-  if (form.value.purpose === 'material_wish') return null
-  const payload = {
-    name: form.value.name.trim(),
-    purpose: form.value.purpose,
-    opens_at: opensAt.value?.toISOString() ?? null,
-    closes_at: hasClosesAt.value ? closesAt.value?.toISOString() ?? null : null,
-  }
-  if (wizardPreviewId.value) {
-    return updatePreviewWishForm(t, wizardPreviewId.value, {
-      name: payload.name,
-      opens_at: payload.opens_at,
-      closes_at: payload.closes_at,
-    }) ?? null
-  }
-  const created = addPreviewWishForm({
-    ...payload,
-    t,
-  })
-  wizardPreviewId.value = created.id
-  toast.success(t('grossanlass.planung.wishForms.previewCreated'))
-  return created
-}
-
 function buildRoundPayload() {
   return {
     name: form.value.name.trim(),
+    form_purpose: form.value.purpose,
     opens_at: opensAt.value?.toISOString() ?? null,
     closes_at: hasClosesAt.value ? closesAt.value?.toISOString() ?? null : null,
     use_auto_schedule: form.value.useAutoSchedule,
@@ -829,11 +687,6 @@ async function persistRoundStep(): Promise<GrossanlassPlanningRound | null> {
 }
 
 async function saveRoundAndClose() {
-  if (!editingRound.value && isPreviewPurpose.value) {
-    if (!persistPreviewForm()) return
-    closeModal()
-    return
-  }
   const wasCreate = !editingRound.value
   const saved = await persistRoundStep()
   if (!saved) return
@@ -843,12 +696,6 @@ async function saveRoundAndClose() {
 }
 
 async function goToFormStep() {
-  if (isPreviewPurpose.value) {
-    const saved = persistPreviewForm()
-    if (!saved) return
-    wizardStep.value = 2
-    return
-  }
   const wasCreate = !editingRound.value
   const saved = await persistRoundStep()
   if (!saved) return
@@ -861,11 +708,6 @@ async function goToFormStep() {
 async function finishWizard() {
   isSavingForm.value = true
   try {
-    if (wizardPreviewId.value) {
-      toast.success(t('grossanlass.planung.wishForms.previewFormSaved'))
-      closeModal()
-      return
-    }
     if (formBuilderRef.value) {
       const ok = await formBuilderRef.value.flushAutoSave()
       if (!ok) return
@@ -939,11 +781,6 @@ async function handleReopen(round: GrossanlassPlanningRound) {
 function openRow(row: WishFormRow) {
   if (row.live) {
     void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
-    return
-  }
-  if (row.preview) {
-    previewDetail.value = row.preview
-    showPreviewDetail.value = true
   }
 }
 

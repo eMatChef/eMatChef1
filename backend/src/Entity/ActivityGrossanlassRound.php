@@ -12,6 +12,17 @@ class ActivityGrossanlassRound
 {
     public const TYPE_RESSORT_WUENSCHE = 'ressort_wuensche';
 
+    public const PURPOSE_MATERIAL_WISH = 'material_wish';
+    public const PURPOSE_COMPANY_TIP = 'company_tip';
+    public const PURPOSE_FREE = 'free';
+
+    /** @var list<string> */
+    public const FORM_PURPOSES = [
+        self::PURPOSE_MATERIAL_WISH,
+        self::PURPOSE_COMPANY_TIP,
+        self::PURPOSE_FREE,
+    ];
+
     public const STATUS_SCHEDULED = 'scheduled';
     public const STATUS_OPEN = 'open';
     public const STATUS_CLOSED = 'closed';
@@ -32,6 +43,9 @@ class ActivityGrossanlassRound
 
     #[ORM\Column(name: 'round_type', type: 'string', length: 32)]
     private string $roundType = self::TYPE_RESSORT_WUENSCHE;
+
+    #[ORM\Column(name: 'form_purpose', type: 'string', length: 32, options: ['default' => 'material_wish'])]
+    private string $formPurpose = self::PURPOSE_MATERIAL_WISH;
 
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_SCHEDULED;
@@ -122,6 +136,23 @@ class ActivityGrossanlassRound
         $this->roundType = $roundType;
 
         return $this;
+    }
+
+    public function getFormPurpose(): string
+    {
+        return $this->formPurpose;
+    }
+
+    public function setFormPurpose(string $formPurpose): self
+    {
+        $this->formPurpose = $formPurpose;
+
+        return $this;
+    }
+
+    public function isMaterialWish(): bool
+    {
+        return $this->formPurpose === self::PURPOSE_MATERIAL_WISH;
     }
 
     public function getStatus(): string

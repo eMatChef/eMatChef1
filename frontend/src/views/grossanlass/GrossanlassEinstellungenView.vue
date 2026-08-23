@@ -49,6 +49,7 @@ const tabItems = computed(() => [
   { id: 'karten', label: t('grossanlass.planung.tabKarten'), icon: 'mdi-card-account-details' },
   { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
   { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-warehouse' },
+  { id: 'anfragen-email', label: t('grossanlass.einstellungen.tabAnfragenEmail'), icon: 'mdi-email-edit-outline' },
   { id: 'struktur', label: t('grossanlass.planung.tabStruktur'), icon: 'mdi-file-tree-outline' },
   { id: 'activities', label: t('grossanlass.planung.tabActivities'), icon: 'mdi-calendar-plus' },
   { id: 'freigabe', label: t('grossanlass.planung.tabFreigabe'), icon: 'mdi-check-decagram-outline' },

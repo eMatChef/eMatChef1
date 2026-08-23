@@ -670,10 +670,11 @@ function timelineMs(iso: string): number {
 }
 
 export function parseLocalDate(iso: string): Date {
-  const [datePart, timePart] = iso.split('T')
+  const [datePart, rest = '00:00:00'] = iso.split('T')
+  const timePart = rest.replace(/[Zz]$/, '').replace(/[+-]\d{2}:\d{2}$/, '')
   const [year, month, day] = datePart.split('-').map(Number)
-  const [hour = 0, minute = 0, second = 0] = (timePart || '00:00:00').split(':').map(Number)
-  return new Date(year, month - 1, day, hour, minute, second)
+  const [hour = 0, minute = 0, second = 0] = timePart.split(':').map(Number)
+  return new Date(year, month - 1, day, hour, minute, Number.isFinite(second) ? second : 0)
 }
 
 function atHour(date: Date, hour: number): Date {

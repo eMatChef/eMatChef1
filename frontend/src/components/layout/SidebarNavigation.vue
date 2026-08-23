@@ -213,6 +213,18 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materialUebersicht') }}</span>
       </router-link>
 
+      <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showWorkshopMenu"
+        :to="getLink('/werkstatt')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('werkstatt') }"
+        :title="t('sidebar.grossanlassWorkshopHint')"
+      >
+        <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
+      </router-link>
+
       <div
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
         class="nav-divider"

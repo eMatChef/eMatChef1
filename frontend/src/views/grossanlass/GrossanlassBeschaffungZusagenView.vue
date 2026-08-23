@@ -1,6 +1,5 @@
 <template>
   <div class="zusagen-page">
-    <GrossanlassPreviewBanner />
     <p class="tab-intro">{{ t('grossanlass.beschaffung.zusagen.intro') }}</p>
 
     <div class="zusagen-toolbar">
@@ -108,8 +107,8 @@
                 {{ t(`grossanlass.planung.feinPartner.advice.${row.delta}`) }}
               </p>
               <div class="zusagen-card__actions">
-                <EButton variant="secondary" size="small" @click="openArticle(row.id, row.family, row.origin)">
-                  {{ t('grossanlass.beschaffung.zusagen.openArticle') }}
+                <EButton variant="secondary" size="small" @click="toggleReleased(row)">
+                  {{ t('grossanlass.beschaffung.zusagen.toggleRelease') }}
                 </EButton>
               </div>
             </li>
@@ -132,10 +131,15 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EButton, ESearchField, ESelect } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
-import { feinDeltaKind, formatGaIsoLabel, type GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import { listZusageArticles, type GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { feinDeltaKind, formatGaIsoLabel, type GaZusageArticle, type GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { type GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { useToast } from '@/composables/useToast'
+import {
+  getGrossanlassCommitments,
+  updateGrossanlassCommitment,
+  type GrossanlassCommitment,
+} from '@/api/grossanlassCommitments'
 
 type GroupBy = 'source' | 'family' | 'status'
 type SortBy = 'name' | 'handover' | 'return' | 'status'
@@ -163,16 +167,15 @@ const AUTO_EXPAND_MAX = 8
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
+const toast = useToast()
 const createOpen = ref(false)
 const createPreset = ref<Partial<GaZusageCreateDraft> | null>(null)
 const query = ref('')
 const groupBy = ref<GroupBy>('source')
 const sortBy = ref<SortBy>('handover')
 const openGroups = ref<string[]>([])
-
-function tr(key: string, values?: Record<string, string | number>) {
-  return values ? String(t(key, values)) : String(t(key))
-}
+const articles = ref<GrossanlassCommitment[]>([])
+const isLoading = ref(false)
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -189,24 +192,38 @@ const sortItems = computed(() => [
   { title: t('grossanlass.beschaffung.zusagen.sortStatus'), value: 'status' },
 ])
 
+function deltaOf(article: GrossanlassCommitment): 'wide' | 'fit' | 'none' {
+  if (!article.wish_from || !article.wish_to || !article.present_from || !article.present_to) return 'none'
+  return feinDeltaKind({
+    presentFromIso: article.present_from,
+    presentToIso: article.present_to,
+    feinWish: {
+      label: article.wish_label || '',
+      ressort: '',
+      fromIso: article.wish_from,
+      toIso: article.wish_to,
+    },
+  } as GaZusageArticle)
+}
+
 const rows = computed<ZusageRow[]>(() =>
-  listZusageArticles(tr).map((article) => ({
+  articles.value.map((article) => ({
     id: article.id,
     name: article.name,
     source: article.source,
     family: article.family,
     origin: article.origin,
     released: article.released,
-    delta: article.feinWish ? feinDeltaKind(article) : 'none',
-    handoverIso: article.handoverFromIso,
-    returnIso: article.returnFromIso,
-    partnerFrom: formatGaIsoLabel(article.presentFromIso, locale.value),
-    partnerTo: formatGaIsoLabel(article.presentToIso, locale.value),
-    handover: formatGaIsoLabel(article.handoverFromIso, locale.value),
-    giveback: formatGaIsoLabel(article.returnFromIso, locale.value),
-    wishLabel: article.feinWish?.label ?? '',
-    wishFrom: article.feinWish ? formatGaIsoLabel(article.feinWish.fromIso, locale.value) : '',
-    wishTo: article.feinWish ? formatGaIsoLabel(article.feinWish.toIso, locale.value) : '',
+    delta: deltaOf(article),
+    handoverIso: article.handover_from || '',
+    returnIso: article.return_from || '',
+    partnerFrom: article.present_from ? formatGaIsoLabel(article.present_from, locale.value) : '—',
+    partnerTo: article.present_to ? formatGaIsoLabel(article.present_to, locale.value) : '—',
+    handover: article.handover_from ? formatGaIsoLabel(article.handover_from, locale.value) : '—',
+    giveback: article.return_from ? formatGaIsoLabel(article.return_from, locale.value) : '—',
+    wishLabel: article.wish_label ?? '',
+    wishFrom: article.wish_from ? formatGaIsoLabel(article.wish_from, locale.value) : '',
+    wishTo: article.wish_to ? formatGaIsoLabel(article.wish_to, locale.value) : '',
   })),
 )
 
@@ -292,22 +309,35 @@ function openCreate(preset?: Partial<GaZusageCreateDraft>) {
   createOpen.value = true
 }
 
-function articleFrom(family: 'vehicle' | 'material', origin: GaZusageOrigin): string {
-  if (family === 'vehicle') return 'fahrzeuge'
-  return origin === 'loan' ? 'leihweise' : 'eigen'
+async function toggleReleased(row: ZusageRow) {
+  if (!departmentId.value) return
+  try {
+    const updated = await updateGrossanlassCommitment(departmentId.value, row.id, { released: !row.released })
+    articles.value = articles.value.map((item) => (item.id === updated.id ? updated : item))
+    toast.success(t('grossanlass.beschaffung.zusagen.releasedToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
 }
 
-function openArticle(id: string, family: 'vehicle' | 'material', origin: GaZusageOrigin) {
-  const dept = departmentId.value
-  if (!dept) return
-  void router.push({
-    path: `/${dept}/materialien/artikel/${id}`,
-    query: { from: articleFrom(family, origin) },
-  })
+async function load() {
+  if (!departmentId.value) return
+  isLoading.value = true
+  try {
+    articles.value = await getGrossanlassCommitments(departmentId.value)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  } finally {
+    isLoading.value = false
+    openGroups.value = defaultOpenIds()
+  }
 }
 
 function onCreated() {
   void router.replace({ path: route.path, query: {} })
+  void load()
 }
 
 function presetFromQuery(): Partial<GaZusageCreateDraft> | null {
@@ -329,7 +359,7 @@ watch([groupBy, query], () => {
 })
 
 onMounted(() => {
-  openGroups.value = defaultOpenIds()
+  void load()
   const preset = presetFromQuery()
   if (preset) openCreate(preset)
 })

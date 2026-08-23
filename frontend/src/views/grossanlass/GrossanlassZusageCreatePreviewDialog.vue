@@ -1,6 +1,6 @@
 <template>
   <EDialog v-model="open" :title="t('grossanlass.materials.zusage.dialogTitle')" :max-width="680" :retain-focus="false" scrollable>
-    <p class="zusage-hint">{{ t('grossanlass.materials.zusage.dialogHint') }}</p>
+    <p class="zusage-hint">{{ t('grossanlass.beschaffung.zusagen.createHint') }}</p>
 
     <ETextField v-model="name" :label="t('grossanlass.materials.zusage.fieldName')" hide-details />
     <div class="zusage-grid">
@@ -102,7 +102,7 @@
     <template #actions>
       <EButton variant="secondary" size="small" @click="open = false">{{ t('common.cancel') }}</EButton>
       <EButton variant="primary" size="small" :disabled="!canSubmit" @click="submit">
-        {{ t('grossanlass.materials.zusage.confirm') }}
+          {{ t('grossanlass.beschaffung.zusagen.confirmCreate') }}
       </EButton>
     </template>
   </EDialog>
@@ -123,11 +123,10 @@ import {
   ETimeField,
 } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
-import {
-  createArticleFromZusageDraft,
-  type GaZusageCreateDraft,
-} from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaParkServiceKind, GaZusageArticle, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { createGrossanlassCommitment } from '@/api/grossanlassCommitments'
 
 const open = defineModel<boolean>({ default: false })
 const props = defineProps<{
@@ -212,34 +211,58 @@ watch(open, (isOpen) => {
   if (isOpen) applyPreset()
 })
 
-function submit() {
-  if (!canSubmit.value) return
-  const article = createArticleFromZusageDraft({
-    name: name.value,
-    family: family.value,
-    origin: origin.value,
-    source: source.value,
-    plate: plate.value,
-    presentFromDate: presentFromDate.value,
-    presentToDate: presentToDate.value,
-    presentFromTime: presentFromTime.value,
-    presentToTime: presentToTime.value,
-    handoverDate: handoverDate.value,
-    handoverFromTime: handoverFromTime.value,
-    handoverToTime: handoverToTime.value,
-    returnDate: returnDate.value,
-    returnFromTime: returnFromTime.value,
-    returnToTime: returnToTime.value,
-    released: released.value,
-    firstServiceKind: family.value === 'vehicle' ? firstServiceKind.value : '',
-    firstServiceDate: firstServiceDate.value,
-    firstServiceFromTime: firstServiceFromTime.value,
-    firstServiceToTime: firstServiceToTime.value,
-    fromLineId: props.preset?.fromLineId,
-  }, (key, values) => (values ? String(t(key, values)) : String(t(key))))
-  toast.info(t('grossanlass.materials.zusage.createdToast'))
-  open.value = false
-  emit('created', article)
+async function submit() {
+  if (!canSubmit.value || !departmentId.value) return
+  try {
+    const created = await createGrossanlassCommitment(departmentId.value, {
+      name: name.value.trim(),
+      source: source.value.trim(),
+      family: family.value,
+      origin: origin.value,
+      plate: plate.value.trim(),
+      released: released.value,
+      present_from: combineIso(presentFromDate.value, presentFromTime.value),
+      present_to: combineIso(presentToDate.value, presentToTime.value),
+      handover_from: combineIso(handoverDate.value, handoverFromTime.value),
+      handover_to: combineIso(handoverDate.value, handoverToTime.value),
+      return_from: combineIso(returnDate.value, returnFromTime.value),
+      return_to: combineIso(returnDate.value, returnToTime.value),
+      services: family.value === 'vehicle' && firstServiceKind.value
+        ? [{
+            kind: firstServiceKind.value,
+            fromIso: combineIso(firstServiceDate.value, firstServiceFromTime.value),
+            toIso: combineIso(firstServiceDate.value, firstServiceToTime.value),
+          }]
+        : [],
+    })
+    toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
+    open.value = false
+    emit('created', {
+      id: created.id,
+      name: created.name,
+      barcode: created.barcode || '',
+      family: created.family,
+      origin: created.origin,
+      source: created.source,
+      plate: created.plate || undefined,
+      presentFromIso: created.present_from || '',
+      presentToIso: created.present_to || '',
+      handoverFromIso: created.handover_from || '',
+      handoverToIso: created.handover_to || '',
+      returnFromIso: created.return_from || '',
+      returnToIso: created.return_to || '',
+      released: created.released,
+      tabs: [],
+      categoryId: created.category_id || '',
+      kind: 'unique',
+      stock: 1,
+      stayMode: 'return',
+      services: [],
+    } as GaZusageArticle)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
 }
 </script>
 

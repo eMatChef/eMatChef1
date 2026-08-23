@@ -168,6 +168,15 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
+    path: '/i/c/:cardCode',
+    name: 'PublicLookupUserCard',
+    component: () => import('@/views/public/PublicGrossanlassCardView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
     path: '/i/:type/:code',
     redirect: (to) => {
       const type = String(to.params.type || '').toLowerCase()
@@ -175,6 +184,7 @@ const routes: RouteRecordRaw[] = [
       if (type === 'a' && code) return `/i/a/${code}`
       if (type === 'w' && code) return `/i/w/${code}`
       if (type === 'm' && code) return `/i/m/${code}`
+      if (type === 'c' && code) return `/i/c/${code}`
       return '/'
     },
   },
@@ -812,6 +822,17 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'anfragen-email',
+            name: 'GrossanlassEinstellungenAnfragenEmail',
+            component: () => import('@/views/grossanlass/GrossanlassEinstellungenAnfragenEmailView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              einstellungenTab: 'anfragen-email',
+              ...routeHead('grossanlassEinstellungenAnfragenEmail'),
+            },
+          },
+          {
             path: 'struktur',
             name: 'GrossanlassPlanungStruktur',
             component: () => import('@/views/grossanlass/GrossanlassPlanungStrukturView.vue'),
@@ -1125,6 +1146,17 @@ const routes: RouteRecordRaw[] = [
             },
           },
         ],
+      },
+      {
+        path: 'werkstatt',
+        name: 'GrossanlassWerkstatt',
+        component: () => import('@/views/grossanlass/GrossanlassWerkstattView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: ['matwart', 'depchef'],
+          denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+          ...routeHead('grossanlassWerkstatt'),
+        },
       },
       {
         path: 'verwaltung',
@@ -1555,6 +1587,16 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'zeit',
+            name: 'SettingsZeit',
+            component: () => import('@/views/settings/GeneralSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsTime'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
             path: 'categories',
             name: 'SettingsCategories',
             component: () => import('@/views/settings/CategoriesSettingsView.vue'),
@@ -1808,6 +1850,8 @@ function applyQrHostRedirects(to: RouteLocationNormalized): boolean {
     if (parts[1] === 'm' && parts[2] && parts[3] === 'b' && parts[4]) return false
     if (parts[1] === 'a' && parts[2]) return false
     if (parts[1] === 'w' && parts[2]) return false
+    if (parts[1] === 'c' && parts[2]) return false
+    if (parts[1] === 'm' && parts[2]) return false
   }
 
   // Start & Login → Hauptdomain (ematchef.*), nicht app.*
@@ -2280,8 +2324,18 @@ router.beforeEach(async (to, from, next) => {
           : `/${deptIdForSettings}/einstellungen/ressorts`,
       )
     }
+    if (settingsTail === 'module') {
+      return next(`/${deptIdForSettings}/settings/zeit`)
+    }
     if (!allowed) {
       return next(`/${deptIdForSettings}/settings/my-department`)
+    }
+  }
+
+  if (to.name === 'Workshop') {
+    const workshopDeptId = (to.params.departmentId as string) || authStore.activeDepartmentId || ''
+    if (workshopDeptId && authStore.isDepartmentGrossanlass(workshopDeptId)) {
+      return next({ name: 'GrossanlassWerkstatt', params: { departmentId: workshopDeptId }, replace: true })
     }
   }
 

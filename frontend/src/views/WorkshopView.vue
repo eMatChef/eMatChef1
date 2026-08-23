@@ -1,7 +1,7 @@
 <template>
   <PageShell class="workshop-view">
     <template #title>{{ t('workshop.title') }}</template>
-    <template #subtitle>{{ t('workshop.description') }}</template>
+    <template #subtitle>{{ workshopSubtitle }}</template>
     <template #actions>
       <EButton variant="primary" @click="showCreateModal = true">
         <v-icon icon="mdi-plus" start size="20" />
@@ -1110,6 +1110,10 @@ const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const currentDepartmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
+)
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(currentDepartmentId.value))
+const workshopSubtitle = computed(() =>
+  isGrossanlassDept.value ? t('workshop.grossanlassDescription') : t('workshop.description'),
 )
 
 /** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */

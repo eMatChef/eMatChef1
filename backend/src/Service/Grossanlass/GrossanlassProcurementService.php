@@ -10,13 +10,14 @@ use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassProcurementOrder;
 use App\Entity\ActivityGrossanlassProcurementQuote;
+use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\User;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
@@ -64,7 +65,9 @@ class GrossanlassProcurementService
             ->innerJoin('r.activity', 'a')
             ->innerJoin('w.group', 'g')
             ->where('a.departmentId = :departmentId')
+            ->andWhere('r.formPurpose = :purpose')
             ->setParameter('departmentId', $department->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
             ->orderBy('w.createdAt', 'DESC');
 
         if ($bundledIds !== []) {
@@ -131,10 +134,10 @@ class GrossanlassProcurementService
         $wishes = $this->loadAndValidatePoolWishes($department, $wishLineIds);
 
         $line = new ActivityGrossanlassProcurementLine();
-        $line->setId(IdGenerator::generate12UniqueWithPrefix(
+        $line->setId(GrossanlassIdGenerator::unique(
             $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_LINE,
             ActivityGrossanlassProcurementLine::class,
-            'gp',
         ));
         $line->setDepartment($department);
         $line->setCreatedByUser($user);
@@ -302,10 +305,10 @@ class GrossanlassProcurementService
         $this->assertUniqueCategoryName($department, $name, $parent?->getId(), null);
 
         $category = new ActivityGrossanlassProcurementCategory();
-        $category->setId(IdGenerator::generate12UniqueWithPrefix(
+        $category->setId(GrossanlassIdGenerator::unique(
             $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_CATEGORY,
             ActivityGrossanlassProcurementCategory::class,
-            'gc',
         ));
         $category->setDepartment($department);
         $category->setParent($parent);
@@ -613,10 +616,10 @@ class GrossanlassProcurementService
         $amount = $this->parseAmountChf($data['amount_chf'] ?? null);
 
         $quote = new ActivityGrossanlassProcurementQuote();
-        $quote->setId(IdGenerator::generate12UniqueWithPrefix(
+        $quote->setId(GrossanlassIdGenerator::unique(
             $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_QUOTE,
             ActivityGrossanlassProcurementQuote::class,
-            'gq',
         ));
         $quote->setProcurementLine($line);
         $quote->setSupplier($supplier);
@@ -822,10 +825,10 @@ class GrossanlassProcurementService
 
         if ($order === null) {
             $order = new ActivityGrossanlassProcurementOrder();
-            $order->setId(IdGenerator::generate12UniqueWithPrefix(
+            $order->setId(GrossanlassIdGenerator::unique(
                 $this->entityManager,
+                GrossanlassIdGenerator::PROCUREMENT_ORDER,
                 ActivityGrossanlassProcurementOrder::class,
-                'go',
             ));
             $order->setProcurementLine($line);
             $this->entityManager->persist($order);

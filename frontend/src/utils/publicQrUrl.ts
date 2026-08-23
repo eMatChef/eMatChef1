@@ -52,11 +52,17 @@ export function buildWorkshopPublicUrl(workshopCode: string): string {
   return `${resolvePublicQrOrigin()}/i/w/${encodeURIComponent(code)}`
 }
 
-export function resolveWorkshopPublicUrl(
+export function buildUserCardPublicUrl(cardCode: string): string {
+  const code = String(cardCode || '').trim()
+  if (!code) return ''
+  return `${resolvePublicQrOrigin()}/i/c/${encodeURIComponent(code)}`
+}
+
+export function resolveUserCardPublicUrl(
   publicUrl: string | null | undefined,
   publicCode: string | null | undefined,
 ): string {
   const fromApi = String(publicUrl || '').trim()
   if (fromApi) return fromApi
-  return buildWorkshopPublicUrl(String(publicCode || ''))
+  return buildUserCardPublicUrl(String(publicCode || ''))
 }
