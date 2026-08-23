@@ -4,6 +4,15 @@
     :title="t('grossanlass.materialUebersicht.title')"
     :subtitle="t('grossanlass.materialUebersicht.subtitle')"
   >
+    <template v-if="activeTab === 'einsaetze'" #actions>
+      <EButton variant="primary" size="small" @click="einsatzComposer.open('einsatz')">
+        {{ t('grossanlass.materialUebersicht.actionEinsatz') }}
+      </EButton>
+      <EButton variant="secondary" size="small" @click="einsatzComposer.open('order')">
+        {{ t('grossanlass.materialUebersicht.actionOrder') }}
+      </EButton>
+    </template>
+
     <template #filters>
       <v-tabs
         :model-value="activeTab"
@@ -29,18 +38,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, provide, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { EButton } from '@/components/form/base'
 import PageShell from '@/components/layout/PageShell.vue'
 import { createGrossanlassEinsatzPreview } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import {
+  gaEinsatzComposerKey,
+  type GaEinsatzComposer,
+} from '@/views/grossanlass/gaEinsatzComposer'
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
+
+const einsatzComposer = reactive<GaEinsatzComposer>({
+  open: () => {},
+})
+provide(gaEinsatzComposerKey, einsatzComposer)
 
 function tr(key: string, values?: Record<string, string | number>): string {
   return values ? String(t(key, values)) : String(t(key))
@@ -61,6 +80,9 @@ const tabItems = computed(() => [
     icon: 'mdi-alert-outline',
     badge: String(conflictCount.value),
   },
+  { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant', badge: '' },
+  { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed', badge: '' },
+  { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return', badge: '' },
 ])
 
 const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')

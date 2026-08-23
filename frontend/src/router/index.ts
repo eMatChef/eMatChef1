@@ -741,6 +741,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'gast-vorschau',
+        name: 'GrossanlassGastVorschau',
+        component: () => import('@/views/grossanlass/GrossanlassGastVorschauView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: ['matwart', 'depchef'],
+          ...routeHead('grossanlassGastVorschau'),
+        },
+      },
+      {
         path: 'planung',
         name: 'GrossanlassPlanung',
         component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
@@ -769,6 +779,16 @@ const routes: RouteRecordRaw[] = [
               requiresGrossanlassDepartment: true,
               einstellungenTab: 'ressorts',
               ...routeHead('grossanlassRessorts'),
+            },
+          },
+          {
+            path: 'karten',
+            name: 'GrossanlassUserKarten',
+            component: () => import('@/views/grossanlass/GrossanlassUserKartenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              einstellungenTab: 'karten',
+              ...routeHead('grossanlassUserKarten'),
             },
           },
           {
@@ -870,13 +890,17 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'uebersicht',
-            name: 'GrossanlassBeschaffungUebersicht',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungUebersichtView.vue'),
+            redirect: { name: 'GrossanlassBeschaffungFinanzen' },
+          },
+          {
+            path: 'finanzen',
+            name: 'GrossanlassBeschaffungFinanzen',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: ['matwart', 'depchef'],
-              beschaffungTab: 'uebersicht',
-              ...routeHead('grossanlassBeschaffungUebersicht'),
+              beschaffungTab: 'finanzen',
+              ...routeHead('grossanlassBeschaffungFinanzen'),
             },
           },
           {
@@ -891,6 +915,17 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'anfragen',
+            name: 'GrossanlassBeschaffungAnfragen',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungAnfragenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'anfragen',
+              ...routeHead('grossanlassBeschaffungAnfragen'),
+            },
+          },
+          {
             path: 'offerten',
             name: 'GrossanlassBeschaffungOfferten',
             component: () => import('@/views/grossanlass/GrossanlassBeschaffungOffertenView.vue'),
@@ -899,6 +934,17 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: ['matwart', 'depchef'],
               beschaffungTab: 'offerten',
               ...routeHead('grossanlassBeschaffungOfferten'),
+            },
+          },
+          {
+            path: 'zusagen',
+            name: 'GrossanlassBeschaffungZusagen',
+            component: () => import('@/views/grossanlass/GrossanlassBeschaffungZusagenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              beschaffungTab: 'zusagen',
+              ...routeHead('grossanlassBeschaffungZusagen'),
             },
           },
           {
@@ -962,6 +1008,17 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: ['matwart', 'depchef'],
               materialsTab: 'leihweise',
               ...routeHead('grossanlassMaterialsLeihweise'),
+            },
+          },
+          {
+            path: 'gaeste',
+            name: 'GrossanlassMaterialsGaeste',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              materialsTab: 'gaeste',
+              ...routeHead('grossanlassMaterialsGaeste'),
             },
           },
           {
@@ -1032,6 +1089,39 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: ['matwart', 'depchef'],
               materialUebersichtTab: 'konflikte',
               ...routeHead('grossanlassMaterialUebersichtKonflikte'),
+            },
+          },
+          {
+            path: 'ausgabe',
+            name: 'GrossanlassMaterialUebersichtAusgabe',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtAusgabeView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              materialUebersichtTab: 'ausgabe',
+              ...routeHead('grossanlassMaterialUebersichtAusgabe'),
+            },
+          },
+          {
+            path: 'pack',
+            name: 'GrossanlassMaterialUebersichtPack',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtPackView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              materialUebersichtTab: 'pack',
+              ...routeHead('grossanlassMaterialUebersichtPack'),
+            },
+          },
+          {
+            path: 'retour',
+            name: 'GrossanlassMaterialUebersichtRetour',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtRetourView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: ['matwart', 'depchef'],
+              materialUebersichtTab: 'retour',
+              ...routeHead('grossanlassMaterialUebersichtRetour'),
             },
           },
         ],

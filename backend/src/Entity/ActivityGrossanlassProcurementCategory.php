@@ -34,6 +34,9 @@ class ActivityGrossanlassProcurementCategory
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
 
+    #[ORM\Column(name: 'rahmen_chf', type: 'decimal', precision: 12, scale: 2, nullable: true)]
+    private ?string $rahmenChf = null;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -114,6 +117,18 @@ class ActivityGrossanlassProcurementCategory
     public function setSortOrder(int $sortOrder): self
     {
         $this->sortOrder = $sortOrder;
+
+        return $this;
+    }
+
+    public function getRahmenChf(): ?string
+    {
+        return $this->rahmenChf;
+    }
+
+    public function setRahmenChf(?string $rahmenChf): self
+    {
+        $this->rahmenChf = $rahmenChf;
 
         return $this;
     }

@@ -20,7 +20,7 @@
           {{ t('grossanlass.planung.struktur.addUnterlager') }}
         </EButton>
       </div>
-      <p class="ga-preview-hint">{{ t('grossanlass.planung.struktur.unterlagerEmpty') }}</p>
+      <p class="ga-preview-hint">{{ t('grossanlass.chain.unterlagerOst') }} · {{ t('grossanlass.chain.unterlagerWest') }}</p>
     </section>
 
     <section class="ga-preview-card">
@@ -39,10 +39,14 @@
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td colspan="3" class="ga-preview-table__empty">
-              {{ t('grossanlass.planung.struktur.participantsEmpty') }}
+          <tr v-for="row in participants" :key="row.id">
+            <td>{{ t(row.nameKey) }}</td>
+            <td>
+              <span class="ga-chip" :class="{ 'is-active': row.status === 'accepted' }">
+                {{ t(`grossanlass.chain.participantStatus.${row.status}`) }}
+              </span>
             </td>
+            <td>{{ t(row.ressortKey) }}</td>
           </tr>
         </tbody>
       </table>
@@ -51,11 +55,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import { EButton } from '@/components/form/base'
+import { listChainParticipants } from '@/views/grossanlass/grossanlassChainPreviewStore'
 
 const { t } = useI18n()
+const participants = computed(() => listChainParticipants())
 </script>
 
 <style scoped>

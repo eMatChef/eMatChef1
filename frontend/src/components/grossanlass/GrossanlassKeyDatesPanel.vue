@@ -6,7 +6,8 @@
     <ul v-if="fixedPeriods.length > 0" class="key-dates-list">
       <li v-for="period in fixedPeriods" :key="period.id" class="key-dates-item">
         <span class="key-dates-badge">{{ period.typeLabel }}</span>
-        <span class="key-dates-name">{{ period.name }}</span>
+        <span v-if="period.name" class="key-dates-name">{{ period.name }}</span>
+        <span v-else class="key-dates-name key-dates-name--empty"></span>
         <span class="key-dates-range">{{ period.rangeText }}</span>
       </li>
     </ul>
@@ -28,7 +29,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { listDepartmentCalendarPeriods, GROSSANLASS_TIME_MODULE_LABELS, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
 
 const props = defineProps<{
   departmentId: string
@@ -54,15 +55,23 @@ function formatRange(startIso: string, endIso: string): string {
   }
 }
 
+const KEY_DATE_LABELS = new Set<string>([...GROSSANLASS_TIME_MODULE_LABELS, 'other'])
+
 const fixedPeriods = computed(() =>
   periods.value
-    .filter((p) => p.label === 'grossanlass' || p.label === 'other')
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      typeLabel: t(`settings.fixedDates.labels.${p.label}`),
-      rangeText: formatRange(p.start_date, p.end_date),
-    })),
+    .filter((p) => KEY_DATE_LABELS.has(p.label))
+    .slice()
+    .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.name.localeCompare(b.name))
+    .map((p) => {
+      const typeLabel = t(`settings.fixedDates.labels.${p.label}`)
+      const showName = p.name.trim().toLocaleLowerCase() !== typeLabel.toLocaleLowerCase()
+      return {
+        id: p.id,
+        name: showName ? p.name : '',
+        typeLabel,
+        rangeText: formatRange(p.start_date, p.end_date),
+      }
+    }),
 )
 
 async function loadPeriods() {

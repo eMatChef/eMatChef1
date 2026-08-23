@@ -10,30 +10,53 @@
           <v-icon icon="mdi-checkbox-marked-outline" size="20" />
           {{ t('grossanlass.planung.freigabe.checkPeriod') }}
         </li>
-        <li class="is-open">
-          <v-icon icon="mdi-checkbox-blank-outline" size="20" />
+        <li>
+          <v-icon icon="mdi-checkbox-marked-outline" size="20" />
           {{ t('grossanlass.planung.freigabe.checkParticipants') }}
         </li>
-        <li class="is-open">
-          <v-icon icon="mdi-checkbox-blank-outline" size="20" />
+        <li>
+          <v-icon icon="mdi-checkbox-marked-outline" size="20" />
           {{ t('grossanlass.planung.freigabe.checkRessorts') }}
         </li>
       </ul>
     </section>
 
-    <EButton variant="primary" disabled>
-      {{ t('grossanlass.planung.freigabe.publish') }}
-    </EButton>
-    <p class="ga-preview-hint">{{ t('grossanlass.planung.freigabe.publishHint') }}</p>
+    <div class="ga-preview-actions">
+      <EButton variant="primary" :disabled="published" @click="onPublish">
+        {{ published ? t('grossanlass.chain.publishedBadge') : t('grossanlass.planung.freigabe.publish') }}
+      </EButton>
+      <EButton variant="secondary" :disabled="!published" @click="goGuest">
+        {{ t('grossanlass.chain.openGuestView') }}
+      </EButton>
+    </div>
+    <p class="ga-preview-hint">{{ published ? t('grossanlass.chain.publishedHint') : t('grossanlass.planung.freigabe.publishHint') }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useToast } from '@/composables/useToast'
 import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import { EButton } from '@/components/form/base'
+import { isGrossanlassPublished, publishGrossanlassPreview } from '@/views/grossanlass/grossanlassChainPreviewStore'
 
+const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
+const toast = useToast()
+const published = computed(() => isGrossanlassPublished())
+
+function onPublish() {
+  publishGrossanlassPreview()
+  toast.success(t('grossanlass.chain.publishedToast'))
+}
+
+function goGuest() {
+  const id = String(route.params.departmentId || '')
+  if (id) void router.push(`/${id}/gast-vorschau`)
+}
 </script>
 
 <style scoped>
@@ -56,6 +79,6 @@ const { t } = useI18n()
   font-size: 0.9rem;
   color: #166534;
 }
-.ga-preview-checks li.is-open { color: #64748b; }
+.ga-preview-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ga-preview-hint { margin: 10px 0 0; font-size: 0.82rem; color: #94a3b8; max-width: 520px; }
 </style>

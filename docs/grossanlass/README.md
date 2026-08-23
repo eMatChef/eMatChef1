@@ -1031,7 +1031,7 @@ Ressort «Bau»
 
 Daten: `activity_grossanlass_ressort_line` (+ Progress) Phase 2+; v1 minimal: Zuweisung + Pack-Status.
 
-**Soll (Einsatz, keine Doppelbuchung):** Liste und Zeitachse pro Material/Fahrzeug × Ressort/Bauprojekt — [Konzept §12.3](./20260823_New_concept.md#123-einsatzliste-ressort--bauprojekt-keine-doppelbuchung). Unikate: überlappende Fenster blockieren. Mengen: Summe ≤ Bestand. Wunsch-Zeitraum ≠ Einsatz, bis MW/RL bucht.
+**Soll (Einsatz, keine Doppelbuchung):** Liste und Zeitachse pro Material/Fahrzeug × Ressort/Bauprojekt — [Konzept §12.3](./20260823_New_concept.md#123-einsatzliste-ressort--bauprojekt-keine-doppelbuchung). User buchen vor/während dem Anlass im gleichen Tool; Mehrbedarf / Verbrauch / Rückgabe — [§12.4](./20260823_New_concept.md#124-wer-bucht--und-wenn-mehr--weniger--verbraucht-wird). Unikate: überlappende Fenster blockieren. Mengen: Summe ≤ Bestand. Wunsch-Zeitraum ≠ Einsatz, bis gebucht.
 
 ---
 

@@ -153,7 +153,9 @@ import MaterialJourneyScanBar, {
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import MaterialSandboxMobileList from '@/views/dev/MaterialSandboxMobileList.vue'
 import {
-  createGrossanlassMaterialsPreview,
+  mergedMaterialsCatalog,
+} from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import {
   findPreviewRowByCode,
   searchPreviewRows,
   type GaLifecycle,
@@ -169,7 +171,7 @@ const props = defineProps<{
   tab: GaMaterialsTabId
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -182,7 +184,7 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const catalog = computed(() => createGrossanlassMaterialsPreview((key) => t(key)))
+const catalog = computed(() => mergedMaterialsCatalog((key) => t(key), locale.value))
 
 const tabItems = computed(() => catalog.value.filter((row) => row.tabs.includes(props.tab)))
 

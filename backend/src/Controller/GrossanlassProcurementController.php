@@ -274,6 +274,34 @@ class GrossanlassProcurementController extends AbstractController
         }
     }
 
+    #[Route('/overview/rahmen', name: 'overview_rahmen', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function saveRahmen(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        try {
+            return new JsonResponse($this->procurementService->saveFinance($department, $currentUser, $data));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
     #[Route('/lines', name: 'lines_list', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function listLines(string $departmentId, Request $request): JsonResponse

@@ -51,7 +51,7 @@ const conflictRows = computed(() =>
 
 <style scoped>
 .ga-preview-page { padding: 4px 0 24px; }
-.ga-preview-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
+.ga-preview-intro { margin: 0 0 16px; color: var(--color-text-muted, #6b7280); font-size: 0.9rem; }
 
 .ga-conflicts {
   display: flex;
@@ -65,13 +65,13 @@ const conflictRows = computed(() =>
   gap: 12px;
   align-items: flex-start;
   padding: 12px 14px;
-  border: 1px solid #fecaca;
+  border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent);
   border-radius: 10px;
-  background: #fef2f2;
+  background: var(--color-error-bg);
 }
 
 .ga-conflict-card__icon {
-  color: #dc2626;
+  color: var(--color-error);
   margin-top: 2px;
 }
 
@@ -83,6 +83,6 @@ const conflictRows = computed(() =>
 .ga-conflict-card__text {
   margin: 0;
   font-size: 0.85rem;
-  color: #7f1d1d;
+  color: var(--color-error);
 }
 </style>

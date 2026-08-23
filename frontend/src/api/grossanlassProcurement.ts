@@ -110,6 +110,7 @@ export interface GrossanlassProcurementCategory {
   parent_name: string | null
   name: string
   sort_order: number
+  rahmen_chf: number | null
 }
 
 export interface GrossanlassProcurementBundleSuggestion {
@@ -131,9 +132,12 @@ export interface GrossanlassBedarfOverview {
 export interface GrossanlassProcurementOverview {
   totals: {
     line_count: number
+    rahmen_chf: number | null
     soll_chf: number
     ist_chf: number
     delta_chf: number
+    rahmen_minus_ist_chf: number | null
+    rahmen_minus_soll_chf: number | null
     open_quotes_count: number
     ordered_not_received_count: number
   }
@@ -150,6 +154,7 @@ export interface GrossanlassProcurementOverview {
     category_name: string | null
     parent_id: string | null
     parent_name: string | null
+    rahmen_chf: number | null
     soll_chf: number
     ist_chf: number
     line_count: number
@@ -185,6 +190,20 @@ export async function getGrossanlassProcurementOverview(
 ): Promise<GrossanlassProcurementOverview> {
   const response = await apiClient.get<GrossanlassProcurementOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/overview`,
+  )
+  return response.data
+}
+
+export async function saveGrossanlassProcurementRahmen(
+  departmentId: string,
+  data: {
+    rahmen_chf: number | null
+    categories: Array<{ category_id: string; rahmen_chf: number | null }>
+  },
+): Promise<GrossanlassProcurementOverview> {
+  const response = await apiClient.put<GrossanlassProcurementOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/overview/rahmen`,
+    data,
   )
   return response.data
 }

@@ -40,9 +40,14 @@ function parseIsoDateLocal(iso: string): Date {
 export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_MATERIAL = ['camp_week', 'other'] as const
 
 /** Schnellauswahl: Grossanlass-Department */
-export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_GROSSANLASS = ['grossanlass', 'other'] as const
+export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_GROSSANLASS = [
+  'grossanlass',
+  'aufbau',
+  'abbau',
+  'other',
+] as const
 
-/** Fixe Daten (Lagerwoche, Sonstiges, Grossanlass) — nur wenn noch nicht vorbei. */
+/** Fixe Daten (Lagerwoche, Sonstiges, Event, Aufbau, Abbau) — nur wenn noch nicht vorbei. */
 export function calendarPeriodRangePresets(
   periods: readonly DepartmentCalendarPeriod[],
   labelForType: (label: CalendarPeriodLabel) => string,

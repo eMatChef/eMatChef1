@@ -16,5 +16,5 @@ const { t } = useI18n()
 
 <style scoped>
 .ga-preview-page { padding: 4px 0 24px; }
-.ga-preview-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
+.ga-preview-intro { margin: 0 0 16px; color: var(--color-text-muted, #6b7280); font-size: 0.9rem; }
 </style>

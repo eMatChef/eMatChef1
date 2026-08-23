@@ -165,7 +165,7 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meinRessort') }}</span>
       </router-link>
 
-      <!-- Planungsrunden -->
+      <!-- Planung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks"
         :to="getLink('/planung')"
@@ -175,6 +175,18 @@
       >
         <v-icon icon="mdi-calendar-clock" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
+      </router-link>
+
+      <!-- Beschaffung (Grossanlass, MW/DC) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        :to="getLink('/beschaffung')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :title="t('sidebar.beschaffungHint')"
+      >
+        <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
 
       <!-- Materialien (Stammdaten, Design-Vorschau) -->
@@ -199,18 +211,6 @@
       >
         <v-icon icon="mdi-truck-delivery-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materialUebersicht') }}</span>
-      </router-link>
-
-      <!-- Beschaffung (Grossanlass, MW/DC) -->
-      <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
-        :to="getLink('/beschaffung')"
-        class="nav-item"
-        :class="{ active: isDeptSectionNavActive('beschaffung') }"
-        :title="t('sidebar.beschaffungHint')"
-      >
-        <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
 
       <div

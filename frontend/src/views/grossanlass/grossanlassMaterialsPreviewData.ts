@@ -13,6 +13,24 @@ export type GaPreviewRow = SandboxMaterialRow & {
   plate?: string
   vehicleStatus?: string
   location?: string
+  presentFromIso?: string
+  presentToIso?: string
+  handoverFromIso?: string
+  handoverToIso?: string
+  returnFromIso?: string
+  returnToIso?: string
+  releasedForEinsatz?: boolean
+  origin?: 'loan' | 'buy' | 'buy_resale'
+  sessionCreated?: boolean
+  feinWish?: { label: string; ressort: string; fromIso: string; toIso: string }
+  parkServices?: Array<{
+    id: string
+    kind: 'clean' | 'grease' | 'other'
+    fromIso: string
+    toIso: string
+    who: string
+    label?: string
+  }>
 }
 
 type Translate = (key: string) => string

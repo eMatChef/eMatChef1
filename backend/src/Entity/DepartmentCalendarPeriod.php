@@ -15,6 +15,8 @@ class DepartmentCalendarPeriod
     public const LABEL_CAMP_WEEK = 'camp_week';
     public const LABEL_OTHER = 'other';
     public const LABEL_GROSSANLASS = 'grossanlass';
+    public const LABEL_AUFBAU = 'aufbau';
+    public const LABEL_ABBAU = 'abbau';
 
     /** @var list<string> */
     public const ALLOWED_LABELS = [
@@ -23,6 +25,15 @@ class DepartmentCalendarPeriod
         self::LABEL_CAMP_WEEK,
         self::LABEL_OTHER,
         self::LABEL_GROSSANLASS,
+        self::LABEL_AUFBAU,
+        self::LABEL_ABBAU,
+    ];
+
+    /** @var list<string> Zeitmodule nur in Grossanlass-Departments. */
+    public const GROSSANLASS_MODULE_LABELS = [
+        self::LABEL_GROSSANLASS,
+        self::LABEL_AUFBAU,
+        self::LABEL_ABBAU,
     ];
 
     #[ORM\Id]

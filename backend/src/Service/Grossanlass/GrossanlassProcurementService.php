@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Grossanlass;
 
 use App\Entity\ActivityGrossanlassProcurementCategory;
+use App\Entity\ActivityGrossanlassProcurementFinance;
 use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassProcurementOrder;
@@ -404,8 +405,22 @@ class GrossanlassProcurementService
         $byStatus = [];
         /** @var array<string, array{group_id: string, group_name: string, soll_chf: float, ist_chf: float, line_count: int}> $byGroup */
         $byGroup = [];
-        /** @var array<string, array{category_id: string|null, category_name: string|null, parent_id: string|null, parent_name: string|null, soll_chf: float, ist_chf: float, line_count: int}> $byCategory */
+        /** @var array<string, array{category_id: string|null, category_name: string|null, parent_id: string|null, parent_name: string|null, rahmen_chf: float|null, soll_chf: float, ist_chf: float, line_count: int}> $byCategory */
         $byCategory = [];
+
+        foreach ($this->loadCategories($department) as $category) {
+            $parent = $category->getParent();
+            $byCategory[$category->getId()] = [
+                'category_id' => $category->getId(),
+                'category_name' => $category->getName(),
+                'parent_id' => $parent?->getId(),
+                'parent_name' => $parent?->getName(),
+                'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
+                'soll_chf' => 0.0,
+                'ist_chf' => 0.0,
+                'line_count' => 0,
+            ];
+        }
 
         foreach ($lines as $line) {
             if (!$line instanceof ActivityGrossanlassProcurementLine) {
@@ -435,6 +450,7 @@ class GrossanlassProcurementService
                     'category_name' => $category?->getName(),
                     'parent_id' => $parent?->getId(),
                     'parent_name' => $parent?->getName(),
+                    'rahmen_chf' => $this->decimalToFloat($category?->getRahmenChf()),
                     'soll_chf' => 0.0,
                     'ist_chf' => 0.0,
                     'line_count' => 0,
@@ -474,12 +490,18 @@ class GrossanlassProcurementService
             }
         }
 
+        $finance = $this->entityManager->find(ActivityGrossanlassProcurementFinance::class, $department->getId());
+        $rahmenChf = $this->decimalToFloat($finance?->getRahmenChf());
+
         return [
             'totals' => [
                 'line_count' => count($lines),
+                'rahmen_chf' => $rahmenChf,
                 'soll_chf' => round($sollChf, 2),
                 'ist_chf' => round($istChf, 2),
                 'delta_chf' => round($sollChf - $istChf, 2),
+                'rahmen_minus_ist_chf' => $rahmenChf !== null ? round($rahmenChf - $istChf, 2) : null,
+                'rahmen_minus_soll_chf' => $rahmenChf !== null ? round($rahmenChf - $sollChf, 2) : null,
                 'open_quotes_count' => $openQuotesCount,
                 'ordered_not_received_count' => $orderedNotReceivedCount,
             ],
@@ -487,6 +509,46 @@ class GrossanlassProcurementService
             'by_group' => array_values($byGroup),
             'by_category' => array_values($byCategory),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function saveFinance(Department $department, User $user, array $data): array
+    {
+        $this->assertCanManageProcurement($department, $user);
+
+        $finance = $this->entityManager->find(ActivityGrossanlassProcurementFinance::class, $department->getId());
+        if (!$finance instanceof ActivityGrossanlassProcurementFinance) {
+            $finance = new ActivityGrossanlassProcurementFinance();
+            $finance->setDepartment($department);
+            $this->entityManager->persist($finance);
+        }
+
+        if (array_key_exists('rahmen_chf', $data)) {
+            $finance->setRahmenChf($this->parseOptionalAmountChf($data['rahmen_chf']));
+        }
+        $finance->touchUpdatedAt();
+
+        $categoryRows = $data['categories'] ?? null;
+        if (is_array($categoryRows)) {
+            foreach ($categoryRows as $row) {
+                if (!is_array($row) || !isset($row['category_id'])) {
+                    continue;
+                }
+                $category = $this->findCategoryInDepartment($department, (string) $row['category_id']);
+                if (array_key_exists('rahmen_chf', $row)) {
+                    $category->setRahmenChf($this->parseOptionalAmountChf($row['rahmen_chf']));
+                    $category->touchUpdatedAt();
+                }
+            }
+        }
+
+        $this->entityManager->flush();
+
+        return $this->getOverview($department, $user);
     }
 
     /**
@@ -1245,6 +1307,7 @@ class GrossanlassProcurementService
             'parent_name' => $parent?->getName(),
             'name' => $category->getName(),
             'sort_order' => $category->getSortOrder(),
+            'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
         ];
     }
 
@@ -1547,6 +1610,10 @@ class GrossanlassProcurementService
         if ($value === null || $value === '') {
             throw new \InvalidArgumentException('Betrag ist erforderlich');
         }
+        if (is_string($value)) {
+            $value = str_replace(["'", '’', ' '], '', $value);
+            $value = str_replace(',', '.', $value);
+        }
         if (!is_numeric($value)) {
             throw new \InvalidArgumentException('Ungültiger Betrag');
         }
@@ -1556,6 +1623,24 @@ class GrossanlassProcurementService
         }
 
         return $amount;
+    }
+
+    private function parseOptionalAmountChf(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return number_format($this->parseAmountChf($value), 2, '.', '');
+    }
+
+    private function decimalToFloat(?string $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return round((float) $value, 2);
     }
 
     /**

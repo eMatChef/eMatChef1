@@ -441,7 +441,8 @@ Nach «wir haben das Material» kommt **Einsatz planen** — nicht nur ein Haufe
 - **Menge** (Schrauben, 10 Gerüstböcke): Summe der überlappenden Einsätze ≤ verfügbare Menge (im Lager + noch nicht ausgegeben). Überschreiten = Warnung/Block.
 - Verfügbarkeit ist **min(Leihfenster Geber, Anlass-Zeitraum, Objekt da)**. Einsatz ausserhalb `valid_from`/`valid_to` der Leihgabe unmöglich.
 
-Wunsch-Zeitraum aus der Feinplanung ist **Bedarf**, kein Einsatz. MW (oder RL im eigenen Baum) wandelt zu Einsätzen um. Zwei Ressorts wollen denselben Gator am Samstag 10–14 → sichtbar **Konflikt**, nicht still 2× zuweisen.
+Wunsch-Zeitraum aus der Feinplanung ist **Bedarf**, kein Einsatz. MW (oder RL im eigenen Baum) wandelt zu Einsätzen um — der **Wunsch ist die Vorlage** (Objekt/Bezeichnung, Menge, Zeitraum, Ressort/Bauprojekt vorausgefüllt). Zwei Ressorts wollen denselben Gator am Samstag 10–14 → sichtbar **Konflikt**, nicht still 2× zuweisen.
+
 
 **Sichten**
 
@@ -475,7 +476,40 @@ Während der Anlasswoche Default-Tab **Einsätze** (wenn Phase Event/Aufbau), so
 
 Stammdaten bleiben **Materialien** (Menü erst wenn §10 live), getrennt von der Einsatzplanung.
 
+### 12.4 Wer bucht — und wenn mehr / weniger / verbraucht wird
+
+Ja: dasselbe Tool wie §12.3 (Tab **Einsätze** in der Materialübersicht, plus Einstieg **Mein Ressort**). Kein drittes Menü. Vor dem Anlass und **währenddessen** derselbe Dialog; währenddessen nur kürzere Fenster und «ab jetzt».
+
+#### Fahrzeug / Material für einen Zeitraum
+
+| Wer | Darf |
+| --- | --- |
+| **Mitglied / RL** | Im **eigenen** Ressort/Bauprojekt buchen, wenn frei. Kalender zeigt frei/belegt (belegt reicht als Block, ohne fremde Interna). Fahrzeuge: nur wenn §12.1 «darf fahren» (sonst nur **anfragen**). |
+| **Konflikt / Sperre** | Kein stilles Überschreiben. Status **Anfrage an MW** (Inbox), MW weist anderes Objekt, kürzt, oder lehnt ab. |
+| **MW** | Alles; Konflikt lösen; ad hoc «jetzt ausgeben». |
+
+Ablauf User: **Wunsch als Vorlage** («Buchen» übernimmt Felder) oder leer «Einsatz buchen» → von/bis → Bauprojekt → Konfliktcheck → **geplant**. Abholung = Ausgabe auf diesen Einsatz. Vorher = Planung, währenddessen = oft sofort Ausgabe wenn das Stück im Lager liegt.
+
+**Ist:** Materialübersicht Einsätze ist **Layout-Vorschau** (Demo-Daten, Banner). Kein Speichern. Button «Einsatz buchen» / «Aus Wunsch» nur Anschauung.
+
+#### Mehr brauchen / Verbrauch / Rückgabe
+
+Drei verschiedene Aktionen, nicht eine:
+
+| Aktion | Wann | Was passiert |
+| --- | --- | --- |
+| **Rückgabe** | Einsatz endet oder früher fertig | Menge/Unikat wieder **verfügbar**; andere dürfen buchen. Schlüssel §12.1 zurück. |
+| **Verbrauch** | Schrauben, Diesel, Einweg — weg | Menge vom Einsatz/Bestand **abschreiben**, keine Rückgabe an den Pool. Restbestand sichtbar. |
+| **Mehr brauchen** | Einsatz läuft, zu wenig da | 1) Rest im Lager **nachbuchen** (neuer Einsatz oder Menge erhöhen, Konfliktcheck). 2) Lager leer → **MW-Anfrage** (anderes Ressort abgeben, Reserve). 3) Nichts da → **Nachbedarf** in Beschaffung (Notfall-Position), nicht heimlich 2× denselben Gator. |
+
+Überbezug (mehr geholt als Einsatz): Warnung an MW, analog «zu viel geholt» §12.
+
+Kein zweites Formular «Planungsrunde» für Samstag-Nachmittag-Schrauben — der Einsatz-Dialog und «+ Menge / verbrauchen / zurück» am laufenden Einsatz. Nur wenn wirklich **neues** Gerät/Firma nötig ist, greift Beschaffung.
+
+**Ist:** weder User-Buchung noch Verbrauch/Nachlieferung im Grossanlass. Pfadi-Aktivitäten haben Nachlieferung auf der Journey — Muster, nicht 1:1 kopieren (hier: Einsatz + Pool, nicht Activity-Pack-Tab).
+
 ---
+
 
 
 
