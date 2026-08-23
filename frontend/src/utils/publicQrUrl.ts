@@ -52,6 +52,15 @@ export function buildWorkshopPublicUrl(workshopCode: string): string {
   return `${resolvePublicQrOrigin()}/i/w/${encodeURIComponent(code)}`
 }
 
+export function resolveWorkshopPublicUrl(
+  publicUrl: string | null | undefined,
+  publicCode: string | null | undefined,
+): string {
+  const fromApi = String(publicUrl || '').trim()
+  if (fromApi) return fromApi
+  return buildWorkshopPublicUrl(String(publicCode || ''))
+}
+
 export function buildUserCardPublicUrl(cardCode: string): string {
   const code = String(cardCode || '').trim()
   if (!code) return ''
