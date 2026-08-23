@@ -177,6 +177,9 @@
               <div>
                 <strong>{{ line.quantity }}× {{ line.label }}</strong>
                 <span class="status-chip">{{ statusLabel(line.status) }}</span>
+                <span v-if="line.merge_frozen" class="status-chip status-chip--frozen">
+                  {{ t('grossanlass.beschaffung.bedarf.frozenBadge') }}
+                </span>
               </div>
               <div class="line-card__actions">
                 <button
@@ -207,7 +210,17 @@
               <span class="line-card__total-label">{{ t('grossanlass.beschaffung.bedarf.totalQuantity') }}</span>
               <strong class="line-card__total-value">{{ line.quantity }}×</strong>
               <span
-                v-if="line.source_quantity_sum != null && line.quantity !== line.source_quantity_sum"
+                v-if="line.quantity_asked != null"
+                class="quantity-adjusted-hint"
+              >
+                {{ t('grossanlass.beschaffung.bedarf.askedVsCurrent', {
+                  asked: line.quantity_asked,
+                  current: line.quantity_current,
+                  delta: line.quantity_delta ?? 0,
+                }) }}
+              </span>
+              <span
+                v-else-if="line.source_quantity_sum != null && line.quantity !== line.source_quantity_sum"
                 class="quantity-adjusted-hint"
               >
                 {{ t('grossanlass.beschaffung.bedarf.quantityAdjusted', { sum: line.source_quantity_sum }) }}
@@ -364,7 +377,7 @@ const selectedQuantitySum = computed(() =>
 
 const lineSelectItems = computed(() =>
   lines.value
-    .filter((l) => l.status === 'bedarf')
+    .filter((l) => l.status === 'bedarf' && !l.merge_frozen)
     .map((l) => ({
       title: `${l.quantity}× ${l.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: l.wish_count })})`,
       value: l.id,
@@ -865,6 +878,10 @@ onMounted(load)
   font-weight: 600;
   background: #e0e7ff;
   color: #3730a3;
+}
+.status-chip--frozen {
+  background: #ffedd5;
+  color: #9a3412;
 }
 
 .icon-btn {

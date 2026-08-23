@@ -81,7 +81,7 @@
               >
                 <td class="col-name col-name--link">
                   <span class="round-name">{{ row.name }}</span>
-                  <span class="round-type">{{ purposeLabel(row.purpose) }}</span>
+                  <span class="round-type">{{ purposeLabel(row.purpose) }}{{ stageSuffix(row) }}</span>
                 </td>
                 <td class="col-status">
                   <span class="status-badge" :class="'status-' + row.status">
@@ -185,8 +185,20 @@
           density="compact"
           class="mb-3 grob-fein-alert"
         >
-          {{ t('grossanlass.planung.wishForms.grobFeinHint') }}
+          {{ form.materialStage === 'fein'
+            ? t('grossanlass.planung.wishForms.feinHint')
+            : t('grossanlass.planung.wishForms.grobFeinHint') }}
         </v-alert>
+        <ESelect
+          v-if="form.purpose === 'material_wish' && !editingRound"
+          v-model="form.materialStage"
+          :items="stageItems"
+          item-title="title"
+          item-value="value"
+          :label="t('grossanlass.planung.wishForms.stageLabel')"
+          hide-details="auto"
+          class="mb-3"
+        />
         <ETextField
           v-model="form.name"
           :label="t('grossanlass.planung.rounds.nameLabel')"
@@ -330,6 +342,7 @@ import {
   reopenGrossanlassPlanningRound,
   updateGrossanlassPlanningRound,
   type GrossanlassFormPurpose,
+  type GrossanlassMaterialStage,
   type GrossanlassPlanningRound,
   type GrossanlassRoundStatus,
 } from '@/api/grossanlassRounds'
@@ -338,6 +351,7 @@ type WishFormRow = {
   id: string
   name: string
   purpose: GrossanlassFormPurpose
+  material_stage: GrossanlassMaterialStage | null
   status: GrossanlassRoundStatus
   opens_at: string | null
   closes_at: string | null
@@ -371,6 +385,7 @@ const formOnlyModal = ref(false)
 const form = ref({
   name: '',
   purpose: 'material_wish' as GrossanlassFormPurpose,
+  materialStage: 'grob' as GrossanlassMaterialStage,
   useAutoSchedule: false,
 })
 
@@ -388,6 +403,11 @@ const purposeItems = computed(() => [
   { title: t('grossanlass.planung.wishForms.purposeMaterial'), value: 'material_wish' },
   { title: t('grossanlass.planung.wishForms.purposeCompany'), value: 'company_tip' },
   { title: t('grossanlass.planung.wishForms.purposeFree'), value: 'free' },
+])
+
+const stageItems = computed(() => [
+  { title: t('grossanlass.planung.wishForms.stageGrob'), value: 'grob' },
+  { title: t('grossanlass.planung.wishForms.stageFein'), value: 'fein' },
 ])
 
 const purposeHint = computed(() => {
@@ -423,6 +443,13 @@ function purposeLabel(purpose: GrossanlassFormPurpose): string {
   }
 }
 
+function stageSuffix(row: WishFormRow): string {
+  if (row.purpose !== 'material_wish' || !row.material_stage) return ''
+  return row.material_stage === 'fein'
+    ? ` · ${t('grossanlass.planung.wishForms.stageFein')}`
+    : ` · ${t('grossanlass.planung.wishForms.stageGrob')}`
+}
+
 function purposeOf(round: GrossanlassPlanningRound): GrossanlassFormPurpose {
   return round.form_purpose || 'material_wish'
 }
@@ -434,6 +461,7 @@ function toLiveRows(purpose: GrossanlassFormPurpose): WishFormRow[] {
       id: round.id,
       name: round.name,
       purpose: purposeOf(round),
+      material_stage: round.material_stage,
       status: round.status,
       opens_at: round.opens_at,
       closes_at: round.closes_at,
@@ -579,6 +607,7 @@ function resetForm(purpose: GrossanlassFormPurpose = 'material_wish') {
   form.value = {
     name: '',
     purpose,
+    materialStage: 'grob',
     useAutoSchedule: false,
   }
   opensAt.value = defaultOpensAt()
@@ -603,6 +632,7 @@ function openEditModal(round: GrossanlassPlanningRound) {
   form.value = {
     name: round.name,
     purpose: purposeOf(round),
+    materialStage: round.material_stage === 'fein' ? 'fein' : 'grob',
     useAutoSchedule: round.use_auto_schedule,
   }
   const parsedOpens = parseIsoDate(round.opens_at) ?? parseIsoDate(round.opened_at)
@@ -651,6 +681,7 @@ function buildRoundPayload() {
   return {
     name: form.value.name.trim(),
     form_purpose: form.value.purpose,
+    material_stage: form.value.purpose === 'material_wish' ? form.value.materialStage : null,
     opens_at: opensAt.value?.toISOString() ?? null,
     closes_at: hasClosesAt.value ? closesAt.value?.toISOString() ?? null : null,
     use_auto_schedule: form.value.useAutoSchedule,

@@ -22,6 +22,7 @@ final class GrossanlassGmailAccountService
         private GrossanlassGmailApi $gmail,
         private GrossanlassMailMergeService $merge,
         private SecretBox $secrets,
+        private GrossanlassProcurementService $procurement,
     ) {}
 
     /**
@@ -139,6 +140,7 @@ final class GrossanlassGmailAccountService
                 'who' => 'ok',
                 'text' => 'Gmail-Entwurf angelegt.',
             ]);
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
             $updated[] = $inquiry;
         }
         $this->entityManager->flush();

@@ -17,6 +17,7 @@ class GrossanlassInquiryService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassProcurementService $procurement,
     ) {}
 
     /**
@@ -42,6 +43,7 @@ class GrossanlassInquiryService
         $inquiry = $this->newInquiry($department);
         $this->applyFields($inquiry, $data, true);
         $this->entityManager->persist($inquiry);
+        $this->procurement->freezeAskedFromInquiry($department, $inquiry);
         $this->entityManager->flush();
 
         return $this->serialize($inquiry);
@@ -60,6 +62,7 @@ class GrossanlassInquiryService
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
             $inquiry = $this->find($department, $inquiryId);
         }
+        $this->procurement->freezeAskedFromInquiry($department, $inquiry);
         $this->entityManager->flush();
 
         return $this->serialize($inquiry);
@@ -95,6 +98,7 @@ class GrossanlassInquiryService
                 'who' => 'ok',
                 'text' => 'Als gesendet gemerkt (ohne Gmail).',
             ]);
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
             $updated[] = $this->serialize($inquiry);
         }
         $this->entityManager->flush();

@@ -67,6 +67,29 @@ class GrossanlassWishController extends AbstractController
         }
     }
 
+    #[Route('/planung/rounds/{roundId}/refine-candidates', name: 'refine_candidates', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function refineCandidates(string $departmentId, string $roundId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->wishService->listRefineCandidates($department, $currentUser, $roundId));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
     #[Route('/planung/rounds/{roundId}/wishes', name: 'create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function create(string $departmentId, string $roundId, Request $request): JsonResponse

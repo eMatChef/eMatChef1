@@ -15,6 +15,7 @@ use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\Address;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
@@ -178,9 +179,7 @@ class GrossanlassProcurementService
         }
 
         $line = $this->findLineInDepartment($department, $lineId);
-        if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
-            throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» bearbeitet werden');
-        }
+        GrossanlassProcurementQuantityFreeze::assertMergeAllowed($line->getStatus(), $line->getQuantityAsked());
 
         $wishLineIds = array_values(array_unique(array_filter(array_map('strval', $wishLineIds))));
         if ($wishLineIds === []) {
@@ -222,6 +221,9 @@ class GrossanlassProcurementService
         $line = $this->findLineInDepartment($department, $lineId);
         if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
             throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» bearbeitet werden');
+        }
+        if (isset($data['quantity']) && GrossanlassProcurementQuantityFreeze::isFrozen($line->getQuantityAsked())) {
+            throw new \InvalidArgumentException('Angefragte Menge ist eingefroren');
         }
 
         if (isset($data['label'])) {
@@ -265,6 +267,7 @@ class GrossanlassProcurementService
         }
 
         $line = $this->findLineInDepartment($department, $lineId);
+        GrossanlassProcurementQuantityFreeze::assertMergeAllowed($line->getStatus(), $line->getQuantityAsked());
         if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
             throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» gelöscht werden');
         }
@@ -279,6 +282,39 @@ class GrossanlassProcurementService
         }
         $this->entityManager->remove($line);
         $this->entityManager->flush();
+    }
+
+    public function freezeAskedFromInquiry(Department $department, DepartmentGrossanlassInquiry $inquiry): void
+    {
+        if ($inquiry->getDepartmentId() !== $department->getId()) {
+            return;
+        }
+        if ($inquiry->getStatus() === DepartmentGrossanlassInquiry::STATUS_VORSCHLAG) {
+            return;
+        }
+        $categoryIds = $inquiry->getCategoryIds();
+        if ($categoryIds === []) {
+            return;
+        }
+        $idSet = array_flip($categoryIds);
+        $lines = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($lines as $line) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine || $line->getQuantityAsked() !== null) {
+                continue;
+            }
+            $catId = $line->getCategoryId();
+            $parentId = $line->getCategory()?->getParentId();
+            if ($catId !== null && isset($idSet[$catId])) {
+                $line->setQuantityAsked($line->getQuantity());
+                $line->touchUpdatedAt();
+                continue;
+            }
+            if ($parentId !== null && isset($idSet[$parentId])) {
+                $line->setQuantityAsked($line->getQuantity());
+                $line->touchUpdatedAt();
+            }
+        }
     }
 
     /**
@@ -926,6 +962,7 @@ class GrossanlassProcurementService
     public function removeWishFromLine(Department $department, User $user, string $lineId, string $wishLineId): array
     {
         $line = $this->requireLineForProcurement($department, $user, $lineId);
+        GrossanlassProcurementQuantityFreeze::assertMergeAllowed($line->getStatus(), $line->getQuantityAsked());
         if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
             throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» aufgeteilt werden');
         }
@@ -1046,6 +1083,9 @@ class GrossanlassProcurementService
             if (!$this->wishBelongsToDepartment($wish, $department)) {
                 throw new \InvalidArgumentException('Wunsch gehört nicht zu diesem Grossanlass');
             }
+            if ($wish->getRound()->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+                throw new \InvalidArgumentException('Nur Materialwünsche gehören in den Bedarf-Pool');
+            }
             $wishes[] = $wish;
         }
 
@@ -1132,7 +1172,9 @@ class GrossanlassProcurementService
         $wishKind = count($kinds) === 1 ? $kinds[0] : ActivityGrossanlassWishLine::KIND_BEIDES;
 
         $line->setLabel($label);
-        $line->setQuantity($quantity);
+        if ($line->getQuantityAsked() === null) {
+            $line->setQuantity($quantity);
+        }
         $line->setLocation($location);
         $line->setGroup($group);
         $line->setWishKind($wishKind);
@@ -1449,6 +1491,7 @@ class GrossanlassProcurementService
             'group_id' => $wish->getGroupId(),
             'group_name' => $wish->getGroup()->getName(),
             'wish_kind' => $wish->getWishKind(),
+            'last_stage' => $wish->getLastStage(),
             'label' => $wish->getLabel(),
             'quantity' => $wish->getQuantity(),
             'location' => $wish->getLocation(),
@@ -1496,6 +1539,10 @@ class GrossanlassProcurementService
             'category_parent_id' => $parent?->getId(),
             'category_parent_name' => $parent?->getName(),
             'status' => $line->getStatus(),
+            'quantity_asked' => $line->getQuantityAsked(),
+            'quantity_current' => $sourceQuantitySum,
+            'quantity_delta' => GrossanlassProcurementQuantityFreeze::delta($line->getQuantityAsked(), $sourceQuantitySum),
+            'merge_frozen' => GrossanlassProcurementQuantityFreeze::isFrozen($line->getQuantityAsked()),
             'wish_line_ids' => array_map(static fn (array $w) => (string) $w['id'], $sourceWishes),
             'wish_count' => count($sourceWishes),
             'source_wishes' => $sourceWishes,

@@ -3,6 +3,7 @@ import apiClient from './apiClient'
 export type GrossanlassRoundStatus = 'scheduled' | 'open' | 'closed'
 export type GrossanlassRoundType = 'ressort_wuensche'
 export type GrossanlassFormPurpose = 'material_wish' | 'company_tip' | 'free'
+export type GrossanlassMaterialStage = 'grob' | 'fein'
 
 export interface GrossanlassPlanningRound {
   id: string
@@ -10,6 +11,7 @@ export interface GrossanlassPlanningRound {
   name: string
   round_type: GrossanlassRoundType
   form_purpose: GrossanlassFormPurpose
+  material_stage: GrossanlassMaterialStage | null
   status: GrossanlassRoundStatus
   opens_at: string | null
   closes_at: string | null
@@ -36,6 +38,7 @@ export async function createGrossanlassPlanningRound(
     name: string
     round_type?: GrossanlassRoundType
     form_purpose?: GrossanlassFormPurpose
+    material_stage?: GrossanlassMaterialStage | null
     opens_at?: string | null
     closes_at?: string | null
     use_auto_schedule?: boolean
