@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient, { absoluteApiUrl } from './apiClient'
 
 export type GrossanlassGmailStatus = {
   oauth_configured: boolean
@@ -32,7 +32,7 @@ export async function getGrossanlassGmailStatus(departmentId: string): Promise<G
 }
 
 export function grossanlassGmailConnectUrl(departmentId: string): string {
-  return `/api/departments/${departmentId}/grossanlass/gmail/connect`
+  return absoluteApiUrl(`/api/departments/${departmentId}/grossanlass/gmail/connect`)
 }
 
 export async function disconnectGrossanlassGmail(departmentId: string): Promise<GrossanlassGmailStatus> {

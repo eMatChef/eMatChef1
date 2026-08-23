@@ -13,10 +13,16 @@ api.staging.ematchef.ch, api-staging.ematchef.ch {
 }
 
 # Develop-App: Einstieg https://dev.ematchef.ch (Login)
+# /api muss zum Backend — sonst SPA (leere Seite) bei OAuth-Connect/Callback.
 dev.ematchef.ch, app.dev.ematchef.ch, qr.dev.ematchef.ch, devices.dev.ematchef.ch,
 app-dev.ematchef.ch, qr-dev.ematchef.ch, devices-dev.ematchef.ch {
-	root * /var/www/ematchef-app-develop
-	encode gzip
-	try_files {path} /index.html
-	file_server
+	handle /api* {
+		reverse_proxy 127.0.0.1:8081
+	}
+	handle {
+		root * /var/www/ematchef-app-develop
+		encode gzip
+		try_files {path} /index.html
+		file_server
+	}
 }

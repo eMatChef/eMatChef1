@@ -63,6 +63,13 @@ function resolveApiBaseURL(): string {
   return 'http://localhost:8081'
 }
 
+/** Volle URL für window.location (OAuth), inkl. VITE_API_BASE auf Droplets. */
+export function absoluteApiUrl(path: string): string {
+  const p = path.startsWith('/') ? path : `/${path}`
+  const base = resolveApiBaseURL()
+  return base ? `${base}${p}` : p
+}
+
 const apiClient = axios.create({
   baseURL: resolveApiBaseURL(),
   withCredentials: true,
