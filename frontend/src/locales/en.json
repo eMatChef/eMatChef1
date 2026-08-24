@@ -7840,6 +7840,8 @@
       },
       "wishForms": {
         "purposeLabel": "Purpose",
+        "pickPurposeTitle": "Which form?",
+        "pickPurposeIntro": "Pick the type first. Material wishes feed demand, company tips go to inquiries, free stays an ideas inbox.",
         "purposeMaterial": "Material wish",
         "purposeCompany": "Company tip",
         "purposeFree": "Free",

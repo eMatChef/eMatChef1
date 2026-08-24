@@ -4,7 +4,7 @@
       <div>
         <p class="tab-description">{{ roundsSubtitle }}</p>
       </div>
-      <EButton v-if="canManage" variant="primary" @click="openCreateModal()">
+      <EButton v-if="canManage" variant="primary" @click="openPurposePicker">
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('grossanlass.planung.rounds.addAction') }}
       </EButton>
@@ -55,7 +55,7 @@
           :description="group.emptyDescription"
         >
           <template v-if="canManage" #actions>
-            <EButton size="small" @click="openCreateModal(group.purpose)">
+            <EButton size="small" @click="openPurposePicker">
               {{ t('grossanlass.planung.rounds.addAction') }}
             </EButton>
           </template>
@@ -153,6 +153,33 @@
     </template>
 
     <EDialog
+      v-model="showPurposePicker"
+      :max-width="640"
+      :title="t('grossanlass.planung.wishForms.pickPurposeTitle')"
+      scrollable
+      card-class="grossanlass-purpose-picker-card"
+    >
+      <p class="purpose-picker-intro">{{ t('grossanlass.planung.wishForms.pickPurposeIntro') }}</p>
+      <div class="purpose-picker-grid">
+        <button
+          v-for="choice in purposeChoices"
+          :key="choice.purpose"
+          type="button"
+          class="purpose-picker-card"
+          @click="pickPurpose(choice.purpose)"
+        >
+          <span class="purpose-badge" :class="'purpose-' + choice.purpose">{{ choice.title }}</span>
+          <span class="purpose-picker-card__hint">{{ choice.hint }}</span>
+        </button>
+      </div>
+      <template #actions>
+        <EButton variant="secondary" @click="showPurposePicker = false">
+          {{ t('common.cancel') }}
+        </EButton>
+      </template>
+    </EDialog>
+
+    <EDialog
       v-model="showModal"
       :max-width="wizardStep === 2 ? 920 : 800"
       :title="modalTitle"
@@ -168,7 +195,7 @@
 
       <template v-if="wizardStep === 1">
         <ESelect
-          v-if="!editingRound"
+          v-if="!editingRound && !purposeLocked"
           v-model="form.purpose"
           :items="purposeItems"
           item-title="title"
@@ -177,6 +204,11 @@
           hide-details="auto"
           class="mb-3"
         />
+        <span
+          v-if="purposeLocked && !editingRound"
+          class="purpose-badge mb-3"
+          :class="'purpose-' + form.purpose"
+        >{{ purposeLabel(form.purpose) }}</span>
         <p class="purpose-hint">{{ purposeHint }}</p>
         <v-alert
           v-if="form.purpose === 'material_wish'"
@@ -375,6 +407,8 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const error = ref('')
 const showModal = ref(false)
+const showPurposePicker = ref(false)
+const purposeLocked = ref(false)
 const editingRound = ref<GrossanlassPlanningRound | null>(null)
 const wizardStep = ref<1 | 2>(1)
 const wizardRoundId = ref<string | null>(null)
@@ -403,6 +437,24 @@ const purposeItems = computed(() => [
   { title: t('grossanlass.planung.wishForms.purposeMaterial'), value: 'material_wish' },
   { title: t('grossanlass.planung.wishForms.purposeCompany'), value: 'company_tip' },
   { title: t('grossanlass.planung.wishForms.purposeFree'), value: 'free' },
+])
+
+const purposeChoices = computed(() => [
+  {
+    purpose: 'material_wish' as const,
+    title: t('grossanlass.planung.wishForms.purposeMaterial'),
+    hint: t('grossanlass.planung.wishForms.purposeHintMaterial'),
+  },
+  {
+    purpose: 'company_tip' as const,
+    title: t('grossanlass.planung.wishForms.purposeCompany'),
+    hint: t('grossanlass.planung.wishForms.purposeHintCompany'),
+  },
+  {
+    purpose: 'free' as const,
+    title: t('grossanlass.planung.wishForms.purposeFree'),
+    hint: t('grossanlass.planung.wishForms.purposeHintFree'),
+  },
 ])
 
 const stageItems = computed(() => [
@@ -615,11 +667,21 @@ function resetForm(purpose: GrossanlassFormPurpose = 'material_wish') {
   hasClosesAt.value = false
 }
 
-function openCreateModal(purpose: GrossanlassFormPurpose = 'material_wish') {
+function openPurposePicker() {
+  showPurposePicker.value = true
+}
+
+function pickPurpose(purpose: GrossanlassFormPurpose) {
+  showPurposePicker.value = false
+  openCreateModal(purpose)
+}
+
+function openCreateModal(purpose: GrossanlassFormPurpose) {
   editingRound.value = null
   wizardStep.value = 1
   wizardRoundId.value = null
   formOnlyModal.value = false
+  purposeLocked.value = true
   resetForm(purpose)
   showModal.value = true
 }
@@ -629,6 +691,7 @@ function openEditModal(round: GrossanlassPlanningRound) {
   wizardStep.value = 1
   wizardRoundId.value = round.id
   formOnlyModal.value = false
+  purposeLocked.value = true
   form.value = {
     name: round.name,
     purpose: purposeOf(round),
@@ -654,6 +717,7 @@ function openFormModal(round: GrossanlassPlanningRound) {
 async function closeModal() {
   await nextTick()
   showModal.value = false
+  purposeLocked.value = false
 }
 
 function validateRoundFields(): boolean {
@@ -891,6 +955,43 @@ onMounted(loadRounds)
 .purpose-free {
   background: #ede9fe;
   color: #5b21b6;
+}
+
+.purpose-picker-intro {
+  margin: 0 0 14px;
+  color: #6b7280;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.purpose-picker-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.purpose-picker-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.purpose-picker-card:hover {
+  border-color: #93c5fd;
+  background: #f8fafc;
+}
+
+.purpose-picker-card__hint {
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.45;
 }
 
 .purpose-hint {

@@ -10461,6 +10461,8 @@
       },
       "wishForms": {
         "purposeLabel": "Zweck",
+        "pickPurposeTitle": "Welches Formular?",
+        "pickPurposeIntro": "Zuerst den Typ wählen. Materialwunsch geht in den Bedarf, Firmenvorschlag zu den Anfragen, Frei bleibt Ideen-Posteingang.",
         "purposeMaterial": "Materialwunsch",
         "purposeCompany": "Firmenvorschlag",
         "purposeFree": "Frei",
