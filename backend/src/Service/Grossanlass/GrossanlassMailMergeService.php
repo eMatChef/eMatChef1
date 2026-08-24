@@ -7,18 +7,46 @@ namespace App\Service\Grossanlass;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\DepartmentGrossanlassMailTemplate;
+use App\Entity\DepartmentSetting;
+use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 final class GrossanlassMailMergeService
 {
+    public const CUSTOM_PLACEHOLDERS_SETTING = 'grossanlass.mail.custom_placeholders';
+
+    /** @var list<string> */
+    public const BUILTIN_PLACEHOLDERS = [
+        'ANREDE',
+        'FIRMA',
+        'ANLASS',
+        'ORT',
+        'ZEITRAUMTEXT',
+        'MATERIALLISTE',
+        'ABSENDER',
+        'REFERENZ',
+        'EMAIL',
+    ];
+
     public function __construct(private EntityManagerInterface $entityManager)
     {
     }
 
     /**
-     * @return list<array{kind: string, subject: string, body: string}>
+     * @return array{templates: list<array{kind: string, subject: string, body: string}>, custom_placeholders: list<array{key: string, sample: string}>}
      */
     public function listTemplates(Department $department): array
+    {
+        return [
+            'templates' => $this->templateRows($department),
+            'custom_placeholders' => $this->listCustomPlaceholders($department),
+        ];
+    }
+
+    /**
+     * @return list<array{kind: string, subject: string, body: string}>
+     */
+    private function templateRows(Department $department): array
     {
         $this->ensureDefaults($department);
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassMailTemplate::class)
@@ -32,10 +60,13 @@ final class GrossanlassMailMergeService
         $out = [];
         foreach (DepartmentGrossanlassMailTemplate::KINDS as $kind) {
             $row = $byKind[$kind] ?? null;
+            if (!$row instanceof DepartmentGrossanlassMailTemplate) {
+                continue;
+            }
             $out[] = [
                 'kind' => $kind,
-                'subject' => $row?->getSubject() ?? '',
-                'body' => $row?->getBody() ?? '',
+                'subject' => $row->getSubject(),
+                'body' => $row->getBody(),
             ];
         }
 
@@ -44,11 +75,13 @@ final class GrossanlassMailMergeService
 
     /**
      * @param list<array{kind?: string, subject?: string, body?: string}> $templates
-     * @return list<array{kind: string, subject: string, body: string}>
+     * @param list<array{key?: string, sample?: string}> $customPlaceholders
+     * @return array{templates: list<array{kind: string, subject: string, body: string}>, custom_placeholders: list<array{key: string, sample: string}>}
      */
-    public function saveTemplates(Department $department, array $templates): array
+    public function saveTemplates(Department $department, array $templates, array $customPlaceholders = []): array
     {
         $this->ensureDefaults($department);
+        $keep = [DepartmentGrossanlassMailTemplate::KIND_ANFRAGE];
         foreach ($templates as $item) {
             $kind = (string) ($item['kind'] ?? '');
             if (!in_array($kind, DepartmentGrossanlassMailTemplate::KINDS, true)) {
@@ -68,8 +101,23 @@ final class GrossanlassMailMergeService
             if (array_key_exists('body', $item)) {
                 $row->setBody((string) $item['body']);
             }
+            $keep[] = $kind;
+        }
+        $existing = $this->entityManager->getRepository(DepartmentGrossanlassMailTemplate::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($existing as $row) {
+            if (!$row instanceof DepartmentGrossanlassMailTemplate) {
+                continue;
+            }
+            if ($row->getKind() === DepartmentGrossanlassMailTemplate::KIND_ANFRAGE) {
+                continue;
+            }
+            if (!in_array($row->getKind(), $keep, true)) {
+                $this->entityManager->remove($row);
+            }
         }
         $this->entityManager->flush();
+        $this->saveCustomPlaceholders($department, $customPlaceholders);
 
         return $this->listTemplates($department);
     }
@@ -108,7 +156,7 @@ final class GrossanlassMailMergeService
         $packages = $inquiry ? implode(', ', $inquiry->getCategoryIds()) : 'Fahrzeuge';
         $id = $inquiry?->getId() ?? '____________';
 
-        return [
+        $vars = [
             'ANREDE' => 'Guten Tag',
             'FIRMA' => $inquiry?->getName() ?? 'Muster AG',
             'ANLASS' => $department->getName(),
@@ -119,6 +167,77 @@ final class GrossanlassMailMergeService
             'REFERENZ' => $id,
             'EMAIL' => $inquiry?->getEmail() ?? '',
         ];
+        foreach ($this->listCustomPlaceholders($department) as $row) {
+            $key = $row['key'];
+            if ($key === '' || isset($vars[$key])) {
+                continue;
+            }
+            $vars[$key] = $row['sample'] !== '' ? $row['sample'] : '{{' . $key . '}}';
+        }
+
+        return $vars;
+    }
+
+    /**
+     * @return list<array{key: string, sample: string}>
+     */
+    public function listCustomPlaceholders(Department $department): array
+    {
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)
+            ->findOneBy(['departmentId' => $department->getId(), 'settingKey' => self::CUSTOM_PLACEHOLDERS_SETTING]);
+        if (!$setting instanceof DepartmentSetting) {
+            return [];
+        }
+        $decoded = json_decode($setting->getSettingValue(), true);
+
+        return $this->normalizeCustomPlaceholders(is_array($decoded) ? $decoded : []);
+    }
+
+    /**
+     * @param list<array{key?: string, sample?: string}|mixed> $items
+     */
+    public function saveCustomPlaceholders(Department $department, array $items): void
+    {
+        $normalized = $this->normalizeCustomPlaceholders($items);
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)
+            ->findOneBy(['departmentId' => $department->getId(), 'settingKey' => self::CUSTOM_PLACEHOLDERS_SETTING]);
+        if (!$setting instanceof DepartmentSetting) {
+            $setting = new DepartmentSetting();
+            $setting->setId(IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class));
+            $setting->setDepartment($department);
+            $setting->setSettingKey(self::CUSTOM_PLACEHOLDERS_SETTING);
+            $this->entityManager->persist($setting);
+        }
+        $setting->setSettingValue(json_encode($normalized, JSON_UNESCAPED_UNICODE) ?: '[]');
+        $setting->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @param list<mixed> $items
+     * @return list<array{key: string, sample: string}>
+     */
+    private function normalizeCustomPlaceholders(array $items): array
+    {
+        $out = [];
+        $seen = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $key = strtoupper((string) preg_replace('/[^A-Za-z0-9_]/', '_', (string) ($item['key'] ?? '')));
+            $key = trim($key, '_');
+            if ($key === '' || isset($seen[$key]) || in_array($key, self::BUILTIN_PLACEHOLDERS, true)) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = [
+                'key' => $key,
+                'sample' => mb_substr(trim((string) ($item['sample'] ?? '')), 0, 500),
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -138,7 +257,11 @@ final class GrossanlassMailMergeService
     {
         $defaults = $this->defaultTexts($department->getName());
         $changed = false;
-        foreach ($defaults as $kind => $pair) {
+        foreach ([DepartmentGrossanlassMailTemplate::KIND_ANFRAGE] as $kind) {
+            $pair = $defaults[$kind] ?? null;
+            if ($pair === null) {
+                continue;
+            }
             $existing = $this->entityManager->getRepository(DepartmentGrossanlassMailTemplate::class)
                 ->findOneBy(['departmentId' => $department->getId(), 'kind' => $kind]);
             if ($existing instanceof DepartmentGrossanlassMailTemplate) {
@@ -162,24 +285,28 @@ final class GrossanlassMailMergeService
      */
     private function defaultTexts(string $eventName): array
     {
-        $footer = "Freundliche Grüsse\n{{ABSENDER}}\n\nReferenz {{REFERENZ}}";
+        $footer = '<p>Freundliche Grüsse<br>{{ABSENDER}}</p><p>Referenz {{REFERENZ}}</p>';
 
         return [
             DepartmentGrossanlassMailTemplate::KIND_ANFRAGE => [
                 'subject' => $eventName . ' – Anfrage Material & Logistik',
-                'body' => "{{ANREDE}}\n\nwir fragen an, ob {{FIRMA}} uns für {{ANLASS}} unterstützen kann.\n\nPaket: {{MATERIALLISTE}}\nZeitraum: {{ZEITRAUMTEXT}}\n\n" . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>wir fragen an, ob {{FIRMA}} uns für {{ANLASS}} unterstützen kann.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE => [
                 'subject' => $eventName . ' – Danke für die Rückmeldung',
-                'body' => "{{ANREDE}}\n\nvielen Dank für die Rückmeldung von {{FIRMA}}. Wir haben die Absage notiert.\n\n" . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>vielen Dank für die Rückmeldung von {{FIRMA}}. Wir haben die Absage notiert.</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK => [
                 'subject' => $eventName . ' – Zusage bestätigt',
-                'body' => "{{ANREDE}}\n\nvielen Dank für die Zusage von {{FIRMA}}. Wir haben notiert: {{MATERIALLISTE}}.\nZeitraum: {{ZEITRAUMTEXT}}\n\n" . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>vielen Dank für die Zusage von {{FIRMA}}. Wir haben notiert: {{MATERIALLISTE}}.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN => [
                 'subject' => $eventName . ' – Zusammenarbeit dieses Mal nicht',
-                'body' => "{{ANREDE}}\n\nherzlichen Dank für die Zusage von {{FIRMA}}. Für dieses Paket nehmen wir eine andere Lösung. Wir melden uns gerne bei einem nächsten Anlass.\n\n" . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>herzlichen Dank für die Zusage von {{FIRMA}}. Für dieses Paket nehmen wir eine andere Lösung. Wir melden uns gerne bei einem nächsten Anlass.</p>' . $footer,
+            ],
+            DepartmentGrossanlassMailTemplate::KIND_NEHMEN => [
+                'subject' => $eventName . ' – Wir rechnen mit euch',
+                'body' => '<p>{{ANREDE}}</p><p>wir nehmen das Angebot von {{FIRMA}} gerne an.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Nächste Schritte folgen in diesem Thread.</p>' . $footer,
             ],
         ];
     }

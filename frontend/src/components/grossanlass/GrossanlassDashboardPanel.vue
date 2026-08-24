@@ -29,28 +29,14 @@
         </div>
       </div>
 
-      <!-- Offene Runden — Wunsch einreichen -->
-      <section class="ga-dashboard__section">
+      <!-- Offene Formulare — nur anzeigen, wenn welche offen sind -->
+      <section v-if="openRounds.length > 0" class="ga-dashboard__section">
         <div class="section-header">
           <h2 class="section-title">{{ t('grossanlass.dashboard.openRoundsTitle') }}</h2>
           <router-link :to="planungLink" class="section-link">{{ t('grossanlass.dashboard.allRounds') }}</router-link>
         </div>
 
-        <EEmptyState
-          v-if="openRounds.length === 0"
-          variant="default"
-          icon="mdi-calendar-clock"
-          :title="t('grossanlass.dashboard.noOpenRoundsTitle')"
-          :description="t('grossanlass.dashboard.noOpenRoundsDescription')"
-        >
-          <template v-if="canManageRounds" #actions>
-            <router-link :to="planungLink">
-              <EButton>{{ t('grossanlass.planung.rounds.addAction') }}</EButton>
-            </router-link>
-          </template>
-        </EEmptyState>
-
-        <div v-else class="round-cards">
+        <div class="round-cards">
           <article v-for="round in openRounds" :key="round.id" class="round-card">
             <div class="round-card__main">
               <h3 class="round-card__name">{{ round.name }}</h3>
@@ -198,7 +184,6 @@ import { useI18n } from 'vue-i18n'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useAuthStore } from '@/stores/auth'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
 import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'

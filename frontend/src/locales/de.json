@@ -532,6 +532,8 @@
     "linkPrompt": "Link-Adresse (URL)",
     "linkDefault": "https://",
     "image": "Bild",
+    "placeholderMenu": "Platzhalter",
+    "placeholderAdd": "+ Eigene",
     "imageUploadError": "Bild konnte nicht geladen werden.",
     "imageTooLarge": "Bild ist zu gross (max. 5 MB).",
     "dropImageHint": "Bild hier hineinziehen oder einfügen"
@@ -10296,17 +10298,61 @@
         "disconnect": "Trennen",
         "disconnectedToast": "Gmail getrennt",
         "templatesTitle": "Vorlagen",
-        "templatesHint": "Platzhalter: ANREDE, FIRMA, ANLASS, ORT, ZEITRAUMTEXT, MATERIALLISTE, ABSENDER, REFERENZ — jeweils in doppelten geschweiften Klammern.",
+        "templatesHint": "Anfrage ist immer da. Weitere Vorlagen wählst du selbst. Platzhalter stecken im Editor-Menü — eigene kannst du dazunehmen.",
         "templateKind": "Vorlage",
+        "addTemplate": "Vorlage hinzufügen",
+        "addTemplateTitle": "Weitere Vorlage",
+        "addTemplateIntro": "Wähle, wofür du noch einen Text brauchst. Du kannst ihn danach im Editor gestalten.",
+        "removeTemplate": "Diese Vorlage entfernen",
+        "removeConfirmTitle": "Vorlage entfernen?",
+        "removeConfirmMessage": "«{name}» wirklich entfernen? Der Text geht beim Speichern verloren.",
         "subject": "Betreff",
-        "body": "Text",
+        "body": "Mail-Text",
+        "bodyPlaceholder": "Mail gestalten — Fett, Listen, Links…",
+        "customTokenTitle": "Eigener Platzhalter",
+        "customTokenIntro": "Name in GROSSBUCHSTABEN, z. B. TELEFON. Optional ein Beispielwert für die Vorschau.",
+        "customTokenKey": "Name",
+        "customTokenSample": "Beispielwert (Vorschau)",
+        "customTokenInsert": "Einfügen",
+        "customTokenInvalid": "Name braucht mindestens zwei Zeichen (A–Z, 0–9, Unterstrich).",
+        "customTokenBuiltin": "Dieser Name ist schon ein Standard-Platzhalter.",
+        "tokenLabels": {
+          "ANREDE": "Anrede",
+          "FIRMA": "Firma",
+          "ANLASS": "Anlass",
+          "ORT": "Ort",
+          "ZEITRAUMTEXT": "Zeitraum",
+          "MATERIALLISTE": "Materialliste",
+          "ABSENDER": "Absender",
+          "REFERENZ": "Referenz",
+          "EMAIL": "E-Mail"
+        },
         "previewAction": "Vorschau mit Beispieldaten",
         "saved": "Vorlagen gespeichert",
         "kinds": {
           "anfrage": "Anfrage",
           "dank_absage": "Dank Absage",
           "zusage_ok": "Bestätigung Zusage",
-          "nicht_genommen": "Nicht genommen"
+          "nicht_genommen": "Nicht genommen",
+          "nehmen": "Nehmen"
+        },
+        "kindHints": {
+          "dank_absage": "Wenn die Firma abgelehnt hat — Dank im selben Thread.",
+          "zusage_ok": "Wenn die Firma zugesagt hat — was ihr verstanden habt.",
+          "nicht_genommen": "Zusage war da, ihr nehmt trotzdem eine andere Lösung.",
+          "nehmen": "Nur an die Genommenen: wir rechnen mit euch / nächste Schritte."
+        },
+        "defaultSubjects": {
+          "dank_absage": "Danke für die Rückmeldung",
+          "zusage_ok": "Zusage bestätigt",
+          "nicht_genommen": "Zusammenarbeit dieses Mal nicht",
+          "nehmen": "Wir rechnen mit euch"
+        },
+        "defaultBodies": {
+          "dank_absage": "<p>{{ANREDE}}</p><p>vielen Dank für die Rückmeldung von {{FIRMA}}. Wir haben die Absage notiert.</p><p>Freundliche Grüsse<br>{{ABSENDER}}</p><p>Referenz {{REFERENZ}}</p>",
+          "zusage_ok": "<p>{{ANREDE}}</p><p>vielen Dank für die Zusage von {{FIRMA}}. Wir haben notiert: {{MATERIALLISTE}}.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Freundliche Grüsse<br>{{ABSENDER}}</p><p>Referenz {{REFERENZ}}</p>",
+          "nicht_genommen": "<p>{{ANREDE}}</p><p>herzlichen Dank für die Zusage von {{FIRMA}}. Für dieses Paket nehmen wir eine andere Lösung. Wir melden uns gerne bei einem nächsten Anlass.</p><p>Freundliche Grüsse<br>{{ABSENDER}}</p><p>Referenz {{REFERENZ}}</p>",
+          "nehmen": "<p>{{ANREDE}}</p><p>wir nehmen das Angebot von {{FIRMA}} gerne an.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Nächste Schritte folgen in diesem Thread.</p><p>Freundliche Grüsse<br>{{ABSENDER}}</p><p>Referenz {{REFERENZ}}</p>"
         }
       }
     },

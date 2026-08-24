@@ -93,11 +93,12 @@ class GrossanlassGmailController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
         $templates = is_array($data['templates'] ?? null) ? $data['templates'] : $data;
+        $custom = is_array($data['custom_placeholders'] ?? null) ? $data['custom_placeholders'] : [];
 
-        return $this->handle($departmentId, function (Department $department, User $user) use ($templates) {
+        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom) {
             $this->gmail->status($department, $user);
 
-            return $this->merge->saveTemplates($department, is_array($templates) ? $templates : []);
+            return $this->merge->saveTemplates($department, is_array($templates) ? $templates : [], is_array($custom) ? $custom : []);
         });
     }
 

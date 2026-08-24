@@ -12,6 +12,15 @@ class DepartmentGrossanlassMailTemplate
     public const KIND_DANK_ABSAGE = 'dank_absage';
     public const KIND_ZUSAGE_OK = 'zusage_ok';
     public const KIND_NICHT_GENOMMEN = 'nicht_genommen';
+    public const KIND_NEHMEN = 'nehmen';
+
+    /** @var list<string> */
+    public const OPTIONAL_KINDS = [
+        self::KIND_DANK_ABSAGE,
+        self::KIND_ZUSAGE_OK,
+        self::KIND_NICHT_GENOMMEN,
+        self::KIND_NEHMEN,
+    ];
 
     /** @var list<string> */
     public const KINDS = [
@@ -19,6 +28,7 @@ class DepartmentGrossanlassMailTemplate
         self::KIND_DANK_ABSAGE,
         self::KIND_ZUSAGE_OK,
         self::KIND_NICHT_GENOMMEN,
+        self::KIND_NEHMEN,
     ];
 
     #[ORM\Id]

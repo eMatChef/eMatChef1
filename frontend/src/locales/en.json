@@ -439,6 +439,8 @@
     "redo": "Redo",
     "linkPrompt": "Link URL",
     "image": "Image",
+    "placeholderMenu": "Placeholder",
+    "placeholderAdd": "+ Custom",
     "imageUploadError": "Image could not be loaded.",
     "imageTooLarge": "Image is too large (max 5 MB).",
     "dropImageHint": "Drop or paste image here"
@@ -7675,17 +7677,61 @@
         "disconnect": "Disconnect",
         "disconnectedToast": "Gmail disconnected",
         "templatesTitle": "Templates",
-        "templatesHint": "Placeholders: ANREDE, FIRMA, ANLASS, ORT, ZEITRAUMTEXT, MATERIALLISTE, ABSENDER, REFERENZ — each in double curly braces.",
+        "templatesHint": "Inquiry is always there. You choose any extra templates. Placeholders in double curly braces: ANREDE, FIRMA, ANLASS, ORT, ZEITRAUMTEXT, MATERIALLISTE, ABSENDER, REFERENZ.",
         "templateKind": "Template",
+        "addTemplate": "Add template",
+        "addTemplateTitle": "Another template",
+        "addTemplateIntro": "Pick what else you need a text for. You can design it in the editor afterwards.",
+        "removeTemplate": "Remove this template",
+        "removeConfirmTitle": "Remove template?",
+        "removeConfirmMessage": "Really remove «{name}»? The text is lost when you save.",
         "subject": "Subject",
-        "body": "Body",
+        "body": "Mail body",
+        "bodyPlaceholder": "Design the mail — bold, lists, links…",
+        "customTokenTitle": "Custom placeholder",
+        "customTokenIntro": "Name in CAPITALS, e.g. PHONE. Optional sample value for preview.",
+        "customTokenKey": "Name",
+        "customTokenSample": "Sample value (preview)",
+        "customTokenInsert": "Insert",
+        "customTokenInvalid": "Name needs at least two characters (A–Z, 0–9, underscore).",
+        "customTokenBuiltin": "That name is already a standard placeholder.",
+        "tokenLabels": {
+          "ANREDE": "Greeting",
+          "FIRMA": "Company",
+          "ANLASS": "Event",
+          "ORT": "Place",
+          "ZEITRAUMTEXT": "Time window",
+          "MATERIALLISTE": "Material list",
+          "ABSENDER": "Sender",
+          "REFERENZ": "Reference",
+          "EMAIL": "Email"
+        },
         "previewAction": "Preview with sample data",
         "saved": "Templates saved",
         "kinds": {
           "anfrage": "Inquiry",
           "dank_absage": "Thanks after decline",
           "zusage_ok": "Acceptance confirmation",
-          "nicht_genommen": "Not taken"
+          "nicht_genommen": "Not taken",
+          "nehmen": "Taken"
+        },
+        "kindHints": {
+          "dank_absage": "When the company declined — thanks in the same thread.",
+          "zusage_ok": "When the company accepted — what you understood.",
+          "nicht_genommen": "They said yes, but you take another option.",
+          "nehmen": "Only to those you take: we count on you / next steps."
+        },
+        "defaultSubjects": {
+          "dank_absage": "Thanks for your reply",
+          "zusage_ok": "Acceptance confirmed",
+          "nicht_genommen": "Not this time",
+          "nehmen": "We are counting on you"
+        },
+        "defaultBodies": {
+          "dank_absage": "<p>{{ANREDE}}</p><p>thank you for the reply from {{FIRMA}}. We have noted the decline.</p><p>Kind regards<br>{{ABSENDER}}</p><p>Reference {{REFERENZ}}</p>",
+          "zusage_ok": "<p>{{ANREDE}}</p><p>thank you for the acceptance from {{FIRMA}}. We noted: {{MATERIALLISTE}}.</p><p>Period: {{ZEITRAUMTEXT}}</p><p>Kind regards<br>{{ABSENDER}}</p><p>Reference {{REFERENZ}}</p>",
+          "nicht_genommen": "<p>{{ANREDE}}</p><p>thank you for the acceptance from {{FIRMA}}. For this package we will use another option. We will gladly get in touch for a later event.</p><p>Kind regards<br>{{ABSENDER}}</p><p>Reference {{REFERENZ}}</p>",
+          "nehmen": "<p>{{ANREDE}}</p><p>we gladly accept the offer from {{FIRMA}}.</p><p>Package: {{MATERIALLISTE}}<br>Period: {{ZEITRAUMTEXT}}</p><p>Next steps will follow in this thread.</p><p>Kind regards<br>{{ABSENDER}}</p><p>Reference {{REFERENZ}}</p>"
         }
       }
     },

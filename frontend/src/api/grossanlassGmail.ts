@@ -9,7 +9,31 @@ export type GrossanlassGmailStatus = {
   settings_path: string
 }
 
-export type GrossanlassMailTemplateKind = 'anfrage' | 'dank_absage' | 'zusage_ok' | 'nicht_genommen'
+export type GrossanlassMailTemplateKind =
+  | 'anfrage'
+  | 'dank_absage'
+  | 'zusage_ok'
+  | 'nicht_genommen'
+  | 'nehmen'
+
+export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
+  'ANREDE',
+  'FIRMA',
+  'ANLASS',
+  'ORT',
+  'ZEITRAUMTEXT',
+  'MATERIALLISTE',
+  'ABSENDER',
+  'REFERENZ',
+  'EMAIL',
+] as const
+
+export const GROSSANLASS_MAIL_OPTIONAL_KINDS: GrossanlassMailTemplateKind[] = [
+  'dank_absage',
+  'zusage_ok',
+  'nicht_genommen',
+  'nehmen',
+]
 
 export type GrossanlassMailTemplate = {
   kind: GrossanlassMailTemplateKind | string
@@ -42,22 +66,43 @@ export async function disconnectGrossanlassGmail(departmentId: string): Promise<
   return response.data
 }
 
-export async function getGrossanlassMailTemplates(departmentId: string): Promise<GrossanlassMailTemplate[]> {
-  const response = await apiClient.get<GrossanlassMailTemplate[]>(
+export type GrossanlassMailCustomPlaceholder = {
+  key: string
+  sample: string
+}
+
+export type GrossanlassMailTemplatePack = {
+  templates: GrossanlassMailTemplate[]
+  custom_placeholders: GrossanlassMailCustomPlaceholder[]
+}
+
+function unwrapTemplatePack(data: GrossanlassMailTemplate[] | GrossanlassMailTemplatePack): GrossanlassMailTemplatePack {
+  if (Array.isArray(data)) {
+    return { templates: data, custom_placeholders: [] }
+  }
+  return {
+    templates: Array.isArray(data.templates) ? data.templates : [],
+    custom_placeholders: Array.isArray(data.custom_placeholders) ? data.custom_placeholders : [],
+  }
+}
+
+export async function getGrossanlassMailTemplates(departmentId: string): Promise<GrossanlassMailTemplatePack> {
+  const response = await apiClient.get<GrossanlassMailTemplate[] | GrossanlassMailTemplatePack>(
     `/api/departments/${departmentId}/grossanlass/gmail/templates`,
   )
-  return response.data
+  return unwrapTemplatePack(response.data)
 }
 
 export async function saveGrossanlassMailTemplates(
   departmentId: string,
   templates: GrossanlassMailTemplate[],
-): Promise<GrossanlassMailTemplate[]> {
-  const response = await apiClient.put<GrossanlassMailTemplate[]>(
+  customPlaceholders: GrossanlassMailCustomPlaceholder[] = [],
+): Promise<GrossanlassMailTemplatePack> {
+  const response = await apiClient.put<GrossanlassMailTemplate[] | GrossanlassMailTemplatePack>(
     `/api/departments/${departmentId}/grossanlass/gmail/templates`,
-    { templates },
+    { templates, custom_placeholders: customPlaceholders },
   )
-  return response.data
+  return unwrapTemplatePack(response.data)
 }
 
 export async function previewGrossanlassMail(

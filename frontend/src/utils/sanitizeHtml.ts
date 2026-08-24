@@ -33,8 +33,16 @@ const PURIFY_CONFIG: Config = {
   ALLOW_DATA_ATTR: false,
   ALLOW_ARIA_ATTR: false,
   ALLOW_UNKNOWN_PROTOCOLS: false,
-  // Nur absolute http(s)-URLs sowie mailto:/tel: — kein javascript:, data:, etc.
   ALLOWED_URI_REGEXP: /^(?:(?:https?):\/\/|mailto:|tel:)/i,
+}
+
+const MAIL_PURIFY_CONFIG: Config = {
+  ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt'],
+  ALLOW_DATA_ATTR: false,
+  ALLOW_ARIA_ATTR: false,
+  ALLOW_UNKNOWN_PROTOCOLS: false,
+  ALLOWED_URI_REGEXP: /^(?:(?:https?):\/\/|mailto:|tel:|data:image\/)/i,
 }
 
 let hooksInstalled = false
@@ -77,4 +85,19 @@ export function sanitizePublicHtml(html: string): string {
 
   ensureLinkHooks()
   return DOMPurify.sanitize(s, PURIFY_CONFIG)
+}
+
+/** HTML aus Mail-Vorlagen (TipTap) für die Vorschau. */
+export function sanitizeMailHtml(html: string): string {
+  const s = String(html || '').trim()
+  if (!s) {
+    return ''
+  }
+
+  if (typeof window === 'undefined') {
+    return fallbackStripTags(s)
+  }
+
+  ensureLinkHooks()
+  return DOMPurify.sanitize(s, MAIL_PURIFY_CONFIG)
 }

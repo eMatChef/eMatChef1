@@ -218,16 +218,65 @@ final class GrossanlassGmailApi
     private function rfc822(string $to, string $subject, string $body, string $inquiryId): string
     {
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-        $headers = [
+        $baseHeaders = [
             'To: ' . $to,
             'Subject: ' . $encodedSubject,
             'MIME-Version: 1.0',
-            'Content-Type: text/plain; charset=UTF-8',
-            'Content-Transfer-Encoding: 8bit',
             'X-eMatChef-Anfrage: ' . $inquiryId,
         ];
+        if (!$this->looksLikeHtml($body)) {
+            $headers = array_merge($baseHeaders, [
+                'Content-Type: text/plain; charset=UTF-8',
+                'Content-Transfer-Encoding: 8bit',
+            ]);
 
-        return implode("\r\n", $headers) . "\r\n\r\n" . $body;
+            return implode("\r\n", $headers) . "\r\n\r\n" . $body;
+        }
+
+        $boundary = 'emc_' . bin2hex(random_bytes(8));
+        $plain = $this->htmlToPlain($body);
+        $html = $this->wrapHtml($body);
+        $headers = array_merge($baseHeaders, [
+            'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
+        ]);
+        $parts = [
+            '--' . $boundary,
+            'Content-Type: text/plain; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $plain,
+            '--' . $boundary,
+            'Content-Type: text/html; charset=UTF-8',
+            'Content-Transfer-Encoding: 8bit',
+            '',
+            $html,
+            '--' . $boundary . '--',
+            '',
+        ];
+
+        return implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $parts);
+    }
+
+    private function looksLikeHtml(string $body): bool
+    {
+        return (bool) preg_match('/<[a-z][\s\S]*>/i', $body);
+    }
+
+    private function htmlToPlain(string $html): string
+    {
+        $withBreaks = preg_replace('/<(?:br|\/p|\/div|\/h[1-6]|\/li)\s*\/?>/i', "\n", $html) ?? $html;
+        $plain = html_entity_decode(strip_tags($withBreaks), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return trim(preg_replace("/\n{3,}/", "\n\n", $plain) ?? $plain);
+    }
+
+    private function wrapHtml(string $body): string
+    {
+        if (preg_match('/<html[\s>]/i', $body)) {
+            return $body;
+        }
+
+        return '<html><body>' . $body . '</body></html>';
     }
 
     private function base64url(string $raw): string
