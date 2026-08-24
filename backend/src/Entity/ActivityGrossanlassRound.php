@@ -47,6 +47,9 @@ class ActivityGrossanlassRound
     #[ORM\Column(name: 'form_purpose', type: 'string', length: 32, options: ['default' => 'material_wish'])]
     private string $formPurpose = self::PURPOSE_MATERIAL_WISH;
 
+    #[ORM\Column(name: 'material_stage', type: 'string', length: 8, nullable: true)]
+    private ?string $materialStage = null;
+
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_SCHEDULED;
 
@@ -153,6 +156,18 @@ class ActivityGrossanlassRound
     public function isMaterialWish(): bool
     {
         return $this->formPurpose === self::PURPOSE_MATERIAL_WISH;
+    }
+
+    public function getMaterialStage(): ?string
+    {
+        return $this->materialStage;
+    }
+
+    public function setMaterialStage(?string $materialStage): self
+    {
+        $this->materialStage = $materialStage;
+
+        return $this;
     }
 
     public function getStatus(): string

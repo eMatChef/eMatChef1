@@ -90,6 +90,10 @@ export interface GrossanlassProcurementLine {
   category_parent_id: string | null
   category_parent_name: string | null
   status: GrossanlassProcurementStatus
+  quantity_asked: number | null
+  quantity_current: number
+  quantity_delta: number | null
+  merge_frozen: boolean
   wish_line_ids: string[]
   wish_count: number
   source_wishes: GrossanlassProcurementPoolWish[]

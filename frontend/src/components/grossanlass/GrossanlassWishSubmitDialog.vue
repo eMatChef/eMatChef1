@@ -14,7 +14,17 @@
     <v-alert v-else-if="loadError" type="error" variant="tonal" :text="loadError" />
 
     <template v-else-if="round && roundForm">
-      <p class="dialog-hint">{{ t('grossanlass.wishes.formHint') }}</p>
+      <p class="dialog-hint">{{ isFeinRound ? t('grossanlass.wishes.feinFormHint') : t('grossanlass.wishes.formHint') }}</p>
+      <div v-if="isFeinRound" class="refine-panel">
+        <ul v-if="refineCandidates.length" class="refine-list">
+          <li v-for="wish in refineCandidates" :key="wish.id">
+            <span>{{ wish.quantity }}× {{ wish.label }}</span>
+            <EButton size="small" variant="secondary" @click="startRefine(wish)">
+              {{ t('grossanlass.wishes.refineAction') }}
+            </EButton>
+          </li>
+        </ul>
+      </div>
       <GrossanlassWishDynamicForm
         ref="wishFormRef"
         :form="roundForm"
@@ -35,7 +45,7 @@
         :loading="isSaving"
         @click="submitWish"
       >
-        {{ t('grossanlass.wishes.submit') }}
+        {{ refineWishId ? t('grossanlass.wishes.refineSave') : t('grossanlass.wishes.submit') }}
       </EButton>
     </template>
   </EDialog>
@@ -52,7 +62,7 @@ import {
   getGrossanlassPlanningRounds,
   type GrossanlassPlanningRound,
 } from '@/api/grossanlassRounds'
-import { createGrossanlassWish } from '@/api/grossanlassWishes'
+import { createGrossanlassWish, getGrossanlassRefineCandidates, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassRoundForm, orderFormFieldsForRound, type GrossanlassRoundForm } from '@/api/grossanlassRoundForm'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
@@ -77,10 +87,16 @@ const isLoading = ref(false)
 const isSaving = ref(false)
 const loadError = ref('')
 const wishFormRef = ref<InstanceType<typeof GrossanlassWishDynamicForm> | null>(null)
+const refineCandidates = ref<GrossanlassWishLine[]>([])
+const refineWishId = ref<string | null>(null)
 
 const groupsRef = computed(() => groups.value)
 const { canFullyManage, isMemberInRessortBranch, isLeaderOfGroup, canCreateChild } =
   useGrossanlassRessortScope(groupsRef)
+
+const isFeinRound = computed(
+  () => round.value?.form_purpose === 'material_wish' && round.value.material_stage === 'fein',
+)
 
 const dialogTitle = computed(() =>
   round.value?.name
@@ -95,6 +111,8 @@ async function loadRoundData() {
 
   isLoading.value = true
   loadError.value = ''
+  refineCandidates.value = []
+  refineWishId.value = null
   round.value = null
   roundForm.value = null
 
@@ -114,6 +132,8 @@ async function loadRoundData() {
     }
     if (round.value.status !== 'open') {
       loadError.value = t('grossanlass.dashboard.wishDialogClosed')
+    } else if (round.value.form_purpose === 'material_wish' && round.value.material_stage === 'fein') {
+      refineCandidates.value = await getGrossanlassRefineCandidates(deptId, roundId)
     }
   } catch (e: any) {
     loadError.value = e.response?.data?.error || t('grossanlass.planung.rounds.errorLoad')
@@ -147,9 +167,13 @@ async function submitWish() {
 
   isSaving.value = true
   try {
-    await createGrossanlassWish(deptId, roundId, payload)
-    toast.success(t('grossanlass.wishes.created'))
+    await createGrossanlassWish(deptId, roundId, {
+      ...payload,
+      refine_wish_id: refineWishId.value || undefined,
+    })
+    toast.success(refineWishId.value ? t('grossanlass.wishes.refined') : t('grossanlass.wishes.created'))
     wishFormRef.value.resetAfterSubmit()
+    refineWishId.value = null
     if (payload.new_bauprojekt) {
       groups.value = await getGrossanlassGroups(deptId)
     }
@@ -160,6 +184,11 @@ async function submitWish() {
   } finally {
     isSaving.value = false
   }
+}
+
+function startRefine(wish: GrossanlassWishLine) {
+  refineWishId.value = wish.id
+  wishFormRef.value?.loadFromWish(wish)
 }
 
 watch(
@@ -179,4 +208,7 @@ watch(
   color: var(--color-text-muted, #6b7280);
   line-height: 1.5;
 }
+.refine-panel { margin: 0 0 12px; }
+.refine-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.refine-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 0.88rem; }
 </style>

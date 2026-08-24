@@ -67,6 +67,7 @@ class GrossanlassPlanningRoundService
         if (!in_array($formPurpose, ActivityGrossanlassRound::FORM_PURPOSES, true)) {
             throw new \InvalidArgumentException('Ungültiger Formular-Zweck');
         }
+        $materialStage = GrossanlassMaterialStage::normalize($formPurpose, $data['material_stage'] ?? null);
 
         $opensAt = $this->parseOptionalDateTime($data['opens_at'] ?? null);
         $closesAt = $this->parseOptionalDateTime($data['closes_at'] ?? null);
@@ -78,6 +79,7 @@ class GrossanlassPlanningRoundService
         $round->setName($name);
         $round->setRoundType($roundType);
         $round->setFormPurpose($formPurpose);
+        $round->setMaterialStage($materialStage);
         $round->setStatus(ActivityGrossanlassRound::STATUS_SCHEDULED);
         $round->setOpensAt($opensAt);
         $round->setClosesAt($closesAt);
@@ -354,6 +356,7 @@ class GrossanlassPlanningRoundService
             'name' => $round->getName(),
             'round_type' => $round->getRoundType(),
             'form_purpose' => $round->getFormPurpose(),
+            'material_stage' => $round->getMaterialStage(),
             'status' => $round->getStatus(),
             'opens_at' => $round->getOpensAt()?->format(\DateTimeInterface::ATOM),
             'closes_at' => $round->getClosesAt()?->format(\DateTimeInterface::ATOM),

@@ -38,6 +38,9 @@ class ActivityGrossanlassWishLine
     #[ORM\Column(name: 'wish_kind', type: 'string', length: 20)]
     private string $wishKind;
 
+    #[ORM\Column(name: 'last_stage', type: 'string', length: 8, options: ['default' => 'grob'])]
+    private string $lastStage = 'grob';
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $label;
 
@@ -144,6 +147,18 @@ class ActivityGrossanlassWishLine
     public function setWishKind(string $wishKind): self
     {
         $this->wishKind = $wishKind;
+
+        return $this;
+    }
+
+    public function getLastStage(): string
+    {
+        return $this->lastStage;
+    }
+
+    public function setLastStage(string $lastStage): self
+    {
+        $this->lastStage = $lastStage;
 
         return $this;
     }

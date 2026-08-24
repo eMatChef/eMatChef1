@@ -46,6 +46,9 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(type: 'integer')]
     private int $quantity;
 
+    #[ORM\Column(name: 'quantity_asked', type: 'integer', nullable: true)]
+    private ?int $quantityAsked = null;
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $location;
 
@@ -161,6 +164,18 @@ class ActivityGrossanlassProcurementLine
     public function setQuantity(int $quantity): self
     {
         $this->quantity = $quantity;
+
+        return $this;
+    }
+
+    public function getQuantityAsked(): ?int
+    {
+        return $this->quantityAsked;
+    }
+
+    public function setQuantityAsked(?int $quantityAsked): self
+    {
+        $this->quantityAsked = $quantityAsked;
 
         return $this;
     }
