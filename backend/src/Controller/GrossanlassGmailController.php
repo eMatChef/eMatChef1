@@ -94,11 +94,17 @@ class GrossanlassGmailController extends AbstractController
         $data = json_decode($request->getContent(), true) ?? [];
         $templates = is_array($data['templates'] ?? null) ? $data['templates'] : $data;
         $custom = is_array($data['custom_placeholders'] ?? null) ? $data['custom_placeholders'] : [];
+        $routing = is_array($data['gmail_routing'] ?? null) ? $data['gmail_routing'] : null;
 
-        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom) {
+        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom, $routing) {
             $this->gmail->status($department, $user);
 
-            return $this->merge->saveTemplates($department, is_array($templates) ? $templates : [], is_array($custom) ? $custom : []);
+            return $this->merge->saveTemplates(
+                $department,
+                is_array($templates) ? $templates : [],
+                is_array($custom) ? $custom : [],
+                $routing,
+            );
         });
     }
 
@@ -120,6 +126,30 @@ class GrossanlassGmailController extends AbstractController
             }
 
             return $this->merge->preview($department, $inquiry, (string) ($data['kind'] ?? 'anfrage'));
+        });
+    }
+
+    #[Route('/preview-batch', name: 'preview_batch', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function previewBatch(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = is_array($data['inquiry_ids'] ?? null) ? $data['inquiry_ids'] : [];
+
+        return $this->handle($departmentId, function (Department $department, User $user) use ($data, $ids) {
+            $this->gmail->status($department, $user);
+            $kind = (string) ($data['kind'] ?? 'anfrage');
+            $clean = [];
+            foreach ($ids as $id) {
+                if (is_string($id) && $id !== '') {
+                    $clean[] = $id;
+                }
+            }
+            if (count($clean) > 80) {
+                $clean = array_slice($clean, 0, 80);
+            }
+
+            return $this->merge->previewMany($department, $clean, $kind);
         });
     }
 

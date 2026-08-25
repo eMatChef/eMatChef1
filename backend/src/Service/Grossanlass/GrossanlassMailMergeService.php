@@ -14,6 +14,7 @@ use Doctrine\ORM\EntityManagerInterface;
 final class GrossanlassMailMergeService
 {
     public const CUSTOM_PLACEHOLDERS_SETTING = 'grossanlass.mail.custom_placeholders';
+    public const GMAIL_ROUTING_SETTING = 'grossanlass.mail.gmail_routing';
 
     /** @var list<string> */
     public const BUILTIN_PLACEHOLDERS = [
@@ -33,13 +34,18 @@ final class GrossanlassMailMergeService
     }
 
     /**
-     * @return array{templates: list<array{kind: string, subject: string, body: string}>, custom_placeholders: list<array{key: string, sample: string}>}
+     * @return array{
+     *     templates: list<array{kind: string, subject: string, body: string}>,
+     *     custom_placeholders: list<array{key: string, sample: string}>,
+     *     gmail_routing: array<string, mixed>
+     * }
      */
     public function listTemplates(Department $department): array
     {
         return [
             'templates' => $this->templateRows($department),
             'custom_placeholders' => $this->listCustomPlaceholders($department),
+            'gmail_routing' => $this->getGmailRouting($department),
         ];
     }
 
@@ -76,9 +82,19 @@ final class GrossanlassMailMergeService
     /**
      * @param list<array{kind?: string, subject?: string, body?: string}> $templates
      * @param list<array{key?: string, sample?: string}> $customPlaceholders
-     * @return array{templates: list<array{kind: string, subject: string, body: string}>, custom_placeholders: list<array{key: string, sample: string}>}
+     * @param array<string, mixed>|null $gmailRouting
+     * @return array{
+     *     templates: list<array{kind: string, subject: string, body: string}>,
+     *     custom_placeholders: list<array{key: string, sample: string}>,
+     *     gmail_routing: array<string, mixed>
+     * }
      */
-    public function saveTemplates(Department $department, array $templates, array $customPlaceholders = []): array
+    public function saveTemplates(
+        Department $department,
+        array $templates,
+        array $customPlaceholders = [],
+        ?array $gmailRouting = null,
+    ): array
     {
         $this->ensureDefaults($department);
         $keep = [DepartmentGrossanlassMailTemplate::KIND_ANFRAGE];
@@ -118,6 +134,9 @@ final class GrossanlassMailMergeService
         }
         $this->entityManager->flush();
         $this->saveCustomPlaceholders($department, $customPlaceholders);
+        if ($gmailRouting !== null) {
+            $this->saveGmailRouting($department, $gmailRouting);
+        }
 
         return $this->listTemplates($department);
     }
@@ -149,12 +168,41 @@ final class GrossanlassMailMergeService
     }
 
     /**
+     * @param list<string> $inquiryIds
+     * @return list<array{inquiry_id: string, subject: string, body: string, to: string, placeholders: array<string, string>}>
+     */
+    public function previewMany(Department $department, array $inquiryIds, string $kind = DepartmentGrossanlassMailTemplate::KIND_ANFRAGE): array
+    {
+        $out = [];
+        foreach ($inquiryIds as $inquiryId) {
+            if (!is_string($inquiryId) || $inquiryId === '') {
+                continue;
+            }
+            $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $merged = $this->preview($department, $inquiry, $kind);
+            $out[] = [
+                'inquiry_id' => $inquiry->getId(),
+                'subject' => $merged['subject'],
+                'body' => $merged['body'],
+                'to' => $merged['to'],
+                'placeholders' => $merged['placeholders'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return array<string, string>
      */
     public function placeholders(Department $department, ?DepartmentGrossanlassInquiry $inquiry): array
     {
         $packages = $inquiry ? implode(', ', $inquiry->getCategoryIds()) : 'Fahrzeuge';
         $id = $inquiry?->getId() ?? '____________';
+        $reference = $this->displayReference($department, $id);
 
         $vars = [
             'ANREDE' => 'Guten Tag',
@@ -164,7 +212,7 @@ final class GrossanlassMailMergeService
             'ZEITRAUMTEXT' => 'Aufbau, Anlasswoche und Rückgabe gemäss Absprache',
             'MATERIALLISTE' => $packages !== '' ? $packages : 'Paket folgt',
             'ABSENDER' => 'OK Material & Logistik',
-            'REFERENZ' => $id,
+            'REFERENZ' => $reference,
             'EMAIL' => $inquiry?->getEmail() ?? '',
         ];
         foreach ($this->listCustomPlaceholders($department) as $row) {
@@ -241,6 +289,73 @@ final class GrossanlassMailMergeService
     }
 
     /**
+     * @return array{
+     *     label_root: string,
+     *     label_inquiries: string,
+     *     label_waiting: string,
+     *     label_replied: string,
+     *     label_by_package: bool,
+     *     extra_labels: list<string>,
+     *     reference_prefix: string
+     * }
+     */
+    public function getGmailRouting(Department $department): array
+    {
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)
+            ->findOneBy(['departmentId' => $department->getId(), 'settingKey' => self::GMAIL_ROUTING_SETTING]);
+        $decoded = [];
+        if ($setting instanceof DepartmentSetting) {
+            $raw = json_decode($setting->getSettingValue(), true);
+            $decoded = is_array($raw) ? $raw : [];
+        }
+
+        return GrossanlassGmailRouting::normalize($decoded);
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     */
+    public function saveGmailRouting(Department $department, array $raw): void
+    {
+        $normalized = GrossanlassGmailRouting::normalize($raw);
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)
+            ->findOneBy(['departmentId' => $department->getId(), 'settingKey' => self::GMAIL_ROUTING_SETTING]);
+        if (!$setting instanceof DepartmentSetting) {
+            $setting = new DepartmentSetting();
+            $setting->setId(IdGenerator::generateUnique($this->entityManager, DepartmentSetting::class));
+            $setting->setDepartment($department);
+            $setting->setSettingKey(self::GMAIL_ROUTING_SETTING);
+            $this->entityManager->persist($setting);
+        }
+        $setting->setSettingValue(json_encode($normalized, JSON_UNESCAPED_UNICODE) ?: '{}');
+        $setting->setUpdatedAt(new \DateTime());
+        $this->entityManager->flush();
+    }
+
+    public function displayReference(Department $department, string $inquiryId): string
+    {
+        $routing = $this->getGmailRouting($department);
+
+        return GrossanlassGmailRouting::displayReference($routing['reference_prefix'], $inquiryId);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function gmailLabelNames(
+        Department $department,
+        DepartmentGrossanlassInquiry $inquiry,
+        string $status = GrossanlassGmailRouting::STATUS_WAITING,
+    ): array {
+        return GrossanlassGmailRouting::labelNames(
+            $this->getGmailRouting($department),
+            $department->getName(),
+            $inquiry->getCategoryIds(),
+            $status,
+        );
+    }
+
+    /**
      * @param array<string, string> $vars
      */
     public function apply(string $template, array $vars): string
@@ -307,6 +422,10 @@ final class GrossanlassMailMergeService
             DepartmentGrossanlassMailTemplate::KIND_NEHMEN => [
                 'subject' => $eventName . ' – Wir rechnen mit euch',
                 'body' => '<p>{{ANREDE}}</p><p>wir nehmen das Angebot von {{FIRMA}} gerne an.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Nächste Schritte folgen in diesem Thread.</p>' . $footer,
+            ],
+            DepartmentGrossanlassMailTemplate::KIND_NACHFASSEN => [
+                'subject' => $eventName . ' – Kurze Nachfrage',
+                'body' => '<p>{{ANREDE}}</p><p>wir möchten kurz nachfassen, ob unsere Anfrage an {{FIRMA}} angekommen ist.</p><p>Paket: {{MATERIALLISTE}}</p>' . $footer,
             ],
         ];
     }

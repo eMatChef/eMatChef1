@@ -16,6 +16,7 @@ class ActivityGrossanlassWishLine
 
     public const STATUS_REQUESTED = 'requested';
     public const STATUS_ACCEPTED = 'accepted';
+    public const STATUS_DISCARDED = 'discarded';
 
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]

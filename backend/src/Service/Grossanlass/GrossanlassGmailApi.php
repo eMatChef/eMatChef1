@@ -81,52 +81,158 @@ final class GrossanlassGmailApi
         string $body,
         string $inquiryId,
         array $labelIds = [],
+        ?string $threadId = null,
+        ?string $inReplyTo = null,
     ): array {
-        $raw = $this->rfc822($to, $subject, $body, $inquiryId);
-        $payload = [
-            'message' => [
-                'raw' => $this->base64url($raw),
-            ],
+        $raw = $this->rfc822($to, $subject, $body, $inquiryId, $inReplyTo);
+        $message = [
+            'raw' => $this->base64url($raw),
         ];
         if ($labelIds !== []) {
-            $payload['message']['labelIds'] = $labelIds;
+            $message['labelIds'] = $labelIds;
         }
-        $data = $this->post($accessToken, '/drafts', $payload);
-        $message = is_array($data['message'] ?? null) ? $data['message'] : [];
+        if ($threadId) {
+            $message['threadId'] = $threadId;
+        }
+        $data = $this->post($accessToken, '/drafts', ['message' => $message]);
+        $created = is_array($data['message'] ?? null) ? $data['message'] : [];
 
         return [
             'draftId' => (string) ($data['id'] ?? ''),
-            'threadId' => (string) ($message['threadId'] ?? ''),
-            'messageId' => (string) ($message['id'] ?? ''),
+            'threadId' => (string) ($created['threadId'] ?? $threadId ?? ''),
+            'messageId' => (string) ($created['id'] ?? ''),
         ];
     }
 
     /**
-     * @return list<array{id: string, snippet: string, from: string, internalDate: string}>
+     * @return list<string>
+     */
+    public function listMessageIds(string $accessToken, string $query, int $max = 40): array
+    {
+        $data = $this->get($accessToken, '/messages?q=' . rawurlencode($query) . '&maxResults=' . $max);
+        $ids = [];
+        foreach ($data['messages'] ?? [] as $message) {
+            if (!is_array($message)) {
+                continue;
+            }
+            $id = (string) ($message['id'] ?? '');
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array{
+     *     id: string,
+     *     threadId: string,
+     *     snippet: string,
+     *     from: string,
+     *     subject: string,
+     *     messageIdHeader: string,
+     *     internalDate: string,
+     *     body: string,
+     *     headers: array<string, string>
+     * }
+     */
+    public function getMessage(string $accessToken, string $messageId): array
+    {
+        $data = $this->get($accessToken, '/messages/' . rawurlencode($messageId) . '?format=full');
+
+        return $this->normalizeMessage($data);
+    }
+
+    /**
+     * @return list<array{
+     *     id: string,
+     *     threadId: string,
+     *     snippet: string,
+     *     from: string,
+     *     subject: string,
+     *     messageIdHeader: string,
+     *     internalDate: string,
+     *     body: string,
+     *     headers: array<string, string>
+     * }>
      */
     public function listThreadMessages(string $accessToken, string $threadId): array
     {
-        $data = $this->get($accessToken, '/threads/' . rawurlencode($threadId) . '?format=metadata&metadataHeaders=From');
+        $data = $this->get($accessToken, '/threads/' . rawurlencode($threadId) . '?format=full');
         $out = [];
         foreach ($data['messages'] ?? [] as $message) {
             if (!is_array($message)) {
                 continue;
             }
-            $from = '';
-            foreach ($message['payload']['headers'] ?? [] as $header) {
-                if (is_array($header) && strcasecmp((string) ($header['name'] ?? ''), 'From') === 0) {
-                    $from = (string) ($header['value'] ?? '');
-                }
-            }
-            $out[] = [
-                'id' => (string) ($message['id'] ?? ''),
-                'snippet' => (string) ($message['snippet'] ?? ''),
-                'from' => $from,
-                'internalDate' => (string) ($message['internalDate'] ?? ''),
-            ];
+            $out[] = $this->normalizeMessage($message);
         }
 
         return $out;
+    }
+
+    /**
+     * @param list<string> $addLabelIds
+     * @param list<string> $removeLabelIds
+     */
+    public function modifyThreadLabels(
+        string $accessToken,
+        string $threadId,
+        array $addLabelIds,
+        array $removeLabelIds,
+    ): void {
+        if ($addLabelIds === [] && $removeLabelIds === []) {
+            return;
+        }
+        $this->post($accessToken, '/threads/' . rawurlencode($threadId) . '/modify', [
+            'addLabelIds' => $addLabelIds,
+            'removeLabelIds' => $removeLabelIds,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array{
+     *     id: string,
+     *     threadId: string,
+     *     snippet: string,
+     *     from: string,
+     *     subject: string,
+     *     messageIdHeader: string,
+     *     internalDate: string,
+     *     body: string,
+     *     headers: array<string, string>
+     * }
+     */
+    private function normalizeMessage(array $data): array
+    {
+        $payload = is_array($data['payload'] ?? null) ? $data['payload'] : [];
+        $headers = GrossanlassGmailInbound::headerMap($payload);
+        $body = GrossanlassGmailInbound::extractBody($payload);
+        $snippet = trim((string) ($data['snippet'] ?? ''));
+        if ($body === '') {
+            $body = $snippet;
+        }
+        $labelIds = [];
+        foreach ($data['labelIds'] ?? [] as $label) {
+            $id = (string) $label;
+            if ($id !== '') {
+                $labelIds[] = $id;
+            }
+        }
+
+        return [
+            'id' => (string) ($data['id'] ?? ''),
+            'threadId' => (string) ($data['threadId'] ?? ''),
+            'snippet' => $snippet,
+            'from' => $headers['from'] ?? '',
+            'subject' => $headers['subject'] ?? '',
+            'messageIdHeader' => $headers['message-id'] ?? '',
+            'internalDate' => (string) ($data['internalDate'] ?? ''),
+            'body' => $body,
+            'headers' => $headers,
+            'labelIds' => $labelIds,
+        ];
     }
 
     /**
@@ -215,8 +321,13 @@ final class GrossanlassGmailApi
         return $data;
     }
 
-    private function rfc822(string $to, string $subject, string $body, string $inquiryId): string
-    {
+    private function rfc822(
+        string $to,
+        string $subject,
+        string $body,
+        string $inquiryId,
+        ?string $inReplyTo = null,
+    ): string {
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
         $baseHeaders = [
             'To: ' . $to,
@@ -224,6 +335,10 @@ final class GrossanlassGmailApi
             'MIME-Version: 1.0',
             'X-eMatChef-Anfrage: ' . $inquiryId,
         ];
+        if ($inReplyTo) {
+            $baseHeaders[] = 'In-Reply-To: ' . $inReplyTo;
+            $baseHeaders[] = 'References: ' . $inReplyTo;
+        }
         if (!$this->looksLikeHtml($body)) {
             $headers = array_merge($baseHeaders, [
                 'Content-Type: text/plain; charset=UTF-8',

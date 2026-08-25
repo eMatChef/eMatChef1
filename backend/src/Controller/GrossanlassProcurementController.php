@@ -572,6 +572,85 @@ class GrossanlassProcurementController extends AbstractController
         return new JsonResponse($overview);
     }
 
+    #[Route('/collector/{wishId}/to-inquiry', name: 'collector_to_inquiry', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorToInquiry(string $departmentId, string $wishId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $overview = $this->procurementService->collectorToInquiry($department, $currentUser, $wishId, is_array($data) ? $data : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
+    #[Route('/collector/{wishId}/to-material', name: 'collector_to_material', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorToMaterial(string $departmentId, string $wishId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $overview = $this->procurementService->collectorToMaterial($department, $currentUser, $wishId, is_array($data) ? $data : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
+    #[Route('/collector/{wishId}/discard', name: 'collector_discard', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorDiscard(string $departmentId, string $wishId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            $overview = $this->procurementService->collectorDiscard($department, $currentUser, $wishId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
     #[Route('/lines/{lineId}/wishes/{wishLineId}', name: 'lines_remove_wish', methods: ['DELETE'])]
     #[IsGranted('ROLE_USER')]
     public function removeWishFromLine(string $departmentId, string $lineId, string $wishLineId): JsonResponse

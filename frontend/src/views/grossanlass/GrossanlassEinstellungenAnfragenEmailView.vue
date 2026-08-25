@@ -30,6 +30,73 @@
     </section>
 
     <section class="panel">
+      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}</h2>
+      <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.routingHint') }}</p>
+      <ETextField
+        v-model="routing.label_root"
+        :label="t('grossanlass.einstellungen.anfragenEmail.labelRoot')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.labelRootHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <ETextField
+        v-model="routing.label_inquiries"
+        :label="t('grossanlass.einstellungen.anfragenEmail.labelInquiries')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.labelInquiriesHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <ETextField
+        v-model="routing.label_waiting"
+        :label="t('grossanlass.einstellungen.anfragenEmail.labelWaiting')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.labelWaitingHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <ETextField
+        v-model="routing.label_replied"
+        :label="t('grossanlass.einstellungen.anfragenEmail.labelReplied')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.labelRepliedHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <ECheckbox
+        v-model="routing.label_by_package"
+        :label="t('grossanlass.einstellungen.anfragenEmail.labelByPackage')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.labelByPackageHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <ETextarea
+        v-model="extraLabelsText"
+        :label="t('grossanlass.einstellungen.anfragenEmail.extraLabels')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.extraLabelsHint')"
+        persistent-hint
+        hide-details="auto"
+        rows="3"
+        class="mb-3"
+      />
+      <ETextField
+        v-model="routing.reference_prefix"
+        :label="t('grossanlass.einstellungen.anfragenEmail.referencePrefix')"
+        :hint="t('grossanlass.einstellungen.anfragenEmail.referencePrefixHint')"
+        persistent-hint
+        hide-details="auto"
+        class="mb-3"
+      />
+      <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.referenceSample', { sample: referenceSample }) }}</p>
+      <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.labelPreview') }}</p>
+      <ul class="label-preview">
+        <li v-for="name in labelPreviewNames" :key="name"><code>{{ name }}</code></li>
+      </ul>
+    </section>
+
+    <section class="panel">
       <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
 
@@ -75,7 +142,7 @@
         />
         <ul v-if="customPlaceholders.length" class="custom-tokens">
           <li v-for="row in customPlaceholders" :key="row.key">
-            <code>{{ '{{' + row.key + '}}' }}</code>
+            <code>{{ tokenMarkup(row.key) }}</code>
             <span v-if="row.sample" class="custom-tokens__sample">{{ row.sample }}</span>
             <button type="button" class="custom-tokens__remove" @click="removeCustomToken(row.key)">
               {{ t('common.delete') }}
@@ -160,10 +227,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { EButton, ECheckbox, EDialog, ETextField, ETextarea } from '@/components/form/base'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -173,10 +240,12 @@ import {
   disconnectGrossanlassGmail,
   getGrossanlassGmailStatus,
   getGrossanlassMailTemplates,
+  GROSSANLASS_GMAIL_ROUTING_DEFAULTS,
   GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS,
   GROSSANLASS_MAIL_OPTIONAL_KINDS,
   grossanlassGmailConnectUrl,
   saveGrossanlassMailTemplates,
+  type GrossanlassGmailRouting,
   type GrossanlassGmailStatus,
   type GrossanlassMailCustomPlaceholder,
   type GrossanlassMailPreview,
@@ -210,6 +279,32 @@ const showCustomToken = ref(false)
 const customTokenKey = ref('')
 const customTokenSample = ref('')
 const editorRef = ref<{ insertToken: (token: string) => void } | null>(null)
+const routing = reactive<GrossanlassGmailRouting>({ ...GROSSANLASS_GMAIL_ROUTING_DEFAULTS })
+const extraLabelsText = ref('')
+
+const referenceSample = computed(
+  () => `${routing.reference_prefix}iq12beispielx`,
+)
+
+const labelPreviewNames = computed(() => {
+  const root = (routing.label_root.trim() || 'PFF 2027').replaceAll('/', '-')
+  const names = [root]
+  const inquiries = routing.label_inquiries.trim()
+  if (inquiries) names.push(`${root}/${inquiries}`)
+  const waiting = routing.label_waiting.trim()
+  if (waiting) names.push(`${root}/${waiting}`)
+  const replied = routing.label_replied.trim()
+  if (replied) names.push(`${root}/${replied}`)
+  if (routing.label_by_package) {
+    const parent = inquiries ? `${root}/${inquiries}` : root
+    names.push(`${parent}/Fahrzeuge`)
+  }
+  for (const line of extraLabelsText.value.split(/\r\n|\n|\r/)) {
+    const path = line.trim()
+    if (path) names.push(path)
+  }
+  return [...new Set(names)]
+})
 
 const activeTemplate = computed(() => templates.value.find((row) => row.kind === activeKind.value) ?? null)
 
@@ -233,6 +328,10 @@ const insertTokens = computed(() => {
 
 function kindLabel(kind: string): string {
   return t(`grossanlass.einstellungen.anfragenEmail.kinds.${kind}`)
+}
+
+function tokenMarkup(key: string): string {
+  return '{' + '{' + key + '}' + '}'
 }
 
 function escapeHtml(value: string): string {
@@ -331,6 +430,8 @@ async function load() {
       body: bodyForEditor(row.body),
     }))
     customPlaceholders.value = pack.custom_placeholders
+    Object.assign(routing, pack.gmail_routing)
+    extraLabelsText.value = pack.gmail_routing.extra_labels.join('\n')
     if (!templates.value.some((row) => row.kind === activeKind.value)) {
       activeKind.value = templates.value[0]?.kind || 'anfrage'
     }
@@ -367,12 +468,21 @@ async function save() {
       departmentId.value,
       templates.value,
       customPlaceholders.value,
+      {
+        ...routing,
+        extra_labels: extraLabelsText.value
+          .split(/\r\n|\n|\r/)
+          .map((line) => line.trim())
+          .filter(Boolean),
+      },
     )
     templates.value = pack.templates.map((row) => ({
       ...row,
       body: bodyForEditor(row.body),
     }))
     customPlaceholders.value = pack.custom_placeholders
+    Object.assign(routing, pack.gmail_routing)
+    extraLabelsText.value = pack.gmail_routing.extra_labels.join('\n')
     toast.success(t('grossanlass.einstellungen.anfragenEmail.saved'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -393,7 +503,7 @@ async function loadPreview() {
     ZEITRAUMTEXT: 'Aufbau, Anlasswoche und Rückgabe gemäss Absprache',
     MATERIALLISTE: 'Fahrzeuge',
     ABSENDER: 'OK Material & Logistik',
-    REFERENZ: '____________',
+    REFERENZ: `${routing.reference_prefix}____________`,
     EMAIL: 'demo@firma.example',
   }
   for (const row of customPlaceholders.value) {
@@ -528,5 +638,12 @@ onMounted(async () => {
   cursor: pointer;
   font-size: 0.8rem;
   padding: 0;
+}
+.label-preview {
+  margin: 8px 0 0;
+  padding-left: 1.2rem;
+  color: #334155;
+  font-size: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 </style>

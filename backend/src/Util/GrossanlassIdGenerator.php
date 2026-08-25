@@ -27,6 +27,7 @@ final class GrossanlassIdGenerator
     public const USER_CARD = 'user_card';
     public const GROUP = 'group';
     public const WORKSHOP_CASE = 'workshop_case';
+    public const GMAIL_UNMATCHED = 'gmail_unmatched';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -45,6 +46,7 @@ final class GrossanlassIdGenerator
         self::USER_CARD => 'uc',
         self::GROUP => 'grp',
         self::WORKSHOP_CASE => 'wk',
+        self::GMAIL_UNMATCHED => 'gu',
     ];
 
     public static function prefix(string $kind): string

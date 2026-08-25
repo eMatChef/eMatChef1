@@ -12,10 +12,32 @@ export type GrossanlassInquiryThreadEntry = {
   who: 'ok' | 'firm' | string
   text: string
   at?: string
+  from?: string
+  subject?: string
+  gmail_message_id?: string
+}
+
+export type GrossanlassGmailUnmatched = {
+  id: string
+  gmail_message_id: string
+  gmail_thread_id: string
+  from_email: string
+  from_name: string
+  subject: string
+  body: string
+  received_at: string
+  gmail_open_url: string | null
+}
+
+export type GrossanlassGmailSyncResult = {
+  updated: GrossanlassInquiry[]
+  unmatched: GrossanlassGmailUnmatched[]
+  ignored: number
 }
 
 export type GrossanlassInquiry = {
   id: string
+  reference?: string
   name: string
   email: string
   place: string
@@ -103,9 +125,70 @@ export async function createGrossanlassInquiryDrafts(
   return response.data
 }
 
-export async function syncGrossanlassInquiryGmail(departmentId: string): Promise<GrossanlassInquiry[]> {
-  const response = await apiClient.post<GrossanlassInquiry[]>(
+export async function syncGrossanlassInquiryGmail(departmentId: string): Promise<GrossanlassGmailSyncResult> {
+  const response = await apiClient.post<GrossanlassGmailSyncResult | GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/sync-gmail`,
+  )
+  const data = response.data
+  if (Array.isArray(data)) {
+    return { updated: data, unmatched: [], ignored: 0 }
+  }
+  return {
+    updated: Array.isArray(data.updated) ? data.updated : [],
+    unmatched: Array.isArray(data.unmatched) ? data.unmatched : [],
+    ignored: Number(data.ignored) || 0,
+  }
+}
+
+export async function getGrossanlassGmailUnmatched(departmentId: string): Promise<GrossanlassGmailUnmatched[]> {
+  const response = await apiClient.get<GrossanlassGmailUnmatched[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/unmatched`,
+  )
+  return Array.isArray(response.data) ? response.data : []
+}
+
+export async function assignGrossanlassGmailUnmatched(
+  departmentId: string,
+  unmatchedId: string,
+  inquiryId: string,
+): Promise<{ inquiry: GrossanlassInquiry; unmatched: GrossanlassGmailUnmatched[] }> {
+  const response = await apiClient.post<{ inquiry: GrossanlassInquiry; unmatched: GrossanlassGmailUnmatched[] }>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/unmatched/${unmatchedId}/assign`,
+    { inquiry_id: inquiryId },
+  )
+  return response.data
+}
+
+export async function discardGrossanlassGmailUnmatched(
+  departmentId: string,
+  unmatchedId: string,
+): Promise<GrossanlassGmailUnmatched[]> {
+  const response = await apiClient.post<GrossanlassGmailUnmatched[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/unmatched/${unmatchedId}/discard`,
+  )
+  return Array.isArray(response.data) ? response.data : []
+}
+
+export async function unmatchedToGrossanlassInquiry(
+  departmentId: string,
+  unmatchedId: string,
+  data: { name?: string; email?: string; place?: string } = {},
+): Promise<{ inquiry: GrossanlassInquiry; unmatched: GrossanlassGmailUnmatched[] }> {
+  const response = await apiClient.post<{ inquiry: GrossanlassInquiry; unmatched: GrossanlassGmailUnmatched[] }>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/unmatched/${unmatchedId}/to-inquiry`,
+    data,
+  )
+  return response.data
+}
+
+export async function createGrossanlassInquiryReplyDraft(
+  departmentId: string,
+  inquiryId: string,
+  kind: string,
+): Promise<GrossanlassInquiry> {
+  const response = await apiClient.post<GrossanlassInquiry>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}/reply-draft`,
+    { kind },
   )
   return response.data
 }

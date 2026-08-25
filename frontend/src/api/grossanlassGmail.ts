@@ -15,6 +15,15 @@ export type GrossanlassMailTemplateKind =
   | 'zusage_ok'
   | 'nicht_genommen'
   | 'nehmen'
+  | 'nachfassen'
+
+export const GROSSANLASS_MAIL_OPTIONAL_KINDS: GrossanlassMailTemplateKind[] = [
+  'dank_absage',
+  'zusage_ok',
+  'nicht_genommen',
+  'nehmen',
+  'nachfassen',
+]
 
 export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
   'ANREDE',
@@ -27,13 +36,6 @@ export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
   'REFERENZ',
   'EMAIL',
 ] as const
-
-export const GROSSANLASS_MAIL_OPTIONAL_KINDS: GrossanlassMailTemplateKind[] = [
-  'dank_absage',
-  'zusage_ok',
-  'nicht_genommen',
-  'nehmen',
-]
 
 export type GrossanlassMailTemplate = {
   kind: GrossanlassMailTemplateKind | string
@@ -71,18 +73,60 @@ export type GrossanlassMailCustomPlaceholder = {
   sample: string
 }
 
+export type GrossanlassGmailRouting = {
+  label_root: string
+  label_inquiries: string
+  label_waiting: string
+  label_replied: string
+  label_by_package: boolean
+  extra_labels: string[]
+  reference_prefix: string
+}
+
+export const GROSSANLASS_GMAIL_ROUTING_DEFAULTS: GrossanlassGmailRouting = {
+  label_root: '',
+  label_inquiries: 'Firmenanfragen',
+  label_waiting: 'Status/Wartet auf Antwort',
+  label_replied: 'Status/Antwort erhalten',
+  label_by_package: true,
+  extra_labels: [],
+  reference_prefix: '',
+}
+
 export type GrossanlassMailTemplatePack = {
   templates: GrossanlassMailTemplate[]
   custom_placeholders: GrossanlassMailCustomPlaceholder[]
+  gmail_routing: GrossanlassGmailRouting
+}
+
+function unwrapRouting(raw: unknown): GrossanlassGmailRouting {
+  const row = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const extra = Array.isArray(row.extra_labels)
+    ? row.extra_labels.map((item) => String(item)).filter(Boolean)
+    : []
+  return {
+    label_root: String(row.label_root ?? GROSSANLASS_GMAIL_ROUTING_DEFAULTS.label_root),
+    label_inquiries: String(row.label_inquiries ?? GROSSANLASS_GMAIL_ROUTING_DEFAULTS.label_inquiries),
+    label_waiting: String(row.label_waiting ?? GROSSANLASS_GMAIL_ROUTING_DEFAULTS.label_waiting),
+    label_replied: String(row.label_replied ?? GROSSANLASS_GMAIL_ROUTING_DEFAULTS.label_replied),
+    label_by_package: row.label_by_package !== false,
+    extra_labels: extra,
+    reference_prefix: String(row.reference_prefix ?? ''),
+  }
 }
 
 function unwrapTemplatePack(data: GrossanlassMailTemplate[] | GrossanlassMailTemplatePack): GrossanlassMailTemplatePack {
   if (Array.isArray(data)) {
-    return { templates: data, custom_placeholders: [] }
+    return {
+      templates: data,
+      custom_placeholders: [],
+      gmail_routing: { ...GROSSANLASS_GMAIL_ROUTING_DEFAULTS },
+    }
   }
   return {
     templates: Array.isArray(data.templates) ? data.templates : [],
     custom_placeholders: Array.isArray(data.custom_placeholders) ? data.custom_placeholders : [],
+    gmail_routing: unwrapRouting(data.gmail_routing),
   }
 }
 
@@ -97,10 +141,11 @@ export async function saveGrossanlassMailTemplates(
   departmentId: string,
   templates: GrossanlassMailTemplate[],
   customPlaceholders: GrossanlassMailCustomPlaceholder[] = [],
+  gmailRouting: GrossanlassGmailRouting = GROSSANLASS_GMAIL_ROUTING_DEFAULTS,
 ): Promise<GrossanlassMailTemplatePack> {
   const response = await apiClient.put<GrossanlassMailTemplate[] | GrossanlassMailTemplatePack>(
     `/api/departments/${departmentId}/grossanlass/gmail/templates`,
-    { templates, custom_placeholders: customPlaceholders },
+    { templates, custom_placeholders: customPlaceholders, gmail_routing: gmailRouting },
   )
   return unwrapTemplatePack(response.data)
 }
@@ -114,4 +159,18 @@ export async function previewGrossanlassMail(
     data,
   )
   return response.data
+}
+
+export type GrossanlassMailBatchPreview = GrossanlassMailPreview & { inquiry_id: string }
+
+export async function previewGrossanlassMails(
+  departmentId: string,
+  inquiryIds: string[],
+  kind = 'anfrage',
+): Promise<GrossanlassMailBatchPreview[]> {
+  const response = await apiClient.post<GrossanlassMailBatchPreview[]>(
+    `/api/departments/${departmentId}/grossanlass/gmail/preview-batch`,
+    { inquiry_ids: inquiryIds, kind },
+  )
+  return Array.isArray(response.data) ? response.data : []
 }

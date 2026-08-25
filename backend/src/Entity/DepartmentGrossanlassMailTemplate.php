@@ -13,6 +13,7 @@ class DepartmentGrossanlassMailTemplate
     public const KIND_ZUSAGE_OK = 'zusage_ok';
     public const KIND_NICHT_GENOMMEN = 'nicht_genommen';
     public const KIND_NEHMEN = 'nehmen';
+    public const KIND_NACHFASSEN = 'nachfassen';
 
     /** @var list<string> */
     public const OPTIONAL_KINDS = [
@@ -20,6 +21,7 @@ class DepartmentGrossanlassMailTemplate
         self::KIND_ZUSAGE_OK,
         self::KIND_NICHT_GENOMMEN,
         self::KIND_NEHMEN,
+        self::KIND_NACHFASSEN,
     ];
 
     /** @var list<string> */
@@ -29,6 +31,7 @@ class DepartmentGrossanlassMailTemplate
         self::KIND_ZUSAGE_OK,
         self::KIND_NICHT_GENOMMEN,
         self::KIND_NEHMEN,
+        self::KIND_NACHFASSEN,
     ];
 
     #[ORM\Id]

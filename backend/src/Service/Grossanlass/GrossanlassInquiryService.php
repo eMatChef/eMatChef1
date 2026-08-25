@@ -2,9 +2,6 @@
 
 namespace App\Service\Grossanlass;
 
-use App\Entity\ActivityGrossanlassRound;
-use App\Entity\ActivityGrossanlassWishLine;
-use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\User;
@@ -18,6 +15,8 @@ class GrossanlassInquiryService
         private GrossanlassAccessService $access,
         private GrossanlassCommitmentService $commitments,
         private GrossanlassProcurementService $procurement,
+        private GrossanlassAnswerCollectorService $collector,
+        private GrossanlassMailMergeService $merge,
     ) {}
 
     /**
@@ -133,45 +132,7 @@ class GrossanlassInquiryService
      */
     public function importTips(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
-
-        $tips = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
-            ->createQueryBuilder('w')
-            ->innerJoin('w.round', 'r')
-            ->innerJoin('r.activity', 'a')
-            ->where('a.departmentId = :departmentId')
-            ->andWhere('r.formPurpose = :purpose')
-            ->setParameter('departmentId', $department->getId())
-            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_COMPANY_TIP)
-            ->orderBy('w.createdAt', 'DESC')
-            ->getQuery()
-            ->getResult();
-
-        $created = [];
-        foreach ($tips as $wish) {
-            if (!$wish instanceof ActivityGrossanlassWishLine) {
-                continue;
-            }
-            $existing = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
-                ->findOneBy(['tipWishId' => $wish->getId()]);
-            if ($existing instanceof DepartmentGrossanlassInquiry) {
-                continue;
-            }
-            $extracted = $this->extractTipFields($wish);
-            $inquiry = $this->newInquiry($department);
-            $inquiry->setName($extracted['name']);
-            $inquiry->setEmail($extracted['email']);
-            $inquiry->setPlace($extracted['place'] !== '' ? $extracted['place'] : $wish->getLocation());
-            $inquiry->setCategoryIds($extracted['categories']);
-            $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_VORSCHLAG);
-            $inquiry->setTipWish($wish);
-            $inquiry->setTipFrom($wish->getGroup()->getName());
-            $this->entityManager->persist($inquiry);
-            $created[] = $inquiry;
-        }
-        $this->entityManager->flush();
-
-        return array_map(fn (DepartmentGrossanlassInquiry $row) => $this->serialize($row), $created);
+        return $this->collector->importPendingTips($department, $user);
     }
 
     private function newInquiry(Department $department): DepartmentGrossanlassInquiry
@@ -234,55 +195,6 @@ class GrossanlassInquiryService
         }
     }
 
-    /**
-     * @return array{name: string, email: string, place: string, categories: list<string>}
-     */
-    private function extractTipFields(ActivityGrossanlassWishLine $wish): array
-    {
-        $name = trim($wish->getLabel());
-        $email = '';
-        $place = trim($wish->getLocation());
-        $categories = [];
-        $response = $wish->getResponse();
-        if ($response !== null) {
-            $values = $this->entityManager->getRepository(ActivityGrossanlassWishResponseValue::class)
-                ->findBy(['responseId' => $response->getId()]);
-            foreach ($values as $value) {
-                if (!$value instanceof ActivityGrossanlassWishResponseValue) {
-                    continue;
-                }
-                $text = trim((string) ($value->getValueText() ?? $value->getValueNumber() ?? ''));
-                if ($text === '') {
-                    continue;
-                }
-                $label = mb_strtolower($value->getField()?->getLabel() ?? '');
-                if (str_contains($label, 'mail') || str_contains($label, 'kontakt')) {
-                    if (filter_var($text, FILTER_VALIDATE_EMAIL)) {
-                        $email = strtolower($text);
-                    } elseif ($email === '' && str_contains($text, '@')) {
-                        $email = strtolower($text);
-                    }
-                } elseif (str_contains($label, 'kategorie') || str_contains($label, 'bereich')) {
-                    $categories[] = $text;
-                } elseif (str_contains($label, 'ort') && $place === '') {
-                    $place = $text;
-                } elseif ((str_contains($label, 'firma') || str_contains($label, 'titel')) && $name === '') {
-                    $name = $text;
-                }
-            }
-        }
-        if ($name === '') {
-            $name = 'Firmenvorschlag';
-        }
-
-        return [
-            'name' => $name,
-            'email' => $email,
-            'place' => $place,
-            'categories' => $categories,
-        ];
-    }
-
     private function find(Department $department, string $inquiryId): DepartmentGrossanlassInquiry
     {
         $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
@@ -300,6 +212,7 @@ class GrossanlassInquiryService
     {
         return [
             'id' => $inquiry->getId(),
+            'reference' => $this->merge->displayReference($inquiry->getDepartment(), $inquiry->getId()),
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
