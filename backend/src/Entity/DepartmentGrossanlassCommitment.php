@@ -96,6 +96,22 @@ class DepartmentGrossanlassCommitment
     #[ORM\Column(type: 'json')]
     private array $services = [];
 
+    /** @var array<string, mixed> */
+    #[ORM\Column(name: 'item_details', type: 'json')]
+    private array $itemDetails = [];
+
+    #[ORM\Column(type: 'integer', options: ['default' => 1])]
+    private int $quantity = 1;
+
+    #[ORM\Column(type: 'boolean', options: ['default' => false])]
+    private bool $packed = false;
+
+    #[ORM\Column(name: 'pack_phase', type: 'string', length: 16, options: ['default' => 'anlass'])]
+    private string $packPhase = 'anlass';
+
+    #[ORM\Column(name: 'returned_to_firm', type: 'boolean', options: ['default' => false])]
+    private bool $returnedToFirm = false;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -391,6 +407,77 @@ class DepartmentGrossanlassCommitment
     public function setServices(array $services): self
     {
         $this->services = array_values($services);
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getQuantity(): int
+    {
+        return $this->quantity;
+    }
+
+    public function setQuantity(int $quantity): self
+    {
+        $this->quantity = max(1, $quantity);
+        $this->touch();
+
+        return $this;
+    }
+
+    public function isPacked(): bool
+    {
+        return $this->packed;
+    }
+
+    public function setPacked(bool $packed): self
+    {
+        $this->packed = $packed;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function getPackPhase(): string
+    {
+        return $this->packPhase;
+    }
+
+    public function setPackPhase(string $packPhase): self
+    {
+        $this->packPhase = $packPhase;
+        $this->touch();
+
+        return $this;
+    }
+
+    public function isReturnedToFirm(): bool
+    {
+        return $this->returnedToFirm;
+    }
+
+    public function setReturnedToFirm(bool $returnedToFirm): self
+    {
+        $this->returnedToFirm = $returnedToFirm;
+        $this->touch();
+
+        return $this;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getItemDetails(): array
+    {
+        return $this->itemDetails;
+    }
+
+    /**
+     * @param array<string, mixed> $itemDetails
+     */
+    public function setItemDetails(array $itemDetails): self
+    {
+        $this->itemDetails = $itemDetails;
         $this->touch();
 
         return $this;

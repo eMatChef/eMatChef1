@@ -52,6 +52,19 @@ class GrossanlassInquiryController extends AbstractController
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->inquiries->importTips($department, $user));
     }
 
+    #[Route('/import-csv', name: 'import_csv', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function importCsv(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $csv = (string) ($data['csv'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->importCsv($department, $user, $csv),
+        );
+    }
+
     #[Route('/mark-sent', name: 'mark_sent', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function markSent(string $departmentId, Request $request): JsonResponse

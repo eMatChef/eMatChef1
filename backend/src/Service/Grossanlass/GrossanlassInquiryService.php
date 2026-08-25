@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementCategory;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\User;
@@ -42,7 +43,6 @@ class GrossanlassInquiryService
         $inquiry = $this->newInquiry($department);
         $this->applyFields($inquiry, $data, true);
         $this->entityManager->persist($inquiry);
-        $this->procurement->freezeAskedFromInquiry($department, $inquiry);
         $this->entityManager->flush();
 
         return $this->serialize($inquiry);
@@ -61,7 +61,13 @@ class GrossanlassInquiryService
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
             $inquiry = $this->find($department, $inquiryId);
         }
-        $this->procurement->freezeAskedFromInquiry($department, $inquiry);
+        if (in_array($inquiry->getStatus(), [
+            DepartmentGrossanlassInquiry::STATUS_GESENDET,
+            DepartmentGrossanlassInquiry::STATUS_ANTWORT,
+            DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
+        ], true)) {
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
+        }
         $this->entityManager->flush();
 
         return $this->serialize($inquiry);
@@ -83,8 +89,10 @@ class GrossanlassInquiryService
             if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
                 continue;
             }
-            if ($inquiry->getEmail() === '') {
-                throw new \InvalidArgumentException('E-Mail fehlt für ' . $inquiry->getName());
+            if (!$inquiry->isReadyForMail()) {
+                throw new \InvalidArgumentException(
+                    'E-Mail oder Paket fehlt für ' . $inquiry->getName(),
+                );
             }
             if (in_array($inquiry->getStatus(), [
                 DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
@@ -133,6 +141,92 @@ class GrossanlassInquiryService
     public function importTips(Department $department, User $user): array
     {
         return $this->collector->importPendingTips($department, $user);
+    }
+
+    /**
+     * @return array{created: list<array<string, mixed>>, skipped: int, errors: list<array{line: int, message: string}>}
+     */
+    public function importCsv(Department $department, User $user, string $csv): array
+    {
+        $this->assertManage($department, $user);
+        $parsed = GrossanlassInquiryCsv::parse($csv);
+        $existingEmails = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
+            ->findBy(['departmentId' => $department->getId()]) as $row) {
+            if (!$row instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            $email = $row->getEmail();
+            if ($email !== '') {
+                $existingEmails[$email] = true;
+            }
+        }
+        $created = [];
+        $skipped = 0;
+        $errors = [];
+        foreach ($parsed as $row) {
+            $email = $row['email'];
+            if ($email !== '' && isset($existingEmails[$email])) {
+                ++$skipped;
+                continue;
+            }
+            try {
+                $inquiry = $this->newInquiry($department);
+                $this->applyFields($inquiry, [
+                    'name' => $row['name'],
+                    'email' => $email,
+                    'place' => $row['place'],
+                    'category_ids' => $this->mapCategoryTokens($department, $row['categories']),
+                ], true);
+                $this->entityManager->persist($inquiry);
+                if ($email !== '') {
+                    $existingEmails[$email] = true;
+                }
+                $created[] = $inquiry;
+            } catch (\InvalidArgumentException $e) {
+                $errors[] = ['line' => $row['line'], 'message' => $e->getMessage()];
+            }
+        }
+        $this->entityManager->flush();
+
+        return [
+            'created' => array_map(fn (DepartmentGrossanlassInquiry $row) => $this->serialize($row), $created),
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function mapCategoryTokens(Department $department, array $tokens): array
+    {
+        $byId = [];
+        $byName = [];
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($rows as $row) {
+            if (!$row instanceof ActivityGrossanlassProcurementCategory) {
+                continue;
+            }
+            $byId[$row->getId()] = $row->getId();
+            $byName[mb_strtolower($row->getName(), 'UTF-8')] = $row->getId();
+        }
+        $ids = [];
+        foreach ($tokens as $token) {
+            $value = trim($token);
+            if ($value === '') {
+                continue;
+            }
+            if (isset($byId[$value])) {
+                $ids[] = $byId[$value];
+                continue;
+            }
+            $ids[] = $byName[mb_strtolower($value, 'UTF-8')] ?? $value;
+        }
+
+        return array_values(array_unique($ids));
     }
 
     private function newInquiry(Department $department): DepartmentGrossanlassInquiry

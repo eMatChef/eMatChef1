@@ -76,6 +76,33 @@ class GrossanlassGmailController extends AbstractController
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->disconnect($department, $user));
     }
 
+    #[Route('/labels', name: 'labels', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function labels(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->labelOverview($department, $user));
+    }
+
+    #[Route('/labels/import', name: 'labels_import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function labelsImport(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $root = (string) ($data['root'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->importLabels($department, $user, $root),
+        );
+    }
+
+    #[Route('/labels/sync', name: 'labels_sync', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function labelsSync(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->syncLabels($department, $user));
+    }
+
     #[Route('/templates', name: 'templates', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function templates(string $departmentId): JsonResponse
@@ -180,6 +207,8 @@ class GrossanlassGmailController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage(), 'reason' => $e->reason], 400);
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 500);
         }
     }
 

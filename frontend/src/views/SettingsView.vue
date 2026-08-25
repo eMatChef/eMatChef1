@@ -178,6 +178,7 @@ const allMenuItems = computed(() => [
     mdiIcon: 'mdi-calendar-range',
     requiresMaterialManage: true,
   },
+  { id: 'print', label: t('settings.nav.print'), mdiIcon: 'mdi-printer-outline' },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
   { id: 'zeit', label: t('settings.nav.timeLocation'), mdiIcon: 'mdi-clock-outline' },
   { id: 'module', label: t('settings.nav.module'), mdiIcon: 'mdi-tune' },
@@ -199,7 +200,7 @@ const allMenuItems = computed(() => [
 const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
 /** Grossanlass-Dept: Mein Department, Zeit/Ort, Fixe Daten für MW/DC — README §3.6 */
-const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates'])
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates', 'print'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))

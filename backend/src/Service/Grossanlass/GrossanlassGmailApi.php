@@ -47,9 +47,11 @@ final class GrossanlassGmailApi
             }
             $id = (string) ($label['id'] ?? '');
             $name = (string) ($label['name'] ?? '');
-            if ($id !== '' && $name !== '') {
-                $out[] = ['id' => $id, 'name' => $name];
+            $type = strtolower((string) ($label['type'] ?? 'user'));
+            if ($id === '' || $name === '' || $type === 'system') {
+                continue;
             }
+            $out[] = ['id' => $id, 'name' => $name];
         }
 
         return $out;
@@ -68,6 +70,14 @@ final class GrossanlassGmailApi
         }
 
         return $id;
+    }
+
+    public function renameLabel(string $accessToken, string $labelId, string $name): void
+    {
+        $this->request('PATCH', $accessToken, '/labels/' . rawurlencode($labelId), [
+            'id' => $labelId,
+            'name' => $name,
+        ]);
     }
 
     /**

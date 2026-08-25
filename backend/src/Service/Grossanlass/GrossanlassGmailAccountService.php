@@ -106,11 +106,108 @@ final class GrossanlassGmailAccountService
         $this->assertManage($department, $user);
         $account = $this->findAccount($department);
         if ($account instanceof DepartmentGrossanlassGmailAccount) {
+            try {
+                $this->oauth->revokeToken($this->secrets->decrypt($account->getRefreshTokenEnc()));
+            } catch (\Throwable) {
+            }
             $this->entityManager->remove($account);
             $this->entityManager->flush();
         }
 
         return $this->status($department, $user);
+    }
+
+    /**
+     * @return array{labels: list<array{name: string, exists: bool, gmail_id: string|null}>}
+     */
+    public function labelOverview(Department $department, User $user): array
+    {
+        $this->assertManage($department, $user);
+        $account = $this->requireAccount($department);
+        $token = $this->gmail->accessToken($account);
+        $this->entityManager->flush();
+        $this->refreshGmailLabelMap($account, $token);
+        $this->entityManager->flush();
+
+        return $this->labelPayload($department, $user, $account);
+    }
+
+    /**
+     * @return array{
+     *     labels: list<array{name: string, exists: bool, gmail_id: string|null}>,
+     *     gmail_labels: list<string>,
+     *     suggested_root: string,
+     *     gmail_routing: array<string, mixed>,
+     *     category_names: list<string>,
+     *     categories_imported: int
+     * }
+     */
+    public function importLabels(Department $department, User $user, string $root): array
+    {
+        $this->assertManage($department, $user);
+        $account = $this->requireAccount($department);
+        $token = $this->gmail->accessToken($account);
+        $this->entityManager->flush();
+        $this->refreshGmailLabelMap($account, $token);
+        $gmailNames = array_keys($account->getLabelMap());
+        $root = trim($root);
+        if ($root === '') {
+            $root = GrossanlassGmailRouting::suggestRoot($gmailNames, $department->getName());
+        }
+        $current = $this->merge->getGmailRouting($department);
+        $imported = GrossanlassGmailRouting::importFromGmail(
+            $gmailNames,
+            $root,
+            $current['reference_prefix'],
+        );
+        $this->merge->saveGmailRouting($department, $imported);
+        $categoryNames = GrossanlassGmailRouting::inquiryCategoryNames(
+            $gmailNames,
+            $imported['label_root'],
+            $imported['label_inquiries'],
+        );
+        $categoriesCreated = 0;
+        try {
+            $categoriesCreated = $this->procurement->ensureTopLevelCategories($department, $user, $categoryNames);
+        } catch (\Throwable) {
+            $categoriesCreated = 0;
+        }
+        $this->entityManager->flush();
+
+        return array_merge($this->labelPayload($department, $user, $account), [
+            'category_names' => $categoryNames,
+            'categories_imported' => $categoriesCreated,
+        ]);
+    }
+
+    /**
+     * @return array{labels: list<array{name: string, exists: bool, gmail_id: string|null}>, created: int, renamed: int}
+     */
+    public function syncLabels(Department $department, User $user): array
+    {
+        $this->assertManage($department, $user);
+        $account = $this->requireAccount($department);
+        $token = $this->gmail->accessToken($account);
+        $this->entityManager->flush();
+        $this->refreshGmailLabelMap($account, $token);
+        $wanted = $this->configuredLabelNames($department, $user);
+        $renamed = $this->renameSingleOrphan($account, $token, $wanted);
+        $before = $account->getLabelMap();
+        $this->ensureLabelIds($account, $token, $wanted);
+        $created = 0;
+        $after = $account->getLabelMap();
+        foreach ($wanted as $name) {
+            if ($name !== '' && !isset($before[$name]) && isset($after[$name])) {
+                ++$created;
+            }
+        }
+        $this->entityManager->flush();
+
+        return [
+            'labels' => $this->labelRows($department, $user, $account),
+            'created' => $created,
+            'renamed' => $renamed,
+        ] + $this->labelPayload($department, $user, $account);
     }
 
     /**
@@ -132,14 +229,16 @@ final class GrossanlassGmailAccountService
             if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
                 continue;
             }
-            if ($inquiry->getEmail() === '') {
-                throw new \InvalidArgumentException('E-Mail fehlt für ' . $inquiry->getName());
+            if (!$inquiry->isReadyForMail()) {
+                throw new \InvalidArgumentException(
+                    'E-Mail oder Paket fehlt für ' . $inquiry->getName(),
+                );
             }
             $merged = $this->merge->preview($department, $inquiry, DepartmentGrossanlassMailTemplate::KIND_ANFRAGE);
             $labelIds = $this->ensureLabelIds(
                 $account,
                 $token,
-                $this->merge->gmailLabelNames($department, $inquiry, GrossanlassGmailRouting::STATUS_WAITING),
+                $this->merge->gmailLabelNames($department, $inquiry),
             );
             $draft = $this->gmail->createDraft(
                 $token,
@@ -370,11 +469,12 @@ final class GrossanlassGmailAccountService
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
+        $this->applyStatusForReplyKind($department, $user, $inquiry, $kind);
         $merged = $this->merge->preview($department, $inquiry, $kind);
         $labelIds = $this->ensureLabelIds(
             $account,
             $token,
-            $this->merge->gmailLabelNames($department, $inquiry, GrossanlassGmailRouting::STATUS_REPLIED),
+            $this->merge->gmailLabelNames($department, $inquiry),
         );
         $inReplyTo = null;
         if ($inquiry->getGmailThreadId()) {
@@ -404,7 +504,9 @@ final class GrossanlassGmailAccountService
         if ($draft['threadId'] !== '') {
             $inquiry->setGmailThreadId($draft['threadId']);
         }
-        $this->applyStatusForReplyKind($department, $user, $inquiry, $kind);
+        if ($inquiry->getGmailThreadId()) {
+            $this->applyInquiryStatusLabels($department, $account, $token, $inquiry, $inquiry->getGmailThreadId());
+        }
         $inquiry->appendThread([
             'who' => 'ok',
             'text' => 'Antwort-Entwurf in Gmail: ' . $kind,
@@ -676,44 +778,13 @@ final class GrossanlassGmailAccountService
         $inquiry->appendThread(['who' => 'ok', 'text' => $note]);
         $threadId = $inquiry->getGmailThreadId();
         if ($threadId) {
-            if ($next === DepartmentGrossanlassInquiry::STATUS_ANTWORT) {
-                $this->applyRepliedLabels($department, $account, $token, $inquiry, $threadId);
-            } elseif ($next === DepartmentGrossanlassInquiry::STATUS_GESENDET) {
-                $this->applyWaitingLabels($department, $account, $token, $threadId);
-            }
+            $this->applyInquiryStatusLabels($department, $account, $token, $inquiry, $threadId);
         }
 
         return true;
     }
 
-    private function applyWaitingLabels(
-        Department $department,
-        DepartmentGrossanlassGmailAccount $account,
-        string $token,
-        string $threadId,
-    ): void {
-        $routing = $this->merge->getGmailRouting($department);
-        $addNames = array_values(array_filter([
-            GrossanlassGmailRouting::statusLabelName($routing, $department->getName(), GrossanlassGmailRouting::STATUS_WAITING),
-        ]));
-        $removeNames = array_values(array_filter([
-            GrossanlassGmailRouting::statusLabelName($routing, $department->getName(), GrossanlassGmailRouting::STATUS_REPLIED),
-        ]));
-        $add = $this->ensureLabelIds($account, $token, $addNames);
-        $remove = [];
-        $map = $account->getLabelMap();
-        foreach ($removeNames as $name) {
-            if (isset($map[$name])) {
-                $remove[] = $map[$name];
-            }
-        }
-        try {
-            $this->gmail->modifyThreadLabels($token, $threadId, $add, $remove);
-        } catch (\Throwable) {
-        }
-    }
-
-    private function applyRepliedLabels(
+    private function applyInquiryStatusLabels(
         Department $department,
         DepartmentGrossanlassGmailAccount $account,
         string $token,
@@ -721,26 +792,163 @@ final class GrossanlassGmailAccountService
         string $threadId,
     ): void {
         $routing = $this->merge->getGmailRouting($department);
-        $addNames = array_values(array_filter([
-            GrossanlassGmailRouting::statusLabelName($routing, $department->getName(), GrossanlassGmailRouting::STATUS_REPLIED),
-        ]));
-        $removeNames = array_values(array_filter([
-            GrossanlassGmailRouting::statusLabelName($routing, $department->getName(), GrossanlassGmailRouting::STATUS_WAITING),
-        ]));
+        $current = GrossanlassGmailRouting::inquiryStatusPath(
+            $routing,
+            $department->getName(),
+            $inquiry->getStatus(),
+        );
+        $all = GrossanlassGmailRouting::allStatusLabelNames($routing, $department->getName());
+        $addNames = $current !== '' ? [$current] : [];
+        $removeNames = [];
+        foreach ($all as $name) {
+            if ($name === $current || ($current !== '' && str_starts_with($current, $name . '/'))) {
+                continue;
+            }
+            $removeNames[] = $name;
+        }
         $add = $this->ensureLabelIds($account, $token, $addNames);
         $remove = [];
         $map = $account->getLabelMap();
         foreach ($removeNames as $name) {
-            if (isset($map[$name])) {
+            if (isset($map[$name]) && $name !== $current) {
                 $remove[] = $map[$name];
             }
         }
         try {
             $this->gmail->modifyThreadLabels($token, $threadId, $add, $remove);
         } catch (\Throwable) {
-            // Labels sind Spiegel, Zuordnung in der App gilt trotzdem.
         }
-        unset($inquiry);
+    }
+
+    /**
+     * @param list<string> $wanted
+     */
+    private function renameSingleOrphan(
+        DepartmentGrossanlassGmailAccount $account,
+        string $token,
+        array $wanted,
+    ): int {
+        $map = $account->getLabelMap();
+        $wantedSet = array_fill_keys($wanted, true);
+        $gmailNames = array_fill_keys(array_keys($map), true);
+        $missing = [];
+        foreach ($wanted as $name) {
+            if ($name !== '' && !isset($gmailNames[$name])) {
+                $missing[] = $name;
+            }
+        }
+        $orphans = [];
+        foreach ($map as $oldName => $id) {
+            if ($oldName !== '' && !isset($wantedSet[$oldName])) {
+                $orphans[] = ['name' => $oldName, 'id' => (string) $id];
+            }
+        }
+        if (count($missing) !== 1 || count($orphans) !== 1) {
+            return 0;
+        }
+        $from = $orphans[0];
+        $to = $missing[0];
+        try {
+            $this->gmail->renameLabel($token, $from['id'], $to);
+        } catch (\Throwable) {
+            return 0;
+        }
+        unset($map[$from['name']]);
+        $map[$to] = $from['id'];
+        $account->setLabelMap($map);
+
+        return 1;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function configuredLabelNames(Department $department, User $user): array
+    {
+        $packages = $this->merge->allCategoryNames($department);
+        $inquiries = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($inquiries as $inquiry) {
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            foreach ($this->merge->resolveCategoryLabels($department, $inquiry->getCategoryIds()) as $name) {
+                $packages[] = $name;
+            }
+        }
+        $packages = array_values(array_unique($packages));
+        $routing = $this->merge->getGmailRouting($department);
+        $names = array_merge(
+            GrossanlassGmailRouting::labelNames($routing, $department->getName(), $packages, GrossanlassGmailRouting::STATUS_WAITING),
+            GrossanlassGmailRouting::allStatusLabelNames($routing, $department->getName()),
+        );
+        $names = array_values(array_unique(array_filter($names, static fn (string $name) => $name !== '')));
+        usort($names, static fn (string $a, string $b) => substr_count($a, '/') <=> substr_count($b, '/'));
+
+        return $names;
+    }
+
+    /**
+     * @return list<array{name: string, exists: bool, gmail_id: string|null}>
+     */
+    private function labelRows(
+        Department $department,
+        User $user,
+        DepartmentGrossanlassGmailAccount $account,
+    ): array {
+        $map = $account->getLabelMap();
+        $rows = [];
+        foreach ($this->configuredLabelNames($department, $user) as $name) {
+            $id = $map[$name] ?? null;
+            $rows[] = [
+                'name' => $name,
+                'exists' => is_string($id) && $id !== '',
+                'gmail_id' => is_string($id) && $id !== '' ? $id : null,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{
+     *     labels: list<array{name: string, exists: bool, gmail_id: string|null}>,
+     *     gmail_labels: list<string>,
+     *     suggested_root: string,
+     *     gmail_routing: array<string, mixed>,
+     *     unused_gmail_labels: list<string>
+     * }
+     */
+    private function labelPayload(
+        Department $department,
+        User $user,
+        DepartmentGrossanlassGmailAccount $account,
+    ): array {
+        $gmailLabels = array_keys($account->getLabelMap());
+        natcasesort($gmailLabels);
+        $wanted = $this->configuredLabelNames($department, $user);
+        $routing = $this->merge->getGmailRouting($department);
+
+        return [
+            'labels' => $this->labelRows($department, $user, $account),
+            'gmail_labels' => array_values($gmailLabels),
+            'suggested_root' => GrossanlassGmailRouting::suggestRoot($gmailLabels, $department->getName()),
+            'gmail_routing' => $routing,
+            'unused_gmail_labels' => GrossanlassGmailRouting::unusedGmailLabels(
+                array_values($gmailLabels),
+                $wanted,
+                GrossanlassGmailRouting::resolveRoot($routing, $department->getName()),
+            ),
+        ];
+    }
+
+    private function refreshGmailLabelMap(DepartmentGrossanlassGmailAccount $account, string $token): void
+    {
+        $map = $account->getLabelMap();
+        foreach ($this->gmail->listLabels($token) as $label) {
+            $map[$label['name']] = $label['id'];
+        }
+        $account->setLabelMap($map);
     }
 
     /**

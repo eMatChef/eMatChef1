@@ -91,6 +91,27 @@ export async function importGrossanlassInquiryTips(departmentId: string): Promis
   return response.data
 }
 
+export type GrossanlassInquiryCsvResult = {
+  created: GrossanlassInquiry[]
+  skipped: number
+  errors: { line: number; message: string }[]
+}
+
+export async function importGrossanlassInquiryCsv(
+  departmentId: string,
+  csv: string,
+): Promise<GrossanlassInquiryCsvResult> {
+  const response = await apiClient.post<GrossanlassInquiryCsvResult>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/import-csv`,
+    { csv },
+  )
+  return {
+    created: Array.isArray(response.data.created) ? response.data.created : [],
+    skipped: Number(response.data.skipped) || 0,
+    errors: Array.isArray(response.data.errors) ? response.data.errors : [],
+  }
+}
+
 export async function markGrossanlassInquiriesSent(
   departmentId: string,
   ids: string[],

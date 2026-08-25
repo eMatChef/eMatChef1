@@ -32,6 +32,7 @@ export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
   'ORT',
   'ZEITRAUMTEXT',
   'MATERIALLISTE',
+  'BEREICHE',
   'ABSENDER',
   'REFERENZ',
   'EMAIL',
@@ -84,7 +85,7 @@ export type GrossanlassGmailRouting = {
 }
 
 export const GROSSANLASS_GMAIL_ROUTING_DEFAULTS: GrossanlassGmailRouting = {
-  label_root: '',
+  label_root: 'eMatChef',
   label_inquiries: 'Firmenanfragen',
   label_waiting: 'Status/Wartet auf Antwort',
   label_replied: 'Status/Antwort erhalten',
@@ -173,4 +174,67 @@ export async function previewGrossanlassMails(
     { inquiry_ids: inquiryIds, kind },
   )
   return Array.isArray(response.data) ? response.data : []
+}
+
+export type GrossanlassGmailLabelRow = {
+  name: string
+  exists: boolean
+  gmail_id: string | null
+}
+
+export type GrossanlassGmailLabelOverview = {
+  labels: GrossanlassGmailLabelRow[]
+  gmail_labels: string[]
+  unused_gmail_labels: string[]
+  suggested_root: string
+  gmail_routing: GrossanlassGmailRouting
+  category_names?: string[]
+  categories_imported?: number
+}
+
+function unwrapLabelOverview(data: Partial<GrossanlassGmailLabelOverview>): GrossanlassGmailLabelOverview {
+  return {
+    labels: Array.isArray(data.labels) ? data.labels : [],
+    gmail_labels: Array.isArray(data.gmail_labels) ? data.gmail_labels : [],
+    unused_gmail_labels: Array.isArray(data.unused_gmail_labels)
+      ? data.unused_gmail_labels.map((item) => String(item))
+      : [],
+    suggested_root: String(data.suggested_root ?? ''),
+    gmail_routing: unwrapRouting(data.gmail_routing),
+    category_names: Array.isArray(data.category_names)
+      ? data.category_names.map((item) => String(item))
+      : [],
+    categories_imported: Number(data.categories_imported) || 0,
+  }
+}
+
+export async function getGrossanlassGmailLabels(departmentId: string): Promise<GrossanlassGmailLabelOverview> {
+  const response = await apiClient.get<Partial<GrossanlassGmailLabelOverview>>(
+    `/api/departments/${departmentId}/grossanlass/gmail/labels`,
+  )
+  return unwrapLabelOverview(response.data)
+}
+
+export async function importGrossanlassGmailLabels(
+  departmentId: string,
+  root: string,
+): Promise<GrossanlassGmailLabelOverview> {
+  const response = await apiClient.post<Partial<GrossanlassGmailLabelOverview>>(
+    `/api/departments/${departmentId}/grossanlass/gmail/labels/import`,
+    { root },
+  )
+  return unwrapLabelOverview(response.data)
+}
+
+export async function syncGrossanlassGmailLabels(
+  departmentId: string,
+): Promise<GrossanlassGmailLabelOverview & { created: number; renamed: number }> {
+  const response = await apiClient.post<Partial<GrossanlassGmailLabelOverview> & { created?: number; renamed?: number }>(
+    `/api/departments/${departmentId}/grossanlass/gmail/labels/sync`,
+  )
+  return {
+    ...unwrapLabelOverview(response.data),
+    created: Number(response.data.created) || 0,
+    renamed: Number(response.data.renamed) || 0,
+  }
 }

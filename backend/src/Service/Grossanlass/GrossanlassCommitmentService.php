@@ -132,6 +132,13 @@ final class GrossanlassCommitmentService
             }
             $row->setOrigin($origin);
         }
+        if (array_key_exists('quantity', $data) || $creating) {
+            $row->setQuantity(max(1, (int) ($data['quantity'] ?? 1)));
+        }
+        if (array_key_exists('item_details', $data) || $creating) {
+            $details = $data['item_details'] ?? [];
+            $row->setItemDetails(is_array($details) ? $this->sanitizeItemDetails($details) : []);
+        }
         if (array_key_exists('plate', $data) || $creating) {
             $row->setPlate(isset($data['plate']) ? trim((string) $data['plate']) : null);
         }
@@ -195,6 +202,55 @@ final class GrossanlassCommitmentService
         }
     }
 
+    /**
+     * @param array<mixed> $raw
+     *
+     * @return array<string, mixed>
+     */
+    private function sanitizeItemDetails(array $raw): array
+    {
+        $out = [];
+        $weight = trim((string) ($raw['weight'] ?? ''));
+        $packUnit = trim((string) ($raw['pack_unit'] ?? ''));
+        $packSize = trim((string) ($raw['pack_size'] ?? ''));
+        $notes = trim((string) ($raw['notes'] ?? ''));
+        if ($weight !== '') {
+            $out['weight'] = mb_substr($weight, 0, 80);
+        }
+        if ($packUnit !== '') {
+            $out['pack_unit'] = mb_substr($packUnit, 0, 40);
+        }
+        if ($packSize !== '') {
+            $out['pack_size'] = mb_substr($packSize, 0, 40);
+        }
+        if ($notes !== '') {
+            $out['notes'] = mb_substr($notes, 0, 500);
+        }
+
+        $parts = [];
+        $rawParts = $raw['parts'] ?? [];
+        if (is_array($rawParts)) {
+            foreach ($rawParts as $part) {
+                if (!is_array($part)) {
+                    continue;
+                }
+                $name = trim((string) ($part['name'] ?? ''));
+                if ($name === '') {
+                    continue;
+                }
+                $parts[] = [
+                    'name' => mb_substr($name, 0, 120),
+                    'qty' => max(1, (int) ($part['qty'] ?? $part['quantity'] ?? 1)),
+                ];
+            }
+        }
+        if ($parts !== []) {
+            $out['parts'] = $parts;
+        }
+
+        return $out;
+    }
+
     private function parseDate(mixed $value): ?\DateTime
     {
         if ($value === null || $value === '') {
@@ -235,6 +291,11 @@ final class GrossanlassCommitmentService
             'name' => $row->getName(),
             'family' => $row->getFamily(),
             'origin' => $row->getOrigin(),
+            'quantity' => $row->getQuantity(),
+            'packed' => $row->isPacked(),
+            'pack_phase' => $row->getPackPhase(),
+            'returned_to_firm' => $row->isReturnedToFirm(),
+            'item_details' => $row->getItemDetails(),
             'source' => $row->getSource(),
             'plate' => $row->getPlate(),
             'barcode' => $row->getBarcode(),

@@ -9,7 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 class GrossanlassGmailRoutingTest extends TestCase
 {
-    public function testDefaultTreeUsesDepartmentName(): void
+    public function testDefaultTreeUsesEmatchefRoot(): void
     {
         $names = GrossanlassGmailRouting::labelNames(
             GrossanlassGmailRouting::defaults(),
@@ -18,10 +18,11 @@ class GrossanlassGmailRoutingTest extends TestCase
         );
 
         self::assertSame([
-            'PFF 2027',
-            'PFF 2027/Firmenanfragen',
-            'PFF 2027/Status/Wartet auf Antwort',
-            'PFF 2027/Firmenanfragen/Fahrzeuge',
+            'eMatChef-PFF 2027',
+            'eMatChef-PFF 2027/Firmenanfragen',
+            'eMatChef-PFF 2027/Status/Wartet auf Antwort',
+            'eMatChef-PFF 2027/Status',
+            'eMatChef-PFF 2027/Firmenanfragen/Fahrzeuge',
         ], $names);
     }
 
@@ -47,6 +48,60 @@ class GrossanlassGmailRoutingTest extends TestCase
         self::assertSame('PFF-27', $routing['label_root']);
     }
 
+    public function testImportFromGmailTree(): void
+    {
+        $imported = GrossanlassGmailRouting::importFromGmail(
+            [
+                'PFF 2027',
+                'PFF 2027/Firmenanfragen',
+                'PFF 2027/Firmenanfragen/Fahrzeuge',
+                'PFF 2027/Status',
+                'PFF 2027/Status/Wartet auf Antwort',
+                'PFF 2027/Status/Antwort erhalten',
+                'PFF 2027/Archiv',
+                'Privat',
+            ],
+            'PFF 2027',
+            'PFF-',
+        );
+        self::assertSame('PFF 2027', $imported['label_root']);
+        self::assertSame('Firmenanfragen', $imported['label_inquiries']);
+        self::assertSame('Status/Wartet auf Antwort', $imported['label_waiting']);
+        self::assertSame('Status/Antwort erhalten', $imported['label_replied']);
+        self::assertTrue($imported['label_by_package']);
+        self::assertContains('PFF 2027/Archiv', $imported['extra_labels']);
+        self::assertSame('eMatChef', GrossanlassGmailRouting::normalize([])['label_root']);
+        self::assertSame('eMatChef-PFF 2027', GrossanlassGmailRouting::composedRoot('PFF 2027'));
+        self::assertSame('eMatChef-PFF 2027', GrossanlassGmailRouting::resolveRoot([], 'PFF 2027'));
+        self::assertSame('PFF 2027', GrossanlassGmailRouting::suggestRoot(
+            ['PFF 2027', 'PFF 2027/Firmenanfragen', 'Anderes'],
+            'PFF 2027',
+        ));
+        self::assertSame('eMatChef-PFF 2027', GrossanlassGmailRouting::suggestRoot(
+            ['eMatChef-PFF 2027', 'eMatChef-PFF 2027/Firmenanfragen', 'PFF 2027'],
+            'PFF 2027',
+        ));
+        self::assertSame('eMatChef', GrossanlassGmailRouting::suggestRoot(
+            ['eMatChef', 'eMatChef/Firmenanfragen', 'PFF 2027'],
+            'PFF 2027',
+        ));
+        self::assertSame('eMatChef-PFF 2027', GrossanlassGmailRouting::suggestRoot(['Privat'], 'PFF 2027'));
+        self::assertSame(
+            ['Fahrzeuge'],
+            GrossanlassGmailRouting::inquiryCategoryNames(
+                [
+                    'PFF 2027',
+                    'PFF 2027/Firmenanfragen',
+                    'PFF 2027/Firmenanfragen/Fahrzeuge',
+                    'PFF 2027/Status',
+                    'PFF 2027/Status/Wartet auf Antwort',
+                ],
+                'PFF 2027',
+                'Firmenanfragen',
+            ),
+        );
+    }
+
     public function testRepliedStatusUsesAnswerLabel(): void
     {
         $names = GrossanlassGmailRouting::labelNames(
@@ -55,7 +110,66 @@ class GrossanlassGmailRoutingTest extends TestCase
             [],
             GrossanlassGmailRouting::STATUS_REPLIED,
         );
-        self::assertContains('PFF 2027/Status/Antwort erhalten', $names);
-        self::assertNotContains('PFF 2027/Status/Wartet auf Antwort', $names);
+        self::assertContains('eMatChef-PFF 2027/Status/Antwort erhalten', $names);
+        self::assertNotContains('eMatChef-PFF 2027/Status/Wartet auf Antwort', $names);
+    }
+
+    public function testInquiryStatusPathAndFullStatusTree(): void
+    {
+        $routing = GrossanlassGmailRouting::normalize(['label_root' => 'PFF27']);
+        self::assertSame('PFF27/Status/Wartet auf Antwort', GrossanlassGmailRouting::inquiryStatusPath($routing, 'Ignored', 'gesendet'));
+        self::assertSame('PFF27/Status/Antwort erhalten', GrossanlassGmailRouting::inquiryStatusPath($routing, 'Ignored', 'antwort'));
+        self::assertSame('PFF27/Status/Zusage', GrossanlassGmailRouting::inquiryStatusPath($routing, 'Ignored', 'zusage'));
+        self::assertSame('PFF27/Status/Absage', GrossanlassGmailRouting::inquiryStatusPath($routing, 'Ignored', 'absage'));
+        $all = GrossanlassGmailRouting::allStatusLabelNames($routing, 'Ignored');
+        self::assertContains('PFF27/Status/Nachfassen', $all);
+        self::assertContains('PFF27/Status/Erledigt', $all);
+        self::assertContains('PFF27/Status', $all);
+    }
+
+    public function testInquiryCategoryNamesFromScreenshotTree(): void
+    {
+        $names = GrossanlassGmailRouting::inquiryCategoryNames(
+            [
+                'PFF27',
+                'PFF27/Firmenanfragen',
+                'PFF27/Firmenanfragen/Bauholz',
+                'PFF27/Firmenanfragen/Fahrzeuge',
+                'PFF27/Firmenanfragen/Werkzeug',
+                'PFF27/Status',
+                'PFF27/Status/Zusage',
+            ],
+            'PFF27',
+            'Firmenanfragen',
+        );
+        self::assertSame(['Bauholz', 'Fahrzeuge', 'Werkzeug'], $names);
+    }
+
+    public function testUnusedGmailLabelsStayUnderRootAndSkipParents(): void
+    {
+        $wanted = [
+            'PFF27',
+            'PFF27/Firmenanfragen',
+            'PFF27/Firmenanfragen/Fahrzeuge',
+            'PFF27/Status',
+            'PFF27/Status/Zusage',
+        ];
+        $unused = GrossanlassGmailRouting::unusedGmailLabels(
+            [
+                'Privat',
+                'PFF27',
+                'PFF27/Firmenanfragen',
+                'PFF27/Firmenanfragen/Fahrzeuge',
+                'PFF27/Firmenanfragen/Alt',
+                'PFF27/Status',
+                'PFF27/Status/Altstatus',
+            ],
+            $wanted,
+            'PFF27',
+        );
+        self::assertSame(['PFF27/Firmenanfragen/Alt', 'PFF27/Status/Altstatus'], $unused);
+        self::assertNotContains('Privat', $unused);
+        self::assertNotContains('PFF27', $unused);
+        self::assertNotContains('PFF27/Firmenanfragen', $unused);
     }
 }

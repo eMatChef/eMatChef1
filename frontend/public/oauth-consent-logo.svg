@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="eMatChef">
+  <rect width="512" height="512" rx="96" fill="#10b981"/>
+  <g fill="#ffffff" transform="translate(256 128)">
+    <!-- Tent -->
+    <g transform="translate(-148 0)">
+      <path d="M0 4 L52 88 H-52 Z"/>
+      <path d="M-14 88 V58 L0 44 L14 58 V88 Z" fill="#10b981"/>
+    </g>
+    <!-- Rope coil -->
+    <g transform="translate(0 44)" fill="none" stroke="#ffffff" stroke-width="10" stroke-linecap="round">
+      <circle cx="0" cy="0" r="34"/>
+      <circle cx="0" cy="0" r="18"/>
+      <path d="M0 -34 V-48"/>
+    </g>
+    <!-- Checklist -->
+    <g transform="translate(148 4)">
+      <rect x="-36" y="0" width="72" height="88" rx="10"/>
+      <g fill="#10b981" stroke="#10b981" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-20 28 L-12 36 L2 18" fill="none"/>
+        <rect x="10" y="24" width="16" height="5" rx="1.5"/>
+        <path d="M-20 58 L-12 66 L2 48" fill="none"/>
+        <rect x="10" y="54" width="16" height="5" rx="1.5"/>
+      </g>
+    </g>
+  </g>
+  <text x="256" y="300" text-anchor="middle" fill="#ffffff" font-family="system-ui, Ubuntu, Segoe UI, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-0.04em">eMat</text>
+  <text x="256" y="400" text-anchor="middle" fill="#ffffff" font-family="system-ui, Ubuntu, Segoe UI, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-0.04em">Chef</text>
+</svg>

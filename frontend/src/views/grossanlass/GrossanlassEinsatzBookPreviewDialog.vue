@@ -183,14 +183,14 @@ import {
   isIssuedSlotLocked,
   isOutsidePresentWindow,
   isSlotConflict,
+  type GaEinsatzResource,
   type GaPreviewEinsatz,
   type GaPreviewWishTemplate,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
-import { mergedEinsatzResources } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 
 export type GaBookPreviewMode = 'einsatz' | 'order'
-export type GaBookPreviewDraft = GaPreviewWishTemplate & { fromWish: boolean }
-type BookSource = 'own' | 'wish' | null
+export type GaBookPreviewDraft = GaPreviewWishTemplate & { fromWish: boolean; chauffeurUserId?: string }
+type BookSource = 'own' | 'wish'
 type BookStep = 'pick' | 'details'
 
 const listMenuProps = {
@@ -208,6 +208,8 @@ const props = defineProps<{
   wishes: GaPreviewWishTemplate[]
   freePicks: GaPreviewWishTemplate[]
   rows?: GaPreviewEinsatz[]
+  resources?: GaEinsatzResource[]
+  chauffeurs?: Array<{ value: string; title: string; subtitle: string; mayDrive: boolean }>
 }>()
 
 const emit = defineEmits<{
@@ -215,7 +217,7 @@ const emit = defineEmits<{
 }>()
 
 const draft = defineModel<GaBookPreviewDraft | null>('draft', { default: null })
-const source = ref<BookSource>(null)
+const source = ref<BookSource>('own')
 const pickMenuOpen = ref(false)
 const chauffeurMenuOpen = ref(false)
 const pickedId = ref<string | null>(null)
@@ -269,30 +271,7 @@ const freeItems = computed(() =>
   })),
 )
 
-function tr(key: string, values?: Record<string, string | number>): string {
-  return values ? String(t(key, values)) : String(t(key))
-}
-
-const chauffeurPeople = computed(() => [
-  {
-    value: 'who1',
-    title: t('grossanlass.materialUebersicht.sampleWho1'),
-    subtitle: t('grossanlass.materialUebersicht.chauffeurMayDrive'),
-    mayDrive: true,
-  },
-  {
-    value: 'who2',
-    title: t('grossanlass.materialUebersicht.sampleWho2'),
-    subtitle: t('grossanlass.materialUebersicht.chauffeurMayDrive'),
-    mayDrive: true,
-  },
-  {
-    value: 'who-no',
-    title: t('grossanlass.materialUebersicht.sampleChauffeurNo'),
-    subtitle: t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
-    mayDrive: false,
-  },
-])
+const chauffeurPeople = computed(() => props.chauffeurs ?? [])
 
 const chauffeurItems = computed(() =>
   chauffeurPeople.value.map(({ value, title, subtitle }) => ({ value, title, subtitle })),
@@ -301,7 +280,7 @@ const chauffeurItems = computed(() =>
 const needsDriver = computed(() => {
   const objectId = draft.value?.objectId
   if (!objectId) return false
-  return mergedEinsatzResources(tr).some(
+  return (props.resources ?? []).some(
     (resource) => resource.id === objectId && resource.family === 'vehicle',
   )
 })
@@ -345,7 +324,7 @@ const slotIssuedLock = computed(() => {
 const currentResource = computed(() => {
   const objectId = draft.value?.objectId
   if (!objectId) return undefined
-  return mergedEinsatzResources(tr).find((resource) => resource.id === objectId)
+  return (props.resources ?? []).find((resource) => resource.id === objectId)
 })
 
 const slotUnreleased = computed(() => currentResource.value?.released === false)
@@ -359,7 +338,14 @@ const canConfirm = computed(() => {
   if (!draft.value) return false
   if (props.mode === 'einsatz' && step.value === 'details') {
     if (!fromDate.value || !toDate.value || !fromTime.value || !toTime.value) return false
-    if (needsDriver.value && (!chauffeurId.value || chauffeurBlocked.value)) return false
+    if (
+      needsDriver.value
+      && !slotUnreleased.value
+      && !slotBusy.value
+      && !slotIssuedLock.value
+      && !slotOutside.value
+      && (!chauffeurId.value || chauffeurBlocked.value)
+    ) return false
   }
   return true
 })
@@ -367,7 +353,7 @@ const canConfirm = computed(() => {
 watch(open, (isOpen) => {
   if (!isOpen) {
     draft.value = null
-    source.value = null
+    source.value = 'own'
     pickMenuOpen.value = false
     chauffeurMenuOpen.value = false
     pickedId.value = null
@@ -428,6 +414,7 @@ function confirm() {
       fromLabel: formatSlot(fromDate.value, fromTime.value),
       toLabel: formatSlot(toDate.value, toTime.value),
       who: selectedChauffeur.value?.title ?? next.who,
+      chauffeurUserId: chauffeurId.value || undefined,
       hasConflict: slotBusy.value || slotIssuedLock.value || slotUnreleased.value || slotOutside.value,
     }
   }

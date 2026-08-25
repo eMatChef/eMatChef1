@@ -22,11 +22,9 @@
     </header>
 
     <div class="detail-body">
-      <div class="ga-preview-detail__banner">
-        <GrossanlassPreviewBanner />
-      </div>
+      <ELoadingState v-if="loading" variant="inline" :message="t('common.loading')" />
 
-      <template v-if="item">
+      <template v-else-if="item">
         <v-tabs
           v-model="activeTab"
           class="material-detail-tabs"
@@ -92,7 +90,21 @@
                         <dt>{{ t('grossanlass.materials.detailFieldUnit') }}</dt>
                         <dd>{{ item.pack_unit }}</dd>
                       </div>
+                      <div v-if="details.weight" class="user-readonly-row">
+                        <dt>{{ t('grossanlass.materials.zusage.fieldWeight') }}</dt>
+                        <dd>{{ details.weight }}</dd>
+                      </div>
+                      <div v-if="details.notes" class="user-readonly-row">
+                        <dt>{{ t('grossanlass.materials.zusage.fieldNotes') }}</dt>
+                        <dd>{{ details.notes }}</dd>
+                      </div>
                     </dl>
+                    <ul v-if="details.parts?.length" class="service-list">
+                      <li v-for="(part, index) in details.parts" :key="`${part.name}-${index}`">
+                        <strong>{{ part.name }}</strong>
+                        <span>{{ t('grossanlass.materials.zusage.qtyShort', { n: part.qty }) }}</span>
+                      </li>
+                    </ul>
                   </section>
                 </v-tabs-window-item>
 
@@ -100,7 +112,7 @@
                   <section class="section-card">
                     <h2 class="section-title">{{ t('grossanlass.materials.detailTabWindow') }}</h2>
                     <p class="window-intro">{{ t('grossanlass.materials.zusage.windowIntro') }}</p>
-                    <dl v-if="zusage" class="user-readonly-fields">
+                    <dl v-if="zusage && zusage.presentFromIso" class="user-readonly-fields">
                       <div class="user-readonly-row">
                         <dt>{{ t('grossanlass.materials.zusage.fieldPartner') }}</dt>
                         <dd>{{ zusage.source }}</dd>
@@ -196,34 +208,7 @@
                 <v-tabs-window-item value="usage" class="material-detail-window-item">
                   <section class="section-card">
                     <h2 class="section-title">{{ t('grossanlass.materials.detailTabUsage') }}</h2>
-                    <div v-if="item.components?.length" class="combo-components-container">
-                      <table class="combo-sub-table">
-                        <thead>
-                          <tr>
-                            <th>{{ t('grossanlass.materialUebersicht.colWho') }}</th>
-                            <th>{{ t('grossanlass.materialUebersicht.colRessort') }}</th>
-                            <th>{{ t('grossanlass.materialUebersicht.colWhen') }}</th>
-                            <th>{{ t('materialsView.subColQty') }}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr v-for="comp in item.components" :key="comp.id">
-                            <td class="comp-name">{{ comp.name }}</td>
-                            <td>
-                              <span class="assignment-badge" :class="comp.assignment === 'fixed' ? 'fix' : 'bulk'">
-                                {{ comp.assignment_label }}
-                              </span>
-                            </td>
-                            <td>
-                              <span v-if="comp.serial" class="serial-code">{{ comp.serial }}</span>
-                              <span v-else class="no-serial">–</span>
-                            </td>
-                            <td>{{ formatQty(comp.qty) }}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <p v-else class="user-readonly-empty">–</p>
+                    <p class="user-readonly-empty">{{ t('grossanlass.materials.detailUsageEmpty') }}</p>
                   </section>
                 </v-tabs-window-item>
               </v-tabs-window>
@@ -252,24 +237,22 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { EButton, EDateField, ESelect, ESwitch, ETimeField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { useToast } from '@/composables/useToast'
+import { updateGrossanlassCommitment } from '@/api/grossanlassCommitments'
 import {
   findPreviewRowById,
   type GaLifecycle,
   type GaMaterialsTabId,
 } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
+import { commitmentDetails } from '@/views/grossanlass/grossanlassCommitmentMap'
+import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import {
   combineIso,
   formatGaIsoLabel,
   parkServiceLabel,
   type GaParkServiceKind,
 } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import {
-  addParkService,
-  findZusageArticle,
-  mergedMaterialsCatalog,
-  setArticleReleased,
-} from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import '@/styles/materials-view.css'
 
 defineOptions({ name: 'GrossanlassMaterialsPreviewDetail' })
@@ -278,36 +261,33 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
+const toast = useToast()
+const { loading, rows, articles, commitments, upsert } = useGaCommitmentCatalog()
 
 const activeTab = ref('data')
 const newServiceKind = ref<GaParkServiceKind>('clean')
-const newServiceDate = ref('2027-07-18')
+const newServiceDate = ref('')
 const newServiceFrom = ref('06:00')
 const newServiceTo = ref('08:00')
+const saving = ref(false)
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-function tr(key: string, values?: Record<string, string | number>) {
-  return values ? String(t(key, values)) : String(t(key))
-}
+const itemId = computed(() => String(route.params.itemId || ''))
 
-const catalog = computed(() => mergedMaterialsCatalog((key) => t(key), locale.value))
-
-const item = computed(() => {
-  const id = String(route.params.itemId || '')
-  return findPreviewRowById(catalog.value, id)
+const item = computed(() => findPreviewRowById(rows.value, itemId.value))
+const zusage = computed(() => articles.value.find((article) => article.id === itemId.value))
+const details = computed(() => {
+  const row = commitments.value.find((entry) => entry.id === itemId.value)
+  return row ? commitmentDetails(row) : {}
 })
-
-const zusage = computed(() => findZusageArticle(tr, String(route.params.itemId || '')))
 
 const releasedModel = computed({
   get: () => zusage.value?.released ?? false,
   set: (value: boolean | null) => {
-    const id = zusage.value?.id
-    if (!id) return
-    setArticleReleased(id, Boolean(value))
+    void saveReleased(Boolean(value))
   },
 })
 
@@ -317,25 +297,66 @@ const serviceItems = computed(() => [
   { title: t('grossanlass.materials.zusage.service.other'), value: 'other' },
 ])
 
-const canAddService = computed(() => Boolean(zusage.value && newServiceDate.value && newServiceFrom.value && newServiceTo.value))
+const canAddService = computed(() =>
+  Boolean(zusage.value && newServiceDate.value && newServiceFrom.value && newServiceTo.value && !saving.value),
+)
 
 function formatIso(iso: string): string {
+  if (!iso) return '—'
   return formatGaIsoLabel(iso, locale.value)
 }
 
 function parkLabel(kind: GaParkServiceKind, custom?: string): string {
-  return parkServiceLabel(kind, tr, custom)
+  return parkServiceLabel(kind, (key) => String(t(key)), custom)
 }
 
-function addService() {
+async function saveReleased(released: boolean) {
   const id = zusage.value?.id
-  if (!id || !canAddService.value) return
-  addParkService(id, {
-    kind: newServiceKind.value,
-    fromIso: combineIso(newServiceDate.value, newServiceFrom.value),
-    toIso: combineIso(newServiceDate.value, newServiceTo.value),
-    who: t('grossanlass.materialUebersicht.sampleWho3'),
-  })
+  if (!id || !departmentId.value || saving.value) return
+  saving.value = true
+  try {
+    const updated = await updateGrossanlassCommitment(departmentId.value, id, { released })
+    upsert(updated)
+    toast.success(t('grossanlass.beschaffung.zusagen.releasedToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function addService() {
+  const current = zusage.value
+  if (!current || !canAddService.value || !departmentId.value) return
+  saving.value = true
+  try {
+    const updated = await updateGrossanlassCommitment(departmentId.value, current.id, {
+      services: [
+        ...current.services.map((service) => ({
+          id: service.id,
+          kind: service.kind,
+          fromIso: service.fromIso,
+          toIso: service.toIso,
+          who: service.who,
+          label: service.label ?? null,
+        })),
+        {
+          kind: newServiceKind.value,
+          fromIso: combineIso(newServiceDate.value, newServiceFrom.value),
+          toIso: combineIso(newServiceDate.value, newServiceTo.value),
+          who: '',
+        },
+      ],
+    })
+    upsert(updated)
+    toast.success(t('grossanlass.beschaffung.zusagen.releasedToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  } finally {
+    saving.value = false
+  }
 }
 
 function lifecycleLabel(kind: GaLifecycle): string {

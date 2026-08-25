@@ -27,6 +27,38 @@
           <span class="stat-card__value">{{ procurementOverview.totals.ordered_not_received_count }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statAwaitingDelivery') }}</span>
         </div>
+        <router-link
+          v-if="canManageProcurement && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.entwurf }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryDrafts') }}</span>
+        </router-link>
+        <router-link
+          v-if="canManageProcurement && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.gesendet }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryWaiting') }}</span>
+        </router-link>
+        <router-link
+          v-if="canManageProcurement && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.antwort }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryReplies') }}</span>
+        </router-link>
+        <router-link
+          v-if="canManageProcurement && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.zusage }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryYes') }}</span>
+        </router-link>
       </div>
 
       <!-- Offene Formulare — nur anzeigen, wenn welche offen sind -->
@@ -202,6 +234,7 @@ import {
   getGrossanlassProcurementOverview,
   type GrossanlassProcurementOverview,
 } from '@/api/grossanlassProcurement'
+import { getGrossanlassInquiries } from '@/api/grossanlassInquiries'
 
 const props = defineProps<{
   departmentId: string
@@ -218,6 +251,7 @@ const error = ref('')
 const rounds = ref<GrossanlassPlanningRound[]>([])
 const ressortRootCount = ref(0)
 const procurementOverview = ref<GrossanlassProcurementOverview | null>(null)
+const inquiryStats = ref<{ entwurf: number; gesendet: number; antwort: number; zusage: number } | null>(null)
 
 const wishDialogOpen = ref(false)
 const activeWishRoundId = ref<string | null>(null)
@@ -239,7 +273,8 @@ const otherRounds = computed(() =>
 const planungLink = computed(() => `/${props.departmentId}/planung`)
 const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
-const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/finanzen`)
+const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/bedarf`)
+const anfragenLink = computed(() => `/${props.departmentId}/beschaffung/anfragen`)
 const dashboardBudgetAmount = computed(() => {
   const totals = procurementOverview.value?.totals
   if (!totals) return null
@@ -331,6 +366,17 @@ async function load() {
       } catch {
         procurementOverview.value = null
       }
+      try {
+        const inquiries = await getGrossanlassInquiries(props.departmentId)
+        inquiryStats.value = {
+          entwurf: inquiries.filter((row) => row.status === 'entwurf').length,
+          gesendet: inquiries.filter((row) => row.status === 'gesendet').length,
+          antwort: inquiries.filter((row) => row.status === 'antwort').length,
+          zusage: inquiries.filter((row) => row.status === 'zusage').length,
+        }
+      } catch {
+        inquiryStats.value = null
+      }
     }
   } catch (e: any) {
     error.value = e.response?.data?.error || t('grossanlass.dashboard.errorLoad')
@@ -386,10 +432,12 @@ onMounted(load)
   font-variant-numeric: tabular-nums;
 }
 
-.stat-card__label {
-  font-size: 0.78rem;
-  color: var(--color-text-muted, #6b7280);
-  line-height: 1.3;
+.stat-card--link {
+  text-decoration: none;
+  color: inherit;
+}
+.stat-card--link:hover {
+  border-color: var(--color-primary, #16a34a);
 }
 
 .ga-dashboard__section {

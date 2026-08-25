@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementCategory;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\DepartmentGrossanlassMailTemplate;
@@ -24,6 +25,7 @@ final class GrossanlassMailMergeService
         'ORT',
         'ZEITRAUMTEXT',
         'MATERIALLISTE',
+        'BEREICHE',
         'ABSENDER',
         'REFERENZ',
         'EMAIL',
@@ -200,7 +202,13 @@ final class GrossanlassMailMergeService
      */
     public function placeholders(Department $department, ?DepartmentGrossanlassInquiry $inquiry): array
     {
-        $packages = $inquiry ? implode(', ', $inquiry->getCategoryIds()) : 'Fahrzeuge';
+        $names = $inquiry
+            ? $this->resolveCategoryLabels($department, $inquiry->getCategoryIds())
+            : $this->allCategoryNames($department);
+        $packages = implode(', ', $names);
+        if ($packages === '') {
+            $packages = 'Bereiche folgen';
+        }
         $id = $inquiry?->getId() ?? '____________';
         $reference = $this->displayReference($department, $id);
 
@@ -210,7 +218,8 @@ final class GrossanlassMailMergeService
             'ANLASS' => $department->getName(),
             'ORT' => $inquiry?->getPlace() ?? '',
             'ZEITRAUMTEXT' => 'Aufbau, Anlasswoche und Rückgabe gemäss Absprache',
-            'MATERIALLISTE' => $packages !== '' ? $packages : 'Paket folgt',
+            'MATERIALLISTE' => $packages,
+            'BEREICHE' => $packages,
             'ABSENDER' => 'OK Material & Logistik',
             'REFERENZ' => $reference,
             'EMAIL' => $inquiry?->getEmail() ?? '',
@@ -309,7 +318,10 @@ final class GrossanlassMailMergeService
             $decoded = is_array($raw) ? $raw : [];
         }
 
-        return GrossanlassGmailRouting::normalize($decoded);
+        $normalized = GrossanlassGmailRouting::normalize($decoded);
+        $normalized['label_root'] = GrossanlassGmailRouting::resolveRoot($normalized, $department->getName());
+
+        return $normalized;
     }
 
     /**
@@ -318,6 +330,7 @@ final class GrossanlassMailMergeService
     public function saveGmailRouting(Department $department, array $raw): void
     {
         $normalized = GrossanlassGmailRouting::normalize($raw);
+        $normalized['label_root'] = GrossanlassGmailRouting::resolveRoot($normalized, $department->getName());
         $setting = $this->entityManager->getRepository(DepartmentSetting::class)
             ->findOneBy(['departmentId' => $department->getId(), 'settingKey' => self::GMAIL_ROUTING_SETTING]);
         if (!$setting instanceof DepartmentSetting) {
@@ -345,14 +358,74 @@ final class GrossanlassMailMergeService
     public function gmailLabelNames(
         Department $department,
         DepartmentGrossanlassInquiry $inquiry,
-        string $status = GrossanlassGmailRouting::STATUS_WAITING,
+        ?string $status = null,
     ): array {
         return GrossanlassGmailRouting::labelNames(
             $this->getGmailRouting($department),
             $department->getName(),
-            $inquiry->getCategoryIds(),
-            $status,
+            $this->resolveCategoryLabels($department, $inquiry->getCategoryIds()),
+            $status ?? GrossanlassGmailRouting::STATUS_WAITING,
+            $inquiry->getStatus(),
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function allCategoryNames(Department $department): array
+    {
+        $names = [];
+        foreach ($this->categoriesForDepartment($department) as $row) {
+            $names[] = $row->getName();
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * @param list<string> $categoryIds
+     * @return list<string>
+     */
+    public function resolveCategoryLabels(Department $department, array $categoryIds): array
+    {
+        $byId = [];
+        $byName = [];
+        foreach ($this->categoriesForDepartment($department) as $row) {
+            $byId[$row->getId()] = $row->getName();
+            $byName[mb_strtolower($row->getName())] = $row->getName();
+        }
+        $out = [];
+        foreach ($categoryIds as $raw) {
+            $value = trim((string) $raw);
+            if ($value === '') {
+                continue;
+            }
+            if (isset($byId[$value])) {
+                $out[] = $byId[$value];
+                continue;
+            }
+            $lower = mb_strtolower($value);
+            $out[] = $byName[$lower] ?? $value;
+        }
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * @return list<ActivityGrossanlassProcurementCategory>
+     */
+    private function categoriesForDepartment(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
+            ->findBy(['departmentId' => $department->getId()], ['sortOrder' => 'ASC', 'name' => 'ASC']);
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row instanceof ActivityGrossanlassProcurementCategory) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -405,7 +478,7 @@ final class GrossanlassMailMergeService
         return [
             DepartmentGrossanlassMailTemplate::KIND_ANFRAGE => [
                 'subject' => $eventName . ' – Anfrage Material & Logistik',
-                'body' => '<p>{{ANREDE}}</p><p>wir fragen an, ob {{FIRMA}} uns für {{ANLASS}} unterstützen kann.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>wir fragen an, ob {{FIRMA}} uns für {{ANLASS}} unterstützen kann.</p><p>Bereiche: {{BEREICHE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE => [
                 'subject' => $eventName . ' – Danke für die Rückmeldung',
@@ -413,7 +486,7 @@ final class GrossanlassMailMergeService
             ],
             DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK => [
                 'subject' => $eventName . ' – Zusage bestätigt',
-                'body' => '<p>{{ANREDE}}</p><p>vielen Dank für die Zusage von {{FIRMA}}. Wir haben notiert: {{MATERIALLISTE}}.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>vielen Dank für die Zusage von {{FIRMA}}. Wir haben notiert: {{BEREICHE}}.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN => [
                 'subject' => $eventName . ' – Zusammenarbeit dieses Mal nicht',
@@ -421,11 +494,11 @@ final class GrossanlassMailMergeService
             ],
             DepartmentGrossanlassMailTemplate::KIND_NEHMEN => [
                 'subject' => $eventName . ' – Wir rechnen mit euch',
-                'body' => '<p>{{ANREDE}}</p><p>wir nehmen das Angebot von {{FIRMA}} gerne an.</p><p>Paket: {{MATERIALLISTE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Nächste Schritte folgen in diesem Thread.</p>' . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>wir nehmen das Angebot von {{FIRMA}} gerne an.</p><p>Bereiche: {{BEREICHE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p><p>Nächste Schritte folgen in diesem Thread.</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_NACHFASSEN => [
                 'subject' => $eventName . ' – Kurze Nachfrage',
-                'body' => '<p>{{ANREDE}}</p><p>wir möchten kurz nachfassen, ob unsere Anfrage an {{FIRMA}} angekommen ist.</p><p>Paket: {{MATERIALLISTE}}</p>' . $footer,
+                'body' => '<p>{{ANREDE}}</p><p>wir möchten kurz nachfassen, ob unsere Anfrage an {{FIRMA}} angekommen ist.</p><p>Bereiche: {{BEREICHE}}</p>' . $footer,
             ],
         ];
     }

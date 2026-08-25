@@ -1,6 +1,5 @@
 <template>
   <div class="ga-preview-page">
-    <GrossanlassPreviewBanner />
     <p class="ga-preview-intro">{{ t('grossanlass.materialUebersicht.intro') }}</p>
     <GrossanlassMaterialsPreviewTable tab="uebersicht" />
   </div>
@@ -8,7 +7,6 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import GrossanlassMaterialsPreviewTable from '@/views/grossanlass/GrossanlassMaterialsPreviewTable.vue'
 
 const { t } = useI18n()

@@ -400,6 +400,54 @@ class GrossanlassProcurementService
     }
 
     /**
+     * @param list<string> $names
+     */
+    public function ensureTopLevelCategories(Department $department, User $user, array $names): int
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $existing = [];
+        $maxSort = 0;
+        foreach ($this->loadCategories($department) as $row) {
+            if ($row->getParentId() !== null) {
+                continue;
+            }
+            $existing[mb_strtolower($row->getName(), 'UTF-8')] = true;
+            $maxSort = max($maxSort, $row->getSortOrder());
+        }
+        $created = 0;
+        foreach ($names as $raw) {
+            try {
+                $name = $this->requireCategoryName($raw);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+            $key = mb_strtolower($name, 'UTF-8');
+            if (isset($existing[$key])) {
+                continue;
+            }
+            $category = new ActivityGrossanlassProcurementCategory();
+            $category->setId(GrossanlassIdGenerator::unique(
+                $this->entityManager,
+                GrossanlassIdGenerator::PROCUREMENT_CATEGORY,
+                ActivityGrossanlassProcurementCategory::class,
+            ));
+            $category->setDepartment($department);
+            $category->setParent(null);
+            $category->setName($name);
+            $maxSort += 10;
+            $category->setSortOrder($maxSort);
+            $this->entityManager->persist($category);
+            $existing[$key] = true;
+            ++$created;
+        }
+        if ($created > 0) {
+            $this->entityManager->flush();
+        }
+
+        return $created;
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
