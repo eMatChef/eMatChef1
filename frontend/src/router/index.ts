@@ -439,6 +439,15 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
+            path: 'print-catalog',
+            name: 'AdminPrintCatalog',
+            component: () => import('@/views/PrintCatalogAdminView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('printCatalogAdmin'),
+            }
+          },
+          {
             path: 'dashboard',
             name: 'AdminDashboard',
             component: () => import('@/views/DashboardView.vue'),
@@ -1266,6 +1275,15 @@ const routes: RouteRecordRaw[] = [
             path: 'js-leihkatalog',
             redirect: '/admin-dashboard/verwaltung/js-leihkatalog',
           },
+          {
+            path: 'print-catalog',
+            name: 'DepartmentPrintCatalog',
+            component: () => import('@/views/PrintCatalogAdminView.vue'),
+            meta: {
+              requiredRoles: ['superadmin', 'organisationschef', 'suborgchef'],
+              ...routeHead('printCatalogAdmin'),
+            }
+          },
         ]
       },
       {
@@ -1631,6 +1649,16 @@ const routes: RouteRecordRaw[] = [
             meta: {
               ...routeHead('settingsFixedDates'),
               requireDepartmentRoles: [...DEPARTMENT_MW_DC_ROLES],
+              denyRedirectTo: { name: 'SettingsMyDepartment' },
+            }
+          },
+          {
+            path: 'print',
+            name: 'SettingsPrint',
+            component: () => import('@/views/settings/PrintSettingsView.vue'),
+            meta: {
+              ...routeHead('settingsPrint'),
+              denyDepartmentRoles: DENY_BASIC_MEMBER_ROLES,
               denyRedirectTo: { name: 'SettingsMyDepartment' },
             }
           },
@@ -2315,6 +2343,7 @@ router.beforeEach(async (to, from, next) => {
       (!isBasicUser &&
         (settingsTail === 'users' ||
           settingsTail === 'zeit' ||
+          settingsTail === 'print' ||
           settingsTail === 'my-department/fixed-dates' ||
           settingsTail === 'my-department/storage-locations'))
     if (settingsTail === 'groups') {

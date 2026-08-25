@@ -15,15 +15,25 @@
       <EButton variant="primary" size="small" @click="showHelperDialog = true">
         {{ t('grossanlass.planung.ressorts.helperHeading') }}
       </EButton>
-      <EButton
-        v-if="cards.length > 0"
-        variant="secondary"
-        size="small"
-        :disabled="!unprinted.length"
-        @click="printAll"
-      >
-        {{ t('grossanlass.chain.printAllCards', { count: unprinted.length }) }}
-      </EButton>
+        <EButton
+          v-if="cards.length > 0"
+          variant="secondary"
+          size="small"
+          :disabled="!unprinted.length"
+          :loading="printing"
+          @click="printAll"
+        >
+          {{ t('grossanlass.chain.printAllCards', { count: unprinted.length }) }}
+        </EButton>
+        <EButton
+          v-if="unprinted.length"
+          variant="text"
+          size="small"
+          :loading="carting"
+          @click="addUnprintedToCart"
+        >
+          {{ t('grossanlass.chain.addCardsToPrintCart', { count: unprinted.length }) }}
+        </EButton>
     </div>
 
     <EDialog v-model="showHelperDialog" :max-width="480" :title="t('grossanlass.planung.ressorts.helperHeading')">
@@ -71,9 +81,14 @@
               </button>
             </td>
             <td>
-              <EButton variant="secondary" size="small" :disabled="card.printed" @click.stop="printOne(card.user_id)">
-                {{ t('grossanlass.chain.printCard') }}
-              </EButton>
+              <div class="row-actions">
+                <EButton variant="secondary" size="small" :loading="printingId === card.user_id" @click.stop="printOne(card)">
+                  {{ t('grossanlass.chain.printCard') }}
+                </EButton>
+                <EButton variant="text" size="small" :loading="cartId === card.user_id" @click.stop="addOneToCart(card)">
+                  {{ t('grossanlass.chain.addCardToPrintCart') }}
+                </EButton>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -135,6 +150,9 @@ import {
 } from '@/api/grossanlassUserCards'
 import { driveClassLabelKey } from '@/views/grossanlass/grossanlassDriveCategories'
 import { resolveUserCardPublicUrl } from '@/utils/publicQrUrl'
+import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
+import { printHtmlDocument } from '@/utils/printHtml'
+import QRCode from 'qrcode'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -148,6 +166,10 @@ const error = ref('')
 const showHelperDialog = ref(false)
 const showDriveDialog = ref(false)
 const driveCardId = ref('')
+const printing = ref(false)
+const printingId = ref('')
+const carting = ref(false)
+const cartId = ref('')
 
 const departmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
@@ -214,24 +236,127 @@ function replaceCard(next: GrossanlassUserCard) {
   cards.value = cards.value.map((row) => (row.user_id === next.user_id ? next : row))
 }
 
-async function printOne(userId: string) {
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function cardPublicUrl(card: GrossanlassUserCard): string {
+  return resolveUserCardPublicUrl(card.qr_url, card.code)
+}
+
+async function printCardsHtml(rows: GrossanlassUserCard[]) {
+  const blocks: string[] = []
+  for (const card of rows) {
+    const url = cardPublicUrl(card)
+    const qr = await QRCode.toDataURL(url, { width: 280, margin: 1 })
+    blocks.push(`<article class="badge">
+      <p class="kicker">${escapeHtml(card.event_name)} · eMatChef</p>
+      <p class="name">${escapeHtml(card.name)}</p>
+      <p class="meta">${escapeHtml(card.ressort)} · ${escapeHtml(card.role)}</p>
+      <img src="${qr}" alt="" />
+      <p class="code">${escapeHtml(card.code)}</p>
+    </article>`)
+  }
+  printHtmlDocument(`<!doctype html><html><head><meta charset="utf-8" />
+<title>User-Karten</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:16px;color:#111}
+  .badge{page-break-after:always;border:2px solid #166534;border-radius:16px;padding:24px;text-align:center;max-width:360px;margin:0 auto 24px}
+  .kicker{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#166534;font-weight:700}
+  .name{font-size:22px;font-weight:800;margin:8px 0 0}
+  .meta{color:#64748b;margin:4px 0 12px}
+  img{width:180px;height:180px}
+  .code{font-family:ui-monospace,monospace;font-size:12px}
+</style></head><body>${blocks.join('')}</body></html>`)
+}
+
+async function markPrinted(rows: GrossanlassUserCard[]) {
   if (!departmentId.value) return
+  for (const card of rows) {
+    if (card.printed) continue
+    replaceCard(await updateGrossanlassUserCard(departmentId.value, card.user_id, { print: true }))
+  }
+}
+
+async function printOne(card: GrossanlassUserCard) {
+  printingId.value = card.user_id
+  previewId.value = card.user_id
   try {
-    replaceCard(await updateGrossanlassUserCard(departmentId.value, userId, { print: true }))
-    previewId.value = userId
+    await printCardsHtml([card])
+    await markPrinted([card])
     toast.success(t('grossanlass.chain.cardPrintedToast'))
   } catch {
     toast.error(t('grossanlass.chain.cardsSaveError'))
+  } finally {
+    printingId.value = ''
   }
 }
 
 async function printAll() {
   if (!departmentId.value) return
+  printing.value = true
   try {
+    const rows = unprinted.value
+    if (!rows.length) return
+    await printCardsHtml(rows)
     cards.value = await printMissingGrossanlassUserCards(departmentId.value)
     toast.success(t('grossanlass.chain.cardPrintedToast'))
   } catch {
     toast.error(t('grossanlass.chain.cardsSaveError'))
+  } finally {
+    printing.value = false
+  }
+}
+
+async function addOneToCart(card: GrossanlassUserCard) {
+  if (!departmentId.value) return
+  cartId.value = card.user_id
+  try {
+    const result = await addPrintCartItem({
+      department_id: departmentId.value,
+      entity_type: 'user_card',
+      entity_id: card.user_id,
+      label: `${card.name} · ${card.ressort}`,
+      public_code: card.code,
+      public_url: cardPublicUrl(card),
+    })
+    toast.success(result.created ? t('grossanlass.chain.cardCartAdded') : t('grossanlass.chain.cardCartAlready'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.chain.cardsSaveError'))
+  } finally {
+    cartId.value = ''
+  }
+}
+
+async function addUnprintedToCart() {
+  if (!departmentId.value) return
+  carting.value = true
+  try {
+    const result = await addPrintCartItemsBulk(
+      departmentId.value,
+      unprinted.value.map((card) => ({
+        department_id: departmentId.value,
+        entity_type: 'user_card',
+        entity_id: card.user_id,
+        label: `${card.name} · ${card.ressort}`,
+        public_code: card.code,
+        public_url: cardPublicUrl(card),
+      })),
+    )
+    toast.success(t('grossanlass.chain.cardCartBulk', {
+      created: result.created_count,
+      skipped: result.skipped_count,
+    }))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.chain.cardsSaveError'))
+  } finally {
+    carting.value = false
   }
 }
 
@@ -244,6 +369,7 @@ onMounted(() => {
 .ga-preview-page { padding: 8px 0 24px; }
 .ga-preview-intro { margin: 0 0 14px; color: #64748b; font-size: 0.9rem; max-width: 640px; }
 .toolbar { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;

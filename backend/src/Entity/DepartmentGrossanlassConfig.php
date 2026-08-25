@@ -15,6 +15,9 @@ class DepartmentGrossanlassConfig
     public const STRUKTUR_VERSCHACHTELT = 'verschachtelt';
     public const STRUKTUR_PARALLEL = 'parallel';
 
+    public const GUEST_ACTIVITY_CAMP = 'camp';
+    public const GUEST_ACTIVITY_EVENT = 'event';
+
     #[ORM\Id]
     #[ORM\Column(name: 'department_id', type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $departmentId;
@@ -47,6 +50,15 @@ class DepartmentGrossanlassConfig
 
     #[ORM\Column(name: 'planned_event_end', type: 'datetime', nullable: true)]
     private ?\DateTime $plannedEventEnd = null;
+
+    #[ORM\Column(name: 'location_text', type: 'string', length: 255, options: ['default' => ''])]
+    private string $locationText = '';
+
+    #[ORM\Column(type: 'text', options: ['default' => ''])]
+    private string $notes = '';
+
+    #[ORM\Column(name: 'guest_activity_type', type: 'string', length: 20, options: ['default' => self::GUEST_ACTIVITY_CAMP])]
+    private string $guestActivityType = self::GUEST_ACTIVITY_CAMP;
 
     public function getDepartmentId(): string
     {
@@ -138,6 +150,65 @@ class DepartmentGrossanlassConfig
     public function setPlannedEventEnd(?\DateTime $plannedEventEnd): self
     {
         $this->plannedEventEnd = $plannedEventEnd;
+
+        return $this;
+    }
+
+    public function getLocationText(): string
+    {
+        return $this->locationText;
+    }
+
+    public function setLocationText(string $locationText): self
+    {
+        $this->locationText = mb_substr(trim($locationText), 0, 255);
+
+        return $this;
+    }
+
+    public function getNotes(): string
+    {
+        return $this->notes;
+    }
+
+    public function setNotes(string $notes): self
+    {
+        $this->notes = $notes;
+
+        return $this;
+    }
+
+    public function getGuestActivityType(): string
+    {
+        return $this->guestActivityType;
+    }
+
+    public function setGuestActivityType(string $guestActivityType): self
+    {
+        $this->guestActivityType = $guestActivityType;
+
+        return $this;
+    }
+
+    public function setPublishedAt(?\DateTime $publishedAt): self
+    {
+        $this->publishedAt = $publishedAt;
+
+        return $this;
+    }
+
+    public function setPublishedByUserId(?string $publishedByUserId): self
+    {
+        $this->publishedByUserId = $publishedByUserId;
+
+        return $this;
+    }
+
+    public function markPublished(string $userId): self
+    {
+        $this->status = self::STATUS_PUBLISHED;
+        $this->publishedAt = new \DateTime();
+        $this->publishedByUserId = $userId;
 
         return $this;
     }
