@@ -380,14 +380,14 @@ const departmentName = computed(() => {
 })
 
 function composedLabelRoot(eventName: string): string {
-  const name = eventName.trim().replaceAll('/', '-').slice(0, 80)
+  const name = eventName.trim().split('/').join('-').slice(0, 80)
   if (!name || name === 'eMatChef') return 'eMatChef'
   if (name.startsWith('eMatChef-')) return name
   return `eMatChef-${name}`.slice(0, 80)
 }
 
 const effectiveRoot = computed(() => {
-  const raw = routing.label_root.trim().replaceAll('/', '-')
+  const raw = routing.label_root.trim().split('/').join('-')
   if (!raw || raw === 'eMatChef') return composedLabelRoot(departmentName.value)
   return raw
 })
@@ -426,7 +426,7 @@ const labelPreviewNames = computed(() => {
     const parent = inquiries ? `${root}/${inquiries}` : root
     const cats = procurementCategories.value.map((row) => row.name.trim()).filter(Boolean)
     for (const name of cats) {
-      names.push(`${parent}/${name.replaceAll('/', '-')}`)
+      names.push(`${parent}/${name.split('/').join('-')}`)
     }
   }
   for (const line of extraLabelsText.value.split(/\r\n|\n|\r/)) {
@@ -779,7 +779,7 @@ async function loadPreview() {
   const apply = (template: string) => {
     let out = template
     for (const [key, value] of Object.entries(vars)) {
-      out = out.replaceAll('{{' + key + '}}', value)
+      out = out.split('{{' + key + '}}').join(value)
     }
     return out
   }

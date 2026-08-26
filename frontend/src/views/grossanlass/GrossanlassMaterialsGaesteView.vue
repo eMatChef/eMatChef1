@@ -271,6 +271,10 @@ type GaesteView = 'bestand' | 'loan' | 'sale' | 'js'
 
 const { t } = useI18n()
 const toast = useToast()
+
+function tr(key: string, values?: Record<string, string | number>): string {
+  return values ? String(t(key, values)) : String(t(key))
+}
 const route = useRoute()
 const uebersicht = useGaUebersicht()
 const view = ref<GaesteView>('bestand')
