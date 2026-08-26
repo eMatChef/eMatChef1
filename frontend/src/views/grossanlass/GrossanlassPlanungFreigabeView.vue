@@ -32,29 +32,27 @@
         >
           {{ published ? t('grossanlass.chain.publishedBadge') : t('grossanlass.planung.freigabe.publish') }}
         </EButton>
-        <EButton variant="secondary" :disabled="!published" @click="goGuest">
-          {{ t('grossanlass.chain.openGuestView') }}
-        </EButton>
       </div>
       <p class="hint">{{ published ? t('grossanlass.planung.freigabe.publishedHint') : t('grossanlass.planung.freigabe.publishHint') }}</p>
+      <GrossanlassGuestActivityPreview v-if="pack" :pack="pack" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { EButton } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import GrossanlassGuestActivityPreview from '@/components/grossanlass/GrossanlassGuestActivityPreview.vue'
 import { getGrossanlassPlanung, publishGrossanlass, type GrossanlassPlanungOverview } from '@/api/grossanlassPlanung'
 
 defineOptions({ name: 'GrossanlassPlanungFreigabe' })
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const toast = useToast()
@@ -94,11 +92,6 @@ async function onPublish() {
   } finally {
     publishing.value = false
   }
-}
-
-function goGuest() {
-  const id = departmentId.value
-  if (id) void router.push(`/${id}/gast-vorschau`)
 }
 
 onMounted(() => {

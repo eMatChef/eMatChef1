@@ -170,6 +170,7 @@ import { EButton, EDateRangeField, ETextField, ETextarea } from '@/components/fo
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGrossanlassPlanung, updateGrossanlassPlanung, type GrossanlassGuestActivityType, type GrossanlassPlanungOverview } from '@/api/grossanlassPlanung'
+import { bumpCalendarPeriodsCache } from '@/composables/useCalendarPeriodsCache'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 import '@/styles/contacts-view.css'
 
@@ -249,6 +250,7 @@ async function save() {
       guest_activity_type: guestType.value,
       has_guest_departments: hasGuestDepartments.value,
     }))
+    bumpCalendarPeriodsCache()
     toast.success(t('grossanlass.planung.stammdaten.saved'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }

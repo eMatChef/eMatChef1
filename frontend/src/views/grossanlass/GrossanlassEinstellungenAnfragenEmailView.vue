@@ -2,39 +2,133 @@
   <div class="ga-mail-settings">
     <p class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
 
-    <section class="panel">
-      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}</h2>
-      <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
-      <p v-else-if="status?.connected" class="ok">
-        {{ t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
-      </p>
-      <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
-      <p v-if="status?.redirect_uri" class="muted">
-        {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
-      </p>
-      <p v-if="status && !status.oauth_configured" class="warn">
-        {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
-      </p>
-      <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
-      <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
+    <section class="panel templates-panel">
+      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
+      <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
+
+      <div class="template-tabs">
+        <button
+          v-for="row in templates"
+          :key="row.kind"
+          type="button"
+          class="template-tab"
+          :class="{ active: activeKind === row.kind }"
+          @click="activeKind = row.kind"
+        >
+          {{ kindLabel(row.kind) }}
+        </button>
+        <EButton
+          v-if="unusedKinds.length"
+          variant="secondary"
+          size="small"
+          @click="showAddPicker = true"
+        >
+          <v-icon icon="mdi-plus" start size="18" />
+          {{ t('grossanlass.einstellungen.anfragenEmail.addTemplate') }}
+        </EButton>
+      </div>
+
+      <ETextField
+        v-if="activeTemplate"
+        v-model="activeTemplate.subject"
+        :label="t('grossanlass.einstellungen.anfragenEmail.subject')"
+        hide-details
+        class="mb-3"
+      />
+      <div v-if="activeTemplate" class="editor-block">
+        <p class="editor-label">{{ t('grossanlass.einstellungen.anfragenEmail.body') }}</p>
+        <TiptapEditor
+          :key="activeKind"
+          ref="editorRef"
+          v-model="activeTemplate.body"
+          :placeholder="t('grossanlass.einstellungen.anfragenEmail.bodyPlaceholder')"
+          :insert-tokens="insertTokens"
+          allow-custom-tokens
+          @add-custom-token="openCustomTokenDialog"
+        />
+        <ul v-if="customPlaceholders.length" class="custom-tokens">
+          <li v-for="row in customPlaceholders" :key="row.key">
+            <code>{{ tokenMarkup(row.key) }}</code>
+            <span v-if="row.sample" class="custom-tokens__sample">{{ row.sample }}</span>
+            <button type="button" class="custom-tokens__remove" @click="removeCustomToken(row.key)">
+              {{ t('common.delete') }}
+            </button>
+          </li>
+        </ul>
+      </div>
       <div class="actions">
         <EButton
-          v-if="!status?.connected"
-          variant="primary"
+          v-if="activeKind !== 'anfrage'"
+          variant="secondary"
           size="small"
-          :disabled="!status?.oauth_configured"
-          @click="connect"
+          @click="removeActiveTemplate"
         >
-          {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
+          {{ t('grossanlass.einstellungen.anfragenEmail.removeTemplate') }}
         </EButton>
-        <EButton v-else variant="secondary" size="small" :loading="disconnecting" @click="disconnect">
-          {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
+        <EButton variant="secondary" size="small" @click="loadPreview">
+          {{ t('grossanlass.einstellungen.anfragenEmail.previewAction') }}
         </EButton>
+        <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
+          {{ t('common.save') }}
+        </EButton>
+      </div>
+      <div v-if="mailPreview" class="preview">
+        <p class="mail-subject">{{ mailPreview.subject }}</p>
+        <div class="mail-body" v-html="previewHtml" />
       </div>
     </section>
 
-    <section class="panel">
-      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}</h2>
+    <v-expansion-panels v-model="openSetupPanels" multiple class="ga-mail-setup-accordions">
+      <v-expansion-panel value="gmail">
+        <v-expansion-panel-title>
+          {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
+          <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
+            {{ gmailIsReady
+              ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
+              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
+          <p v-else-if="status?.connected" class="ok">
+            {{ t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
+          </p>
+          <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
+          <p v-if="status?.redirect_uri" class="muted">
+            {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="status && !status.oauth_configured" class="warn">
+            {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
+          <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
+          <div class="actions">
+            <EButton
+              v-if="!status?.connected"
+              variant="primary"
+              size="small"
+              :disabled="!status?.oauth_configured"
+              @click="connect"
+            >
+              {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
+            </EButton>
+            <EButton v-else variant="secondary" size="small" :loading="disconnecting" @click="disconnect">
+              {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
+            </EButton>
+          </div>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+
+      <v-expansion-panel value="routing">
+        <v-expansion-panel-title>
+          {{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}
+          <span class="setup-badge" :class="routingIsReady ? 'is-done' : 'is-open'">
+            {{ routingIsReady
+              ? t('grossanlass.einstellungen.anfragenEmail.routingDoneBadge')
+              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.routingHint') }}</p>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.labelRootNotice', { root: effectiveRoot, event: departmentName || '…' }) }}</p>
       <div class="root-row">
@@ -158,83 +252,9 @@
         </template>
       </div>
       <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.labelsNeedGmail') }}</p>
-    </section>
-
-    <section class="panel">
-      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
-      <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
-
-      <div class="template-tabs">
-        <button
-          v-for="row in templates"
-          :key="row.kind"
-          type="button"
-          class="template-tab"
-          :class="{ active: activeKind === row.kind }"
-          @click="activeKind = row.kind"
-        >
-          {{ kindLabel(row.kind) }}
-        </button>
-        <EButton
-          v-if="unusedKinds.length"
-          variant="secondary"
-          size="small"
-          @click="showAddPicker = true"
-        >
-          <v-icon icon="mdi-plus" start size="18" />
-          {{ t('grossanlass.einstellungen.anfragenEmail.addTemplate') }}
-        </EButton>
-      </div>
-
-      <ETextField
-        v-if="activeTemplate"
-        v-model="activeTemplate.subject"
-        :label="t('grossanlass.einstellungen.anfragenEmail.subject')"
-        hide-details
-        class="mb-3"
-      />
-      <div v-if="activeTemplate" class="editor-block">
-        <p class="editor-label">{{ t('grossanlass.einstellungen.anfragenEmail.body') }}</p>
-        <TiptapEditor
-          :key="activeKind"
-          ref="editorRef"
-          v-model="activeTemplate.body"
-          :placeholder="t('grossanlass.einstellungen.anfragenEmail.bodyPlaceholder')"
-          :insert-tokens="insertTokens"
-          allow-custom-tokens
-          @add-custom-token="openCustomTokenDialog"
-        />
-        <ul v-if="customPlaceholders.length" class="custom-tokens">
-          <li v-for="row in customPlaceholders" :key="row.key">
-            <code>{{ tokenMarkup(row.key) }}</code>
-            <span v-if="row.sample" class="custom-tokens__sample">{{ row.sample }}</span>
-            <button type="button" class="custom-tokens__remove" @click="removeCustomToken(row.key)">
-              {{ t('common.delete') }}
-            </button>
-          </li>
-        </ul>
-      </div>
-      <div class="actions">
-        <EButton
-          v-if="activeKind !== 'anfrage'"
-          variant="secondary"
-          size="small"
-          @click="removeActiveTemplate"
-        >
-          {{ t('grossanlass.einstellungen.anfragenEmail.removeTemplate') }}
-        </EButton>
-        <EButton variant="secondary" size="small" @click="loadPreview">
-          {{ t('grossanlass.einstellungen.anfragenEmail.previewAction') }}
-        </EButton>
-        <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
-          {{ t('common.save') }}
-        </EButton>
-      </div>
-      <div v-if="mailPreview" class="preview">
-        <p class="mail-subject">{{ mailPreview.subject }}</p>
-        <div class="mail-body" v-html="previewHtml" />
-      </div>
-    </section>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <EDialog
       v-model="showAddPicker"
@@ -442,6 +462,25 @@ const unusedKinds = computed(() =>
   GROSSANLASS_MAIL_OPTIONAL_KINDS.filter((kind) => !templates.value.some((row) => row.kind === kind)),
 )
 
+const openSetupPanels = ref<string[]>(['gmail', 'routing'])
+
+const gmailIsReady = computed(() => !!status.value?.connected)
+
+const routingIsReady = computed(
+  () =>
+    gmailIsReady.value
+    && labelsChecked.value
+    && mappedLabels.value.length > 0
+    && mappedLabels.value.every((row) => row.exists),
+)
+
+function applySetupPanels() {
+  const open: string[] = []
+  if (!gmailIsReady.value) open.push('gmail')
+  if (!routingIsReady.value) open.push('routing')
+  openSetupPanels.value = open
+}
+
 const previewHtml = computed(() => sanitizeMailHtml(mailPreview.value?.body || ''))
 
 const insertTokens = computed(() => {
@@ -602,6 +641,7 @@ async function load() {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.loadError'))
   }
+  applySetupPanels()
 }
 
 function connect() {
@@ -620,6 +660,7 @@ async function disconnect() {
   try {
     status.value = await disconnectGrossanlassGmail(departmentId.value)
     clearGmailLiveUi()
+    applySetupPanels()
     toast.success(t('grossanlass.einstellungen.anfragenEmail.disconnectedToast'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -704,6 +745,7 @@ async function loadLabels(quiet = false) {
     }
   } finally {
     labelsLoading.value = false
+    applySetupPanels()
   }
 }
 
@@ -823,6 +865,30 @@ onUnmounted(() => {
 <style scoped>
 .ga-mail-settings { padding: 4px 0 24px; display: grid; gap: 16px; }
 .intro, .muted { margin: 0 0 8px; color: #64748b; font-size: 0.9rem; }
+.ga-mail-setup-accordions :deep(.v-expansion-panel) {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px !important;
+  margin-bottom: 0;
+}
+.ga-mail-setup-accordions :deep(.v-expansion-panel-title) {
+  font-weight: 600;
+  font-size: 1rem;
+}
+.setup-badge {
+  margin-left: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.setup-badge.is-done {
+  background: #dcfce7;
+  color: #166534;
+}
+.setup-badge.is-open {
+  background: #ffedd5;
+  color: #9a3412;
+}
 .panel {
   background: #fff;
   border: 1px solid #e5e7eb;

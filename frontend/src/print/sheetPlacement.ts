@@ -18,6 +18,21 @@ export function sheetPageCount(itemCount: number, cellCount: number, startIndex:
   return sheetCellForItem(itemCount - 1, cellCount, startIndex).pageIndex + 1
 }
 
+/** 0-based cell indexes filled on one page of this job. */
+export function filledCellIndexesOnPage(
+  itemCount: number,
+  cellCount: number,
+  startIndex: number,
+  pageIndex = 0,
+): number[] {
+  const out: number[] = []
+  for (let i = 0; i < Math.max(0, itemCount); i += 1) {
+    const place = sheetCellForItem(i, cellCount, startIndex)
+    if (place.pageIndex === pageIndex) out.push(place.cellIndex)
+  }
+  return out
+}
+
 /** 1-based next free cell after printing `itemCount` labels from `startIndex`. */
 export function nextStartCell(itemCount: number, cellCount: number, startIndex: number): number {
   const count = Math.max(1, cellCount)

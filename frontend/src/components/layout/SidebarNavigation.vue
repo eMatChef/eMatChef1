@@ -270,29 +270,18 @@
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('tasks') && !isPrintCartNavActive }"
+        :class="{ active: isDeptSectionNavActive('tasks') }"
         data-onboarding="nav-tasks"
-      >
-        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
-      </router-link>
-
-      <!-- Druckkorb -->
-      <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && canManageQrContact"
-        :to="getLink('/tasks/druck')"
-        class="nav-item"
-        :class="{ active: isPrintCartNavActive }"
-        :title="printCartNavTitle"
+        :title="tasksNavTitle"
       >
         <span class="nav-icon-wrap">
-          <v-icon icon="mdi-printer-outline" class="nav-icon nav-icon--mdi" size="20" />
-          <span v-if="printCartCount > 0 && !showNavLabels" class="nav-badge nav-badge--rail">
+          <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+          <span v-if="printCartCount > 0 && canManageQrContact && !showNavLabels" class="nav-badge nav-badge--rail">
             {{ printCartCount > 99 ? '99+' : printCartCount }}
           </span>
         </span>
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.printCart') }}</span>
-        <span v-if="printCartCount > 0 && showNavLabels" class="nav-badge">
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
+        <span v-if="printCartCount > 0 && canManageQrContact && showNavLabels" class="nav-badge">
           {{ printCartCount > 99 ? '99+' : printCartCount }}
         </span>
       </router-link>
@@ -824,10 +813,10 @@ function isDeptSectionNavActive(section: string): boolean {
   return path.includes(`/${section}`)
 }
 
-const isPrintCartNavActive = computed(() => route.path.includes('/tasks/druck'))
-const printCartNavTitle = computed(() => {
+const tasksNavTitle = computed(() => {
   const n = printCartCount.value
-  return n > 0 ? `${t('sidebar.printCart')} · ${n}` : t('sidebar.printCart')
+  if (canManageQrContact.value && n > 0) return `${t('sidebar.tasks')} · ${n}`
+  return t('sidebar.tasks')
 })
 
 watch(

@@ -1,3 +1,5 @@
+import { defaultPrintFace, parsePrintFace, type PrintFace } from '@/print/printFace'
+
 export function printerStorageKey(dept: string) {
   return `ematchef.print-printer.${dept}`
 }
@@ -69,4 +71,25 @@ export function loadNextStartCell(dept: string, layoutId: string): number | null
 export function loadStoredNextStartCell(dept: string): number {
   const layoutId = localStorage.getItem(layoutStorageKey(dept)) || ''
   return loadNextStartCell(dept, layoutId) || 0
+}
+
+function faceStorageKey(dept: string, kind: string) {
+  return `ematchef.print-face.${dept}.${kind}`
+}
+
+export function savePrintFace(dept: string, kind: string, face: PrintFace) {
+  if (!dept) return
+  localStorage.setItem(faceStorageKey(dept, kind), JSON.stringify(face))
+}
+
+export function loadPrintFace(dept: string, kind: string): PrintFace {
+  const fallback = defaultPrintFace(kind)
+  if (!dept) return fallback
+  try {
+    const raw = localStorage.getItem(faceStorageKey(dept, kind))
+    if (!raw) return fallback
+    return parsePrintFace(JSON.parse(raw), kind)
+  } catch {
+    return fallback
+  }
 }

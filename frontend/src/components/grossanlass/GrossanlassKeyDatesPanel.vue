@@ -17,42 +17,71 @@
     <p v-else class="key-dates-empty">{{ t('grossanlass.planung.keyDates.empty') }}</p>
 
     <p v-if="canManageMaterials" class="key-dates-manage">
-      <router-link :to="fixedDatesLink" class="key-dates-link">
+      <button type="button" class="key-dates-link" @click="showManager = true">
         {{ t('grossanlass.planung.keyDates.openFixedDates') }}
-      </router-link>
+      </button>
     </p>
+
+    <EDialog
+      v-model="showManager"
+      :title="t('settings.fixedDates.title')"
+      :max-width="960"
+      :retain-focus="false"
+      :z-index="2400"
+    >
+      <p class="manager-lead">{{ t('settings.fixedDates.descriptionGrossanlass') }}</p>
+      <DepartmentFixedDatesManager
+        v-if="showManager && departmentId"
+        :department-id="departmentId"
+        @changed="loadPeriods"
+      />
+    </EDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { useCalendarPeriodsCacheRevision } from '@/composables/useCalendarPeriodsCache'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { listDepartmentCalendarPeriods, GROSSANLASS_TIME_MODULE_LABELS, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { EDialog } from '@/components/form/base'
+import DepartmentFixedDatesManager from '@/components/settings/DepartmentFixedDatesManager.vue'
+import {
+  calendarPeriodTime,
+  listDepartmentCalendarPeriods,
+  GROSSANLASS_TIME_MODULE_LABELS,
+  type DepartmentCalendarPeriod,
+} from '@/api/calendarPeriods'
 
 const props = defineProps<{
   departmentId: string
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { canManageMaterials } = useDepartmentMemberRole()
+const cacheRevision = useCalendarPeriodsCacheRevision()
 
 const periods = ref<DepartmentCalendarPeriod[]>([])
 const loading = ref(false)
+const showManager = ref(false)
 
-const fixedDatesLink = computed(() => `/${props.departmentId}/settings/my-department/fixed-dates`)
+function formatDateTime(iso: string, time: string | undefined, fallback: string): string {
+  const day = iso.slice(0, 10)
+  const [y, m, d] = day.split('-').map((x) => parseInt(x, 10))
+  if (!y || !m || !d) return iso
+  const dateText = new Date(y, m - 1, d).toLocaleDateString(locale.value, {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  return `${dateText}, ${calendarPeriodTime(time, fallback)}`
+}
 
-function formatRange(startIso: string, endIso: string): string {
-  try {
-    const start = new Date(startIso)
-    const end = new Date(endIso)
-    const df = (d: Date) => d.toLocaleDateString('de-CH', { dateStyle: 'short' })
-    if (df(start) === df(end)) return df(start)
-    return `${df(start)} – ${df(end)}`
-  } catch {
-    return `${startIso} – ${endIso}`
-  }
+function formatRange(row: DepartmentCalendarPeriod): string {
+  const start = formatDateTime(row.start_date, row.start_time, '00:00')
+  const end = formatDateTime(row.end_date, row.end_time, '23:59')
+  return start === end ? start : `${start} – ${end}`
 }
 
 const KEY_DATE_LABELS = new Set<string>([...GROSSANLASS_TIME_MODULE_LABELS, 'other'])
@@ -61,7 +90,11 @@ const fixedPeriods = computed(() =>
   periods.value
     .filter((p) => KEY_DATE_LABELS.has(p.label))
     .slice()
-    .sort((a, b) => a.start_date.localeCompare(b.start_date) || a.name.localeCompare(b.name))
+    .sort((a, b) => {
+      const sa = `${a.start_date}T${calendarPeriodTime(a.start_time, '00:00')}`
+      const sb = `${b.start_date}T${calendarPeriodTime(b.start_time, '00:00')}`
+      return sb.localeCompare(sa) || a.name.localeCompare(b.name)
+    })
     .map((p) => {
       const typeLabel = t(`settings.fixedDates.labels.${p.label}`)
       const showName = p.name.trim().toLocaleLowerCase() !== typeLabel.toLocaleLowerCase()
@@ -69,7 +102,7 @@ const fixedPeriods = computed(() =>
         id: p.id,
         name: showName ? p.name : '',
         typeLabel,
-        rangeText: formatRange(p.start_date, p.end_date),
+        rangeText: formatRange(p),
       }
     }),
 )
@@ -87,7 +120,7 @@ async function loadPeriods() {
   }
 }
 
-onMounted(loadPeriods)
+watch(() => [props.departmentId, cacheRevision.value] as const, () => void loadPeriods(), { immediate: true })
 </script>
 
 <style scoped>
@@ -110,6 +143,12 @@ onMounted(loadPeriods)
   margin: 0 0 12px;
   font-size: 0.85rem;
   color: #6b7280;
+}
+
+.manager-lead {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  color: #64748b;
 }
 
 .key-dates-list {
@@ -167,6 +206,11 @@ onMounted(loadPeriods)
   color: #2563eb;
   text-decoration: none;
   font-weight: 500;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
 }
 
 .key-dates-link:hover {

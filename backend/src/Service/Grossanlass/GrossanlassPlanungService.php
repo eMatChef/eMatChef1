@@ -658,6 +658,8 @@ final class GrossanlassPlanungService
         }
         $period->setStartDate((clone $start)->setTime(0, 0, 0));
         $period->setEndDate((clone $end)->setTime(0, 0, 0));
+        $period->setStartTime(\DateTime::createFromFormat('H:i:s', $start->format('H:i:s')) ?: clone $start);
+        $period->setEndTime(\DateTime::createFromFormat('H:i:s', $end->format('H:i:s')) ?: clone $end);
     }
 
     private function requireConfig(Department $department): DepartmentGrossanlassConfig

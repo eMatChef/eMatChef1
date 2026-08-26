@@ -1,3 +1,4 @@
+import type { AddPrintCartItemRequest } from '@/api/tasks'
 import type { PrintLayout } from '@/api/printLayouts'
 import {
   DEFAULT_PRINT_CONTENT,
@@ -11,6 +12,7 @@ import {
   isBrotherQlLayout,
   printCartLayoutToQl,
 } from '@/print/printCartLayout'
+import type { PrintFace } from '@/print/printFace'
 import type { LayoutSample } from '@/print/renderPrintLayout'
 
 export type PrintJobItem = {
@@ -18,6 +20,8 @@ export type PrintJobItem = {
   public_code?: string | null
   public_url: string
   extras?: Partial<Record<'event' | 'ressort' | 'role' | 'drive', string>>
+  /** If set, the print dialog can queue this row into the print cart. */
+  cart?: AddPrintCartItemRequest
 }
 
 export type OpenPrintJobOptions = {
@@ -41,19 +45,27 @@ export function defaultFieldsFor(available: PrintContentKey[]): PrintContentKey[
 }
 
 export function sampleForPrint(item: PrintJobItem, enabled: PrintContentKey[]): LayoutSample {
-  const lines: string[] = []
-  if (enabled.includes('title') && item.label.trim()) lines.push(item.label.trim())
   const extras = item.extras || {}
-  if (enabled.includes('event') && extras.event?.trim()) lines.push(extras.event.trim())
+  const lines: string[] = []
+  const name = enabled.includes('title') ? item.label.trim() : ''
+  if (name) lines.push(name)
+  const event = enabled.includes('event') ? extras.event?.trim() || '' : ''
+  if (event) lines.push(event)
   const place: string[] = []
   if (enabled.includes('ressort') && extras.ressort?.trim()) place.push(extras.ressort.trim())
   if (enabled.includes('role') && extras.role?.trim()) place.push(extras.role.trim())
-  if (place.length) lines.push(place.join(' · '))
-  if (enabled.includes('drive') && extras.drive?.trim()) lines.push(extras.drive.trim())
+  const placeLine = place.join(' · ')
+  if (placeLine) lines.push(placeLine)
+  const drive = enabled.includes('drive') ? extras.drive?.trim() || '' : ''
+  if (drive) lines.push(drive)
   return {
     label: lines.join('\n'),
+    name,
     public_url: enabled.includes('qr') ? item.public_url : '',
     public_code: enabled.includes('code') ? (item.public_code || '') : '',
+    event,
+    place: placeLine,
+    drive,
   }
 }
 
@@ -63,12 +75,13 @@ export async function executePrintJob(options: {
   items: PrintJobItem[]
   enabledFields: PrintContentKey[]
   startIndex: number
+  face?: PrintFace
 }): Promise<'ql' | 'pdf'> {
   const jobLayout = layoutWithEnabledFields(options.layout, layoutKeysFromContent(options.enabledFields))
   const rows = options.items.map((item) => sampleForPrint(item, options.enabledFields))
   if (isBrotherQlLayout(jobLayout)) {
     if (!cachedQlDevice) cachedQlDevice = await requestBrotherQlDevice()
-    await printCartLayoutToQl(cachedQlDevice, jobLayout, rows)
+    await printCartLayoutToQl(cachedQlDevice, jobLayout, rows, options.face)
     return 'ql'
   }
   await downloadCartLayoutPdf(
@@ -77,6 +90,7 @@ export async function executePrintJob(options: {
     rows,
     options.startIndex,
     true,
+    options.face,
   )
   return 'pdf'
 }

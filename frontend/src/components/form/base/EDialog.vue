@@ -5,6 +5,7 @@
     :persistent="persistent"
     :scrollable="scrollable"
     :retain-focus="retainFocus"
+    :z-index="zIndex"
     @update:model-value="onUpdate"
   >
     <ECard
@@ -43,6 +44,7 @@ withDefaults(
     cardClass?: string | string[] | Record<string, boolean>
     /** Tour-Spotlight: Target auf der ganzen Dialog-Karte (inkl. Actions) */
     dataOnboarding?: string
+    zIndex?: number
   }>(),
   {
     maxWidth: 560,
