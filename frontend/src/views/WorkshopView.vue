@@ -1094,7 +1094,6 @@ import {
   getReceivedPurchasePartsForCompletion,
   getStockPartsForCompletion,
 } from '@/utils/workshopPartsCompletion'
-import { useAuthStore } from '@/stores/auth'
 import PageShell from '@/components/layout/PageShell.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
