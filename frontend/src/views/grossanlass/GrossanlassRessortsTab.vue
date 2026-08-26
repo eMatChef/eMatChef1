@@ -48,7 +48,19 @@
       </template>
     </EEmptyState>
 
-    <div v-else class="table-wrapper">
+    <v-expansion-panels
+      v-else
+      v-model="openRessortPanels"
+      multiple
+      class="ga-ressort-accordions"
+    >
+      <v-expansion-panel value="ressorts">
+        <v-expansion-panel-title>
+          {{ t('grossanlass.planung.ressorts.panelRessorts') }}
+          <span class="panel-count">{{ groups.length }}</span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+    <div class="table-wrapper">
       <table class="groups-table">
         <thead>
           <tr>
@@ -129,6 +141,27 @@
         </tbody>
       </table>
     </div>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+      <v-expansion-panel value="members">
+        <v-expansion-panel-title>
+          {{ t('grossanlass.planung.ressorts.panelMembers') }}
+          <span class="panel-count">{{ uniqueMembers.length }}</span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <ul v-if="uniqueMembers.length" class="member-overview">
+            <li v-for="row in uniqueMembers" :key="row.member.user_id" class="member-overview__row">
+              <UserAvatarBadge :user="row.member" :show-leader-star="row.member.is_leader" />
+              <div class="member-overview__meta">
+                <strong>{{ row.member.name }}</strong>
+                <span>{{ row.groups.join(' · ') }}</span>
+              </div>
+            </li>
+          </ul>
+          <p v-else class="text-muted">{{ t('grossanlass.planung.ressorts.emptyMembersPanel') }}</p>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <EDialog
       v-model="showGroupModal"
@@ -324,6 +357,7 @@ const departmentId = computed(() => (route.params.departmentId as string) || aut
 const groups = ref<GrossanlassGroup[]>([])
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const openRessortPanels = ref<string[]>(['ressorts'])
 
 const showGroupModal = ref(false)
 const editingGroup = ref<GrossanlassGroup | null>(null)
@@ -363,6 +397,21 @@ const rootCount = computed(() => groups.value.filter((g) => !g.parent_id).length
 const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
 
 const hierarchicalGroups = computed(() => flattenGrossanlassGroupsWithLevel(groups.value))
+
+const uniqueMembers = computed(() => {
+  const map = new Map<string, { member: (typeof groups.value)[number]['members'][number]; groups: string[] }>()
+  for (const group of groups.value) {
+    for (const member of group.members ?? []) {
+      const row = map.get(member.user_id)
+      if (row) {
+        if (!row.groups.includes(group.name)) row.groups.push(group.name)
+      } else {
+        map.set(member.user_id, { member, groups: [group.name] })
+      }
+    }
+  }
+  return [...map.values()].sort((a, b) => a.member.name.localeCompare(b.member.name, 'de'))
+})
 
 const availableParents = computed(() => {
   if (!editingGroup.value) {
@@ -907,4 +956,15 @@ onMounted(() => loadGroups())
   font-size: 13px;
   color: #475569;
 }
+.ga-ressort-accordions { margin-top: 4px; }
+.ga-ressort-accordions :deep(.v-expansion-panel) {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px !important;
+  margin-bottom: 8px;
+}
+.panel-count { margin-left: 8px; color: #64748b; font-size: 0.85rem; }
+.member-overview { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.member-overview__row { display: flex; align-items: center; gap: 10px; }
+.member-overview__meta { display: flex; flex-direction: column; gap: 2px; }
+.member-overview__meta span { color: #64748b; font-size: 0.8rem; }
 </style>

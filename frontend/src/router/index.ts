@@ -788,7 +788,17 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
-            redirect: { name: 'GrossanlassRessorts' },
+            redirect: { name: 'GrossanlassPlanungStammdaten' },
+          },
+          {
+            path: 'stammdaten',
+            name: 'GrossanlassPlanungStammdaten',
+            component: () => import('@/views/grossanlass/GrossanlassPlanungStammdatenView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              einstellungenTab: 'stammdaten',
+              ...routeHead('grossanlassPlanungStammdaten'),
+            },
           },
           {
             path: 'ressorts',
@@ -808,16 +818,6 @@ const routes: RouteRecordRaw[] = [
               requiresGrossanlassDepartment: true,
               einstellungenTab: 'karten',
               ...routeHead('grossanlassUserKarten'),
-            },
-          },
-          {
-            path: 'stammdaten',
-            name: 'GrossanlassPlanungStammdaten',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungStammdatenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              einstellungenTab: 'stammdaten',
-              ...routeHead('grossanlassPlanungStammdaten'),
             },
           },
           {
@@ -842,24 +842,22 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'struktur',
+            path: 'teilnehmer',
             name: 'GrossanlassPlanungStruktur',
             component: () => import('@/views/grossanlass/GrossanlassPlanungStrukturView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              einstellungenTab: 'struktur',
+              einstellungenTab: 'teilnehmer',
               ...routeHead('grossanlassPlanungStruktur'),
             },
           },
           {
+            path: 'struktur',
+            redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
+          },
+          {
             path: 'activities',
-            name: 'GrossanlassPlanungActivities',
-            component: () => import('@/views/grossanlass/GrossanlassPlanungActivitiesView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              einstellungenTab: 'activities',
-              ...routeHead('grossanlassPlanungActivities'),
-            },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
           },
           {
             path: 'freigabe',
@@ -883,11 +881,11 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'planung/struktur',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/struktur` }),
+        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
       },
       {
         path: 'planung/activities',
-        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/activities` }),
+        redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/teilnehmer` }),
       },
       {
         path: 'planung/freigabe',

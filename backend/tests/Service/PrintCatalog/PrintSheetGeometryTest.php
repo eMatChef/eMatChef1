@@ -52,4 +52,20 @@ class PrintSheetGeometryTest extends TestCase
         $this->assertSame(55.0, $spec['label_height_mm']);
         $this->assertCount(1, PrintSheetGeometry::cells($spec));
     }
+
+    public function testTscDieCutIsSingleCellAtLabelSize(): void
+    {
+        $media = new PrintMedia();
+        $media->setFamily(PrintDeviceModel::FAMILY_TSC_DESKTOP);
+        $media->setName('TSC 50×30');
+        $media->setWidthMm('50.00');
+        $media->setHeightMm('30.00');
+        $media->setCols(1);
+        $media->setRows(1);
+
+        $spec = PrintSheetGeometry::specFromMedia($media);
+        $this->assertSame(50.0, $spec['sheet_width_mm']);
+        $this->assertSame(30.0, $spec['sheet_height_mm']);
+        $this->assertCount(1, PrintSheetGeometry::cells($spec));
+    }
 }

@@ -12,97 +12,56 @@
     <template v-else>
       <p v-if="showDevices && !catalog?.can_manage_presets" class="muted">{{ t('printSettings.noPermission') }}</p>
 
-      <section v-if="showDevices" class="card">
-        <div class="card-head">
-          <h2>{{ t('printSettings.favoritesTitle') }}</h2>
-          <EButton
-            v-if="catalog?.can_manage_presets"
-            variant="primary"
-            size="small"
-            @click="openPresetDialog()"
-          >
-            {{ t('printSettings.addFavorite') }}
-          </EButton>
+      <details v-if="showDevices && useAccordions" class="info-card print-accordion" :open="openAccordion === 'printers'">
+        <summary class="print-accordion__summary" @click="onAccordionClick('printers', $event)">
+          <span class="print-accordion__title">{{ t('printSettings.accordionPrinters') }}</span>
+          <span class="print-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="print-accordion__body">
+          <PrinterFavoritesBlock
+            :catalog="catalog"
+            :presets="presets"
+            @add="openPresetDialog()"
+            @edit="openPresetDialog"
+            @remove="removePreset"
+            @default="setDefault"
+            @propose-model="proposeKind = 'model'"
+            @propose-media="proposeKind = 'media'"
+            @request-global="requestGlobal"
+          />
         </div>
+      </details>
 
-        <EEmptyState
-          v-if="presets.length === 0"
-          variant="generic"
-          compact
-          :title="t('printSettings.favoritesEmptyTitle')"
-          :description="t('printSettings.favoritesEmpty')"
-          icon="mdi-printer-outline"
+      <section v-else-if="showDevices" class="card">
+        <PrinterFavoritesBlock
+          :catalog="catalog"
+          :presets="presets"
+          @add="openPresetDialog()"
+          @edit="openPresetDialog"
+          @remove="removePreset"
+          @default="setDefault"
+          @propose-model="proposeKind = 'model'"
+          @propose-media="proposeKind = 'media'"
+          @request-global="requestGlobal"
         />
-
-        <ul v-else class="preset-list">
-          <li v-for="preset in presets" :key="preset.id" class="preset-row">
-            <div>
-              <strong>{{ preset.name }}</strong>
-              <span v-if="preset.is_default" class="chip">{{ t('printSettings.defaultChip') }}</span>
-              <p class="meta">
-                {{ preset.device_model.brand }} {{ preset.device_model.name }}
-                · {{ preset.media.name }}
-                <template v-if="preset.media.is_continuous && preset.cut_length_mm">
-                  · {{ t('printSettings.cutLengthValue', { mm: preset.cut_length_mm }) }}
-                </template>
-              </p>
-            </div>
-            <div v-if="catalog?.can_manage_presets" class="row-actions">
-              <EButton
-                v-if="!preset.is_default"
-                variant="text"
-                size="small"
-                @click="setDefault(preset)"
-              >
-                {{ t('printSettings.setDefault') }}
-              </EButton>
-              <EButton variant="text" size="small" @click="openPresetDialog(preset)">
-                {{ t('common.edit') }}
-              </EButton>
-              <EButton variant="danger" size="small" @click="removePreset(preset)">
-                {{ t('common.remove') }}
-              </EButton>
-            </div>
-          </li>
-        </ul>
       </section>
 
-      <section v-if="showDevices && catalog?.can_propose" class="card">
-        <h2>{{ t('printSettings.proposeTitle') }}</h2>
-        <p class="muted">{{ t('printSettings.proposeHint') }}</p>
-        <div class="row-actions">
-          <EButton variant="secondary" size="small" @click="proposeKind = 'model'">
-            {{ t('printSettings.proposeModel') }}
-          </EButton>
-          <EButton variant="secondary" size="small" @click="proposeKind = 'media'">
-            {{ t('printSettings.proposeMedia') }}
-          </EButton>
+      <details v-if="showLayouts && useAccordions && departmentId" class="info-card print-accordion" :open="openAccordion === 'layouts'">
+        <summary class="print-accordion__summary" @click="onAccordionClick('layouts', $event)">
+          <span class="print-accordion__title">{{ t('printSettings.accordionLayouts') }}</span>
+          <span class="print-accordion__chevron" aria-hidden="true">▾</span>
+        </summary>
+        <div class="print-accordion__body">
+          <PrintLayoutEditor :department-id="departmentId" embedded />
         </div>
-        <ul v-if="ownOrgItems.length" class="pending-list">
-          <li v-for="item in ownOrgItems" :key="item.id">
-            <span class="chip" :class="item.global_requested ? 'chip--pending' : 'chip--org'">
-              {{ item.global_requested ? t('printSettings.status.pendingGlobal') : t('printSettings.scope.organisation') }}
-            </span>
-            {{ item.label }}
-            <EButton
-              v-if="!item.global_requested"
-              variant="text"
-              size="small"
-              @click="requestGlobal(item.kind, item.rawId)"
-            >
-              {{ t('printSettings.requestGlobal') }}
-            </EButton>
-          </li>
-        </ul>
-      </section>
+      </details>
+      <PrintLayoutEditor
+        v-else-if="showLayouts && departmentId"
+        :department-id="departmentId"
+      />
     </template>
 
-    <PrintLayoutEditor
-      v-if="showLayouts && departmentId"
-      :department-id="departmentId"
-    />
-
-    <EDialog v-model="presetDialogOpen" :title="presetEdit ? t('printSettings.editFavorite') : t('printSettings.addFavorite')" :max-width="520">
+    <EDialog v-model="presetDialogOpen" :title="presetEdit ? t('printSettings.editFavorite') : t('printSettings.addFavorite')" :max-width="680">
       <div class="dialog-grid">
         <ETextField v-model="presetForm.name" :label="t('printSettings.favoriteName')" hide-details />
         <ESelect
@@ -120,20 +79,28 @@
           hide-details
           @update:model-value="onModelChange"
         />
-        <ESelect
-          v-model="presetForm.media_id"
-          :label="t('printSettings.media')"
-          :items="mediaItems"
-          :disabled="!presetForm.device_model_id"
-          hide-details
-        />
-        <ETextField
-          v-if="selectedMedia?.is_continuous"
-          v-model="presetForm.cut_length_mm"
-          type="number"
-          :label="t('printSettings.cutLength')"
-          hide-details
-        />
+        <p v-if="hideMediaPicker" class="muted">{{ t('printSettings.officePrinterHint') }}</p>
+        <template v-else>
+          <p class="muted">{{ t('printLayout.pickPaper') }}</p>
+          <div v-if="presetForm.device_model_id" class="media-grid">
+            <PrintMediaCard
+              v-for="item in mediaForModel"
+              :key="item.id"
+              :media="item"
+              :cut-length-mm="item.is_continuous ? Number(presetForm.cut_length_mm) : null"
+              :selected="presetForm.media_id === item.id"
+              @select="presetForm.media_id = item.id"
+            />
+          </div>
+          <p v-else class="muted">{{ t('printSettings.pickDeviceFirst') }}</p>
+          <ETextField
+            v-if="selectedMedia?.is_continuous"
+            v-model="presetForm.cut_length_mm"
+            type="number"
+            :label="t('printSettings.cutLength')"
+            hide-details
+          />
+        </template>
         <ECheckbox v-model="presetForm.is_default" :label="t('printSettings.markDefault')" hide-details />
       </div>
       <template #actions>
@@ -194,9 +161,10 @@ import ECheckbox from '@/components/form/base/ECheckbox.vue'
 import EDialog from '@/components/form/base/EDialog.vue'
 import ESelect from '@/components/form/base/ESelect.vue'
 import ETextField from '@/components/form/base/ETextField.vue'
-import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PrintLayoutEditor from '@/components/print/PrintLayoutEditor.vue'
+import PrintMediaCard from '@/components/print/PrintMediaCard.vue'
+import PrinterFavoritesBlock from '@/components/print/PrinterFavoritesBlock.vue'
 import {
   createDepartmentPrintPreset,
   deleteDepartmentPrintPreset,
@@ -210,6 +178,7 @@ import {
   type DepartmentPrintCatalog,
   type DepartmentPrintPreset,
 } from '@/api/printCatalog'
+import { defaultMediaForModel, mediaCompatibleWithModel } from '@/print/mediaCompatibility'
 
 const props = defineProps<{
   departmentId: string
@@ -258,6 +227,13 @@ const proposeOpen = computed({
 
 const showDevices = computed(() => props.sections !== 'layouts')
 const showLayouts = computed(() => props.sections !== 'devices')
+const useAccordions = computed(() => showDevices.value && showLayouts.value)
+const openAccordion = ref<'printers' | 'layouts' | ''>('layouts')
+
+function onAccordionClick(id: 'printers' | 'layouts', event: MouseEvent) {
+  event.preventDefault()
+  openAccordion.value = openAccordion.value === id ? '' : id
+}
 
 const familyItems = computed(() =>
   (catalog.value?.families || []).map((item) => ({ title: item.label, value: item.id })),
@@ -281,16 +257,10 @@ const selectedModel = computed(() =>
 const mediaForModel = computed(() => {
   const model = selectedModel.value
   if (!model) return []
-  return (catalog.value?.published_media || []).filter((media) => {
-    if (media.family !== model.family) return false
-    if (!model.compatible_media_keys.length) return true
-    return model.compatible_media_keys.includes(media.catalog_key)
-  })
+  return (catalog.value?.published_media || []).filter((media) => mediaCompatibleWithModel(model, media))
 })
 
-const mediaItems = computed(() =>
-  mediaForModel.value.map((media) => ({ title: media.name, value: media.id })),
-)
+const hideMediaPicker = computed(() => presetForm.family === 'office_a4')
 
 const selectedMedia = computed(() =>
   (catalog.value?.published_media || []).find((media) => media.id === presetForm.media_id) || null,
@@ -300,28 +270,6 @@ const canSavePreset = computed(() =>
   Boolean(presetForm.name.trim() && presetForm.device_model_id && presetForm.media_id),
 )
 
-const ownOrgItems = computed(() => {
-  const models = (catalog.value?.models || [])
-    .filter((item) => item.scope === 'organisation')
-    .map((item) => ({
-      id: `m-${item.id}`,
-      rawId: item.id,
-      kind: 'model' as const,
-      label: `${item.brand} ${item.name}`,
-      global_requested: item.global_requested,
-    }))
-  const media = (catalog.value?.media || [])
-    .filter((item) => item.scope === 'organisation')
-    .map((item) => ({
-      id: `e-${item.id}`,
-      rawId: item.id,
-      kind: 'media' as const,
-      label: item.name,
-      global_requested: item.global_requested,
-    }))
-  return [...models, ...media]
-})
-
 function onFamilyChange() {
   presetForm.device_model_id = ''
   presetForm.media_id = ''
@@ -329,8 +277,10 @@ function onFamilyChange() {
 
 function onModelChange() {
   presetForm.media_id = ''
-  const first = mediaForModel.value[0]
-  if (first) presetForm.media_id = first.id
+  const model = selectedModel.value
+  if (!model) return
+  const preferred = defaultMediaForModel(model, catalog.value?.published_media || [])
+  if (preferred) presetForm.media_id = preferred.id
 }
 
 function openPresetDialog(preset?: DepartmentPrintPreset) {
@@ -486,25 +436,33 @@ onMounted(() => { void load() })
   border-radius: 12px;
   padding: 16px;
 }
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
-.card h2 { margin: 0 0 8px; font-size: 16px; }
-.preset-list, .pending-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.pending-list li { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
-.preset-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; }
-.preset-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.meta { margin: 4px 0 0; color: #64748b; font-size: 13px; }
-.chip {
-  display: inline-block;
-  margin-left: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #dcfce7;
-  color: #166534;
+.info-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
 }
-.chip--pending { background: #ffedd5; color: #c2410c; margin-right: 8px; margin-left: 0; }
-.chip--org { background: #e0e7ff; color: #3730a3; margin-right: 8px; margin-left: 0; }
-.row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
+.print-accordion { padding: 0; overflow: hidden; }
+.print-accordion__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.print-accordion__summary::-webkit-details-marker { display: none; }
+.print-accordion__title { font-size: 1rem; font-weight: 650; color: #0f172a; }
+.print-accordion__chevron { flex-shrink: 0; color: #64748b; transition: transform 0.15s ease; }
+.print-accordion[open] .print-accordion__chevron { transform: rotate(180deg); }
+.print-accordion__body { padding: 0 16px 16px; border-top: 1px solid #e5e7eb; }
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 8px;
+  max-height: 340px;
+  overflow: auto;
+}
 .dialog-grid { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 8px; }
 </style>

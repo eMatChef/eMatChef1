@@ -52,7 +52,6 @@ final class GrossanlassPlanungService
             'checks' => $this->checks($department, $config),
             'activities' => $this->listActivities($department),
             'ressorts' => $this->listRessortSummaries($department),
-            'storage_locations' => $this->listStorageLocations($department),
             'participants' => $this->listParticipants($department),
             'can_manage' => $this->access->canManagePlanung($user, $department),
         ];
@@ -79,7 +78,9 @@ final class GrossanlassPlanungService
             }
             $config->setStrukturModus($modus);
         }
-        if (array_key_exists('location_text', $data)) {
+        if (array_key_exists('venue_address_id', $data)) {
+            $this->applyVenueAddress($department, $config, $data['venue_address_id']);
+        } elseif (array_key_exists('location_text', $data) && $config->getVenueAddressId() === null) {
             $config->setLocationText((string) $data['location_text']);
         }
         if (array_key_exists('notes', $data)) {
@@ -95,6 +96,35 @@ final class GrossanlassPlanungService
                 throw new \InvalidArgumentException('Gäste sehen Lager oder Event');
             }
             $config->setGuestActivityType($type);
+        }
+        if (array_key_exists('has_guest_departments', $data)) {
+            $config->setHasGuestDepartments((bool) $data['has_guest_departments']);
+        }
+        if (array_key_exists('invite_group_ids', $data)) {
+            $raw = $data['invite_group_ids'];
+            $ids = [];
+            if (\is_array($raw)) {
+                foreach ($raw as $id) {
+                    if (\is_string($id) && $id !== '') {
+                        $ids[] = $id;
+                    }
+                }
+            }
+            $allowedIds = [];
+            foreach ($this->groups->listGroups($department) as $group) {
+                $gid = (string) ($group['id'] ?? '');
+                if ($gid !== '') {
+                    $allowedIds[$gid] = true;
+                }
+            }
+            $config->setInviteGroupIds(array_values(array_filter($ids, static fn (string $id) => isset($allowedIds[$id]))));
+        }
+        if (array_key_exists('department_name', $data)) {
+            $name = trim((string) $data['department_name']);
+            if ($name === '') {
+                throw new \InvalidArgumentException('Anlassname ist erforderlich');
+            }
+            $department->setName(mb_substr($name, 0, 255));
         }
         if (isset($data['planned_event_start']) && is_string($data['planned_event_start']) && $data['planned_event_start'] !== '') {
             $start = $this->parseDate($data['planned_event_start'], false);
@@ -118,6 +148,45 @@ final class GrossanlassPlanungService
         $this->entityManager->flush();
 
         return $this->overview($department, $user);
+    }
+
+    private function applyVenueAddress(Department $department, DepartmentGrossanlassConfig $config, mixed $raw): void
+    {
+        if ($raw === null || $raw === '') {
+            $config->setVenueAddress(null);
+            $config->setLocationText('');
+            $main = $config->getMainActivity();
+            if ($main instanceof Activity) {
+                $main->setVenueAddress(null);
+                $main->setVenueAddressId(null);
+            }
+
+            return;
+        }
+        if (!\is_string($raw)) {
+            throw new \InvalidArgumentException('Eventstandort ungültig');
+        }
+        $address = $this->entityManager->getRepository(Address::class)->find(trim($raw));
+        if (!$address instanceof Address) {
+            throw new \InvalidArgumentException('Eventstandort nicht gefunden');
+        }
+        if ($address->getDepartmentId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Eventstandort gehört nicht zu dieser Abteilung');
+        }
+        $type = $address->getType();
+        if (!in_array($type, [Address::TYPE_EVENT, 'meeting'], true)) {
+            throw new \InvalidArgumentException('Kontakt muss Typ Eventstandort sein');
+        }
+        $config->setVenueAddress($address);
+        $label = trim((string) $address->getName());
+        if ($label === '') {
+            $label = $address->getFullAddress();
+        }
+        $config->setLocationText($label);
+        $main = $config->getMainActivity();
+        if ($main instanceof Activity) {
+            $main->setVenueAddress($address);
+        }
     }
 
     /**
@@ -260,6 +329,7 @@ final class GrossanlassPlanungService
                 'id' => $row->getId(),
                 'name' => $row->getName(),
                 'organisation_name' => $row->getOrganisation()?->getName() ?? '',
+                'parent_id' => $row->getParentId(),
             ];
         }
 
@@ -431,6 +501,7 @@ final class GrossanlassPlanungService
                 'department_id' => $guest->getId(),
                 'name' => $guest->getName(),
                 'organisation_name' => $guest->getOrganisation()?->getName() ?? '',
+                'parent_id' => $guest->getParentId(),
                 'status' => $row->getStatus(),
                 'guest_activity_id' => $row->getGuestActivityId(),
             ];
@@ -545,54 +616,35 @@ final class GrossanlassPlanungService
     }
 
     /**
-     * @return list<array{id: string, name: string, node_type: string, member_count: int}>
+     * @return list<array{id: string, name: string, node_type: string, kind: string, parent_id: string|null, member_count: int, members: list<array{name: string, is_leader: bool}>}>
      */
     private function listRessortSummaries(Department $department): array
     {
         $rows = [];
         foreach ($this->groups->listGroups($department) as $group) {
+            $members = [];
+            foreach ($group['members'] ?? [] as $member) {
+                if (!\is_array($member)) {
+                    continue;
+                }
+                $members[] = [
+                    'name' => (string) ($member['name'] ?? ''),
+                    'is_leader' => (bool) ($member['is_leader'] ?? false),
+                ];
+            }
+            $parentId = $group['parent_id'] ?? null;
             $rows[] = [
                 'id' => (string) ($group['id'] ?? ''),
                 'name' => (string) ($group['name'] ?? ''),
                 'node_type' => (string) ($group['node_type'] ?? 'ressort'),
+                'kind' => (string) ($group['kind'] ?? 'ressort'),
+                'parent_id' => \is_string($parentId) && $parentId !== '' ? $parentId : null,
                 'member_count' => (int) ($group['member_count'] ?? 0),
+                'members' => $members,
             ];
         }
 
         return $rows;
-    }
-
-    /**
-     * @return list<array{id: string, name: string, is_primary: bool}>
-     */
-    private function listStorageLocations(Department $department): array
-    {
-        $addresses = $this->entityManager->getRepository(Address::class)
-            ->createQueryBuilder('a')
-            ->where('a.departmentId = :id')
-            ->andWhere('a.type = :type')
-            ->andWhere('a.deletedAt IS NULL')
-            ->setParameter('id', $department->getId())
-            ->setParameter('type', 'storage')
-            ->orderBy('a.isPrimary', 'DESC')
-            ->addOrderBy('a.name', 'ASC')
-            ->getQuery()
-            ->getResult();
-
-        $out = [];
-        foreach ($addresses as $address) {
-            if (!$address instanceof Address) {
-                continue;
-            }
-            $label = trim((string) ($address->getName() ?: $address->getCityLine() ?: $address->getFullAddress()));
-            $out[] = [
-                'id' => (string) $address->getId(),
-                'name' => $label !== '' ? $label : 'Lager',
-                'is_primary' => $address->isPrimary(),
-            ];
-        }
-
-        return $out;
     }
 
     private function syncEventCalendarPeriod(Department $department, \DateTime $start, \DateTime $end): void

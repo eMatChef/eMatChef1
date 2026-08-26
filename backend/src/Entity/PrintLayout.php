@@ -44,6 +44,9 @@ class PrintLayout
     #[ORM\Column(name: 'template_filename', type: 'string', length: 180, nullable: true)]
     private ?string $templateFilename = null;
 
+    #[ORM\Column(name: 'template_sha256', type: 'string', length: 64, nullable: true)]
+    private ?string $templateSha256 = null;
+
     #[ORM\Column(name: 'include_template_on_print', type: 'boolean', options: ['default' => false])]
     private bool $includeTemplateOnPrint = false;
 
@@ -106,6 +109,9 @@ class PrintLayout
 
     public function getTemplateFilename(): ?string { return $this->templateFilename; }
     public function setTemplateFilename(?string $templateFilename): self { $this->templateFilename = $templateFilename; return $this; }
+
+    public function getTemplateSha256(): ?string { return $this->templateSha256; }
+    public function setTemplateSha256(?string $templateSha256): self { $this->templateSha256 = $templateSha256; return $this; }
 
     public function includeTemplateOnPrint(): bool { return $this->includeTemplateOnPrint; }
     public function setIncludeTemplateOnPrint(bool $include): self { $this->includeTemplateOnPrint = $include; return $this; }

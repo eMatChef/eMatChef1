@@ -20,7 +20,7 @@
 
       <section class="card">
         <h2>{{ t('printCatalogAdmin.pendingTitle') }}</h2>
-        <p v-if="pendingModels.length + pendingMedia.length + pendingLayouts.length === 0" class="muted">
+        <p v-if="pendingModels.length + pendingMedia.length === 0" class="muted">
           {{ t('printCatalogAdmin.pendingEmpty') }}
         </p>
         <ul v-else class="list">
@@ -50,21 +50,6 @@
                 {{ t('printCatalogAdmin.approveGlobal') }}
               </EButton>
               <EButton variant="danger" size="small" @click="review('media', media.id, 'reject')">
-                {{ t('printCatalogAdmin.reject') }}
-              </EButton>
-            </div>
-          </li>
-          <li v-for="layout in pendingLayouts" :key="'l-' + layout.id" class="row">
-            <div>
-              <span class="chip">{{ t('printSettings.status.pending') }}</span>
-              <strong>{{ layout.name }}</strong>
-              <span class="meta">{{ layout.media.name }}</span>
-            </div>
-            <div class="row-actions">
-              <EButton variant="primary" size="small" @click="review('layout', layout.id, 'approve')">
-                {{ t('printCatalogAdmin.approveGlobal') }}
-              </EButton>
-              <EButton variant="danger" size="small" @click="review('layout', layout.id, 'reject')">
                 {{ t('printCatalogAdmin.reject') }}
               </EButton>
             </div>
@@ -123,24 +108,17 @@
 
       <section class="card">
         <h2>{{ t('printCatalogAdmin.layoutsTitle') }}</h2>
+        <p class="muted">{{ t('printCatalogAdmin.layoutsHint') }}</p>
         <p v-if="publishedLayouts.length === 0" class="muted">{{ t('printCatalogAdmin.layoutsEmpty') }}</p>
         <ul v-else class="list">
           <li v-for="layout in publishedLayouts" :key="layout.id" class="row">
             <div>
               <span class="chip" :class="{ 'chip--org': layout.scope === 'organisation' }">
-                {{ t(`printSettings.scope.${layout.scope}`) }}
+                {{ layout.global_requested ? t('printLayout.statusOffered') : layout.scope === 'global' ? t('printLayout.scopeAllMw') : t('printSettings.scope.organisation') }}
               </span>
               <strong>{{ layout.name }}</strong>
               <span class="meta">{{ layout.media.name }}</span>
             </div>
-            <EButton
-              v-if="catalog?.is_superadmin && layout.scope === 'organisation'"
-              variant="text"
-              size="small"
-              @click="review('layout', layout.id, 'promote_global')"
-            >
-              {{ t('printCatalogAdmin.promoteGlobal') }}
-            </EButton>
           </li>
         </ul>
       </section>
@@ -195,7 +173,6 @@ import {
   reviewAdminPrintModel,
   type AdminPrintCatalog,
 } from '@/api/printCatalog'
-import { reviewAdminPrintLayout } from '@/api/printLayouts'
 
 const { t } = useI18n()
 const toast = useToast()
@@ -233,9 +210,6 @@ const pendingModels = computed(() =>
 const pendingMedia = computed(() =>
   (catalog.value?.media || []).filter((item) => item.status === 'pending' || item.global_requested),
 )
-const pendingLayouts = computed(() =>
-  (catalog.value?.layouts || []).filter((item) => item.status === 'pending' || item.global_requested),
-)
 const publishedModels = computed(() =>
   (catalog.value?.models || []).filter((item) => item.status === 'published' && !item.global_requested),
 )
@@ -243,7 +217,7 @@ const publishedMedia = computed(() =>
   (catalog.value?.media || []).filter((item) => item.status === 'published' && !item.global_requested),
 )
 const publishedLayouts = computed(() =>
-  (catalog.value?.layouts || []).filter((item) => item.status === 'published' && !item.global_requested),
+  (catalog.value?.layouts || []).filter((item) => item.status === 'published'),
 )
 
 function familyLabel(id: string): string {
@@ -263,11 +237,10 @@ async function load() {
   }
 }
 
-async function review(kind: 'model' | 'media' | 'layout', id: string, action: 'approve' | 'reject' | 'promote_global') {
+async function review(kind: 'model' | 'media', id: string, action: 'approve' | 'reject' | 'promote_global') {
   try {
     if (kind === 'model') await reviewAdminPrintModel(id, action)
-    else if (kind === 'media') await reviewAdminPrintMedia(id, action)
-    else await reviewAdminPrintLayout(id, action)
+    else await reviewAdminPrintMedia(id, action)
     toast.success(t('printCatalogAdmin.reviewSuccess'))
     await load()
   } catch (e: unknown) {

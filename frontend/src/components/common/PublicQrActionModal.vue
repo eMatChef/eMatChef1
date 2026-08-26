@@ -38,6 +38,7 @@
       <p v-if="code" class="qr-sheet-code">
         {{ t('components.publicQrAction.labelCode') }}: {{ code }}
       </p>
+      <PrintCartQueueHint />
     </div>
 
     <template #actions>
@@ -71,6 +72,7 @@
       <p v-if="code" class="qr-modal-meta">
         {{ t('components.publicQrAction.labelCode') }}: {{ code }}
       </p>
+      <PrintCartQueueHint />
       <div class="modal-actions">
         <button type="button" class="btn-secondary btn-sm" @click="emit('close')">
           {{ t('common.cancel') }}
@@ -97,6 +99,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton, EDialog } from '@/components/form/base'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
+import PrintCartQueueHint from '@/components/print/PrintCartQueueHint.vue'
 import { useSmAndUp } from '@/composables/useSmAndUp'
 import { copyTextToClipboard } from '@/utils/clipboard'
 import { useToast } from '@/composables/useToast'
@@ -181,7 +184,7 @@ async function onCopyLink() {
 }
 
 .qr-modal-meta {
-  margin: 8px 0 16px;
+  margin: 8px 0 12px;
   font-size: 12px;
   color: #6b7280;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;

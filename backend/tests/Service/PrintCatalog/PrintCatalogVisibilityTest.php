@@ -61,6 +61,13 @@ class PrintCatalogVisibilityTest extends TestCase
         ));
     }
 
+    public function testFamiliesIncludeTscDesktop(): void
+    {
+        $ids = array_column(PrintCatalogVisibility::families(), 'id');
+        $this->assertContains(PrintDeviceModel::FAMILY_TSC_DESKTOP, $ids);
+        $this->assertContains(PrintDeviceModel::FAMILY_BROTHER_QL, $ids);
+    }
+
     public function testOnlySuperadminPromotesGloballyViaReviewGate(): void
     {
         $this->assertTrue(PrintCatalogVisibility::canReviewItem('orgaaaaaaaa', [], true));

@@ -45,17 +45,16 @@ const departmentId = computed(() => {
 })
 
 const tabItems = computed(() => [
+  { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
   { id: 'ressorts', label: t('grossanlass.planung.tabRessorts'), icon: 'mdi-sitemap' },
   { id: 'karten', label: t('grossanlass.planung.tabKarten'), icon: 'mdi-card-account-details' },
-  { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
   { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-warehouse' },
   { id: 'anfragen-email', label: t('grossanlass.einstellungen.tabAnfragenEmail'), icon: 'mdi-email-edit-outline' },
-  { id: 'struktur', label: t('grossanlass.planung.tabStruktur'), icon: 'mdi-file-tree-outline' },
-  { id: 'activities', label: t('grossanlass.planung.tabActivities'), icon: 'mdi-calendar-plus' },
+  { id: 'teilnehmer', label: t('grossanlass.planung.tabTeilnehmer'), icon: 'mdi-account-group-outline' },
   { id: 'freigabe', label: t('grossanlass.planung.tabFreigabe'), icon: 'mdi-check-decagram-outline' },
 ])
 
-const activeTab = computed(() => (route.meta.einstellungenTab as string) || 'ressorts')
+const activeTab = computed(() => (route.meta.einstellungenTab as string) || 'stammdaten')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value

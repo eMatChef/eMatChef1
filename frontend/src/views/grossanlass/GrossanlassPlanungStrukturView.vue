@@ -3,7 +3,50 @@
     <p class="intro">{{ t('grossanlass.planung.struktur.intro') }}</p>
     <ELoadingState v-if="loading" variant="list" :message="t('common.loading')" />
     <p v-else-if="error" class="warn">{{ error }}</p>
+    <template v-else-if="!hasGuestDepartments">
+      <EEmptyState
+        :title="t('grossanlass.planung.struktur.guestsOffTitle')"
+        :description="t('grossanlass.planung.struktur.guestsOffText')"
+      >
+        <template #actions>
+          <router-link :to="`/${departmentId}/einstellungen/stammdaten`">
+            {{ t('grossanlass.planung.struktur.openStammdaten') }}
+          </router-link>
+        </template>
+      </EEmptyState>
+    </template>
     <template v-else>
+      <section class="card">
+        <h3>{{ t('grossanlass.planung.struktur.inviteTitle') }}</h3>
+        <p class="hint">{{ t('grossanlass.planung.struktur.inviteHint') }}</p>
+        <ul v-if="hierarchicalRessorts.length" class="invite-list">
+          <li
+            v-for="row in hierarchicalRessorts"
+            :key="row.id"
+            class="invite-row"
+            :style="{ paddingLeft: `${row._level * 20}px` }"
+          >
+            <label>
+              <input
+                type="checkbox"
+                :checked="inviteSet.has(row.id)"
+                :disabled="!pack?.can_manage || saving"
+                @change="toggleInvite(row.id)"
+              >
+              <span v-if="row._level > 0" class="indent-icon">↳</span>
+              <strong>{{ row.name }}</strong>
+              <span class="kind-badge">{{ kindLabel(row) }}</span>
+            </label>
+          </li>
+        </ul>
+        <p v-else class="hint">
+          {{ t('grossanlass.planung.struktur.inviteEmpty') }}
+          <router-link :to="`/${departmentId}/einstellungen/ressorts`">
+            {{ t('grossanlass.planung.struktur.openRessorts') }}
+          </router-link>
+        </p>
+      </section>
+
       <section class="card">
         <h3>{{ t('grossanlass.planung.struktur.modusTitle') }}</h3>
         <p class="hint">{{ t('grossanlass.planung.struktur.modusLead') }}</p>
@@ -25,43 +68,10 @@
       </section>
 
       <section class="card">
-        <div class="head">
-          <h3>{{ t('grossanlass.planung.tabRessorts') }}</h3>
-          <router-link :to="`/${departmentId}/einstellungen/ressorts`">
-            {{ t('grossanlass.planung.struktur.openRessorts') }}
-          </router-link>
-        </div>
-        <p class="hint">{{ t('grossanlass.planung.struktur.ressortsHint') }}</p>
-        <ul v-if="pack?.ressorts.length" class="plain-list">
-          <li v-for="row in pack.ressorts" :key="row.id">
-            <strong>{{ row.name }}</strong>
-            <span class="meta">{{ t('grossanlass.planung.struktur.memberCount', { count: row.member_count }) }}</span>
-          </li>
-        </ul>
-        <p v-else class="hint">{{ t('grossanlass.planung.ressorts.emptyTitle') }}</p>
-      </section>
-
-      <section class="card">
-        <div class="head">
-          <h3>{{ t('grossanlass.planung.struktur.unterlagerTitle') }}</h3>
-          <router-link :to="`/${departmentId}/einstellungen/standorte`">
-            {{ t('grossanlass.planung.stammdaten.openStandorte') }}
-          </router-link>
-        </div>
-        <p class="hint">{{ t('grossanlass.planung.struktur.unterlagerHint') }}</p>
-        <ul v-if="pack?.storage_locations.length" class="plain-list">
-          <li v-for="row in pack.storage_locations" :key="row.id">
-            <strong>{{ row.name }}</strong>
-            <span v-if="row.is_primary" class="tag">{{ t('grossanlass.planung.struktur.primarySite') }}</span>
-          </li>
-        </ul>
-        <p v-else class="hint">{{ t('grossanlass.planung.struktur.unterlagerEmpty') }}</p>
-      </section>
-
-      <section class="card">
         <h3>{{ t('grossanlass.planung.struktur.participantsTitle') }}</h3>
         <p class="hint">{{ t('grossanlass.planung.struktur.participantsLater') }}</p>
-        <div v-if="pack?.can_manage" class="search">
+        <p v-if="!canAddGuests" class="hint">{{ t('grossanlass.planung.struktur.inviteNeeded') }}</p>
+        <div v-if="pack?.can_manage && canAddGuests" class="search">
           <label class="sr-only" for="ga-guest-search">{{ t('grossanlass.planung.struktur.searchLabel') }}</label>
           <input
             id="ga-guest-search"
@@ -75,7 +85,7 @@
           <ul v-if="hits.length" class="hits">
             <li v-for="hit in hits" :key="hit.id">
               <button type="button" :disabled="saving" @click="addGuest(hit.id)">
-                <strong>{{ hit.name }}</strong>
+                <strong>{{ hit.parent_id ? '↳ ' : '' }}{{ hit.name }}</strong>
                 <span class="meta">{{ hit.organisation_name }}</span>
               </button>
             </li>
@@ -84,24 +94,66 @@
             {{ t('grossanlass.planung.struktur.searchEmpty') }}
           </p>
         </div>
-        <ul v-if="pack?.participants?.length" class="plain-list">
-          <li v-for="row in pack.participants" :key="row.id">
-            <div class="guest">
-              <strong>{{ row.name }}</strong>
-              <span class="meta">{{ row.organisation_name }}</span>
-            </div>
-            <span class="tag">{{ t(`grossanlass.planung.struktur.status.${row.status}`) }}</span>
-            <button
-              v-if="pack.can_manage && row.status !== 'accepted'"
-              type="button"
-              class="remove"
-              :disabled="saving"
-              @click="removeGuest(row.id)"
-            >
-              {{ t('common.remove') }}
-            </button>
-          </li>
-        </ul>
+        <input
+          v-if="participantNodes.length"
+          v-model="participantFilter"
+          type="search"
+          class="search-input list-filter"
+          :placeholder="t('grossanlass.planung.struktur.searchPlaceholder')"
+        >
+        <v-expansion-panels
+          v-if="filteredParticipantRoots.length"
+          v-model="openParticipants"
+          multiple
+          class="ga-struktur-accordion"
+        >
+          <v-expansion-panel v-for="root in filteredParticipantRoots" :key="root.id" :value="root.id">
+            <v-expansion-panel-title>
+              <span class="group-title">
+                <strong>{{ root.name }}</strong>
+                <span class="meta">{{ root.organisation_name }}</span>
+                <span class="tag">{{ t(`grossanlass.planung.struktur.status.${root.status}`) }}</span>
+              </span>
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <div class="guest-actions">
+                <button
+                  v-if="pack?.can_manage && root.status !== 'accepted'"
+                  type="button"
+                  class="remove"
+                  :disabled="saving"
+                  @click="removeGuest(root.participant_id)"
+                >
+                  {{ t('common.remove') }}
+                </button>
+              </div>
+              <ul v-if="participantChildren(root.id).length" class="child-list">
+                <li
+                  v-for="child in participantChildren(root.id)"
+                  :key="child.id"
+                  class="child-row"
+                  :style="{ paddingLeft: `${child._level * 20}px` }"
+                >
+                  <div class="child-head">
+                    <span class="indent-icon">↳</span>
+                    <strong>{{ child.name }}</strong>
+                    <span class="meta">{{ child.organisation_name }}</span>
+                    <span class="tag">{{ t(`grossanlass.planung.struktur.status.${child.status}`) }}</span>
+                    <button
+                      v-if="pack?.can_manage && child.status !== 'accepted'"
+                      type="button"
+                      class="remove"
+                      :disabled="saving"
+                      @click="removeGuest(child.participant_id)"
+                    >
+                      {{ t('common.remove') }}
+                    </button>
+                  </div>
+                </li>
+              </ul>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
         <p v-else class="hint">{{ t('grossanlass.planung.struktur.participantsEmpty') }}</p>
       </section>
     </template>
@@ -115,6 +167,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
+import EEmptyState from '@/components/layout/EEmptyState.vue'
 import {
   addGrossanlassParticipant,
   getGrossanlassPlanung,
@@ -123,8 +176,10 @@ import {
   updateGrossanlassPlanung,
   type GrossanlassGuestSearchHit,
   type GrossanlassPlanungOverview,
+  type GrossanlassPlanungRessort,
   type GrossanlassStrukturModus,
 } from '@/api/grossanlassPlanung'
+import { flattenTreeWithLevel } from '@/utils/grossanlassGroupHierarchy'
 
 defineOptions({ name: 'GrossanlassPlanungStruktur' })
 
@@ -145,6 +200,97 @@ const searchQuery = ref('')
 const hits = ref<GrossanlassGuestSearchHit[]>([])
 const searching = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+const openParticipants = ref<string[]>([])
+const participantFilter = ref('')
+
+type ParticipantNode = {
+  id: string
+  participant_id: string
+  name: string
+  organisation_name: string
+  parent_id: string | null
+  status: string
+  _level: number
+}
+
+const hasGuestDepartments = computed(
+  () => pack.value?.config.has_guest_departments === true
+    || (pack.value?.participants?.length ?? 0) > 0,
+)
+const inviteSet = computed(() => new Set(pack.value?.config.invite_group_ids ?? []))
+const canAddGuests = computed(() => inviteSet.value.size > 0)
+
+const hierarchicalRessorts = computed(() =>
+  flattenTreeWithLevel(
+    (pack.value?.ressorts ?? []).map((row) => ({
+      ...row,
+      parent_id: row.parent_id ?? null,
+    })),
+  ),
+)
+
+const participantNodes = computed(() => {
+  const rows = (pack.value?.participants ?? []).map((row) => ({
+    id: row.department_id,
+    participant_id: row.id,
+    name: row.name,
+    organisation_name: row.organisation_name,
+    parent_id: row.parent_id ?? null,
+    status: row.status,
+  }))
+  const ids = new Set(rows.map((r) => r.id))
+  return flattenTreeWithLevel(rows.map((r) => ({
+    ...r,
+    parent_id: r.parent_id && ids.has(r.parent_id) ? r.parent_id : null,
+  })))
+})
+
+const filteredParticipantRoots = computed(() => {
+  const q = participantFilter.value.trim().toLowerCase()
+  const roots = participantNodes.value.filter((row) => row._level === 0)
+  if (!q) return roots
+  return roots.filter((root) => {
+    if (root.name.toLowerCase().includes(q) || root.organisation_name.toLowerCase().includes(q)) return true
+    return participantChildren(root.id).some(
+      (child) => child.name.toLowerCase().includes(q) || child.organisation_name.toLowerCase().includes(q),
+    )
+  })
+})
+
+function participantChildren(rootId: string): ParticipantNode[] {
+  const all = participantNodes.value
+  const start = all.findIndex((row) => row.id === rootId)
+  if (start < 0) return []
+  const rootLevel = all[start]._level
+  const out: ParticipantNode[] = []
+  for (let i = start + 1; i < all.length; i++) {
+    if (all[i]._level <= rootLevel) break
+    out.push({ ...all[i], _level: all[i]._level - rootLevel })
+  }
+  return out
+}
+
+function kindLabel(row: GrossanlassPlanungRessort): string {
+  if (row.node_type === 'bauprojekt') return String(t('grossanlass.planung.ressorts.kindBauprojekt'))
+  if (row.node_type === 'unterressort') return String(t('grossanlass.planung.ressorts.kindUnterressort'))
+  return String(t('grossanlass.planung.ressorts.kindRessort'))
+}
+
+async function toggleInvite(groupId: string) {
+  if (!departmentId.value || !pack.value?.can_manage) return
+  const next = new Set(inviteSet.value)
+  if (next.has(groupId)) next.delete(groupId)
+  else next.add(groupId)
+  saving.value = true
+  try {
+    pack.value = await updateGrossanlassPlanung(departmentId.value, { invite_group_ids: [...next] })
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    saving.value = false
+  }
+}
 
 function cap(modus: string): string {
   return modus.charAt(0).toUpperCase() + modus.slice(1)
@@ -156,6 +302,7 @@ async function load() {
   error.value = ''
   try {
     pack.value = await getGrossanlassPlanung(departmentId.value)
+    openParticipants.value = (pack.value.participants ?? []).map((row) => row.department_id)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     error.value = err.response?.data?.error || t('grossanlass.beschaffung.anfragen.loadError')
@@ -282,9 +429,11 @@ onMounted(() => {
   border-radius: 8px;
   padding: 10px 12px;
 }
-.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.plain-list li { display: flex; gap: 8px; align-items: center; font-size: 0.9rem; flex-wrap: wrap; }
-.guest { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.invite-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; }
+.list-filter { margin: 8px 0 12px; }
+.guest-actions { margin-bottom: 8px; }
+.hint a { color: #166534; }
 .search { margin: 10px 0 12px; }
 .search-input {
   width: 100%;
@@ -333,4 +482,46 @@ onMounted(() => {
   background: #ecfdf5;
   color: #166534;
 }
+.ga-struktur-accordion { margin-top: 4px; }
+.ga-struktur-accordion :deep(.v-expansion-panel) {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px !important;
+  margin-bottom: 8px;
+}
+.ga-struktur-accordion :deep(.v-expansion-panel-title) {
+  min-height: 48px;
+  font-size: 0.9rem;
+}
+.group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.group-count { color: #64748b; font-size: 0.8rem; }
+.kind-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+.member-list, .child-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.member-list { margin-bottom: 10px; font-size: 0.88rem; }
+.member-list.is-nested { margin: 6px 0 0; padding-left: 22px; color: #475569; }
+.child-row { padding: 8px 0; border-top: 1px solid #f1f5f9; }
+.child-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.indent-icon { color: #94a3b8; font-size: 0.85rem; }
 </style>

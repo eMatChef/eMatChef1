@@ -12,9 +12,12 @@ export type GrossanlassPlanungConfig = {
   planned_event_end: string | null
   main_activity_id: string | null
   location_text: string
+  venue_address_id: string | null
   notes: string
   published_at: string | null
   guest_activity_type: GrossanlassGuestActivityType
+  has_guest_departments: boolean
+  invite_group_ids: string[]
 }
 
 export type GrossanlassPlanungActivity = {
@@ -33,8 +36,24 @@ export type GrossanlassParticipant = {
   department_id: string
   name: string
   organisation_name: string
+  parent_id: string | null
   status: GrossanlassParticipantStatus
   guest_activity_id: string | null
+}
+
+export type GrossanlassPlanungRessortMember = {
+  name: string
+  is_leader: boolean
+}
+
+export type GrossanlassPlanungRessort = {
+  id: string
+  name: string
+  node_type: string
+  kind?: string
+  parent_id: string | null
+  member_count: number
+  members?: GrossanlassPlanungRessortMember[]
 }
 
 export type GrossanlassPlanungOverview = {
@@ -42,8 +61,7 @@ export type GrossanlassPlanungOverview = {
   department_name: string
   checks: { period: boolean; ressorts: boolean; participants: boolean }
   activities: GrossanlassPlanungActivity[]
-  ressorts: { id: string; name: string; node_type: string; member_count: number }[]
-  storage_locations: { id: string; name: string; is_primary: boolean }[]
+  ressorts: GrossanlassPlanungRessort[]
   participants: GrossanlassParticipant[]
   can_manage: boolean
 }
@@ -52,6 +70,7 @@ export type GrossanlassGuestSearchHit = {
   id: string
   name: string
   organisation_name: string
+  parent_id: string | null
 }
 
 export async function getGrossanlassPlanung(departmentId: string): Promise<GrossanlassPlanungOverview> {
@@ -66,10 +85,14 @@ export async function updateGrossanlassPlanung(
   data: {
     struktur_modus?: GrossanlassStrukturModus
     location_text?: string
+    venue_address_id?: string | null
     notes?: string
     planned_event_start?: string
     planned_event_end?: string | null
     guest_activity_type?: GrossanlassGuestActivityType
+    has_guest_departments?: boolean
+    invite_group_ids?: string[]
+    department_name?: string
   },
 ): Promise<GrossanlassPlanungOverview> {
   const response = await apiClient.patch<GrossanlassPlanungOverview>(

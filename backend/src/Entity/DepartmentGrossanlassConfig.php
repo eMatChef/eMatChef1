@@ -60,6 +60,20 @@ class DepartmentGrossanlassConfig
     #[ORM\Column(name: 'guest_activity_type', type: 'string', length: 20, options: ['default' => self::GUEST_ACTIVITY_CAMP])]
     private string $guestActivityType = self::GUEST_ACTIVITY_CAMP;
 
+    #[ORM\Column(name: 'has_guest_departments', type: 'boolean', options: ['default' => false])]
+    private bool $hasGuestDepartments = false;
+
+    /** @var list<string> */
+    #[ORM\Column(name: 'invite_group_ids', type: 'json', options: ['default' => '[]'])]
+    private array $inviteGroupIds = [];
+
+    #[ORM\Column(name: 'venue_address_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $venueAddressId = null;
+
+    #[ORM\ManyToOne(targetEntity: Address::class)]
+    #[ORM\JoinColumn(name: 'venue_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Address $venueAddress = null;
+
     public function getDepartmentId(): string
     {
         return $this->departmentId;
@@ -186,6 +200,67 @@ class DepartmentGrossanlassConfig
     public function setGuestActivityType(string $guestActivityType): self
     {
         $this->guestActivityType = $guestActivityType;
+
+        return $this;
+    }
+
+    public function hasGuestDepartments(): bool
+    {
+        return $this->hasGuestDepartments;
+    }
+
+    public function setHasGuestDepartments(bool $hasGuestDepartments): self
+    {
+        $this->hasGuestDepartments = $hasGuestDepartments;
+
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getInviteGroupIds(): array
+    {
+        return array_values(array_filter($this->inviteGroupIds, static fn ($id) => \is_string($id) && $id !== ''));
+    }
+
+    /** @param list<string> $inviteGroupIds */
+    public function setInviteGroupIds(array $inviteGroupIds): self
+    {
+        $ids = [];
+        foreach ($inviteGroupIds as $id) {
+            if (!\is_string($id)) {
+                continue;
+            }
+            $trim = trim($id);
+            if ($trim !== '' && !in_array($trim, $ids, true)) {
+                $ids[] = $trim;
+            }
+        }
+        $this->inviteGroupIds = $ids;
+
+        return $this;
+    }
+
+    public function getVenueAddressId(): ?string
+    {
+        return $this->venueAddressId;
+    }
+
+    public function setVenueAddressId(?string $venueAddressId): self
+    {
+        $this->venueAddressId = $venueAddressId;
+
+        return $this;
+    }
+
+    public function getVenueAddress(): ?Address
+    {
+        return $this->venueAddress;
+    }
+
+    public function setVenueAddress(?Address $venueAddress): self
+    {
+        $this->venueAddress = $venueAddress;
+        $this->venueAddressId = $venueAddress?->getId();
 
         return $this;
     }

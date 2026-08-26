@@ -130,19 +130,115 @@ final class PrintLayoutService
 
     public function delete(PrintLayout $layout): void
     {
-        $this->storage->deleteTemplate($layout->getId());
+        $sha = $layout->getTemplateSha256();
         $this->entityManager->remove($layout);
         $this->entityManager->flush();
+        if ($sha !== null && $sha !== '') {
+            $left = $this->countByTemplateSha($sha);
+            $this->storage->deleteIfUnreferenced($sha, $left);
+        }
     }
 
     public function attachTemplate(PrintLayout $layout, UploadedFile $file): PrintLayout
     {
-        $filename = $this->storage->storeTemplate($layout->getId(), $file);
-        $layout->setTemplateFilename($filename);
+        $sha = $this->storage->storeTemplate($file);
+        $layout->setTemplateSha256($sha);
+        $layout->setTemplateFilename($sha . '.pdf');
         $layout->touch();
         $this->entityManager->flush();
 
         return $layout;
+    }
+
+    /** @return list<PrintLayout> */
+    public function layoutsWithTemplateSha(string $sha256, ?string $exceptLayoutId = null): array
+    {
+        $items = $this->entityManager->getRepository(PrintLayout::class)->findBy(
+            ['templateSha256' => $sha256],
+            ['name' => 'ASC'],
+        );
+        $out = [];
+        foreach ($items as $item) {
+            if (!$item instanceof PrintLayout) {
+                continue;
+            }
+            if ($exceptLayoutId !== null && $item->getId() === $exceptLayoutId) {
+                continue;
+            }
+            $out[] = $item;
+        }
+
+        return $out;
+    }
+
+    public function countByTemplateSha(string $sha256): int
+    {
+        return (int) $this->entityManager->getRepository(PrintLayout::class)->count(['templateSha256' => $sha256]);
+    }
+
+    /**
+     * MW bietet die Vorlage allen Materialwarten an, oder ein anderer MW gibt sie frei (ohne Org/Suborg/SA).
+     */
+    public function shareWithMaterialwarts(User $user, PrintLayout $layout): PrintLayout
+    {
+        if (!$this->catalog->isPrintManager($user)) {
+            throw new \RuntimeException('Keine Berechtigung');
+        }
+        if ($layout->getStatus() !== PrintLayout::STATUS_PUBLISHED) {
+            throw new \InvalidArgumentException('Nur freigegebene Layouts können geteilt werden');
+        }
+        if ($layout->getScope() === PrintLayout::SCOPE_GLOBAL) {
+            return $layout;
+        }
+        $owns = $layout->getCreatedByUserId() === $user->getId();
+        if ($owns && !$layout->isGlobalRequested()) {
+            $layout->setGlobalRequested(true);
+            $layout->touch();
+            $this->entityManager->flush();
+
+            return $layout;
+        }
+        if ($owns) {
+            throw new \InvalidArgumentException('Ein anderer Materialwart muss die Freigabe bestätigen');
+        }
+        $layout->setStatus(PrintLayout::STATUS_PUBLISHED);
+        $layout->setScope(PrintLayout::SCOPE_GLOBAL);
+        $layout->setOrganisationId(null);
+        $layout->setGlobalRequested(false);
+        $layout->setReviewedByUserId($user->getId());
+        $layout->setReviewedAt(new \DateTime());
+        $layout->touch();
+        $this->entityManager->flush();
+
+        return $layout;
+    }
+
+    public function copyToDepartment(User $user, Department $department, PrintLayout $source): PrintLayout
+    {
+        if (!$this->catalog->canManageDepartment($user, $department->getId())) {
+            throw new \RuntimeException('Keine Berechtigung');
+        }
+        if (!$this->canSee($user, $source)) {
+            throw new \RuntimeException('Layout nicht sichtbar');
+        }
+        $copy = new PrintLayout();
+        $copy->setId(IdGenerator::generateUnique($this->entityManager, PrintLayout::class));
+        $copy->setName($source->getName());
+        $copy->setMedia($source->getMedia());
+        $copy->setDepartmentId($department->getId());
+        $copy->setOrganisationId($department->getOrganisationId());
+        $copy->setFields($source->getFields());
+        $copy->setTemplateFilename($source->getTemplateFilename());
+        $copy->setTemplateSha256($source->getTemplateSha256());
+        $copy->setIncludeTemplateOnPrint($source->includeTemplateOnPrint());
+        $copy->setStatus(PrintLayout::STATUS_PUBLISHED);
+        $copy->setScope(PrintLayout::SCOPE_ORGANISATION);
+        $copy->setGlobalRequested(false);
+        $copy->setCreatedByUserId($user->getId());
+        $this->entityManager->persist($copy);
+        $this->entityManager->flush();
+
+        return $copy;
     }
 
     public function requestGlobal(User $user, Department $department, PrintLayout $layout): PrintLayout
@@ -150,18 +246,8 @@ final class PrintLayoutService
         if (!$this->catalog->canManageDepartment($user, $department->getId())) {
             throw new \RuntimeException('Keine Berechtigung');
         }
-        if ($layout->getScope() !== PrintLayout::SCOPE_ORGANISATION) {
-            throw new \InvalidArgumentException('Nur organisationsinterne Layouts können global beantragt werden');
-        }
-        if ($layout->getOrganisationId() !== $department->getOrganisationId()) {
-            throw new \RuntimeException('Layout gehört nicht zu dieser Organisation');
-        }
-        $layout->setStatus(PrintLayout::STATUS_PUBLISHED);
-        $layout->setGlobalRequested(true);
-        $layout->touch();
-        $this->entityManager->flush();
 
-        return $layout;
+        return $this->shareWithMaterialwarts($user, $layout);
     }
 
     public function review(User $reviewer, PrintLayout $layout, string $action): PrintLayout
@@ -224,6 +310,13 @@ final class PrintLayoutService
 
     public function canSee(User $user, PrintLayout $layout): bool
     {
+        if (
+            $layout->getStatus() === PrintLayout::STATUS_PUBLISHED
+            && $this->catalog->isPrintManager($user)
+        ) {
+            return true;
+        }
+
         return PrintCatalogVisibility::canSeeItem(
             $layout->getStatus(),
             $layout->getScope(),
@@ -249,7 +342,8 @@ final class PrintLayoutService
             'organisation_id' => $layout->getOrganisationId(),
             'fields' => $layout->getFields(),
             'template_filename' => $layout->getTemplateFilename(),
-            'has_template' => $layout->getTemplateFilename() !== null,
+            'template_sha256' => $layout->getTemplateSha256(),
+            'has_template' => $layout->getTemplateSha256() !== null || $layout->getTemplateFilename() !== null,
             'include_template_on_print' => $layout->includeTemplateOnPrint(),
             'status' => $layout->getStatus(),
             'scope' => $layout->getScope(),
@@ -262,13 +356,31 @@ final class PrintLayoutService
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function serializeDuplicate(PrintLayout $layout): array
+    {
+        return [
+            'id' => $layout->getId(),
+            'name' => $layout->getName(),
+            'media_name' => $layout->getMedia()->getName(),
+            'scope' => $layout->getScope(),
+            'global_requested' => $layout->isGlobalRequested(),
+            'department_id' => $layout->getDepartmentId(),
+            'created_by_user_id' => $layout->getCreatedByUserId(),
+            'has_template' => $layout->getTemplateSha256() !== null || $layout->getTemplateFilename() !== null,
+        ];
+    }
+
     /**
      * @param mixed $raw
      * @return list<array<string, mixed>>
      */
     private function normalizeFields(mixed $raw): array
     {
-        if (!\is_array($raw) || $raw === []) {
+        if (!\is_array($raw)) {
+            return self::defaultFields();
+        }
+        if ($raw === []) {
             return self::defaultFields();
         }
         $out = [];

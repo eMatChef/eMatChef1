@@ -139,7 +139,16 @@ class DepartmentPrintLayoutController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }
 
-        return new JsonResponse($this->layouts->serialize($layout));
+        $payload = $this->layouts->serialize($layout);
+        $sha = $layout->getTemplateSha256();
+        $payload['duplicate_templates'] = $sha
+            ? array_map(
+                fn (PrintLayout $item) => $this->layouts->serializeDuplicate($item),
+                $this->layouts->layoutsWithTemplateSha($sha, $layout->getId()),
+            )
+            : [];
+
+        return new JsonResponse($payload);
     }
 
     #[Route('/{layoutId}/template', name: 'template_get', methods: ['GET'])]
@@ -154,11 +163,19 @@ class DepartmentPrintLayoutController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
         $layout = $this->layouts->get($layoutId);
-        if ($layout === null || !$this->layouts->canSee($user, $layout) || $layout->getTemplateFilename() === null) {
+        if (
+            $layout === null
+            || !$this->layouts->canSee($user, $layout)
+            || ($layout->getTemplateFilename() === null && $layout->getTemplateSha256() === null)
+        ) {
             return new JsonResponse(['error' => 'Vorlage nicht gefunden'], 404);
         }
         try {
-            $path = $this->storage->resolvePath($layout->getId(), $layout->getTemplateFilename());
+            $path = $this->storage->resolvePath(
+                $layout->getId(),
+                $layout->getTemplateSha256(),
+                $layout->getTemplateFilename(),
+            );
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 404);
         }
@@ -168,6 +185,34 @@ class DepartmentPrintLayoutController extends AbstractController
         $response->setPrivate();
 
         return $response;
+    }
+
+    #[Route('/{layoutId}/copy', name: 'copy', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function copy(string $departmentId, string $layoutId): JsonResponse
+    {
+        $user = $this->requireUser();
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        if (!$this->catalog->canManageDepartment($user, $departmentId)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
+        }
+        $department = $this->catalog->findDepartment($departmentId);
+        if ($department === null) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+        $source = $this->layouts->get($layoutId);
+        if ($source === null || !$this->layouts->canSee($user, $source)) {
+            return new JsonResponse(['error' => 'Layout nicht gefunden'], 404);
+        }
+        try {
+            $copy = $this->layouts->copyToDepartment($user, $department, $source);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($this->layouts->serialize($copy), 201);
     }
 
     #[Route('/{layoutId}/request-global', name: 'request_global', methods: ['POST'])]

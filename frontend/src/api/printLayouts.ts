@@ -44,6 +44,7 @@ export type PrintLayout = {
   organisation_id: string | null
   fields: PrintLayoutField[]
   template_filename: string | null
+  template_sha256: string | null
   has_template: boolean
   include_template_on_print: boolean
   status: PrintCatalogStatus
@@ -54,6 +55,21 @@ export type PrintLayout = {
   media: PrintMedia
   sheet: PrintSheetSpec
   cells: PrintSheetCell[]
+}
+
+export type PrintLayoutDuplicate = {
+  id: string
+  name: string
+  media_name: string
+  scope: PrintCatalogScope
+  global_requested: boolean
+  department_id: string | null
+  created_by_user_id: string | null
+  has_template: boolean
+}
+
+export type PrintLayoutUploadResult = PrintLayout & {
+  duplicate_templates?: PrintLayoutDuplicate[]
 }
 
 export type PrintLayoutPayload = {
@@ -104,8 +120,8 @@ export async function uploadPrintLayoutTemplate(
   departmentId: string,
   layoutId: string,
   file: File,
-): Promise<PrintLayout> {
-  const response = await uploadMediaFile<PrintLayout>(
+): Promise<PrintLayoutUploadResult> {
+  const response = await uploadMediaFile<PrintLayoutUploadResult>(
     `/api/departments/${encodeURIComponent(departmentId)}/print/layouts/${encodeURIComponent(layoutId)}/template`,
     file,
     { fieldName: 'file' },
@@ -130,6 +146,16 @@ export async function requestDepartmentPrintLayoutGlobal(
 ): Promise<PrintLayout> {
   const response = await apiClient.post<PrintLayout>(
     `/api/departments/${encodeURIComponent(departmentId)}/print/layouts/${encodeURIComponent(layoutId)}/request-global`,
+  )
+  return response.data
+}
+
+export async function copyDepartmentPrintLayout(
+  departmentId: string,
+  layoutId: string,
+): Promise<PrintLayout> {
+  const response = await apiClient.post<PrintLayout>(
+    `/api/departments/${encodeURIComponent(departmentId)}/print/layouts/${encodeURIComponent(layoutId)}/copy`,
   )
   return response.data
 }

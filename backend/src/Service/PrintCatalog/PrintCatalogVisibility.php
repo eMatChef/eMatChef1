@@ -21,7 +21,7 @@ final class PrintCatalogVisibility
         return [
             ['id' => PrintDeviceModel::FAMILY_BROTHER_QL, 'label' => 'Brother QL'],
             ['id' => PrintDeviceModel::FAMILY_TSC_DESKTOP, 'label' => 'TSC Desktop (DA210)'],
-            ['id' => PrintDeviceModel::FAMILY_OFFICE_A4, 'label' => 'Büro Laser/Inkjet (Avery, A4–A8)'],
+            ['id' => PrintDeviceModel::FAMILY_OFFICE_A4, 'label' => 'Büro Laser/Inkjet'],
         ];
     }
 

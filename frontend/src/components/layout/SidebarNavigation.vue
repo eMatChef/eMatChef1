@@ -270,11 +270,31 @@
         v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('tasks') }"
+        :class="{ active: isDeptSectionNavActive('tasks') && !isPrintCartNavActive }"
         data-onboarding="nav-tasks"
       >
         <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
+      </router-link>
+
+      <!-- Druckkorb -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && canManageQrContact"
+        :to="getLink('/tasks/druck')"
+        class="nav-item"
+        :class="{ active: isPrintCartNavActive }"
+        :title="printCartNavTitle"
+      >
+        <span class="nav-icon-wrap">
+          <v-icon icon="mdi-printer-outline" class="nav-icon nav-icon--mdi" size="20" />
+          <span v-if="printCartCount > 0 && !showNavLabels" class="nav-badge nav-badge--rail">
+            {{ printCartCount > 99 ? '99+' : printCartCount }}
+          </span>
+        </span>
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.printCart') }}</span>
+        <span v-if="printCartCount > 0 && showNavLabels" class="nav-badge">
+          {{ printCartCount > 99 ? '99+' : printCartCount }}
+        </span>
       </router-link>
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
@@ -381,6 +401,7 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { usePrintCart } from '@/composables/usePrintCart'
 import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
@@ -393,7 +414,8 @@ import { getSupplierShopAvailability } from '@/api/supplierShop'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
+const { count: printCartCount, refresh: refreshPrintCart } = usePrintCart()
 const { mdAndUp } = useDisplay()
 const drawerOpen = defineModel<boolean>({ default: false })
 const isHovered = ref(false)
@@ -801,6 +823,20 @@ function isDeptSectionNavActive(section: string): boolean {
   if (path.includes('/settings')) return false
   return path.includes(`/${section}`)
 }
+
+const isPrintCartNavActive = computed(() => route.path.includes('/tasks/druck'))
+const printCartNavTitle = computed(() => {
+  const n = printCartCount.value
+  return n > 0 ? `${t('sidebar.printCart')} · ${n}` : t('sidebar.printCart')
+})
+
+watch(
+  departmentId,
+  (id) => {
+    if (canManageQrContact.value) void refreshPrintCart(id)
+  },
+  { immediate: true },
+)
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
 

@@ -8,56 +8,103 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
- * Hersteller-PDFs unter var/uploads/print-layouts/{layoutId}/ — bleibt bei Global-Annahme am selben Ort.
+ * Hersteller-PDFs zentral unter var/uploads/print-templates/{sha256}.pdf.
+ * Mehrere Layouts teilen dieselbe Datei; Department speichert nur die Feldpositionen.
  */
 final class PrintLayoutStorageService
 {
-    private string $baseDir;
+    private string $legacyDir;
+
+    private string $centralDir;
 
     public function __construct(
         #[Autowire('%kernel.project_dir%')]
         string $projectDir,
     ) {
-        $this->baseDir = $projectDir . '/var/uploads/print-layouts';
+        $this->legacyDir = $projectDir . '/var/uploads/print-layouts';
+        $this->centralDir = $projectDir . '/var/uploads/print-templates';
     }
 
     public function directory(string $layoutId): string
     {
-        return $this->baseDir . '/' . $layoutId;
+        return $this->legacyDir . '/' . $layoutId;
     }
 
-    public function storeTemplate(string $layoutId, UploadedFile $file): string
+    public function centralDirectory(): string
+    {
+        return $this->centralDir;
+    }
+
+    public function hashFile(string $path): string
+    {
+        $hash = hash_file('sha256', $path);
+        if (!\is_string($hash) || $hash === '') {
+            throw new \RuntimeException('PDF-Hash konnte nicht berechnet werden');
+        }
+
+        return $hash;
+    }
+
+    public function centralPath(string $sha256): string
+    {
+        if (!preg_match('/^[a-f0-9]{64}$/', $sha256)) {
+            throw new \InvalidArgumentException('Ungültiger Vorlagen-Hash');
+        }
+
+        return $this->centralDir . '/' . $sha256 . '.pdf';
+    }
+
+    /**
+     * Speichert die PDF einmalig (content-addressed) und gibt den SHA-256 zurück.
+     */
+    public function storeTemplate(UploadedFile $file): string
     {
         $mime = (string) $file->getMimeType();
         if ($mime !== 'application/pdf' && !str_ends_with(strtolower($file->getClientOriginalName()), '.pdf')) {
             throw new \InvalidArgumentException('Nur PDF-Vorlagen sind erlaubt');
         }
-        $dir = $this->directory($layoutId);
-        if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        $tmp = $file->getPathname();
+        if ($tmp === '' || !is_file($tmp)) {
+            throw new \InvalidArgumentException('PDF-Datei fehlt');
+        }
+        $sha = $this->hashFile($tmp);
+        $dest = $this->centralPath($sha);
+        if (is_file($dest)) {
+            @unlink($tmp);
+
+            return $sha;
+        }
+        if (!is_dir($this->centralDir) && !mkdir($this->centralDir, 0775, true) && !is_dir($this->centralDir)) {
             throw new \RuntimeException('Vorlagen-Ordner konnte nicht erstellt werden');
         }
-        $filename = 'template.pdf';
-        $file->move($dir, $filename);
+        $file->move($this->centralDir, $sha . '.pdf');
 
-        return $filename;
+        return $sha;
     }
 
-    public function resolvePath(string $layoutId, string $filename): string
+    public function resolvePath(?string $layoutId, ?string $sha256, ?string $filename): string
     {
-        if ($filename !== 'template.pdf') {
-            throw new \InvalidArgumentException('Ungültiger Dateiname');
+        if ($sha256 !== null && $sha256 !== '') {
+            $path = $this->centralPath($sha256);
+            if (is_file($path)) {
+                return $path;
+            }
         }
-        $path = $this->directory($layoutId) . '/' . $filename;
-        if (!is_file($path)) {
-            throw new \InvalidArgumentException('Vorlage nicht gefunden');
+        if ($layoutId !== null && $filename === 'template.pdf') {
+            $legacy = $this->directory($layoutId) . '/template.pdf';
+            if (is_file($legacy)) {
+                return $legacy;
+            }
         }
-
-        return $path;
+        throw new \InvalidArgumentException('Vorlage nicht gefunden');
     }
 
-    public function deleteTemplate(string $layoutId): void
+    public function deleteIfUnreferenced(string $sha256, int $remainingRefs): void
     {
-        $path = $this->directory($layoutId) . '/template.pdf';
+        if ($remainingRefs > 0) {
+            return;
+        }
+        $path = $this->centralPath($sha256);
         if (is_file($path)) {
             unlink($path);
         }

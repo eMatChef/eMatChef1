@@ -65,6 +65,23 @@ final class PrintCatalogService
         return $membership !== null && PrintCatalogVisibility::isManagerRole($membership->getRole());
     }
 
+    public function isPrintManager(User $user): bool
+    {
+        if (PrintCatalogVisibility::isReviewer($user->getRoles())) {
+            return true;
+        }
+        $memberships = $this->entityManager->getRepository(Membership::class)->findBy([
+            'userId' => $user->getId(),
+        ]);
+        foreach ($memberships as $membership) {
+            if ($membership instanceof Membership && PrintCatalogVisibility::isManagerRole($membership->getRole())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function isDepartmentMember(User $user, string $departmentId): bool
     {
         if (PrintCatalogVisibility::isReviewer($user->getRoles())) {

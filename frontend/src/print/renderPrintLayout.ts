@@ -1,4 +1,5 @@
 import type { PrintLayout, PrintLayoutField, PrintSheetCell, PrintSheetSpec } from '@/api/printLayouts'
+import { sheetCellForItem, sheetPageCount } from '@/print/sheetPlacement'
 
 export type LayoutSample = {
   label: string
@@ -34,6 +35,23 @@ export function fieldRect(field: PrintLayoutField, cell: PrintSheetCell): {
     w: (field.w / 100) * cell.w,
     h: (field.h / 100) * cell.h,
   }
+}
+
+function fieldText(field: PrintLayoutField, item: LayoutSample): string {
+  if (field.key === 'public_code') return item.public_code
+  if (field.key === 'public_url') return item.public_url
+  return item.label
+}
+
+function textLines(text: string): string[] {
+  const lines = text.split(/\n/).map((line) => line.trim()).filter(Boolean)
+  return lines.length ? lines : [' ']
+}
+
+function textFontSize(height: number, lineCount: number, min = 10, max = 32): number {
+  const fromHeight = Math.round(height * 0.32)
+  const fromLines = Math.round(height / Math.max(1, lineCount * 1.25))
+  return Math.max(min, Math.min(max, fromHeight, fromLines))
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -87,19 +105,25 @@ export async function renderLayoutCellToCanvas(
     const y = (field.y / 100) * canvas.height
     const w = (field.w / 100) * canvas.width
     const h = (field.h / 100) * canvas.height
-    if (field.type === 'qr' && item.public_url) {
-      const dataUrl = await QRCode.toDataURL(item.public_url, { margin: 0, width: 512 })
-      const img = await loadImage(dataUrl)
-      const size = Math.min(w, h)
-      ctx.drawImage(img, x, y + (h - size) / 2, size, size)
-    } else {
-      const text =
-        field.key === 'public_code' ? item.public_code : field.key === 'public_url' ? item.public_url : item.label
-      ctx.fillStyle = '#111827'
-      ctx.font = `${Math.max(10, Math.round(h * 0.32))}px sans-serif`
-      ctx.textBaseline = 'top'
-      ctx.fillText(text || ' ', x + 2, y + 2, Math.max(8, w - 4))
+    if (field.type === 'qr') {
+      if (item.public_url) {
+        const dataUrl = await QRCode.toDataURL(item.public_url, { margin: 0, width: 512 })
+        const img = await loadImage(dataUrl)
+        const size = Math.min(w, h)
+        ctx.drawImage(img, x, y + (h - size) / 2, size, size)
+      }
+      continue
     }
+    const text = fieldText(field, item)
+    const lines = textLines(text)
+    const fontSize = textFontSize(h, lines.length)
+    ctx.fillStyle = '#111827'
+    ctx.font = `${fontSize}px sans-serif`
+    ctx.textBaseline = 'top'
+    const maxW = Math.max(8, w - 4)
+    lines.forEach((line, index) => {
+      ctx.fillText(line, x + 2, y + 2 + index * fontSize * 1.15, maxW)
+    })
   }
   return canvas
 }
@@ -114,10 +138,7 @@ export async function buildLayoutPdf(options: {
   const QRCode = (await import('qrcode')).default
   const spec = options.layout.sheet
   const cells = options.layout.cells
-  const start = Math.max(0, Math.min(options.startIndex, Math.max(0, cells.length - 1)))
-  const usable = cells.slice(start)
-  const perPage = usable.length
-  const pagesNeeded = Math.max(1, Math.ceil(options.items.length / perPage))
+  const pagesNeeded = sheetPageCount(options.items.length, cells.length, options.startIndex)
   const mm = (v: number) => (v * 72) / 25.4
 
   let pdf: Awaited<ReturnType<typeof PDFDocument.create>>
@@ -142,9 +163,10 @@ export async function buildLayoutPdf(options: {
 
   for (let i = 0; i < options.items.length; i += 1) {
     const item = options.items[i]
-    const pageIndex = Math.floor(i / perPage)
-    const cell = usable[i % perPage]
-    const page = pdf.getPage(pageIndex)
+    const place = sheetCellForItem(i, cells.length, options.startIndex)
+    const cell = cells[place.cellIndex]
+    if (!cell) continue
+    const page = pdf.getPage(place.pageIndex)
     const pageH = page.getHeight() || pageHeight
     for (const field of options.layout.fields) {
       const rect = fieldRect(field, cell)
@@ -152,23 +174,28 @@ export async function buildLayoutPdf(options: {
       const y = pageH - mm(rect.y + rect.h)
       const w = mm(rect.w)
       const h = mm(rect.h)
-      if (field.type === 'qr' && item.public_url) {
-        const dataUrl = await QRCode.toDataURL(item.public_url, { margin: 0, width: 512 })
-        const png = await pdf.embedPng(dataUrl)
-        const size = Math.min(w, h)
-        page.drawImage(png, { x, y: y + (h - size) / 2, width: size, height: size })
-      } else {
-        const text = field.key === 'public_code' ? item.public_code : field.key === 'public_url' ? item.public_url : item.label
-        const size = Math.max(6, Math.min(11, h * 0.35))
-        page.drawText(text || ' ', {
+      if (field.type === 'qr') {
+        if (item.public_url) {
+          const dataUrl = await QRCode.toDataURL(item.public_url, { margin: 0, width: 512 })
+          const png = await pdf.embedPng(dataUrl)
+          const size = Math.min(w, h)
+          page.drawImage(png, { x, y: y + (h - size) / 2, width: size, height: size })
+        }
+        continue
+      }
+      const text = fieldText(field, item)
+      const lines = textLines(text)
+      const size = textFontSize(h, lines.length, 6, 11)
+      lines.forEach((line, index) => {
+        page.drawText(line, {
           x: x + 1,
-          y: y + h - size - 1,
+          y: y + h - size - 1 - index * size * 1.15,
           size,
           font,
           color: rgb(0.1, 0.1, 0.12),
           maxWidth: Math.max(8, w - 2),
         })
-      }
+      })
     }
   }
 

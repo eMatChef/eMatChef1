@@ -1,4 +1,3 @@
-import type { PrintCartItem } from '@/api/tasks'
 import { fetchPrintLayoutTemplateBytes, type PrintLayout } from '@/api/printLayouts'
 import { printCanvasToBrotherQl } from '@/print/brotherQlUsb'
 import {
@@ -9,6 +8,12 @@ import {
   sampleFromUnknown,
 } from '@/print/renderPrintLayout'
 
+type LayoutPrintRow = {
+  label?: string
+  public_url?: string
+  public_code?: string | null
+}
+
 export function isBrotherQlLayout(layout: PrintLayout): boolean {
   return layout.media.family === 'brother_ql'
 }
@@ -16,7 +21,7 @@ export function isBrotherQlLayout(layout: PrintLayout): boolean {
 export async function downloadCartLayoutPdf(
   departmentId: string,
   layout: PrintLayout,
-  items: PrintCartItem[],
+  items: LayoutPrintRow[],
   startIndex: number,
   printAfter = false,
 ): Promise<void> {
@@ -36,7 +41,7 @@ export async function downloadCartLayoutPdf(
 export async function printCartLayoutToQl(
   device: USBDevice,
   layout: PrintLayout,
-  items: PrintCartItem[],
+  items: LayoutPrintRow[],
 ): Promise<void> {
   for (const item of items) {
     const canvas = await renderLayoutCellToCanvas(layout, sampleFromUnknown(item), 0)
