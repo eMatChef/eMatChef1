@@ -675,7 +675,7 @@ final class GrossanlassGmailAccountService
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ANTWORT);
         }
         if ($threadId !== '') {
-            $this->applyRepliedLabels($department, $account, $token, $inquiry, $threadId);
+            $this->applyInquiryStatusLabels($department, $account, $token, $inquiry, $threadId);
         }
     }
 
