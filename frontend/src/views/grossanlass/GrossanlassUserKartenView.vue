@@ -23,15 +23,6 @@
         >
           {{ t('grossanlass.chain.printAllCards', { count: bulkRows.length }) }}
         </EButton>
-        <EButton
-          v-if="unprinted.length"
-          variant="text"
-          size="small"
-          :loading="carting"
-          @click="addUnprintedToCart"
-        >
-          {{ t('grossanlass.chain.addCardsToPrintCart', { count: unprinted.length }) }}
-        </EButton>
     </div>
 
     <EDialog v-model="showHelperDialog" :max-width="480" :title="t('grossanlass.planung.ressorts.helperHeading')">
@@ -100,9 +91,6 @@
                 <EButton variant="secondary" size="small" @click.stop="printOne(card)">
                   {{ t('grossanlass.chain.printCard') }}
                 </EButton>
-                <EButton variant="text" size="small" :loading="cartId === card.user_id" @click.stop="addOneToCart(card)">
-                  {{ t('grossanlass.chain.addCardToPrintCart') }}
-                </EButton>
               </div>
             </td>
           </tr>
@@ -165,15 +153,14 @@ import {
 import { driveClassLabelKey } from '@/views/grossanlass/grossanlassDriveCategories'
 import { resolveUserCardPublicUrl } from '@/utils/publicQrUrl'
 import { usePrintJob } from '@/composables/usePrintJob'
-import { usePrintCart } from '@/composables/usePrintCart'
 import { USER_CARD_PRINT_CONTENT } from '@/print/layoutFields'
+import type { PrintJobItem } from '@/print/printJob'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const toast = useToast()
 const { openPrint } = usePrintJob()
-const { addItems: addToPrintCart } = usePrintCart()
 const cards = ref<GrossanlassUserCard[]>([])
 const groups = ref<GrossanlassGroup[]>([])
 const previewId = ref('')
@@ -182,8 +169,6 @@ const error = ref('')
 const showHelperDialog = ref(false)
 const showDriveDialog = ref(false)
 const driveCardId = ref('')
-const carting = ref(false)
-const cartId = ref('')
 const selectedIds = ref<string[]>([])
 
 const departmentId = computed(
@@ -197,7 +182,6 @@ const previewQrUrl = computed(() => {
   if (!row) return ''
   return resolveUserCardPublicUrl(row.qr_url, row.code)
 })
-const unprinted = computed(() => cards.value.filter((row) => !row.printed))
 const bulkRows = computed(() => {
   if (!selectedIds.value.length) return cards.value
   const picked = new Set(selectedIds.value)
@@ -276,12 +260,13 @@ function cardPublicUrl(card: GrossanlassUserCard): string {
   return resolveUserCardPublicUrl(card.qr_url, card.code)
 }
 
-function cardPrintItem(card: GrossanlassUserCard) {
+function cardPrintItem(card: GrossanlassUserCard): PrintJobItem {
   const drive = driveSummary(card)
-  return {
+  const url = cardPublicUrl(card)
+  const item: PrintJobItem = {
     label: card.name,
     public_code: card.code,
-    public_url: cardPublicUrl(card),
+    public_url: url,
     extras: {
       event: card.event_name,
       ressort: card.ressort,
@@ -289,6 +274,17 @@ function cardPrintItem(card: GrossanlassUserCard) {
       drive,
     },
   }
+  if (departmentId.value) {
+    item.cart = {
+      department_id: departmentId.value,
+      entity_type: 'user_card',
+      entity_id: card.user_id,
+      label: `${card.name} · ${card.ressort}`,
+      public_code: card.code,
+      public_url: url,
+    }
+  }
+  return item
 }
 
 async function markPrinted(rows: GrossanlassUserCard[]) {
@@ -334,42 +330,6 @@ function printBulk() {
       }
     },
   })
-}
-
-async function addOneToCart(card: GrossanlassUserCard) {
-  if (!departmentId.value) return
-  cartId.value = card.user_id
-  try {
-    await addToPrintCart([{
-      department_id: departmentId.value,
-      entity_type: 'user_card',
-      entity_id: card.user_id,
-      label: `${card.name} · ${card.ressort}`,
-      public_code: card.code,
-      public_url: cardPublicUrl(card),
-    }])
-  } finally {
-    cartId.value = ''
-  }
-}
-
-async function addUnprintedToCart() {
-  if (!departmentId.value) return
-  carting.value = true
-  try {
-    await addToPrintCart(
-      unprinted.value.map((card) => ({
-        department_id: departmentId.value,
-        entity_type: 'user_card',
-        entity_id: card.user_id,
-        label: `${card.name} · ${card.ressort}`,
-        public_code: card.code,
-        public_url: cardPublicUrl(card),
-      })),
-    )
-  } finally {
-    carting.value = false
-  }
 }
 
 onMounted(() => {

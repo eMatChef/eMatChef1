@@ -996,7 +996,6 @@
       :code="selectedTicket?.public_code"
       :url="workshopPublicUrl"
       @close="closeWorkshopQrActionModal"
-      @add-to-print-cart="handleWorkshopQrAddToPrintCart"
       @print="handleWorkshopQrPrint"
     />
 
@@ -1046,7 +1045,6 @@ import { parseSearchQuery, type SearchSuggestion } from '@/composables/useSearch
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { usePrintJob } from '@/composables/usePrintJob'
-import { usePrintCart } from '@/composables/usePrintCart'
 import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
 import {
   getTicketDisplayPhase,
@@ -1107,7 +1105,6 @@ const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
 const { openPrint } = usePrintJob()
-const { addItems: addToPrintCart } = usePrintCart()
 const { confirm: confirmDialog } = useConfirm()
 const currentDepartmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
@@ -1601,24 +1598,6 @@ function closeWorkshopQrActionModal() {
   showWorkshopQrActionModal.value = false
 }
 
-async function handleWorkshopQrAddToPrintCart() {
-  const ticket = selectedTicket.value
-  const url = workshopPublicUrl.value
-  if (!ticket?.id || !url || !currentDepartmentId.value) {
-    toast.info(t('workshop.toastNoPublicLink'))
-    return
-  }
-  const ok = await addToPrintCart([{
-    department_id: currentDepartmentId.value,
-    entity_type: 'workshop',
-    entity_id: ticket.id,
-    label: ticket.title || t('workshop.title'),
-    public_code: ticket.public_code || null,
-    public_url: url,
-  }])
-  if (ok) closeWorkshopQrActionModal()
-}
-
 async function handleWorkshopQrPrint() {
   const ticket = selectedTicket.value
   const url = workshopPublicUrl.value
@@ -1626,12 +1605,21 @@ async function handleWorkshopQrPrint() {
     toast.info(t('workshop.toastNoPublicLink'))
     return
   }
+  const label = ticket.title || t('workshop.fallbackTabLabel', { id: ticket.id })
   openPrint({
     departmentId: currentDepartmentId.value,
     items: [{
-      label: ticket.title || t('workshop.fallbackTabLabel', { id: ticket.id }),
+      label,
       public_code: ticket.public_code || null,
       public_url: url,
+      cart: ticket.id && currentDepartmentId.value ? {
+        department_id: currentDepartmentId.value,
+        entity_type: 'workshop',
+        entity_id: ticket.id,
+        label,
+        public_code: ticket.public_code || null,
+        public_url: url,
+      } : undefined,
     }],
     kind: 'label',
   })

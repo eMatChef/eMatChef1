@@ -16,8 +16,13 @@
       </EEmptyState>
     </template>
     <template v-else>
-      <section class="card">
-        <h3>{{ t('grossanlass.planung.struktur.inviteTitle') }}</h3>
+      <v-expansion-panels v-model="openSetup" multiple class="ga-setup-accordions">
+        <v-expansion-panel value="invite">
+          <v-expansion-panel-title>
+            {{ t('grossanlass.planung.struktur.inviteTitle') }}
+            <span v-if="canAddGuests" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
         <p class="hint">{{ t('grossanlass.planung.struktur.inviteHint') }}</p>
         <ul v-if="hierarchicalRessorts.length" class="invite-list">
           <li
@@ -45,10 +50,20 @@
             {{ t('grossanlass.planung.struktur.openRessorts') }}
           </router-link>
         </p>
-      </section>
+        <div v-if="pack?.can_manage && wizardStep === 'invite'" class="setup-next">
+          <EButton variant="primary" size="small" :disabled="!canAddGuests || saving" @click="goInviteNext">
+            {{ t('common.next') }}
+          </EButton>
+        </div>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
 
-      <section class="card">
-        <h3>{{ t('grossanlass.planung.struktur.modusTitle') }}</h3>
+        <v-expansion-panel value="modus">
+          <v-expansion-panel-title>
+            {{ t('grossanlass.planung.struktur.modusTitle') }}
+            <span v-if="wizardStep === 'done'" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
         <p class="hint">{{ t('grossanlass.planung.struktur.modusLead') }}</p>
         <div class="modus-grid">
           <button
@@ -65,9 +80,16 @@
           </button>
         </div>
         <p class="example">{{ t(`grossanlass.planung.struktur.modusExample${cap(pack?.config.struktur_modus || 'offen')}`) }}</p>
-      </section>
+        <div v-if="pack?.can_manage && wizardStep === 'modus'" class="setup-next">
+          <EButton variant="primary" size="small" :disabled="saving" @click="goModusNext">
+            {{ t('common.next') }}
+          </EButton>
+        </div>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
 
-      <section class="card">
+      <section v-if="wizardStep === 'done'" class="card">
         <h3>{{ t('grossanlass.planung.struktur.participantsTitle') }}</h3>
         <p class="hint">{{ t('grossanlass.planung.struktur.participantsLater') }}</p>
         <p v-if="!canAddGuests" class="hint">{{ t('grossanlass.planung.struktur.inviteNeeded') }}</p>
@@ -168,6 +190,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { EButton } from '@/components/form/base'
 import {
   addGrossanlassParticipant,
   getGrossanlassPlanung,
@@ -202,6 +225,8 @@ const searching = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
 const openParticipants = ref<string[]>([])
 const participantFilter = ref('')
+const wizardStep = ref<'invite' | 'modus' | 'done'>('invite')
+const openSetup = ref<string[]>(['invite'])
 
 type ParticipantNode = {
   id: string
@@ -219,6 +244,27 @@ const hasGuestDepartments = computed(
 )
 const inviteSet = computed(() => new Set(pack.value?.config.invite_group_ids ?? []))
 const canAddGuests = computed(() => inviteSet.value.size > 0)
+
+function applyWizardFromData() {
+  if ((pack.value?.config.invite_group_ids ?? []).length > 0) {
+    wizardStep.value = 'done'
+    openSetup.value = []
+    return
+  }
+  wizardStep.value = 'invite'
+  openSetup.value = ['invite']
+}
+
+function goInviteNext() {
+  if (!canAddGuests.value) return
+  wizardStep.value = 'modus'
+  openSetup.value = ['modus']
+}
+
+function goModusNext() {
+  wizardStep.value = 'done'
+  openSetup.value = []
+}
 
 const hierarchicalRessorts = computed(() =>
   flattenTreeWithLevel(
@@ -302,6 +348,7 @@ async function load() {
   error.value = ''
   try {
     pack.value = await getGrossanlassPlanung(departmentId.value)
+    applyWizardFromData()
     openParticipants.value = (pack.value.participants ?? []).map((row) => row.department_id)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -393,6 +440,32 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 .card h3 { margin: 0 0 10px; font-size: 0.95rem; }
+.ga-setup-accordions { margin-bottom: 14px; }
+.ga-setup-accordions :deep(.v-expansion-panel) {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px !important;
+  margin-bottom: 8px;
+}
+.ga-setup-accordions :deep(.v-expansion-panel-title) {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.setup-badge {
+  margin-left: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.setup-badge.is-done {
+  background: #dcfce7;
+  color: #166534;
+}
+.setup-next {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
 .head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
 .head h3 { margin: 0; }
 .head a { font-size: 0.85rem; color: #166534; }

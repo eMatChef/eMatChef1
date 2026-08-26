@@ -863,7 +863,6 @@
       :image-label="activity?.name"
       :image-entity-id="activity?.id"
       @close="closeActivityQrActionModal"
-      @add-to-print-cart="handleActivityQrAddToPrintCart"
       @print="handleActivityQrPrint"
     />
   </div>
@@ -918,7 +917,6 @@ import DamageReportWizard from '@/components/DamageReportWizard.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
 import { usePrintJob } from '@/composables/usePrintJob'
-import { usePrintCart } from '@/composables/usePrintCart'
 import { useAuthStore } from '@/stores/auth'
 import type { ConsumptionModalPreset } from '@/components/activities/ActivityConsumptionModal.vue'
 import type { ActivityMaterialLine } from '@/composables/useActivityCreateWizard'
@@ -1025,7 +1023,6 @@ function mergeActivityQuery(updates: Record<string, string | undefined>) {
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
 const { openPrint } = usePrintJob()
-const { addItems: addToPrintCart } = usePrintCart()
 const smAndUp = useSmAndUp()
 const detailDisplayClasses = useDisplayHostClasses('activity-detail-view')
 const pageHeadStore = usePageHeadStore()
@@ -2701,24 +2698,6 @@ function closeActivityQrActionModal() {
   showActivityQrActionModal.value = false
 }
 
-async function handleActivityQrAddToPrintCart() {
-  const act = activity.value
-  const url = activityPublicUrl.value
-  if (!act?.id || !url) {
-    toast.info(t('activities.detail.toastNoPublicLink'))
-    return
-  }
-  const ok = await addToPrintCart([{
-    department_id: props.departmentId,
-    entity_type: 'activity',
-    entity_id: act.id,
-    label: act.name || t('activities.detail.fallbackTitle'),
-    public_code: act.public_code || null,
-    public_url: url,
-  }])
-  if (ok) closeActivityQrActionModal()
-}
-
 async function handleActivityQrPrint() {
   const url = activityPublicUrl.value
   const act = activity.value
@@ -2726,12 +2705,21 @@ async function handleActivityQrPrint() {
     toast.info(t('activities.detail.toastNoPublicLink'))
     return
   }
+  const label = act.name || t('activities.detail.fallbackTitle')
   openPrint({
     departmentId: props.departmentId,
     items: [{
-      label: act.name || t('activities.detail.fallbackTitle'),
+      label,
       public_code: act.public_code || null,
       public_url: url,
+      cart: act.id ? {
+        department_id: props.departmentId,
+        entity_type: 'activity',
+        entity_id: act.id,
+        label,
+        public_code: act.public_code || null,
+        public_url: url,
+      } : undefined,
     }],
     kind: 'label',
   })

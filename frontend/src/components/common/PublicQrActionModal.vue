@@ -51,9 +51,6 @@
         >
           {{ t('common.print') }}
         </EButton>
-        <EButton variant="secondary" block @click="emit('add-to-print-cart')">
-          {{ t('components.publicQrAction.btnAddToPrintCart') }}
-        </EButton>
         <EButton v-if="hasUrl" variant="secondary" block @click="onOpenLink">
           {{ t('components.publicQrAction.btnOpenQrPage') }}
         </EButton>
@@ -76,9 +73,6 @@
       <div class="modal-actions">
         <button type="button" class="btn-secondary btn-sm" @click="emit('close')">
           {{ t('common.cancel') }}
-        </button>
-        <button type="button" class="btn-outline btn-sm" @click="emit('add-to-print-cart')">
-          {{ t('components.publicQrAction.btnAddToPrintCart') }}
         </button>
         <button v-if="hasUrl" type="button" class="btn-outline btn-sm" @click="onOpenLink">
           {{ t('components.publicQrAction.btnOpenQrPage') }}
@@ -129,7 +123,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   close: []
-  'add-to-print-cart': []
   print: []
 }>()
 

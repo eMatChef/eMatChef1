@@ -23,6 +23,8 @@ export interface DepartmentCalendarPeriod {
   name: string
   start_date: string
   end_date: string
+  start_time?: string
+  end_time?: string
   created_by_user_id: string | null
   created_at: string
   updated_at: string
@@ -33,6 +35,8 @@ export interface CalendarPeriodPayload {
   name: string
   start_date: string
   end_date: string
+  start_time: string
+  end_time: string
 }
 
 export async function listDepartmentCalendarPeriods(
@@ -80,4 +84,14 @@ export async function deleteDepartmentCalendarPeriod(
   await apiClient.delete(
     `/api/departments/${encodeURIComponent(departmentId)}/calendar-periods/${encodeURIComponent(periodId)}`,
   )
+}
+
+export function calendarPeriodTime(value: string | null | undefined, fallback: string): string {
+  const raw = (value || '').trim()
+  if (/^\d{2}:\d{2}/.test(raw)) return raw.slice(0, 5)
+  return fallback
+}
+
+export function calendarPeriodSortStamp(dateIso: string, timeIso: string | null | undefined, fallback: string): string {
+  return `${dateIso}T${calendarPeriodTime(timeIso, fallback)}`
 }

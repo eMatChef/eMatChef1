@@ -75,7 +75,7 @@ class DepartmentCalendarPeriodController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
         try {
-            [$label, $name, $start, $end] = $this->parsePayload($data, true);
+            [$label, $name, $start, $end, $startTime, $endTime] = $this->parsePayload($data, true);
             $this->assertLabelAllowedForDepartment($department, $label);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
@@ -88,6 +88,8 @@ class DepartmentCalendarPeriodController extends AbstractController
         $period->setName($name);
         $period->setStartDate($start);
         $period->setEndDate($end);
+        $period->setStartTime($startTime);
+        $period->setEndTime($endTime);
         $period->setCreatedByUserId($user->getId());
         $period->setUpdatedAt(new \DateTime());
 
@@ -118,12 +120,14 @@ class DepartmentCalendarPeriodController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
         try {
-            [$label, $name, $start, $end] = $this->parsePayload(
+            [$label, $name, $start, $end, $startTime, $endTime] = $this->parsePayload(
                 array_merge([
                     'label' => $period->getLabel(),
                     'name' => $period->getName(),
                     'start_date' => $period->getStartDate()->format('Y-m-d'),
                     'end_date' => $period->getEndDate()->format('Y-m-d'),
+                    'start_time' => $period->getStartTime()->format('H:i'),
+                    'end_time' => $period->getEndTime()->format('H:i'),
                 ], $data),
                 true,
             );
@@ -136,6 +140,8 @@ class DepartmentCalendarPeriodController extends AbstractController
         $period->setName($name);
         $period->setStartDate($start);
         $period->setEndDate($end);
+        $period->setStartTime($startTime);
+        $period->setEndTime($endTime);
         $period->setUpdatedAt(new \DateTime());
 
         $this->entityManager->flush();
@@ -175,6 +181,8 @@ class DepartmentCalendarPeriodController extends AbstractController
             'name' => $period->getName(),
             'start_date' => $period->getStartDate()->format('Y-m-d'),
             'end_date' => $period->getEndDate()->format('Y-m-d'),
+            'start_time' => $period->getStartTime()->format('H:i'),
+            'end_time' => $period->getEndTime()->format('H:i'),
             'created_by_user_id' => $period->getCreatedByUserId(),
             'created_at' => $period->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $period->getUpdatedAt()->format(\DateTimeInterface::ATOM),
@@ -184,7 +192,7 @@ class DepartmentCalendarPeriodController extends AbstractController
     /**
      * @param array<string, mixed> $data
      *
-     * @return array{0: string, 1: string, 2: \DateTimeImmutable, 3: \DateTimeImmutable}
+     * @return array{0: string, 1: string, 2: \DateTimeImmutable, 3: \DateTimeImmutable, 4: \DateTimeImmutable, 5: \DateTimeImmutable}
      */
     private function parsePayload(array $data, bool $requireAll): array
     {
@@ -192,6 +200,8 @@ class DepartmentCalendarPeriodController extends AbstractController
         $name = isset($data['name']) ? trim((string) $data['name']) : '';
         $startRaw = isset($data['start_date']) ? trim((string) $data['start_date']) : '';
         $endRaw = isset($data['end_date']) ? trim((string) $data['end_date']) : '';
+        $startTimeRaw = isset($data['start_time']) ? trim((string) $data['start_time']) : '00:00';
+        $endTimeRaw = isset($data['end_time']) ? trim((string) $data['end_time']) : '23:59';
 
         if ($requireAll && ($label === '' || $name === '' || $startRaw === '' || $endRaw === '')) {
             throw new \InvalidArgumentException('label, name, start_date und end_date sind erforderlich');
@@ -207,12 +217,16 @@ class DepartmentCalendarPeriodController extends AbstractController
 
         $start = $this->parseDate($startRaw, 'start_date');
         $end = $this->parseDate($endRaw, 'end_date');
+        $startTime = $this->parseTime($startTimeRaw, 'start_time');
+        $endTime = $this->parseTime($endTimeRaw, 'end_time');
 
-        if ($start > $end) {
-            throw new \InvalidArgumentException('start_date darf nicht nach end_date liegen');
+        $startAt = $start->setTime((int) $startTime->format('H'), (int) $startTime->format('i'), 0);
+        $endAt = $end->setTime((int) $endTime->format('H'), (int) $endTime->format('i'), 0);
+        if ($startAt > $endAt) {
+            throw new \InvalidArgumentException('Beginn darf nicht nach Ende liegen');
         }
 
-        return [$label, $name, $start, $end];
+        return [$label, $name, $start, $end, $startTime, $endTime];
     }
 
     private function assertLabelAllowedForDepartment(Department $department, string $label): void
@@ -239,6 +253,23 @@ class DepartmentCalendarPeriodController extends AbstractController
         }
 
         return $d;
+    }
+
+    private function parseTime(string $raw, string $field): \DateTimeImmutable
+    {
+        if ($raw === '') {
+            throw new \InvalidArgumentException($field.' ist erforderlich');
+        }
+        $normalized = strlen($raw) === 5 ? $raw.':00' : $raw;
+        $t = \DateTimeImmutable::createFromFormat('H:i:s', $normalized);
+        if (!$t || $t->format('H:i:s') !== $normalized) {
+            $t = \DateTimeImmutable::createFromFormat('H:i', $raw);
+        }
+        if (!$t) {
+            throw new \InvalidArgumentException($field.' muss HH:MM sein');
+        }
+
+        return $t;
     }
 
     private function requireMember(string $departmentId): true|JsonResponse

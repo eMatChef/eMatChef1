@@ -17,7 +17,7 @@ export interface ActivityDatePresetItem {
 }
 
 function presetEndDate(value: ActivityDatePresetValue): Date {
-  return startOfLocalDay(value instanceof Date ? value : value[1])
+  return value instanceof Date ? value : value[1]
 }
 
 /** Preset ausblenden, wenn der Zeitraum ganz in der Vergangenheit liegt. */
@@ -32,8 +32,17 @@ export function filterValidActivityDatePresets(
 }
 
 function parseIsoDateLocal(iso: string): Date {
-  const [y, m, d] = iso.split('-').map(Number)
+  const day = iso.slice(0, 10)
+  const [y, m, d] = day.split('-').map(Number)
   return startOfLocalDay(new Date(y, m - 1, d))
+}
+
+function applyClock(day: Date, hhmm: string | undefined, fallback: string): Date {
+  const raw = (hhmm && /^\d{2}:\d{2}/.test(hhmm) ? hhmm : fallback).slice(0, 5)
+  const [h, min] = raw.split(':').map(Number)
+  const next = new Date(day.getTime())
+  next.setHours(h || 0, min || 0, 0, 0)
+  return next
 }
 
 /** Schnellauswahl: Material-Department */
@@ -59,9 +68,9 @@ export function calendarPeriodRangePresets(
 
   for (const row of periods) {
     if (!allowed.has(row.label)) continue
-    const end = parseIsoDateLocal(row.end_date)
+    const end = applyClock(parseIsoDateLocal(row.end_date), row.end_time, '23:59')
     if (end.getTime() < today.getTime()) continue
-    const start = parseIsoDateLocal(row.start_date)
+    const start = applyClock(parseIsoDateLocal(row.start_date), row.start_time, '00:00')
     items.push({
       label: `${labelForType(row.label)}: ${row.name}`,
       value: [start, end],

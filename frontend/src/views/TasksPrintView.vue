@@ -19,16 +19,6 @@
           <button
             type="button"
             class="print-subtab"
-            :class="{ 'print-subtab--on': panel === 'devices' }"
-            role="tab"
-            :aria-selected="panel === 'devices'"
-            @click="panel = 'devices'"
-          >
-            {{ t('tasksPrint.tabDevices') }}
-          </button>
-          <button
-            type="button"
-            class="print-subtab"
             :class="{ 'print-subtab--on': panel === 'layouts' }"
             role="tab"
             :aria-selected="panel === 'layouts'"
@@ -65,8 +55,7 @@
       </div>
     </div>
 
-    <DepartmentPrintSettingsPanel v-if="panel === 'devices'" :department-id="departmentId" sections="devices" />
-    <PrintLayoutEditor v-else-if="panel === 'layouts'" :department-id="departmentId" />
+    <PrintLayoutEditor v-if="panel === 'layouts'" :department-id="departmentId" />
 
     <template v-else>
     <div v-if="isLoading" class="loading-state">
@@ -130,7 +119,6 @@ import { usePrintCart } from '@/composables/usePrintCart'
 import { clearPrintCart, deletePrintCartItem, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
 import StorageLocationQrPdfDialog from '@/components/storage/StorageLocationQrPdfDialog.vue'
 import MaterialCategoryQrPdfDialog from '@/components/material/MaterialCategoryQrPdfDialog.vue'
-import DepartmentPrintSettingsPanel from '@/components/print/DepartmentPrintSettingsPanel.vue'
 import PrintLayoutEditor from '@/components/print/PrintLayoutEditor.vue'
 import PrintCartQueueHint from '@/components/print/PrintCartQueueHint.vue'
 import type { PrintJobItem } from '@/print/printJob'
@@ -143,7 +131,7 @@ const { t } = useI18n()
 const isLoading = ref(false)
 const showStorageQrPdfDialog = ref(false)
 const showMaterialQrPdfDialog = ref(false)
-const panel = ref<'cart' | 'devices' | 'layouts'>('cart')
+const panel = ref<'cart' | 'layouts'>('cart')
 const items = ref<PrintCartItem[]>([])
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
