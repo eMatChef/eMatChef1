@@ -173,6 +173,11 @@ class DepartmentGrossanlassInquiry
         return $this;
     }
 
+    public function isReadyForMail(): bool
+    {
+        return $this->email !== '' && $this->categoryIds !== [];
+    }
+
     public function getStatus(): string
     {
         return $this->status;

@@ -52,6 +52,19 @@ class GrossanlassInquiryController extends AbstractController
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->inquiries->importTips($department, $user));
     }
 
+    #[Route('/import-csv', name: 'import_csv', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function importCsv(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $csv = (string) ($data['csv'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->importCsv($department, $user, $csv),
+        );
+    }
+
     #[Route('/mark-sent', name: 'mark_sent', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function markSent(string $departmentId, Request $request): JsonResponse
@@ -80,6 +93,61 @@ class GrossanlassInquiryController extends AbstractController
     public function syncGmail(string $departmentId): JsonResponse
     {
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->syncInbox($department, $user));
+    }
+
+    #[Route('/unmatched', name: 'unmatched_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function unmatchedList(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->listUnmatched($department, $user));
+    }
+
+    #[Route('/unmatched/{unmatchedId}/assign', name: 'unmatched_assign', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function unmatchedAssign(string $departmentId, string $unmatchedId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $inquiryId = (string) ($data['inquiry_id'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->assignUnmatched($department, $user, $unmatchedId, $inquiryId),
+        );
+    }
+
+    #[Route('/unmatched/{unmatchedId}/discard', name: 'unmatched_discard', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function unmatchedDiscard(string $departmentId, string $unmatchedId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->discardUnmatched($department, $user, $unmatchedId),
+        );
+    }
+
+    #[Route('/unmatched/{unmatchedId}/to-inquiry', name: 'unmatched_to_inquiry', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function unmatchedToInquiry(string $departmentId, string $unmatchedId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->unmatchedToInquiry($department, $user, $unmatchedId, $data),
+        );
+    }
+
+    #[Route('/{inquiryId}/reply-draft', name: 'reply_draft', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function replyDraft(string $departmentId, string $inquiryId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $kind = (string) ($data['kind'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->createReplyDraft($department, $user, $inquiryId, $kind),
+        );
     }
 
     #[Route('/{inquiryId}/reply', name: 'reply', methods: ['POST'])]

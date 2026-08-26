@@ -15,15 +15,23 @@
       <EButton variant="primary" size="small" @click="showHelperDialog = true">
         {{ t('grossanlass.planung.ressorts.helperHeading') }}
       </EButton>
-      <EButton
-        v-if="cards.length > 0"
-        variant="secondary"
-        size="small"
-        :disabled="!unprinted.length"
-        @click="printAll"
-      >
-        {{ t('grossanlass.chain.printAllCards', { count: unprinted.length }) }}
-      </EButton>
+        <EButton
+          v-if="cards.length > 0"
+          variant="secondary"
+          size="small"
+          @click="printBulk"
+        >
+          {{ t('grossanlass.chain.printAllCards', { count: bulkRows.length }) }}
+        </EButton>
+        <EButton
+          v-if="unprinted.length"
+          variant="text"
+          size="small"
+          :loading="carting"
+          @click="addUnprintedToCart"
+        >
+          {{ t('grossanlass.chain.addCardsToPrintCart', { count: unprinted.length }) }}
+        </EButton>
     </div>
 
     <EDialog v-model="showHelperDialog" :max-width="480" :title="t('grossanlass.planung.ressorts.helperHeading')">
@@ -41,6 +49,15 @@
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-check">
+              <input
+                type="checkbox"
+                :checked="allSelected"
+                :indeterminate="partialSelected"
+                :aria-label="t('grossanlass.chain.selectAllCards')"
+                @click.stop.prevent="toggleAll"
+              >
+            </th>
             <th>{{ t('grossanlass.chain.colPerson') }}</th>
             <th>{{ t('grossanlass.chain.colRessort') }}</th>
             <th>{{ t('grossanlass.chain.colCard') }}</th>
@@ -55,6 +72,14 @@
             :class="{ 'is-active': previewId === card.user_id }"
             @click="previewId = card.user_id"
           >
+            <td class="col-check" @click.stop>
+              <input
+                type="checkbox"
+                :checked="selectedIds.includes(card.user_id)"
+                :aria-label="card.name"
+                @change="toggleSelected(card.user_id)"
+              >
+            </td>
             <td>
               <strong>{{ card.name }}</strong>
               <span class="meta">{{ card.role }} · {{ card.code }}</span>
@@ -71,9 +96,14 @@
               </button>
             </td>
             <td>
-              <EButton variant="secondary" size="small" :disabled="card.printed" @click.stop="printOne(card.user_id)">
-                {{ t('grossanlass.chain.printCard') }}
-              </EButton>
+              <div class="row-actions">
+                <EButton variant="secondary" size="small" @click.stop="printOne(card)">
+                  {{ t('grossanlass.chain.printCard') }}
+                </EButton>
+                <EButton variant="text" size="small" :loading="cartId === card.user_id" @click.stop="addOneToCart(card)">
+                  {{ t('grossanlass.chain.addCardToPrintCart') }}
+                </EButton>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -129,17 +159,21 @@ import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
   getGrossanlassUserCards,
-  printMissingGrossanlassUserCards,
   updateGrossanlassUserCard,
   type GrossanlassUserCard,
 } from '@/api/grossanlassUserCards'
 import { driveClassLabelKey } from '@/views/grossanlass/grossanlassDriveCategories'
 import { resolveUserCardPublicUrl } from '@/utils/publicQrUrl'
+import { usePrintJob } from '@/composables/usePrintJob'
+import { usePrintCart } from '@/composables/usePrintCart'
+import { USER_CARD_PRINT_CONTENT } from '@/print/layoutFields'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const toast = useToast()
+const { openPrint } = usePrintJob()
+const { addItems: addToPrintCart } = usePrintCart()
 const cards = ref<GrossanlassUserCard[]>([])
 const groups = ref<GrossanlassGroup[]>([])
 const previewId = ref('')
@@ -148,6 +182,9 @@ const error = ref('')
 const showHelperDialog = ref(false)
 const showDriveDialog = ref(false)
 const driveCardId = ref('')
+const carting = ref(false)
+const cartId = ref('')
+const selectedIds = ref<string[]>([])
 
 const departmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
@@ -161,6 +198,27 @@ const previewQrUrl = computed(() => {
   return resolveUserCardPublicUrl(row.qr_url, row.code)
 })
 const unprinted = computed(() => cards.value.filter((row) => !row.printed))
+const bulkRows = computed(() => {
+  if (!selectedIds.value.length) return cards.value
+  const picked = new Set(selectedIds.value)
+  return cards.value.filter((row) => picked.has(row.user_id))
+})
+const allSelected = computed(
+  () => cards.value.length > 0 && selectedIds.value.length === cards.value.length,
+)
+const partialSelected = computed(
+  () => selectedIds.value.length > 0 && selectedIds.value.length < cards.value.length,
+)
+
+function toggleSelected(userId: string) {
+  selectedIds.value = selectedIds.value.includes(userId)
+    ? selectedIds.value.filter((id) => id !== userId)
+    : [...selectedIds.value, userId]
+}
+
+function toggleAll() {
+  selectedIds.value = allSelected.value ? [] : cards.value.map((row) => row.user_id)
+}
 const driveCard = computed(
   () => cards.value.find((row) => row.user_id === driveCardId.value) ?? null,
 )
@@ -214,24 +272,103 @@ function replaceCard(next: GrossanlassUserCard) {
   cards.value = cards.value.map((row) => (row.user_id === next.user_id ? next : row))
 }
 
-async function printOne(userId: string) {
-  if (!departmentId.value) return
-  try {
-    replaceCard(await updateGrossanlassUserCard(departmentId.value, userId, { print: true }))
-    previewId.value = userId
-    toast.success(t('grossanlass.chain.cardPrintedToast'))
-  } catch {
-    toast.error(t('grossanlass.chain.cardsSaveError'))
+function cardPublicUrl(card: GrossanlassUserCard): string {
+  return resolveUserCardPublicUrl(card.qr_url, card.code)
+}
+
+function cardPrintItem(card: GrossanlassUserCard) {
+  const drive = driveSummary(card)
+  return {
+    label: card.name,
+    public_code: card.code,
+    public_url: cardPublicUrl(card),
+    extras: {
+      event: card.event_name,
+      ressort: card.ressort,
+      role: card.role,
+      drive,
+    },
   }
 }
 
-async function printAll() {
+async function markPrinted(rows: GrossanlassUserCard[]) {
   if (!departmentId.value) return
+  for (const card of rows) {
+    if (card.printed) continue
+    replaceCard(await updateGrossanlassUserCard(departmentId.value, card.user_id, { print: true }))
+  }
+}
+
+function printOne(card: GrossanlassUserCard) {
+  if (!departmentId.value) return
+  previewId.value = card.user_id
+  openPrint({
+    departmentId: departmentId.value,
+    items: [cardPrintItem(card)],
+    availableFields: USER_CARD_PRINT_CONTENT,
+    kind: 'user_card',
+    onPrinted: async () => {
+      try {
+        await markPrinted([card])
+      } catch {
+        toast.error(t('grossanlass.chain.cardsSaveError'))
+      }
+    },
+  })
+}
+
+function printBulk() {
+  if (!departmentId.value) return
+  const rows = bulkRows.value
+  if (!rows.length) return
+  openPrint({
+    departmentId: departmentId.value,
+    items: rows.map(cardPrintItem),
+    availableFields: USER_CARD_PRINT_CONTENT,
+    kind: 'user_card',
+    onPrinted: async () => {
+      try {
+        await markPrinted(rows)
+      } catch {
+        toast.error(t('grossanlass.chain.cardsSaveError'))
+      }
+    },
+  })
+}
+
+async function addOneToCart(card: GrossanlassUserCard) {
+  if (!departmentId.value) return
+  cartId.value = card.user_id
   try {
-    cards.value = await printMissingGrossanlassUserCards(departmentId.value)
-    toast.success(t('grossanlass.chain.cardPrintedToast'))
-  } catch {
-    toast.error(t('grossanlass.chain.cardsSaveError'))
+    await addToPrintCart([{
+      department_id: departmentId.value,
+      entity_type: 'user_card',
+      entity_id: card.user_id,
+      label: `${card.name} · ${card.ressort}`,
+      public_code: card.code,
+      public_url: cardPublicUrl(card),
+    }])
+  } finally {
+    cartId.value = ''
+  }
+}
+
+async function addUnprintedToCart() {
+  if (!departmentId.value) return
+  carting.value = true
+  try {
+    await addToPrintCart(
+      unprinted.value.map((card) => ({
+        department_id: departmentId.value,
+        entity_type: 'user_card',
+        entity_id: card.user_id,
+        label: `${card.name} · ${card.ressort}`,
+        public_code: card.code,
+        public_url: cardPublicUrl(card),
+      })),
+    )
+  } finally {
+    carting.value = false
   }
 }
 
@@ -244,6 +381,7 @@ onMounted(() => {
 .ga-preview-page { padding: 8px 0 24px; }
 .ga-preview-intro { margin: 0 0 14px; color: #64748b; font-size: 0.9rem; max-width: 640px; }
 .toolbar { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 240px;
@@ -254,6 +392,8 @@ onMounted(() => {
 .data-table th, .data-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; text-align: left; vertical-align: top; }
 .data-table th { background: #f8fafc; }
 .data-table tr { cursor: pointer; }
+.col-check { width: 36px; padding-right: 0; vertical-align: middle; }
+.col-check input { margin: 0; cursor: pointer; }
 .data-table tr.is-active { background: #ecfdf3; }
 .meta { display: block; color: #64748b; font-size: 0.75rem; margin-top: 2px; }
 .chip { font-size: 0.72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #ffedd5; color: #c2410c; }

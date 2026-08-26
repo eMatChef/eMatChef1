@@ -1,6 +1,5 @@
 <template>
   <div class="ga-preview-page">
-    <GrossanlassPreviewBanner />
     <p class="ga-preview-intro">{{ t(introKey) }}</p>
     <div class="ga-preview-actions">
       <EButton variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
@@ -15,19 +14,21 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import GrossanlassMaterialsPreviewTable from '@/views/grossanlass/GrossanlassMaterialsPreviewTable.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
 import { EButton } from '@/components/form/base'
+import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { GaMaterialsTabId } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
-import type { GaZusageArticle } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { commitmentTabs } from '@/views/grossanlass/grossanlassCommitmentMap'
+import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const createOpen = ref(false)
+const catalog = useGaCommitmentCatalog()
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
@@ -47,15 +48,17 @@ const createPreset = computed<Partial<GaZusageCreateDraft>>(() => ({
   origin: tab.value === 'eigen' ? 'buy' : 'loan',
 }))
 
-function onCreated(article: GaZusageArticle) {
+function onCreated(row: GrossanlassCommitment) {
+  catalog.upsert(row)
   const id = departmentId.value
   if (!id) return
-  const from = article.tabs.includes('fahrzeuge')
+  const tabs = commitmentTabs(row)
+  const from = tabs.includes('fahrzeuge')
     ? 'fahrzeuge'
-    : article.tabs.includes('leihweise')
+    : tabs.includes('leihweise')
       ? 'leihweise'
       : 'eigen'
-  void router.push({ path: `/${id}/materialien/artikel/${article.id}`, query: { from } })
+  void router.push({ path: `/${id}/materialien/artikel/${row.id}`, query: { from } })
 }
 </script>
 

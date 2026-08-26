@@ -93,6 +93,29 @@
       >
         ↷
       </button>
+      <template v-if="insertTokens.length">
+        <span class="tiptap-tb-sep" />
+        <select
+          class="tiptap-tb-select"
+          :aria-label="t('tiptap.placeholderMenu')"
+          :value="''"
+          @change="onInsertToken"
+        >
+          <option value="" disabled>{{ t('tiptap.placeholderMenu') }}</option>
+          <option v-for="item in insertTokens" :key="item.token" :value="item.token">
+            {{ item.label }}
+          </option>
+        </select>
+        <button
+          v-if="allowCustomTokens"
+          type="button"
+          class="tiptap-tb-btn"
+          :title="t('tiptap.placeholderAdd')"
+          @click="emit('addCustomToken')"
+        >
+          {{ t('tiptap.placeholderAdd') }}
+        </button>
+      </template>
     </div>
     <input
       ref="imageInput"
@@ -122,12 +145,15 @@ const props = withDefaults(
     modelValue: string
     placeholder?: string
     disabled?: boolean
+    insertTokens?: { token: string; label: string }[]
+    allowCustomTokens?: boolean
   }>(),
-  { placeholder: undefined, disabled: false }
+  { placeholder: undefined, disabled: false, insertTokens: () => [], allowCustomTokens: false }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  addCustomToken: []
 }>()
 
 const { t } = useI18n()
@@ -181,6 +207,22 @@ watch(
   },
   { immediate: true }
 )
+
+function onInsertToken(event: Event) {
+  const select = event.target as HTMLSelectElement
+  const token = select.value.trim()
+  select.value = ''
+  insertToken(token)
+}
+
+function insertToken(token: string) {
+  const ed = editor.value
+  const name = token.trim()
+  if (!ed || !name) return
+  ed.chain().focus().insertContent('{{' + name + '}}').run()
+}
+
+defineExpose({ insertToken })
 
 function setLink() {
   const ed = editor.value
@@ -398,6 +440,18 @@ function onPasteEvent(event: Event) {
   height: 1.25rem;
   background: #cbd5e1;
   margin: 0 4px;
+}
+
+.tiptap-tb-select {
+  max-width: 11rem;
+  height: 2rem;
+  padding: 0 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .tiptap-content :deep(.tiptap) {

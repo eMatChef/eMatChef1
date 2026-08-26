@@ -1,8 +1,6 @@
 <template>
   <div class="ga-preview-page">
-    <GrossanlassPreviewBanner />
     <p class="ga-preview-intro">{{ t('grossanlass.chain.returnIntro') }}</p>
-
     <table class="data-table">
       <thead>
         <tr>
@@ -36,6 +34,7 @@
         </tr>
       </tbody>
     </table>
+    <p v-if="!returns.length" class="empty">{{ t('grossanlass.chain.issueEmpty') }}</p>
   </div>
 </template>
 
@@ -43,17 +42,22 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import { EButton } from '@/components/form/base'
-import { listFirmReturns, markReturned } from '@/views/grossanlass/grossanlassChainPreviewStore'
+import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 
 const { t } = useI18n()
 const toast = useToast()
-const returns = computed(() => listFirmReturns())
+const uebersicht = useGaUebersicht()
+const returns = computed(() => uebersicht.data.value?.returns ?? [])
 
-function onReturn(id: string) {
-  markReturned(id)
-  toast.success(t('grossanlass.chain.returnedToast'))
+async function onReturn(id: string) {
+  try {
+    await uebersicht.markReturned(id)
+    toast.success(t('grossanlass.chain.returnedToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
 }
 </script>
 
@@ -65,4 +69,5 @@ function onReturn(id: string) {
 .data-table th { background: #f8fafc; }
 .chip { font-size: 0.72rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #ffedd5; color: #c2410c; }
 .chip.ok { background: #dcfce7; color: #166534; }
+.empty { margin-top: 12px; color: #64748b; }
 </style>

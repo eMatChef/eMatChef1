@@ -4,8 +4,41 @@
       <div class="header-left">
         <span class="print-panel-label">{{ t('common.print') }}</span>
         <span class="subtitle">{{ t('tasksPrint.subtitle') }}</span>
+        <PrintCartQueueHint class="print-queue-hint" />
+        <div class="print-subtabs" role="tablist">
+          <button
+            type="button"
+            class="print-subtab"
+            :class="{ 'print-subtab--on': panel === 'cart' }"
+            role="tab"
+            :aria-selected="panel === 'cart'"
+            @click="panel = 'cart'"
+          >
+            {{ t('tasksPrint.tabCart') }}
+          </button>
+          <button
+            type="button"
+            class="print-subtab"
+            :class="{ 'print-subtab--on': panel === 'devices' }"
+            role="tab"
+            :aria-selected="panel === 'devices'"
+            @click="panel = 'devices'"
+          >
+            {{ t('tasksPrint.tabDevices') }}
+          </button>
+          <button
+            type="button"
+            class="print-subtab"
+            :class="{ 'print-subtab--on': panel === 'layouts' }"
+            role="tab"
+            :aria-selected="panel === 'layouts'"
+            @click="panel = 'layouts'"
+          >
+            {{ t('tasksPrint.tabLayouts') }}
+          </button>
+        </div>
       </div>
-      <div class="header-right">
+      <div v-if="panel === 'cart'" class="header-right">
         <button
           class="btn-outline btn-sm"
           :disabled="isLoading"
@@ -32,15 +65,20 @@
       </div>
     </div>
 
+    <DepartmentPrintSettingsPanel v-if="panel === 'devices'" :department-id="departmentId" sections="devices" />
+    <PrintLayoutEditor v-else-if="panel === 'layouts'" :department-id="departmentId" />
+
+    <template v-else>
     <div v-if="isLoading" class="loading-state">
       <div class="spinner"></div>
       <p>{{ t('common.loading') }}</p>
     </div>
-    <div v-else-if="items.length === 0" class="empty-state">
-      <h3>{{ t('tasksPrint.emptyTitle') }}</h3>
-      <p>{{ t('tasksPrint.emptyDescription') }}</p>
-    </div>
-    <div v-else class="tasks-table-wrapper">
+    <template v-else>
+      <div v-if="items.length === 0" class="empty-state">
+        <h3>{{ t('tasksPrint.emptyTitle') }}</h3>
+        <p>{{ t('tasksPrint.emptyDescription') }}</p>
+      </div>
+      <div v-else class="tasks-table-wrapper">
       <table class="tasks-table">
         <thead>
           <tr>
@@ -65,7 +103,9 @@
           </tr>
         </tbody>
       </table>
-    </div>
+      </div>
+    </template>
+    </template>
 
     <StorageLocationQrPdfDialog
       v-model="showStorageQrPdfDialog"
@@ -84,29 +124,37 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import QRCode from 'qrcode'
 import { useToast } from '@/composables/useToast'
+import { usePrintJob } from '@/composables/usePrintJob'
+import { usePrintCart } from '@/composables/usePrintCart'
 import { clearPrintCart, deletePrintCartItem, getPrintCartItems, markPrintCartItemPrinted, type PrintCartItem } from '@/api/tasks'
-import { printHtmlDocument } from '@/utils/printHtml'
 import StorageLocationQrPdfDialog from '@/components/storage/StorageLocationQrPdfDialog.vue'
 import MaterialCategoryQrPdfDialog from '@/components/material/MaterialCategoryQrPdfDialog.vue'
+import DepartmentPrintSettingsPanel from '@/components/print/DepartmentPrintSettingsPanel.vue'
+import PrintLayoutEditor from '@/components/print/PrintLayoutEditor.vue'
+import PrintCartQueueHint from '@/components/print/PrintCartQueueHint.vue'
+import type { PrintJobItem } from '@/print/printJob'
 
 const route = useRoute()
 const toast = useToast()
+const { openPrint } = usePrintJob()
+const { setCount: setPrintCartCount } = usePrintCart()
 const { t } = useI18n()
 const isLoading = ref(false)
 const showStorageQrPdfDialog = ref(false)
 const showMaterialQrPdfDialog = ref(false)
+const panel = ref<'cart' | 'devices' | 'layouts'>('cart')
 const items = ref<PrintCartItem[]>([])
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
-function escapeHtml(raw: string): string {
-  return String(raw || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+function toPrintItem(item: PrintCartItem): PrintJobItem | null {
+  const url = String(item.public_url || '').trim()
+  if (!url) return null
+  return {
+    label: item.label,
+    public_code: item.public_code,
+    public_url: url,
+  }
 }
 
 async function load() {
@@ -114,9 +162,11 @@ async function load() {
   isLoading.value = true
   try {
     items.value = await getPrintCartItems(departmentId.value)
+    setPrintCartCount(items.value.length)
   } catch (err: any) {
     toast.error(err?.response?.data?.error || t('tasksPrint.errors.loadCart'))
     items.value = []
+    setPrintCartCount(0)
   } finally {
     isLoading.value = false
   }
@@ -133,33 +183,23 @@ function formatDate(value: string): string {
   return new Date(value).toLocaleString('de-CH')
 }
 
-async function printOne(item: PrintCartItem) {
-  if (!item.public_url) return
-  const qr = await QRCode.toDataURL(item.public_url, { width: 300, margin: 1 })
-  printHtmlDocument(`<!doctype html><html><head><meta charset="utf-8" />
-  <style>body{font-family:Arial,sans-serif;margin:20px}.card{max-width:360px;border:1px solid #d1d5db;border-radius:10px;padding:14px;text-align:center}img{width:240px;height:240px;object-fit:contain}.title{margin-top:10px;font-weight:700}.code{margin-top:4px;font-family:monospace;color:#4b5563}</style>
-  </head><body><div class="card"><img src="${qr}" alt="${escapeHtml(t('tasksPrint.printHtml.qrAlt'))}" /><div class="title">${escapeHtml(item.label)}</div><div class="code">${escapeHtml(item.public_code || t('tasksPrint.codeFallback'))}</div></div></body></html>`)
+function printOne(item: PrintCartItem) {
+  const row = toPrintItem(item)
+  if (!row || !departmentId.value) {
+    toast.info(t('tasksPrint.noPublicUrl'))
+    return
+  }
+  openPrint({ departmentId: departmentId.value, items: [row], kind: 'label' })
 }
 
-async function printAll() {
-  const rows = await Promise.all(
-    items.value.map(async (item) => ({
-      item,
-      qr: item.public_url ? await QRCode.toDataURL(item.public_url, { width: 220, margin: 1 }) : '',
-    }))
-  )
-  const cards = rows
-    .filter(({ item }) => item.public_url)
-    .map(({ item, qr }) => `
-    <div class="card">
-      <img src="${qr}" alt="${escapeHtml(t('tasksPrint.printHtml.qrAlt'))}" />
-      <div class="title">${escapeHtml(item.label)}</div>
-      <div class="code">${escapeHtml(item.public_code || t('tasksPrint.codeFallback'))}</div>
-    </div>
-  `).join('')
-  printHtmlDocument(`<!doctype html><html><head><meta charset="utf-8" />
-  <style>body{font-family:Arial,sans-serif;margin:18px}h1{margin:0 0 14px;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}.card{border:1px solid #d1d5db;border-radius:10px;padding:10px;text-align:center;page-break-inside:avoid}img{width:160px;height:160px;object-fit:contain}.title{margin-top:8px;font-weight:700;font-size:13px}.code{margin-top:4px;font-family:monospace;color:#4b5563;font-size:12px}</style>
-  </head><body><h1>${escapeHtml(t('tasksPrint.printHtml.bulkTitle'))}</h1><div class="grid">${cards}</div></body></html>`)
+function printAll() {
+  if (!departmentId.value) return
+  const rows = items.value.map(toPrintItem).filter((row): row is PrintJobItem => !!row)
+  if (!rows.length) {
+    toast.info(t('tasksPrint.noPublicUrl'))
+    return
+  }
+  openPrint({ departmentId: departmentId.value, items: rows, kind: 'label' })
 }
 
 function openStorageQrPdfDialog() {
@@ -173,6 +213,7 @@ function openMaterialQrPdfDialog() {
 async function markPrinted(id: string) {
   await markPrintCartItemPrinted(id)
   items.value = items.value.filter((x) => x.id !== id)
+  setPrintCartCount(items.value.length)
 }
 
 async function markAllAsPrinted() {
@@ -181,17 +222,20 @@ async function markAllAsPrinted() {
     await markPrintCartItemPrinted(id)
   }
   items.value = []
+  setPrintCartCount(0)
 }
 
 async function removeItem(id: string) {
   await deletePrintCartItem(id)
   items.value = items.value.filter((x) => x.id !== id)
+  setPrintCartCount(items.value.length)
 }
 
 async function clearAll() {
   if (!departmentId.value) return
   await clearPrintCart(departmentId.value)
   items.value = []
+  setPrintCartCount(0)
 }
 
 onMounted(load)
@@ -208,6 +252,31 @@ onMounted(load)
   font-weight: 600;
   color: #111827;
   margin-bottom: 2px;
+}
+
+.print-queue-hint {
+  margin-top: 4px;
+}
+
+.print-subtabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.print-subtab {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.print-subtab--on {
+  border-color: #10b981;
+  background: #ecfdf3;
+  font-weight: 600;
 }
 
 .tasks-actions-cell {

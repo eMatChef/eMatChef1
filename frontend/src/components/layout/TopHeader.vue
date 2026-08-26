@@ -738,7 +738,7 @@ import { useConfirm } from '../../composables/useConfirm'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
   getPendingDepartmentActivityInvites,
-  decideDepartmentActivityInvite,
+  decidePendingDepartmentInvite,
   getReceivedDepartmentInvites,
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
@@ -1816,8 +1816,8 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
   )
   decrementUnreadCount()
   try {
-    await decideDepartmentActivityInvite({
-      activityId: invite.activity_id,
+    await decidePendingDepartmentInvite({
+      invite,
       departmentId: deptId,
       decision,
     })

@@ -302,27 +302,32 @@ export function zusageOccupancyBars(
   const mw = t('grossanlass.materialUebersicht.sampleWho3')
   const rows: GaPreviewEinsatz[] = []
   for (const article of articles) {
-    rows.push(occupancyBar(
-      article,
-      'handover',
-      `${article.id}-handover`,
-      article.handoverFromIso,
-      article.handoverToIso,
-      mw,
-      article.name,
-      locale,
-    ))
-    rows.push(occupancyBar(
-      article,
-      'giveback',
-      `${article.id}-return`,
-      article.returnFromIso,
-      article.returnToIso,
-      mw,
-      article.name,
-      locale,
-    ))
+    if (article.handoverFromIso && article.handoverToIso) {
+      rows.push(occupancyBar(
+        article,
+        'handover',
+        `${article.id}-handover`,
+        article.handoverFromIso,
+        article.handoverToIso,
+        mw,
+        article.name,
+        locale,
+      ))
+    }
+    if (article.returnFromIso && article.returnToIso) {
+      rows.push(occupancyBar(
+        article,
+        'giveback',
+        `${article.id}-return`,
+        article.returnFromIso,
+        article.returnToIso,
+        mw,
+        article.name,
+        locale,
+      ))
+    }
     for (const service of article.services) {
+      if (!service.fromIso || !service.toIso) continue
       rows.push({
         ...occupancyBar(
           article,

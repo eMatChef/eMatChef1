@@ -1,6 +1,5 @@
 <template>
   <div class="ga-preview-page">
-    <GrossanlassPreviewBanner />
     <p class="ga-preview-intro">{{ t('grossanlass.materialUebersicht.konflikteIntro') }}</p>
 
     <div v-if="conflicts.length" class="ga-conflicts">
@@ -32,34 +31,22 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
-import { createGrossanlassEinsatzPreview } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 
 const { t } = useI18n()
+const uebersicht = useGaUebersicht()
 
-function tr(key: string, values?: Record<string, string | number>): string {
-  return values ? String(t(key, values)) : String(t(key))
-}
-
-const preview = computed(() => createGrossanlassEinsatzPreview(tr))
-const conflicts = computed(() => preview.value.conflicts)
+const conflicts = computed(() => uebersicht.data.value?.conflicts ?? [])
 const conflictRows = computed(() =>
-  preview.value.einsaetze.filter((row) => !!row.conflictId),
+  uebersicht.bookingRows().filter((row) => !!row.conflictId),
 )
 </script>
 
 <style scoped>
 .ga-preview-page { padding: 4px 0 24px; }
 .ga-preview-intro { margin: 0 0 16px; color: var(--color-text-muted, #6b7280); font-size: 0.9rem; }
-
-.ga-conflicts {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 18px;
-}
-
+.ga-conflicts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .ga-conflict-card {
   display: flex;
   gap: 12px;
@@ -69,20 +56,7 @@ const conflictRows = computed(() =>
   border-radius: 10px;
   background: var(--color-error-bg);
 }
-
-.ga-conflict-card__icon {
-  color: var(--color-error);
-  margin-top: 2px;
-}
-
-.ga-conflict-card__title {
-  margin: 0 0 4px;
-  font-size: 0.95rem;
-}
-
-.ga-conflict-card__text {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--color-error);
-}
+.ga-conflict-card__icon { color: var(--color-error); margin-top: 2px; }
+.ga-conflict-card__title { margin: 0 0 4px; font-size: 0.95rem; }
+.ga-conflict-card__text { margin: 0; font-size: 0.85rem; color: var(--color-error); }
 </style>

@@ -16,6 +16,7 @@ export interface GrossanlassProcurementPoolWish {
   group_id: string
   group_name: string
   wish_kind: GrossanlassWishKind
+  last_stage?: 'grob' | 'fein' | string | null
   label: string
   quantity: number
   location: string
@@ -126,11 +127,42 @@ export interface GrossanlassProcurementBundleSuggestion {
   wishes: GrossanlassProcurementPoolWish[]
 }
 
+export interface GrossanlassCollectorAnswer {
+  label: string
+  value: string
+}
+
+export interface GrossanlassCollectorItem {
+  id: string
+  form_purpose: 'company_tip' | 'free' | string
+  round_id: string
+  round_name: string
+  group_id: string
+  group_name: string
+  label: string
+  quantity: number
+  location: string
+  notes?: string | null
+  email?: string
+  suggested_categories: string[]
+  answers: GrossanlassCollectorAnswer[]
+  created_by_name: string
+  created_at: string
+}
+
+export interface GrossanlassCollectorRoundOption {
+  id: string
+  name: string
+}
+
 export interface GrossanlassBedarfOverview {
   pool: GrossanlassProcurementPoolWish[]
   lines: GrossanlassProcurementLine[]
   categories: GrossanlassProcurementCategory[]
   suggestions: GrossanlassProcurementBundleSuggestion[]
+  company_tips?: GrossanlassCollectorItem[]
+  free_ideas?: GrossanlassCollectorItem[]
+  material_rounds?: GrossanlassCollectorRoundOption[]
 }
 
 export interface GrossanlassProcurementOverview {
@@ -168,6 +200,46 @@ export interface GrossanlassProcurementOverview {
 export async function getGrossanlassBedarfOverview(departmentId: string): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.get<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/bedarf`,
+  )
+  return response.data
+}
+
+export async function assignGrossanlassCollectorToInquiry(
+  departmentId: string,
+  wishId: string,
+  data: Partial<{ name: string; email: string; place: string; category_ids: string[] }> = {},
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/to-inquiry`,
+    data,
+  )
+  return response.data
+}
+
+export async function assignGrossanlassCollectorToMaterial(
+  departmentId: string,
+  wishId: string,
+  data: Partial<{
+    target_round_id: string
+    label: string
+    quantity: number
+    location: string
+    wish_kind: GrossanlassWishKind
+  }> = {},
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/to-material`,
+    data,
+  )
+  return response.data
+}
+
+export async function discardGrossanlassCollectorItem(
+  departmentId: string,
+  wishId: string,
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/discard`,
   )
   return response.data
 }

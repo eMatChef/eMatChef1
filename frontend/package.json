@@ -30,6 +30,8 @@
     "axios": "^1.19.0",
     "dompurify": "^3.4.13",
     "leaflet": "^1.9.4",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.7.284",
     "pinia": "^2.1.7",
     "proj4": "^2.20.8",
     "proj4leaflet": "^1.0.2",

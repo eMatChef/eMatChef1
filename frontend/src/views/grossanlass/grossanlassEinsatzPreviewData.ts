@@ -358,6 +358,7 @@ export type GaPreviewWishTemplate = {
   bauprojekt?: string
   who: string
   hasConflict: boolean
+  groupId?: string | null
 }
 
 export function createGrossanlassWishBookingTemplates(t: Translate): GaPreviewWishTemplate[] {

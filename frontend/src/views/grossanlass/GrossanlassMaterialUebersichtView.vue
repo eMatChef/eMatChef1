@@ -12,7 +12,6 @@
         {{ t('grossanlass.materialUebersicht.actionOrder') }}
       </EButton>
     </template>
-
     <template #filters>
       <v-tabs
         :model-value="activeTab"
@@ -24,7 +23,6 @@
         <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id">
           <v-icon :icon="tab.icon" start size="18" />
           {{ tab.label }}
-          <span v-if="tab.badge" class="materials-view-tab-count">{{ tab.badge }}</span>
         </v-tab>
       </v-tabs>
     </template>
@@ -44,7 +42,8 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { EButton } from '@/components/form/base'
 import PageShell from '@/components/layout/PageShell.vue'
-import { createGrossanlassEinsatzPreview } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import {
   gaEinsatzComposerKey,
   type GaEinsatzComposer,
@@ -56,33 +55,25 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 
+provideGaCommitmentCatalog()
+provideGaUebersicht()
+
 const einsatzComposer = reactive<GaEinsatzComposer>({
   open: () => {},
 })
 provide(gaEinsatzComposerKey, einsatzComposer)
 
-function tr(key: string, values?: Record<string, string | number>): string {
-  return values ? String(t(key, values)) : String(t(key))
-}
-
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const conflictCount = computed(() => createGrossanlassEinsatzPreview(tr).conflicts.length)
-
 const tabItems = computed(() => [
-  { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse', badge: '' },
-  { id: 'einsaetze', label: t('grossanlass.materialUebersicht.tabEinsaetze'), icon: 'mdi-calendar-range', badge: '' },
-  {
-    id: 'konflikte',
-    label: t('grossanlass.materialUebersicht.tabKonflikte'),
-    icon: 'mdi-alert-outline',
-    badge: String(conflictCount.value),
-  },
-  { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant', badge: '' },
-  { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed', badge: '' },
-  { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return', badge: '' },
+  { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
+  { id: 'einsaetze', label: t('grossanlass.materialUebersicht.tabEinsaetze'), icon: 'mdi-calendar-range' },
+  { id: 'konflikte', label: t('grossanlass.materialUebersicht.tabKonflikte'), icon: 'mdi-alert-outline' },
+  { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
+  { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed' },
+  { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return' },
 ])
 
 const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')

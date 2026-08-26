@@ -29,6 +29,7 @@ class GrossanlassProcurementService
         private GrossanlassAccessService $access,
         private GrossanlassProcurementQuoteStorageService $quoteStorage,
         private GrossanlassProcurementQuotePdfTextService $quotePdfText,
+        private GrossanlassAnswerCollectorService $collector,
     ) {}
 
     /**
@@ -36,7 +37,10 @@ class GrossanlassProcurementService
      *     pool: list<array<string, mixed>>,
      *     lines: list<array<string, mixed>>,
      *     categories: list<array<string, mixed>>,
-     *     suggestions: list<array<string, mixed>>
+     *     suggestions: list<array<string, mixed>>,
+     *     company_tips: list<array<string, mixed>>,
+     *     free_ideas: list<array<string, mixed>>,
+     *     material_rounds: list<array{id: string, name: string}>
      * }
      */
     public function getBedarfOverview(Department $department, User $user): array
@@ -44,13 +48,51 @@ class GrossanlassProcurementService
         $this->assertCanManageProcurement($department, $user);
 
         $pool = $this->listPoolWishes($department);
+        $inbox = $this->collector->listInbox($department, $user);
 
         return [
             'pool' => $pool,
             'lines' => $this->listLines($department),
             'categories' => $this->listCategoryArrays($department),
             'suggestions' => $this->enrichSuggestions($pool),
+            'company_tips' => $inbox['company_tips'],
+            'free_ideas' => $inbox['free_ideas'],
+            'material_rounds' => $inbox['material_rounds'],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function collectorToInquiry(Department $department, User $user, string $wishId, array $data): array
+    {
+        $this->collector->assignToInquiry($department, $user, $wishId, $data);
+
+        return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function collectorToMaterial(Department $department, User $user, string $wishId, array $data): array
+    {
+        $this->collector->assignToMaterial($department, $user, $wishId, $data);
+
+        return $this->getBedarfOverview($department, $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function collectorDiscard(Department $department, User $user, string $wishId): array
+    {
+        $this->collector->discard($department, $user, $wishId);
+
+        return $this->getBedarfOverview($department, $user);
     }
 
     /**
@@ -355,6 +397,54 @@ class GrossanlassProcurementService
         $this->entityManager->flush();
 
         return $this->categoryToArray($category);
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    public function ensureTopLevelCategories(Department $department, User $user, array $names): int
+    {
+        $this->assertCanManageProcurement($department, $user);
+        $existing = [];
+        $maxSort = 0;
+        foreach ($this->loadCategories($department) as $row) {
+            if ($row->getParentId() !== null) {
+                continue;
+            }
+            $existing[mb_strtolower($row->getName(), 'UTF-8')] = true;
+            $maxSort = max($maxSort, $row->getSortOrder());
+        }
+        $created = 0;
+        foreach ($names as $raw) {
+            try {
+                $name = $this->requireCategoryName($raw);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+            $key = mb_strtolower($name, 'UTF-8');
+            if (isset($existing[$key])) {
+                continue;
+            }
+            $category = new ActivityGrossanlassProcurementCategory();
+            $category->setId(GrossanlassIdGenerator::unique(
+                $this->entityManager,
+                GrossanlassIdGenerator::PROCUREMENT_CATEGORY,
+                ActivityGrossanlassProcurementCategory::class,
+            ));
+            $category->setDepartment($department);
+            $category->setParent(null);
+            $category->setName($name);
+            $maxSort += 10;
+            $category->setSortOrder($maxSort);
+            $this->entityManager->persist($category);
+            $existing[$key] = true;
+            ++$created;
+        }
+        if ($created > 0) {
+            $this->entityManager->flush();
+        }
+
+        return $created;
     }
 
     /**

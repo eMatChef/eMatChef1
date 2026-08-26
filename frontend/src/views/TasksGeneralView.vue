@@ -143,7 +143,7 @@ import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import {
   acceptDepartmentInvite,
   declineDepartmentInvite,
-  decideDepartmentActivityInvite,
+  decidePendingDepartmentInvite,
   markReceivedDepartmentInviteRead,
   type GrossanlassMwAssignedNotification,
   type GrossanlassRoundOpenedNotification,
@@ -451,8 +451,8 @@ async function decideCamp(invite: PendingDepartmentActivityInvite, decision: 'ac
     return
   }
   try {
-    await decideDepartmentActivityInvite({
-      activityId: invite.activity_id,
+    await decidePendingDepartmentInvite({
+      invite,
       departmentId: departmentId.value,
       decision,
     })

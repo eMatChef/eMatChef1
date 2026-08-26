@@ -2,7 +2,7 @@
   <div class="ga-preview-table-block">
     <MaterialJourneyScanBar
       v-model="searchQuery"
-      :loading="false"
+      :loading="loading"
       :session-log="[]"
       :suggestions="scanSuggestions"
       label-key="grossanlass.materials.scanLabel"
@@ -12,7 +12,9 @@
       @select-suggestion="onSelectSuggestion"
     />
 
-    <div v-if="display.mdAndUp" class="materials-table-wrapper mt-4">
+    <ELoadingState v-if="loading" variant="inline" :message="t('common.loading')" />
+
+    <div v-else-if="display.mdAndUp" class="materials-table-wrapper mt-4">
       <v-data-table
         class="material-list-dt__table"
         :headers="headers"
@@ -142,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, inject, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
@@ -151,10 +153,10 @@ import MaterialJourneyScanBar, {
   type MaterialJourneyScanSuggestion,
 } from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
 import MaterialSandboxMobileList from '@/views/dev/MaterialSandboxMobileList.vue'
-import {
-  mergedMaterialsCatalog,
-} from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { gaUebersichtKey } from '@/views/grossanlass/gaUebersicht'
 import {
   findPreviewRowByCode,
   searchPreviewRows,
@@ -171,7 +173,7 @@ const props = defineProps<{
   tab: GaMaterialsTabId
 }>()
 
-const { t, locale } = useI18n()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -184,9 +186,21 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const catalog = computed(() => mergedMaterialsCatalog((key) => t(key), locale.value))
+const { loading, rows } = useGaCommitmentCatalog()
+const uebersicht = inject(gaUebersichtKey, null)
 
-const tabItems = computed(() => catalog.value.filter((row) => row.tabs.includes(props.tab)))
+const tabItems = computed(() => {
+  const issued = uebersicht?.data.value?.issued_by_object ?? {}
+  return rows.value
+    .filter((row) => row.tabs.includes(props.tab))
+    .map((row) => {
+      const out = issued[row.id] ?? row.issued_out
+      const available = row.releasedForEinsatz === false
+        ? 0
+        : Math.max(0, row.total_stock - out)
+      return { ...row, issued_out: out, available }
+    })
+})
 
 const filteredItems = computed(() => searchPreviewRows(tabItems.value, searchQuery.value))
 

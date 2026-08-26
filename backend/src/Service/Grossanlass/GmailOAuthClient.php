@@ -12,6 +12,7 @@ final class GmailOAuthClient
 {
     private const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+    private const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
     private const USERINFO_URL = 'https://openidconnect.googleapis.com/v1/userinfo';
 
     /** Drafts anlegen, Labels, Inbox lesen (Antwort-Sync). */
@@ -46,8 +47,25 @@ final class GmailOAuthClient
         $configured = trim($gmailRedirectUri);
         $this->redirectUri = $configured !== ''
             ? $configured
-            : $this->frontendBaseUrl . '/api/auth/google/gmail/callback';
+            : $this->defaultRedirectUri();
         unset($loginRedirectUri);
+    }
+
+    /**
+     * Google Cloud erlaubt kein *.test — lokal Callback auf Loopback (Port wie docker-compose backend).
+     */
+    private function defaultRedirectUri(): string
+    {
+        $host = strtolower((string) parse_url($this->frontendBaseUrl, PHP_URL_HOST));
+        $private = $host === 'localhost'
+            || $host === '127.0.0.1'
+            || str_ends_with($host, '.localhost')
+            || str_ends_with($host, '.test');
+        if ($private) {
+            return 'http://127.0.0.1:8081/api/auth/google/gmail/callback';
+        }
+
+        return $this->frontendBaseUrl . '/api/auth/google/gmail/callback';
     }
 
     public function isConfigured(): bool
@@ -131,6 +149,21 @@ final class GmailOAuthClient
             'access_token' => $accessToken,
             'expires_in' => (int) ($tokenData['expires_in'] ?? 3600),
         ];
+    }
+
+    public function revokeToken(string $token): void
+    {
+        $token = trim($token);
+        if ($token === '' || !$this->isConfigured()) {
+            return;
+        }
+        try {
+            $this->httpClient->request('POST', self::REVOKE_URL, [
+                'headers' => ['Content-Type' => 'application/x-www-form-urlencoded'],
+                'body' => ['token' => $token],
+            ])->getStatusCode();
+        } catch (\Throwable) {
+        }
     }
 
     public function fetchEmail(string $accessToken): string

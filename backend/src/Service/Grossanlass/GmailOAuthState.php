@@ -17,19 +17,21 @@ final class GmailOAuthState
     ) {}
 
     /**
+     * Signierter Blob als Google-`state` — ohne Cookie, damit der Callback
+     * auf 127.0.0.1 landen kann (Google akzeptiert kein .test).
+     *
      * @return array{token: string, cookieValue: string}
      */
     public function issue(string $departmentId, string $userId): array
     {
-        $nonce = bin2hex(random_bytes(16));
         $payload = json_encode([
-            'n' => $nonce,
             'd' => $departmentId,
             'u' => $userId,
             'exp' => time() + self::TTL_SECONDS,
         ], JSON_THROW_ON_ERROR);
+        $token = $this->encode($payload);
 
-        return ['token' => $nonce, 'cookieValue' => $this->encode($payload)];
+        return ['token' => $token, 'cookieValue' => $token];
     }
 
     /**
@@ -37,7 +39,8 @@ final class GmailOAuthState
      */
     public function verify(string $cookieValue, string $returnedState): ?array
     {
-        $parts = explode('.', $cookieValue, 2);
+        $blob = $returnedState !== '' ? $returnedState : $cookieValue;
+        $parts = explode('.', $blob, 2);
         if (count($parts) !== 2) {
             return null;
         }
@@ -54,13 +57,9 @@ final class GmailOAuthState
         if (!is_array($data)) {
             return null;
         }
-        $nonce = $data['n'] ?? null;
         $exp = $data['exp'] ?? null;
         $departmentId = $data['d'] ?? null;
         $userId = $data['u'] ?? null;
-        if (!is_string($nonce) || !hash_equals($nonce, $returnedState)) {
-            return null;
-        }
         if (!is_string($departmentId) || $departmentId === '' || !is_string($userId) || $userId === '') {
             return null;
         }

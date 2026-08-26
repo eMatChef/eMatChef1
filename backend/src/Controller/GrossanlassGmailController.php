@@ -76,6 +76,33 @@ class GrossanlassGmailController extends AbstractController
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->disconnect($department, $user));
     }
 
+    #[Route('/labels', name: 'labels', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function labels(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->labelOverview($department, $user));
+    }
+
+    #[Route('/labels/import', name: 'labels_import', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function labelsImport(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $root = (string) ($data['root'] ?? '');
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->importLabels($department, $user, $root),
+        );
+    }
+
+    #[Route('/labels/sync', name: 'labels_sync', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function labelsSync(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->syncLabels($department, $user));
+    }
+
     #[Route('/templates', name: 'templates', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function templates(string $departmentId): JsonResponse
@@ -93,11 +120,18 @@ class GrossanlassGmailController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
         $templates = is_array($data['templates'] ?? null) ? $data['templates'] : $data;
+        $custom = is_array($data['custom_placeholders'] ?? null) ? $data['custom_placeholders'] : [];
+        $routing = is_array($data['gmail_routing'] ?? null) ? $data['gmail_routing'] : null;
 
-        return $this->handle($departmentId, function (Department $department, User $user) use ($templates) {
+        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom, $routing) {
             $this->gmail->status($department, $user);
 
-            return $this->merge->saveTemplates($department, is_array($templates) ? $templates : []);
+            return $this->merge->saveTemplates(
+                $department,
+                is_array($templates) ? $templates : [],
+                is_array($custom) ? $custom : [],
+                $routing,
+            );
         });
     }
 
@@ -119,6 +153,30 @@ class GrossanlassGmailController extends AbstractController
             }
 
             return $this->merge->preview($department, $inquiry, (string) ($data['kind'] ?? 'anfrage'));
+        });
+    }
+
+    #[Route('/preview-batch', name: 'preview_batch', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function previewBatch(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = is_array($data['inquiry_ids'] ?? null) ? $data['inquiry_ids'] : [];
+
+        return $this->handle($departmentId, function (Department $department, User $user) use ($data, $ids) {
+            $this->gmail->status($department, $user);
+            $kind = (string) ($data['kind'] ?? 'anfrage');
+            $clean = [];
+            foreach ($ids as $id) {
+                if (is_string($id) && $id !== '') {
+                    $clean[] = $id;
+                }
+            }
+            if (count($clean) > 80) {
+                $clean = array_slice($clean, 0, 80);
+            }
+
+            return $this->merge->previewMany($department, $clean, $kind);
         });
     }
 
@@ -149,6 +207,8 @@ class GrossanlassGmailController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage(), 'reason' => $e->reason], 400);
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 500);
         }
     }
 

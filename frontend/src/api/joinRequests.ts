@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import { respondGrossanlassInvite } from './grossanlassPlanung'
 
 export interface MyJoinRequest {
   id: string
@@ -182,6 +183,8 @@ export interface PendingDepartmentActivityInvite {
   source_department_id: string
   source_department_name: string
   invited_at?: string | null
+  participant_id?: string | null
+  kind?: 'activity' | 'grossanlass'
 }
 
 export async function createJoinRequest(options: {
@@ -427,4 +430,27 @@ export async function decideDepartmentActivityInvite(payload: {
     body.group_id = payload.groupId
   }
   await apiClient.patch(`/api/activities/${payload.activityId}/department-invites/decision`, body)
+}
+
+export async function decidePendingDepartmentInvite(payload: {
+  invite: PendingDepartmentActivityInvite
+  departmentId: string
+  decision: 'accepted' | 'rejected'
+  groupId?: string
+}): Promise<void> {
+  if (payload.invite.participant_id) {
+    await respondGrossanlassInvite({
+      guestDepartmentId: payload.departmentId,
+      participantId: payload.invite.participant_id,
+      decision: payload.decision,
+      groupId: payload.groupId,
+    })
+    return
+  }
+  await decideDepartmentActivityInvite({
+    activityId: payload.invite.activity_id,
+    departmentId: payload.departmentId,
+    decision: payload.decision,
+    groupId: payload.groupId,
+  })
 }

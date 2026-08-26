@@ -37,12 +37,17 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import PageShell from '@/components/layout/PageShell.vue'
+import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
+
+provideGaCommitmentCatalog()
+provideGaUebersicht()
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''

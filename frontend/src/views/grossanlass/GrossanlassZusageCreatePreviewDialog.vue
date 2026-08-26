@@ -1,5 +1,5 @@
 <template>
-  <EDialog v-model="open" :title="t('grossanlass.materials.zusage.dialogTitle')" :max-width="680" :retain-focus="false" scrollable>
+  <EDialog v-model="open" :title="t('grossanlass.materials.zusage.dialogTitle')" :max-width="720" :retain-focus="false" scrollable>
     <p class="zusage-hint">{{ t('grossanlass.beschaffung.zusagen.createHint') }}</p>
 
     <ETextField v-model="name" :label="t('grossanlass.materials.zusage.fieldName')" hide-details />
@@ -28,6 +28,25 @@
       :label="t('grossanlass.materials.colPlate')"
       hide-details
     />
+
+    <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionArticle') }}</h3>
+    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.articleHint') }}</p>
+    <div class="zusage-grid">
+      <ETextField v-model="quantity" type="number" :label="t('grossanlass.materials.zusage.fieldQuantity')" hide-details />
+      <ETextField v-model="weight" :label="t('grossanlass.materials.zusage.fieldWeight')" hide-details />
+    </div>
+    <div class="zusage-grid">
+      <ETextField v-model="packUnit" :label="t('grossanlass.materials.zusage.fieldPackUnit')" hide-details />
+      <ETextField v-model="packSize" :label="t('grossanlass.materials.zusage.fieldPackSize')" hide-details />
+    </div>
+    <ETextarea v-model="notes" :label="t('grossanlass.materials.zusage.fieldNotes')" rows="2" hide-details />
+    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.partsHint') }}</p>
+    <div v-for="(part, index) in parts" :key="index" class="zusage-part">
+      <ETextField v-model="part.name" :label="t('grossanlass.materials.zusage.fieldPartName')" hide-details />
+      <ETextField v-model="part.qty" type="number" :label="t('grossanlass.materials.zusage.fieldPartQty')" hide-details />
+      <EButton variant="text" size="small" @click="removePart(index)">{{ t('grossanlass.materials.zusage.removePart') }}</EButton>
+    </div>
+    <EButton variant="secondary" size="small" @click="addPart">{{ t('grossanlass.materials.zusage.addPart') }}</EButton>
 
     <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionPresent') }}</h3>
     <EDateRangeField
@@ -119,21 +138,26 @@ import {
   EDialog,
   ESelect,
   ESwitch,
+  ETextarea,
   ETextField,
   ETimeField,
 } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import type { GaParkServiceKind, GaZusageArticle, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import type { GaParkServiceKind, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
-import { createGrossanlassCommitment } from '@/api/grossanlassCommitments'
+import {
+  createGrossanlassCommitment,
+  type GrossanlassCommitment,
+  type GrossanlassCommitmentPart,
+} from '@/api/grossanlassCommitments'
 
 const open = defineModel<boolean>({ default: false })
 const props = defineProps<{
   preset?: Partial<GaZusageCreateDraft> | null
 }>()
 const emit = defineEmits<{
-  created: [article: GaZusageArticle]
+  created: [article: GrossanlassCommitment]
 }>()
 
 const route = useRoute()
@@ -158,6 +182,12 @@ const returnDate = ref('2027-07-18')
 const returnFromTime = ref('08:00')
 const returnToTime = ref('12:00')
 const released = ref(false)
+const quantity = ref<number | string>(1)
+const weight = ref('')
+const packUnit = ref('')
+const packSize = ref('')
+const notes = ref('')
+const parts = ref<GrossanlassCommitmentPart[]>([])
 const firstServiceKind = ref<GaParkServiceKind | ''>('')
 const firstServiceDate = ref('2027-07-18')
 const firstServiceFromTime = ref('06:00')
@@ -201,6 +231,12 @@ function applyPreset() {
   returnFromTime.value = preset.returnFromTime ?? '08:00'
   returnToTime.value = preset.returnToTime ?? '12:00'
   released.value = preset.released ?? false
+  quantity.value = 1
+  weight.value = ''
+  packUnit.value = ''
+  packSize.value = ''
+  notes.value = ''
+  parts.value = []
   firstServiceKind.value = preset.firstServiceKind ?? ''
   firstServiceDate.value = preset.firstServiceDate ?? returnDate.value
   firstServiceFromTime.value = preset.firstServiceFromTime ?? '06:00'
@@ -211,6 +247,14 @@ watch(open, (isOpen) => {
   if (isOpen) applyPreset()
 })
 
+function addPart() {
+  parts.value = [...parts.value, { name: '', qty: 1 }]
+}
+
+function removePart(index: number) {
+  parts.value = parts.value.filter((_, i) => i !== index)
+}
+
 async function submit() {
   if (!canSubmit.value || !departmentId.value) return
   try {
@@ -220,6 +264,16 @@ async function submit() {
       family: family.value,
       origin: origin.value,
       plate: plate.value.trim(),
+      quantity: Math.max(1, Number(quantity.value) || 1),
+      item_details: {
+        weight: weight.value.trim() || undefined,
+        pack_unit: packUnit.value.trim() || undefined,
+        pack_size: packSize.value.trim() || undefined,
+        notes: notes.value.trim() || undefined,
+        parts: parts.value
+          .filter((part) => part.name.trim())
+          .map((part) => ({ name: part.name.trim(), qty: Math.max(1, Number(part.qty) || 1) })),
+      },
       released: released.value,
       present_from: combineIso(presentFromDate.value, presentFromTime.value),
       present_to: combineIso(presentToDate.value, presentToTime.value),
@@ -237,28 +291,7 @@ async function submit() {
     })
     toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
     open.value = false
-    emit('created', {
-      id: created.id,
-      name: created.name,
-      barcode: created.barcode || '',
-      family: created.family,
-      origin: created.origin,
-      source: created.source,
-      plate: created.plate || undefined,
-      presentFromIso: created.present_from || '',
-      presentToIso: created.present_to || '',
-      handoverFromIso: created.handover_from || '',
-      handoverToIso: created.handover_to || '',
-      returnFromIso: created.return_from || '',
-      returnToIso: created.return_to || '',
-      released: created.released,
-      tabs: [],
-      categoryId: created.category_id || '',
-      kind: 'unique',
-      stock: 1,
-      stayMode: 'return',
-      services: [],
-    } as GaZusageArticle)
+    emit('created', created)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
@@ -286,6 +319,14 @@ async function submit() {
   gap: 12px;
 }
 @media (max-width: 640px) {
-  .zusage-grid { grid-template-columns: 1fr; }
+  .zusage-grid,
+  .zusage-part { grid-template-columns: 1fr; }
+}
+.zusage-part {
+  display: grid;
+  grid-template-columns: 1fr 88px auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 8px;
 }
 </style>

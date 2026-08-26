@@ -33,8 +33,23 @@ export type GrossanlassCommitment = {
   wish_from: string | null
   wish_to: string | null
   services: GrossanlassCommitmentService[]
+  quantity: number
+  item_details: GrossanlassCommitmentItemDetails
   created_at: string
   updated_at: string
+}
+
+export type GrossanlassCommitmentPart = {
+  name: string
+  qty: number
+}
+
+export type GrossanlassCommitmentItemDetails = {
+  weight?: string
+  pack_unit?: string
+  pack_size?: string
+  notes?: string
+  parts?: GrossanlassCommitmentPart[]
 }
 
 export type GrossanlassCommitmentPayload = {
@@ -42,6 +57,8 @@ export type GrossanlassCommitmentPayload = {
   source: string
   family?: GrossanlassCommitmentFamily
   origin?: GrossanlassCommitmentOrigin
+  quantity?: number
+  item_details?: GrossanlassCommitmentItemDetails
   plate?: string
   inquiry_id?: string
   category_id?: string | null
