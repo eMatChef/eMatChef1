@@ -121,7 +121,8 @@ Fuer `CD Develop`:
 - `DEVELOP_SSH_KEY`
 - `DEVELOP_SSH_PORT`
 - `DEVELOP_DEPLOY_PATH`
-- `DEVELOP_APP_WEBROOT` — Zielordner der App-SPA auf dem Droplet (z. B. `/var/www/ematchef-app-develop`); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+- `DEVELOP_APP_WEBROOT` — Zielordner der App-SPA auf dem Develop-Droplet (z. B. `/var/www/ematchef-app-develop`); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+- `STAGING_APP_WEBROOT` / `PROD_APP_WEBROOT` — analog für Staging/Prod (`deploy-frontend-staging.yml` / `deploy-frontend-prod.yml`)
 
 
 Fuer `CD Staging` (API auf dem Develop-Droplet):
