@@ -10262,6 +10262,8 @@
       "previewStockOut": "Draussen",
       "previewParticipantsTitle": "Teilnehmer",
       "previewParticipantsText": "Geplante Gast-Abteilungen erscheinen hier nach der Freigabe als Zusage / ausstehend.",
+      "participantsLiveText": "Gast-Abteilungen aus den Einstellungen — Status nach Freigabe: geplant, eingeladen oder zugesagt.",
+      "participantsAll": "Zu den Teilnehmern",
       "previewParticipantsEmpty": "Noch keine Teilnehmer geplant",
       "previewConflictsLink": "Konflikte in der Materialübersicht (Vorschau)"
     },

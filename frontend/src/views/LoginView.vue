@@ -493,7 +493,23 @@ const showResendVerification = computed(
     !!error.value &&
     RESEND_VERIFICATION_ERROR_MARKERS.some((m) => error.value!.toLowerCase().includes(m))
 )
-const inviteRedirect = computed(() => parseInternalRedirectPath(route.query.redirect))
+const inviteRedirect = computed(() => {
+  const nested = parseInternalRedirectPath(route.query.redirect)
+  if (nested && extractJoinCodeFromPath(nested)) {
+    return nested
+  }
+  const join = queryParamFirst(route.query.join_code).trim()
+  if (join) {
+    const params = new URLSearchParams()
+    params.set('join_code', join.toUpperCase())
+    for (const key of ['invite_role', 'invite_email', 'invite_id', 'department_id', 'auto_join'] as const) {
+      const value = queryParamFirst(route.query[key]).trim()
+      if (value) params.set(key, value)
+    }
+    return `/pending-assignment?${params.toString()}`
+  }
+  return nested
+})
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteEmailLocked = computed(() => {
@@ -613,9 +629,9 @@ function rememberInviteRedirect(redirectPath: string | null) {
 }
 
 watch(
-  () => route.query.redirect,
+  inviteRedirect,
   (value) => {
-    rememberInviteRedirect(parseInternalRedirectPath(value))
+    rememberInviteRedirect(value)
   },
   { immediate: true }
 )
