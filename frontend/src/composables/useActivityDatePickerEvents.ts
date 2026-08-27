@@ -12,6 +12,7 @@ import {
 } from '@/utils/activityDatePickerMarkers'
 import { isoDateKeysInRange } from '@/utils/calendarPeriodDays'
 import { swissHolidayCalendarDays } from '@/utils/swissMovableFeasts'
+import { useCalendarPeriodsCacheRevision } from '@/composables/useCalendarPeriodsCache'
 
 /** Feiertage, fcal, Fixe Daten — nur Hinweise (Punkte/Tooltip). Nur department_break sperrt Auswahl. */
 export function useActivityDatePickerEvents(
@@ -24,6 +25,7 @@ export function useActivityDatePickerEvents(
 ) {
   const { t } = useI18n()
   const adapter = useDate()
+  const cacheRevision = useCalendarPeriodsCacheRevision()
   const markersByDay = ref<Map<string, ActivityDatePickerDayMarker[]>>(new Map())
   const departmentClosedDateKeys = ref<Set<string>>(new Set())
   const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
@@ -117,7 +119,7 @@ export function useActivityDatePickerEvents(
   }
 
   watch(
-    () => [toValue(departmentId), toValue(options?.showMarkers)] as const,
+    () => [toValue(departmentId), toValue(options?.showMarkers), cacheRevision.value] as const,
     () => {
       if (!markersEnabled()) {
         clearMarkers()

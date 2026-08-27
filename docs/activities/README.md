@@ -21,7 +21,7 @@ Dokumentation zum **Aktivitäts-Lebenszyklus** in eMatChef: Status, Packliste, R
 | **[journey-pack-workflow-abnahme.md](./journey-pack-workflow-abnahme.md)** | **Abnahme Phase D:** Specs + manuelle Checkliste |
 | **[newUI/](./newUI/)** | **Material-Journey UI** (neu): Checkliste, Stepper, Scan — parallel zu Legacy-Packliste, Route `pack-journey` |
 | **[js-material/](./js-material/)** | J+S-Leihmaterial: Flag, Bestellformular, Dotation, Pack-Reiter, Check-Flow |
-| **[grossanlass/](../grossanlass/)** | Grossanlass (eigenes Produkt): Wizard, Ressorts, Planungsrunde Bedarf — [README](../grossanlass/README.md), [MVP](../grossanlass/MVP.md) |
+| **[grossanlass/](../grossanlass/)** | Grossanlass (eigenes Produkt): Wizard, Ressorts, Planungsrunde Bedarf — [README](../grossanlass/README.md), [MVP](../grossanlass/MVP.md), [Konzept 2026-08-23](../grossanlass/20260823_New_concept.md) |
 | **[Virtuelle Kombo (Pack)](../material/combos/virtual-combo-activities.md)** | `pack_mode`, logische Packkiste, `self_provided`-Bestätigung |
 
 ---

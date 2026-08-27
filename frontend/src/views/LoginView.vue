@@ -52,18 +52,28 @@
           <ETextField
             id="password"
             v-model="password"
-            type="password"
+            class="login-password-field"
+            :type="loginPasswordVisible ? 'text' : 'password'"
             :label="t('login.passwordLabel')"
             :placeholder="t('login.passwordPlaceholder')"
             autocomplete="current-password"
             :disabled="isLoading"
-          />
-
-          <div class="link-row">
-            <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('forgot')">
-              {{ t('login.forgotPassword') }}
-            </EButton>
-          </div>
+          >
+            <template #append-inner>
+              <div class="password-field-actions">
+                <button
+                  type="button"
+                  class="forgot-inline-btn"
+                  :disabled="isLoading"
+                  :aria-label="t('login.forgotPassword')"
+                  @click.stop.prevent="setMode('forgot')"
+                >
+                  {{ t('login.forgotPasswordShort') }}
+                </button>
+                <PasswordRevealToggle :visible="loginPasswordVisible" @toggle="toggleLoginPassword" />
+              </div>
+            </template>
+          </ETextField>
 
           <v-alert
             v-if="error"
@@ -93,9 +103,30 @@
                 ? t('login.redirecting')
                 : isLoading
                   ? t('common.loading')
-                  : t('login.loginButton')
+                  : t('login.loginWithEmatchef')
             }}
           </EButton>
+
+          <div class="login-or-divider" role="separator" :aria-label="t('login.orWith')">
+            <span class="login-or-divider__line" />
+            <span class="login-or-divider__label">{{ t('login.orWith') }}</span>
+            <span class="login-or-divider__line" />
+          </div>
+
+          <div class="social-login">
+            <button
+              v-for="provider in socialProviders"
+              :key="provider.id"
+              type="button"
+              class="social-login-btn"
+              :disabled="isLoading"
+              :aria-label="t(provider.labelKey)"
+              :title="t(provider.labelKey)"
+              @click="onSocialLogin(provider.id)"
+            >
+              <v-icon :icon="provider.icon" size="22" />
+            </button>
+          </div>
 
           <div class="form-footer">
             <p class="help-text">
@@ -275,22 +306,36 @@
           <ETextField
             id="registerPassword"
             v-model="registerPassword"
-            type="password"
+            :type="registerPasswordVisible ? 'text' : 'password'"
             :label="t('login.registerPasswordLabel')"
             :placeholder="t('login.minPasswordPlaceholder')"
             autocomplete="new-password"
             :disabled="isLoading"
-          />
+          >
+            <template #append-inner>
+              <PasswordRevealToggle
+                :visible="registerPasswordVisible"
+                @toggle="toggleRegisterPassword"
+              />
+            </template>
+          </ETextField>
 
           <ETextField
             id="registerPasswordConfirm"
             v-model="registerPasswordConfirm"
-            type="password"
+            :type="registerPasswordConfirmVisible ? 'text' : 'password'"
             :label="t('login.registerPasswordConfirmLabel')"
             :placeholder="t('login.registerPasswordConfirmPlaceholder')"
             autocomplete="new-password"
             :disabled="isLoading"
-          />
+          >
+            <template #append-inner>
+              <PasswordRevealToggle
+                :visible="registerPasswordConfirmVisible"
+                @toggle="toggleRegisterPasswordConfirm"
+              />
+            </template>
+          </ETextField>
 
           <ESelect
             id="language"
@@ -354,14 +399,16 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
+import { confirmPasswordReset, googleAuthStartUrl, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { EButton, ECard, ECheckbox, EOtpInput, ESelect, ETextField } from '@/components/form/base'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import PasswordRevealToggle from '@/components/auth/PasswordRevealToggle.vue'
 import RegisterDepartmentPicker, {
   type RegisterDepartmentManualRequest,
 } from '@/components/auth/RegisterDepartmentPicker.vue'
+import { useTimedPasswordReveal } from '@/composables/useTimedPasswordReveal'
 import type { PublicDepartmentSearchResult } from '@/api/publicDepartments'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
@@ -386,6 +433,21 @@ const { t } = useI18n()
 const mode = ref<'login' | 'register' | 'forgot'>('login')
 const email = ref('')
 const password = ref('')
+const {
+  visible: loginPasswordVisible,
+  toggle: toggleLoginPassword,
+  hide: hideLoginPassword,
+} = useTimedPasswordReveal()
+const {
+  visible: registerPasswordVisible,
+  toggle: toggleRegisterPassword,
+  hide: hideRegisterPassword,
+} = useTimedPasswordReveal()
+const {
+  visible: registerPasswordConfirmVisible,
+  toggle: toggleRegisterPasswordConfirm,
+  hide: hideRegisterPasswordConfirm,
+} = useTimedPasswordReveal()
 
 const firstName = ref('')
 const lastName = ref('')
@@ -417,6 +479,9 @@ const registerLoading = ref(false)
 const isRedirecting = ref(false) // Verhindert Doppelklick nach erfolgreichem Login
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
+const socialProviders = [
+  { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
+]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
 const RESEND_VERIFICATION_ERROR_MARKERS = ['bestaetig', 'confirm your email', 'verify your email', 'verif']
@@ -615,6 +680,7 @@ onMounted(() => {
   applyRegisterPrefillFromQuery()
   applyForgotPrefillFromQuery()
   applyDemoLoginPrefill()
+  void completeGoogleOAuthReturn()
   window.addEventListener('emc-demo-login', applyDemoLoginPrefill)
 })
 
@@ -651,6 +717,70 @@ function clearMessages() {
   error.value = null
   successMessage.value = null
   authStore.clearError()
+}
+
+function onSocialLogin(provider: 'google') {
+  if (provider !== 'google') return
+  const redirect =
+    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+  isRedirecting.value = true
+  window.location.assign(googleAuthStartUrl(redirect))
+}
+
+function oauthErrorMessage(reason: string): string {
+  const keys: Record<string, string> = {
+    not_configured: 'login.oauthNotConfigured',
+    denied: 'login.oauthDenied',
+    invalid_state: 'login.oauthInvalidState',
+    no_email: 'login.oauthNoEmail',
+    unverified_email: 'login.oauthUnverifiedEmail',
+    inactive: 'login.oauthInactive',
+    failed: 'login.oauthFailed',
+  }
+  return t(keys[reason] || 'login.oauthFailed')
+}
+
+async function completeGoogleOAuthReturn() {
+  const oauth = typeof route.query.oauth === 'string' ? route.query.oauth : ''
+  if (!oauth) return
+  if (oauth === 'error') {
+    const reason = typeof route.query.reason === 'string' ? route.query.reason : 'failed'
+    error.value = oauthErrorMessage(reason)
+    return
+  }
+  if (oauth !== 'ok') return
+  isRedirecting.value = true
+  const ok = await authStore.loadUserSessionFromCookie(true)
+  if (!ok) {
+    isRedirecting.value = false
+    error.value = t('login.oauthFailed')
+    return
+  }
+  setLocale(authStore.profile?.language || 'de')
+  await redirectAfterSuccessfulLogin()
+}
+
+async function redirectAfterSuccessfulLogin() {
+  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
+  const storedInviteRedirect = getStoredInviteRedirect()
+  const redirectTarget = routeRedirect || storedInviteRedirect
+  if (redirectTarget) {
+    localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
+    await router.replace(redirectTarget)
+    return
+  }
+
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
+    await router.replace('/dashboard')
+    return
+  }
+
+  if (authStore.activeDepartmentId) {
+    await router.replace(`/${authStore.activeDepartmentId}`)
+    return
+  }
+
+  await router.replace('/pending-assignment')
 }
 
 function resetRegisterForm() {
@@ -775,9 +905,16 @@ function resetForgotForm() {
   resetPasswordConfirm.value = ''
 }
 
+function hideRevealedPasswords() {
+  hideLoginPassword()
+  hideRegisterPassword()
+  hideRegisterPasswordConfirm()
+}
+
 function setMode(nextMode: 'login' | 'register' | 'forgot') {
   const previousMode = mode.value
   mode.value = nextMode
+  hideRevealedPasswords()
   if (previousMode === 'forgot' && nextMode !== 'forgot') {
     resetForgotForm()
   }
@@ -802,27 +939,8 @@ async function handleSubmit() {
   if (!success) return
   setLocale(authStore.profile?.language || 'de')
 
-  isRedirecting.value = true // Button bleibt deaktiviert bis Weiterleitung
-  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
-  const storedInviteRedirect = getStoredInviteRedirect()
-  const redirectTarget = routeRedirect || storedInviteRedirect
-  if (redirectTarget) {
-    localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
-    router.replace(redirectTarget)
-    return
-  }
-
-  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    router.replace('/dashboard')
-    return
-  }
-
-  if (authStore.activeDepartmentId) {
-    router.replace(`/${authStore.activeDepartmentId}`)
-    return
-  }
-
-  router.replace('/pending-assignment')
+  isRedirecting.value = true
+  await redirectAfterSuccessfulLogin()
 }
 
 async function handleRegister() {
@@ -1142,14 +1260,108 @@ watch(
   margin-bottom: 10px;
 }
 
-.link-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
+.password-field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.forgot-inline-btn {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.forgot-inline-btn:hover,
+.forgot-inline-btn:focus-visible {
+  color: #1d4ed8;
+}
+
+.forgot-inline-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.forgot-inline-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.login-form :deep(.login-password-field.e-form-field:has(.password-reveal-toggle) .v-field__input) {
+  padding-inline-end: 118px;
 }
 
 .btn-submit {
   font-size: 18px;
+}
+
+.login-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+}
+
+.login-or-divider__line {
+  flex: 1;
+  height: 1px;
+  background: #d1d5db;
+}
+
+.login-or-divider__label {
+  flex: none;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.social-login {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.social-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+}
+
+.social-login-btn:hover:not(:disabled),
+.social-login-btn:focus-visible {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.social-login-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+.social-login-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .form-footer {

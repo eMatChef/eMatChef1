@@ -240,13 +240,11 @@
                 </p>
                 <p class="qr-panel-hint">{{ t('components.materialDetail.qrPrintAllHint') }}</p>
                 <div class="modal-actions stock-qr-panel-actions">
-                  <button type="button" class="btn-outline btn-sm" @click="handleQrAddAllToPrintCart">
-                    {{ t('components.materialDetail.btnAddToPrintCart') }}
-                  </button>
                   <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
                     {{ t('common.print') }}
                   </button>
                 </div>
+                <PrintCartQueueHint class="qr-panel-queue" />
                 <ul v-if="printableQrRows.length" class="stock-qr-batch-list">
                   <li v-for="batch in printableQrRows" :key="batch.id" class="stock-qr-batch-row">
                     <PublicQrTag
@@ -639,13 +637,11 @@
               >
                 <p class="qr-panel-hint">{{ t('components.materialDetail.qrPrintAllHint') }}</p>
                 <div class="modal-actions stock-qr-panel-actions">
-                  <button type="button" class="btn-outline btn-sm" @click="handleQrAddAllToPrintCart">
-                    {{ t('components.materialDetail.btnAddToPrintCart') }}
-                  </button>
                   <button type="button" class="btn-primary btn-sm" @click="handleQrPrintAllFromPanel">
                     {{ t('common.print') }}
                   </button>
                 </div>
+                <PrintCartQueueHint class="qr-panel-queue" />
                 <ul v-if="printableQrRows.length" class="stock-qr-batch-list">
                   <li v-for="batch in printableQrRows" :key="batch.id" class="stock-qr-batch-row">
                     <PublicQrTag
@@ -2506,7 +2502,6 @@
       :code="qrActionCode"
       :url="qrActionUrl"
       @close="closeQrActionModal"
-      @add-to-print-cart="handleQrAddToPrintCart"
       @print="handleQrPrint"
     />
 
@@ -2516,7 +2511,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onDeactivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import QRCode from 'qrcode'
 import {
   getMaterial,
   getMaterials,
@@ -2556,7 +2550,6 @@ import {
   type ComponentSource,
   type UpdateComboComponentRequest,
 } from '@/api/materials'
-import { addPrintCartItem, addPrintCartItemsBulk } from '@/api/tasks'
 import { useDetailTabsStore } from '@/stores/detailTabs'
 import { getCategories, type Category } from '@/api/categories'
 import {
@@ -2609,7 +2602,6 @@ import { usePageHeadStore } from '@/stores/pageHead'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useI18n } from 'vue-i18n'
-import { printHtmlDocument } from '@/utils/printHtml'
 import BatchModal from '@/components/material/BatchModal.vue'
 import MaterialDetailStockUnitField from '@/components/material/MaterialDetailStockUnitField.vue'
 import MaterialWeightAutoSaveField from '@/components/material/MaterialWeightAutoSaveField.vue'
@@ -2635,6 +2627,9 @@ import CategoryAutocompleteInput from '@/components/common/CategoryAutocompleteI
 import { createBasicMaterialLookupFetcher } from '@/composables/useMaterialLookup'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
+import { usePrintJob } from '@/composables/usePrintJob'
+import PrintCartQueueHint from '@/components/print/PrintCartQueueHint.vue'
+import type { PrintJobItem } from '@/print/printJob'
 import { unitPriceFromPackSaleChf } from '@/utils/packPricing'
 import { isPrintableBatchPublicUrl } from '@/utils/publicQrUrl'
 import { isComboMaterial as isComboMaterialType, COMBO_BADGE } from '@/utils/comboDisplay'
@@ -2656,6 +2651,7 @@ const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
 const { confirm: confirmDialog } = useConfirm()
+const { openPrint } = usePrintJob()
 const { t, tm, locale, te } = useI18n()
 const physicalComboWarningStore = usePhysicalComboWarningStore()
 const PACK_UNIT_BUNDLE = 'Bündel'
@@ -6154,11 +6150,6 @@ function prepareQrActionAll() {
   qrActionUrl.value = ''
 }
 
-async function handleQrAddAllToPrintCart() {
-  prepareQrActionAll()
-  await handleQrAddToPrintCart()
-}
-
 async function handleQrPrintAllFromPanel() {
   prepareQrActionAll()
   await handleQrPrint()
@@ -6168,157 +6159,50 @@ function closeQrActionModal() {
   showQrActionModal.value = false
 }
 
-async function handleQrAddToPrintCart() {
-  if (!props.departmentId) {
-    toast.error(t('components.materialDetail.errNoDepartment'))
-    return
+function materialQrPrintItem(opts: {
+  entityId: string
+  label: string
+  publicCode: string | null
+  publicUrl: string
+}): PrintJobItem {
+  const item: PrintJobItem = {
+    label: opts.label,
+    public_code: opts.publicCode,
+    public_url: opts.publicUrl,
   }
-
-  const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
-
-  if (qrActionMode.value === 'all') {
-    const payloads: Array<{
-      department_id: string
-      entity_type: string
-      entity_id: string
-      label: string
-      public_code?: string | null
-      public_url: string
-    }> = []
-
-    for (const batch of printableQrRows.value) {
-      const url = String(batch?.public_url || '').trim()
-      if (!isPrintableBatchPublicUrl(url)) continue
-      payloads.push({
-        department_id: props.departmentId,
-        entity_type: 'batch',
-        entity_id: String(batch?.id || ''),
-        label: t('components.materialDetail.qrCartLabel', { material: materialName, line: batchPrintLine(batch) }),
-        public_code: String(batch?.public_code || '') || null,
-        public_url: url,
-      })
-    }
-
-    if (payloads.length === 0) {
-      toast.info(t('components.materialDetail.toastPrintCartNoCodes'))
-      return
-    }
-
-    try {
-      const result = await addPrintCartItemsBulk(props.departmentId, payloads)
-      toast.success(
-        t('components.materialDetail.toastPrintCartUpdated', {
-          created: result.created_count,
-          skipped: result.skipped_count,
-        })
-      )
-      closeQrActionModal()
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || t('components.materialDetail.errPrintCartUpdate'))
-    }
-    return
-  }
-
-  const url = qrActionUrl.value.trim()
-  const entityId = qrActionEntityId.value.trim()
-  if (!url || !entityId) {
-    toast.info(t('components.materialDetail.toastNoValidQrLink'))
-    return
-  }
-
-  try {
-    const result = await addPrintCartItem({
+  if (props.departmentId && opts.entityId) {
+    item.cart = {
       department_id: props.departmentId,
       entity_type: 'batch',
-      entity_id: entityId,
-      label: t('components.materialDetail.qrCartLabel', { material: materialName, line: qrActionLabel.value || 'QR' }),
-      public_code: qrActionCode.value || null,
-      public_url: url,
-    })
-    toast.success(
-      result.created ? t('components.materialDetail.toastPrintCartAdded') : t('components.materialDetail.toastPrintCartAlready')
-    )
-    closeQrActionModal()
-  } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('components.materialDetail.errPrintCartAdd'))
+      entity_id: opts.entityId,
+      label: opts.label,
+      public_code: opts.publicCode,
+      public_url: opts.publicUrl,
+    }
   }
-}
-
-function escapeHtml(raw: string): string {
-  return String(raw || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
-async function buildPrintRowsForAllQrs(): Promise<Array<{ line: string; code: string; qrDataUrl: string }>> {
-  const rows: Array<{ line: string; code: string; qrDataUrl: string }> = []
-  const tasks: Array<Promise<void>> = []
-
-  for (const batch of printableQrRows.value) {
-    const url = String(batch?.public_url || '').trim()
-    if (!isPrintableBatchPublicUrl(url)) continue
-    const line = batchPrintLine(batch)
-    const code = String(batch?.public_code || '').trim()
-    tasks.push((async () => {
-      const qrDataUrl = await QRCode.toDataURL(url, { width: 220, margin: 1 })
-      rows.push({ line, code, qrDataUrl })
-    })())
-  }
-
-  await Promise.all(tasks)
-  return rows
+  return item
 }
 
 async function handleQrPrint() {
   const materialName = material.value?.name || t('components.materialDetail.fallbackMaterialDisplayName')
   if (qrActionMode.value === 'all') {
-    const rows = await buildPrintRowsForAllQrs()
+    const rows: PrintJobItem[] = []
+    for (const batch of printableQrRows.value) {
+      const url = String(batch?.public_url || '').trim()
+      if (!isPrintableBatchPublicUrl(url)) continue
+      const label = t('components.materialDetail.qrCartLabel', { material: materialName, line: batchPrintLine(batch) })
+      rows.push(materialQrPrintItem({
+        entityId: String(batch?.id || ''),
+        label,
+        publicCode: String(batch?.public_code || '') || null,
+        publicUrl: url,
+      }))
+    }
     if (rows.length === 0) {
       toast.info(t('components.materialDetail.toastNoQrToPrint'))
       return
     }
-    const cards = rows
-      .map((row) => `
-        <div class="card">
-          <img src="${row.qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
-          <div class="material">${escapeHtml(materialName)}</div>
-          <div class="title">${escapeHtml(row.line)}</div>
-          <div class="code">${escapeHtml(row.code || '-')}</div>
-        </div>
-      `)
-      .join('')
-    printHtmlDocument(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(
-      t('components.materialDetail.qrPrintAllDocTitle', {
-        name: material.value?.name || t('common.material'),
-      })
-    )}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 18px; }
-    h1 { margin: 0 0 14px; font-size: 18px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-    .card { border: 1px solid #d1d5db; border-radius: 10px; padding: 10px; text-align: center; page-break-inside: avoid; }
-    img { width: 160px; height: 160px; object-fit: contain; }
-    .material { margin-top: 8px; font-weight: 700; font-size: 14px; }
-    .title { margin-top: 3px; font-size: 12px; color: #374151; }
-    .code { margin-top: 3px; font-family: monospace; color: #4b5563; font-size: 11px; }
-  </style>
-</head>
-<body>
-  <h1>${escapeHtml(
-      t('components.materialDetail.qrPrintAllDocHeading', {
-        name: material.value?.name || t('common.material'),
-      })
-    )}</h1>
-  <div class="grid">${cards}</div>
-</body>
-</html>`)
+    openPrint({ departmentId: props.departmentId, items: rows, kind: 'label' })
     closeQrActionModal()
     return
   }
@@ -6328,30 +6212,16 @@ async function handleQrPrint() {
     toast.info(t('components.materialDetail.toastNoPublicLink'))
     return
   }
-  const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
-  printHtmlDocument(`<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${escapeHtml(t('components.materialDetail.qrPrintSingleDocTitle', { name: qrActionLabel.value }))}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    .card { max-width: 360px; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px; text-align: center; }
-    img { width: 240px; height: 240px; object-fit: contain; }
-    .material { margin-top: 10px; font-weight: 700; font-size: 15px; }
-    .title { margin-top: 4px; font-size: 13px; color: #374151; }
-    .code { margin-top: 4px; font-family: monospace; color: #4b5563; font-size: 12px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <img src="${qrDataUrl}" alt="${escapeHtml(t('components.materialDetail.qrAlt'))}" />
-    <div class="material">${escapeHtml(materialName)}</div>
-    <div class="title">${escapeHtml(qrActionLabel.value)}</div>
-    <div class="code">${escapeHtml(qrActionCode.value || '-')}</div>
-  </div>
-</body>
-</html>`)
+  openPrint({
+    departmentId: props.departmentId,
+    items: [materialQrPrintItem({
+      entityId: qrActionEntityId.value.trim(),
+      label: t('components.materialDetail.qrCartLabel', { material: materialName, line: qrActionLabel.value || 'QR' }),
+      publicCode: qrActionCode.value || null,
+      publicUrl: url,
+    })],
+    kind: 'label',
+  })
   closeQrActionModal()
 }
 
@@ -7300,6 +7170,10 @@ onMounted(() => {
   margin: 12px 0;
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.qr-panel-queue {
+  margin: 0 0 12px;
 }
 
 .stock-qr-panel-actions {

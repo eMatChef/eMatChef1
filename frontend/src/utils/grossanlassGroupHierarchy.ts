@@ -1,25 +1,32 @@
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 
+export type GroupHierarchyNode = {
+  id: string
+  name: string
+  parent_id: string | null
+  sort_order?: number | null
+}
+
 export type GrossanlassGroupWithLevel = GrossanlassGroup & { _level: number }
 
-function compareGroups(a: GrossanlassGroup, b: GrossanlassGroup): number {
+function compareGroups(a: GroupHierarchyNode, b: GroupHierarchyNode): number {
   const orderDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0)
   if (orderDiff !== 0) return orderDiff
   return a.name.localeCompare(b.name, 'de')
 }
 
-function sortGroups(groups: GrossanlassGroup[]): GrossanlassGroup[] {
+function sortGroups<T extends GroupHierarchyNode>(groups: T[]): T[] {
   return [...groups].sort(compareGroups)
 }
 
-/** Ressorts hierarchisch sortiert (Root zuerst, Kinder eingerückt). */
-export function flattenGrossanlassGroupsWithLevel(groups: GrossanlassGroup[]): GrossanlassGroupWithLevel[] {
+/** Hierarchisch sortiert (Root zuerst, Kinder eingerückt). */
+export function flattenTreeWithLevel<T extends GroupHierarchyNode>(groups: T[]): (T & { _level: number })[] {
   const all = groups
   const ids = new Set(all.map((g) => g.id))
   const rootGroups = sortGroups(all.filter((g) => !g.parent_id || !ids.has(g.parent_id)))
 
-  function flatten(nodes: GrossanlassGroup[], level: number): GrossanlassGroupWithLevel[] {
-    const result: GrossanlassGroupWithLevel[] = []
+  function flatten(nodes: T[], level: number): (T & { _level: number })[] {
+    const result: (T & { _level: number })[] = []
     for (const node of nodes) {
       result.push({ ...node, _level: level })
       const children = sortGroups(all.filter((g) => g.parent_id === node.id))
@@ -31,6 +38,11 @@ export function flattenGrossanlassGroupsWithLevel(groups: GrossanlassGroup[]): G
   }
 
   return flatten(rootGroups, 0)
+}
+
+/** Ressorts hierarchisch sortiert (Root zuerst, Kinder eingerückt). */
+export function flattenGrossanlassGroupsWithLevel(groups: GrossanlassGroup[]): GrossanlassGroupWithLevel[] {
+  return flattenTreeWithLevel(groups)
 }
 
 export function grossanlassGroupIndentTitle(

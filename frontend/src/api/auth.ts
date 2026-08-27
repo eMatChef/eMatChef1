@@ -1,4 +1,4 @@
-import apiClient, { refreshSessionCookie } from './apiClient'
+import apiClient, { absoluteApiUrl, refreshSessionCookie } from './apiClient'
 import { clearAuthStorage, purgeLegacyAuthSecrets } from '@/utils/authStorage'
 import { markCrossSubdomainLogoutSeenFromCookie } from '@/utils/authCrossOrigin'
 import type { SupplierCompanySession } from '@/api/supplier'
@@ -196,6 +196,15 @@ export interface UserDepartmentResponse {
 /**
  * Login mit E-Mail und Passwort
  */
+export function googleAuthStartUrl(redirectPath?: string | null): string {
+  const params = new URLSearchParams()
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    params.set('redirect', redirectPath)
+  }
+  const query = params.toString()
+  return absoluteApiUrl(`/api/auth/google${query ? `?${query}` : ''}`)
+}
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
   const raw: unknown = response.data

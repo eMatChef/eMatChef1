@@ -38,3 +38,9 @@ services:
       MAILER_DSN: "${MAILER_DSN:-null://null}"
       MAILER_FROM: "${MAILER_FROM:-noreply@ematchef.ch}"
       MAILER_BRAND_LOGO_URL: "${MAILER_BRAND_LOGO_URL:-}"
+      # Aus Root-.env (wie APP_SECRET). Leer lassen = Button „nicht eingerichtet“.
+      # Nicht leer in Compose setzen, wenn die Werte nur in backend/.env.local stehen.
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI}
+      GOOGLE_GMAIL_REDIRECT_URI: ${GOOGLE_GMAIL_REDIRECT_URI}

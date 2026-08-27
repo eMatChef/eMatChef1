@@ -60,3 +60,18 @@ export function resolveWorkshopPublicUrl(
   if (fromApi) return fromApi
   return buildWorkshopPublicUrl(String(publicCode || ''))
 }
+
+export function buildUserCardPublicUrl(cardCode: string): string {
+  const code = String(cardCode || '').trim()
+  if (!code) return ''
+  return `${resolvePublicQrOrigin()}/i/c/${encodeURIComponent(code)}`
+}
+
+export function resolveUserCardPublicUrl(
+  publicUrl: string | null | undefined,
+  publicCode: string | null | undefined,
+): string {
+  const fromApi = String(publicUrl || '').trim()
+  if (fromApi) return fromApi
+  return buildUserCardPublicUrl(String(publicCode || ''))
+}

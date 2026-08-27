@@ -16,6 +16,7 @@ export interface GrossanlassProcurementPoolWish {
   group_id: string
   group_name: string
   wish_kind: GrossanlassWishKind
+  last_stage?: 'grob' | 'fein' | string | null
   label: string
   quantity: number
   location: string
@@ -85,7 +86,15 @@ export interface GrossanlassProcurementLine {
   quantity: number
   location: string
   notes: string | null
+  category_id: string | null
+  category_name: string | null
+  category_parent_id: string | null
+  category_parent_name: string | null
   status: GrossanlassProcurementStatus
+  quantity_asked: number | null
+  quantity_current: number
+  quantity_delta: number | null
+  merge_frozen: boolean
   wish_line_ids: string[]
   wish_count: number
   source_wishes: GrossanlassProcurementPoolWish[]
@@ -99,17 +108,72 @@ export interface GrossanlassProcurementLine {
   updated_at: string
 }
 
+export interface GrossanlassProcurementCategory {
+  id: string
+  department_id: string
+  parent_id: string | null
+  parent_name: string | null
+  name: string
+  sort_order: number
+  rahmen_chf: number | null
+}
+
+export interface GrossanlassProcurementBundleSuggestion {
+  key: string
+  suggested_label: string
+  wish_ids: string[]
+  quantity_sum: number
+  wish_count: number
+  wishes: GrossanlassProcurementPoolWish[]
+}
+
+export interface GrossanlassCollectorAnswer {
+  label: string
+  value: string
+}
+
+export interface GrossanlassCollectorItem {
+  id: string
+  form_purpose: 'company_tip' | 'free' | string
+  round_id: string
+  round_name: string
+  group_id: string
+  group_name: string
+  label: string
+  quantity: number
+  location: string
+  notes?: string | null
+  email?: string
+  suggested_categories: string[]
+  answers: GrossanlassCollectorAnswer[]
+  created_by_name: string
+  created_at: string
+}
+
+export interface GrossanlassCollectorRoundOption {
+  id: string
+  name: string
+}
+
 export interface GrossanlassBedarfOverview {
   pool: GrossanlassProcurementPoolWish[]
   lines: GrossanlassProcurementLine[]
+  categories: GrossanlassProcurementCategory[]
+  suggestions: GrossanlassProcurementBundleSuggestion[]
+  company_tips?: GrossanlassCollectorItem[]
+  free_ideas?: GrossanlassCollectorItem[]
+  material_rounds?: GrossanlassCollectorRoundOption[]
 }
 
 export interface GrossanlassProcurementOverview {
   totals: {
     line_count: number
+    rahmen_chf: number | null
     soll_chf: number
     ist_chf: number
     delta_chf: number
+    rahmen_minus_ist_chf: number | null
+    rahmen_minus_soll_chf: number | null
     open_quotes_count: number
     ordered_not_received_count: number
   }
@@ -121,11 +185,61 @@ export interface GrossanlassProcurementOverview {
     ist_chf: number
     line_count: number
   }>
+  by_category: Array<{
+    category_id: string | null
+    category_name: string | null
+    parent_id: string | null
+    parent_name: string | null
+    rahmen_chf: number | null
+    soll_chf: number
+    ist_chf: number
+    line_count: number
+  }>
 }
 
 export async function getGrossanlassBedarfOverview(departmentId: string): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.get<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/bedarf`,
+  )
+  return response.data
+}
+
+export async function assignGrossanlassCollectorToInquiry(
+  departmentId: string,
+  wishId: string,
+  data: Partial<{ name: string; email: string; place: string; category_ids: string[] }> = {},
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/to-inquiry`,
+    data,
+  )
+  return response.data
+}
+
+export async function assignGrossanlassCollectorToMaterial(
+  departmentId: string,
+  wishId: string,
+  data: Partial<{
+    target_round_id: string
+    label: string
+    quantity: number
+    location: string
+    wish_kind: GrossanlassWishKind
+  }> = {},
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/to-material`,
+    data,
+  )
+  return response.data
+}
+
+export async function discardGrossanlassCollectorItem(
+  departmentId: string,
+  wishId: string,
+): Promise<GrossanlassBedarfOverview> {
+  const response = await apiClient.post<GrossanlassBedarfOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/collector/${wishId}/discard`,
   )
   return response.data
 }
@@ -156,6 +270,20 @@ export async function getGrossanlassProcurementOverview(
   return response.data
 }
 
+export async function saveGrossanlassProcurementRahmen(
+  departmentId: string,
+  data: {
+    rahmen_chf: number | null
+    categories: Array<{ category_id: string; rahmen_chf: number | null }>
+  },
+): Promise<GrossanlassProcurementOverview> {
+  const response = await apiClient.put<GrossanlassProcurementOverview>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/overview/rahmen`,
+    data,
+  )
+  return response.data
+}
+
 export async function listGrossanlassProcurementLines(
   departmentId: string,
   status?: string,
@@ -176,6 +304,7 @@ export async function createGrossanlassProcurementLine(
     location?: string
     group_id?: string
     notes?: string | null
+    category_id?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.post<GrossanlassProcurementLine>(
@@ -210,6 +339,7 @@ export async function updateGrossanlassProcurementLine(
     location: string
     group_id: string
     notes: string | null
+    category_id: string | null
   }>,
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(
@@ -224,6 +354,55 @@ export async function deleteGrossanlassProcurementLine(
   lineId: string,
 ): Promise<void> {
   await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/lines/${lineId}`)
+}
+
+export async function listGrossanlassProcurementCategories(
+  departmentId: string,
+): Promise<GrossanlassProcurementCategory[]> {
+  const response = await apiClient.get<GrossanlassProcurementCategory[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories`,
+  )
+  return response.data
+}
+
+export async function createGrossanlassProcurementCategory(
+  departmentId: string,
+  data: {
+    name: string
+    parent_id?: string | null
+    sort_order?: number
+  },
+): Promise<GrossanlassProcurementCategory> {
+  const response = await apiClient.post<GrossanlassProcurementCategory>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories`,
+    data,
+  )
+  return response.data
+}
+
+export async function updateGrossanlassProcurementCategory(
+  departmentId: string,
+  categoryId: string,
+  data: Partial<{
+    name: string
+    parent_id: string | null
+    sort_order: number
+  }>,
+): Promise<GrossanlassProcurementCategory> {
+  const response = await apiClient.put<GrossanlassProcurementCategory>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function deleteGrossanlassProcurementCategory(
+  departmentId: string,
+  categoryId: string,
+): Promise<void> {
+  await apiClient.delete(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+  )
 }
 
 export async function removeWishFromGrossanlassProcurementLine(

@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassRoundForm;
 use App\Entity\ActivityGrossanlassRoundFormField;
@@ -11,7 +12,7 @@ use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\User;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use App\Service\GroupHierarchyService;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -216,6 +217,11 @@ class GrossanlassWishService
             throw new \InvalidArgumentException('Wünsche nur in offenen Runden möglich');
         }
 
+        $refineId = trim((string) ($data['refine_wish_id'] ?? ''));
+        if ($refineId !== '') {
+            return $this->refineExistingWish($department, $user, $round, $refineId, $data);
+        }
+
         $form = $this->formService->findOrCreateFormForRound($round);
         $parsed = $this->parsePayloadAgainstForm($department, $user, $data, $form);
 
@@ -224,7 +230,7 @@ class GrossanlassWishService
         }
 
         $response = new ActivityGrossanlassWishResponse();
-        $response->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponse::class, 'wr'));
+        $response->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_RESPONSE, ActivityGrossanlassWishResponse::class));
         $response->setRound($round);
         $response->setForm($form);
         $response->setGroup($parsed['group']);
@@ -232,7 +238,7 @@ class GrossanlassWishService
         $response->setStatus(ActivityGrossanlassWishResponse::STATUS_REQUESTED);
 
         $line = new ActivityGrossanlassWishLine();
-        $line->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishLine::class, 'gw'));
+        $line->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_LINE, ActivityGrossanlassWishLine::class));
         $line->setRound($round);
         $line->setGroup($parsed['group']);
         $line->setWishKind($parsed['wish_kind']);
@@ -245,11 +251,117 @@ class GrossanlassWishService
         $line->setNotes($parsed['notes']);
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
+        $line->setLastStage(
+            GrossanlassMaterialStage::isFein($round->getMaterialStage())
+                ? GrossanlassMaterialStage::FEIN
+                : GrossanlassMaterialStage::GROB
+        );
         $line->setResponse($response);
 
         $this->entityManager->persist($response);
         $this->entityManager->persist($line);
         $this->persistCustomValues($response, $parsed['custom_values']);
+
+        $this->entityManager->flush();
+
+        return $this->toArray($line, $parsed['custom_values']);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listRefineCandidates(Department $department, User $user, string $feinRoundId): array
+    {
+        $round = $this->roundService->findRoundForDepartment($department, $feinRoundId);
+        if ($round->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH
+            || !GrossanlassMaterialStage::isFein($round->getMaterialStage())
+        ) {
+            return [];
+        }
+
+        $qb = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->innerJoin('r.activity', 'a')
+            ->innerJoin('w.group', 'g')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('r.formPurpose = :purpose')
+            ->andWhere('r.id != :feinRoundId')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->setParameter('feinRoundId', $round->getId())
+            ->orderBy('w.createdAt', 'DESC');
+
+        $visible = $this->resolveVisibleGroupIds($department, $user);
+        if ($visible !== null) {
+            if ($visible === []) {
+                return [];
+            }
+            $qb->andWhere('w.groupId IN (:groupIds)')->setParameter('groupIds', $visible);
+        }
+
+        $lines = $qb->getQuery()->getResult();
+
+        return array_map(fn (ActivityGrossanlassWishLine $w) => $this->toArray($w), $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    private function refineExistingWish(
+        Department $department,
+        User $user,
+        ActivityGrossanlassRound $feinRound,
+        string $wishId,
+        array $data,
+    ): array {
+        if ($feinRound->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH
+            || !GrossanlassMaterialStage::isFein($feinRound->getMaterialStage())
+        ) {
+            throw new \InvalidArgumentException('Verfeinern nur in einem offenen Fein-Materialformular');
+        }
+
+        $line = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($wishId);
+        if ($line === null || $line->getRound()->getActivity()->getDepartmentId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Wunsch nicht gefunden');
+        }
+        if ($line->getRound()->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Nur Materialwünsche lassen sich verfeinern');
+        }
+        if ($line->getRoundId() === $feinRound->getId()) {
+            throw new \InvalidArgumentException('Neuer Fein-Wunsch braucht keine refine_wish_id');
+        }
+
+        $this->assertCanEditWish($department, $user, $line, false);
+
+        $form = $this->formService->findOrCreateFormForRound($feinRound);
+        $merged = $this->mergeWishDataForUpdate($line, $data);
+        $parsed = $this->parsePayloadAgainstForm($department, $user, $merged, $form, $line->getGroup());
+
+        if (!$this->canWriteWishForGroup($department, $user, $parsed['group'])) {
+            throw new \RuntimeException('Keine Berechtigung');
+        }
+
+        $line->setGroup($parsed['group']);
+        $line->setWishKind($parsed['wish_kind']);
+        $line->setLabel($parsed['label']);
+        $line->setQuantity($parsed['quantity']);
+        $line->setLocation($parsed['location']);
+        $line->setValidFrom($parsed['valid_from']);
+        $line->setValidTo($parsed['valid_to']);
+        $line->setTimeframeNotes($parsed['timeframe_notes']);
+        $line->setNotes($parsed['notes']);
+        $line->setLastStage(GrossanlassMaterialStage::FEIN);
+        $line->touchUpdatedAt();
+
+        $response = $line->getResponse();
+        if ($response !== null) {
+            $response->setGroup($parsed['group']);
+            $response->touchUpdatedAt($user);
+            $this->replaceCustomValues($response, $parsed['custom_values']);
+        }
 
         $this->entityManager->flush();
 
@@ -283,12 +395,15 @@ class GrossanlassWishService
         $line->setValidTo($parsed['valid_to']);
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
+        if (GrossanlassMaterialStage::isFein($line->getRound()->getMaterialStage())) {
+            $line->setLastStage(GrossanlassMaterialStage::FEIN);
+        }
         $line->touchUpdatedAt();
 
         $response = $line->getResponse();
         if ($response === null) {
             $response = new ActivityGrossanlassWishResponse();
-            $response->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponse::class, 'wr'));
+            $response->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_RESPONSE, ActivityGrossanlassWishResponse::class));
             $response->setRound($line->getRound());
             $response->setForm($form);
             $response->setCreatedByUser($line->getCreatedByUser());
@@ -309,6 +424,9 @@ class GrossanlassWishService
     {
         $line = $this->findWishInRound($department, $roundId, $wishId);
         $this->assertCanEditWish($department, $user, $line);
+        if ($this->wishHasFrozenProcurement($line)) {
+            throw new \InvalidArgumentException('Wunsch ist an eine eingefrorene Beschaffungsposition gebunden');
+        }
 
         $response = $line->getResponse();
         $line->setResponse(null);
@@ -563,7 +681,7 @@ class GrossanlassWishService
                 continue;
             }
             $value = new ActivityGrossanlassWishResponseValue();
-            $value->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassWishResponseValue::class, 'wv'));
+            $value->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::WISH_VALUE, ActivityGrossanlassWishResponseValue::class));
             $value->setResponse($response);
             $value->setField($field);
             $this->applyValueToEntity($value, $field, $raw);
@@ -976,9 +1094,28 @@ class GrossanlassWishService
         return $line;
     }
 
-    private function assertCanEditWish(Department $department, User $user, ActivityGrossanlassWishLine $line): void
+    private function wishHasFrozenProcurement(ActivityGrossanlassWishLine $line): bool
     {
-        if ($line->getRound()->getStatus() !== ActivityGrossanlassRound::STATUS_OPEN) {
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['wishLineId' => $line->getId()]);
+        foreach ($links as $link) {
+            if ($link instanceof ActivityGrossanlassProcurementLineWish
+                && $link->getProcurementLine()->getQuantityAsked() !== null
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function assertCanEditWish(
+        Department $department,
+        User $user,
+        ActivityGrossanlassWishLine $line,
+        bool $requireOpenRound = true,
+    ): void {
+        if ($requireOpenRound && $line->getRound()->getStatus() !== ActivityGrossanlassRound::STATUS_OPEN) {
             throw new \InvalidArgumentException('Wünsche nur in offenen Runden bearbeitbar');
         }
 
@@ -1179,6 +1316,7 @@ class GrossanlassWishService
             'timeframe_notes' => $line->getTimeframeNotes(),
             'notes' => $line->getNotes(),
             'status' => $line->getStatus(),
+            'last_stage' => $line->getLastStage(),
             'created_by_user_id' => $line->getCreatedByUserId(),
             'created_by_name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
             'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),

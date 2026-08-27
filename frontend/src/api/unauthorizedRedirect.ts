@@ -32,7 +32,7 @@ export function shouldProbeUserSession(pathname?: string): boolean {
   return true
 }
 
-/** Öffentliche QR-Infos ohne Login (z. B. /i/m/…/b/…, /i/a/…, /i/w/…, /display/…). */
+/** Öffentliche QR-Infos ohne Login (z. B. /i/m/…/b/…, /i/a/…, /i/w/…, /i/c/…, /display/…). */
 export function isPublicAnonymousPath(pathname: string): boolean {
   if (pathname === '/open-from-qr') return true
   if (isDisplayKioskPath(pathname)) return true
@@ -42,6 +42,8 @@ export function isPublicAnonymousPath(pathname: string): boolean {
   if (parts[1] === 'm' && parts[2] && parts[3] === 'b' && parts[4]) return true
   if (parts[1] === 'm' && parts[2] && parts.length === 3) return true
   if (parts[1] === 'a' && parts[2]) return true
+  if (parts[1] === 'w' && parts[2]) return true
+  if (parts[1] === 'c' && parts[2]) return true
   return false
 }
 

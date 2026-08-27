@@ -19,10 +19,10 @@ const TAB_META: Record<
   string,
   { icon: string; titleKey: string; descriptionKey: string }
 > = {
-  uebersicht: {
-    icon: 'mdi-chart-box-outline',
-    titleKey: 'grossanlass.beschaffung.uebersicht.emptyTitle',
-    descriptionKey: 'grossanlass.beschaffung.uebersicht.emptyDescription',
+  finanzen: {
+    icon: 'mdi-cash-multiple',
+    titleKey: 'grossanlass.beschaffung.finanzen.emptyTitle',
+    descriptionKey: 'grossanlass.beschaffung.finanzen.emptyDescription',
   },
   bedarf: {
     icon: 'mdi-clipboard-list-outline',
@@ -50,8 +50,8 @@ const route = useRoute()
 const { t } = useI18n()
 
 const tabMeta = computed(() => {
-  const tabId = (route.meta.beschaffungTab as string) || 'uebersicht'
-  return TAB_META[tabId] ?? TAB_META.uebersicht
+  const tabId = (route.meta.beschaffungTab as string) || 'finanzen'
+  return TAB_META[tabId] ?? TAB_META.finanzen
 })
 </script>
 

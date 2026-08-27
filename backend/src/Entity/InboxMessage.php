@@ -38,6 +38,8 @@ class InboxMessage
 
     public const CATEGORY_GROSSANLASS_ROUND_OPENED = 'grossanlass_round_opened';
 
+    public const CATEGORY_GROSSANLASS_DEPT_INVITE = 'grossanlass_department_invite';
+
     /** Kategorien, die bei completed/cancelled der Aktivität entfernt werden. */
     public const CATEGORIES_PURGE_ON_ACTIVITY_TERMINAL = [
         self::CATEGORY_ACTIVITY_MW,

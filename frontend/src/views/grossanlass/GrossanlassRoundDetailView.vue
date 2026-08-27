@@ -32,7 +32,30 @@
         <v-tabs-window-item v-if="round.status === 'open'" value="input">
           <div class="tab-panel">
             <h3 class="section-title">{{ t('grossanlass.wishes.formTitle') }}</h3>
-            <p class="section-hint">{{ t('grossanlass.wishes.formHint') }}</p>
+            <p class="section-hint">{{ formHint }}</p>
+
+            <div v-if="isFeinRound" class="refine-panel">
+              <p class="refine-title">{{ t('grossanlass.wishes.refineTitle') }}</p>
+              <p class="refine-hint">{{ t('grossanlass.wishes.refineHint') }}</p>
+              <ul v-if="refineCandidates.length" class="refine-list">
+                <li v-for="wish in refineCandidates" :key="wish.id">
+                  <span>{{ wish.quantity }}× {{ wish.label }} · {{ wish.group_name }}</span>
+                  <EButton size="small" variant="secondary" @click="startRefine(wish)">
+                    {{ t('grossanlass.wishes.refineAction') }}
+                  </EButton>
+                </li>
+              </ul>
+              <p v-else class="section-hint">{{ t('grossanlass.wishes.refineEmpty') }}</p>
+              <EButton
+                v-if="refineWishId"
+                size="small"
+                variant="secondary"
+                class="mt-2"
+                @click="clearRefine"
+              >
+                {{ t('grossanlass.wishes.refineNew') }}
+              </EButton>
+            </div>
 
             <GrossanlassWishDynamicForm
               v-if="roundForm"
@@ -47,7 +70,7 @@
             />
 
             <EButton variant="primary" :loading="isSaving" class="mt-4" @click="submitWish">
-              {{ t('grossanlass.wishes.submit') }}
+              {{ refineWishId ? t('grossanlass.wishes.refineSave') : t('grossanlass.wishes.submit') }}
             </EButton>
           </div>
         </v-tabs-window-item>
@@ -91,7 +114,9 @@ import {
 } from '@/api/grossanlassRounds'
 import {
   createGrossanlassWish,
+  getGrossanlassRefineCandidates,
   getGrossanlassRoundWishes,
+  type GrossanlassWishLine,
   type GrossanlassWishListResult,
 } from '@/api/grossanlassWishes'
 import { getGrossanlassRoundForm, orderFormFieldsForRound, type GrossanlassRoundForm } from '@/api/grossanlassRoundForm'
@@ -116,9 +141,20 @@ const pendingCount = ref(0)
 const activeTab = ref('input')
 const wishFormRef = ref<InstanceType<typeof GrossanlassWishDynamicForm> | null>(null)
 const responsesRef = ref<InstanceType<typeof GrossanlassRoundResponsesPanel> | null>(null)
+const refineCandidates = ref<GrossanlassWishLine[]>([])
+const refineWishId = ref<string | null>(null)
 
 const groupsRef = computed(() => groups.value)
 const { canFullyManage, isMemberInRessortBranch, isLeaderOfGroup, canCreateChild } = useGrossanlassRessortScope(groupsRef)
+
+const isFeinRound = computed(
+  () => round.value?.form_purpose === 'material_wish' && round.value.material_stage === 'fein',
+)
+
+const formHint = computed(() => {
+  if (isFeinRound.value) return t('grossanlass.wishes.feinFormHint')
+  return t('grossanlass.wishes.formHint')
+})
 
 const roundSubtitle = computed(() => {
   if (!round.value) return ''
@@ -200,6 +236,7 @@ async function load() {
     }
     setDefaultTab()
     await loadPendingCount()
+    await loadRefineCandidates()
   } catch (e: any) {
     error.value = e.response?.data?.error || t('grossanlass.planung.rounds.errorLoad')
   } finally {
@@ -229,13 +266,18 @@ async function submitWish() {
 
   isSaving.value = true
   try {
-    await createGrossanlassWish(departmentId.value, roundId.value, payload)
-    toast.success(t('grossanlass.wishes.created'))
+    await createGrossanlassWish(departmentId.value, roundId.value, {
+      ...payload,
+      refine_wish_id: refineWishId.value || undefined,
+    })
+    toast.success(refineWishId.value ? t('grossanlass.wishes.refined') : t('grossanlass.wishes.created'))
     wishFormRef.value.resetAfterSubmit()
+    refineWishId.value = null
     if (payload.new_bauprojekt) {
       groups.value = await getGrossanlassGroups(departmentId.value)
     }
     await loadPendingCount()
+    await loadRefineCandidates()
     responsesRef.value?.reload()
     activeTab.value = 'responses'
   } catch (e: any) {
@@ -243,6 +285,26 @@ async function submitWish() {
   } finally {
     isSaving.value = false
   }
+}
+
+async function loadRefineCandidates() {
+  refineCandidates.value = []
+  if (!departmentId.value || !roundId.value || !isFeinRound.value) return
+  try {
+    refineCandidates.value = await getGrossanlassRefineCandidates(departmentId.value, roundId.value)
+  } catch {
+    refineCandidates.value = []
+  }
+}
+
+function startRefine(wish: GrossanlassWishLine) {
+  refineWishId.value = wish.id
+  wishFormRef.value?.loadFromWish(wish)
+}
+
+function clearRefine() {
+  refineWishId.value = null
+  wishFormRef.value?.resetAfterSubmit()
 }
 
 function onResponseChanged() {
@@ -310,6 +372,24 @@ onMounted(load)
   margin: 0 0 16px;
   color: #6b7280;
   font-size: 0.9rem;
+}
+
+.refine-panel {
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.refine-title { margin: 0 0 4px; font-weight: 600; font-size: 0.92rem; }
+.refine-hint { margin: 0 0 8px; color: #64748b; font-size: 0.85rem; }
+.refine-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.refine-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
 }
 
 .mt-4 {

@@ -56,6 +56,10 @@ defineProps<{
 .activity-outlined-fieldset {
   margin: 0 0 18px;
   min-width: 0;
+  min-inline-size: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 14px 12px 16px;
   border: 1px solid #d1d5db;
   border-radius: 10px;

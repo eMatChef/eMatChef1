@@ -2,6 +2,7 @@
 
 namespace App\Controller\Public;
 
+use App\Service\Grossanlass\GrossanlassUserCardService;
 use App\Service\Public\PublicCodeService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -11,7 +12,8 @@ use Symfony\Component\Routing\Annotation\Route;
 class PublicLookupController extends AbstractController
 {
     public function __construct(
-        private PublicCodeService $publicCodeService
+        private PublicCodeService $publicCodeService,
+        private GrossanlassUserCardService $grossanlassUserCardService,
     ) {}
 
     #[Route('/m/{materialCode}/b/{batchCode}', name: 'material_batch', methods: ['GET'])]
@@ -60,6 +62,20 @@ class PublicLookupController extends AbstractController
     public function workshop(string $publicCode): JsonResponse
     {
         $result = $this->publicCodeService->resolveWorkshopByPublicCode($publicCode);
+
+        if ($result === null) {
+            return new JsonResponse([
+                'error' => 'Public-Code nicht gefunden oder nicht aktiv',
+            ], 404);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    #[Route('/c/{publicCode}', name: 'user_card', methods: ['GET'])]
+    public function userCard(string $publicCode): JsonResponse
+    {
+        $result = $this->grossanlassUserCardService->resolvePublicByCode($publicCode);
 
         if ($result === null) {
             return new JsonResponse([

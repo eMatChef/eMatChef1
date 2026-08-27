@@ -360,7 +360,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import {
   getPendingDepartmentActivityInvites,
-  decideDepartmentActivityInvite,
+  decidePendingDepartmentInvite,
   getReceivedDepartmentInvites,
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
@@ -1037,8 +1037,8 @@ async function decide(invite: PendingDepartmentActivityInvite, decision: 'accept
   if (!departmentId.value) return
   detailActivityInvite.value = null
   try {
-    await decideDepartmentActivityInvite({
-      activityId: invite.activity_id,
+    await decidePendingDepartmentInvite({
+      invite,
       departmentId: departmentId.value,
       decision,
     })

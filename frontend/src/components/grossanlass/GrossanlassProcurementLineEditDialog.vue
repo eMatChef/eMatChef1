@@ -3,6 +3,7 @@
     v-model="open"
     :max-width="480"
     :title="t('grossanlass.beschaffung.bedarf.editTitle')"
+    :retain-focus="false"
   >
     <ETextField
       v-model="form.label"
@@ -30,6 +31,13 @@
       :label="t('grossanlass.beschaffung.bedarf.editNotes')"
       hide-details="auto"
     />
+    <GrossanlassProcurementCategoryPicker
+      v-model="form.categoryId"
+      class="mt-3"
+      :department-id="departmentId"
+      :categories="categories"
+      @created="emit('category-created', $event)"
+    />
 
     <p v-if="errorMessage" class="edit-dialog-error">{{ errorMessage }}</p>
 
@@ -49,23 +57,27 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   updateGrossanlassProcurementLine,
+  type GrossanlassProcurementCategory,
   type GrossanlassProcurementLine,
 } from '@/api/grossanlassProcurement'
+import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
 import { EButton, EDialog, ETextField } from '@/components/form/base'
 
 const props = defineProps<{
   departmentId: string
   line: GrossanlassProcurementLine | null
+  categories: GrossanlassProcurementCategory[]
 }>()
 
 const emit = defineEmits<{
   saved: []
+  'category-created': [category: GrossanlassProcurementCategory]
 }>()
 
 const open = defineModel<boolean>({ required: true })
 const { t } = useI18n()
 
-const form = ref({ label: '', quantity: '', location: '', notes: '' })
+const form = ref({ label: '', quantity: '', location: '', notes: '', categoryId: null as string | null })
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
@@ -78,6 +90,7 @@ watch(
       quantity: String(props.line.quantity),
       location: props.line.location,
       notes: props.line.notes ?? '',
+      categoryId: props.line.category_id,
     }
     errorMessage.value = ''
   },
@@ -101,6 +114,7 @@ async function submit() {
       quantity,
       location: form.value.location.trim(),
       notes: form.value.notes.trim() || null,
+      category_id: form.value.categoryId,
     })
     open.value = false
     emit('saved')
