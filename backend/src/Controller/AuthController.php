@@ -3,13 +3,14 @@
 namespace App\Controller;
 
 use App\Config\LanguageConfig;
-use App\Entity\Profile;
-use App\Entity\User;
 use App\Entity\AdminJoinRequest;
 use App\Entity\Department;
+use App\Entity\DepartmentSetting;
 use App\Entity\JoinRequest;
 use App\Entity\Membership;
 use App\Entity\Organisation;
+use App\Entity\Profile;
+use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
@@ -247,6 +248,7 @@ class AuthController extends AbstractController
         $requestedDepartmentName = trim((string) ($data['requestedDepartmentName'] ?? ''));
         $requestedParentDepartmentId = trim((string) ($data['requestedParentDepartmentId'] ?? ''));
         $requestedParentDepartmentName = trim((string) ($data['requestedParentDepartmentName'] ?? ''));
+        $inviteJoinCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($data['inviteJoinCode'] ?? '')) ?? '');
         $honeypotWebsite = trim((string) ($data['website'] ?? ''));
         $turnstileToken = trim((string) ($data['turnstileToken'] ?? ''));
 
@@ -273,10 +275,20 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Vorname und Nachname sind erforderlich'], 400);
         }
 
+        $inviteDepartment = $inviteJoinCode !== '' ? $this->findDepartmentByInviteJoinCode($inviteJoinCode) : null;
+        $inviteFlow = $inviteDepartment instanceof Department;
+        if ($inviteFlow) {
+            $pendingOk = $this->pendingInviteMatchesEmail($inviteDepartment->getId(), $email);
+            if (!$pendingOk) {
+                return new JsonResponse(['error' => 'Einladung nicht gefunden oder E-Mail stimmt nicht'], 400);
+            }
+            $requestedOrganisationId = $inviteDepartment->getOrganisationId();
+        }
+
         if ($requestedOrganisationId === '') {
             return new JsonResponse(['error' => 'Organisation ist erforderlich'], 400);
         }
-        if ($requestedDepartmentId === '' && $requestedDepartmentName === '') {
+        if (!$inviteFlow && $requestedDepartmentId === '' && $requestedDepartmentName === '') {
             return new JsonResponse(['error' => 'Bitte Abteilung suchen und auswaehlen oder Abteilungsname eingeben'], 400);
         }
 
@@ -309,7 +321,7 @@ class AuthController extends AbstractController
         if (!$org) {
             return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
         }
-        if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+        if (!$inviteFlow && !OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
             return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
         $orgAllowedLanguages = $org->getAllowedLanguages();
@@ -332,9 +344,15 @@ class AuthController extends AbstractController
         $user->setProfile($profile);
         $user->setPassword($this->passwordHasher->hashPassword($user, $password));
         $user->setState('active');
-        $user->setEmailVerified(false);
-        $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
-        $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+        if ($inviteFlow) {
+            $user->setEmailVerified(true);
+            $user->setEmailVerificationToken(null);
+            $user->setEmailVerificationExpiresAt(null);
+        } else {
+            $user->setEmailVerified(false);
+            $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
+            $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+        }
 
         $this->entityManager->persist($profile);
         $this->entityManager->persist($user);
@@ -351,6 +369,7 @@ class AuthController extends AbstractController
 
         $adminRequest = null;
         $joinRequest = null;
+        if (!$inviteFlow) {
         if ($matchedDepartment) {
             $joinRequest = new JoinRequest();
             $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
@@ -376,8 +395,10 @@ class AuthController extends AbstractController
             $adminRequest->setStatus('pending');
             $this->entityManager->persist($adminRequest);
         }
+        }
 
         $this->entityManager->flush();
+        if (!$inviteFlow) {
         try {
             $this->verificationEmailService->sendVerificationEmail($user);
         } catch (\Throwable $e) {
@@ -396,6 +417,7 @@ class AuthController extends AbstractController
             return new JsonResponse([
                 'error' => 'Verifikationsmail konnte nicht zugestellt werden. Bitte E-Mail-Adresse pruefen.'
             ], 400);
+        }
         }
 
         try {
@@ -427,8 +449,60 @@ class AuthController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
-            'message' => 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
+            'invite_ready' => $inviteFlow,
+            'message' => $inviteFlow
+                ? 'Konto erstellt. Du kannst dich jetzt anmelden und die Einladung annehmen.'
+                : 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
         ], 201);
+    }
+
+    private function findDepartmentByInviteJoinCode(string $code): ?Department
+    {
+        if ($code === '') {
+            return null;
+        }
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+            'settingKey' => 'join.invite_code',
+            'settingValue' => $code,
+        ]);
+
+        return $setting?->getDepartment();
+    }
+
+    private function pendingInviteMatchesEmail(string $departmentId, string $email): bool
+    {
+        $normalized = strtolower(trim($email));
+        if ($normalized === '' || !filter_var($normalized, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+            'departmentId' => $departmentId,
+            'settingKey' => 'join.pending_invites',
+        ]);
+        if (!$setting) {
+            return false;
+        }
+        try {
+            $decoded = json_decode((string) $setting->getSettingValue(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return false;
+        }
+        if (!is_array($decoded)) {
+            return false;
+        }
+        foreach ($decoded as $invite) {
+            if (!is_array($invite)) {
+                continue;
+            }
+            if (($invite['status'] ?? 'pending') !== 'pending') {
+                continue;
+            }
+            if (strtolower(trim((string) ($invite['email'] ?? ''))) === $normalized) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function allowRegistrationAttempt(string $clientIp, string $email): bool

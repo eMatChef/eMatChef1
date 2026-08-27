@@ -1,5 +1,5 @@
 import type { AddPrintCartItemRequest } from '@/api/tasks'
-import type { PrintLayout } from '@/api/printLayouts'
+import type { PrintLayout, PrintLayoutField } from '@/api/printLayouts'
 import {
   DEFAULT_PRINT_CONTENT,
   layoutKeysFromContent,
@@ -76,8 +76,12 @@ export async function executePrintJob(options: {
   enabledFields: PrintContentKey[]
   startIndex: number
   face?: PrintFace
+  fields?: PrintLayoutField[]
 }): Promise<'ql' | 'pdf'> {
-  const jobLayout = layoutWithEnabledFields(options.layout, layoutKeysFromContent(options.enabledFields))
+  const enabledLayout = layoutWithEnabledFields(options.layout, layoutKeysFromContent(options.enabledFields))
+  const jobLayout = options.fields?.length
+    ? { ...enabledLayout, fields: options.fields }
+    : enabledLayout
   const rows = options.items.map((item) => sampleForPrint(item, options.enabledFields))
   if (isBrotherQlLayout(jobLayout)) {
     if (!cachedQlDevice) cachedQlDevice = await requestBrotherQlDevice()

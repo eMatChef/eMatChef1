@@ -254,7 +254,7 @@
           />
 
           <ESelect
-            v-if="!inviteOrganisationLocked"
+            v-if="!inviteFlowActive && !inviteOrganisationLocked"
             id="requestedOrganisationId"
             v-model="requestedOrganisationId"
             :items="organisationSelectItems"
@@ -262,15 +262,16 @@
             :disabled="isLoading"
           />
           <ETextField
-            v-else
+            v-else-if="inviteFlowActive || inviteOrganisationLocked"
             :label="t('login.organisationLabel')"
             :model-value="inviteOrganisationName || inviteOrganisationId"
             readonly
             disabled
           />
-          <p v-if="inviteOrganisationLocked" class="required-note">{{ t('login.organisationFromInvite') }}</p>
+          <p v-if="inviteOrganisationLocked && !inviteFlowActive" class="required-note">{{ t('login.organisationFromInvite') }}</p>
 
           <RegisterDepartmentPicker
+            v-if="!inviteFlowActive"
             :organisation-id="effectiveRequestedOrganisationId"
             :disabled="isLoading"
             :initial-query="registerDepartmentInitialQuery"
@@ -278,6 +279,7 @@
             @update:organisation-id="onRegisterOrganisationFromDepartment"
             @update:manual="registerManualDepartment = $event"
           />
+          <p v-else class="required-note">{{ t('login.departmentFromInvite') }}</p>
 
           <!-- Honeypot: Bots fuellen das oft aus -->
           <div class="form-group" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
@@ -300,7 +302,7 @@
             :label="t('login.emailAddressLabel')"
             :placeholder="t('login.emailPlaceholder')"
             autocomplete="email"
-            :disabled="isLoading"
+            :disabled="isLoading || inviteEmailLocked"
           />
 
           <ETextField
@@ -494,6 +496,11 @@ const showResendVerification = computed(
 const inviteRedirect = computed(() => parseInternalRedirectPath(route.query.redirect))
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
+const inviteEmailLocked = computed(() => {
+  const fromQuery = queryParamFirst(route.query.email).trim().toLowerCase()
+  const fromRedirect = extractInviteEmailFromPath(inviteRedirect.value || '')
+  return inviteFlowActive.value && (!!fromQuery || !!fromRedirect)
+})
 const inviteOrganisationLocked = computed(() => {
   if (mode.value !== 'register' || !inviteFlowActive.value) return false
   const orgId = inviteOrganisationId.value.trim()
@@ -580,6 +587,16 @@ function extractJoinCodeFromPath(path: string): string | null {
   }
 }
 
+function extractInviteEmailFromPath(path: string): string {
+  if (!path.startsWith('/')) return ''
+  try {
+    const url = new URL(path, window.location.origin)
+    return (url.searchParams.get('invite_email') || '').trim().toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 function getStoredInviteRedirect(): string | null {
   const stored = localStorage.getItem(INVITE_REDIRECT_STORAGE_KEY)
   if (!stored) return null
@@ -615,17 +632,25 @@ function applyRegisterPrefillFromQuery() {
   const orgId = queryParamFirst(route.query.org_id).trim()
   const orgName = queryParamFirst(route.query.org_name).trim()
   const deptName = queryParamFirst(route.query.dept_name).trim()
+  const emailParam = queryParamFirst(route.query.email).trim().toLowerCase()
+  const inviteEmail = extractInviteEmailFromPath(inviteRedirect.value || '')
+  const prefillEmail = emailParam || inviteEmail
 
-  if (!wantsRegister && !orgId && !deptName) {
-    return
-  }
-
-  if (wantsRegister) {
+  if (inviteFlowActive.value || wantsRegister) {
     mode.value = 'register'
   }
 
+  if (prefillEmail) {
+    registerEmail.value = prefillEmail
+    email.value = prefillEmail
+  }
+
+  if (!wantsRegister && !orgId && !deptName && !inviteFlowActive.value) {
+    return
+  }
+
   const applyFields = () => {
-    if (!wantsRegister) return
+    if (!wantsRegister && !inviteFlowActive.value) return
     inviteOrganisationId.value = orgId
     inviteOrganisationName.value = orgName
     if (orgId && organisations.value.some((o) => o.id === orgId)) {
@@ -689,7 +714,9 @@ watch(
     register: route.query.register,
     org_id: route.query.org_id,
     org_name: route.query.org_name,
-    dept_name: route.query.dept_name
+    dept_name: route.query.dept_name,
+    email: route.query.email,
+    redirect: route.query.redirect,
   }),
   () => applyRegisterPrefillFromQuery(),
   { deep: true }
@@ -951,13 +978,15 @@ async function handleRegister() {
     return
   }
 
-  if (!effectiveRequestedOrganisationId.value) {
-    error.value = t('login.validationOrganisationRequired')
-    return
-  }
-  if (!registerSelectedDepartment.value && !registerManualDepartment.value) {
-    error.value = t('login.validationDepartmentRequired')
-    return
+  if (!inviteFlowActive.value) {
+    if (!effectiveRequestedOrganisationId.value) {
+      error.value = t('login.validationOrganisationRequired')
+      return
+    }
+    if (!registerSelectedDepartment.value && !registerManualDepartment.value) {
+      error.value = t('login.validationDepartmentRequired')
+      return
+    }
   }
 
   if (!registerEmail.value.trim() || !registerPassword.value) {
@@ -1009,8 +1038,18 @@ async function handleRegister() {
       requestedParentDepartmentId: registerManualDepartment.value?.parentDepartmentId || undefined,
       requestedParentDepartmentName: registerManualDepartment.value?.parentDepartmentName || undefined,
       website: website.value,
-      turnstileToken
+      turnstileToken,
+      inviteJoinCode: inviteJoinCode.value || undefined,
     })
+
+    if (response.invite_ready && inviteFlowActive.value) {
+      const success = await authStore.login(registerEmail.value.trim(), registerPassword.value)
+      if (success) {
+        isRedirecting.value = true
+        await redirectAfterSuccessfulLogin()
+        return
+      }
+    }
 
     successMessage.value = response.message || t('login.registerSuccessFallback')
     mode.value = 'login'
@@ -1018,6 +1057,12 @@ async function handleRegister() {
     password.value = ''
     resetRegisterForm()
   } catch (err: any) {
+    if (err?.response?.status === 409 && inviteFlowActive.value) {
+      mode.value = 'login'
+      email.value = registerEmail.value.trim()
+      error.value = t('login.inviteEmailAlreadyRegistered')
+      return
+    }
     error.value = err?.response?.data?.error || t('login.registerFailedFallback')
     resetTurnstileWidget()
   } finally {

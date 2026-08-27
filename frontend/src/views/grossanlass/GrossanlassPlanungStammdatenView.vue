@@ -170,6 +170,7 @@ import { EButton, EDateRangeField, ETextField, ETextarea } from '@/components/fo
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGrossanlassPlanung, updateGrossanlassPlanung, type GrossanlassGuestActivityType, type GrossanlassPlanungOverview } from '@/api/grossanlassPlanung'
+import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 import { bumpCalendarPeriodsCache } from '@/composables/useCalendarPeriodsCache'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 import '@/styles/contacts-view.css'
@@ -206,6 +207,7 @@ const notes = ref('')
 const deptNameDraft = ref('')
 const guestType = ref<GrossanlassGuestActivityType>('camp')
 const hasGuestDepartments = ref(false)
+const { setHasGuestDepartments } = useGrossanlassGuestDepartments(() => departmentId.value)
 const canManage = computed(() => pack.value?.can_manage !== false)
 
 function toDay(iso: string | null | undefined): string {
@@ -221,6 +223,7 @@ function apply(next: GrossanlassPlanungOverview) {
   deptNameDraft.value = next.department_name || deptName.value
   guestType.value = next.config.guest_activity_type === 'event' ? 'event' : 'camp'
   hasGuestDepartments.value = next.config.has_guest_departments === true
+  setHasGuestDepartments(hasGuestDepartments.value)
 }
 
 async function load() {

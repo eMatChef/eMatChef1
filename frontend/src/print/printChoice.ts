@@ -1,4 +1,5 @@
 import { defaultPrintFace, parsePrintFace, type PrintFace } from '@/print/printFace'
+import type { PrintLayoutField } from '@/api/printLayouts'
 
 export function printerStorageKey(dept: string) {
   return `ematchef.print-printer.${dept}`
@@ -91,5 +92,27 @@ export function loadPrintFace(dept: string, kind: string): PrintFace {
     return parsePrintFace(JSON.parse(raw), kind)
   } catch {
     return fallback
+  }
+}
+
+function boxesStorageKey(dept: string, layoutId: string) {
+  return `ematchef.print-boxes.${dept}.${layoutId}`
+}
+
+export function saveJobFieldBoxes(dept: string, layoutId: string, fields: PrintLayoutField[]) {
+  if (!dept || !layoutId) return
+  localStorage.setItem(boxesStorageKey(dept, layoutId), JSON.stringify(fields))
+}
+
+export function loadJobFieldBoxes(dept: string, layoutId: string): PrintLayoutField[] | null {
+  if (!dept || !layoutId) return null
+  try {
+    const raw = localStorage.getItem(boxesStorageKey(dept, layoutId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PrintLayoutField[]
+    if (!Array.isArray(parsed) || !parsed.length) return null
+    return parsed.filter((item) => item && typeof item.id === 'string' && typeof item.x === 'number')
+  } catch {
+    return null
   }
 }
