@@ -39,6 +39,7 @@ export type GrossanlassParticipant = {
   parent_id: string | null
   status: GrossanlassParticipantStatus
   guest_activity_id: string | null
+  unterlager_id: string | null
 }
 
 export type GrossanlassPlanungRessortMember = {
@@ -56,12 +57,20 @@ export type GrossanlassPlanungRessort = {
   members?: GrossanlassPlanungRessortMember[]
 }
 
+export type GrossanlassUnterlager = {
+  id: string
+  name: string
+  parent_id: string | null
+  sort_order: number
+}
+
 export type GrossanlassPlanungOverview = {
   config: GrossanlassPlanungConfig
   department_name: string
   checks: { period: boolean; ressorts: boolean; participants: boolean }
   activities: GrossanlassPlanungActivity[]
   ressorts: GrossanlassPlanungRessort[]
+  unterlager: GrossanlassUnterlager[]
   participants: GrossanlassParticipant[]
   can_manage: boolean
 }
@@ -134,10 +143,60 @@ export async function searchGrossanlassGuests(
 export async function addGrossanlassParticipant(
   departmentId: string,
   guestDepartmentId: string,
+  unterlagerId?: string | null,
 ): Promise<GrossanlassPlanungOverview> {
+  const body: { guest_department_id: string; unterlager_id?: string } = {
+    guest_department_id: guestDepartmentId,
+  }
+  if (unterlagerId) body.unterlager_id = unterlagerId
   const response = await apiClient.post<GrossanlassPlanungOverview>(
     `/api/departments/${departmentId}/grossanlass/planung/participants`,
-    { guest_department_id: guestDepartmentId },
+    body,
+  )
+  return response.data
+}
+
+export async function updateGrossanlassParticipant(
+  departmentId: string,
+  participantId: string,
+  data: { unterlager_id: string | null },
+): Promise<GrossanlassPlanungOverview> {
+  const response = await apiClient.patch<GrossanlassPlanungOverview>(
+    `/api/departments/${departmentId}/grossanlass/planung/participants/${participantId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function createGrossanlassUnterlager(
+  departmentId: string,
+  data: { name: string; parent_id?: string | null },
+): Promise<GrossanlassPlanungOverview> {
+  const response = await apiClient.post<GrossanlassPlanungOverview>(
+    `/api/departments/${departmentId}/grossanlass/planung/unterlager`,
+    data,
+  )
+  return response.data
+}
+
+export async function updateGrossanlassUnterlager(
+  departmentId: string,
+  unterlagerId: string,
+  data: { name?: string; parent_id?: string | null },
+): Promise<GrossanlassPlanungOverview> {
+  const response = await apiClient.patch<GrossanlassPlanungOverview>(
+    `/api/departments/${departmentId}/grossanlass/planung/unterlager/${unterlagerId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function removeGrossanlassUnterlager(
+  departmentId: string,
+  unterlagerId: string,
+): Promise<GrossanlassPlanungOverview> {
+  const response = await apiClient.delete<GrossanlassPlanungOverview>(
+    `/api/departments/${departmentId}/grossanlass/planung/unterlager/${unterlagerId}`,
   )
   return response.data
 }

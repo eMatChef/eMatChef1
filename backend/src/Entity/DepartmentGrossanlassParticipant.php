@@ -52,6 +52,13 @@ class DepartmentGrossanlassParticipant
     #[ORM\JoinColumn(name: 'guest_activity_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Activity $guestActivity = null;
 
+    #[ORM\Column(name: 'unterlager_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $unterlagerId = null;
+
+    #[ORM\ManyToOne(targetEntity: DepartmentGrossanlassUnterlager::class)]
+    #[ORM\JoinColumn(name: 'unterlager_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?DepartmentGrossanlassUnterlager $unterlager = null;
+
     #[ORM\Column(name: 'invited_at', type: 'datetime', nullable: true)]
     private ?\DateTime $invitedAt = null;
 
@@ -151,6 +158,24 @@ class DepartmentGrossanlassParticipant
     {
         $this->guestActivity = $activity;
         $this->guestActivityId = $activity?->getId();
+
+        return $this;
+    }
+
+    public function getUnterlager(): ?DepartmentGrossanlassUnterlager
+    {
+        return $this->unterlager;
+    }
+
+    public function getUnterlagerId(): ?string
+    {
+        return $this->unterlagerId;
+    }
+
+    public function setUnterlager(?DepartmentGrossanlassUnterlager $unterlager): self
+    {
+        $this->unterlager = $unterlager;
+        $this->unterlagerId = $unterlager?->getId();
 
         return $this;
     }
