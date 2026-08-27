@@ -27,11 +27,14 @@ export interface RegisterRequest {
   turnstileToken?: string
   /** Bot-Schutz: muss leer bleiben */
   website?: string
+  /** Department-Einladung: Join-Code, keine Abteilungs-Suche */
+  inviteJoinCode?: string
 }
 
 export interface RegisterResponse {
   success: boolean
   message: string
+  invite_ready?: boolean
 }
 
 export interface VerifyEmailResponse {

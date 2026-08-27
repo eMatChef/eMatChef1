@@ -76,7 +76,7 @@
     "department.invite": {
       "title": "Department - Einladung",
       "description": "Wird im Onboarding/Department bei \"Einladung senden\" versendet.",
-      "body_preview": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}"
+      "body_preview": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nKonto anlegen (Passwort setzen) und Einladung annehmen:\n{{invite_url}}"
     },
     "department.member_added": {
       "title": "Department - Neu zugewiesen",
@@ -148,9 +148,9 @@
     "text_body": "Hallo {{recipient_name}},\n\n{{adder_name}} hat dich dem Department \"{{department_name}}\" in eMatChef zugewiesen.\nDeine Rolle: {{role_label}}\n\nOeffne eMatChef — nach dem Login wirst du direkt zu diesem Department weitergeleitet:\n{{app_url}}\n\nFalls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung.",
     "html": {
       "greeting_word": "Hallo",
-      "banner_title": "Neues Department in eMatChef",
-      "added_lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\">{{adder_name}} hat dich dem Department <strong>{{department_name}}</strong> in eMatChef zugewiesen.</p>",
-      "role_line_template": "<p style=\"margin:0 0 16px 0;font-size:14px;color:#374151;\">Deine Rolle: <strong>{{role_label}}</strong></p>",
+      "banner_title": "Willkommen im Team",
+      "added_lead_template": "<p style=\"margin:0 0 16px 0;font-size:16px;line-height:1.55;color:#334155;\"><strong>{{adder_name}}</strong> hat dich zugewiesen.</p>",
+      "role_line_template": "<p style=\"margin:0;font-size:14px;color:#065f46;\">Deine Rolle: <strong>{{role_label}}</strong></p>",
       "cta_label": "Department oeffnen",
       "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
       "footer_note": "Falls du diese Zuweisung nicht erwartest, wende dich an deine Abteilungsleitung."
@@ -182,16 +182,18 @@
   },
   "department.invite": {
     "inviter_name_fallback": "Ein Teammitglied",
-    "subject": "Einladung zu eMatChef Department: {{department_name}}",
-    "text_body": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu dem Department \"{{department_name}}\" eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nEinladungslink:\n{{invite_url}}\n\nFalls du noch kein Konto hast, kannst du dich ueber den Link registrieren und wirst danach direkt dem Department zugeordnet.\n\nWenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren.",
+    "subject": "Einladung zu eMatChef: {{department_name}}",
+    "text_body": "Hallo {{recipient_name}},\n\n{{inviter_name}} hat dich zu \"{{department_name}}\" in eMatChef eingeladen.\nVorgesehene Rolle: {{role_label}}\n\nNoch kein Konto? Ueber den Link setzt du dein Passwort und nimmst die Einladung an:\n{{invite_url}}\n\nWenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren.",
     "html": {
       "greeting_word": "Hallo",
-      "banner_title": "eMatChef Einladung",
-      "invite_lead_template": "<p style=\"margin:0 0 12px 0;font-size:15px;line-height:1.5;\">{{inviter_name}} hat dich zu dem Department <strong>{{department_name}}</strong> eingeladen.</p>",
-      "role_line_template": "<p style=\"margin:0 0 16px 0;font-size:14px;color:#374151;\">Vorgesehene Rolle: <strong>{{role_label}}</strong></p>",
-      "cta_label": "Einladung annehmen",
-      "link_hint": "Falls der Button nicht funktioniert, nutze diesen Link:",
-      "footer_note": "Wenn du diese Einladung nicht erwartest, kannst du diese E-Mail ignorieren."
+      "banner_title": "Einladung",
+      "preheader": "{{inviter_name}} laedt dich zu {{department_name}} ein.",
+      "invite_lead_template": "<p style=\"margin:0 0 16px 0;font-size:16px;line-height:1.55;color:#334155;\"><strong>{{inviter_name}}</strong> hat dich eingeladen, mitzumachen.</p>",
+      "role_line_template": "<p style=\"margin:0 0 8px 0;font-size:14px;color:#065f46;\">Rolle: <strong>{{role_label}}</strong></p>",
+      "password_hint": "Neu hier? Mit dem Button setzt du dein Passwort — danach gehoerst du zum Team.",
+      "cta_label": "Passwort setzen und beitreten",
+      "link_hint": "Button geht nicht? Diesen Link im Browser oeffnen:",
+      "footer_note": "Du hast diese Einladung nicht erwartet? Die E-Mail kannst du ignorieren."
     }
   },
   "public.found_item_contact": {

@@ -50,6 +50,8 @@ export function useAutoLogout() {
   const warningTimer = ref<NodeJS.Timeout | null>(null)
   /** Letzte echte Nutzeraktivität (Klick/Tastatur/Scroll), persistiert für Reload & Tab-Rückkehr */
   const lastActivity = ref(readLastActivityMs())
+  const logoutAtMs = ref(0)
+  const sessionWarningOpen = ref(false)
 
   const INACTIVITY_TIMEOUT = readEnvMs('VITE_AUTOLOGOUT_TIMEOUT_MS', 30 * 60 * 1000, 60 * 1000)
   const WARNING_BEFORE_LOGOUT = readEnvMs('VITE_AUTOLOGOUT_WARNING_MS', 3 * 60 * 1000, 15 * 1000)
@@ -125,22 +127,33 @@ export function useAutoLogout() {
     clearInactivityTimers()
 
     const warningDelay = Math.max(0, inactivityTimeoutMs.value - warningBeforeLogoutMs.value)
+    logoutAtMs.value = Date.now() + inactivityTimeoutMs.value
     warningTimer.value = setTimeout(async () => {
       warningTimer.value = null
       if (!isLoggedIn.value) return
 
-      const verlängern = await confirm.confirm({
-        title: t('errors.sessionExpiringTitle'),
-        message: t('errors.sessionExpiringMessage'),
-        confirmText: t('errors.extendSession'),
-        cancelText: t('layout.userMenu.logout'),
-        variant: 'warning',
-      })
+      sessionWarningOpen.value = true
+      try {
+        const verlängern = await confirm.confirm({
+          title: t('errors.sessionExpiringTitle'),
+          message: t('errors.sessionExpiringMessage'),
+          confirmText: t('errors.extendSession'),
+          cancelText: t('layout.userMenu.logout'),
+          variant: 'warning',
+          persistent: true,
+          countdownEndsAt: logoutAtMs.value,
+        })
 
-      if (verlängern) {
-        resetInactivityTimer()
-      } else {
-        await doLogout()
+        if (verlängern) {
+          const now = Date.now()
+          lastActivity.value = now
+          persistLastActivity(now)
+          resetInactivityTimer()
+        } else if (isLoggedIn.value) {
+          await doLogout()
+        }
+      } finally {
+        sessionWarningOpen.value = false
       }
     }, warningDelay)
 
@@ -151,7 +164,7 @@ export function useAutoLogout() {
   }
 
   function trackActivity() {
-    if (!isLoggedIn.value) {
+    if (!isLoggedIn.value || sessionWarningOpen.value) {
       return
     }
 
@@ -236,6 +249,9 @@ export function useAutoLogout() {
     lastActivity.value = readLastActivityMs()
     if (isIdleSessionExpired()) {
       void logoutDueToInactivity()
+      return
+    }
+    if (sessionWarningOpen.value) {
       return
     }
     authStore.refreshTokenProactively()

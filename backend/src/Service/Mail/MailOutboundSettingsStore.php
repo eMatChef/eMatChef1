@@ -43,6 +43,12 @@ class MailOutboundSettingsStore
         if (isset($data['from_name']) && is_string($data['from_name']) && trim($data['from_name']) !== '') {
             $fromName = trim($data['from_name']);
         }
+        if ($fromName === null || $fromName === '') {
+            $fromName = $this->parseAddressName($this->envMailerFrom);
+        }
+        if ($fromName === null || $fromName === '') {
+            $fromName = 'E Mat Chef';
+        }
 
         return [
             'from_address' => $fromAddress,
@@ -230,5 +236,20 @@ class MailOutboundSettingsStore
         }
 
         return 'noreply@localhost';
+    }
+
+    /** Anzeigename aus RFC-From, z. B. eMatChef &lt;noreply@ematchef.ch&gt;. */
+    private function parseAddressName(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+        if (preg_match('/^"?([^"<]+)"?\s*<[^>]+>\s*$/', $raw, $m)) {
+            $name = trim($m[1], " \t\"'");
+            return $name !== '' ? $name : null;
+        }
+
+        return null;
     }
 }

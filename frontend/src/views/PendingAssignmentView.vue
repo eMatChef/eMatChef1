@@ -296,6 +296,7 @@ import { useAuthStore } from '@/stores/auth'
 import {
   createAdminJoinRequest,
   createJoinRequest,
+  acceptDepartmentInvite,
   getMyJoinRequests,
   searchJoinableDepartments,
   type DepartmentSearchResult,
@@ -448,6 +449,29 @@ function requireTurnstileToken(): string | undefined {
     return undefined
   }
   return token
+}
+
+async function acceptIncomingEmailInvite(): Promise<boolean> {
+  const inviteId = typeof route.query.invite_id === 'string' ? route.query.invite_id.trim() : ''
+  const departmentId =
+    typeof route.query.department_id === 'string' ? route.query.department_id.trim() : ''
+  if (!inviteId || !departmentId) return false
+  if (autoJoinTriggered) return false
+  autoJoinTriggered = true
+  loading.value = true
+  error.value = null
+  try {
+    const result = await acceptDepartmentInvite({ inviteId, departmentId })
+    if (result.department_id) {
+      await authStore.refreshAfterInviteAccepted(result.department_id)
+      return true
+    }
+  } catch {
+    autoJoinTriggered = false
+  } finally {
+    loading.value = false
+  }
+  return false
 }
 
 async function submitRequest() {
@@ -636,11 +660,14 @@ onMounted(() => {
     inviteRole.value = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'].includes(normalized) ? normalized : 'u'
   }
 
-  const shouldAutoJoin = String(route.query.auto_join || '') === '1'
-  if (shouldAutoJoin && joinCode.value && !autoJoinTriggered) {
-    autoJoinTriggered = true
-    submitRequest()
-  }
+  void acceptIncomingEmailInvite().then((accepted) => {
+    if (accepted) return
+    const shouldAutoJoin = String(route.query.auto_join || '') === '1'
+    if (shouldAutoJoin && joinCode.value && !autoJoinTriggered) {
+      autoJoinTriggered = true
+      submitRequest()
+    }
+  })
 })
 watch(departmentQuery, (value) => {
   if (searchTimer) clearTimeout(searchTimer)
