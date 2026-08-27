@@ -152,15 +152,28 @@
         </div>
       </section>
 
-      <!-- Design-Vorschau (keine Live-Daten) -->
-      <section class="ga-dashboard__section ga-dashboard__preview">
-        <GrossanlassPreviewBanner />
-        <h2 class="section-title">{{ t('grossanlass.dashboard.previewTitle') }}</h2>
+      <!-- Gast-Abteilungen: echte Planungsdaten -->
+      <section v-if="known && hasGuestDepartments" class="ga-dashboard__section">
+        <div class="section-header">
+          <h2 class="section-title">{{ t('grossanlass.dashboard.previewParticipantsTitle') }}</h2>
+          <router-link :to="teilnehmerLink" class="section-link">
+            {{ t('grossanlass.dashboard.participantsAll') }}
+          </router-link>
+        </div>
+        <p class="participants-lead">{{ t('grossanlass.dashboard.participantsLiveText') }}</p>
+        <ul v-if="liveParticipants.length" class="participants-list">
+          <li v-for="row in liveParticipants" :key="row.id">
+            {{ row.name }}
+            <span class="participants-list__org" v-if="row.organisation_name">{{ row.organisation_name }}</span>
+            · {{ t(`grossanlass.planung.struktur.status.${row.status}`) }}
+          </li>
+        </ul>
+        <p v-else class="participants-empty">{{ t('grossanlass.dashboard.previewParticipantsEmpty') }}</p>
 
-        <div v-if="known && hasGuestDepartments" class="preview-freigabe">
+        <div class="preview-freigabe">
           <div>
             <h3>{{ t('grossanlass.dashboard.previewFreigabeTitle') }}</h3>
-            <p>{{ t('grossanlass.dashboard.previewFreigabeText') }}</p>
+            <p>{{ published ? t('grossanlass.planung.freigabe.publishedHint') : t('grossanlass.dashboard.previewFreigabeText') }}</p>
           </div>
           <router-link :to="freigabeLink">
             <EButton variant="secondary" size="small">
@@ -168,6 +181,12 @@
             </EButton>
           </router-link>
         </div>
+      </section>
+
+      <!-- Materialübersicht / Ausgabe: noch Demo -->
+      <section class="ga-dashboard__section ga-dashboard__preview">
+        <GrossanlassPreviewBanner />
+        <h2 class="section-title">{{ t('grossanlass.dashboard.previewTitle') }}</h2>
 
         <div class="ga-dashboard__stats">
           <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
@@ -186,17 +205,6 @@
         <p class="preview-conflicts-link">
           <router-link :to="konflikteLink">{{ t('grossanlass.dashboard.previewConflictsLink') }}</router-link>
         </p>
-
-        <div class="preview-participants">
-          <h3>{{ t('grossanlass.dashboard.previewParticipantsTitle') }}</h3>
-          <p>{{ t('grossanlass.dashboard.previewParticipantsText') }}</p>
-          <ul class="preview-participants__list">
-            <li v-for="row in participants" :key="row.id">
-              {{ t(row.nameKey) }}
-              · {{ t(`grossanlass.chain.participantStatus.${row.status}`) }}
-            </li>
-          </ul>
-        </div>
       </section>
     </template>
 
@@ -219,10 +227,12 @@ import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
 import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
+import { stockCounts } from '@/views/grossanlass/grossanlassChainPreviewStore'
 import {
-  listChainParticipants,
-  stockCounts,
-} from '@/views/grossanlass/grossanlassChainPreviewStore'
+  getGrossanlassPlanung,
+  type GrossanlassParticipant,
+  type GrossanlassPlanungOverview,
+} from '@/api/grossanlassPlanung'
 import {
   getGrossanlassPlanningRounds,
   type GrossanlassPlanningRound,
@@ -246,7 +256,7 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const { isUserRole } = useDepartmentMemberRole()
-const { hasGuestDepartments, known, refresh: refreshGuestDepartments } = useGrossanlassGuestDepartments(
+const { hasGuestDepartments, known, setHasGuestDepartments } = useGrossanlassGuestDepartments(
   () => props.departmentId,
 )
 
@@ -256,6 +266,7 @@ const rounds = ref<GrossanlassPlanningRound[]>([])
 const ressortRootCount = ref(0)
 const procurementOverview = ref<GrossanlassProcurementOverview | null>(null)
 const inquiryStats = ref<{ entwurf: number; gesendet: number; antwort: number; zusage: number } | null>(null)
+const planung = ref<GrossanlassPlanungOverview | null>(null)
 
 const wishDialogOpen = ref(false)
 const activeWishRoundId = ref<string | null>(null)
@@ -295,8 +306,10 @@ const einsaetzeLink = computed(() => `/${props.departmentId}/material-uebersicht
 const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
 const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
+const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
 const stock = computed(() => stockCounts())
-const participants = computed(() => listChainParticipants())
+const liveParticipants = computed<GrossanlassParticipant[]>(() => planung.value?.participants ?? [])
+const published = computed(() => planung.value?.config.status === 'published')
 
 function roundDetailLink(roundId: string, tab?: 'input' | 'responses') {
   const base = `/${props.departmentId}/planung/runden/${roundId}`
@@ -357,13 +370,17 @@ async function load() {
   isLoading.value = true
   error.value = ''
   try {
-    const [roundList, groups] = await Promise.all([
+    const [roundList, groups, pack] = await Promise.all([
       getGrossanlassPlanningRounds(props.departmentId),
       getGrossanlassGroups(props.departmentId),
-      refreshGuestDepartments().catch(() => undefined),
+      getGrossanlassPlanung(props.departmentId).catch(() => null),
     ])
     rounds.value = roundList
     ressortRootCount.value = groups.filter((g) => !g.parent_id).length
+    planung.value = pack
+    if (pack) {
+      setHasGuestDepartments(pack.config.has_guest_departments === true)
+    }
 
     if (canManageProcurement.value) {
       try {
@@ -596,17 +613,37 @@ onMounted(load)
   border: 1px solid #e5e7eb;
 }
 
-.preview-freigabe h3,
-.preview-participants h3 {
+.preview-freigabe h3 {
   margin: 0 0 4px;
   font-size: 0.95rem;
 }
 
 .preview-freigabe p,
-.preview-participants p {
+.participants-lead,
+.participants-empty {
   margin: 0;
   font-size: 0.85rem;
   color: #64748b;
+}
+
+.participants-empty {
+  font-style: italic;
+}
+
+.participants-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.participants-list__org {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.participants-list__org::before {
+  content: ' · ';
 }
 
 .stat-card--preview {
@@ -638,25 +675,6 @@ onMounted(load)
 
 .preview-conflicts-link a:hover {
   text-decoration: underline;
-}
-
-.preview-participants {
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-}
-
-.preview-participants__empty {
-  margin-top: 8px !important;
-  font-style: italic;
-}
-
-.preview-participants__list {
-  margin: 8px 0 0;
-  padding-left: 18px;
-  font-size: 0.85rem;
-  color: #334155;
 }
 
 .quick-link-card {
