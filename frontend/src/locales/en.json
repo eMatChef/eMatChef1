@@ -7681,6 +7681,8 @@
       "previewStockOut": "Out",
       "previewParticipantsTitle": "Participants",
       "previewParticipantsText": "Planned guest departments will show here after publish as accepted or pending.",
+      "participantsLiveText": "Guest departments from settings — status after publish: planned, invited, or accepted.",
+      "participantsAll": "Open participants",
       "previewParticipantsEmpty": "No participants planned yet",
       "previewConflictsLink": "Conflicts in material overview (preview)"
     },
