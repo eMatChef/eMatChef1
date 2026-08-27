@@ -304,6 +304,15 @@ export async function deletePendingInvite(departmentId: string, inviteId: string
   })
 }
 
+export async function resendPendingInvite(departmentId: string, inviteId: string): Promise<PendingInvite> {
+  const { data } = await apiClient.post<PendingInvite>(
+    `/api/join-requests/invite/pending/${inviteId}/resend`,
+    {},
+    { params: { department_id: departmentId } },
+  )
+  return data
+}
+
 export async function getInviteNotifications(
   departmentId: string,
   options?: { bucket?: 'unread' | 'read' | 'all'; limit?: number },

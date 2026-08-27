@@ -2,10 +2,19 @@
   <EDialog v-model="open" :title="t('printJob.title')" :max-width="880" :retain-focus="false">
     <ELoadingState v-if="loading" variant="inline" :message="t('printJob.loading')" />
     <p v-else-if="loadError" class="error">{{ loadError }}</p>
-    <div v-else class="job-body">
+    <div v-else class="job-body" :class="{ 'job-body--plain': !hasPrinters }">
       <div class="job-grid">
         <p v-if="items.length" class="muted">{{ t('printJob.itemCount', items.length) }}</p>
-        <p v-if="printers.length === 0" class="muted">{{ t('printJob.noPrinters') }}</p>
+        <div v-if="!hasPrinters" class="empty-printers">
+          <p class="muted">{{ t('printJob.noPrinters') }}</p>
+          <router-link
+            class="setup-link"
+            :to="addPrinterTo"
+            @click="store.close()"
+          >
+            {{ t('printJob.addPrinterLink') }}
+          </router-link>
+        </div>
         <template v-else>
           <ESelect
             v-model="printerId"
@@ -15,7 +24,7 @@
           />
           <ESelect
             v-model="layoutId"
-            :label="t('printJob.layout')"
+            :label="t('printJob.designPick')"
             :items="layoutItems"
             :disabled="!printerId"
             hide-details
@@ -31,7 +40,7 @@
             />
           </label>
           <div class="design-picks">
-            <span class="field-picks__label">{{ t('printJob.designTitle') }}</span>
+            <span class="field-picks__label">{{ t('printJob.styleTitle') }}</span>
             <button
               type="button"
               class="design-chip"
@@ -65,6 +74,16 @@
             />
           </div>
           <p class="muted">{{ t('printJob.fieldsHint') }}</p>
+          <div v-if="face.design === 'label'" class="size-row">
+            <EButton variant="secondary" size="small" :disabled="!jobFields.length" @click="scaleSelected(0.85)">
+              {{ t('printJob.fieldSmaller') }}
+            </EButton>
+            <EButton variant="secondary" size="small" :disabled="!jobFields.length" @click="scaleSelected(1.15)">
+              {{ t('printJob.fieldBigger') }}
+            </EButton>
+          </div>
+          <p v-if="face.design === 'label'" class="muted">{{ t('printJob.arrangeHint') }}</p>
+          <p v-else class="muted">{{ t('printJob.arrangeBadgeHint') }}</p>
           <p v-if="items.length > 1 && selectedLayout && selectedLayout.cells.length > 1" class="muted">
             {{ t('printJob.sheetHint') }}
           </p>
@@ -81,13 +100,21 @@
         :start-cell="startCell"
         :enabled-fields="fieldKeys"
         :face="face"
+        :fields="jobFields"
+        :editable="face.design === 'label'"
+        :selected-field-id="selectedFieldId"
         @update:start-cell="startCell = $event"
+        @update:fields="jobFields = $event"
+        @update:selected-id="selectedFieldId = $event"
       />
     </div>
     <template #actions>
       <EButton variant="text" @click="open = false">{{ t('common.cancel') }}</EButton>
+      <EButton v-if="!loading && !hasPrinters" variant="primary" @click="goAddPrinter">
+        {{ t('printJob.addPrinter') }}
+      </EButton>
       <EButton
-        v-if="canQueue"
+        v-if="!loading && hasPrinters && canQueue"
         variant="secondary"
         :loading="queuing"
         :disabled="!canPrint || printing"
@@ -95,7 +122,13 @@
       >
         {{ t('printJob.addToCart') }}
       </EButton>
-      <EButton variant="primary" :loading="printing" :disabled="!canPrint || queuing" @click="runPrint">
+      <EButton
+        v-if="!loading && hasPrinters"
+        variant="primary"
+        :loading="printing"
+        :disabled="!canPrint || queuing"
+        @click="runPrint"
+      >
         {{ t('common.print') }}
       </EButton>
     </template>
@@ -104,6 +137,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import EButton from '@/components/form/base/EButton.vue'
@@ -113,19 +147,22 @@ import ESelect from '@/components/form/base/ESelect.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PrintJobPreview from '@/components/print/PrintJobPreview.vue'
 import { getDepartmentPrintPresets, type DepartmentPrintPreset } from '@/api/printCatalog'
-import { listDepartmentPrintLayouts, type PrintLayout } from '@/api/printLayouts'
+import { listDepartmentPrintLayouts, type PrintLayout, type PrintLayoutField } from '@/api/printLayouts'
 import { isBrotherQlLayout } from '@/print/printCartLayout'
 import { defaultFieldsFor, executePrintJob } from '@/print/printJob'
-import { type PrintContentKey } from '@/print/layoutFields'
+import { layoutKeysFromContent, layoutWithEnabledFields, type PrintContentKey } from '@/print/layoutFields'
+import { cloneLayoutFields, scaleField } from '@/print/layoutFieldGeom'
 import {
   fieldsStorageKey,
   layoutStorageKey,
   loadNextStartCell,
   loadPrintFace,
+  loadJobFieldBoxes,
   printerStorageKey,
   saveNextStartCell,
   savePrintChoiceLabels,
   savePrintFace,
+  saveJobFieldBoxes,
 } from '@/print/printChoice'
 import { defaultPrintFace, type PrintFace } from '@/print/printFace'
 import { nextStartCell } from '@/print/sheetPlacement'
@@ -138,6 +175,7 @@ import { usePrintCart } from '@/composables/usePrintCart'
 const store = usePrintJobStore()
 const printCartStore = usePrintCartStore()
 const { addItems: addToPrintCart } = usePrintCart()
+const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -152,6 +190,8 @@ const layoutId = ref('')
 const startCell = ref(1)
 const fieldKeys = ref<PrintContentKey[]>(['qr', 'title', 'code'])
 const face = ref<PrintFace>(defaultPrintFace('label'))
+const jobFields = ref<PrintLayoutField[]>([])
+const selectedFieldId = ref('')
 
 const open = computed({
   get: () => store.isOpen,
@@ -162,6 +202,12 @@ const open = computed({
 const items = computed(() => store.items)
 const availableFields = computed(() => store.availableFields)
 const printers = computed(() => uniquePresetsByDevice(presets.value))
+const hasPrinters = computed(() => printers.value.length > 0)
+const addPrinterTo = computed(() => ({
+  name: 'SettingsPrint' as const,
+  params: { departmentId: store.departmentId },
+  query: { add: '1' },
+}))
 const selectedPrinter = computed(
   () => printers.value.find((item) => item.device_model_id === printerId.value) || null,
 )
@@ -220,6 +266,31 @@ function applyStartCellForLayout(layout: PrintLayout) {
   startCell.value = stored ? Math.min(Math.max(1, stored), n) : 1
 }
 
+function loadJobFieldsForLayout(layout: PrintLayout) {
+  const stored = loadJobFieldBoxes(store.departmentId, layout.id)
+  const base = stored?.length ? stored : cloneLayoutFields(layout.fields)
+  jobFields.value = layoutWithEnabledFields(
+    { ...layout, fields: base },
+    layoutKeysFromContent(fieldKeys.value),
+  ).fields
+  if (!jobFields.value.some((item) => item.id === selectedFieldId.value)) {
+    selectedFieldId.value = jobFields.value[0]?.id || ''
+  }
+}
+
+function persistJobFields(layout: PrintLayout) {
+  saveJobFieldBoxes(store.departmentId, layout.id, jobFields.value)
+}
+
+function scaleSelected(factor: number) {
+  if (face.value.design !== 'label' || !jobFields.value.length) return
+  if (!jobFields.value.some((item) => item.id === selectedFieldId.value)) {
+    selectedFieldId.value = jobFields.value[0]?.id || ''
+  }
+  const id = selectedFieldId.value
+  jobFields.value = jobFields.value.map((item) => (item.id === id ? scaleField(item, factor) : item))
+}
+
 function persistChoiceLabels() {
   const layout = selectedLayout.value
   const printer = selectedPrinter.value
@@ -251,7 +322,10 @@ function applyStoredChoices() {
   fieldKeys.value = storedFields.length ? storedFields : defaultFieldsFor(availableFields.value)
   face.value = loadPrintFace(dept, store.kind)
   const layout = selectedLayout.value
-  if (layout) applyStartCellForLayout(layout)
+  if (layout) {
+    applyStartCellForLayout(layout)
+    loadJobFieldsForLayout(layout)
+  }
   persistChoiceLabels()
 }
 
@@ -287,11 +361,13 @@ async function runPrint() {
       enabledFields: fieldKeys.value,
       startIndex: Math.max(0, startCell.value - 1),
       face: face.value,
+      fields: jobFields.value,
     })
     toast.success(mode === 'ql' ? t('printLayout.qlSent') : t('printJob.printOk'))
     localStorage.setItem(printerStorageKey(store.departmentId), printerId.value)
     localStorage.setItem(layoutStorageKey(store.departmentId), layout.id)
     localStorage.setItem(fieldsStorageKey(store.departmentId, store.kind), fieldKeys.value.join(','))
+    persistJobFields(layout)
     if (!isBrotherQlLayout(layout) && layout.cells.length > 1) {
       saveNextStartCell(
         store.departmentId,
@@ -322,12 +398,20 @@ async function addToCart() {
     localStorage.setItem(printerStorageKey(store.departmentId), printerId.value)
     localStorage.setItem(layoutStorageKey(store.departmentId), layout.id)
     localStorage.setItem(fieldsStorageKey(store.departmentId, store.kind), fieldKeys.value.join(','))
+    persistJobFields(layout)
     persistChoiceLabels()
     const ok = await addToPrintCart(payloads)
     if (ok) store.close()
   } finally {
     queuing.value = false
   }
+}
+
+function goAddPrinter() {
+  const to = addPrinterTo.value
+  store.close()
+  if (!to.params.departmentId) return
+  void router.push(to)
 }
 
 watch(
@@ -347,6 +431,16 @@ watch(layoutId, () => {
   const layout = selectedLayout.value
   if (!layout || loading.value || !store.isOpen) return
   applyStartCellForLayout(layout)
+  loadJobFieldsForLayout(layout)
+})
+
+watch(fieldKeys, () => {
+  const layout = selectedLayout.value
+  if (!layout || !store.isOpen) return
+  jobFields.value = layoutWithEnabledFields(
+    { ...layout, fields: jobFields.value.length ? jobFields.value : layout.fields },
+    layoutKeysFromContent(fieldKeys.value),
+  ).fields
 })
 
 watch(selectedLayout, (layout) => {
@@ -371,8 +465,24 @@ watch(face, () => {
   gap: 20px;
   align-items: start;
 }
+.job-body--plain {
+  grid-template-columns: 1fr;
+}
 .job-grid { display: flex; flex-direction: column; gap: 12px; }
 .muted { margin: 0; color: #6b7280; font-size: 13px; }
+.empty-printers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.setup-link {
+  color: #15803d;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .error { color: #b91c1c; }
 .start-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4b5563; }
 .start-field input {
@@ -383,6 +493,7 @@ watch(face, () => {
 }
 .field-picks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .field-picks__label { font-size: 13px; font-weight: 700; color: #334155; }
+.size-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .design-picks {
   display: flex;
   flex-wrap: wrap;

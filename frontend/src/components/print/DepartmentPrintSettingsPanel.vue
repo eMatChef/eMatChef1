@@ -154,6 +154,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import EButton from '@/components/form/base/EButton.vue'
@@ -187,6 +188,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const toast = useToast()
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -319,6 +322,13 @@ async function load() {
     loadError.value = err.response?.data?.error || t('printSettings.loadError')
   } finally {
     loading.value = false
+    if (route.query.add === '1' && catalog.value?.can_manage_presets) {
+      openAccordion.value = 'printers'
+      openPresetDialog()
+      const nextQuery = { ...route.query }
+      delete nextQuery.add
+      void router.replace({ query: nextQuery })
+    }
   }
 }
 

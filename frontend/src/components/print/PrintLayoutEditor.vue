@@ -166,6 +166,14 @@
           />
         </div>
         <p class="muted">{{ t('printLayout.fieldsHint') }}</p>
+        <div v-if="canEditSelected && selectedFieldId" class="size-row">
+          <EButton variant="secondary" size="small" @click="scaleSelected(0.85)">
+            {{ t('printJob.fieldSmaller') }}
+          </EButton>
+          <EButton variant="secondary" size="small" @click="scaleSelected(1.15)">
+            {{ t('printJob.fieldBigger') }}
+          </EButton>
+        </div>
 
         <div class="sheet-wrap" :style="{ aspectRatio: sheetAspect }">
           <canvas ref="underlayEl" class="underlay" />
@@ -187,27 +195,17 @@
               :class="{ 'cell--start': cell.index === startIndex }"
               @click="startIndex = cell.index"
             />
-            <g
-              v-for="field in selected.fields"
-              :key="field.id"
-              class="field"
-              :class="{ 'field--on': field.id === selectedFieldId }"
-              @pointerdown="beginDrag($event, field)"
-            >
-              <rect
-                :x="previewCell.x + (field.x / 100) * previewCell.w"
-                :y="previewCell.y + (field.y / 100) * previewCell.h"
-                :width="(field.w / 100) * previewCell.w"
-                :height="(field.h / 100) * previewCell.h"
-              />
-              <text
-                :x="previewCell.x + (field.x / 100) * previewCell.w + 1.5"
-                :y="previewCell.y + (field.y / 100) * previewCell.h + Math.min(6, (field.h / 100) * previewCell.h - 1)"
-                class="field-label"
-              >
-                {{ field.type === 'qr' ? 'QR' : field.key }}
-              </text>
-            </g>
+            <PrintFieldBoxes
+              :fields="selected.fields"
+              :cell-x="previewCell.x"
+              :cell-y="previewCell.y"
+              :cell-w="previewCell.w"
+              :cell-h="previewCell.h"
+              :editable="canEditSelected"
+              :selected-id="selectedFieldId"
+              @update:fields="onEditorFields"
+              @update:selected-id="selectedFieldId = $event"
+            />
           </svg>
         </div>
         <p class="muted">{{ t('printLayout.startHint', { n: startIndex + 1, total: selected.cells.length }) }}</p>
@@ -338,6 +336,7 @@ import ETextField from '@/components/form/base/ETextField.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PrintMediaCard from '@/components/print/PrintMediaCard.vue'
+import PrintFieldBoxes from '@/components/print/PrintFieldBoxes.vue'
 import { useAuthStore } from '@/stores/auth'
 import { getDepartmentPrintCatalog, getDepartmentPrintPresets, type PrintDeviceModel, type PrintMedia } from '@/api/printCatalog'
 import {
@@ -355,6 +354,7 @@ import {
 } from '@/api/printLayouts'
 import { printCanvasToBrotherQl, readBrotherQlStatus, requestBrotherQlDevice, webUsbSupported, type BrotherQlStatus } from '@/print/brotherQlUsb'
 import { defaultLayoutFields, fieldEnabled, LAYOUT_FIELD_PRESETS, toggleLayoutField, type LayoutFieldKey } from '@/print/layoutFields'
+import { scaleField } from '@/print/layoutFieldGeom'
 import { mediaCompatibleWithAnyModel, uniqueModelsFromPresets } from '@/print/mediaCompatibility'
 import { buildLayoutPdf, downloadPdfBytes, renderPdfPageToCanvas } from '@/print/renderPrintLayout'
 
@@ -562,19 +562,25 @@ function selectLayout(item: PrintLayout) {
   startIndex.value = 0
 }
 
-function pickPaper(item: PrintMedia) {
-  const existing = layouts.value.find(
-    (layout) => layout.media_id === item.id && layout.department_id === props.departmentId,
+function nextDesignName(mediaName: string): string {
+  const base = mediaName.trim() || t('printLayout.add')
+  const names = new Set(
+    layouts.value
+      .filter((layout) => layout.department_id === props.departmentId)
+      .map((layout) => layout.name),
   )
-  if (existing) {
-    selectLayout(existing)
-    return
-  }
+  if (!names.has(base)) return base
+  let n = 2
+  while (names.has(`${base} ${n}`)) n += 1
+  return `${base} ${n}`
+}
+
+function pickPaper(item: PrintMedia) {
   openCreate(item)
 }
 
 function openCreate(mediaItem?: PrintMedia) {
-  createForm.name = mediaItem ? mediaItem.name : ''
+  createForm.name = mediaItem ? nextDesignName(mediaItem.name) : ''
   createForm.media_id = mediaItem?.id || ''
   createForm.request_global = false
   createForm.fields = ['qr', 'title', 'code']
@@ -767,29 +773,16 @@ async function removeSelected() {
   }
 }
 
-function beginDrag(event: PointerEvent, field: PrintLayoutField) {
-  if (!selected.value || !canEditSelected.value) return
-  selectedFieldId.value = field.id
-  const svg = (event.currentTarget as SVGElement).ownerSVGElement
-  if (!svg) return
-  const cell = previewCell.value
-  const startX = event.clientX
-  const startY = event.clientY
-  const orig = { ...field }
-  const onMove = (move: PointerEvent) => {
-    const box = svg.getBoundingClientRect()
-    const dx = ((move.clientX - startX) / box.width) * selected.value!.sheet.sheet_width_mm
-    const dy = ((move.clientY - startY) / box.height) * selected.value!.sheet.sheet_height_mm
-    field.x = Math.max(0, Math.min(100 - field.w, orig.x + (dx / cell.w) * 100))
-    field.y = Math.max(0, Math.min(100 - field.h, orig.y + (dy / cell.h) * 100))
-  }
-  const onUp = () => {
-    window.removeEventListener('pointermove', onMove)
-    window.removeEventListener('pointerup', onUp)
-  }
-  window.addEventListener('pointermove', onMove)
-  window.addEventListener('pointerup', onUp)
-  event.preventDefault()
+function onEditorFields(next: PrintLayoutField[]) {
+  if (!selected.value) return
+  selected.value.fields = next
+}
+
+function scaleSelected(factor: number) {
+  const layout = selected.value
+  const id = selectedFieldId.value
+  if (!layout || !id || !canEditSelected.value) return
+  layout.fields = layout.fields.map((item) => (item.id === id ? scaleField(item, factor) : item))
 }
 
 async function templateBytes(): Promise<ArrayBuffer | null> {
@@ -929,6 +922,7 @@ defineExpose({ layouts, selected, startIndex, load })
 .dialog-paper { max-height: 320px; overflow: auto; padding: 2px; }
 .field-picks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
 .field-picks__label { font-size: 13px; font-weight: 700; color: #334155; }
+.size-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
 .layout-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .layout-pick { width: 100%; text-align: left; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; background: #fff; cursor: pointer; }
 .layout-item.is-on .layout-pick { border-color: #10b981; background: #ecfdf5; }
@@ -942,9 +936,6 @@ defineExpose({ layouts, selected, startIndex, load })
 .sheet { position: relative; width: 100%; height: auto; display: block; background: transparent; }
 .cell { fill: rgba(255,255,255,0.35); stroke: #94a3b8; stroke-width: 0.35; cursor: pointer; }
 .cell--start { stroke: #059669; stroke-width: 0.9; fill: rgba(16,185,129,0.12); }
-.field rect { fill: rgba(37,99,235,0.18); stroke: #2563eb; stroke-width: 0.35; cursor: grab; }
-.field--on rect { stroke: #1d4ed8; stroke-width: 0.6; }
-.field-label { font-size: 3.2px; fill: #1e3a8a; pointer-events: none; }
 .file-btn { display: inline-flex; align-items: center; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 .dialog-grid { display: flex; flex-direction: column; gap: 12px; }

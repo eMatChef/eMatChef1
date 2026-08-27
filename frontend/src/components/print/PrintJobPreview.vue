@@ -136,11 +136,22 @@
                 class="label__text"
                 :x="(field.x / 100) * previewCell.w + 1.2"
                 :y="(field.y / 100) * previewCell.h + Math.min(5, (field.h / 100) * previewCell.h * 0.45)"
-                :font-size="Math.max(2.4, Math.min(5.2, (field.h / 100) * previewCell.h * 0.28))"
+                :font-size="Math.max(2.4, Math.min(8, (field.h / 100) * previewCell.h * 0.38))"
               >
                 {{ fieldPreviewText(field) }}
               </text>
             </g>
+            <PrintFieldBoxes
+              v-if="editable"
+              :fields="previewFields"
+              :cell-w="previewCell.w"
+              :cell-h="previewCell.h"
+              :editable="true"
+              :selected-id="selectedFieldId"
+              variant="overlay"
+              @update:fields="emit('update:fields', $event)"
+              @update:selected-id="emit('update:selectedId', $event)"
+            />
           </g>
         </svg>
       </div>
@@ -152,8 +163,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { DepartmentPrintPreset } from '@/api/printCatalog'
-import type { PrintLayout } from '@/api/printLayouts'
+import type { PrintLayout, PrintLayoutField } from '@/api/printLayouts'
 import PrintDeviceThumb from '@/components/print/PrintDeviceThumb.vue'
+import PrintFieldBoxes from '@/components/print/PrintFieldBoxes.vue'
 import { layoutKeysFromContent, layoutWithEnabledFields, type PrintContentKey } from '@/print/layoutFields'
 import { defaultPrintFace, faceRadius, type PrintFace } from '@/print/printFace'
 import { sampleForPrint, type PrintJobItem } from '@/print/printJob'
@@ -166,10 +178,15 @@ const props = defineProps<{
   startCell?: number
   enabledFields?: PrintContentKey[]
   face?: PrintFace
+  fields?: PrintLayoutField[]
+  editable?: boolean
+  selectedFieldId?: string
 }>()
 
 const emit = defineEmits<{
   'update:startCell': [value: number]
+  'update:fields': [value: PrintLayoutField[]]
+  'update:selectedId': [value: string]
 }>()
 
 const { t } = useI18n()
@@ -181,6 +198,8 @@ const startIndex = computed(() => Math.max(0, (props.startCell || 1) - 1))
 const enabled = computed(() => props.enabledFields || [])
 const face = computed(() => props.face || defaultPrintFace('label'))
 const isBadge = computed(() => face.value.design === 'badge')
+const editable = computed(() => !!props.editable && !isBadge.value)
+const selectedFieldId = computed(() => props.selectedFieldId || '')
 
 const printerTitle = computed(() => {
   if (!printer.value) return ''
@@ -202,7 +221,9 @@ const sheetAspect = computed(() => {
 const jobLayout = computed(() => {
   const item = layout.value
   if (!item) return null
-  return layoutWithEnabledFields(item, layoutKeysFromContent(enabled.value))
+  const next = layoutWithEnabledFields(item, layoutKeysFromContent(enabled.value))
+  if (props.fields?.length) return { ...next, fields: props.fields }
+  return next
 })
 
 const previewFields = computed(() => jobLayout.value?.fields || [])
