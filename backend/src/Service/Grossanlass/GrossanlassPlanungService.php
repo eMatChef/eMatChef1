@@ -11,6 +11,7 @@ use App\Entity\Department;
 use App\Entity\DepartmentCalendarPeriod;
 use App\Entity\DepartmentGrossanlassConfig;
 use App\Entity\DepartmentGrossanlassParticipant;
+use App\Entity\DepartmentGrossanlassUnterlager;
 use App\Entity\Group;
 use App\Entity\Membership;
 use App\Entity\User;
@@ -52,6 +53,7 @@ final class GrossanlassPlanungService
             'checks' => $this->checks($department, $config),
             'activities' => $this->listActivities($department),
             'ressorts' => $this->listRessortSummaries($department),
+            'unterlager' => $this->listUnterlager($department),
             'participants' => $this->listParticipants($department),
             'can_manage' => $this->access->canManagePlanung($user, $department),
         ];
@@ -339,7 +341,7 @@ final class GrossanlassPlanungService
     /**
      * @return array<string, mixed>
      */
-    public function addParticipant(Department $department, User $user, string $guestDepartmentId): array
+    public function addParticipant(Department $department, User $user, string $guestDepartmentId, ?string $unterlagerId = null): array
     {
         $this->assertManage($department, $user);
         $guestId = trim($guestDepartmentId);
@@ -366,6 +368,7 @@ final class GrossanlassPlanungService
         $row->setId(IdGenerator::generateUnique($this->entityManager, DepartmentGrossanlassParticipant::class));
         $row->setHostDepartment($department);
         $row->setGuestDepartment($guest);
+        $row->setUnterlager($this->resolveUnterlager($department, $unterlagerId));
         if ($config->getStatus() === DepartmentGrossanlassConfig::STATUS_PUBLISHED) {
             $row->setStatus(DepartmentGrossanlassParticipant::STATUS_PENDING);
             $row->setInvitedAt(new \DateTime());
@@ -377,6 +380,109 @@ final class GrossanlassPlanungService
         if ($row->getStatus() === DepartmentGrossanlassParticipant::STATUS_PENDING) {
             $this->inbox->syncGrossanlassParticipantInvites($department);
         }
+
+        return $this->overview($department, $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function updateParticipant(Department $department, User $user, string $participantId, array $data): array
+    {
+        $this->assertManage($department, $user);
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassParticipant::class)->find($participantId);
+        if (!$row instanceof DepartmentGrossanlassParticipant || $row->getHostDepartment()->getId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Teilnehmer nicht gefunden');
+        }
+        if (array_key_exists('unterlager_id', $data)) {
+            $unterlagerId = $data['unterlager_id'];
+            $row->setUnterlager($this->resolveUnterlager(
+                $department,
+                is_string($unterlagerId) && trim($unterlagerId) !== '' ? trim($unterlagerId) : null,
+            ));
+        }
+        $this->entityManager->flush();
+
+        return $this->overview($department, $user);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function createUnterlager(Department $department, User $user, array $data): array
+    {
+        $this->assertManage($department, $user);
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('Name fehlt');
+        }
+        $parentId = isset($data['parent_id']) && is_string($data['parent_id']) && trim($data['parent_id']) !== ''
+            ? trim($data['parent_id'])
+            : null;
+        $parent = $this->resolveUnterlager($department, $parentId);
+        $row = new DepartmentGrossanlassUnterlager();
+        $row->setId(IdGenerator::generateUnique($this->entityManager, DepartmentGrossanlassUnterlager::class));
+        $row->setHostDepartment($department);
+        $row->setName($name);
+        $row->setParent($parent);
+        $row->setSortOrder($this->nextUnterlagerSort($department, $parent?->getId()));
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+
+        return $this->overview($department, $user);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function updateUnterlager(Department $department, User $user, string $unterlagerId, array $data): array
+    {
+        $this->assertManage($department, $user);
+        $row = $this->requireUnterlager($department, $unterlagerId);
+        if (array_key_exists('name', $data)) {
+            $name = trim((string) $data['name']);
+            if ($name === '') {
+                throw new \InvalidArgumentException('Name fehlt');
+            }
+            $row->setName($name);
+        }
+        if (array_key_exists('parent_id', $data)) {
+            $parentId = is_string($data['parent_id']) && trim($data['parent_id']) !== '' ? trim($data['parent_id']) : null;
+            if ($parentId === $row->getId()) {
+                throw new \InvalidArgumentException('Unterlager kann nicht in sich selbst hängen');
+            }
+            $parent = $this->resolveUnterlager($department, $parentId);
+            if ($parent instanceof DepartmentGrossanlassUnterlager && $this->unterlagerIsDescendant($row, $parent)) {
+                throw new \InvalidArgumentException('Unterlager kann nicht unter ein Kind verschoben werden');
+            }
+            $row->setParent($parent);
+        }
+        $this->entityManager->flush();
+
+        return $this->overview($department, $user);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function removeUnterlager(Department $department, User $user, string $unterlagerId): array
+    {
+        $this->assertManage($department, $user);
+        $row = $this->requireUnterlager($department, $unterlagerId);
+        $childCount = (int) $this->entityManager->createQueryBuilder()
+            ->select('COUNT(u.id)')
+            ->from(DepartmentGrossanlassUnterlager::class, 'u')
+            ->where('u.parent = :row')
+            ->setParameter('row', $row)
+            ->getQuery()
+            ->getSingleScalarResult();
+        if ($childCount > 0) {
+            throw new \InvalidArgumentException('Zuerst untergeordnete Unterlager entfernen');
+        }
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
 
         return $this->overview($department, $user);
     }
@@ -504,6 +610,7 @@ final class GrossanlassPlanungService
                 'parent_id' => $guest->getParentId(),
                 'status' => $row->getStatus(),
                 'guest_activity_id' => $row->getGuestActivityId(),
+                'unterlager_id' => $row->getUnterlagerId(),
             ];
         }
 
@@ -645,6 +752,86 @@ final class GrossanlassPlanungService
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array{id: string, name: string, parent_id: string|null, sort_order: int}>
+     */
+    private function listUnterlager(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassUnterlager::class)
+            ->createQueryBuilder('u')
+            ->where('u.hostDepartment = :host')
+            ->setParameter('host', $department)
+            ->orderBy('u.sortOrder', 'ASC')
+            ->addOrderBy('u.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassUnterlager) {
+                continue;
+            }
+            $out[] = [
+                'id' => $row->getId(),
+                'name' => $row->getName(),
+                'parent_id' => $row->getParentId(),
+                'sort_order' => $row->getSortOrder(),
+            ];
+        }
+
+        return $out;
+    }
+
+    private function resolveUnterlager(Department $department, ?string $unterlagerId): ?DepartmentGrossanlassUnterlager
+    {
+        if ($unterlagerId === null || $unterlagerId === '') {
+            return null;
+        }
+
+        return $this->requireUnterlager($department, $unterlagerId);
+    }
+
+    private function requireUnterlager(Department $department, string $unterlagerId): DepartmentGrossanlassUnterlager
+    {
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassUnterlager::class)->find($unterlagerId);
+        if (!$row instanceof DepartmentGrossanlassUnterlager || $row->getHostDepartment()->getId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Unterlager nicht gefunden');
+        }
+
+        return $row;
+    }
+
+    private function nextUnterlagerSort(Department $department, ?string $parentId): int
+    {
+        $qb = $this->entityManager->createQueryBuilder()
+            ->select('MAX(u.sortOrder)')
+            ->from(DepartmentGrossanlassUnterlager::class, 'u')
+            ->where('u.hostDepartment = :host')
+            ->setParameter('host', $department);
+        if ($parentId === null) {
+            $qb->andWhere('u.parentId IS NULL');
+        } else {
+            $qb->andWhere('u.parentId = :parentId')->setParameter('parentId', $parentId);
+        }
+        $max = $qb->getQuery()->getSingleScalarResult();
+
+        return ((int) $max) + 1;
+    }
+
+    private function unterlagerIsDescendant(DepartmentGrossanlassUnterlager $ancestor, DepartmentGrossanlassUnterlager $node): bool
+    {
+        $guard = 0;
+        $current = $node->getParent();
+        while ($current instanceof DepartmentGrossanlassUnterlager && $guard < 20) {
+            if ($current->getId() === $ancestor->getId()) {
+                return true;
+            }
+            $current = $current->getParent();
+            $guard++;
+        }
+
+        return false;
     }
 
     private function syncEventCalendarPeriod(Department $department, \DateTime $start, \DateTime $end): void

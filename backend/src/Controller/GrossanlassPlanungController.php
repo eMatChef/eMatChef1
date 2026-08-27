@@ -75,11 +75,64 @@ class GrossanlassPlanungController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
         $guestId = trim((string) ($data['guest_department_id'] ?? ''));
+        $unterlagerId = isset($data['unterlager_id']) ? trim((string) $data['unterlager_id']) : null;
 
         return $this->handle(
             $departmentId,
-            fn (Department $department, User $user) => $this->planung->addParticipant($department, $user, $guestId),
+            fn (Department $department, User $user) => $this->planung->addParticipant(
+                $department,
+                $user,
+                $guestId,
+                $unterlagerId !== '' ? $unterlagerId : null,
+            ),
             201,
+        );
+    }
+
+    #[Route('/planung/participants/{participantId}', name: 'participants_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateParticipant(string $departmentId, string $participantId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->planung->updateParticipant($department, $user, $participantId, $data),
+        );
+    }
+
+    #[Route('/planung/unterlager', name: 'unterlager_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createUnterlager(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->planung->createUnterlager($department, $user, $data),
+            201,
+        );
+    }
+
+    #[Route('/planung/unterlager/{unterlagerId}', name: 'unterlager_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateUnterlager(string $departmentId, string $unterlagerId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->planung->updateUnterlager($department, $user, $unterlagerId, $data),
+        );
+    }
+
+    #[Route('/planung/unterlager/{unterlagerId}', name: 'unterlager_remove', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function removeUnterlager(string $departmentId, string $unterlagerId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->planung->removeUnterlager($department, $user, $unterlagerId),
         );
     }
 

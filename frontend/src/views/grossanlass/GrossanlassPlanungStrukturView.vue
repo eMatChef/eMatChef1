@@ -90,94 +90,164 @@
       </v-expansion-panels>
 
       <section v-if="wizardStep === 'done'" class="card">
-        <h3>{{ t('grossanlass.planung.struktur.participantsTitle') }}</h3>
+        <div class="head">
+          <h3>{{ t('grossanlass.planung.struktur.participantsTitle') }}</h3>
+          <div v-if="pack?.can_manage && canAddGuests" class="head-actions">
+            <EButton variant="secondary" size="small" :disabled="saving" @click="openUnterlagerDialog()">
+              {{ t('grossanlass.planung.struktur.unterlagerCreate') }}
+            </EButton>
+            <EButton variant="primary" size="small" :disabled="saving" @click="openAddDeptDialog()">
+              {{ t('grossanlass.planung.struktur.addDepartment') }}
+            </EButton>
+          </div>
+        </div>
         <p class="hint">{{ t('grossanlass.planung.struktur.participantsLater') }}</p>
         <p v-if="!canAddGuests" class="hint">{{ t('grossanlass.planung.struktur.inviteNeeded') }}</p>
-        <div v-if="pack?.can_manage && canAddGuests" class="search">
-          <label class="sr-only" for="ga-guest-search">{{ t('grossanlass.planung.struktur.searchLabel') }}</label>
-          <input
-            id="ga-guest-search"
-            v-model="searchQuery"
-            type="search"
-            class="search-input"
-            :placeholder="t('grossanlass.planung.struktur.searchPlaceholder')"
-            autocomplete="off"
-            @input="onSearchInput"
-          >
-          <ul v-if="hits.length" class="hits">
-            <li v-for="hit in hits" :key="hit.id">
-              <button type="button" :disabled="saving" @click="addGuest(hit.id)">
-                <strong>{{ hit.parent_id ? '↳ ' : '' }}{{ hit.name }}</strong>
-                <span class="meta">{{ hit.organisation_name }}</span>
-              </button>
-            </li>
-          </ul>
-          <p v-else-if="searchQuery.trim().length >= 2 && !searching" class="hint">
-            {{ t('grossanlass.planung.struktur.searchEmpty') }}
-          </p>
-        </div>
         <input
-          v-if="participantNodes.length"
+          v-if="participants.length || unterlagerRows.length"
           v-model="participantFilter"
           type="search"
           class="search-input list-filter"
           :placeholder="t('grossanlass.planung.struktur.searchPlaceholder')"
         >
         <v-expansion-panels
-          v-if="filteredParticipantRoots.length"
-          v-model="openParticipants"
+          v-if="visibleUnterlager.length"
+          v-model="openUnterlager"
           multiple
           class="ga-struktur-accordion"
         >
-          <v-expansion-panel v-for="root in filteredParticipantRoots" :key="root.id" :value="root.id">
+          <v-expansion-panel v-for="site in visibleUnterlager" :key="site.id" :value="site.id">
             <v-expansion-panel-title>
-              <span class="group-title">
-                <strong>{{ root.name }}</strong>
-                <span class="meta">{{ root.organisation_name }}</span>
-                <span class="tag">{{ t(`grossanlass.planung.struktur.status.${root.status}`) }}</span>
+              <span class="group-title" :style="{ paddingLeft: `${site._level * 16}px` }">
+                <span class="kind-badge">{{ t('grossanlass.planung.struktur.unterlagerBadge') }}</span>
+                <strong>{{ site.name }}</strong>
+                <span class="group-count">{{ t('grossanlass.planung.struktur.memberCount', { count: deptsInUnterlager(site.id).length }) }}</span>
               </span>
             </v-expansion-panel-title>
             <v-expansion-panel-text>
-              <div class="guest-actions">
-                <button
-                  v-if="pack?.can_manage && root.status !== 'accepted'"
-                  type="button"
-                  class="remove"
-                  :disabled="saving"
-                  @click="removeGuest(root.participant_id)"
-                >
-                  {{ t('common.remove') }}
+              <div v-if="pack?.can_manage" class="guest-actions">
+                <EButton variant="secondary" size="small" :disabled="saving" @click="openAddDeptDialog(site.id)">
+                  {{ t('grossanlass.planung.struktur.addDepartment') }}
+                </EButton>
+                <EButton variant="secondary" size="small" :disabled="saving" @click="openUnterlagerDialog(site.id)">
+                  {{ t('grossanlass.planung.struktur.unterlagerChild') }}
+                </EButton>
+                <button type="button" class="remove" :disabled="saving" @click="removeUnterlager(site.id)">
+                  {{ t('grossanlass.planung.struktur.unterlagerDelete') }}
                 </button>
               </div>
-              <ul v-if="participantChildren(root.id).length" class="child-list">
-                <li
-                  v-for="child in participantChildren(root.id)"
-                  :key="child.id"
-                  class="child-row"
-                  :style="{ paddingLeft: `${child._level * 20}px` }"
-                >
+              <ul v-if="deptsInUnterlager(site.id).length" class="child-list">
+                <li v-for="row in deptsInUnterlager(site.id)" :key="row.id" class="child-row">
                   <div class="child-head">
-                    <span class="indent-icon">↳</span>
-                    <strong>{{ child.name }}</strong>
-                    <span class="meta">{{ child.organisation_name }}</span>
-                    <span class="tag">{{ t(`grossanlass.planung.struktur.status.${child.status}`) }}</span>
+                    <strong>{{ row.name }}</strong>
+                    <span class="meta">{{ row.organisation_name }}</span>
+                    <span class="tag">{{ t(`grossanlass.planung.struktur.status.${row.status}`) }}</span>
+                    <ESelect
+                      v-if="pack?.can_manage"
+                      class="move-select"
+                      :model-value="row.unterlager_id || ''"
+                      :items="unterlagerSelectItems"
+                      hide-details
+                      :disabled="saving"
+                      @update:model-value="(v) => moveGuest(row.id, String(v ?? ''))"
+                    />
                     <button
-                      v-if="pack?.can_manage && child.status !== 'accepted'"
+                      v-if="pack?.can_manage && row.status !== 'accepted'"
                       type="button"
                       class="remove"
                       :disabled="saving"
-                      @click="removeGuest(child.participant_id)"
+                      @click="removeGuest(row.id)"
                     >
                       {{ t('common.remove') }}
                     </button>
                   </div>
                 </li>
               </ul>
+              <p v-else class="hint">{{ t('grossanlass.planung.struktur.unterlagerNoDepts') }}</p>
             </v-expansion-panel-text>
           </v-expansion-panel>
         </v-expansion-panels>
-        <p v-else class="hint">{{ t('grossanlass.planung.struktur.participantsEmpty') }}</p>
+        <section v-if="unassignedDepts.length" class="unassigned">
+          <h4>{{ t('grossanlass.planung.struktur.unterlagerUnassigned') }}</h4>
+          <ul class="child-list">
+            <li v-for="row in unassignedDepts" :key="row.id" class="child-row">
+              <div class="child-head">
+                <strong>{{ row.name }}</strong>
+                <span class="meta">{{ row.organisation_name }}</span>
+                <span class="tag">{{ t(`grossanlass.planung.struktur.status.${row.status}`) }}</span>
+                <ESelect
+                  v-if="pack?.can_manage"
+                  class="move-select"
+                  :model-value="''"
+                  :items="unterlagerSelectItems"
+                  hide-details
+                  :disabled="saving"
+                  @update:model-value="(v) => moveGuest(row.id, String(v ?? ''))"
+                />
+                <button
+                  v-if="pack?.can_manage && row.status !== 'accepted'"
+                  type="button"
+                  class="remove"
+                  :disabled="saving"
+                  @click="removeGuest(row.id)"
+                >
+                  {{ t('common.remove') }}
+                </button>
+              </div>
+            </li>
+          </ul>
+        </section>
+        <p v-else-if="!unterlagerRows.length && !participants.length" class="hint">
+          {{ t('grossanlass.planung.struktur.participantsEmpty') }}
+        </p>
       </section>
+
+      <EDialog v-model="unterlagerDialog" :title="t('grossanlass.planung.struktur.unterlagerCreate')" :max-width="420">
+        <ETextField v-model="unterlagerName" :label="t('grossanlass.planung.struktur.unterlagerName')" hide-details />
+        <ESelect
+          v-model="unterlagerParentId"
+          class="dialog-field"
+          :label="t('grossanlass.planung.struktur.unterlagerParent')"
+          :items="unterlagerParentItems"
+          hide-details
+        />
+        <template #actions>
+          <EButton variant="secondary" @click="unterlagerDialog = false">{{ t('common.cancel') }}</EButton>
+          <EButton variant="primary" :disabled="!unterlagerName.trim() || saving" @click="saveUnterlager">
+            {{ t('common.create') }}
+          </EButton>
+        </template>
+      </EDialog>
+
+      <EDialog v-model="addDeptDialog" :title="t('grossanlass.planung.struktur.addDepartment')" :max-width="460">
+        <ESelect
+          v-model="addDeptUnterlagerId"
+          :label="t('grossanlass.planung.struktur.assignTo')"
+          :items="unterlagerSelectItems"
+          hide-details
+        />
+        <ESearchField
+          v-model="searchQuery"
+          class="dialog-field"
+          :label="t('grossanlass.planung.struktur.searchLabel')"
+          hide-details
+          @update:model-value="onSearchInput"
+        />
+        <ul v-if="hits.length" class="hits dialog-hits">
+          <li v-for="hit in hits" :key="hit.id">
+            <button type="button" :disabled="saving" @click="addGuest(hit.id)">
+              <strong>{{ hit.parent_id ? '↳ ' : '' }}{{ hit.name }}</strong>
+              <span class="meta">{{ hit.organisation_name }}</span>
+            </button>
+          </li>
+        </ul>
+        <p v-else-if="searchQuery.trim().length >= 2 && !searching" class="hint">
+          {{ t('grossanlass.planung.struktur.searchEmpty') }}
+        </p>
+        <template #actions>
+          <EButton variant="secondary" @click="addDeptDialog = false">{{ t('common.cancel') }}</EButton>
+        </template>
+      </EDialog>
     </template>
   </div>
 </template>
@@ -190,14 +260,18 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import { EButton } from '@/components/form/base'
+import { EButton, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import {
   addGrossanlassParticipant,
+  createGrossanlassUnterlager,
   getGrossanlassPlanung,
   removeGrossanlassParticipant,
+  removeGrossanlassUnterlager,
   searchGrossanlassGuests,
+  updateGrossanlassParticipant,
   updateGrossanlassPlanung,
   type GrossanlassGuestSearchHit,
+  type GrossanlassParticipant,
   type GrossanlassPlanungOverview,
   type GrossanlassPlanungRessort,
   type GrossanlassStrukturModus,
@@ -223,20 +297,15 @@ const searchQuery = ref('')
 const hits = ref<GrossanlassGuestSearchHit[]>([])
 const searching = ref(false)
 let searchTimer: ReturnType<typeof setTimeout> | null = null
-const openParticipants = ref<string[]>([])
 const participantFilter = ref('')
 const wizardStep = ref<'invite' | 'modus' | 'done'>('invite')
 const openSetup = ref<string[]>(['invite'])
-
-type ParticipantNode = {
-  id: string
-  participant_id: string
-  name: string
-  organisation_name: string
-  parent_id: string | null
-  status: string
-  _level: number
-}
+const openUnterlager = ref<string[]>([])
+const unterlagerDialog = ref(false)
+const unterlagerName = ref('')
+const unterlagerParentId = ref('')
+const addDeptDialog = ref(false)
+const addDeptUnterlagerId = ref('')
 
 const hasGuestDepartments = computed(
   () => pack.value?.config.has_guest_departments === true
@@ -275,45 +344,55 @@ const hierarchicalRessorts = computed(() =>
   ),
 )
 
-const participantNodes = computed(() => {
-  const rows = (pack.value?.participants ?? []).map((row) => ({
-    id: row.department_id,
-    participant_id: row.id,
-    name: row.name,
-    organisation_name: row.organisation_name,
-    parent_id: row.parent_id ?? null,
-    status: row.status,
-  }))
-  const ids = new Set(rows.map((r) => r.id))
-  return flattenTreeWithLevel(rows.map((r) => ({
-    ...r,
-    parent_id: r.parent_id && ids.has(r.parent_id) ? r.parent_id : null,
-  })))
-})
+const unterlagerRows = computed(() => pack.value?.unterlager ?? [])
+const participants = computed(() => pack.value?.participants ?? [])
 
-const filteredParticipantRoots = computed(() => {
+const unterlagerTree = computed(() =>
+  flattenTreeWithLevel(
+    unterlagerRows.value.map((row) => ({
+      ...row,
+      parent_id: row.parent_id ?? null,
+    })),
+  ),
+)
+
+const visibleUnterlager = computed(() => {
   const q = participantFilter.value.trim().toLowerCase()
-  const roots = participantNodes.value.filter((row) => row._level === 0)
-  if (!q) return roots
-  return roots.filter((root) => {
-    if (root.name.toLowerCase().includes(q) || root.organisation_name.toLowerCase().includes(q)) return true
-    return participantChildren(root.id).some(
-      (child) => child.name.toLowerCase().includes(q) || child.organisation_name.toLowerCase().includes(q),
+  if (!q) return unterlagerTree.value
+  return unterlagerTree.value.filter((site) => {
+    if (site.name.toLowerCase().includes(q)) return true
+    return deptsInUnterlager(site.id).some(
+      (row) => row.name.toLowerCase().includes(q) || row.organisation_name.toLowerCase().includes(q),
     )
   })
 })
 
-function participantChildren(rootId: string): ParticipantNode[] {
-  const all = participantNodes.value
-  const start = all.findIndex((row) => row.id === rootId)
-  if (start < 0) return []
-  const rootLevel = all[start]._level
-  const out: ParticipantNode[] = []
-  for (let i = start + 1; i < all.length; i++) {
-    if (all[i]._level <= rootLevel) break
-    out.push({ ...all[i], _level: all[i]._level - rootLevel })
-  }
-  return out
+const unassignedDepts = computed(() => {
+  const q = participantFilter.value.trim().toLowerCase()
+  return participants.value.filter((row) => {
+    if (row.unterlager_id) return false
+    if (!q) return true
+    return row.name.toLowerCase().includes(q) || row.organisation_name.toLowerCase().includes(q)
+  })
+})
+
+const unterlagerSelectItems = computed(() => [
+  { title: t('grossanlass.planung.struktur.unterlagerNone'), value: '' },
+  ...unterlagerTree.value.map((row) => ({
+    title: `${'— '.repeat(row._level)}${row.name}`,
+    value: row.id,
+  })),
+])
+
+const unterlagerParentItems = computed(() => unterlagerSelectItems.value)
+
+function deptsInUnterlager(unterlagerId: string): GrossanlassParticipant[] {
+  const q = participantFilter.value.trim().toLowerCase()
+  return participants.value.filter((row) => {
+    if (row.unterlager_id !== unterlagerId) return false
+    if (!q) return true
+    return row.name.toLowerCase().includes(q) || row.organisation_name.toLowerCase().includes(q)
+  })
 }
 
 function kindLabel(row: GrossanlassPlanungRessort): string {
@@ -349,7 +428,7 @@ async function load() {
   try {
     pack.value = await getGrossanlassPlanung(departmentId.value)
     applyWizardFromData()
-    openParticipants.value = (pack.value.participants ?? []).map((row) => row.department_id)
+    openUnterlager.value = (pack.value.unterlager ?? []).map((row) => row.id)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     error.value = err.response?.data?.error || t('grossanlass.beschaffung.anfragen.loadError')
@@ -358,9 +437,9 @@ async function load() {
   }
 }
 
-function onSearchInput() {
+function onSearchInput(value?: string) {
   if (searchTimer) clearTimeout(searchTimer)
-  const q = searchQuery.value.trim()
+  const q = (value ?? searchQuery.value).trim()
   if (q.length < 2) {
     hits.value = []
     return
@@ -386,9 +465,76 @@ async function addGuest(guestId: string) {
   if (!departmentId.value) return
   saving.value = true
   try {
-    pack.value = await addGrossanlassParticipant(departmentId.value, guestId)
+    pack.value = await addGrossanlassParticipant(
+      departmentId.value,
+      guestId,
+      addDeptUnterlagerId.value || null,
+    )
     searchQuery.value = ''
     hits.value = []
+    addDeptDialog.value = false
+    if (addDeptUnterlagerId.value) {
+      openUnterlager.value = [...new Set([...openUnterlager.value, addDeptUnterlagerId.value])]
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function moveGuest(participantId: string, unterlagerId: string) {
+  if (!departmentId.value) return
+  saving.value = true
+  try {
+    pack.value = await updateGrossanlassParticipant(departmentId.value, participantId, {
+      unterlager_id: unterlagerId || null,
+    })
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    saving.value = false
+  }
+}
+
+function openUnterlagerDialog(parentId?: string) {
+  unterlagerName.value = ''
+  unterlagerParentId.value = parentId ?? ''
+  unterlagerDialog.value = true
+}
+
+function openAddDeptDialog(unterlagerId?: string) {
+  searchQuery.value = ''
+  hits.value = []
+  addDeptUnterlagerId.value = unterlagerId ?? ''
+  addDeptDialog.value = true
+}
+
+async function saveUnterlager() {
+  if (!departmentId.value || !unterlagerName.value.trim()) return
+  saving.value = true
+  try {
+    pack.value = await createGrossanlassUnterlager(departmentId.value, {
+      name: unterlagerName.value.trim(),
+      parent_id: unterlagerParentId.value || null,
+    })
+    unterlagerDialog.value = false
+    openUnterlager.value = (pack.value.unterlager ?? []).map((row) => row.id)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function removeUnterlager(unterlagerId: string) {
+  if (!departmentId.value) return
+  saving.value = true
+  try {
+    pack.value = await removeGrossanlassUnterlager(departmentId.value, unterlagerId)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
@@ -466,8 +612,9 @@ onMounted(() => {
   justify-content: flex-end;
   margin-top: 14px;
 }
-.head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .head h3 { margin: 0; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .head a { font-size: 0.85rem; color: #166534; }
 .modus-grid { display: grid; gap: 10px; }
 @media (min-width: 720px) {
@@ -505,7 +652,12 @@ onMounted(() => {
 .invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .invite-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem; }
 .list-filter { margin: 8px 0 12px; }
-.guest-actions { margin-bottom: 8px; }
+.guest-actions { margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dialog-field { margin-top: 12px; }
+.dialog-hits { max-width: none; }
+.move-select { min-width: 180px; max-width: 240px; }
+.unassigned { margin-top: 16px; }
+.unassigned h4 { margin: 0 0 8px; font-size: 0.88rem; color: #475569; }
 .hint a { color: #166534; }
 .search { margin: 10px 0 12px; }
 .search-input {
