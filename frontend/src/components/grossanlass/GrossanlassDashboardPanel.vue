@@ -157,7 +157,7 @@
         <GrossanlassPreviewBanner />
         <h2 class="section-title">{{ t('grossanlass.dashboard.previewTitle') }}</h2>
 
-        <div class="preview-freigabe">
+        <div v-if="known && hasGuestDepartments" class="preview-freigabe">
           <div>
             <h3>{{ t('grossanlass.dashboard.previewFreigabeTitle') }}</h3>
             <p>{{ t('grossanlass.dashboard.previewFreigabeText') }}</p>
@@ -235,6 +235,7 @@ import {
   type GrossanlassProcurementOverview,
 } from '@/api/grossanlassProcurement'
 import { getGrossanlassInquiries } from '@/api/grossanlassInquiries'
+import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 
 const props = defineProps<{
   departmentId: string
@@ -245,6 +246,9 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const { isUserRole } = useDepartmentMemberRole()
+const { hasGuestDepartments, known, refresh: refreshGuestDepartments } = useGrossanlassGuestDepartments(
+  () => props.departmentId,
+)
 
 const isLoading = ref(true)
 const error = ref('')
@@ -356,6 +360,7 @@ async function load() {
     const [roundList, groups] = await Promise.all([
       getGrossanlassPlanningRounds(props.departmentId),
       getGrossanlassGroups(props.departmentId),
+      refreshGuestDepartments().catch(() => undefined),
     ])
     rounds.value = roundList
     ressortRootCount.value = groups.filter((g) => !g.parent_id).length

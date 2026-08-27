@@ -106,13 +106,26 @@
                 {{ t('settings.departmentUsers.inviteAcceptedAt', { date: formatInviteDate(invite.accepted_at) }) }}
               </span>
             </div>
-            <EButton
-              variant="secondary"
-              size="small"
-              @click.stop="removePendingInviteItem(invite.id)"
-            >
-              {{ isInviteOpen(invite) ? t('common.delete') : t('settings.departmentUsers.inviteDismiss') }}
-            </EButton>
+            <div class="pending-item-actions">
+              <EButton
+                v-if="isInviteOpen(invite)"
+                variant="secondary"
+                size="small"
+                :disabled="resendingInviteId === invite.id"
+                :loading="resendingInviteId === invite.id"
+                @click.stop="resendPendingInviteItem(invite)"
+              >
+                {{ t('settings.departmentUsers.resendInvite') }}
+              </EButton>
+              <EButton
+                variant="secondary"
+                size="small"
+                :disabled="resendingInviteId === invite.id"
+                @click.stop="removePendingInviteItem(invite.id)"
+              >
+                {{ isInviteOpen(invite) ? t('common.delete') : t('settings.departmentUsers.inviteDismiss') }}
+              </EButton>
+            </div>
           </li>
         </ul>
         <p v-else class="pending-muted">{{ t('settings.departmentUsers.pendingNone') }}</p>
@@ -267,17 +280,16 @@
                 }"
                 :data-onboarding="member.user_id === firstEditableMemberId ? 'settings-user-edit' : undefined"
               >
-                <button
+                <EButton
                   v-if="canManageMember(member)"
-                  class="action-btn"
+                  variant="secondary"
+                  size="small"
+                  class="member-details-btn"
                   :title="t('settings.departmentUsers.titleEditMember')"
                   @click="openEditModal(member)"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
-                </button>
+                  {{ t('settings.departmentUsers.memberDetails') }}
+                </EButton>
                 <button 
                   v-if="canManageMember(member)"
                   class="action-btn action-btn-danger" 
@@ -484,7 +496,11 @@
     <EDialog
       v-model="showEditModal"
       :max-width="620"
-      :title="t('layout.profileModal.title')"
+      :title="
+        editingMember
+          ? t('settings.departmentUsers.memberDetailsTitle', { name: editingMember.name })
+          : t('layout.profileModal.title')
+      "
       data-onboarding="settings-user-edit-dialog"
     >
       <template v-if="editingMember">
@@ -583,7 +599,7 @@
             </div>
           </details>
 
-          <details class="member-profile-accordion">
+          <details class="member-profile-accordion" open>
             <summary class="member-profile-accordion__summary">
               {{ t('layout.profileModal.passwordSection') }}
             </summary>
@@ -670,6 +686,15 @@
         </div>
       </template>
       <template #actions>
+        <EButton
+          variant="secondary"
+          size="small"
+          :disabled="isSendingPasswordReset || isSaving"
+          :loading="isSendingPasswordReset"
+          @click="handleSendPasswordReset"
+        >
+          {{ t('settings.departmentUsers.sendPasswordReset') }}
+        </EButton>
         <EButton variant="secondary" size="small" @click="closeEditModal">{{ t('common.cancel') }}</EButton>
         <EButton
           variant="primary"
@@ -722,6 +747,7 @@ import {
   deletePendingInvite,
   getPendingInvites,
   getPendingJoinRequests,
+  resendPendingInvite,
   type PendingInvite,
   type PendingJoinRequest,
 } from '@/api/joinRequests'
@@ -954,6 +980,7 @@ const sortDir = ref<'asc' | 'desc'>('asc')
 const pendingInvites = ref<PendingInvite[]>([])
 const isLoadingPendingInvites = ref(false)
 const pendingInvitesError = ref('')
+const resendingInviteId = ref<string | null>(null)
 const pendingJoinRequests = ref<PendingJoinRequest[]>([])
 const isLoadingPendingJoinRequests = ref(false)
 const pendingJoinRequestsError = ref('')
@@ -1648,6 +1675,28 @@ async function removePendingInviteItem(inviteId: string) {
   }
 }
 
+async function resendPendingInviteItem(invite: PendingInvite) {
+  if (!departmentId.value || !isInviteOpen(invite)) return
+  const ok = await confirm.confirm({
+    title: t('settings.departmentUsers.confirmResendInviteTitle'),
+    message: t('settings.departmentUsers.confirmResendInviteMessage', { email: invite.email }),
+    confirmText: t('settings.departmentUsers.resendInvite'),
+    cancelText: t('common.cancel'),
+  })
+  if (!ok) return
+
+  resendingInviteId.value = invite.id
+  try {
+    const created = await resendPendingInvite(departmentId.value, invite.id)
+    pendingInvites.value = pendingInvites.value.map((entry) => (entry.id === invite.id ? created : entry))
+    toast.success(t('settings.departmentUsers.toastInviteResent', { email: invite.email }))
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.departmentUsers.errResendInvite'))
+  } finally {
+    resendingInviteId.value = null
+  }
+}
+
 // === Lifecycle ===
 
 watch(departmentId, () => {
@@ -1991,7 +2040,8 @@ onUnmounted(() => {
   color: #4b5563;
 }
 
-.pending-join-actions {
+.pending-join-actions,
+.pending-item-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -2345,18 +2395,19 @@ onUnmounted(() => {
 
 /* Actions */
 .col-actions {
-  width: 90px;
+  width: 148px;
 }
 
 .action-buttons {
   display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+  opacity: 1;
   padding: 4px;
   margin: -4px;
   border-radius: 8px;
-  min-width: 76px;
+  min-width: 140px;
   box-sizing: border-box;
 }
 

@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Entity\Department;
 use App\Entity\User;
 use App\Service\Mail\AppMailer;
 use App\Service\Mail\MailOutboundSettingsStore;
@@ -60,8 +61,8 @@ class VerificationEmailService
             ->to($profile->getEmail())
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('verify_email.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('verify_email.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'headline' => (string) ($htmlCfg['headline'] ?? ''),
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
@@ -73,7 +74,7 @@ class VerificationEmailService
                 'verify_url' => $verifyUrl,
                 'expires_at' => $expiresText,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'extra_block'], $locale));
+            ], ['extra_block'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'auth.verify_email'));
     }
@@ -109,8 +110,8 @@ class VerificationEmailService
             ->to($newEmail)
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('verify_email.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('verify_email.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'headline' => (string) ($htmlCfg['headline'] ?? ''),
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
@@ -122,7 +123,7 @@ class VerificationEmailService
                 'verify_url' => $verifyUrl,
                 'expires_at' => $expiresText,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'extra_block'], $locale));
+            ], ['extra_block'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'auth.pending_email_change'));
     }
@@ -168,18 +169,20 @@ class VerificationEmailService
             ->to($recipientEmail)
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('department_invite.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('department_invite.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'recipient_name' => $safeRecipient,
+                'department_name' => $departmentName,
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
                 'invite_lead_html' => $inviteLead,
                 'role_line_html' => $roleLine,
                 'cta_label' => (string) ($htmlCfg['cta_label'] ?? ''),
+                'password_hint' => (string) ($htmlCfg['password_hint'] ?? ''),
                 'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
                 'invite_url' => $inviteUrl,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'invite_lead_html', 'role_line_html'], $locale));
+            ], ['invite_lead_html', 'role_line_html'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'department.invite'));
     }
@@ -227,9 +230,10 @@ class VerificationEmailService
             ->to($recipientEmail)
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('department_member_added.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('department_member_added.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'recipient_name' => $safeRecipient,
+                'department_name' => $departmentName,
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
                 'added_lead_html' => $addedLead,
@@ -238,7 +242,7 @@ class VerificationEmailService
                 'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
                 'app_url' => $appUrl,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'added_lead_html', 'role_line_html'], $locale));
+            ], ['added_lead_html', 'role_line_html'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'department.member_added'));
     }
@@ -295,8 +299,8 @@ class VerificationEmailService
             ->to($recipientEmail)
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('join_request_manager.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('join_request_manager.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'recipient_name' => $safeRecipient,
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
@@ -306,7 +310,7 @@ class VerificationEmailService
                 'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
                 'review_url' => $reviewUrl,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
+            ], ['lead_html', 'message_html'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'join_request.manager_notify'));
     }
@@ -372,8 +376,8 @@ class VerificationEmailService
             ->to($recipientEmail)
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('join_request_manager.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('join_request_manager.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
                 'recipient_name' => $safeRecipient,
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'banner_title' => (string) ($htmlCfg['banner_title'] ?? ''),
@@ -383,7 +387,7 @@ class VerificationEmailService
                 'link_hint' => (string) ($htmlCfg['link_hint'] ?? ''),
                 'review_url' => $reviewUrl,
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html', 'lead_html', 'message_html'], $locale));
+            ], ['lead_html', 'message_html'], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'admin_join_request.manager_notify'));
     }
@@ -422,8 +426,9 @@ class VerificationEmailService
             ->to($profile->getEmail())
             ->subject($subject)
             ->text($textBody)
-            ->html($this->renderHtmlTemplate('password_reset_code.html', [
-                'brand_header_html' => $this->buildBrandHeaderHtml($locale),
+            ->html($this->renderFramedMail('password_reset_code.html', [
+                'preheader' => $this->mailPreheader($htmlCfg, $vars),
+                'accent' => '#e11d48',
                 'greeting_word' => (string) ($htmlCfg['greeting_word'] ?? ''),
                 'display_name' => $profile->getDisplayName(),
                 'headline' => (string) ($htmlCfg['headline'] ?? ''),
@@ -437,7 +442,7 @@ class VerificationEmailService
                 'reset_url' => $resetUrl,
                 'instruction' => (string) ($htmlCfg['instruction'] ?? ''),
                 'footer_note' => (string) ($htmlCfg['footer_note'] ?? ''),
-            ], ['brand_header_html'], $locale));
+            ], [], $locale));
 
         $this->mailer->send(MailLogKind::stamp($email, 'auth.password_reset_code'));
     }
@@ -463,6 +468,39 @@ class VerificationEmailService
         $localized = (clone $expiresAt)->setTimezone($timezone);
 
         return $localized->format('d.m.Y, H:i') . ' Uhr (' . $timezone->getName() . ')';
+    }
+
+    /**
+     * @param array<string, mixed> $htmlCfg
+     * @param array<string, string> $vars
+     */
+    private function mailPreheader(array $htmlCfg, array $vars): string
+    {
+        $raw = (string) ($htmlCfg['preheader'] ?? $htmlCfg['headline'] ?? $htmlCfg['banner_title'] ?? '');
+
+        return $this->mailTemplateContent->interpolate($raw, $vars);
+    }
+
+    /**
+     * @param array<string, string> $variables
+     * @param list<string> $unescapedKeys
+     */
+    private function renderFramedMail(string $bodyFile, array $variables, array $unescapedKeys, string $locale): string
+    {
+        $accent = trim((string) ($variables['accent'] ?? ''));
+        if ($accent === '' || !preg_match('/^#[0-9a-fA-F]{6}$/', $accent)) {
+            $accent = '#10b981';
+        }
+        $brand = $this->buildBrandHeaderHtml($locale);
+        $body = $this->renderHtmlTemplate($bodyFile, $variables, $unescapedKeys, $locale);
+
+        return $this->renderHtmlTemplate('_frame.html', [
+            'preheader' => (string) ($variables['preheader'] ?? ''),
+            'accent' => $accent,
+            'brand_header_html' => $brand,
+            'body_html' => $body,
+            'footer_note' => (string) ($variables['footer_note'] ?? ''),
+        ], ['brand_header_html', 'body_html'], $locale);
     }
 
     /**
@@ -500,23 +538,23 @@ class VerificationEmailService
     }
 
     /**
-     * Optionales Marken-Logo: absolute HTTPS-URL in Umgebungsvariable MAILER_BRAND_LOGO_URL
-     * (z. B. https://ematchef.ch/favicon.svg auf Hostpoint).
+     * EMC-Badge wie in der App; optional MAILER_BRAND_LOGO_URL (HTTPS).
      */
     private function buildBrandHeaderHtml(string $locale): string
     {
+        $alt = htmlspecialchars($this->mailTemplateContent->getSharedString('brand_logo_alt', $locale), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $raw = getenv('MAILER_BRAND_LOGO_URL');
         $url = is_string($raw) ? trim($raw) : '';
-        if ($url === '' || !filter_var($url, FILTER_VALIDATE_URL)) {
-            return '';
+        $mark = '<div style="width:44px;height:44px;background:#10b981;border-radius:12px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:800;letter-spacing:-0.4px;line-height:44px;text-align:center;">EMC</div>';
+        if ($url !== '' && filter_var($url, FILTER_VALIDATE_URL) && str_starts_with(strtolower($url), 'https://')) {
+            $safe = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $mark = '<img src="' . $safe . '" alt="' . $alt . '" width="44" height="44" style="display:block;border:0;border-radius:12px;" />';
         }
-        if (!str_starts_with(strtolower($url), 'https://')) {
-            return '';
-        }
-        $safe = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $alt = htmlspecialchars($this->mailTemplateContent->getSharedString('brand_logo_alt', $locale), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        return '<img src="' . $safe . '" alt="' . $alt . '" width="140" style="max-width:180px;height:auto;display:block;margin:0 auto;border:0;" />';
+        return '<table role="presentation" cellspacing="0" cellpadding="0"><tr>'
+            . '<td style="padding-right:12px;vertical-align:middle;">' . $mark . '</td>'
+            . '<td style="vertical-align:middle;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:800;letter-spacing:-0.03em;color:#064e3b;">eMatChef</td>'
+            . '</tr></table>';
     }
 
     /** Login mit Redirect ins Ziel (wie Join-Einladungen). */
@@ -525,6 +563,20 @@ class VerificationEmailService
         $path = str_starts_with($targetPath, '/') ? $targetPath : '/' . $targetPath;
 
         return rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query([
+            'redirect' => $path,
+        ], '', '&', \PHP_QUERY_RFC3986);
+    }
+
+    public function buildInviteRegisterUrl(string $pendingPath, string $email, Department $department): string
+    {
+        $path = str_starts_with($pendingPath, '/') ? $pendingPath : '/' . $pendingPath;
+
+        return rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query([
+            'register' => '1',
+            'email' => $email,
+            'org_id' => $department->getOrganisationId(),
+            'org_name' => $department->getOrganisation()->getName(),
+            'dept_name' => $department->getName(),
             'redirect' => $path,
         ], '', '&', \PHP_QUERY_RFC3986);
     }
