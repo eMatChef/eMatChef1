@@ -23,6 +23,7 @@ use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
@@ -33,6 +34,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 #[Route('/api/auth', name: 'api_auth_')]
@@ -60,6 +62,7 @@ class AuthController extends AbstractController
         private AdminCapabilityChecker $adminCapabilityChecker,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
         private SupplierCompanyAccessService $supplierCompanyAccessService,
+        private LoggerInterface $logger,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -397,7 +400,19 @@ class AuthController extends AbstractController
         }
         }
 
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits registriert'], 409);
+        } catch (\Throwable $e) {
+            $this->logger->error('auth.register persist failed', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'invite_flow' => $inviteFlow,
+            ]);
+
+            return new JsonResponse(['error' => 'Registrierung fehlgeschlagen. Bitte spaeter erneut versuchen.'], 500);
+        }
         if (!$inviteFlow) {
         try {
             $this->verificationEmailService->sendVerificationEmail($user);
@@ -430,22 +445,30 @@ class AuthController extends AbstractController
             // Registrierung bleibt gueltig auch wenn Manager-Mail fehlschlaegt
         }
 
-        $this->auditLogger->log(
-            'user',
-            $user->getId(),
-            'user_created_self',
-            null,
-            $user,
-            null,
-            [
-                'source' => ['old' => null, 'new' => 'self_registration'],
-                'profile_id' => ['old' => null, 'new' => $profile->getId()],
-                'email' => ['old' => null, 'new' => $profile->getEmail()],
-                'state' => ['old' => null, 'new' => $user->getState()],
-                'email_verified' => ['old' => null, 'new' => $user->isEmailVerified()],
-            ]
-        );
-        $this->entityManager->flush();
+        try {
+            $this->auditLogger->log(
+                'user',
+                $user->getId(),
+                'user_created_self',
+                null,
+                $user,
+                null,
+                [
+                    'source' => ['old' => null, 'new' => 'self_registration'],
+                    'profile_id' => ['old' => null, 'new' => $profile->getId()],
+                    'email' => ['old' => null, 'new' => $profile->getEmail()],
+                    'state' => ['old' => null, 'new' => $user->getState()],
+                    'email_verified' => ['old' => null, 'new' => $user->isEmailVerified()],
+                ]
+            );
+            $this->entityManager->flush();
+        } catch (\Throwable $e) {
+            $this->logger->error('auth.register audit failed', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'user_id' => $user->getId(),
+            ]);
+        }
 
         return new JsonResponse([
             'success' => true,
@@ -461,12 +484,25 @@ class AuthController extends AbstractController
         if ($code === '') {
             return null;
         }
-        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
-            'settingKey' => 'join.invite_code',
-            'settingValue' => $code,
-        ]);
+        try {
+            $setting = $this->entityManager->createQueryBuilder()
+                ->select('s')
+                ->from(DepartmentSetting::class, 's')
+                ->where('s.settingKey = :key')
+                ->andWhere('UPPER(TRIM(s.settingValue)) = :code')
+                ->setParameter('key', 'join.invite_code')
+                ->setParameter('code', $code)
+                ->setMaxResults(1)
+                ->getQuery()
+                ->getOneOrNullResult();
+        } catch (\Throwable) {
+            $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+                'settingKey' => 'join.invite_code',
+                'settingValue' => $code,
+            ]);
+        }
 
-        return $setting?->getDepartment();
+        return $setting instanceof DepartmentSetting ? $setting->getDepartment() : null;
     }
 
     private function pendingInviteMatchesEmail(string $departmentId, string $email): bool
@@ -497,7 +533,8 @@ class AuthController extends AbstractController
             if (($invite['status'] ?? 'pending') !== 'pending') {
                 continue;
             }
-            if (strtolower(trim((string) ($invite['email'] ?? ''))) === $normalized) {
+            $inviteEmail = strtolower(trim(rawurldecode((string) ($invite['email'] ?? ''))));
+            if ($inviteEmail === $normalized) {
                 return true;
             }
         }

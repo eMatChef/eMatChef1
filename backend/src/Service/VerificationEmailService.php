@@ -571,14 +571,31 @@ class VerificationEmailService
     {
         $path = str_starts_with($pendingPath, '/') ? $pendingPath : '/' . $pendingPath;
 
-        return rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query([
+        $query = [
             'register' => '1',
             'email' => $email,
             'org_id' => $department->getOrganisationId(),
             'org_name' => $department->getOrganisation()->getName(),
             'dept_name' => $department->getName(),
             'redirect' => $path,
-        ], '', '&', \PHP_QUERY_RFC3986);
+        ];
+        $pendingQuery = parse_url($path, PHP_URL_QUERY);
+        if (is_string($pendingQuery) && $pendingQuery !== '') {
+            parse_str($pendingQuery, $pendingParams);
+            foreach (['join_code', 'invite_role', 'invite_email', 'invite_id', 'department_id', 'auto_join'] as $key) {
+                $value = $pendingParams[$key] ?? null;
+                if (is_string($value) && $value !== '') {
+                    $query[$key] = $value;
+                }
+            }
+        }
+
+        return rtrim($this->frontendBaseUrl, '/') . '/login?' . http_build_query(
+            $query,
+            '',
+            '&',
+            \PHP_QUERY_RFC3986
+        );
     }
 
     public function buildDepartmentMemberAddedAppUrl(string $departmentId, bool $isGrossanlass = false): string
