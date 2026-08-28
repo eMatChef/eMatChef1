@@ -73,6 +73,14 @@ export type GrossanlassCommitmentPayload = {
   wish_from?: string | null
   wish_to?: string | null
   services?: GrossanlassCommitmentService[]
+  cost_kind?: 'purchase' | 'rental' | 'loan' | 'buy_resale' | 'ancillary'
+  payer_group_id?: string | null
+  requesting_group_id?: string | null
+  asset_treatment?: 'expense' | 'inventory' | null
+  soll_chf?: number | null
+  cash_out_chf?: number | null
+  deposit_chf?: number | null
+  proceeds_expected_chf?: number | null
 }
 
 export async function getGrossanlassCommitments(departmentId: string): Promise<GrossanlassCommitment[]> {

@@ -108,8 +108,16 @@
       </div>
     </div>
 
-    <!-- Kontakt: Vorname, Nachname -->
-    <div v-if="showExtended" class="form-row two-cols">
+    <!-- Kontakt: Anrede, Vorname, Nachname -->
+    <div v-if="showExtended" class="form-row three-cols">
+      <div class="form-group">
+        <label class="form-label">{{ t('settings.addressForm.contactSalutation') }}</label>
+        <select v-model="formData.contact_salutation" class="form-select">
+          <option value="">{{ t('settings.addressForm.selectPlaceholder') }}</option>
+          <option value="herr">{{ t('settings.addressForm.salutationHerr') }}</option>
+          <option value="frau">{{ t('settings.addressForm.salutationFrau') }}</option>
+        </select>
+      </div>
       <div class="form-group">
         <label class="form-label">{{ t('settings.addressForm.contactFirstName') }}</label>
         <input

@@ -44,6 +44,21 @@
         <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.noWishesYet') }}</p>
       </div>
 
+      <div class="kosten-panel">
+        <h3>{{ t('grossanlass.beschaffung.kosten.linesTitle') }}</h3>
+        <p class="kosten-rahmen">
+          {{ t('grossanlass.meinRessort.rahmenSaved') }}:
+          {{ ownRahmenAmount == null ? '—' : formatChf(ownRahmenAmount) }}
+          · {{ t('grossanlass.meinRessort.nettoIst') }}:
+          {{ formatChf(ownNetto) }}
+        </p>
+        <div v-for="row in costRows" :key="row.id" class="wish-mini-row">
+          <span class="wish-label">{{ row.label }} · {{ t(`grossanlass.beschaffung.kosten.kind.${row.cost_kind}`) }}</span>
+          <span class="wish-meta">{{ formatChf(row.netto_chf) }} {{ t('grossanlass.beschaffung.kosten.statNetto') }}</span>
+        </div>
+        <p v-if="costRows.length === 0" class="no-wishes">{{ t('grossanlass.meinRessort.noCostsYet') }}</p>
+      </div>
+
       <div v-if="openRounds.length > 0" class="open-rounds-hint">
         <p>{{ t('grossanlass.meinRessort.openRoundsHint') }}</p>
         <EButton variant="primary" size="small" @click="goToPlanung">{{ t('sidebar.planung') }}</EButton>
@@ -63,6 +78,7 @@ import { EButton } from '@/components/form/base'
 import { getGrossanlassGroups, type GrossanlassGroup, type GrossanlassNodeType } from '@/api/grossanlassGroups'
 import { getMyRessortWishes, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassPlanningRounds, type GrossanlassPlanningRound } from '@/api/grossanlassRounds'
+import { formatChf, listGrossanlassBudgets, listGrossanlassCosts, type GrossanlassBudget, type GrossanlassCost } from '@/api/grossanlassProcurement'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import {
   flattenGrossanlassGroupsFiltered,
@@ -77,6 +93,8 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 const groups = ref<GrossanlassGroup[]>([])
 const wishes = ref<GrossanlassWishLine[]>([])
 const rounds = ref<GrossanlassPlanningRound[]>([])
+const costRows = ref<GrossanlassCost[]>([])
+const budgets = ref<GrossanlassBudget[]>([])
 const isLoading = ref(true)
 const error = ref('')
 
@@ -86,6 +104,19 @@ const { isInAssignedRessortBranch } = useGrossanlassRessortScope(groupsRef)
 const myGroupsTree = computed(() =>
   flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
 )
+
+const myGroupIds = computed(() => new Set(myGroupsTree.value.map((g) => g.id)))
+
+const ownRahmenAmount = computed(() => {
+  const amounts = budgets.value
+    .filter((row) => row.payer_group_id && myGroupIds.value.has(row.payer_group_id))
+    .map((row) => row.rahmen_chf)
+    .filter((value): value is number => value != null)
+  if (amounts.length === 0) return null
+  return amounts.reduce((sum, value) => sum + value, 0)
+})
+
+const ownNetto = computed(() => costRows.value.reduce((sum, row) => sum + (row.netto_chf || 0), 0))
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
 
@@ -114,14 +145,18 @@ async function load() {
   isLoading.value = true
   error.value = ''
   try {
-    const [groupList, wishList, roundList] = await Promise.all([
+    const [groupList, wishList, roundList, costs, budgetList] = await Promise.all([
       getGrossanlassGroups(departmentId.value),
       getMyRessortWishes(departmentId.value),
       getGrossanlassPlanningRounds(departmentId.value),
+      listGrossanlassCosts(departmentId.value).catch(() => [] as GrossanlassCost[]),
+      listGrossanlassBudgets(departmentId.value).catch(() => [] as GrossanlassBudget[]),
     ])
     groups.value = groupList
     wishes.value = wishList
     rounds.value = roundList
+    costRows.value = costs
+    budgets.value = budgetList
   } catch (e: any) {
     error.value = e.response?.data?.error || t('grossanlass.meinRessort.errorLoad')
   } finally {
@@ -212,5 +247,20 @@ onMounted(load)
   background: #eff6ff;
   border-radius: 8px;
   font-size: 0.9rem;
+}
+.kosten-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+}
+.kosten-panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+.kosten-rahmen {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: #64748b;
 }
 </style>

@@ -117,21 +117,39 @@ final class GrossanlassGmailApi
     /**
      * @return list<string>
      */
-    public function listMessageIds(string $accessToken, string $query, int $max = 40): array
+    /**
+     * @return list<array{id: string, threadId: string}>
+     */
+    public function listMessageRefs(string $accessToken, string $query, int $max = 40): array
     {
         $data = $this->get($accessToken, '/messages?q=' . rawurlencode($query) . '&maxResults=' . $max);
-        $ids = [];
+        $out = [];
         foreach ($data['messages'] ?? [] as $message) {
             if (!is_array($message)) {
                 continue;
             }
             $id = (string) ($message['id'] ?? '');
-            if ($id !== '') {
-                $ids[] = $id;
+            if ($id === '') {
+                continue;
             }
+            $out[] = [
+                'id' => $id,
+                'threadId' => (string) ($message['threadId'] ?? ''),
+            ];
         }
 
-        return $ids;
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listMessageIds(string $accessToken, string $query, int $max = 40): array
+    {
+        return array_values(array_map(
+            static fn (array $row): string => $row['id'],
+            $this->listMessageRefs($accessToken, $query, $max),
+        ));
     }
 
     /**

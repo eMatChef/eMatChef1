@@ -285,6 +285,9 @@ class SupplierCompanyFactory
         if (array_key_exists('contact_last_name', $data)) {
             $address->setContactLastName($this->nullableString($data['contact_last_name']));
         }
+        if (array_key_exists('contact_salutation', $data)) {
+            $address->setContactSalutation($this->nullableString($data['contact_salutation']));
+        }
         if (array_key_exists('email', $data)) {
             $address->setEmail($this->nullableString($data['email']));
         }

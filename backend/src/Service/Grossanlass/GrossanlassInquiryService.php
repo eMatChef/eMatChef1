@@ -91,7 +91,7 @@ class GrossanlassInquiryService
             }
             if (!$inquiry->isReadyForMail()) {
                 throw new \InvalidArgumentException(
-                    'E-Mail oder Paket fehlt für ' . $inquiry->getName(),
+                    'E-Mail oder Kategorie fehlt für ' . $inquiry->getName(),
                 );
             }
             if (in_array($inquiry->getStatus(), [
@@ -176,6 +176,17 @@ class GrossanlassInquiryService
                     'name' => $row['name'],
                     'email' => $email,
                     'place' => $row['place'],
+                    'website' => $row['website'],
+                    'offering' => $row['offering'],
+                    'notes' => $row['notes'],
+                    ...($row['contact_first_name'] !== '' || $row['contact_last_name'] !== ''
+                        ? [
+                            'contact_first_name' => $row['contact_first_name'],
+                            'contact_last_name' => $row['contact_last_name'],
+                        ]
+                        : ['contact_name' => $row['contact_name']]),
+                    'contact_salutation' => $row['contact_salutation'],
+                    'phone' => $row['phone'],
                     'category_ids' => $this->mapCategoryTokens($department, $row['categories']),
                 ], true);
                 $this->entityManager->persist($inquiry);
@@ -264,6 +275,31 @@ class GrossanlassInquiryService
         if (array_key_exists('place', $data) || $creating) {
             $inquiry->setPlace(trim((string) ($data['place'] ?? '')));
         }
+        if (array_key_exists('website', $data) || $creating) {
+            $inquiry->setWebsite(mb_substr(trim((string) ($data['website'] ?? '')), 0, 500));
+        }
+        if (array_key_exists('offering', $data) || $creating) {
+            $inquiry->setOffering(trim((string) ($data['offering'] ?? '')));
+        }
+        if (array_key_exists('notes', $data) || $creating) {
+            $inquiry->setNotes(trim((string) ($data['notes'] ?? '')));
+        }
+        if (array_key_exists('contact_first_name', $data) || array_key_exists('contact_last_name', $data)) {
+            if (array_key_exists('contact_first_name', $data) || $creating) {
+                $inquiry->setContactFirstName(trim((string) ($data['contact_first_name'] ?? '')));
+            }
+            if (array_key_exists('contact_last_name', $data) || $creating) {
+                $inquiry->setContactLastName(trim((string) ($data['contact_last_name'] ?? '')));
+            }
+        } elseif (array_key_exists('contact_name', $data) || $creating) {
+            $inquiry->setContactName(trim((string) ($data['contact_name'] ?? '')));
+        }
+        if (array_key_exists('contact_salutation', $data) || $creating) {
+            $inquiry->setContactSalutation(trim((string) ($data['contact_salutation'] ?? '')));
+        }
+        if (array_key_exists('phone', $data) || $creating) {
+            $inquiry->setPhone(mb_substr(trim((string) ($data['phone'] ?? '')), 0, 64));
+        }
         if (array_key_exists('category_ids', $data) || $creating) {
             $raw = $data['category_ids'] ?? [];
             if (is_string($raw)) {
@@ -310,6 +346,11 @@ class GrossanlassInquiryService
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
+            'website' => $inquiry->getWebsite(),
+            'offering' => $inquiry->getOffering(),
+            'notes' => $inquiry->getNotes(),
+            ...$inquiry->serializeContact(),
+            'phone' => $inquiry->getPhone(),
             'category_ids' => $inquiry->getCategoryIds(),
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),

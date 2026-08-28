@@ -87,5 +87,7 @@ function onUpdate(value: boolean) {
 .e-dialog__actions {
   padding: 8px 16px 16px;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

@@ -41,6 +41,14 @@ export type GrossanlassInquiry = {
   name: string
   email: string
   place: string
+  website: string
+  offering: string
+  notes: string
+  contact_name?: string
+  contact_salutation?: string
+  contact_first_name?: string
+  contact_last_name?: string
+  phone: string
   category_ids: string[]
   status: GrossanlassInquiryStatus
   tip_from: string | null
@@ -54,6 +62,22 @@ export type GrossanlassInquiry = {
   updated_at: string
 }
 
+export type GrossanlassInquiryWrite = {
+  name: string
+  email?: string
+  place?: string
+  website?: string
+  offering?: string
+  notes?: string
+  contact_name?: string
+  contact_salutation?: string
+  contact_first_name?: string
+  contact_last_name?: string
+  phone?: string
+  category_ids?: string[] | string
+  status?: GrossanlassInquiryStatus
+}
+
 export async function getGrossanlassInquiries(departmentId: string): Promise<GrossanlassInquiry[]> {
   const response = await apiClient.get<GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen`,
@@ -63,7 +87,7 @@ export async function getGrossanlassInquiries(departmentId: string): Promise<Gro
 
 export async function createGrossanlassInquiry(
   departmentId: string,
-  data: { name: string; email?: string; place?: string; category_ids?: string[] | string; status?: GrossanlassInquiryStatus },
+  data: GrossanlassInquiryWrite,
 ): Promise<GrossanlassInquiry> {
   const response = await apiClient.post<GrossanlassInquiry>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen`,
@@ -75,7 +99,7 @@ export async function createGrossanlassInquiry(
 export async function updateGrossanlassInquiry(
   departmentId: string,
   inquiryId: string,
-  data: Partial<{ name: string; email: string; place: string; category_ids: string[]; status: GrossanlassInquiryStatus }>,
+  data: Partial<GrossanlassInquiryWrite>,
 ): Promise<GrossanlassInquiry> {
   const response = await apiClient.patch<GrossanlassInquiry>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}`,

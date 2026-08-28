@@ -36,6 +36,13 @@ export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
   'ABSENDER',
   'REFERENZ',
   'EMAIL',
+  'WEBSEITE',
+  'WAS',
+  'HINWEISE',
+  'VORNAME',
+  'NACHNAME',
+  'KONTAKT',
+  'TELEFON',
 ] as const
 
 export type GrossanlassMailTemplate = {

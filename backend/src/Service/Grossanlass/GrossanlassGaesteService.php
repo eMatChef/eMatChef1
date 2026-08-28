@@ -22,6 +22,7 @@ final class GrossanlassGaesteService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassCostService $costs,
         private GroupAccessService $groupAccess,
         private JsLeihkatalogCatalogService $jsCatalog,
     ) {}
@@ -272,6 +273,9 @@ final class GrossanlassGaesteService
         $row->setFamily($commitment->getFamily());
         $row->setCommitment($commitment);
         $this->entityManager->persist($row);
+        if (array_key_exists('amount_chf', $data)) {
+            $this->costs->recordGuestSaleProceeds($commitment, $data['amount_chf']);
+        }
         $this->entityManager->flush();
 
         return $this->overview($host, $user);

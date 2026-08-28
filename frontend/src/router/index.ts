@@ -904,6 +904,16 @@ const routes: RouteRecordRaw[] = [
         redirect: (to) => ({ path: `/${to.params.departmentId}/planung/runden/${to.params.roundId}` }),
       },
       {
+        path: 'kosten',
+        name: 'GrossanlassKosten',
+        component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: ['matwart', 'depchef'],
+          ...routeHead('grossanlassKosten'),
+        },
+      },
+      {
         path: 'beschaffung',
         component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
         meta: {
@@ -918,18 +928,11 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'uebersicht',
-            redirect: { name: 'GrossanlassBeschaffungFinanzen' },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
           },
           {
             path: 'finanzen',
-            name: 'GrossanlassBeschaffungFinanzen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: ['matwart', 'depchef'],
-              beschaffungTab: 'finanzen',
-              ...routeHead('grossanlassBeschaffungFinanzen'),
-            },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
           },
           {
             path: 'bedarf',

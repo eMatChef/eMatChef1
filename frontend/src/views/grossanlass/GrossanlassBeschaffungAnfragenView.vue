@@ -158,14 +158,14 @@
           {{ t('grossanlass.beschaffung.anfragen.filterAll') }}
         </button>
         <button
-          v-for="cat in procurementCategories"
+          v-for="cat in categoryPickRows"
           :key="cat.id"
           type="button"
           class="filter-chip"
           :class="{ 'is-active': categoryFilter === cat.id }"
           @click="categoryFilter = cat.id"
         >
-          {{ cat.name }}
+          {{ cat.depth ? '↳ ' : '' }}{{ cat.name }}
         </button>
         <button
           type="button"
@@ -284,7 +284,7 @@
             <td>
               <strong>{{ firma.name }}</strong>
               <span class="meta">
-                {{ [firma.place, firma.email || t('grossanlass.beschaffung.anfragen.missingEmail')].filter(Boolean).join(' · ') }}
+                {{ firmMeta(firma) }}
               </span>
               <span v-if="!firma.category_ids.length" class="meta meta--warn">
                 {{ t('grossanlass.beschaffung.anfragen.missingPackage') }}
@@ -298,7 +298,7 @@
               <button
                 type="button"
                 class="pkg-edit"
-                @click="openEditAreas(firma)"
+                @click="openEditFirm(firma)"
               >
                 <span v-if="!firma.category_ids.length" class="pkg-chip pkg-chip--empty">
                   {{ t('grossanlass.beschaffung.anfragen.noPackage') }}
@@ -309,11 +309,14 @@
               </button>
             </td>
             <td>
-              <span class="status-chip" :class="`status-chip--${firma.status}`">
-                {{ t(`grossanlass.beschaffung.anfragen.status.${firma.status}`) }}
+              <span class="status-chip" :class="`status-chip--${inquiryMailPhase(firma)}`">
+                {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(firma)}`) }}
               </span>
             </td>
             <td>
+              <EButton variant="text" size="small" @click="openEditFirm(firma)">
+                {{ t('common.edit') }}
+              </EButton>
               <EButton variant="text" size="small" @click="openPreview(firma)">
                 {{ t('grossanlass.beschaffung.anfragen.preview') }}
               </EButton>
@@ -340,11 +343,14 @@
           <li v-for="firma in block.firms" :key="firma.id">
             <div>
               <strong>{{ firma.name }}</strong>
-              <span class="meta">{{ firma.place }}</span>
+              <span class="meta">{{ firmMeta(firma) }}</span>
             </div>
-            <span class="status-chip" :class="`status-chip--${firma.status}`">
-              {{ t(`grossanlass.beschaffung.anfragen.status.${firma.status}`) }}
+            <span class="status-chip" :class="`status-chip--${inquiryMailPhase(firma)}`">
+              {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(firma)}`) }}
             </span>
+            <EButton variant="text" size="small" @click="openEditFirm(firma)">
+              {{ t('common.edit') }}
+            </EButton>
             <EButton variant="text" size="small" @click="openPreview(firma)">
               {{ t('grossanlass.beschaffung.anfragen.preview') }}
             </EButton>
@@ -356,7 +362,7 @@
     <EDialog
       v-model="previewOpen"
       :title="t('grossanlass.beschaffung.anfragen.previewTitle')"
-      max-width="560"
+      max-width="640"
     >
       <template v-if="previewFirma">
         <p
@@ -370,6 +376,9 @@
             email: previewFirma.email || t('grossanlass.beschaffung.anfragen.missingEmail'),
           }) }}
         </p>
+        <span class="status-chip" :class="`status-chip--${inquiryMailPhase(previewFirma)}`">
+          {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(previewFirma)}`) }}
+        </span>
         <p class="mail-subject">{{ previewMail.subject }}</p>
         <div class="mail-html" v-html="sanitizedPreviewBody" />
         <ul v-if="previewThread.length" class="thread">
@@ -387,12 +396,12 @@
         </p>
       </template>
       <template #actions>
-        <EButton variant="secondary" size="small" @click="previewOpen = false">
+        <EButton variant="secondary" size="x-small" @click="previewOpen = false">
           {{ t('common.close') }}
         </EButton>
         <EButton
           variant="primary"
-          size="small"
+          size="x-small"
           :disabled="!previewFirma?.gmail_open_url"
           @click="openGmail"
         >
@@ -401,7 +410,7 @@
         <EButton
           v-if="previewStatus === 'entwurf'"
           variant="primary"
-          size="small"
+          size="x-small"
           @click="markPreviewSent"
         >
           {{ t('grossanlass.beschaffung.anfragen.markSent') }}
@@ -409,7 +418,7 @@
         <EButton
           v-if="previewStatus === 'gesendet'"
           variant="secondary"
-          size="small"
+          size="x-small"
           @click="replyPreview"
         >
           {{ t('grossanlass.beschaffung.anfragen.simulateReply') }}
@@ -417,7 +426,7 @@
         <EButton
           v-if="previewStatus === 'gesendet' || previewStatus === 'antwort' || previewStatus === 'zusage' || previewStatus === 'absage'"
           variant="primary"
-          size="small"
+          size="x-small"
           :disabled="!gmailStatus?.connected"
           @click="openReplyDraft"
         >
@@ -426,7 +435,7 @@
         <EButton
           v-if="previewStatus === 'antwort'"
           variant="secondary"
-          size="small"
+          size="x-small"
           @click="rejectPreview"
         >
           {{ t('grossanlass.beschaffung.anfragen.markAbsage') }}
@@ -434,7 +443,7 @@
         <EButton
           v-if="previewStatus === 'antwort'"
           variant="primary"
-          size="small"
+          size="x-small"
           @click="acceptPreview"
         >
           {{ t('grossanlass.beschaffung.anfragen.markZusage') }}
@@ -442,7 +451,7 @@
         <EButton
           v-if="previewStatus === 'zusage'"
           variant="primary"
-          size="small"
+          size="x-small"
           @click="goZuteilung"
         >
           {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
@@ -486,34 +495,58 @@
 
     <EDialog
       v-model="editOpen"
-      :title="t('grossanlass.beschaffung.anfragen.editAreasTitle', { name: editFirma?.name || '' })"
-      :max-width="480"
+      :title="t('grossanlass.beschaffung.anfragen.editFirmTitle', { name: editFirma?.name || '' })"
+      :max-width="640"
     >
-      <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.packagesHint') }}</p>
-      <div v-if="procurementCategories.length" class="cat-pick">
-        <label v-for="cat in procurementCategories" :key="cat.id">
-          <input v-model="editCategoryIds" type="checkbox" :value="cat.id">
-          {{ cat.name }}
+      <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.mailFieldsHint') }}</p>
+      <div class="firm-name-wrap">
+        <ETextField v-model="editForm.name" :label="t('grossanlass.beschaffung.anfragen.colFirm')" hide-details="auto" />
+      </div>
+      <ETextField v-model="editForm.place" :label="t('grossanlass.beschaffung.anfragen.placeLabel')" hide-details="auto" class="mb-2" />
+      <ETextField v-model="editForm.website" :label="t('grossanlass.beschaffung.anfragen.websiteLabel')" hide-details="auto" class="mb-2" />
+      <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.packagesLabel') }}</p>
+      <div v-if="categoryPickRows.length" class="cat-pick">
+        <label v-for="cat in categoryPickRows" :key="cat.id" :style="{ paddingLeft: `${cat.depth * 14}px` }">
+          <input v-model="editForm.categoryIds" type="checkbox" :value="cat.id">
+          {{ cat.depth ? '↳ ' : '' }}{{ cat.name }}
         </label>
       </div>
       <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.packagesHint') }}</p>
+      <ETextField v-model="editForm.offering" :label="t('grossanlass.beschaffung.anfragen.offeringLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+      <ETextField v-model="editForm.notes" :label="t('grossanlass.beschaffung.anfragen.notesLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+      <div class="contact-name-row">
+        <ESelect
+          v-model="editForm.contactSalutation"
+          :label="t('grossanlass.beschaffung.anfragen.contactSalutationLabel')"
+          :items="salutationItems"
+          clearable
+          hide-details="auto"
+        />
+        <ETextField v-model="editForm.contactFirstName" :label="t('grossanlass.beschaffung.anfragen.contactFirstNameLabel')" hide-details="auto" />
+        <ETextField v-model="editForm.contactLastName" :label="t('grossanlass.beschaffung.anfragen.contactLastNameLabel')" hide-details="auto" />
+      </div>
+      <ETextField v-model="editForm.email" :label="t('grossanlass.beschaffung.anfragen.emailLabel')" hide-details="auto" class="mb-2" />
+      <ETextField v-model="editForm.phone" :label="t('grossanlass.beschaffung.anfragen.phoneLabel')" hide-details="auto" class="mb-2" />
       <template #actions>
         <EButton variant="secondary" size="small" @click="editOpen = false">{{ t('common.cancel') }}</EButton>
-        <EButton variant="primary" size="small" :loading="isSaving" @click="saveEditAreas">
+        <EButton variant="primary" size="small" :disabled="!editForm.name.trim()" :loading="isSaving" @click="saveEditFirm">
           {{ t('common.save') }}
         </EButton>
       </template>
     </EDialog>
 
-    <EDialog v-model="createOpen" :title="t('grossanlass.beschaffung.anfragen.addFirm')" :max-width="480">
-      <ETextField v-model="createForm.name" :label="t('grossanlass.beschaffung.anfragen.colFirm')" hide-details="auto" class="mb-2" />
-      <ETextField v-model="createForm.email" :label="t('grossanlass.beschaffung.anfragen.emailLabel')" hide-details="auto" class="mb-2" />
+    <EDialog v-model="createOpen" :title="t('grossanlass.beschaffung.anfragen.addFirm')" :max-width="640">
+      <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.mailFieldsHint') }}</p>
+      <div class="firm-name-wrap">
+        <ETextField v-model="createForm.name" :label="t('grossanlass.beschaffung.anfragen.colFirm')" hide-details="auto" />
+      </div>
       <ETextField v-model="createForm.place" :label="t('grossanlass.beschaffung.anfragen.placeLabel')" hide-details="auto" class="mb-2" />
+      <ETextField v-model="createForm.website" :label="t('grossanlass.beschaffung.anfragen.websiteLabel')" hide-details="auto" class="mb-2" />
       <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.packagesLabel') }}</p>
-      <div v-if="procurementCategories.length" class="cat-pick">
-        <label v-for="cat in procurementCategories" :key="cat.id">
+      <div v-if="categoryPickRows.length" class="cat-pick">
+        <label v-for="cat in categoryPickRows" :key="cat.id" :style="{ paddingLeft: `${cat.depth * 14}px` }">
           <input v-model="createForm.categoryIds" type="checkbox" :value="cat.id">
-          {{ cat.name }}
+          {{ cat.depth ? '↳ ' : '' }}{{ cat.name }}
         </label>
       </div>
       <ETextField
@@ -522,7 +555,23 @@
         :label="t('grossanlass.beschaffung.anfragen.packagesLabel')"
         :hint="t('grossanlass.beschaffung.anfragen.packagesHint')"
         hide-details="auto"
+        class="mb-2"
       />
+      <ETextField v-model="createForm.offering" :label="t('grossanlass.beschaffung.anfragen.offeringLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+      <ETextField v-model="createForm.notes" :label="t('grossanlass.beschaffung.anfragen.notesLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+      <div class="contact-name-row">
+        <ESelect
+          v-model="createForm.contactSalutation"
+          :label="t('grossanlass.beschaffung.anfragen.contactSalutationLabel')"
+          :items="salutationItems"
+          clearable
+          hide-details="auto"
+        />
+        <ETextField v-model="createForm.contactFirstName" :label="t('grossanlass.beschaffung.anfragen.contactFirstNameLabel')" hide-details="auto" />
+        <ETextField v-model="createForm.contactLastName" :label="t('grossanlass.beschaffung.anfragen.contactLastNameLabel')" hide-details="auto" />
+      </div>
+      <ETextField v-model="createForm.email" :label="t('grossanlass.beschaffung.anfragen.emailLabel')" hide-details="auto" class="mb-2" />
+      <ETextField v-model="createForm.phone" :label="t('grossanlass.beschaffung.anfragen.phoneLabel')" hide-details="auto" class="mb-2" />
       <template #actions>
         <EButton variant="secondary" size="small" @click="createOpen = false">{{ t('common.cancel') }}</EButton>
         <EButton variant="primary" size="small" :disabled="!createForm.name.trim()" :loading="isSaving" @click="createFirm">
@@ -588,12 +637,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useBackgroundPoll } from '@/composables/useBackgroundPoll'
 import { useAuthStore } from '@/stores/auth'
-import { EButton, EDialog, ESearchField, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
@@ -628,11 +678,119 @@ import {
   type GrossanlassProcurementCategory,
 } from '@/api/grossanlassProcurement'
 
+type InquiryMailPhase =
+  | 'kein_entwurf'
+  | 'entwurf'
+  | 'gmail_entwurf'
+  | 'gesendet'
+  | 'antwort'
+  | 'zusage'
+  | 'absage'
+  | 'vorschlag'
+
+type FirmFormFields = {
+  name: string
+  place: string
+  website: string
+  offering: string
+  notes: string
+  contactSalutation: '' | 'herr' | 'frau'
+  contactFirstName: string
+  contactLastName: string
+  email: string
+  phone: string
+  categoryIds: string[]
+  categoriesText: string
+}
+
+function emptyFirmForm(categoryId?: string): FirmFormFields {
+  return {
+    name: '',
+    place: '',
+    website: '',
+    offering: '',
+    notes: '',
+    contactSalutation: '',
+    contactFirstName: '',
+    contactLastName: '',
+    email: '',
+    phone: '',
+    categoryIds: categoryId ? [categoryId] : [],
+    categoriesText: '',
+  }
+}
+
+function assignFirmForm(target: FirmFormFields, source: FirmFormFields) {
+  target.name = source.name
+  target.place = source.place
+  target.website = source.website
+  target.offering = source.offering
+  target.notes = source.notes
+  target.contactSalutation = source.contactSalutation
+  target.contactFirstName = source.contactFirstName
+  target.contactLastName = source.contactLastName
+  target.email = source.email
+  target.phone = source.phone
+  target.categoryIds = [...source.categoryIds]
+  target.categoriesText = source.categoriesText
+}
+
+function splitContactName(full: string): { first: string; last: string } {
+  const trimmed = full.trim().replace(/\s+/g, ' ')
+  if (!trimmed) return { first: '', last: '' }
+  const i = trimmed.indexOf(' ')
+  if (i < 0) return { first: trimmed, last: '' }
+  return { first: trimmed.slice(0, i), last: trimmed.slice(i + 1).trim() }
+}
+
+function inquiryContactParts(firma: GrossanlassInquiry): {
+  salutation: '' | 'herr' | 'frau'
+  first: string
+  last: string
+  full: string
+} {
+  let first = (firma.contact_first_name || '').trim()
+  let last = (firma.contact_last_name || '').trim()
+  if (!first && !last && firma.contact_name) {
+    const split = splitContactName(firma.contact_name)
+    first = split.first
+    last = split.last
+  }
+  const raw = (firma.contact_salutation || '').trim().toLowerCase()
+  const salutation: '' | 'herr' | 'frau' = raw === 'herr' || raw === 'frau' ? raw : ''
+  const label = salutation === 'herr' ? 'Herr' : salutation === 'frau' ? 'Frau' : ''
+  const full = [label, first, last].filter(Boolean).join(' ') || (firma.contact_name || '').trim()
+  return { salutation, first, last, full }
+}
+
+function formFromInquiry(firma: GrossanlassInquiry): FirmFormFields {
+  const contact = inquiryContactParts(firma)
+  return {
+    name: firma.name,
+    place: firma.place,
+    website: firma.website || '',
+    offering: firma.offering || '',
+    notes: firma.notes || '',
+    contactSalutation: contact.salutation,
+    contactFirstName: contact.first,
+    contactLastName: contact.last,
+    email: firma.email,
+    phone: firma.phone || '',
+    categoryIds: [...firma.category_ids],
+    categoriesText: '',
+  }
+}
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
 const toast = useToast()
+
+const salutationItems = computed(() => [
+  { title: t('grossanlass.beschaffung.anfragen.salutationHerr'), value: 'herr' },
+  { title: t('grossanlass.beschaffung.anfragen.salutationFrau'), value: 'frau' },
+])
 
 function categoryLabel(categoryId: string): string {
   const rows = procurementCategories.value
@@ -675,17 +833,43 @@ const draftPreviews = ref<GrossanlassMailBatchPreview[]>([])
 const draftReviewId = ref<string | null>(null)
 const isPreviewingDrafts = ref(false)
 const draftPreviewError = ref(false)
-const createForm = reactive({ name: '', email: '', place: '', categoryIds: [] as string[], categoriesText: '' })
+const createForm = reactive(emptyFirmForm())
 const procurementCategories = ref<GrossanlassProcurementCategory[]>([])
 const categoryFilter = ref('')
 const emailFilter = ref<'' | 'ready' | 'missing'>('')
 const statusFilter = ref('')
+const pageOpen = ref(true)
 const editOpen = ref(false)
 const editFirma = ref<GrossanlassInquiry | null>(null)
-const editCategoryIds = ref<string[]>([])
+const editForm = reactive(emptyFirmForm())
 
-const statusKeys: GrossanlassInquiry['status'][] = [
+const categoryPickRows = computed(() => {
+  const rows = [...procurementCategories.value]
+  const out: { id: string; name: string; depth: number }[] = []
+  const childrenOf = (parentId: string | null) =>
+    rows
+      .filter((cat) => (cat.parent_id ?? null) === parentId)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'de'))
+  const walk = (parentId: string | null, depth: number) => {
+    for (const cat of childrenOf(parentId)) {
+      out.push({ id: cat.id, name: cat.name, depth })
+      walk(cat.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  const seen = new Set(out.map((row) => row.id))
+  for (const cat of rows) {
+    if (!seen.has(cat.id)) {
+      out.push({ id: cat.id, name: cat.name, depth: cat.parent_id ? 1 : 0 })
+    }
+  }
+  return out
+})
+
+const statusKeys: InquiryMailPhase[] = [
+  'kein_entwurf',
   'entwurf',
+  'gmail_entwurf',
   'gesendet',
   'antwort',
   'zusage',
@@ -695,6 +879,15 @@ const statusKeys: GrossanlassInquiry['status'][] = [
 
 function isReadyForMail(firma: GrossanlassInquiry): boolean {
   return !!firma.email && firma.category_ids.length > 0
+}
+
+function inquiryMailPhase(firma: GrossanlassInquiry): InquiryMailPhase {
+  if (firma.status === 'entwurf') {
+    if (firma.gmail_draft_id) return 'gmail_entwurf'
+    if (isReadyForMail(firma)) return 'entwurf'
+    return 'kein_entwurf'
+  }
+  return firma.status
 }
 
 function canDraft(firma: GrossanlassInquiry): boolean {
@@ -741,10 +934,12 @@ const filteredFirms = computed(() => {
     }
     if (emailFilter.value === 'missing' && firma.email) return false
     if (emailFilter.value === 'ready' && !isReadyForMail(firma)) return false
-    if (statusFilter.value && firma.status !== statusFilter.value) return false
+    if (statusFilter.value && inquiryMailPhase(firma) !== statusFilter.value) return false
     if (!q) return true
     const packages = firma.category_ids.map((id) => categoryLabel(id)).join(' ')
-    return `${firma.name} ${firma.place} ${firma.email} ${packages}`.toLowerCase().includes(q)
+    return `${firma.name} ${firma.place} ${firma.website} ${firma.offering} ${firma.notes} ${inquiryContactParts(firma).full} ${firma.email} ${firma.phone} ${packages}`
+      .toLowerCase()
+      .includes(q)
   })
 })
 
@@ -758,7 +953,7 @@ const statusCounts = computed(() =>
   statusKeys
     .map((status) => ({
       status,
-      count: firms.value.filter((firma) => firma.status === status).length,
+      count: firms.value.filter((firma) => inquiryMailPhase(firma) === status).length,
     }))
     .filter((row) => row.count > 0),
 )
@@ -791,7 +986,7 @@ const categoryBlocks = computed(() => {
   }
   const blocks = procurementCategories.value.map((cat) => ({
     id: cat.id,
-    label: cat.name,
+    label: `${cat.parent_id ? '↳ ' : ''}${cat.name}`,
     firms: byId.get(cat.id) ?? [],
   }))
   const none = byId.get('_none') ?? []
@@ -840,31 +1035,50 @@ function goZuteilung() {
   void router.push(`/${dept}/beschaffung/zusagen`)
 }
 
+function firmMeta(firma: GrossanlassInquiry): string {
+  return [
+    firma.place,
+    inquiryContactParts(firma).full,
+    firma.phone,
+    firma.email || t('grossanlass.beschaffung.anfragen.missingEmail'),
+  ].filter(Boolean).join(' · ')
+}
+
+function firmWritePayload(form: FirmFormFields) {
+  return {
+    name: form.name.trim(),
+    place: form.place.trim(),
+    website: form.website.trim(),
+    offering: form.offering.trim(),
+    notes: form.notes.trim(),
+    contact_salutation: form.contactSalutation || '',
+    contact_first_name: form.contactFirstName.trim(),
+    contact_last_name: form.contactLastName.trim(),
+    email: form.email.trim(),
+    phone: form.phone.trim(),
+    category_ids: procurementCategories.value.length ? form.categoryIds : form.categoriesText,
+  }
+}
+
 function openCreate(categoryId?: string) {
-  createForm.name = ''
-  createForm.email = ''
-  createForm.place = ''
-  createForm.categoriesText = ''
-  createForm.categoryIds = categoryId ? [categoryId] : []
+  assignFirmForm(createForm, emptyFirmForm(categoryId))
   createOpen.value = true
 }
 
-function openEditAreas(firma: GrossanlassInquiry) {
+function openEditFirm(firma: GrossanlassInquiry) {
   editFirma.value = firma
-  editCategoryIds.value = [...firma.category_ids]
+  assignFirmForm(editForm, formFromInquiry(firma))
   editOpen.value = true
 }
 
-async function saveEditAreas() {
-  if (!departmentId.value || !editFirma.value) return
+async function saveEditFirm() {
+  if (!departmentId.value || !editFirma.value || !editForm.name.trim()) return
   isSaving.value = true
   try {
-    const next = await updateGrossanlassInquiry(departmentId.value, editFirma.value.id, {
-      category_ids: editCategoryIds.value,
-    })
+    const next = await updateGrossanlassInquiry(departmentId.value, editFirma.value.id, firmWritePayload(editForm))
     replaceFirm(next)
     editOpen.value = false
-    toast.success(t('grossanlass.beschaffung.anfragen.areasSaved'))
+    toast.success(t('grossanlass.beschaffung.anfragen.createdToast'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
@@ -916,17 +1130,29 @@ function openGmail() {
 }
 
 async function syncGmail() {
-  if (!departmentId.value) return
+  await runGmailSync(false)
+}
+
+async function syncGmailSilent() {
+  await runGmailSync(true)
+}
+
+async function runGmailSync(silent: boolean) {
+  if (!departmentId.value || !gmailStatus.value?.connected) return
+  if (isSyncing.value) return
   isSyncing.value = true
   try {
     const result = await syncGrossanlassInquiryGmail(departmentId.value)
     result.updated.forEach(replaceFirm)
     unmatched.value = result.unmatched
-    toast.success(t('grossanlass.beschaffung.anfragen.gmailSyncToast', {
-      count: result.updated.length,
-      unmatched: result.unmatched.length,
-    }))
+    if (!silent) {
+      toast.success(t('grossanlass.beschaffung.anfragen.gmailSyncToast', {
+        count: result.updated.length,
+        unmatched: result.unmatched.length,
+      }))
+    }
   } catch (e: unknown) {
+    if (silent) return
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
   } finally {
@@ -1065,7 +1291,12 @@ async function confirmDrafts() {
   }
   isDrafting.value = true
   try {
-    const updated = await createGrossanlassInquiryDrafts(departmentId.value, selected.value)
+    const ids = selectedFirms.value.filter(canDraft).map((firma) => firma.id)
+    if (ids.length === 0) {
+      toast.error(t('grossanlass.beschaffung.anfragen.missingPackage'))
+      return
+    }
+    const updated = await createGrossanlassInquiryDrafts(departmentId.value, ids)
     updated.forEach(replaceFirm)
     draftsOpen.value = false
     selected.value = []
@@ -1093,7 +1324,7 @@ async function importTips() {
   }
 }
 
-const CSV_TEMPLATE = 'Firma;E-Mail;Ort;Bereiche\nMuster AG;info@muster.example;Bern;Fahrzeuge, Bauholz\n'
+const CSV_TEMPLATE = 'Firma;Ort;Webseite;Bereich;Was;Hinweise;Anrede;Vorname;Nachname;E-Mail;Telefon\nMuster AG;Bern;https://muster.example;Fahrzeuge;Anhänger;nur Anfrage;Herr;Hans;Muster;info@muster.example;031 000 00 00\n'
 
 function downloadCsvTemplate() {
   const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv;charset=utf-8;' })
@@ -1134,20 +1365,9 @@ async function createFirm() {
   if (!departmentId.value || !createForm.name.trim()) return
   isSaving.value = true
   try {
-    const created = await createGrossanlassInquiry(departmentId.value, {
-      name: createForm.name.trim(),
-      email: createForm.email.trim(),
-      place: createForm.place.trim(),
-      category_ids: procurementCategories.value.length
-        ? createForm.categoryIds
-        : createForm.categoriesText,
-    })
+    const created = await createGrossanlassInquiry(departmentId.value, firmWritePayload(createForm))
     firms.value = [created, ...firms.value]
-    createForm.name = ''
-    createForm.email = ''
-    createForm.place = ''
-    createForm.categoryIds = []
-    createForm.categoriesText = ''
+    assignFirmForm(createForm, emptyFirmForm())
     createOpen.value = false
     toast.success(t('grossanlass.beschaffung.anfragen.createdToast'))
   } catch (e: unknown) {
@@ -1167,23 +1387,39 @@ async function refreshGmailStrip() {
   }
 }
 
-function onPageVisible() {
-  if (document.visibilityState === 'visible') {
-    void refreshGmailStrip()
-  }
-}
+const gmailPoll = useBackgroundPoll({
+  intervalMs: 20_000,
+  enabled: computed(
+    () => pageOpen.value && !!departmentId.value && !!gmailStatus.value?.connected && !isLoading.value,
+  ),
+  isBusy: () =>
+    isSyncing.value
+    || isSaving.value
+    || isDrafting.value
+    || isReplyDrafting.value
+    || draftsOpen.value
+    || isImporting.value
+    || isCsvImporting.value,
+  poll: () => syncGmailSilent(),
+})
 
 onMounted(() => {
-  void load()
-  document.addEventListener('visibilitychange', onPageVisible)
+  void load().then(() => {
+    if (gmailStatus.value?.connected) gmailPoll.tick()
+  })
 })
 
 onActivated(() => {
+  pageOpen.value = true
   void refreshGmailStrip()
 })
 
+onDeactivated(() => {
+  pageOpen.value = false
+})
+
 onUnmounted(() => {
-  document.removeEventListener('visibilitychange', onPageVisible)
+  pageOpen.value = false
 })
 </script>
 
@@ -1434,6 +1670,20 @@ onUnmounted(() => {
   gap: 6px;
   font-size: 0.85rem;
 }
+.firm-name-wrap {
+  display: block;
+  margin: 0 0 12px;
+}
+.firm-name-wrap :deep(.v-field__input) {
+  min-height: 52px;
+  font-size: 1.08rem;
+}
+.contact-name-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.7fr) 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 8px;
+}
 .status-chip {
   display: inline-flex;
   padding: 2px 8px;
@@ -1441,7 +1691,9 @@ onUnmounted(() => {
   font-size: 0.72rem;
   font-weight: 600;
 }
+.status-chip--kein_entwurf { background: #f1f5f9; color: #475569; }
 .status-chip--entwurf { background: #eff6ff; color: #1d4ed8; }
+.status-chip--gmail_entwurf { background: #e0e7ff; color: #3730a3; }
 .status-chip--gesendet { background: #ecfeff; color: #0e7490; }
 .status-chip--antwort { background: #fef9c3; color: #a16207; }
 .status-chip--zusage { background: #dcfce7; color: #15803d; }

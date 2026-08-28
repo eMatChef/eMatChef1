@@ -775,6 +775,9 @@ class AddressController extends AbstractController
         if (array_key_exists('contact_last_name', $data)) {
             $address->setContactLastName($data['contact_last_name']);
         }
+        if (array_key_exists('contact_salutation', $data)) {
+            $address->setContactSalutation($data['contact_salutation'] !== null ? (string) $data['contact_salutation'] : null);
+        }
         if (array_key_exists('email', $data)) {
             $address->setEmail($data['email']);
         }
