@@ -45,7 +45,7 @@ jobs:
           du -sh deploy/droplet/staging/app
 
       - name: Rsync app to droplet
-        uses: burnett01/rsync-deployments@7.1.0
+        uses: burnett01/rsync-deployments@9.0.0
         with:
           switches: -avz --delete
           path: deploy/droplet/staging/app/
