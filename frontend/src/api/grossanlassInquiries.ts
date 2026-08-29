@@ -41,6 +41,16 @@ export type GrossanlassInquiry = {
   name: string
   email: string
   place: string
+  latitude?: number | null
+  longitude?: number | null
+  website: string
+  offering: string
+  notes: string
+  contact_name?: string
+  contact_salutation?: string
+  contact_first_name?: string
+  contact_last_name?: string
+  phone: string
   category_ids: string[]
   status: GrossanlassInquiryStatus
   tip_from: string | null
@@ -54,6 +64,24 @@ export type GrossanlassInquiry = {
   updated_at: string
 }
 
+export type GrossanlassInquiryWrite = {
+  name: string
+  email?: string
+  place?: string
+  latitude?: number | null
+  longitude?: number | null
+  website?: string
+  offering?: string
+  notes?: string
+  contact_name?: string
+  contact_salutation?: string
+  contact_first_name?: string
+  contact_last_name?: string
+  phone?: string
+  category_ids?: string[] | string
+  status?: GrossanlassInquiryStatus
+}
+
 export async function getGrossanlassInquiries(departmentId: string): Promise<GrossanlassInquiry[]> {
   const response = await apiClient.get<GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen`,
@@ -63,7 +91,7 @@ export async function getGrossanlassInquiries(departmentId: string): Promise<Gro
 
 export async function createGrossanlassInquiry(
   departmentId: string,
-  data: { name: string; email?: string; place?: string; category_ids?: string[] | string; status?: GrossanlassInquiryStatus },
+  data: GrossanlassInquiryWrite,
 ): Promise<GrossanlassInquiry> {
   const response = await apiClient.post<GrossanlassInquiry>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen`,
@@ -75,13 +103,17 @@ export async function createGrossanlassInquiry(
 export async function updateGrossanlassInquiry(
   departmentId: string,
   inquiryId: string,
-  data: Partial<{ name: string; email: string; place: string; category_ids: string[]; status: GrossanlassInquiryStatus }>,
+  data: Partial<GrossanlassInquiryWrite>,
 ): Promise<GrossanlassInquiry> {
   const response = await apiClient.patch<GrossanlassInquiry>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}`,
     data,
   )
   return response.data
+}
+
+export async function deleteGrossanlassInquiry(departmentId: string, inquiryId: string): Promise<void> {
+  await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}`)
 }
 
 export async function importGrossanlassInquiryTips(departmentId: string): Promise<GrossanlassInquiry[]> {
@@ -212,4 +244,51 @@ export async function createGrossanlassInquiryReplyDraft(
     { kind },
   )
   return response.data
+}
+
+export type GrossanlassInquiryGeocodeResult = {
+  updated: GrossanlassInquiry[]
+  geocoded: number
+  remaining: number
+}
+
+export async function geocodeGrossanlassInquiries(departmentId: string): Promise<GrossanlassInquiryGeocodeResult> {
+  const response = await apiClient.post<GrossanlassInquiryGeocodeResult>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/geocode-missing`,
+  )
+  return {
+    updated: Array.isArray(response.data.updated) ? response.data.updated : [],
+    geocoded: Number(response.data.geocoded) || 0,
+    remaining: Number(response.data.remaining) || 0,
+  }
+}
+
+export type GrossanlassWebLookupHit = {
+  value: string
+  source: string
+}
+
+export type GrossanlassWebLookupResult = {
+  query: string
+  search_url: string
+  website: string | null
+  emails: GrossanlassWebLookupHit[]
+  phones: GrossanlassWebLookupHit[]
+}
+
+export async function lookupGrossanlassInquiryWeb(
+  departmentId: string,
+  payload: { name: string; place?: string; website?: string },
+): Promise<GrossanlassWebLookupResult> {
+  const response = await apiClient.post<GrossanlassWebLookupResult>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/web-lookup`,
+    payload,
+  )
+  return {
+    query: String(response.data.query || ''),
+    search_url: String(response.data.search_url || ''),
+    website: response.data.website ? String(response.data.website) : null,
+    emails: Array.isArray(response.data.emails) ? response.data.emails : [],
+    phones: Array.isArray(response.data.phones) ? response.data.phones : [],
+  }
 }

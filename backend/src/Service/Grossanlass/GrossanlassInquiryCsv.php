@@ -10,7 +10,21 @@ namespace App\Service\Grossanlass;
 final class GrossanlassInquiryCsv
 {
     /**
-     * @return list<array{name: string, email: string, place: string, categories: list<string>, line: int}>
+     * @return list<array{
+     *     name: string,
+     *     email: string,
+     *     place: string,
+     *     website: string,
+     *     offering: string,
+     *     notes: string,
+     *     contact_name: string,
+     *     contact_first_name: string,
+     *     contact_last_name: string,
+     *     contact_salutation: string,
+     *     phone: string,
+     *     categories: list<string>,
+     *     line: int
+     * }>
      */
     public static function parse(string $csv): array
     {
@@ -33,10 +47,27 @@ final class GrossanlassInquiryCsv
             if ($name === '') {
                 continue;
             }
+            $first = isset($map['contact_first_name']) ? self::cell($cells, $map['contact_first_name']) : '';
+            $last = isset($map['contact_last_name']) ? self::cell($cells, $map['contact_last_name']) : '';
+            $contact = isset($map['contact_name']) ? self::cell($cells, $map['contact_name']) : '';
+            if ($contact === '' && ($first !== '' || $last !== '')) {
+                $contact = trim($first . ' ' . $last);
+            }
+            $salutation = isset($map['contact_salutation']) ? self::cell($cells, $map['contact_salutation']) : '';
+            $hinweise = isset($map['notes']) ? self::cell($cells, $map['notes']) : '';
+            $remark = isset($map['remark']) ? self::cell($cells, $map['remark']) : '';
             $out[] = [
                 'name' => $name,
                 'email' => isset($map['email']) ? strtolower(self::cell($cells, $map['email'])) : '',
                 'place' => isset($map['place']) ? self::cell($cells, $map['place']) : '',
+                'website' => isset($map['website']) ? self::cell($cells, $map['website']) : '',
+                'offering' => isset($map['offering']) ? self::cell($cells, $map['offering']) : '',
+                'notes' => self::joinNotes($hinweise, $remark),
+                'contact_name' => $contact,
+                'contact_first_name' => $first,
+                'contact_last_name' => $last,
+                'contact_salutation' => $salutation,
+                'phone' => isset($map['phone']) ? self::cell($cells, $map['phone']) : '',
                 'categories' => isset($map['categories'])
                     ? self::splitCategories(self::cell($cells, $map['categories']))
                     : [],
@@ -49,7 +80,21 @@ final class GrossanlassInquiryCsv
 
     /**
      * @param list<string|null> $header
-     * @return array{name?: int, email?: int, place?: int, categories?: int}
+     * @return array{
+     *     name?: int,
+     *     email?: int,
+     *     place?: int,
+     *     website?: int,
+     *     offering?: int,
+     *     notes?: int,
+     *     contact_name?: int,
+     *     contact_first_name?: int,
+     *     contact_last_name?: int,
+     *     contact_salutation?: int,
+     *     phone?: int,
+     *     categories?: int,
+     *     remark?: int
+     * }
      */
     private static function headerMap(array $header): array
     {
@@ -61,11 +106,29 @@ final class GrossanlassInquiryCsv
             }
             if (in_array($key, ['firma', 'name', 'company', 'unternehmen'], true)) {
                 $map['name'] = $index;
-            } elseif (in_array($key, ['email', 'e-mail', 'mail', 'e_mail'], true)) {
+            } elseif (in_array($key, ['email', 'mail'], true)) {
                 $map['email'] = $index;
-            } elseif (in_array($key, ['ort', 'place', 'stadt', 'city', 'adresse'], true)) {
+            } elseif (in_array($key, ['ort', 'ortadresse', 'place', 'stadt', 'city', 'adresse'], true)) {
                 $map['place'] = $index;
-            } elseif (in_array($key, ['bereiche', 'kategorien', 'kategorie', 'pakete', 'paket', 'categories', 'category'], true)) {
+            } elseif (in_array($key, ['webseite', 'website', 'url', 'www', 'homepage'], true)) {
+                $map['website'] = $index;
+            } elseif (in_array($key, ['was', 'angebot', 'offering'], true)) {
+                $map['offering'] = $index;
+            } elseif (in_array($key, ['hinweise', 'notes'], true)) {
+                $map['notes'] = $index;
+            } elseif (in_array($key, ['bemerkung', 'bemerkungen', 'remark', 'remarks', 'kommentar', 'comment'], true)) {
+                $map['remark'] = $index;
+            } elseif (in_array($key, ['anrede', 'salutation', 'titelanrede', 'herrfrau'], true)) {
+                $map['contact_salutation'] = $index;
+            } elseif (in_array($key, ['vorname', 'firstname', 'givenname', 'kontaktvorname'], true)) {
+                $map['contact_first_name'] = $index;
+            } elseif (in_array($key, ['nachname', 'lastname', 'surname', 'familienname', 'kontaktnachname'], true)) {
+                $map['contact_last_name'] = $index;
+            } elseif (in_array($key, ['firmeninhaberkontakt', 'firmeninhaber', 'kontakt', 'contact', 'inhaber', 'ansprechpartner'], true)) {
+                $map['contact_name'] = $index;
+            } elseif (in_array($key, ['telefon', 'phone', 'tel', 'handy', 'mobile'], true)) {
+                $map['phone'] = $index;
+            } elseif (in_array($key, ['bereiche', 'bereich', 'branche', 'branchetyp', 'kategorien', 'kategorie', 'pakete', 'paket', 'categories', 'category', 'industry'], true)) {
                 $map['categories'] = $index;
             }
         }
@@ -76,9 +139,10 @@ final class GrossanlassInquiryCsv
     private static function normalizeHeader(string $value): string
     {
         $value = mb_strtolower(trim($value), 'UTF-8');
-        $value = str_replace(['ä', 'ö', 'ü'], ['a', 'o', 'u'], $value);
+        $value = str_replace(['ä', 'ö', 'ü', 'ß'], ['a', 'o', 'u', 'ss'], $value);
+        $value = preg_replace('/[^a-z0-9]+/', '', $value) ?? '';
 
-        return trim($value, " \t\n\r\0\x0B\"'");
+        return $value;
     }
 
     /**
@@ -87,6 +151,13 @@ final class GrossanlassInquiryCsv
     private static function cell(array $cells, int $index): string
     {
         return trim((string) ($cells[$index] ?? ''));
+    }
+
+    private static function joinNotes(string $hinweise, string $remark): string
+    {
+        $parts = array_values(array_filter([$hinweise, $remark], static fn (string $part) => $part !== ''));
+
+        return implode("\n", $parts);
     }
 
     /**

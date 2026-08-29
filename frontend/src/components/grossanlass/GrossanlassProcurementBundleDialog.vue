@@ -17,10 +17,32 @@
     <GrossanlassProcurementCategoryPicker
       v-model="categoryId"
       class="mt-3"
+      required
       :department-id="departmentId"
       :categories="categories"
       @created="emit('category-created', $event)"
     />
+    <p class="review-hint review-hint--tight">{{ t('grossanlass.beschaffung.bedarf.categoryRequiredHint') }}</p>
+
+    <div class="cost-grid">
+      <ESelect
+        v-model="costKind"
+        :items="kindItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.beschaffung.kosten.colKind')"
+        hide-details
+      />
+      <ESelect
+        v-model="payerGroupId"
+        :items="payerItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.beschaffung.kosten.colPayer')"
+        hide-details
+      />
+    </div>
+    <p class="review-hint review-hint--tight">{{ t('grossanlass.beschaffung.bedarf.costHint') }}</p>
 
     <p class="review-sum">
       {{ t('grossanlass.beschaffung.bedarf.bundlePreview', {
@@ -60,7 +82,7 @@
       <EButton
         variant="primary"
         size="small"
-        :disabled="selectedIds.length === 0"
+        :disabled="selectedIds.length === 0 || !categoryId"
         :loading="isSubmitting"
         @click="submit"
       >
@@ -75,11 +97,15 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   createGrossanlassProcurementLine,
+  type GrossanlassCostKind,
   type GrossanlassProcurementCategory,
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
+import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 
 const props = defineProps<{
   departmentId: string
@@ -98,9 +124,34 @@ const { t } = useI18n()
 
 const label = ref('')
 const categoryId = ref<string | null>(null)
+const costKind = ref<GrossanlassCostKind>('loan')
+const payerGroupId = ref<string | null>(null)
+const groups = ref<GrossanlassGroup[]>([])
+const logisticsGroupId = ref<string | null>(null)
 const selectedIds = ref<string[]>([])
 const isSubmitting = ref(false)
 const errorMessage = ref('')
+
+const kindItems = computed(() =>
+  (['purchase', 'rental', 'loan', 'buy_resale'] as GrossanlassCostKind[]).map((value) => ({
+    title: t(`grossanlass.beschaffung.kosten.kind.${value}`),
+    value,
+  })),
+)
+const payerItems = computed(() => {
+  const fromApi = groups.value
+  const known = new Set(fromApi.map((item) => item.id))
+  const extra: Array<{ id: string; name: string; parent_id: string | null }> = []
+  for (const wish of props.wishes) {
+    if (!wish.group_id || known.has(wish.group_id)) continue
+    known.add(wish.group_id)
+    extra.push({ id: wish.group_id, name: wish.group_name, parent_id: null })
+  }
+  return grossanlassPayerSelectItems([...fromApi, ...extra], logisticsGroupId.value, {
+    central: t('grossanlass.beschaffung.kosten.payerCentral'),
+    potSuffix: t('grossanlass.beschaffung.kosten.payerPotSuffix'),
+  })
+})
 
 const selectedQuantitySum = computed(() =>
   props.wishes
@@ -110,12 +161,26 @@ const selectedQuantitySum = computed(() =>
 
 watch(
   [open, () => props.wishes.map((w) => w.id).join(',')],
-  ([visible]) => {
+  async ([visible]) => {
     if (!visible) return
     selectedIds.value = props.wishes.map((w) => w.id)
     label.value = (props.suggestedLabel ?? props.wishes[0]?.label ?? '').trim()
     categoryId.value = null
+    costKind.value = 'loan'
     errorMessage.value = ''
+    if (groups.value.length === 0 && props.departmentId) {
+      try {
+        const [groupList, planung] = await Promise.all([
+          getGrossanlassGroups(props.departmentId),
+          getGrossanlassPlanung(props.departmentId),
+        ])
+        groups.value = groupList
+        logisticsGroupId.value = planung.config.logistics_group_id || null
+      } catch {
+        groups.value = []
+      }
+    }
+    payerGroupId.value = props.wishes[0]?.group_id ?? null
   },
   { immediate: true },
 )
@@ -130,7 +195,7 @@ function toggleWish(id: string) {
 
 async function submit() {
   const trimmed = label.value.trim()
-  if (!trimmed || selectedIds.value.length === 0) {
+  if (!trimmed || selectedIds.value.length === 0 || !categoryId.value) {
     errorMessage.value = t('grossanlass.beschaffung.bedarf.bundleReviewValidation')
     return
   }
@@ -142,6 +207,8 @@ async function submit() {
       wish_line_ids: selectedIds.value,
       label: trimmed,
       category_id: categoryId.value,
+      cost_kind: costKind.value,
+      payer_group_id: payerGroupId.value,
     })
     open.value = false
     emit('saved')
@@ -159,6 +226,16 @@ async function submit() {
   margin: 0 0 12px;
   font-size: 0.85rem;
   color: #64748b;
+}
+.review-hint--tight { margin: 6px 0 0; }
+.cost-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 640px) {
+  .cost-grid { grid-template-columns: 1fr; }
 }
 .review-sum {
   margin: 14px 0 8px;

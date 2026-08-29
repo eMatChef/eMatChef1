@@ -1333,13 +1333,22 @@ class JoinRequestController extends AbstractController
         }
 
         $pendingInvites = $this->readPendingInvites($departmentId);
-        $filtered = array_values(array_filter($pendingInvites, fn ($entry) => (string) ($entry['id'] ?? '') !== $inviteId));
+        $filtered = [];
+        $found = false;
+        foreach ($pendingInvites as $entry) {
+            if ((string) ($entry['id'] ?? '') === $inviteId) {
+                $found = true;
+                continue;
+            }
+            $filtered[] = $entry;
+        }
 
-        if (count($filtered) === count($pendingInvites)) {
+        if (!$found) {
             return new JsonResponse(['error' => 'Einladung nicht gefunden'], 404);
         }
 
         $this->writePendingInvites($department, $filtered);
+        $this->inboxMessages->retractDepartmentInvite($departmentId, $inviteId);
         return new JsonResponse(['success' => true]);
     }
 
@@ -1469,7 +1478,10 @@ class JoinRequestController extends AbstractController
         }
 
         if ($invitee !== null) {
+            $this->inboxMessages->retractDepartmentInvite($department->getId(), $inviteId);
             $this->userDepartmentInviteNotifications->notifyDepartmentInvite($invitee, $department, $entry);
+        } else {
+            $this->inboxMessages->retractDepartmentInvite($department->getId(), $inviteId);
         }
 
         $kept[] = $entry;

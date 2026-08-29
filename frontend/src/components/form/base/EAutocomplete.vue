@@ -33,14 +33,15 @@
           :chips="chips"
           :closable-chips="closableChips"
           :autocomplete="autocomplete"
-          :menu="menu"
+          v-model:menu="menuOpen"
           :menu-props="mergedMenuProps"
           class="e-autocomplete"
           @update:model-value="onUpdate"
-          @update:menu="onMenuUpdate"
         >
-          <template v-if="$slots.item" #item="slotProps">
-            <slot name="item" v-bind="slotProps" />
+          <template #item="slotProps">
+            <slot name="item" v-bind="slotProps">
+              <v-list-item v-bind="slotProps.props" />
+            </slot>
           </template>
           <template v-if="$slots['no-data']" #no-data>
             <slot name="no-data" />
@@ -88,7 +89,6 @@ const props = withDefaults(
     closableChips?: boolean
     /** Browser-Autofill unterdrücken (sonst oft fremde Vorschläge über dem Menü) */
     autocomplete?: string
-    menu?: boolean
     menuProps?: Record<string, unknown>
   }>(),
   {
@@ -104,16 +104,12 @@ const props = withDefaults(
     chips: false,
     closableChips: false,
     autocomplete: 'off',
-    menu: true,
   },
 )
 
-const emit = defineEmits<{
-  'update:menu': [value: boolean]
-}>()
-
 const model = defineModel<unknown>({ default: null })
 const search = defineModel<string | null>('search', { default: '' })
+const menuOpen = defineModel<boolean>('menu', { default: false })
 
 const searchText = computed({
   get: () => search.value ?? '',
@@ -138,8 +134,11 @@ const mergedMenuProps = computed(() => {
     .filter(Boolean)
     .join(' ')
   return {
+    eager: true,
     maxHeight: 280,
-    zIndex: 2800,
+    zIndex: 4000,
+    scrollStrategy: 'none',
+    disableInitialFocus: true,
     ...fromProps,
     contentClass,
   }
@@ -155,9 +154,5 @@ const hasError = computed(() => {
 
 function onUpdate(value: unknown) {
   model.value = value
-}
-
-function onMenuUpdate(open: boolean) {
-  emit('update:menu', open)
 }
 </script>

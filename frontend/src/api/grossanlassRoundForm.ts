@@ -36,7 +36,12 @@ export interface GrossanlassRoundFormField {
   enabled: boolean
   sort_order: number
   options: { choices?: string[]; multiple?: boolean } | null
-  config: { allow_new_bauprojekt?: boolean; leader_scope?: boolean } | null
+  config: {
+    allow_new_bauprojekt?: boolean
+    leader_scope?: boolean
+    inquiry_key?: string
+    multiline?: boolean
+  } | null
   /** Gesetzt vom Backend — Feld hat bereits Antworten und darf nicht entfernt werden. */
   has_response_values?: boolean
 }

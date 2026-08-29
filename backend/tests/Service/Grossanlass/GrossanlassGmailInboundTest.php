@@ -83,5 +83,16 @@ class GrossanlassGmailInboundTest extends TestCase
         ], $ok, false);
         self::assertTrue($sent['has_sent']);
         self::assertFalse($sent['has_draft']);
+
+        $sentAlias = GrossanlassGmailInbound::mailboxFlags([
+            [
+                'from' => 'OK <alias@anlass.ch>',
+                'subject' => 'Anfrage',
+                'headers' => [],
+                'labelIds' => ['SENT'],
+            ],
+        ], $ok, true);
+        self::assertTrue($sentAlias['has_sent']);
+        self::assertSame('gesendet', GrossanlassGmailInbound::statusFromMailbox('entwurf', false, true, true));
     }
 }

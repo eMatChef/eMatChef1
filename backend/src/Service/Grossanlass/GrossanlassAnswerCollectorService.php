@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementCategory;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
@@ -223,6 +224,13 @@ class GrossanlassAnswerCollectorService
         $inquiry->setEmail($email);
         $place = trim((string) ($data['place'] ?? ($extracted['place'] !== '' ? $extracted['place'] : $wish->getLocation())));
         $inquiry->setPlace($place);
+        $inquiry->setWebsite(mb_substr(trim((string) ($data['website'] ?? $extracted['website'])), 0, 500));
+        $inquiry->setOffering(trim((string) ($data['offering'] ?? $extracted['offering'])));
+        $inquiry->setNotes(trim((string) ($data['notes'] ?? $extracted['notes'])));
+        $inquiry->setContactFirstName(trim((string) ($data['contact_first_name'] ?? $extracted['contact_first_name'])));
+        $inquiry->setContactLastName(trim((string) ($data['contact_last_name'] ?? $extracted['contact_last_name'])));
+        $inquiry->setContactSalutation(trim((string) ($data['contact_salutation'] ?? $extracted['contact_salutation'])));
+        $inquiry->setPhone(mb_substr(trim((string) ($data['phone'] ?? $extracted['phone'])), 0, 64));
         $categoryIds = $data['category_ids'] ?? $extracted['categories'];
         if (is_string($categoryIds)) {
             $categoryIds = preg_split('/[,;]+/', $categoryIds) ?: [];
@@ -236,7 +244,7 @@ class GrossanlassAnswerCollectorService
                 }
             }
         }
-        $inquiry->setCategoryIds($ids);
+        $inquiry->setCategoryIds($this->mapCategoryTokens($department, $ids));
         $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_VORSCHLAG);
         $inquiry->setTipWish($wish);
         $inquiry->setTipFrom($wish->getGroup()->getName());
@@ -248,6 +256,11 @@ class GrossanlassAnswerCollectorService
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
+            'website' => $inquiry->getWebsite(),
+            'offering' => $inquiry->getOffering(),
+            'notes' => $inquiry->getNotes(),
+            ...$inquiry->serializeContact(),
+            'phone' => $inquiry->getPhone(),
             'category_ids' => $inquiry->getCategoryIds(),
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),
@@ -406,6 +419,20 @@ class GrossanlassAnswerCollectorService
             if (isset($json['from'], $json['to'])) {
                 return (string) $json['from'] . ' – ' . (string) $json['to'];
             }
+            if (array_is_list($json) && $json !== []) {
+                $parts = [];
+                foreach ($json as $item) {
+                    if (is_scalar($item) || $item === null) {
+                        $part = GrossanlassFormFieldCatalog::normalizeCategoryToken((string) $item);
+                        if ($part !== '') {
+                            $parts[] = $part;
+                        }
+                    }
+                }
+                if ($parts !== []) {
+                    return implode(', ', $parts);
+                }
+            }
             $encoded = json_encode($json, JSON_UNESCAPED_UNICODE);
 
             return is_string($encoded) ? $encoded : '';
@@ -418,48 +445,77 @@ class GrossanlassAnswerCollectorService
     }
 
     /**
-     * @return array{name: string, email: string, place: string, categories: list<string>}
+     * @return array{
+     *     name: string,
+     *     email: string,
+     *     place: string,
+     *     website: string,
+     *     offering: string,
+     *     notes: string,
+     *     contact_salutation: string,
+     *     contact_first_name: string,
+     *     contact_last_name: string,
+     *     phone: string,
+     *     categories: list<string>
+     * }
      */
     private function extractTipFields(ActivityGrossanlassWishLine $wish): array
     {
-        $name = trim($wish->getLabel());
-        $email = '';
-        $place = trim($wish->getLocation());
-        $categories = [];
+        $answers = [];
         foreach ($this->loadValues($wish) as $value) {
-            $text = $this->formatValue($value);
-            if ($text === '') {
-                continue;
-            }
-            $label = mb_strtolower($value->getField()?->getLabel() ?? '');
-            if (str_contains($label, 'mail') || str_contains($label, 'kontakt')) {
-                if (filter_var($text, FILTER_VALIDATE_EMAIL)) {
-                    $email = strtolower($text);
-                } elseif ($email === '' && str_contains($text, '@')) {
-                    $email = strtolower($text);
-                }
-            } elseif (str_contains($label, 'kategorie') || str_contains($label, 'bereich')) {
-                $categories[] = $text;
-            } elseif ((str_contains($label, 'ort') || str_contains($label, 'place')) && $place === '') {
-                $place = $text;
-            } elseif ((str_contains($label, 'firma') || str_contains($label, 'titel') || str_contains($label, 'company')) && $name === '') {
-                $name = $text;
-            } elseif (str_contains($label, 'idee') && $name === '') {
-                $name = mb_substr($text, 0, 255);
-            }
+            $field = $value->getField();
+            $answers[] = [
+                'label' => $field?->getLabel() ?? '',
+                'config' => $field?->getConfigJson(),
+                'text' => $this->formatValue($value),
+                'json' => $value->getValueJson(),
+            ];
         }
-        if ($name === '') {
-            $name = $wish->getRound()->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_FREE
+        $extracted = GrossanlassFormFieldCatalog::extractInquiryFieldsFromAnswers(
+            $answers,
+            $wish->getLabel(),
+            $wish->getLocation(),
+        );
+        if ($extracted['name'] === '') {
+            $extracted['name'] = $wish->getRound()->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_FREE
                 ? 'Idee'
                 : 'Firmenvorschlag';
         }
 
-        return [
-            'name' => $name,
-            'email' => $email,
-            'place' => $place,
-            'categories' => $categories,
-        ];
+        return $extracted;
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function mapCategoryTokens(Department $department, array $tokens): array
+    {
+        $byId = [];
+        $byName = [];
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($rows as $row) {
+            if (!$row instanceof ActivityGrossanlassProcurementCategory) {
+                continue;
+            }
+            $byId[$row->getId()] = $row->getId();
+            $byName[mb_strtolower($row->getName(), 'UTF-8')] = $row->getId();
+        }
+        $ids = [];
+        foreach ($tokens as $token) {
+            $value = GrossanlassFormFieldCatalog::normalizeCategoryToken((string) $token);
+            if ($value === '') {
+                continue;
+            }
+            if (isset($byId[$value])) {
+                $ids[] = $byId[$value];
+                continue;
+            }
+            $ids[] = $byName[mb_strtolower($value, 'UTF-8')] ?? $value;
+        }
+
+        return array_values(array_unique($ids));
     }
 
     private function findPendingWish(Department $department, string $wishId): ActivityGrossanlassWishLine
