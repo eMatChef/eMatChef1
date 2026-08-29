@@ -54,13 +54,15 @@ final class GrossanlassInquiryCsv
                 $contact = trim($first . ' ' . $last);
             }
             $salutation = isset($map['contact_salutation']) ? self::cell($cells, $map['contact_salutation']) : '';
+            $hinweise = isset($map['notes']) ? self::cell($cells, $map['notes']) : '';
+            $remark = isset($map['remark']) ? self::cell($cells, $map['remark']) : '';
             $out[] = [
                 'name' => $name,
                 'email' => isset($map['email']) ? strtolower(self::cell($cells, $map['email'])) : '',
                 'place' => isset($map['place']) ? self::cell($cells, $map['place']) : '',
                 'website' => isset($map['website']) ? self::cell($cells, $map['website']) : '',
                 'offering' => isset($map['offering']) ? self::cell($cells, $map['offering']) : '',
-                'notes' => isset($map['notes']) ? self::cell($cells, $map['notes']) : '',
+                'notes' => self::joinNotes($hinweise, $remark),
                 'contact_name' => $contact,
                 'contact_first_name' => $first,
                 'contact_last_name' => $last,
@@ -90,7 +92,8 @@ final class GrossanlassInquiryCsv
      *     contact_last_name?: int,
      *     contact_salutation?: int,
      *     phone?: int,
-     *     categories?: int
+     *     categories?: int,
+     *     remark?: int
      * }
      */
     private static function headerMap(array $header): array
@@ -105,14 +108,16 @@ final class GrossanlassInquiryCsv
                 $map['name'] = $index;
             } elseif (in_array($key, ['email', 'mail'], true)) {
                 $map['email'] = $index;
-            } elseif (in_array($key, ['ort', 'place', 'stadt', 'city', 'adresse'], true)) {
+            } elseif (in_array($key, ['ort', 'ortadresse', 'place', 'stadt', 'city', 'adresse'], true)) {
                 $map['place'] = $index;
             } elseif (in_array($key, ['webseite', 'website', 'url', 'www', 'homepage'], true)) {
                 $map['website'] = $index;
             } elseif (in_array($key, ['was', 'angebot', 'offering'], true)) {
                 $map['offering'] = $index;
-            } elseif (in_array($key, ['hinweise', 'notes', 'bemerkungen', 'bemerkung'], true)) {
+            } elseif (in_array($key, ['hinweise', 'notes'], true)) {
                 $map['notes'] = $index;
+            } elseif (in_array($key, ['bemerkung', 'bemerkungen', 'remark', 'remarks', 'kommentar', 'comment'], true)) {
+                $map['remark'] = $index;
             } elseif (in_array($key, ['anrede', 'salutation', 'titelanrede', 'herrfrau'], true)) {
                 $map['contact_salutation'] = $index;
             } elseif (in_array($key, ['vorname', 'firstname', 'givenname', 'kontaktvorname'], true)) {
@@ -123,7 +128,7 @@ final class GrossanlassInquiryCsv
                 $map['contact_name'] = $index;
             } elseif (in_array($key, ['telefon', 'phone', 'tel', 'handy', 'mobile'], true)) {
                 $map['phone'] = $index;
-            } elseif (in_array($key, ['bereiche', 'bereich', 'kategorien', 'kategorie', 'pakete', 'paket', 'categories', 'category'], true)) {
+            } elseif (in_array($key, ['bereiche', 'bereich', 'branche', 'branchetyp', 'kategorien', 'kategorie', 'pakete', 'paket', 'categories', 'category', 'industry'], true)) {
                 $map['categories'] = $index;
             }
         }
@@ -146,6 +151,13 @@ final class GrossanlassInquiryCsv
     private static function cell(array $cells, int $index): string
     {
         return trim((string) ($cells[$index] ?? ''));
+    }
+
+    private static function joinNotes(string $hinweise, string $remark): string
+    {
+        $parts = array_values(array_filter([$hinweise, $remark], static fn (string $part) => $part !== ''));
+
+        return implode("\n", $parts);
     }
 
     /**

@@ -18,6 +18,16 @@ class GrossanlassMailMergeMaterialListTest extends TestCase
         self::assertSame('2× Gator<br>1× Anhänger', $html);
     }
 
+    public function testFormatWithoutQuantityListsLabelsOnly(): void
+    {
+        $html = GrossanlassMailMergeService::formatMaterialListHtml([
+            ['quantity' => 12, 'label' => 'Schraube M8x40'],
+            ['quantity' => 4, 'label' => 'Schraube M10x50'],
+        ], false);
+        self::assertSame('Schraube M8x40<br>Schraube M10x50', $html);
+        self::assertStringNotContainsString('12×', $html);
+    }
+
     public function testFormatIgnoresNotesAndLocationIfPassed(): void
     {
         $html = GrossanlassMailMergeService::formatMaterialListHtml([

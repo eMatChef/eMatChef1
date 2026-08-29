@@ -150,7 +150,7 @@ export function defaultPreviewFieldsForPurpose(
 export function createGrossanlassWishFormPreview(t: Translate): GaPreviewWishForm[] {
   return [
     {
-      id: 'preview-firma-fahrzeuge',
+      id: 'preview-firma',
       name: t('grossanlass.planung.wishForms.demoCompanyFleet'),
       purpose: 'company_tip',
       status: 'open',

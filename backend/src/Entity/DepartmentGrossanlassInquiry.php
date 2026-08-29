@@ -48,6 +48,12 @@ class DepartmentGrossanlassInquiry
     #[ORM\Column(type: 'string', length: 255)]
     private string $place = '';
 
+    #[ORM\Column(type: 'float', nullable: true)]
+    private ?float $latitude = null;
+
+    #[ORM\Column(type: 'float', nullable: true)]
+    private ?float $longitude = null;
+
     #[ORM\Column(type: 'string', length: 500)]
     private string $website = '';
 
@@ -178,6 +184,35 @@ class DepartmentGrossanlassInquiry
         $this->place = $place;
 
         return $this;
+    }
+
+    public function getLatitude(): ?float
+    {
+        return $this->latitude;
+    }
+
+    public function setLatitude(?float $latitude): self
+    {
+        $this->latitude = $latitude;
+
+        return $this;
+    }
+
+    public function getLongitude(): ?float
+    {
+        return $this->longitude;
+    }
+
+    public function setLongitude(?float $longitude): self
+    {
+        $this->longitude = $longitude;
+
+        return $this;
+    }
+
+    public function hasCoordinates(): bool
+    {
+        return $this->latitude !== null && $this->longitude !== null;
     }
 
     public function getWebsite(): string

@@ -58,7 +58,7 @@
       </div>
       <div class="actions">
         <EButton
-          v-if="activeKind !== 'anfrage'"
+          v-if="activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
           variant="secondary"
           size="small"
           @click="removeActiveTemplate"
@@ -577,7 +577,7 @@ function addTemplate(kind: GrossanlassMailTemplateKind) {
 }
 
 async function removeActiveTemplate() {
-  if (activeKind.value === 'anfrage') return
+  if (activeKind.value === 'anfrage' || activeKind.value === 'praezisieren') return
   const ok = await confirm.confirm({
     title: t('grossanlass.einstellungen.anfragenEmail.removeConfirmTitle'),
     message: t('grossanlass.einstellungen.anfragenEmail.removeConfirmMessage', {

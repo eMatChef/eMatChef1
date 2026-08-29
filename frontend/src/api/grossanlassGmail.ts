@@ -11,6 +11,7 @@ export type GrossanlassGmailStatus = {
 
 export type GrossanlassMailTemplateKind =
   | 'anfrage'
+  | 'praezisieren'
   | 'dank_absage'
   | 'zusage_ok'
   | 'nicht_genommen'
@@ -18,6 +19,7 @@ export type GrossanlassMailTemplateKind =
   | 'nachfassen'
 
 export const GROSSANLASS_MAIL_OPTIONAL_KINDS: GrossanlassMailTemplateKind[] = [
+  'praezisieren',
   'dank_absage',
   'zusage_ok',
   'nicht_genommen',
@@ -56,6 +58,7 @@ export type GrossanlassMailPreview = {
   body: string
   to: string
   placeholders: Record<string, string>
+  attachment_filename?: string | null
 }
 
 export async function getGrossanlassGmailStatus(departmentId: string): Promise<GrossanlassGmailStatus> {

@@ -1,3 +1,4 @@
+import { nextTick } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -1847,14 +1848,11 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to, _from, savedPosition) {
+  scrollBehavior(to) {
     if (to.hash) {
       return { el: to.hash, behavior: 'smooth' }
     }
-    if (savedPosition) {
-      return savedPosition
-    }
-    return { top: 0 }
+    return { left: 0, top: 0 }
   },
 })
 
@@ -2435,9 +2433,23 @@ router.beforeEach(async (to, from, next) => {
   next()
 })
 
+function scrollAppToTop() {
+  window.scrollTo(0, 0)
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+  document.querySelectorAll('.page-main, .v-application__wrap').forEach((el) => {
+    if (el instanceof HTMLElement) el.scrollTop = 0
+  })
+}
+
 router.afterEach((to) => {
   usePageHeadStore().clearDynamic()
   syncDocumentHead(to)
+  if (to.hash) return
+  void nextTick(() => {
+    scrollAppToTop()
+    requestAnimationFrame(scrollAppToTop)
+  })
 })
 
 export default router

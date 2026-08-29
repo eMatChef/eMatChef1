@@ -19,6 +19,7 @@ final class GrossanlassGmailAccountService
 {
     /** @var list<string> */
     public const REPLY_KINDS = [
+        DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN,
         DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK,
         DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE,
         DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN,
@@ -35,6 +36,8 @@ final class GrossanlassGmailAccountService
         private SecretBox $secrets,
         private GrossanlassProcurementService $procurement,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassInquiryMaterialPdf $materialPdf,
+        private GrossanlassPlaceGeocoder $geocoder,
     ) {}
 
     /**
@@ -317,7 +320,6 @@ final class GrossanlassGmailAccountService
                 'who' => 'ok',
                 'text' => 'Gmail-Entwurf angelegt.',
             ]);
-            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
             $updated[] = $inquiry;
         }
         if ($updated === [] && $skipped !== []) {
@@ -527,6 +529,7 @@ final class GrossanlassGmailAccountService
         $inquiry->setName($name);
         $inquiry->setEmail($email);
         $inquiry->setPlace(trim((string) ($data['place'] ?? '')));
+        $this->applyPlaceCoords($inquiry);
         $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ANTWORT);
         $this->entityManager->persist($inquiry);
         $this->entityManager->flush();
@@ -555,6 +558,14 @@ final class GrossanlassGmailAccountService
         $this->entityManager->flush();
         $this->applyStatusForReplyKind($department, $user, $inquiry, $kind);
         $merged = $this->merge->preview($department, $inquiry, $kind);
+        $attachments = [];
+        if ($kind === DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN) {
+            $pdf = $this->materialPdf->attachmentFor($department, $inquiry);
+            if ($pdf !== null) {
+                $attachments[] = $pdf;
+            }
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
+        }
         $labelIds = $this->ensureLabelIds(
             $account,
             $token,
@@ -583,6 +594,7 @@ final class GrossanlassGmailAccountService
             $labelIds,
             $inquiry->getGmailThreadId(),
             $inReplyTo,
+            $attachments,
         );
         $inquiry->setGmailDraftId($draft['draftId'] !== '' ? $draft['draftId'] : $inquiry->getGmailDraftId());
         if ($draft['threadId'] !== '') {
@@ -1125,6 +1137,7 @@ final class GrossanlassGmailAccountService
         ) {
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ZUSAGE);
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
 
             return;
         }
@@ -1154,6 +1167,13 @@ final class GrossanlassGmailAccountService
         return $account instanceof DepartmentGrossanlassGmailAccount ? $account : null;
     }
 
+    private function applyPlaceCoords(DepartmentGrossanlassInquiry $inquiry): void
+    {
+        $coords = $this->geocoder->geocode($inquiry->getPlace());
+        $inquiry->setLatitude($coords['lat'] ?? null);
+        $inquiry->setLongitude($coords['lng'] ?? null);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -1165,6 +1185,8 @@ final class GrossanlassGmailAccountService
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
+            'latitude' => $inquiry->getLatitude(),
+            'longitude' => $inquiry->getLongitude(),
             'website' => $inquiry->getWebsite(),
             'offering' => $inquiry->getOffering(),
             'notes' => $inquiry->getNotes(),

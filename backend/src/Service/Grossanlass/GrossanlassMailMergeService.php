@@ -108,7 +108,10 @@ final class GrossanlassMailMergeService
     ): array
     {
         $this->ensureDefaults($department);
-        $keep = [DepartmentGrossanlassMailTemplate::KIND_ANFRAGE];
+        $keep = [
+            DepartmentGrossanlassMailTemplate::KIND_ANFRAGE,
+            DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN,
+        ];
         foreach ($templates as $item) {
             $kind = (string) ($item['kind'] ?? '');
             if (!in_array($kind, DepartmentGrossanlassMailTemplate::KINDS, true)) {
@@ -136,7 +139,9 @@ final class GrossanlassMailMergeService
             if (!$row instanceof DepartmentGrossanlassMailTemplate) {
                 continue;
             }
-            if ($row->getKind() === DepartmentGrossanlassMailTemplate::KIND_ANFRAGE) {
+            if ($row->getKind() === DepartmentGrossanlassMailTemplate::KIND_ANFRAGE
+                || $row->getKind() === DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN
+            ) {
                 continue;
             }
             if (!in_array($row->getKind(), $keep, true)) {
@@ -153,7 +158,7 @@ final class GrossanlassMailMergeService
     }
 
     /**
-     * @return array{subject: string, body: string, to: string, placeholders: array<string, string>}
+     * @return array{subject: string, body: string, to: string, placeholders: array<string, string>, attachment_filename: string|null}
      */
     public function preview(
         Department $department,
@@ -168,19 +173,27 @@ final class GrossanlassMailMergeService
             ->findOneBy(['departmentId' => $department->getId(), 'kind' => $kind]);
         $subjectTpl = $template?->getSubject() ?? '';
         $bodyTpl = $template?->getBody() ?? '';
-        $vars = $this->placeholders($department, $inquiry);
+        $vars = $this->placeholders($department, $inquiry, $kind);
+        $attachment = null;
+        if ($kind === DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN && $inquiry !== null
+            && $this->materialItemsGrouped($department, $inquiry) !== []
+        ) {
+            $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-', $inquiry->getName()) ?? 'Firma';
+            $attachment = 'Materialliste-' . mb_substr(trim($slug, '-') ?: 'Firma', 0, 40) . '.pdf';
+        }
 
         return [
             'subject' => $this->apply($subjectTpl, $vars),
             'body' => $this->apply($bodyTpl, $vars),
             'to' => $inquiry?->getEmail() ?? 'demo@firma.example',
             'placeholders' => $vars,
+            'attachment_filename' => $attachment,
         ];
     }
 
     /**
      * @param list<string> $inquiryIds
-     * @return list<array{inquiry_id: string, subject: string, body: string, to: string, placeholders: array<string, string>}>
+     * @return list<array{inquiry_id: string, subject: string, body: string, to: string, placeholders: array<string, string>, attachment_filename: string|null}>
      */
     public function previewMany(Department $department, array $inquiryIds, string $kind = DepartmentGrossanlassMailTemplate::KIND_ANFRAGE): array
     {
@@ -200,6 +213,7 @@ final class GrossanlassMailMergeService
                 'body' => $merged['body'],
                 'to' => $merged['to'],
                 'placeholders' => $merged['placeholders'],
+                'attachment_filename' => $merged['attachment_filename'],
             ];
         }
 
@@ -209,8 +223,11 @@ final class GrossanlassMailMergeService
     /**
      * @return array<string, string>
      */
-    public function placeholders(Department $department, ?DepartmentGrossanlassInquiry $inquiry): array
-    {
+    public function placeholders(
+        Department $department,
+        ?DepartmentGrossanlassInquiry $inquiry,
+        string $kind = DepartmentGrossanlassMailTemplate::KIND_ANFRAGE,
+    ): array {
         $names = $inquiry
             ? $this->resolveCategoryLabels($department, $inquiry->getCategoryIds())
             : $this->allCategoryNames($department);
@@ -218,9 +235,18 @@ final class GrossanlassMailMergeService
         if ($packages === '') {
             $packages = 'Bereiche folgen';
         }
-        $materialList = $this->materialListForInquiry($department, $inquiry);
-        if ($materialList === '') {
+        $areaOnly = in_array($kind, [
+            DepartmentGrossanlassMailTemplate::KIND_ANFRAGE,
+            DepartmentGrossanlassMailTemplate::KIND_NACHFASSEN,
+            DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN,
+        ], true);
+        if ($areaOnly) {
             $materialList = $packages;
+        } else {
+            $materialList = $this->materialListForInquiry($department, $inquiry);
+            if ($materialList === '') {
+                $materialList = $packages;
+            }
         }
         $id = $inquiry?->getId() ?? '____________';
         $reference = $this->displayReference($department, $id);
@@ -483,9 +509,64 @@ final class GrossanlassMailMergeService
     }
 
     /**
+     * Bedarfspositionen der Firmen-Bereiche, gruppiert — ohne Stückzahl (Anhang Folge-Mail).
+     *
+     * @return list<array{category: string, items: list<string>}>
+     */
+    public function materialItemsGrouped(Department $department, ?DepartmentGrossanlassInquiry $inquiry): array
+    {
+        $selected = $inquiry !== null
+            ? $this->expandSelectedCategoryIds($department, $inquiry->getCategoryIds())
+            : null;
+        if ($inquiry !== null && $selected === []) {
+            return [];
+        }
+
+        /** @var list<ActivityGrossanlassProcurementLine> $lines */
+        $lines = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->createQueryBuilder('l')
+            ->leftJoin('l.category', 'c')
+            ->addSelect('c')
+            ->where('l.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('l.label', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $grouped = [];
+        foreach ($lines as $line) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $categoryId = $line->getCategoryId();
+            if ($selected !== null && ($categoryId === null || !isset($selected[$categoryId]))) {
+                continue;
+            }
+            $label = trim($line->getLabel());
+            if ($label === '') {
+                continue;
+            }
+            $catName = $line->getCategory()?->getName() ?: 'Ohne Bereich';
+            if (!isset($grouped[$catName])) {
+                $grouped[$catName] = [];
+            }
+            $grouped[$catName][$label] = true;
+        }
+        $out = [];
+        foreach ($grouped as $category => $labels) {
+            $out[] = [
+                'category' => $category,
+                'items' => array_keys($labels),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{quantity?: int, label?: string}> $items
      */
-    public static function formatMaterialListHtml(array $items): string
+    public static function formatMaterialListHtml(array $items, bool $withQuantity = true): string
     {
         $parts = [];
         foreach ($items as $item) {
@@ -494,7 +575,7 @@ final class GrossanlassMailMergeService
                 continue;
             }
             $qty = (int) ($item['quantity'] ?? 0);
-            $line = $qty > 0 ? $qty . '× ' . $label : $label;
+            $line = ($withQuantity && $qty > 0) ? $qty . '× ' . $label : $label;
             $parts[] = htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         }
 
@@ -600,7 +681,10 @@ final class GrossanlassMailMergeService
     {
         $defaults = $this->defaultTexts($department->getName());
         $changed = false;
-        foreach ([DepartmentGrossanlassMailTemplate::KIND_ANFRAGE] as $kind) {
+        foreach ([
+            DepartmentGrossanlassMailTemplate::KIND_ANFRAGE,
+            DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN,
+        ] as $kind) {
             $pair = $defaults[$kind] ?? null;
             if ($pair === null) {
                 continue;
@@ -633,7 +717,11 @@ final class GrossanlassMailMergeService
         return [
             DepartmentGrossanlassMailTemplate::KIND_ANFRAGE => [
                 'subject' => $eventName . ' – Anfrage Material & Logistik',
-                'body' => '<p>Guten Tag {{ANREDE}} {{NACHNAME}}</p><p>wir fragen an, ob {{FIRMA}} uns für {{ANLASS}} unterstützen kann.</p><p>Bereiche: {{BEREICHE}}<br>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
+                'body' => '<p>Guten Tag {{ANREDE}} {{NACHNAME}}</p><p>wir fragen an, ob {{FIRMA}} uns für {{ANLASS}} im Bereich {{BEREICHE}} unterstützen kann.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
+            ],
+            DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN => [
+                'subject' => $eventName . ' – Materialliste',
+                'body' => '<p>Guten Tag {{ANREDE}} {{NACHNAME}}</p><p>vielen Dank für die Rückmeldung von {{FIRMA}}. Im Anhang die genaue Liste zu {{BEREICHE}} — ohne Stückzahlen, die klären wir danach.</p><p>Zeitraum: {{ZEITRAUMTEXT}}</p>' . $footer,
             ],
             DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE => [
                 'subject' => $eventName . ' – Danke für die Rückmeldung',

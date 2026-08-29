@@ -18,6 +18,8 @@ class GrossanlassInquiryService
         private GrossanlassProcurementService $procurement,
         private GrossanlassAnswerCollectorService $collector,
         private GrossanlassMailMergeService $merge,
+        private GrossanlassPlaceGeocoder $geocoder,
+        private GrossanlassInquiryWebLookup $contactLookup,
     ) {}
 
     /**
@@ -60,17 +62,25 @@ class GrossanlassInquiryService
         if (($data['status'] ?? null) === DepartmentGrossanlassInquiry::STATUS_ZUSAGE) {
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
             $inquiry = $this->find($department, $inquiryId);
-        }
-        if (in_array($inquiry->getStatus(), [
-            DepartmentGrossanlassInquiry::STATUS_GESENDET,
-            DepartmentGrossanlassInquiry::STATUS_ANTWORT,
-            DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
-        ], true)) {
             $this->procurement->freezeAskedFromInquiry($department, $inquiry);
         }
         $this->entityManager->flush();
 
         return $this->serialize($inquiry);
+    }
+
+    /**
+     * @return array{ok: true, id: string}
+     */
+    public function delete(Department $department, User $user, string $inquiryId): array
+    {
+        $this->assertManage($department, $user);
+        $inquiry = $this->find($department, $inquiryId);
+        $id = $inquiry->getId();
+        $this->entityManager->remove($inquiry);
+        $this->entityManager->flush();
+
+        return ['ok' => true, 'id' => $id];
     }
 
     /**
@@ -105,7 +115,6 @@ class GrossanlassInquiryService
                 'who' => 'ok',
                 'text' => 'Als gesendet gemerkt (ohne Gmail).',
             ]);
-            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
             $updated[] = $this->serialize($inquiry);
         }
         $this->entityManager->flush();
@@ -188,7 +197,7 @@ class GrossanlassInquiryService
                     'contact_salutation' => $row['contact_salutation'],
                     'phone' => $row['phone'],
                     'category_ids' => $this->mapCategoryTokens($department, $row['categories']),
-                ], true);
+                ], true, false);
                 $this->entityManager->persist($inquiry);
                 if ($email !== '') {
                     $existingEmails[$email] = true;
@@ -205,6 +214,76 @@ class GrossanlassInquiryService
             'skipped' => $skipped,
             'errors' => $errors,
         ];
+    }
+
+    /**
+     * Fehlende Orte geocoden (Wellen, nicht alle 750 in einem Request).
+     *
+     * @return array{updated: list<array<string, mixed>>, geocoded: int, remaining: int}
+     */
+    public function geocodeMissing(Department $department, User $user, int $limit = 50): array
+    {
+        $this->assertManage($department, $user);
+        $limit = max(1, min(80, $limit));
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
+            ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
+        $updated = [];
+        $attempted = 0;
+        $stillMissing = 0;
+        foreach ($rows as $inquiry) {
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            if ($inquiry->hasCoordinates() || $inquiry->getPlace() === '') {
+                continue;
+            }
+            if ($attempted >= $limit) {
+                ++$stillMissing;
+                continue;
+            }
+            ++$attempted;
+            $this->applyPlaceCoords($inquiry, true);
+            if ($inquiry->hasCoordinates()) {
+                $updated[] = $this->serialize($inquiry);
+            } else {
+                ++$stillMissing;
+            }
+        }
+        $this->entityManager->flush();
+
+        return [
+            'updated' => $updated,
+            'geocoded' => count($updated),
+            'remaining' => $stillMissing,
+        ];
+    }
+
+    /**
+     * Öffentliche Kontaktdaten vorschlagen (Webseite, E-Mail, Telefon).
+     * Übernehmen bleibt in der UI — hier wird nichts gespeichert.
+     *
+     * @param array<string, mixed> $data
+     * @return array{
+     *   query: string,
+     *   search_url: string,
+     *   website: string|null,
+     *   emails: list<array{value: string, source: string}>,
+     *   phones: list<array{value: string, source: string}>
+     * }
+     */
+    public function webLookup(Department $department, User $user, array $data): array
+    {
+        $this->assertManage($department, $user);
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('Firmenname fehlt');
+        }
+
+        return $this->contactLookup->lookup(
+            $name,
+            (string) ($data['place'] ?? ''),
+            (string) ($data['website'] ?? ''),
+        );
     }
 
     /**
@@ -256,7 +335,7 @@ class GrossanlassInquiryService
     /**
      * @param array<string, mixed> $data
      */
-    private function applyFields(DepartmentGrossanlassInquiry $inquiry, array $data, bool $creating): void
+    private function applyFields(DepartmentGrossanlassInquiry $inquiry, array $data, bool $creating, bool $geocodePlace = true): void
     {
         if ($creating || array_key_exists('name', $data)) {
             $name = trim((string) ($data['name'] ?? ''));
@@ -273,7 +352,24 @@ class GrossanlassInquiryService
             $inquiry->setEmail($email);
         }
         if (array_key_exists('place', $data) || $creating) {
-            $inquiry->setPlace(trim((string) ($data['place'] ?? '')));
+            $place = trim((string) ($data['place'] ?? ''));
+            $placeChanged = $creating || $place !== $inquiry->getPlace();
+            $inquiry->setPlace($place);
+            $hasExplicit = array_key_exists('latitude', $data) || array_key_exists('longitude', $data);
+            if ($hasExplicit) {
+                $lat = $data['latitude'] ?? null;
+                $lng = $data['longitude'] ?? null;
+                $inquiry->setLatitude(is_numeric($lat) ? (float) $lat : null);
+                $inquiry->setLongitude(is_numeric($lng) ? (float) $lng : null);
+            } elseif ($placeChanged && $geocodePlace) {
+                $this->applyPlaceCoords($inquiry, true);
+            }
+        }
+        if (!(array_key_exists('place', $data) || $creating) && (array_key_exists('latitude', $data) || array_key_exists('longitude', $data))) {
+            $lat = $data['latitude'] ?? $inquiry->getLatitude();
+            $lng = $data['longitude'] ?? $inquiry->getLongitude();
+            $inquiry->setLatitude(is_numeric($lat) ? (float) $lat : null);
+            $inquiry->setLongitude(is_numeric($lng) ? (float) $lng : null);
         }
         if (array_key_exists('website', $data) || $creating) {
             $inquiry->setWebsite(mb_substr(trim((string) ($data['website'] ?? '')), 0, 500));
@@ -346,6 +442,8 @@ class GrossanlassInquiryService
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
+            'latitude' => $inquiry->getLatitude(),
+            'longitude' => $inquiry->getLongitude(),
             'website' => $inquiry->getWebsite(),
             'offering' => $inquiry->getOffering(),
             'notes' => $inquiry->getNotes(),
@@ -383,5 +481,15 @@ class GrossanlassInquiryService
         if (!$this->access->canManagePlanung($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Anfragen');
         }
+    }
+
+    private function applyPlaceCoords(DepartmentGrossanlassInquiry $inquiry, bool $overwrite): void
+    {
+        if (!$overwrite && $inquiry->hasCoordinates()) {
+            return;
+        }
+        $coords = $this->geocoder->geocode($inquiry->getPlace());
+        $inquiry->setLatitude($coords['lat'] ?? null);
+        $inquiry->setLongitude($coords['lng'] ?? null);
     }
 }

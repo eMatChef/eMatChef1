@@ -63,6 +63,25 @@ class GrossanlassInquiryCsvTest extends TestCase
         self::assertSame('Meier', $rows[0]['contact_last_name']);
     }
 
+    public function testParsesSheetColumnOrderWithRemark(): void
+    {
+        $csv = "Firma;Ort / Adresse;Webseite;Branche / Typ;Was;Hinweise;Anrede;Vorname;Nachname;E-Mail;Telefon;Bemerkung\n"
+            . "Muster AG;Bern;https://muster.example;Fahrzeuge;Anhänger;nur Anfrage;Herr;Hans;Muster;info@muster.example;031 000 00 00;intern\n";
+        $rows = GrossanlassInquiryCsv::parse($csv);
+        self::assertCount(1, $rows);
+        self::assertSame('Muster AG', $rows[0]['name']);
+        self::assertSame('Bern', $rows[0]['place']);
+        self::assertSame('https://muster.example', $rows[0]['website']);
+        self::assertSame(['Fahrzeuge'], $rows[0]['categories']);
+        self::assertSame('Anhänger', $rows[0]['offering']);
+        self::assertSame("nur Anfrage\nintern", $rows[0]['notes']);
+        self::assertSame('Herr', $rows[0]['contact_salutation']);
+        self::assertSame('Hans', $rows[0]['contact_first_name']);
+        self::assertSame('Muster', $rows[0]['contact_last_name']);
+        self::assertSame('info@muster.example', $rows[0]['email']);
+        self::assertSame('031 000 00 00', $rows[0]['phone']);
+    }
+
     public function testRejectsCsvWithoutNameColumn(): void
     {
         $this->expectException(\InvalidArgumentException::class);
