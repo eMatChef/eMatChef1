@@ -30,6 +30,8 @@ final class GrossanlassIdGenerator
     public const GMAIL_UNMATCHED = 'gmail_unmatched';
     public const EINSATZ = 'einsatz';
     public const GUEST_SHARE = 'guest_share';
+    public const COST = 'cost';
+    public const BUDGET = 'budget';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -51,6 +53,8 @@ final class GrossanlassIdGenerator
         self::GMAIL_UNMATCHED => 'gu',
         self::EINSATZ => 'ei',
         self::GUEST_SHARE => 'gs',
+        self::COST => 'ko',
+        self::BUDGET => 'kb',
     ];
 
     public static function prefix(string $kind): string

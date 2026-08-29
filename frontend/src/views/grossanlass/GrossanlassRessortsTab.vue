@@ -60,6 +60,9 @@
           <span class="panel-count">{{ groups.length }}</span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
+    <p v-if="canFullyManage && !logisticsGroupId" class="cost-hint">
+      {{ t('grossanlass.planung.ressorts.costSetHint') }}
+    </p>
     <div class="table-wrapper">
       <table class="groups-table">
         <thead>
@@ -84,7 +87,35 @@
                 </div>
                 <div class="name-stack">
                   <span class="group-name">{{ group.name }}</span>
-                  <span class="kind-badge">{{ kindLabel(group) }}</span>
+                  <span class="kind-row">
+                    <span class="kind-badge">{{ kindLabel(group) }}</span>
+                    <button
+                      v-if="isLogisticsNode(group) && canFullyManage"
+                      type="button"
+                      class="cost-flag is-editable"
+                      :title="t('grossanlass.planung.ressorts.costFlagHint')"
+                      :disabled="isSavingLogistics"
+                      @click="clearLogisticsNode"
+                    >
+                      {{ t('grossanlass.planung.ressorts.costFlag') }}
+                    </button>
+                    <span
+                      v-else-if="isLogisticsNode(group)"
+                      class="cost-flag"
+                    >
+                      {{ t('grossanlass.planung.ressorts.costFlag') }}
+                    </span>
+                    <button
+                      v-else-if="canSetLogisticsNode(group)"
+                      type="button"
+                      class="cost-set-btn"
+                      :disabled="isSavingLogistics"
+                      :title="t('grossanlass.planung.ressorts.costSet')"
+                      @click="setLogisticsNode(group)"
+                    >
+                      {{ t('grossanlass.planung.ressorts.costSet') }}
+                    </button>
+                  </span>
                 </div>
               </div>
             </td>
@@ -346,6 +377,7 @@ import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
 } from '@/utils/grossanlassGroupHierarchy'
+import { getGrossanlassPlanung, updateGrossanlassPlanung } from '@/api/grossanlassPlanung'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -355,6 +387,8 @@ const confirm = useConfirm()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 
 const groups = ref<GrossanlassGroup[]>([])
+const logisticsGroupId = ref<string | null>(null)
+const isSavingLogistics = ref(false)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const openRessortPanels = ref<string[]>(['ressorts'])
@@ -507,6 +541,18 @@ function kindLabel(group: GrossanlassGroup): string {
   return t('grossanlass.planung.ressorts.kindRessort')
 }
 
+function isCostEligible(group: GrossanlassGroup): boolean {
+  return group.node_type !== 'bauprojekt' && group.kind !== 'teilbereich'
+}
+
+function isLogisticsNode(group: GrossanlassGroup): boolean {
+  return logisticsGroupId.value === group.id
+}
+
+function canSetLogisticsNode(group: GrossanlassGroup): boolean {
+  return canFullyManage.value && !logisticsGroupId.value && isCostEligible(group)
+}
+
 function getGroupMembersForDisplay(group: GrossanlassGroup): GroupMember[] {
   const leaders = group.members.filter((m) => m.is_leader)
   const members = group.members.filter((m) => !m.is_leader)
@@ -518,12 +564,56 @@ async function loadGroups() {
   isLoading.value = true
   error.value = null
   try {
-    groups.value = await getGrossanlassGroups(departmentId.value)
+    const [groupList, planung] = await Promise.all([
+      getGrossanlassGroups(departmentId.value),
+      getGrossanlassPlanung(departmentId.value),
+    ])
+    groups.value = groupList
+    logisticsGroupId.value = planung.config.logistics_group_id || null
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     error.value = e.response?.data?.error || t('grossanlass.planung.ressorts.errorLoad')
   } finally {
     isLoading.value = false
+  }
+}
+
+async function setLogisticsNode(group: GrossanlassGroup) {
+  if (!departmentId.value || isSavingLogistics.value) return
+  isSavingLogistics.value = true
+  try {
+    const next = await updateGrossanlassPlanung(departmentId.value, {
+      logistics_group_id: group.id,
+    })
+    logisticsGroupId.value = next.config.logistics_group_id || group.id
+    toast.success(t('grossanlass.planung.ressorts.costSetToast', { name: group.name }))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
+  } finally {
+    isSavingLogistics.value = false
+  }
+}
+
+async function clearLogisticsNode() {
+  if (!canFullyManage.value || !departmentId.value || isSavingLogistics.value) return
+  const ok = await confirm.confirm({
+    title: t('grossanlass.planung.ressorts.costClearTitle'),
+    message: t('grossanlass.planung.ressorts.costClearMessage'),
+    confirmText: t('grossanlass.planung.ressorts.costClearConfirm'),
+    cancelText: t('common.cancel'),
+  })
+  if (!ok) return
+  isSavingLogistics.value = true
+  try {
+    await updateGrossanlassPlanung(departmentId.value, { logistics_group_id: null })
+    logisticsGroupId.value = null
+    toast.success(t('grossanlass.planung.ressorts.costClearToast'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
+  } finally {
+    isSavingLogistics.value = false
   }
 }
 
@@ -824,6 +914,60 @@ onMounted(() => loadGroups())
 .kind-badge {
   font-size: 11px;
   color: #64748b;
+}
+
+.kind-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cost-hint {
+  margin: 0 0 12px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.cost-flag,
+.cost-set-btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 2px 8px;
+}
+
+.cost-flag {
+  border: 0;
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.cost-flag.is-editable {
+  cursor: pointer;
+}
+
+.cost-flag:disabled {
+  cursor: default;
+}
+
+.cost-set-btn {
+  border: 1px solid #86efac;
+  background: #fff;
+  color: #166534;
+  cursor: pointer;
+}
+
+.cost-set-btn:hover:not(:disabled) {
+  background: #ecfdf5;
+}
+
+.cost-set-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .col-actions {

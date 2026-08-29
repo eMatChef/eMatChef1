@@ -122,7 +122,7 @@ Details: README §3.4–§3.7, §4, §9, §15.
 
 ### Phase 5 — Beschaffung Inhalt (PR5)
 
-**Nach PR4** (Wünsche). Spec: [README §3.7](./README.md#37-beschaffung--budget--kosten).
+**Nach PR4** (Wünsche). Spec: [README §3.7](./README.md#37-beschaffung--budget--kosten). Kostenübersicht (Zahler, Ledger, Cash/Netto): [kosten.md](./kosten.md) — nicht in PR5 erzwingen, Phasen K1–K6 dort.
 
 | # | Feature |
 |---|---------|

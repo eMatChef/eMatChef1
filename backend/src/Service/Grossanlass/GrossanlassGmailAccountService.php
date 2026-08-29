@@ -19,6 +19,7 @@ final class GrossanlassGmailAccountService
 {
     /** @var list<string> */
     public const REPLY_KINDS = [
+        DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN,
         DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK,
         DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE,
         DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN,
@@ -35,6 +36,8 @@ final class GrossanlassGmailAccountService
         private SecretBox $secrets,
         private GrossanlassProcurementService $procurement,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassInquiryMaterialPdf $materialPdf,
+        private GrossanlassPlaceGeocoder $geocoder,
     ) {}
 
     /**
@@ -210,6 +213,65 @@ final class GrossanlassGmailAccountService
         ] + $this->labelPayload($department, $user, $account);
     }
 
+    public function syncLabelsIfConnected(Department $department, User $user): void
+    {
+        if (!$this->findAccount($department) instanceof DepartmentGrossanlassGmailAccount) {
+            return;
+        }
+        try {
+            $this->syncLabels($department, $user);
+        } catch (\Throwable) {
+        }
+    }
+
+    public function renameCategoryPackagePath(Department $department, User $user, string $fromRel, string $toRel): void
+    {
+        $fromRel = GrossanlassGmailRouting::sanitizePath($fromRel);
+        $toRel = GrossanlassGmailRouting::sanitizePath($toRel);
+        if ($fromRel === '' || $toRel === '' || $fromRel === $toRel) {
+            return;
+        }
+        $account = $this->findAccount($department);
+        if (!$account instanceof DepartmentGrossanlassGmailAccount) {
+            return;
+        }
+        try {
+            $this->assertManage($department, $user);
+            $token = $this->gmail->accessToken($account);
+            $this->entityManager->flush();
+            $routing = $this->merge->getGmailRouting($department);
+            if (!$routing['label_by_package']) {
+                return;
+            }
+            $root = GrossanlassGmailRouting::resolveRoot($routing, $department->getName());
+            $inquiries = $routing['label_inquiries'];
+            $packageParent = $inquiries !== '' ? $root . '/' . $inquiries : $root;
+            $fromFull = $packageParent . '/' . $fromRel;
+            $toFull = $packageParent . '/' . $toRel;
+            $map = $account->getLabelMap();
+            $original = $map;
+            foreach ($original as $name => $id) {
+                if ($name !== $fromFull && !str_starts_with($name, $fromFull . '/')) {
+                    continue;
+                }
+                $newName = $toFull . substr($name, strlen($fromFull));
+                if ($newName === $name || !is_string($id) || $id === '') {
+                    continue;
+                }
+                try {
+                    $this->gmail->renameLabel($token, $id, $newName);
+                } catch (\Throwable) {
+                    continue;
+                }
+                unset($map[$name]);
+                $map[$newName] = $id;
+            }
+            $account->setLabelMap($map);
+            $this->entityManager->flush();
+        } catch (\Throwable) {
+        }
+    }
+
     /**
      * @param list<string> $ids
      * @return list<array<string, mixed>>
@@ -221,6 +283,7 @@ final class GrossanlassGmailAccountService
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
         $updated = [];
+        $skipped = [];
         foreach ($ids as $id) {
             if (!is_string($id) || $id === '') {
                 continue;
@@ -230,9 +293,8 @@ final class GrossanlassGmailAccountService
                 continue;
             }
             if (!$inquiry->isReadyForMail()) {
-                throw new \InvalidArgumentException(
-                    'E-Mail oder Paket fehlt für ' . $inquiry->getName(),
-                );
+                $skipped[] = $inquiry->getName();
+                continue;
             }
             $merged = $this->merge->preview($department, $inquiry, DepartmentGrossanlassMailTemplate::KIND_ANFRAGE);
             $labelIds = $this->ensureLabelIds(
@@ -240,7 +302,7 @@ final class GrossanlassGmailAccountService
                 $token,
                 $this->merge->gmailLabelNames($department, $inquiry),
             );
-            $draft = $this->gmail->createDraft(
+            $draft = $this->createDraftWithLabels(
                 $token,
                 $inquiry->getEmail(),
                 $merged['subject'],
@@ -258,8 +320,12 @@ final class GrossanlassGmailAccountService
                 'who' => 'ok',
                 'text' => 'Gmail-Entwurf angelegt.',
             ]);
-            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
             $updated[] = $inquiry;
+        }
+        if ($updated === [] && $skipped !== []) {
+            throw new \InvalidArgumentException(
+                'E-Mail oder Kategorie fehlt für ' . implode(', ', $skipped),
+            );
         }
         $this->entityManager->flush();
 
@@ -281,6 +347,17 @@ final class GrossanlassGmailAccountService
         $changed = [];
         $ignored = 0;
         $seen = $this->knownMessageIds($department, $inquiries);
+        $sentThreads = [];
+        $sentMessageIds = [];
+        try {
+            foreach ($this->gmail->listMessageRefs($token, 'in:sent newer_than:21d', 80) as $ref) {
+                $sentMessageIds[$ref['id']] = true;
+                if ($ref['threadId'] !== '') {
+                    $sentThreads[$ref['threadId']] = true;
+                }
+            }
+        } catch (\Throwable) {
+        }
 
         foreach ($inquiries as $inquiry) {
             if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
@@ -303,7 +380,16 @@ final class GrossanlassGmailAccountService
                     $did = true;
                 }
             }
-            if ($this->applyMailboxStatus($department, $account, $token, $inquiry, $messages, $draftThere)) {
+            if ($this->applyMailboxStatus(
+                $department,
+                $account,
+                $token,
+                $inquiry,
+                $messages,
+                $draftThere,
+                $sentThreads,
+                $sentMessageIds,
+            )) {
                 $did = true;
             }
             foreach ($messages as $message) {
@@ -443,6 +529,7 @@ final class GrossanlassGmailAccountService
         $inquiry->setName($name);
         $inquiry->setEmail($email);
         $inquiry->setPlace(trim((string) ($data['place'] ?? '')));
+        $this->applyPlaceCoords($inquiry);
         $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ANTWORT);
         $this->entityManager->persist($inquiry);
         $this->entityManager->flush();
@@ -471,6 +558,14 @@ final class GrossanlassGmailAccountService
         $this->entityManager->flush();
         $this->applyStatusForReplyKind($department, $user, $inquiry, $kind);
         $merged = $this->merge->preview($department, $inquiry, $kind);
+        $attachments = [];
+        if ($kind === DepartmentGrossanlassMailTemplate::KIND_PRAEZISIEREN) {
+            $pdf = $this->materialPdf->attachmentFor($department, $inquiry);
+            if ($pdf !== null) {
+                $attachments[] = $pdf;
+            }
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
+        }
         $labelIds = $this->ensureLabelIds(
             $account,
             $token,
@@ -499,6 +594,7 @@ final class GrossanlassGmailAccountService
             $labelIds,
             $inquiry->getGmailThreadId(),
             $inReplyTo,
+            $attachments,
         );
         $inquiry->setGmailDraftId($draft['draftId'] !== '' ? $draft['draftId'] : $inquiry->getGmailDraftId());
         if ($draft['threadId'] !== '') {
@@ -749,6 +845,8 @@ final class GrossanlassGmailAccountService
 
     /**
      * @param list<array<string, mixed>> $messages
+     * @param array<string, true> $sentThreads
+     * @param array<string, true> $sentMessageIds
      */
     private function applyMailboxStatus(
         Department $department,
@@ -757,8 +855,18 @@ final class GrossanlassGmailAccountService
         DepartmentGrossanlassInquiry $inquiry,
         array $messages,
         bool $draftThere,
+        array $sentThreads = [],
+        array $sentMessageIds = [],
     ): bool {
         $flags = GrossanlassGmailInbound::mailboxFlags($messages, $account->getEmail(), $draftThere);
+        $threadId = $inquiry->getGmailThreadId();
+        if ($threadId && isset($sentThreads[$threadId])) {
+            $flags['has_sent'] = true;
+        }
+        $messageId = $inquiry->getGmailMessageId();
+        if ($messageId && isset($sentMessageIds[$messageId])) {
+            $flags['has_sent'] = true;
+        }
         $next = GrossanlassGmailInbound::statusFromMailbox(
             $inquiry->getStatus(),
             $flags['has_firm_reply'],
@@ -769,6 +877,9 @@ final class GrossanlassGmailAccountService
             return false;
         }
         $inquiry->setStatus($next);
+        if ($next === DepartmentGrossanlassInquiry::STATUS_GESENDET) {
+            $inquiry->setGmailDraftId(null);
+        }
         $note = match ($next) {
             DepartmentGrossanlassInquiry::STATUS_GESENDET => 'In Gmail als gesendet erkannt.',
             DepartmentGrossanlassInquiry::STATUS_ANTWORT => 'Firmenantwort in Gmail erkannt.',
@@ -952,6 +1063,36 @@ final class GrossanlassGmailAccountService
     }
 
     /**
+     * @param list<string> $labelIds
+     * @return array{draftId: string, threadId: string, messageId: string}
+     */
+    private function createDraftWithLabels(
+        string $token,
+        string $to,
+        string $subject,
+        string $body,
+        string $inquiryId,
+        array $labelIds,
+    ): array {
+        try {
+            return $this->gmail->createDraft($token, $to, $subject, $body, $inquiryId, $labelIds);
+        } catch (GoogleOAuthException $e) {
+            if ($labelIds === []) {
+                throw $e;
+            }
+            $draft = $this->gmail->createDraft($token, $to, $subject, $body, $inquiryId, []);
+            if ($draft['threadId'] !== '') {
+                try {
+                    $this->gmail->modifyThreadLabels($token, $draft['threadId'], $labelIds, []);
+                } catch (\Throwable) {
+                }
+            }
+
+            return $draft;
+        }
+    }
+
+    /**
      * @param list<string> $names
      * @return list<string>
      */
@@ -996,6 +1137,7 @@ final class GrossanlassGmailAccountService
         ) {
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ZUSAGE);
             $this->commitments->ensureFromInquiry($department, $user, $inquiry->getId());
+            $this->procurement->freezeAskedFromInquiry($department, $inquiry);
 
             return;
         }
@@ -1025,6 +1167,13 @@ final class GrossanlassGmailAccountService
         return $account instanceof DepartmentGrossanlassGmailAccount ? $account : null;
     }
 
+    private function applyPlaceCoords(DepartmentGrossanlassInquiry $inquiry): void
+    {
+        $coords = $this->geocoder->geocode($inquiry->getPlace());
+        $inquiry->setLatitude($coords['lat'] ?? null);
+        $inquiry->setLongitude($coords['lng'] ?? null);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -1036,6 +1185,13 @@ final class GrossanlassGmailAccountService
             'name' => $inquiry->getName(),
             'email' => $inquiry->getEmail(),
             'place' => $inquiry->getPlace(),
+            'latitude' => $inquiry->getLatitude(),
+            'longitude' => $inquiry->getLongitude(),
+            'website' => $inquiry->getWebsite(),
+            'offering' => $inquiry->getOffering(),
+            'notes' => $inquiry->getNotes(),
+            ...$inquiry->serializeContact(),
+            'phone' => $inquiry->getPhone(),
             'category_ids' => $inquiry->getCategoryIds(),
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),

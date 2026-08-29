@@ -65,6 +65,7 @@ export interface GrossanlassConfig {
   notes?: string
   published_at?: string | null
   guest_activity_type?: 'camp' | 'event'
+  logistics_group_id?: string | null
 }
 
 export interface CreateGrossanlassDepartmentRequest {

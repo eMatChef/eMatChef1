@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementCategory;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassRoundForm;
 use App\Entity\ActivityGrossanlassRoundFormField;
@@ -70,6 +71,8 @@ class GrossanlassRoundFormService
         $existing = $this->entityManager->getRepository(ActivityGrossanlassRoundForm::class)
             ->findOneBy(['roundId' => $round->getId()]);
         if ($existing instanceof ActivityGrossanlassRoundForm) {
+            $this->ensureCompanyTipInquiryFields($round, $existing);
+
             return $existing;
         }
 
@@ -83,6 +86,7 @@ class GrossanlassRoundFormService
             $field = $this->createFieldFromDefinition($form, $def);
             $this->entityManager->persist($field);
         }
+        $this->ensureCompanyTipInquiryFields($round, $form);
 
         return $form;
     }
@@ -92,6 +96,10 @@ class GrossanlassRoundFormService
         $form = $this->entityManager->getRepository(ActivityGrossanlassRoundForm::class)
             ->findOneBy(['roundId' => $round->getId()]);
         if ($form instanceof ActivityGrossanlassRoundForm) {
+            if ($this->ensureCompanyTipInquiryFields($round, $form)) {
+                $this->entityManager->flush();
+            }
+
             return $form;
         }
 
@@ -118,6 +126,144 @@ class GrossanlassRoundFormService
             ->getResult();
 
         return array_values(array_filter($fields, fn ($f) => $f instanceof ActivityGrossanlassRoundFormField));
+    }
+
+    public function ensureCompanyTipInquiryFields(ActivityGrossanlassRound $round, ActivityGrossanlassRoundForm $form): bool
+    {
+        if ($round->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_COMPANY_TIP) {
+            return false;
+        }
+
+        $fields = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)
+            ->findBy(['formId' => $form->getId()]);
+        $haveKeys = [];
+        $dirty = false;
+        $maxSort = 0;
+        foreach ($fields as $field) {
+            if (!$field instanceof ActivityGrossanlassRoundFormField) {
+                continue;
+            }
+            $maxSort = max($maxSort, $field->getSortOrder());
+            if ($field->getRole() !== GrossanlassFormFieldCatalog::ROLE_INPUT || $field->getSystemKey() !== null) {
+                continue;
+            }
+            $key = GrossanlassFormFieldCatalog::inquiryKeyFromField($field->getConfigJson(), $field->getLabel());
+            if ($key === null) {
+                continue;
+            }
+            $haveKeys[$key] = true;
+            $config = $field->getConfigJson() ?? [];
+            if (($config['inquiry_key'] ?? null) !== $key) {
+                $config['inquiry_key'] = $key;
+                $field->setConfigJson($config);
+                $dirty = true;
+            }
+        }
+
+        foreach (GrossanlassFormFieldCatalog::companyTipInquiryFieldDefinitions() as $def) {
+            $config = is_array($def['config'] ?? null) ? $def['config'] : [];
+            $key = is_string($config['inquiry_key'] ?? null) ? $config['inquiry_key'] : null;
+            if ($key === null || isset($haveKeys[$key])) {
+                continue;
+            }
+            $maxSort += 10;
+            $def['sort_order'] = $maxSort;
+            $this->entityManager->persist($this->createFieldFromDefinition($form, $def));
+            $haveKeys[$key] = true;
+            $dirty = true;
+        }
+
+        $fields = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)
+            ->findBy(['formId' => $form->getId()]);
+        if ($this->syncCompanyTipInquiryPresentation($round, $fields)) {
+            $dirty = true;
+        }
+
+        return $dirty;
+    }
+
+    /**
+     * @param list<ActivityGrossanlassRoundFormField|mixed> $fields
+     */
+    private function syncCompanyTipInquiryPresentation(ActivityGrossanlassRound $round, array $fields): bool
+    {
+        $choices = $this->companyTipCategoryChoices($round);
+        $dirty = false;
+        foreach ($fields as $field) {
+            if (!$field instanceof ActivityGrossanlassRoundFormField) {
+                continue;
+            }
+            if ($field->getRole() !== GrossanlassFormFieldCatalog::ROLE_INPUT || $field->getSystemKey() !== null) {
+                continue;
+            }
+            $key = GrossanlassFormFieldCatalog::inquiryKeyFromField($field->getConfigJson(), $field->getLabel());
+            if ($key === 'categories' && $choices !== []) {
+                if ($field->getCustomType() !== GrossanlassFormFieldCatalog::CUSTOM_SELECT) {
+                    $field->setCustomType(GrossanlassFormFieldCatalog::CUSTOM_SELECT);
+                    $dirty = true;
+                }
+                $options = ['multiple' => true, 'choices' => $choices];
+                if ($field->getOptionsJson() !== $options) {
+                    $field->setOptionsJson($options);
+                    $dirty = true;
+                }
+                if (in_array($field->getLabel(), ['Bereich', 'Kategorie', 'Kategorie / Bereich'], true)) {
+                    $field->setLabel('Bereiche');
+                    $dirty = true;
+                }
+            }
+            if ($key === 'offering' || $key === 'notes') {
+                $config = $field->getConfigJson() ?? [];
+                if (($config['multiline'] ?? false) !== true) {
+                    $config['multiline'] = true;
+                    if ($key !== '' && ($config['inquiry_key'] ?? null) !== $key) {
+                        $config['inquiry_key'] = $key;
+                    }
+                    $field->setConfigJson($config);
+                    $dirty = true;
+                }
+            }
+        }
+
+        return $dirty;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function companyTipCategoryChoices(ActivityGrossanlassRound $round): array
+    {
+        $departmentId = $round->getActivity()->getDepartmentId();
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
+            ->findBy(['departmentId' => $departmentId]);
+        /** @var array<string, list<ActivityGrossanlassProcurementCategory>> $byParent */
+        $byParent = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof ActivityGrossanlassProcurementCategory) {
+                continue;
+            }
+            $parentKey = $row->getParentId() ?? '';
+            $byParent[$parentKey][] = $row;
+        }
+        foreach ($byParent as &$list) {
+            usort(
+                $list,
+                static fn (ActivityGrossanlassProcurementCategory $a, ActivityGrossanlassProcurementCategory $b): int => $a->getSortOrder() <=> $b->getSortOrder()
+                    ?: strcasecmp($a->getName(), $b->getName()),
+            );
+        }
+        unset($list);
+
+        $out = [];
+        $walk = function (string $parentKey, int $depth) use (&$walk, &$out, $byParent): void {
+            foreach ($byParent[$parentKey] ?? [] as $cat) {
+                $out[] = ($depth > 0 ? '↳ ' : '') . $cat->getName();
+                $walk($cat->getId(), $depth + 1);
+            }
+        };
+        $walk('', 0);
+
+        return $out;
     }
 
     public function findRoundForDepartment(Department $department, string $roundId): ActivityGrossanlassRound

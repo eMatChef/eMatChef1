@@ -19,10 +19,14 @@
           <span class="stat-card__value">{{ openRounds.length }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statOpenRounds') }}</span>
         </div>
-        <div v-if="canManageProcurement && procurementOverview" class="stat-card">
+        <router-link
+          v-if="canManageProcurement && procurementOverview"
+          :to="kostenLink"
+          class="stat-card stat-card--link"
+        >
           <span class="stat-card__value">{{ formatChf(dashboardBudgetAmount) }}</span>
           <span class="stat-card__label">{{ t(dashboardBudgetLabelKey) }}</span>
-        </div>
+        </router-link>
         <div v-if="canManageProcurement && procurementOverview" class="stat-card">
           <span class="stat-card__value">{{ procurementOverview.totals.ordered_not_received_count }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statAwaitingDelivery') }}</span>
@@ -149,6 +153,14 @@
             <v-icon icon="mdi-cart-outline" size="22" />
             <span>{{ t('sidebar.beschaffung') }}</span>
           </router-link>
+          <router-link
+            v-if="canManageProcurement"
+            :to="kostenLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-cash-multiple" size="22" />
+            <span>{{ t('sidebar.kosten') }}</span>
+          </router-link>
         </div>
       </section>
 
@@ -183,27 +195,33 @@
         </div>
       </section>
 
-      <!-- Materialübersicht / Ausgabe: noch Demo -->
-      <section class="ga-dashboard__section ga-dashboard__preview">
-        <GrossanlassPreviewBanner />
-        <h2 class="section-title">{{ t('grossanlass.dashboard.previewTitle') }}</h2>
+      <!-- Materialübersicht: Bestand und Konflikte -->
+      <section v-if="canManageProcurement" class="ga-dashboard__section">
+        <div class="section-header">
+          <h2 class="section-title">{{ t('grossanlass.dashboard.stockTitle') }}</h2>
+          <router-link :to="materialUebersichtLink" class="section-link">
+            {{ t('grossanlass.dashboard.stockAll') }}
+          </router-link>
+        </div>
 
         <div class="ga-dashboard__stats">
-          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+          <router-link :to="materialUebersichtLink" class="stat-card stat-card--link">
             <span class="stat-card__value">{{ stock.lager }}</span>
             <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockLager') }}</span>
           </router-link>
-          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+          <router-link :to="ausgabeLink" class="stat-card stat-card--link">
             <span class="stat-card__value">{{ stock.assigned }}</span>
             <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockAssigned') }}</span>
           </router-link>
-          <router-link :to="ausgabeLink" class="stat-card stat-card--preview stat-card--link">
+          <router-link :to="ausgabeLink" class="stat-card stat-card--link">
             <span class="stat-card__value">{{ stock.out }}</span>
             <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockOut') }}</span>
           </router-link>
         </div>
-        <p class="preview-conflicts-link">
-          <router-link :to="konflikteLink">{{ t('grossanlass.dashboard.previewConflictsLink') }}</router-link>
+        <p v-if="conflictCount > 0" class="conflicts-link">
+          <router-link :to="konflikteLink">
+            {{ t('grossanlass.dashboard.conflictsLink', { count: conflictCount }) }}
+          </router-link>
         </p>
       </section>
     </template>
@@ -226,8 +244,7 @@ import { useAuthStore } from '@/stores/auth'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
-import GrossanlassPreviewBanner from '@/components/grossanlass/GrossanlassPreviewBanner.vue'
-import { stockCounts } from '@/views/grossanlass/grossanlassChainPreviewStore'
+import { getGrossanlassUebersicht, type GaUebersichtPayload } from '@/api/grossanlassUebersicht'
 import {
   getGrossanlassPlanung,
   type GrossanlassParticipant,
@@ -267,6 +284,7 @@ const ressortRootCount = ref(0)
 const procurementOverview = ref<GrossanlassProcurementOverview | null>(null)
 const inquiryStats = ref<{ entwurf: number; gesendet: number; antwort: number; zusage: number } | null>(null)
 const planung = ref<GrossanlassPlanungOverview | null>(null)
+const uebersicht = ref<GaUebersichtPayload | null>(null)
 
 const wishDialogOpen = ref(false)
 const activeWishRoundId = ref<string | null>(null)
@@ -289,6 +307,7 @@ const planungLink = computed(() => `/${props.departmentId}/planung`)
 const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
 const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/bedarf`)
+const kostenLink = computed(() => `/${props.departmentId}/kosten`)
 const anfragenLink = computed(() => `/${props.departmentId}/beschaffung/anfragen`)
 const dashboardBudgetAmount = computed(() => {
   const totals = procurementOverview.value?.totals
@@ -302,12 +321,19 @@ const dashboardBudgetLabelKey = computed(() =>
 )
 const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
-const einsaetzeLink = computed(() => `/${props.departmentId}/material-uebersicht/einsaetze`)
 const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
 const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
 const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
-const stock = computed(() => stockCounts())
+const stock = computed(() => {
+  const issues = uebersicht.value?.issues ?? []
+  return {
+    lager: issues.filter((row) => row.place === 'lager').length,
+    assigned: issues.filter((row) => row.place === 'assigned').length,
+    out: issues.filter((row) => row.place === 'out').length,
+  }
+})
+const conflictCount = computed(() => uebersicht.value?.conflicts.length ?? 0)
 const liveParticipants = computed<GrossanlassParticipant[]>(() => planung.value?.participants ?? [])
 const published = computed(() => planung.value?.config.status === 'published')
 
@@ -398,6 +424,11 @@ async function load() {
         }
       } catch {
         inquiryStats.value = null
+      }
+      try {
+        uebersicht.value = await getGrossanlassUebersicht(props.departmentId)
+      } catch {
+        uebersicht.value = null
       }
     }
   } catch (e: any) {
@@ -594,13 +625,6 @@ onMounted(load)
   gap: 10px;
 }
 
-.ga-dashboard__preview {
-  padding: 16px;
-  border: 1px dashed #fed7aa;
-  border-radius: 12px;
-  background: #fffbeb;
-}
-
 .preview-freigabe {
   display: flex;
   align-items: flex-start;
@@ -646,34 +670,18 @@ onMounted(load)
   content: ' · ';
 }
 
-.stat-card--preview {
-  background: #fff;
-  opacity: 0.9;
-}
-
-.stat-card--link {
-  text-decoration: none;
-  color: inherit;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.stat-card--link:hover {
-  border-color: #fbbf24;
-  box-shadow: 0 0 0 1px #fde68a;
-}
-
-.preview-conflicts-link {
-  margin: 8px 0 0;
+.conflicts-link {
+  margin: 0;
   font-size: 0.85rem;
 }
 
-.preview-conflicts-link a {
-  color: #b45309;
+.conflicts-link a {
+  color: var(--color-error, #b91c1c);
   font-weight: 600;
   text-decoration: none;
 }
 
-.preview-conflicts-link a:hover {
+.conflicts-link a:hover {
   text-decoration: underline;
 }
 

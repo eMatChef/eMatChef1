@@ -74,6 +74,13 @@ class DepartmentGrossanlassConfig
     #[ORM\JoinColumn(name: 'venue_address_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?Address $venueAddress = null;
 
+    #[ORM\Column(name: 'logistics_group_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $logisticsGroupId = null;
+
+    #[ORM\ManyToOne(targetEntity: Group::class)]
+    #[ORM\JoinColumn(name: 'logistics_group_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?Group $logisticsGroup = null;
+
     public function getDepartmentId(): string
     {
         return $this->departmentId;
@@ -261,6 +268,24 @@ class DepartmentGrossanlassConfig
     {
         $this->venueAddress = $venueAddress;
         $this->venueAddressId = $venueAddress?->getId();
+
+        return $this;
+    }
+
+    public function getLogisticsGroupId(): ?string
+    {
+        return $this->logisticsGroupId;
+    }
+
+    public function getLogisticsGroup(): ?Group
+    {
+        return $this->logisticsGroup;
+    }
+
+    public function setLogisticsGroup(?Group $group): self
+    {
+        $this->logisticsGroup = $group;
+        $this->logisticsGroupId = $group?->getId();
 
         return $this;
     }

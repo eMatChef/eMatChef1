@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 class DepartmentGrossanlassMailTemplate
 {
     public const KIND_ANFRAGE = 'anfrage';
+    public const KIND_PRAEZISIEREN = 'praezisieren';
     public const KIND_DANK_ABSAGE = 'dank_absage';
     public const KIND_ZUSAGE_OK = 'zusage_ok';
     public const KIND_NICHT_GENOMMEN = 'nicht_genommen';
@@ -17,6 +18,7 @@ class DepartmentGrossanlassMailTemplate
 
     /** @var list<string> */
     public const OPTIONAL_KINDS = [
+        self::KIND_PRAEZISIEREN,
         self::KIND_DANK_ABSAGE,
         self::KIND_ZUSAGE_OK,
         self::KIND_NICHT_GENOMMEN,
@@ -27,6 +29,7 @@ class DepartmentGrossanlassMailTemplate
     /** @var list<string> */
     public const KINDS = [
         self::KIND_ANFRAGE,
+        self::KIND_PRAEZISIEREN,
         self::KIND_DANK_ABSAGE,
         self::KIND_ZUSAGE_OK,
         self::KIND_NICHT_GENOMMEN,

@@ -58,7 +58,7 @@
       </div>
       <div class="actions">
         <EButton
-          v-if="activeKind !== 'anfrage'"
+          v-if="activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
           variant="secondary"
           size="small"
           @click="removeActiveTemplate"
@@ -330,6 +330,7 @@ import {
   GROSSANLASS_MAIL_OPTIONAL_KINDS,
   grossanlassGmailConnectUrl,
   importGrossanlassGmailLabels,
+  previewGrossanlassMail,
   saveGrossanlassMailTemplates,
   syncGrossanlassGmailLabels,
   type GrossanlassGmailLabelOverview,
@@ -576,7 +577,7 @@ function addTemplate(kind: GrossanlassMailTemplateKind) {
 }
 
 async function removeActiveTemplate() {
-  if (activeKind.value === 'anfrage') return
+  if (activeKind.value === 'anfrage' || activeKind.value === 'praezisieren') return
   const ok = await confirm.confirm({
     title: t('grossanlass.einstellungen.anfragenEmail.removeConfirmTitle'),
     message: t('grossanlass.einstellungen.anfragenEmail.removeConfirmMessage', {
@@ -801,17 +802,36 @@ async function loadPreview() {
   const tpl = activeTemplate.value
   if (!tpl) return
   const areas = procurementCategories.value.map((row) => row.name.trim()).filter(Boolean).join(', ') || 'Bereiche folgen'
+  let materialListe = areas
+  if (departmentId.value) {
+    try {
+      const live = await previewGrossanlassMail(departmentId.value, { kind: tpl.kind })
+      const fromBedarf = (live.placeholders?.MATERIALLISTE || '').trim()
+      if (fromBedarf !== '') {
+        materialListe = fromBedarf
+      }
+    } catch {
+      /* lokale Vorschau mit Bereichen */
+    }
+  }
   const vars: Record<string, string> = {
-    ANREDE: 'Guten Tag',
+    ANREDE: 'Herr',
     FIRMA: 'Muster AG',
     ANLASS: 'Anlass',
     ORT: '',
     ZEITRAUMTEXT: 'Aufbau, Anlasswoche und Rückgabe gemäss Absprache',
-    MATERIALLISTE: areas,
+    MATERIALLISTE: materialListe,
     BEREICHE: areas,
     ABSENDER: 'OK Material & Logistik',
     REFERENZ: `${routing.reference_prefix}____________`,
     EMAIL: 'demo@firma.example',
+    WEBSEITE: 'https://muster.example',
+    WAS: 'Fahrzeuge und Anhänger',
+    HINWEISE: 'nur Anfrage',
+    VORNAME: 'Hans',
+    NACHNAME: 'Muster',
+    KONTAKT: 'Hans Muster',
+    TELEFON: '031 000 00 00',
   }
   for (const row of customPlaceholders.value) {
     if (!vars[row.key]) {

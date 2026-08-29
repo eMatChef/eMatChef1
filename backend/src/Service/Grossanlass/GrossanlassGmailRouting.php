@@ -141,11 +141,18 @@ final class GrossanlassGmailRouting
         if ($routing['label_by_package']) {
             $packageParent = $inquiries !== '' ? $root . '/' . $inquiries : $root;
             foreach ($categoryIds as $category) {
-                $segment = self::sanitizeSegment($category);
-                if ($segment === '') {
+                $path = self::sanitizePath((string) $category);
+                if ($path === '') {
                     continue;
                 }
-                $names[] = $packageParent . '/' . $segment;
+                $acc = $packageParent;
+                foreach (explode('/', $path) as $segment) {
+                    if ($segment === '') {
+                        continue;
+                    }
+                    $acc .= '/' . $segment;
+                    $names[] = $acc;
+                }
             }
         }
         foreach ($routing['extra_labels'] as $extra) {
