@@ -22,6 +22,54 @@
       />
     </div>
     <ETextField v-model="source" :label="t('grossanlass.materials.zusage.fieldPartner')" hide-details />
+
+    <h3 class="zusage-section">{{ t('grossanlass.beschaffung.kosten.linesTitle') }}</h3>
+    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.beschaffung.kosten.zusageHint') }}</p>
+    <div class="zusage-grid">
+      <ESelect
+        v-if="origin === 'loan'"
+        v-model="costKind"
+        :items="loanKindItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.beschaffung.kosten.colKind')"
+        hide-details
+      />
+      <ESelect
+        v-model="payerGroupId"
+        :items="payerItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.beschaffung.kosten.colPayer')"
+        hide-details
+      />
+    </div>
+    <ESelect
+      v-if="origin === 'buy'"
+      v-model="assetTreatment"
+      :items="assetItems"
+      item-title="title"
+      item-value="value"
+      :label="t('grossanlass.beschaffung.kosten.assetTreatment')"
+      hide-details
+    />
+    <div class="zusage-grid">
+      <ETextField v-model="sollChf" type="number" step="0.01" min="0" :label="t('grossanlass.beschaffung.finanzen.colSoll')" hide-details />
+      <ETextField v-model="cashOutChf" type="number" step="0.01" min="0" :label="t('grossanlass.beschaffung.kosten.statCash')" hide-details />
+    </div>
+    <div v-if="costKind === 'rental'" class="zusage-grid">
+      <ETextField v-model="depositChf" type="number" step="0.01" min="0" :label="t('grossanlass.beschaffung.kosten.deposit')" hide-details />
+    </div>
+    <ETextField
+      v-if="origin === 'buy_resale'"
+      v-model="proceedsExpectedChf"
+      type="number"
+      step="0.01"
+      min="0"
+      :label="t('grossanlass.beschaffung.kosten.proceedsExpected')"
+      hide-details
+    />
+
     <ETextField
       v-if="family === 'vehicle'"
       v-model="plate"
@@ -128,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -143,6 +191,9 @@ import {
   ETimeField,
 } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
+import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
+import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaParkServiceKind, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
@@ -192,6 +243,15 @@ const firstServiceKind = ref<GaParkServiceKind | ''>('')
 const firstServiceDate = ref('2027-07-18')
 const firstServiceFromTime = ref('06:00')
 const firstServiceToTime = ref('08:00')
+const groups = ref<GrossanlassGroup[]>([])
+const logisticsGroupId = ref<string | null>(null)
+const costKind = ref<'loan' | 'rental' | 'purchase' | 'buy_resale'>('loan')
+const payerGroupId = ref<string | null>(null)
+const assetTreatment = ref<'expense' | 'inventory'>('expense')
+const sollChf = ref<string | number>('')
+const cashOutChf = ref<string | number>('')
+const depositChf = ref<string | number>('')
+const proceedsExpectedChf = ref<string | number>('')
 
 const familyItems = computed(() => [
   { title: t('grossanlass.materials.zusage.familyMaterial'), value: 'material' },
@@ -202,6 +262,20 @@ const originItems = computed(() => [
   { title: t('grossanlass.materials.lifecycle.reusable'), value: 'buy' },
   { title: t('grossanlass.materials.lifecycle.buy_resale'), value: 'buy_resale' },
 ])
+const loanKindItems = computed(() => [
+  { title: t('grossanlass.beschaffung.kosten.kind.loan'), value: 'loan' },
+  { title: t('grossanlass.beschaffung.kosten.kind.rental'), value: 'rental' },
+])
+const assetItems = computed(() => [
+  { title: t('grossanlass.beschaffung.kosten.assetExpense'), value: 'expense' },
+  { title: t('grossanlass.beschaffung.kosten.assetInventory'), value: 'inventory' },
+])
+const payerItems = computed(() =>
+  grossanlassPayerSelectItems(groups.value, logisticsGroupId.value, {
+    central: t('grossanlass.beschaffung.kosten.payerCentral'),
+    potSuffix: t('grossanlass.beschaffung.kosten.payerPotSuffix'),
+  }),
+)
 const serviceItems = computed(() => [
   { title: t('grossanlass.materials.zusage.service.clean'), value: 'clean' },
   { title: t('grossanlass.materials.zusage.service.grease'), value: 'grease' },
@@ -241,7 +315,34 @@ function applyPreset() {
   firstServiceDate.value = preset.firstServiceDate ?? returnDate.value
   firstServiceFromTime.value = preset.firstServiceFromTime ?? '06:00'
   firstServiceToTime.value = preset.firstServiceToTime ?? '08:00'
+  costKind.value = preset.origin === 'buy' ? 'purchase' : preset.origin === 'buy_resale' ? 'buy_resale' : 'loan'
+  payerGroupId.value = logisticsGroupId.value
+  assetTreatment.value = 'expense'
+  sollChf.value = ''
+  cashOutChf.value = ''
+  depositChf.value = ''
+  proceedsExpectedChf.value = ''
 }
+
+watch(origin, (value) => {
+  if (value === 'buy') costKind.value = 'purchase'
+  else if (value === 'buy_resale') costKind.value = 'buy_resale'
+  else if (costKind.value !== 'rental') costKind.value = 'loan'
+})
+
+onMounted(async () => {
+  if (!departmentId.value) return
+  try {
+    const [groupList, planung] = await Promise.all([
+      getGrossanlassGroups(departmentId.value),
+      getGrossanlassPlanung(departmentId.value),
+    ])
+    groups.value = groupList
+    logisticsGroupId.value = planung.config.logistics_group_id || null
+  } catch {
+    groups.value = []
+  }
+})
 
 watch(open, (isOpen) => {
   if (isOpen) applyPreset()
@@ -288,6 +389,13 @@ async function submit() {
             toIso: combineIso(firstServiceDate.value, firstServiceToTime.value),
           }]
         : [],
+      cost_kind: origin.value === 'loan' ? costKind.value : origin.value === 'buy' ? 'purchase' : 'buy_resale',
+      payer_group_id: payerGroupId.value,
+      asset_treatment: origin.value === 'buy' ? assetTreatment.value : null,
+      soll_chf: sollChf.value === '' ? null : Number(sollChf.value),
+      cash_out_chf: cashOutChf.value === '' ? null : Number(cashOutChf.value),
+      deposit_chf: costKind.value === 'rental' && depositChf.value !== '' ? Number(depositChf.value) : null,
+      proceeds_expected_chf: origin.value === 'buy_resale' && proceedsExpectedChf.value !== '' ? Number(proceedsExpectedChf.value) : null,
     })
     toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
     open.value = false

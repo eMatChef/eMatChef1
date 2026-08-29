@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Util\GrossanlassContactName;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity]
@@ -46,6 +47,36 @@ class DepartmentGrossanlassInquiry
 
     #[ORM\Column(type: 'string', length: 255)]
     private string $place = '';
+
+    #[ORM\Column(type: 'float', nullable: true)]
+    private ?float $latitude = null;
+
+    #[ORM\Column(type: 'float', nullable: true)]
+    private ?float $longitude = null;
+
+    #[ORM\Column(type: 'string', length: 500)]
+    private string $website = '';
+
+    #[ORM\Column(type: 'text')]
+    private string $offering = '';
+
+    #[ORM\Column(type: 'text')]
+    private string $notes = '';
+
+    #[ORM\Column(name: 'contact_name', type: 'string', length: 255)]
+    private string $contactName = '';
+
+    #[ORM\Column(name: 'contact_first_name', type: 'string', length: 128)]
+    private string $contactFirstName = '';
+
+    #[ORM\Column(name: 'contact_last_name', type: 'string', length: 128)]
+    private string $contactLastName = '';
+
+    #[ORM\Column(name: 'contact_salutation', type: 'string', length: 16)]
+    private string $contactSalutation = '';
+
+    #[ORM\Column(type: 'string', length: 64)]
+    private string $phone = '';
 
     /** @var list<string> */
     #[ORM\Column(name: 'category_ids', type: 'json')]
@@ -151,6 +182,152 @@ class DepartmentGrossanlassInquiry
     public function setPlace(string $place): self
     {
         $this->place = $place;
+
+        return $this;
+    }
+
+    public function getLatitude(): ?float
+    {
+        return $this->latitude;
+    }
+
+    public function setLatitude(?float $latitude): self
+    {
+        $this->latitude = $latitude;
+
+        return $this;
+    }
+
+    public function getLongitude(): ?float
+    {
+        return $this->longitude;
+    }
+
+    public function setLongitude(?float $longitude): self
+    {
+        $this->longitude = $longitude;
+
+        return $this;
+    }
+
+    public function hasCoordinates(): bool
+    {
+        return $this->latitude !== null && $this->longitude !== null;
+    }
+
+    public function getWebsite(): string
+    {
+        return $this->website;
+    }
+
+    public function setWebsite(string $website): self
+    {
+        $this->website = $website;
+
+        return $this;
+    }
+
+    public function getOffering(): string
+    {
+        return $this->offering;
+    }
+
+    public function setOffering(string $offering): self
+    {
+        $this->offering = $offering;
+
+        return $this;
+    }
+
+    public function getNotes(): string
+    {
+        return $this->notes;
+    }
+
+    public function setNotes(string $notes): self
+    {
+        $this->notes = $notes;
+
+        return $this;
+    }
+
+    public function getContactName(): string
+    {
+        return $this->contactName;
+    }
+
+    public function setContactName(string $contactName): self
+    {
+        $this->contactName = mb_substr(trim(preg_replace('/\s+/u', ' ', $contactName) ?? $contactName), 0, 255);
+        [$first, $last] = GrossanlassContactName::split($this->contactName);
+        $this->contactFirstName = mb_substr($first, 0, 128);
+        $this->contactLastName = mb_substr($last, 0, 128);
+
+        return $this;
+    }
+
+    public function getContactFirstName(): string
+    {
+        return $this->contactFirstName;
+    }
+
+    public function setContactFirstName(string $contactFirstName): self
+    {
+        $this->contactFirstName = mb_substr(trim($contactFirstName), 0, 128);
+        $this->syncContactNameFromParts();
+
+        return $this;
+    }
+
+    public function getContactLastName(): string
+    {
+        return $this->contactLastName;
+    }
+
+    public function setContactLastName(string $contactLastName): self
+    {
+        $this->contactLastName = mb_substr(trim($contactLastName), 0, 128);
+        $this->syncContactNameFromParts();
+
+        return $this;
+    }
+
+    public function getContactSalutation(): string
+    {
+        return $this->contactSalutation;
+    }
+
+    public function setContactSalutation(string $contactSalutation): self
+    {
+        $this->contactSalutation = GrossanlassContactName::normalizeSalutation($contactSalutation);
+
+        return $this;
+    }
+
+    /** @return array{contact_name: string, contact_first_name: string, contact_last_name: string, contact_salutation: string} */
+    public function serializeContact(): array
+    {
+        return [
+            'contact_name' => $this->contactName,
+            'contact_first_name' => $this->contactFirstName,
+            'contact_last_name' => $this->contactLastName,
+            'contact_salutation' => $this->contactSalutation,
+        ];
+    }
+
+    private function syncContactNameFromParts(): void
+    {
+        $this->contactName = mb_substr(GrossanlassContactName::join($this->contactFirstName, $this->contactLastName), 0, 255);
+    }
+
+    public function getPhone(): string
+    {
+        return $this->phone;
+    }
+
+    public function setPhone(string $phone): self
+    {
+        $this->phone = $phone;
 
         return $this;
     }

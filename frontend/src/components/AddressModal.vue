@@ -189,8 +189,15 @@
           />
         </div>
 
-        <!-- Kontakt: Vorname, Nachname -->
-        <div class="form-row two-cols">
+        <!-- Kontakt: Anrede, Vorname, Nachname -->
+        <div class="form-row three-cols">
+          <ESelect
+            v-model="formData.contact_salutation"
+            :items="salutationItems"
+            :label="t('settings.addressForm.contactSalutation')"
+            clearable
+            hide-details="auto"
+          />
           <ETextField
             v-model="formData.contact_first_name"
             :label="t('settings.addressForm.contactFirstName')"
@@ -457,6 +464,11 @@ const addressTypeItems = computed(() =>
     value: key,
   })),
 )
+
+const salutationItems = computed(() => [
+  { title: t('settings.addressForm.salutationHerr'), value: 'herr' },
+  { title: t('settings.addressForm.salutationFrau'), value: 'frau' },
+])
 
 const cantonItems = computed(() => [
   { title: t('settings.addressForm.selectPlaceholder'), value: '' },
@@ -810,6 +822,7 @@ const formData = ref<Partial<AddressFormData>>({
   longitude: null,
   contact_first_name: null,
   contact_last_name: null,
+  contact_salutation: null,
   email: null,
   phone: null,
   mobile: null,
@@ -889,6 +902,7 @@ watch(() => props.address, async (addr) => {
       longitude: addr.longitude,
       contact_first_name: addr.contact_first_name,
       contact_last_name: addr.contact_last_name,
+      contact_salutation: addr.contact_salutation,
       email: addr.email,
       phone: addr.phone,
       mobile: addr.mobile,
@@ -925,6 +939,7 @@ async function resetForm() {
     longitude: props.initialLongitude ?? null,
     contact_first_name: null,
     contact_last_name: null,
+    contact_salutation: null,
     email: null,
     phone: null,
     mobile: null,
@@ -1084,6 +1099,7 @@ async function handleSubmit() {
         country: formData.value.country || 'Schweiz',
         contact_first_name: formData.value.contact_first_name,
         contact_last_name: formData.value.contact_last_name,
+        contact_salutation: formData.value.contact_salutation || null,
         email: formData.value.email,
         phone: formData.value.phone,
         mobile: formData.value.mobile,
@@ -1113,6 +1129,7 @@ async function handleSubmit() {
         longitude: formData.value.longitude,
         contact_first_name: formData.value.contact_first_name,
         contact_last_name: formData.value.contact_last_name,
+        contact_salutation: formData.value.contact_salutation || null,
         email: formData.value.email,
         phone: formData.value.phone,
         mobile: formData.value.mobile,
@@ -1164,6 +1181,7 @@ const hasFormChanges = computed(() => {
       f.country !== a.country ||
       f.contact_first_name !== a.contact_first_name ||
       f.contact_last_name !== a.contact_last_name ||
+      (f.contact_salutation || '') !== (a.contact_salutation || '') ||
       f.email !== a.email ||
       f.phone !== a.phone ||
       f.mobile !== a.mobile ||
@@ -1188,6 +1206,7 @@ const hasFormChanges = computed(() => {
       f.city ||
       f.contact_first_name ||
       f.contact_last_name ||
+      f.contact_salutation ||
       f.email ||
       f.phone ||
       f.mobile ||

@@ -9,6 +9,7 @@
       :department-id="departmentId"
       :categories="categories"
       @created="onCategoryCreated"
+      @updated="onCategoryUpdated"
       @deleted="onCategoryDeleted"
     />
 
@@ -139,23 +140,14 @@
             {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: visibleSelectedIds.length }) }}
           </EButton>
           <EButton
-            v-if="visibleSelectedIds.length > 0 && lines.length > 0"
+            v-if="visibleSelectedIds.length > 0 && lineSelectItems.length > 0"
             variant="secondary"
             size="small"
-            :disabled="!mergeTargetLineId || isSaving"
-            @click="mergeIntoLine"
+            :disabled="isSaving"
+            @click="openMergeDialog"
           >
             {{ t('grossanlass.beschaffung.bedarf.mergeIntoLine') }}
           </EButton>
-          <ESelect
-            v-if="visibleSelectedIds.length > 0 && lines.length > 0"
-            v-model="mergeTargetLineId"
-            :items="lineSelectItems"
-            :label="t('grossanlass.beschaffung.bedarf.mergeTarget')"
-            hide-details
-            density="compact"
-            class="merge-select"
-          />
         </div>
 
         <div v-if="sourceTab === 'material' && filteredPool.length > 0" class="wish-pool-list">
@@ -294,7 +286,11 @@
           :label="t('grossanlass.beschaffung.bedarf.categoryFilter')"
           hide-details
           density="compact"
-        />
+        >
+          <template #item="{ props: itemProps, item }">
+            <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+          </template>
+        </ESelect>
 
         <EEmptyState
           v-if="lines.length === 0"
@@ -452,7 +448,6 @@
     />
 
     <GrossanlassProcurementBundleDialog
-      v-if="bundleWishes.length > 0"
       v-model="bundleDialogOpen"
       :department-id="departmentId"
       :wishes="bundleWishes"
@@ -461,6 +456,42 @@
       @saved="onBundleSaved"
       @category-created="onCategoryCreated"
     />
+
+    <EDialog
+      v-model="mergeDialogOpen"
+      :title="t('grossanlass.beschaffung.bedarf.mergeIntoLine')"
+      max-width="480"
+    >
+      <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.mergeReviewHint') }}</p>
+      <ESelect
+        v-model="mergeTargetLineId"
+        :items="lineSelectItems"
+        :label="t('grossanlass.beschaffung.bedarf.mergeTarget')"
+        hide-details
+        density="compact"
+        class="assign-field"
+      />
+      <GrossanlassProcurementCategoryPicker
+        v-model="mergeCategoryId"
+        class="assign-field"
+        required
+        :department-id="departmentId"
+        :categories="categories"
+        @created="onCategoryCreated"
+      />
+      <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.categoryRequiredHint') }}</p>
+      <template #actions>
+        <EButton variant="secondary" @click="mergeDialogOpen = false">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          :disabled="!mergeTargetLineId || !mergeCategoryId || isSaving"
+          :loading="isSaving"
+          @click="confirmMergeIntoLine"
+        >
+          {{ t('grossanlass.beschaffung.bedarf.mergeConfirm') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <EDialog
       v-model="materialAssignOpen"
@@ -510,7 +541,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -521,6 +552,8 @@ import GrossanlassProcurementLineEditDialog from '@/components/grossanlass/Gross
 import GrossanlassProcurementWishEditDialog from '@/components/grossanlass/GrossanlassProcurementWishEditDialog.vue'
 import GrossanlassProcurementBundleDialog from '@/components/grossanlass/GrossanlassProcurementBundleDialog.vue'
 import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
+import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
+import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,
@@ -567,6 +600,8 @@ const isLoading = ref(true)
 const isSaving = ref(false)
 const selectedWishIds = ref<string[]>([])
 const mergeTargetLineId = ref<string | null>(null)
+const mergeDialogOpen = ref(false)
+const mergeCategoryId = ref<string | null>(null)
 const expandedLineIds = ref<string[]>([])
 const editDialogOpen = ref(false)
 const editLine = ref<GrossanlassProcurementLine | null>(null)
@@ -723,14 +758,24 @@ const lineSelectItems = computed(() =>
 )
 
 const categoryFilterItems = computed(() => {
-  const items: Array<{ title: string; value: string }> = [
-    { title: t('grossanlass.beschaffung.bedarf.categoryFilterAll'), value: 'all' },
-    { title: t('grossanlass.beschaffung.bedarf.categoryUncategorized'), value: UNCATEGORIZED_FILTER },
+  const items: Array<{ title: string; value: string; name: string; depth: number }> = [
+    {
+      title: t('grossanlass.beschaffung.bedarf.categoryFilterAll'),
+      value: 'all',
+      name: t('grossanlass.beschaffung.bedarf.categoryFilterAll'),
+      depth: 0,
+    },
+    {
+      title: t('grossanlass.beschaffung.bedarf.categoryUncategorized'),
+      value: UNCATEGORIZED_FILTER,
+      name: t('grossanlass.beschaffung.bedarf.categoryUncategorized'),
+      depth: 0,
+    },
   ]
   for (const parent of categories.value.filter((c) => !c.parent_id)) {
-    items.push({ title: parent.name, value: parent.id })
+    items.push({ title: parent.name, value: parent.id, name: parent.name, depth: 0 })
     for (const child of categories.value.filter((c) => c.parent_id === parent.id)) {
-      items.push({ title: `${parent.name} / ${child.name}`, value: child.id })
+      items.push({ title: child.name, value: child.id, name: child.name, depth: 1 })
     }
   }
   return items
@@ -861,6 +906,24 @@ function onCategoryCreated(category: GrossanlassProcurementCategory) {
   categories.value = [...categories.value, category]
 }
 
+function onCategoryUpdated(category: GrossanlassProcurementCategory) {
+  categories.value = categories.value.map((row) => (row.id === category.id ? category : row))
+  lines.value = lines.value.map((line) => {
+    if (line.category_id === category.id) {
+      return {
+        ...line,
+        category_name: category.name,
+        category_parent_id: category.parent_id,
+        category_parent_name: category.parent_name,
+      }
+    }
+    if (line.category_parent_id === category.id) {
+      return { ...line, category_parent_name: category.name }
+    }
+    return line
+  })
+}
+
 function onCategoryDeleted(categoryId: string) {
   const removed = new Set(
     categories.value
@@ -900,13 +963,33 @@ async function onBundleSaved() {
   await load()
 }
 
-async function mergeIntoLine() {
-  if (!departmentId.value || !mergeTargetLineId.value || visibleSelectedIds.value.length === 0) return
+function openMergeDialog() {
+  if (visibleSelectedIds.value.length === 0 || lineSelectItems.value.length === 0) return
+  if (!mergeTargetLineId.value || !lineSelectItems.value.some((row) => row.value === mergeTargetLineId.value)) {
+    mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
+  }
+  const line = lines.value.find((row) => row.id === mergeTargetLineId.value)
+  mergeCategoryId.value = line?.category_id ?? null
+  mergeDialogOpen.value = true
+}
+
+watch(mergeTargetLineId, (id) => {
+  if (!mergeDialogOpen.value) return
+  const line = lines.value.find((row) => row.id === id)
+  mergeCategoryId.value = line?.category_id ?? mergeCategoryId.value
+})
+
+async function confirmMergeIntoLine() {
+  if (!departmentId.value || !mergeTargetLineId.value || !mergeCategoryId.value || visibleSelectedIds.value.length === 0) {
+    return
+  }
   isSaving.value = true
   try {
     await addWishesToGrossanlassProcurementLine(departmentId.value, mergeTargetLineId.value, {
       wish_line_ids: visibleSelectedIds.value,
+      category_id: mergeCategoryId.value,
     })
+    mergeDialogOpen.value = false
     toast.success(t('grossanlass.beschaffung.bedarf.mergeSuccess'))
     await load()
   } catch (e: any) {

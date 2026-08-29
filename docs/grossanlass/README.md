@@ -4,7 +4,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 
 **Stand:** Juni 2026 · **Status:** Spezifikation (Ziel); Umsetzung offen
 
-**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
+**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
 
 ---
 
@@ -32,7 +32,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 | **Keine Doppelspur**            | Bestehende Layout-, UI-, API- und Inbox-Patterns erweitern — [§20](#20-implementierungsprinzipien--keine-doppelspur)                                                                                                      |
 
 
-Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt · [20260823_New_concept.md](./20260823_New_concept.md) — Konzept Partneranfragen / Grob–Fein (Aug 2026).
+Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt · [20260823_New_concept.md](./20260823_New_concept.md) — Konzept Partneranfragen / Grob–Fein (Aug 2026) · [kosten.md](./kosten.md) — Kostenübersicht Einkauf / Miete / Weiterverkauf.
 
 ---
 
@@ -45,7 +45,7 @@ Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt · [20260823_N
   - [3.4 Hauptmenü — Sortierung & Sichtbarkeit](#34-hauptmenü--sortierung--sichtbarkeit)
   - [3.5 Routen & leere Seiten (Shell-first)](#35-routen--leere-seiten-shell-first)
   - [3.6 Einstellungen (Grossanlass-Dept)](#36-einstellungen-grossanlass-dept)
-  - [3.7 Beschaffung — Budget & Kosten](#37-beschaffung--budget--kosten)
+  - [3.7 Beschaffung — Budget & Kosten](#37-beschaffung--budget--kosten) — Soll-Kosten: [kosten.md](./kosten.md)
 4. [Ressorts = Gruppen](#4-ressorts--gruppen)
 5. [Struktur & Teilnehmer (Dept-weit)](#5-struktur--teilnehmer-dept-weit)
 6. [Activities & Rollen](#6-activities--rollen)
@@ -467,6 +467,8 @@ Implementierung: `visibleMenuItems` in `SettingsView.vue` — Branch `isGrossanl
 
 **Kein** Pfadi-Modul «Buchhaltung» ([accounting.md](../accounting.md)) — kein Follow-up-Warteschlange, Abschreibung oder Aktivitäts-Verbrauch.
 
+**Kostenübersicht (Soll):** Einkauf / Miete / Weiterverkauf, Zahler ≠ Organisator, eigene Tabellen — **[kosten.md](./kosten.md)** (abarbeiten). Ist-UI Finanzen bleibt Rahmen + Offerten/Bestellungen, bis die Phasen dort umgesetzt sind.
+
 **Ein Modul** für Budget-Übersicht und Beschaffungs-Workflow: Wünsche bündeln → Offerten → Budget → bestellen → Kosten → **erhalten**. Die **Übersicht** ist die Budget- & Kosten-Home (Soll/Ist); die weiteren Tabs sind der Weg dorthin.
 
 #### Phase 2 (PR2c) — nur Shell
@@ -525,6 +527,8 @@ Phase 2 Shell: Route erreichbar für MW/DC; Tabs zeigen nur Empty State.
 activity_grossanlass_procurement_line   — aus wish_line(s), group_id, qty, status
 activity_grossanlass_quote              — procurement_line_id, supplier, amount_chf, selected
 activity_grossanlass_procurement_order  — bestellt_am, cost_chf, order_ref, received_at?
+department_grossanlass_cost             — Ledger (Quelle Übersicht) — [kosten.md](./kosten.md)
+department_grossanlass_budget            — Rahmen gesamt + pro Zahler
 ```
 
 Optional später: `material_batch_id` bei «erhalten» → Zentrallager §10.
@@ -537,6 +541,8 @@ GET/POST/PUT/DELETE  …/grossanlass/beschaffung/lines/{id}/quotes
 POST                 …/beschaffung/lines/{id}/order
 POST                 …/beschaffung/lines/{id}/received
 GET                  …/grossanlass/beschaffung/overview
+CRUD                 …/grossanlass/beschaffung/costs
+PUT                  …/grossanlass/beschaffung/budgets
 ```
 
 Intern §20: keine parallele Ledger-UI — Export ans Vereins-Finanztool optional über bestehende Accounting-Entitäten **später**, nicht MVP.
@@ -1154,6 +1160,8 @@ activity_grossanlass_quote
   procurement_line_id, supplier, amount_chf, selected, notes
 activity_grossanlass_procurement_order
   procurement_line_id, ordered_at, cost_chf, order_ref, received_at?
+department_grossanlass_cost            — Ledger Kostenübersicht [kosten.md](./kosten.md)
+department_grossanlass_budget           — Rahmen gesamt (`payer_group_id` NULL) + pro Zahler
 activity_grossanlass_ressort_line       — Zuweisung Zentrallager (später)
 activity_grossanlass_js_submission
 ```
@@ -1185,8 +1193,9 @@ department_vehicle                      — Fahrzeuge (newUI §19.3)
 | POST                | `…/planung/rounds/{roundId}/open`                             | Runde öffnen                          |
 | POST                | `…/planung/rounds/{roundId}/close`                            | Runde schliessen                      |
 | GET/POST/PUT/DELETE | `…/planung/rounds/{roundId}/wishes`                           | Wunsch-Zeilen §9.1                    |
-| GET                 | `…/grossanlass/beschaffung/overview`                          | Übersicht Soll/Ist §3.7 (**Phase 5**) |
+| GET                 | `…/grossanlass/beschaffung/overview`                          | Übersicht Soll/Ist §3.7 (**Phase 5**); Cash/Netto/Zahler: [kosten.md](./kosten.md) |
 | CRUD                | `…/grossanlass/beschaffung/lines` (+ quotes, order, received) | Beschaffung §3.7 (**Phase 5**)        |
+| CRUD                | `…/grossanlass/beschaffung/costs` + `budgets`              | Ledger + Rahmen pro Zahler [kosten.md](./kosten.md) |
 | POST                | `/api/activities`                                             | `grossanlass` + `grossanlass_role` §6 |
 | GET                 | `/api/departments/{id}/grossanlass/material-uebersicht`       | §11                                   |
 | CRUD                | `/api/departments/{id}/material-usage-grants`                 | Leihweise §10                         |
@@ -1209,6 +1218,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 | **3**  | Planungsrunden — Name, Auto-Schedule, open/close, Benachrichtigung §9                                           | PR3                                           |
 | **4**  | Wunschformular `ressort_wuensche` §9.1 (Google Form)                                                            | PR4                                           |
 | **5**  | **Beschaffung** — Bedarf, Offerten, Budget, Bestellung, Erhalten §3.7                                           | PR5                                           |
+| **5b** | **Kostenübersicht** — Ledger, Zahler, Cash/Netto [kosten.md](./kosten.md) Phasen K1–K6                        | nach/parallel PR5                            |
 | **6**  | `detailplanung`-Runden §9.2                                                                                     | nach MVP                                      |
 | **7**  | `**publish`** + Gast-Inbox + accept                                                                             | §7.2, §8                                      |
 | **8**  | Materialübersicht v1                                                                                            | §11                                           |
@@ -1288,6 +1298,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 - Typ «KALA»
 - E-Mail/Push für Einladungen
 - Automatischer J+S-Versand
+- Pfadi-`/accounting` im Grossanlass; Kosten-Splits, Vereins-Abschreibung — [kosten.md §15](./kosten.md#15-out-of-scope-v1)
 
 ---
 
@@ -1330,11 +1341,12 @@ Grossanlass ist **Erweiterung** der bestehenden App — **kein** paralleles Prod
 | **MW-Zuweisung**         | `addMember`-Logik, `sendDepartmentMemberAddedEmail`                                                                                                       | separater Mail-Weg                                 |
 | **Inbox**                | `[InboxMessageService](../../backend/src/Service/InboxMessageService.php)`, Tabelle `inbox_message` — [nachrichtenzentrale.md](../nachrichtenzentrale.md) | zweites Notification-System                        |
 | **Beschaffung**          | eigene Entitäten §3.7 / §14.4 — Fassade `/grossanlass/beschaffung/`* (**Phase 5**)                                                                        | Follow-ups, Abschreibung, Pfadi-Kostenstellen-CRUD |
+| **Kosten Ledger**       | `department_grossanlass_cost` / `_budget` — [kosten.md](./kosten.md)                                                                                      | AccountingBooking, Follow-ups, Kostenstellen |
 | **Einladungen (später)** | `CATEGORY_ACTIVITY_DEPT_INVITE` / camp-event-Pattern                                                                                                      | neuer Invite-Stack                                 |
 | **Rechte**               | `AdminCapabilityChecker`, Membership-Rollen                                                                                                               | eigene Parallel-Matrix                             |
 
 
-Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `department_grossanlass_config`, `activity_grossanlass_`*, Inbox `grossanlass_mw_assigned`, `grossanlass_round_opened`.
+Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `department_grossanlass_config`, `department_grossanlass_cost` / `_budget`, `activity_grossanlass_`*, Inbox `grossanlass_mw_assigned`, `grossanlass_round_opened`.
 
 ### UI-Grossanlass vs. Pfadi — nur Unterschiede
 
@@ -1353,6 +1365,7 @@ Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `departm
 ## Siehe auch
 
 - [Konzept 2026-08-23](./20260823_New_concept.md) — Anfragen, Grob/Fein, Kontakt erst beim Nehmen
+- [Kostenübersicht](./kosten.md) — Einkauf / Miete / Weiterverkauf, Zahler, Ledger
 - [Aktivitäten-Übersicht](../activities/README.md)
 - [J+S-Material](../activities/js-material/README.md)
 - [newUI / Fuhrpark](../activities/newUI/SPEC.md)

@@ -105,6 +105,21 @@
             </button>
           </div>
         </section>
+        <section class="card logistics-card">
+          <h3>{{ t('grossanlass.planung.stammdaten.logisticsNode') }}</h3>
+          <p class="hint">{{ t('grossanlass.planung.stammdaten.logisticsNodeHint') }}</p>
+          <p v-if="logisticsName" class="logistics-set">
+            {{ t('grossanlass.planung.stammdaten.logisticsNodeSet', { name: logisticsName }) }}
+          </p>
+          <p v-else class="hint">{{ t('grossanlass.planung.stammdaten.logisticsNodeUnset') }}</p>
+          <router-link
+            v-if="canManage"
+            class="logistics-link"
+            :to="`/${departmentId}/einstellungen/ressorts`"
+          >
+            {{ t('grossanlass.planung.stammdaten.logisticsNodeOpenRessorts') }}
+          </router-link>
+        </section>
         <ETextarea
           v-model="notes"
           class="mt-3"
@@ -173,6 +188,7 @@ import { getGrossanlassPlanung, updateGrossanlassPlanung, type GrossanlassGuestA
 import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 import { bumpCalendarPeriodsCache } from '@/composables/useCalendarPeriodsCache'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
+import { grossanlassGroupPathTitle } from '@/utils/grossanlassCostPayer'
 import '@/styles/contacts-view.css'
 
 defineOptions({ name: 'GrossanlassPlanungStammdaten' })
@@ -207,8 +223,17 @@ const notes = ref('')
 const deptNameDraft = ref('')
 const guestType = ref<GrossanlassGuestActivityType>('camp')
 const hasGuestDepartments = ref(false)
+const logisticsGroupId = ref<string | null>(null)
 const { setHasGuestDepartments } = useGrossanlassGuestDepartments(() => departmentId.value)
 const canManage = computed(() => pack.value?.can_manage !== false)
+const logisticsName = computed(() => {
+  const id = logisticsGroupId.value
+  if (!id) return ''
+  const all = pack.value?.ressorts ?? []
+  const row = all.find((item) => item.id === id)
+  if (!row) return ''
+  return grossanlassGroupPathTitle(row, all)
+})
 
 function toDay(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : ''
@@ -223,6 +248,7 @@ function apply(next: GrossanlassPlanungOverview) {
   deptNameDraft.value = next.department_name || deptName.value
   guestType.value = next.config.guest_activity_type === 'event' ? 'event' : 'camp'
   hasGuestDepartments.value = next.config.has_guest_departments === true
+  logisticsGroupId.value = next.config.logistics_group_id || null
   setHasGuestDepartments(hasGuestDepartments.value)
 }
 
@@ -366,7 +392,9 @@ onMounted(() => {
   padding: 14px 16px;
   margin-top: 16px;
 }
-.guest-card h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.guest-card h3, .logistics-card h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.logistics-set { margin: 0 0 8px; color: #166534; font-weight: 600; }
+.logistics-link { color: #166534; font-size: 0.9rem; }
 .modus-grid { display: grid; gap: 10px; }
 @media (min-width: 640px) {
   .modus-grid { grid-template-columns: 1fr 1fr; }

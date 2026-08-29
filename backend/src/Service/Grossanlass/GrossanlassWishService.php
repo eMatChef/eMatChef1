@@ -376,7 +376,8 @@ class GrossanlassWishService
     public function updateWish(Department $department, User $user, string $roundId, string $wishId, array $data): array
     {
         $line = $this->findWishInRound($department, $roundId, $wishId);
-        $this->assertCanEditWish($department, $user, $line);
+        $requireOpen = !$this->access->canManageGrossanlassForm($user, $department);
+        $this->assertCanEditWish($department, $user, $line, $requireOpen);
 
         $form = $this->formService->findOrCreateFormForRound($line->getRound());
         $merged = $this->mergeWishDataForUpdate($line, $data);

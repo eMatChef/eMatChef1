@@ -1,38 +1,29 @@
 <template>
   <EDialog
     v-model="open"
-    :max-width="480"
+    :max-width="720"
+    scrollable
     :title="t('grossanlass.beschaffung.bedarf.editWishTitle')"
   >
     <p v-if="wish" class="wish-context">
       {{ wish.group_name }} · {{ wish.round_name }}
     </p>
 
-    <ETextField
-      v-model="form.label"
-      :label="t('grossanlass.beschaffung.bedarf.editLabel')"
-      hide-details="auto"
-    />
-    <ETextField
-      v-model="form.quantity"
-      class="mt-3"
-      type="number"
-      min="1"
-      step="1"
-      :label="t('grossanlass.beschaffung.bedarf.editWishQuantity')"
-      hide-details="auto"
-    />
-    <ETextField
-      v-model="form.location"
-      class="mt-3"
-      :label="t('grossanlass.beschaffung.bedarf.editLocation')"
-      hide-details="auto"
-    />
-    <ETextField
-      v-model="form.notes"
-      class="mt-3"
-      :label="t('grossanlass.beschaffung.bedarf.editNotes')"
-      hide-details="auto"
+    <ELoadingState v-if="isLoading" variant="inline" :message="t('common.loading')" />
+
+    <p v-else-if="loadError" class="edit-dialog-error">{{ loadError }}</p>
+
+    <GrossanlassWishDynamicForm
+      v-else-if="roundForm"
+      :key="wish?.id"
+      ref="formRef"
+      :form="roundForm"
+      :department-id="departmentId"
+      :groups="groups"
+      :can-fully-manage="canFullyManage"
+      :is-member-in-ressort-branch="isMemberInRessortBranch"
+      :is-leader-of-group="isLeaderOfGroup"
+      :can-create-child="canCreateChild"
     />
 
     <p v-if="errorMessage" class="edit-dialog-error">{{ errorMessage }}</p>
@@ -41,7 +32,13 @@
       <EButton variant="secondary" size="small" @click="open = false">
         {{ t('common.cancel') }}
       </EButton>
-      <EButton variant="primary" size="small" :loading="isSubmitting" @click="submit">
+      <EButton
+        variant="primary"
+        size="small"
+        :disabled="isLoading || !roundForm"
+        :loading="isSubmitting"
+        @click="submit"
+      >
         {{ t('common.save') }}
       </EButton>
     </template>
@@ -49,13 +46,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useToast } from '@/composables/useToast'
+import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import {
   updateGrossanlassBedarfWish,
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import {
+  getGrossanlassRoundForm,
+  orderFormFieldsForRound,
+  type GrossanlassRoundForm,
+} from '@/api/grossanlassRoundForm'
+import type { GrossanlassWishLine } from '@/api/grossanlassWishes'
+import GrossanlassWishDynamicForm from '@/components/grossanlass/GrossanlassWishDynamicForm.vue'
+import ELoadingState from '@/components/layout/ELoadingState.vue'
+import { EButton, EDialog } from '@/components/form/base'
 
 const props = defineProps<{
   departmentId: string
@@ -68,48 +76,110 @@ const emit = defineEmits<{
 
 const open = defineModel<boolean>({ required: true })
 const { t } = useI18n()
+const toast = useToast()
 
-const form = ref({ label: '', quantity: '', location: '', notes: '' })
+const formRef = ref<InstanceType<typeof GrossanlassWishDynamicForm> | null>(null)
+const roundForm = ref<GrossanlassRoundForm | null>(null)
+const groups = ref<GrossanlassGroup[]>([])
+const groupsRef = computed(() => groups.value)
+const { canFullyManage, isMemberInRessortBranch, isLeaderOfGroup, canCreateChild } =
+  useGrossanlassRessortScope(groupsRef)
+
+const isLoading = ref(false)
 const isSubmitting = ref(false)
+const hydrating = ref(false)
+const loadError = ref('')
 const errorMessage = ref('')
+
+function toWishLine(wish: GrossanlassProcurementPoolWish): GrossanlassWishLine {
+  return {
+    id: wish.id,
+    round_id: wish.round_id,
+    group_id: wish.group_id,
+    group_name: wish.group_name,
+    wish_kind: wish.wish_kind,
+    label: wish.label,
+    quantity: wish.quantity,
+    location: wish.location,
+    valid_from: wish.valid_from,
+    valid_to: wish.valid_to,
+    timeframe_notes: wish.timeframe_notes ?? null,
+    notes: wish.notes ?? null,
+    status: (wish.status as GrossanlassWishLine['status']) || 'accepted',
+    last_stage: wish.last_stage ?? undefined,
+    created_by_user_id: wish.created_by_user_id || '',
+    created_by_name: wish.created_by_name,
+    created_at: wish.created_at,
+    updated_at: wish.updated_at || wish.created_at,
+    custom_values: wish.custom_values,
+  }
+}
+
+async function loadForm() {
+  if (!open.value || !props.wish || !props.departmentId) return
+  isLoading.value = true
+  loadError.value = ''
+  errorMessage.value = ''
+  roundForm.value = null
+  try {
+    const [form, groupList] = await Promise.all([
+      getGrossanlassRoundForm(props.departmentId, props.wish.round_id),
+      getGrossanlassGroups(props.departmentId),
+    ])
+    groups.value = groupList
+    roundForm.value = { ...form, fields: orderFormFieldsForRound(form.fields) }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    loadError.value = err.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorEditWish')
+  } finally {
+    isLoading.value = false
+  }
+}
 
 watch(
   [open, () => props.wish?.id],
   ([visible]) => {
-    if (!visible || !props.wish) return
-    form.value = {
-      label: props.wish.label,
-      quantity: String(props.wish.quantity),
-      location: props.wish.location,
-      notes: props.wish.notes ?? '',
+    if (!visible) {
+      roundForm.value = null
+      return
     }
-    errorMessage.value = ''
+    void loadForm()
   },
   { immediate: true },
 )
 
+watch(formRef, async (form) => {
+  if (!form || !props.wish || !open.value || hydrating.value) return
+  hydrating.value = true
+  try {
+    await form.loadFromWish(toWishLine(props.wish))
+  } finally {
+    hydrating.value = false
+  }
+})
+
 async function submit() {
-  if (!props.wish) return
-  const label = form.value.label.trim()
-  const quantity = Number(form.value.quantity)
-  if (!label || !Number.isFinite(quantity) || quantity < 1) {
-    errorMessage.value = t('grossanlass.beschaffung.bedarf.editWishValidation')
+  if (!props.wish || !formRef.value) return
+  const payload = formRef.value.buildPayload()
+
+  if (payload.new_bauprojekt) {
+    toast.error(t('grossanlass.responses.errorEditBauprojekt'))
+    return
+  }
+  if (!payload.group_id && !payload.ressort_group_id) {
+    errorMessage.value = t('grossanlass.wishes.errorGroup')
     return
   }
 
   isSubmitting.value = true
   errorMessage.value = ''
   try {
-    const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, {
-      label,
-      quantity,
-      location: form.value.location.trim(),
-      notes: form.value.notes.trim() || null,
-    })
+    const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, payload)
     open.value = false
     emit('saved', overview)
-  } catch (e: any) {
-    errorMessage.value = e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorEditWish')
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    errorMessage.value = err.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorEditWish')
   } finally {
     isSubmitting.value = false
   }
@@ -122,6 +192,5 @@ async function submit() {
   font-size: 0.78rem;
   color: #64748b;
 }
-.mt-3 { margin-top: 12px; }
 .edit-dialog-error { margin: 12px 0 0; color: #dc2626; font-size: 0.82rem; }
 </style>

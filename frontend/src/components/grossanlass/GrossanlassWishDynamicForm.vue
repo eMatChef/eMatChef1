@@ -110,6 +110,15 @@
         class="mb-3"
       />
 
+      <ETextarea
+        v-else-if="field.custom_type === 'text' && field.config?.multiline"
+        v-model="customValues[field.id]"
+        :label="fieldLabel(field)"
+        hide-details="auto"
+        rows="2"
+        class="mb-3"
+      />
+
       <ETextField
         v-else-if="field.custom_type === 'text'"
         v-model="customValues[field.id]"

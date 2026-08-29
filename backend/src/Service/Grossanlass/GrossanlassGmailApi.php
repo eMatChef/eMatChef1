@@ -82,6 +82,7 @@ final class GrossanlassGmailApi
 
     /**
      * @param list<string> $labelIds
+     * @param list<array{filename: string, mime: string, content: string}> $attachments
      * @return array{draftId: string, threadId: string, messageId: string}
      */
     public function createDraft(
@@ -93,8 +94,9 @@ final class GrossanlassGmailApi
         array $labelIds = [],
         ?string $threadId = null,
         ?string $inReplyTo = null,
+        array $attachments = [],
     ): array {
-        $raw = $this->rfc822($to, $subject, $body, $inquiryId, $inReplyTo);
+        $raw = $this->rfc822($to, $subject, $body, $inquiryId, $inReplyTo, $attachments);
         $message = [
             'raw' => $this->base64url($raw),
         ];
@@ -117,21 +119,39 @@ final class GrossanlassGmailApi
     /**
      * @return list<string>
      */
-    public function listMessageIds(string $accessToken, string $query, int $max = 40): array
+    /**
+     * @return list<array{id: string, threadId: string}>
+     */
+    public function listMessageRefs(string $accessToken, string $query, int $max = 40): array
     {
         $data = $this->get($accessToken, '/messages?q=' . rawurlencode($query) . '&maxResults=' . $max);
-        $ids = [];
+        $out = [];
         foreach ($data['messages'] ?? [] as $message) {
             if (!is_array($message)) {
                 continue;
             }
             $id = (string) ($message['id'] ?? '');
-            if ($id !== '') {
-                $ids[] = $id;
+            if ($id === '') {
+                continue;
             }
+            $out[] = [
+                'id' => $id,
+                'threadId' => (string) ($message['threadId'] ?? ''),
+            ];
         }
 
-        return $ids;
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listMessageIds(string $accessToken, string $query, int $max = 40): array
+    {
+        return array_values(array_map(
+            static fn (array $row): string => $row['id'],
+            $this->listMessageRefs($accessToken, $query, $max),
+        ));
     }
 
     /**
@@ -331,12 +351,16 @@ final class GrossanlassGmailApi
         return $data;
     }
 
+    /**
+     * @param list<array{filename: string, mime: string, content: string}> $attachments
+     */
     private function rfc822(
         string $to,
         string $subject,
         string $body,
         string $inquiryId,
         ?string $inReplyTo = null,
+        array $attachments = [],
     ): string {
         $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
         $baseHeaders = [
@@ -349,22 +373,51 @@ final class GrossanlassGmailApi
             $baseHeaders[] = 'In-Reply-To: ' . $inReplyTo;
             $baseHeaders[] = 'References: ' . $inReplyTo;
         }
+        $bodyPart = $this->bodyMimePart($body);
+        if ($attachments === []) {
+            return implode("\r\n", $baseHeaders) . "\r\n" . $bodyPart;
+        }
+        $mixed = 'emc_mix_' . bin2hex(random_bytes(8));
+        $headers = array_merge($baseHeaders, [
+            'Content-Type: multipart/mixed; boundary="' . $mixed . '"',
+        ]);
+        $chunks = [
+            '--' . $mixed,
+            $bodyPart,
+        ];
+        foreach ($attachments as $file) {
+            $name = str_replace(['"', "\r", "\n"], '', $file['filename']);
+            $mime = $file['mime'] !== '' ? $file['mime'] : 'application/octet-stream';
+            $chunks[] = '--' . $mixed;
+            $chunks[] = 'Content-Type: ' . $mime . '; name="' . $name . '"';
+            $chunks[] = 'Content-Disposition: attachment; filename="' . $name . '"';
+            $chunks[] = 'Content-Transfer-Encoding: base64';
+            $chunks[] = '';
+            $chunks[] = trim(chunk_split(base64_encode($file['content']), 76, "\r\n"));
+        }
+        $chunks[] = '--' . $mixed . '--';
+        $chunks[] = '';
+
+        return implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $chunks);
+    }
+
+    private function bodyMimePart(string $body): string
+    {
         if (!$this->looksLikeHtml($body)) {
-            $headers = array_merge($baseHeaders, [
+            return implode("\r\n", [
                 'Content-Type: text/plain; charset=UTF-8',
                 'Content-Transfer-Encoding: 8bit',
+                '',
+                $body,
             ]);
-
-            return implode("\r\n", $headers) . "\r\n\r\n" . $body;
         }
-
         $boundary = 'emc_' . bin2hex(random_bytes(8));
         $plain = $this->htmlToPlain($body);
         $html = $this->wrapHtml($body);
-        $headers = array_merge($baseHeaders, [
+
+        return implode("\r\n", [
             'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-        ]);
-        $parts = [
+            '',
             '--' . $boundary,
             'Content-Type: text/plain; charset=UTF-8',
             'Content-Transfer-Encoding: 8bit',
@@ -376,10 +429,7 @@ final class GrossanlassGmailApi
             '',
             $html,
             '--' . $boundary . '--',
-            '',
-        ];
-
-        return implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $parts);
+        ]);
     }
 
     private function looksLikeHtml(string $body): bool
