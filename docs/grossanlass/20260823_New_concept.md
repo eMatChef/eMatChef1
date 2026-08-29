@@ -419,6 +419,8 @@ Pro Beschaffungsposition / Leih-Objekt eine **Art**, nicht alles «Offerte»:
 
 Die Art steht schon bei der **Zuteilung / Nehmen** (nicht erst bei Erhalten), damit Anfragen und Dank-Mails nicht «Leihgabe» versprechen, wenn ihr kauft. Geld fliesst nur bei Kauf / Weiterverkauf — Leih oft 0 CHF.
 
+**Miete** (bezahlt) von **Sachleistung** trennen. Zahler kann ein anderes Ressort sein als Logistik (Organisator). Ledger und Rahmen: **[kosten.md](./kosten.md)**.
+
 Kein volles Pfadi-`/accounting` im Grossanlass; grobe Soll/Ist-Spur in der Beschaffungs-Übersicht reicht v1. Abschreibungs-Kalkulator des Vereins später optional anbinden.
 
 ### 12.3 Einsatzliste: Ressort / Bauprojekt, keine Doppelbuchung
@@ -606,5 +608,6 @@ Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-
 ## Siehe auch
 
 - [README.md](./README.md) — Gesamt-Spec (Department, Ressorts, §3.7 Beschaffung, §9 Runden, §10 Leihweise, §11 Übersicht)
+- [kosten.md](./kosten.md) — Kostenübersicht Material & Logistik (Einkauf / Miete / Weiterverkauf, Zahler)
 - [MVP.md](./MVP.md) — ursprünglicher Schnitt Phase 1–4; Beschaffung-Inhalt war Phase 5 und ist im Code weiter als die MVP-Datei
 - Drive/Excel: Firmen (Bereich), Grobübersicht Material & Fahrzeuge; eine Logistik-Sheet-Vorlage (Anfragen / Kommunikation / Zusagen) als CRM-Vorbild ausserhalb der App, solange der Anfrage-Tab fehlt

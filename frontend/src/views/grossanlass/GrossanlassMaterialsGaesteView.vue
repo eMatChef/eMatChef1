@@ -155,6 +155,16 @@
           :items="saleStockItems"
           hide-details
         />
+        <ETextField
+          v-model="saleAmountChf"
+          type="number"
+          inputmode="decimal"
+          step="0.01"
+          min="0"
+          :label="t('grossanlass.materials.gaeste.saleAmount')"
+          :hint="t('grossanlass.materials.gaeste.saleAmountHint')"
+          persistent-hint
+        />
         <EButton variant="primary" size="small" :disabled="!canSell" @click="sellNow">
           {{ t('grossanlass.materials.gaeste.saleConfirm') }}
         </EButton>
@@ -248,7 +258,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
-import { EButton, ESearchField, ESelect } from '@/components/form/base'
+import { EButton, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassEinsatzBookPreviewDialog, {
@@ -288,6 +298,7 @@ const bookOpen = ref(false)
 const bookDraft = ref<GaBookPreviewDraft | null>(null)
 const saleGuestId = ref<string | null>(null)
 const saleStockId = ref<string | null>(null)
+const saleAmountChf = ref('')
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -414,7 +425,11 @@ function originLabel(origin: string): string {
   return String(t('grossanlass.materials.lifecycle.loan'))
 }
 
-const canSell = computed(() => !!saleGuestId.value && !!saleStockId.value)
+const canSell = computed(() => {
+  if (!saleGuestId.value || !saleStockId.value || saleAmountChf.value === '') return false
+  const n = Number(String(saleAmountChf.value).replace(/['’\s]/g, '').replace(',', '.'))
+  return !Number.isNaN(n) && n >= 0
+})
 
 const guestResources = computed<GaEinsatzResource[]>(() =>
   (payload.value?.offers ?? [])
@@ -491,14 +506,17 @@ async function onBooked(current: GaBookPreviewDraft) {
 }
 
 async function sellNow() {
-  if (!saleGuestId.value || !saleStockId.value) return
+  if (!saleGuestId.value || !saleStockId.value || !canSell.value) return
+  const amount = Number(String(saleAmountChf.value).replace(/['’\s]/g, '').replace(',', '.'))
   try {
     payload.value = await sellGrossanlassToGuest(departmentId.value, {
       guest_department_id: saleGuestId.value,
       commitment_id: saleStockId.value,
+      amount_chf: amount,
     })
     toast.success(t('grossanlass.materials.gaeste.soldToast'))
     saleStockId.value = null
+    saleAmountChf.value = ''
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))

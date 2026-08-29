@@ -172,4 +172,16 @@ class GrossanlassGmailRoutingTest extends TestCase
         self::assertNotContains('PFF27', $unused);
         self::assertNotContains('PFF27/Firmenanfragen', $unused);
     }
+
+    public function testNestedCategoryBecomesNestedGmailLabel(): void
+    {
+        $names = GrossanlassGmailRouting::labelNames(
+            GrossanlassGmailRouting::defaults(),
+            'PFF 2027',
+            ['Fahrzeuge/Anhänger'],
+        );
+
+        self::assertContains('eMatChef-PFF 2027/Firmenanfragen/Fahrzeuge', $names);
+        self::assertContains('eMatChef-PFF 2027/Firmenanfragen/Fahrzeuge/Anhänger', $names);
+    }
 }

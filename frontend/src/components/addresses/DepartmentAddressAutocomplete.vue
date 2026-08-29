@@ -53,6 +53,35 @@
         @mousedown.prevent
       >
         <div
+          v-if="filteredExtraItems.length && extraDividerText"
+          class="autocomplete-divider"
+          role="separator"
+        >
+          {{ extraDividerText }}
+        </div>
+        <div
+          v-for="item in filteredExtraItems"
+          :key="'extra-' + item.id"
+          class="autocomplete-item activity-address-ac-item"
+          @mousedown.prevent="selectExtra(item)"
+        >
+          <div class="activity-address-ac-main">
+            <span class="item-name">{{ item.title }}</span>
+            <span
+              v-if="item.badge"
+              class="address-type-badge address-type-badge--compact inquiry"
+            >{{ item.badge }}</span>
+          </div>
+          <span class="item-city">{{ item.subtitle || '' }}</span>
+        </div>
+        <div
+          v-if="filteredExtraItems.length && grouped.totalCount > 0 && addressGroupLabel"
+          class="autocomplete-divider"
+          role="separator"
+        >
+          {{ addressGroupLabel }}
+        </div>
+        <div
           v-for="a in grouped.primary"
           :key="a.id"
           class="autocomplete-item activity-address-ac-item"
@@ -138,6 +167,15 @@ const props = withDefaults(
     editButtonTitle?: string
     emptyAddressesLabel?: string
     otherAddressesDividerLabel?: string
+    extraItems?: Array<{
+      id: string
+      title: string
+      subtitle?: string
+      badge?: string
+    }>
+    extraItemsDividerLabel?: string
+    addressGroupLabel?: string
+    selectedExtraLabel?: string
     inlineCreateLabelKey?: string
     addressFallbackNameKey?: string
     addressTypeTitleKey?: string
@@ -158,11 +196,16 @@ const props = withDefaults(
     addButtonTitle: '',
     editButtonTitle: '',
     placeholder: '',
+    extraItems: () => [],
+    extraItemsDividerLabel: '',
+    addressGroupLabel: '',
+    selectedExtraLabel: '',
   },
 )
 
 const emit = defineEmits<{
   'update:selectedId': [id: string | null]
+  'select-extra': [id: string | null]
   create: [query: string]
   edit: [id: string]
 }>()
@@ -184,17 +227,37 @@ const grouped = computed(() =>
   }),
 )
 
-const showAddressResults = computed(() => grouped.value.totalCount > 0)
+const extraDividerText = computed(() => props.extraItemsDividerLabel)
+
+const filteredExtraItems = computed(() => {
+  const items = props.extraItems ?? []
+  const q = searchTrimmed.value.toLowerCase()
+  const matched = q
+    ? items.filter((item) =>
+        [item.title, item.subtitle, item.badge].some((field) =>
+          (field ?? '').toLowerCase().includes(q),
+        ),
+      )
+    : items
+  return matched.slice(0, 20)
+})
+
+const showAddressResults = computed(
+  () => grouped.value.totalCount > 0 || filteredExtraItems.value.length > 0,
+)
 
 const showInlineCreate = computed(
   () =>
     searchTrimmed.value.length >= props.minQueryLength &&
     grouped.value.totalCount === 0 &&
-    props.addresses.length >= 0,
+    filteredExtraItems.value.length === 0,
 )
 
 const showEmptyAddressesHint = computed(
-  () => props.addresses.length === 0 && !!props.emptyAddressesLabel,
+  () =>
+    props.addresses.length === 0 &&
+    (props.extraItems?.length ?? 0) === 0 &&
+    !!props.emptyAddressesLabel,
 )
 
 const dropdownOpen = computed(
@@ -214,12 +277,17 @@ const otherAddressesDividerLabel = computed(
 )
 
 watch(
-  () => [props.selectedId, props.addresses] as const,
+  () => [props.selectedId, props.addresses, props.selectedExtraLabel] as const,
   () => {
     const id = props.selectedId
-    if (!id) return
-    const a = props.addresses.find((x) => x.id === id)
-    if (a) search.value = formatAddressSelectionLabel(a)
+    if (id) {
+      const a = props.addresses.find((x) => x.id === id)
+      if (a) search.value = formatAddressSelectionLabel(a)
+      return
+    }
+    if (props.selectedExtraLabel) {
+      search.value = props.selectedExtraLabel
+    }
   },
   { immediate: true },
 )
@@ -303,6 +371,7 @@ function onSearchFocus() {
 function onSearchInput() {
   showDropdown.value = true
   if (props.selectedId) emit('update:selectedId', null)
+  if (props.selectedExtraLabel) emit('select-extra', null)
 }
 
 function onSearchKeydown(event: KeyboardEvent) {
@@ -310,6 +379,11 @@ function onSearchKeydown(event: KeyboardEvent) {
   event.preventDefault()
   event.stopPropagation()
   if (!showDropdown.value) return
+  const firstExtra = filteredExtraItems.value[0]
+  if (firstExtra) {
+    selectExtra(firstExtra)
+    return
+  }
   const first = grouped.value.primary[0] ?? grouped.value.other[0]
   if (first) {
     selectAddress(first)
@@ -321,8 +395,16 @@ function onSearchKeydown(event: KeyboardEvent) {
 }
 
 function selectAddress(a: Address) {
+  emit('select-extra', null)
   emit('update:selectedId', a.id)
   search.value = formatAddressSelectionLabel(a)
+  showDropdown.value = false
+}
+
+function selectExtra(item: { id: string; title: string }) {
+  emit('update:selectedId', null)
+  emit('select-extra', item.id)
+  search.value = item.title
   showDropdown.value = false
 }
 

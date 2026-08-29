@@ -110,63 +110,20 @@
           class="search-input list-filter"
           :placeholder="t('grossanlass.planung.struktur.searchPlaceholder')"
         >
-        <v-expansion-panels
-          v-if="visibleUnterlager.length"
-          v-model="openUnterlager"
-          multiple
-          class="ga-struktur-accordion"
-        >
-          <v-expansion-panel v-for="site in visibleUnterlager" :key="site.id" :value="site.id">
-            <v-expansion-panel-title>
-              <span class="group-title" :style="{ paddingLeft: `${site._level * 16}px` }">
-                <span class="kind-badge">{{ t('grossanlass.planung.struktur.unterlagerBadge') }}</span>
-                <strong>{{ site.name }}</strong>
-                <span class="group-count">{{ t('grossanlass.planung.struktur.memberCount', { count: deptsInUnterlager(site.id).length }) }}</span>
-              </span>
-            </v-expansion-panel-title>
-            <v-expansion-panel-text>
-              <div v-if="pack?.can_manage" class="guest-actions">
-                <EButton variant="secondary" size="small" :disabled="saving" @click="openAddDeptDialog(site.id)">
-                  {{ t('grossanlass.planung.struktur.addDepartment') }}
-                </EButton>
-                <EButton variant="secondary" size="small" :disabled="saving" @click="openUnterlagerDialog(site.id)">
-                  {{ t('grossanlass.planung.struktur.unterlagerChild') }}
-                </EButton>
-                <button type="button" class="remove" :disabled="saving" @click="removeUnterlager(site.id)">
-                  {{ t('grossanlass.planung.struktur.unterlagerDelete') }}
-                </button>
-              </div>
-              <ul v-if="deptsInUnterlager(site.id).length" class="child-list">
-                <li v-for="row in deptsInUnterlager(site.id)" :key="row.id" class="child-row">
-                  <div class="child-head">
-                    <strong>{{ row.name }}</strong>
-                    <span class="meta">{{ row.organisation_name }}</span>
-                    <span class="tag">{{ t(`grossanlass.planung.struktur.status.${row.status}`) }}</span>
-                    <ESelect
-                      v-if="pack?.can_manage"
-                      class="move-select"
-                      :model-value="row.unterlager_id || ''"
-                      :items="unterlagerSelectItems"
-                      hide-details
-                      :disabled="saving"
-                      @update:model-value="(v) => moveGuest(row.id, String(v ?? ''))"
-                    />
-                    <button
-                      v-if="pack?.can_manage && row.status !== 'accepted'"
-                      type="button"
-                      class="remove"
-                      :disabled="saving"
-                      @click="removeGuest(row.id)"
-                    >
-                      {{ t('common.remove') }}
-                    </button>
-                  </div>
-                </li>
-              </ul>
-              <p v-else class="hint">{{ t('grossanlass.planung.struktur.unterlagerNoDepts') }}</p>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
+        <GrossanlassUnterlagerTree
+          v-if="visibleUnterlagerForest.length"
+          v-model:open-ids="openUnterlager"
+          :nodes="visibleUnterlagerForest"
+          :can-manage="!!pack?.can_manage"
+          :saving="saving"
+          :select-items="unterlagerSelectItems"
+          :departments="deptsInUnterlager"
+          @add-department="openAddDeptDialog"
+          @add-child="openUnterlagerDialog"
+          @remove-site="removeUnterlager"
+          @move-guest="moveGuest"
+          @remove-guest="removeGuest"
+        />
         <section v-if="unassignedDepts.length" class="unassigned">
           <h4>{{ t('grossanlass.planung.struktur.unterlagerUnassigned') }}</h4>
           <ul class="child-list">
@@ -276,7 +233,8 @@ import {
   type GrossanlassPlanungRessort,
   type GrossanlassStrukturModus,
 } from '@/api/grossanlassPlanung'
-import { flattenTreeWithLevel } from '@/utils/grossanlassGroupHierarchy'
+import { flattenTreeWithLevel, nestTreeWithLevel } from '@/utils/grossanlassGroupHierarchy'
+import GrossanlassUnterlagerTree from '@/components/grossanlass/GrossanlassUnterlagerTree.vue'
 
 defineOptions({ name: 'GrossanlassPlanungStruktur' })
 
@@ -356,15 +314,22 @@ const unterlagerTree = computed(() =>
   ),
 )
 
-const visibleUnterlager = computed(() => {
+const unterlagerForest = computed(() => nestTreeWithLevel(unterlagerRows.value))
+
+const visibleUnterlagerForest = computed(() => {
   const q = participantFilter.value.trim().toLowerCase()
-  if (!q) return unterlagerTree.value
-  return unterlagerTree.value.filter((site) => {
-    if (site.name.toLowerCase().includes(q)) return true
-    return deptsInUnterlager(site.id).some(
-      (row) => row.name.toLowerCase().includes(q) || row.organisation_name.toLowerCase().includes(q),
-    )
-  })
+  if (!q) return unterlagerForest.value
+  const filterNodes = (
+    nodes: typeof unterlagerForest.value,
+  ): typeof unterlagerForest.value =>
+    nodes.flatMap((node) => {
+      const children = filterNodes(node.children)
+      const nameHit = node.name.toLowerCase().includes(q)
+      const deptHit = deptsInUnterlager(node.id).length > 0
+      if (!nameHit && !deptHit && children.length === 0) return []
+      return [{ ...node, children: nameHit ? node.children : children }]
+    })
+  return filterNodes(unterlagerForest.value)
 })
 
 const unassignedDepts = computed(() => {

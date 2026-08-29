@@ -48,6 +48,7 @@ final class GrossanlassDepartmentSerializer
             'guest_activity_type' => $config->getGuestActivityType(),
             'has_guest_departments' => $config->hasGuestDepartments(),
             'invite_group_ids' => $config->getInviteGroupIds(),
+            'logistics_group_id' => $config->getLogisticsGroupId(),
         ];
     }
 

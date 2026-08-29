@@ -189,6 +189,18 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
 
+      <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        :to="getLink('/kosten')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('kosten') }"
+        :title="t('sidebar.kostenHint')"
+      >
+        <v-icon icon="mdi-cash-multiple" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.kosten') }}</span>
+      </router-link>
+
       <!-- Materialien (Stammdaten, Design-Vorschau) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"

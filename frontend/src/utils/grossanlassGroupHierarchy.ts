@@ -40,6 +40,28 @@ export function flattenTreeWithLevel<T extends GroupHierarchyNode>(groups: T[]):
   return flatten(rootGroups, 0)
 }
 
+export type NestedTreeNode<T extends GroupHierarchyNode> = T & {
+  _level: number
+  children: NestedTreeNode<T>[]
+}
+
+/** Gleicher Baum wie flattenTreeWithLevel, aber mit verschachtelten children. */
+export function nestTreeWithLevel<T extends GroupHierarchyNode>(groups: T[]): NestedTreeNode<T>[] {
+  const all = groups
+  const ids = new Set(all.map((g) => g.id))
+  const roots = sortGroups(all.filter((g) => !g.parent_id || !ids.has(g.parent_id)))
+
+  function nest(nodes: T[], level: number): NestedTreeNode<T>[] {
+    return nodes.map((node) => ({
+      ...node,
+      _level: level,
+      children: nest(sortGroups(all.filter((g) => g.parent_id === node.id)), level + 1),
+    }))
+  }
+
+  return nest(roots, 0)
+}
+
 /** Ressorts hierarchisch sortiert (Root zuerst, Kinder eingerückt). */
 export function flattenGrossanlassGroupsWithLevel(groups: GrossanlassGroup[]): GrossanlassGroupWithLevel[] {
   return flattenTreeWithLevel(groups)

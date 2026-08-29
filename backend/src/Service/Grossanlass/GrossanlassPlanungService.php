@@ -34,6 +34,7 @@ final class GrossanlassPlanungService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassGroupService $groups,
+        private GrossanlassCostService $costs,
         private PublicCodeService $publicCodes,
         private InboxMessageService $inbox,
     ) {}
@@ -102,6 +103,9 @@ final class GrossanlassPlanungService
         if (array_key_exists('has_guest_departments', $data)) {
             $config->setHasGuestDepartments((bool) $data['has_guest_departments']);
         }
+        if (array_key_exists('logistics_group_id', $data)) {
+            $this->applyLogisticsGroup($department, $config, $data['logistics_group_id']);
+        }
         if (array_key_exists('invite_group_ids', $data)) {
             $raw = $data['invite_group_ids'];
             $ids = [];
@@ -147,9 +151,27 @@ final class GrossanlassPlanungService
             $this->syncEventCalendarPeriod($department, $start, $end);
         }
 
+        $this->costs->bindCentralPotToLogisticsGroup($department, false);
         $this->entityManager->flush();
 
         return $this->overview($department, $user);
+    }
+
+    private function applyLogisticsGroup(Department $department, DepartmentGrossanlassConfig $config, mixed $raw): void
+    {
+        if ($raw === null || $raw === '') {
+            $config->setLogisticsGroup(null);
+
+            return;
+        }
+        if (!\is_string($raw)) {
+            throw new \InvalidArgumentException('Logistik-Knoten ungültig');
+        }
+        $group = $this->entityManager->find(Group::class, trim($raw));
+        if (!$group instanceof Group || $group->getDepartmentId() !== $department->getId()) {
+            throw new \InvalidArgumentException('Logistik-Knoten nicht gefunden');
+        }
+        $config->setLogisticsGroup($group);
     }
 
     private function applyVenueAddress(Department $department, DepartmentGrossanlassConfig $config, mixed $raw): void

@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\Activity;
 use App\Entity\Department;
+use App\Entity\DepartmentSetting;
 use App\Entity\InboxMessage;
 use App\Entity\User;
 use App\Util\IdGenerator;
@@ -196,24 +197,14 @@ trait InboxMessageKindsTrait
         }
 
         $rows = $qb->getQuery()->getResult();
+        $rows = $this->pruneStaleDepartmentInviteMessages($rows);
 
         return array_map(fn (InboxMessage $m) => $this->toDepartmentInviteArray($m), $rows);
     }
 
     public function countUnreadDepartmentInvites(string $userId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.workflowStatus = :pending')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
-            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return count($this->listDepartmentInvitesForUser($userId, 'unread', 200));
     }
 
     public function markDepartmentInviteRead(string $userId, string $notificationId): bool
@@ -243,6 +234,24 @@ trait InboxMessageKindsTrait
     public function removeDepartmentInvite(string $departmentId, string $userId, string $inviteId): void
     {
         $this->deleteDepartmentInviteByInviteId($departmentId, $userId, $inviteId);
+    }
+
+    /** MW löscht oder ersetzt eine Einladung: alle Aufgaben-Karten dazu weg. */
+    public function retractDepartmentInvite(string $departmentId, string $inviteId): void
+    {
+        if ($departmentId === '' || $inviteId === '') {
+            return;
+        }
+        $this->entityManager->createQueryBuilder()
+            ->delete(InboxMessage::class, 'm')
+            ->where('IDENTITY(m.department) = :deptId')
+            ->andWhere('m.sourceRefId = :inviteId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('deptId', $departmentId)
+            ->setParameter('inviteId', $inviteId)
+            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
+            ->getQuery()
+            ->execute();
     }
 
     // --- Grossanlass planning round opened ---
@@ -1113,6 +1122,78 @@ trait InboxMessageKindsTrait
             ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
             ->getQuery()
             ->execute();
+    }
+
+    /**
+     * @param list<InboxMessage> $rows
+     * @return list<InboxMessage>
+     */
+    private function pruneStaleDepartmentInviteMessages(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+        $openIdsByDept = [];
+        $kept = [];
+        $dirty = false;
+        foreach ($rows as $row) {
+            if (!$row instanceof InboxMessage) {
+                continue;
+            }
+            $deptId = $row->getDepartment()->getId();
+            if (!isset($openIdsByDept[$deptId])) {
+                $openIdsByDept[$deptId] = $this->openPendingInviteIds($deptId);
+            }
+            $inviteId = (string) $row->getSourceRefId();
+            if ($inviteId !== '' && isset($openIdsByDept[$deptId][$inviteId])) {
+                $kept[] = $row;
+                continue;
+            }
+            $this->entityManager->remove($row);
+            $dirty = true;
+        }
+        if ($dirty) {
+            $this->entityManager->flush();
+        }
+
+        return $kept;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function openPendingInviteIds(string $departmentId): array
+    {
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+            'departmentId' => $departmentId,
+            'settingKey' => 'join.pending_invites',
+        ]);
+        if (!$setting) {
+            return [];
+        }
+        try {
+            $decoded = json_decode((string) $setting->getSettingValue(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return [];
+        }
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($decoded as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (($entry['status'] ?? 'pending') !== 'pending') {
+                continue;
+            }
+            $id = (string) ($entry['id'] ?? '');
+            if ($id !== '') {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**

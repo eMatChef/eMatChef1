@@ -16,6 +16,7 @@ final class GrossanlassCommitmentService
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
+        private GrossanlassCostService $costService,
     ) {}
 
     /**
@@ -46,6 +47,7 @@ final class GrossanlassCommitmentService
         $row->setDepartment($department);
         $this->apply($row, $department, $data, true);
         $this->entityManager->persist($row);
+        $this->costService->syncFromCommitment($row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);
@@ -60,6 +62,7 @@ final class GrossanlassCommitmentService
         $this->assertManage($department, $user);
         $row = $this->find($department, $id);
         $this->apply($row, $department, $data, false);
+        $this->costService->syncFromCommitment($row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);

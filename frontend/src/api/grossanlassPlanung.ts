@@ -18,6 +18,7 @@ export type GrossanlassPlanungConfig = {
   guest_activity_type: GrossanlassGuestActivityType
   has_guest_departments: boolean
   invite_group_ids: string[]
+  logistics_group_id?: string | null
 }
 
 export type GrossanlassPlanungActivity = {
@@ -102,6 +103,7 @@ export async function updateGrossanlassPlanung(
     has_guest_departments?: boolean
     invite_group_ids?: string[]
     department_name?: string
+    logistics_group_id?: string | null
   },
 ): Promise<GrossanlassPlanungOverview> {
   const response = await apiClient.patch<GrossanlassPlanungOverview>(
