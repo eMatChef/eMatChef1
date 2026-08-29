@@ -1,7 +1,7 @@
 name: Deploy Frontend Prod (Droplet)
 
 # App/QR/Devices auf dem Prod-Droplet (app.ematchef.ch).
-# Marketing (ematchef.ch) → FTP Hostpoint (ftp-deploy-prod.yml).
+# Marketing (ematchef.ch) bleibt Hostpoint — nur manuell: ftp-deploy-prod.yml.
 
 on:
   push:
