@@ -457,6 +457,12 @@ function isAnlassPotRow(row: { payer_group_id: string | null }): boolean {
   return isGrossanlassLogisticsPayer(row.payer_group_id, overview.value?.logistics_group_id)
 }
 
+function optionalChf(value: unknown): number | null {
+  if (value === '' || value === null || value === undefined) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
 function payerRahmenValue(row: { payer_group_id: string | null }): string {
   if (isAnlassPotRow(row)) return String(rahmenInput.value ?? '')
   return payerRahmen[row.payer_group_id ?? 'central'] ?? ''
@@ -617,12 +623,12 @@ async function saveCost() {
       requesting_group_id: form.requesting_group_id || null,
       payer_group_id: form.payer_group_id ?? null,
       asset_treatment: form.cost_kind === 'purchase' ? (form.asset_treatment ?? 'expense') : null,
-      soll_chf: form.soll_chf === '' || form.soll_chf === undefined ? null : Number(form.soll_chf),
-      cash_out_chf: form.cash_out_chf === '' || form.cash_out_chf === undefined ? null : Number(form.cash_out_chf),
-      deposit_chf: form.deposit_chf === '' || form.deposit_chf === undefined ? null : Number(form.deposit_chf),
-      deposit_returned_chf: form.deposit_returned_chf === '' || form.deposit_returned_chf === undefined ? null : Number(form.deposit_returned_chf),
-      proceeds_expected_chf: form.proceeds_expected_chf === '' || form.proceeds_expected_chf === undefined ? null : Number(form.proceeds_expected_chf),
-      proceeds_actual_chf: form.proceeds_actual_chf === '' || form.proceeds_actual_chf === undefined ? null : Number(form.proceeds_actual_chf),
+      soll_chf: optionalChf(form.soll_chf),
+      cash_out_chf: optionalChf(form.cash_out_chf),
+      deposit_chf: optionalChf(form.deposit_chf),
+      deposit_returned_chf: optionalChf(form.deposit_returned_chf),
+      proceeds_expected_chf: optionalChf(form.proceeds_expected_chf),
+      proceeds_actual_chf: optionalChf(form.proceeds_actual_chf),
     }
     if (!editingId.value) {
       payload.procurement_line_id = form.procurement_line_id || null
