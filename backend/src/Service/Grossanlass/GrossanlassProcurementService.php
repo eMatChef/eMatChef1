@@ -13,6 +13,7 @@ use App\Entity\ActivityGrossanlassProcurementQuote;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
+use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassInquiry;
@@ -30,6 +31,8 @@ class GrossanlassProcurementService
         private GrossanlassProcurementQuoteStorageService $quoteStorage,
         private GrossanlassProcurementQuotePdfTextService $quotePdfText,
         private GrossanlassAnswerCollectorService $collector,
+        private GrossanlassWishService $wishService,
+        private GrossanlassCostService $costService,
     ) {}
 
     /**
@@ -198,6 +201,7 @@ class GrossanlassProcurementService
             $this->markWishAcceptedForProcurement($wish, $user);
         }
 
+        $this->costService->ensureMainForLine($line, $data);
         $this->entityManager->flush();
 
         return $this->lineToArray($line);
@@ -391,7 +395,19 @@ class GrossanlassProcurementService
         $category->setDepartment($department);
         $category->setParent($parent);
         $category->setName($name);
-        $category->setSortOrder((int) ($data['sort_order'] ?? 0));
+        if (isset($data['sort_order'])) {
+            $category->setSortOrder((int) $data['sort_order']);
+        } else {
+            $maxSort = 0;
+            $parentId = $parent?->getId();
+            foreach ($this->loadCategories($department) as $row) {
+                if ($row->getParentId() !== $parentId) {
+                    continue;
+                }
+                $maxSort = max($maxSort, $row->getSortOrder());
+            }
+            $category->setSortOrder($maxSort + 10);
+        }
 
         $this->entityManager->persist($category);
         $this->entityManager->flush();
@@ -619,25 +635,12 @@ class GrossanlassProcurementService
             }
         }
 
-        $finance = $this->entityManager->find(ActivityGrossanlassProcurementFinance::class, $department->getId());
-        $rahmenChf = $this->decimalToFloat($finance?->getRahmenChf());
+        $ledger = $this->costService->buildLedgerOverview($department, $user);
+        $ledger['totals']['open_quotes_count'] = $openQuotesCount;
+        $ledger['totals']['ordered_not_received_count'] = $orderedNotReceivedCount;
+        $ledger['by_status'] = $byStatus;
 
-        return [
-            'totals' => [
-                'line_count' => count($lines),
-                'rahmen_chf' => $rahmenChf,
-                'soll_chf' => round($sollChf, 2),
-                'ist_chf' => round($istChf, 2),
-                'delta_chf' => round($sollChf - $istChf, 2),
-                'rahmen_minus_ist_chf' => $rahmenChf !== null ? round($rahmenChf - $istChf, 2) : null,
-                'rahmen_minus_soll_chf' => $rahmenChf !== null ? round($rahmenChf - $sollChf, 2) : null,
-                'open_quotes_count' => $openQuotesCount,
-                'ordered_not_received_count' => $orderedNotReceivedCount,
-            ],
-            'by_status' => $byStatus,
-            'by_group' => array_values($byGroup),
-            'by_category' => array_values($byCategory),
-        ];
+        return $ledger;
     }
 
     /**
@@ -649,17 +652,25 @@ class GrossanlassProcurementService
     {
         $this->assertCanManageProcurement($department, $user);
 
-        $finance = $this->entityManager->find(ActivityGrossanlassProcurementFinance::class, $department->getId());
-        if (!$finance instanceof ActivityGrossanlassProcurementFinance) {
-            $finance = new ActivityGrossanlassProcurementFinance();
-            $finance->setDepartment($department);
-            $this->entityManager->persist($finance);
+        if (array_key_exists('rahmen_chf', $data)) {
+            $this->costService->upsertBudget($department, $user, [
+                'payer_group_id' => null,
+                'rahmen_chf' => $data['rahmen_chf'],
+            ]);
         }
 
-        if (array_key_exists('rahmen_chf', $data)) {
-            $finance->setRahmenChf($this->parseOptionalAmountChf($data['rahmen_chf']));
+        $payerBudgets = $data['payer_budgets'] ?? null;
+        if (is_array($payerBudgets)) {
+            foreach ($payerBudgets as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $this->costService->upsertBudget($department, $user, [
+                    'payer_group_id' => $row['payer_group_id'] ?? null,
+                    'rahmen_chf' => $row['rahmen_chf'] ?? null,
+                ]);
+            }
         }
-        $finance->touchUpdatedAt();
 
         $categoryRows = $data['categories'] ?? null;
         if (is_array($categoryRows)) {
@@ -922,6 +933,7 @@ class GrossanlassProcurementService
 
         $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT);
         $line->touchUpdatedAt();
+        $this->costService->syncFromSelectedQuote($line, $quote);
         $this->entityManager->flush();
 
         return $this->lineToArray($line);
@@ -974,6 +986,7 @@ class GrossanlassProcurementService
             $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BESTELLT);
         }
         $line->touchUpdatedAt();
+        $this->costService->syncFromOrder($line, $order);
         $this->entityManager->flush();
 
         return $this->lineToArray($line);
@@ -1118,35 +1131,7 @@ class GrossanlassProcurementService
             }
         }
 
-        if (isset($data['label'])) {
-            $label = trim((string) $data['label']);
-            if ($label === '') {
-                throw new \InvalidArgumentException('Bezeichnung darf nicht leer sein');
-            }
-            $wish->setLabel($label);
-        }
-        if (isset($data['quantity'])) {
-            $qty = (int) $data['quantity'];
-            if ($qty < 1) {
-                throw new \InvalidArgumentException('Anzahl muss mindestens 1 sein');
-            }
-            $wish->setQuantity($qty);
-        }
-        if (isset($data['location'])) {
-            $wish->setLocation(trim((string) $data['location']));
-        }
-        if (array_key_exists('notes', $data)) {
-            $notes = trim((string) ($data['notes'] ?? ''));
-            $wish->setNotes($notes === '' ? null : $notes);
-        }
-
-        $wish->touchUpdatedAt();
-        $response = $wish->getResponse();
-        if ($response !== null) {
-            $response->touchUpdatedAt($user);
-        }
-
-        $this->entityManager->flush();
+        $this->wishService->updateWish($department, $user, $wish->getRoundId(), $wishLineId, $data);
 
         return $this->getBedarfOverview($department, $user);
     }
@@ -1587,10 +1572,45 @@ class GrossanlassProcurementService
             'location' => $wish->getLocation(),
             'valid_from' => $wish->getValidFrom()->format(\DateTimeInterface::ATOM),
             'valid_to' => $wish->getValidTo()->format(\DateTimeInterface::ATOM),
+            'timeframe_notes' => $wish->getTimeframeNotes(),
             'notes' => $wish->getNotes(),
+            'status' => $wish->getStatus(),
+            'created_by_user_id' => $wish->getCreatedByUserId(),
             'created_by_name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
             'created_at' => $wish->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'updated_at' => $wish->getUpdatedAt()->format(\DateTimeInterface::ATOM),
+            'custom_values' => $this->loadWishCustomValues($wish),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function loadWishCustomValues(ActivityGrossanlassWishLine $wish): array
+    {
+        $response = $wish->getResponse();
+        if ($response === null) {
+            return [];
+        }
+
+        $values = $this->entityManager->getRepository(ActivityGrossanlassWishResponseValue::class)
+            ->findBy(['responseId' => $response->getId()]);
+        $out = [];
+        foreach ($values as $value) {
+            if (!$value instanceof ActivityGrossanlassWishResponseValue) {
+                continue;
+            }
+            $fieldId = $value->getFieldId();
+            if ($value->getValueJson() !== null) {
+                $out[$fieldId] = $value->getValueJson();
+            } elseif ($value->getValueNumber() !== null) {
+                $out[$fieldId] = (float) $value->getValueNumber();
+            } else {
+                $out[$fieldId] = $value->getValueText();
+            }
+        }
+
+        return $out;
     }
 
     /**

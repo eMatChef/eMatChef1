@@ -1,3 +1,4 @@
+import { nextTick } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import type { NavigationGuardNext, RouteLocationNormalized, RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -904,6 +905,16 @@ const routes: RouteRecordRaw[] = [
         redirect: (to) => ({ path: `/${to.params.departmentId}/planung/runden/${to.params.roundId}` }),
       },
       {
+        path: 'kosten',
+        name: 'GrossanlassKosten',
+        component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: ['matwart', 'depchef'],
+          ...routeHead('grossanlassKosten'),
+        },
+      },
+      {
         path: 'beschaffung',
         component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
         meta: {
@@ -918,18 +929,11 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'uebersicht',
-            redirect: { name: 'GrossanlassBeschaffungFinanzen' },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
           },
           {
             path: 'finanzen',
-            name: 'GrossanlassBeschaffungFinanzen',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungFinanzenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: ['matwart', 'depchef'],
-              beschaffungTab: 'finanzen',
-              ...routeHead('grossanlassBeschaffungFinanzen'),
-            },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/kosten` }),
           },
           {
             path: 'bedarf',
@@ -1844,14 +1848,11 @@ const routes: RouteRecordRaw[] = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior(to, _from, savedPosition) {
+  scrollBehavior(to) {
     if (to.hash) {
       return { el: to.hash, behavior: 'smooth' }
     }
-    if (savedPosition) {
-      return savedPosition
-    }
-    return { top: 0 }
+    return { left: 0, top: 0 }
   },
 })
 
@@ -2432,9 +2433,23 @@ router.beforeEach(async (to, from, next) => {
   next()
 })
 
+function scrollAppToTop() {
+  window.scrollTo(0, 0)
+  document.documentElement.scrollTop = 0
+  document.body.scrollTop = 0
+  document.querySelectorAll('.page-main, .v-application__wrap').forEach((el) => {
+    if (el instanceof HTMLElement) el.scrollTop = 0
+  })
+}
+
 router.afterEach((to) => {
   usePageHeadStore().clearDynamic()
   syncDocumentHead(to)
+  if (to.hash) return
+  void nextTick(() => {
+    scrollAppToTop()
+    requestAnimationFrame(scrollAppToTop)
+  })
 })
 
 export default router

@@ -16,6 +16,7 @@ export interface GlobalAddressFormData {
   country?: string | null
   contact_first_name?: string | null
   contact_last_name?: string | null
+  contact_salutation?: string | null
   email?: string | null
   phone?: string | null
   mobile?: string | null

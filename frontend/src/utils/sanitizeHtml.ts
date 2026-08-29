@@ -38,7 +38,7 @@ const PURIFY_CONFIG: Config = {
 
 const MAIL_PURIFY_CONFIG: Config = {
   ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
-  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'style'],
   ALLOW_DATA_ATTR: false,
   ALLOW_ARIA_ATTR: false,
   ALLOW_UNKNOWN_PROTOCOLS: false,
@@ -46,6 +46,7 @@ const MAIL_PURIFY_CONFIG: Config = {
 }
 
 let hooksInstalled = false
+let mailStyleHookInstalled = false
 
 function ensureLinkHooks(): void {
   if (typeof window === 'undefined' || hooksInstalled) {
@@ -62,6 +63,23 @@ function ensureLinkHooks(): void {
     }
     el.setAttribute('target', '_blank')
     el.setAttribute('rel', 'noopener noreferrer')
+  })
+}
+
+function ensureMailStyleHook(): void {
+  if (typeof window === 'undefined' || mailStyleHookInstalled) {
+    return
+  }
+  mailStyleHookInstalled = true
+  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+    if (data.attrName !== 'style') {
+      return
+    }
+    const value = String(data.attrValue || '').trim()
+    const ok = node.nodeName === 'SPAN' && /^font-size:\s*\d+(\.\d+)?(pt|px)\s*;?$/i.test(value)
+    if (!ok) {
+      data.keepAttr = false
+    }
   })
 }
 
@@ -99,5 +117,6 @@ export function sanitizeMailHtml(html: string): string {
   }
 
   ensureLinkHooks()
+  ensureMailStyleHook()
   return DOMPurify.sanitize(s, MAIL_PURIFY_CONFIG)
 }

@@ -1,5 +1,5 @@
 import apiClient from './apiClient'
-import type { GrossanlassWishKind } from './grossanlassWishes'
+import type { CreateGrossanlassWishPayload, GrossanlassWishKind } from './grossanlassWishes'
 
 export type GrossanlassProcurementStatus =
   | 'bedarf'
@@ -23,8 +23,13 @@ export interface GrossanlassProcurementPoolWish {
   valid_from: string
   valid_to: string
   notes?: string | null
+  created_by_user_id?: string
   created_by_name: string
   created_at: string
+  updated_at?: string
+  status?: string
+  timeframe_notes?: string | null
+  custom_values?: Record<string, unknown>
   received_quantity?: number
 }
 
@@ -166,23 +171,34 @@ export interface GrossanlassBedarfOverview {
 }
 
 export interface GrossanlassProcurementOverview {
+  can_manage?: boolean
+  logistics_group_id?: string | null
+  logistics_group_name?: string | null
   totals: {
     line_count: number
     rahmen_chf: number | null
     soll_chf: number
     ist_chf: number
+    cash_chf?: number
+    netto_chf?: number
     delta_chf: number
     rahmen_minus_ist_chf: number | null
+    rahmen_minus_cash_chf?: number | null
     rahmen_minus_soll_chf: number | null
     open_quotes_count: number
     ordered_not_received_count: number
   }
   by_status: Record<string, number>
+  by_kind?: GrossanlassCostKindRow[]
+  by_payer?: GrossanlassCostPayerRow[]
+  by_requester?: GrossanlassCostRequesterRow[]
   by_group: Array<{
     group_id: string
     group_name: string
     soll_chf: number
     ist_chf: number
+    cash_chf?: number
+    netto_chf?: number
     line_count: number
   }>
   by_category: Array<{
@@ -193,9 +209,109 @@ export interface GrossanlassProcurementOverview {
     rahmen_chf: number | null
     soll_chf: number
     ist_chf: number
+    cash_chf?: number
+    netto_chf?: number
     line_count: number
   }>
+  costs?: GrossanlassCost[]
+  budgets?: GrossanlassBudget[]
 }
+
+export type GrossanlassCostKind = 'purchase' | 'rental' | 'loan' | 'buy_resale' | 'ancillary'
+export type GrossanlassCostStatus =
+  | 'planned'
+  | 'committed'
+  | 'paid'
+  | 'for_sale'
+  | 'sold'
+  | 'returned'
+  | 'cancelled'
+export type GrossanlassAssetTreatment = 'expense' | 'inventory'
+
+export interface GrossanlassCostKindRow {
+  cost_kind: GrossanlassCostKind
+  cash_chf: number
+  netto_chf: number
+  soll_chf: number
+  line_count: number
+}
+
+export interface GrossanlassCostPayerRow {
+  payer_group_id: string | null
+  payer_name: string
+  rahmen_chf: number | null
+  cash_chf: number
+  netto_chf: number
+  soll_chf: number
+  line_count: number
+}
+
+export interface GrossanlassCostRequesterRow {
+  group_id: string
+  group_name: string
+  soll_chf: number
+  ist_chf: number
+  cash_chf: number
+  netto_chf: number
+  line_count: number
+}
+
+export interface GrossanlassBudget {
+  id?: string
+  payer_group_id: string | null
+  payer_name: string | null
+  rahmen_chf: number | null
+  updated_at?: string
+}
+
+export interface GrossanlassCost {
+  id: string
+  department_id: string
+  procurement_line_id: string | null
+  commitment_id: string | null
+  cost_kind: GrossanlassCostKind
+  asset_treatment: GrossanlassAssetTreatment | null
+  requesting_group_id: string | null
+  requesting_group_name: string | null
+  payer_group_id: string | null
+  payer_group_name: string | null
+  category_id: string | null
+  category_name: string | null
+  label: string
+  partner_address_id: string | null
+  soll_chf: number | null
+  cash_out_chf: number | null
+  deposit_chf: number | null
+  deposit_returned_chf: number | null
+  proceeds_expected_chf: number | null
+  proceeds_actual_chf: number | null
+  status: GrossanlassCostStatus
+  notes: string | null
+  cash_chf: number
+  netto_chf: number
+  created_at: string
+  updated_at: string
+}
+
+export type GrossanlassCostPayload = Partial<{
+  label: string
+  cost_kind: GrossanlassCostKind
+  asset_treatment: GrossanlassAssetTreatment | null
+  status: GrossanlassCostStatus
+  procurement_line_id: string | null
+  commitment_id: string | null
+  requesting_group_id: string | null
+  payer_group_id: string | null
+  category_id: string | null
+  partner_address_id: string | null
+  soll_chf: number | null
+  cash_out_chf: number | null
+  deposit_chf: number | null
+  deposit_returned_chf: number | null
+  proceeds_expected_chf: number | null
+  proceeds_actual_chf: number | null
+  notes: string | null
+}>
 
 export async function getGrossanlassBedarfOverview(departmentId: string): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.get<GrossanlassBedarfOverview>(
@@ -247,12 +363,7 @@ export async function discardGrossanlassCollectorItem(
 export async function updateGrossanlassBedarfWish(
   departmentId: string,
   wishLineId: string,
-  data: Partial<{
-    label: string
-    quantity: number
-    location: string
-    notes: string | null
-  }>,
+  data: Partial<CreateGrossanlassWishPayload>,
 ): Promise<GrossanlassBedarfOverview> {
   const response = await apiClient.put<GrossanlassBedarfOverview>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/wishes/${wishLineId}`,
@@ -275,6 +386,7 @@ export async function saveGrossanlassProcurementRahmen(
   data: {
     rahmen_chf: number | null
     categories: Array<{ category_id: string; rahmen_chf: number | null }>
+    payer_budgets?: Array<{ payer_group_id: string | null; rahmen_chf: number | null }>
   },
 ): Promise<GrossanlassProcurementOverview> {
   const response = await apiClient.put<GrossanlassProcurementOverview>(
@@ -305,6 +417,9 @@ export async function createGrossanlassProcurementLine(
     group_id?: string
     notes?: string | null
     category_id?: string | null
+    cost_kind?: GrossanlassCostKind
+    payer_group_id?: string | null
+    asset_treatment?: GrossanlassAssetTreatment | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.post<GrossanlassProcurementLine>(
@@ -321,6 +436,7 @@ export async function addWishesToGrossanlassProcurementLine(
     wish_line_ids: string[]
     label?: string
     quantity?: number
+    category_id?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.post<GrossanlassProcurementLine>(
@@ -546,6 +662,51 @@ export async function recordGrossanlassProcurementReceived(
     data,
   )
   return response.data
+}
+
+export async function listGrossanlassBudgets(departmentId: string): Promise<GrossanlassBudget[]> {
+  const response = await apiClient.get<GrossanlassBudget[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/budgets`,
+  )
+  return response.data
+}
+
+export async function listGrossanlassCosts(
+  departmentId: string,
+  params?: Record<string, string | undefined>,
+): Promise<GrossanlassCost[]> {
+  const response = await apiClient.get<GrossanlassCost[]>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/costs`,
+    { params },
+  )
+  return response.data
+}
+
+export async function createGrossanlassCost(
+  departmentId: string,
+  data: GrossanlassCostPayload,
+): Promise<GrossanlassCost> {
+  const response = await apiClient.post<GrossanlassCost>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/costs`,
+    data,
+  )
+  return response.data
+}
+
+export async function updateGrossanlassCost(
+  departmentId: string,
+  costId: string,
+  data: GrossanlassCostPayload,
+): Promise<GrossanlassCost> {
+  const response = await apiClient.patch<GrossanlassCost>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/costs/${costId}`,
+    data,
+  )
+  return response.data
+}
+
+export async function deleteGrossanlassCost(departmentId: string, costId: string): Promise<void> {
+  await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/costs/${costId}`)
 }
 
 export function formatChf(amount: number | null | undefined): string {

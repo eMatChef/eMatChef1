@@ -118,7 +118,7 @@ export async function acceptGrossanlassGuestLoan(
 
 export async function sellGrossanlassToGuest(
   departmentId: string,
-  data: { guest_department_id: string; commitment_id: string; qty?: number },
+  data: { guest_department_id: string; commitment_id: string; qty?: number; amount_chf?: number | null },
 ): Promise<GaGaestePayload> {
   const response = await apiClient.post<GaGaestePayload>(
     `/api/departments/${departmentId}/grossanlass/gaeste/sales`,

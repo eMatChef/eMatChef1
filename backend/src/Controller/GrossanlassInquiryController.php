@@ -65,6 +65,25 @@ class GrossanlassInquiryController extends AbstractController
         );
     }
 
+    #[Route('/geocode-missing', name: 'geocode_missing', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function geocodeMissing(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $department, User $user) => $this->inquiries->geocodeMissing($department, $user));
+    }
+
+    #[Route('/web-lookup', name: 'web_lookup', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function webLookup(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->webLookup($department, $user, $data),
+        );
+    }
+
     #[Route('/mark-sent', name: 'mark_sent', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function markSent(string $departmentId, Request $request): JsonResponse
@@ -171,6 +190,16 @@ class GrossanlassInquiryController extends AbstractController
         return $this->handle(
             $departmentId,
             fn (Department $department, User $user) => $this->inquiries->update($department, $user, $inquiryId, $data),
+        );
+    }
+
+    #[Route('/{inquiryId}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(string $departmentId, string $inquiryId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->delete($department, $user, $inquiryId),
         );
     }
 
