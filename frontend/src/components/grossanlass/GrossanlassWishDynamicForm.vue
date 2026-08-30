@@ -366,7 +366,7 @@ const bauprojektAutocompleteItems = computed(() => {
   const selectedQuery = selected
     && (q === selected.name.toLowerCase() || q === selected.id.toLowerCase())
 
-  let list = bauprojekte.value
+  let list: GrossanlassGroup[] = bauprojekte.value
   if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
     const branchIds = collectBranchIds(local.ressortGroupId)
     list = list.filter((g) => branchIds.has(g.id))
