@@ -23,6 +23,12 @@ export type GaPreviewEinsatz = {
   who: string
   conflictId?: string
   barRole?: GaEinsatzBarRole
+  delivery?: 'trip' | 'pickup'
+  tripReleased?: boolean
+  packed?: boolean
+  chauffeurUserId?: string | null
+  destinationPlaceId?: string | null
+  place?: 'lager' | 'assigned' | 'out'
 }
 
 export type GaPreviewConflict = {

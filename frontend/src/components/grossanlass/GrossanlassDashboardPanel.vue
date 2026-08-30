@@ -32,7 +32,7 @@
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statAwaitingDelivery') }}</span>
         </div>
         <router-link
-          v-if="canManageProcurement && inquiryStats"
+          v-if="canWorkMailbox && inquiryStats"
           :to="anfragenLink"
           class="stat-card stat-card--link"
         >
@@ -40,7 +40,7 @@
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryDrafts') }}</span>
         </router-link>
         <router-link
-          v-if="canManageProcurement && inquiryStats"
+          v-if="canWorkMailbox && inquiryStats"
           :to="anfragenLink"
           class="stat-card stat-card--link"
         >
@@ -48,7 +48,7 @@
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryWaiting') }}</span>
         </router-link>
         <router-link
-          v-if="canManageProcurement && inquiryStats"
+          v-if="canWorkMailbox && inquiryStats"
           :to="anfragenLink"
           class="stat-card stat-card--link"
         >
@@ -56,12 +56,20 @@
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryReplies') }}</span>
         </router-link>
         <router-link
-          v-if="canManageProcurement && inquiryStats"
+          v-if="canWorkMailbox && inquiryStats"
           :to="anfragenLink"
           class="stat-card stat-card--link"
         >
           <span class="stat-card__value">{{ inquiryStats.zusage }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryYes') }}</span>
+        </router-link>
+        <router-link
+          v-if="canSeeUebersicht && uebersicht"
+          :to="tripsLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ tripOrderCount }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statTrips') }}</span>
         </router-link>
       </div>
 
@@ -138,7 +146,7 @@
             <span>{{ t('sidebar.materials') }}</span>
           </router-link>
           <router-link
-            v-if="canManageProcurement"
+            v-if="canSeeUebersicht"
             :to="materialUebersichtLink"
             class="quick-link-card"
           >
@@ -240,6 +248,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  gaCanManageProcurement,
+  gaCanSeeAnlassOverview,
+  gaCanWorkMailbox,
+} from '@/utils/grossanlassAccess'
 import { useAuthStore } from '@/stores/auth'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
@@ -290,10 +303,9 @@ const wishDialogOpen = ref(false)
 const activeWishRoundId = ref<string | null>(null)
 
 const canManageRounds = computed(() => !isUserRole.value)
-const canManageProcurement = computed(() => {
-  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
-})
+const canManageProcurement = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
+const canWorkMailbox = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
+const canSeeUebersicht = computed(() => gaCanSeeAnlassOverview(authStore.currentDepartmentRole))
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
 const otherRounds = computed(() =>
@@ -323,6 +335,15 @@ const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
 const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
+const tripsLink = computed(() => ({
+  path: `/${props.departmentId}/material-uebersicht/einsaetze`,
+  query: { delivery: 'trip' },
+}))
+const tripOrderCount = computed(() =>
+  (uebersicht.value?.einsaetze ?? []).filter(
+    (row) => row.delivery === 'trip' && row.status !== 'returned',
+  ).length,
+)
 const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
 const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
 const stock = computed(() => {
@@ -414,6 +435,8 @@ async function load() {
       } catch {
         procurementOverview.value = null
       }
+    }
+    if (canWorkMailbox.value) {
       try {
         const inquiries = await getGrossanlassInquiries(props.departmentId)
         inquiryStats.value = {
@@ -425,6 +448,8 @@ async function load() {
       } catch {
         inquiryStats.value = null
       }
+    }
+    if (canSeeUebersicht.value) {
       try {
         uebersicht.value = await getGrossanlassUebersicht(props.departmentId)
       } catch {

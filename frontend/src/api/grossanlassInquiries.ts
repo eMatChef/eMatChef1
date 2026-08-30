@@ -116,6 +116,17 @@ export async function deleteGrossanlassInquiry(departmentId: string, inquiryId: 
   await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}`)
 }
 
+export async function deleteGrossanlassInquiries(
+  departmentId: string,
+  ids: string[],
+): Promise<{ ok: true; deleted: string[] }> {
+  const response = await apiClient.post<{ ok: true; deleted: string[] }>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/bulk-delete`,
+    { ids },
+  )
+  return response.data
+}
+
 export async function importGrossanlassInquiryTips(departmentId: string): Promise<GrossanlassInquiry[]> {
   const response = await apiClient.post<GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/from-tips`,

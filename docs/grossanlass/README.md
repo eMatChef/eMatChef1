@@ -4,7 +4,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 
 **Stand:** Juni 2026 · **Status:** Spezifikation (Ziel); Umsetzung offen
 
-**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
+**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
 
 ---
 
@@ -283,9 +283,10 @@ Phase 1 nur Platzhalter §3.0. Vollständige Widgets:
 | **Teilnehmer**           | In Entwurf: geplant · Nach Freigabe: pending / accepted             |
 | **Nächste Activities**   | Aufbau 15.7., Vorevent Sitzung 12.5., …                             |
 | **Checkliste vor Start** | Runden geschlossen? Wünsche offen?                                  |
+| **Fahraufträge**         | Anzahl Einsätze mit Checkbox Fahrt; Klick → Liste. Selbstabholung nicht hier. Siehe [rollen-postfach-fahrten.md §7.4](./rollen-postfach-fahrten.md#74-dashboard--box-fahraufträge) |
 
 
-Klick → Planung, Materialübersicht oder gefiltertes Ressort.
+Klick → Planung, Materialübersicht, Fahrauftrag-Liste oder gefiltertes Ressort.
 
 ### 3.3 Dashboard — Layout (Wireframe)
 
@@ -297,6 +298,9 @@ Klick → Planung, Materialübersicht oder gefiltertes Ressort.
 │  │ Runden      │ │ Lager 1'240 │ │ Zusagen 8/12        │  │
 │  │ 2 offen     │ │ Draußen 156 │ │ pending             │  │
 │  └─────────────┘ └─────────────┘ └─────────────────────┘  │
+│  ┌─────────────┐                                           │
+│  │ Fahraufträge│  3 offen → Klick Liste (nur Checkbox Fahrt)│
+│  └─────────────┘                                           │
 │  Ressorts                                                    │
 │  Verpflegung    Lager 400 │ zugewiesen 120 │ draußen 80    │
 │  Technik        …                                          │
@@ -1230,6 +1234,8 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 
 ## 17. Berechtigungs-Matrix
 
+**Soll (Aug 2026):** MW, CMW, OK-Leitung (`dc`), Bereichsleitung, Komm/Spon, Helfer; Postfach und Fahrten — [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md). Die Tabelle darunter ist der ältere Schnitt (CM = MW/DC).
+
 
 | Kürzel | Bedeutung                      |
 | ------ | ------------------------------ |
@@ -1365,6 +1371,7 @@ Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `departm
 ## Siehe auch
 
 - [Konzept 2026-08-23](./20260823_New_concept.md) — Anfragen, Grob/Fein, Kontakt erst beim Nehmen
+- [Rollen, Postfach, Fahrten](./rollen-postfach-fahrten.md) — MW/CMW/OK-L, Label `eMatChef`, Einsatz mit Checkbox Fahrt = Fahrauftrag, Selbstabholung, Teilpacken, Dashboard-Box
 - [Kostenübersicht](./kosten.md) — Einkauf / Miete / Weiterverkauf, Zahler, Ledger
 - [Aktivitäten-Übersicht](../activities/README.md)
 - [J+S-Material](../activities/js-material/README.md)

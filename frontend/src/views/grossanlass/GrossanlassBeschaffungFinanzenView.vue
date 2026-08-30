@@ -97,12 +97,14 @@
         </div>
       </div>
 
-      <v-expansion-panels v-model="openSections" multiple class="kosten-accordion">
+      <v-expansion-panels v-model="openSections" multiple class="e-accordions">
         <v-expansion-panel value="lines">
           <v-expansion-panel-title>
-            <span class="panel-title">
-              {{ t('grossanlass.beschaffung.kosten.linesTitle') }}
-              <span class="group-count">{{ filteredCosts.length }}</span>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ t('grossanlass.beschaffung.kosten.linesTitle') }}
+                <span class="panel-head__count">{{ filteredCosts.length }}</span>
+              </span>
             </span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
@@ -164,9 +166,11 @@
 
         <v-expansion-panel value="payers">
           <v-expansion-panel-title>
-            <span class="panel-title">
-              {{ slice === 'payer' ? t('grossanlass.beschaffung.kosten.byPayer') : t('grossanlass.beschaffung.kosten.byRequester') }}
-              <span class="group-count">{{ slice === 'payer' ? payerRows.length : requesterRows.length }}</span>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ slice === 'payer' ? t('grossanlass.beschaffung.kosten.byPayer') : t('grossanlass.beschaffung.kosten.byRequester') }}
+                <span class="panel-head__count">{{ slice === 'payer' ? payerRows.length : requesterRows.length }}</span>
+              </span>
             </span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
@@ -225,9 +229,11 @@
 
         <v-expansion-panel value="categories">
           <v-expansion-panel-title>
-            <span class="panel-title">
-              {{ t('grossanlass.beschaffung.finanzen.byCategory') }}
-              <span class="group-count">{{ categoryRows.length }}</span>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ t('grossanlass.beschaffung.finanzen.byCategory') }}
+                <span class="panel-head__count">{{ categoryRows.length }}</span>
+              </span>
             </span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
@@ -709,27 +715,6 @@ onMounted(load)
   background: #0f172a;
   color: #fff;
   border-color: #0f172a;
-}
-.kosten-accordion :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px !important;
-  overflow: hidden;
-  margin-bottom: 10px;
-  background: #fff;
-}
-.panel-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-.group-count {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-  background: #f1f5f9;
-  border-radius: 999px;
-  padding: 1px 8px;
 }
 .section-hint { margin: 0 0 10px; color: #64748b; font-size: 0.82rem; }
 .table-wrap { overflow-x: auto; }

@@ -89,6 +89,38 @@
         :bookings="dayBookings"
         :clash="slotBusy"
       />
+      <div v-if="mode === 'einsatz'" class="book-delivery">
+        <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
+        <div class="book-delivery__row">
+          <ECheckbox
+            :model-value="delivery === 'trip'"
+            :label="t('grossanlass.materialUebersicht.deliveryTrip')"
+            hide-details
+            @update:model-value="onDeliveryTrip"
+          />
+          <ECheckbox
+            :model-value="delivery === 'pickup'"
+            :label="t('grossanlass.materialUebersicht.deliveryPickup')"
+            hide-details
+            @update:model-value="onDeliveryPickup"
+          />
+        </div>
+        <p class="book-delivery__hint">{{ t('grossanlass.materialUebersicht.deliveryHint') }}</p>
+      </div>
+      <EAutocomplete
+        v-if="needsDriver"
+        v-model="destinationPlaceId"
+        v-model:menu="placeMenuOpen"
+        :items="placeItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.materialUebersicht.destinationLabel')"
+        :placeholder="t('grossanlass.materialUebersicht.destinationPlaceholder')"
+        :menu-props="listMenuProps"
+        :no-filter="false"
+        clearable
+        hide-details
+      />
       <EAutocomplete
         v-if="needsDriver"
         v-model="chauffeurId"
@@ -176,7 +208,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EAutocomplete, EButton, EDateRangeField, EDialog, ETimeField } from '@/components/form/base'
+import { EAutocomplete, EButton, ECheckbox, EDateRangeField, EDialog, ETimeField } from '@/components/form/base'
 import GrossanlassEinsatzSlotStrip from '@/views/grossanlass/GrossanlassEinsatzSlotStrip.vue'
 import {
   isoRangesOverlap,
@@ -189,7 +221,12 @@ import {
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 
 export type GaBookPreviewMode = 'einsatz' | 'order'
-export type GaBookPreviewDraft = GaPreviewWishTemplate & { fromWish: boolean; chauffeurUserId?: string }
+export type GaBookPreviewDraft = GaPreviewWishTemplate & {
+  fromWish: boolean
+  chauffeurUserId?: string
+  delivery?: 'trip' | 'pickup'
+  destinationPlaceId?: string
+}
 type BookSource = 'own' | 'wish'
 type BookStep = 'pick' | 'details'
 
@@ -210,6 +247,7 @@ const props = defineProps<{
   rows?: GaPreviewEinsatz[]
   resources?: GaEinsatzResource[]
   chauffeurs?: Array<{ value: string; title: string; subtitle: string; mayDrive: boolean }>
+  places?: Array<{ id: string; name: string }>
 }>()
 
 const emit = defineEmits<{
@@ -220,6 +258,7 @@ const draft = defineModel<GaBookPreviewDraft | null>('draft', { default: null })
 const source = ref<BookSource>('own')
 const pickMenuOpen = ref(false)
 const chauffeurMenuOpen = ref(false)
+const placeMenuOpen = ref(false)
 const pickedId = ref<string | null>(null)
 const step = ref<BookStep>('pick')
 const fromDate = ref('')
@@ -227,6 +266,8 @@ const toDate = ref('')
 const fromTime = ref('08:00')
 const toTime = ref('18:00')
 const chauffeurId = ref<string | null>(null)
+const destinationPlaceId = ref<string | null>(null)
+const delivery = ref<'trip' | 'pickup'>('pickup')
 
 const route = useRoute()
 const { t } = useI18n()
@@ -277,13 +318,11 @@ const chauffeurItems = computed(() =>
   chauffeurPeople.value.map(({ value, title, subtitle }) => ({ value, title, subtitle })),
 )
 
-const needsDriver = computed(() => {
-  const objectId = draft.value?.objectId
-  if (!objectId) return false
-  return (props.resources ?? []).some(
-    (resource) => resource.id === objectId && resource.family === 'vehicle',
-  )
-})
+const placeItems = computed(() =>
+  (props.places ?? []).map((place) => ({ value: place.id, title: place.name })),
+)
+
+const needsDriver = computed(() => props.mode === 'einsatz' && delivery.value === 'trip')
 
 const selectedChauffeur = computed(() =>
   chauffeurPeople.value.find((person) => person.value === chauffeurId.value) ?? null,
@@ -340,11 +379,7 @@ const canConfirm = computed(() => {
     if (!fromDate.value || !toDate.value || !fromTime.value || !toTime.value) return false
     if (
       needsDriver.value
-      && !slotUnreleased.value
-      && !slotBusy.value
-      && !slotIssuedLock.value
-      && !slotOutside.value
-      && (!chauffeurId.value || chauffeurBlocked.value)
+      && (!chauffeurId.value || chauffeurBlocked.value || !destinationPlaceId.value)
     ) return false
   }
   return true
@@ -356,9 +391,12 @@ watch(open, (isOpen) => {
     source.value = 'own'
     pickMenuOpen.value = false
     chauffeurMenuOpen.value = false
+    placeMenuOpen.value = false
     pickedId.value = null
     step.value = 'pick'
     chauffeurId.value = null
+    destinationPlaceId.value = null
+    delivery.value = 'pickup'
   }
 })
 
@@ -400,7 +438,19 @@ function goDetails() {
   fromTime.value = from.time
   toTime.value = to.time
   chauffeurId.value = null
+  destinationPlaceId.value = null
+  delivery.value = 'pickup'
   step.value = 'details'
+}
+
+function onDeliveryTrip(on: boolean | null) {
+  delivery.value = on ? 'trip' : 'pickup'
+  if (delivery.value === 'pickup') chauffeurId.value = null
+}
+
+function onDeliveryPickup(on: boolean | null) {
+  delivery.value = on ? 'pickup' : 'trip'
+  if (delivery.value === 'pickup') chauffeurId.value = null
 }
 
 function confirm() {
@@ -415,6 +465,8 @@ function confirm() {
       toLabel: formatSlot(toDate.value, toTime.value),
       who: selectedChauffeur.value?.title ?? next.who,
       chauffeurUserId: chauffeurId.value || undefined,
+      destinationPlaceId: destinationPlaceId.value || undefined,
+      delivery: delivery.value,
       hasConflict: slotBusy.value || slotIssuedLock.value || slotUnreleased.value || slotOutside.value,
     }
   }
@@ -463,6 +515,29 @@ function confirm() {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   margin: 8px 0 12px;
+}
+.book-delivery {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.book-delivery__label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+}
+.book-delivery__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.book-delivery__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
 }
 </style>
 

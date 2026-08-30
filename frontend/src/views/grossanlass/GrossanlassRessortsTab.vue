@@ -52,12 +52,16 @@
       v-else
       v-model="openRessortPanels"
       multiple
-      class="ga-ressort-accordions"
+      class="e-accordions"
     >
       <v-expansion-panel value="ressorts">
         <v-expansion-panel-title>
-          {{ t('grossanlass.planung.ressorts.panelRessorts') }}
-          <span class="panel-count">{{ groups.length }}</span>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.planung.ressorts.panelRessorts') }}
+              <span class="panel-head__count">{{ groups.length }}</span>
+            </span>
+          </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
     <p v-if="canFullyManage && !logisticsGroupId" class="cost-hint">
@@ -127,6 +131,8 @@
                     :key="member.user_id"
                     :user="member"
                     :show-leader-star="member.is_leader"
+                    :show-primary-home="member.is_primary"
+                    :dept-stage-role="deptRoleForUser(member.user_id)"
                   />
                 </template>
                 <span v-else class="text-muted">–</span>
@@ -176,17 +182,27 @@
       </v-expansion-panel>
       <v-expansion-panel value="members">
         <v-expansion-panel-title>
-          {{ t('grossanlass.planung.ressorts.panelMembers') }}
-          <span class="panel-count">{{ uniqueMembers.length }}</span>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.planung.ressorts.panelMembers') }}
+              <span class="panel-head__count">{{ uniqueMembers.length }}</span>
+            </span>
+          </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
           <ul v-if="uniqueMembers.length" class="member-overview">
-            <li v-for="row in uniqueMembers" :key="row.member.user_id" class="member-overview__row">
-              <UserAvatarBadge :user="row.member" :show-leader-star="row.member.is_leader" />
-              <div class="member-overview__meta">
-                <strong>{{ row.member.name }}</strong>
-                <span>{{ row.groups.join(' · ') }}</span>
-              </div>
+            <li v-for="row in uniqueMembers" :key="row.groupMember.user_id" class="member-overview__row">
+              <DepartmentMemberRow
+                :name="row.departmentMember?.name || row.groupMember.name"
+                :subtitle="row.groups.join(' · ')"
+                :avatar="row.groupMember"
+                :show-leader-star="row.isLeader"
+                :show-primary-home="row.isPrimary"
+                :dept-stage-role="row.departmentMember?.role"
+                :can-manage="!!row.departmentMember && canManageMember(row.departmentMember)"
+                @details="openMemberDetail(row.departmentMember)"
+                @remove="handleRemoveFromDepartment(row.departmentMember)"
+              />
             </li>
           </ul>
           <p v-else class="text-muted">{{ t('grossanlass.planung.ressorts.emptyMembersPanel') }}</p>
@@ -252,31 +268,60 @@
               <tr>
                 <th>{{ t('common.name') }}</th>
                 <th>{{ t('settings.groups.memberColEmail') }}</th>
-                <th>{{ t('common.role') }}</th>
+                <th>{{ t('settings.groups.roleLeader') }}</th>
+                <th>{{ t('grossanlass.planung.ressorts.primaryHome') }}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="member in selectedGroup.members" :key="member.user_id">
                 <td class="member-name">
+                  <UserAvatarBadge
+                    :user="member"
+                    :show-leader-star="member.is_leader"
+                    :show-primary-home="member.is_primary"
+                    :dept-stage-role="deptRoleForUser(member.user_id)"
+                  />
                   <span class="name-text">{{ member.name }}</span>
                 </td>
                 <td class="member-email">{{ member.email }}</td>
                 <td>
-                  <select
-                    v-if="canFullyManage"
-                    :value="member.role"
-                    class="role-select"
-                    @change="handleRoleChange(member, ($event.target as HTMLSelectElement).value)"
+                  <button
+                    v-if="canManageMembersForGroup(selectedGroup)"
+                    type="button"
+                    class="flag-toggle"
+                    :class="{ 'is-on': member.is_leader }"
+                    :title="t('settings.groups.roleLeader')"
+                    :aria-pressed="member.is_leader"
+                    @click="handleRoleChange(member, member.is_leader ? 'member' : 'leader')"
                   >
-                    <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
-                    <option value="member">{{ t('settings.groups.roleMember') }}</option>
-                  </select>
-                  <span v-else class="role-readonly">
-                    {{ member.is_leader ? t('settings.groups.roleLeader') : t('settings.groups.roleMember') }}
-                  </span>
+                    ★
+                  </button>
+                  <span v-else class="role-readonly">{{ member.is_leader ? '★' : '—' }}</span>
                 </td>
                 <td>
+                  <button
+                    v-if="canManageMembersForGroup(selectedGroup)"
+                    type="button"
+                    class="flag-toggle"
+                    :class="{ 'is-on': member.is_primary }"
+                    :title="t('grossanlass.planung.ressorts.primaryHome')"
+                    :aria-pressed="member.is_primary"
+                    @click="handlePrimaryChange(member, !member.is_primary)"
+                  >
+                    ⌂
+                  </button>
+                  <span v-else class="role-readonly">{{ member.is_primary ? '⌂' : '—' }}</span>
+                </td>
+                <td class="member-row-actions">
+                  <EButton
+                    v-if="canOpenMemberDetail(member.user_id)"
+                    variant="secondary"
+                    size="small"
+                    @click="openMemberDetailById(member.user_id)"
+                  >
+                    {{ t('settings.departmentUsers.memberDetails') }}
+                  </EButton>
                   <button
                     v-if="canManageMembersForGroup(selectedGroup)"
                     class="action-btn action-btn-danger"
@@ -343,6 +388,15 @@
         <EButton variant="secondary" size="small" @click="closeMembersModal">{{ t('settings.groups.close') }}</EButton>
       </template>
     </EDialog>
+
+    <DepartmentMemberDetailDialog
+      v-model="showMemberDetail"
+      :member="editingMember"
+      :department-id="departmentId"
+      hide-js-coach
+      @saved="onMemberDetailSaved"
+      @removed="onMemberDetailSaved"
+    />
   </div>
 </template>
 
@@ -355,6 +409,11 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import {
+  DepartmentMemberDetailDialog,
+  DepartmentMemberRow,
+} from '@/components/members'
+import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
 import GrossanlassHelperInviteForm from '@/components/grossanlass/GrossanlassHelperInviteForm.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
@@ -386,6 +445,11 @@ const toast = useToast()
 const confirm = useConfirm()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
 
+const {
+  canManageMember,
+  removeFromDepartment,
+} = useDepartmentMemberAdmin(departmentId)
+
 const groups = ref<GrossanlassGroup[]>([])
 const logisticsGroupId = ref<string | null>(null)
 const isSavingLogistics = ref(false)
@@ -409,6 +473,8 @@ const selectedGroup = ref<GrossanlassGroup | null>(null)
 const departmentMembers = ref<DepartmentMember[]>([])
 const isLoadingUsers = ref(false)
 const addMemberForm = ref({ user_id: '', role: 'member' })
+const showMemberDetail = ref(false)
+const editingMember = ref<DepartmentMember | null>(null)
 
 const {
   canFullyManage,
@@ -433,18 +499,38 @@ const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.memb
 const hierarchicalGroups = computed(() => flattenGrossanlassGroupsWithLevel(groups.value))
 
 const uniqueMembers = computed(() => {
-  const map = new Map<string, { member: (typeof groups.value)[number]['members'][number]; groups: string[] }>()
+  const deptById = new Map(departmentMembers.value.map((m) => [m.user_id, m]))
+  const map = new Map<
+    string,
+    {
+      groupMember: GroupMember
+      departmentMember: DepartmentMember | null
+      groups: string[]
+      isLeader: boolean
+      isPrimary: boolean
+    }
+  >()
   for (const group of groups.value) {
     for (const member of group.members ?? []) {
       const row = map.get(member.user_id)
       if (row) {
         if (!row.groups.includes(group.name)) row.groups.push(group.name)
+        if (member.is_leader) row.isLeader = true
+        if (member.is_primary) row.isPrimary = true
       } else {
-        map.set(member.user_id, { member, groups: [group.name] })
+        map.set(member.user_id, {
+          groupMember: member,
+          departmentMember: deptById.get(member.user_id) ?? null,
+          groups: [group.name],
+          isLeader: !!member.is_leader,
+          isPrimary: !!member.is_primary,
+        })
       }
     }
   }
-  return [...map.values()].sort((a, b) => a.member.name.localeCompare(b.member.name, 'de'))
+  return [...map.values()].sort((a, b) =>
+    a.groupMember.name.localeCompare(b.groupMember.name, 'de'),
+  )
 })
 
 const availableParents = computed(() => {
@@ -559,6 +645,10 @@ function getGroupMembersForDisplay(group: GrossanlassGroup): GroupMember[] {
   return [...leaders, ...members]
 }
 
+function deptRoleForUser(userId: string): string | null {
+  return departmentMembers.value.find((m) => m.user_id === userId)?.role ?? null
+}
+
 async function loadGroups() {
   if (!departmentId.value) return
   isLoading.value = true
@@ -570,6 +660,7 @@ async function loadGroups() {
     ])
     groups.value = groupList
     logisticsGroupId.value = planung.config.logistics_group_id || null
+    void loadDepartmentMembers()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     error.value = e.response?.data?.error || t('grossanlass.planung.ressorts.errorLoad')
@@ -627,6 +718,42 @@ async function loadDepartmentMembers() {
   } finally {
     isLoadingUsers.value = false
   }
+}
+
+function deptMemberFor(userId: string): DepartmentMember | undefined {
+  return departmentMembers.value.find((m) => m.user_id === userId)
+}
+
+function canOpenMemberDetail(userId: string): boolean {
+  const member = deptMemberFor(userId)
+  return !!member && canManageMember(member)
+}
+
+function openMemberDetail(member: DepartmentMember | null | undefined) {
+  if (!member || !canManageMember(member)) return
+  editingMember.value = member
+  showMemberDetail.value = true
+}
+
+function openMemberDetailById(userId: string) {
+  openMemberDetail(deptMemberFor(userId))
+}
+
+async function handleRemoveFromDepartment(member: DepartmentMember | null | undefined) {
+  if (!member) return
+  const removed = await removeFromDepartment(member)
+  if (!removed) return
+  if (editingMember.value?.user_id === member.user_id) {
+    showMemberDetail.value = false
+    editingMember.value = null
+  }
+  await loadGroups()
+}
+
+async function onMemberDetailSaved() {
+  showMemberDetail.value = false
+  editingMember.value = null
+  await loadGroups()
 }
 
 function openCreateModal(parentId: string | null = null) {
@@ -734,6 +861,21 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
   try {
     await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
       role: newRole,
+    })
+    await loadGroups()
+    const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+    if (updated) selectedGroup.value = updated
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('settings.groups.errorRoleChange'))
+  }
+}
+
+async function handlePrimaryChange(member: GroupMember, isPrimary: boolean) {
+  if (!selectedGroup.value || !departmentId.value) return
+  try {
+    await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
+      is_primary: isPrimary,
     })
     await loadGroups()
     const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
@@ -1044,6 +1186,38 @@ onMounted(() => loadGroups())
   border-bottom: 1px solid #f1f5f9;
 }
 
+.member-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flag-toggle {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.flag-toggle.is-on {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.flag-toggle.is-on[aria-pressed='true']:nth-of-type(1) {
+  border-color: #f59e0b;
+}
+
+.flag-toggle[title] {
+  color: inherit;
+}
+
 .add-member-form {
   display: flex;
   flex-wrap: wrap;
@@ -1100,15 +1274,12 @@ onMounted(() => loadGroups())
   font-size: 13px;
   color: #475569;
 }
-.ga-ressort-accordions { margin-top: 4px; }
-.ga-ressort-accordions :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px !important;
-  margin-bottom: 8px;
-}
-.panel-count { margin-left: 8px; color: #64748b; font-size: 0.85rem; }
 .member-overview { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.member-overview__row { display: flex; align-items: center; gap: 10px; }
-.member-overview__meta { display: flex; flex-direction: column; gap: 2px; }
-.member-overview__meta span { color: #64748b; font-size: 0.8rem; }
+.member-overview__row { min-height: 44px; }
+.member-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
 </style>

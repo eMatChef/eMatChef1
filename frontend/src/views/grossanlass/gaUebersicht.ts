@@ -5,6 +5,7 @@ import {
   createGrossanlassEinsatz,
   getGrossanlassUebersicht,
   issueGrossanlassEinsatz,
+  updateGrossanlassEinsatz,
   updateGrossanlassUebersichtCommitment,
   type GaUebersichtCreatePayload,
   type GaUebersichtPayload,
@@ -20,6 +21,10 @@ export type GaUebersichtStore = {
   apply: (payload: GaUebersichtPayload) => void
   create: (payload: GaUebersichtCreatePayload) => Promise<void>
   issue: (id: string, userId?: string) => Promise<void>
+  updateEinsatz: (
+    id: string,
+    data: { packed?: boolean; trip_released?: boolean; status?: string },
+  ) => Promise<void>
   togglePacked: (commitmentId: string, packed: boolean) => Promise<void>
   markReturned: (commitmentId: string) => Promise<void>
   bookingRows: () => GaPreviewEinsatz[]
@@ -38,6 +43,7 @@ const empty = (): GaUebersichtPayload => ({
   cards: [],
   wishes: [],
   issued_by_object: {},
+  places: [],
 })
 
 function toPreview(
@@ -60,6 +66,12 @@ function toPreview(
     who: row.who,
     conflictId: row.conflict_id,
     barRole: 'einsatz',
+    delivery: row.delivery ?? 'pickup',
+    tripReleased: !!row.trip_released,
+    packed: row.packed,
+    chauffeurUserId: row.chauffeur_user_id,
+    destinationPlaceId: row.destination_place_id,
+    place: row.place,
   }
 }
 
@@ -92,12 +104,25 @@ export function createGaUebersichtStore(
 
   async function create(payload: GaUebersichtCreatePayload) {
     if (!departmentId.value) return
-    apply(await createGrossanlassEinsatz(departmentId.value, payload))
+    const result = await createGrossanlassEinsatz(departmentId.value, payload)
+    if ('einsaetze' in result && Array.isArray(result.einsaetze)) {
+      apply(result)
+      return
+    }
+    await load()
   }
 
   async function issue(id: string, userId?: string) {
     if (!departmentId.value) return
     apply(await issueGrossanlassEinsatz(departmentId.value, id, { user_id: userId }))
+  }
+
+  async function updateEinsatz(
+    id: string,
+    data: { packed?: boolean; trip_released?: boolean; status?: string },
+  ) {
+    if (!departmentId.value) return
+    apply(await updateGrossanlassEinsatz(departmentId.value, id, data))
   }
 
   async function togglePacked(commitmentId: string, packed: boolean) {
@@ -149,6 +174,7 @@ export function createGaUebersichtStore(
     apply,
     create,
     issue,
+    updateEinsatz,
     togglePacked,
     markReturned,
     bookingRows,

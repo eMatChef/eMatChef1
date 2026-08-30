@@ -1,0 +1,155 @@
+.member-profile-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.member-profile-top-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.member-profile-top-fields {
+  display: grid;
+  gap: 7px;
+}
+
+.member-profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.member-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.member-form-field--full {
+  grid-column: 1 / -1;
+}
+
+.member-form-field span {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.member-form-field input,
+.member-form-field select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.member-form-field input.is-readonly {
+  background: #f9fafb;
+  color: #6b7280;
+}
+
+.member-form-field input:focus,
+.member-form-field select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.member-email-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-email-edit-row input {
+  flex: 1;
+}
+
+.member-email-edit-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5563;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.member-email-edit-btn.active {
+  border-color: #3b82f6;
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.member-email-edit-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.member-field-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.member-field-hint--pending {
+  color: #b45309;
+}
+
+.member-profile-accordion {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.member-profile-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+}
+
+.member-profile-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-profile-accordion__summary::after {
+  content: '▾';
+  float: right;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.member-profile-accordion[open] > .member-profile-accordion__summary::after {
+  transform: rotate(-180deg);
+}
+
+.member-profile-accordion__body {
+  padding: 12px 14px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.member-profile-accordion__body .member-profile-form-grid {
+  margin-top: 10px;
+}
+
+.member-membership-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

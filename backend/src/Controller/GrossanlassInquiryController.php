@@ -84,6 +84,19 @@ class GrossanlassInquiryController extends AbstractController
         );
     }
 
+    #[Route('/bulk-delete', name: 'bulk_delete', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function bulkDelete(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = is_array($data['ids'] ?? null) ? $data['ids'] : [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->deleteMany($department, $user, $ids),
+        );
+    }
+
     #[Route('/mark-sent', name: 'mark_sent', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function markSent(string $departmentId, Request $request): JsonResponse

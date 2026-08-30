@@ -44,6 +44,8 @@ export function isPublicAnonymousPath(pathname: string): boolean {
   if (parts[1] === 'a' && parts[2]) return true
   if (parts[1] === 'w' && parts[2]) return true
   if (parts[1] === 'c' && parts[2]) return true
+  if (parts[1] === 'p' && parts[2]) return true
+  if (parts[1] === 'k' && parts[2]) return true
   return false
 }
 

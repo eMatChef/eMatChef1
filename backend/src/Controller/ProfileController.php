@@ -7,6 +7,7 @@ use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\Grossanlass\GrossanlassDriveLicenseService;
 use App\Service\VerificationEmailService;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,7 +27,8 @@ class ProfileController extends AbstractController
         private VerificationEmailService $verificationEmailService,
         private EntityManagerInterface $entityManager,
         private AuditLogger $auditLogger,
-        private UserPasswordHasherInterface $passwordHasher
+        private UserPasswordHasherInterface $passwordHasher,
+        private GrossanlassDriveLicenseService $driveLicenses,
     ) {}
 
     /**
@@ -348,4 +350,85 @@ class ProfileController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/drive-license', name: 'drive_license_get', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function getDriveLicense(string $id): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        return new JsonResponse($this->driveLicenses->getFor($user));
+    }
+
+    #[Route('/{id}/drive-license', name: 'drive_license_put', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function saveDriveLicense(string $id, Request $request): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            return new JsonResponse($this->driveLicenses->save($user, is_array($data) ? $data : []));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    #[Route('/{id}/drive-license/proof', name: 'drive_license_proof', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function uploadDriveLicenseProof(string $id, Request $request): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        $file = $request->files->get('proof') ?? $request->files->get('file');
+        if (!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+            return new JsonResponse(['error' => 'Datei ist erforderlich'], 400);
+        }
+
+        try {
+            return new JsonResponse($this->driveLicenses->uploadProof($user, $file));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    #[Route('/{id}/drive-license/proof', name: 'drive_license_proof_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteDriveLicenseProof(string $id): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        return new JsonResponse($this->driveLicenses->removeProof($user));
+    }
+
+    private function requireOwnUser(string $profileId): User|JsonResponse
+    {
+        $profile = $this->profileRepository->find($profileId);
+        if (!$profile) {
+            return new JsonResponse(['error' => 'Profile not found'], 404);
+        }
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+        if ($profile->getId() !== $currentUser->getProfileId() && !in_array('ROLE_ADMIN', $currentUser->getRoles(), true)) {
+            return new JsonResponse(['error' => 'Forbidden'], 403);
+        }
+        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'User not found for profile'], 404);
+        }
+
+        return $user;
+    }
 }

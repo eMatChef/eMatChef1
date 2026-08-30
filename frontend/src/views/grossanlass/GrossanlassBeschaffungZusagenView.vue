@@ -47,7 +47,7 @@
       v-else
       v-model="openGroups"
       multiple
-      class="zusagen-accordion"
+      class="e-accordions"
     >
       <v-expansion-panel
         v-for="group in grouped"
@@ -55,14 +55,16 @@
         :value="group.id"
       >
         <v-expansion-panel-title>
-          <span class="group-title">
-            <strong>{{ group.label }}</strong>
-            <span class="group-count">{{ group.rows.length }}</span>
-            <span v-if="group.heldCount > 0" class="zusagen-badge is-held">
-              {{ t('grossanlass.beschaffung.zusagen.heldCount', { count: group.heldCount }) }}
-            </span>
-            <span v-if="group.wideCount > 0" class="fein-badge fein-badge--wide">
-              {{ t('grossanlass.planung.feinPartner.delta.wide') }}
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ group.label }}
+              <span class="panel-head__count">{{ group.rows.length }}</span>
+              <span v-if="group.heldCount > 0" class="zusagen-badge is-held">
+                {{ t('grossanlass.beschaffung.zusagen.heldCount', { count: group.heldCount }) }}
+              </span>
+              <span v-if="group.wideCount > 0" class="fein-badge fein-badge--wide">
+                {{ t('grossanlass.planung.feinPartner.delta.wide') }}
+              </span>
             </span>
           </span>
         </v-expansion-panel-title>
@@ -382,31 +384,6 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 4px;
   margin-left: auto;
-}
-.zusagen-accordion :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px !important;
-  overflow: hidden;
-  margin-bottom: 10px;
-  background: #fff;
-}
-.zusagen-accordion :deep(.v-expansion-panel-title) {
-  min-height: 52px;
-  font-size: 0.9rem;
-}
-.group-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.group-count {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-  background: #f1f5f9;
-  border-radius: 999px;
-  padding: 1px 8px;
 }
 .zusagen-list {
   list-style: none;

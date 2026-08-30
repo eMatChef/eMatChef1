@@ -21,6 +21,13 @@ export const DEMO_LOGINS: DemoLogin[] = [
   { email: 'leader2@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Leader 2', role: 'l2' },
   { email: 'leader3@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Leader 3', role: 'l3' },
   { email: 'user@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'User', role: 'u' },
+  { email: 'ga-mw@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Materialchef', role: 'mw' },
+  { email: 'ga-cmw@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Co-Materialchef', role: 'cmw' },
+  { email: 'ga-ok@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · OK-Leitung', role: 'dc' },
+  { email: 'ga-komm@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Kommunikation', role: 'komm' },
+  { email: 'ga-spon@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Sponsoring', role: 'spon' },
+  { email: 'ga-bereich@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Bereichsleitung', role: 'u' },
+  { email: 'ga-helfer@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'GA · Helfer', role: 'u' },
   { email: 'supplier@ematchef.ch', password: DEMO_LOGIN_PASSWORD, label: 'Lieferant', role: 'supplier' },
 ]
 

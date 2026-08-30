@@ -620,24 +620,39 @@ final class GrossanlassMailMergeService
 
     public function categoryPackagePath(ActivityGrossanlassProcurementCategory $category): string
     {
-        $name = GrossanlassGmailRouting::sanitizeSegment($category->getName());
-        if ($name === '') {
-            return '';
-        }
-        $parent = $category->getParent();
-        if ($parent === null) {
-            return $name;
-        }
-        $parentName = GrossanlassGmailRouting::sanitizeSegment($parent->getName());
+        return self::categoryPackagePathFromEntity($category);
+    }
 
-        return $parentName !== '' ? $parentName . '/' . $name : $name;
+    public static function categoryPackagePathFromEntity(ActivityGrossanlassProcurementCategory $category): string
+    {
+        $parts = [];
+        $current = $category;
+        $seen = [];
+        while ($current instanceof ActivityGrossanlassProcurementCategory) {
+            $id = $current->getId();
+            if (isset($seen[$id])) {
+                break;
+            }
+            $seen[$id] = true;
+            $name = GrossanlassGmailRouting::sanitizeSegment($current->getName());
+            if ($name !== '') {
+                array_unshift($parts, $name);
+            }
+            $current = $current->getParent();
+        }
+
+        return implode('/', $parts);
     }
 
     /**
-     * @param array{name?: string, parent_name?: string|null} $row
+     * @param array{name?: string, parent_name?: string|null, path?: string|null} $row
      */
     public static function categoryPackagePathFromRow(array $row): string
     {
+        $path = GrossanlassGmailRouting::sanitizePath((string) ($row['path'] ?? ''));
+        if ($path !== '') {
+            return $path;
+        }
         $name = GrossanlassGmailRouting::sanitizeSegment((string) ($row['name'] ?? ''));
         if ($name === '') {
             return '';

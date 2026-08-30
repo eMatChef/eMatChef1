@@ -16,11 +16,15 @@
       </EEmptyState>
     </template>
     <template v-else>
-      <v-expansion-panels v-model="openSetup" multiple class="ga-setup-accordions">
+      <v-expansion-panels v-model="openSetup" multiple class="e-accordions">
         <v-expansion-panel value="invite">
           <v-expansion-panel-title>
-            {{ t('grossanlass.planung.struktur.inviteTitle') }}
-            <span v-if="canAddGuests" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ t('grossanlass.planung.struktur.inviteTitle') }}
+                <span v-if="canAddGuests" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+              </span>
+            </span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
         <p class="hint">{{ t('grossanlass.planung.struktur.inviteHint') }}</p>
@@ -60,8 +64,12 @@
 
         <v-expansion-panel value="modus">
           <v-expansion-panel-title>
-            {{ t('grossanlass.planung.struktur.modusTitle') }}
-            <span v-if="wizardStep === 'done'" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ t('grossanlass.planung.struktur.modusTitle') }}
+                <span v-if="wizardStep === 'done'" class="setup-badge is-done">{{ t('grossanlass.planung.struktur.stepDone') }}</span>
+              </span>
+            </span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
         <p class="hint">{{ t('grossanlass.planung.struktur.modusLead') }}</p>
@@ -87,19 +95,24 @@
         </div>
           </v-expansion-panel-text>
         </v-expansion-panel>
-      </v-expansion-panels>
 
-      <section v-if="wizardStep === 'done'" class="card">
-        <div class="head">
-          <h3>{{ t('grossanlass.planung.struktur.participantsTitle') }}</h3>
-          <div v-if="pack?.can_manage && canAddGuests" class="head-actions">
-            <EButton variant="secondary" size="small" :disabled="saving" @click="openUnterlagerDialog()">
-              {{ t('grossanlass.planung.struktur.unterlagerCreate') }}
-            </EButton>
-            <EButton variant="primary" size="small" :disabled="saving" @click="openAddDeptDialog()">
-              {{ t('grossanlass.planung.struktur.addDepartment') }}
-            </EButton>
-          </div>
+        <v-expansion-panel v-if="wizardStep === 'done'" value="participants">
+          <v-expansion-panel-title>
+            <span class="panel-head">
+              <span class="panel-head__label">
+                {{ t('grossanlass.planung.struktur.participantsTitle') }}
+                <span v-if="participants.length" class="panel-head__count">{{ participants.length }}</span>
+              </span>
+            </span>
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+        <div v-if="pack?.can_manage && canAddGuests" class="head-actions">
+          <EButton variant="secondary" size="small" :disabled="saving" @click="openUnterlagerDialog()">
+            {{ t('grossanlass.planung.struktur.unterlagerCreate') }}
+          </EButton>
+          <EButton variant="primary" size="small" :disabled="saving" @click="openAddDeptDialog()">
+            {{ t('grossanlass.planung.struktur.addDepartment') }}
+          </EButton>
         </div>
         <p class="hint">{{ t('grossanlass.planung.struktur.participantsLater') }}</p>
         <p v-if="!canAddGuests" class="hint">{{ t('grossanlass.planung.struktur.inviteNeeded') }}</p>
@@ -157,7 +170,9 @@
         <p v-else-if="!unterlagerRows.length && !participants.length" class="hint">
           {{ t('grossanlass.planung.struktur.participantsEmpty') }}
         </p>
-      </section>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+      </v-expansion-panels>
 
       <EDialog v-model="unterlagerDialog" :title="t('grossanlass.planung.struktur.unterlagerCreate')" :max-width="420">
         <ETextField v-model="unterlagerName" :label="t('grossanlass.planung.struktur.unterlagerName')" hide-details />
@@ -275,7 +290,7 @@ const canAddGuests = computed(() => inviteSet.value.size > 0)
 function applyWizardFromData() {
   if ((pack.value?.config.invite_group_ids ?? []).length > 0) {
     wizardStep.value = 'done'
-    openSetup.value = []
+    openSetup.value = ['participants']
     return
   }
   wizardStep.value = 'invite'
@@ -290,7 +305,7 @@ function goInviteNext() {
 
 function goModusNext() {
   wizardStep.value = 'done'
-  openSetup.value = []
+  openSetup.value = ['participants']
 }
 
 const hierarchicalRessorts = computed(() =>
@@ -551,16 +566,6 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 .card h3 { margin: 0 0 10px; font-size: 0.95rem; }
-.ga-setup-accordions { margin-bottom: 14px; }
-.ga-setup-accordions :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px !important;
-  margin-bottom: 8px;
-}
-.ga-setup-accordions :deep(.v-expansion-panel-title) {
-  font-weight: 600;
-  font-size: 0.95rem;
-}
 .setup-badge {
   margin-left: 10px;
   font-size: 0.75rem;
@@ -579,7 +584,7 @@ onMounted(() => {
 }
 .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
 .head h3 { margin: 0; }
-.head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.head-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .head a { font-size: 0.85rem; color: #166534; }
 .modus-grid { display: grid; gap: 10px; }
 @media (min-width: 720px) {
@@ -671,16 +676,6 @@ onMounted(() => {
   border-radius: 999px;
   background: #ecfdf5;
   color: #166534;
-}
-.ga-struktur-accordion { margin-top: 4px; }
-.ga-struktur-accordion :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px !important;
-  margin-bottom: 8px;
-}
-.ga-struktur-accordion :deep(.v-expansion-panel-title) {
-  min-height: 48px;
-  font-size: 0.9rem;
 }
 .group-title {
   display: flex;

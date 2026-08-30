@@ -50,6 +50,7 @@ class MediaFileAccessService
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER => $this->assertJsOrder($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => $this->assertGrossanlassQuote($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD => $this->assertGrossanlassUserCard($user, $departmentId, $contextId),
+            MediaStorageService::CONTEXT_USER_DRIVE_LICENSE => $this->assertOwnDriveLicense($user, $contextId),
             default => throw new \InvalidArgumentException('Ungültiger Medien-Kontext'),
         };
     }
@@ -125,7 +126,7 @@ class MediaFileAccessService
             throw new \InvalidArgumentException('Datei nicht gefunden');
         }
         $this->grossanlassAccess->assertGrossanlassDepartment($department);
-        if (!$this->grossanlassAccess->canManagePlanung($user, $department)) {
+        if (!$this->grossanlassAccess->canManageProcurement($user, $department)) {
             throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
         }
         $quote = $this->entityManager->find(ActivityGrossanlassProcurementQuote::class, $quoteId);
@@ -144,7 +145,9 @@ class MediaFileAccessService
             throw new \InvalidArgumentException('Datei nicht gefunden');
         }
         $this->grossanlassAccess->assertGrossanlassDepartment($department);
-        if (!$this->grossanlassAccess->canManagePlanung($user, $department)) {
+        if (!$this->grossanlassAccess->canSeeAnlassOverview($user, $department)
+            && !$this->grossanlassAccess->canVerifyDriveCard($user, $department)
+        ) {
             throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
         }
         $card = $this->entityManager->getRepository(DepartmentGrossanlassUserCard::class)->find([
@@ -188,5 +191,17 @@ class MediaFileAccessService
         if (!\in_array($role, self::ACCOUNTING_ROLES, true)) {
             throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
         }
+    }
+
+    private function assertOwnDriveLicense(User $user, string $contextId): void
+    {
+        if ($user->getId() === $contextId) {
+            return;
+        }
+        if (count(array_intersect(['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_ADMIN'], $user->getRoles())) > 0) {
+            return;
+        }
+
+        throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
     }
 }

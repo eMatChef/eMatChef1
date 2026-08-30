@@ -139,6 +139,8 @@
         />
       </div>
 
+      <p class="grossanlass-wizard-categories-hint">{{ t('grossanlass.wizard.categoriesTemplateHint') }}</p>
+
       <v-alert v-if="error" type="error" variant="tonal" class="mt-2" :text="error" />
     </form>
 
@@ -691,6 +693,13 @@ async function handleSubmit() {
 .tree-select-item.selected {
   background: #eef2ff;
   color: #4338ca;
+}
+
+.grossanlass-wizard-categories-hint {
+  margin: 0 0 4px;
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .autocomplete-wrapper {

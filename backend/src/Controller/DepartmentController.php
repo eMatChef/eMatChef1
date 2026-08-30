@@ -21,6 +21,7 @@ use App\Service\DepartmentRoleLabelService;
 use App\Service\DevEnvironmentService;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
+use App\Service\MembershipRoleCatalog;
 use App\Service\VerificationEmailService;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
@@ -660,10 +661,6 @@ class DepartmentController extends AbstractController
         return new JsonResponse($result);
     }
 
-    /**
-     * Rollen-Hierarchie: Index 0 = höchste Berechtigung
-     */
-    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
     private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
     private const PASSWORD_RESET_CODE_TTL_MINUTES = 10;
     private const PASSWORD_RESET_REQUEST_COOLDOWN_SECONDS = 60;
@@ -677,6 +674,12 @@ class DepartmentController extends AbstractController
         $currentUser = $this->getUser();
         if (!$currentUser instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
+
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        $isGrossanlass = $department instanceof Department && $department->isGrossanlass();
+        if (!MembershipRoleCatalog::isAllowed($department, $targetRole)) {
+            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
         }
 
         $existingMemberCount = (int) $this->entityManager->getRepository(Membership::class)
@@ -708,15 +711,7 @@ class DepartmentController extends AbstractController
         }
 
         $myRole = $myMembership->getRole();
-        $myIndex = array_search($myRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
-        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
-
-        if ($myIndex === false || $targetIndex === false) {
-            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
-        }
-
-        // Streng niedriger: gleiche Rolle und darüber = verboten (höherer Index = niedrigere Rolle)
-        if ($targetIndex <= $myIndex) {
+        if (!MembershipRoleCatalog::canAssign($myRole, $targetRole, $isGrossanlass)) {
             return new JsonResponse([
                 'error' => 'Du kannst nur Rollen unterhalb deiner eigenen vergeben',
             ], 403);
@@ -747,14 +742,9 @@ class DepartmentController extends AbstractController
             return new JsonResponse(['error' => 'Du bist kein Mitglied dieses Departments'], 403);
         }
 
-        $myIndex = array_search($myMembership->getRole(), self::MEMBERSHIP_ROLE_HIERARCHY, true);
-        $targetIndex = array_search($targetRole, self::MEMBERSHIP_ROLE_HIERARCHY, true);
-
-        if ($myIndex === false || $targetIndex === false) {
-            return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
-        }
-
-        if ($targetIndex <= $myIndex) {
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        $isGrossanlass = $department instanceof Department && $department->isGrossanlass();
+        if (!MembershipRoleCatalog::canAssign($myMembership->getRole(), $targetRole, $isGrossanlass)) {
             return new JsonResponse([
                 'error' => 'Du kannst nur Mitglieder mit niedrigerer Rolle bearbeiten',
             ], 403);
@@ -809,14 +799,11 @@ class DepartmentController extends AbstractController
 
         // Rolle validieren
         $role = $data['role'] ?? 'u';
-        if (!in_array($role, self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+        if (!MembershipRoleCatalog::isAllowed($department, $role)) {
             return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
         }
 
         if ($department->isGrossanlass()) {
-            if (!in_array($role, ['mw', 'u'], true)) {
-                return new JsonResponse(['error' => 'Bei Grossanlass-Departments sind nur Materialchef (mw) und Mitglied (u) erlaubt'], 400);
-            }
             if ($role === 'mw') {
                 $existingMw = $this->entityManager->getRepository(Membership::class)
                     ->createQueryBuilder('m')
@@ -947,15 +934,12 @@ class DepartmentController extends AbstractController
         $oldIsJsCoach = $membership->getIsJsCoach();
 
         if (isset($data['role'])) {
-            if (!in_array($data['role'], self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+            $department = $membership->getDepartment();
+            if (!MembershipRoleCatalog::isAllowed($department, $data['role'])) {
                 return new JsonResponse(['error' => 'Ungültige Rolle'], 400);
             }
 
-            $department = $membership->getDepartment();
             if ($department->isGrossanlass()) {
-                if (!in_array($data['role'], ['mw', 'u'], true)) {
-                    return new JsonResponse(['error' => 'Bei Grossanlass-Departments sind nur Materialchef (mw) und Mitglied (u) erlaubt'], 400);
-                }
                 if ($data['role'] === 'mw' && $oldRole !== 'mw') {
                     $existingMw = $this->entityManager->getRepository(Membership::class)
                         ->createQueryBuilder('m')
