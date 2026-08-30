@@ -370,7 +370,7 @@ class GrossanlassProcurementService
      */
     public function listCategories(Department $department, User $user): array
     {
-        $this->assertCanManageProcurement($department, $user);
+        $this->assertCanSeeCategories($department, $user);
         $this->categoryBootstrap->ensureForDepartment($department);
 
         return $this->listCategoryArrays($department);
@@ -401,6 +401,11 @@ class GrossanlassProcurementService
         $category->setDepartment($department);
         $category->setParent($parent);
         $category->setName($name);
+        $category->setKind(
+            $parent !== null && $parent->getParentId() !== null
+                ? ActivityGrossanlassProcurementCategory::KIND_ITEM
+                : ActivityGrossanlassProcurementCategory::KIND_PACKAGE,
+        );
         if (isset($data['sort_order'])) {
             $category->setSortOrder((int) $data['sort_order']);
         } else {
@@ -1374,6 +1379,17 @@ class GrossanlassProcurementService
         return $group;
     }
 
+    private function assertCanSeeCategories(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (
+            !$this->access->canWorkMailbox($user, $department)
+            && !$this->access->canManageProcurement($user, $department)
+        ) {
+            throw new \RuntimeException('Keine Berechtigung für Beschaffung');
+        }
+    }
+
     private function assertCanManageProcurement(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
@@ -1545,6 +1561,7 @@ class GrossanlassProcurementService
             'sort_order' => $category->getSortOrder(),
             'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
             'system_key' => $category->getSystemKey(),
+            'kind' => $category->getKind(),
         ];
     }
 

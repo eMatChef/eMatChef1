@@ -123,6 +123,7 @@ export interface GrossanlassProcurementCategory {
   sort_order: number
   rahmen_chf: number | null
   system_key: string | null
+  kind?: 'package' | 'item' | string | null
 }
 
 export interface GrossanlassProcurementBundleSuggestion {

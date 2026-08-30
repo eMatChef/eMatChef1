@@ -24,13 +24,18 @@
           :label="t('grossanlass.wishes.searchBauprojekt')"
           :placeholder="t('grossanlass.wishes.searchBauprojektPlaceholder')"
           :hint="field.help_text || undefined"
-          :menu="bauprojektMenuOpen"
-          open-on-focus="false"
+          :no-filter="false"
+          :custom-filter="filterBauprojektItem"
+          :open-on-focus="true"
           hide-details="auto"
           spellcheck="false"
           class="mb-3"
           @update:model-value="onBauprojektSelected"
-        />
+        >
+          <template #no-data>
+            <div class="bauprojekt-empty">{{ t('grossanlass.wishes.noBauprojektHits') }}</div>
+          </template>
+        </EAutocomplete>
         <template v-if="local.groupMode === 'new' && allowNewBauprojekt(field)">
           <ESelect
             v-model="local.parentId"
@@ -329,10 +334,12 @@ const selectableGroupsForRessort = computed(() => {
 const selectableGroups = computed(() => selectableGroupsForBauprojekt.value)
 
 const bauprojekte = computed(() => {
+  const all = flattenGrossanlassGroupsWithLevel(props.groups).filter(isBauprojektGroup)
   const allowed = new Set(
     selectableGroupsForBauprojekt.value.filter(isBauprojektGroup).map((g) => g.id),
   )
-  return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
+  const visible = all.filter((g) => allowed.has(g.id))
+  return visible.length > 0 ? visible : all
 })
 
 function findBauprojekt(id: string | null | undefined): GrossanlassGroup | undefined {
@@ -362,44 +369,38 @@ function toBauprojektItem(g: GrossanlassGroup) {
 
 const bauprojektAutocompleteItems = computed(() => {
   const selected = findBauprojekt(local.groupId)
-  const q = bauprojektSearch.value.trim().toLowerCase()
-  const selectedQuery = selected
-    && (q === selected.name.toLowerCase() || q === selected.id.toLowerCase())
-
-  let list: GrossanlassGroup[] = bauprojekte.value
-  if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
-    const branchIds = collectBranchIds(local.ressortGroupId)
-    list = list.filter((g) => branchIds.has(g.id))
-  }
-
-  if (q && !selectedQuery) {
-    list = list.filter((g) => {
-      const path = ressortPathForBauprojekt(g, props.groups).toLowerCase()
-      return g.name.toLowerCase().includes(q) || path.includes(q)
-    })
-  } else {
-    list = selected ? [selected] : []
-  }
-
+  let list: GrossanlassGroup[] = [...bauprojekte.value]
   if (selected && !list.some((g) => g.id === selected.id)) {
     list = [selected, ...list]
   }
 
+  const branchIds = hasSystemField('ressort_wahl') && local.ressortGroupId
+    ? collectBranchIds(local.ressortGroupId)
+    : null
+  const rank = (g: GrossanlassGroup) => {
+    if (selected && g.id === selected.id) return 0
+    if (branchIds?.has(g.id)) return 1
+    return 2
+  }
+  list.sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'de'))
   return list.map(toBauprojektItem)
 })
+
+function filterBauprojektItem(
+  value: string,
+  query: string,
+  item?: { raw?: { title?: string; subtitle?: string }; title?: string; subtitle?: string },
+): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const title = String(item?.raw?.title ?? item?.title ?? value ?? '').toLowerCase()
+  const subtitle = String(item?.raw?.subtitle ?? item?.subtitle ?? '').toLowerCase()
+  return title.includes(q) || subtitle.includes(q)
+}
 
 const ressortTreeGroups = computed(() => {
   const allowed = new Set(selectableGroupsForRessort.value.filter(isRessortNodeGroup).map((g) => g.id))
   return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
-})
-
-/** Dropdown erst bei aktiver Suche — kein leeres «Keine Daten» beim Fokus. */
-const bauprojektMenuOpen = computed(() => {
-  const q = bauprojektSearch.value.trim()
-  if (q.length === 0) return false
-  const selected = findBauprojekt(local.groupId)
-  if (selected && (q === selected.name || q === selected.id)) return false
-  return true
 })
 
 function ressortSelectItems(_field: GrossanlassRoundFormField) {
@@ -721,6 +722,12 @@ defineExpose({ buildPayload, resetAfterSubmit, loadFromWish })
   margin: 0 0 14px;
   color: #4b5563;
   font-size: 0.9rem;
+}
+
+.bauprojekt-empty {
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  color: #64748b;
 }
 
 .wish-select-multi-label {

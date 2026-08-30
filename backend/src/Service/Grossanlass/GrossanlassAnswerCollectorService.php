@@ -45,10 +45,14 @@ class GrossanlassAnswerCollectorService
      */
     public function importPendingTips(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertTakeInquiry($department, $user);
         $created = [];
         foreach ($this->loadPendingWishes($department, ActivityGrossanlassRound::PURPOSE_COMPANY_TIP) as $wish) {
-            $created[] = $this->createInquiryFromWish($department, $user, $wish, []);
+            try {
+                $created[] = $this->createInquiryFromWish($department, $user, $wish, []);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
         }
         $this->entityManager->flush();
 
@@ -135,7 +139,7 @@ class GrossanlassAnswerCollectorService
             ->innerJoin('w.round', 'r')
             ->innerJoin('r.activity', 'a')
             ->innerJoin('w.group', 'g')
-            ->innerJoin('w.createdByUser', 'u')
+            ->leftJoin('w.createdByUser', 'u')
             ->leftJoin('u.profile', 'p')
             ->addSelect('r', 'g', 'u', 'p')
             ->where('a.departmentId = :departmentId')
@@ -219,7 +223,7 @@ class GrossanlassAnswerCollectorService
         $inquiry->setName($name !== '' ? $name : $extracted['name']);
         $email = strtolower(trim((string) ($data['email'] ?? $extracted['email'])));
         if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            throw new \InvalidArgumentException('Ungültige E-Mail-Adresse');
+            $email = '';
         }
         $inquiry->setEmail($email);
         $place = trim((string) ($data['place'] ?? ($extracted['place'] !== '' ? $extracted['place'] : $wish->getLocation())));
@@ -265,6 +269,7 @@ class GrossanlassAnswerCollectorService
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),
             'tip_wish_id' => $inquiry->getTipWishId(),
+            'tip_submitted_by' => $inquiry->serializeTipSubmitter(),
         ];
     }
 
@@ -333,7 +338,7 @@ class GrossanlassAnswerCollectorService
      */
     private function serializeInboxItem(ActivityGrossanlassWishLine $wish): array
     {
-        $profile = $wish->getCreatedByUser()->getProfile();
+        $profile = $wish->getCreatedByUser()?->getProfile();
         $answers = $this->loadAnswers($wish);
         $extracted = $this->extractTipFields($wish);
 
@@ -569,6 +574,14 @@ class GrossanlassAnswerCollectorService
                     : ActivityGrossanlassWishResponse::STATUS_ACCEPTED,
             );
             $response->touchUpdatedAt($user);
+        }
+    }
+
+    private function assertTakeInquiry(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canTakeInquiry($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung, Anfragen zu nehmen');
         }
     }
 

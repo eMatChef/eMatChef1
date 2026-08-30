@@ -15,6 +15,10 @@ class ActivityGrossanlassProcurementCategory
 
     public const JS_NAME = 'J+S';
 
+    public const KIND_PACKAGE = 'package';
+
+    public const KIND_ITEM = 'item';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -44,6 +48,9 @@ class ActivityGrossanlassProcurementCategory
 
     #[ORM\Column(name: 'system_key', type: 'string', length: 32, nullable: true)]
     private ?string $systemKey = null;
+
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => self::KIND_PACKAGE])]
+    private string $kind = self::KIND_PACKAGE;
 
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -151,6 +158,23 @@ class ActivityGrossanlassProcurementCategory
         $this->systemKey = $systemKey;
 
         return $this;
+    }
+
+    public function getKind(): string
+    {
+        return $this->kind;
+    }
+
+    public function setKind(string $kind): self
+    {
+        $this->kind = $kind === self::KIND_ITEM ? self::KIND_ITEM : self::KIND_PACKAGE;
+
+        return $this;
+    }
+
+    public function isItem(): bool
+    {
+        return $this->kind === self::KIND_ITEM;
     }
 
     public function isSystemLocked(): bool

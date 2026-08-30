@@ -313,7 +313,11 @@
           item-value="value"
           :label="t('grossanlass.beschaffung.kosten.colPayer')"
           hide-details
-        />
+        >
+          <template #item="{ props: itemProps, item }">
+            <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+          </template>
+        </ESelect>
       </div>
       <ESelect
         v-if="form.cost_kind === 'purchase'"
@@ -353,6 +357,7 @@ import PageShell from '@/components/layout/PageShell.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
   isGrossanlassLogisticsPayer,

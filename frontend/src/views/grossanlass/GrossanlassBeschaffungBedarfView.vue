@@ -164,7 +164,7 @@
             {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: visibleSelectedIds.length }) }}
           </EButton>
           <EButton
-            v-if="visibleSelectedIds.length > 0 && lineSelectItems.length > 0"
+            v-if="visibleSelectedIds.length > 0 && mergeLineItems.length > 0"
             variant="secondary"
             size="small"
             :disabled="isSaving"
@@ -484,15 +484,24 @@
     <EDialog
       v-model="mergeDialogOpen"
       :title="t('grossanlass.beschaffung.bedarf.mergeIntoLine')"
-      max-width="480"
+      max-width="560"
     >
       <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.mergeReviewHint') }}</p>
-      <ESelect
+      <p v-if="mergeMatchCount > 0" class="panel-hint panel-hint--match">
+        {{ t('grossanlass.beschaffung.bedarf.mergeMatchHint', { count: mergeMatchCount }) }}
+      </p>
+      <EAutocomplete
         v-model="mergeTargetLineId"
-        :items="lineSelectItems"
+        :items="mergeLineItems"
+        item-title="title"
+        item-value="value"
+        item-subtitle="subtitle"
         :label="t('grossanlass.beschaffung.bedarf.mergeTarget')"
+        :placeholder="t('grossanlass.beschaffung.bedarf.mergeTargetPlaceholder')"
+        :no-filter="false"
+        :custom-filter="filterMergeLine"
         hide-details
-        density="compact"
+        :clearable="false"
         class="assign-field"
       />
       <GrossanlassProcurementCategoryPicker
@@ -578,7 +587,7 @@ import GrossanlassProcurementBundleDialog from '@/components/grossanlass/Grossan
 import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
-import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import { EAutocomplete, EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,
   assignGrossanlassCollectorToInquiry,
@@ -602,6 +611,7 @@ import {
   pathLabelOfProcurementCategory,
   procurementCategoryTreeItems,
 } from '@/utils/grossanlassProcurementCategoryTree'
+import { procurementMatchKind, type ProcurementMatchKind } from '@/utils/grossanlassProcurementMatch'
 import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
 
 const route = useRoute()
@@ -784,14 +794,51 @@ const visibleSelectedIds = computed(() =>
   selectedWishIds.value.filter((id) => filteredPoolIds.value.has(id)),
 )
 
-const lineSelectItems = computed(() =>
-  lines.value
-    .filter((l) => l.status === 'bedarf' && !l.merge_frozen)
-    .map((l) => ({
-      title: `${l.quantity}× ${l.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: l.wish_count })})`,
-      value: l.id,
-    })),
+const mergeQueryLabels = computed(() =>
+  filteredPool.value
+    .filter((wish) => selectedWishIds.value.includes(wish.id))
+    .map((wish) => wish.label),
 )
+
+const mergeLineItems = computed(() => {
+  const rank = (match: ProcurementMatchKind) => (match === 'exact' ? 2 : match === 'similar' ? 1 : 0)
+  return lines.value
+    .filter((line) => line.status === 'bedarf' && !line.merge_frozen)
+    .map((line) => {
+      const candidateLabels = [
+        line.label,
+        ...(line.source_wishes ?? []).map((wish) => wish.label),
+      ]
+      const match = procurementMatchKind(mergeQueryLabels.value, candidateLabels)
+      const categoryBits = [line.category_parent_name, line.category_name].filter(Boolean).join(' / ')
+      let subtitle = categoryBits
+      if (match === 'exact') subtitle = t('grossanlass.beschaffung.bedarf.mergeMatchExact')
+      else if (match === 'similar') subtitle = t('grossanlass.beschaffung.bedarf.mergeMatchSimilar')
+      return {
+        title: `${line.quantity}× ${line.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: line.wish_count })})`,
+        value: line.id,
+        match,
+        subtitle,
+        searchText: [line.label, categoryBits, ...candidateLabels].join(' ').toLowerCase(),
+      }
+    })
+    .sort((a, b) => rank(b.match) - rank(a.match) || a.title.localeCompare(b.title, 'de'))
+})
+
+const mergeMatchCount = computed(
+  () => mergeLineItems.value.filter((row) => row.match === 'exact' || row.match === 'similar').length,
+)
+
+function filterMergeLine(
+  _value: string,
+  query: string,
+  item: { raw?: { searchText?: string; title?: string } },
+): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return true
+  const haystack = `${item.raw?.searchText ?? ''} ${item.raw?.title ?? ''}`.toLowerCase()
+  return tokens.every((token) => haystack.includes(token))
+}
 
 const categoryFilterItems = computed(() => {
   const items: Array<{ title: string; value: string; name: string; depth: number }> = [
@@ -918,7 +965,7 @@ async function load() {
     const data = await getGrossanlassBedarfOverview(departmentId.value)
     applyBedarfOverview(data)
     selectedWishIds.value = []
-    mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
+    mergeTargetLineId.value = mergeLineItems.value[0]?.value ?? null
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorLoad'))
   } finally {
@@ -1008,10 +1055,12 @@ async function onBundleSaved() {
 }
 
 function openMergeDialog() {
-  if (visibleSelectedIds.value.length === 0 || lineSelectItems.value.length === 0) return
-  if (!mergeTargetLineId.value || !lineSelectItems.value.some((row) => row.value === mergeTargetLineId.value)) {
-    mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
-  }
+  if (visibleSelectedIds.value.length === 0 || mergeLineItems.value.length === 0) return
+  const best =
+    mergeLineItems.value.find((row) => row.match === 'exact')
+    ?? mergeLineItems.value.find((row) => row.match === 'similar')
+    ?? mergeLineItems.value[0]
+  mergeTargetLineId.value = best?.value ?? null
   const line = lines.value.find((row) => row.id === mergeTargetLineId.value)
   mergeCategoryId.value = line?.category_id ?? null
   mergeDialogOpen.value = true
@@ -1298,6 +1347,11 @@ onMounted(load)
   margin: 0 0 12px;
   font-size: 0.82rem;
   color: #94a3b8;
+}
+
+.panel-hint--match {
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .pool-filters {

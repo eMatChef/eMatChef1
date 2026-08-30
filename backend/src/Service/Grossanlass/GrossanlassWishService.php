@@ -696,11 +696,50 @@ class GrossanlassWishService
     private function replaceCustomValues(ActivityGrossanlassWishResponse $response, array $customValues): void
     {
         $existing = $this->entityManager->getRepository(ActivityGrossanlassWishResponseValue::class)
-            ->findBy(['responseId' => $response->getId()]);
+            ->findBy(['response' => $response]);
+        /** @var array<string, ActivityGrossanlassWishResponseValue> $byField */
+        $byField = [];
         foreach ($existing as $value) {
-            $this->entityManager->remove($value);
+            if (!$value instanceof ActivityGrossanlassWishResponseValue) {
+                continue;
+            }
+            $byField[trim($value->getFieldId())] = $value;
         }
-        $this->persistCustomValues($response, $customValues);
+
+        $kept = [];
+        foreach ($customValues as $fieldId => $raw) {
+            if (!is_string($fieldId) && !is_int($fieldId)) {
+                continue;
+            }
+            $fieldId = trim((string) $fieldId);
+            if ($fieldId === '' || isset($kept[$fieldId])) {
+                continue;
+            }
+            $field = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)->find($fieldId);
+            if (!$field instanceof ActivityGrossanlassRoundFormField) {
+                continue;
+            }
+            $value = $byField[$fieldId] ?? null;
+            if ($value === null) {
+                $value = new ActivityGrossanlassWishResponseValue();
+                $value->setId(GrossanlassIdGenerator::unique(
+                    $this->entityManager,
+                    GrossanlassIdGenerator::WISH_VALUE,
+                    ActivityGrossanlassWishResponseValue::class,
+                ));
+                $value->setResponse($response);
+                $value->setField($field);
+                $this->entityManager->persist($value);
+            }
+            $this->applyValueToEntity($value, $field, $raw);
+            $kept[$fieldId] = true;
+        }
+
+        foreach ($byField as $fieldId => $value) {
+            if (!isset($kept[$fieldId])) {
+                $this->entityManager->remove($value);
+            }
+        }
     }
 
     private function applyValueToEntity(
@@ -711,11 +750,15 @@ class GrossanlassWishService
         $type = $field->getCustomType();
         if ($type === GrossanlassFormFieldCatalog::CUSTOM_NUMBER) {
             $value->setValueNumber($raw === null ? null : (string) (float) $raw);
+            $value->setValueText(null);
+            $value->setValueJson(null);
 
             return;
         }
         if ($type === GrossanlassFormFieldCatalog::CUSTOM_DATE_RANGE) {
             $value->setValueJson(is_array($raw) ? $raw : null);
+            $value->setValueText(null);
+            $value->setValueNumber(null);
 
             return;
         }
@@ -725,15 +768,19 @@ class GrossanlassWishService
             if ($multiple) {
                 $value->setValueJson(is_array($raw) ? array_values($raw) : null);
                 $value->setValueText(null);
+                $value->setValueNumber(null);
 
                 return;
             }
             $value->setValueText($raw === null ? null : trim((string) $raw));
             $value->setValueJson(null);
+            $value->setValueNumber(null);
 
             return;
         }
         $value->setValueText($raw === null ? null : trim((string) $raw));
+        $value->setValueNumber(null);
+        $value->setValueJson(null);
     }
 
     private function parseCustomValue(ActivityGrossanlassRoundFormField $field, mixed $raw): mixed

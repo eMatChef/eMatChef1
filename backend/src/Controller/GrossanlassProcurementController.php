@@ -97,6 +97,8 @@ class GrossanlassProcurementController extends AbstractController
             return new JsonResponse($this->procurementService->listCategories($department, $currentUser));
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 500);
         }
     }
 

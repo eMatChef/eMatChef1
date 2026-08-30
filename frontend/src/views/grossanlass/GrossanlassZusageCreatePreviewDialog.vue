@@ -42,7 +42,11 @@
         item-value="value"
         :label="t('grossanlass.beschaffung.kosten.colPayer')"
         hide-details
-      />
+      >
+        <template #item="{ props: itemProps, item }">
+          <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+        </template>
+      </ESelect>
     </div>
     <ESelect
       v-if="origin === 'buy'"
@@ -194,6 +198,7 @@ import { useToast } from '@/composables/useToast'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
+import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaParkServiceKind, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'

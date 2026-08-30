@@ -1,52 +1,53 @@
 <template>
   <div class="category-picker">
-    <div class="category-picker__row">
-      <EAutocomplete
-        v-model="categoryId"
-        v-model:search="search"
-        class="category-picker__field"
-        :items="treeItems"
-        item-title="title"
-        item-value="value"
-        :label="label || t('grossanlass.beschaffung.bedarf.categoryParent')"
-        :placeholder="t('grossanlass.beschaffung.bedarf.categoryParentPlaceholder')"
-        :no-filter="false"
-        :disabled="disabled || creating"
-        :loading="creating"
-        :clearable="!required"
-        hide-details
-      >
-        <template #item="{ props: itemProps, item }">
-          <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
-        </template>
-        <template #no-data>
-          <button
-            v-if="searchTrimmed"
-            type="button"
-            class="create-option"
-            :disabled="creating"
-            @mousedown.prevent="createFromSearch"
-          >
-            {{ t('grossanlass.beschaffung.bedarf.categoryCreateNamed', { name: searchTrimmed }) }}
-          </button>
-          <span v-else class="create-option create-option--hint">
-            {{ t('grossanlass.beschaffung.bedarf.categoryEmptyHint') }}
-          </span>
-        </template>
-      </EAutocomplete>
-      <button
-        type="button"
-        class="category-picker__plus"
-        :class="{ 'is-open': showCreate }"
-        :title="t('grossanlass.beschaffung.bedarf.categoryAdd')"
-        :aria-label="t('grossanlass.beschaffung.bedarf.categoryAdd')"
-        :aria-expanded="showCreate"
-        :disabled="disabled || creating"
-        @click="toggleCreate"
-      >
-        <v-icon :icon="showCreate ? 'mdi-close' : 'mdi-plus'" size="20" />
-      </button>
-    </div>
+    <EAutocomplete
+      v-model="categoryId"
+      v-model:search="search"
+      class="category-picker__field"
+      :items="treeItems"
+      item-title="title"
+      item-value="value"
+      :label="label || t('grossanlass.beschaffung.bedarf.categoryParent')"
+      :placeholder="t('grossanlass.beschaffung.bedarf.categoryParentPlaceholder')"
+      :no-filter="false"
+      :disabled="disabled || creating"
+      :loading="creating"
+      :clearable="!required"
+      hide-details
+    >
+      <template #item="{ props: itemProps, item }">
+        <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+      </template>
+      <template #no-data>
+        <button
+          v-if="searchTrimmed"
+          type="button"
+          class="create-option"
+          :disabled="creating"
+          @mousedown.prevent="createFromSearch"
+        >
+          {{ t('grossanlass.beschaffung.bedarf.categoryCreateNamed', { name: searchTrimmed }) }}
+        </button>
+        <span v-else class="create-option create-option--hint">
+          {{ t('grossanlass.beschaffung.bedarf.categoryEmptyHint') }}
+        </span>
+      </template>
+      <template #append-inner>
+        <button
+          type="button"
+          class="category-picker__plus"
+          :class="{ 'is-open': showCreate }"
+          :title="t('grossanlass.beschaffung.bedarf.categoryAdd')"
+          :aria-label="t('grossanlass.beschaffung.bedarf.categoryAdd')"
+          :aria-expanded="showCreate"
+          :disabled="disabled || creating"
+          @mousedown.prevent
+          @click.stop="toggleCreate"
+        >
+          <v-icon :icon="showCreate ? 'mdi-close' : 'mdi-plus'" size="20" />
+        </button>
+      </template>
+    </EAutocomplete>
 
     <div v-if="showCreate" class="category-picker__create">
       <ETextField
@@ -174,25 +175,25 @@ function createFromPanel() {
 </script>
 
 <style scoped>
-.category-picker__row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
+.category-picker {
+  width: 100%;
+  min-width: 0;
 }
 
 .category-picker__field {
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
 
 .category-picker__plus {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
-  margin-bottom: 0;
-  border: 1px solid #e5e7eb;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: none;
   border-radius: 8px;
-  background: #fff;
+  background: var(--color-primary-muted-bg, #ecfdf3);
   color: var(--color-primary-dark, #166534);
   display: inline-flex;
   align-items: center;
@@ -201,12 +202,11 @@ function createFromPanel() {
 }
 
 .category-picker__plus:hover:not(:disabled) {
-  background: var(--color-primary-muted-bg, #ecfdf3);
-  border-color: #a7f3d0;
+  background: #d1fae5;
 }
 
 .category-picker__plus.is-open {
-  background: #f1f5f9;
+  background: #e2e8f0;
   color: #334155;
 }
 

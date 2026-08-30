@@ -28,11 +28,34 @@ class GrossanlassInquiryService
     public function list(Department $department, User $user): array
     {
         $this->assertMailbox($department, $user);
+        if ($this->access->canTakeInquiry($user, $department)) {
+            try {
+                $this->collector->importPendingTips($department, $user);
+            } catch (\Throwable) {
+                // Offene Wünsche sollen die Firmenliste nicht blockieren.
+            }
+        }
 
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
-            ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
+            ->createQueryBuilder('i')
+            ->leftJoin('i.tipWish', 'w')
+            ->leftJoin('w.createdByUser', 'u')
+            ->leftJoin('u.profile', 'p')
+            ->addSelect('w', 'u', 'p')
+            ->where('i.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('i.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
 
-        return array_map(fn (DepartmentGrossanlassInquiry $row) => $this->serialize($row), $rows);
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassInquiry) {
+                $out[] = $this->serialize($row);
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -184,6 +207,8 @@ class GrossanlassInquiryService
      */
     public function importTips(Department $department, User $user): array
     {
+        $this->assertTake($department, $user);
+
         return $this->collector->importPendingTips($department, $user);
     }
 
@@ -488,6 +513,7 @@ class GrossanlassInquiryService
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),
             'tip_wish_id' => $inquiry->getTipWishId(),
+            'tip_submitted_by' => $inquiry->serializeTipSubmitter(),
             'thread' => $inquiry->getThread(),
             'gmail_draft_id' => $inquiry->getGmailDraftId(),
             'gmail_thread_id' => $inquiry->getGmailThreadId(),
