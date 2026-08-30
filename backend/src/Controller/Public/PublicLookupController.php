@@ -2,6 +2,8 @@
 
 namespace App\Controller\Public;
 
+use App\Service\Grossanlass\GrossanlassPackService;
+use App\Service\Grossanlass\GrossanlassPlaceService;
 use App\Service\Grossanlass\GrossanlassUserCardService;
 use App\Service\Public\PublicCodeService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -14,6 +16,8 @@ class PublicLookupController extends AbstractController
     public function __construct(
         private PublicCodeService $publicCodeService,
         private GrossanlassUserCardService $grossanlassUserCardService,
+        private GrossanlassPlaceService $grossanlassPlaces,
+        private GrossanlassPackService $grossanlassPacks,
     ) {}
 
     #[Route('/m/{materialCode}/b/{batchCode}', name: 'material_batch', methods: ['GET'])]
@@ -81,6 +85,28 @@ class PublicLookupController extends AbstractController
             return new JsonResponse([
                 'error' => 'Public-Code nicht gefunden oder nicht aktiv',
             ], 404);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    #[Route('/p/{publicCode}', name: 'ga_place', methods: ['GET'])]
+    public function gaPlace(string $publicCode): JsonResponse
+    {
+        $result = $this->grossanlassPlaces->resolvePublic($publicCode);
+        if ($result === null) {
+            return new JsonResponse(['error' => 'Public-Code nicht gefunden oder nicht aktiv'], 404);
+        }
+
+        return new JsonResponse($result);
+    }
+
+    #[Route('/k/{publicCode}', name: 'ga_pack', methods: ['GET'])]
+    public function gaPack(string $publicCode): JsonResponse
+    {
+        $result = $this->grossanlassPacks->resolvePublic($publicCode);
+        if ($result === null) {
+            return new JsonResponse(['error' => 'Public-Code nicht gefunden oder nicht aktiv'], 404);
         }
 
         return new JsonResponse($result);

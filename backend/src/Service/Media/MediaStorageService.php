@@ -21,6 +21,7 @@ class MediaStorageService
     public const CONTEXT_ACTIVITY_JS_ORDER = 'activity_js_order';
     public const CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE = 'grossanlass_procurement_quote';
     public const CONTEXT_GROSSANLASS_USER_CARD = 'grossanlass_user_card';
+    public const CONTEXT_USER_DRIVE_LICENSE = 'user_drive_license';
 
     public const KIND_PHOTOS = 'photos';
     public const KIND_DOCUMENTS = 'documents';
@@ -35,6 +36,7 @@ class MediaStorageService
         self::CONTEXT_ACTIVITY_JS_ORDER => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'activity-js-order'],
         self::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-procurement-quote'],
         self::CONTEXT_GROSSANLASS_USER_CARD => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-user-card'],
+        self::CONTEXT_USER_DRIVE_LICENSE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'user-drive-license'],
     ];
 
     private string $uploadsBaseDir;

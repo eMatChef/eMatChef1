@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\DepartmentSetting;
+use App\Entity\Department;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -19,7 +20,10 @@ class DepartmentRoleLabelService
 
     private const FALLBACK_LABELS = [
         'mw' => 'Materialchef',
+        'cmw' => 'Co-Materialchef',
         'dc' => 'Departmentchef',
+        'komm' => 'Kommunikation',
+        'spon' => 'Sponsoring',
         'l1' => 'Leiter 1',
         'l2' => 'Leiter 2',
         'l3' => 'Leiter 3',
@@ -35,7 +39,10 @@ class DepartmentRoleLabelService
         $normalized = strtolower(trim($role));
         $aliases = [
             'matwart' => 'mw',
+            'co_matwart' => 'cmw',
             'depchef' => 'dc',
+            'kommunikation' => 'komm',
+            'sponsoring' => 'spon',
             'leader1' => 'l1',
             'leader2' => 'l2',
             'leader3' => 'l3',
@@ -47,6 +54,13 @@ class DepartmentRoleLabelService
             $custom = $this->loadCustomLabel($departmentId, self::ROLE_SETTING_KEYS[$code]);
             if ($custom !== null) {
                 return $custom;
+            }
+        }
+
+        if ($code === 'dc' && $departmentId) {
+            $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+            if ($department instanceof Department && $department->isGrossanlass()) {
+                return 'OK-Leitung';
             }
         }
 

@@ -10,11 +10,13 @@ namespace App\Enum;
  * 2. organisationschef   - Über seine Organisation und untere Departments
  * 3. suborgchef          - Kann seine Departments verwalten, User hinzufügen/löschen
  * 4. matwart             - Materialchef des Departments
- * 5. depchef             - Chef des Departments
+ * 4b. cmw                - Co-Materialchef (Grossanlass)
+ * 5. depchef             - Chef des Departments (Grossanlass: OK-Leitung)
+ * 5b. komm / spon        - Kommunikation / Sponsoring (Grossanlass, Postfach)
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
  * 8. leader3             - Hierarchische Leiter-Funktion (Ebene 3)
- * 9. user                - Basis-User
+ * 9. user                - Basis-User / Helfer
  *
  * J+S-Coach ist kein Rollenwert, sondern Flag membership.is_js_coach.
  */
@@ -24,7 +26,10 @@ enum DepartmentRole: string
     case ORGANISATIONSCHEF = 'org';
     case SUBORGCHEF = 'sub';
     case MATWART = 'mw';
+    case CO_MATWART = 'cmw';
     case DEPCHEF = 'dc';
+    case KOMMUNIKATION = 'komm';
+    case SPONSORING = 'spon';
     case LEADER1 = 'l1';
     case LEADER2 = 'l2';
     case LEADER3 = 'l3';
@@ -47,11 +52,14 @@ enum DepartmentRole: string
             self::ORGANISATIONSCHEF => 1,
             self::SUBORGCHEF => 2,
             self::MATWART => 3,
-            self::DEPCHEF => 3,
-            self::LEADER1 => 4,
-            self::LEADER2 => 5,
-            self::LEADER3 => 6,
-            self::USER => 7,
+            self::CO_MATWART => 4,
+            self::DEPCHEF => 5,
+            self::KOMMUNIKATION => 6,
+            self::SPONSORING => 6,
+            self::LEADER1 => 7,
+            self::LEADER2 => 8,
+            self::LEADER3 => 9,
+            self::USER => 10,
         };
     }
 
@@ -83,7 +91,10 @@ enum DepartmentRole: string
             self::ORGANISATIONSCHEF => 'ROLE_ORGANISATIONSCHEF',
             self::SUBORGCHEF => 'ROLE_SUBORGCHEF',
             self::MATWART => 'ROLE_MATWART',
+            self::CO_MATWART => 'ROLE_CO_MATWART',
             self::DEPCHEF => 'ROLE_DEPCHEF',
+            self::KOMMUNIKATION => 'ROLE_KOMMUNIKATION',
+            self::SPONSORING => 'ROLE_SPONSORING',
             self::LEADER1 => 'ROLE_LEADER1',
             self::LEADER2 => 'ROLE_LEADER2',
             self::LEADER3 => 'ROLE_LEADER3',
@@ -98,7 +109,10 @@ enum DepartmentRole: string
             self::ORGANISATIONSCHEF => 'organisationschef',
             self::SUBORGCHEF => 'suborgchef',
             self::MATWART => 'matwart',
+            self::CO_MATWART => 'co_matwart',
             self::DEPCHEF => 'depchef',
+            self::KOMMUNIKATION => 'kommunikation',
+            self::SPONSORING => 'sponsoring',
             self::LEADER1 => 'leader1',
             self::LEADER2 => 'leader2',
             self::LEADER3 => 'leader3',
@@ -113,7 +127,10 @@ enum DepartmentRole: string
             self::ORGANISATIONSCHEF => 'Organisationschef',
             self::SUBORGCHEF => 'Suborgchef',
             self::MATWART => 'Materialchef',
+            self::CO_MATWART => 'Co-Materialchef',
             self::DEPCHEF => 'Departmentchef',
+            self::KOMMUNIKATION => 'Kommunikation',
+            self::SPONSORING => 'Sponsoring',
             self::LEADER1 => 'Leader 1',
             self::LEADER2 => 'Leader 2',
             self::LEADER3 => 'Leader 3',

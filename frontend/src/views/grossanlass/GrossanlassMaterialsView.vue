@@ -59,6 +59,7 @@ const tabItems = computed(() => [
   { id: 'eigen', label: t('grossanlass.materials.tabEigen'), icon: 'mdi-warehouse' },
   { id: 'leihweise', label: t('grossanlass.materials.tabLeihweise'), icon: 'mdi-handshake-outline' },
   { id: 'gaeste', label: t('grossanlass.materials.tabGaeste'), icon: 'mdi-account-group-outline' },
+  { id: 'js', label: t('grossanlass.materials.tabJs'), icon: 'mdi-tent' },
   { id: 'fahrzeuge', label: t('grossanlass.materials.tabFahrzeuge'), icon: 'mdi-truck-outline' },
 ])
 

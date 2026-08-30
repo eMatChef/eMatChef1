@@ -2,18 +2,20 @@
   <v-expansion-panels
     :model-value="panelOpen"
     multiple
-    class="ga-unterlager-tree"
-    :class="{ 'is-nested': nested }"
+    class="e-accordions"
+    :class="{ 'e-accordions--nested': nested }"
     @update:model-value="onOpen"
   >
     <v-expansion-panel v-for="site in nodes" :key="site.id" :value="site.id">
       <v-expansion-panel-title>
-        <span class="group-title">
-          <span class="kind-badge">{{ nested ? '↳' : t('grossanlass.planung.struktur.unterlagerBadge') }}</span>
-          <strong>{{ site.name }}</strong>
-          <span class="group-count">{{ t('grossanlass.planung.struktur.memberCount', { count: departments(site.id).length }) }}</span>
-          <span v-if="site.children.length" class="group-count">
-            {{ t('grossanlass.planung.struktur.unterlagerChildCount', { count: site.children.length }) }}
+        <span class="panel-head">
+          <span class="panel-head__label">
+            <span class="kind-badge">{{ nested ? '↳' : t('grossanlass.planung.struktur.unterlagerBadge') }}</span>
+            {{ site.name }}
+            <span class="panel-head__count">{{ t('grossanlass.planung.struktur.memberCount', { count: departments(site.id).length }) }}</span>
+            <span v-if="site.children.length" class="panel-head__count">
+              {{ t('grossanlass.planung.struktur.unterlagerChildCount', { count: site.children.length }) }}
+            </span>
           </span>
         </span>
       </v-expansion-panel-title>
@@ -124,30 +126,6 @@ function onOpen(value: unknown) {
 </script>
 
 <style scoped>
-.ga-unterlager-tree :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px !important;
-  margin-bottom: 8px;
-}
-.ga-unterlager-tree :deep(.v-expansion-panel-title) {
-  min-height: 48px;
-  font-size: 0.9rem;
-}
-.ga-unterlager-tree.is-nested {
-  margin: 10px 0 0;
-  padding-left: 8px;
-  border-left: 3px solid #d1fae5;
-}
-.ga-unterlager-tree.is-nested :deep(.v-expansion-panel) {
-  background: #f8fafc;
-}
-.group-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-.group-count { color: #64748b; font-size: 0.8rem; }
 .kind-badge {
   font-size: 0.7rem;
   font-weight: 600;

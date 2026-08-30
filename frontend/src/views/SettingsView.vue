@@ -72,6 +72,7 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { gaCanSeeAnlassOverview, gaIsMailboxOnly } from '@/utils/grossanlassAccess'
 import SettingsSubnavList from '@/components/settings/SettingsSubnavList.vue'
 import '@/styles/views/settings-shell.css'
 
@@ -199,15 +200,20 @@ const allMenuItems = computed(() => [
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
-/** Grossanlass-Dept: Mein Department, Zeit/Ort, Fixe Daten für MW/DC — README §3.6 */
+/** Grossanlass-Dept: Mein Department + Zeit/Print für MW/CMW/OK-L; Komm/Spon nur Mein Department */
 const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates', 'print'])
+const GROSSANLASS_MAILBOX_MENU_IDS = new Set(['my-department'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
 const visibleMenuItems = computed(() => {
   if (isGrossanlassDept.value) {
-    const allowedIds = isUserRole.value ? GROSSANLASS_USER_MENU_IDS : GROSSANLASS_MW_MENU_IDS
+    const allowedIds = isUserRole.value
+      ? GROSSANLASS_USER_MENU_IDS
+      : gaIsMailboxOnly(authStore.currentDepartmentRole) || !gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
+        ? GROSSANLASS_MAILBOX_MENU_IDS
+        : GROSSANLASS_MW_MENU_IDS
     return allMenuItems.value
       .filter((item) => allowedIds.has(item.id))
       .map((item) => {

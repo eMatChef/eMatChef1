@@ -32,6 +32,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
+import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
 import PageShell from '@/components/layout/PageShell.vue'
 import '@/styles/views/materials-view-tabs.css'
 
@@ -44,14 +45,20 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const tabItems = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
-  { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen'), icon: 'mdi-email-multiple-outline' },
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
-  { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
-])
+const tabItems = computed(() => {
+  const anfragen = { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen'), icon: 'mdi-email-multiple-outline' }
+  if (!gaCanManageProcurement(authStore.currentDepartmentRole)) {
+    return [anfragen]
+  }
+  return [
+    { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
+    anfragen,
+    { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
+    { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
+    { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
+    { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
+  ]
+})
 
 const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
 

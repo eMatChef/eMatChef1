@@ -8,6 +8,8 @@ export type ScanParseResult =
   | { type: 'storage_address'; locationCode: string; raw: string }
   | { type: 'storage_rack'; rackCode: string; raw: string }
   | { type: 'storage_slot'; slotCode: string; raw: string }
+  | { type: 'ga_pack'; packCode: string; raw: string }
+  | { type: 'ga_place'; placeCode: string; raw: string }
   | { type: 'unknown'; raw: string }
 
 function extractPath(input: string): string {
@@ -80,6 +82,24 @@ export function parseScanInput(raw: string): ScanParseResult {
     }
   }
 
+  const packMatch = path.match(/\/i\/k\/([^/]+)\/?$/i) || path.match(/^i\/k\/([^/]+)\/?$/i)
+  if (packMatch?.[1]) {
+    return {
+      type: 'ga_pack',
+      packCode: decodeURIComponent(packMatch[1]),
+      raw: trimmed,
+    }
+  }
+
+  const placeMatch = path.match(/\/i\/p\/([^/]+)\/?$/i) || path.match(/^i\/p\/([^/]+)\/?$/i)
+  if (placeMatch?.[1]) {
+    return {
+      type: 'ga_place',
+      placeCode: decodeURIComponent(placeMatch[1]),
+      raw: trimmed,
+    }
+  }
+
   return { type: 'unknown', raw: trimmed }
 }
 
@@ -90,7 +110,7 @@ export function isScanLikeInput(raw: string): boolean {
   const parsed = parseScanInput(trimmed)
   if (parsed.type !== 'unknown') return true
   if (/^https?:\/\//i.test(trimmed)) return true
-  if (/\/i\/(m|a|w|l|r|s)\//i.test(trimmed)) return true
+  if (/\/i\/(m|a|w|l|r|s|c|k|p)\//i.test(trimmed)) return true
   return false
 }
 
@@ -106,6 +126,10 @@ export function formatScanParseResult(result: ScanParseResult): string {
       return `storage_rack:${result.rackCode}`
     case 'storage_slot':
       return `storage_slot:${result.slotCode}`
+    case 'ga_pack':
+      return `ga_pack:${result.packCode}`
+    case 'ga_place':
+      return `ga_place:${result.placeCode}`
     default:
       return result.raw ? `unknown:${result.raw.slice(0, 80)}` : 'empty'
   }

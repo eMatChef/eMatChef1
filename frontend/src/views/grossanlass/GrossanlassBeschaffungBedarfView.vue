@@ -5,13 +5,37 @@
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
     <template v-else>
-    <GrossanlassProcurementCategoryManager
-      :department-id="departmentId"
-      :categories="categories"
-      @created="onCategoryCreated"
-      @updated="onCategoryUpdated"
-      @deleted="onCategoryDeleted"
-    />
+    <v-expansion-panels v-model="openCategorySection" multiple class="e-accordions bedarf-cat-accordion">
+      <v-expansion-panel value="categories">
+        <v-expansion-panel-title>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.beschaffung.bedarf.categoriesTitle') }}
+              <span class="panel-head__count">{{ categories.length }}</span>
+            </span>
+            <span
+              class="panel-head__settings"
+              role="link"
+              tabindex="0"
+              @click.stop="goCategorySettings"
+              @keydown.enter.stop.prevent="goCategorySettings"
+            >
+              {{ t('grossanlass.beschaffung.bedarf.categoriesOpenSettings') }}
+            </span>
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <GrossanlassProcurementCategoryManager
+            hide-heading
+            :department-id="departmentId"
+            :categories="categories"
+            @created="onCategoryCreated"
+            @updated="onCategoryUpdated"
+            @deleted="onCategoryDeleted"
+          />
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
     <div class="source-tabs" role="tablist">
       <button
@@ -542,7 +566,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -572,20 +596,32 @@ import {
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
 import { procurementStatusLabel } from '@/utils/grossanlassProcurementStatus'
+import {
+  childrenOfProcurementCategory,
+  descendantIdsOfProcurementCategory,
+  pathLabelOfProcurementCategory,
+  procurementCategoryTreeItems,
+} from '@/utils/grossanlassProcurementCategoryTree'
 import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
+function goCategorySettings() {
+  void router.push(`/${departmentId.value}/einstellungen/kategorien`)
+}
+
 const pool = ref<GrossanlassProcurementPoolWish[]>([])
 const companyTips = ref<GrossanlassCollectorItem[]>([])
 const freeIdeas = ref<GrossanlassCollectorItem[]>([])
 const materialRounds = ref<GrossanlassCollectorRoundOption[]>([])
 const sourceTab = ref<'material' | 'company' | 'free'>('material')
+const openCategorySection = ref<string[]>([])
 const collectorRoundId = ref('all')
 const collectorGroupId = ref('all')
 const materialAssignOpen = ref(false)
@@ -771,13 +807,8 @@ const categoryFilterItems = computed(() => {
       name: t('grossanlass.beschaffung.bedarf.categoryUncategorized'),
       depth: 0,
     },
+    ...procurementCategoryTreeItems(categories.value),
   ]
-  for (const parent of categories.value.filter((c) => !c.parent_id)) {
-    items.push({ title: parent.name, value: parent.id, name: parent.name, depth: 0 })
-    for (const child of categories.value.filter((c) => c.parent_id === parent.id)) {
-      items.push({ title: child.name, value: child.id, name: child.name, depth: 1 })
-    }
-  }
   return items
 })
 
@@ -787,12 +818,8 @@ const groupedLines = computed(() => {
   if (filter === UNCATEGORIZED_FILTER) {
     visible = lines.value.filter((l) => !l.category_id)
   } else if (filter !== 'all') {
-    const childIds = new Set(
-      categories.value.filter((c) => c.parent_id === filter).map((c) => c.id),
-    )
-    visible = lines.value.filter(
-      (l) => l.category_id === filter || (l.category_id != null && childIds.has(l.category_id)),
-    )
+    const ids = descendantIdsOfProcurementCategory(categories.value, filter)
+    visible = lines.value.filter((l) => l.category_id != null && ids.has(l.category_id))
   }
 
   const groups: Array<{
@@ -801,20 +828,34 @@ const groupedLines = computed(() => {
     subgroups: Array<{ categoryId: string | null; categoryName: string | null; lines: GrossanlassProcurementLine[] }>
   }> = []
 
-  for (const parent of categories.value.filter((c) => !c.parent_id)) {
-    const children = categories.value.filter((c) => c.parent_id === parent.id)
+  for (const parent of childrenOfProcurementCategory(categories.value, null)) {
     const parentLines = visible.filter((l) => l.category_id === parent.id)
+    const descendantRows: Array<{
+      categoryId: string | null
+      categoryName: string | null
+      lines: GrossanlassProcurementLine[]
+    }> = []
+    const walk = (parentId: string) => {
+      for (const child of childrenOfProcurementCategory(categories.value, parentId)) {
+        const linesForChild = visible.filter((l) => l.category_id === child.id)
+        if (linesForChild.length) {
+          const full = pathLabelOfProcurementCategory(categories.value, child.id)
+          const prefix = `${parent.name} / `
+          descendantRows.push({
+            categoryId: child.id,
+            categoryName: full.startsWith(prefix) ? full.slice(prefix.length) : child.name,
+            lines: linesForChild,
+          })
+        }
+        walk(child.id)
+      }
+    }
+    walk(parent.id)
     const subgroups = [
       ...(parentLines.length
         ? [{ categoryId: parent.id, categoryName: null, lines: parentLines }]
         : []),
-      ...children
-        .map((child) => ({
-          categoryId: child.id,
-          categoryName: child.name,
-          lines: visible.filter((l) => l.category_id === child.id),
-        }))
-        .filter((s) => s.lines.length > 0),
+      ...descendantRows,
     ]
     if (subgroups.length) {
       groups.push({ parentId: parent.id, parentName: parent.name, subgroups })
@@ -896,9 +937,8 @@ function applyBedarfOverview(data: GrossanlassBedarfOverview) {
 }
 
 function categoryPath(line: GrossanlassProcurementLine): string {
-  if (!line.category_name) return ''
-  if (line.category_parent_name) return `${line.category_parent_name} / ${line.category_name}`
-  return line.category_name
+  if (!line.category_id) return line.category_name || ''
+  return pathLabelOfProcurementCategory(categories.value, line.category_id) || line.category_name || ''
 }
 
 function onCategoryCreated(category: GrossanlassProcurementCategory) {
@@ -924,24 +964,28 @@ function onCategoryUpdated(category: GrossanlassProcurementCategory) {
   })
 }
 
-function onCategoryDeleted(categoryId: string) {
-  const removed = new Set(
-    categories.value
-      .filter((c) => c.id === categoryId || c.parent_id === categoryId)
-      .map((c) => c.id),
-  )
+function onCategoryDeleted(categoryId: string, reassignTo?: GrossanlassProcurementCategory) {
+  const removed = descendantIdsOfProcurementCategory(categories.value, categoryId)
   categories.value = categories.value.filter((c) => !removed.has(c.id))
-  lines.value = lines.value.map((line) =>
-    line.category_id && removed.has(line.category_id)
-      ? {
-          ...line,
-          category_id: null,
-          category_name: null,
-          category_parent_id: null,
-          category_parent_name: null,
-        }
-      : line,
-  )
+  lines.value = lines.value.map((line) => {
+    if (!line.category_id || !removed.has(line.category_id)) return line
+    if (reassignTo) {
+      return {
+        ...line,
+        category_id: reassignTo.id,
+        category_name: reassignTo.name,
+        category_parent_id: reassignTo.parent_id,
+        category_parent_name: reassignTo.parent_name,
+      }
+    }
+    return {
+      ...line,
+      category_id: null,
+      category_name: null,
+      category_parent_id: null,
+      category_parent_name: null,
+    }
+  })
 }
 
 function openBundleFromSelection() {
@@ -1125,6 +1169,25 @@ onMounted(load)
   margin: 0 0 16px;
   color: #64748b;
   font-size: 0.9rem;
+}
+
+.bedarf-cat-accordion {
+  margin-bottom: 16px;
+}
+
+.bedarf-cat-accordion :deep(.panel-head__settings) {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #0f766e;
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
+}
+
+.bedarf-cat-accordion :deep(.panel-head__settings:hover) {
+  text-decoration: underline;
 }
 
 .source-tabs {

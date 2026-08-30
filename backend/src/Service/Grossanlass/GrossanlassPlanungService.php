@@ -684,7 +684,7 @@ final class GrossanlassPlanungService
             'departmentId' => $department->getId(),
         ]);
         $role = strtolower(trim((string) ($membership?->getRole() ?? '')));
-        if (!in_array($role, ['mw', 'dc', 'org', 'sub', 'sa'], true)) {
+        if (!in_array($role, ['mw', 'cmw', 'dc', 'org', 'sub', 'sa'], true)) {
             throw new \RuntimeException('Keine Berechtigung für diese Einladung');
         }
     }

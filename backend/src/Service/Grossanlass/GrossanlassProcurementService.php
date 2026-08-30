@@ -168,7 +168,7 @@ class GrossanlassProcurementService
     public function createLineFromWishes(Department $department, User $user, array $wishLineIds, array $data = []): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -220,7 +220,7 @@ class GrossanlassProcurementService
         array $data = [],
     ): array {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -260,7 +260,7 @@ class GrossanlassProcurementService
     public function updateLine(Department $department, User $user, string $lineId, array $data): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -308,7 +308,7 @@ class GrossanlassProcurementService
     public function deleteLine(Department $department, User $user, string $lineId): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -369,6 +369,7 @@ class GrossanlassProcurementService
     public function listCategories(Department $department, User $user): array
     {
         $this->assertCanManageProcurement($department, $user);
+        $this->ensureJsCategory($department);
 
         return $this->listCategoryArrays($department);
     }
@@ -384,6 +385,9 @@ class GrossanlassProcurementService
 
         $name = $this->requireCategoryName($data['name'] ?? null);
         $parent = $this->resolveCategoryParent($department, $data['parent_id'] ?? null, null);
+        if ($parent === null && ActivityGrossanlassProcurementCategory::isJsNameAlias($name)) {
+            throw new \InvalidArgumentException('J+S ist eine feste Kategorie und kann nicht erneut angelegt werden');
+        }
         $this->assertUniqueCategoryName($department, $name, $parent?->getId(), null);
 
         $category = new ActivityGrossanlassProcurementCategory();
@@ -421,6 +425,7 @@ class GrossanlassProcurementService
     public function ensureTopLevelCategories(Department $department, User $user, array $names): int
     {
         $this->assertCanManageProcurement($department, $user);
+        $created = $this->ensureJsCategory($department) ? 1 : 0;
         $existing = [];
         $maxSort = 0;
         foreach ($this->loadCategories($department) as $row) {
@@ -430,11 +435,13 @@ class GrossanlassProcurementService
             $existing[mb_strtolower($row->getName(), 'UTF-8')] = true;
             $maxSort = max($maxSort, $row->getSortOrder());
         }
-        $created = 0;
         foreach ($names as $raw) {
             try {
                 $name = $this->requireCategoryName($raw);
             } catch (\InvalidArgumentException) {
+                continue;
+            }
+            if (ActivityGrossanlassProcurementCategory::isJsNameAlias($name)) {
                 continue;
             }
             $key = mb_strtolower($name, 'UTF-8');
@@ -473,6 +480,7 @@ class GrossanlassProcurementService
         $this->assertCanManageProcurement($department, $user);
 
         $category = $this->findCategoryInDepartment($department, $categoryId);
+        $this->assertSystemCategoryMutable($category, $data);
 
         if (isset($data['name'])) {
             $name = $this->requireCategoryName($data['name']);
@@ -502,22 +510,85 @@ class GrossanlassProcurementService
         return $this->categoryToArray($category);
     }
 
-    public function deleteCategory(Department $department, User $user, string $categoryId): void
+    /**
+     * @return array{lines: list<array<string, mixed>>, inquiries: list<array<string, mixed>>}
+     */
+    public function categoryUsage(Department $department, User $user, string $categoryId): array
     {
+        $this->assertCanManageProcurement($department, $user);
+        $category = $this->findCategoryInDepartment($department, $categoryId);
+
+        return $this->collectCategoryUsage($department, $category);
+    }
+
+    /**
+     * @return array{
+     *     removed_ids: list<string>,
+     *     from_paths: list<string>,
+     *     to_path: string,
+     *     inquiry_ids: list<string>
+     * }
+     */
+    public function deleteCategory(
+        Department $department,
+        User $user,
+        string $categoryId,
+        ?string $reassignToId = null,
+    ): array {
         $this->assertCanManageProcurement($department, $user);
 
         $category = $this->findCategoryInDepartment($department, $categoryId);
-        $children = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
-            ->findBy(['parentId' => $category->getId()]);
-        foreach ($children as $child) {
-            if ($child instanceof ActivityGrossanlassProcurementCategory) {
-                $this->clearCategoryOnLines($child);
-                $this->entityManager->remove($child);
+        if ($category->isSystemLocked()) {
+            throw new \InvalidArgumentException('Die Kategorie J+S ist fest und kann nicht gelöscht werden');
+        }
+
+        $tree = $this->categoryTree($department, $category);
+        $treeIds = array_map(static fn (ActivityGrossanlassProcurementCategory $row) => $row->getId(), $tree);
+        $usage = $this->collectCategoryUsage($department, $category);
+        $target = null;
+        if ($usage['lines'] !== [] || $usage['inquiries'] !== []) {
+            if ($reassignToId === null || $reassignToId === '') {
+                throw new GrossanlassCategoryInUseException([
+                    'code' => 'category_in_use',
+                    'lines' => $usage['lines'],
+                    'inquiries' => $usage['inquiries'],
+                ]);
+            }
+            $target = $this->findCategoryInDepartment($department, $reassignToId);
+            if (in_array($target->getId(), $treeIds, true)) {
+                throw new \InvalidArgumentException('Zielkategorie darf nicht die zu löschende Kategorie sein');
+            }
+            $this->reassignCategoryUsage($department, $treeIds, $target);
+        }
+
+        $fromPaths = [];
+        foreach ($tree as $row) {
+            $path = $this->categoryPackagePath($row);
+            if ($path !== '') {
+                $fromPaths[] = $path;
             }
         }
-        $this->clearCategoryOnLines($category);
+        $inquiryIds = array_values(array_map(
+            static fn (array $row): string => (string) $row['id'],
+            $usage['inquiries'],
+        ));
+        $toPath = $target !== null ? $this->categoryPackagePath($target) : '';
+
+        foreach ($tree as $row) {
+            if ($row->getId() === $category->getId()) {
+                continue;
+            }
+            $this->entityManager->remove($row);
+        }
         $this->entityManager->remove($category);
         $this->entityManager->flush();
+
+        return [
+            'removed_ids' => $treeIds,
+            'from_paths' => array_values(array_unique($fromPaths)),
+            'to_path' => $toPath,
+            'inquiry_ids' => $inquiryIds,
+        ];
     }
 
     /**
@@ -526,7 +597,7 @@ class GrossanlassProcurementService
     public function getOverview(Department $department, User $user): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -697,7 +768,7 @@ class GrossanlassProcurementService
     public function listAllLines(Department $department, User $user, ?string $statusFilter = null): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -886,7 +957,7 @@ class GrossanlassProcurementService
     public function extractContactFromQuotePdf(Department $department, User $user, UploadedFile $file): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -896,7 +967,7 @@ class GrossanlassProcurementService
     public function resolveQuotePdfPath(Department $department, User $user, string $quoteId, string $filename): string
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -1111,7 +1182,7 @@ class GrossanlassProcurementService
     public function updateBedarfWish(Department $department, User $user, string $wishLineId, array $data): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -1304,7 +1375,7 @@ class GrossanlassProcurementService
     private function assertCanManageProcurement(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
     }
@@ -1396,21 +1467,63 @@ class GrossanlassProcurementService
             }
         }
 
+        usort($parents, static function (
+            ActivityGrossanlassProcurementCategory $a,
+            ActivityGrossanlassProcurementCategory $b,
+        ): int {
+            $aSys = $a->getSystemKey() ? 0 : 1;
+            $bSys = $b->getSystemKey() ? 0 : 1;
+            if ($aSys !== $bSys) {
+                return $aSys <=> $bSys;
+            }
+            $sort = $a->getSortOrder() <=> $b->getSortOrder();
+            if ($sort !== 0) {
+                return $sort;
+            }
+
+            return strcasecmp($a->getName(), $b->getName());
+        });
+
         $ordered = [];
         foreach ($parents as $parent) {
             $ordered[] = $parent;
-            foreach ($childrenByParent[$parent->getId()] ?? [] as $child) {
-                $ordered[] = $child;
-            }
+            $this->appendCategoryDescendants($ordered, $childrenByParent, $parent->getId());
             unset($childrenByParent[$parent->getId()]);
         }
+        $this->appendRemainingCategoryOrphans($ordered, $childrenByParent);
+
+        return $ordered;
+    }
+
+    /**
+     * @param list<ActivityGrossanlassProcurementCategory> $ordered
+     * @param array<string, list<ActivityGrossanlassProcurementCategory>> $childrenByParent
+     */
+    private function appendCategoryDescendants(
+        array &$ordered,
+        array &$childrenByParent,
+        string $parentId,
+    ): void {
+        foreach ($childrenByParent[$parentId] ?? [] as $child) {
+            $ordered[] = $child;
+            $this->appendCategoryDescendants($ordered, $childrenByParent, $child->getId());
+        }
+        unset($childrenByParent[$parentId]);
+    }
+
+    /**
+     * @param list<ActivityGrossanlassProcurementCategory> $ordered
+     * @param array<string, list<ActivityGrossanlassProcurementCategory>> $childrenByParent
+     */
+    private function appendRemainingCategoryOrphans(
+        array &$ordered,
+        array $childrenByParent,
+    ): void {
         foreach ($childrenByParent as $orphans) {
             foreach ($orphans as $child) {
                 $ordered[] = $child;
             }
         }
-
-        return $ordered;
     }
 
     /**
@@ -1425,10 +1538,91 @@ class GrossanlassProcurementService
             'department_id' => $category->getDepartmentId(),
             'parent_id' => $category->getParentId(),
             'parent_name' => $parent?->getName(),
+            'path' => $this->categoryPackagePath($category),
             'name' => $category->getName(),
             'sort_order' => $category->getSortOrder(),
             'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
+            'system_key' => $category->getSystemKey(),
         ];
+    }
+
+    /**
+     * Fixed J+S package for Anfragen (order from J+S). Idempotent.
+     */
+    private function ensureJsCategory(Department $department): bool
+    {
+        $repo = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class);
+        $existing = $repo->findOneBy([
+            'departmentId' => $department->getId(),
+            'systemKey' => ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS,
+        ]);
+        if ($existing instanceof ActivityGrossanlassProcurementCategory) {
+            if ($existing->getName() !== ActivityGrossanlassProcurementCategory::JS_NAME) {
+                $existing->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
+                $existing->setParent(null);
+                $existing->touchUpdatedAt();
+                $this->entityManager->flush();
+            }
+
+            return false;
+        }
+
+        foreach ($this->loadCategories($department) as $row) {
+            if ($row->getParentId() !== null) {
+                continue;
+            }
+            if (!ActivityGrossanlassProcurementCategory::isJsNameAlias($row->getName())) {
+                continue;
+            }
+            $row->setSystemKey(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS);
+            $row->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
+            $row->touchUpdatedAt();
+            $this->entityManager->flush();
+
+            return false;
+        }
+
+        $category = new ActivityGrossanlassProcurementCategory();
+        $category->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_CATEGORY,
+            ActivityGrossanlassProcurementCategory::class,
+        ));
+        $category->setDepartment($department);
+        $category->setParent(null);
+        $category->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
+        $category->setSystemKey(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS);
+        $category->setSortOrder(0);
+        $this->entityManager->persist($category);
+        $this->entityManager->flush();
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function assertSystemCategoryMutable(
+        ActivityGrossanlassProcurementCategory $category,
+        array $data,
+    ): void {
+        if (!$category->isSystemLocked()) {
+            return;
+        }
+        if (isset($data['name'])) {
+            $name = $this->requireCategoryName($data['name']);
+            if ($name !== $category->getName()) {
+                throw new \InvalidArgumentException('Die Kategorie J+S kann nicht umbenannt werden');
+            }
+        }
+        if (array_key_exists('parent_id', $data)) {
+            $parentId = is_string($data['parent_id']) || is_int($data['parent_id'])
+                ? trim((string) $data['parent_id'])
+                : '';
+            if ($parentId !== '') {
+                throw new \InvalidArgumentException('Die Kategorie J+S kann nicht verschoben werden');
+            }
+        }
     }
 
     private function findCategoryInDepartment(
@@ -1457,14 +1651,13 @@ class GrossanlassProcurementService
             throw new \InvalidArgumentException('Kategorie kann nicht sich selbst untergeordnet werden');
         }
         $parent = $this->findCategoryInDepartment($department, $parentId);
-        if ($parent->getParentId() !== null) {
-            throw new \InvalidArgumentException('Nur eine Unterebene erlaubt');
-        }
         if ($category !== null) {
-            $childCount = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class)
-                ->count(['parentId' => $category->getId()]);
-            if ($childCount > 0) {
-                throw new \InvalidArgumentException('Kategorie mit Unterkategorien kann nicht verschoben werden');
+            $treeIds = array_map(
+                static fn (ActivityGrossanlassProcurementCategory $row) => $row->getId(),
+                $this->categoryTree($department, $category),
+            );
+            if (in_array($parent->getId(), $treeIds, true)) {
+                throw new \InvalidArgumentException('Kategorie kann nicht unter eine eigene Unterkategorie verschoben werden');
             }
         }
 
@@ -1512,16 +1705,141 @@ class GrossanlassProcurementService
         }
     }
 
-    private function clearCategoryOnLines(ActivityGrossanlassProcurementCategory $category): void
+    /**
+     * @return list<ActivityGrossanlassProcurementCategory>
+     */
+    private function categoryTree(Department $department, ActivityGrossanlassProcurementCategory $root): array
     {
-        $lines = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
-            ->findBy(['categoryId' => $category->getId()]);
-        foreach ($lines as $line) {
-            if ($line instanceof ActivityGrossanlassProcurementLine) {
-                $line->setCategory(null);
-                $line->touchUpdatedAt();
-            }
+        $byParent = [];
+        foreach ($this->loadCategories($department) as $row) {
+            $parentId = $row->getParentId() ?? '';
+            $byParent[$parentId][] = $row;
         }
+        $out = [];
+        $walk = function (ActivityGrossanlassProcurementCategory $node) use (&$walk, &$out, $byParent): void {
+            $out[] = $node;
+            foreach ($byParent[$node->getId()] ?? [] as $child) {
+                if ($child instanceof ActivityGrossanlassProcurementCategory) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($root);
+
+        return $out;
+    }
+
+    /**
+     * @return array{lines: list<array<string, mixed>>, inquiries: list<array<string, mixed>>}
+     */
+    private function collectCategoryUsage(
+        Department $department,
+        ActivityGrossanlassProcurementCategory $category,
+    ): array {
+        $ids = array_map(
+            static fn (ActivityGrossanlassProcurementCategory $row) => $row->getId(),
+            $this->categoryTree($department, $category),
+        );
+        $idSet = array_fill_keys($ids, true);
+
+        $lines = [];
+        foreach ($this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->findBy(['departmentId' => $department->getId()]) as $line
+        ) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $catId = $line->getCategoryId();
+            if ($catId === null || !isset($idSet[$catId])) {
+                continue;
+            }
+            $lines[] = [
+                'id' => $line->getId(),
+                'label' => $line->getLabel(),
+                'quantity' => $line->getQuantity(),
+                'group_name' => $line->getGroup()->getName(),
+                'status' => $line->getStatus(),
+                'category_id' => $catId,
+                'category_name' => $line->getCategory()?->getName(),
+            ];
+        }
+
+        $inquiries = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
+            ->findBy(['departmentId' => $department->getId()]) as $inquiry
+        ) {
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            $hit = false;
+            foreach ($inquiry->getCategoryIds() as $raw) {
+                if (isset($idSet[(string) $raw])) {
+                    $hit = true;
+                    break;
+                }
+            }
+            if (!$hit) {
+                continue;
+            }
+            $inquiries[] = [
+                'id' => $inquiry->getId(),
+                'name' => $inquiry->getName(),
+            ];
+        }
+
+        return ['lines' => $lines, 'inquiries' => $inquiries];
+    }
+
+    /**
+     * @param list<string> $fromIds
+     */
+    private function reassignCategoryUsage(
+        Department $department,
+        array $fromIds,
+        ActivityGrossanlassProcurementCategory $target,
+    ): void {
+        $fromSet = array_fill_keys($fromIds, true);
+        foreach ($this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->findBy(['departmentId' => $department->getId()]) as $line
+        ) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $catId = $line->getCategoryId();
+            if ($catId === null || !isset($fromSet[$catId])) {
+                continue;
+            }
+            $line->setCategory($target);
+            $line->touchUpdatedAt();
+        }
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
+            ->findBy(['departmentId' => $department->getId()]) as $inquiry
+        ) {
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            $next = [];
+            $changed = false;
+            foreach ($inquiry->getCategoryIds() as $raw) {
+                $value = (string) $raw;
+                if (isset($fromSet[$value])) {
+                    $changed = true;
+                    $next[] = $target->getId();
+                    continue;
+                }
+                $next[] = $value;
+            }
+            if (!$changed) {
+                continue;
+            }
+            $inquiry->setCategoryIds(array_values(array_unique($next)));
+        }
+        $this->entityManager->flush();
+    }
+
+    private function categoryPackagePath(ActivityGrossanlassProcurementCategory $category): string
+    {
+        return GrossanlassMailMergeService::categoryPackagePathFromEntity($category);
     }
 
     private function markWishAcceptedForProcurement(ActivityGrossanlassWishLine $wish, User $user): void
@@ -1735,7 +2053,7 @@ class GrossanlassProcurementService
         string $lineId,
     ): ActivityGrossanlassProcurementLine {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 

@@ -27,7 +27,9 @@
           :menu="bauprojektMenuOpen"
           open-on-focus="false"
           hide-details="auto"
+          spellcheck="false"
           class="mb-3"
+          @update:model-value="onBauprojektSelected"
         />
         <template v-if="local.groupMode === 'new' && allowNewBauprojekt(field)">
           <ESelect
@@ -333,39 +335,70 @@ const bauprojekte = computed(() => {
   return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
 })
 
-const ressortTreeGroups = computed(() => {
-  const allowed = new Set(selectableGroupsForRessort.value.filter(isRessortNodeGroup).map((g) => g.id))
-  return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
-})
+function findBauprojekt(id: string | null | undefined): GrossanlassGroup | undefined {
+  if (!id) return undefined
+  return bauprojekte.value.find((g) => g.id === id)
+    || props.groups.find((g) => g.id === id && isBauprojektGroup(g))
+}
+
+function syncBauprojektSearchFromSelection() {
+  const selected = findBauprojekt(local.groupId)
+  if (selected) bauprojektSearch.value = selected.name
+}
+
+function onBauprojektSelected(value: unknown) {
+  const id = typeof value === 'string' ? value : null
+  local.groupId = id
+  syncBauprojektSearchFromSelection()
+}
+
+function toBauprojektItem(g: GrossanlassGroup) {
+  return {
+    title: g.name,
+    subtitle: ressortPathForBauprojekt(g, props.groups),
+    value: g.id,
+  }
+}
 
 const bauprojektAutocompleteItems = computed(() => {
+  const selected = findBauprojekt(local.groupId)
   const q = bauprojektSearch.value.trim().toLowerCase()
-  if (!q) return []
+  const selectedQuery = selected
+    && (q === selected.name.toLowerCase() || q === selected.id.toLowerCase())
 
   let list = bauprojekte.value
   if (hasSystemField('ressort_wahl') && local.ressortGroupId) {
     const branchIds = collectBranchIds(local.ressortGroupId)
     list = list.filter((g) => branchIds.has(g.id))
   }
-  list = list.filter((g) => {
-    const path = ressortPathForBauprojekt(g, props.groups).toLowerCase()
-    return g.name.toLowerCase().includes(q) || path.toLowerCase().includes(q)
-  })
-  return list.map((g) => ({
-    title: g.name,
-    subtitle: ressortPathForBauprojekt(g, props.groups),
-    value: g.id,
-  }))
+
+  if (q && !selectedQuery) {
+    list = list.filter((g) => {
+      const path = ressortPathForBauprojekt(g, props.groups).toLowerCase()
+      return g.name.toLowerCase().includes(q) || path.includes(q)
+    })
+  } else {
+    list = selected ? [selected] : []
+  }
+
+  if (selected && !list.some((g) => g.id === selected.id)) {
+    list = [selected, ...list]
+  }
+
+  return list.map(toBauprojektItem)
+})
+
+const ressortTreeGroups = computed(() => {
+  const allowed = new Set(selectableGroupsForRessort.value.filter(isRessortNodeGroup).map((g) => g.id))
+  return flattenGrossanlassGroupsWithLevel(props.groups).filter((g) => allowed.has(g.id))
 })
 
 /** Dropdown erst bei aktiver Suche — kein leeres «Keine Daten» beim Fokus. */
 const bauprojektMenuOpen = computed(() => {
   const q = bauprojektSearch.value.trim()
   if (q.length === 0) return false
-  if (local.groupId) {
-    const selected = props.groups.find((g) => g.id === local.groupId)
-    if (selected && q === selected.name) return false
-  }
+  const selected = findBauprojekt(local.groupId)
+  if (selected && (q === selected.name || q === selected.id)) return false
   return true
 })
 
@@ -565,7 +598,7 @@ async function loadFromWish(wish: GrossanlassWishLine) {
     : wish.group_id
   local.parentId = null
   local.newBauprojektName = ''
-  bauprojektSearch.value = isBauprojekt && group ? group.name : ''
+  syncBauprojektSearchFromSelection()
   local.wishKind = wish.wish_kind
   local.label = wish.label
   local.quantity = String(wish.quantity)
@@ -588,6 +621,7 @@ async function loadFromWish(wish: GrossanlassWishLine) {
   }
 
   await nextTick()
+  syncBauprojektSearchFromSelection()
 
   if (hasSystemField('period')) {
     periodRef.value?.setRange(wish.valid_from, wish.valid_to)
@@ -626,6 +660,13 @@ function resetAfterSubmit() {
     }
   }
 }
+
+watch(bauprojektSearch, (q) => {
+  const selected = findBauprojekt(local.groupId)
+  if (selected && q === selected.id) {
+    bauprojektSearch.value = selected.name
+  }
+})
 
 watch(
   () => local.ressortGroupId,

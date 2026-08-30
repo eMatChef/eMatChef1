@@ -10,6 +10,7 @@ use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\Grossanlass\GrossanlassProcurementService;
+use App\Service\Grossanlass\GrossanlassCategoryInUseException;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -123,6 +124,7 @@ class GrossanlassProcurementController extends AbstractController
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }
 
+        $this->gmail->ensureCategoryPackageLabels($department, $currentUser, $category);
         $this->gmail->syncLabelsIfConnected($department, $currentUser);
 
         return new JsonResponse($category, 201);
@@ -164,9 +166,9 @@ class GrossanlassProcurementController extends AbstractController
         return new JsonResponse($category);
     }
 
-    #[Route('/categories/{categoryId}', name: 'categories_delete', methods: ['DELETE'])]
+    #[Route('/categories/{categoryId}/usage', name: 'categories_usage', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
-    public function deleteCategory(string $departmentId, string $categoryId): JsonResponse
+    public function categoryUsage(string $departmentId, string $categoryId): JsonResponse
     {
         $department = $this->resolveGrossanlassDepartment($departmentId);
         if ($department instanceof JsonResponse) {
@@ -179,16 +181,60 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         try {
-            $this->procurementService->deleteCategory($department, $currentUser, $categoryId);
+            return new JsonResponse($this->procurementService->categoryUsage($department, $currentUser, $categoryId));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/categories/{categoryId}', name: 'categories_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteCategory(string $departmentId, string $categoryId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $reassignTo = isset($data['reassign_to']) ? trim((string) $data['reassign_to']) : '';
+
+        try {
+            $result = $this->procurementService->deleteCategory(
+                $department,
+                $currentUser,
+                $categoryId,
+                $reassignTo !== '' ? $reassignTo : null,
+            );
+        } catch (GrossanlassCategoryInUseException $e) {
+            return new JsonResponse($e->toArray(), 409);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }
 
+        if ($result['to_path'] !== '' && $result['from_paths'] !== []) {
+            $this->gmail->retargetPackageLabels(
+                $department,
+                $currentUser,
+                $result['from_paths'],
+                $result['to_path'],
+                $result['inquiry_ids'],
+            );
+        } elseif ($result['from_paths'] !== []) {
+            $this->gmail->removePackageLabels($department, $currentUser, $result['from_paths']);
+        }
         $this->gmail->syncLabelsIfConnected($department, $currentUser);
 
-        return new JsonResponse(['success' => true]);
+        return new JsonResponse(['success' => true, 'removed_ids' => $result['removed_ids']]);
     }
 
     #[Route('/lines/{lineId}', name: 'lines_update', methods: ['PUT'])]

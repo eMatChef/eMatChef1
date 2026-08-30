@@ -2,11 +2,12 @@
   <v-list-item
     v-bind="listItemProps"
     class="ga-cat-dd-item"
-    :class="{ 'ga-cat-dd-item--child': isChild }"
+    :class="{ 'ga-cat-dd-item--nested': depth > 0 }"
+    :style="{ paddingInlineStart: `${12 + depth * 16}px` }"
   >
     <template #title>
       <span class="ga-cat-dd-item__label">
-        <span v-if="isChild" class="ga-cat-dd-item__mark" aria-hidden="true">↳</span>
+        <span v-if="depth > 0" class="ga-cat-dd-item__mark" aria-hidden="true">↳</span>
         {{ label }}
       </span>
     </template>
@@ -32,7 +33,7 @@ const source = computed(() => {
   return props.item
 })
 
-const isChild = computed(() => Number(source.value.depth ?? 0) > 0)
+const depth = computed(() => Math.max(0, Number(source.value.depth ?? 0)))
 
 const label = computed(() => {
   const fromSource = source.value.name
@@ -44,8 +45,8 @@ const label = computed(() => {
 </script>
 
 <style>
-.ga-cat-dd-item--child {
-  padding-inline-start: 2.75rem !important;
+.ga-cat-dd-item--nested {
+  min-height: 40px;
 }
 .ga-cat-dd-item__label {
   display: inline-flex;

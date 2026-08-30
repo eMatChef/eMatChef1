@@ -1,6 +1,6 @@
 <template>
   <section class="cat-manager">
-    <div class="panel-head">
+    <div v-if="!hideHeading" class="panel-head">
       <h3>{{ t('grossanlass.beschaffung.bedarf.categoriesTitle') }}</h3>
       <span class="panel-count">{{ categories.length }}</span>
     </div>
@@ -49,47 +49,112 @@
     </p>
 
     <ul v-else class="cat-tree">
-      <li v-for="(parent, parentIndex) in parents" :key="parent.id" class="cat-branch">
-        <div class="cat-node">
-        <div v-if="editingId === parent.id" class="cat-node__row cat-node__row--edit">
-          <div class="cat-edit__name">
-            <ETextField
-              v-model="editName"
-              :label="t('grossanlass.beschaffung.bedarf.categoryName')"
-              hide-details
-              @keydown.enter.prevent="saveEdit"
-            />
+      <li
+        v-for="row in visibleRows"
+        :key="row.kind === 'add' ? `add-${row.parentId}` : row.category.id"
+        class="cat-node"
+        :class="{
+          'cat-node--child': row.depth > 0,
+          'cat-node--add': row.kind === 'add',
+        }"
+        :style="{ marginLeft: `${row.depth * 1.15}rem` }"
+      >
+        <template v-if="row.kind === 'add'">
+          <div class="cat-node__row cat-node__row--edit">
+            <div class="cat-edit__name">
+              <ETextField
+                v-model="childName"
+                class="cat-add-child"
+                :label="t('grossanlass.beschaffung.bedarf.categoryName')"
+                :placeholder="t('grossanlass.beschaffung.bedarf.categoryNamePlaceholder')"
+                hide-details
+                @keydown.enter.prevent="confirmAddChild"
+              />
+            </div>
+            <div class="cat-node__actions">
+              <button
+                type="button"
+                class="icon-btn"
+                :title="t('grossanlass.beschaffung.bedarf.categoryAddChild')"
+                :disabled="!childNameTrimmed || creating"
+                @click="confirmAddChild"
+              >
+                <v-icon icon="mdi-check" size="16" />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                :title="t('common.cancel')"
+                :disabled="creating"
+                @click="cancelAddChild"
+              >
+                <v-icon icon="mdi-close" size="16" />
+              </button>
+            </div>
           </div>
-          <div class="cat-edit__parent">
-                <ESelect
-                  v-model="editParentId"
-                  :items="editParentItems(parent)"
-                  :label="t('grossanlass.beschaffung.bedarf.categoryUnder')"
-                  hide-details
-                >
-                  <template #item="{ props: itemProps, item }">
-                    <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
-                  </template>
-                </ESelect>
+        </template>
+        <template v-else-if="row.kind === 'node' && editingId === row.category.id">
+          <div class="cat-node__row cat-node__row--edit">
+            <div class="cat-edit__name">
+              <ETextField
+                v-model="editName"
+                :label="t('grossanlass.beschaffung.bedarf.categoryName')"
+                hide-details
+                @keydown.enter.prevent="saveEdit"
+              />
+            </div>
+            <div class="cat-edit__parent">
+              <ESelect
+                v-model="editParentId"
+                :items="editParentItems(row.category)"
+                :label="t('grossanlass.beschaffung.bedarf.categoryUnder')"
+                hide-details
+              >
+                <template #item="{ props: itemProps, item }">
+                  <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+                </template>
+              </ESelect>
+            </div>
+            <div class="cat-node__actions">
+              <button type="button" class="icon-btn" :title="t('common.save')" :disabled="!!savingId" @click="saveEdit">
+                <v-icon icon="mdi-check" size="16" />
+              </button>
+              <button type="button" class="icon-btn" :title="t('common.cancel')" :disabled="!!savingId" @click="cancelEdit">
+                <v-icon icon="mdi-close" size="16" />
+              </button>
+            </div>
           </div>
-          <div class="cat-node__actions">
-            <button type="button" class="icon-btn" :title="t('common.save')" :disabled="!!savingId" @click="saveEdit">
-              <v-icon icon="mdi-check" size="16" />
-            </button>
-            <button type="button" class="icon-btn" :title="t('common.cancel')" :disabled="!!savingId" @click="cancelEdit">
-              <v-icon icon="mdi-close" size="16" />
-            </button>
-          </div>
-        </div>
-        <div v-else class="cat-node__row">
-          <strong class="cat-node__name">{{ parent.name }}</strong>
+        </template>
+        <div v-else-if="row.kind === 'node'" class="cat-node__row">
+          <button
+            v-if="row.hasChildren"
+            type="button"
+            class="icon-btn icon-btn--twist"
+            :title="isCollapsed(row.category.id)
+              ? t('grossanlass.beschaffung.bedarf.categoryExpand')
+              : t('grossanlass.beschaffung.bedarf.categoryCollapse')"
+            :aria-expanded="!isCollapsed(row.category.id)"
+            @click="toggleCollapsed(row.category.id)"
+          >
+            <v-icon :icon="isCollapsed(row.category.id) ? 'mdi-chevron-right' : 'mdi-chevron-down'" size="18" />
+          </button>
+          <span v-else class="cat-twist-spacer" aria-hidden="true" />
+          <strong
+            class="cat-node__name"
+            :class="{ 'cat-node__name--child': row.depth > 0, 'is-toggle': row.hasChildren }"
+            @click="row.hasChildren ? toggleCollapsed(row.category.id) : undefined"
+          >
+            {{ row.category.name }}
+            <span v-if="isLocked(row.category)" class="cat-node__lock">{{ t('grossanlass.beschaffung.bedarf.categoryLockedBadge') }}</span>
+            <span v-if="row.hasChildren && isCollapsed(row.category.id)" class="cat-node__count">{{ row.childCount }}</span>
+          </strong>
           <div class="cat-node__actions">
             <button
               type="button"
               class="icon-btn"
               :title="t('grossanlass.beschaffung.bedarf.categoryMoveUp')"
-              :disabled="parentIndex === 0 || !!savingId"
-              @click="moveCategory(parent, -1)"
+              :disabled="isLocked(row.category) || row.siblingIndex === 0 || !!savingId"
+              @click="moveCategory(row.category, -1)"
             >
               <v-icon icon="mdi-arrow-up" size="16" />
             </button>
@@ -97,129 +162,136 @@
               type="button"
               class="icon-btn"
               :title="t('grossanlass.beschaffung.bedarf.categoryMoveDown')"
-              :disabled="parentIndex === parents.length - 1 || !!savingId"
-              @click="moveCategory(parent, 1)"
+              :disabled="isLocked(row.category) || row.siblingIndex === row.siblingCount - 1 || !!savingId"
+              @click="moveCategory(row.category, 1)"
             >
               <v-icon icon="mdi-arrow-down" size="16" />
             </button>
-            <button type="button" class="icon-btn" :title="t('common.edit')" @click="startEdit(parent)">
+            <button
+              type="button"
+              class="icon-btn icon-btn--add"
+              :title="t('grossanlass.beschaffung.bedarf.categoryAddUnder', { name: row.category.name })"
+              :disabled="!!savingId || creating || addingUnderId === row.category.id"
+              @click="startAddChild(row.category)"
+            >
+              <v-icon icon="mdi-plus" size="16" />
+            </button>
+            <button
+              v-if="!isLocked(row.category)"
+              type="button"
+              class="icon-btn"
+              :title="t('common.edit')"
+              @click="startEdit(row.category)"
+            >
               <v-icon icon="mdi-pencil-outline" size="16" />
             </button>
             <button
+              v-if="!isLocked(row.category)"
               type="button"
               class="icon-btn icon-btn--danger"
               :title="t('common.delete')"
-              @click="removeCategory(parent)"
+              @click="removeCategory(row.category)"
             >
               <v-icon icon="mdi-delete-outline" size="16" />
             </button>
           </div>
         </div>
-        </div>
-        <ul v-if="childrenOf(parent.id).length" class="cat-tree cat-tree--nested">
-          <li
-            v-for="(child, childIndex) in childrenOf(parent.id)"
-            :key="child.id"
-            class="cat-node cat-node--child"
-          >
-            <div v-if="editingId === child.id" class="cat-node__row cat-node__row--edit">
-              <div class="cat-edit__name">
-                <ETextField
-                  v-model="editName"
-                  :label="t('grossanlass.beschaffung.bedarf.categoryName')"
-                  hide-details
-                  @keydown.enter.prevent="saveEdit"
-                />
-              </div>
-              <div class="cat-edit__parent">
-                <ESelect
-                  v-model="editParentId"
-                  :items="editParentItems(child)"
-                  :label="t('grossanlass.beschaffung.bedarf.categoryUnder')"
-                  hide-details
-                >
-                  <template #item="{ props: itemProps, item }">
-                    <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
-                  </template>
-                </ESelect>
-              </div>
-              <div class="cat-node__actions">
-                <button type="button" class="icon-btn" :title="t('common.save')" :disabled="!!savingId" @click="saveEdit">
-                  <v-icon icon="mdi-check" size="16" />
-                </button>
-                <button type="button" class="icon-btn" :title="t('common.cancel')" :disabled="!!savingId" @click="cancelEdit">
-                  <v-icon icon="mdi-close" size="16" />
-                </button>
-              </div>
-            </div>
-            <div v-else class="cat-node__row">
-              <span class="cat-node__name cat-node__name--child">
-                <span class="cat-node__indent" aria-hidden="true">↳</span>
-                {{ child.name }}
-              </span>
-              <div class="cat-node__actions">
-                <button
-                  type="button"
-                  class="icon-btn"
-                  :title="t('grossanlass.beschaffung.bedarf.categoryMoveUp')"
-                  :disabled="childIndex === 0 || !!savingId"
-                  @click="moveCategory(child, -1)"
-                >
-                  <v-icon icon="mdi-arrow-up" size="16" />
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn"
-                  :title="t('grossanlass.beschaffung.bedarf.categoryMoveDown')"
-                  :disabled="childIndex === childrenOf(parent.id).length - 1 || !!savingId"
-                  @click="moveCategory(child, 1)"
-                >
-                  <v-icon icon="mdi-arrow-down" size="16" />
-                </button>
-                <button type="button" class="icon-btn" :title="t('common.edit')" @click="startEdit(child)">
-                  <v-icon icon="mdi-pencil-outline" size="16" />
-                </button>
-                <button
-                  type="button"
-                  class="icon-btn icon-btn--danger"
-                  :title="t('common.delete')"
-                  @click="removeCategory(child)"
-                >
-                  <v-icon icon="mdi-delete-outline" size="16" />
-                </button>
-              </div>
-            </div>
-          </li>
-        </ul>
       </li>
     </ul>
   </section>
+
+  <EDialog
+    v-model="reassignOpen"
+    :max-width="560"
+    :title="t('grossanlass.beschaffung.bedarf.categoryDeleteBlockedTitle')"
+    persistent
+    scrollable
+    :retain-focus="false"
+  >
+    <p class="reassign-hint">
+      {{ t('grossanlass.beschaffung.bedarf.categoryDeleteBlockedHint', {
+        name: deletingCategory?.name || '',
+      }) }}
+    </p>
+    <ESelect
+      v-model="reassignTargetId"
+      :items="reassignTargetItems"
+      :label="t('grossanlass.beschaffung.bedarf.categoryDeleteReassign')"
+      hide-details
+    >
+      <template #item="{ props: itemProps, item }">
+        <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+      </template>
+    </ESelect>
+    <p v-if="reassignTargetItems.length === 0" class="reassign-empty">
+      {{ t('grossanlass.beschaffung.bedarf.categoryDeleteNeedOther') }}
+    </p>
+    <div v-if="usageLines.length" class="reassign-block">
+      <h4>{{ t('grossanlass.beschaffung.bedarf.categoryDeleteLinesTitle', { count: usageLines.length }) }}</h4>
+      <ul class="reassign-list">
+        <li v-for="line in usageLines" :key="line.id">
+          <strong>{{ line.quantity }}× {{ line.label }}</strong>
+          <span>{{ line.group_name }}{{ line.category_name ? ` · ${line.category_name}` : '' }}</span>
+        </li>
+      </ul>
+    </div>
+    <div v-if="usageInquiries.length" class="reassign-block">
+      <h4>{{ t('grossanlass.beschaffung.bedarf.categoryDeleteInquiriesTitle', { count: usageInquiries.length }) }}</h4>
+      <ul class="reassign-list">
+        <li v-for="row in usageInquiries" :key="row.id">{{ row.name }}</li>
+      </ul>
+      <p class="reassign-mail-hint">{{ t('grossanlass.beschaffung.bedarf.categoryDeleteMailHint') }}</p>
+    </div>
+    <template #actions>
+      <EButton variant="secondary" size="small" :disabled="reassigning" @click="closeReassign">
+        {{ t('common.cancel') }}
+      </EButton>
+      <EButton
+        variant="primary"
+        size="small"
+        :disabled="!reassignTargetId || reassignTargetItems.length === 0"
+        :loading="reassigning"
+        @click="confirmReassignAndDelete"
+      >
+        {{ t('grossanlass.beschaffung.bedarf.categoryDeleteReassignAction') }}
+      </EButton>
+    </template>
+  </EDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import { EButton, ESelect, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { getGrossanlassGmailStatus } from '@/api/grossanlassGmail'
 import {
   createGrossanlassProcurementCategory,
   deleteGrossanlassProcurementCategory,
+  getGrossanlassProcurementCategoryUsage,
   updateGrossanlassProcurementCategory,
+  type GrossanlassCategoryUsageInquiry,
+  type GrossanlassCategoryUsageLine,
   type GrossanlassProcurementCategory,
 } from '@/api/grossanlassProcurement'
+import {
+  childrenOfProcurementCategory,
+  descendantIdsOfProcurementCategory,
+  procurementCategoryTreeItems,
+} from '@/utils/grossanlassProcurementCategoryTree'
 
 const props = defineProps<{
   departmentId: string
   categories: GrossanlassProcurementCategory[]
+  hideHeading?: boolean
 }>()
 
 const emit = defineEmits<{
   created: [category: GrossanlassProcurementCategory]
   updated: [category: GrossanlassProcurementCategory]
-  deleted: [categoryId: string]
+  deleted: [categoryId: string, reassignTo?: GrossanlassProcurementCategory]
 }>()
 
 const { t } = useI18n()
@@ -229,22 +301,108 @@ const confirm = useConfirm()
 const newName = ref('')
 const newParentId = ref('')
 const creating = ref(false)
+const addingUnderId = ref<string | null>(null)
+const childName = ref('')
+const collapsedIds = ref<string[]>([])
 const editingId = ref<string | null>(null)
 const editName = ref('')
 const editParentId = ref('')
 const savingId = ref<string | null>(null)
 const gmailConnected = ref(false)
 const gmailEmail = ref('')
+const reassignOpen = ref(false)
+const reassigning = ref(false)
+const deletingCategory = ref<GrossanlassProcurementCategory | null>(null)
+const reassignTargetId = ref('')
+const usageLines = ref<GrossanlassCategoryUsageLine[]>([])
+const usageInquiries = ref<GrossanlassCategoryUsageInquiry[]>([])
 
 const newNameTrimmed = computed(() => newName.value.trim())
+const childNameTrimmed = computed(() => childName.value.trim())
 
-function bySort(a: GrossanlassProcurementCategory, b: GrossanlassProcurementCategory) {
-  if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order
-  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+function isLocked(category: GrossanlassProcurementCategory): boolean {
+  return !!category.system_key
 }
 
-const parents = computed(() =>
-  props.categories.filter((c) => !c.parent_id).slice().sort(bySort),
+function childrenOf(parentId: string | null): GrossanlassProcurementCategory[] {
+  return childrenOfProcurementCategory(props.categories, parentId)
+}
+
+function isCollapsed(id: string): boolean {
+  return collapsedIds.value.includes(id)
+}
+
+function toggleCollapsed(id: string) {
+  if (isCollapsed(id)) {
+    collapsedIds.value = collapsedIds.value.filter((row) => row !== id)
+    return
+  }
+  collapsedIds.value = [...collapsedIds.value, id]
+}
+
+function expandAncestors(id: string) {
+  const open = new Set(collapsedIds.value)
+  let current = props.categories.find((c) => c.id === id)
+  const seen = new Set<string>()
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    open.delete(current.id)
+    current = current.parent_id
+      ? props.categories.find((c) => c.id === current!.parent_id)
+      : undefined
+  }
+  collapsedIds.value = [...open]
+}
+
+type VisibleRow =
+  | {
+      kind: 'node'
+      category: GrossanlassProcurementCategory
+      depth: number
+      siblingIndex: number
+      siblingCount: number
+      hasChildren: boolean
+      childCount: number
+    }
+  | { kind: 'add'; parentId: string; depth: number }
+
+const visibleRows = computed((): VisibleRow[] => {
+  const rows: VisibleRow[] = []
+  const walk = (parentId: string | null, depth: number) => {
+    const siblings = childrenOf(parentId)
+    siblings.forEach((category, siblingIndex) => {
+      const childCount = childrenOf(category.id).length
+      const addingHere = addingUnderId.value === category.id
+      const hasChildren = childCount > 0 || addingHere
+      rows.push({
+        kind: 'node',
+        category,
+        depth,
+        siblingIndex,
+        siblingCount: siblings.length,
+        hasChildren,
+        childCount,
+      })
+      if (hasChildren && !isCollapsed(category.id)) {
+        walk(category.id, depth + 1)
+        if (addingHere) {
+          rows.push({ kind: 'add', parentId: category.id, depth: depth + 1 })
+        }
+      }
+    })
+  }
+  walk(null, 0)
+  return rows
+})
+
+const reassignRemovedIds = computed(() => {
+  const id = deletingCategory.value?.id
+  if (!id) return new Set<string>()
+  return descendantIdsOfProcurementCategory(props.categories, id)
+})
+
+const reassignTargetItems = computed(() =>
+  procurementCategoryTreeItems(props.categories, reassignRemovedIds.value),
 )
 
 type CategorySelectItem = {
@@ -260,36 +418,14 @@ function noneSelectItem(): CategorySelectItem {
   return { title, value: '', name: title, depth: 0 }
 }
 
-function childrenOf(parentId: string): GrossanlassProcurementCategory[] {
-  return props.categories.filter((c) => c.parent_id === parentId).slice().sort(bySort)
-}
-
-function parentTreeItems(excludeId?: string): CategorySelectItem[] {
-  const items: CategorySelectItem[] = [noneSelectItem()]
-  for (const parent of parents.value) {
-    if (parent.id === excludeId) continue
-    items.push({ title: parent.name, value: parent.id, name: parent.name, depth: 0 })
-    for (const child of childrenOf(parent.id)) {
-      if (child.id === excludeId) continue
-      items.push({
-        title: child.name,
-        value: child.id,
-        name: child.name,
-        depth: 1,
-        props: { disabled: true },
-      })
-    }
-  }
-  return items
+function parentTreeItems(excludeIds?: Set<string>): CategorySelectItem[] {
+  return [noneSelectItem(), ...procurementCategoryTreeItems(props.categories, excludeIds)]
 }
 
 const parentSelectItems = computed(() => parentTreeItems())
 
 function editParentItems(category: GrossanlassProcurementCategory) {
-  if (childrenOf(category.id).length > 0) {
-    return [noneSelectItem()]
-  }
-  return parentTreeItems(category.id)
+  return parentTreeItems(descendantIdsOfProcurementCategory(props.categories, category.id))
 }
 
 onMounted(async () => {
@@ -304,17 +440,50 @@ onMounted(async () => {
 })
 
 async function createCategory() {
-  const name = newNameTrimmed.value
+  const parentId = newParentId.value || null
+  await submitCreate(newNameTrimmed.value, parentId, () => {
+    newName.value = ''
+    if (parentId) expandAncestors(parentId)
+  })
+}
+
+async function startAddChild(parent: GrossanlassProcurementCategory) {
+  if (savingId.value || creating.value) return
+  cancelEdit()
+  expandAncestors(parent.id)
+  addingUnderId.value = parent.id
+  childName.value = ''
+  await nextTick()
+  const input = document.querySelector('.cat-add-child input') as HTMLInputElement | null
+  input?.focus()
+}
+
+function cancelAddChild() {
+  if (creating.value) return
+  addingUnderId.value = null
+  childName.value = ''
+}
+
+async function confirmAddChild() {
+  const parentId = addingUnderId.value
+  if (!parentId) return
+  await submitCreate(childNameTrimmed.value, parentId, () => {
+    addingUnderId.value = null
+    childName.value = ''
+  })
+}
+
+async function submitCreate(name: string, parentId: string | null, onSuccess: () => void) {
   if (!name || creating.value || !props.departmentId) return
 
   creating.value = true
   try {
     const created = await createGrossanlassProcurementCategory(props.departmentId, {
       name,
-      parent_id: newParentId.value || null,
+      parent_id: parentId,
     })
     emit('created', created)
-    newName.value = ''
+    onSuccess()
     toast.success(t('grossanlass.beschaffung.bedarf.categoryCreateSuccess'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -325,6 +494,8 @@ async function createCategory() {
 }
 
 function startEdit(category: GrossanlassProcurementCategory) {
+  if (isLocked(category)) return
+  cancelAddChild()
   editingId.value = category.id
   editName.value = category.name
   editParentId.value = category.parent_id || ''
@@ -360,7 +531,7 @@ async function saveEdit() {
 
 async function moveCategory(category: GrossanlassProcurementCategory, direction: number) {
   if (!props.departmentId || savingId.value) return
-  const siblings = category.parent_id ? childrenOf(category.parent_id) : parents.value
+  const siblings = childrenOf(category.parent_id)
   const index = siblings.findIndex((c) => c.id === category.id)
   const swapIndex = index + direction
   if (index < 0 || swapIndex < 0 || swapIndex >= siblings.length) return
@@ -389,7 +560,22 @@ async function moveCategory(category: GrossanlassProcurementCategory, direction:
 }
 
 async function removeCategory(category: GrossanlassProcurementCategory) {
-  if (!props.departmentId) return
+  if (!props.departmentId || isLocked(category)) return
+  try {
+    const usage = await getGrossanlassProcurementCategoryUsage(props.departmentId, category.id)
+    if (usage.lines.length > 0 || usage.inquiries.length > 0) {
+      deletingCategory.value = category
+      usageLines.value = usage.lines
+      usageInquiries.value = usage.inquiries
+      reassignTargetId.value = reassignTargetItems.value[0]?.value || ''
+      reassignOpen.value = true
+      return
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorCategoryDelete'))
+    return
+  }
   const hasChildren = childrenOf(category.id).length > 0
   const ok = await confirm.confirm({
     title: t('grossanlass.beschaffung.bedarf.categoryDeleteTitle'),
@@ -398,14 +584,63 @@ async function removeCategory(category: GrossanlassProcurementCategory) {
       : t('grossanlass.beschaffung.bedarf.categoryDeleteMessage', { name: category.name }),
   })
   if (!ok) return
+  await executeDelete(category.id)
+}
+
+function closeReassign() {
+  if (reassigning.value) return
+  reassignOpen.value = false
+  deletingCategory.value = null
+  usageLines.value = []
+  usageInquiries.value = []
+  reassignTargetId.value = ''
+}
+
+async function confirmReassignAndDelete() {
+  const category = deletingCategory.value
+  const targetId = reassignTargetId.value
+  if (!category || !targetId || !props.departmentId) return
+  reassigning.value = true
   try {
-    await deleteGrossanlassProcurementCategory(props.departmentId, category.id)
-    emit('deleted', category.id)
-    if (newParentId.value === category.id) newParentId.value = ''
-    if (editingId.value === category.id) cancelEdit()
-    toast.success(t('grossanlass.beschaffung.bedarf.categoryDeleteSuccess'))
+    await executeDelete(category.id, targetId)
+    reassignOpen.value = false
+    deletingCategory.value = null
+    usageLines.value = []
+    usageInquiries.value = []
+    reassignTargetId.value = ''
+  } finally {
+    reassigning.value = false
+  }
+}
+
+async function executeDelete(categoryId: string, reassignTo?: string) {
+  if (!props.departmentId) return
+  try {
+    await deleteGrossanlassProcurementCategory(
+      props.departmentId,
+      categoryId,
+      reassignTo ? { reassign_to: reassignTo } : undefined,
+    )
+    const target = reassignTo
+      ? props.categories.find((c) => c.id === reassignTo)
+      : undefined
+    emit('deleted', categoryId, target)
+    if (newParentId.value === categoryId) newParentId.value = ''
+    if (addingUnderId.value === categoryId) cancelAddChild()
+    if (editingId.value === categoryId) cancelEdit()
+    toast.success(
+      reassignTo
+        ? t('grossanlass.beschaffung.bedarf.categoryDeleteReassignSuccess')
+        : t('grossanlass.beschaffung.bedarf.categoryDeleteSuccess'),
+    )
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { error?: string } } }
+    const err = e as { response?: { data?: { error?: string; code?: string } } }
+    if (err.response?.data?.code === 'category_in_use') {
+      toast.error(t('grossanlass.beschaffung.bedarf.categoryDeleteBlockedHint', {
+        name: deletingCategory.value?.name || '',
+      }))
+      return
+    }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorCategoryDelete'))
   }
 }
@@ -489,19 +724,6 @@ async function removeCategory(category: GrossanlassProcurementCategory) {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.cat-branch {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.cat-tree.cat-tree--nested {
-  margin: 0 0 0 5.5rem;
-  padding-left: 0.75rem;
-  border-left: 3px solid #0d9488;
   gap: 6px;
 }
 
@@ -531,18 +753,37 @@ async function removeCategory(category: GrossanlassProcurementCategory) {
 .cat-node__name {
   min-width: 0;
   flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cat-node__name.is-toggle {
+  cursor: pointer;
+}
+
+.cat-node__lock {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.cat-node__count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 1px 7px;
 }
 
 .cat-node__name--child {
   color: #334155;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.cat-node__indent {
-  color: #94a3b8;
-  font-weight: 600;
 }
 
 .cat-node__actions {
@@ -550,6 +791,16 @@ async function removeCategory(category: GrossanlassProcurementCategory) {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+}
+
+.cat-twist-spacer {
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.icon-btn--twist {
+  border-color: transparent;
+  background: transparent;
 }
 
 .cat-edit__name {
@@ -579,7 +830,70 @@ async function removeCategory(category: GrossanlassProcurementCategory) {
   cursor: default;
 }
 
+.icon-btn--add {
+  color: #0f766e;
+}
+
 .icon-btn--danger {
   color: #dc2626;
+}
+
+.cat-node--add {
+  border-style: dashed;
+  background: #f0fdfa;
+}
+
+.reassign-hint {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.reassign-empty {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: #b45309;
+}
+
+.reassign-block {
+  margin-top: 14px;
+}
+
+.reassign-block h4 {
+  margin: 0 0 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.reassign-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.reassign-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 0.85rem;
+}
+
+.reassign-list span {
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.reassign-mail-hint {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
 }
 </style>

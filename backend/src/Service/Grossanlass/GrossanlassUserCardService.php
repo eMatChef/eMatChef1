@@ -20,6 +20,7 @@ class GrossanlassUserCardService
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
         private GrossanlassUserCardDriveProofStorageService $proofStorage,
+        private GrossanlassDriveLicenseService $licenses,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {
@@ -83,7 +84,7 @@ class GrossanlassUserCardService
      */
     public function updateCard(Department $department, User $actor, string $userId, array $data): array
     {
-        if (!$this->access->canManagePlanung($actor, $department)) {
+        if (!$this->access->canVerifyDriveCard($actor, $department)) {
             throw new \RuntimeException('Keine Berechtigung für User-Karten');
         }
 
@@ -132,7 +133,7 @@ class GrossanlassUserCardService
      */
     public function uploadDriveProof(Department $department, User $actor, string $userId, UploadedFile $file): array
     {
-        if (!$this->access->canManagePlanung($actor, $department)) {
+        if (!$this->access->canVerifyDriveCard($actor, $department)) {
             throw new \RuntimeException('Keine Berechtigung für User-Karten');
         }
         $people = $this->collectMembers($department);
@@ -165,7 +166,7 @@ class GrossanlassUserCardService
      */
     public function deleteDriveProof(Department $department, User $actor, string $userId): array
     {
-        if (!$this->access->canManagePlanung($actor, $department)) {
+        if (!$this->access->canVerifyDriveCard($actor, $department)) {
             throw new \RuntimeException('Keine Berechtigung für User-Karten');
         }
         $people = $this->collectMembers($department);
@@ -197,7 +198,7 @@ class GrossanlassUserCardService
      */
     public function printMissing(Department $department, User $actor): array
     {
-        if (!$this->access->canManagePlanung($actor, $department)) {
+        if (!$this->access->canVerifyDriveCard($actor, $department)) {
             throw new \RuntimeException('Keine Berechtigung für User-Karten');
         }
 
@@ -299,6 +300,10 @@ class GrossanlassUserCardService
         $card->setUser($user);
         $card->setPublicCode($this->makeCode());
         $this->entityManager->persist($card);
+        $profile = $this->licenses->find($user);
+        if ($profile instanceof \App\Entity\UserDriveLicense && $profile->getDriveClasses() !== []) {
+            $card->setDriveClasses($profile->getDriveClasses());
+        }
 
         return $card;
     }
@@ -387,9 +392,30 @@ class GrossanlassUserCardService
             'drive_verified_by_name' => $this->verifierName($card->getDriveVerifiedById()),
             'drive_has_extra_regulation' => GrossanlassDriveCategories::hasExtraRegulation($card->getDriveClasses()),
             'drive_document' => $document,
+            'profile_license' => $this->licenses->serialize($this->licenses->find($person['user'])),
             'printed' => $card->getCardPrintedAt() !== null,
             'printed_at' => $card->getCardPrintedAt()?->format('c'),
         ];
+    }
+
+    public function assertMayDrive(Department $department, ?string $userId, bool $requireVehicleClass = false): void
+    {
+        if ($userId === null || $userId === '') {
+            throw new \InvalidArgumentException('Fahrer fehlt');
+        }
+        $card = $this->entityManager->getRepository(DepartmentGrossanlassUserCard::class)->find([
+            'departmentId' => $department->getId(),
+            'userId' => $userId,
+        ]);
+        if (!$card instanceof DepartmentGrossanlassUserCard || !$card->getMayDrive()) {
+            throw new \InvalidArgumentException('Fahrer ohne bestätigte Karte für diesen Anlass');
+        }
+        if ($requireVehicleClass) {
+            $licenses = array_intersect($card->getDriveClasses(), GrossanlassDriveCategories::LICENSE);
+            if ($licenses === []) {
+                throw new \InvalidArgumentException('Fahrer ohne passende Klasse');
+            }
+        }
     }
 
     private function verifierName(?string $userId): ?string

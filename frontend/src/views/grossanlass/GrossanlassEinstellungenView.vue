@@ -33,6 +33,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
+import { gaCanManageProcurement, gaIsMailboxOnly } from '@/utils/grossanlassAccess'
 import PageShell from '@/components/layout/PageShell.vue'
 import '@/styles/views/materials-view-tabs.css'
 
@@ -50,11 +51,19 @@ const departmentId = computed(() => {
 const { hasGuestDepartments, known, refresh } = useGrossanlassGuestDepartments(() => departmentId.value)
 
 const tabItems = computed(() => {
+  if (gaIsMailboxOnly(authStore.currentDepartmentRole)) {
+    return [
+      { id: 'anfragen-email', label: t('grossanlass.einstellungen.tabAnfragenEmail'), icon: 'mdi-email-edit-outline' },
+    ]
+  }
   const all = [
     { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
     { id: 'ressorts', label: t('grossanlass.planung.tabRessorts'), icon: 'mdi-sitemap' },
     { id: 'karten', label: t('grossanlass.planung.tabKarten'), icon: 'mdi-card-account-details' },
     { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-warehouse' },
+    ...(gaCanManageProcurement(authStore.currentDepartmentRole)
+      ? [{ id: 'kategorien', label: t('grossanlass.einstellungen.tabKategorien'), icon: 'mdi-folder-outline' }]
+      : []),
     { id: 'anfragen-email', label: t('grossanlass.einstellungen.tabAnfragenEmail'), icon: 'mdi-email-edit-outline' },
     { id: 'teilnehmer', label: t('grossanlass.planung.tabTeilnehmer'), icon: 'mdi-account-group-outline' },
     { id: 'freigabe', label: t('grossanlass.planung.tabFreigabe'), icon: 'mdi-check-decagram-outline' },
@@ -67,9 +76,12 @@ const activeTab = computed(() => (route.meta.einstellungenTab as string) || 'sta
 
 function redirectIfGuestTabHidden() {
   const id = departmentId.value
-  if (!id || !known.value || hasGuestDepartments.value) return
-  if (!GUEST_TABS.has(activeTab.value)) return
-  void router.replace(`/${id}/einstellungen/stammdaten`)
+  if (!id) return
+  if (!gaIsMailboxOnly(authStore.currentDepartmentRole) && !known.value) return
+  const allowed = new Set(tabItems.value.map((tab) => tab.id))
+  if (allowed.has(activeTab.value)) return
+  const fallback = tabItems.value[0]?.id || 'stammdaten'
+  void router.replace(`/${id}/einstellungen/${fallback}`)
 }
 
 onMounted(() => {

@@ -118,9 +118,11 @@ export interface GrossanlassProcurementCategory {
   department_id: string
   parent_id: string | null
   parent_name: string | null
+  path?: string
   name: string
   sort_order: number
   rahmen_chf: number | null
+  system_key: string | null
 }
 
 export interface GrossanlassProcurementBundleSuggestion {
@@ -512,12 +514,44 @@ export async function updateGrossanlassProcurementCategory(
   return response.data
 }
 
+export type GrossanlassCategoryUsageLine = {
+  id: string
+  label: string
+  quantity: number
+  group_name: string
+  status: string
+  category_id: string
+  category_name: string | null
+}
+
+export type GrossanlassCategoryUsageInquiry = {
+  id: string
+  name: string
+}
+
+export type GrossanlassCategoryUsage = {
+  lines: GrossanlassCategoryUsageLine[]
+  inquiries: GrossanlassCategoryUsageInquiry[]
+}
+
+export async function getGrossanlassProcurementCategoryUsage(
+  departmentId: string,
+  categoryId: string,
+): Promise<GrossanlassCategoryUsage> {
+  const response = await apiClient.get<GrossanlassCategoryUsage>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}/usage`,
+  )
+  return response.data
+}
+
 export async function deleteGrossanlassProcurementCategory(
   departmentId: string,
   categoryId: string,
+  data?: { reassign_to?: string | null },
 ): Promise<void> {
   await apiClient.delete(
     `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+    { data: data?.reassign_to ? { reassign_to: data.reassign_to } : {} },
   )
 }
 

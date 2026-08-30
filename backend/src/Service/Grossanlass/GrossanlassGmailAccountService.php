@@ -27,6 +27,14 @@ final class GrossanlassGmailAccountService
         DepartmentGrossanlassMailTemplate::KIND_NEHMEN,
     ];
 
+    /** Nehmen / nicht nehmen / Zusage / Absage — MW + CMW. Präzisieren / Nachfassen: Postfach. */
+    public const TAKE_REPLY_KINDS = [
+        DepartmentGrossanlassMailTemplate::KIND_NEHMEN,
+        DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN,
+        DepartmentGrossanlassMailTemplate::KIND_ZUSAGE_OK,
+        DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE,
+    ];
+
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassAccessService $access,
@@ -45,7 +53,7 @@ final class GrossanlassGmailAccountService
      */
     public function status(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $account = $this->findAccount($department);
 
         return [
@@ -60,7 +68,7 @@ final class GrossanlassGmailAccountService
 
     public function connectUrl(Department $department, User $user): string
     {
-        $this->assertManage($department, $user);
+        $this->assertConnectGmail($department, $user);
         if (!$this->oauth->isConfigured()) {
             throw new GoogleOAuthException('not_configured', 'Google OAuth is not configured');
         }
@@ -73,7 +81,7 @@ final class GrossanlassGmailAccountService
      */
     public function completeConnect(Department $department, User $user, string $code): array
     {
-        $this->assertManage($department, $user);
+        $this->assertConnectGmail($department, $user);
         $tokens = $this->oauth->exchangeCode($code);
         $account = $this->findAccount($department);
         $isNew = !$account instanceof DepartmentGrossanlassGmailAccount;
@@ -106,7 +114,7 @@ final class GrossanlassGmailAccountService
      */
     public function disconnect(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertConnectGmail($department, $user);
         $account = $this->findAccount($department);
         if ($account instanceof DepartmentGrossanlassGmailAccount) {
             try {
@@ -125,7 +133,7 @@ final class GrossanlassGmailAccountService
      */
     public function labelOverview(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
@@ -147,7 +155,7 @@ final class GrossanlassGmailAccountService
      */
     public function importLabels(Department $department, User $user, string $root): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
@@ -188,7 +196,7 @@ final class GrossanlassGmailAccountService
      */
     public function syncLabels(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
@@ -236,7 +244,7 @@ final class GrossanlassGmailAccountService
             return;
         }
         try {
-            $this->assertManage($department, $user);
+            $this->assertMailbox($department, $user);
             $token = $this->gmail->accessToken($account);
             $this->entityManager->flush();
             $routing = $this->merge->getGmailRouting($department);
@@ -273,12 +281,172 @@ final class GrossanlassGmailAccountService
     }
 
     /**
+     * @param array{name?: string, parent_name?: string|null} $category
+     */
+    public function ensureCategoryPackageLabels(Department $department, User $user, array $category): void
+    {
+        $account = $this->findAccount($department);
+        if (!$account instanceof DepartmentGrossanlassGmailAccount) {
+            return;
+        }
+        $path = GrossanlassMailMergeService::categoryPackagePathFromRow($category);
+        if ($path === '') {
+            return;
+        }
+        try {
+            $this->assertMailbox($department, $user);
+            $token = $this->gmail->accessToken($account);
+            $this->entityManager->flush();
+            $routing = $this->merge->getGmailRouting($department);
+            $names = GrossanlassGmailRouting::labelNames($routing, $department->getName(), [$path]);
+            $this->ensureLabelIds($account, $token, $names);
+            $this->entityManager->flush();
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * Move Gmail threads from deleted package labels onto the replacement package.
+     *
+     * @param list<string> $fromRels
+     * @param list<string> $inquiryIds
+     */
+    public function retargetPackageLabels(
+        Department $department,
+        User $user,
+        array $fromRels,
+        string $toRel,
+        array $inquiryIds,
+    ): void {
+        $toRel = GrossanlassGmailRouting::sanitizePath($toRel);
+        $fromRels = array_values(array_unique(array_filter(
+            array_map(static fn (string $rel) => GrossanlassGmailRouting::sanitizePath($rel), $fromRels),
+            static fn (string $rel) => $rel !== '',
+        )));
+        if ($toRel === '' || $fromRels === []) {
+            return;
+        }
+        $account = $this->findAccount($department);
+        if (!$account instanceof DepartmentGrossanlassGmailAccount) {
+            return;
+        }
+        try {
+            $this->assertMailbox($department, $user);
+            $token = $this->gmail->accessToken($account);
+            $this->entityManager->flush();
+            $routing = $this->merge->getGmailRouting($department);
+            if (!$routing['label_by_package']) {
+                return;
+            }
+            $root = GrossanlassGmailRouting::resolveRoot($routing, $department->getName());
+            $inquiriesLabel = $routing['label_inquiries'];
+            $packageParent = $inquiriesLabel !== '' ? $root . '/' . $inquiriesLabel : $root;
+            $addNames = GrossanlassGmailRouting::labelNames($routing, $department->getName(), [$toRel]);
+            $add = $this->ensureLabelIds($account, $token, $addNames);
+            $removeNames = [];
+            foreach ($fromRels as $fromRel) {
+                if ($fromRel === $toRel) {
+                    continue;
+                }
+                $removeNames[] = $packageParent . '/' . $fromRel;
+            }
+            $map = $account->getLabelMap();
+            $remove = [];
+            foreach ($removeNames as $name) {
+                if (isset($map[$name]) && is_string($map[$name]) && $map[$name] !== '') {
+                    $remove[] = $map[$name];
+                }
+            }
+            $threadIds = [];
+            foreach ($inquiryIds as $inquiryId) {
+                if (!is_string($inquiryId) || $inquiryId === '') {
+                    continue;
+                }
+                $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
+                if (!$inquiry instanceof DepartmentGrossanlassInquiry
+                    || $inquiry->getDepartmentId() !== $department->getId()
+                ) {
+                    continue;
+                }
+                $threadId = $inquiry->getGmailThreadId();
+                if (is_string($threadId) && $threadId !== '') {
+                    $threadIds[$threadId] = true;
+                }
+                $wanted = $this->ensureLabelIds(
+                    $account,
+                    $token,
+                    $this->merge->gmailLabelNames($department, $inquiry),
+                );
+                if ($threadId) {
+                    try {
+                        $this->gmail->modifyThreadLabels($token, $threadId, $wanted, $remove);
+                    } catch (\Throwable) {
+                    }
+                }
+            }
+            foreach ($remove as $labelId) {
+                try {
+                    foreach ($this->gmail->listThreadIdsByLabel($token, $labelId) as $orphanThreadId) {
+                        if (isset($threadIds[$orphanThreadId])) {
+                            continue;
+                        }
+                        $this->gmail->modifyThreadLabels($token, $orphanThreadId, $add, $remove);
+                    }
+                } catch (\Throwable) {
+                }
+            }
+            $this->deletePackageLabels($account, $token, $removeNames);
+            $this->entityManager->flush();
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
+     * Drop Gmail package labels after an empty category delete.
+     *
+     * @param list<string> $fromRels
+     */
+    public function removePackageLabels(Department $department, User $user, array $fromRels): void
+    {
+        $fromRels = array_values(array_unique(array_filter(
+            array_map(static fn (string $rel) => GrossanlassGmailRouting::sanitizePath($rel), $fromRels),
+            static fn (string $rel) => $rel !== '',
+        )));
+        if ($fromRels === []) {
+            return;
+        }
+        $account = $this->findAccount($department);
+        if (!$account instanceof DepartmentGrossanlassGmailAccount) {
+            return;
+        }
+        try {
+            $this->assertMailbox($department, $user);
+            $token = $this->gmail->accessToken($account);
+            $this->entityManager->flush();
+            $routing = $this->merge->getGmailRouting($department);
+            if (!$routing['label_by_package']) {
+                return;
+            }
+            $root = GrossanlassGmailRouting::resolveRoot($routing, $department->getName());
+            $inquiriesLabel = $routing['label_inquiries'];
+            $packageParent = $inquiriesLabel !== '' ? $root . '/' . $inquiriesLabel : $root;
+            $names = [];
+            foreach ($fromRels as $fromRel) {
+                $names[] = $packageParent . '/' . $fromRel;
+            }
+            $this->deletePackageLabels($account, $token, $names);
+            $this->entityManager->flush();
+        } catch (\Throwable) {
+        }
+    }
+
+    /**
      * @param list<string> $ids
      * @return list<array<string, mixed>>
      */
     public function createDrafts(Department $department, User $user, array $ids): array
     {
-        $this->assertManage($department, $user);
+        $this->assertCreateMailDrafts($department, $user);
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
@@ -337,10 +505,16 @@ final class GrossanlassGmailAccountService
      */
     public function syncInbox(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $account = $this->requireAccount($department);
         $token = $this->gmail->accessToken($account);
         $this->entityManager->flush();
+        $this->refreshGmailLabelMap($account, $token);
+        $this->entityManager->flush();
+        $root = GrossanlassGmailRouting::resolveRoot(
+            $this->merge->getGmailRouting($department),
+            $department->getName(),
+        );
 
         $inquiries = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
             ->findBy(['departmentId' => $department->getId()]);
@@ -393,7 +567,7 @@ final class GrossanlassGmailAccountService
                 $did = true;
             }
             foreach ($messages as $message) {
-                $result = $this->ingestMessage($department, $account, $token, $message, $inquiry, $seen, $user);
+                $result = $this->ingestMessage($department, $account, $token, $message, $inquiry, $seen, $user, $root);
                 if ($result === 'ignored') {
                     ++$ignored;
                 } elseif ($result === 'attached') {
@@ -406,7 +580,7 @@ final class GrossanlassGmailAccountService
         }
 
         try {
-            $inboxIds = $this->gmail->listMessageIds($token, 'in:inbox newer_than:21d', 40);
+            $inboxIds = $this->gmail->listMessageIds($token, GrossanlassGmailRouting::inboxQuery($root), 40);
         } catch (\Throwable) {
             $inboxIds = [];
         }
@@ -420,7 +594,7 @@ final class GrossanlassGmailAccountService
                 continue;
             }
             $matched = $this->resolveInquiry($department, $inquiries, $message);
-            $result = $this->ingestMessage($department, $account, $token, $message, $matched, $seen, $user);
+            $result = $this->ingestMessage($department, $account, $token, $message, $matched, $seen, $user, $root);
             if ($result === 'ignored') {
                 ++$ignored;
             } elseif ($result === 'attached' && $matched instanceof DepartmentGrossanlassInquiry) {
@@ -445,7 +619,7 @@ final class GrossanlassGmailAccountService
      */
     public function listUnmatched(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassGmailUnmatched::class)
             ->findBy(['departmentId' => $department->getId(), 'discardedAt' => null], ['receivedAt' => 'DESC']);
 
@@ -457,7 +631,7 @@ final class GrossanlassGmailAccountService
      */
     public function assignUnmatched(Department $department, User $user, string $unmatchedId, string $inquiryId): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $row = $this->findUnmatched($department, $unmatchedId);
         $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
         if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
@@ -495,7 +669,7 @@ final class GrossanlassGmailAccountService
      */
     public function discardUnmatched(Department $department, User $user, string $unmatchedId): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $row = $this->findUnmatched($department, $unmatchedId);
         $row->setDiscardedAt(new \DateTime());
         $this->entityManager->flush();
@@ -509,7 +683,7 @@ final class GrossanlassGmailAccountService
      */
     public function unmatchedToInquiry(Department $department, User $user, string $unmatchedId, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertTakeInquiry($department, $user);
         $row = $this->findUnmatched($department, $unmatchedId);
         $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') {
@@ -542,9 +716,13 @@ final class GrossanlassGmailAccountService
      */
     public function createReplyDraft(Department $department, User $user, string $inquiryId, string $kind): array
     {
-        $this->assertManage($department, $user);
         if (!in_array($kind, self::REPLY_KINDS, true)) {
             throw new \InvalidArgumentException('Unbekannte Antwort-Vorlage');
+        }
+        if (in_array($kind, self::TAKE_REPLY_KINDS, true)) {
+            $this->assertTakeInquiry($department, $user);
+        } else {
+            $this->assertMailbox($department, $user);
         }
         $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
         if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
@@ -626,6 +804,7 @@ final class GrossanlassGmailAccountService
      * @param list<DepartmentGrossanlassInquiry> $inquiries
      * @param array<string, true> $seen
      * @param array<string, mixed> $message
+     * @param string $root
      */
     private function ingestMessage(
         Department $department,
@@ -635,6 +814,7 @@ final class GrossanlassGmailAccountService
         ?DepartmentGrossanlassInquiry $inquiry,
         array &$seen,
         User $user,
+        string $root,
     ): string {
         unset($user);
         $id = (string) ($message['id'] ?? '');
@@ -667,6 +847,11 @@ final class GrossanlassGmailAccountService
             $this->attachFirmMessage($department, $account, $token, $inquiry, $message, $seen);
 
             return 'attached';
+        }
+        if (!$this->messageHasRootLabel($account, $message, $root)) {
+            $seen[$id] = true;
+
+            return 'skip';
         }
         $this->storeUnmatched($department, $message);
         $seen[$id] = true;
@@ -1094,6 +1279,32 @@ final class GrossanlassGmailAccountService
 
     /**
      * @param list<string> $names
+     */
+    private function deletePackageLabels(
+        DepartmentGrossanlassGmailAccount $account,
+        string $token,
+        array $names,
+    ): void {
+        $map = $account->getLabelMap();
+        $unique = array_values(array_unique(array_filter($names, static fn (string $name) => $name !== '')));
+        usort($unique, static fn (string $a, string $b) => substr_count($b, '/') <=> substr_count($a, '/'));
+        foreach ($unique as $name) {
+            $id = $map[$name] ?? null;
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+            try {
+                $this->gmail->deleteLabel($token, $id);
+            } catch (\Throwable) {
+                continue;
+            }
+            unset($map[$name]);
+        }
+        $account->setLabelMap($map);
+    }
+
+    /**
+     * @param list<string> $names
      * @return list<string>
      */
     private function ensureLabelIds(
@@ -1141,7 +1352,9 @@ final class GrossanlassGmailAccountService
 
             return;
         }
-        if ($kind === DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE) {
+        if ($kind === DepartmentGrossanlassMailTemplate::KIND_DANK_ABSAGE
+            || $kind === DepartmentGrossanlassMailTemplate::KIND_NICHT_GENOMMEN
+        ) {
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ABSAGE);
         }
     }
@@ -1249,11 +1462,60 @@ final class GrossanlassGmailAccountService
         return (new \DateTime())->format(\DateTimeInterface::ATOM);
     }
 
-    private function assertManage(Department $department, User $user): void
+    /**
+     * @param array<string, mixed> $message
+     */
+    private function messageHasRootLabel(
+        DepartmentGrossanlassGmailAccount $account,
+        array $message,
+        string $root,
+    ): bool {
+        $idToName = [];
+        foreach ($account->getLabelMap() as $name => $id) {
+            if (is_string($id) && $id !== '') {
+                $idToName[$id] = (string) $name;
+            }
+        }
+        $names = [];
+        foreach ($message['labelIds'] ?? [] as $id) {
+            $id = (string) $id;
+            if (isset($idToName[$id])) {
+                $names[] = $idToName[$id];
+            }
+        }
+
+        return GrossanlassGmailRouting::hasRootLabel($names, $root);
+    }
+
+    private function assertMailbox(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
-            throw new \RuntimeException('Keine Berechtigung für Gmail');
+        if (!$this->access->canWorkMailbox($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für das Postfach');
+        }
+    }
+
+    private function assertConnectGmail(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canConnectGmail($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung, Gmail zu verbinden');
+        }
+    }
+
+    private function assertCreateMailDrafts(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canCreateMailDrafts($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Anfrage-Wellen-Entwürfe');
+        }
+    }
+
+    private function assertTakeInquiry(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canTakeInquiry($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung, Anfragen zu nehmen');
         }
     }
 }

@@ -8,6 +8,7 @@ use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassEinsatz;
+use App\Entity\DepartmentGrossanlassPack;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
@@ -20,6 +21,8 @@ final class GrossanlassUebersichtService
         private GrossanlassAccessService $access,
         private GrossanlassUserCardService $cards,
         private GrossanlassCommitmentService $commitments,
+        private GrossanlassPackService $packs,
+        private GrossanlassPlaceService $places,
     ) {}
 
     /**
@@ -27,7 +30,7 @@ final class GrossanlassUebersichtService
      */
     public function overview(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertSee($department, $user);
         $commitments = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()], ['name' => 'ASC']);
         $einsaetze = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
@@ -67,6 +70,7 @@ final class GrossanlassUebersichtService
             'cards' => $this->cards->listCards($department),
             'wishes' => $this->wishTemplates($department, $commitments),
             'issued_by_object' => $issued,
+            'places' => $this->places->list($department, $user),
         ];
     }
 
@@ -76,7 +80,7 @@ final class GrossanlassUebersichtService
      */
     public function createEinsatz(Department $department, User $user, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->access->assertGrossanlassDepartment($department);
         $kind = (string) ($data['kind'] ?? DepartmentGrossanlassEinsatz::KIND_EINSATZ);
         if (!in_array($kind, [DepartmentGrossanlassEinsatz::KIND_EINSATZ, DepartmentGrossanlassEinsatz::KIND_ORDER], true)) {
             throw new \InvalidArgumentException('Ungültige Buchungsart');
@@ -99,9 +103,32 @@ final class GrossanlassUebersichtService
         $row->setStartsAt($from);
         $row->setEndsAt($to);
         $row->setWho(trim((string) ($data['who'] ?? '')));
+        $row->setDelivery($this->parseDelivery($data['delivery'] ?? null));
         $row->setChauffeurUserId(isset($data['chauffeur_user_id']) ? trim((string) $data['chauffeur_user_id']) : null);
+        if (!$row->isTrip()) {
+            $row->setChauffeurUserId(null);
+        }
         $row->setWishLineId(isset($data['wish_line_id']) ? trim((string) $data['wish_line_id']) : null);
+        if (isset($data['destination_place_id'])) {
+            $dest = trim((string) $data['destination_place_id']);
+            $row->setDestinationPlaceId($dest !== '' ? $dest : null);
+        }
+        $group = null;
+        $groupId = trim((string) ($data['group_id'] ?? ''));
+        if ($groupId !== '') {
+            $found = $this->entityManager->getRepository(Group::class)->find($groupId);
+            if ($found instanceof Group && $found->getDepartmentId() === $department->getId()) {
+                $group = $found;
+                $row->setGroup($group);
+            }
+        }
+        if (!$this->access->canSubmitEinsatz($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung für Einsätze');
+        }
         $pending = !empty($data['pending']) || !empty($data['has_conflict']);
+        if (!$this->access->canApproveEinsatz($user, $department)) {
+            $pending = true;
+        }
         $row->setStatus($pending
             ? DepartmentGrossanlassEinsatz::STATUS_PENDING
             : DepartmentGrossanlassEinsatz::STATUS_PLANNED);
@@ -112,29 +139,76 @@ final class GrossanlassUebersichtService
         if ($commitmentId !== '') {
             $commitment = $this->findCommitment($department, $commitmentId);
             $row->setCommitment($commitment);
-            if ($commitment->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+            if ($row->isTrip()
                 && $kind === DepartmentGrossanlassEinsatz::KIND_EINSATZ
                 && $row->getChauffeurUserId() === null
                 && !$pending
             ) {
-                throw new \InvalidArgumentException('Fahrzeuge brauchen einen Chauffeur');
+                throw new \InvalidArgumentException('Fahrauftrag braucht einen Chauffeur');
             }
         } elseif ($kind !== DepartmentGrossanlassEinsatz::KIND_ORDER) {
             throw new \InvalidArgumentException('Objekt ist erforderlich');
         }
 
-        $groupId = trim((string) ($data['group_id'] ?? ''));
-        if ($groupId !== '') {
-            $group = $this->entityManager->getRepository(Group::class)->find($groupId);
-            if ($group instanceof Group && $group->getDepartmentId() === $department->getId()) {
-                $row->setGroup($group);
+        $this->entityManager->persist($row);
+        $this->syncPlaceFromPack($row);
+        $this->packs->ensureDefaultPack($row);
+        $this->entityManager->flush();
+
+        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+            return ['einsatz' => $this->serializeEinsatz($row)];
+        }
+
+        return $this->overview($department, $user);
+    }
+
+    /**
+     * Bereichsleitung: Objekte, Orte, eigene Einsätze — ohne volle Übersicht.
+     *
+     * @return array<string, mixed>
+     */
+    public function submitBoard(Department $department, User $user): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $groups = $this->entityManager->getRepository(Group::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        $mine = [];
+        foreach ($groups as $group) {
+            if ($group instanceof Group && $this->access->canSubmitEinsatz($user, $department, $group)) {
+                $mine[] = ['id' => $group->getId(), 'name' => $group->getName()];
+            }
+        }
+        if ($mine === []) {
+            throw new \RuntimeException('Keine Berechtigung, Einsätze einzureichen');
+        }
+        $ids = array_column($mine, 'id');
+        $einsaetze = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->findBy(['departmentId' => $department->getId()], ['startsAt' => 'ASC']) as $row) {
+            if ($row instanceof DepartmentGrossanlassEinsatz && in_array($row->getGroupId(), $ids, true)) {
+                $einsaetze[] = $this->serializeEinsatz($row);
+            }
+        }
+        $objects = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+            ->findBy(['departmentId' => $department->getId()], ['name' => 'ASC']) as $commitment) {
+            if ($commitment instanceof DepartmentGrossanlassCommitment) {
+                $objects[] = [
+                    'id' => $commitment->getId(),
+                    'name' => $commitment->getName(),
+                    'qty' => $commitment->getQuantity(),
+                    'family' => $commitment->getFamily(),
+                ];
             }
         }
 
-        $this->entityManager->persist($row);
-        $this->entityManager->flush();
-
-        return $this->overview($department, $user);
+        return [
+            'groups' => $mine,
+            'objects' => $objects,
+            'places' => $this->places->list($department, $user),
+            'einsaetze' => $einsaetze,
+            'cards' => $this->cards->listCards($department),
+        ];
     }
 
     /**
@@ -143,13 +217,64 @@ final class GrossanlassUebersichtService
      */
     public function updateEinsatz(Department $department, User $user, string $id, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertSee($department, $user);
         $row = $this->findEinsatz($department, $id);
+        if (array_key_exists('packed', $data) || array_key_exists('pack_phase', $data)) {
+            $this->assertAusgabe($department, $user);
+        }
+        if (array_key_exists('trip_released', $data)) {
+            $this->access->assertGrossanlassDepartment($department);
+            if (!$this->access->canReleaseTrip($user, $department)) {
+                throw new \RuntimeException('Keine Berechtigung für Fahrt-Frei');
+            }
+        }
+        if (array_key_exists('status', $data)) {
+            $newStatus = (string) $data['status'];
+            if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING
+                && $newStatus === DepartmentGrossanlassEinsatz::STATUS_PLANNED
+            ) {
+                if (!$this->access->canApproveEinsatz($user, $department)) {
+                    throw new \RuntimeException('Keine Berechtigung zur Einsatz-Freigabe');
+                }
+            }
+            if ($newStatus === DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
+                $this->assertAusgabe($department, $user);
+            }
+        }
         if (array_key_exists('packed', $data)) {
-            $row->setPacked((bool) $data['packed']);
+            $this->packs->applyBooleanPacked($row, (bool) $data['packed']);
         }
         if (array_key_exists('pack_phase', $data)) {
             $row->setPackPhase((string) $data['pack_phase']);
+        }
+        if (array_key_exists('delivery', $data)) {
+            $row->setDelivery($this->parseDelivery($data['delivery']));
+        }
+        if (array_key_exists('chauffeur_user_id', $data)) {
+            $row->setChauffeurUserId($data['chauffeur_user_id'] !== null ? trim((string) $data['chauffeur_user_id']) : null);
+        }
+        if (array_key_exists('destination_place_id', $data)) {
+            $row->setDestinationPlaceId($data['destination_place_id'] !== null ? trim((string) $data['destination_place_id']) : null);
+        }
+        if (array_key_exists('trip_released', $data)) {
+            if (!$row->isTrip()) {
+                throw new \InvalidArgumentException('Fahrt-Frei nur bei Checkbox Fahrt');
+            }
+            if (!empty($data['trip_released'])) {
+                if (!$row->isPacked()) {
+                    throw new \InvalidArgumentException('Fahrt-Frei erst nach Pack (Teilpack reicht)');
+                }
+                if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING) {
+                    throw new \InvalidArgumentException('Einsatz ist noch nicht frei');
+                }
+                $row->setTripReleasedAt($row->getTripReleasedAt() ?? new \DateTime());
+                $pack = $this->packs->ensureDefaultPack($row);
+                if (!$pack->isTripReleased()) {
+                    $this->packs->releaseTrip($department, $user, $pack->getId());
+                }
+            } else {
+                $row->setTripReleasedAt(null);
+            }
         }
         if (array_key_exists('status', $data)) {
             $status = (string) $data['status'];
@@ -163,13 +288,8 @@ final class GrossanlassUebersichtService
                 throw new \InvalidArgumentException('Ungültiger Status');
             }
             $row->setStatus($status);
-            if ($status === DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
-                $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_OUT);
-            }
-            if ($status === DepartmentGrossanlassEinsatz::STATUS_RETURNED) {
-                $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_LAGER);
-            }
         }
+        $this->syncPlaceFromPack($row);
         $this->entityManager->flush();
 
         return $this->overview($department, $user);
@@ -181,9 +301,27 @@ final class GrossanlassUebersichtService
      */
     public function issueEinsatz(Department $department, User $user, string $id, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertAusgabe($department, $user);
         $row = $this->findEinsatz($department, $id);
+        if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING) {
+            throw new \InvalidArgumentException('Einsatz ist noch nicht frei');
+        }
         $toUser = trim((string) ($data['user_id'] ?? ''));
+        $vehicle = $row->getCommitment()?->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE;
+        if ($row->isTrip()) {
+            if (!$row->isTripReleased()) {
+                throw new \InvalidArgumentException('Fahrt ist noch nicht frei');
+            }
+            if ($row->getChauffeurUserId() === null) {
+                throw new \InvalidArgumentException('Fahrauftrag braucht einen Chauffeur');
+            }
+            if ($row->getDestinationPlaceId() === null) {
+                throw new \InvalidArgumentException('Ziel-Ort fehlt');
+            }
+            $this->cards->assertMayDrive($department, $row->getChauffeurUserId(), $vehicle);
+        } elseif ($vehicle && $toUser !== '') {
+            $this->cards->assertMayDrive($department, $toUser, true);
+        }
         $row->setStatus(DepartmentGrossanlassEinsatz::STATUS_ISSUED);
         $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_OUT);
         $row->setIssuedToUserId($toUser !== '' ? $toUser : null);
@@ -193,6 +331,13 @@ final class GrossanlassUebersichtService
                     $row->setWho((string) ($card['name'] ?? $row->getWho()));
                     break;
                 }
+            }
+        }
+        $this->syncPlaceFromPack($row);
+        if ($row->isTrip()) {
+            $pack = $this->packs->ensureDefaultPack($row);
+            if ($pack->getStatus() !== DepartmentGrossanlassPack::STATUS_AT_PLACE) {
+                $pack->setStatus(DepartmentGrossanlassPack::STATUS_IN_TRANSIT);
             }
         }
         $this->entityManager->flush();
@@ -206,7 +351,7 @@ final class GrossanlassUebersichtService
      */
     public function updateCommitmentOps(Department $department, User $user, string $commitmentId, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertAusgabe($department, $user);
         $row = $this->findCommitment($department, $commitmentId);
         if (array_key_exists('packed', $data)) {
             $row->setPacked((bool) $data['packed']);
@@ -481,8 +626,53 @@ final class GrossanlassUebersichtService
             'wish_line_id' => $row->getWishLineId(),
             'chauffeur_user_id' => $row->getChauffeurUserId(),
             'issued_to_user_id' => $row->getIssuedToUserId(),
+            'delivery' => $row->getDelivery(),
+            'trip_released' => $row->isTripReleased(),
+            'trip_released_at' => $row->getTripReleasedAt()?->format(\DateTimeInterface::ATOM),
+            'destination_place_id' => $row->getDestinationPlaceId(),
+            'packs' => $this->packs->serializePacks($row),
             'bar_role' => 'einsatz',
         ];
+    }
+
+    private function parseDelivery(mixed $value): string
+    {
+        $raw = strtolower(trim((string) ($value ?? DepartmentGrossanlassEinsatz::DELIVERY_PICKUP)));
+        if ($raw === 'trip' || $raw === 'fahrt') {
+            return DepartmentGrossanlassEinsatz::DELIVERY_TRIP;
+        }
+
+        return DepartmentGrossanlassEinsatz::DELIVERY_PICKUP;
+    }
+
+    /**
+     * Teilpack + MW-Freigabe (Fahrt frei bzw. Abholung bereit): Materialplatz schon leer,
+     * auch vor starts_at und bevor jemand fährt.
+     */
+    private function syncPlaceFromPack(DepartmentGrossanlassEinsatz $row): void
+    {
+        if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_RETURNED) {
+            $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_LAGER);
+
+            return;
+        }
+        if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_ISSUED) {
+            $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_OUT);
+
+            return;
+        }
+        if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_PENDING) {
+            $row->setPlace(DepartmentGrossanlassEinsatz::PLACE_ASSIGNED);
+
+            return;
+        }
+        $leavesPlatz = $row->isPacked() && (
+            !$row->isTrip()
+            || $row->isTripReleased()
+        );
+        $row->setPlace($leavesPlatz
+            ? DepartmentGrossanlassEinsatz::PLACE_OUT
+            : DepartmentGrossanlassEinsatz::PLACE_ASSIGNED);
     }
 
     private function phaseFor(\DateTime $from): string
@@ -528,11 +718,19 @@ final class GrossanlassUebersichtService
         return $row;
     }
 
-    private function assertManage(Department $department, User $user): void
+    private function assertSee(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canSeeAnlassOverview($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für die Materialübersicht');
+        }
+    }
+
+    private function assertAusgabe(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canOperateAusgabe($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Ausgabe und Pack');
         }
     }
 }

@@ -78,14 +78,18 @@
       </div>
     </section>
 
-    <v-expansion-panels v-model="openSetupPanels" multiple class="ga-mail-setup-accordions">
+    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
       <v-expansion-panel value="gmail">
         <v-expansion-panel-title>
-          {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
-          <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
-            {{ gmailIsReady
-              ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
-              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
+              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
+                {{ gmailIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+            </span>
           </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -102,7 +106,7 @@
           </p>
           <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
           <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
-          <div class="actions">
+          <div v-if="canConnectGmail" class="actions">
             <EButton
               v-if="!status?.connected"
               variant="primary"
@@ -121,11 +125,15 @@
 
       <v-expansion-panel value="routing">
         <v-expansion-panel-title>
-          {{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}
-          <span class="setup-badge" :class="routingIsReady ? 'is-done' : 'is-open'">
-            {{ routingIsReady
-              ? t('grossanlass.einstellungen.anfragenEmail.routingDoneBadge')
-              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}
+              <span class="setup-badge" :class="routingIsReady ? 'is-done' : 'is-open'">
+                {{ routingIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.routingDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+            </span>
           </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -319,6 +327,7 @@ import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
+import { gaCanConnectGmail } from '@/utils/grossanlassAccess'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
   disconnectGrossanlassGmail,
@@ -349,6 +358,7 @@ defineOptions({ name: 'GrossanlassEinstellungenAnfragenEmail' })
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const canConnectGmail = computed(() => gaCanConnectGmail(authStore.currentDepartmentRole))
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
@@ -407,10 +417,17 @@ function composedLabelRoot(eventName: string): string {
   return `eMatChef-${name}`.slice(0, 80)
 }
 
+function enforceEmatchefRoot(raw: string): string {
+  const name = raw.trim().split('/').join('-').slice(0, 80)
+  if (!name || name === 'eMatChef') return 'eMatChef'
+  if (name.startsWith('eMatChef-')) return name
+  return `eMatChef-${name}`.slice(0, 80)
+}
+
 const effectiveRoot = computed(() => {
   const raw = routing.label_root.trim().split('/').join('-')
   if (!raw || raw === 'eMatChef') return composedLabelRoot(departmentName.value)
-  return raw
+  return enforceEmatchefRoot(raw)
 })
 
 function revealRootEdit() {
@@ -885,15 +902,6 @@ onUnmounted(() => {
 <style scoped>
 .ga-mail-settings { padding: 4px 0 24px; display: grid; gap: 16px; }
 .intro, .muted { margin: 0 0 8px; color: #64748b; font-size: 0.9rem; }
-.ga-mail-setup-accordions :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px !important;
-  margin-bottom: 0;
-}
-.ga-mail-setup-accordions :deep(.v-expansion-panel-title) {
-  font-weight: 600;
-  font-size: 1rem;
-}
 .setup-badge {
   margin-left: 10px;
   font-size: 0.75rem;

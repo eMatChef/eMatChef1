@@ -24,7 +24,10 @@ final class GrossanlassCommitmentService
      */
     public function list(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Zusagen');
+        }
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
 
@@ -327,7 +330,7 @@ final class GrossanlassCommitmentService
     private function assertManage(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canTakeInquiry($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Zusagen');
         }
     }
