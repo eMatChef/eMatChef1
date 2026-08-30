@@ -33,6 +33,7 @@ class GrossanlassProcurementService
         private GrossanlassAnswerCollectorService $collector,
         private GrossanlassWishService $wishService,
         private GrossanlassCostService $costService,
+        private GrossanlassProcurementCategoryBootstrapService $categoryBootstrap,
     ) {}
 
     /**
@@ -49,6 +50,7 @@ class GrossanlassProcurementService
     public function getBedarfOverview(Department $department, User $user): array
     {
         $this->assertCanManageProcurement($department, $user);
+        $this->categoryBootstrap->ensureForDepartment($department);
 
         $pool = $this->listPoolWishes($department);
         $inbox = $this->collector->listInbox($department, $user);
@@ -369,7 +371,7 @@ class GrossanlassProcurementService
     public function listCategories(Department $department, User $user): array
     {
         $this->assertCanManageProcurement($department, $user);
-        $this->ensureJsCategory($department);
+        $this->categoryBootstrap->ensureForDepartment($department);
 
         return $this->listCategoryArrays($department);
     }
@@ -425,7 +427,7 @@ class GrossanlassProcurementService
     public function ensureTopLevelCategories(Department $department, User $user, array $names): int
     {
         $this->assertCanManageProcurement($department, $user);
-        $created = $this->ensureJsCategory($department) ? 1 : 0;
+        $created = $this->categoryBootstrap->ensureForDepartment($department);
         $existing = [];
         $maxSort = 0;
         foreach ($this->loadCategories($department) as $row) {
@@ -1544,59 +1546,6 @@ class GrossanlassProcurementService
             'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
             'system_key' => $category->getSystemKey(),
         ];
-    }
-
-    /**
-     * Fixed J+S package for Anfragen (order from J+S). Idempotent.
-     */
-    private function ensureJsCategory(Department $department): bool
-    {
-        $repo = $this->entityManager->getRepository(ActivityGrossanlassProcurementCategory::class);
-        $existing = $repo->findOneBy([
-            'departmentId' => $department->getId(),
-            'systemKey' => ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS,
-        ]);
-        if ($existing instanceof ActivityGrossanlassProcurementCategory) {
-            if ($existing->getName() !== ActivityGrossanlassProcurementCategory::JS_NAME) {
-                $existing->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
-                $existing->setParent(null);
-                $existing->touchUpdatedAt();
-                $this->entityManager->flush();
-            }
-
-            return false;
-        }
-
-        foreach ($this->loadCategories($department) as $row) {
-            if ($row->getParentId() !== null) {
-                continue;
-            }
-            if (!ActivityGrossanlassProcurementCategory::isJsNameAlias($row->getName())) {
-                continue;
-            }
-            $row->setSystemKey(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS);
-            $row->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
-            $row->touchUpdatedAt();
-            $this->entityManager->flush();
-
-            return false;
-        }
-
-        $category = new ActivityGrossanlassProcurementCategory();
-        $category->setId(GrossanlassIdGenerator::unique(
-            $this->entityManager,
-            GrossanlassIdGenerator::PROCUREMENT_CATEGORY,
-            ActivityGrossanlassProcurementCategory::class,
-        ));
-        $category->setDepartment($department);
-        $category->setParent(null);
-        $category->setName(ActivityGrossanlassProcurementCategory::JS_NAME);
-        $category->setSystemKey(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS);
-        $category->setSortOrder(0);
-        $this->entityManager->persist($category);
-        $this->entityManager->flush();
-
-        return true;
     }
 
     /**
