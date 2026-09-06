@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
@@ -393,7 +395,7 @@ final class GrossanlassUebersichtService
         $names = [];
         $unique = [];
         foreach ($commitments as $commitment) {
-            $stock[$commitment->getId()] = max(1, $commitment->getQuantity());
+            $stock[$commitment->getId()] = max(0, $commitment->getQuantity());
             $names[$commitment->getId()] = $commitment->getName();
             $unique[$commitment->getId()] = $commitment->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE
                 || $commitment->getQuantity() <= 1;
@@ -548,12 +550,13 @@ final class GrossanlassUebersichtService
             ->getQuery()
             ->getResult();
 
+        $lineMap = $this->procurementLineIdByWish($department);
         $out = [];
         foreach ($lines as $line) {
             if (!$line instanceof ActivityGrossanlassWishLine) {
                 continue;
             }
-            $match = $this->matchCommitment($line->getLabel(), $commitments);
+            $match = $this->matchCommitment($line, $commitments, $lineMap);
             $from = $line->getValidFrom();
             $to = $line->getValidTo();
             $out[] = [
@@ -568,7 +571,11 @@ final class GrossanlassUebersichtService
                 'to' => $to->format(\DateTimeInterface::ATOM),
                 'ressort' => $line->getGroup()->getName(),
                 'group_id' => $line->getGroupId(),
-                'who' => '',
+                'who' => $line->getCreatedByUser()->getProfile()?->getDisplayName() ?? '',
+                'round_id' => $line->getRoundId(),
+                'last_stage' => $line->getLastStage(),
+                'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                ...$line->enoughOnHandPayload(),
             ];
         }
 
@@ -577,10 +584,35 @@ final class GrossanlassUebersichtService
 
     /**
      * @param list<DepartmentGrossanlassCommitment> $commitments
+     * @param array<string, string> $lineMap wish-id → Bedarf-Position
      */
-    private function matchCommitment(string $label, array $commitments): ?DepartmentGrossanlassCommitment
-    {
-        $needle = mb_strtolower(trim($label));
+    private function matchCommitment(
+        ActivityGrossanlassWishLine $line,
+        array $commitments,
+        array $lineMap = [],
+    ): ?DepartmentGrossanlassCommitment {
+        $lineId = $line->getId();
+        $procurementLineId = trim((string) ($lineMap[$lineId] ?? ''));
+        $hits = [];
+        foreach ($commitments as $row) {
+            $details = $row->getItemDetails();
+            $fromLine = is_array($details) ? trim((string) ($details['from_line_id'] ?? '')) : '';
+            if ($fromLine === '') {
+                continue;
+            }
+            if ($fromLine === $lineId || ($procurementLineId !== '' && $fromLine === $procurementLineId)) {
+                $hits[] = $row;
+            }
+        }
+        if ($hits !== []) {
+            usort($hits, static function (DepartmentGrossanlassCommitment $a, DepartmentGrossanlassCommitment $b): int {
+                return [(int) $b->isReleased(), $b->getQuantity()] <=> [(int) $a->isReleased(), $a->getQuantity()];
+            });
+
+            return $hits[0];
+        }
+
+        $needle = mb_strtolower(trim($line->getLabel()));
         if ($needle === '') {
             return null;
         }
@@ -596,6 +628,39 @@ final class GrossanlassUebersichtService
         }
 
         return $best;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function procurementLineIdByWish(Department $department): array
+    {
+        $lineIds = $this->entityManager->createQueryBuilder()
+            ->select('l.id')
+            ->from(ActivityGrossanlassProcurementLine::class, 'l')
+            ->where('l.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getSingleColumnResult();
+        if ($lineIds === []) {
+            return [];
+        }
+
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->createQueryBuilder('lw')
+            ->where('lw.procurementLineId IN (:ids)')
+            ->setParameter('ids', $lineIds)
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($links as $link) {
+            if ($link instanceof ActivityGrossanlassProcurementLineWish) {
+                $map[$link->getWishLineId()] = $link->getProcurementLineId();
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -692,7 +757,7 @@ final class GrossanlassUebersichtService
             return $value;
         }
         try {
-            return new \DateTime((string) $value);
+            return GrossanlassQuarterHour::snap(new \DateTime((string) $value));
         } catch (\Exception) {
             throw new \InvalidArgumentException('Ungültiges Datum');
         }

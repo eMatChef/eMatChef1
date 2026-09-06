@@ -60,7 +60,6 @@ const tabItems = computed(() => [
   { id: 'leihweise', label: t('grossanlass.materials.tabLeihweise'), icon: 'mdi-handshake-outline' },
   { id: 'gaeste', label: t('grossanlass.materials.tabGaeste'), icon: 'mdi-account-group-outline' },
   { id: 'js', label: t('grossanlass.materials.tabJs'), icon: 'mdi-tent' },
-  { id: 'fahrzeuge', label: t('grossanlass.materials.tabFahrzeuge'), icon: 'mdi-truck-outline' },
 ])
 
 const activeTab = computed(() => (route.meta.materialsTab as string) || 'eigen')
@@ -68,7 +67,10 @@ const activeTab = computed(() => (route.meta.materialsTab as string) || 'eigen')
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  void router.push(`/${id}/materialien/${tab}`)
+  const query = (tab === 'eigen' || tab === 'leihweise') && route.query.family
+    ? { family: String(route.query.family) }
+    : {}
+  void router.push({ path: `/${id}/materialien/${tab}`, query })
 }
 </script>
 

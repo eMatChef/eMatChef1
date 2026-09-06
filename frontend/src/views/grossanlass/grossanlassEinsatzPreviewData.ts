@@ -365,6 +365,13 @@ export type GaPreviewWishTemplate = {
   who: string
   hasConflict: boolean
   groupId?: string | null
+  roundId?: string
+  lastStage?: string
+  createdAt?: string
+  enoughOnHand?: boolean
+  enoughOnHandSource?: 'stock' | 'commitment' | string | null
+  enoughOnHandDetail?: string | null
+  enoughOnHandRefId?: string | null
 }
 
 export function createGrossanlassWishBookingTemplates(t: Translate): GaPreviewWishTemplate[] {
@@ -702,6 +709,13 @@ export function shiftCalendarAnchor(scale: GaCalendarScale, anchor: Date, direct
   return next
 }
 
+export function dateToYmd(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function calendarWindow(
   scale: GaCalendarScale,
   anchor: Date,
@@ -721,6 +735,22 @@ export function calendarWindow(
   const start = new Date(anchor.getFullYear(), anchor.getMonth(), 1)
   const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)
   return { start, end }
+}
+
+/** Full calendar months covering every date — so a Wunsch from Aug into Sep stays visible. */
+export function spanningMonthWindow(dates: Date[]): { start: Date; end: Date } | null {
+  const valid = dates.filter((date) => Number.isFinite(date.getTime()))
+  if (valid.length === 0) return null
+  let min = valid[0]
+  let max = valid[0]
+  for (const date of valid) {
+    if (date < min) min = date
+    if (date > max) max = date
+  }
+  return {
+    start: new Date(min.getFullYear(), min.getMonth(), 1),
+    end: new Date(max.getFullYear(), max.getMonth() + 1, 1),
+  }
 }
 
 export function calendarColumns(
@@ -802,24 +832,20 @@ export function barStyleInWindow(
   windowStart: Date,
   windowEnd: Date,
   scale: GaCalendarScale = 'week',
+  minPercent?: number,
 ): { left: string; width: string } | null {
   const startMs = windowStart.getTime()
   const spanMs = windowEnd.getTime() - startMs
   if (spanMs <= 0) return null
   let from = timelineMs(row.fromIso)
   let to = timelineMs(row.toIso)
-  if (scale === 'month') {
-    const fromDate = parseLocalDate(row.fromIso)
-    const toDate = parseLocalDate(row.toIso)
-    from = atHour(fromDate, 0).getTime()
-    to = new Date(toDate.getFullYear(), toDate.getMonth(), toDate.getDate() + 1).getTime()
-  }
   from = Math.max(startMs, from)
   to = Math.min(windowEnd.getTime(), to)
   if (to <= from) return null
+  const min = minPercent ?? (scale === 'month' ? 0.2 : 1.2)
   return {
     left: `${((from - startMs) / spanMs) * 100}%`,
-    width: `${Math.max(((to - from) / spanMs) * 100, 1.2)}%`,
+    width: `${Math.max(((to - from) / spanMs) * 100, min)}%`,
   }
 }
 

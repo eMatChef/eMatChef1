@@ -98,8 +98,8 @@ const props = withDefaults(
     showPresets?: boolean
     /** Kalender-Punkte (Feiertage, Fixe Daten, fcal) */
     showMarkers?: boolean
-    /** single = Samstage + Fixe Daten; fixed-periods = nur Fixe Daten (Lagerwoche, …) */
-    presetMode?: 'single' | 'fixed-periods'
+    /** Kalender-Monat, wenn noch kein Datum gewählt (z. B. Eventfenster) */
+    viewDate?: Date | null
   }>(),
   {
     departmentId: null,
@@ -110,6 +110,7 @@ const props = withDefaults(
     showPresets: false,
     showMarkers: true,
     presetMode: 'single',
+    viewDate: null,
   },
 )
 
@@ -137,7 +138,7 @@ const {
   onYearFromPicker,
 } = useActivityDatePickerPaneMonth({
   menuOpen,
-  anchorDate: () => props.modelValue ?? minDate.value,
+  anchorDate: () => props.modelValue ?? props.viewDate ?? minDate.value,
 })
 
 const { allowedDates, departmentClosedDateKeys, calendarPeriods, markersForIsoKey } =

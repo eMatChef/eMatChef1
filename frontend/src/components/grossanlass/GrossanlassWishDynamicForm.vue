@@ -1,5 +1,5 @@
 <template>
-  <div v-if="inputFields.length > 0" class="wish-dynamic-form">
+  <div v-if="inputFields.length > 0" class="wish-dynamic-form" :data-calendar-count="calendarPeriods.length">
     <p v-if="form?.intro_text" class="form-intro">{{ form.intro_text }}</p>
 
     <template v-for="field in inputFields" :key="field.id">
@@ -100,11 +100,12 @@
       />
 
       <GrossanlassWishPeriodField
-        v-else-if="field.system_key === 'period'"
+        v-else-if="field.system_key === 'period' && !hasPhaseSelectField"
         ref="periodRef"
         :title="fieldLabel(field)"
         :department-id="departmentId"
         :required="field.required"
+        :allow-past="true"
         class="mb-3"
       />
 
@@ -143,40 +144,86 @@
         class="mb-3"
       />
 
-      <ESelect
-        v-else-if="field.custom_type === 'select' && !isMultiSelectField(field)"
-        v-model="customValues[field.id]"
-        :items="selectItems(field)"
-        :label="fieldLabel(field)"
-        hide-details="auto"
+      <div
+        v-else-if="field.custom_type === 'select'"
         class="mb-3"
-      />
-
-      <div v-else-if="field.custom_type === 'select' && isMultiSelectField(field)" class="wish-select-multi mb-3">
-        <p class="wish-select-multi-label">{{ fieldLabel(field) }}</p>
-        <label
-          v-for="choice in field.options?.choices || []"
-          :key="`${field.id}-${choice}`"
-          class="wish-select-multi-option"
-        >
-          <input
-            type="checkbox"
-            :checked="isMultiSelectChoice(field.id, choice)"
-            @change="toggleMultiSelectChoice(field.id, choice, ($event.target as HTMLInputElement).checked)"
+        :class="{ 'wish-when-block': isWishPhaseSelectField(field) }"
+      >
+        <ESelect
+          v-if="!isMultiSelectField(field)"
+          v-model="customValues[field.id]"
+          :items="selectItems(field)"
+          :label="fieldLabel(field)"
+          hide-details="auto"
+          @update:model-value="onPhaseSingleSelect(field)"
+        />
+        <div v-else class="wish-select-multi" :key="'when-' + phaseChoiceRangeStamp">
+          <p class="wish-select-multi-label">{{ fieldLabel(field) }}</p>
+          <label
+            v-for="row in phaseSelectRows(field)"
+            :key="`${field.id}-${row.choice}`"
+            class="wish-select-multi-option"
+            :class="{ 'wish-when-option': isWishPhaseSelectField(field) }"
+          >
+            <input
+              type="checkbox"
+              :checked="isMultiSelectChoice(field.id, row.choice)"
+              @change="toggleMultiSelectChoice(field.id, row.choice, ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="wish-when-option-text">
+              <span class="wish-when-option-title">{{ row.choice }}</span>
+              <span
+                v-if="isWishPhaseSelectField(field)"
+                class="wish-when-option-range"
+                :class="{ 'wish-when-option-range--missing': !row.range }"
+              >
+                {{ row.range || t('grossanlass.wishes.phaseFixedDatesMissing') }}
+              </span>
+            </span>
+          </label>
+        </div>
+        <div v-if="isWishPhaseSelectField(field)" class="wish-when-need">
+          <p v-if="!customNeedPeriod && phasePeriodSummary" class="wish-when-summary">
+            {{ phasePeriodSummary }}
+          </p>
+          <label class="wish-when-custom">
+            <input v-model="customNeedPeriod" type="checkbox" />
+            {{ t('grossanlass.wishes.customNeedPeriod') }}
+          </label>
+          <p class="wish-when-hint">{{ t('grossanlass.wishes.customNeedPeriodHint') }}</p>
+          <GrossanlassWishPeriodField
+            v-if="customNeedPeriod"
+            ref="periodRef"
+            :title="t('grossanlass.wishes.periodLabel')"
+            :department-id="departmentId"
+            :allow-past="true"
+            class="wish-when-picker"
           />
-          {{ choice }}
-        </label>
+        </div>
       </div>
 
       <GrossanlassWishPeriodField
-        v-else-if="field.custom_type === 'date_range'"
+        v-else-if="field.custom_type === 'date_range' && !hasPhaseSelectField"
         :ref="(el) => setCustomPeriodRef(field.id, el)"
         :title="fieldLabel(field)"
         :department-id="departmentId"
         :required="field.required"
+        :allow-past="true"
         class="mb-3"
       />
     </template>
+
+    <GrossanlassWishPeriodField
+      v-if="showFallbackPeriod"
+      ref="periodRef"
+      :title="t('grossanlass.wishes.periodLabel')"
+      :department-id="departmentId"
+      :allow-past="true"
+      class="mb-3"
+    />
+    <p v-if="showFallbackPeriod" class="period-fallback-hint">
+      {{ t('grossanlass.wishes.periodFallbackHint') }}
+    </p>
   </div>
 </template>
 
@@ -187,6 +234,7 @@ import { useAuthStore } from '@/stores/auth'
 import { ESelect, ETextField, ETextarea, EAutocomplete } from '@/components/form/base'
 import GrossanlassWishPeriodField from '@/components/grossanlass/GrossanlassWishPeriodField.vue'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
+import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
 import {
   orderFormFieldsForRound,
   type GrossanlassRoundForm,
@@ -201,6 +249,15 @@ import {
   isRessortNodeGroup,
   ressortPathForBauprojekt,
 } from '@/utils/grossanlassGroupHierarchy'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import {
+  calendarRangeForPhaseChoice,
+  isWishPhaseSelectField,
+  mapWishPhaseChoiceToCalendarLabel,
+  unionCalendarPeriods,
+  wishPeriodLooksUnreliable,
+  wishPeriodMatchesRange,
+} from '@/utils/grossanlassWishPeriod'
 
 const props = defineProps<{
   form: GrossanlassRoundForm | null
@@ -212,7 +269,7 @@ const props = defineProps<{
   canCreateChild: (g: GrossanlassGroup) => boolean
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const authStore = useAuthStore()
 
 const local = reactive({
@@ -230,13 +287,56 @@ const local = reactive({
 
 const customValues = reactive<Record<string, string>>({})
 const customMultiValues = reactive<Record<string, string[]>>({})
-const periodRef = ref<InstanceType<typeof GrossanlassWishPeriodField> | null>(null)
+const periodRef = ref<InstanceType<typeof GrossanlassWishPeriodField> | InstanceType<typeof GrossanlassWishPeriodField>[] | null>(null)
 const customPeriodRefs = reactive<Record<string, InstanceType<typeof GrossanlassWishPeriodField> | null>>({})
 const bauprojektSearch = ref('')
+const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
+const suppressPhaseSync = ref(false)
+const customNeedPeriod = ref(false)
 
 const inputFields = computed(() =>
   orderFormFieldsForRound(props.form?.fields || []).filter((f) => f.role === 'input' && f.enabled),
 )
+
+const showFallbackPeriod = computed(() =>
+  !hasPhaseSelectField.value
+  && !inputFields.value.some((f) => f.system_key === 'period')
+  && !inputFields.value.some((f) => f.custom_type === 'date_range'),
+)
+
+const hasPhaseSelectField = computed(() => inputFields.value.some((f) => isWishPhaseSelectField(f)))
+
+const phasePeriodRange = computed(() => {
+  const labels = selectedPhaseLabels()
+  if (labels.length === 0) return null
+  return unionCalendarPeriods(calendarPeriods.value, labels)
+})
+
+const phasePeriodSummary = computed(() => {
+  if (selectedPhaseLabels().length < 2) return ''
+  const range = phasePeriodRange.value
+  if (!range) return ''
+  return t('grossanlass.wishes.phasePeriodSummary', {
+    from: formatGaIsoLabel(range.from, locale.value),
+    to: formatGaIsoLabel(range.to, locale.value),
+  })
+})
+
+const phaseChoiceRangeLabels = computed(() => {
+  const labels: Record<string, string> = {}
+  for (const field of inputFields.value) {
+    if (!isWishPhaseSelectField(field)) continue
+    for (const choice of field.options?.choices || []) {
+      const range = calendarRangeForPhaseChoice(choice, calendarPeriods.value)
+      labels[choice] = range
+        ? `${formatGaIsoLabel(range.from, locale.value)} – ${formatGaIsoLabel(range.to, locale.value)}`
+        : ''
+    }
+  }
+  return labels
+})
+
+const phaseChoiceRangeStamp = computed(() => Object.values(phaseChoiceRangeLabels.value).join('|'))
 
 const groupModeItems = computed(() => {
   const bauprojektField = inputFields.value.find((f) => f.system_key === 'bauprojekt')
@@ -496,7 +596,26 @@ function canUserCreateNewBauprojekt(): boolean {
 }
 
 function selectItems(field: GrossanlassRoundFormField) {
-  return (field.options?.choices || []).map((c) => ({ title: c, value: c }))
+  return (field.options?.choices || []).map((c) => ({
+    title: isWishPhaseSelectField(field) ? phaseChoiceTitle(c) : c,
+    value: c,
+  }))
+}
+
+function phaseSelectRows(field: GrossanlassRoundFormField): Array<{ choice: string; range: string }> {
+  return (field.options?.choices || []).map((choice) => ({
+    choice,
+    range: phaseChoiceRangeLabels.value[choice] || '',
+  }))
+}
+
+function phaseChoiceTitle(choice: string): string {
+  const range = phaseChoiceRangeLabels.value[choice]
+  return range ? `${choice} · ${range}` : choice
+}
+
+function onPhaseSingleSelect(field: GrossanlassRoundFormField) {
+  if (isWishPhaseSelectField(field)) customNeedPeriod.value = false
 }
 
 function isMultiSelectField(field: GrossanlassRoundFormField): boolean {
@@ -514,6 +633,13 @@ function toggleMultiSelectChoice(fieldId: string, choice: string, checked: boole
       ? current
       : [...current, choice]
     : current.filter((c) => c !== choice)
+  if (checked) customNeedPeriod.value = false
+}
+
+function periodField(): InstanceType<typeof GrossanlassWishPeriodField> | null {
+  const el = periodRef.value
+  if (!el) return null
+  return Array.isArray(el) ? (el[0] ?? null) : el
 }
 
 function setCustomPeriodRef(fieldId: string, el: unknown) {
@@ -559,10 +685,10 @@ function buildPayload(): CreateGrossanlassWishPayload {
   if (hasSystemField('location')) {
     payload.location = local.location.trim()
   }
-  if (hasSystemField('period')) {
-    const period = periodRef.value?.getRange()
-    payload.valid_from = period?.from ?? ''
-    payload.valid_to = period?.to ?? ''
+  const period = currentNeedRange()
+  if (period) {
+    payload.valid_from = period.from
+    payload.valid_to = period.to
   }
   if (hasSystemField('notes')) {
     payload.notes = local.notes.trim() || null
@@ -572,7 +698,9 @@ function buildPayload(): CreateGrossanlassWishPayload {
   for (const field of inputFields.value) {
     if (!field.custom_type) continue
     if (field.custom_type === 'date_range') {
-      const range = customPeriodRefs[field.id]?.getRange()
+      const range = hasPhaseSelectField.value
+        ? period
+        : customPeriodRefs[field.id]?.getRange()
       if (range) cv[field.id] = range
     } else if (field.custom_type === 'number') {
       const n = customValues[field.id]
@@ -624,25 +752,59 @@ async function loadFromWish(wish: GrossanlassWishLine) {
   await nextTick()
   syncBauprojektSearchFromSelection()
 
-  if (hasSystemField('period')) {
-    periodRef.value?.setRange(wish.valid_from, wish.valid_to)
+  suppressPhaseSync.value = true
+  const storedRange = dateRangeFromCustomValues(cv)
+  const storedFrom = wish.valid_from || storedRange?.from || null
+  const storedTo = wish.valid_to || storedRange?.to || null
+  const phaseRange = phasePeriodRange.value
+  const looksLikeSubmit = wishPeriodLooksUnreliable(
+    storedFrom,
+    storedTo,
+    wish.created_at,
+    calendarPeriods.value,
+  )
+  const matchesPhases = wishPeriodMatchesRange(storedFrom, storedTo, phaseRange)
+  const usePhaseDefault = looksLikeSubmit || matchesPhases || !phaseRange
+
+  customNeedPeriod.value = hasPhaseSelectField.value
+    && Boolean(storedFrom && storedTo)
+    && !looksLikeSubmit
+    && Boolean(phaseRange)
+    && !matchesPhases
+
+  await nextTick()
+  if (hasPhaseSelectField.value) {
+    if (customNeedPeriod.value) {
+      periodField()?.setRange(storedFrom, storedTo)
+    }
+  } else if (hasSystemField('period') || showFallbackPeriod.value) {
+    if (usePhaseDefault) {
+      applyPhasePeriodToPicker()
+    } else {
+      periodField()?.setRange(wish.valid_from, wish.valid_to)
+    }
   }
 
-  for (const field of inputFields.value) {
-    if (field.custom_type !== 'date_range') continue
-    const raw = cv[field.id] as { from?: string; to?: string } | undefined
-    customPeriodRefs[field.id]?.setRange(
-      raw?.from ?? wish.valid_from,
-      raw?.to ?? wish.valid_to,
-    )
+  if (!hasPhaseSelectField.value) {
+    for (const field of inputFields.value) {
+      if (field.custom_type !== 'date_range') continue
+      const raw = cv[field.id] as { from?: string; to?: string } | undefined
+      customPeriodRefs[field.id]?.setRange(
+        raw?.from ?? (usePhaseDefault ? undefined : wish.valid_from),
+        raw?.to ?? (usePhaseDefault ? undefined : wish.valid_to),
+      )
+    }
   }
+  await nextTick()
+  suppressPhaseSync.value = false
 }
 
 function resetAfterSubmit() {
   local.label = ''
   local.location = ''
   local.notes = ''
-  periodRef.value?.reset()
+  customNeedPeriod.value = false
+  periodField()?.reset()
   if (local.groupMode === 'new') {
     local.newBauprojektName = ''
   }
@@ -714,6 +876,91 @@ watch(
   { immediate: true, deep: true },
 )
 
+watch(
+  () => props.departmentId,
+  (id) => {
+    if (!id) {
+      calendarPeriods.value = []
+      return
+    }
+    void listDepartmentCalendarPeriods(id).then((rows) => {
+      calendarPeriods.value = rows
+    }).catch(() => {
+      calendarPeriods.value = []
+    })
+  },
+  { immediate: true },
+)
+
+watch(
+  () => [JSON.stringify(customMultiValues), calendarPeriods.value] as const,
+  () => {
+    if (suppressPhaseSync.value || customNeedPeriod.value) return
+    applyPhasePeriodToPicker()
+  },
+)
+
+watch(customNeedPeriod, async (on) => {
+  if (!on || suppressPhaseSync.value) return
+  await nextTick()
+  await nextTick()
+  applyPhasePeriodToPicker()
+})
+
+function selectedPhaseLabels(): Array<'aufbau' | 'grossanlass' | 'abbau'> {
+  const labels: Array<'aufbau' | 'grossanlass' | 'abbau'> = []
+  const seen = new Set<string>()
+  for (const field of inputFields.value) {
+    if (!isWishPhaseSelectField(field)) continue
+    if (isMultiSelectField(field)) {
+      for (const choice of customMultiValues[field.id] || []) {
+        const label = mapWishPhaseChoiceToCalendarLabel(choice)
+        if (label && !seen.has(label)) {
+          seen.add(label)
+          labels.push(label)
+        }
+      }
+    } else {
+      const label = mapWishPhaseChoiceToCalendarLabel(customValues[field.id] || '')
+      if (label && !seen.has(label)) {
+        seen.add(label)
+        labels.push(label)
+      }
+    }
+  }
+  return labels
+}
+
+function dateRangeFromCustomValues(cv: Record<string, unknown>): { from?: string; to?: string } | undefined {
+  const field = inputFields.value.find((f) => f.custom_type === 'date_range')
+  if (!field) return undefined
+  const raw = cv[field.id]
+  if (raw && typeof raw === 'object' && raw !== null && 'from' in raw) {
+    return raw as { from?: string; to?: string }
+  }
+  return undefined
+}
+
+function currentNeedRange(): { from: string; to: string } | null {
+  if (customNeedPeriod.value) {
+    return periodField()?.getRange() ?? null
+  }
+  if (hasPhaseSelectField.value) {
+    return phasePeriodRange.value
+      ?? unionCalendarPeriods(calendarPeriods.value, ['grossanlass'])
+  }
+  return periodField()?.getRange() ?? null
+}
+
+function applyPhasePeriodToPicker() {
+  const labels = selectedPhaseLabels()
+  const range = labels.length > 0
+    ? unionCalendarPeriods(calendarPeriods.value, labels)
+    : unionCalendarPeriods(calendarPeriods.value, ['grossanlass'])
+  if (!range) return
+  periodField()?.setRange(range.from, range.to)
+}
+
 defineExpose({ buildPayload, resetAfterSubmit, loadFromWish })
 </script>
 
@@ -722,6 +969,12 @@ defineExpose({ buildPayload, resetAfterSubmit, loadFromWish })
   margin: 0 0 14px;
   color: #4b5563;
   font-size: 0.9rem;
+}
+
+.period-fallback-hint {
+  margin: -8px 0 14px;
+  color: #64748b;
+  font-size: 0.82rem;
 }
 
 .bauprojekt-empty {
@@ -746,4 +999,79 @@ defineExpose({ buildPayload, resetAfterSubmit, loadFromWish })
   color: #374151;
   cursor: pointer;
 }
+
+.wish-when-option {
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.wish-when-option input {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.wish-when-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wish-when-option-title {
+  font-weight: 600;
+}
+
+.wish-when-option-range {
+  font-size: 0.82rem;
+  color: #4b5563;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.wish-when-option-range--missing {
+  color: #b45309;
+}
+
+.wish-when-block {
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.wish-when-need {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.wish-when-hint {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.wish-when-summary {
+  margin: 0 0 10px;
+  color: #1f2937;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.wish-when-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+}
+
+.wish-when-picker {
+  margin-top: 10px;
+}
+
 </style>

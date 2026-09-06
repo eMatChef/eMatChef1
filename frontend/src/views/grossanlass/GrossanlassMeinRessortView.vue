@@ -92,6 +92,7 @@
       :chauffeurs="submitChauffeurs"
       :places="submitBoard?.places ?? []"
       @confirm="onSubmitEinsatz"
+      @place-created="onPlaceCreated"
     />
   </PageShell>
 </template>
@@ -120,6 +121,7 @@ import {
   getGrossanlassSubmitBoard,
   type GaSubmitBoard,
 } from '@/api/grossanlassUebersicht'
+import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { useToast } from '@/composables/useToast'
 
@@ -258,6 +260,13 @@ async function openSubmit() {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
   }
+}
+
+function onPlaceCreated(place: GaPlace) {
+  const board = submitBoard.value
+  if (!board) return
+  if (board.places.some((row) => row.id === place.id)) return
+  submitBoard.value = { ...board, places: [...board.places, place] }
 }
 
 async function onSubmitEinsatz(current: GaBookPreviewDraft) {

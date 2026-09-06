@@ -118,6 +118,7 @@
       v-model="handoverDate"
       :department-id="departmentId"
       :label="t('grossanlass.materials.zusage.fieldHandoverDay')"
+      :view-date="presentFromDate"
       allow-past
     />
     <div class="zusage-grid">
@@ -130,6 +131,7 @@
       v-model="returnDate"
       :department-id="departmentId"
       :label="t('grossanlass.materials.zusage.fieldReturnDay')"
+      :view-date="presentToDate"
       allow-past
     />
     <div class="zusage-grid">
@@ -226,6 +228,7 @@ const name = ref('')
 const family = ref<'vehicle' | 'material'>('material')
 const origin = ref<GaZusageOrigin>('loan')
 const source = ref('')
+const fromLineId = ref('')
 const plate = ref('')
 const presentFromDate = ref('2027-07-16')
 const presentToDate = ref('2027-07-18')
@@ -298,6 +301,7 @@ function applyPreset() {
   family.value = preset.family ?? 'material'
   origin.value = preset.origin ?? 'loan'
   source.value = preset.source ?? ''
+  fromLineId.value = preset.fromLineId ?? ''
   plate.value = preset.plate ?? ''
   presentFromDate.value = preset.presentFromDate ?? '2027-07-16'
   presentToDate.value = preset.presentToDate ?? '2027-07-18'
@@ -333,6 +337,17 @@ watch(origin, (value) => {
   if (value === 'buy') costKind.value = 'purchase'
   else if (value === 'buy_resale') costKind.value = 'buy_resale'
   else if (costKind.value !== 'rental') costKind.value = 'loan'
+})
+
+watch([presentFromDate, presentToDate], ([from, to], previous) => {
+  const prevFrom = previous?.[0] ?? ''
+  const prevTo = previous?.[1] ?? ''
+  if (from && (!handoverDate.value || handoverDate.value === prevFrom)) {
+    handoverDate.value = from
+  }
+  if (to && (!returnDate.value || returnDate.value === prevTo)) {
+    returnDate.value = to
+  }
 })
 
 onMounted(async () => {
@@ -376,6 +391,7 @@ async function submit() {
         pack_unit: packUnit.value.trim() || undefined,
         pack_size: packSize.value.trim() || undefined,
         notes: notes.value.trim() || undefined,
+        from_line_id: fromLineId.value || undefined,
         parts: parts.value
           .filter((part) => part.name.trim())
           .map((part) => ({ name: part.name.trim(), qty: Math.max(1, Number(part.qty) || 1) })),

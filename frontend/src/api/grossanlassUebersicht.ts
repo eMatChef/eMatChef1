@@ -85,6 +85,13 @@ export type GaUebersichtWish = {
   ressort: string
   group_id: string
   who: string
+  round_id?: string
+  last_stage?: 'grob' | 'fein' | string
+  created_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | string | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
 }
 
 export type GaUebersichtPayload = {

@@ -79,16 +79,34 @@
         <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
         <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
       </div>
-      <GrossanlassEinsatzSlotStrip
-        v-if="draftFromIso && draftToIso"
-        :object-name="draft.objectName"
-        :from-date="fromDate"
-        :to-date="toDate"
-        :from-iso="draftFromIso"
-        :to-iso="draftToIso"
-        :bookings="dayBookings"
-        :clash="slotBusy"
-      />
+      <div v-if="draftFromIso && draftToIso && slotYmds.length" class="book-slots" :class="{ 'book-slots--stack': slotStacked }">
+        <div v-if="slotStacked" class="book-slots__head">
+          <strong>{{ slotHeading }}</strong>
+          <span>{{ slotLegend }}</span>
+        </div>
+        <div v-if="slotStacked" class="book-slots__hours" aria-hidden="true">
+          <span class="book-slots__gutter" />
+          <div class="book-slots__hour-scale">
+            <span v-for="hour in slotHourLabels" :key="hour.key">{{ hour.label }}</span>
+          </div>
+        </div>
+        <div class="book-slots__days">
+          <GrossanlassEinsatzSlotStrip
+            v-for="ymd in slotYmds"
+            :key="ymd"
+            :object-name="draft.objectName"
+            :from-date="ymd"
+            :to-date="ymd"
+            :from-iso="draftFromIso"
+            :to-iso="draftToIso"
+            :bookings="dayBookings"
+            :clash="slotBusy"
+            :compact="slotStacked"
+            :show-hours="!slotStacked"
+            :show-legend="!slotStacked"
+          />
+        </div>
+      </div>
       <div v-if="mode === 'einsatz'" class="book-delivery">
         <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
         <div class="book-delivery__row">
@@ -118,9 +136,45 @@
         :placeholder="t('grossanlass.materialUebersicht.destinationPlaceholder')"
         :menu-props="listMenuProps"
         :no-filter="false"
+        :disabled="placeSaving"
         clearable
         hide-details
-      />
+      >
+        <template #append-inner>
+          <button
+            type="button"
+            class="book-place-plus"
+            :class="{ 'is-open': showPlaceCreate }"
+            :title="t('grossanlass.materialUebersicht.destinationAdd')"
+            :aria-label="t('grossanlass.materialUebersicht.destinationAdd')"
+            :aria-expanded="showPlaceCreate"
+            :disabled="placeSaving"
+            @mousedown.prevent
+            @click.stop="togglePlaceCreate"
+          >
+            <v-icon :icon="showPlaceCreate ? 'mdi-close' : 'mdi-plus'" size="20" />
+          </button>
+        </template>
+      </EAutocomplete>
+      <div v-if="needsDriver && showPlaceCreate" ref="placeCreateEl" class="book-place-create">
+        <ETextField
+          v-model="newPlaceName"
+          :label="t('grossanlass.materialUebersicht.destinationAddName')"
+          :placeholder="t('grossanlass.einstellungen.placesName')"
+          hide-details
+          :disabled="placeSaving"
+          @keydown.enter.prevent="createPlace"
+        />
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!newPlaceName.trim()"
+          :loading="placeSaving"
+          @click="createPlace"
+        >
+          {{ t('grossanlass.einstellungen.placesAdd') }}
+        </EButton>
+      </div>
       <EAutocomplete
         v-if="needsDriver"
         v-model="chauffeurId"
@@ -205,20 +259,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EAutocomplete, EButton, ECheckbox, EDateRangeField, EDialog, ETimeField } from '@/components/form/base'
+import { EAutocomplete, EButton, ECheckbox, EDateRangeField, EDialog, ETextField, ETimeField } from '@/components/form/base'
 import GrossanlassEinsatzSlotStrip from '@/views/grossanlass/GrossanlassEinsatzSlotStrip.vue'
+import { createGrossanlassPlace, type GaPlace } from '@/api/grossanlassLogistics'
+import { useToast } from '@/composables/useToast'
 import {
+  formatCalendarTitle,
   isoRangesOverlap,
   isIssuedSlotLocked,
   isOutsidePresentWindow,
   isSlotConflict,
+  parseLocalDate,
   type GaEinsatzResource,
   type GaPreviewEinsatz,
   type GaPreviewWishTemplate,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 
 export type GaBookPreviewMode = 'einsatz' | 'order'
 export type GaBookPreviewDraft = GaPreviewWishTemplate & {
@@ -248,10 +308,13 @@ const props = defineProps<{
   resources?: GaEinsatzResource[]
   chauffeurs?: Array<{ value: string; title: string; subtitle: string; mayDrive: boolean }>
   places?: Array<{ id: string; name: string }>
+  presetObjectId?: string
+  presetWishId?: string | null
 }>()
 
 const emit = defineEmits<{
   confirm: [draft: GaBookPreviewDraft]
+  placeCreated: [place: GaPlace]
 }>()
 
 const draft = defineModel<GaBookPreviewDraft | null>('draft', { default: null })
@@ -268,9 +331,15 @@ const toTime = ref('18:00')
 const chauffeurId = ref<string | null>(null)
 const destinationPlaceId = ref<string | null>(null)
 const delivery = ref<'trip' | 'pickup'>('pickup')
+const extraPlaces = ref<Array<{ id: string; name: string }>>([])
+const showPlaceCreate = ref(false)
+const newPlaceName = ref('')
+const placeSaving = ref(false)
+const placeCreateEl = ref<HTMLElement | null>(null)
 
 const route = useRoute()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const toast = useToast()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -297,7 +366,7 @@ const confirmLabel = computed(() => {
 })
 
 const wishItems = computed(() =>
-  props.wishes.map((item) => ({
+  scopedWishes.value.map((item) => ({
     title: item.label,
     subtitle: `${item.qty}× ${item.objectName} · ${item.fromLabel} – ${item.toLabel}`,
     value: item.id,
@@ -305,12 +374,24 @@ const wishItems = computed(() =>
 )
 
 const freeItems = computed(() =>
-  props.freePicks.map((item) => ({
+  scopedPicks.value.map((item) => ({
     title: item.objectName,
     subtitle: `${t('grossanlass.materialUebersicht.qty', { n: item.qty })} · ${item.ressort}`,
     value: item.id,
   })),
 )
+
+const scopedWishes = computed(() => {
+  const objectId = props.presetObjectId
+  if (!objectId) return props.wishes
+  return props.wishes.filter((wish) => wish.objectId === objectId || wish.id === props.presetWishId)
+})
+
+const scopedPicks = computed(() => {
+  const objectId = props.presetObjectId
+  if (!objectId) return props.freePicks
+  return props.freePicks.filter((item) => item.objectId === objectId)
+})
 
 const chauffeurPeople = computed(() => props.chauffeurs ?? [])
 
@@ -318,9 +399,16 @@ const chauffeurItems = computed(() =>
   chauffeurPeople.value.map(({ value, title, subtitle }) => ({ value, title, subtitle })),
 )
 
-const placeItems = computed(() =>
-  (props.places ?? []).map((place) => ({ value: place.id, title: place.name })),
-)
+const placeItems = computed(() => {
+  const seen = new Set<string>()
+  const items: Array<{ value: string; title: string }> = []
+  for (const place of [...(props.places ?? []), ...extraPlaces.value]) {
+    if (seen.has(place.id)) continue
+    seen.add(place.id)
+    items.push({ value: place.id, title: place.name })
+  }
+  return items
+})
 
 const needsDriver = computed(() => props.mode === 'einsatz' && delivery.value === 'trip')
 
@@ -333,20 +421,69 @@ const chauffeurBlocked = computed(() =>
 )
 
 const draftFromIso = computed(() =>
-  fromDate.value && fromTime.value ? `${fromDate.value}T${fromTime.value}:00` : '',
+  fromDate.value && fromTime.value ? combineIso(fromDate.value, fromTime.value) : '',
 )
 const draftToIso = computed(() =>
-  toDate.value && toTime.value ? `${toDate.value}T${toTime.value}:00` : '',
+  toDate.value && toTime.value ? combineIso(toDate.value, toTime.value) : '',
+)
+
+function eachYmd(fromYmd: string, toYmd: string): string[] {
+  if (!fromYmd) return []
+  const start = parseLocalDate(`${fromYmd}T00:00:00`)
+  const end = parseLocalDate(`${(toYmd || fromYmd)}T00:00:00`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return []
+  const last = end < start ? start : end
+  const dates: string[] = []
+  const cursor = new Date(start.getTime())
+  while (cursor <= last) {
+    const year = cursor.getFullYear()
+    const month = String(cursor.getMonth() + 1).padStart(2, '0')
+    const day = String(cursor.getDate()).padStart(2, '0')
+    dates.push(`${year}-${month}-${day}`)
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
+}
+
+const slotYmds = computed(() => eachYmd(fromDate.value, toDate.value))
+const slotStacked = computed(() => slotYmds.value.length > 1)
+const slotHourLabels = computed(() =>
+  Array.from({ length: 24 }, (_, hour) => ({
+    key: String(hour),
+    label: hour % 3 === 0 ? String(hour).padStart(2, '0') : '',
+  })),
+)
+const slotHeading = computed(() => {
+  const first = slotYmds.value[0]
+  const last = slotYmds.value[slotYmds.value.length - 1]
+  if (!first) return ''
+  const start = parseLocalDate(`${first}T00:00:00`)
+  if (!slotStacked.value) {
+    return start.toLocaleDateString(locale.value, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+  const end = parseLocalDate(`${last}T00:00:00`)
+  end.setDate(end.getDate() + 1)
+  return formatCalendarTitle('week', start, end, locale.value)
+})
+const slotLegend = computed(() =>
+  slotBusy.value
+    ? t('grossanlass.materialUebersicht.slotLegendClash')
+    : t('grossanlass.materialUebersicht.slotLegendFree'),
 )
 
 const dayBookings = computed(() => {
   if (!draft.value || !fromDate.value) return []
-  const dayStart = `${fromDate.value}T00:00:00`
-  const dayEnd = `${fromDate.value}T24:00:00`
+  const rangeStart = `${fromDate.value}T00:00:00`
+  const rangeEnd = `${toDate.value || fromDate.value}T24:00:00`
   return (props.rows ?? []).filter(
     (row) =>
       row.objectId === draft.value?.objectId
-      && isoRangesOverlap(row.fromIso, row.toIso, dayStart, dayEnd),
+      && isoRangesOverlap(row.fromIso, row.toIso, rangeStart, rangeEnd),
   )
 })
 
@@ -385,7 +522,7 @@ const canConfirm = computed(() => {
   return true
 })
 
-watch(open, (isOpen) => {
+watch(open, async (isOpen) => {
   if (!isOpen) {
     draft.value = null
     source.value = 'own'
@@ -397,6 +534,22 @@ watch(open, (isOpen) => {
     chauffeurId.value = null
     destinationPlaceId.value = null
     delivery.value = 'pickup'
+    showPlaceCreate.value = false
+    newPlaceName.value = ''
+    return
+  }
+  if (props.presetWishId) {
+    source.value = 'wish'
+    pickedId.value = props.presetWishId
+    await nextTick()
+    goDetails()
+    return
+  }
+  if (props.presetObjectId && scopedPicks.value[0]) {
+    source.value = 'own'
+    pickedId.value = scopedPicks.value[0].id
+    await nextTick()
+    goDetails()
   }
 })
 
@@ -405,7 +558,7 @@ watch(pickedId, (id) => {
     draft.value = null
     return
   }
-  const pool = source.value === 'wish' ? props.wishes : props.freePicks
+  const pool = source.value === 'wish' ? scopedWishes.value : scopedPicks.value
   const item = pool.find((row) => row.id === id)
   draft.value = item ? { ...item, fromWish: source.value === 'wish' } : null
 })
@@ -420,7 +573,10 @@ function setSource(next: BookSource) {
 
 function splitIso(iso: string): { date: string; time: string } {
   const [date, timePart] = iso.split('T')
-  return { date: date || '', time: (timePart || '08:00:00').slice(0, 5) }
+  return {
+    date: date || '',
+    time: normalizeDepartmentTimeHHMM((timePart || '08:00:00').slice(0, 5)),
+  }
 }
 
 function formatSlot(date: string, time: string): string {
@@ -445,12 +601,48 @@ function goDetails() {
 
 function onDeliveryTrip(on: boolean | null) {
   delivery.value = on ? 'trip' : 'pickup'
-  if (delivery.value === 'pickup') chauffeurId.value = null
+  if (delivery.value === 'pickup') {
+    chauffeurId.value = null
+    showPlaceCreate.value = false
+  }
 }
 
 function onDeliveryPickup(on: boolean | null) {
   delivery.value = on ? 'pickup' : 'trip'
-  if (delivery.value === 'pickup') chauffeurId.value = null
+  if (delivery.value === 'pickup') {
+    chauffeurId.value = null
+    showPlaceCreate.value = false
+  }
+}
+
+function togglePlaceCreate() {
+  showPlaceCreate.value = !showPlaceCreate.value
+  if (!showPlaceCreate.value) return
+  placeMenuOpen.value = false
+  void nextTick(() => {
+    placeCreateEl.value?.querySelector('input')?.focus()
+  })
+}
+
+async function createPlace() {
+  const name = newPlaceName.value.trim()
+  if (!name || !departmentId.value || placeSaving.value) return
+  placeSaving.value = true
+  try {
+    const created = await createGrossanlassPlace(departmentId.value, { name })
+    extraPlaces.value = [...extraPlaces.value, created]
+    destinationPlaceId.value = created.id
+    newPlaceName.value = ''
+    showPlaceCreate.value = false
+    placeMenuOpen.value = false
+    emit('placeCreated', created)
+    toast.success(t('grossanlass.materialUebersicht.destinationAdded', { name: created.name }))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.einstellungen.placesAddError'))
+  } finally {
+    placeSaving.value = false
+  }
 }
 
 function confirm() {
@@ -459,8 +651,8 @@ function confirm() {
   if (props.mode === 'einsatz' && step.value === 'details') {
     next = {
       ...next,
-      fromIso: `${fromDate.value}T${fromTime.value}:00`,
-      toIso: `${toDate.value}T${toTime.value}:00`,
+      fromIso: combineIso(fromDate.value, fromTime.value),
+      toIso: combineIso(toDate.value, toTime.value),
       fromLabel: formatSlot(fromDate.value, fromTime.value),
       toLabel: formatSlot(toDate.value, toTime.value),
       who: selectedChauffeur.value?.title ?? next.who,
@@ -538,6 +730,62 @@ function confirm() {
   margin: 6px 0 0;
   font-size: 12px;
   color: #64748b;
+}
+.book-place-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f766e;
+  cursor: pointer;
+}
+.book-place-plus.is-open { color: #64748b; }
+.book-place-create {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: end;
+  margin: 8px 0 12px;
+}
+.book-slots--stack {
+  margin: 4px 0 12px;
+}
+.book-slots__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+  color: #6b7280;
+}
+.book-slots__head strong {
+  color: #111827;
+  font-weight: 600;
+}
+.book-slots__hours {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  gap: 6px;
+  margin-bottom: 2px;
+  padding-bottom: 2px;
+  background: #fff;
+}
+.book-slots__hour-scale {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  font-size: 0.55rem;
+  font-variant-numeric: tabular-nums;
+  color: #6b7280;
+  text-align: center;
 }
 </style>
 

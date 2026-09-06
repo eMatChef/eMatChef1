@@ -8,6 +8,7 @@ import {
   type GaEinsatzStayMode,
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefaults'
 
 export type GaZusageOrigin = 'loan' | 'buy' | 'buy_resale'
 export type GaParkServiceKind = 'clean' | 'grease' | 'other'
@@ -57,8 +58,8 @@ export type GaZusageArticle = {
 type Translate = (key: string, values?: Record<string, string | number>) => string
 
 export function combineIso(date: string, time: string): string {
-  const clock = time.length === 5 ? `${time}:00` : time
-  return `${date}T${clock}`
+  const clock = normalizeDepartmentTimeHHMM((time || '00:00').slice(0, 5))
+  return `${date}T${clock}:00`
 }
 
 export function isoDatePart(iso: string): string {
@@ -75,6 +76,7 @@ export function formatGaIsoLabel(iso: string, locale = 'de-CH'): string {
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })

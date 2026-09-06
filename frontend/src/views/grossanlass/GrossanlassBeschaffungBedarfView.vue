@@ -193,9 +193,15 @@
                   <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
                   <span class="kind-tag">{{ wishKindLabel(wish.wish_kind) }}</span>
                   <span class="kind-tag kind-tag--stage">{{ stageLabel(wish.last_stage) }}</span>
+                  <span v-if="wish.enough_on_hand" class="kind-tag kind-tag--enough">
+                    {{ enoughBadge(wish) }}
+                  </span>
                 </div>
                 <div class="pool-row__meta">
                   {{ wish.group_name }} · {{ wish.location }}
+                </div>
+                <div class="pool-row__meta">
+                  {{ formatWishNeed(wish) }}
                 </div>
                 <div class="pool-row__meta">
                   {{ wish.round_name }} · {{ wish.created_by_name }}
@@ -340,7 +346,13 @@
               class="line-subgroup"
             >
               <h5 v-if="sub.categoryName" class="line-subgroup__title">{{ sub.categoryName }}</h5>
-              <div v-for="line in sub.lines" :key="line.id" class="line-card">
+              <div
+                v-for="line in sub.lines"
+                :id="'bedarf-line-' + line.id"
+                :key="line.id"
+                class="line-card"
+                :class="{ 'line-card--focus': focusedLineId === line.id }"
+              >
             <div class="line-card__head">
               <div>
                 <strong>{{ line.quantity }}× {{ line.label }}</strong>
@@ -419,8 +431,12 @@
                   <div>
                     <div class="source-row__main">
                       <strong>{{ source.quantity }}× {{ source.label }}</strong>
+                      <span v-if="source.enough_on_hand" class="kind-tag kind-tag--enough">
+                        {{ enoughBadge(source) }}
+                      </span>
                     </div>
                     <div class="source-row__meta">{{ source.group_name }} · {{ source.location }}</div>
+                    <div class="source-row__meta">{{ formatWishNeed(source) }}</div>
                     <div class="source-row__meta">{{ source.round_name }} · {{ source.created_by_name }}</div>
                   </div>
                   <div class="source-row__actions">
@@ -574,7 +590,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -613,14 +629,19 @@ import {
 } from '@/utils/grossanlassProcurementCategoryTree'
 import { procurementMatchKind, type ProcurementMatchKind } from '@/utils/grossanlassProcurementMatch'
 import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
+import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { enoughOnHandBadgeLabel } from '@/utils/grossanlassEnoughOnHand'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+const focusedLineId = computed(() => String(route.query.line || ''))
 
 function goCategorySettings() {
   void router.push(`/${departmentId.value}/einstellungen/kategorien`)
@@ -640,6 +661,7 @@ const materialAssignRoundId = ref<string | null>(null)
 const materialAssignLabel = ref('')
 const materialAssignQuantity = ref('1')
 const lines = ref<GrossanlassProcurementLine[]>([])
+const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 const categories = ref<GrossanlassProcurementCategory[]>([])
 const suggestions = ref<GrossanlassProcurementBundleSuggestion[]>([])
 const isLoading = ref(true)
@@ -946,6 +968,21 @@ function stageLabel(stage: string | null | undefined): string {
     : t('grossanlass.planung.wishForms.stageGrob')
 }
 
+function enoughBadge(wish: GrossanlassProcurementPoolWish): string {
+  return enoughOnHandBadgeLabel(wish, (key, values) => String(t(key, values)))
+}
+
+function formatWishNeed(wish: GrossanlassProcurementPoolWish): string {
+  const need = resolveWishNeedPeriod(wish, calendarPeriods.value)
+  if (!need?.from || !need?.to) {
+    return t('grossanlass.materials.detailWishNeedUnset')
+  }
+  return t('grossanlass.materials.detailWishNeed', {
+    from: formatGaIsoLabel(need.from, locale.value),
+    to: formatGaIsoLabel(need.to, locale.value),
+  })
+}
+
 function statusLabel(status: string): string {
   return procurementStatusLabel(status, t)
 }
@@ -962,7 +999,11 @@ async function load() {
   if (!departmentId.value) return
   isLoading.value = true
   try {
-    const data = await getGrossanlassBedarfOverview(departmentId.value)
+    const [data, periods] = await Promise.all([
+      getGrossanlassBedarfOverview(departmentId.value),
+      listDepartmentCalendarPeriods(departmentId.value).catch(() => [] as DepartmentCalendarPeriod[]),
+    ])
+    calendarPeriods.value = periods
     applyBedarfOverview(data)
     selectedWishIds.value = []
     mergeTargetLineId.value = mergeLineItems.value[0]?.value ?? null
@@ -970,7 +1011,20 @@ async function load() {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorLoad'))
   } finally {
     isLoading.value = false
+    focusLineFromQuery()
   }
+}
+
+function focusLineFromQuery() {
+  const lineId = focusedLineId.value
+  if (!lineId || !lines.value.some((line) => line.id === lineId)) return
+  categoryFilter.value = 'all'
+  if (!expandedLineIds.value.includes(lineId)) {
+    expandedLineIds.value = [...expandedLineIds.value, lineId]
+  }
+  void nextTick(() => {
+    document.getElementById(`bedarf-line-${lineId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
 }
 
 function applyBedarfOverview(data: GrossanlassBedarfOverview) {
@@ -1207,6 +1261,10 @@ async function removeLine(line: GrossanlassProcurementLine) {
 }
 
 onMounted(load)
+
+watch(focusedLineId, () => {
+  if (!isLoading.value) focusLineFromQuery()
+})
 </script>
 
 <style scoped>
@@ -1363,6 +1421,11 @@ onMounted(load)
 
 .kind-tag--stage {
   color: #1d4ed8;
+}
+
+.kind-tag--enough {
+  color: #1d4ed8;
+  background: #dbeafe;
 }
 
 .pool-actions {
@@ -1536,6 +1599,10 @@ onMounted(load)
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 10px 12px;
+}
+.line-card--focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px #ccfbf1;
 }
 
 .line-card__head {

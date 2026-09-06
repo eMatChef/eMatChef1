@@ -88,7 +88,6 @@ const tabItems = computed(() => {
     { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
     { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
     { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-    { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
   ]
 })
 
@@ -98,14 +97,12 @@ const partnerPath = computed(() => [
   { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
   { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen') },
   { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen') },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten') },
 ])
 
 const buyPath = computed(() => [
   { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
   { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten') },
   { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen') },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten') },
 ])
 
 const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')

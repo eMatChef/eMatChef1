@@ -1062,14 +1062,7 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'erhalten',
-            name: 'GrossanlassBeschaffungErhalten',
-            component: () => import('@/views/grossanlass/GrossanlassBeschaffungErhaltenView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              beschaffungTab: 'erhalten',
-              ...routeHead('grossanlassBeschaffungErhalten'),
-            },
+            redirect: (to) => ({ path: `/${to.params.departmentId}/material-uebersicht/wareneingang` }),
           },
         ],
       },
@@ -1136,14 +1129,10 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'fahrzeuge',
-            name: 'GrossanlassMaterialsFahrzeuge',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
-              materialsTab: 'fahrzeuge',
-              ...routeHead('grossanlassMaterialsFahrzeuge'),
-            },
+            redirect: (to) => ({
+              path: `/${to.params.departmentId}/materialien/eigen`,
+              query: { family: 'vehicle' },
+            }),
           },
           {
             path: 'artikel/:itemId',
@@ -1191,6 +1180,17 @@ const routes: RouteRecordRaw[] = [
               requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
               materialUebersichtTab: 'einsaetze',
               ...routeHead('grossanlassMaterialUebersichtEinsaetze'),
+            },
+          },
+          {
+            path: 'wareneingang',
+            name: 'GrossanlassMaterialUebersichtWareneingang',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtWareneingangView.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_UEBERSICHT_ROUTE_ROLES],
+              materialUebersichtTab: 'wareneingang',
+              ...routeHead('grossanlassMaterialUebersichtWareneingang'),
             },
           },
           {

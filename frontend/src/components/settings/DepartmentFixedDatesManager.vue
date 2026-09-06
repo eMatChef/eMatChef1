@@ -220,7 +220,7 @@ const saving = ref(false)
 const showForm = ref(false)
 const editingId = ref<string | null>(null)
 const sortKey = ref<SortKey>('start')
-const sortDir = ref<'asc' | 'desc'>('desc')
+const sortDir = ref<'asc' | 'desc'>('asc')
 
 const defaultLabel = (): CalendarPeriodLabel =>
   isGrossanlassDept.value ? 'grossanlass' : 'school_vacation'
@@ -297,7 +297,7 @@ function toggleSort(key: SortKey) {
     return
   }
   sortKey.value = key
-  sortDir.value = key === 'name' || key === 'type' ? 'asc' : 'desc'
+  sortDir.value = 'asc'
 }
 
 function sortMark(key: SortKey): string {

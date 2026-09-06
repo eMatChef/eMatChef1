@@ -27,6 +27,10 @@ export interface GrossanlassProcurementPoolWish {
   created_by_name: string
   created_at: string
   updated_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   status?: string
   timeframe_notes?: string | null
   custom_values?: Record<string, unknown>
@@ -74,6 +78,7 @@ export interface GrossanlassProcurementOrder {
   id: string
   procurement_line_id: string
   ordered_at: string
+  delivery_at: string | null
   cost_chf: number
   order_ref: string | null
   notes: string | null
@@ -675,6 +680,7 @@ export async function upsertGrossanlassProcurementOrder(
     order_ref?: string | null
     notes?: string | null
     ordered_at?: string
+    delivery_at?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(

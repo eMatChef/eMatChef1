@@ -56,7 +56,7 @@
               <span class="material-name">{{ item.name }}</span>
               <span class="material-manufacturer">{{ item.barcode }}</span>
               <span class="combo-type-badge" :class="lifecycleBadgeClass(item.lifecycle)">
-                {{ lifecycleLabel(item.lifecycle) }}
+                {{ originBadge(item) }}
               </span>
             </div>
           </div>
@@ -191,8 +191,10 @@ const uebersicht = inject(gaUebersichtKey, null)
 
 const tabItems = computed(() => {
   const issued = uebersicht?.data.value?.issued_by_object ?? {}
+  const vehiclesOnly = String(route.query.family || '') === 'vehicle'
   return rows.value
     .filter((row) => row.tabs.includes(props.tab))
+    .filter((row) => (vehiclesOnly ? row.tabs.includes('fahrzeuge') : true))
     .map((row) => {
       const out = issued[row.id] ?? row.issued_out
       const available = row.releasedForEinsatz === false
@@ -304,8 +306,13 @@ function onSelectSuggestion(item: MaterialJourneyScanSuggestion) {
   expanded.value = [item.id]
 }
 
-function lifecycleLabel(kind: GaLifecycle): string {
-  return t(`grossanlass.materials.lifecycle.${kind}`)
+function originBadge(item: GaPreviewRow): string {
+  if (item.origin === 'buy_resale') return t('grossanlass.materials.originBadge.buy_resale')
+  if (item.origin === 'buy') return t('grossanlass.materials.originBadge.buy')
+  if (item.lifecycle === 'loan' || item.origin === 'loan') {
+    return t('grossanlass.materials.originBadge.loan')
+  }
+  return lifecycleLabel(item.lifecycle)
 }
 
 function lifecycleBadgeClass(kind: GaLifecycle): string {

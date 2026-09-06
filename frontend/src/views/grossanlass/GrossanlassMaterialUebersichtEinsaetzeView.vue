@@ -61,6 +61,7 @@
       :chauffeurs="chauffeurs"
       :places="places"
       @confirm="onConfirm"
+      @place-created="uebersicht.addPlace"
     />
   </div>
 </template>

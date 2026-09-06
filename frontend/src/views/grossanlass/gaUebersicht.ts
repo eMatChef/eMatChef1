@@ -10,6 +10,7 @@ import {
   type GaUebersichtCreatePayload,
   type GaUebersichtPayload,
 } from '@/api/grossanlassUebersicht'
+import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaPreviewEinsatz, GaPreviewWishTemplate } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 
@@ -19,6 +20,7 @@ export type GaUebersichtStore = {
   data: Ref<GaUebersichtPayload | null>
   load: () => Promise<void>
   apply: (payload: GaUebersichtPayload) => void
+  addPlace: (place: GaPlace) => void
   create: (payload: GaUebersichtCreatePayload) => Promise<void>
   issue: (id: string, userId?: string) => Promise<void>
   updateEinsatz: (
@@ -85,6 +87,15 @@ export function createGaUebersichtStore(
 
   function apply(payload: GaUebersichtPayload) {
     data.value = payload
+  }
+
+  function addPlace(place: GaPlace) {
+    const current = data.value ?? empty()
+    if ((current.places ?? []).some((row) => row.id === place.id)) return
+    data.value = {
+      ...current,
+      places: [...(current.places ?? []), place],
+    }
   }
 
   async function load() {
@@ -161,6 +172,13 @@ export function createGaUebersichtStore(
         who: wish.who,
         hasConflict: false,
         groupId: wish.group_id,
+        roundId: wish.round_id,
+        lastStage: wish.last_stage,
+        createdAt: wish.created_at,
+        enoughOnHand: Boolean(wish.enough_on_hand),
+        enoughOnHandSource: wish.enough_on_hand_source ?? null,
+        enoughOnHandDetail: wish.enough_on_hand_detail ?? null,
+        enoughOnHandRefId: wish.enough_on_hand_ref_id ?? null,
       })),
   )
 
@@ -172,6 +190,7 @@ export function createGaUebersichtStore(
     data,
     load,
     apply,
+    addPlace,
     create,
     issue,
     updateEinsatz,

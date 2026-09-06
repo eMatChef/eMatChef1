@@ -252,7 +252,7 @@
         type="button"
         class="status-stat"
         :class="{ 'is-active': statusFilter === row.status }"
-        @click="statusFilter = statusFilter === row.status ? '' : row.status"
+        @click="toggleStatusFilter(row.status)"
       >
         <span class="status-chip" :class="`status-chip--${row.status}`">
           {{ t(`grossanlass.beschaffung.anfragen.status.${row.status}`) }}
@@ -284,26 +284,43 @@
         <button
           type="button"
           class="filter-chip"
-          :class="{ 'is-active': emailFilter === '' }"
-          @click="emailFilter = ''"
+          :class="{ 'is-active': listFilterKind === 'all' }"
+          @click="setListFilter('all')"
         >
           {{ t('grossanlass.beschaffung.anfragen.filterEmailAll') }}
         </button>
         <button
           type="button"
           class="filter-chip"
-          :class="{ 'is-active': emailFilter === 'ready' }"
-          @click="emailFilter = 'ready'"
+          :class="{ 'is-active': listFilterKind === 'ready' }"
+          @click="setListFilter('ready')"
         >
           {{ t('grossanlass.beschaffung.anfragen.filterReady') }}
         </button>
         <button
           type="button"
           class="filter-chip"
-          :class="{ 'is-active': emailFilter === 'missing' }"
-          @click="emailFilter = 'missing'"
+          :class="{ 'is-active': listFilterKind === 'missing' }"
+          @click="setListFilter('missing')"
         >
           {{ t('grossanlass.beschaffung.anfragen.filterEmailMissing') }}
+        </button>
+        <span class="filter-chips__sep" aria-hidden="true" />
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ 'is-active': listFilterKind === 'gesendet' }"
+          @click="setListFilter('gesendet')"
+        >
+          {{ t('grossanlass.beschaffung.anfragen.status.gesendet') }}
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ 'is-active': listFilterKind === 'antwort' }"
+          @click="setListFilter('antwort')"
+        >
+          {{ t('grossanlass.beschaffung.anfragen.status.antwort') }}
         </button>
       </div>
       <ESearchField
@@ -490,7 +507,7 @@
                   v-if="firma.status === 'zusage'"
                   variant="text"
                   size="small"
-                  @click="goZuteilung"
+                  @click="goZuteilung(firma)"
                 >
                   {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
                 </EButton>
@@ -558,7 +575,7 @@
                 v-if="firma.status === 'zusage'"
                 variant="text"
                 size="small"
-                @click="goZuteilung"
+                @click="goZuteilung(firma)"
               >
                 {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
               </EButton>
@@ -684,44 +701,43 @@
                 :message="t('grossanlass.beschaffung.anfragen.convLoading')"
               />
               <div v-else class="mail-conv">
-                <section class="mail-conv__block">
-                  <h3>{{ t('grossanlass.beschaffung.anfragen.convSent') }}</h3>
-                  <article v-for="(msg, index) in conversation.sent" :key="'sent-' + index" class="mail-conv__card">
-                    <p class="mail-conv__meta">
-                      {{ formatThreadAt(msg.at) }}
-                      <template v-if="msg.subject"> · {{ msg.subject }}</template>
-                    </p>
-                    <div v-if="isHtmlMail(msg.text)" class="mail-conv__html" v-html="mailBodyHtml(msg.text)"></div>
-                    <pre v-else class="mail-conv__text">{{ msg.text }}</pre>
+                <p v-if="!conversationChat.length" class="muted">
+                  {{ t('grossanlass.beschaffung.anfragen.convSentEmpty') }}
+                </p>
+                <div v-else class="mail-chat" role="log">
+                  <article
+                    v-for="(msg, index) in conversationChat"
+                    :key="'chat-' + index + '-' + (msg.at || '')"
+                    class="mail-chat__row"
+                    :class="msg.who === 'ok' ? 'mail-chat__row--ok' : 'mail-chat__row--firm'"
+                  >
+                    <div class="mail-chat__bubble">
+                      <p class="mail-chat__meta">
+                        <span class="mail-chat__who">
+                          {{ msg.who === 'ok'
+                            ? t('grossanlass.beschaffung.anfragen.convWhoOk')
+                            : t('grossanlass.beschaffung.anfragen.convWhoFirm') }}
+                        </span>
+                        <time v-if="msg.at" :datetime="msg.at">{{ formatThreadAt(msg.at) }}</time>
+                        <template v-if="msg.subject"> · {{ msg.subject }}</template>
+                      </p>
+                      <div
+                        v-if="isHtmlMail(msg.text)"
+                        class="mail-conv__html"
+                        v-html="mailBodyHtml(msg.text)"
+                      />
+                      <pre v-else class="mail-conv__text">{{ mailBubbleText(msg.text) }}</pre>
+                    </div>
                   </article>
-                  <p v-if="!conversation.sent.length" class="muted">
-                    {{ t('grossanlass.beschaffung.anfragen.convSentEmpty') }}
-                  </p>
-                </section>
-                <section class="mail-conv__block">
-                  <h3>{{ t('grossanlass.beschaffung.anfragen.convReply') }}</h3>
-                  <article v-for="(msg, index) in conversation.replies" :key="'reply-' + index" class="mail-conv__card mail-conv__card--firm">
-                    <p class="mail-conv__meta">
-                      {{ formatThreadAt(msg.at) }}
-                      <template v-if="msg.from"> · {{ msg.from }}</template>
-                      <template v-if="msg.subject"> · {{ msg.subject }}</template>
-                    </p>
-                    <div v-if="isHtmlMail(msg.text)" class="mail-conv__html" v-html="mailBodyHtml(msg.text)"></div>
-                    <pre v-else class="mail-conv__text">{{ msg.text }}</pre>
-                  </article>
-                  <p v-if="!conversation.replies.length" class="muted">
-                    {{ t('grossanlass.beschaffung.anfragen.convReplyEmpty') }}
-                  </p>
-                </section>
-                <section class="mail-conv__block">
+                </div>
+                <section v-if="conversationHistoryNewest.length" class="mail-conv__block">
                   <h3>{{ t('grossanlass.beschaffung.anfragen.convHistory') }}</h3>
-                  <ol v-if="conversation.history.length" class="mail-conv__history">
-                    <li v-for="(row, index) in conversation.history" :key="'hist-' + index">
+                  <ol class="mail-conv__history">
+                    <li v-for="(row, index) in conversationHistoryNewest" :key="'hist-' + index">
                       <time v-if="row.at" :datetime="row.at">{{ formatThreadAt(row.at) }}</time>
                       <span>{{ row.text }}</span>
                     </li>
                   </ol>
-                  <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.convHistoryEmpty') }}</p>
                 </section>
               </div>
             </template>
@@ -924,7 +940,7 @@
             v-if="previewStatus === 'zusage'"
             variant="primary"
             size="small"
-            @click="goZuteilung"
+            @click="goZuteilung(previewFirma)"
           >
             {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
           </EButton>
@@ -1195,6 +1211,7 @@ import {
   type GrossanlassGmailUnmatched,
   type GrossanlassInquiry,
   type GrossanlassInquiryConversation,
+  type GrossanlassInquiryConversationMessage,
 } from '@/api/grossanlassInquiries'
 import { getAddress } from '@/api/addresses'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
@@ -1435,6 +1452,36 @@ const categoriesLoadError = ref('')
 const categoryFilter = ref('')
 const emailFilter = ref<'' | 'ready' | 'missing'>('')
 const statusFilter = ref('')
+type ListFilterKind = 'all' | 'ready' | 'missing' | 'gesendet' | 'antwort'
+
+function setListFilter(kind: ListFilterKind) {
+  if (kind === 'all') {
+    emailFilter.value = ''
+    statusFilter.value = ''
+    return
+  }
+  if (kind === 'ready' || kind === 'missing') {
+    emailFilter.value = kind
+    statusFilter.value = ''
+    return
+  }
+  emailFilter.value = ''
+  statusFilter.value = kind
+}
+
+const listFilterKind = computed<ListFilterKind | ''>(() => {
+  if (emailFilter.value === 'ready') return 'ready'
+  if (emailFilter.value === 'missing') return 'missing'
+  if (statusFilter.value === 'gesendet') return 'gesendet'
+  if (statusFilter.value === 'antwort') return 'antwort'
+  if (!emailFilter.value && !statusFilter.value) return 'all'
+  return ''
+})
+
+function toggleStatusFilter(status: string) {
+  emailFilter.value = ''
+  statusFilter.value = statusFilter.value === status ? '' : status
+}
 const pageOpen = ref(true)
 const editFirma = ref<GrossanlassInquiry | null>(null)
 const editForm = reactive(emptyFirmForm())
@@ -1540,12 +1587,30 @@ function formatThreadAt(iso?: string): string {
 }
 
 function isHtmlMail(text?: string): boolean {
-  const value = (text ?? '').trim()
-  return /<[a-z][\s\S]*>/i.test(value)
+  return /<(p|div|br|strong|em|span|table|ul|ol|li|h[1-6]|a)\b/i.test(text ?? '')
 }
 
 function mailBodyHtml(text?: string): string {
   return sanitizeMailHtml(text ?? '')
+}
+
+function threadTime(iso?: string): number {
+  if (!iso) return 0
+  const stamp = Date.parse(iso)
+  return Number.isNaN(stamp) ? 0 : stamp
+}
+
+function mailBubbleText(text?: string): string {
+  let value = (text ?? '').replace(/\r\n/g, '\n').trim()
+  value = value.replace(/\s*Am\s+\S[\s\S]{0,120}?um\s+\d{1,2}:\d{2}\s+Uhr\s+schrieb[\s\S]*$/i, '')
+  value = value.replace(/\s*On\s+\S[\s\S]{0,120}?\swrote:[\s\S]*$/i, '')
+  value = value
+    .split('\n')
+    .filter((line) => !/^\s*>/.test(line))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return value || (text ?? '').trim()
 }
 
 function emptyConversation(): GrossanlassInquiryConversation {
@@ -1979,6 +2044,16 @@ const previewThread = computed(() => previewFirma.value?.thread ?? [])
 const previewMailLocked = computed(() =>
   previewFirma.value ? inquiryMailLocked(previewFirma.value) : false,
 )
+const conversationChat = computed(() => {
+  const rows: GrossanlassInquiryConversationMessage[] = [
+    ...conversation.value.sent.map((msg) => ({ ...msg, who: msg.who || 'ok' })),
+    ...conversation.value.replies.map((msg) => ({ ...msg, who: msg.who || 'firm' })),
+  ]
+  return rows.sort((a, b) => threadTime(b.at) - threadTime(a.at))
+})
+const conversationHistoryNewest = computed(() =>
+  [...conversation.value.history].sort((a, b) => threadTime(b.at) - threadTime(a.at)),
+)
 const firmMailTabLabel = computed(() =>
   previewThread.value.length
     ? t('grossanlass.beschaffung.anfragen.tabMailThread')
@@ -2047,11 +2122,14 @@ function goGmailSettings() {
   void router.push(`/${dept}/einstellungen/anfragen-email`)
 }
 
-function goZuteilung() {
+function goZuteilung(firma?: { id: string } | null) {
   firmModalOpen.value = false
   const dept = departmentId.value
   if (!dept) return
-  void router.push(`/${dept}/beschaffung/zusagen`)
+  void router.push({
+    path: `/${dept}/beschaffung/zusagen`,
+    query: firma?.id ? { inquiry: firma.id } : {},
+  })
 }
 
 function firmMeta(firma: GrossanlassInquiry): string {
@@ -2968,6 +3046,14 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 6px;
   flex: 1 1 100%;
+  align-items: center;
+}
+.filter-chips__sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 22px;
+  background: #cbd5e1;
+  margin: 0 4px;
 }
 .filter-chip {
   border: 1px solid #e5e7eb;
@@ -3211,37 +3297,60 @@ onUnmounted(() => {
   gap: 16px;
   margin-top: 12px;
 }
+.mail-chat {
+  display: grid;
+  gap: 10px;
+}
+.mail-chat__row {
+  display: flex;
+}
+.mail-chat__row--firm { justify-content: flex-start; }
+.mail-chat__row--ok { justify-content: flex-end; }
+.mail-chat__bubble {
+  max-width: min(28rem, 78%);
+  width: fit-content;
+  padding: 8px 12px 10px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.mail-chat__row--firm .mail-chat__bubble {
+  background: #f1f5f9;
+  border-radius: 4px 16px 16px 16px;
+}
+.mail-chat__row--ok .mail-chat__bubble {
+  background: var(--color-primary-muted-bg, #ecfdf3);
+  border-radius: 16px 4px 16px 16px;
+  text-align: left;
+}
+.mail-chat__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.35em;
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  color: #64748b;
+}
+.mail-chat__who { font-weight: 700; color: #334155; }
+.mail-chat__row--ok .mail-chat__who { color: var(--color-primary-dark, #166534); }
 .mail-conv__block h3 {
   margin: 0 0 8px;
   font-size: 0.82rem;
   font-weight: 700;
   color: #334155;
 }
-.mail-conv__card {
-  background: #f8fafc;
-  border-radius: 8px;
-  padding: 10px 12px;
-}
-.mail-conv__card--firm {
-  background: #eff6ff;
-}
-.mail-conv__meta {
-  margin: 0 0 8px;
-  font-size: 0.75rem;
-  color: #64748b;
-}
 .mail-conv__text {
   margin: 0;
   white-space: pre-wrap;
   font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: inherit;
+  line-height: inherit;
 }
 .mail-conv__html {
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: inherit;
+  line-height: inherit;
 }
 .mail-conv__html :deep(p) { margin: 0 0 0.6em; }
+.mail-conv__html :deep(p:last-child) { margin-bottom: 0; }
 .mail-conv__history {
   list-style: none;
   margin: 0;

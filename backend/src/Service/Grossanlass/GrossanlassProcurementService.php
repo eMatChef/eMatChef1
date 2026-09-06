@@ -34,6 +34,7 @@ class GrossanlassProcurementService
         private GrossanlassWishService $wishService,
         private GrossanlassCostService $costService,
         private GrossanlassProcurementCategoryBootstrapService $categoryBootstrap,
+        private GrossanlassCommitmentService $commitmentService,
     ) {}
 
     /**
@@ -1009,7 +1010,12 @@ class GrossanlassProcurementService
             $existing->touchUpdatedAt();
         }
 
-        $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT);
+        if (in_array($line->getStatus(), [
+            ActivityGrossanlassProcurementLine::STATUS_BEDARF,
+            ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
+        ], true)) {
+            $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT);
+        }
         $line->touchUpdatedAt();
         $this->costService->syncFromSelectedQuote($line, $quote);
         $this->entityManager->flush();
@@ -1058,6 +1064,18 @@ class GrossanlassProcurementService
         $order->setOrderRef($orderRef === '' ? null : $orderRef);
         $notes = trim((string) ($data['notes'] ?? ''));
         $order->setNotes($notes === '' ? null : $notes);
+        if (array_key_exists('delivery_at', $data)) {
+            $deliveryRaw = $data['delivery_at'];
+            if ($deliveryRaw === null || $deliveryRaw === '') {
+                $order->setDeliveryAt(null);
+            } else {
+                try {
+                    $order->setDeliveryAt(new \DateTime((string) $deliveryRaw));
+                } catch (\Exception) {
+                    throw new \InvalidArgumentException('Ungültiger Liefertermin');
+                }
+            }
+        }
         $order->touchUpdatedAt();
 
         if ($line->getStatus() === ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT) {
@@ -1066,6 +1084,13 @@ class GrossanlassProcurementService
         $line->touchUpdatedAt();
         $this->costService->syncFromOrder($line, $order);
         $this->entityManager->flush();
+        $this->commitmentService->ensureBuyChargeFromOrder(
+            $department,
+            $user,
+            $line,
+            $order,
+            $this->findSelectedQuote($line),
+        );
 
         return $this->lineToArray($line);
     }
@@ -1858,6 +1883,7 @@ class GrossanlassProcurementService
             'valid_to' => $wish->getValidTo()->format(\DateTimeInterface::ATOM),
             'timeframe_notes' => $wish->getTimeframeNotes(),
             'notes' => $wish->getNotes(),
+            ...$wish->enoughOnHandPayload(),
             'status' => $wish->getStatus(),
             'created_by_user_id' => $wish->getCreatedByUserId(),
             'created_by_name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
@@ -2032,6 +2058,8 @@ class GrossanlassProcurementService
             ActivityGrossanlassProcurementLine::STATUS_BEDARF,
             ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
             ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT,
+            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
+            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
         ], true)) {
             throw new \InvalidArgumentException('Offerten können in diesem Status nicht mehr bearbeitet werden');
         }
@@ -2171,6 +2199,7 @@ class GrossanlassProcurementService
             'ordered_at' => $order->getOrderedAt()->format(\DateTimeInterface::ATOM),
             'cost_chf' => (float) $order->getCostChf(),
             'order_ref' => $order->getOrderRef(),
+            'delivery_at' => $order->getDeliveryAt()?->format(\DateTimeInterface::ATOM),
             'notes' => $order->getNotes(),
             'created_at' => $order->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $order->getUpdatedAt()->format(\DateTimeInterface::ATOM),
