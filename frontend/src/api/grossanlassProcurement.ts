@@ -55,6 +55,8 @@ export interface GrossanlassProcurementQuote {
   supplier_address: GrossanlassProcurementQuoteSupplierAddress | null
   amount_chf: number
   notes: string | null
+  delivery_at: string | null
+  lead_days: number | null
   selected: boolean
   pdf_filename: string | null
   pdf_url: string | null
@@ -110,6 +112,11 @@ export interface GrossanlassProcurementLine {
   source_wishes: GrossanlassProcurementPoolWish[]
   source_quantity_sum: number
   received_quantity_sum: number
+  quantity_loaned?: number
+  quantity_ordered?: number
+  quantity_open?: number
+  need_from?: string | null
+  need_to?: string | null
   quotes: GrossanlassProcurementQuote[]
   selected_quote_id: string | null
   budget_chf: number | null
@@ -580,6 +587,8 @@ export async function createGrossanlassProcurementQuote(
     supplier_address_id?: string | null
     amount_chf: number
     notes?: string | null
+    delivery_at?: string | null
+    lead_days?: number | null
   },
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.post<GrossanlassProcurementQuote>(
@@ -598,6 +607,8 @@ export async function updateGrossanlassProcurementQuote(
     supplier_address_id: string | null
     amount_chf: number
     notes: string | null
+    delivery_at: string | null
+    lead_days: number | null
   }>,
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.put<GrossanlassProcurementQuote>(

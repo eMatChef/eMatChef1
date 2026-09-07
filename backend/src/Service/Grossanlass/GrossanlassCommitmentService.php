@@ -136,18 +136,14 @@ final class GrossanlassCommitmentService
 
         $related = $this->commitmentsForLine($department, $line->getId());
         $existing = null;
-        $loaned = 0;
         foreach ($related as $row) {
             if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY) {
                 $existing = $existing ?? $row;
-                continue;
-            }
-            if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_LOAN) {
-                $loaned += $row->getQuantity();
+                break;
             }
         }
 
-        $qty = max(0, $line->getQuantity() - $loaned);
+        $qty = max(0, $line->getQuantity());
         $supplier = trim((string) ($quote?->getSupplier() ?? ''));
         $source = $supplier !== '' ? $supplier : $line->getLabel();
         $details = [
@@ -430,6 +426,13 @@ final class GrossanlassCommitmentService
         $orderRef = trim((string) ($raw['order_ref'] ?? ''));
         if ($orderRef !== '') {
             $out['order_ref'] = mb_substr($orderRef, 0, 80);
+        }
+        if (array_key_exists('qty_checked', $raw)) {
+            $out['qty_checked'] = (bool) $raw['qty_checked'];
+        }
+        $pickupEinsatzId = trim((string) ($raw['pickup_einsatz_id'] ?? ''));
+        if ($pickupEinsatzId !== '') {
+            $out['pickup_einsatz_id'] = mb_substr($pickupEinsatzId, 0, 12);
         }
 
         $parts = [];

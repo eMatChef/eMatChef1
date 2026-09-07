@@ -60,7 +60,10 @@
       :resources="resources"
       :chauffeurs="chauffeurs"
       :places="places"
+      :groups="groups"
       @confirm="onConfirm"
+      @confirm-many="onConfirmMany"
+      @order="onOrder"
       @place-created="uebersicht.addPlace"
     />
   </div>
@@ -88,6 +91,8 @@ import { articleToResource, zusageOccupancyBars } from '@/views/grossanlass/gros
 import { resourceToPickTemplate } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 import type { GaPreviewEinsatz } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 import { useToast } from '@/composables/useToast'
+import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import type { GaUebersichtCreatePayload } from '@/api/grossanlassUebersicht'
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -154,9 +159,31 @@ function canStartTrip(row: GaPreviewEinsatz): boolean {
   return !!card?.may_drive
 }
 
+const groups = ref<GrossanlassGroup[]>([])
 const mode = ref<GaBookPreviewMode>('einsatz')
 const dialogOpen = ref(false)
 const draft = ref<GaBookPreviewDraft | null>(null)
+
+function payloadFromDraft(
+  current: GaBookPreviewDraft,
+  kind: 'einsatz' | 'order',
+): GaUebersichtCreatePayload {
+  return {
+    kind,
+    commitment_id: current.objectId || undefined,
+    wish_line_id: current.fromWish ? current.id : null,
+    qty: current.qty,
+    from: current.fromIso,
+    to: current.toIso,
+    who: current.objectName || current.label || current.who,
+    chauffeur_user_id: current.chauffeurUserId || null,
+    delivery: current.delivery || 'pickup',
+    destination_place_id: current.destinationPlaceId || null,
+    group_id: current.groupId || null,
+    pending: current.hasConflict,
+    has_conflict: current.hasConflict,
+  }
+}
 
 function openModal(next: GaBookPreviewMode) {
   mode.value = next
@@ -167,33 +194,50 @@ function openModal(next: GaBookPreviewMode) {
 const composer = inject(gaEinsatzComposerKey, null)
 onMounted(() => {
   if (composer) composer.open = openModal
+  const dept = String(route.params.departmentId || '')
+  if (!dept) return
+  void getGrossanlassGroups(dept).then((rows) => { groups.value = rows }).catch(() => { groups.value = [] })
 })
 onBeforeUnmount(() => {
   if (composer) composer.open = () => {}
 })
 
 async function onConfirm(current: GaBookPreviewDraft) {
+  const kind = current.asOrder || mode.value === 'order' ? 'order' : 'einsatz'
   try {
-    await uebersicht.create({
-      kind: mode.value === 'order' ? 'order' : 'einsatz',
-      commitment_id: current.objectId || undefined,
-      wish_line_id: current.fromWish ? current.id : null,
-      qty: current.qty,
-      from: current.fromIso,
-      to: current.toIso,
-      who: current.who,
-      chauffeur_user_id: current.chauffeurUserId || null,
-      delivery: current.delivery || 'pickup',
-      destination_place_id: current.destinationPlaceId || null,
-      group_id: current.groupId || null,
-      pending: current.hasConflict,
-      has_conflict: current.hasConflict,
-    })
+    await uebersicht.create(payloadFromDraft(current, kind))
     toast.success(
-      current.hasConflict
-        ? t('grossanlass.materialUebersicht.mwNoteSent')
-        : t('grossanlass.beschaffung.zusagen.createdToast'),
+      kind === 'order'
+        ? t('grossanlass.materialUebersicht.orderNoted')
+        : current.hasConflict
+          ? t('grossanlass.materialUebersicht.mwNoteSent')
+          : t('grossanlass.beschaffung.zusagen.createdToast'),
     )
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
+}
+
+async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
+  try {
+    await uebersicht.createMany(drafts.map((row) => payloadFromDraft(row, 'einsatz')))
+    const noted = drafts.some((row) => row.hasConflict)
+    toast.success(
+      noted
+        ? t('grossanlass.materialUebersicht.mwNoteSent')
+        : t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }),
+    )
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
+}
+
+async function onOrder(current: GaBookPreviewDraft) {
+  try {
+    await uebersicht.create(payloadFromDraft(current, 'order'))
+    toast.success(t('grossanlass.materialUebersicht.orderNoted'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))

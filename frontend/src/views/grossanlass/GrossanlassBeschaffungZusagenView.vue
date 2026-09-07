@@ -166,23 +166,13 @@
                     </p>
                   </div>
                   <div class="take-item__qty">
-                    <span>
-                      {{ t('grossanlass.beschaffung.zusagen.takeNeed') }} {{ line.quantity }}
-                      <small v-if="line.source_wishes.length > 1" class="take-item__wish-sum">
-                        {{ wishBreakdown(line) }}
-                      </small>
-                    </span>
-                    <span>
-                      {{ t('grossanlass.beschaffung.zusagen.takeTaken') }}
-                      {{ takenElsewhere(group.inquiry.id, line.id) }}
-                      <small
-                        :class="{ 'take-item__over': coverageDelta(group.inquiry.id, line) < 0 }"
-                      >
-                        {{ coverageDelta(group.inquiry.id, line) >= 0
-                          ? t('grossanlass.beschaffung.zusagen.takeRest', { count: coverageDelta(group.inquiry.id, line) })
-                          : t('grossanlass.beschaffung.zusagen.takeOver', { count: Math.abs(coverageDelta(group.inquiry.id, line)) }) }}
-                      </small>
-                    </span>
+                    <GrossanlassProcurementCoverage
+                      :line="line"
+                      stack
+                      :other-taken="takenElsewhere(group.inquiry.id, line.id)"
+                      :here-taken="Number(takeQty[takeKey(group.inquiry.id, line.id)] ?? 0)"
+                      :link-loans="false"
+                    />
                     <AutoSaveField
                       :model-value="takeQty[takeKey(group.inquiry.id, line.id)] ?? 0"
                       :baseline="takenByInquiry(group.inquiry.id, line.id)"
@@ -242,7 +232,13 @@
                       supplier: selectedQuoteOf(line)?.supplier || line.quotes[0].supplier,
                       amount: formatChf(selectedQuoteOf(line)?.amount_chf ?? line.quotes[0].amount_chf),
                     }) }}
-                    <span class="take-item__kauf-status">{{ procurementStatusLabel(line.status, t) }}</span>
+                    <span
+                      v-if="procurementIsOrdered(line)"
+                      class="take-item__kauf-status take-item__kauf-status--ordered"
+                    >
+                      {{ t('grossanlass.beschaffung.zusagen.takeBuy') }}
+                      {{ procurementOrderedQty(line) }}
+                    </span>
                     <span v-if="selectedQuoteOf(line)" class="take-item__kauf-picked">
                       {{ t('grossanlass.beschaffung.offerten.selected') }}
                     </span>
@@ -359,14 +355,14 @@
                 {{ t('grossanlass.beschaffung.zusagen.fromQuoteHint', { supplier: quoteForRow(row)!.supplier }) }}
                 · {{ formatChf(quoteForRow(row)!.amount_chf) }}
               </p>
-              <p v-if="matchLineForRow(row)" class="take-table__meta">
-                {{ t('grossanlass.beschaffung.zusagen.takeNeed') }} {{ matchLineForRow(row)!.quantity }}
-                · {{ t('grossanlass.beschaffung.zusagen.takeTaken') }}
-                {{ takenExceptRow(row.id, matchLineForRow(row)!.id) }}
-              </p>
-              <p v-if="(matchLineForRow(row)?.source_wishes.length ?? 0) > 1" class="take-item__wish-sum">
-                {{ wishBreakdown(matchLineForRow(row)!) }}
-              </p>
+              <GrossanlassProcurementCoverage
+                v-if="matchLineForRow(row)"
+                :line="matchLineForRow(row)!"
+                stack
+                :other-taken="takenExceptRow(row.id, matchLineForRow(row)!.id)"
+                :here-taken="row.quantity"
+                :link-loans="false"
+              />
               <p v-if="row.delta !== 'none'" class="zusagen-card__hint">
                 {{ t(`grossanlass.planung.feinPartner.advice.${row.delta}`) }}
               </p>
@@ -512,6 +508,34 @@
         <ETimeField v-model="handoverFromTime" :label="t('grossanlass.materials.zusage.fieldFrom')" />
         <ETimeField v-model="handoverToTime" :label="t('grossanlass.materials.zusage.fieldTo')" />
       </div>
+      <p class="window-hint window-hint--muted">{{ t('grossanlass.materials.zusage.inboundHow') }}</p>
+      <div class="window-toggle" role="tablist" :aria-label="t('grossanlass.materials.zusage.inboundHow')">
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="inboundMode === 'pickup'"
+          class="window-toggle__btn"
+          :class="{ 'window-toggle__btn--on': inboundMode === 'pickup' }"
+          @click="inboundMode = 'pickup'"
+        >
+          {{ t('grossanlass.materials.zusage.inboundPickup') }}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          :aria-selected="inboundMode === 'delivery'"
+          class="window-toggle__btn"
+          :class="{ 'window-toggle__btn--on': inboundMode === 'delivery' }"
+          @click="inboundMode = 'delivery'"
+        >
+          {{ t('grossanlass.materials.zusage.inboundDelivery') }}
+        </button>
+      </div>
+      <p class="window-hint window-hint--muted">
+        {{ inboundMode === 'pickup'
+          ? t('grossanlass.materials.zusage.inboundHintPickup')
+          : t('grossanlass.materials.zusage.inboundHintDelivery') }}
+      </p>
       <h3 class="window-section">{{ t('grossanlass.materials.zusage.sectionReturn') }}</h3>
       <EDateField
         v-model="returnDate"
@@ -575,6 +599,7 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
 import GrossanlassZusageAlignStrip from '@/views/grossanlass/GrossanlassZusageAlignStrip.vue'
 import GrossanlassProcurementWishBundleDialog from '@/components/grossanlass/GrossanlassProcurementWishBundleDialog.vue'
+import GrossanlassProcurementCoverage from '@/components/grossanlass/GrossanlassProcurementCoverage.vue'
 import {
   combineIso,
   feinDeltaKind,
@@ -610,8 +635,10 @@ import {
   type GrossanlassProcurementQuote,
 } from '@/api/grossanlassProcurement'
 import { descendantIdsOfProcurementCategory } from '@/utils/grossanlassProcurementCategoryTree'
-import { procurementStatusLabel } from '@/utils/grossanlassProcurementStatus'
+import { procurementIsOrdered, procurementOrderedQty } from '@/utils/grossanlassProcurementCoverage'
 import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
+import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
 
 type GroupBy = 'source' | 'family' | 'status'
@@ -694,6 +721,8 @@ const presentToTime = ref('18:00')
 const handoverDate = ref('')
 const handoverFromTime = ref('07:00')
 const handoverToTime = ref('08:00')
+const inboundMode = ref<'pickup' | 'delivery'>('pickup')
+const logisticsGroupId = ref<string | null>(null)
 const returnDate = ref('')
 const returnFromTime = ref('08:00')
 const returnToTime = ref('12:00')
@@ -815,23 +844,8 @@ function isQuoteBackedKauf(row: ZusageRow): boolean {
   return line.quotes.some((quote) => quote.supplier.toLowerCase() === row.source.toLowerCase())
 }
 
-function coverageDelta(inquiryId: string, line: GrossanlassProcurementLine): number {
-  const here = Number(takeQty[takeKey(inquiryId, line.id)] ?? takenByInquiry(inquiryId, line.id))
-  return line.quantity - takenElsewhere(inquiryId, line.id) - here
-}
-
-function remainingFor(inquiryId: string, line: GrossanlassProcurementLine): number {
-  return Math.max(0, coverageDelta(inquiryId, line))
-}
-
 function wishesOf(line: GrossanlassProcurementLine | null | undefined): GrossanlassProcurementPoolWish[] {
   return line?.source_wishes ?? []
-}
-
-function wishBreakdown(line: GrossanlassProcurementLine): string {
-  return line.source_wishes
-    .map((wish) => t('grossanlass.beschaffung.zusagen.qtyLabel', { count: wish.quantity, name: wish.label }))
-    .join(' + ')
 }
 
 function categoryIdsForInquiry(inquiry: GrossanlassInquiry): Set<string> {
@@ -1484,6 +1498,9 @@ function fillWindowForm(article: GrossanlassCommitment) {
   handoverDate.value = handoverFrom.date || presentFrom.date
   handoverFromTime.value = handoverFrom.time
   handoverToTime.value = handoverTo.time
+  inboundMode.value = article.origin === 'loan'
+    ? (article.item_details?.inbound_mode === 'delivery' ? 'delivery' : 'pickup')
+    : (article.item_details?.inbound_mode === 'pickup' ? 'pickup' : 'delivery')
   returnDate.value = returnFrom.date || presentTo.date
   returnFromTime.value = returnFrom.time
   returnToTime.value = returnTo.time
@@ -1524,6 +1541,10 @@ function windowPayload(includeReleased: boolean, article?: GrossanlassCommitment
     payload.wish_label = need.label || article.wish_label
     payload.wish_from = need.from || null
     payload.wish_to = need.to || null
+    payload.item_details = {
+      ...article.item_details,
+      inbound_mode: inboundMode.value,
+    }
   }
   if (includeReleased) payload.released = windowReleased.value
   return payload
@@ -1546,6 +1567,24 @@ async function saveWindow() {
     )
     const byId = new Map(updatedRows.map((row) => [row.id, row]))
     articles.value = articles.value.map((item) => byId.get(item.id) ?? item)
+    if (inboundMode.value === 'pickup') {
+      const next: GrossanlassCommitment[] = []
+      for (const row of updatedRows) {
+        try {
+          next.push(await ensureLoanPickupEinsatz(
+            departmentId.value,
+            row,
+            t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: row.source }),
+            logisticsGroupId.value,
+          ))
+        } catch {
+          next.push(row)
+          toast.error(t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
+        }
+      }
+      const pickupById = new Map(next.map((row) => [row.id, row]))
+      articles.value = articles.value.map((item) => pickupById.get(item.id) ?? item)
+    }
     windowOpen.value = false
     toast.success(
       windowBulkPartner.value
@@ -1576,13 +1615,15 @@ async function load() {
   if (!departmentId.value) return
   isLoading.value = true
   try {
-    const [commitmentRows, inquiryRows, overview, periods] = await Promise.all([
+    const [commitmentRows, inquiryRows, overview, periods, planung] = await Promise.all([
       getGrossanlassCommitments(departmentId.value),
       getGrossanlassInquiries(departmentId.value).catch(() => [] as GrossanlassInquiry[]),
       getGrossanlassBedarfOverview(departmentId.value).catch(() => null),
       listDepartmentCalendarPeriods(departmentId.value).catch(() => [] as DepartmentCalendarPeriod[]),
+      getGrossanlassPlanung(departmentId.value).catch(() => null),
     ])
     calendarPeriods.value = periods
+    logisticsGroupId.value = planung?.config.logistics_group_id || null
     articles.value = commitmentRows
     inquiries.value = inquiryRows.filter((row) => row.status === 'zusage')
     lines.value = overview?.lines ?? []
@@ -1712,6 +1753,27 @@ onMounted(() => {
   color: #475569;
   font-size: 0.9rem;
 }
+.window-hint--muted { color: #64748b; font-size: 0.82rem; }
+.window-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.window-toggle__btn {
+  min-height: 48px;
+  padding: 10px 8px;
+  border: 0;
+  background: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+.window-toggle__btn + .window-toggle__btn { border-left: 1px solid #e5e7eb; }
+.window-toggle__btn--on { background: #0f766e; color: #fff; }
 .window-section {
   margin: 12px 0 6px;
   font-size: 0.95rem;
@@ -1905,11 +1967,15 @@ onMounted(() => {
 }
 .take-item__qty {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px 16px;
+  align-items: flex-start;
   font-size: 0.8rem;
   color: #475569;
+}
+.take-item__qty :deep(.proc-coverage) {
+  flex: 0 1 auto;
+  min-width: 9.5rem;
 }
 .take-item__qty small {
   display: block;
@@ -1948,6 +2014,10 @@ onMounted(() => {
   border-radius: 999px;
   background: #dbeafe;
   color: #1d4ed8;
+}
+.take-item__kauf-status--ordered {
+  background: #fce7f3;
+  color: #9d174d;
 }
 .take-item__kauf-more {
   margin: 4px 0 0;

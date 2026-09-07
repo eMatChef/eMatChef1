@@ -38,7 +38,13 @@
         <div class="inbound-card__head">
           <div>
             <strong>{{ row.name }}</strong>
-            <span class="inbound-qty">{{ t('grossanlass.materials.zusage.qtyShort', { n: row.quantity }) }}</span>
+            <span class="inbound-qty">{{ t('grossanlass.materialUebersicht.wareneingang.orderedQty', { n: orderedQty(row) }) }}</span>
+            <span
+              v-if="row.quantity !== orderedQty(row)"
+              class="inbound-qty inbound-qty--sub"
+            >
+              {{ t('grossanlass.materialUebersicht.wareneingang.thisDelivery', { n: row.quantity }) }}
+            </span>
           </div>
           <span class="combo-type-badge" :class="row.origin === 'loan' ? 'virtual_combo' : 'physical_combo'">
             {{ t(`grossanlass.materials.originBadge.${originBadgeKey(row.origin)}`) }}
@@ -49,11 +55,46 @@
           · {{ t(`grossanlass.materialUebersicht.wareneingang.mode.${inboundMode(row)}`) }}
           · {{ expectedLabel(row) }}
         </p>
-        <p v-if="row.item_details?.order_ref || row.item_details?.quote_id" class="inbound-meta">
-          <template v-if="row.item_details?.order_ref">
-            {{ t('grossanlass.beschaffung.bestellungen.orderRef') }}: {{ row.item_details.order_ref }}
-          </template>
+        <p v-if="row.item_details?.order_ref" class="inbound-meta">
+          {{ t('grossanlass.beschaffung.bestellungen.orderRef') }}: {{ row.item_details.order_ref }}
         </p>
+        <div class="inbound-check">
+          <ECheckbox
+            :model-value="Boolean(row.item_details?.qty_checked)"
+            :label="t('grossanlass.materialUebersicht.wareneingang.orderedCheck', { n: orderedQty(row) })"
+            hide-details
+            :disabled="busyId === row.id"
+            @update:model-value="toggleQtyChecked(row, Boolean($event))"
+          />
+          <p v-if="isBuyOrder(row) && orderLineOf(row)" class="inbound-progress">
+            {{ t('grossanlass.materialUebersicht.wareneingang.orderedProgress', {
+              received: orderLineOf(row)?.received_quantity_sum ?? 0,
+              ordered: orderedQty(row),
+            }) }}
+          </p>
+        </div>
+        <div class="inbound-docs">
+          <a
+            v-if="isBuyOrder(row) && orderPdfUrl(row)"
+            :href="orderPdfUrl(row)!"
+            target="_blank"
+            rel="noopener"
+            class="inbound-pdf"
+          >
+            {{ t('grossanlass.materialUebersicht.wareneingang.openPdf') }}
+          </a>
+          <EButton
+            v-else-if="isBuyOrder(row) && orderLineOf(row)"
+            variant="text"
+            size="small"
+            @click="openOrder(row)"
+          >
+            {{ t('grossanlass.materialUebersicht.wareneingang.openOrder') }}
+          </EButton>
+          <EButton variant="text" size="small" @click="openHistory(row)">
+            {{ t('grossanlass.materialUebersicht.wareneingang.openHistory') }}
+          </EButton>
+        </div>
         <div class="inbound-qr">
           <PublicQrTag
             v-if="row.barcode"
@@ -78,8 +119,20 @@
         </div>
         <div class="inbound-actions">
           <EButton
+            v-if="inboundMode(row) === 'pickup'"
             variant="secondary"
             size="small"
+            :loading="busyId === row.id"
+            @click="onPickupAction(row)"
+          >
+            {{ row.item_details?.pickup_einsatz_id
+              ? t('grossanlass.materialUebersicht.wareneingang.openPickupEinsatz')
+              : t('grossanlass.materialUebersicht.wareneingang.createPickupEinsatz') }}
+          </EButton>
+          <EButton
+            variant="text"
+            size="small"
+            :disabled="busyId === row.id"
             @click="toggleMode(row)"
           >
             {{ inboundMode(row) === 'delivery'
@@ -106,15 +159,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton } from '@/components/form/base'
+import { EButton, ECheckbox } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useToast } from '@/composables/useToast'
+import { resolveMediaPreviewUrl } from '@/api/media'
 import { updateGrossanlassCommitment, type GrossanlassCommitment } from '@/api/grossanlassCommitments'
+import {
+  listGrossanlassProcurementLines,
+  type GrossanlassProcurementLine,
+} from '@/api/grossanlassProcurement'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import {
@@ -125,6 +183,7 @@ import {
   originBadgeKey,
 } from '@/views/grossanlass/gaCharge'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 
 type RangeId = 'today' | 'week' | 'expected' | 'here'
 type ModeId = 'all' | 'pickup' | 'delivery'
@@ -139,6 +198,7 @@ const uebersicht = useGaUebersicht()
 const busyId = ref<string | null>(null)
 const range = ref<RangeId>('expected')
 const modeFilter = ref<ModeId>('all')
+const procurementLines = ref<GrossanlassProcurementLine[]>([])
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -189,6 +249,35 @@ const visibleRows = computed(() => {
     .filter((row) => modeFilter.value === 'all' || inboundMode(row) === modeFilter.value)
     .sort((a, b) => (expectedAtIso(a) || '').localeCompare(expectedAtIso(b) || ''))
 })
+
+const lineById = computed(() => {
+  const map = new Map<string, GrossanlassProcurementLine>()
+  for (const line of procurementLines.value) map.set(line.id, line)
+  return map
+})
+
+function orderLineOf(row: GrossanlassCommitment): GrossanlassProcurementLine | undefined {
+  const id = row.item_details?.from_line_id
+  return id ? lineById.value.get(id) : undefined
+}
+
+function orderedQty(row: GrossanlassCommitment): number {
+  if (row.origin === 'loan') return row.quantity
+  const line = orderLineOf(row)
+  return line?.quantity_ordered || line?.quantity || row.quantity
+}
+
+function isBuyOrder(row: GrossanlassCommitment): boolean {
+  return row.origin !== 'loan' && Boolean(orderLineOf(row) || row.item_details?.order_id || row.item_details?.order_ref)
+}
+
+function orderPdfUrl(row: GrossanlassCommitment): string | null {
+  const line = orderLineOf(row)
+  const quote = line?.quotes.find((item) => item.selected && item.pdf_url)
+    || line?.quotes.find((item) => item.pdf_url)
+  if (!quote?.pdf_url) return null
+  return resolveMediaPreviewUrl(quote.pdf_url)
+}
 
 function expectedLabel(row: GrossanlassCommitment): string {
   const iso = expectedAtIso(row)
@@ -245,6 +334,29 @@ function openArticle(row: GrossanlassCommitment) {
   })
 }
 
+function openHistory(row: GrossanlassCommitment) {
+  const id = departmentId.value
+  if (!id) return
+  void router.push({
+    path: `/${id}/materialien/artikel/${row.id}`,
+    query: { from: 'uebersicht', tab: 'usage' },
+  })
+}
+
+function openOrder(row: GrossanlassCommitment) {
+  const id = departmentId.value
+  const lineId = row.item_details?.from_line_id
+  if (!id || !lineId) return
+  void router.push({
+    path: `/${id}/beschaffung/bestellungen`,
+    query: { line: lineId },
+  })
+}
+
+async function toggleQtyChecked(row: GrossanlassCommitment, on: boolean) {
+  await patchDetails(row, { qty_checked: on })
+}
+
 async function patchDetails(row: GrossanlassCommitment, patch: Record<string, unknown>): Promise<boolean> {
   const id = departmentId.value
   if (!id) return false
@@ -270,13 +382,54 @@ async function patchDetails(row: GrossanlassCommitment, patch: Record<string, un
 
 async function toggleMode(row: GrossanlassCommitment) {
   const next = inboundMode(row) === 'delivery' ? 'pickup' : 'delivery'
-  await patchDetails(row, { inbound_mode: next })
+  const ok = await patchDetails(row, { inbound_mode: next })
+  if (ok && next === 'pickup') await createPickup(row)
+}
+
+async function onPickupAction(row: GrossanlassCommitment) {
+  const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
+  if (latest.item_details?.pickup_einsatz_id) {
+    void router.push(`/${departmentId.value}/material-uebersicht/einsaetze`)
+    return
+  }
+  await createPickup(latest)
+}
+
+async function createPickup(row: GrossanlassCommitment) {
+  const id = departmentId.value
+  if (!id) return
+  busyId.value = row.id
+  try {
+    const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
+    const updated = await ensureLoanPickupEinsatz(
+      id,
+      latest,
+      t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: latest.source }),
+    )
+    catalog.upsert(updated)
+    if (updated.item_details?.pickup_einsatz_id) {
+      toast.success(t('grossanlass.materialUebersicht.wareneingang.pickupCreated'))
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
+  } finally {
+    busyId.value = null
+  }
 }
 
 async function markHere(row: GrossanlassCommitment) {
   const ok = await patchDetails(row, { inbound_status: 'here', inbound_mode: inboundMode(row) })
   if (ok) toast.success(t('grossanlass.materialUebersicht.wareneingang.markedHere'))
 }
+
+onMounted(() => {
+  const id = departmentId.value
+  if (!id) return
+  void listGrossanlassProcurementLines(id)
+    .then((rows) => { procurementLines.value = rows })
+    .catch(() => { procurementLines.value = [] })
+})
 </script>
 
 <style scoped>
@@ -300,7 +453,33 @@ async function markHere(row: GrossanlassCommitment) {
 }
 .inbound-card__head > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .inbound-qty { color: #64748b; font-size: 0.85rem; }
+.inbound-qty--sub { color: #94a3b8; }
 .inbound-meta { margin: 0; color: #475569; font-size: 0.82rem; }
+.inbound-check {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.inbound-progress {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #334155;
+}
+.inbound-docs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+.inbound-pdf {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #0f766e;
+  text-decoration: none;
+}
+.inbound-pdf:hover { text-decoration: underline; }
 .inbound-qr { display: flex; align-items: center; gap: 12px; }
 .inbound-code { font-family: ui-monospace, monospace; font-size: 0.85rem; }
 .inbound-need { font-size: 0.82rem; }

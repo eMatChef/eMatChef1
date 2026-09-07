@@ -22,6 +22,7 @@ export type GaUebersichtStore = {
   apply: (payload: GaUebersichtPayload) => void
   addPlace: (place: GaPlace) => void
   create: (payload: GaUebersichtCreatePayload) => Promise<void>
+  createMany: (payloads: GaUebersichtCreatePayload[]) => Promise<void>
   issue: (id: string, userId?: string) => Promise<void>
   updateEinsatz: (
     id: string,
@@ -123,6 +124,19 @@ export function createGaUebersichtStore(
     await load()
   }
 
+  async function createMany(payloads: GaUebersichtCreatePayload[]) {
+    if (!departmentId.value || payloads.length === 0) return
+    let last: Awaited<ReturnType<typeof createGrossanlassEinsatz>> | null = null
+    for (const payload of payloads) {
+      last = await createGrossanlassEinsatz(departmentId.value, payload)
+    }
+    if (last && 'einsaetze' in last && Array.isArray(last.einsaetze)) {
+      apply(last)
+      return
+    }
+    await load()
+  }
+
   async function issue(id: string, userId?: string) {
     if (!departmentId.value) return
     apply(await issueGrossanlassEinsatz(departmentId.value, id, { user_id: userId }))
@@ -155,11 +169,10 @@ export function createGaUebersichtStore(
 
   const wishTemplates = computed<GaPreviewWishTemplate[]>(() =>
     (data.value?.wishes ?? [])
-      .filter((wish) => wish.object_id)
       .map((wish) => ({
         id: wish.id,
         label: wish.label,
-        objectId: wish.object_id,
+        objectId: wish.object_id || '',
         objectName: wish.object_name,
         kind: wish.kind,
         qty: wish.qty,
@@ -192,6 +205,7 @@ export function createGaUebersichtStore(
     apply,
     addPlace,
     create,
+    createMany,
     issue,
     updateEinsatz,
     togglePacked,

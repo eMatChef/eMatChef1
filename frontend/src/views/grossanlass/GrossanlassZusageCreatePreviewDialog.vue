@@ -125,6 +125,34 @@
       <ETimeField v-model="handoverFromTime" :label="t('grossanlass.materials.zusage.fieldFrom')" />
       <ETimeField v-model="handoverToTime" :label="t('grossanlass.materials.zusage.fieldTo')" />
     </div>
+    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.inboundHow') }}</p>
+    <div class="zusage-toggle" role="tablist" :aria-label="t('grossanlass.materials.zusage.inboundHow')">
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="inboundMode === 'pickup'"
+        class="zusage-toggle__btn"
+        :class="{ 'zusage-toggle__btn--on': inboundMode === 'pickup' }"
+        @click="inboundMode = 'pickup'"
+      >
+        {{ t('grossanlass.materials.zusage.inboundPickup') }}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="inboundMode === 'delivery'"
+        class="zusage-toggle__btn"
+        :class="{ 'zusage-toggle__btn--on': inboundMode === 'delivery' }"
+        @click="inboundMode = 'delivery'"
+      >
+        {{ t('grossanlass.materials.zusage.inboundDelivery') }}
+      </button>
+    </div>
+    <p class="zusage-hint zusage-hint--muted">
+      {{ inboundMode === 'pickup'
+        ? t('grossanlass.materials.zusage.inboundHintPickup')
+        : t('grossanlass.materials.zusage.inboundHintDelivery') }}
+    </p>
 
     <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionReturn') }}</h3>
     <EDateField
@@ -202,6 +230,7 @@ import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 import type { GaParkServiceKind, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import {
@@ -237,6 +266,7 @@ const presentToTime = ref('18:00')
 const handoverDate = ref('2027-07-16')
 const handoverFromTime = ref('07:00')
 const handoverToTime = ref('08:00')
+const inboundMode = ref<'pickup' | 'delivery'>('pickup')
 const returnDate = ref('2027-07-18')
 const returnFromTime = ref('08:00')
 const returnToTime = ref('12:00')
@@ -310,6 +340,7 @@ function applyPreset() {
   handoverDate.value = preset.handoverDate ?? presentFromDate.value
   handoverFromTime.value = preset.handoverFromTime ?? '07:00'
   handoverToTime.value = preset.handoverToTime ?? '08:00'
+  inboundMode.value = (preset.origin ?? 'loan') === 'loan' ? 'pickup' : 'delivery'
   returnDate.value = preset.returnDate ?? presentToDate.value
   returnFromTime.value = preset.returnFromTime ?? '08:00'
   returnToTime.value = preset.returnToTime ?? '12:00'
@@ -337,6 +368,7 @@ watch(origin, (value) => {
   if (value === 'buy') costKind.value = 'purchase'
   else if (value === 'buy_resale') costKind.value = 'buy_resale'
   else if (costKind.value !== 'rental') costKind.value = 'loan'
+  inboundMode.value = value === 'loan' ? 'pickup' : 'delivery'
 })
 
 watch([presentFromDate, presentToDate], ([from, to], previous) => {
@@ -392,6 +424,8 @@ async function submit() {
         pack_size: packSize.value.trim() || undefined,
         notes: notes.value.trim() || undefined,
         from_line_id: fromLineId.value || undefined,
+        inbound_status: 'expected',
+        inbound_mode: inboundMode.value,
         parts: parts.value
           .filter((part) => part.name.trim())
           .map((part) => ({ name: part.name.trim(), qty: Math.max(1, Number(part.qty) || 1) })),
@@ -418,9 +452,22 @@ async function submit() {
       deposit_chf: costKind.value === 'rental' && depositChf.value !== '' ? Number(depositChf.value) : null,
       proceeds_expected_chf: origin.value === 'buy_resale' && proceedsExpectedChf.value !== '' ? Number(proceedsExpectedChf.value) : null,
     })
+    let stored = created
+    if (inboundMode.value === 'pickup') {
+      try {
+        stored = await ensureLoanPickupEinsatz(
+          departmentId.value,
+          created,
+          t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: created.source }),
+          logisticsGroupId.value,
+        )
+      } catch {
+        toast.error(t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
+      }
+    }
     toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
     open.value = false
-    emit('created', created)
+    emit('created', stored)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
@@ -447,6 +494,26 @@ async function submit() {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+.zusage-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 0 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.zusage-toggle__btn {
+  min-height: 48px;
+  padding: 10px 8px;
+  border: 0;
+  background: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+.zusage-toggle__btn + .zusage-toggle__btn { border-left: 1px solid #e5e7eb; }
+.zusage-toggle__btn--on { background: #0f766e; color: #fff; }
 @media (max-width: 640px) {
   .zusage-grid,
   .zusage-part { grid-template-columns: 1fr; }

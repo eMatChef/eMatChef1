@@ -6,10 +6,7 @@
   >
     <template v-if="activeTab === 'einsaetze'" #actions>
       <EButton variant="primary" size="small" @click="einsatzComposer.open('einsatz')">
-        {{ t('grossanlass.materialUebersicht.actionEinsatz') }}
-      </EButton>
-      <EButton variant="secondary" size="small" @click="einsatzComposer.open('order')">
-        {{ t('grossanlass.materialUebersicht.actionOrder') }}
+        {{ t('grossanlass.materialUebersicht.actionBook') }}
       </EButton>
     </template>
     <template #filters>

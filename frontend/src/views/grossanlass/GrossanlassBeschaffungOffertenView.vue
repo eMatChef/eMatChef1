@@ -32,6 +32,10 @@
                   · {{ quote.supplier_address.city_line }}
                 </span>
                 <span class="quote-amount">{{ formatChf(quote.amount_chf) }}</span>
+                <span v-if="quoteSchedule(quote)" class="quote-schedule" :class="{ 'is-late': quoteIsLate(line, quote) }">
+                  · {{ quoteSchedule(quote) }}
+                  <span v-if="quoteIsLate(line, quote)" class="quote-late">{{ t('grossanlass.beschaffung.offerten.deliveryLate') }}</span>
+                </span>
                 <p v-if="quote.notes" class="quote-notes">{{ quote.notes }}</p>
                 <a
                   v-if="quote.pdf_url"
@@ -131,6 +135,7 @@ import GrossanlassProcurementLineSummary from '@/components/grossanlass/Grossanl
 import GrossanlassProcurementQuoteDialog from '@/components/grossanlass/GrossanlassProcurementQuoteDialog.vue'
 import { EButton } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
+import { formatGaDateLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   deleteGrossanlassProcurementQuote,
   formatChf,
@@ -142,7 +147,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -154,6 +159,24 @@ const selectingId = ref<string | null>(null)
 const quoteDialogOpen = ref(false)
 const quoteDialogLine = ref<GrossanlassProcurementLine | null>(null)
 const quoteDialogQuote = ref<GrossanlassProcurementQuote | null>(null)
+
+function quoteSchedule(quote: GrossanlassProcurementQuote): string {
+  const parts: string[] = []
+  if (quote.delivery_at) {
+    parts.push(t('grossanlass.beschaffung.offerten.onSite', {
+      date: formatGaDateLabel(quote.delivery_at, locale.value),
+    }))
+  }
+  if (quote.lead_days != null) {
+    parts.push(t('grossanlass.beschaffung.offerten.leadDaysShort', { count: quote.lead_days }))
+  }
+  return parts.join(' · ')
+}
+
+function quoteIsLate(line: GrossanlassProcurementLine, quote: GrossanlassProcurementQuote): boolean {
+  if (!quote.delivery_at || !line.need_from) return false
+  return quote.delivery_at.slice(0, 10) > line.need_from.slice(0, 10)
+}
 
 function canEditQuotes(line: GrossanlassProcurementLine): boolean {
   return line.status !== 'erhalten'
@@ -275,7 +298,9 @@ onMounted(load)
 .quote-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
 .quote-row.is-selected { border-color: #93c5fd; background: #eff6ff; }
 .quote-amount { margin-left: 8px; font-weight: 600; }
-.quote-supplier-meta { font-size: 0.78rem; color: #64748b; }
+.quote-schedule { font-size: 0.78rem; color: #475569; }
+.quote-schedule.is-late { color: #b45309; font-weight: 600; }
+.quote-late { margin-left: 4px; font-size: 0.72rem; }
 .quote-notes { margin: 4px 0 0; font-size: 0.75rem; color: #64748b; }
 .quote-pdf-link { display: inline-block; margin-top: 4px; font-size: 0.75rem; color: #2563eb; }
 .quote-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
