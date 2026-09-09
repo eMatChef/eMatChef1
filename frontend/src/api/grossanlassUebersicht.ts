@@ -32,7 +32,7 @@ export type GaUebersichtEinsatz = {
 
 export type GaUebersichtConflict = {
   id: string
-  kind: 'unique_overlap' | 'quantity_overbook'
+  kind: 'unique_overlap' | 'quantity_overbook' | 'outside_window'
   object_id: string
   object_name: string
   einsatz_ids: string[]
@@ -85,6 +85,14 @@ export type GaUebersichtWish = {
   ressort: string
   group_id: string
   who: string
+  round_id?: string
+  form_purpose?: string
+  last_stage?: 'grob' | 'fein' | string
+  created_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | string | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
 }
 
 export type GaUebersichtPayload = {
@@ -155,7 +163,18 @@ export async function getGrossanlassSubmitBoard(departmentId: string): Promise<G
 export async function updateGrossanlassEinsatz(
   departmentId: string,
   id: string,
-  data: { packed?: boolean; status?: string; pack_phase?: string; delivery?: 'trip' | 'pickup'; trip_released?: boolean; chauffeur_user_id?: string | null; destination_place_id?: string | null },
+  data: {
+    packed?: boolean
+    status?: string
+    pack_phase?: string
+    delivery?: 'trip' | 'pickup'
+    trip_released?: boolean
+    chauffeur_user_id?: string | null
+    destination_place_id?: string | null
+    from?: string
+    to?: string
+    qty?: number
+  },
 ): Promise<GaUebersichtPayload> {
   const response = await apiClient.patch<GaUebersichtPayload>(
     `/api/departments/${departmentId}/grossanlass/uebersicht/einsaetze/${id}`,

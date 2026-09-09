@@ -24,8 +24,8 @@
           :to="kostenLink"
           class="stat-card stat-card--link"
         >
-          <span class="stat-card__value">{{ formatChf(dashboardBudgetAmount) }}</span>
-          <span class="stat-card__label">{{ t(dashboardBudgetLabelKey) }}</span>
+          <span class="stat-card__value">{{ dashboardNettoDisplay }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statNetto') }}</span>
         </router-link>
         <div v-if="canManageProcurement && procurementOverview" class="stat-card">
           <span class="stat-card__value">{{ procurementOverview.totals.ordered_not_received_count }}</span>
@@ -321,16 +321,21 @@ const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
 const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/bedarf`)
 const kostenLink = computed(() => `/${props.departmentId}/kosten`)
 const anfragenLink = computed(() => `/${props.departmentId}/beschaffung/anfragen`)
-const dashboardBudgetAmount = computed(() => {
+const dashboardNettoAmount = computed(() => {
   const totals = procurementOverview.value?.totals
   if (!totals) return null
-  return totals.rahmen_chf ?? totals.soll_chf
+  return totals.netto_chf ?? totals.ist_chf
 })
-const dashboardBudgetLabelKey = computed(() =>
-  procurementOverview.value?.totals.rahmen_chf != null
-    ? 'grossanlass.dashboard.statBudgetRahmen'
-    : 'grossanlass.dashboard.statBudgetSoll',
-)
+const dashboardRahmenAmount = computed(() => procurementOverview.value?.totals.rahmen_chf ?? null)
+const dashboardNettoDisplay = computed(() => {
+  const netto = formatChf(dashboardNettoAmount.value)
+  const rahmen = dashboardRahmenAmount.value
+  if (rahmen == null) return netto
+  return t('grossanlass.dashboard.statNettoOfRahmen', {
+    netto,
+    rahmen: formatChf(rahmen),
+  })
+})
 const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
 const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)

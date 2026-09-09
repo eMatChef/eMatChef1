@@ -3,7 +3,7 @@
     v-model="open"
     :max-width="720"
     scrollable
-    :title="t('grossanlass.beschaffung.bedarf.editWishTitle')"
+    :title="title || t('grossanlass.beschaffung.bedarf.editWishTitle')"
   >
     <p v-if="wish" class="wish-context">
       {{ wish.group_name }} · {{ wish.round_name }}
@@ -24,6 +24,13 @@
       :is-member-in-ressort-branch="isMemberInRessortBranch"
       :is-leader-of-group="isLeaderOfGroup"
       :can-create-child="canCreateChild"
+    />
+
+    <GrossanlassWishEnoughOnHandField
+      v-if="!isLoading && roundForm"
+      v-model="enough"
+      :commitments="commitments"
+      class="enough-block"
     />
 
     <p v-if="errorMessage" class="edit-dialog-error">{{ errorMessage }}</p>
@@ -60,14 +67,24 @@ import {
   orderFormFieldsForRound,
   type GrossanlassRoundForm,
 } from '@/api/grossanlassRoundForm'
+import { getGrossanlassCommitments, type GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { GrossanlassWishLine } from '@/api/grossanlassWishes'
 import GrossanlassWishDynamicForm from '@/components/grossanlass/GrossanlassWishDynamicForm.vue'
+import GrossanlassWishEnoughOnHandField from '@/components/grossanlass/GrossanlassWishEnoughOnHandField.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, EDialog } from '@/components/form/base'
+import {
+  emptyEnoughOnHand,
+  enoughOnHandFromApi,
+  enoughOnHandToPayload,
+  validateEnoughOnHand,
+  type EnoughOnHandValue,
+} from '@/utils/grossanlassEnoughOnHand'
 
 const props = defineProps<{
   departmentId: string
   wish: GrossanlassProcurementPoolWish | null
+  title?: string
 }>()
 
 const emit = defineEmits<{
@@ -90,6 +107,8 @@ const isSubmitting = ref(false)
 const hydrating = ref(false)
 const loadError = ref('')
 const errorMessage = ref('')
+const enough = ref<EnoughOnHandValue>(emptyEnoughOnHand())
+const commitments = ref<GrossanlassCommitment[]>([])
 
 function toWishLine(wish: GrossanlassProcurementPoolWish): GrossanlassWishLine {
   return {
@@ -107,6 +126,10 @@ function toWishLine(wish: GrossanlassProcurementPoolWish): GrossanlassWishLine {
     notes: wish.notes ?? null,
     status: (wish.status as GrossanlassWishLine['status']) || 'accepted',
     last_stage: wish.last_stage ?? undefined,
+    enough_on_hand: wish.enough_on_hand,
+    enough_on_hand_source: wish.enough_on_hand_source,
+    enough_on_hand_detail: wish.enough_on_hand_detail,
+    enough_on_hand_ref_id: wish.enough_on_hand_ref_id,
     created_by_user_id: wish.created_by_user_id || '',
     created_by_name: wish.created_by_name,
     created_at: wish.created_at,
@@ -121,12 +144,15 @@ async function loadForm() {
   loadError.value = ''
   errorMessage.value = ''
   roundForm.value = null
+  enough.value = enoughOnHandFromApi(props.wish)
   try {
-    const [form, groupList] = await Promise.all([
+    const [form, groupList, zusageList] = await Promise.all([
       getGrossanlassRoundForm(props.departmentId, props.wish.round_id),
       getGrossanlassGroups(props.departmentId),
+      getGrossanlassCommitments(props.departmentId).catch(() => [] as GrossanlassCommitment[]),
     ])
     groups.value = groupList
+    commitments.value = zusageList
     roundForm.value = { ...form, fields: orderFormFieldsForRound(form.fields) }
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
@@ -141,6 +167,7 @@ watch(
   ([visible]) => {
     if (!visible) {
       roundForm.value = null
+      enough.value = emptyEnoughOnHand()
       return
     }
     void loadForm()
@@ -161,6 +188,11 @@ watch(formRef, async (form) => {
 async function submit() {
   if (!props.wish || !formRef.value) return
   const payload = formRef.value.buildPayload()
+  const enoughError = validateEnoughOnHand(enough.value, (key, values) => String(t(key, values ?? {})))
+  if (enoughError) {
+    errorMessage.value = enoughError
+    return
+  }
 
   if (payload.new_bauprojekt) {
     toast.error(t('grossanlass.responses.errorEditBauprojekt'))
@@ -174,7 +206,14 @@ async function submit() {
   isSubmitting.value = true
   errorMessage.value = ''
   try {
-    const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, payload)
+    const enoughFields = enoughOnHandToPayload(enough.value)
+    const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, {
+      ...payload,
+      enough_on_hand: enoughFields.enough_on_hand,
+      enough_on_hand_source: enoughFields.enough_on_hand_source as 'stock' | 'commitment' | null | undefined,
+      enough_on_hand_detail: enoughFields.enough_on_hand_detail,
+      enough_on_hand_ref_id: enoughFields.enough_on_hand_ref_id,
+    })
     open.value = false
     emit('saved', overview)
   } catch (e: unknown) {
@@ -192,5 +231,6 @@ async function submit() {
   font-size: 0.78rem;
   color: #64748b;
 }
+.enough-block { margin-top: 8px; }
 .edit-dialog-error { margin: 12px 0 0; color: #dc2626; font-size: 0.82rem; }
 </style>

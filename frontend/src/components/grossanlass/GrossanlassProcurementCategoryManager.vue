@@ -2,14 +2,14 @@
   <section class="cat-manager">
     <div v-if="!hideHeading" class="panel-head">
       <h3>{{ t('grossanlass.beschaffung.bedarf.categoriesTitle') }}</h3>
-      <span class="panel-count">{{ categories.length }}</span>
+      <span class="panel-count">{{ packageCount }}</span>
     </div>
-    <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.categoriesHint') }}</p>
-    <p v-if="gmailConnected" class="panel-hint panel-hint--gmail">
+    <p v-if="!isFilter" class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.categoriesHint') }}</p>
+    <p v-if="!isFilter && gmailConnected" class="panel-hint panel-hint--gmail">
       {{ t('grossanlass.beschaffung.bedarf.categoryGmailSyncHint', { email: gmailEmail }) }}
     </p>
 
-    <div class="cat-create">
+    <div v-if="!isFilter" class="cat-create">
       <div class="cat-create__name">
         <ETextField
           v-model="newName"
@@ -44,7 +44,7 @@
       </EButton>
     </div>
 
-    <p v-if="categories.length === 0" class="cat-empty">
+    <p v-if="!isFilter && categories.length === 0" class="cat-empty">
       {{ t('grossanlass.beschaffung.bedarf.categoriesEmpty') }}
     </p>
 
@@ -56,6 +56,8 @@
         :class="{
           'cat-node--child': row.depth > 0,
           'cat-node--add': row.kind === 'add',
+          'cat-node--item': row.kind !== 'add' && row.category.kind === 'item',
+          'cat-node--active': isFilter && row.kind === 'node' && row.category.id === selectedId,
         }"
         :style="{ marginLeft: `${row.depth * 1.15}rem` }"
       >
@@ -141,14 +143,17 @@
           <span v-else class="cat-twist-spacer" aria-hidden="true" />
           <strong
             class="cat-node__name"
-            :class="{ 'cat-node__name--child': row.depth > 0, 'is-toggle': row.hasChildren }"
-            @click="row.hasChildren ? toggleCollapsed(row.category.id) : undefined"
+            :class="{
+              'cat-node__name--child': row.depth > 0,
+              'is-toggle': isFilter || row.hasChildren,
+            }"
+            @click="onNameClick(row.category.id, row.hasChildren)"
           >
             {{ row.category.name }}
-            <span v-if="isLocked(row.category)" class="cat-node__lock">{{ t('grossanlass.beschaffung.bedarf.categoryLockedBadge') }}</span>
+            <span v-if="!isFilter && isLocked(row.category)" class="cat-node__lock">{{ t('grossanlass.beschaffung.bedarf.categoryLockedBadge') }}</span>
             <span v-if="row.hasChildren && isCollapsed(row.category.id)" class="cat-node__count">{{ row.childCount }}</span>
           </strong>
-          <div class="cat-node__actions">
+          <div v-if="!isFilter" class="cat-node__actions">
             <button
               type="button"
               class="icon-btn"
@@ -260,7 +265,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -278,7 +283,9 @@ import {
 } from '@/api/grossanlassProcurement'
 import {
   childrenOfProcurementCategory,
+  defaultCollapsedArticleParentIds,
   descendantIdsOfProcurementCategory,
+  isProcurementArticle,
   procurementCategoryTreeItems,
 } from '@/utils/grossanlassProcurementCategoryTree'
 
@@ -286,12 +293,15 @@ const props = defineProps<{
   departmentId: string
   categories: GrossanlassProcurementCategory[]
   hideHeading?: boolean
+  mode?: 'manage' | 'filter'
+  selectedId?: string
 }>()
 
 const emit = defineEmits<{
   created: [category: GrossanlassProcurementCategory]
   updated: [category: GrossanlassProcurementCategory]
   deleted: [categoryId: string, reassignTo?: GrossanlassProcurementCategory]
+  select: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -304,6 +314,7 @@ const creating = ref(false)
 const addingUnderId = ref<string | null>(null)
 const childName = ref('')
 const collapsedIds = ref<string[]>([])
+const collapseSeedKey = ref('')
 const editingId = ref<string | null>(null)
 const editName = ref('')
 const editParentId = ref('')
@@ -317,8 +328,12 @@ const reassignTargetId = ref('')
 const usageLines = ref<GrossanlassCategoryUsageLine[]>([])
 const usageInquiries = ref<GrossanlassCategoryUsageInquiry[]>([])
 
+const isFilter = computed(() => props.mode === 'filter')
 const newNameTrimmed = computed(() => newName.value.trim())
 const childNameTrimmed = computed(() => childName.value.trim())
+const packageCount = computed(
+  () => props.categories.filter((category) => !isProcurementArticle(category)).length,
+)
 
 function isLocked(category: GrossanlassProcurementCategory): boolean {
   return !!category.system_key
@@ -338,6 +353,14 @@ function toggleCollapsed(id: string) {
     return
   }
   collapsedIds.value = [...collapsedIds.value, id]
+}
+
+function onNameClick(id: string, hasChildren: boolean) {
+  if (isFilter.value) {
+    emit('select', id)
+    return
+  }
+  if (hasChildren) toggleCollapsed(id)
 }
 
 function expandAncestors(id: string) {
@@ -372,7 +395,7 @@ const visibleRows = computed((): VisibleRow[] => {
     const siblings = childrenOf(parentId)
     siblings.forEach((category, siblingIndex) => {
       const childCount = childrenOf(category.id).length
-      const addingHere = addingUnderId.value === category.id
+      const addingHere = !isFilter.value && addingUnderId.value === category.id
       const hasChildren = childCount > 0 || addingHere
       rows.push({
         kind: 'node',
@@ -428,8 +451,20 @@ function editParentItems(category: GrossanlassProcurementCategory) {
   return parentTreeItems(descendantIdsOfProcurementCategory(props.categories, category.id))
 }
 
+watch(
+  () => props.categories,
+  (categories) => {
+    if (!isFilter.value) return
+    const key = categories.map((category) => category.id).join(',')
+    if (key === collapseSeedKey.value) return
+    collapseSeedKey.value = key
+    collapsedIds.value = defaultCollapsedArticleParentIds(categories)
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
-  if (!props.departmentId) return
+  if (isFilter.value || !props.departmentId) return
   try {
     const status = await getGrossanlassGmailStatus(props.departmentId)
     gmailConnected.value = status.connected
@@ -736,6 +771,22 @@ async function executeDelete(categoryId: string, reassignTo?: string) {
 
 .cat-node--child {
   background: #fff;
+}
+
+.cat-node--item {
+  background: #fff;
+  font-weight: 450;
+  color: #334155;
+}
+
+.cat-node--active {
+  border-color: var(--color-primary, #16a34a);
+  background: var(--color-primary-muted-bg, #ecfdf3);
+}
+
+.cat-node--active .cat-node__name,
+.cat-node--active .cat-node__name--child {
+  color: var(--color-primary-dark, #166534);
 }
 
 .cat-node__row {

@@ -6,10 +6,7 @@
   >
     <template v-if="activeTab === 'einsaetze'" #actions>
       <EButton variant="primary" size="small" @click="einsatzComposer.open('einsatz')">
-        {{ t('grossanlass.materialUebersicht.actionEinsatz') }}
-      </EButton>
-      <EButton variant="secondary" size="small" @click="einsatzComposer.open('order')">
-        {{ t('grossanlass.materialUebersicht.actionOrder') }}
+        {{ t('grossanlass.materialUebersicht.actionBook') }}
       </EButton>
     </template>
     <template #filters>
@@ -72,6 +69,7 @@ const tabItems = computed(() => {
   const tabs = [
     { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
     { id: 'einsaetze', label: t('grossanlass.materialUebersicht.tabEinsaetze'), icon: 'mdi-calendar-range' },
+    { id: 'wareneingang', label: t('grossanlass.materialUebersicht.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
     { id: 'konflikte', label: t('grossanlass.materialUebersicht.tabKonflikte'), icon: 'mdi-alert-outline' },
     { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
     { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed' },

@@ -91,7 +91,12 @@
       :free-picks="freePicks"
       :chauffeurs="submitChauffeurs"
       :places="submitBoard?.places ?? []"
+      :groups="groups"
+      default-scope="project"
       @confirm="onSubmitEinsatz"
+      @confirm-many="onSubmitMany"
+      @order="onSubmitOrder"
+      @place-created="onPlaceCreated"
     />
   </PageShell>
 </template>
@@ -112,6 +117,7 @@ import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortS
 import {
   flattenGrossanlassGroupsFiltered,
 } from '@/utils/grossanlassGroupHierarchy'
+import { isEinsatzBookableWish } from '@/utils/grossanlassBookProjectPicker'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
@@ -120,6 +126,7 @@ import {
   getGrossanlassSubmitBoard,
   type GaSubmitBoard,
 } from '@/api/grossanlassUebersicht'
+import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { useToast } from '@/composables/useToast'
 
@@ -193,18 +200,19 @@ const freePicks = computed(() =>
 
 const wishPicks = computed(() => {
   const objects = submitBoard.value?.objects ?? []
-  return wishes.value.flatMap((wish) => {
+  return wishes.value
+    .filter((wish) => isEinsatzBookableWish({ formPurpose: wish.form_purpose }))
+    .map((wish) => {
     const object = objects.find((row) => row.name === wish.label)
       || objects.find((row) => wish.label.includes(row.name))
-    if (!object) return []
-    return [{
+    return {
       id: wish.id,
       label: wish.label,
-      objectId: object.id,
-      objectName: object.name,
+      objectId: object?.id || '',
+      objectName: object?.name || wish.label,
       kind: 'quantity' as const,
       qty: wish.quantity,
-      stock: object.qty,
+      stock: object?.qty ?? wish.quantity,
       fromIso: wish.valid_from || new Date().toISOString(),
       toIso: wish.valid_to || new Date().toISOString(),
       fromLabel: formatGaIsoLabel(wish.valid_from || '', locale.value),
@@ -213,7 +221,8 @@ const wishPicks = computed(() => {
       who: '',
       hasConflict: false,
       groupId: wish.group_id,
-    }]
+      formPurpose: wish.form_purpose,
+    }
   })
 })
 
@@ -260,17 +269,24 @@ async function openSubmit() {
   }
 }
 
+function onPlaceCreated(place: GaPlace) {
+  const board = submitBoard.value
+  if (!board) return
+  if (board.places.some((row) => row.id === place.id)) return
+  submitBoard.value = { ...board, places: [...board.places, place] }
+}
+
 async function onSubmitEinsatz(current: GaBookPreviewDraft) {
   if (!departmentId.value) return
   try {
     await createGrossanlassEinsatz(departmentId.value, {
-      kind: 'einsatz',
+      kind: current.asOrder ? 'order' : 'einsatz',
       commitment_id: current.objectId || undefined,
       wish_line_id: current.fromWish ? current.id : null,
       qty: current.qty,
       from: current.fromIso,
       to: current.toIso,
-      who: current.who,
+      who: current.objectName || current.label || current.who,
       chauffeur_user_id: current.chauffeurUserId || null,
       delivery: current.delivery || 'pickup',
       destination_place_id: current.destinationPlaceId || null,
@@ -278,11 +294,46 @@ async function onSubmitEinsatz(current: GaBookPreviewDraft) {
       pending: true,
     })
     submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
-    toast.success(t('grossanlass.meinRessort.submitOk'))
+    toast.success(
+      current.asOrder
+        ? t('grossanlass.materialUebersicht.orderNoted')
+        : t('grossanlass.meinRessort.submitOk'),
+    )
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
   }
+}
+
+async function onSubmitMany(drafts: GaBookPreviewDraft[]) {
+  if (!departmentId.value) return
+  try {
+    for (const current of drafts) {
+      await createGrossanlassEinsatz(departmentId.value, {
+        kind: 'einsatz',
+        commitment_id: current.objectId || undefined,
+        wish_line_id: current.fromWish ? current.id : null,
+        qty: current.qty,
+        from: current.fromIso,
+        to: current.toIso,
+        who: current.objectName || current.label || current.who,
+        chauffeur_user_id: current.chauffeurUserId || null,
+        delivery: current.delivery || 'pickup',
+        destination_place_id: current.destinationPlaceId || null,
+        group_id: current.groupId || defaultGroupId.value,
+        pending: true,
+      })
+    }
+    submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
+    toast.success(t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
+  }
+}
+
+async function onSubmitOrder(current: GaBookPreviewDraft) {
+  await onSubmitEinsatz({ ...current, asOrder: true })
 }
 
 async function load() {

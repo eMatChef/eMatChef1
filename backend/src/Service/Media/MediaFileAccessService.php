@@ -50,6 +50,7 @@ class MediaFileAccessService
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER => $this->assertJsOrder($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => $this->assertGrossanlassQuote($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD => $this->assertGrossanlassUserCard($user, $departmentId, $contextId),
+            MediaStorageService::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT => $this->assertGrossanlassMailAttachment($user, $departmentId),
             MediaStorageService::CONTEXT_USER_DRIVE_LICENSE => $this->assertOwnDriveLicense($user, $contextId),
             default => throw new \InvalidArgumentException('Ungültiger Medien-Kontext'),
         };
@@ -135,6 +136,20 @@ class MediaFileAccessService
         }
         if ($quote->getProcurementLine()->getDepartmentId() !== $departmentId) {
             throw new \InvalidArgumentException('Datei nicht gefunden');
+        }
+    }
+
+    private function assertGrossanlassMailAttachment(User $user, string $departmentId): void
+    {
+        $department = $this->entityManager->find(Department::class, $departmentId);
+        if (!$department instanceof Department) {
+            throw new \InvalidArgumentException('Datei nicht gefunden');
+        }
+        $this->grossanlassAccess->assertGrossanlassDepartment($department);
+        if (!$this->grossanlassAccess->canWorkMailbox($user, $department)
+            && !$this->grossanlassAccess->canManageProcurement($user, $department)
+        ) {
+            throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
         }
     }
 

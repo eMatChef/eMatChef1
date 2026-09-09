@@ -10,6 +10,7 @@ import {
   type GaUebersichtCreatePayload,
   type GaUebersichtPayload,
 } from '@/api/grossanlassUebersicht'
+import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaPreviewEinsatz, GaPreviewWishTemplate } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 
@@ -17,13 +18,15 @@ export type GaUebersichtStore = {
   loading: Ref<boolean>
   error: Ref<string | null>
   data: Ref<GaUebersichtPayload | null>
-  load: () => Promise<void>
+  load: (opts?: { silent?: boolean }) => Promise<void>
   apply: (payload: GaUebersichtPayload) => void
+  addPlace: (place: GaPlace) => void
   create: (payload: GaUebersichtCreatePayload) => Promise<void>
+  createMany: (payloads: GaUebersichtCreatePayload[]) => Promise<void>
   issue: (id: string, userId?: string) => Promise<void>
   updateEinsatz: (
     id: string,
-    data: { packed?: boolean; trip_released?: boolean; status?: string },
+    data: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number },
   ) => Promise<void>
   togglePacked: (commitmentId: string, packed: boolean) => Promise<void>
   markReturned: (commitmentId: string) => Promise<void>
@@ -62,6 +65,7 @@ function toPreview(
     fromLabel: formatGaIsoLabel(row.from, locale),
     toLabel: formatGaIsoLabel(row.to, locale),
     ressort: row.ressort,
+    groupId: row.group_id,
     status: row.status,
     who: row.who,
     conflictId: row.conflict_id,
@@ -87,9 +91,19 @@ export function createGaUebersichtStore(
     data.value = payload
   }
 
-  async function load() {
+  function addPlace(place: GaPlace) {
+    const current = data.value ?? empty()
+    if ((current.places ?? []).some((row) => row.id === place.id)) return
+    data.value = {
+      ...current,
+      places: [...(current.places ?? []), place],
+    }
+  }
+
+  async function load(opts?: { silent?: boolean }) {
     if (!departmentId.value) return
-    loading.value = true
+    const silent = Boolean(opts?.silent && data.value)
+    if (!silent) loading.value = true
     error.value = null
     try {
       data.value = await getGrossanlassUebersicht(departmentId.value)
@@ -98,7 +112,7 @@ export function createGaUebersichtStore(
       error.value = err.response?.data?.error || 'load-error'
       data.value = empty()
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
@@ -107,9 +121,20 @@ export function createGaUebersichtStore(
     const result = await createGrossanlassEinsatz(departmentId.value, payload)
     if ('einsaetze' in result && Array.isArray(result.einsaetze)) {
       apply(result)
-      return
     }
-    await load()
+    await load({ silent: true })
+  }
+
+  async function createMany(payloads: GaUebersichtCreatePayload[]) {
+    if (!departmentId.value || payloads.length === 0) return
+    let last: Awaited<ReturnType<typeof createGrossanlassEinsatz>> | null = null
+    for (const payload of payloads) {
+      last = await createGrossanlassEinsatz(departmentId.value, payload)
+    }
+    if (last && 'einsaetze' in last && Array.isArray(last.einsaetze)) {
+      apply(last)
+    }
+    await load({ silent: true })
   }
 
   async function issue(id: string, userId?: string) {
@@ -119,10 +144,10 @@ export function createGaUebersichtStore(
 
   async function updateEinsatz(
     id: string,
-    data: { packed?: boolean; trip_released?: boolean; status?: string },
+    payload: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number },
   ) {
     if (!departmentId.value) return
-    apply(await updateGrossanlassEinsatz(departmentId.value, id, data))
+    apply(await updateGrossanlassEinsatz(departmentId.value, id, payload))
   }
 
   async function togglePacked(commitmentId: string, packed: boolean) {
@@ -144,11 +169,11 @@ export function createGaUebersichtStore(
 
   const wishTemplates = computed<GaPreviewWishTemplate[]>(() =>
     (data.value?.wishes ?? [])
-      .filter((wish) => wish.object_id)
+      .filter((wish) => wish.form_purpose !== 'company_tip')
       .map((wish) => ({
         id: wish.id,
         label: wish.label,
-        objectId: wish.object_id,
+        objectId: wish.object_id || '',
         objectName: wish.object_name,
         kind: wish.kind,
         qty: wish.qty,
@@ -161,6 +186,14 @@ export function createGaUebersichtStore(
         who: wish.who,
         hasConflict: false,
         groupId: wish.group_id,
+        roundId: wish.round_id,
+        formPurpose: wish.form_purpose,
+        lastStage: wish.last_stage,
+        createdAt: wish.created_at,
+        enoughOnHand: Boolean(wish.enough_on_hand),
+        enoughOnHandSource: wish.enough_on_hand_source ?? null,
+        enoughOnHandDetail: wish.enough_on_hand_detail ?? null,
+        enoughOnHandRefId: wish.enough_on_hand_ref_id ?? null,
       })),
   )
 
@@ -172,7 +205,9 @@ export function createGaUebersichtStore(
     data,
     load,
     apply,
+    addPlace,
     create,
+    createMany,
     issue,
     updateEinsatz,
     togglePacked,

@@ -16,6 +16,7 @@ use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Address;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\Group;
 use App\Entity\User;
@@ -34,6 +35,7 @@ class GrossanlassProcurementService
         private GrossanlassWishService $wishService,
         private GrossanlassCostService $costService,
         private GrossanlassProcurementCategoryBootstrapService $categoryBootstrap,
+        private GrossanlassCommitmentService $commitmentService,
     ) {}
 
     /**
@@ -153,9 +155,10 @@ class GrossanlassProcurementService
             ->getResult();
 
         $result = [];
+        $coverage = $this->coverageTotalsByLineId($department);
         foreach ($lines as $line) {
             if ($line instanceof ActivityGrossanlassProcurementLine) {
-                $result[] = $this->lineToArray($line);
+                $result[] = $this->lineToArray($line, $coverage);
             }
         }
 
@@ -370,7 +373,7 @@ class GrossanlassProcurementService
      */
     public function listCategories(Department $department, User $user): array
     {
-        $this->assertCanManageProcurement($department, $user);
+        $this->assertCanSeeCategories($department, $user);
         $this->categoryBootstrap->ensureForDepartment($department);
 
         return $this->listCategoryArrays($department);
@@ -401,6 +404,11 @@ class GrossanlassProcurementService
         $category->setDepartment($department);
         $category->setParent($parent);
         $category->setName($name);
+        $category->setKind(
+            $parent !== null && $parent->getParentId() !== null
+                ? ActivityGrossanlassProcurementCategory::KIND_ITEM
+                : ActivityGrossanlassProcurementCategory::KIND_PACKAGE,
+        );
         if (isset($data['sort_order'])) {
             $category->setSortOrder((int) $data['sort_order']);
         } else {
@@ -792,9 +800,10 @@ class GrossanlassProcurementService
 
         $lines = $qb->getQuery()->getResult();
         $result = [];
+        $coverage = $this->coverageTotalsByLineId($department);
         foreach ($lines as $line) {
             if ($line instanceof ActivityGrossanlassProcurementLine) {
-                $result[] = $this->lineToArray($line);
+                $result[] = $this->lineToArray($line, $coverage);
             }
         }
 
@@ -839,6 +848,7 @@ class GrossanlassProcurementService
         $quote->setAmountChf(number_format($amount, 2, '.', ''));
         $notes = trim((string) ($data['notes'] ?? ''));
         $quote->setNotes($notes === '' ? null : $notes);
+        $this->applyQuoteSchedule($quote, $data);
 
         $this->entityManager->persist($quote);
 
@@ -891,6 +901,7 @@ class GrossanlassProcurementService
             $notes = trim((string) ($data['notes'] ?? ''));
             $quote->setNotes($notes === '' ? null : $notes);
         }
+        $this->applyQuoteSchedule($quote, $data);
 
         $quote->touchUpdatedAt();
         $line->touchUpdatedAt();
@@ -1004,7 +1015,12 @@ class GrossanlassProcurementService
             $existing->touchUpdatedAt();
         }
 
-        $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT);
+        if (in_array($line->getStatus(), [
+            ActivityGrossanlassProcurementLine::STATUS_BEDARF,
+            ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
+        ], true)) {
+            $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT);
+        }
         $line->touchUpdatedAt();
         $this->costService->syncFromSelectedQuote($line, $quote);
         $this->entityManager->flush();
@@ -1053,6 +1069,18 @@ class GrossanlassProcurementService
         $order->setOrderRef($orderRef === '' ? null : $orderRef);
         $notes = trim((string) ($data['notes'] ?? ''));
         $order->setNotes($notes === '' ? null : $notes);
+        if (array_key_exists('delivery_at', $data)) {
+            $deliveryRaw = $data['delivery_at'];
+            if ($deliveryRaw === null || $deliveryRaw === '') {
+                $order->setDeliveryAt(null);
+            } else {
+                try {
+                    $order->setDeliveryAt(new \DateTime((string) $deliveryRaw));
+                } catch (\Exception) {
+                    throw new \InvalidArgumentException('Ungültiger Liefertermin');
+                }
+            }
+        }
         $order->touchUpdatedAt();
 
         if ($line->getStatus() === ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT) {
@@ -1061,6 +1089,13 @@ class GrossanlassProcurementService
         $line->touchUpdatedAt();
         $this->costService->syncFromOrder($line, $order);
         $this->entityManager->flush();
+        $this->commitmentService->ensureBuyChargeFromOrder(
+            $department,
+            $user,
+            $line,
+            $order,
+            $this->findSelectedQuote($line),
+        );
 
         return $this->lineToArray($line);
     }
@@ -1374,6 +1409,17 @@ class GrossanlassProcurementService
         return $group;
     }
 
+    private function assertCanSeeCategories(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (
+            !$this->access->canWorkMailbox($user, $department)
+            && !$this->access->canManageProcurement($user, $department)
+        ) {
+            throw new \RuntimeException('Keine Berechtigung für Beschaffung');
+        }
+    }
+
     private function assertCanManageProcurement(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
@@ -1545,6 +1591,7 @@ class GrossanlassProcurementService
             'sort_order' => $category->getSortOrder(),
             'rahmen_chf' => $this->decimalToFloat($category->getRahmenChf()),
             'system_key' => $category->getSystemKey(),
+            'kind' => $category->getKind(),
         ];
     }
 
@@ -1841,6 +1888,7 @@ class GrossanlassProcurementService
             'valid_to' => $wish->getValidTo()->format(\DateTimeInterface::ATOM),
             'timeframe_notes' => $wish->getTimeframeNotes(),
             'notes' => $wish->getNotes(),
+            ...$wish->enoughOnHandPayload(),
             'status' => $wish->getStatus(),
             'created_by_user_id' => $wish->getCreatedByUserId(),
             'created_by_name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
@@ -1881,18 +1929,44 @@ class GrossanlassProcurementService
     }
 
     /**
+     * @param array{loaned: array<string, int>, ordered: array<string, int>}|null $coverage
+     *
      * @return array<string, mixed>
      */
-    private function lineToArray(ActivityGrossanlassProcurementLine $line): array
+    private function lineToArray(ActivityGrossanlassProcurementLine $line, ?array $coverage = null): array
     {
         $links = $this->loadWishLinksForLine($line);
         $sourceWishes = [];
         $sourceQuantitySum = 0;
         $receivedQuantitySum = 0;
+        $needFrom = null;
+        $needTo = null;
         foreach ($links as $link) {
             $sourceWishes[] = $this->wishLinkToSourceArray($link);
             $sourceQuantitySum += $link->getWishLine()->getQuantity();
             $receivedQuantitySum += $link->getReceivedQuantity();
+            $to = $link->getWishLine()->getValidTo();
+            if ($needTo === null || $to > $needTo) {
+                $needTo = $to;
+            }
+        }
+        $needYear = $needTo?->format('Y');
+        foreach ($links as $link) {
+            $from = $link->getWishLine()->getValidFrom();
+            if ($needYear !== null && $from->format('Y') !== $needYear) {
+                continue;
+            }
+            if ($needFrom === null || $from < $needFrom) {
+                $needFrom = $from;
+            }
+        }
+        if ($needFrom === null) {
+            foreach ($links as $link) {
+                $from = $link->getWishLine()->getValidFrom();
+                if ($needFrom === null || $from < $needFrom) {
+                    $needFrom = $from;
+                }
+            }
         }
 
         $quotes = array_map(fn ($q) => $this->quoteToArray($q), $this->loadQuotesForLine($line));
@@ -1900,6 +1974,14 @@ class GrossanlassProcurementService
         $order = $this->findOrderForLine($line);
         $category = $line->getCategory();
         $parent = $category?->getParent();
+        $totals = $coverage ?? $this->coverageTotalsByLineId($line->getDepartment());
+        $loaned = $totals['loaned'][$line->getId()] ?? 0;
+        $isOrdered = in_array($line->getStatus(), [
+            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
+            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
+            ActivityGrossanlassProcurementLine::STATUS_ERHALTEN,
+        ], true);
+        $ordered = $isOrdered ? $line->getQuantity() : 0;
 
         return [
             'id' => $line->getId(),
@@ -1925,6 +2007,11 @@ class GrossanlassProcurementService
             'source_wishes' => $sourceWishes,
             'source_quantity_sum' => $sourceQuantitySum,
             'received_quantity_sum' => $receivedQuantitySum,
+            'quantity_loaned' => $loaned,
+            'quantity_ordered' => $ordered,
+            'quantity_open' => $isOrdered ? 0 : max(0, $line->getQuantity() - $loaned),
+            'need_from' => $needFrom?->format(\DateTimeInterface::ATOM),
+            'need_to' => $needTo?->format(\DateTimeInterface::ATOM),
             'quotes' => $quotes,
             'selected_quote_id' => $selectedQuote?->getId(),
             'budget_chf' => $selectedQuote !== null ? (float) $selectedQuote->getAmountChf() : null,
@@ -1932,6 +2019,41 @@ class GrossanlassProcurementService
             'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $line->getUpdatedAt()->format(\DateTimeInterface::ATOM),
         ];
+    }
+
+    /**
+     * Leihe- und Kauf-Mengen je Bedarfsposition (Charges mit from_line_id).
+     *
+     * @return array{loaned: array<string, int>, ordered: array<string, int>}
+     */
+    private function coverageTotalsByLineId(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        $loaned = [];
+        $ordered = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassCommitment) {
+                continue;
+            }
+            $from = trim((string) ($row->getItemDetails()['from_line_id'] ?? ''));
+            if ($from === '') {
+                continue;
+            }
+            $qty = max(0, $row->getQuantity());
+            if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_LOAN) {
+                $loaned[$from] = ($loaned[$from] ?? 0) + $qty;
+                continue;
+            }
+            if (
+                $row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY
+                || $row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY_RESALE
+            ) {
+                $ordered[$from] = ($ordered[$from] ?? 0) + $qty;
+            }
+        }
+
+        return ['loaned' => $loaned, 'ordered' => $ordered];
     }
 
     /**
@@ -2015,6 +2137,8 @@ class GrossanlassProcurementService
             ActivityGrossanlassProcurementLine::STATUS_BEDARF,
             ActivityGrossanlassProcurementLine::STATUS_OFFERTE,
             ActivityGrossanlassProcurementLine::STATUS_BUDGETIERT,
+            ActivityGrossanlassProcurementLine::STATUS_BESTELLT,
+            ActivityGrossanlassProcurementLine::STATUS_TEILWEISE,
         ], true)) {
             throw new \InvalidArgumentException('Offerten können in diesem Status nicht mehr bearbeitet werden');
         }
@@ -2071,6 +2195,47 @@ class GrossanlassProcurementService
     }
 
     /**
+     * @param array<string, mixed> $data
+     */
+    private function applyQuoteSchedule(ActivityGrossanlassProcurementQuote $quote, array $data): void
+    {
+        if (array_key_exists('delivery_at', $data)) {
+            $quote->setDeliveryAt($this->parseOptionalDateTime($data['delivery_at'], 'Ungültiger Liefertermin'));
+        }
+        if (array_key_exists('lead_days', $data)) {
+            $quote->setLeadDays($this->parseOptionalLeadDays($data['lead_days']));
+        }
+    }
+
+    private function parseOptionalDateTime(mixed $value, string $invalidMessage): ?\DateTime
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        try {
+            return new \DateTime((string) $value);
+        } catch (\Exception) {
+            throw new \InvalidArgumentException($invalidMessage);
+        }
+    }
+
+    private function parseOptionalLeadDays(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_numeric($value)) {
+            throw new \InvalidArgumentException('Ungültige Lieferzeit');
+        }
+        $days = (int) $value;
+        if ($days < 0) {
+            throw new \InvalidArgumentException('Lieferzeit darf nicht negativ sein');
+        }
+
+        return $days;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function quoteToArray(ActivityGrossanlassProcurementQuote $quote, ?Department $department = null): array
@@ -2087,6 +2252,8 @@ class GrossanlassProcurementService
             'supplier_address' => $supplierAddress !== null ? $this->supplierAddressSummary($supplierAddress) : null,
             'amount_chf' => (float) $quote->getAmountChf(),
             'notes' => $quote->getNotes(),
+            'delivery_at' => $quote->getDeliveryAt()?->format(\DateTimeInterface::ATOM),
+            'lead_days' => $quote->getLeadDays(),
             'selected' => $quote->isSelected(),
             'pdf_filename' => $pdfFilename,
             'pdf_url' => ($pdfFilename !== null && $pdfFilename !== '' && $departmentId !== null)
@@ -2154,6 +2321,7 @@ class GrossanlassProcurementService
             'ordered_at' => $order->getOrderedAt()->format(\DateTimeInterface::ATOM),
             'cost_chf' => (float) $order->getCostChf(),
             'order_ref' => $order->getOrderRef(),
+            'delivery_at' => $order->getDeliveryAt()?->format(\DateTimeInterface::ATOM),
             'notes' => $order->getNotes(),
             'created_at' => $order->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $order->getUpdatedAt()->format(\DateTimeInterface::ATOM),

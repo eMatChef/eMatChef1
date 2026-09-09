@@ -190,6 +190,7 @@
       :chauffeurs="chauffeurs"
       :places="uebersicht.data?.places ?? []"
       @confirm="onBooked"
+      @place-created="uebersicht.addPlace"
     />
   </div>
 </template>

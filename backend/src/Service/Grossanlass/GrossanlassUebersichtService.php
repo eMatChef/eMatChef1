@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassProcurementLineWish;
+use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
@@ -289,6 +292,27 @@ final class GrossanlassUebersichtService
             }
             $row->setStatus($status);
         }
+        if (array_key_exists('qty', $data)) {
+            $row->setQty((int) $data['qty']);
+        }
+        $fromInput = $data['from'] ?? $data['fromIso'] ?? null;
+        $toInput = $data['to'] ?? $data['toIso'] ?? null;
+        if ($fromInput !== null || $toInput !== null) {
+            if (in_array($row->getStatus(), [
+                DepartmentGrossanlassEinsatz::STATUS_ISSUED,
+                DepartmentGrossanlassEinsatz::STATUS_RETURNED,
+            ], true)) {
+                throw new \InvalidArgumentException('Ausgegebener Einsatz lässt sich nicht verschieben');
+            }
+            $from = $this->parseDate($fromInput ?? $row->getStartsAt());
+            $to = $this->parseDate($toInput ?? $row->getEndsAt());
+            if ($from === null || $to === null || $to <= $from) {
+                throw new \InvalidArgumentException('Zeitraum ist erforderlich');
+            }
+            $row->setStartsAt($from);
+            $row->setEndsAt($to);
+            $row->setPackPhase($this->phaseFor($from));
+        }
         $this->syncPlaceFromPack($row);
         $this->entityManager->flush();
 
@@ -393,7 +417,7 @@ final class GrossanlassUebersichtService
         $names = [];
         $unique = [];
         foreach ($commitments as $commitment) {
-            $stock[$commitment->getId()] = max(1, $commitment->getQuantity());
+            $stock[$commitment->getId()] = max(0, $commitment->getQuantity());
             $names[$commitment->getId()] = $commitment->getName();
             $unique[$commitment->getId()] = $commitment->getFamily() === DepartmentGrossanlassCommitment::FAMILY_VEHICLE
                 || $commitment->getQuantity() <= 1;
@@ -431,6 +455,55 @@ final class GrossanlassUebersichtService
                         $n++;
                     }
                 }
+            }
+        }
+
+        $inboundIds = [];
+        $byId = [];
+        foreach ($commitments as $commitment) {
+            $byId[$commitment->getId()] = $commitment;
+            $details = $commitment->getItemDetails();
+            foreach (['pickup_einsatz_id', 'delivery_einsatz_id'] as $key) {
+                $id = trim((string) ($details[$key] ?? ''));
+                if ($id !== '') {
+                    $inboundIds[$id] = true;
+                }
+            }
+        }
+        foreach ($einsaetze as $row) {
+            if ($row->getKind() !== DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+                continue;
+            }
+            if ($row->getStatus() === DepartmentGrossanlassEinsatz::STATUS_RETURNED) {
+                continue;
+            }
+            if (isset($inboundIds[$row->getId()])) {
+                continue;
+            }
+            $cid = $row->getCommitmentId() ?? '';
+            $commitment = $byId[$cid] ?? null;
+            if (!$commitment instanceof DepartmentGrossanlassCommitment) {
+                continue;
+            }
+            $presentFrom = $commitment->getPresentFrom();
+            $presentTo = $commitment->getPresentTo();
+            if ($presentFrom === null || $presentTo === null) {
+                continue;
+            }
+            $starts = $row->getStartsAt();
+            $ends = $row->getEndsAt();
+            if ($starts < $presentFrom || $ends > $presentTo) {
+                $name = $commitment->getName();
+                $out[] = [
+                    'id' => 'cf-' . $n,
+                    'kind' => 'outside_window',
+                    'object_id' => $cid,
+                    'object_name' => $name,
+                    'einsatz_ids' => [$row->getId()],
+                    'title' => $name . ': ausserhalb Partnerfenster',
+                    'text' => 'Einsatz liegt ausserhalb von Liefertermin/Rückgabe. Mit der Firma in den Absprachen klären.',
+                ];
+                $n++;
             }
         }
 
@@ -538,22 +611,25 @@ final class GrossanlassUebersichtService
             ->innerJoin('w.round', 'r')
             ->innerJoin('r.activity', 'a')
             ->innerJoin('w.group', 'g')
-            ->addSelect('g')
+            ->addSelect('g', 'r')
             ->where('a.departmentId = :departmentId')
             ->andWhere('w.status != :discarded')
+            ->andWhere('r.formPurpose != :companyTip')
             ->setParameter('departmentId', $department->getId())
             ->setParameter('discarded', ActivityGrossanlassWishLine::STATUS_DISCARDED)
+            ->setParameter('companyTip', ActivityGrossanlassRound::PURPOSE_COMPANY_TIP)
             ->orderBy('w.createdAt', 'DESC')
             ->setMaxResults(80)
             ->getQuery()
             ->getResult();
 
+        $lineMap = $this->procurementLineIdByWish($department);
         $out = [];
         foreach ($lines as $line) {
             if (!$line instanceof ActivityGrossanlassWishLine) {
                 continue;
             }
-            $match = $this->matchCommitment($line->getLabel(), $commitments);
+            $match = $this->matchCommitment($line, $commitments, $lineMap);
             $from = $line->getValidFrom();
             $to = $line->getValidTo();
             $out[] = [
@@ -568,7 +644,12 @@ final class GrossanlassUebersichtService
                 'to' => $to->format(\DateTimeInterface::ATOM),
                 'ressort' => $line->getGroup()->getName(),
                 'group_id' => $line->getGroupId(),
-                'who' => '',
+                'who' => $line->getCreatedByUser()->getProfile()?->getDisplayName() ?? '',
+                'round_id' => $line->getRoundId(),
+                'form_purpose' => $line->getRound()->getFormPurpose(),
+                'last_stage' => $line->getLastStage(),
+                'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                ...$line->enoughOnHandPayload(),
             ];
         }
 
@@ -577,10 +658,35 @@ final class GrossanlassUebersichtService
 
     /**
      * @param list<DepartmentGrossanlassCommitment> $commitments
+     * @param array<string, string> $lineMap wish-id → Bedarf-Position
      */
-    private function matchCommitment(string $label, array $commitments): ?DepartmentGrossanlassCommitment
-    {
-        $needle = mb_strtolower(trim($label));
+    private function matchCommitment(
+        ActivityGrossanlassWishLine $line,
+        array $commitments,
+        array $lineMap = [],
+    ): ?DepartmentGrossanlassCommitment {
+        $lineId = $line->getId();
+        $procurementLineId = trim((string) ($lineMap[$lineId] ?? ''));
+        $hits = [];
+        foreach ($commitments as $row) {
+            $details = $row->getItemDetails();
+            $fromLine = is_array($details) ? trim((string) ($details['from_line_id'] ?? '')) : '';
+            if ($fromLine === '') {
+                continue;
+            }
+            if ($fromLine === $lineId || ($procurementLineId !== '' && $fromLine === $procurementLineId)) {
+                $hits[] = $row;
+            }
+        }
+        if ($hits !== []) {
+            usort($hits, static function (DepartmentGrossanlassCommitment $a, DepartmentGrossanlassCommitment $b): int {
+                return [(int) $b->isReleased(), $b->getQuantity()] <=> [(int) $a->isReleased(), $a->getQuantity()];
+            });
+
+            return $hits[0];
+        }
+
+        $needle = mb_strtolower(trim($line->getLabel()));
         if ($needle === '') {
             return null;
         }
@@ -596,6 +702,39 @@ final class GrossanlassUebersichtService
         }
 
         return $best;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function procurementLineIdByWish(Department $department): array
+    {
+        $lineIds = $this->entityManager->createQueryBuilder()
+            ->select('l.id')
+            ->from(ActivityGrossanlassProcurementLine::class, 'l')
+            ->where('l.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getSingleColumnResult();
+        if ($lineIds === []) {
+            return [];
+        }
+
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->createQueryBuilder('lw')
+            ->where('lw.procurementLineId IN (:ids)')
+            ->setParameter('ids', $lineIds)
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($links as $link) {
+            if ($link instanceof ActivityGrossanlassProcurementLineWish) {
+                $map[$link->getWishLineId()] = $link->getProcurementLineId();
+            }
+        }
+
+        return $map;
     }
 
     /**
@@ -692,7 +831,7 @@ final class GrossanlassUebersichtService
             return $value;
         }
         try {
-            return new \DateTime((string) $value);
+            return GrossanlassQuarterHour::snap(new \DateTime((string) $value));
         } catch (\Exception) {
             throw new \InvalidArgumentException('Ungültiges Datum');
         }

@@ -27,6 +27,10 @@ export interface GrossanlassProcurementPoolWish {
   created_by_name: string
   created_at: string
   updated_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   status?: string
   timeframe_notes?: string | null
   custom_values?: Record<string, unknown>
@@ -51,6 +55,8 @@ export interface GrossanlassProcurementQuote {
   supplier_address: GrossanlassProcurementQuoteSupplierAddress | null
   amount_chf: number
   notes: string | null
+  delivery_at: string | null
+  lead_days: number | null
   selected: boolean
   pdf_filename: string | null
   pdf_url: string | null
@@ -74,6 +80,7 @@ export interface GrossanlassProcurementOrder {
   id: string
   procurement_line_id: string
   ordered_at: string
+  delivery_at: string | null
   cost_chf: number
   order_ref: string | null
   notes: string | null
@@ -105,6 +112,11 @@ export interface GrossanlassProcurementLine {
   source_wishes: GrossanlassProcurementPoolWish[]
   source_quantity_sum: number
   received_quantity_sum: number
+  quantity_loaned?: number
+  quantity_ordered?: number
+  quantity_open?: number
+  need_from?: string | null
+  need_to?: string | null
   quotes: GrossanlassProcurementQuote[]
   selected_quote_id: string | null
   budget_chf: number | null
@@ -123,6 +135,7 @@ export interface GrossanlassProcurementCategory {
   sort_order: number
   rahmen_chf: number | null
   system_key: string | null
+  kind?: 'package' | 'item' | string | null
 }
 
 export interface GrossanlassProcurementBundleSuggestion {
@@ -574,6 +587,8 @@ export async function createGrossanlassProcurementQuote(
     supplier_address_id?: string | null
     amount_chf: number
     notes?: string | null
+    delivery_at?: string | null
+    lead_days?: number | null
   },
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.post<GrossanlassProcurementQuote>(
@@ -592,6 +607,8 @@ export async function updateGrossanlassProcurementQuote(
     supplier_address_id: string | null
     amount_chf: number
     notes: string | null
+    delivery_at: string | null
+    lead_days: number | null
   }>,
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.put<GrossanlassProcurementQuote>(
@@ -674,6 +691,7 @@ export async function upsertGrossanlassProcurementOrder(
     order_ref?: string | null
     notes?: string | null
     ordered_at?: string
+    delivery_at?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(

@@ -13,8 +13,9 @@ use PHPUnit\Framework\TestCase;
 
 final class GrossanlassProcurementCategoryBootstrapServiceTest extends TestCase
 {
-    public function testTemplateMatchesPffTree(): void
+    public function testTemplateKeepsCoarsePackagesWithoutArticles(): void
     {
+        $names = GrossanlassProcurementCategoryBootstrapService::expectedNames();
         self::assertSame([
             'J+S',
             'Werkzeuge',
@@ -39,45 +40,38 @@ final class GrossanlassProcurementCategoryBootstrapServiceTest extends TestCase
             'Abfallmanagement & Entsorgung',
             'Kommunikation & IT-Infrastruktur',
             'Klimatisierung & Lüftung',
-        ], GrossanlassProcurementCategoryBootstrapService::expectedNames());
-        self::assertCount(23, GrossanlassProcurementCategoryBootstrapService::expectedNames());
-        self::assertSame(
-            ActivityGrossanlassProcurementCategory::JS_NAME,
-            GrossanlassProcurementCategoryBootstrapService::TREE[0]['name'],
-        );
+        ], $names);
+        self::assertCount(23, $names);
+        self::assertNotContains('Akkuschrauber', $names);
+        self::assertNotContains('Holzschrauben', $names);
+        self::assertNotContains('Befestigungsmaterial', $names);
     }
 
-    public function testEnsureSeedsFullTreeWhenEmpty(): void
+    public function testEnsureSeedsPackagesWithoutArticlesWhenEmpty(): void
     {
         $department = $this->department();
         $persisted = [];
         $em = $this->entityManager([], $persisted);
+        $expected = count(GrossanlassProcurementCategoryBootstrapService::expectedNames());
 
         $created = (new GrossanlassProcurementCategoryBootstrapService($em))->ensureForDepartment($department);
 
-        self::assertSame(23, $created);
-        self::assertCount(23, $persisted);
+        self::assertSame($expected, $created);
+        self::assertCount($expected, $persisted);
 
         $byName = [];
         foreach ($persisted as $row) {
-            self::assertInstanceOf(ActivityGrossanlassProcurementCategory::class, $row);
             $byName[$row->getName()] = $row;
         }
-        self::assertArrayHasKey('J+S', $byName);
-        self::assertSame(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS, $byName['J+S']->getSystemKey());
-        self::assertNull($byName['J+S']->getParentId());
-        self::assertSame(0, $byName['J+S']->getSortOrder());
-        self::assertSame(10, $byName['Werkzeuge']->getSortOrder());
-        self::assertSame(20, $byName['Fahrzeuge']->getSortOrder());
-        self::assertSame(30, $byName['Infrastruktur']->getSortOrder());
+        self::assertSame(ActivityGrossanlassProcurementCategory::KIND_PACKAGE, $byName['Werkzeuge']->getKind());
+        self::assertSame(ActivityGrossanlassProcurementCategory::KIND_PACKAGE, $byName['Elektrowerkzeuge und Maschinen']->getKind());
         self::assertSame('Werkzeuge', $byName['Handwerkzeuge']->getParent()?->getName());
-        self::assertSame('Fahrzeuge', $byName['Anhänger']->getParent()?->getName());
-        self::assertSame('Infrastruktur', $byName['Sanitär & Wasserversorgung']->getParent()?->getName());
-        self::assertSame(10, $byName['Handwerkzeuge']->getSortOrder());
-        self::assertSame(80, $byName['Schutzausrüstung und Werkstattausstattung']->getSortOrder());
+        self::assertArrayNotHasKey('Akkuschrauber', $byName);
+        self::assertArrayNotHasKey('Holzschrauben', $byName);
+        self::assertArrayNotHasKey('Befestigungsmaterial', $byName);
     }
 
-    public function testEnsureOnlyAddsJsWhenOtherCategoriesExist(): void
+    public function testEnsureAddsMissingPackagesUnderExistingParents(): void
     {
         $department = $this->department();
         $werkzeuge = new ActivityGrossanlassProcurementCategory();
@@ -91,13 +85,18 @@ final class GrossanlassProcurementCategoryBootstrapServiceTest extends TestCase
 
         $created = (new GrossanlassProcurementCategoryBootstrapService($em))->ensureForDepartment($department);
 
-        self::assertSame(1, $created);
-        self::assertCount(1, $persisted);
+        self::assertGreaterThan(1, $created);
+        $byName = [];
+        foreach ($persisted as $row) {
+            $byName[$row->getName()] = $row;
+        }
         self::assertSame('J+S', $persisted[0]->getName());
-        self::assertSame(ActivityGrossanlassProcurementCategory::SYSTEM_KEY_JS, $persisted[0]->getSystemKey());
+        self::assertArrayHasKey('Handwerkzeuge', $byName);
+        self::assertArrayNotHasKey('Akkuschrauber', $byName);
+        self::assertArrayNotHasKey('Fahrzeuge', $byName);
     }
 
-    public function testEnsureIsNoopWhenJsAlreadyPresent(): void
+    public function testEnsureIsNoopWhenJsAlreadyPresentWithoutOtherRoots(): void
     {
         $department = $this->department();
         $js = new ActivityGrossanlassProcurementCategory();
@@ -132,8 +131,13 @@ final class GrossanlassProcurementCategoryBootstrapServiceTest extends TestCase
     private function entityManager(array $existing, array &$persisted): EntityManagerInterface
     {
         $repo = $this->createMock(EntityRepository::class);
-        $repo->method('findBy')->willReturn($existing);
+        $repo->method('findBy')->willReturnCallback(
+            static function () use ($existing, &$persisted): array {
+                return array_merge($existing, $persisted);
+            }
+        );
         $repo->method('findOneBy')->willReturn(null);
+        $repo->method('find')->willReturn(null);
 
         $em = $this->createMock(EntityManagerInterface::class);
         $em->method('getRepository')->willReturn($repo);

@@ -6,6 +6,10 @@ export function gaRole(role: string | null | undefined): string {
   return normalizeDeptRole(String(role || ''))
 }
 
+export function gaIsMaterialwart(role: string | null | undefined): boolean {
+  return gaRole(role) === 'mw'
+}
+
 export function gaCanWorkMailbox(role: string | null | undefined): boolean {
   return ['mw', 'cmw', 'komm', 'spon'].includes(gaRole(role))
 }

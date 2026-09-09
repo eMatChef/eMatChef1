@@ -164,7 +164,7 @@
             {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: visibleSelectedIds.length }) }}
           </EButton>
           <EButton
-            v-if="visibleSelectedIds.length > 0 && lineSelectItems.length > 0"
+            v-if="visibleSelectedIds.length > 0 && mergeLineItems.length > 0"
             variant="secondary"
             size="small"
             :disabled="isSaving"
@@ -193,9 +193,15 @@
                   <strong>{{ wish.quantity }}× {{ wish.label }}</strong>
                   <span class="kind-tag">{{ wishKindLabel(wish.wish_kind) }}</span>
                   <span class="kind-tag kind-tag--stage">{{ stageLabel(wish.last_stage) }}</span>
+                  <span v-if="wish.enough_on_hand" class="kind-tag kind-tag--enough">
+                    {{ enoughBadge(wish) }}
+                  </span>
                 </div>
                 <div class="pool-row__meta">
                   {{ wish.group_name }} · {{ wish.location }}
+                </div>
+                <div class="pool-row__meta">
+                  {{ formatWishNeed(wish) }}
                 </div>
                 <div class="pool-row__meta">
                   {{ wish.round_name }} · {{ wish.created_by_name }}
@@ -340,7 +346,13 @@
               class="line-subgroup"
             >
               <h5 v-if="sub.categoryName" class="line-subgroup__title">{{ sub.categoryName }}</h5>
-              <div v-for="line in sub.lines" :key="line.id" class="line-card">
+              <div
+                v-for="line in sub.lines"
+                :id="'bedarf-line-' + line.id"
+                :key="line.id"
+                class="line-card"
+                :class="{ 'line-card--focus': focusedLineId === line.id }"
+              >
             <div class="line-card__head">
               <div>
                 <strong>{{ line.quantity }}× {{ line.label }}</strong>
@@ -419,8 +431,12 @@
                   <div>
                     <div class="source-row__main">
                       <strong>{{ source.quantity }}× {{ source.label }}</strong>
+                      <span v-if="source.enough_on_hand" class="kind-tag kind-tag--enough">
+                        {{ enoughBadge(source) }}
+                      </span>
                     </div>
                     <div class="source-row__meta">{{ source.group_name }} · {{ source.location }}</div>
+                    <div class="source-row__meta">{{ formatWishNeed(source) }}</div>
                     <div class="source-row__meta">{{ source.round_name }} · {{ source.created_by_name }}</div>
                   </div>
                   <div class="source-row__actions">
@@ -484,15 +500,24 @@
     <EDialog
       v-model="mergeDialogOpen"
       :title="t('grossanlass.beschaffung.bedarf.mergeIntoLine')"
-      max-width="480"
+      max-width="560"
     >
       <p class="panel-hint">{{ t('grossanlass.beschaffung.bedarf.mergeReviewHint') }}</p>
-      <ESelect
+      <p v-if="mergeMatchCount > 0" class="panel-hint panel-hint--match">
+        {{ t('grossanlass.beschaffung.bedarf.mergeMatchHint', { count: mergeMatchCount }) }}
+      </p>
+      <EAutocomplete
         v-model="mergeTargetLineId"
-        :items="lineSelectItems"
+        :items="mergeLineItems"
+        item-title="title"
+        item-value="value"
+        item-subtitle="subtitle"
         :label="t('grossanlass.beschaffung.bedarf.mergeTarget')"
+        :placeholder="t('grossanlass.beschaffung.bedarf.mergeTargetPlaceholder')"
+        :no-filter="false"
+        :custom-filter="filterMergeLine"
         hide-details
-        density="compact"
+        :clearable="false"
         class="assign-field"
       />
       <GrossanlassProcurementCategoryPicker
@@ -565,7 +590,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -578,7 +603,7 @@ import GrossanlassProcurementBundleDialog from '@/components/grossanlass/Grossan
 import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
-import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import { EAutocomplete, EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,
   assignGrossanlassCollectorToInquiry,
@@ -602,15 +627,21 @@ import {
   pathLabelOfProcurementCategory,
   procurementCategoryTreeItems,
 } from '@/utils/grossanlassProcurementCategoryTree'
+import { procurementMatchKind, type ProcurementMatchKind } from '@/utils/grossanlassProcurementMatch'
 import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
+import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { enoughOnHandBadgeLabel } from '@/utils/grossanlassEnoughOnHand'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+const focusedLineId = computed(() => String(route.query.line || ''))
 
 function goCategorySettings() {
   void router.push(`/${departmentId.value}/einstellungen/kategorien`)
@@ -630,6 +661,7 @@ const materialAssignRoundId = ref<string | null>(null)
 const materialAssignLabel = ref('')
 const materialAssignQuantity = ref('1')
 const lines = ref<GrossanlassProcurementLine[]>([])
+const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 const categories = ref<GrossanlassProcurementCategory[]>([])
 const suggestions = ref<GrossanlassProcurementBundleSuggestion[]>([])
 const isLoading = ref(true)
@@ -784,14 +816,51 @@ const visibleSelectedIds = computed(() =>
   selectedWishIds.value.filter((id) => filteredPoolIds.value.has(id)),
 )
 
-const lineSelectItems = computed(() =>
-  lines.value
-    .filter((l) => l.status === 'bedarf' && !l.merge_frozen)
-    .map((l) => ({
-      title: `${l.quantity}× ${l.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: l.wish_count })})`,
-      value: l.id,
-    })),
+const mergeQueryLabels = computed(() =>
+  filteredPool.value
+    .filter((wish) => selectedWishIds.value.includes(wish.id))
+    .map((wish) => wish.label),
 )
+
+const mergeLineItems = computed(() => {
+  const rank = (match: ProcurementMatchKind) => (match === 'exact' ? 2 : match === 'similar' ? 1 : 0)
+  return lines.value
+    .filter((line) => line.status === 'bedarf' && !line.merge_frozen)
+    .map((line) => {
+      const candidateLabels = [
+        line.label,
+        ...(line.source_wishes ?? []).map((wish) => wish.label),
+      ]
+      const match = procurementMatchKind(mergeQueryLabels.value, candidateLabels)
+      const categoryBits = [line.category_parent_name, line.category_name].filter(Boolean).join(' / ')
+      let subtitle = categoryBits
+      if (match === 'exact') subtitle = t('grossanlass.beschaffung.bedarf.mergeMatchExact')
+      else if (match === 'similar') subtitle = t('grossanlass.beschaffung.bedarf.mergeMatchSimilar')
+      return {
+        title: `${line.quantity}× ${line.label} (${t('grossanlass.beschaffung.bedarf.wishCount', { count: line.wish_count })})`,
+        value: line.id,
+        match,
+        subtitle,
+        searchText: [line.label, categoryBits, ...candidateLabels].join(' ').toLowerCase(),
+      }
+    })
+    .sort((a, b) => rank(b.match) - rank(a.match) || a.title.localeCompare(b.title, 'de'))
+})
+
+const mergeMatchCount = computed(
+  () => mergeLineItems.value.filter((row) => row.match === 'exact' || row.match === 'similar').length,
+)
+
+function filterMergeLine(
+  _value: string,
+  query: string,
+  item: { raw?: { searchText?: string; title?: string } },
+): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (tokens.length === 0) return true
+  const haystack = `${item.raw?.searchText ?? ''} ${item.raw?.title ?? ''}`.toLowerCase()
+  return tokens.every((token) => haystack.includes(token))
+}
 
 const categoryFilterItems = computed(() => {
   const items: Array<{ title: string; value: string; name: string; depth: number }> = [
@@ -899,6 +968,21 @@ function stageLabel(stage: string | null | undefined): string {
     : t('grossanlass.planung.wishForms.stageGrob')
 }
 
+function enoughBadge(wish: GrossanlassProcurementPoolWish): string {
+  return enoughOnHandBadgeLabel(wish, (key, values) => String(t(key, values ?? {})))
+}
+
+function formatWishNeed(wish: GrossanlassProcurementPoolWish): string {
+  const need = resolveWishNeedPeriod(wish, calendarPeriods.value)
+  if (!need?.from || !need?.to) {
+    return t('grossanlass.materials.detailWishNeedUnset')
+  }
+  return t('grossanlass.materials.detailWishNeed', {
+    from: formatGaIsoLabel(need.from, locale.value),
+    to: formatGaIsoLabel(need.to, locale.value),
+  })
+}
+
 function statusLabel(status: string): string {
   return procurementStatusLabel(status, t)
 }
@@ -915,15 +999,32 @@ async function load() {
   if (!departmentId.value) return
   isLoading.value = true
   try {
-    const data = await getGrossanlassBedarfOverview(departmentId.value)
+    const [data, periods] = await Promise.all([
+      getGrossanlassBedarfOverview(departmentId.value),
+      listDepartmentCalendarPeriods(departmentId.value).catch(() => [] as DepartmentCalendarPeriod[]),
+    ])
+    calendarPeriods.value = periods
     applyBedarfOverview(data)
     selectedWishIds.value = []
-    mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
+    mergeTargetLineId.value = mergeLineItems.value[0]?.value ?? null
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorLoad'))
   } finally {
     isLoading.value = false
+    focusLineFromQuery()
   }
+}
+
+function focusLineFromQuery() {
+  const lineId = focusedLineId.value
+  if (!lineId || !lines.value.some((line) => line.id === lineId)) return
+  categoryFilter.value = 'all'
+  if (!expandedLineIds.value.includes(lineId)) {
+    expandedLineIds.value = [...expandedLineIds.value, lineId]
+  }
+  void nextTick(() => {
+    document.getElementById(`bedarf-line-${lineId}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
 }
 
 function applyBedarfOverview(data: GrossanlassBedarfOverview) {
@@ -1008,10 +1109,12 @@ async function onBundleSaved() {
 }
 
 function openMergeDialog() {
-  if (visibleSelectedIds.value.length === 0 || lineSelectItems.value.length === 0) return
-  if (!mergeTargetLineId.value || !lineSelectItems.value.some((row) => row.value === mergeTargetLineId.value)) {
-    mergeTargetLineId.value = lineSelectItems.value[0]?.value ?? null
-  }
+  if (visibleSelectedIds.value.length === 0 || mergeLineItems.value.length === 0) return
+  const best =
+    mergeLineItems.value.find((row) => row.match === 'exact')
+    ?? mergeLineItems.value.find((row) => row.match === 'similar')
+    ?? mergeLineItems.value[0]
+  mergeTargetLineId.value = best?.value ?? null
   const line = lines.value.find((row) => row.id === mergeTargetLineId.value)
   mergeCategoryId.value = line?.category_id ?? null
   mergeDialogOpen.value = true
@@ -1158,6 +1261,10 @@ async function removeLine(line: GrossanlassProcurementLine) {
 }
 
 onMounted(load)
+
+watch(focusedLineId, () => {
+  if (!isLoading.value) focusLineFromQuery()
+})
 </script>
 
 <style scoped>
@@ -1300,6 +1407,11 @@ onMounted(load)
   color: #94a3b8;
 }
 
+.panel-hint--match {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
 .pool-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -1309,6 +1421,11 @@ onMounted(load)
 
 .kind-tag--stage {
   color: #1d4ed8;
+}
+
+.kind-tag--enough {
+  color: #1d4ed8;
+  background: #dbeafe;
 }
 
 .pool-actions {
@@ -1482,6 +1599,10 @@ onMounted(load)
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 10px 12px;
+}
+.line-card--focus {
+  border-color: #0d9488;
+  box-shadow: 0 0 0 2px #ccfbf1;
 }
 
 .line-card__head {
