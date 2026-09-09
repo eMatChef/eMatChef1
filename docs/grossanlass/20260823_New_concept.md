@@ -435,7 +435,7 @@ Nach «wir haben das Material» kommt **Einsatz planen** — nicht nur ein Haufe
 | Von / bis | überschneidet sich mit anderen Einsätzen desselben Objekts? |
 | Wohin | Ressort und optional Bauprojekt (Bühne vs. Wasserstelle) |
 | Status | geplant → ausgegeben → retour |
-| Wer | Abholer; bei Fahrzeugen §12.1 |
+| Wer | Abholer **oder** Fahrer, je nach Checkbox **Selbst abholen** / **Fahrt** ([rollen-postfach-fahrten.md §7](./rollen-postfach-fahrten.md#7-einsatz-aus-wunsch--fahrt-ist-eine-checkbox)) |
 
 **Keine Doppelbuchung**
 
@@ -490,7 +490,7 @@ Ja: dasselbe Tool wie §12.3 (Tab **Einsätze** in der Materialübersicht, plus 
 | **Konflikt / Sperre** | Kein stilles Überschreiben. Status **Anfrage an MW** (Inbox), MW weist anderes Objekt, kürzt, oder lehnt ab. |
 | **MW** | Alles; Konflikt lösen; ad hoc «jetzt ausgeben». |
 
-Ablauf User: **Wunsch als Vorlage** («Buchen» übernimmt Felder) oder leer «Einsatz buchen» → von/bis → Bauprojekt → Konfliktcheck → **geplant**. Abholung = Ausgabe auf diesen Einsatz. Vorher = Planung, währenddessen = oft sofort Ausgabe wenn das Stück im Lager liegt.
+Ablauf User: **Wunsch als Vorlage** («Buchen» übernimmt Felder) oder leer «Einsatz buchen» → von/bis → Bauprojekt → Konfliktcheck → **geplant** → Checkbox **Fahrt** oder **Selbst abholen**. Abholung = Ausgabe auf diesen Einsatz. Fahrt = Fahrauftrag (Dashboard-Box). Vorher = Planung, währenddessen = oft sofort Ausgabe wenn das Stück im Lager liegt. Teilpack + MW-Freigabe: Materialplatz schon leer, Fahrt auch vor `starts_at`.
 
 **Ist:** Materialübersicht Einsätze ist **Layout-Vorschau** (Demo-Daten, Banner). Kein Speichern. Button «Einsatz buchen» / «Aus Wunsch» nur Anschauung.
 
@@ -601,6 +601,7 @@ Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-
 ### Dashboard
 
 - Zähler: Entwürfe / gesendet / wartet / Antwort / Zusage / genommen / Delta Fein.
+- Box **Fahraufträge** wenn Einsätze mit Checkbox Fahrt: [rollen-postfach-fahrten.md §7.4](./rollen-postfach-fahrten.md#74-dashboard--box-fahraufträge).
 - Ohne das steuert ihr nur über Gmail-Labels.
 
 ---
@@ -608,6 +609,7 @@ Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-
 ## Siehe auch
 
 - [README.md](./README.md) — Gesamt-Spec (Department, Ressorts, §3.7 Beschaffung, §9 Runden, §10 Leihweise, §11 Übersicht)
+- [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) — wer Postfach sieht (Label `eMatChef`), nehmen vs. senden, Einsatz mit Checkbox Fahrt = Fahrauftrag (sonst Selbstabholung)
 - [kosten.md](./kosten.md) — Kostenübersicht Material & Logistik (Einkauf / Miete / Weiterverkauf, Zahler)
 - [MVP.md](./MVP.md) — ursprünglicher Schnitt Phase 1–4; Beschaffung-Inhalt war Phase 5 und ist im Code weiter als die MVP-Datei
 - Drive/Excel: Firmen (Bereich), Grobübersicht Material & Fahrzeuge; eine Logistik-Sheet-Vorlage (Anfragen / Kommunikation / Zusagen) als CRM-Vorbild ausserhalb der App, solange der Anfrage-Tab fehlt

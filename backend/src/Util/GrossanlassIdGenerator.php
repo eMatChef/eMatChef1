@@ -32,6 +32,9 @@ final class GrossanlassIdGenerator
     public const GUEST_SHARE = 'guest_share';
     public const COST = 'cost';
     public const BUDGET = 'budget';
+    public const PLACE = 'place';
+    public const PACK = 'pack';
+    public const PACK_LINE = 'pack_line';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -55,6 +58,9 @@ final class GrossanlassIdGenerator
         self::GUEST_SHARE => 'gs',
         self::COST => 'ko',
         self::BUDGET => 'kb',
+        self::PLACE => 'pl',
+        self::PACK => 'pk',
+        self::PACK_LINE => 'pn',
     ];
 
     public static function prefix(string $kind): string

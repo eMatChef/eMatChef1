@@ -1,16 +1,17 @@
 <template>
   <SidebarNavigation v-model="drawerOpen" />
-  <TopHeader v-if="!isActivityDetailView" v-model:drawer-open="drawerOpen" />
+  <TopHeader v-if="!headerScrollsWithContent" v-model:drawer-open="drawerOpen" />
 
   <v-main
     class="page-main"
     :class="{
       'page-main--activity-detail': isActivityDetailView,
+      'page-main--einsaetze': isEinsaetzeView,
       'page-main--material-detail': isMaterialDetailView,
     }"
   >
     <TopHeader
-      v-if="isActivityDetailView"
+      v-if="headerScrollsWithContent"
       v-model:drawer-open="drawerOpen"
       scroll-with-content
     />
@@ -54,6 +55,7 @@ import { useDepartmentOnboardingAccess } from '@/composables/useDepartmentOnboar
 import { useHelpShortcut } from '@/composables/useHelpShortcut'
 import { refreshOnboardingCompletionStatus } from '@/utils/onboardingChecklist'
 import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay.vue'
+import { provideGaEventPeriod } from '@/composables/useGaEventPeriod'
 import SidebarNavigation from './SidebarNavigation.vue'
 import TopHeader from './TopHeader.vue'
 
@@ -66,6 +68,9 @@ const isActivityDetailView = computed(() => {
   return name === 'ActivityDetail' || name === 'ActivityDetailTab' || name === 'ActivityPackJourney'
 })
 
+const isEinsaetzeView = computed(() => route.name === 'GrossanlassMaterialUebersichtEinsaetze')
+const headerScrollsWithContent = computed(() => isActivityDetailView.value || isEinsaetzeView.value)
+
 const isMaterialDetailView = computed(() => {
   if (route.name === 'MaterialDetail') return true
   return typeof route.params.materialId === 'string' && route.params.materialId.length > 0
@@ -76,6 +81,7 @@ const drawerOpen = ref(false)
 
 const { departmentId, profileId, canUseOnboarding, canUseTours } = useDepartmentOnboardingAccess()
 const { showFloatingButton: showHelpShortcut, openHelp } = useHelpShortcut()
+provideGaEventPeriod()
 
 watch(
   [departmentId, profileId, () => authStore.isLoggedIn, () => authStore.currentDepartmentRole],
@@ -94,7 +100,8 @@ watch(
   overflow-y: auto !important;
 }
 
-.page-main--activity-detail {
+.page-main--activity-detail,
+.page-main--einsaetze {
   --v-layout-top: 0px !important;
   padding-top: 0 !important;
   display: flex !important;

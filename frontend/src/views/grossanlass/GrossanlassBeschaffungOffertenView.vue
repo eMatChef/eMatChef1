@@ -13,7 +13,13 @@
     />
 
     <div v-else class="lines-list">
-      <article v-for="line in lines" :key="line.id" class="line-card">
+      <article
+        v-for="line in visibleLines"
+        :id="`offerte-line-${line.id}`"
+        :key="line.id"
+        class="line-card"
+        :class="{ 'is-focus': focusLineId === line.id }"
+      >
         <GrossanlassProcurementLineSummary :line="line" />
 
         <div class="quotes-block">
@@ -26,6 +32,10 @@
                   · {{ quote.supplier_address.city_line }}
                 </span>
                 <span class="quote-amount">{{ formatChf(quote.amount_chf) }}</span>
+                <span v-if="quoteSchedule(quote)" class="quote-schedule" :class="{ 'is-late': quoteIsLate(line, quote) }">
+                  · {{ quoteSchedule(quote) }}
+                  <span v-if="quoteIsLate(line, quote)" class="quote-late">{{ t('grossanlass.beschaffung.offerten.deliveryLate') }}</span>
+                </span>
                 <p v-if="quote.notes" class="quote-notes">{{ quote.notes }}</p>
                 <a
                   v-if="quote.pdf_url"
@@ -49,12 +59,21 @@
                 </EButton>
                 <span v-if="quote.selected" class="selected-badge">{{ t('grossanlass.beschaffung.offerten.selected') }}</span>
                 <EButton
+                  variant="text"
+                  size="small"
+                  @click="viewQuote(quote)"
+                >
+                  {{ quote.pdf_url
+                    ? t('grossanlass.beschaffung.offerten.viewPdf')
+                    : t('grossanlass.beschaffung.zusagen.viewQuote') }}
+                </EButton>
+                <EButton
                   v-if="quote.selected"
                   variant="secondary"
                   size="small"
-                  @click="goToZusage(line, quote)"
+                  @click="goToOrder(line)"
                 >
-                  {{ t('grossanlass.beschaffung.zusagen.fromQuote') }}
+                  {{ t('grossanlass.beschaffung.offerten.toOrder') }}
                 </EButton>
                 <button
                   v-if="canEditQuotes(line)"
@@ -85,7 +104,9 @@
             size="small"
             @click="openAddQuote(line)"
           >
-            {{ t('grossanlass.beschaffung.offerten.addQuote') }}
+            {{ line.quotes.some((quote) => quote.selected)
+              ? t('grossanlass.beschaffung.offerten.addAfterSelected')
+              : t('grossanlass.beschaffung.offerten.addQuote') }}
           </EButton>
         </div>
       </article>
@@ -103,7 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -114,6 +135,7 @@ import GrossanlassProcurementLineSummary from '@/components/grossanlass/Grossanl
 import GrossanlassProcurementQuoteDialog from '@/components/grossanlass/GrossanlassProcurementQuoteDialog.vue'
 import { EButton } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
+import { formatGaDateLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   deleteGrossanlassProcurementQuote,
   formatChf,
@@ -125,7 +147,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -138,12 +160,50 @@ const quoteDialogOpen = ref(false)
 const quoteDialogLine = ref<GrossanlassProcurementLine | null>(null)
 const quoteDialogQuote = ref<GrossanlassProcurementQuote | null>(null)
 
+function quoteSchedule(quote: GrossanlassProcurementQuote): string {
+  const parts: string[] = []
+  if (quote.delivery_at) {
+    parts.push(t('grossanlass.beschaffung.offerten.onSite', {
+      date: formatGaDateLabel(quote.delivery_at, locale.value),
+    }))
+  }
+  if (quote.lead_days != null) {
+    parts.push(t('grossanlass.beschaffung.offerten.leadDaysShort', { count: quote.lead_days }))
+  }
+  return parts.join(' · ')
+}
+
+function quoteIsLate(line: GrossanlassProcurementLine, quote: GrossanlassProcurementQuote): boolean {
+  if (!quote.delivery_at || !line.need_from) return false
+  return quote.delivery_at.slice(0, 10) > line.need_from.slice(0, 10)
+}
+
 function canEditQuotes(line: GrossanlassProcurementLine): boolean {
-  return ['bedarf', 'offerte_eingeholt', 'budgetiert'].includes(line.status)
+  return line.status !== 'erhalten'
 }
 
 function resolvePdfUrl(url: string): string {
   return resolveMediaPreviewUrl(url)
+}
+
+const supplierFilter = computed(() => String(route.query.supplier || '').trim().toLowerCase())
+const focusLineId = computed(() => String(route.query.line || '').trim())
+
+const visibleLines = computed(() => {
+  const needle = supplierFilter.value
+  if (!needle) return lines.value
+  return lines.value.filter((line) =>
+    line.quotes.some((quote) => quote.supplier.toLowerCase() === needle),
+  )
+})
+
+function viewQuote(quote: GrossanlassProcurementQuote) {
+  if (quote.pdf_url) {
+    window.open(resolvePdfUrl(quote.pdf_url), '_blank', 'noopener')
+    return
+  }
+  const line = lines.value.find((item) => item.id === quote.procurement_line_id)
+  if (line) openEditQuote(line, quote)
 }
 
 async function load() {
@@ -152,6 +212,10 @@ async function load() {
   try {
     const all = await listGrossanlassProcurementLines(departmentId())
     lines.value = all.filter((l) => l.status !== 'erhalten')
+    await nextTick()
+    if (focusLineId.value) {
+      document.getElementById(`offerte-line-${focusLineId.value}`)?.scrollIntoView({ block: 'center' })
+    }
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.offerten.errorLoad'))
   } finally {
@@ -204,20 +268,20 @@ async function deleteQuote(line: GrossanlassProcurementLine, quoteId: string) {
   }
 }
 
-function goToZusage(line: GrossanlassProcurementLine, quote: GrossanlassProcurementQuote) {
+function goToOrder(line: GrossanlassProcurementLine) {
   const id = departmentId()
   if (!id) return
-  const family = /fahrzeug|gator|bagger|lader|transporter|anhänger/i.test(line.label) ? 'vehicle' : 'material'
   void router.push({
-    path: `/${id}/beschaffung/zusagen`,
-    query: {
-      name: line.label,
-      partner: quote.supplier,
-      family,
-      line: line.id,
-    },
+    path: `/${id}/beschaffung/bestellungen`,
+    query: { line: line.id },
   })
 }
+
+watch(focusLineId, async (id) => {
+  if (!id) return
+  await nextTick()
+  document.getElementById(`offerte-line-${id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+})
 
 onMounted(load)
 </script>
@@ -227,13 +291,16 @@ onMounted(load)
 .tab-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
 .lines-list { display: flex; flex-direction: column; gap: 12px; }
 .line-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; background: #fff; }
+.line-card.is-focus { border-color: #86efac; box-shadow: 0 0 0 2px #dcfce7; }
 .quotes-block { margin-top: 12px; padding-top: 12px; border-top: 1px dashed #e5e7eb; }
 .quotes-block h4 { margin: 0 0 8px; font-size: 0.85rem; font-weight: 600; }
 .quotes-list { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .quote-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
 .quote-row.is-selected { border-color: #93c5fd; background: #eff6ff; }
 .quote-amount { margin-left: 8px; font-weight: 600; }
-.quote-supplier-meta { font-size: 0.78rem; color: #64748b; }
+.quote-schedule { font-size: 0.78rem; color: #475569; }
+.quote-schedule.is-late { color: #b45309; font-weight: 600; }
+.quote-late { margin-left: 4px; font-size: 0.72rem; }
 .quote-notes { margin: 4px 0 0; font-size: 0.75rem; color: #64748b; }
 .quote-pdf-link { display: inline-block; margin-top: 4px; font-size: 0.75rem; color: #2563eb; }
 .quote-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }

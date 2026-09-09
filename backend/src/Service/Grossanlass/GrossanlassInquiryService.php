@@ -27,12 +27,35 @@ class GrossanlassInquiryService
      */
     public function list(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
+        if ($this->access->canTakeInquiry($user, $department)) {
+            try {
+                $this->collector->importPendingTips($department, $user);
+            } catch (\Throwable) {
+                // Offene Wünsche sollen die Firmenliste nicht blockieren.
+            }
+        }
 
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
-            ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
+            ->createQueryBuilder('i')
+            ->leftJoin('i.tipWish', 'w')
+            ->leftJoin('w.createdByUser', 'u')
+            ->leftJoin('u.profile', 'p')
+            ->addSelect('w', 'u', 'p')
+            ->where('i.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('i.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
 
-        return array_map(fn (DepartmentGrossanlassInquiry $row) => $this->serialize($row), $rows);
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassInquiry) {
+                $out[] = $this->serialize($row);
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -41,7 +64,7 @@ class GrossanlassInquiryService
      */
     public function create(Department $department, User $user, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertTake($department, $user);
         $inquiry = $this->newInquiry($department);
         $this->applyFields($inquiry, $data, true);
         $this->entityManager->persist($inquiry);
@@ -56,7 +79,15 @@ class GrossanlassInquiryService
      */
     public function update(Department $department, User $user, string $inquiryId, array $data): array
     {
-        $this->assertManage($department, $user);
+        $takeStatuses = [
+            DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
+            DepartmentGrossanlassInquiry::STATUS_ABSAGE,
+        ];
+        if (isset($data['status']) && in_array((string) $data['status'], $takeStatuses, true)) {
+            $this->assertTake($department, $user);
+        } else {
+            $this->assertMailbox($department, $user);
+        }
         $inquiry = $this->find($department, $inquiryId);
         $this->applyFields($inquiry, $data, false);
         if (($data['status'] ?? null) === DepartmentGrossanlassInquiry::STATUS_ZUSAGE) {
@@ -74,7 +105,7 @@ class GrossanlassInquiryService
      */
     public function delete(Department $department, User $user, string $inquiryId): array
     {
-        $this->assertManage($department, $user);
+        $this->assertTake($department, $user);
         $inquiry = $this->find($department, $inquiryId);
         $id = $inquiry->getId();
         $this->entityManager->remove($inquiry);
@@ -84,12 +115,39 @@ class GrossanlassInquiryService
     }
 
     /**
+     * @param list<mixed> $ids
+     * @return array{ok: true, deleted: list<string>}
+     */
+    public function deleteMany(Department $department, User $user, array $ids): array
+    {
+        $this->assertTake($department, $user);
+        if (count($ids) > 2000) {
+            throw new \InvalidArgumentException('Höchstens 2000 Firmen auf einmal löschen');
+        }
+        $deleted = [];
+        foreach ($ids as $id) {
+            if (!is_string($id) || $id === '') {
+                continue;
+            }
+            $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($id);
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $deleted[] = $inquiry->getId();
+            $this->entityManager->remove($inquiry);
+        }
+        $this->entityManager->flush();
+
+        return ['ok' => true, 'deleted' => $deleted];
+    }
+
+    /**
      * @param list<string> $ids
      * @return list<array<string, mixed>>
      */
     public function markSent(Department $department, User $user, array $ids): array
     {
-        $this->assertManage($department, $user);
+        $this->assertSend($department, $user);
         $updated = [];
         foreach ($ids as $id) {
             if (!is_string($id) || $id === '') {
@@ -127,7 +185,7 @@ class GrossanlassInquiryService
      */
     public function recordReply(Department $department, User $user, string $inquiryId, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $inquiry = $this->find($department, $inquiryId);
         $text = trim((string) ($data['text'] ?? 'Antwort der Firma erfasst.'));
         $inquiry->appendThread(['who' => 'firm', 'text' => $text]);
@@ -149,6 +207,8 @@ class GrossanlassInquiryService
      */
     public function importTips(Department $department, User $user): array
     {
+        $this->assertTake($department, $user);
+
         return $this->collector->importPendingTips($department, $user);
     }
 
@@ -157,7 +217,7 @@ class GrossanlassInquiryService
      */
     public function importCsv(Department $department, User $user, string $csv): array
     {
-        $this->assertManage($department, $user);
+        $this->assertTake($department, $user);
         $parsed = GrossanlassInquiryCsv::parse($csv);
         $existingEmails = [];
         foreach ($this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
@@ -223,7 +283,7 @@ class GrossanlassInquiryService
      */
     public function geocodeMissing(Department $department, User $user, int $limit = 50): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $limit = max(1, min(80, $limit));
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
             ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
@@ -273,7 +333,7 @@ class GrossanlassInquiryService
      */
     public function webLookup(Department $department, User $user, array $data): array
     {
-        $this->assertManage($department, $user);
+        $this->assertMailbox($department, $user);
         $name = trim((string) ($data['name'] ?? ''));
         if ($name === '') {
             throw new \InvalidArgumentException('Firmenname fehlt');
@@ -453,6 +513,7 @@ class GrossanlassInquiryService
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),
             'tip_wish_id' => $inquiry->getTipWishId(),
+            'tip_submitted_by' => $inquiry->serializeTipSubmitter(),
             'thread' => $inquiry->getThread(),
             'gmail_draft_id' => $inquiry->getGmailDraftId(),
             'gmail_thread_id' => $inquiry->getGmailThreadId(),
@@ -475,11 +536,27 @@ class GrossanlassInquiryService
         return null;
     }
 
-    private function assertManage(Department $department, User $user): void
+    private function assertMailbox(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canWorkMailbox($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Anfragen');
+        }
+    }
+
+    private function assertTake(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canTakeInquiry($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung, Anfragen zu nehmen');
+        }
+    }
+
+    private function assertSend(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSendMail($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung zum Senden');
         }
     }
 

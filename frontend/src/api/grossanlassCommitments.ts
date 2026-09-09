@@ -33,6 +33,8 @@ export type GrossanlassCommitment = {
   wish_from: string | null
   wish_to: string | null
   services: GrossanlassCommitmentService[]
+  packed?: boolean
+  returned_to_firm?: boolean
   quantity: number
   item_details: GrossanlassCommitmentItemDetails
   created_at: string
@@ -50,6 +52,15 @@ export type GrossanlassCommitmentItemDetails = {
   pack_size?: string
   notes?: string
   parts?: GrossanlassCommitmentPart[]
+  from_line_id?: string
+  inbound_status?: 'expected' | 'here'
+  inbound_mode?: 'pickup' | 'delivery'
+  quote_id?: string
+  order_id?: string
+  order_ref?: string
+  qty_checked?: boolean
+  pickup_einsatz_id?: string
+  delivery_einsatz_id?: string
 }
 
 export type GrossanlassCommitmentPayload = {
@@ -60,6 +71,7 @@ export type GrossanlassCommitmentPayload = {
   quantity?: number
   item_details?: GrossanlassCommitmentItemDetails
   plate?: string
+  barcode?: string | null
   inquiry_id?: string
   category_id?: string | null
   released?: boolean
@@ -111,6 +123,13 @@ export async function updateGrossanlassCommitment(
     data,
   )
   return response.data
+}
+
+export async function deleteGrossanlassCommitment(
+  departmentId: string,
+  id: string,
+): Promise<void> {
+  await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/zusagen/${id}`)
 }
 
 export async function createGrossanlassCommitmentFromInquiry(

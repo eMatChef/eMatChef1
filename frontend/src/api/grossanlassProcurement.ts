@@ -27,6 +27,10 @@ export interface GrossanlassProcurementPoolWish {
   created_by_name: string
   created_at: string
   updated_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   status?: string
   timeframe_notes?: string | null
   custom_values?: Record<string, unknown>
@@ -51,6 +55,8 @@ export interface GrossanlassProcurementQuote {
   supplier_address: GrossanlassProcurementQuoteSupplierAddress | null
   amount_chf: number
   notes: string | null
+  delivery_at: string | null
+  lead_days: number | null
   selected: boolean
   pdf_filename: string | null
   pdf_url: string | null
@@ -74,6 +80,7 @@ export interface GrossanlassProcurementOrder {
   id: string
   procurement_line_id: string
   ordered_at: string
+  delivery_at: string | null
   cost_chf: number
   order_ref: string | null
   notes: string | null
@@ -105,6 +112,11 @@ export interface GrossanlassProcurementLine {
   source_wishes: GrossanlassProcurementPoolWish[]
   source_quantity_sum: number
   received_quantity_sum: number
+  quantity_loaned?: number
+  quantity_ordered?: number
+  quantity_open?: number
+  need_from?: string | null
+  need_to?: string | null
   quotes: GrossanlassProcurementQuote[]
   selected_quote_id: string | null
   budget_chf: number | null
@@ -118,9 +130,12 @@ export interface GrossanlassProcurementCategory {
   department_id: string
   parent_id: string | null
   parent_name: string | null
+  path?: string
   name: string
   sort_order: number
   rahmen_chf: number | null
+  system_key: string | null
+  kind?: 'package' | 'item' | string | null
 }
 
 export interface GrossanlassProcurementBundleSuggestion {
@@ -512,12 +527,44 @@ export async function updateGrossanlassProcurementCategory(
   return response.data
 }
 
+export type GrossanlassCategoryUsageLine = {
+  id: string
+  label: string
+  quantity: number
+  group_name: string
+  status: string
+  category_id: string
+  category_name: string | null
+}
+
+export type GrossanlassCategoryUsageInquiry = {
+  id: string
+  name: string
+}
+
+export type GrossanlassCategoryUsage = {
+  lines: GrossanlassCategoryUsageLine[]
+  inquiries: GrossanlassCategoryUsageInquiry[]
+}
+
+export async function getGrossanlassProcurementCategoryUsage(
+  departmentId: string,
+  categoryId: string,
+): Promise<GrossanlassCategoryUsage> {
+  const response = await apiClient.get<GrossanlassCategoryUsage>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}/usage`,
+  )
+  return response.data
+}
+
 export async function deleteGrossanlassProcurementCategory(
   departmentId: string,
   categoryId: string,
+  data?: { reassign_to?: string | null },
 ): Promise<void> {
   await apiClient.delete(
     `/api/departments/${departmentId}/grossanlass/beschaffung/categories/${categoryId}`,
+    { data: data?.reassign_to ? { reassign_to: data.reassign_to } : {} },
   )
 }
 
@@ -540,6 +587,8 @@ export async function createGrossanlassProcurementQuote(
     supplier_address_id?: string | null
     amount_chf: number
     notes?: string | null
+    delivery_at?: string | null
+    lead_days?: number | null
   },
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.post<GrossanlassProcurementQuote>(
@@ -558,6 +607,8 @@ export async function updateGrossanlassProcurementQuote(
     supplier_address_id: string | null
     amount_chf: number
     notes: string | null
+    delivery_at: string | null
+    lead_days: number | null
   }>,
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.put<GrossanlassProcurementQuote>(
@@ -640,6 +691,7 @@ export async function upsertGrossanlassProcurementOrder(
     order_ref?: string | null
     notes?: string | null
     ordered_at?: string
+    delivery_at?: string | null
   },
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(

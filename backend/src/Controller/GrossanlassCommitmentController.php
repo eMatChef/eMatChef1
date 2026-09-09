@@ -65,6 +65,20 @@ class GrossanlassCommitmentController extends AbstractController
         );
     }
 
+    #[Route('/{commitmentId}', name: 'delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function delete(string $departmentId, string $commitmentId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            function (Department $department, User $user) use ($commitmentId): array {
+                $this->commitments->delete($department, $user, $commitmentId);
+
+                return ['ok' => true];
+            },
+        );
+    }
+
     /**
      * @param callable(Department, User): mixed $fn
      */

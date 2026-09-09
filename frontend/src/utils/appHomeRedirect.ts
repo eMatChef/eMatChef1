@@ -1,4 +1,5 @@
 import type { useAuthStore } from '@/stores/auth'
+import { gaHomePath } from '@/utils/grossanlassHome'
 import {
   ONBOARDING_TOUR_QUERY,
   ONBOARDING_TOUR_STEP_QUERY,
@@ -66,6 +67,8 @@ type AuthStoreLike = Pick<
   | 'hasSupplierAccess'
   | 'activeSupplierCompanies'
   | 'activeSupplierCompanyId'
+  | 'currentDepartmentRole'
+  | 'isDepartmentGrossanlass'
 >
 
 export function resolveDefaultSupplierPath(authStore: AuthStoreLike): string | null {
@@ -87,6 +90,9 @@ export function resolveAuthenticatedHomePath(authStore: AuthStoreLike): string {
     authStore.departments[0]?.department_id
 
   if (primaryDepartmentId) {
+    if (authStore.isDepartmentGrossanlass(primaryDepartmentId)) {
+      return gaHomePath(primaryDepartmentId, authStore.currentDepartmentRole)
+    }
     return `/${primaryDepartmentId}`
   }
 
