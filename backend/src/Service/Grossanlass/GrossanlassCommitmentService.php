@@ -434,6 +434,10 @@ final class GrossanlassCommitmentService
         if ($pickupEinsatzId !== '') {
             $out['pickup_einsatz_id'] = mb_substr($pickupEinsatzId, 0, 12);
         }
+        $deliveryEinsatzId = trim((string) ($raw['delivery_einsatz_id'] ?? ''));
+        if ($deliveryEinsatzId !== '') {
+            $out['delivery_einsatz_id'] = mb_substr($deliveryEinsatzId, 0, 12);
+        }
 
         $parts = [];
         $rawParts = $raw['parts'] ?? [];

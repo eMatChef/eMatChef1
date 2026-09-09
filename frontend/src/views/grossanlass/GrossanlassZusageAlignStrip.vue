@@ -15,62 +15,16 @@
         <v-icon icon="mdi-chevron-left" size="18" />
       </button>
       <div ref="headStackEl" class="zusage-align__head-stack" @scroll="syncScroll">
-          <div v-if="monthBands.length" class="zusage-align__months">
-            <span
-              v-for="band in monthBands"
-              :key="band.key"
-              class="zusage-align__month"
-              :style="{ flex: `${band.days} 1 0` }"
-            >
-              {{ band.label }}
-            </span>
-          </div>
-          <div v-if="dayPickerColumns.length" class="zusage-align__picker">
-            <button
-              v-for="column in dayPickerColumns"
-              :key="`pick-${column.key}`"
-              type="button"
-              class="zusage-align__hour zusage-align__hour--btn"
-              :class="{
-                'zusage-align__hour--weekend': column.weekend,
-                'zusage-align__hour--active': column.ymd === anchorYmd,
-              }"
-              :title="t('grossanlass.beschaffung.zusagen.alignOpenDay')"
-              @click="emit('open-day', column.ymd)"
-            >
-              {{ column.label }}
-              <small>{{ column.sub }}</small>
-            </button>
-          </div>
-          <p v-if="dayCaption" class="zusage-align__day-caption">{{ dayCaption }}</p>
-          <div class="zusage-align__hours">
-            <template v-if="scale === 'day'">
-              <span
-                v-for="column in columns"
-                :key="column.key"
-                class="zusage-align__hour zusage-align__hour--day"
-              >
-                {{ showHour(column.label) ? column.label : '' }}
-              </span>
-            </template>
-            <template v-else>
-              <button
-                v-for="column in columns"
-                :key="column.key"
-                type="button"
-                class="zusage-align__hour zusage-align__hour--btn"
-                :class="{
-                  'zusage-align__hour--weekend': column.weekend,
-                  'zusage-align__hour--month-start': column.monthStart,
-                }"
-                :title="t('grossanlass.beschaffung.zusagen.alignOpenDay')"
-                @click="emit('open-day', column.ymd)"
-              >
-                {{ column.label }}
-                <small v-if="column.sub">{{ column.sub }}</small>
-              </button>
-            </template>
-          </div>
+          <GrossanlassCalendarAxis
+            :scale="scale"
+            :columns="columns"
+            :day-picker-columns="dayPickerColumns"
+            :month-bands="monthBands"
+            :anchor-ymd="anchorYmd"
+            :hours-grid-style="hoursGridStyle"
+            :caption="dayCaption"
+            @select-day="onSelectDay"
+          />
         </div>
       <button
         type="button"
@@ -137,10 +91,15 @@ import {
   parseLocalDate,
   shiftCalendarAnchor,
   spanningMonthWindow,
-  type GaCalendarColumn,
   type GaCalendarScale,
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import {
+  monthBandsFromColumns,
+  resolveCalendarWindow,
+  withAxisMeta,
+} from '@/views/grossanlass/gaCalendarAxis'
+import GrossanlassCalendarAxis from '@/views/grossanlass/GrossanlassCalendarAxis.vue'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 
 const props = withDefaults(defineProps<{
@@ -197,7 +156,7 @@ function syncScroll(event: Event) {
   syncingScroll = false
 }
 
-type AlignColumn = GaCalendarColumn & { monthStart: boolean; ymd: string }
+type AlignColumn = ReturnType<typeof withAxisMeta>
 
 const windowRange = computed(() => {
   if (props.scale === 'month' && props.spanMonths) {
@@ -207,12 +166,13 @@ const windowRange = computed(() => {
   if (!props.anchorYmd) return null
   const date = parseLocalDate(`${props.anchorYmd}T00:00:00`)
   if (Number.isNaN(date.getTime())) return null
-  return calendarWindow(props.scale, date)
+  return resolveCalendarWindow(props.scale, date, [], false)
 })
 
 const columns = computed((): AlignColumn[] => {
   if (!windowRange.value) return []
-  return calendarColumns(props.scale, windowRange.value.start, windowRange.value.end, locale.value).map(withMeta)
+  return calendarColumns(props.scale, windowRange.value.start, windowRange.value.end, locale.value)
+    .map((column) => withAxisMeta(column, props.scale))
 })
 
 const dayPickerColumns = computed((): AlignColumn[] => {
@@ -220,37 +180,22 @@ const dayPickerColumns = computed((): AlignColumn[] => {
   const date = parseLocalDate(`${props.anchorYmd}T00:00:00`)
   if (Number.isNaN(date.getTime())) return []
   const week = calendarWindow('week', date)
-  return calendarColumns('week', week.start, week.end, locale.value).map(withMeta)
+  return calendarColumns('week', week.start, week.end, locale.value)
+    .map((column) => withAxisMeta(column, 'week'))
 })
 
-function withMeta(column: GaCalendarColumn): AlignColumn {
-  const date = new Date(column.startMs)
-  return {
-    ...column,
-    monthStart: props.scale !== 'day' && date.getDate() === 1,
-    ymd: dateToYmd(date),
-  }
+const monthBands = computed(() =>
+  props.scale === 'day' ? [] : monthBandsFromColumns(columns.value, locale.value),
+)
+
+const hoursGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${Math.max(1, columns.value.length)}, minmax(14px, 1fr))`,
+  minWidth: `${Math.max(1, columns.value.length) * 14}px`,
+}))
+
+function onSelectDay(ymd: string) {
+  emit('open-day', ymd)
 }
-
-const monthBands = computed(() => {
-  if (props.scale === 'day') return []
-  const bands: { key: string; label: string; days: number }[] = []
-  for (const column of columns.value) {
-    const date = new Date(column.startMs)
-    const key = `${date.getFullYear()}-${date.getMonth()}`
-    const last = bands[bands.length - 1]
-    if (last && last.key === key) {
-      last.days += 1
-      continue
-    }
-    bands.push({
-      key,
-      label: date.toLocaleDateString(locale.value, { month: 'short' }).replace(/\.$/, ''),
-      days: 1,
-    })
-  }
-  return bands
-})
 
 function spanDates(): Date[] {
   return [
@@ -333,11 +278,6 @@ const returnTitle = computed(() =>
     })
     : t('grossanlass.materialUebersicht.status.giveback'),
 )
-
-function showHour(label: string): boolean {
-  const hour = Number(label)
-  return Number.isFinite(hour) && hour % 3 === 0
-}
 </script>
 
 <style scoped>
@@ -387,9 +327,9 @@ function showHour(label: string): boolean {
   min-width: 0;
   overflow-x: auto;
 }
-.zusage-align__head-stack {
-  display: grid;
-  gap: 0;
+.zusage-align__head-stack :deep(.ga-cal-axis__months),
+.zusage-align__head-stack :deep(.ga-cal-axis__hours) {
+  min-width: calc(var(--align-cols, 1) * 14px);
 }
 .zusage-align__track-scroll {
   scrollbar-width: none;
@@ -515,7 +455,7 @@ function showHour(label: string): boolean {
 }
 .zusage-align__hour--month-start,
 .zusage-align__tick--month-start {
-  border-left-color: #6366f1;
+  border-left-color: #9ca3af;
   border-left-width: 2px;
 }
 .zusage-align__hour small {

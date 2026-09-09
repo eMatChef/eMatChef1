@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   BOOK_PROJECT_UNASSIGNED,
   buildBookProjectPickerItems,
+  isEinsatzBookableWish,
   type BookProjectPickerGroup,
 } from '@/utils/grossanlassBookProjectPicker'
 
@@ -99,5 +100,15 @@ describe('buildBookProjectPickerItems', () => {
       name: 'Ohne Zuordnung',
       wishCount: 2,
     })
+  })
+
+  it('ignores company-tip wishes when counting', () => {
+    expect(isEinsatzBookableWish({ formPurpose: 'company_tip' })).toBe(false)
+    expect(isEinsatzBookableWish({ formPurpose: 'material_wish' })).toBe(true)
+    const items = buildBookProjectPickerItems(tree, [
+      { groupId: 'logistik' },
+      { groupId: 'logistik', formPurpose: 'company_tip' },
+    ])
+    expect(items.find((row) => row.value === 'logistik')?.wishCount).toBe(1)
   })
 })

@@ -195,7 +195,7 @@ class GrossanlassWishService
             ->innerJoin('w.group', 'g')
             ->innerJoin('w.createdByUser', 'u')
             ->leftJoin('u.profile', 'p')
-            ->addSelect('g', 'u', 'p')
+            ->addSelect('g', 'u', 'p', 'r')
             ->where('a.departmentId = :departmentId')
             ->setParameter('departmentId', $department->getId())
             ->orderBy('w.createdAt', 'DESC');
@@ -1634,6 +1634,7 @@ class GrossanlassWishService
         return [
             'id' => $line->getId(),
             'round_id' => $line->getRoundId(),
+            'form_purpose' => $line->getRound()->getFormPurpose(),
             'response_id' => $line->getResponseId(),
             'group_id' => $line->getGroupId(),
             'group_name' => $line->getGroup()->getName(),

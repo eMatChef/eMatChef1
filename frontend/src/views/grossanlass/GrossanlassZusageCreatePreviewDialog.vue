@@ -230,7 +230,7 @@ import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { combineIso } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
+import { ensureInboundEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 import type { GaParkServiceKind, GaZusageOrigin } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import {
@@ -453,17 +453,17 @@ async function submit() {
       proceeds_expected_chf: origin.value === 'buy_resale' && proceedsExpectedChf.value !== '' ? Number(proceedsExpectedChf.value) : null,
     })
     let stored = created
-    if (inboundMode.value === 'pickup') {
-      try {
-        stored = await ensureLoanPickupEinsatz(
-          departmentId.value,
-          created,
-          t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: created.source }),
-          logisticsGroupId.value,
-        )
-      } catch {
-        toast.error(t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
-      }
+    try {
+      stored = await ensureInboundEinsatz(
+        departmentId.value,
+        created,
+        inboundMode.value === 'delivery'
+          ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: created.source })
+          : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: created.source }),
+        logisticsGroupId.value,
+      )
+    } catch {
+      toast.error(t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
     }
     toast.success(t('grossanlass.beschaffung.zusagen.createdToast'))
     open.value = false

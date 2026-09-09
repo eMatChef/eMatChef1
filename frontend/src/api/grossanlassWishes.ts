@@ -26,6 +26,7 @@ export interface CreateGrossanlassWishPayload {
 export interface GrossanlassWishLine {
   id: string
   round_id: string
+  form_purpose?: string
   response_id?: string | null
   group_id: string
   group_name: string

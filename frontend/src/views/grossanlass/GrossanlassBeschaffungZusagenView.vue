@@ -638,7 +638,7 @@ import { descendantIdsOfProcurementCategory } from '@/utils/grossanlassProcureme
 import { procurementIsOrdered, procurementOrderedQty } from '@/utils/grossanlassProcurementCoverage'
 import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
-import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
+import { ensureInboundEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
 
 type GroupBy = 'source' | 'family' | 'status'
@@ -1567,24 +1567,24 @@ async function saveWindow() {
     )
     const byId = new Map(updatedRows.map((row) => [row.id, row]))
     articles.value = articles.value.map((item) => byId.get(item.id) ?? item)
-    if (inboundMode.value === 'pickup') {
-      const next: GrossanlassCommitment[] = []
-      for (const row of updatedRows) {
-        try {
-          next.push(await ensureLoanPickupEinsatz(
-            departmentId.value,
-            row,
-            t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: row.source }),
-            logisticsGroupId.value,
-          ))
-        } catch {
-          next.push(row)
-          toast.error(t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
-        }
+    const inboundNext: GrossanlassCommitment[] = []
+    for (const row of updatedRows) {
+      try {
+        inboundNext.push(await ensureInboundEinsatz(
+          departmentId.value,
+          row,
+          inboundMode.value === 'delivery'
+            ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: row.source })
+            : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: row.source }),
+          logisticsGroupId.value,
+        ))
+      } catch {
+        inboundNext.push(row)
+        toast.error(t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
       }
-      const pickupById = new Map(next.map((row) => [row.id, row]))
-      articles.value = articles.value.map((item) => pickupById.get(item.id) ?? item)
     }
+    const inboundById = new Map(inboundNext.map((row) => [row.id, row]))
+    articles.value = articles.value.map((item) => inboundById.get(item.id) ?? item)
     windowOpen.value = false
     toast.success(
       windowBulkPartner.value

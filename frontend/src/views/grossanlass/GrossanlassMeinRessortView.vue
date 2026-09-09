@@ -92,6 +92,7 @@
       :chauffeurs="submitChauffeurs"
       :places="submitBoard?.places ?? []"
       :groups="groups"
+      default-scope="project"
       @confirm="onSubmitEinsatz"
       @confirm-many="onSubmitMany"
       @order="onSubmitOrder"
@@ -116,6 +117,7 @@ import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortS
 import {
   flattenGrossanlassGroupsFiltered,
 } from '@/utils/grossanlassGroupHierarchy'
+import { isEinsatzBookableWish } from '@/utils/grossanlassBookProjectPicker'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
@@ -198,7 +200,9 @@ const freePicks = computed(() =>
 
 const wishPicks = computed(() => {
   const objects = submitBoard.value?.objects ?? []
-  return wishes.value.map((wish) => {
+  return wishes.value
+    .filter((wish) => isEinsatzBookableWish({ formPurpose: wish.form_purpose }))
+    .map((wish) => {
     const object = objects.find((row) => row.name === wish.label)
       || objects.find((row) => wish.label.includes(row.name))
     return {
@@ -217,6 +221,7 @@ const wishPicks = computed(() => {
       who: '',
       hasConflict: false,
       groupId: wish.group_id,
+      formPurpose: wish.form_purpose,
     }
   })
 })

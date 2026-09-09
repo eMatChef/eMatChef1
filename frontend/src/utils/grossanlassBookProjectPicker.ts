@@ -13,6 +13,12 @@ export type BookProjectPickerGroup = {
 export type BookProjectPickerWish = {
   groupId?: string | null
   ressort?: string
+  formPurpose?: string | null
+}
+
+/** Firmenvorschläge («Wen kennt ihr?») sind keine Materialwünsche zum Buchen. */
+export function isEinsatzBookableWish(wish: { formPurpose?: string | null }): boolean {
+  return wish.formPurpose !== 'company_tip'
 }
 
 export type BookProjectPickerItem = {
@@ -94,6 +100,7 @@ export function buildBookProjectPickerItems(
   const wishCount = new Map<string, number>()
   let unassigned = 0
   for (const wish of wishes) {
+    if (!isEinsatzBookableWish(wish)) continue
     const id = wish.groupId || ''
     if (!id) {
       unassigned += 1

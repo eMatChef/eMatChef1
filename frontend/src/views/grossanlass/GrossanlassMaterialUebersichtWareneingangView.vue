@@ -119,15 +119,16 @@
         </div>
         <div class="inbound-actions">
           <EButton
-            v-if="inboundMode(row) === 'pickup'"
             variant="secondary"
             size="small"
             :loading="busyId === row.id"
-            @click="onPickupAction(row)"
+            @click="onInboundAction(row)"
           >
-            {{ row.item_details?.pickup_einsatz_id
-              ? t('grossanlass.materialUebersicht.wareneingang.openPickupEinsatz')
-              : t('grossanlass.materialUebersicht.wareneingang.createPickupEinsatz') }}
+            {{ inboundEinsatzId(row)
+              ? t('grossanlass.materialUebersicht.wareneingang.openInboundEinsatz')
+              : inboundMode(row) === 'delivery'
+                ? t('grossanlass.materialUebersicht.wareneingang.createDeliveryEinsatz')
+                : t('grossanlass.materialUebersicht.wareneingang.createPickupEinsatz') }}
           </EButton>
           <EButton
             variant="text"
@@ -183,7 +184,7 @@ import {
   originBadgeKey,
 } from '@/views/grossanlass/gaCharge'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import { ensureLoanPickupEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
+import { ensureInboundEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
 
 type RangeId = 'today' | 'week' | 'expected' | 'here'
 type ModeId = 'all' | 'pickup' | 'delivery'
@@ -383,36 +384,52 @@ async function patchDetails(row: GrossanlassCommitment, patch: Record<string, un
 async function toggleMode(row: GrossanlassCommitment) {
   const next = inboundMode(row) === 'delivery' ? 'pickup' : 'delivery'
   const ok = await patchDetails(row, { inbound_mode: next })
-  if (ok && next === 'pickup') await createPickup(row)
+  if (ok) {
+    const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
+    await createInbound({ ...latest, item_details: { ...latest.item_details, inbound_mode: next } })
+  }
 }
 
-async function onPickupAction(row: GrossanlassCommitment) {
+function inboundEinsatzId(row: GrossanlassCommitment): string | undefined {
+  return inboundMode(row) === 'delivery'
+    ? row.item_details?.delivery_einsatz_id
+    : row.item_details?.pickup_einsatz_id
+}
+
+async function onInboundAction(row: GrossanlassCommitment) {
   const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
-  if (latest.item_details?.pickup_einsatz_id) {
+  if (inboundEinsatzId(latest)) {
     void router.push(`/${departmentId.value}/material-uebersicht/einsaetze`)
     return
   }
-  await createPickup(latest)
+  await createInbound(latest)
 }
 
-async function createPickup(row: GrossanlassCommitment) {
+async function createInbound(row: GrossanlassCommitment) {
   const id = departmentId.value
   if (!id) return
   busyId.value = row.id
   try {
     const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
-    const updated = await ensureLoanPickupEinsatz(
+    const mode = inboundMode(latest)
+    const updated = await ensureInboundEinsatz(
       id,
       latest,
-      t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: latest.source }),
+      mode === 'delivery'
+        ? t('grossanlass.materialUebersicht.wareneingang.deliveryWho', { partner: latest.source })
+        : t('grossanlass.materialUebersicht.wareneingang.pickupWho', { partner: latest.source }),
     )
     catalog.upsert(updated)
-    if (updated.item_details?.pickup_einsatz_id) {
-      toast.success(t('grossanlass.materialUebersicht.wareneingang.pickupCreated'))
+    if (inboundEinsatzId(updated)) {
+      toast.success(
+        mode === 'delivery'
+          ? t('grossanlass.materialUebersicht.wareneingang.deliveryCreated')
+          : t('grossanlass.materialUebersicht.wareneingang.pickupCreated'),
+      )
     }
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
-    toast.error(err.response?.data?.error || t('grossanlass.materialUebersicht.wareneingang.pickupCreateError'))
+    toast.error(err.response?.data?.error || t('grossanlass.materialUebersicht.wareneingang.inboundCreateError'))
   } finally {
     busyId.value = null
   }

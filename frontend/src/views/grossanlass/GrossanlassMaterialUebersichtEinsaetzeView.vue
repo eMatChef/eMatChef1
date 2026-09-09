@@ -43,7 +43,14 @@
     />
 
     <ELoadingState v-if="uebersicht.loading.value" variant="inline" :message="t('common.loading')" />
-    <GrossanlassEinsatzPreviewPanel v-else-if="displayRows.length" :rows="displayRows" />
+    <GrossanlassEinsatzPreviewPanel
+      v-else-if="resources.length || displayRows.length"
+      :rows="displayRows"
+      :resources="resources"
+      :groups="groups"
+      :focus-iso="calendarFocusIso"
+      :focus-object-id="calendarFocusObjectId"
+    />
     <EEmptyState
       v-else
       :title="t('grossanlass.materialUebersicht.emptyEinsaetzeTitle')"
@@ -61,6 +68,7 @@
       :chauffeurs="chauffeurs"
       :places="places"
       :groups="groups"
+      :default-scope="bookDefaultScope"
       @confirm="onConfirm"
       @confirm-many="onConfirmMany"
       @order="onOrder"
@@ -75,7 +83,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { EButton } from '@/components/form/base'
-import { gaCanApproveEinsatz } from '@/utils/grossanlassAccess'
+import { gaCanApproveEinsatz, gaIsMaterialwart } from '@/utils/grossanlassAccess'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
@@ -163,6 +171,16 @@ const groups = ref<GrossanlassGroup[]>([])
 const mode = ref<GaBookPreviewMode>('einsatz')
 const dialogOpen = ref(false)
 const draft = ref<GaBookPreviewDraft | null>(null)
+const calendarFocusIso = ref<string | null>(null)
+const calendarFocusObjectId = ref<string | null>(null)
+const bookDefaultScope = computed(() =>
+  gaIsMaterialwart(authStore.currentDepartmentRole) ? 'single' : 'project',
+)
+
+function revealEinsatz(fromIso?: string, objectId?: string) {
+  if (fromIso) calendarFocusIso.value = fromIso
+  if (objectId) calendarFocusObjectId.value = objectId
+}
 
 function payloadFromDraft(
   current: GaBookPreviewDraft,
@@ -206,6 +224,7 @@ async function onConfirm(current: GaBookPreviewDraft) {
   const kind = current.asOrder || mode.value === 'order' ? 'order' : 'einsatz'
   try {
     await uebersicht.create(payloadFromDraft(current, kind))
+    revealEinsatz(current.fromIso, current.objectId)
     toast.success(
       kind === 'order'
         ? t('grossanlass.materialUebersicht.orderNoted')
@@ -222,6 +241,7 @@ async function onConfirm(current: GaBookPreviewDraft) {
 async function onConfirmMany(drafts: GaBookPreviewDraft[]) {
   try {
     await uebersicht.createMany(drafts.map((row) => payloadFromDraft(row, 'einsatz')))
+    revealEinsatz(drafts[0]?.fromIso, drafts[0]?.objectId)
     const noted = drafts.some((row) => row.hasConflict)
     toast.success(
       noted

@@ -60,6 +60,7 @@ export type GrossanlassCommitmentItemDetails = {
   order_ref?: string
   qty_checked?: boolean
   pickup_einsatz_id?: string
+  delivery_einsatz_id?: string
 }
 
 export type GrossanlassCommitmentPayload = {

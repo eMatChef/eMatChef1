@@ -1,6 +1,7 @@
 export type GaEinsatzStatus = 'planned' | 'pending_approval' | 'issued' | 'returned'
-export type GaEinsatzBarRole = 'einsatz' | 'handover' | 'giveback' | 'service' | 'unreleased'
-export type GaEinsatzRingId = 'fleet' | 'tools' | 'consumable'
+export type GaEinsatzBarRole = 'einsatz' | 'handover' | 'giveback' | 'service' | 'unreleased' | 'fixed'
+export type GaEinsatzResourceRingId = 'fleet' | 'tools' | 'consumable'
+export type GaEinsatzRingId = GaEinsatzResourceRingId | 'fixed' | 'org'
 export type GaEinsatzKind = 'unique' | 'quantity'
 export type GaConflictKind = 'unique_overlap' | 'quantity_overbook'
 export type GaEinsatzViewMode = 'object' | 'ressort'
@@ -19,6 +20,7 @@ export type GaPreviewEinsatz = {
   toLabel: string
   ressort: string
   bauprojekt?: string
+  groupId?: string | null
   status: GaEinsatzStatus
   who: string
   conflictId?: string
@@ -77,9 +79,27 @@ export type GaEinsatzCategoryBlock = {
 }
 
 export type GaEinsatzRingBlock = {
-  id: GaEinsatzRingId
+  id: string
   label: string
+  skipCategory?: boolean
   blocks: GaEinsatzCategoryBlock[]
+}
+
+export type GaEinsatzOrgGroup = {
+  id: string
+  name: string
+  parent_id: string | null
+  node_type: string
+}
+
+export type GaFixedDatePeriod = {
+  id: string
+  typeLabel: string
+  name: string
+  fromIso: string
+  toIso: string
+  fromLabel: string
+  toLabel: string
 }
 
 export type GaCalendarColumn = {
@@ -366,6 +386,7 @@ export type GaPreviewWishTemplate = {
   hasConflict: boolean
   groupId?: string | null
   roundId?: string
+  formPurpose?: string
   lastStage?: string
   createdAt?: string
   enoughOnHand?: boolean
@@ -576,7 +597,7 @@ export function categoryLabel(categoryId: string, t: Translate): string {
   return t(`grossanlass.materialUebersicht.cat.${categoryId}`)
 }
 
-export function resourceRingId(resource: GaEinsatzResource): GaEinsatzRingId {
+export function resourceRingId(resource: GaEinsatzResource): GaEinsatzResourceRingId {
   if (resource.family === 'vehicle') return 'fleet'
   if (resource.categoryId === 'werkzeug' || resource.categoryId === 'elektro') return 'tools'
   return 'consumable'
@@ -585,6 +606,8 @@ export function resourceRingId(resource: GaEinsatzResource): GaEinsatzRingId {
 export function resourceRingLabel(ringId: GaEinsatzRingId, t: Translate): string {
   if (ringId === 'fleet') return t('grossanlass.materialUebersicht.ringFleet')
   if (ringId === 'tools') return t('grossanlass.materialUebersicht.ringTools')
+  if (ringId === 'fixed') return t('grossanlass.materialUebersicht.ringFixed')
+  if (ringId === 'org') return t('grossanlass.materialUebersicht.ringOrg')
   return t('grossanlass.materialUebersicht.ringConsumable')
 }
 
@@ -613,6 +636,169 @@ export function groupEinsatzBlocksByRing(blocks: GaEinsatzCategoryBlock[]): GaEi
     rings.push({ id: block.ringId, label: block.ringLabel, blocks: [block] })
   }
   return rings
+}
+
+export function isOrgEinsatz(row: GaPreviewEinsatz): boolean {
+  return (row.barRole ?? 'einsatz') === 'einsatz'
+}
+
+export function enrichEinsatzFromGroups(
+  row: GaPreviewEinsatz,
+  groups: GaEinsatzOrgGroup[],
+): GaPreviewEinsatz {
+  if (!row.groupId) return row
+  const byId = new Map(groups.map((group) => [group.id, group]))
+  const group = byId.get(row.groupId)
+  if (!group) return row
+
+  const ancestors: GaEinsatzOrgGroup[] = []
+  const seen = new Set<string>()
+  let cursor: GaEinsatzOrgGroup | undefined = group
+  while (cursor && !seen.has(cursor.id)) {
+    seen.add(cursor.id)
+    ancestors.push(cursor)
+    cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined
+  }
+  const root = ancestors[ancestors.length - 1]
+  const bauprojektNode = ancestors.find((item) => item.node_type === 'bauprojekt')
+  const unter = ancestors.find((item) => item.node_type === 'unterressort')
+  const ressortNode = ancestors.find((item) => item.node_type === 'ressort') || root
+  const sub = bauprojektNode?.name || (unter && unter.id !== ressortNode?.id ? unter.name : '')
+
+  return {
+    ...row,
+    ressort: ressortNode?.name || row.ressort,
+    bauprojekt: sub || undefined,
+  }
+}
+
+function withPackedResources(
+  rowsByObject: Map<string, GaPreviewEinsatz[]>,
+  resources: GaEinsatzResource[],
+  idPrefix: string,
+): GaEinsatzCategoryBlock['resources'] {
+  const resourceById = new Map(resources.map((resource) => [resource.id, resource]))
+  return [...rowsByObject.entries()]
+    .map(([objectId, rows]) => {
+      const base = resourceById.get(objectId)
+      const laneOf = packBookingLanes(rows)
+      return {
+        id: `${idPrefix}${objectId}`,
+        name: base?.name ?? rows[0]?.objectName ?? objectId,
+        family: base?.family ?? 'material',
+        stayMode: base?.stayMode ?? 'return',
+        categoryId: base?.categoryId ?? 'infra',
+        kind: base?.kind ?? rows[0]?.kind ?? 'unique',
+        stock: base?.stock ?? rows[0]?.stock ?? 1,
+        bookings: rows,
+        lanes: Math.max(1, Object.keys(laneOf).length ? Math.max(...Object.values(laneOf)) + 1 : 1),
+        laneOf,
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+}
+
+function rowsByObjectId(rows: GaPreviewEinsatz[]): Map<string, GaPreviewEinsatz[]> {
+  const map = new Map<string, GaPreviewEinsatz[]>()
+  for (const row of rows) {
+    const list = map.get(row.objectId) ?? []
+    list.push(row)
+    map.set(row.objectId, list)
+  }
+  return map
+}
+
+export function buildFixedDateCalendarRing(
+  periods: GaFixedDatePeriod[],
+  t: Translate,
+): GaEinsatzRingBlock | null {
+  if (!periods.length) return null
+  const ringLabel = t('grossanlass.materialUebersicht.ringFixed')
+  const resources = periods.map((period) => {
+    const booking: GaPreviewEinsatz = {
+      id: `fixed-${period.id}`,
+      objectId: `fixed-${period.id}`,
+      objectName: period.typeLabel,
+      kind: 'unique',
+      qty: 1,
+      stock: 1,
+      fromIso: period.fromIso,
+      toIso: period.toIso,
+      fromLabel: period.fromLabel,
+      toLabel: period.toLabel,
+      ressort: period.typeLabel,
+      bauprojekt: period.name || undefined,
+      status: 'planned',
+      who: period.name || period.typeLabel,
+      barRole: 'fixed',
+    }
+    return {
+      id: `fixed-${period.id}`,
+      name: period.name ? `${period.typeLabel} · ${period.name}` : period.typeLabel,
+      family: 'material' as const,
+      stayMode: 'stay' as const,
+      categoryId: 'fixed',
+      kind: 'unique' as const,
+      stock: 1,
+      bookings: [booking],
+      lanes: 1,
+      laneOf: { [booking.id]: 0 },
+    }
+  })
+  return {
+    id: 'fixed',
+    label: ringLabel,
+    skipCategory: true,
+    blocks: [{
+      id: 'fixed:dates',
+      ringId: 'fixed',
+      ringLabel,
+      label: ringLabel,
+      resources,
+    }],
+  }
+}
+
+export function buildOrgCalendarRings(
+  resources: GaEinsatzResource[],
+  bookings: GaPreviewEinsatz[],
+  t: Translate,
+): GaEinsatzRingBlock[] {
+  const orgBookings = bookings.filter(isOrgEinsatz)
+  if (!orgBookings.length) return []
+  const unassigned = t('grossanlass.materialUebersicht.bookProjectUnassigned')
+  const noProject = t('grossanlass.materialUebersicht.orgNoProject')
+  const byRessort = new Map<string, Map<string, GaPreviewEinsatz[]>>()
+  for (const row of orgBookings) {
+    const ressort = row.ressort.trim() || unassigned
+    const project = row.bauprojekt?.trim() || ''
+    const projects = byRessort.get(ressort) ?? new Map<string, GaPreviewEinsatz[]>()
+    const list = projects.get(project) ?? []
+    list.push(row)
+    projects.set(project, list)
+    byRessort.set(ressort, projects)
+  }
+  return [...byRessort.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, 'de'))
+    .map(([ressort, projects]) => {
+      const named = [...projects.keys()].some((key) => key !== '')
+      const skipCategory = !named
+      const blocks: GaEinsatzCategoryBlock[] = [...projects.entries()]
+        .sort(([a], [b]) => a.localeCompare(b, 'de'))
+        .map(([project, rows]) => ({
+          id: `org:${ressort}::${project}`,
+          ringId: 'org' as const,
+          ringLabel: ressort,
+          label: project || (named ? noProject : ressort),
+          resources: withPackedResources(rowsByObjectId(rows), resources, `org:${ressort}::${project}:`),
+        }))
+      return {
+        id: `org:${ressort}`,
+        label: ressort,
+        skipCategory,
+        blocks,
+      }
+    })
 }
 
 export function buildEinsatzCalendarBlocks(
@@ -702,11 +888,27 @@ function startOfWeekMonday(date: Date): Date {
 }
 
 export function shiftCalendarAnchor(scale: GaCalendarScale, anchor: Date, direction: -1 | 1): Date {
-  const next = new Date(anchor)
-  if (scale === 'day') next.setDate(next.getDate() + direction)
-  else if (scale === 'week') next.setDate(next.getDate() + direction * 7)
-  else next.setMonth(next.getMonth() + direction)
-  return next
+  if (scale === 'day') {
+    const next = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + direction)
+    return next
+  }
+  if (scale === 'week') {
+    const next = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + direction * 7)
+    return next
+  }
+  // Always land on the 1st so the month divider stays on day 1 (no day-overflow jumps).
+  return new Date(anchor.getFullYear(), anchor.getMonth() + direction, 1)
+}
+
+/** 16th of this month → 16th of next, so both month-ends stay visible. */
+export function midMonthWindow(anchor: Date): { start: Date; end: Date } {
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), 16)
+  const end = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 16)
+  return { start, end }
+}
+
+export function shiftMidMonthAnchor(anchor: Date, direction: -1 | 1): Date {
+  return new Date(anchor.getFullYear(), anchor.getMonth() + direction, 16)
 }
 
 export function dateToYmd(date: Date): string {
@@ -799,11 +1001,26 @@ export function formatCalendarTitle(scale: GaCalendarScale, start: Date, end: Da
   if (scale === 'day') {
     return start.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
-  if (scale === 'month') {
+  if (scale === 'week') {
+    const sameMonth = start.getMonth() === last.getMonth()
+    const from = start.toLocaleDateString(locale, { day: 'numeric', month: sameMonth ? undefined : 'short' })
+    const to = last.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
+    return `${from} – ${to}`
+  }
+  const fullMonths = start.getDate() === 1 && end.getDate() === 1
+  const sameMonth = start.getMonth() === last.getMonth() && start.getFullYear() === last.getFullYear()
+  if (fullMonths && sameMonth) {
     return start.toLocaleDateString(locale, { month: 'long', year: 'numeric' })
   }
-  const sameMonth = start.getMonth() === last.getMonth()
-  const from = start.toLocaleDateString(locale, { day: 'numeric', month: sameMonth ? undefined : 'short' })
+  if (fullMonths) {
+    const from = start.toLocaleDateString(locale, {
+      month: 'short',
+      year: start.getFullYear() !== last.getFullYear() ? 'numeric' : undefined,
+    })
+    const to = last.toLocaleDateString(locale, { month: 'short', year: 'numeric' })
+    return `${from} – ${to}`
+  }
+  const from = start.toLocaleDateString(locale, { day: 'numeric', month: 'short' })
   const to = last.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' })
   return `${from} – ${to}`
 }

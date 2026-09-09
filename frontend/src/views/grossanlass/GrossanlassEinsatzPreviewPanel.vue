@@ -1,7 +1,7 @@
 <template>
   <div class="ga-gantt">
-    <div class="ga-gantt__pin">
-      <div class="ga-gantt__toolbar">
+    <div class="ga-gantt__stick">
+    <div class="ga-gantt__toolbar">
       <div class="ga-gantt__scales" role="tablist">
         <button
           v-for="item in scales"
@@ -14,21 +14,17 @@
           {{ item.label }}
         </button>
       </div>
-      <div class="ga-gantt__nav">
-        <button type="button" class="ga-gantt__nav-btn" :aria-label="t('grossanlass.materialUebersicht.prevPeriod')" @click="shift(-1)">
-          <v-icon icon="mdi-chevron-left" size="20" />
-        </button>
-        <strong class="ga-gantt__title">{{ windowTitle }}</strong>
-        <button type="button" class="ga-gantt__nav-btn" :aria-label="t('grossanlass.materialUebersicht.nextPeriod')" @click="shift(1)">
-          <v-icon icon="mdi-chevron-right" size="20" />
-        </button>
-      </div>
+      <strong class="ga-gantt__title">{{ windowTitle }}</strong>
       <ESearchField
         v-model="searchQuery"
         class="ga-gantt__search"
         :label="t('grossanlass.materialUebersicht.searchPlaceholder')"
       />
       <ul class="ga-gantt__legend" aria-label="Einsatzstatus">
+        <li>
+          <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--fixed" />
+          {{ t('grossanlass.materialUebersicht.status.fixed') }}
+        </li>
         <li>
           <span class="ga-gantt__legend-swatch ga-gantt__legend-swatch--planned" />
           {{ t('grossanlass.materialUebersicht.status.planned') }}
@@ -65,50 +61,149 @@
     </div>
 
     <div
-      v-if="!(searchQuery.trim() && !filteredBlocks.length)"
-      class="ga-gantt__head"
-      :style="gridTemplateStyle"
+      v-if="!(searchQuery.trim() && !hasFilteredRows)"
+      class="ga-gantt__pin"
     >
-      <div class="ga-gantt__corner" aria-hidden="true" />
-      <button
-        v-for="column in columns"
-        :key="column.key"
-        type="button"
-        class="ga-gantt__col-head"
-        :class="{
-          'ga-gantt__col-head--weekend': column.weekend,
-          'ga-gantt__col-head--hour': scale === 'day',
-        }"
-        :disabled="scale === 'day'"
-        @click="goToDay(column.startMs)"
-      >
-        <span v-if="column.sub" class="ga-gantt__col-sub">{{ column.sub }}</span>
-        <span>{{ column.label }}</span>
-      </button>
+      <div class="ga-gantt__axis" :style="axisChromeStyle">
+        <div class="ga-gantt__axis-label" aria-hidden="true" />
+        <div v-if="scale === 'month'" class="ga-gantt__axis-nav ga-gantt__axis-nav--pair">
+          <button
+            type="button"
+            class="ga-gantt__axis-nav-btn"
+            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
+            :aria-label="t('grossanlass.materialUebersicht.jumpMonthPrev')"
+            @click="shiftMonth(-1)"
+          >
+            &lt;&lt;
+          </button>
+          <button
+            type="button"
+            class="ga-gantt__axis-nav-btn"
+            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
+            :aria-label="t('grossanlass.materialUebersicht.jumpMidPrev')"
+            @click="shiftMid(-1)"
+          >
+            &lt;
+          </button>
+        </div>
+        <button
+          v-else
+          type="button"
+          class="ga-gantt__axis-nav"
+          :aria-label="t('grossanlass.materialUebersicht.prevPeriod')"
+          @click="shift(-1)"
+        >
+          <v-icon icon="mdi-chevron-left" size="18" />
+        </button>
+        <GrossanlassCalendarAxis
+          :scale="scale"
+          :columns="columns"
+          :day-picker-columns="dayPickerColumns"
+          :month-bands="monthBands"
+          :anchor-ymd="anchorYmd"
+          :hours-grid-style="hoursGridStyle"
+          @select-day="onSelectDay"
+        />
+        <div v-if="scale === 'month'" class="ga-gantt__axis-nav ga-gantt__axis-nav--pair">
+          <button
+            type="button"
+            class="ga-gantt__axis-nav-btn"
+            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
+            :aria-label="t('grossanlass.materialUebersicht.jumpMidNext')"
+            @click="shiftMid(1)"
+          >
+            &gt;
+          </button>
+          <button
+            type="button"
+            class="ga-gantt__axis-nav-btn"
+            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
+            :aria-label="t('grossanlass.materialUebersicht.jumpMonthNext')"
+            @click="shiftMonth(1)"
+          >
+            &gt;&gt;
+          </button>
+        </div>
+        <button
+          v-else
+          type="button"
+          class="ga-gantt__axis-nav"
+          :aria-label="t('grossanlass.materialUebersicht.nextPeriod')"
+          @click="shift(1)"
+        >
+          <v-icon icon="mdi-chevron-right" size="18" />
+        </button>
+      </div>
+      <div v-if="headerFixedBookings.length" class="ga-gantt__fixed" :style="axisChromeStyle">
+        <div class="ga-gantt__fixed-name">
+          {{ t('grossanlass.materialUebersicht.ringFixed') }}
+        </div>
+        <span class="ga-gantt__axis-nav ga-gantt__axis-nav--spacer" aria-hidden="true" />
+        <div class="ga-gantt__fixed-track" :style="{ minHeight: '28px' }">
+          <span
+            v-for="(column, colIndex) in columns"
+            :key="`fixed-${column.key}`"
+            class="ga-gantt__cell"
+            :class="{
+              'ga-gantt__cell--weekend': column.weekend,
+              'ga-gantt__cell--month-start': column.monthStart,
+            }"
+            :style="cellStyle(colIndex)"
+          />
+          <span
+            v-for="booking in visibleBookings(headerFixedBookings)"
+            :key="booking.id"
+            class="ga-gantt__bar-wrap"
+            :style="barBox(booking, 0, 1)"
+          >
+            <button
+              type="button"
+              class="ga-gantt__bar ga-gantt__bar--fixed"
+              :class="{ 'ga-gantt__bar--active': selectedBooking?.id === booking.id && einsatzDialogOpen }"
+              :aria-label="barTitle(booking)"
+              @click.stop="openEinsatz(booking, { id: 'fixed', stayMode: 'stay' })"
+            >
+              <span class="ga-gantt__bar-label ga-gantt__bar-label--time">{{ booking.objectName }}</span>
+              <span class="ga-gantt__bar-label ga-gantt__bar-label--full">{{ booking.objectName }}</span>
+            </button>
+          </span>
+        </div>
+        <span class="ga-gantt__axis-nav ga-gantt__axis-nav--spacer" aria-hidden="true" />
+      </div>
     </div>
     </div>
 
     <EEmptyState
-      v-if="searchQuery.trim() && !filteredBlocks.length"
+      v-if="searchQuery.trim() && !hasFilteredRows"
       variant="search"
       compact
       :title="t('grossanlass.materialUebersicht.emptySearchTitle')"
       :description="t('grossanlass.materialUebersicht.emptySearchText', { q: searchQuery.trim() })"
     />
-    <div v-else class="ga-gantt__body" :style="gridTemplateStyle">
-        <template v-for="ring in filteredRings" :key="ring.id">
-          <div
+    <div v-else-if="displayRings.length" class="ga-gantt__body" :style="gridTemplateStyle">
+        <template v-for="ring in displayRings" :key="ring.id">
+          <button
+            type="button"
             class="ga-gantt__ring"
-            :style="{ gridColumn: `1 / span ${columns.length + 1}` }"
+            :class="{ 'ga-gantt__ring--closed': !isRingOpen(ring.id) }"
+            :style="{ gridColumn: '1 / -1' }"
+            :aria-expanded="isRingOpen(ring.id)"
+            @click="toggleRing(ring)"
           >
-            {{ ring.label }}
-          </div>
+            <v-icon
+              :icon="isRingOpen(ring.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+              size="18"
+            />
+            <span>{{ ring.label }}</span>
+          </button>
+          <template v-if="isRingOpen(ring.id)">
           <template v-for="block in ring.blocks" :key="block.id">
           <button
+            v-if="!ring.skipCategory"
             type="button"
             class="ga-gantt__cat"
             :class="{ 'ga-gantt__cat--closed': !isBlockOpen(block.id) }"
-            :style="{ gridColumn: `1 / span ${columns.length + 1}` }"
+            :style="{ gridColumn: '1 / -1' }"
             :aria-expanded="isBlockOpen(block.id)"
             @click="toggleBlock(block)"
           >
@@ -119,35 +214,34 @@
             <span>{{ block.label }}</span>
           </button>
           <template v-for="resource in block.resources" :key="resource.id">
-            <button
-              v-show="isBlockOpen(block.id)"
-              type="button"
+            <div
+              v-show="isCategoryOpen(ring, block)"
               class="ga-gantt__name"
-              :class="{ 'ga-gantt__name--open': expandedId === resource.id }"
-              @click="toggle(resource.id)"
+              :class="{
+                'ga-gantt__name--open': focusedId === resource.id,
+                'ga-gantt__name--nested': !ring.skipCategory,
+              }"
             >
-              <v-icon
-                :icon="expandedId === resource.id ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-                size="16"
-              />
               <span class="ga-gantt__name-text">
                 <strong>{{ resource.name }}</strong>
                 <small>{{ kindLabel(resource) }}</small>
               </span>
-            </button>
+            </div>
             <div
-              v-show="isBlockOpen(block.id)"
+              v-show="isCategoryOpen(ring, block)"
               class="ga-gantt__track"
-              :class="{ 'ga-gantt__track--open': expandedId === resource.id }"
-              :style="{ gridColumn: `2 / span ${columns.length}`, minHeight: `${trackHeight(resource.lanes)}px` }"
-              @click="toggle(resource.id)"
+              :class="{ 'ga-gantt__track--open': focusedId === resource.id }"
+              :style="{ gridColumn: `3 / span ${columns.length}`, minHeight: `${trackHeight(resource.lanes)}px` }"
             >
               <span
-                v-for="column in columns"
+                v-for="(column, colIndex) in columns"
                 :key="`${resource.id}-${column.key}`"
                 class="ga-gantt__cell"
-                :class="{ 'ga-gantt__cell--weekend': column.weekend }"
-                :style="cellStyle(column)"
+                :class="{
+                  'ga-gantt__cell--weekend': column.weekend,
+                  'ga-gantt__cell--month-start': column.monthStart,
+                }"
+                :style="cellStyle(colIndex)"
               />
               <span
                 v-for="shade in presenceShades(resource)"
@@ -165,7 +259,6 @@
                 <VTooltip
                   location="top"
                   open-on-hover
-                  open-on-click
                   :open-delay="80"
                   :close-delay="80"
                   scroll-strategy="close"
@@ -179,7 +272,7 @@
                       class="ga-gantt__bar"
                       :class="barClass(booking)"
                       :aria-label="barTitle(booking)"
-                      @click.stop
+                      @click.stop="openEinsatz(booking, resource)"
                     >
                       <span class="ga-gantt__bar-label ga-gantt__bar-label--time">{{ barTime(booking) }}</span>
                       <span class="ga-gantt__bar-label ga-gantt__bar-label--full">{{ barLabel(booking) }}</span>
@@ -194,6 +287,12 @@
                     <span>{{ booking.fromLabel }} – {{ booking.toLabel }}</span>
                     <span v-if="booking.kind === 'quantity'">{{ t('grossanlass.materialUebersicht.qty', { n: booking.qty }) }}</span>
                     <span>{{ stayLabel(resource.stayMode) }} · {{ statusLabel(booking) }}</span>
+                    <span
+                      v-if="einsatzBarKind(booking) === 'handover' || einsatzBarKind(booking) === 'giveback'"
+                      class="ga-gantt-bar-tip__conflict"
+                    >
+                      {{ t('grossanlass.materialUebersicht.occupancyFixedHint') }}
+                    </span>
                     <span v-if="einsatzBarKind(booking) === 'pending_approval'" class="ga-gantt-bar-tip__conflict">
                       {{ t('grossanlass.materialUebersicht.pendingMwHint') }}
                     </span>
@@ -201,85 +300,114 @@
                 </VTooltip>
               </span>
             </div>
-            <div
-              v-if="isBlockOpen(block.id) && expandedId === resource.id"
-              class="ga-gantt__detail"
-              :style="{ gridColumn: `1 / span ${columns.length + 1}` }"
-            >
-              <p v-if="!resource.bookings.length" class="ga-gantt__empty">
-                {{ t('grossanlass.materialUebersicht.emptyRow') }}
-              </p>
-              <ul v-else class="ga-gantt__bookings">
-                <li
-                  v-for="booking in resource.bookings"
-                  :key="booking.id"
-                  :class="{ 'ga-gantt__booking--conflict': einsatzBarKind(booking) === 'pending_approval' }"
-                >
-                  <strong>{{ booking.who }}</strong>
-                  <span>{{ booking.ressort }}<template v-if="booking.bauprojekt"> · {{ booking.bauprojekt }}</template></span>
-                  <span>{{ booking.fromLabel }} – {{ booking.toLabel }}</span>
-                  <span v-if="booking.kind === 'quantity'">{{ t('grossanlass.materialUebersicht.qty', { n: booking.qty }) }}</span>
-                  <span class="ga-einsatz-status" :class="`ga-einsatz-status--${resource.stayMode}`">
-                    {{ stayLabel(resource.stayMode) }}
-                  </span>
-                  <span class="ga-einsatz-status" :class="`ga-einsatz-status--${einsatzBarKind(booking)}`">
-                    {{ statusLabel(booking) }}
-                  </span>
-                </li>
-              </ul>
-            </div>
+            <span class="ga-gantt__row-end" aria-hidden="true" />
+          </template>
           </template>
           </template>
         </template>
       </div>
   </div>
+
+  <GrossanlassEinsatzDetailDialog
+    v-model="einsatzDialogOpen"
+    :booking="selectedBooking"
+    :stay-mode="selectedStayMode"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { VTooltip } from 'vuetify/components'
 import { ESearchField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import { useGaEventPeriodOrEmpty } from '@/composables/useGaEventPeriod'
+import { useCalendarPeriodsCacheRevision } from '@/composables/useCalendarPeriodsCache'
+import GrossanlassCalendarAxis from '@/views/grossanlass/GrossanlassCalendarAxis.vue'
+import GrossanlassEinsatzDetailDialog from '@/views/grossanlass/GrossanlassEinsatzDetailDialog.vue'
+import {
+  monthBandsFromColumns,
+  resolveCalendarWindow,
+  withAxisMeta,
+} from '@/views/grossanlass/gaCalendarAxis'
 import {
   barStyleInWindow,
   buildEinsatzCalendarBlocks,
+  buildFixedDateCalendarRing,
+  buildOrgCalendarRings,
   calendarColumns,
   calendarWindow,
+  dateToYmd,
   createGrossanlassEinsatzPreview,
   einsatzBarKind,
+  enrichEinsatzFromGroups,
   formatCalendarTitle,
   groupEinsatzBlocksByRing,
   parseLocalDate,
   resourcePresenceShades,
   shiftCalendarAnchor,
+  shiftMidMonthAnchor,
+  midMonthWindow,
   GA_EINSATZ_ANCHOR_ISO,
   type GaCalendarScale,
   type GaEinsatzCategoryBlock,
   type GaEinsatzKind,
+  type GaEinsatzOrgGroup,
+  type GaEinsatzRingBlock,
   type GaEinsatzStayMode,
+  type GaEinsatzResource,
+  type GaFixedDatePeriod,
   type GaPresenceShade,
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { mergedEinsatzResources } from '@/views/grossanlass/grossanlassZusagePreviewStore'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import {
+  calendarPeriodTime,
+  listDepartmentCalendarPeriods,
+  GROSSANLASS_TIME_MODULE_LABELS,
+  type DepartmentCalendarPeriod,
+} from '@/api/calendarPeriods'
 
 const props = withDefaults(defineProps<{
   rows?: GaPreviewEinsatz[]
+  resources?: GaEinsatzResource[]
+  groups?: GaEinsatzOrgGroup[]
+  focusIso?: string | null
+  focusObjectId?: string | null
 }>(), {
   rows: undefined,
+  resources: undefined,
+  groups: undefined,
+  focusIso: null,
+  focusObjectId: null,
 })
 
 const { t, locale } = useI18n()
+const route = useRoute()
+const eventPeriod = useGaEventPeriodOrEmpty()
+const cacheRevision = useCalendarPeriodsCacheRevision()
+const departmentId = computed(() => String(route.params.departmentId || ''))
+const loadedGroups = ref<GaEinsatzOrgGroup[]>([])
+const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 
 function tr(key: string, values?: Record<string, string | number>): string {
   return values ? String(t(key, values)) : String(t(key))
 }
 
-const scale = ref<GaCalendarScale>('week')
+const scale = ref<GaCalendarScale>('month')
+const jumpMode = ref<'event' | 'month' | 'mid'>('event')
+const anchorTouched = ref(false)
 const anchor = ref(parseLocalDate(GA_EINSATZ_ANCHOR_ISO))
-const expandedId = ref<string | null>(null)
+const focusedId = ref<string | null>(null)
 const collapsedBlocks = ref<Set<string>>(new Set())
+const collapsedRings = ref<Set<string>>(new Set())
 const searchQuery = ref('')
+const einsatzDialogOpen = ref(false)
+const selectedBooking = ref<GaPreviewEinsatz | null>(null)
+const selectedStayMode = ref<GaEinsatzStayMode | null>(null)
 
 const scales = computed(() => [
   { id: 'month' as const, label: t('grossanlass.materialUebersicht.scaleMonth') },
@@ -289,12 +417,40 @@ const scales = computed(() => [
 
 const preview = computed(() => createGrossanlassEinsatzPreview(tr))
 const sourceRows = computed(() => props.rows ?? preview.value.einsaetze)
-const onlyWithBookings = computed(() => !!props.rows)
-
-const windowRange = computed(() => calendarWindow(scale.value, anchor.value))
-const columns = computed(() =>
-  calendarColumns(scale.value, windowRange.value.start, windowRange.value.end, locale.value),
+const orgGroups = computed(() =>
+  props.groups?.length ? props.groups : loadedGroups.value,
 )
+const orgRows = computed(() =>
+  sourceRows.value.map((row) => enrichEinsatzFromGroups(row, orgGroups.value)),
+)
+const onlyWithBookings = computed(() => !(props.resources && props.resources.length > 0))
+
+const windowRange = computed(() => {
+  if (scale.value === 'month' && jumpMode.value === 'mid') {
+    return midMonthWindow(anchor.value)
+  }
+  return resolveCalendarWindow(
+    scale.value,
+    anchor.value,
+    eventPeriod.spanDates.value,
+    scale.value === 'month' && jumpMode.value === 'event',
+  )
+})
+
+const columns = computed(() =>
+  calendarColumns(scale.value, windowRange.value.start, windowRange.value.end, locale.value)
+    .map((column) => withAxisMeta(column, scale.value)),
+)
+const dayPickerColumns = computed(() => {
+  if (scale.value !== 'day') return []
+  const week = calendarWindow('week', anchor.value)
+  return calendarColumns('week', week.start, week.end, locale.value)
+    .map((column) => withAxisMeta(column, 'week'))
+})
+const monthBands = computed(() =>
+  scale.value === 'day' ? [] : monthBandsFromColumns(columns.value, locale.value),
+)
+const anchorYmd = computed(() => dateToYmd(anchor.value))
 const windowTitle = computed(() =>
   formatCalendarTitle(scale.value, windowRange.value.start, windowRange.value.end, locale.value),
 )
@@ -303,13 +459,24 @@ const colMinWidth = computed(() => {
   if (scale.value === 'day') return 28
   return 72
 })
-const gridTemplateStyle = computed(() => ({
-  gridTemplateColumns: `minmax(200px, 240px) repeat(${columns.value.length}, minmax(${colMinWidth.value}px, 1fr))`,
+const axisNavWidth = computed(() => (scale.value === 'month' ? '56px' : '32px'))
+const hoursGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${columns.value.length}, minmax(${colMinWidth.value}px, 1fr))`,
 }))
+const axisChromeStyle = computed(() => ({
+  gridTemplateColumns: `minmax(200px, 240px) ${axisNavWidth.value} minmax(0, 1fr) ${axisNavWidth.value}`,
+}))
+const gridTemplateStyle = computed(() => ({
+  gridTemplateColumns: `minmax(200px, 240px) ${axisNavWidth.value} repeat(${columns.value.length}, minmax(${colMinWidth.value}px, 1fr)) ${axisNavWidth.value}`,
+}))
+
+const calendarResources = computed(() =>
+  props.resources?.length ? props.resources : mergedEinsatzResources(tr),
+)
 
 const blocks = computed(() =>
   buildEinsatzCalendarBlocks(
-    mergedEinsatzResources(tr),
+    calendarResources.value,
     sourceRows.value,
     tr,
     onlyWithBookings.value,
@@ -334,33 +501,261 @@ const filteredBlocks = computed(() => {
     .filter((block) => block.resources.length > 0)
 })
 
-const filteredRings = computed(() => groupEinsatzBlocksByRing(filteredBlocks.value))
+const KEY_DATE_LABELS = new Set<string>([...GROSSANLASS_TIME_MODULE_LABELS, 'other'])
 
-watch(filteredBlocks, (next) => {
-  if (!expandedId.value) return
-  const stillVisible = next.some((block) =>
-    block.resources.some((resource) => resource.id === expandedId.value),
-  )
-  if (!stillVisible) expandedId.value = null
+const fixedDatePeriods = computed((): GaFixedDatePeriod[] =>
+  calendarPeriods.value
+    .filter((period) => KEY_DATE_LABELS.has(period.label))
+    .slice()
+    .sort((a, b) => {
+      const sa = `${a.start_date}T${calendarPeriodTime(a.start_time, '00:00')}`
+      const sb = `${b.start_date}T${calendarPeriodTime(b.start_time, '00:00')}`
+      return sa.localeCompare(sb) || a.name.localeCompare(b.name)
+    })
+    .map((period) => {
+      const typeLabel = String(t(`settings.fixedDates.labels.${period.label}`))
+      const showName = period.name.trim().toLocaleLowerCase() !== typeLabel.toLocaleLowerCase()
+      const fromIso = `${period.start_date.slice(0, 10)}T${calendarPeriodTime(period.start_time, '00:00')}:00`
+      const toIso = `${period.end_date.slice(0, 10)}T${calendarPeriodTime(period.end_time, '23:59')}:00`
+      return {
+        id: period.id,
+        typeLabel,
+        name: showName ? period.name : '',
+        fromIso,
+        toIso,
+        fromLabel: formatGaIsoLabel(fromIso, locale.value),
+        toLabel: formatGaIsoLabel(toIso, locale.value),
+      }
+    }),
+)
+
+const objectRings = computed(() => groupEinsatzBlocksByRing(filteredBlocks.value))
+const fixedRing = computed(() => buildFixedDateCalendarRing(fixedDatePeriods.value, tr))
+const orgRings = computed(() =>
+  buildOrgCalendarRings(calendarResources.value, orgRows.value, tr),
+)
+
+function filterRingByQuery(ring: GaEinsatzRingBlock, query: string): GaEinsatzRingBlock | null {
+  if (!query) return ring
+  if (ring.label.toLowerCase().includes(query)) return ring
+  const blocks = ring.blocks
+    .map((block) => {
+      if (block.label.toLowerCase().includes(query)) return block
+      return {
+        ...block,
+        resources: block.resources.filter((resource) =>
+          resourceMatches(resource, `${ring.label} ${block.label}`, query),
+        ),
+      }
+    })
+    .filter((block) => block.resources.length > 0)
+  if (!blocks.length) return null
+  return { ...ring, blocks }
+}
+
+const displayRings = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+  const rings: GaEinsatzRingBlock[] = []
+  rings.push(...objectRings.value)
+  for (const ring of orgRings.value) {
+    const next = filterRingByQuery(ring, query)
+    if (next) rings.push(next)
+  }
+  return rings
 })
 
+const headerFixedBookings = computed(() => {
+  const ring = fixedRing.value
+  if (!ring) return []
+  const query = searchQuery.value.trim().toLowerCase()
+  const bookings = ring.blocks.flatMap((block) =>
+    block.resources.flatMap((resource) => resource.bookings),
+  )
+  if (!query) return bookings
+  if (ring.label.toLowerCase().includes(query)) return bookings
+  return bookings.filter((booking) =>
+    [booking.objectName, booking.who, booking.ressort, booking.bauprojekt]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .includes(query),
+  )
+})
+
+const hasFilteredRows = computed(() =>
+  displayRings.value.length > 0 || headerFixedBookings.value.length > 0,
+)
+
+function periodYears(): number[] {
+  const years = new Set<number>()
+  const now = new Date().getFullYear()
+  years.add(now - 1)
+  years.add(now)
+  years.add(now + 1)
+  years.add(now + 2)
+  for (const date of eventPeriod.spanDates.value) {
+    years.add(date.getFullYear())
+  }
+  for (const iso of [eventPeriod.startIso.value, eventPeriod.endIso.value]) {
+    const year = iso ? Number.parseInt(iso.slice(0, 4), 10) : NaN
+    if (Number.isFinite(year)) years.add(year)
+  }
+  return [...years].sort((a, b) => a - b)
+}
+
+async function loadOverviewMeta() {
+  const id = departmentId.value
+  if (!id) {
+    loadedGroups.value = []
+    calendarPeriods.value = []
+    return
+  }
+  const years = periodYears()
+  const [periods, groupRows] = await Promise.all([
+    listDepartmentCalendarPeriods(id, years).catch(() => [] as DepartmentCalendarPeriod[]),
+    getGrossanlassGroups(id).catch(() => [] as GaEinsatzOrgGroup[]),
+  ])
+  calendarPeriods.value = periods
+  loadedGroups.value = groupRows
+}
+
+watch(
+  [departmentId, cacheRevision, () => eventPeriod.startIso.value, () => eventPeriod.endIso.value],
+  () => { void loadOverviewMeta() },
+  { immediate: true },
+)
+
+watch(() => [props.focusIso, props.focusObjectId] as const, ([iso, objectId]) => {
+  if (iso) {
+    const date = parseLocalDate(iso)
+    if (!Number.isNaN(date.getTime())) {
+      anchor.value = date
+      anchorTouched.value = true
+      if (scale.value === 'month') jumpMode.value = 'month'
+    }
+  }
+  if (objectId) focusedId.value = objectId
+}, { immediate: true })
+
+watch(() => eventPeriod.defaultAnchor.value, (date) => {
+  if (!date || anchorTouched.value || props.focusIso) return
+  anchor.value = date
+})
+
+watch(scale, (next) => {
+  if (next === 'month') jumpMode.value = 'event'
+})
+
+watch(displayRings, (next) => {
+  if (!focusedId.value) return
+  const stillVisible = next.some((ring) =>
+    ring.blocks.some((block) =>
+      block.resources.some((resource) => resource.id === focusedId.value),
+    ),
+  )
+  if (!stillVisible) focusedId.value = null
+})
+
+function shiftMonth(direction: -1 | 1) {
+  anchorTouched.value = true
+  const base = jumpMode.value === 'month' ? anchor.value : windowRange.value.start
+  jumpMode.value = 'month'
+  // Prefer the month currently in view (event span / mid), then step from the 1st.
+  const from = new Date(base.getFullYear(), base.getMonth(), 1)
+  anchor.value = shiftCalendarAnchor('month', from, direction)
+}
+
+function shiftMid(direction: -1 | 1) {
+  anchorTouched.value = true
+  if (jumpMode.value !== 'mid') {
+    const start = windowRange.value.start
+    jumpMode.value = 'mid'
+    // Enter mid from the visible window so the month divider stays on the 1st.
+    const sixteenth = new Date(start.getFullYear(), start.getMonth(), 16)
+    if (direction < 0) {
+      anchor.value = new Date(sixteenth.getFullYear(), sixteenth.getMonth() - 1, 16)
+    } else {
+      anchor.value = sixteenth
+    }
+    return
+  }
+  anchor.value = shiftMidMonthAnchor(anchor.value, direction)
+}
+
 function shift(direction: -1 | 1) {
+  if (scale.value === 'month' && jumpMode.value === 'mid') {
+    shiftMid(direction)
+    return
+  }
+  if (scale.value === 'month') {
+    shiftMonth(direction)
+    return
+  }
+  anchorTouched.value = true
   anchor.value = shiftCalendarAnchor(scale.value, anchor.value, direction)
 }
 
 function goToDay(startMs: number) {
-  if (scale.value === 'day') return
+  anchorTouched.value = true
   anchor.value = new Date(startMs)
-  scale.value = 'day'
+  if (scale.value !== 'day') scale.value = 'day'
 }
 
-function toggle(id: string) {
-  expandedId.value = expandedId.value === id ? null : id
+function goToYmd(ymd: string) {
+  const date = parseLocalDate(`${ymd}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return
+  anchorTouched.value = true
+  anchor.value = date
+  if (scale.value !== 'day') scale.value = 'day'
+}
+
+function onSelectDay(ymd: string, startMs: number) {
+  if (scale.value === 'day') {
+    goToYmd(ymd)
+    return
+  }
+  goToDay(startMs)
+}
+
+function openEinsatz(
+  booking: GaPreviewEinsatz,
+  resource: { id: string; stayMode: GaEinsatzStayMode },
+) {
+  selectedBooking.value = booking
+  selectedStayMode.value = resource.stayMode
+  focusedId.value = resource.id
+  einsatzDialogOpen.value = true
 }
 
 function isBlockOpen(id: string): boolean {
   if (searchQuery.value.trim()) return true
   return !collapsedBlocks.value.has(id)
+}
+
+function isRingOpen(id: string): boolean {
+  if (searchQuery.value.trim()) return true
+  return !collapsedRings.value.has(id)
+}
+
+function isCategoryOpen(ring: GaEinsatzRingBlock, block: GaEinsatzCategoryBlock): boolean {
+  return ring.skipCategory || isBlockOpen(block.id)
+}
+
+function ringHasFocused(ring: GaEinsatzRingBlock): boolean {
+  return ring.blocks.some((block) =>
+    block.resources.some((resource) => resource.id === focusedId.value),
+  )
+}
+
+function toggleRing(ring: GaEinsatzRingBlock) {
+  const next = new Set(collapsedRings.value)
+  if (next.has(ring.id)) {
+    next.delete(ring.id)
+  } else {
+    next.add(ring.id)
+    if (ringHasFocused(ring)) focusedId.value = null
+  }
+  collapsedRings.value = next
 }
 
 function toggleBlock(block: GaEinsatzCategoryBlock) {
@@ -369,8 +764,8 @@ function toggleBlock(block: GaEinsatzCategoryBlock) {
     next.delete(block.id)
   } else {
     next.add(block.id)
-    if (block.resources.some((resource) => resource.id === expandedId.value)) {
-      expandedId.value = null
+    if (block.resources.some((resource) => resource.id === focusedId.value)) {
+      focusedId.value = null
     }
   }
   collapsedBlocks.value = next
@@ -396,7 +791,11 @@ function resourceMatches(
   return parts.filter(Boolean).join(' ').toLowerCase().includes(query)
 }
 
-function kindLabel(resource: { kind: GaEinsatzKind; stock: number; stayMode: GaEinsatzStayMode }): string {
+function kindLabel(resource: { kind: GaEinsatzKind; stock: number; stayMode: GaEinsatzStayMode; categoryId?: string; bookings?: GaPreviewEinsatz[] }): string {
+  if (resource.categoryId === 'fixed') {
+    const booking = resource.bookings?.[0]
+    return booking ? `${booking.fromLabel} – ${booking.toLabel}` : ''
+  }
   const stay = stayLabel(resource.stayMode)
   if (resource.kind === 'quantity') {
     return `${t('grossanlass.materialUebersicht.kindQuantity')} · ${t('grossanlass.materialUebersicht.stockQty', { n: resource.stock })} · ${stay}`
@@ -442,12 +841,11 @@ function visibleBookings(bookings: GaPreviewEinsatz[]): GaPreviewEinsatz[] {
   )
 }
 
-function cellStyle(column: { startMs: number; endMs: number }): { left: string; width: string } {
-  const startMs = windowRange.value.start.getTime()
-  const span = windowRange.value.end.getTime() - startMs
+function cellStyle(colIndex: number): { left: string; width: string } {
+  const count = columns.value.length || 1
   return {
-    left: `${((column.startMs - startMs) / span) * 100}%`,
-    width: `${((column.endMs - column.startMs) / span) * 100}%`,
+    left: `${(colIndex / count) * 100}%`,
+    width: `${(100 / count)}%`,
   }
 }
 
@@ -474,6 +872,9 @@ function barClass(booking: GaPreviewEinsatz): Record<string, boolean> {
     'ga-gantt__bar--giveback': kind === 'giveback',
     'ga-gantt__bar--service': kind === 'service',
     'ga-gantt__bar--unreleased': kind === 'unreleased',
+    'ga-gantt__bar--fixed': kind === 'fixed',
+    'ga-gantt__bar--occupancy': kind === 'handover' || kind === 'giveback' || kind === 'service',
+    'ga-gantt__bar--active': selectedBooking?.id === booking.id && einsatzDialogOpen.value,
   }
 }
 
@@ -488,6 +889,9 @@ function barTime(booking: GaPreviewEinsatz): string {
 
 function barLabel(booking: GaPreviewEinsatz): string {
   const role = einsatzBarKind(booking)
+  if (role === 'fixed') {
+    return `${booking.objectName} ${barTime(booking)}`
+  }
   if (role === 'handover' || role === 'giveback' || role === 'service') {
     return `${statusLabel(booking)} ${barTime(booking)}`
   }
@@ -495,7 +899,12 @@ function barLabel(booking: GaPreviewEinsatz): string {
 }
 
 function barTitle(booking: GaPreviewEinsatz): string {
-  return `${booking.objectName} · ${booking.who} · ${booking.ressort} · ${booking.fromLabel} – ${booking.toLabel}`
+  const role = einsatzBarKind(booking)
+  const base = `${booking.objectName} · ${booking.who} · ${booking.ressort} · ${booking.fromLabel} – ${booking.toLabel}`
+  if (role === 'handover' || role === 'giveback') {
+    return `${base} · ${t('grossanlass.materialUebersicht.occupancyFixedHint')}`
+  }
+  return base
 }
 </script>
 
@@ -517,6 +926,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
+  margin-bottom: 10px;
 }
 
 .ga-gantt__search {
@@ -546,6 +956,10 @@ function barTitle(booking: GaPreviewEinsatz): string {
   height: 10px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.ga-gantt__legend-swatch--fixed {
+  background: #334155;
 }
 
 .ga-gantt__legend-swatch--planned {
@@ -615,105 +1029,149 @@ function barTitle(booking: GaPreviewEinsatz): string {
   color: var(--color-text, #111827);
 }
 
-.ga-gantt__pin {
+.ga-gantt__stick {
   position: sticky;
   top: 0;
-  z-index: 8;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #f5f5f5;
-  padding: 4px 0 0;
+  z-index: 12;
+  background: #fff;
+  padding-bottom: 4px;
   box-shadow: 0 8px 12px -8px rgb(17 24 39 / 18%);
 }
 
-.ga-gantt__pin:not(:has(.ga-gantt__head)) {
-  padding-bottom: 12px;
+.ga-gantt__pin {
+  background: #fff;
 }
 
-.ga-gantt__head,
-.ga-gantt__body {
+.ga-gantt__axis {
   display: grid;
+  align-items: stretch;
   min-width: 720px;
-}
-
-.ga-gantt__head {
-  z-index: 5;
-  background: var(--ga-table-head);
   border: 1px solid var(--ga-table-border);
   border-bottom: 2px solid var(--ga-col-stroke);
   border-radius: 10px 10px 0 0;
+  background: var(--ga-table-head);
+}
+
+.ga-gantt__axis-label {
+  min-height: 28px;
+}
+
+.ga-gantt__axis-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 0;
+  border-left: 1px solid var(--ga-table-border);
+  background: var(--ga-table-head);
+  color: var(--color-text, #111827);
+  cursor: pointer;
+}
+
+.ga-gantt__axis-nav--pair {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  cursor: default;
+}
+
+.ga-gantt__axis-nav-btn {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text, #111827);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+.ga-gantt__axis-nav-btn:hover,
+.ga-gantt__axis-nav:hover {
+  background: var(--ga-table-hover);
+}
+
+.ga-gantt__axis-nav-btn--on {
+  color: var(--color-primary-dark, #166534);
+}
+
+.ga-gantt__axis-nav--spacer {
+  pointer-events: none;
+  cursor: default;
+}
+
+.ga-gantt__fixed {
+  display: grid;
+  align-items: stretch;
+  min-width: 720px;
+  border: 1px solid var(--ga-table-border);
+  border-top: 0;
+  background: #eef2f7;
+}
+
+.ga-gantt__fixed-name {
+  display: flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text, #111827);
+}
+
+.ga-gantt__fixed-track {
+  position: relative;
+  min-height: 28px;
+}
+
+.ga-gantt__axis :deep(.ga-cal-axis) {
+  min-width: 0;
 }
 
 .ga-gantt__body {
+  display: grid;
+  min-width: 720px;
   border: 1px solid var(--ga-table-border);
   border-top: 0;
   border-radius: 0 0 10px 10px;
   background: var(--ga-table-row);
 }
 
-.ga-gantt__corner,
-.ga-gantt__col-head {
-  background: var(--ga-table-head);
-  border-bottom: 2px solid var(--ga-col-stroke);
-  padding: 4px 2px;
-  font-size: 0.68rem;
-  color: var(--color-text-muted, #6b7280);
-}
-
-.ga-gantt__corner {
-  position: sticky;
-  left: 0;
-  z-index: 6;
-  font-weight: 600;
-  color: var(--color-text, #111827);
-}
-
-.ga-gantt__col-head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  min-width: 0;
-  overflow: hidden;
-  border-left: 3px solid var(--ga-col-stroke);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.68rem;
-  line-height: 1.15;
-  font-variant-numeric: tabular-nums;
-}
-
-.ga-gantt__col-head--hour {
-  font-size: 0.55rem;
-  font-weight: 600;
-  padding: 3px 0;
-  letter-spacing: 0;
-}
-
-.ga-gantt__col-head:disabled {
-  cursor: default;
-}
-
-.ga-gantt__col-head--weekend {
-  background: var(--ga-table-hover);
-}
-
-.ga-gantt__col-sub {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .ga-gantt__ring {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  border-top: 2px solid var(--ga-col-stroke);
   padding: 8px 10px 6px;
+  font: inherit;
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  text-align: left;
   color: var(--color-text, #111827);
   background: #eef2f7;
-  border-top: 2px solid var(--ga-col-stroke);
+  cursor: pointer;
+}
+
+.ga-gantt__ring:hover,
+.ga-gantt__ring--closed {
+  background: #e4eaf2;
 }
 
 .ga-gantt__cat {
@@ -732,7 +1190,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   text-align: left;
-  padding: 5px 8px;
+  padding: 5px 8px 5px 22px;
   cursor: pointer;
 }
 
@@ -745,6 +1203,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
   display: flex;
   align-items: center;
   gap: 4px;
+  grid-column: 1;
   position: sticky;
   left: 0;
   z-index: 3;
@@ -753,8 +1212,11 @@ function barTitle(booking: GaPreviewEinsatz): string {
   background: var(--ga-table-row);
   color: #374151;
   text-align: left;
-  padding: 6px 8px;
-  cursor: pointer;
+  padding: 6px 8px 6px 22px;
+}
+
+.ga-gantt__name--nested {
+  padding-left: 40px;
 }
 
 .ga-gantt__name--open {
@@ -780,22 +1242,32 @@ function barTitle(booking: GaPreviewEinsatz): string {
 .ga-gantt__track {
   position: relative;
   border-bottom: 1px solid var(--ga-table-line);
-  cursor: pointer;
 }
 
 .ga-gantt__track--open {
   background-color: var(--ga-table-hover);
 }
 
+.ga-gantt__row-end {
+  grid-column: 1 / -1;
+  height: 0;
+  overflow: hidden;
+}
+
 .ga-gantt__cell {
   position: absolute;
   inset: 0 auto 0 0;
-  border-left: 3px solid var(--ga-col-stroke);
+  border-left: 1px solid var(--ga-table-border);
   pointer-events: none;
 }
 
 .ga-gantt__cell--weekend {
   background: color-mix(in srgb, var(--ga-table-hover) 70%, transparent);
+}
+
+.ga-gantt__cell--month-start {
+  border-left-color: var(--ga-col-stroke);
+  border-left-width: 2px;
 }
 
 .ga-gantt__shade {
@@ -856,6 +1328,10 @@ function barTitle(booking: GaPreviewEinsatz): string {
   outline-offset: 1px;
 }
 
+.ga-gantt__bar--occupancy {
+  cursor: default;
+}
+
 .ga-gantt__bar-label {
   display: none;
   overflow: hidden;
@@ -882,6 +1358,15 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__bar--planned {
   background: var(--color-primary);
+}
+
+.ga-gantt__bar--fixed {
+  background: #334155;
+}
+
+.ga-gantt__bar--active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--emc-logo-fg, #fff) 85%, transparent);
+  filter: brightness(1.08);
 }
 
 .ga-gantt__bar--pending {
@@ -926,44 +1411,6 @@ function barTitle(booking: GaPreviewEinsatz): string {
 .ga-einsatz-status--stay {
   background: var(--activity-status-at_event-bg);
   color: var(--activity-status-at_event-fg);
-}
-
-.ga-gantt__detail {
-  border-bottom: 1px solid var(--ga-table-border);
-  background: var(--ga-table-head);
-  padding: 8px 12px 12px;
-}
-
-.ga-gantt__empty {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--color-text-muted, #6b7280);
-}
-
-.ga-gantt__bookings {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.ga-gantt__bookings li {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  padding: 8px 0;
-  font-size: 0.82rem;
-  border-top: 1px solid var(--ga-table-line);
-}
-
-.ga-gantt__bookings li:first-child {
-  border-top: 0;
-}
-
-.ga-gantt__booking--conflict {
-  background: var(--color-error-bg);
-  margin: 0 -8px;
-  padding-inline: 8px;
-  border-radius: 6px;
 }
 
 .ga-einsatz-status {

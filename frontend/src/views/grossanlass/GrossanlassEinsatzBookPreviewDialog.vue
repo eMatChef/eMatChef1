@@ -149,7 +149,7 @@
             <span v-else class="book-project-skip" />
             <div class="book-project-copy">
               <strong>{{ wish.qty }}× {{ wish.label }}</strong>
-              <span>{{ wish.fromLabel }} – {{ wish.toLabel }}</span>
+              <span>{{ t('grossanlass.materialUebersicht.bookProjectWishWindow', { from: wish.fromLabel, to: wish.toLabel }) }}</span>
               <span v-if="wishWarn(wish)" class="book-project-warn">{{ wishWarn(wish) }}</span>
             </div>
             <EButton
@@ -166,6 +166,20 @@
             </span>
           </li>
         </ul>
+        <div v-if="projectId && selectedWishIds.length" class="book-project-period">
+          <EDateRangeField
+            v-model:start="fromDate"
+            v-model:end="toDate"
+            :department-id="departmentId"
+            :label="t('grossanlass.materialUebersicht.bookFieldPeriod')"
+            allow-past
+          />
+          <div class="book-times">
+            <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
+            <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
+          </div>
+          <p class="book-project-period__hint">{{ t('grossanlass.materialUebersicht.bookProjectPeriodHint') }}</p>
+        </div>
         <div v-if="projectId && selectedWishIds.length" class="book-delivery">
           <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
           <div class="book-delivery__row">
@@ -222,6 +236,13 @@
           variant="tonal"
           class="mt-3"
           :text="t('grossanlass.materialUebersicht.chauffeurNoLicense')"
+        />
+        <v-alert
+          v-if="scope === 'project' && projectSlotOutside"
+          type="warning"
+          variant="tonal"
+          class="mt-3"
+          :text="t('grossanlass.materialUebersicht.bookOutsideWindow')"
         />
       </template>
     </template>
@@ -459,6 +480,7 @@ import { normalizeDepartmentTimeHHMM } from '@/utils/activityPlanningFromDefault
 import {
   BOOK_PROJECT_UNASSIGNED,
   buildBookProjectPickerItems,
+  isEinsatzBookableWish,
 } from '@/utils/grossanlassBookProjectPicker'
 
 export type GaBookPreviewMode = 'einsatz' | 'order'
@@ -507,6 +529,7 @@ const props = defineProps<{
   presetObjectId?: string
   presetWishId?: string | null
   groups?: GaBookGroup[]
+  defaultScope?: BookScope
 }>()
 
 const emit = defineEmits<{
@@ -519,6 +542,9 @@ const emit = defineEmits<{
 const draft = defineModel<GaBookPreviewDraft | null>('draft', { default: null })
 const source = ref<BookSource>('own')
 const scope = ref<BookScope>('single')
+function initialScope(): BookScope {
+  return props.defaultScope === 'project' ? 'project' : 'single'
+}
 const pickMenuOpen = ref(false)
 const projectMenuOpen = ref(false)
 const chauffeurMenuOpen = ref(false)
@@ -592,9 +618,10 @@ const freeItems = computed(() =>
 )
 
 const scopedWishes = computed(() => {
+  const bookable = props.wishes.filter((wish) => isEinsatzBookableWish(wish))
   const objectId = props.presetObjectId
-  if (!objectId) return props.wishes
-  return props.wishes.filter((wish) => wish.objectId === objectId || wish.id === props.presetWishId)
+  if (!objectId) return bookable
+  return bookable.filter((wish) => wish.objectId === objectId || wish.id === props.presetWishId)
 })
 
 const scopedPicks = computed(() => {
@@ -787,8 +814,19 @@ const projectConfirmLabel = computed(() =>
   t('grossanlass.materialUebersicht.bookProjectConfirm', selectedWishIds.value.length),
 )
 
+const projectSlotOutside = computed(() => {
+  if (!draftFromIso.value || !draftToIso.value) return false
+  return selectedWishIds.value.some((id) => {
+    const wish = projectWishes.value.find((row) => row.id === id)
+    if (!wish?.objectId) return false
+    const resource = (props.resources ?? []).find((row) => row.id === wish.objectId)
+    return isOutsidePresentWindow(resource, draftFromIso.value, draftToIso.value)
+  })
+})
+
 const canConfirmProject = computed(() => {
   if (selectedWishIds.value.length === 0) return false
+  if (!fromDate.value || !toDate.value || !fromTime.value || !toTime.value) return false
   if (
     needsDriver.value
     && (!chauffeurId.value || chauffeurBlocked.value || !destinationPlaceId.value)
@@ -796,11 +834,13 @@ const canConfirmProject = computed(() => {
   return true
 })
 
+const projectPeriodWishId = computed(() => selectedWishIds.value[0] ?? '')
+
 watch(open, async (isOpen) => {
   if (!isOpen) {
     draft.value = null
     source.value = 'own'
-    scope.value = 'single'
+    scope.value = initialScope()
     pickMenuOpen.value = false
     projectMenuOpen.value = false
     chauffeurMenuOpen.value = false
@@ -833,7 +873,10 @@ watch(open, async (isOpen) => {
     pickedId.value = scopedPicks.value[0].id
     await nextTick()
     goDetails()
+    return
   }
+  scope.value = initialScope()
+  step.value = 'pick'
 })
 
 watch(pickedId, (id) => {
@@ -852,6 +895,12 @@ watch(projectId, (id) => {
     return
   }
   selectedWishIds.value = projectWishes.value.filter((wish) => canBookWish(wish)).map((wish) => wish.id)
+})
+
+watch(projectPeriodWishId, (id) => {
+  if (scope.value !== 'project') return
+  const wish = projectWishes.value.find((row) => row.id === id)
+  if (wish) applyWishPeriod(wish)
 })
 
 function setScope(next: BookScope) {
@@ -884,6 +933,33 @@ function splitIso(iso: string): { date: string; time: string } {
   }
 }
 
+function applyWishPeriod(wish: GaPreviewWishTemplate) {
+  const from = splitIso(wish.fromIso)
+  const to = splitIso(wish.toIso)
+  fromDate.value = from.date
+  toDate.value = to.date
+  fromTime.value = from.time
+  toTime.value = to.time
+}
+
+function projectEinsatzIso(): { fromIso: string; toIso: string; fromLabel: string; toLabel: string } | null {
+  if (!fromDate.value || !toDate.value || !fromTime.value || !toTime.value) return null
+  return {
+    fromIso: combineIso(fromDate.value, fromTime.value),
+    toIso: combineIso(toDate.value, toTime.value),
+    fromLabel: formatSlot(fromDate.value, fromTime.value),
+    toLabel: formatSlot(toDate.value, toTime.value),
+  }
+}
+
+function wishEinsatzIso(wish: GaPreviewWishTemplate): { fromIso: string; toIso: string } {
+  if (scope.value === 'project' && selectedWishIds.value.includes(wish.id)) {
+    const slot = projectEinsatzIso()
+    if (slot) return slot
+  }
+  return { fromIso: wish.fromIso, toIso: wish.toIso }
+}
+
 function formatSlot(date: string, time: string): string {
   const [year, month, day] = date.split('-')
   if (!year || !month || !day) return `${date} ${time}`
@@ -892,12 +968,7 @@ function formatSlot(date: string, time: string): string {
 
 function goDetails() {
   if (!draft.value) return
-  const from = splitIso(draft.value.fromIso)
-  const to = splitIso(draft.value.toIso)
-  fromDate.value = from.date
-  toDate.value = to.date
-  fromTime.value = from.time
-  toTime.value = to.time
+  applyWishPeriod(draft.value)
   chauffeurId.value = null
   destinationPlaceId.value = null
   delivery.value = 'pickup'
@@ -957,15 +1028,16 @@ function canBookWish(wish: GaPreviewWishTemplate): boolean {
 function wishWarn(wish: GaPreviewWishTemplate): string {
   if (!wish.objectId) return t('grossanlass.materialUebersicht.bookProjectNoStock')
   const resource = (props.resources ?? []).find((row) => row.id === wish.objectId)
+  const { fromIso, toIso } = wishEinsatzIso(wish)
   if (resource?.released === false) return t('grossanlass.materialUebersicht.bookProjectUnreleased')
-  if (isOutsidePresentWindow(resource, wish.fromIso, wish.toIso)) {
+  if (isOutsidePresentWindow(resource, fromIso, toIso)) {
     return t('grossanlass.materialUebersicht.bookProjectOutside')
   }
   const fake: GaBookPreviewDraft = { ...wish, fromWish: true }
-  if (isSlotConflict(props.rows ?? [], fake, wish.fromIso, wish.toIso)) {
+  if (isSlotConflict(props.rows ?? [], fake, fromIso, toIso)) {
     return t('grossanlass.materialUebersicht.bookProjectConflict')
   }
-  if (isIssuedSlotLocked(props.rows ?? [], wish.objectId, wish.fromIso, wish.toIso)) {
+  if (isIssuedSlotLocked(props.rows ?? [], wish.objectId, fromIso, toIso)) {
     return t('grossanlass.materialUebersicht.bookIssuedLock')
   }
   return ''
@@ -983,8 +1055,10 @@ function draftFromWish(wish: GaPreviewWishTemplate, asOrder = false): GaBookPrev
   const hasConflict = asOrder
     ? false
     : Boolean(wishWarn(wish)) && canBookWish(wish)
+  const slot = asOrder ? null : projectEinsatzIso()
   return {
     ...wish,
+    ...(slot ?? {}),
     fromWish: true,
     chauffeurUserId: chauffeurId.value || undefined,
     destinationPlaceId: destinationPlaceId.value || undefined,
@@ -1142,6 +1216,14 @@ function confirm() {
 }
 .book-delivery__hint {
   margin: 6px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+.book-project-period {
+  margin: 12px 0 4px;
+}
+.book-project-period__hint {
+  margin: 0 0 12px;
   font-size: 12px;
   color: #64748b;
 }
