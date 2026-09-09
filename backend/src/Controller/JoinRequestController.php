@@ -20,6 +20,7 @@ use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\InboxMessageService;
 use App\Service\JoinRequestManagerNotificationService;
+use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\VerificationEmailService;
@@ -36,10 +37,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/join-requests', name: 'api_join_requests_')]
 class JoinRequestController extends AbstractController
 {
-    private const MANAGER_ROLES = ['mw', 'dc'];
+    private const MANAGER_ROLES = ['mw', 'dc', 'cmw'];
     private const GLOBAL_ADMIN_ROLES = ['ROLE_SUPERADMIN', 'ROLE_ORGANISATIONSCHEF', 'ROLE_SUBORGCHEF'];
     private const INVITE_CODE_SETTING_KEY = 'join.invite_code';
-    private const VALID_MEMBER_ROLES = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
+    private const VALID_MEMBER_ROLES = MembershipRoleCatalog::ALL;
     private const PENDING_INVITES_SETTING_KEY = 'join.pending_invites';
 
     public function __construct(
@@ -107,7 +108,7 @@ class JoinRequestController extends AbstractController
             $requestedRole = 'u';
         }
         if (!in_array($requestedRole, self::VALID_MEMBER_ROLES, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, dc, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
         }
         if ($joinCode === '' && $departmentId === '') {
             return new JsonResponse(['error' => 'Join-Code oder department_id ist erforderlich'], 400);
@@ -131,6 +132,9 @@ class JoinRequestController extends AbstractController
         }
         if (!$department) {
             return new JsonResponse(['error' => 'Kein Department fuer diesen Join-Code gefunden'], 404);
+        }
+        if (!MembershipRoleCatalog::isAllowed($department, $requestedRole)) {
+            return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
         $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
@@ -168,7 +172,7 @@ class JoinRequestController extends AbstractController
                 $this->finalizeInviteAccepted($department, $pendingInvite, $currentUser);
                 $autoJoined = true;
                 $inviteRole = strtolower(trim((string) ($pendingInvite['role'] ?? 'u')));
-                $assignedRole = in_array($inviteRole, self::VALID_MEMBER_ROLES, true) ? $inviteRole : 'u';
+                $assignedRole = MembershipRoleCatalog::isAllowed($department, $inviteRole) ? $inviteRole : 'u';
             } else {
                 $this->createMembershipForUser($currentUser, $department, 'u', $currentUser);
                 $autoJoined = true;
@@ -514,12 +518,15 @@ class JoinRequestController extends AbstractController
             $requestedRole = 'u';
         }
         if (!in_array($requestedRole, $validRoles, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, dc, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
         }
 
         $targetDepartment = $this->entityManager->getRepository(Department::class)->find($targetDepartmentId);
         if (!$targetDepartment) {
             return new JsonResponse(['error' => 'Ziel-Department nicht gefunden'], 404);
+        }
+        if (!MembershipRoleCatalog::isAllowed($targetDepartment, $requestedRole)) {
+            return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
         if ($isGlobalAdmin && !$this->adminCapabilityChecker->canAccessDepartment($currentUser, $targetDepartmentId)) {
@@ -991,12 +998,15 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Ungueltige E-Mail-Adresse'], 400);
         }
         if (!in_array($requestedRole, self::VALID_MEMBER_ROLES, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, dc, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
         }
 
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
         if (!$department) {
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+        if (!MembershipRoleCatalog::isAllowed($department, $requestedRole)) {
+            return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
         $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
@@ -1892,7 +1902,7 @@ class JoinRequestController extends AbstractController
         }
 
         $role = strtolower(trim((string) ($invite['role'] ?? 'u')));
-        if (!in_array($role, self::VALID_MEMBER_ROLES, true)) {
+        if (!MembershipRoleCatalog::isAllowed($department, $role)) {
             $role = 'u';
         }
 

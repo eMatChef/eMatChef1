@@ -10,7 +10,7 @@ use Dompdf\Dompdf;
 use Dompdf\Options;
 
 /**
- * PDF-Anhang für die Folge-Mail: Bedarfspositionen nach Bereich, ohne Stückzahl im Fliesstext.
+ * PDF-Anhang für Anfrage / Nachfassen / Präzisieren: Bedarfspositionen nach Bereich, ohne Stückzahl.
  */
 final class GrossanlassInquiryMaterialPdf
 {
@@ -19,11 +19,19 @@ final class GrossanlassInquiryMaterialPdf
     }
 
     /**
+     * @param list<string>|null $itemLabels null = alle Bedarfspositionen der Firma
      * @return array{filename: string, mime: string, content: string}|null
      */
-    public function attachmentFor(Department $department, DepartmentGrossanlassInquiry $inquiry): ?array
+    public function attachmentFor(
+        Department $department,
+        DepartmentGrossanlassInquiry $inquiry,
+        ?array $itemLabels = null,
+    ): ?array
     {
-        $groups = $this->merge->materialItemsGrouped($department, $inquiry);
+        $groups = GrossanlassMailMergeService::filterGroupedItemsByLabels(
+            $this->merge->materialItemsGrouped($department, $inquiry),
+            $itemLabels,
+        );
         if ($groups === []) {
             return null;
         }
@@ -51,10 +59,7 @@ final class GrossanlassInquiryMaterialPdf
 
     public function filenameFor(DepartmentGrossanlassInquiry $inquiry): string
     {
-        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '-', $inquiry->getName()) ?? 'Firma';
-        $slug = trim($slug, '-') ?: 'Firma';
-
-        return 'Materialliste-' . mb_substr($slug, 0, 40) . '.pdf';
+        return GrossanlassMailMergeService::materialListFilename($inquiry->getName());
     }
 
     /**

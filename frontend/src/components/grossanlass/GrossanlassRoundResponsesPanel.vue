@@ -159,6 +159,7 @@ import {
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
 import type { GrossanlassRoundForm, GrossanlassRoundFormField } from '@/api/grossanlassRoundForm'
 import type { GrossanlassRoundStatus } from '@/api/grossanlassRounds'
+import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
 import {
   buildGrossanlassWishTableColumns,
   formatGrossanlassWishCellValue,
@@ -203,6 +204,7 @@ const editOpen = ref(false)
 const editingItem = ref<GrossanlassWishLine | null>(null)
 const isSavingEdit = ref(false)
 const editFormRef = ref<InstanceType<typeof GrossanlassWishDynamicForm> | null>(null)
+const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 
 const searchQuery = ref('')
 const statusFilter = ref<string | null>(null)
@@ -244,7 +246,10 @@ function canModifyItem(item: GrossanlassWishLine): boolean {
 }
 
 function cellValue(item: GrossanlassWishLine, field: GrossanlassRoundFormField): string {
-  return formatGrossanlassWishCellValue(item, field, { wishKind: wishKindLabel })
+  return formatGrossanlassWishCellValue(item, field, {
+    wishKind: wishKindLabel,
+    calendarPeriods: calendarPeriods.value,
+  })
 }
 
 function wishKindLabel(kind: GrossanlassWishKind): string {
@@ -267,18 +272,22 @@ async function load() {
   if (!props.departmentId || !props.roundId) return
   isLoading.value = true
   try {
-    const result = await getGrossanlassRoundWishes(props.departmentId, props.roundId, {
-      page: page.value,
-      limit: limit.value,
-      status: statusFilter.value || undefined,
-      group_id: groupFilter.value || undefined,
-      q: searchQuery.value.trim() || undefined,
-    })
+    const [result, periods] = await Promise.all([
+      getGrossanlassRoundWishes(props.departmentId, props.roundId, {
+        page: page.value,
+        limit: limit.value,
+        status: statusFilter.value || undefined,
+        group_id: groupFilter.value || undefined,
+        q: searchQuery.value.trim() || undefined,
+      }),
+      listDepartmentCalendarPeriods(props.departmentId).catch(() => [] as DepartmentCalendarPeriod[]),
+    ])
     const data = result as GrossanlassWishListResult
     items.value = data.items
     total.value = data.total
     counts.value = data.counts
     page.value = data.page
+    calendarPeriods.value = periods
   } catch {
     items.value = []
     total.value = 0

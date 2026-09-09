@@ -58,6 +58,7 @@ import { ActivityDateTimeFields } from '@/components/activities/wizard'
 | `show-markers` | `true` | Punkte/Tooltip (Feiertage, fcal, Fixe Daten) |
 | `show-time` | `true` | `ActivityTimeField` Von/Bis |
 | `department-id` | `null` | Marker + Fixe Daten laden |
+| `allow-past` | `false` | Vergangene Tage wählbar (Grossanlass-Leihfenster) |
 | `disabled` / `times-locked` | `false` | Datum / Uhr sperren |
 | `blocked-usage-range` | `null` | Material-Uhr: Nutzungszeit blockieren |
 | `layout` | `'auto'` | `'auto'` \| `'pill'` \| `'stacked'` |

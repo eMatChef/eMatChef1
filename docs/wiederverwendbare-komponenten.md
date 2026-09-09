@@ -107,7 +107,28 @@ import type { MediaPhoto } from '@/api/media'
 | -------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | **UserAvatarBadge**        | `frontend/src/components/user/UserAvatarBadge.vue`          | Farbiger Avatar mit Initialen, Hover-Tooltip (Name, Spitzname), optional ★ für Gruppenchef |
 | **PublicUserIdentityChip** | `frontend/src/components/public/PublicUserIdentityChip.vue` | Avatar + Anzeigename (öffentliche Seiten)                                                  |
+| **DepartmentMemberRow**    | `frontend/src/components/members/DepartmentMemberRow.vue`   | Mitglieder-Zeile: Avatar, Name, Unterzeile, Details + Entfernen                            |
+| **DepartmentMemberActions**| `frontend/src/components/members/DepartmentMemberActions.vue` | Details-Button + Person-minus (raus aus dem Department)                                  |
+| **DepartmentMemberDetailDialog** | `frontend/src/components/members/DepartmentMemberDetailDialog.vue` | Profil, Mitgliedschaft, Adresse — ein Dialog für Benutzer-Tabelle und Ressorts     |
 
+
+**Mitglieder-Verwaltung — Import**
+
+```vue
+import {
+  DepartmentMemberRow,
+  DepartmentMemberActions,
+  DepartmentMemberDetailDialog,
+} from '@/components/members'
+import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
+
+const { canManageMember, removeFromDepartment } = useDepartmentMemberAdmin(departmentId)
+```
+
+`DepartmentMemberActions` nur wo die Liste schon Name/Avatar hat (Benutzer-Tabelle). `DepartmentMemberRow` für kompakte Listen (Ressorts-Panel). Entfernen = Confirm, dann raus aus dem **Department**, nicht aus einer Gruppe. Detail-Dialog: `hide-js-coach` im Grossanlass.
+
+**Styles:** `frontend/src/styles/components/department-member-detail.css`  
+**Rollen-Logik:** `frontend/src/utils/departmentMemberRoles.ts`
 
 **UserAvatarBadge — Import & Props**
 
@@ -649,6 +670,7 @@ SVG-Icons als Vue-Komponenten (`IconDashboard`, `IconMaterials`, `IconActivities
 | Composable                           | Zweck                                                                         |
 | ------------------------------------ | ----------------------------------------------------------------------------- |
 | `useDepartmentMemberRole`            | Rolle im Department: `isUserRole`, `canManageMaterials`, `canManageQrContact` |
+| `useDepartmentMemberAdmin`           | Mitglieder verwalten: `canManageMember`, Rollen-Select, `removeFromDepartment` (Confirm) — `components/members/` |
 | `useConfirm`                         | Bestätigungsdialog                                                            |
 | `usePrompt`                          | Text-Eingabe-Dialog                                                           |
 | `useToast`                           | Erfolg/Fehler-Meldungen                                                       |
@@ -696,6 +718,7 @@ Ausführlich: `[docs/Archiv/HANDOUT_CSS_ZENTRALISIERUNG.md](Archiv/HANDOUT_CSS_Z
 | History         | `styles/ui/history.css`                   | Änderungs-Historie                          |
 | Storage         | `styles/ui/storage.css`                   | Lager/Regale                                |
 | **User-Avatar** | `styles/components/user-avatar-badge.css` | Avatar-Badge + Liste                        |
+| **Mitglieder-Detail** | `styles/components/department-member-detail.css` | Profil-/Mitgliedschafts-Dialog (`DepartmentMemberDetailDialog`) |
 | **Adress-Typ**  | `styles/components/address-type-badge.css` | `.address-type-badge.{type}` + Avatar-Farben (Kontakte, Autocomplete) |
 | **Auto-Save-Feld** | `styles/components/auto-save-field.css` | AutoSaveField: Loader, Diskette, Fokus/Fehler — Marken-Tokens |
 | **Sender (Inbox)** | `styles/components/notification-sender-block.css` | System-/Aufgaben-Icons, Actor-Overlay |

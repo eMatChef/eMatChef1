@@ -27,6 +27,9 @@ export const GROSSANLASS_MAIL_OPTIONAL_KINDS: GrossanlassMailTemplateKind[] = [
   'nachfassen',
 ]
 
+export const GROSSANLASS_MAIL_ZEITRAUM_DEFAULT =
+  'Der benötigte Zeitraum richtet sich nach dem jeweiligen Material und kann individuell abgestimmt werden.'
+
 export const GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS = [
   'ANREDE',
   'FIRMA',
@@ -59,6 +62,12 @@ export type GrossanlassMailPreview = {
   to: string
   placeholders: Record<string, string>
   attachment_filename?: string | null
+  attachments?: string[]
+  positions?: {
+    allowed: string[]
+    other: string[]
+    groups?: { category: string; items: string[] }[]
+  }
 }
 
 export async function getGrossanlassGmailStatus(departmentId: string): Promise<GrossanlassGmailStatus> {
@@ -104,10 +113,21 @@ export const GROSSANLASS_GMAIL_ROUTING_DEFAULTS: GrossanlassGmailRouting = {
   reference_prefix: '',
 }
 
+export type GrossanlassMailEventAttachment = {
+  id: string
+  filename: string
+  original_filename: string
+  mime: string
+  bytes: number
+  url: string
+}
+
 export type GrossanlassMailTemplatePack = {
   templates: GrossanlassMailTemplate[]
   custom_placeholders: GrossanlassMailCustomPlaceholder[]
   gmail_routing: GrossanlassGmailRouting
+  zeitraum_text: string
+  attachments: GrossanlassMailEventAttachment[]
 }
 
 function unwrapRouting(raw: unknown): GrossanlassGmailRouting {
@@ -132,13 +152,34 @@ function unwrapTemplatePack(data: GrossanlassMailTemplate[] | GrossanlassMailTem
       templates: data,
       custom_placeholders: [],
       gmail_routing: { ...GROSSANLASS_GMAIL_ROUTING_DEFAULTS },
+      zeitraum_text: '',
+      attachments: [],
     }
   }
   return {
     templates: Array.isArray(data.templates) ? data.templates : [],
     custom_placeholders: Array.isArray(data.custom_placeholders) ? data.custom_placeholders : [],
     gmail_routing: unwrapRouting(data.gmail_routing),
+    zeitraum_text: typeof data.zeitraum_text === 'string' ? data.zeitraum_text : '',
+    attachments: unwrapMailAttachments(data.attachments),
   }
+}
+
+function unwrapMailAttachments(raw: unknown): GrossanlassMailEventAttachment[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      const row = item && typeof item === 'object' ? (item as Record<string, unknown>) : {}
+      return {
+        id: String(row.id ?? ''),
+        filename: String(row.filename ?? ''),
+        original_filename: String(row.original_filename ?? row.filename ?? ''),
+        mime: String(row.mime ?? 'application/pdf'),
+        bytes: Number(row.bytes) || 0,
+        url: String(row.url ?? ''),
+      }
+    })
+    .filter((row) => row.id !== '')
 }
 
 export async function getGrossanlassMailTemplates(departmentId: string): Promise<GrossanlassMailTemplatePack> {
@@ -153,12 +194,53 @@ export async function saveGrossanlassMailTemplates(
   templates: GrossanlassMailTemplate[],
   customPlaceholders: GrossanlassMailCustomPlaceholder[] = [],
   gmailRouting: GrossanlassGmailRouting = GROSSANLASS_GMAIL_ROUTING_DEFAULTS,
+  zeitraumText = '',
 ): Promise<GrossanlassMailTemplatePack> {
   const response = await apiClient.put<GrossanlassMailTemplate[] | GrossanlassMailTemplatePack>(
     `/api/departments/${departmentId}/grossanlass/gmail/templates`,
-    { templates, custom_placeholders: customPlaceholders, gmail_routing: gmailRouting },
+    {
+      templates,
+      custom_placeholders: customPlaceholders,
+      gmail_routing: gmailRouting,
+      zeitraum_text: zeitraumText,
+    },
   )
   return unwrapTemplatePack(response.data)
+}
+
+export async function saveGrossanlassMailZeitraum(
+  departmentId: string,
+  zeitraumText: string,
+): Promise<string> {
+  const response = await apiClient.put<{ zeitraum_text?: string }>(
+    `/api/departments/${departmentId}/grossanlass/gmail/zeitraum`,
+    { zeitraum_text: zeitraumText },
+  )
+  return typeof response.data.zeitraum_text === 'string' ? response.data.zeitraum_text : zeitraumText
+}
+
+export async function uploadGrossanlassMailAttachment(
+  departmentId: string,
+  file: File,
+): Promise<GrossanlassMailEventAttachment[]> {
+  const formData = new FormData()
+  formData.append('pdf', file)
+  const response = await apiClient.post<{ attachments?: unknown }>(
+    `/api/departments/${departmentId}/grossanlass/gmail/attachments`,
+    formData,
+    { timeout: 120000 },
+  )
+  return unwrapMailAttachments(response.data.attachments)
+}
+
+export async function deleteGrossanlassMailAttachment(
+  departmentId: string,
+  fileId: string,
+): Promise<GrossanlassMailEventAttachment[]> {
+  const response = await apiClient.delete<{ attachments?: unknown }>(
+    `/api/departments/${departmentId}/grossanlass/gmail/attachments/${fileId}`,
+  )
+  return unwrapMailAttachments(response.data.attachments)
 }
 
 export async function previewGrossanlassMail(
