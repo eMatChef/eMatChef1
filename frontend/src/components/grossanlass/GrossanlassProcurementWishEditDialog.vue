@@ -188,7 +188,7 @@ watch(formRef, async (form) => {
 async function submit() {
   if (!props.wish || !formRef.value) return
   const payload = formRef.value.buildPayload()
-  const enoughError = validateEnoughOnHand(enough.value, (key, values) => String(t(key, values)))
+  const enoughError = validateEnoughOnHand(enough.value, (key, values) => String(t(key, values ?? {})))
   if (enoughError) {
     errorMessage.value = enoughError
     return
@@ -206,9 +206,13 @@ async function submit() {
   isSubmitting.value = true
   errorMessage.value = ''
   try {
+    const enoughFields = enoughOnHandToPayload(enough.value)
     const overview = await updateGrossanlassBedarfWish(props.departmentId, props.wish.id, {
       ...payload,
-      ...enoughOnHandToPayload(enough.value),
+      enough_on_hand: enoughFields.enough_on_hand,
+      enough_on_hand_source: enoughFields.enough_on_hand_source as 'stock' | 'commitment' | null | undefined,
+      enough_on_hand_detail: enoughFields.enough_on_hand_detail,
+      enough_on_hand_ref_id: enoughFields.enough_on_hand_ref_id,
     })
     open.value = false
     emit('saved', overview)

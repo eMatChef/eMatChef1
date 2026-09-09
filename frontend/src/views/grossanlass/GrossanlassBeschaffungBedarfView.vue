@@ -969,7 +969,7 @@ function stageLabel(stage: string | null | undefined): string {
 }
 
 function enoughBadge(wish: GrossanlassProcurementPoolWish): string {
-  return enoughOnHandBadgeLabel(wish, (key, values) => String(t(key, values)))
+  return enoughOnHandBadgeLabel(wish, (key, values) => String(t(key, values ?? {})))
 }
 
 function formatWishNeed(wish: GrossanlassProcurementPoolWish): string {

@@ -113,7 +113,7 @@ const otherTaken = computed(() =>
 const ordered = computed(() => procurementOrderedQty(props.line))
 const covered = computed(() => procurementCoveredQty(props.line, otherTaken.value, props.hereTaken))
 const open = computed(() => procurementCoverageOpen(props.line, otherTaken.value, props.hereTaken))
-const wishSum = computed(() => procurementWishBreakdown(props.line, (key, values) => t(key, values)))
+const wishSum = computed(() => procurementWishBreakdown(props.line, (key, values) => t(key, values ?? {})))
 
 const oneLiner = computed(() => {
   if (!props.stack) return ''

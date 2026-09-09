@@ -1465,7 +1465,7 @@ async function persistTakeLine(
     articles.value = [...articles.value, created]
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
-    throw new Error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'), { cause: e })
+    throw Object.assign(new Error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError')), { cause: e })
   }
 }
 
@@ -1528,7 +1528,7 @@ function openBulkWindow(group: TakeGroup) {
 }
 
 function windowPayload(includeReleased: boolean, article?: GrossanlassCommitment): Partial<GrossanlassCommitmentPayload> {
-  const payload: GrossanlassCommitmentPayload = {
+  const payload: Partial<GrossanlassCommitmentPayload> = {
     present_from: isoOrNull(presentFromDate.value, presentFromTime.value),
     present_to: isoOrNull(presentToDate.value, presentToTime.value),
     handover_from: isoOrNull(handoverDate.value, handoverFromTime.value),

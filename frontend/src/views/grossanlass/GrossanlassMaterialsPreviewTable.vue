@@ -312,7 +312,7 @@ function originBadge(item: GaPreviewRow): string {
   if (item.lifecycle === 'loan' || item.origin === 'loan') {
     return t('grossanlass.materials.originBadge.loan')
   }
-  return lifecycleLabel(item.lifecycle)
+  return t(`grossanlass.materials.lifecycle.${item.lifecycle}`)
 }
 
 function lifecycleBadgeClass(kind: GaLifecycle): string {

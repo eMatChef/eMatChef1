@@ -194,7 +194,7 @@ async function loadCommitments() {
 }
 
 function enoughBadge(wishId: string): string {
-  return enoughOnHandBadgeFromValue(enoughByWish[wishId] ?? emptyEnoughOnHand(), (key, values) => String(t(key, values)))
+  return enoughOnHandBadgeFromValue(enoughByWish[wishId] ?? emptyEnoughOnHand(), (key, values) => String(t(key, values ?? {})))
 }
 
 function formatIso(iso: string): string {
@@ -256,7 +256,7 @@ async function saveWish(wish: GaPreviewWishTemplate) {
   const iso = editor ? editorToIso(editor) : null
   if (!iso || !props.departmentId) return
   const enough = enoughByWish[wish.id] ?? emptyEnoughOnHand()
-  const enoughError = validateEnoughOnHand(enough, (key, values) => String(t(key, values)))
+  const enoughError = validateEnoughOnHand(enough, (key, values) => String(t(key, values ?? {})))
   if (enoughError) {
     toast.error(enoughError)
     return
@@ -264,11 +264,15 @@ async function saveWish(wish: GaPreviewWishTemplate) {
   savingId.value = wish.id
   try {
     if (wish.roundId) {
+      const enoughFields = enoughOnHandToPayload(enough)
       await updateGrossanlassWish(props.departmentId, wish.roundId, wish.id, {
         valid_from: iso.from,
         valid_to: iso.to,
         last_stage: 'fein',
-        ...enoughOnHandToPayload(enough),
+        enough_on_hand: enoughFields.enough_on_hand,
+        enough_on_hand_source: enoughFields.enough_on_hand_source as 'stock' | 'commitment' | null | undefined,
+        enough_on_hand_detail: enoughFields.enough_on_hand_detail,
+        enough_on_hand_ref_id: enoughFields.enough_on_hand_ref_id,
       })
     }
     await updateGrossanlassCommitment(props.departmentId, props.article.id, {

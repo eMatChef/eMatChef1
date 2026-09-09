@@ -71,6 +71,7 @@ export type GrossanlassCommitmentPayload = {
   quantity?: number
   item_details?: GrossanlassCommitmentItemDetails
   plate?: string
+  barcode?: string | null
   inquiry_id?: string
   category_id?: string | null
   released?: boolean

@@ -907,6 +907,10 @@ watch(customNeedPeriod, async (on) => {
   applyPhasePeriodToPicker()
 })
 
+function isGrossanlassPhaseLabel(label: string): label is 'aufbau' | 'grossanlass' | 'abbau' {
+  return label === 'aufbau' || label === 'grossanlass' || label === 'abbau'
+}
+
 function selectedPhaseLabels(): Array<'aufbau' | 'grossanlass' | 'abbau'> {
   const labels: Array<'aufbau' | 'grossanlass' | 'abbau'> = []
   const seen = new Set<string>()
@@ -915,14 +919,14 @@ function selectedPhaseLabels(): Array<'aufbau' | 'grossanlass' | 'abbau'> {
     if (isMultiSelectField(field)) {
       for (const choice of customMultiValues[field.id] || []) {
         const label = mapWishPhaseChoiceToCalendarLabel(choice)
-        if (label && !seen.has(label)) {
+        if (label && isGrossanlassPhaseLabel(label) && !seen.has(label)) {
           seen.add(label)
           labels.push(label)
         }
       }
     } else {
       const label = mapWishPhaseChoiceToCalendarLabel(customValues[field.id] || '')
-      if (label && !seen.has(label)) {
+      if (label && isGrossanlassPhaseLabel(label) && !seen.has(label)) {
         seen.add(label)
         labels.push(label)
       }

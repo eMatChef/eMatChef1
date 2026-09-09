@@ -96,6 +96,7 @@ const props = withDefaults(
     blockClosedDates?: boolean
     /** Schnellauswahl (Samstage, …) */
     showPresets?: boolean
+    presetMode?: 'single' | 'range' | 'fixed-periods'
     /** Kalender-Punkte (Feiertage, Fixe Daten, fcal) */
     showMarkers?: boolean
     /** Kalender-Monat, wenn noch kein Datum gewählt (z. B. Eventfenster) */
