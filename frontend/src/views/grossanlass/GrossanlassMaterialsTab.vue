@@ -3,6 +3,14 @@
     <p class="ga-preview-intro">{{ t(introKey) }}</p>
     <div class="ga-preview-actions">
       <EButton variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
+      <EButton
+        variant="secondary"
+        size="small"
+        :class="{ 'is-on': vehiclesOnly }"
+        @click="toggleVehicles"
+      >
+        {{ t('grossanlass.materials.filterVehicles') }}
+      </EButton>
     </div>
     <GrossanlassMaterialsPreviewTable :tab="tab" />
     <GrossanlassZusageCreatePreviewDialog v-model="createOpen" :preset="createPreset" @created="onCreated" />
@@ -36,28 +44,35 @@ const departmentId = computed(() => {
 
 const tab = computed<GaMaterialsTabId>(() => {
   const value = (route.meta.materialsTab as string) || 'eigen'
-  if (value === 'leihweise' || value === 'fahrzeuge' || value === 'eigen') return value
+  if (value === 'leihweise' || value === 'eigen') return value
   return 'eigen'
 })
+
+const vehiclesOnly = computed(() => String(route.query.family || '') === 'vehicle')
 
 const introKey = computed(() => `grossanlass.materials.${tab.value}Intro`)
 const addKey = computed(() => `grossanlass.materials.zusage.addFromZusage`)
 
 const createPreset = computed<Partial<GaZusageCreateDraft>>(() => ({
-  family: tab.value === 'fahrzeuge' ? 'vehicle' : 'material',
+  family: vehiclesOnly.value ? 'vehicle' : 'material',
   origin: tab.value === 'eigen' ? 'buy' : 'loan',
 }))
+
+function toggleVehicles() {
+  const id = departmentId.value
+  if (!id) return
+  void router.replace({
+    path: route.path,
+    query: vehiclesOnly.value ? {} : { family: 'vehicle' },
+  })
+}
 
 function onCreated(row: GrossanlassCommitment) {
   catalog.upsert(row)
   const id = departmentId.value
   if (!id) return
   const tabs = commitmentTabs(row)
-  const from = tabs.includes('fahrzeuge')
-    ? 'fahrzeuge'
-    : tabs.includes('leihweise')
-      ? 'leihweise'
-      : 'eigen'
+  const from = tabs.includes('leihweise') ? 'leihweise' : 'eigen'
   void router.push({ path: `/${id}/materialien/artikel/${row.id}`, query: { from } })
 }
 </script>
@@ -65,5 +80,6 @@ function onCreated(row: GrossanlassCommitment) {
 <style scoped>
 .ga-preview-page { padding: 8px 0 24px; }
 .ga-preview-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
-.ga-preview-actions { margin-bottom: 12px; }
+.ga-preview-actions { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.ga-preview-actions .is-on { font-weight: 700; }
 </style>

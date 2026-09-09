@@ -84,6 +84,19 @@ class GrossanlassInquiryController extends AbstractController
         );
     }
 
+    #[Route('/bulk-delete', name: 'bulk_delete', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function bulkDelete(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $ids = is_array($data['ids'] ?? null) ? $data['ids'] : [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->deleteMany($department, $user, $ids),
+        );
+    }
+
     #[Route('/mark-sent', name: 'mark_sent', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function markSent(string $departmentId, Request $request): JsonResponse
@@ -100,10 +113,30 @@ class GrossanlassInquiryController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
         $ids = is_array($data['ids'] ?? null) ? $data['ids'] : [];
+        $overrides = is_array($data['overrides'] ?? null) ? $data['overrides'] : [];
+        $cleanOverrides = [];
+        foreach ($overrides as $inquiryId => $row) {
+            if (!is_string($inquiryId) || $inquiryId === '' || !is_array($row)) {
+                continue;
+            }
+            $item = [];
+            if (array_key_exists('subject', $row)) {
+                $item['subject'] = (string) $row['subject'];
+            }
+            if (array_key_exists('body', $row)) {
+                $item['body'] = (string) $row['body'];
+            }
+            if (array_key_exists('pdf_items', $row) && is_array($row['pdf_items'])) {
+                $item['pdf_items'] = $row['pdf_items'];
+            }
+            if ($item !== []) {
+                $cleanOverrides[$inquiryId] = $item;
+            }
+        }
 
         return $this->handle(
             $departmentId,
-            fn (Department $department, User $user) => $this->gmail->createDrafts($department, $user, $ids),
+            fn (Department $department, User $user) => $this->gmail->createDrafts($department, $user, $ids, $cleanOverrides),
         );
     }
 
@@ -112,6 +145,16 @@ class GrossanlassInquiryController extends AbstractController
     public function syncGmail(string $departmentId): JsonResponse
     {
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->syncInbox($department, $user));
+    }
+
+    #[Route('/{inquiryId}/conversation', name: 'conversation', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function conversation(string $departmentId, string $inquiryId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->gmail->conversation($department, $user, $inquiryId),
+        );
     }
 
     #[Route('/unmatched', name: 'unmatched_list', methods: ['GET'])]

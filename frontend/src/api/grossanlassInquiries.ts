@@ -14,7 +14,23 @@ export type GrossanlassInquiryThreadEntry = {
   at?: string
   from?: string
   subject?: string
+  kind?: string
   gmail_message_id?: string
+}
+
+export type GrossanlassInquiryConversationMessage = {
+  who: 'ok' | 'firm' | string
+  text: string
+  at?: string
+  from?: string
+  subject?: string
+}
+
+export type GrossanlassInquiryConversation = {
+  sent: GrossanlassInquiryConversationMessage[]
+  replies: GrossanlassInquiryConversationMessage[]
+  history: { text: string; at?: string }[]
+  gmail_open_url: string | null
 }
 
 export type GrossanlassGmailUnmatched = {
@@ -55,6 +71,11 @@ export type GrossanlassInquiry = {
   status: GrossanlassInquiryStatus
   tip_from: string | null
   tip_wish_id: string | null
+  tip_submitted_by: {
+    user_id: string
+    name: string
+    email: string
+  } | null
   thread: GrossanlassInquiryThreadEntry[]
   gmail_draft_id?: string | null
   gmail_thread_id?: string | null
@@ -89,6 +110,21 @@ export async function getGrossanlassInquiries(departmentId: string): Promise<Gro
   return response.data
 }
 
+export async function getGrossanlassInquiryConversation(
+  departmentId: string,
+  inquiryId: string,
+): Promise<GrossanlassInquiryConversation> {
+  const response = await apiClient.get<GrossanlassInquiryConversation>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}/conversation`,
+  )
+  return {
+    sent: Array.isArray(response.data.sent) ? response.data.sent : [],
+    replies: Array.isArray(response.data.replies) ? response.data.replies : [],
+    history: Array.isArray(response.data.history) ? response.data.history : [],
+    gmail_open_url: response.data.gmail_open_url ?? null,
+  }
+}
+
 export async function createGrossanlassInquiry(
   departmentId: string,
   data: GrossanlassInquiryWrite,
@@ -114,6 +150,17 @@ export async function updateGrossanlassInquiry(
 
 export async function deleteGrossanlassInquiry(departmentId: string, inquiryId: string): Promise<void> {
   await apiClient.delete(`/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}`)
+}
+
+export async function deleteGrossanlassInquiries(
+  departmentId: string,
+  ids: string[],
+): Promise<{ ok: true; deleted: string[] }> {
+  const response = await apiClient.post<{ ok: true; deleted: string[] }>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/bulk-delete`,
+    { ids },
+  )
+  return response.data
 }
 
 export async function importGrossanlassInquiryTips(departmentId: string): Promise<GrossanlassInquiry[]> {
@@ -170,10 +217,11 @@ export async function recordGrossanlassInquiryReply(
 export async function createGrossanlassInquiryDrafts(
   departmentId: string,
   ids: string[],
+  overrides?: Record<string, { subject?: string; body?: string; pdf_items?: string[] }>,
 ): Promise<GrossanlassInquiry[]> {
   const response = await apiClient.post<GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/create-drafts`,
-    { ids },
+    { ids, overrides: overrides && Object.keys(overrides).length ? overrides : undefined },
   )
   return response.data
 }

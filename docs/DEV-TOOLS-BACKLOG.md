@@ -25,7 +25,7 @@ Verwandt: gelber Banner (`frontend/src/utils/devEnvironmentBanner.ts`, `DevEnvir
 
 **Idee:** Ein reproduzierbarer Datenstand für develop/staging:
 
-- feste User (MW, Mitleiter, …) mit bekannten Passwörtern (für A) → `app:create-role-users` / `app:dev-demo:reset`
+- feste User (MW, Mitleiter, Grossanlass-Rollen, …) mit bekannten Passwörtern (für A) → `app:create-role-users` / `app:dev-demo:reset`
 - Material aller relevanten Typen (inkl. Combos/Verbrauch/Food wo sinnvoll) — noch auszubauen
 - Aktivitäten verschiedener Typen — noch auszubauen
 - Packstadien / Journey-Daten — noch auszubauen
@@ -35,8 +35,10 @@ Verwandt: gelber Banner (`frontend/src/utils/devEnvironmentBanner.ts`, `DevEnvir
 ```bash
 # Auf Develop-API (EMATCHEF_DEV_TOOLS=1):
 php bin/console app:dev-demo:reset --e2e-password="$E2E_PW"
-# oder nur Rollen-User:
+# oder nur Rollen-User (löscht andere *@ematchef.ch):
 php bin/console app:create-role-users
+# bestehende Demo-User behalten, Grossanlass-Rollen nachziehen:
+php bin/console app:create-role-users --skip-delete
 ```
 
 **Weiter:**

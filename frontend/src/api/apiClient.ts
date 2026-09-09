@@ -98,11 +98,30 @@ function stripAuthorizationHeader(config: { headers?: unknown }): void {
   delete headers.authorization
 }
 
+/** Default JSON-Content-Type darf FormData nicht überschreiben, sonst sieht PHP keine Datei. */
+function omitContentTypeForFormData(config: { data?: unknown; headers?: unknown }): void {
+  if (typeof FormData === 'undefined' || !(config.data instanceof FormData)) return
+  const headers = config.headers as {
+    setContentType?: (value: false) => void
+    delete?: (name: string) => void
+  } | undefined
+  if (!headers) return
+  if (typeof headers.setContentType === 'function') {
+    headers.setContentType(false)
+    return
+  }
+  if (typeof headers.delete === 'function') {
+    headers.delete('Content-Type')
+    headers.delete('content-type')
+  }
+}
+
 /**
  * Authentifizierung nur über HttpOnly-Cookies (BEARER + refresh_token).
  * Kein Authorization-Header aus localStorage.
  */
 apiClient.interceptors.request.use((config) => {
+  omitContentTypeForFormData(config)
   const requestUrl = String(config.url || '')
 
   if (requestUrl.includes('/token/refresh') || requestUrl.includes('/login_check')) {

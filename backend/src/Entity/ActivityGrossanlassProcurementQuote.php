@@ -39,6 +39,12 @@ class ActivityGrossanlassProcurementQuote
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    #[ORM\Column(name: 'delivery_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $deliveryAt = null;
+
+    #[ORM\Column(name: 'lead_days', type: 'integer', nullable: true)]
+    private ?int $leadDays = null;
+
     #[ORM\Column(type: 'boolean')]
     private bool $selected = false;
 
@@ -146,6 +152,30 @@ class ActivityGrossanlassProcurementQuote
     public function setNotes(?string $notes): self
     {
         $this->notes = $notes;
+
+        return $this;
+    }
+
+    public function getDeliveryAt(): ?\DateTime
+    {
+        return $this->deliveryAt;
+    }
+
+    public function setDeliveryAt(?\DateTime $deliveryAt): self
+    {
+        $this->deliveryAt = $deliveryAt;
+
+        return $this;
+    }
+
+    public function getLeadDays(): ?int
+    {
+        return $this->leadDays;
+    }
+
+    public function setLeadDays(?int $leadDays): self
+    {
+        $this->leadDays = $leadDays;
 
         return $this;
     }

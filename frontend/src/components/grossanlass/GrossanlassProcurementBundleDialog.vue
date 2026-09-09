@@ -35,12 +35,17 @@
       />
       <ESelect
         v-model="payerGroupId"
+        class="cost-grid__payer"
         :items="payerItems"
         item-title="title"
         item-value="value"
         :label="t('grossanlass.beschaffung.kosten.colPayer')"
         hide-details
-      />
+      >
+        <template #item="{ props: itemProps, item }">
+          <GrossanlassCategoryDropdownItem :item-props="itemProps" :item="item" />
+        </template>
+      </ESelect>
     </div>
     <p class="review-hint review-hint--tight">{{ t('grossanlass.beschaffung.bedarf.costHint') }}</p>
 
@@ -104,6 +109,7 @@ import {
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
+import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 
@@ -180,7 +186,7 @@ watch(
         groups.value = []
       }
     }
-    payerGroupId.value = props.wishes[0]?.group_id ?? null
+    payerGroupId.value = logisticsGroupId.value
   },
   { immediate: true },
 )
@@ -230,12 +236,27 @@ async function submit() {
 .review-hint--tight { margin: 6px 0 0; }
 .cost-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.78fr);
   gap: 12px;
   margin-top: 12px;
+  align-items: end;
+}
+.cost-grid__payer {
+  margin-left: 10px;
+}
+.cost-grid__payer :deep(.field-outline-label) {
+  font-size: 0.72rem;
+}
+.cost-grid__payer :deep(.v-select .v-field__input),
+.cost-grid__payer :deep(.v-select .v-select__selection-text) {
+  font-size: 0.8125rem;
+}
+.cost-grid__payer :deep(.v-field) {
+  --v-input-control-height: 40px;
 }
 @media (max-width: 640px) {
   .cost-grid { grid-template-columns: 1fr; }
+  .cost-grid__payer { margin-left: 1.15rem; max-width: 88%; }
 }
 .review-sum {
   margin: 14px 0 8px;
