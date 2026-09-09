@@ -874,7 +874,7 @@ function barClass(booking: GaPreviewEinsatz): Record<string, boolean> {
     'ga-gantt__bar--unreleased': kind === 'unreleased',
     'ga-gantt__bar--fixed': kind === 'fixed',
     'ga-gantt__bar--occupancy': kind === 'handover' || kind === 'giveback' || kind === 'service',
-    'ga-gantt__bar--active': selectedBooking?.id === booking.id && einsatzDialogOpen.value,
+    'ga-gantt__bar--active': selectedBooking.value?.id === booking.id && einsatzDialogOpen.value,
   }
 }
 

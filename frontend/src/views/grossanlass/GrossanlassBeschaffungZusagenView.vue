@@ -1465,7 +1465,7 @@ async function persistTakeLine(
     articles.value = [...articles.value, created]
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
-    throw new Error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+    throw new Error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'), { cause: e })
   }
 }
 
