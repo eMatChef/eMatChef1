@@ -10,6 +10,8 @@ use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Department;
+use App\Entity\DepartmentCalendarPeriod;
+use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
@@ -193,7 +195,7 @@ class GrossanlassWishService
             ->innerJoin('w.group', 'g')
             ->innerJoin('w.createdByUser', 'u')
             ->leftJoin('u.profile', 'p')
-            ->addSelect('g', 'u', 'p')
+            ->addSelect('g', 'u', 'p', 'r')
             ->where('a.departmentId = :departmentId')
             ->setParameter('departmentId', $department->getId())
             ->orderBy('w.createdAt', 'DESC');
@@ -353,6 +355,7 @@ class GrossanlassWishService
         $line->setValidTo($parsed['valid_to']);
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
+        $this->applyEnoughOnHandFromClient($line, $department, $user, $data);
         $line->setLastStage(GrossanlassMaterialStage::FEIN);
         $line->touchUpdatedAt();
 
@@ -396,7 +399,10 @@ class GrossanlassWishService
         $line->setValidTo($parsed['valid_to']);
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
-        if (GrossanlassMaterialStage::isFein($line->getRound()->getMaterialStage())) {
+        $this->applyEnoughOnHandFromClient($line, $department, $user, $data);
+        if (GrossanlassMaterialStage::isFein($line->getRound()->getMaterialStage())
+            || GrossanlassMaterialStage::isFein((string) ($data['last_stage'] ?? ''))
+        ) {
             $line->setLastStage(GrossanlassMaterialStage::FEIN);
         }
         $line->touchUpdatedAt();
@@ -583,6 +589,9 @@ class GrossanlassWishService
         if ($location === null) {
             $location = '';
         }
+        $this->applyExplicitPeriodFromData($data, $validFrom, $validTo);
+        $this->applyCustomDateRangeToPeriod($fields, $customValues, $validFrom, $validTo);
+        $this->applyPhaseChoicesToPeriod($department, $fields, $customValues, $validFrom, $validTo);
         if (isset($enabledSystemKeys[GrossanlassFormFieldCatalog::SYSTEM_PERIOD])) {
             if ($validFrom === null || $validTo === null) {
                 throw new \InvalidArgumentException('Zeitraum ist erforderlich');
@@ -590,8 +599,11 @@ class GrossanlassWishService
             if ($validTo < $validFrom) {
                 throw new \InvalidArgumentException('Zeitraum Ende muss nach Start liegen');
             }
-        } else {
-            $this->applyCustomDateRangeToPeriod($fields, $customValues, $validFrom, $validTo);
+        }
+        if ($validFrom === null || $validTo === null) {
+            [$calendarFrom, $calendarTo] = $this->defaultNeedPeriodFromCalendar($department);
+            $validFrom ??= $calendarFrom;
+            $validTo ??= $calendarTo;
         }
         if ($validFrom === null) {
             $validFrom = new \DateTime();
@@ -625,6 +637,7 @@ class GrossanlassWishService
     {
         return array_merge([
             'group_id' => $line->getGroupId(),
+            'ressort_group_id' => $this->ressortGroupIdForLine($line),
             'wish_kind' => $line->getWishKind(),
             'label' => $line->getLabel(),
             'quantity' => $line->getQuantity(),
@@ -633,8 +646,23 @@ class GrossanlassWishService
             'valid_to' => $line->getValidTo()->format(\DateTimeInterface::ATOM),
             'timeframe_notes' => $line->getTimeframeNotes(),
             'notes' => $line->getNotes(),
+            ...$line->enoughOnHandPayload(),
             'custom_values' => $this->loadCustomValuesForLine($line),
         ], $data);
+    }
+
+    private function ressortGroupIdForLine(ActivityGrossanlassWishLine $line): string
+    {
+        $group = $line->getGroup();
+        if (!$this->groupIsBauprojekt($group)) {
+            return $group->getId();
+        }
+        $parent = $group->getParent();
+        while ($parent !== null && $this->groupIsBauprojekt($parent)) {
+            $parent = $parent->getParent();
+        }
+
+        return $parent?->getId() ?? $group->getId();
     }
 
     /**
@@ -696,11 +724,50 @@ class GrossanlassWishService
     private function replaceCustomValues(ActivityGrossanlassWishResponse $response, array $customValues): void
     {
         $existing = $this->entityManager->getRepository(ActivityGrossanlassWishResponseValue::class)
-            ->findBy(['responseId' => $response->getId()]);
+            ->findBy(['response' => $response]);
+        /** @var array<string, ActivityGrossanlassWishResponseValue> $byField */
+        $byField = [];
         foreach ($existing as $value) {
-            $this->entityManager->remove($value);
+            if (!$value instanceof ActivityGrossanlassWishResponseValue) {
+                continue;
+            }
+            $byField[trim($value->getFieldId())] = $value;
         }
-        $this->persistCustomValues($response, $customValues);
+
+        $kept = [];
+        foreach ($customValues as $fieldId => $raw) {
+            if (!is_string($fieldId) && !is_int($fieldId)) {
+                continue;
+            }
+            $fieldId = trim((string) $fieldId);
+            if ($fieldId === '' || isset($kept[$fieldId])) {
+                continue;
+            }
+            $field = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)->find($fieldId);
+            if (!$field instanceof ActivityGrossanlassRoundFormField) {
+                continue;
+            }
+            $value = $byField[$fieldId] ?? null;
+            if ($value === null) {
+                $value = new ActivityGrossanlassWishResponseValue();
+                $value->setId(GrossanlassIdGenerator::unique(
+                    $this->entityManager,
+                    GrossanlassIdGenerator::WISH_VALUE,
+                    ActivityGrossanlassWishResponseValue::class,
+                ));
+                $value->setResponse($response);
+                $value->setField($field);
+                $this->entityManager->persist($value);
+            }
+            $this->applyValueToEntity($value, $field, $raw);
+            $kept[$fieldId] = true;
+        }
+
+        foreach ($byField as $fieldId => $value) {
+            if (!isset($kept[$fieldId])) {
+                $this->entityManager->remove($value);
+            }
+        }
     }
 
     private function applyValueToEntity(
@@ -711,11 +778,15 @@ class GrossanlassWishService
         $type = $field->getCustomType();
         if ($type === GrossanlassFormFieldCatalog::CUSTOM_NUMBER) {
             $value->setValueNumber($raw === null ? null : (string) (float) $raw);
+            $value->setValueText(null);
+            $value->setValueJson(null);
 
             return;
         }
         if ($type === GrossanlassFormFieldCatalog::CUSTOM_DATE_RANGE) {
             $value->setValueJson(is_array($raw) ? $raw : null);
+            $value->setValueText(null);
+            $value->setValueNumber(null);
 
             return;
         }
@@ -725,15 +796,19 @@ class GrossanlassWishService
             if ($multiple) {
                 $value->setValueJson(is_array($raw) ? array_values($raw) : null);
                 $value->setValueText(null);
+                $value->setValueNumber(null);
 
                 return;
             }
             $value->setValueText($raw === null ? null : trim((string) $raw));
             $value->setValueJson(null);
+            $value->setValueNumber(null);
 
             return;
         }
         $value->setValueText($raw === null ? null : trim((string) $raw));
+        $value->setValueNumber(null);
+        $value->setValueJson(null);
     }
 
     private function parseCustomValue(ActivityGrossanlassRoundFormField $field, mixed $raw): mixed
@@ -922,10 +997,6 @@ class GrossanlassWishService
         $fromRaw = $data['valid_from'] ?? null;
         $toRaw = $data['valid_to'] ?? null;
         if (($fromRaw === null || $fromRaw === '') && ($toRaw === null || $toRaw === '')) {
-            if ($field->isRequired()) {
-                throw new \InvalidArgumentException($field->getLabel() . ' ist erforderlich');
-            }
-
             return [null, null, $this->optionalString($data['timeframe_notes'] ?? null)];
         }
 
@@ -1228,6 +1299,185 @@ class GrossanlassWishService
     }
 
     /**
+     * @param array<string, mixed> $data
+     */
+    private function hasRealNeedPeriod(?\DateTime $from, ?\DateTime $to): bool
+    {
+        return $from !== null && $to !== null && !$this->periodLooksLikePlaceholder($from, $to);
+    }
+
+    private function periodLooksLikePlaceholder(?\DateTime $from, ?\DateTime $to): bool
+    {
+        if ($from === null || $to === null) {
+            return true;
+        }
+
+        return abs($to->getTimestamp() - $from->getTimestamp()) < 120;
+    }
+
+    private function applyExplicitPeriodFromData(
+        array $data,
+        ?\DateTime &$validFrom,
+        ?\DateTime &$validTo,
+    ): void {
+        if ($this->hasRealNeedPeriod($validFrom, $validTo)) {
+            return;
+        }
+        $fromRaw = $data['valid_from'] ?? null;
+        $toRaw = $data['valid_to'] ?? null;
+        if ($fromRaw === null || $fromRaw === '' || $toRaw === null || $toRaw === '') {
+            return;
+        }
+        $from = $this->parseDateTime($fromRaw, 'valid_from');
+        $to = $this->parseDateTime($toRaw, 'valid_to');
+        if ($to < $from) {
+            throw new \InvalidArgumentException('Zeitraum Ende muss nach Start liegen');
+        }
+        if ($this->periodLooksLikePlaceholder($from, $to)) {
+            return;
+        }
+        $validFrom = $from;
+        $validTo = $to;
+    }
+
+    /**
+     * @param list<ActivityGrossanlassRoundFormField> $fields
+     * @param array<string, mixed> $customValues
+     */
+    private function applyPhaseChoicesToPeriod(
+        Department $department,
+        array $fields,
+        array $customValues,
+        ?\DateTime &$validFrom,
+        ?\DateTime &$validTo,
+    ): void {
+        if ($this->hasRealNeedPeriod($validFrom, $validTo)) {
+            return;
+        }
+        $labels = [];
+        foreach ($fields as $field) {
+            if ($field->getCustomType() !== GrossanlassFormFieldCatalog::CUSTOM_SELECT) {
+                continue;
+            }
+            $raw = $customValues[$field->getId()] ?? null;
+            $choices = is_array($raw) ? $raw : ($raw === null || $raw === '' ? [] : [$raw]);
+            foreach ($choices as $choice) {
+                $label = $this->mapPhaseChoiceToCalendarLabel((string) $choice);
+                if ($label !== null) {
+                    $labels[$label] = true;
+                }
+            }
+        }
+        if ($labels === []) {
+            return;
+        }
+        [$from, $to] = $this->unionCalendarPeriods($department, array_keys($labels));
+        if ($from !== null && $to !== null) {
+            $validFrom = $from;
+            $validTo = $to;
+        }
+    }
+
+    /**
+     * @return array{0: ?\DateTime, 1: ?\DateTime}
+     */
+    private function defaultNeedPeriodFromCalendar(Department $department): array
+    {
+        [$from, $to] = $this->unionCalendarPeriods($department, [DepartmentCalendarPeriod::LABEL_GROSSANLASS]);
+        if ($from !== null && $to !== null) {
+            return [$from, $to];
+        }
+
+        return $this->unionCalendarPeriods($department, DepartmentCalendarPeriod::GROSSANLASS_MODULE_LABELS);
+    }
+
+    /**
+     * @param list<string> $labels
+     *
+     * @return array{0: ?\DateTime, 1: ?\DateTime}
+     */
+    private function unionCalendarPeriods(Department $department, array $labels): array
+    {
+        if ($labels === []) {
+            return [null, null];
+        }
+        $wanted = array_fill_keys($labels, true);
+        $periods = $this->entityManager->getRepository(DepartmentCalendarPeriod::class)
+            ->findBy(['departmentId' => $department->getId()]);
+
+        $eventYear = null;
+        foreach ($periods as $period) {
+            if (!$period instanceof DepartmentCalendarPeriod) {
+                continue;
+            }
+            if ($period->getLabel() !== DepartmentCalendarPeriod::LABEL_GROSSANLASS) {
+                continue;
+            }
+            $year = $period->getStartDate()->format('Y');
+            if ($eventYear === null || $year > $eventYear) {
+                $eventYear = $year;
+            }
+        }
+
+        $from = null;
+        $to = null;
+        foreach ($periods as $period) {
+            if (!$period instanceof DepartmentCalendarPeriod) {
+                continue;
+            }
+            if (!isset($wanted[$period->getLabel()])) {
+                continue;
+            }
+            if ($eventYear !== null && $period->getStartDate()->format('Y') !== $eventYear) {
+                continue;
+            }
+            $start = $this->calendarPeriodDateTime($period->getStartDate(), $period->getStartTime());
+            $end = $this->calendarPeriodDateTime($period->getEndDate(), $period->getEndTime());
+            if ($from === null || $start < $from) {
+                $from = $start;
+            }
+            if ($to === null || $end > $to) {
+                $to = $end;
+            }
+        }
+
+        return [$from, $to];
+    }
+
+    private function calendarPeriodDateTime(\DateTimeInterface $date, \DateTimeInterface $time): \DateTime
+    {
+        $dt = \DateTime::createFromInterface($date);
+        $dt->setTime((int) $time->format('H'), (int) $time->format('i'), 0);
+
+        return GrossanlassQuarterHour::snap($dt);
+    }
+
+    private function mapPhaseChoiceToCalendarLabel(string $choice): ?string
+    {
+        $n = mb_strtolower(trim($choice));
+        if ($n === '') {
+            return null;
+        }
+        if (str_contains($n, 'vor dem') || str_contains($n, 'before') || str_contains($n, 'aufbau')) {
+            return DepartmentCalendarPeriod::LABEL_AUFBAU;
+        }
+        if (str_contains($n, 'nach dem') || str_contains($n, 'after') || str_contains($n, 'abbau')) {
+            return DepartmentCalendarPeriod::LABEL_ABBAU;
+        }
+        if (
+            str_contains($n, 'am anlass')
+            || str_contains($n, 'during')
+            || str_contains($n, 'grossanlass')
+            || str_contains($n, 'durchführung')
+            || str_contains($n, 'durchfuehrung')
+        ) {
+            return DepartmentCalendarPeriod::LABEL_GROSSANLASS;
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<ActivityGrossanlassRoundFormField> $fields
      * @param array<string, mixed> $customValues
      */
@@ -1237,7 +1487,7 @@ class GrossanlassWishService
         ?\DateTime &$validFrom,
         ?\DateTime &$validTo,
     ): void {
-        if ($validFrom !== null && $validTo !== null) {
+        if ($this->hasRealNeedPeriod($validFrom, $validTo)) {
             return;
         }
 
@@ -1260,6 +1510,9 @@ class GrossanlassWishService
             if ($to < $from) {
                 throw new \InvalidArgumentException($field->getLabel() . ': Ende muss nach Start liegen');
             }
+            if ($this->periodLooksLikePlaceholder($from, $to)) {
+                continue;
+            }
             $validFrom = $from;
             $validTo = $to;
 
@@ -1273,7 +1526,7 @@ class GrossanlassWishService
             throw new \InvalidArgumentException($field . ' ist erforderlich');
         }
         try {
-            return new \DateTime((string) $value);
+            return GrossanlassQuarterHour::snap(new \DateTime((string) $value));
         } catch (\Exception) {
             throw new \InvalidArgumentException('Ungültiges Datum für ' . $field);
         }
@@ -1287,6 +1540,82 @@ class GrossanlassWishService
         $s = trim((string) $value);
 
         return $s === '' ? null : $s;
+    }
+
+    /**
+     * «Genug vorhanden» setzt nur MW/CMW — mit Herkunft Eigenbestand oder Zusage.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function applyEnoughOnHandFromClient(
+        ActivityGrossanlassWishLine $line,
+        Department $department,
+        User $user,
+        array $data,
+    ): void {
+        $touched = array_key_exists('enough_on_hand', $data)
+            || array_key_exists('enough_on_hand_source', $data)
+            || array_key_exists('enough_on_hand_detail', $data)
+            || array_key_exists('enough_on_hand_ref_id', $data);
+        if (!$touched) {
+            return;
+        }
+        if (!$this->access->canManageProcurement($user, $department)
+            && !$this->access->canManageGrossanlassForm($user, $department)
+        ) {
+            return;
+        }
+
+        $enough = !empty($data['enough_on_hand']);
+        if (!$enough) {
+            $line->setEnoughOnHand(false);
+            $line->setEnoughOnHandSource(null);
+            $line->setEnoughOnHandDetail(null);
+            $line->setEnoughOnHandRefId(null);
+
+            return;
+        }
+
+        $source = trim((string) ($data['enough_on_hand_source'] ?? ''));
+        if ($source !== 'stock' && $source !== 'commitment') {
+            throw new \InvalidArgumentException('Herkunft angeben: Eigenbestand oder Zusage');
+        }
+
+        if ($source === 'commitment') {
+            $refId = trim((string) ($data['enough_on_hand_ref_id'] ?? ''));
+            if ($refId === '') {
+                throw new \InvalidArgumentException('Welche Zusage deckt den Wunsch?');
+            }
+            $commitment = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)->find($refId);
+            if ($commitment === null || $commitment->getDepartmentId() !== $department->getId()) {
+                throw new \InvalidArgumentException('Zusage nicht gefunden');
+            }
+            $detail = trim($commitment->getSource() . ' · ' . $commitment->getName());
+            $line->setEnoughOnHand(true);
+            $line->setEnoughOnHandSource('commitment');
+            $line->setEnoughOnHandDetail($this->clipEnoughOnHandDetail($detail));
+            $line->setEnoughOnHandRefId($commitment->getId());
+
+            return;
+        }
+
+        $detail = trim((string) ($data['enough_on_hand_detail'] ?? ''));
+        if ($detail === '') {
+            $detail = 'Eigenbestand';
+        }
+        $line->setEnoughOnHand(true);
+        $line->setEnoughOnHandSource('stock');
+        $line->setEnoughOnHandDetail($this->clipEnoughOnHandDetail($detail));
+        $line->setEnoughOnHandRefId(null);
+    }
+
+    private function clipEnoughOnHandDetail(string $detail): string
+    {
+        if (mb_strlen($detail) <= 255) {
+            return $detail;
+        }
+
+        return mb_substr($detail, 0, 255);
     }
 
     /**
@@ -1305,6 +1634,7 @@ class GrossanlassWishService
         return [
             'id' => $line->getId(),
             'round_id' => $line->getRoundId(),
+            'form_purpose' => $line->getRound()->getFormPurpose(),
             'response_id' => $line->getResponseId(),
             'group_id' => $line->getGroupId(),
             'group_name' => $line->getGroup()->getName(),
@@ -1316,6 +1646,7 @@ class GrossanlassWishService
             'valid_to' => $line->getValidTo()->format(\DateTimeInterface::ATOM),
             'timeframe_notes' => $line->getTimeframeNotes(),
             'notes' => $line->getNotes(),
+            ...$line->enoughOnHandPayload(),
             'status' => $line->getStatus(),
             'last_stage' => $line->getLastStage(),
             'created_by_user_id' => $line->getCreatedByUserId(),

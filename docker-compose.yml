@@ -61,6 +61,8 @@ services:
       # MAILER_DSN/MAILER_FROM nicht in environment setzen — sonst überschreibt Container-Env die .env.local.
       PHP_OPCACHE_ENABLE: "1"
       PHP_OPCACHE_MEMORY_CONSUMPTION: "256"
+      # Default PHP-Upload ist 2M; Nginx erlaubt 32m (Anlass-PDFs).
+      PHP_INI_SCAN_DIR: "/usr/local/etc/php/conf.d:/var/www/html/docker/php"
     volumes:
       - ./backend:/var/www/html
       - backend_vendor:/var/www/html/vendor

@@ -29,6 +29,13 @@ class GrossanlassUebersichtController extends AbstractController
         return $this->handle($departmentId, fn (Department $d, User $u) => $this->uebersicht->overview($d, $u));
     }
 
+    #[Route('/submit-board', name: 'submit_board', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function submitBoard(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->uebersicht->submitBoard($d, $u));
+    }
+
     #[Route('/einsaetze', name: 'create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function create(string $departmentId, Request $request): JsonResponse

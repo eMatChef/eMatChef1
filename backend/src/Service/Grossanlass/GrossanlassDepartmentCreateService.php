@@ -29,6 +29,7 @@ class GrossanlassDepartmentCreateService
         private DepartmentRepository $departmentRepository,
         private AccountingCostCenterBootstrapService $accountingCostCenterBootstrap,
         private WorkshopSparePartsCategoryBootstrapService $workshopSparePartsCategoryBootstrap,
+        private GrossanlassProcurementCategoryBootstrapService $procurementCategoryBootstrap,
         private PublicCodeService $publicCodeService,
         private VerificationEmailService $verificationEmailService,
         private InboxMessageService $inboxMessageService,
@@ -166,6 +167,7 @@ class GrossanlassDepartmentCreateService
 
             $this->accountingCostCenterBootstrap->ensureDefaultCostCenters($this->entityManager, $department);
             $this->workshopSparePartsCategoryBootstrap->ensure($department);
+            $this->procurementCategoryBootstrap->ensureForDepartment($department);
             $this->publicCodeService->ensureActivityPublicCode($activity, $currentUser->getId());
 
             if ($chiefMwUser) {

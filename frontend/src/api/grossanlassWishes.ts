@@ -14,13 +14,19 @@ export interface CreateGrossanlassWishPayload {
   valid_to?: string
   timeframe_notes?: string | null
   notes?: string | null
+  last_stage?: 'grob' | 'fein' | string
   refine_wish_id?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   custom_values?: Record<string, unknown>
 }
 
 export interface GrossanlassWishLine {
   id: string
   round_id: string
+  form_purpose?: string
   response_id?: string | null
   group_id: string
   group_name: string
@@ -38,6 +44,10 @@ export interface GrossanlassWishLine {
   created_by_name?: string
   created_at: string
   updated_at: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   custom_values?: Record<string, unknown>
 }
 

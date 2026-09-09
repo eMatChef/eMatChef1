@@ -8,6 +8,12 @@
     @update:model-value="emit('update:modelValue', $event)"
   >
     <p class="hint">{{ t('grossanlass.chain.drive.dialogHint') }}</p>
+    <p v-if="profileClasses.length" class="hint profile-license">
+      {{ t('grossanlass.chain.drive.profileLicense', { classes: profileClassLabels }) }}
+      <EButton variant="text" size="small" @click="copyFromProfile">
+        {{ t('grossanlass.chain.drive.copyFromProfile') }}
+      </EButton>
+    </p>
 
     <section
       v-for="group in GA_DRIVE_CATEGORY_GROUPS"
@@ -148,6 +154,10 @@ watch(
 )
 
 const hasExtraRegulation = computed(() => driveHasExtraRegulation(draft.value))
+const profileClasses = computed(() => props.card?.profile_license?.drive_classes ?? [])
+const profileClassLabels = computed(() =>
+  profileClasses.value.map((code) => t(`grossanlass.chain.drive.classes.${code}`)).join(', '),
+)
 
 const proofStatus = computed(() => {
   if (!props.card) return ''
@@ -160,6 +170,11 @@ const proofStatus = computed(() => {
   if (draft.value.length > 0) return t('grossanlass.chain.drive.statusNeedProof')
   return t('grossanlass.chain.drive.statusNone')
 })
+
+function copyFromProfile() {
+  if (!profileClasses.value.length) return
+  draft.value = [...profileClasses.value]
+}
 
 function toggle(code: string, on: boolean) {
   if (on && !draft.value.includes(code)) {
@@ -244,6 +259,7 @@ function removeProof() {
   font-size: 0.85rem;
   line-height: 1.45;
 }
+.profile-license { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .cat-group { margin-bottom: 16px; }
 .cat-group__title {
   margin: 0 0 4px;

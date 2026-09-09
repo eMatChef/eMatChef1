@@ -302,7 +302,7 @@ const isSearchingAvailableUsers = ref(false)
 const isMembersLoading = ref(false)
 const memberActionLoading = ref(false)
 const newMemberUserId = ref('')
-const newMemberRole = ref<'mw' | 'dc' | 'l1' | 'l2' | 'l3' | 'u'>('u')
+const newMemberRole = ref<'mw' | 'cmw' | 'dc' | 'komm' | 'spon' | 'l1' | 'l2' | 'l3' | 'u'>('u')
 const newMemberPrimary = ref(false)
 const newMemberSearchQuery = ref('')
 const showAvailableDropdown = ref(false)
@@ -310,7 +310,7 @@ const selectedAvailableUser = ref<AvailableUser | null>(null)
 let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const roleOrder = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'] as const
-const grossanlassRoleOrder = ['mw', 'u'] as const
+const grossanlassRoleOrder = ['mw', 'cmw', 'dc', 'komm', 'spon', 'u'] as const
 
 function roleLabel(value: string): string {
   return roleLabelsStore.labelFor(value, props.department?.id, t, {
@@ -330,16 +330,15 @@ const roleOptions = computed(() =>
 function memberRoleOptions(member: DepartmentMember) {
   if (!isGrossanlassDept.value) return roleOptions.value
   const roles = [...grossanlassRoleOrder]
-  if (member.role === 'mw' && !roles.includes('mw')) {
-    roles.unshift('mw')
+  if (member.role && !roles.includes(member.role as (typeof roles)[number])) {
+    roles.unshift(member.role as (typeof roles)[number])
   }
   return roles.map((value) => ({ value, label: roleLabel(value) }))
 }
 
 const newMemberRoleOptions = computed(() => {
   if (!isGrossanlassDept.value) return roleOptions.value
-  const roles = hasMwMember.value ? (['u'] as const) : grossanlassRoleOrder
-  return roles.map((value) => ({ value, label: roleLabel(value) }))
+  return grossanlassRoleOrder.map((value) => ({ value, label: roleLabel(value) }))
 })
 
 const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))

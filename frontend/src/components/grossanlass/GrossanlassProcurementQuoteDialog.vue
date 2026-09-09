@@ -82,6 +82,28 @@
         hide-details="auto"
       />
 
+      <div class="mt-3">
+        <EDateField
+          v-model="form.delivery_at"
+          :department-id="departmentId"
+          :label="t('grossanlass.beschaffung.offerten.deliveryAt')"
+          :view-date="needFromDate"
+          allow-past
+        />
+        <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.deliveryAtHint') }}</p>
+      </div>
+
+      <ETextField
+        v-model="form.lead_days"
+        class="mt-3"
+        type="number"
+        min="0"
+        step="1"
+        :label="t('grossanlass.beschaffung.offerten.leadDays')"
+        hide-details="auto"
+      />
+      <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.leadDaysHint') }}</p>
+
       <ETextField
         v-model="form.notes"
         class="mt-3"
@@ -141,7 +163,7 @@ import AddressModal from '@/components/AddressModal.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { EButton, EDateField, EDialog, ETextField } from '@/components/form/base'
 import { formatAddressSelectionLabel } from '@/utils/departmentAddressSearch'
 
 const props = defineProps<{
@@ -176,7 +198,9 @@ const errorMessage = ref('')
 
 const supplierAddressId = ref<string | null>(null)
 const selectedInquiryId = ref<string | null>(null)
-const form = ref({ supplier: '', amount_chf: '', notes: '' })
+const form = ref({ supplier: '', amount_chf: '', notes: '', delivery_at: '', lead_days: '' })
+
+const needFromDate = computed(() => (props.line.need_from || '').slice(0, 10))
 
 const inquiryItems = computed(() =>
   inquiries.value.map((firm) => ({
@@ -228,6 +252,8 @@ function resetForm() {
     supplier: q?.supplier ?? '',
     amount_chf: q?.amount_chf != null ? String(q.amount_chf) : '',
     notes: q?.notes ?? '',
+    delivery_at: q?.delivery_at ? q.delivery_at.slice(0, 10) : '',
+    lead_days: q?.lead_days != null ? String(q.lead_days) : '',
   }
   pdfFile.value = null
   pdfPreview.value = q?.pdf_filename ? q.pdf_filename : ''
@@ -392,6 +418,8 @@ async function submit() {
       supplier_address_id: supplierAddressId.value,
       amount_chf: Number(form.value.amount_chf),
       notes: form.value.notes.trim() || null,
+      delivery_at: form.value.delivery_at ? `${form.value.delivery_at}T12:00:00` : null,
+      lead_days: form.value.lead_days === '' ? null : Number(form.value.lead_days),
     }
 
     let saved: GrossanlassProcurementQuote

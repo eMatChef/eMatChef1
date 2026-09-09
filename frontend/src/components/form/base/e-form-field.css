@@ -212,7 +212,17 @@
 
 .e-form-field .v-select .v-field__input,
 .e-form-field .v-autocomplete .v-field__input {
+  padding-left: 12px;
   padding-right: 28px;
+}
+
+/*
+ * Autocomplete/Select legen das innere Input absolut auf left:0.
+ * Ohne eigenen Einzug klebt der Text am Rahmen (Kategorie im Bündeln-Dialog).
+ */
+.e-form-field .v-autocomplete.v-text-field .v-field__input > input,
+.e-form-field .v-select .v-field__input > input {
+  padding-inline: 12px;
 }
 
 .e-form-field .v-select .v-select__selection-text,

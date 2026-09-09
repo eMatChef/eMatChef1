@@ -333,7 +333,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // Mapping zu Symfony Roles (Rollen sind jetzt Abkürzungen)
             $symfonyRole = match($departmentRole) {
                 'mw' => 'ROLE_MATWART',
+                'cmw' => 'ROLE_CO_MATWART',
                 'dc' => 'ROLE_DEPCHEF',
+                'komm' => 'ROLE_KOMMUNIKATION',
+                'spon' => 'ROLE_SPONSORING',
                 'l1' => 'ROLE_LEADER1',
                 'l2' => 'ROLE_LEADER2',
                 'l3' => 'ROLE_LEADER3',
