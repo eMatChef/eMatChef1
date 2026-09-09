@@ -138,7 +138,7 @@ final class GrossanlassCommitmentService
         $existing = null;
         foreach ($related as $row) {
             if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY) {
-                $existing = $existing ?? $row;
+                $existing = $row;
                 break;
             }
         }
