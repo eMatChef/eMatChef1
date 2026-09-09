@@ -28,9 +28,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # CodeQL recognizes javascript-typescript; PHP is not in the
+          # default language pack for this action setup (init fails with
+          # "Did not recognize the following languages: php").
           - language: javascript-typescript
-            build-mode: none
-          - language: php
             build-mode: none
 
     steps:
