@@ -95,7 +95,7 @@ describe('buildBookProjectPickerItems', () => {
       [{ groupId: 'logistik' }, { groupId: null }, { ressort: 'x' }],
       'Ohne Zuordnung',
     )
-    expect(items.at(-1)).toMatchObject({
+    expect(items[items.length - 1]).toMatchObject({
       value: BOOK_PROJECT_UNASSIGNED,
       name: 'Ohne Zuordnung',
       wishCount: 2,
