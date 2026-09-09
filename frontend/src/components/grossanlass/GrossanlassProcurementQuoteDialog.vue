@@ -34,13 +34,19 @@
 
       <div class="form-group mt-3">
         <label class="form-label">{{ t('grossanlass.beschaffung.offerten.supplier') }}</label>
+        <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.supplierHint') }}</p>
         <DepartmentAddressAutocomplete
           :addresses="addresses"
           :selected-id="supplierAddressId"
+          :extra-items="inquiryItems"
+          :extra-items-divider-label="t('grossanlass.beschaffung.offerten.inquiriesGroup')"
+          :address-group-label="t('grossanlass.beschaffung.offerten.contactsGroup')"
+          :selected-extra-label="selectedInquiryLabel"
           primary-type="supplier"
           :placeholder="t('grossanlass.beschaffung.offerten.supplierPlaceholder')"
           :inline-create-label-key="'grossanlass.beschaffung.offerten.createSupplierInline'"
           @update:selected-id="onSupplierSelected"
+          @select-extra="onInquirySelected"
           @create="openCreateSupplier"
         />
         <div class="supplier-actions">
@@ -75,6 +81,28 @@
         :label="t('grossanlass.beschaffung.offerten.amountChf')"
         hide-details="auto"
       />
+
+      <div class="mt-3">
+        <EDateField
+          v-model="form.delivery_at"
+          :department-id="departmentId"
+          :label="t('grossanlass.beschaffung.offerten.deliveryAt')"
+          :view-date="needFromDate"
+          allow-past
+        />
+        <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.deliveryAtHint') }}</p>
+      </div>
+
+      <ETextField
+        v-model="form.lead_days"
+        class="mt-3"
+        type="number"
+        min="0"
+        step="1"
+        :label="t('grossanlass.beschaffung.offerten.leadDays')"
+        hide-details="auto"
+      />
+      <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.leadDaysHint') }}</p>
 
       <ETextField
         v-model="form.notes"
@@ -120,6 +148,10 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getAddresses, type Address } from '@/api/addresses'
 import {
+  getGrossanlassInquiries,
+  type GrossanlassInquiry,
+} from '@/api/grossanlassInquiries'
+import {
   createGrossanlassProcurementQuote,
   extractGrossanlassProcurementQuoteContact,
   updateGrossanlassProcurementQuote,
@@ -131,7 +163,7 @@ import AddressModal from '@/components/AddressModal.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { EButton, EDateField, EDialog, ETextField } from '@/components/form/base'
 import { formatAddressSelectionLabel } from '@/utils/departmentAddressSearch'
 
 const props = defineProps<{
@@ -159,12 +191,30 @@ const submitLabel = computed(() =>
 )
 
 const addresses = ref<Address[]>([])
+const inquiries = ref<GrossanlassInquiry[]>([])
 const isLoadingAddresses = ref(false)
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
 const supplierAddressId = ref<string | null>(null)
-const form = ref({ supplier: '', amount_chf: '', notes: '' })
+const selectedInquiryId = ref<string | null>(null)
+const form = ref({ supplier: '', amount_chf: '', notes: '', delivery_at: '', lead_days: '' })
+
+const needFromDate = computed(() => (props.line.need_from || '').slice(0, 10))
+
+const inquiryItems = computed(() =>
+  inquiries.value.map((firm) => ({
+    id: firm.id,
+    title: firm.name,
+    subtitle: [firm.place, firm.email].filter(Boolean).join(' · '),
+    badge: t('grossanlass.beschaffung.offerten.inquiryBadge'),
+  })),
+)
+
+const selectedInquiryLabel = computed(() => {
+  if (!selectedInquiryId.value) return ''
+  return inquiries.value.find((firm) => firm.id === selectedInquiryId.value)?.name ?? ''
+})
 
 const pdfFile = ref<File | null>(null)
 const pdfPreview = ref('')
@@ -180,13 +230,30 @@ function supplierDisplayFromAddress(addr: Address): string {
   return addr.company || addr.name || addr.street_line || ''
 }
 
+function matchInquiryFromSupplierName() {
+  if (supplierAddressId.value) {
+    selectedInquiryId.value = null
+    return
+  }
+  const name = form.value.supplier.trim().toLowerCase()
+  if (!name) {
+    selectedInquiryId.value = null
+    return
+  }
+  const hit = inquiries.value.find((firm) => firm.name.toLowerCase() === name)
+  selectedInquiryId.value = hit?.id ?? null
+}
+
 function resetForm() {
   const q = props.quote
   supplierAddressId.value = q?.supplier_address_id ?? null
+  selectedInquiryId.value = null
   form.value = {
     supplier: q?.supplier ?? '',
     amount_chf: q?.amount_chf != null ? String(q.amount_chf) : '',
     notes: q?.notes ?? '',
+    delivery_at: q?.delivery_at ? q.delivery_at.slice(0, 10) : '',
+    lead_days: q?.lead_days != null ? String(q.lead_days) : '',
   }
   pdfFile.value = null
   pdfPreview.value = q?.pdf_filename ? q.pdf_filename : ''
@@ -197,8 +264,13 @@ function resetForm() {
 async function loadAddresses() {
   isLoadingAddresses.value = true
   try {
-    const data = await getAddresses(props.departmentId)
+    const [data, firms] = await Promise.all([
+      getAddresses(props.departmentId),
+      getGrossanlassInquiries(props.departmentId).catch(() => [] as GrossanlassInquiry[]),
+    ])
     addresses.value = data.addresses
+    inquiries.value = firms
+    matchInquiryFromSupplierName()
   } finally {
     isLoadingAddresses.value = false
   }
@@ -218,9 +290,20 @@ watch(
 function onSupplierSelected(id: string | null) {
   supplierAddressId.value = id
   if (!id) return
+  selectedInquiryId.value = null
   const addr = addresses.value.find((a) => a.id === id)
   if (addr) {
     form.value.supplier = supplierDisplayFromAddress(addr)
+  }
+}
+
+function onInquirySelected(id: string | null) {
+  selectedInquiryId.value = id
+  if (!id) return
+  supplierAddressId.value = null
+  const firm = inquiries.value.find((item) => item.id === id)
+  if (firm) {
+    form.value.supplier = firm.name
   }
 }
 
@@ -247,6 +330,7 @@ async function onAddressSaved(address?: Address) {
   addressModalOpen.value = false
   await loadAddresses()
   if (address?.id) {
+    selectedInquiryId.value = null
     supplierAddressId.value = address.id
     form.value.supplier = supplierDisplayFromAddress(address)
   }
@@ -271,18 +355,33 @@ async function onPdfSelected(event: Event) {
       form.value.supplier = extracted.company
     }
 
+    const company = (extracted.company ?? '').toLowerCase()
+    const email = (extracted.email ?? '').toLowerCase()
+
     const match = addresses.value.find((a) => {
       const label = formatAddressSelectionLabel(a).toLowerCase()
-      const company = (extracted.company ?? '').toLowerCase()
-      const email = (extracted.email ?? '').toLowerCase()
       return (company && label.includes(company))
         || (email && (a.email ?? '').toLowerCase() === email)
     })
 
+    const inquiryMatch = inquiries.value.find((firm) => {
+      const name = firm.name.toLowerCase()
+      const firmEmail = (firm.email ?? '').toLowerCase()
+      return (company && name.includes(company))
+        || (company && company.includes(name) && name.length > 2)
+        || (email && firmEmail === email)
+    })
+
     if (match) {
+      selectedInquiryId.value = null
       supplierAddressId.value = match.id
       form.value.supplier = supplierDisplayFromAddress(match)
       extractHint.value = t('grossanlass.beschaffung.offerten.extractMatched')
+    } else if (inquiryMatch) {
+      supplierAddressId.value = null
+      selectedInquiryId.value = inquiryMatch.id
+      form.value.supplier = inquiryMatch.name
+      extractHint.value = t('grossanlass.beschaffung.offerten.extractMatchedInquiry')
     } else if (extracted.company || extracted.email) {
       extractHint.value = t('grossanlass.beschaffung.offerten.extractNewHint')
       addressModalDefaultName.value = extracted.company ?? extracted.name ?? ''
@@ -319,6 +418,8 @@ async function submit() {
       supplier_address_id: supplierAddressId.value,
       amount_chf: Number(form.value.amount_chf),
       notes: form.value.notes.trim() || null,
+      delivery_at: form.value.delivery_at ? `${form.value.delivery_at}T12:00:00` : null,
+      lead_days: form.value.lead_days === '' ? null : Number(form.value.lead_days),
     }
 
     let saved: GrossanlassProcurementQuote

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Baut Frontend für Droplet (Caddy).
-# develop/staging: nur App (kein Marketing) → deploy/droplet/<env>/app/
-# prod: home + app → deploy/droplet/prod/{home,app}/
+# develop/staging/prod: nur App → deploy/droplet/<env>/app/
+# Prod-Marketing (ematchef.ch) bleibt Hostpoint (build-hostpoint-deploy-prod.sh).
 # Usage: bash scripts/build-droplet-frontend.sh [develop|staging|prod]
 set -euo pipefail
 
@@ -60,7 +60,7 @@ case "$ENV_NAME" in
     QR=qr.ematchef.ch
     DEVICES=devices.ematchef.ch
     BANNER=0
-    BUILD_HOME=1
+    BUILD_HOME=0
     ;;
 esac
 

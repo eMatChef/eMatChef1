@@ -106,3 +106,34 @@ export async function removeGrossanlassGroupMember(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/members/${userId}`,
   )
 }
+
+export type GrossanlassHelperResult = {
+  created_user: boolean
+  added_to_department: boolean
+  added_to_ressort: boolean
+  user_id: string
+  name: string
+  email: string
+  card: {
+    user_id: string
+    name: string
+    ressort: string
+    role: string
+    code: string
+    may_drive: boolean
+    printed: boolean
+    printed_at: string | null
+  }
+}
+
+export async function createGrossanlassHelper(
+  departmentId: string,
+  groupId: string,
+  data: { email: string; name?: string; may_drive?: boolean },
+): Promise<GrossanlassHelperResult> {
+  const response = await apiClient.post<GrossanlassHelperResult>(
+    `/api/departments/${departmentId}/grossanlass/groups/${groupId}/helpers`,
+    data,
+  )
+  return response.data
+}

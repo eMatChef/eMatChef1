@@ -158,20 +158,30 @@
                 span-class="form-group span-2"
                 :save="(v) => saveContactField('company', v)"
               />
-              <AutoSaveField
-                v-model="formData.contact_first_name"
-                :baseline="baselines.contact_first_name"
-                :label="t('settings.addressForm.contactFirstName')"
-                :placeholder="t('common.optional')"
-                :save="(v) => saveContactField('contact_first_name', v)"
-              />
-              <AutoSaveField
-                v-model="formData.contact_last_name"
-                :baseline="baselines.contact_last_name"
-                :label="t('settings.addressForm.contactLastName')"
-                :placeholder="t('common.optional')"
-                :save="(v) => saveContactField('contact_last_name', v)"
-              />
+              <div class="span-2 contact-person-fields">
+                <AutoSaveField
+                  v-model="formData.contact_salutation"
+                  :baseline="baselines.contact_salutation"
+                  type="select"
+                  :options="salutationSelectOptions"
+                  :label="t('settings.addressForm.contactSalutation')"
+                  :save="(v) => saveContactField('contact_salutation', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.contact_first_name"
+                  :baseline="baselines.contact_first_name"
+                  :label="t('settings.addressForm.contactFirstName')"
+                  :placeholder="t('common.optional')"
+                  :save="(v) => saveContactField('contact_first_name', v)"
+                />
+                <AutoSaveField
+                  v-model="formData.contact_last_name"
+                  :baseline="baselines.contact_last_name"
+                  :label="t('settings.addressForm.contactLastName')"
+                  :placeholder="t('common.optional')"
+                  :save="(v) => saveContactField('contact_last_name', v)"
+                />
+              </div>
             </div>
             <div v-else class="info-grid">
               <div class="info-item">
@@ -816,6 +826,7 @@ type ContactFormState = {
   company: string | null
   contact_first_name: string | null
   contact_last_name: string | null
+  contact_salutation: string | null
   is_primary: boolean
   pin_color: string | null
   email: string | null
@@ -851,6 +862,7 @@ function emptyFormState(type = 'customer'): ContactFormState {
     company: null,
     contact_first_name: null,
     contact_last_name: null,
+    contact_salutation: null,
     is_primary: false,
     pin_color: '#16a34a',
     email: null,
@@ -874,6 +886,7 @@ function formStateFromAddress(a: Address): ContactFormState {
     company: a.company,
     contact_first_name: a.contact_first_name,
     contact_last_name: a.contact_last_name,
+    contact_salutation: a.contact_salutation || null,
     is_primary: !!a.is_primary,
     pin_color: a.pin_color || '#16a34a',
     email: a.email,
@@ -1007,6 +1020,7 @@ function emptyDraft(type = props.defaultType): Partial<AddressFormData> {
     country: 'Schweiz',
     contact_first_name: null,
     contact_last_name: null,
+    contact_salutation: null,
     email: null,
     phone: null,
     mobile: null,
@@ -1153,6 +1167,12 @@ const cantonSelectOptions = computed<AutoSaveSelectOption[]>(() => [
   })),
 ])
 
+const salutationSelectOptions = computed<AutoSaveSelectOption[]>(() => [
+  { value: '', label: t('settings.addressForm.selectPlaceholder') },
+  { value: 'herr', label: t('settings.addressForm.salutationHerr') },
+  { value: 'frau', label: t('settings.addressForm.salutationFrau') },
+])
+
 const backLabel = computed(() => {
   if (asModal.value) return t('common.close')
   if (isCreateMode.value) return t('contacts.detail.backToList')
@@ -1244,7 +1264,8 @@ async function applyInitialFocus() {
 }
 
 function formatContactPerson(c: Address): string {
-  return [c.contact_first_name, c.contact_last_name].filter(Boolean).join(' ')
+  const label = c.contact_salutation === 'herr' ? 'Herr' : c.contact_salutation === 'frau' ? 'Frau' : ''
+  return [label, c.contact_first_name, c.contact_last_name].filter(Boolean).join(' ')
 }
 
 function getInitials(c: Address): string {
@@ -1316,6 +1337,8 @@ async function saveContactField(field: ContactAutoSaveField, value: AutoSaveFiel
     payload.contact_first_name = normalizeNullableString(value)
   } else if (field === 'contact_last_name') {
     payload.contact_last_name = normalizeNullableString(value)
+  } else if (field === 'contact_salutation') {
+    payload.contact_salutation = normalizeNullableString(value)
   } else if (field === 'pin_color') {
     payload.pin_color = normalizeNullableString(value)
   } else if (field === 'email') {
@@ -1389,6 +1412,7 @@ async function saveCreate() {
       country: d.country || 'Schweiz',
       contact_first_name: d.contact_first_name,
       contact_last_name: d.contact_last_name,
+      contact_salutation: d.contact_salutation,
       email: d.email,
       phone: d.phone,
       mobile: d.mobile,
@@ -1479,6 +1503,7 @@ async function handleMapPinAccepted(payload: { latitude: number; longitude: numb
       company: d.company,
       contact_first_name: d.contact_first_name,
       contact_last_name: d.contact_last_name,
+      contact_salutation: d.contact_salutation,
       email: d.email,
       phone: d.phone,
       mobile: d.mobile,
@@ -1936,6 +1961,13 @@ onMounted(() => {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.contact-person-fields {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.7fr) 1fr 1fr;
+  gap: 16px;
+  min-width: 0;
 }
 
 .section-card--location {

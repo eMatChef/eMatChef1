@@ -5,6 +5,7 @@
     :persistent="persistent"
     :scrollable="scrollable"
     :retain-focus="retainFocus"
+    :z-index="zIndex"
     @update:model-value="onUpdate"
   >
     <ECard
@@ -43,6 +44,7 @@ withDefaults(
     cardClass?: string | string[] | Record<string, boolean>
     /** Tour-Spotlight: Target auf der ganzen Dialog-Karte (inkl. Actions) */
     dataOnboarding?: string
+    zIndex?: number
   }>(),
   {
     maxWidth: 560,
@@ -85,5 +87,7 @@ function onUpdate(value: boolean) {
 .e-dialog__actions {
   padding: 8px 16px 16px;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

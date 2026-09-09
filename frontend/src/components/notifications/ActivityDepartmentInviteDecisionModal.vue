@@ -57,7 +57,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton, EDialog } from '@/components/form/base'
 import { getGroups, type Group } from '@/api/groups'
-import { decideDepartmentActivityInvite, type PendingDepartmentActivityInvite } from '@/api/joinRequests'
+import { decidePendingDepartmentInvite, type PendingDepartmentActivityInvite } from '@/api/joinRequests'
 import { flattenGroupsWithLevel, type GroupWithLevel } from '@/utils/groupHierarchy'
 
 const props = defineProps<{
@@ -132,8 +132,8 @@ async function submit(decision: 'accepted' | 'rejected') {
   pendingDecision.value = decision
   errorMessage.value = ''
   try {
-    await decideDepartmentActivityInvite({
-      activityId: props.invite.activity_id,
+    await decidePendingDepartmentInvite({
+      invite: props.invite,
       departmentId: props.departmentId,
       decision,
       groupId: decision === 'accepted' ? selectedGroupId.value : undefined,

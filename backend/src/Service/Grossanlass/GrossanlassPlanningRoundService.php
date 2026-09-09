@@ -10,7 +10,7 @@ use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
 use App\Service\InboxMessageService;
-use App\Util\IdGenerator;
+use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
 class GrossanlassPlanningRoundService
@@ -63,15 +63,23 @@ class GrossanlassPlanningRoundService
             throw new \InvalidArgumentException('Ungültiger Rundentyp');
         }
 
+        $formPurpose = (string) ($data['form_purpose'] ?? ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH);
+        if (!in_array($formPurpose, ActivityGrossanlassRound::FORM_PURPOSES, true)) {
+            throw new \InvalidArgumentException('Ungültiger Formular-Zweck');
+        }
+        $materialStage = GrossanlassMaterialStage::normalize($formPurpose, $data['material_stage'] ?? null);
+
         $opensAt = $this->parseOptionalDateTime($data['opens_at'] ?? null);
         $closesAt = $this->parseOptionalDateTime($data['closes_at'] ?? null);
         $this->assertValidWindow($opensAt, $closesAt);
 
         $round = new ActivityGrossanlassRound();
-        $round->setId(IdGenerator::generate12UniqueWithPrefix($this->entityManager, ActivityGrossanlassRound::class, 'gr'));
+        $round->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::ROUND, ActivityGrossanlassRound::class));
         $round->setActivity($activity);
         $round->setName($name);
         $round->setRoundType($roundType);
+        $round->setFormPurpose($formPurpose);
+        $round->setMaterialStage($materialStage);
         $round->setStatus(ActivityGrossanlassRound::STATUS_SCHEDULED);
         $round->setOpensAt($opensAt);
         $round->setClosesAt($closesAt);
@@ -347,6 +355,8 @@ class GrossanlassPlanningRoundService
             'activity_id' => $round->getActivityId(),
             'name' => $round->getName(),
             'round_type' => $round->getRoundType(),
+            'form_purpose' => $round->getFormPurpose(),
+            'material_stage' => $round->getMaterialStage(),
             'status' => $round->getStatus(),
             'opens_at' => $round->getOpensAt()?->format(\DateTimeInterface::ATOM),
             'closes_at' => $round->getClosesAt()?->format(\DateTimeInterface::ATOM),

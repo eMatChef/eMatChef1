@@ -33,11 +33,20 @@ const PURIFY_CONFIG: Config = {
   ALLOW_DATA_ATTR: false,
   ALLOW_ARIA_ATTR: false,
   ALLOW_UNKNOWN_PROTOCOLS: false,
-  // Nur absolute http(s)-URLs sowie mailto:/tel: — kein javascript:, data:, etc.
   ALLOWED_URI_REGEXP: /^(?:(?:https?):\/\/|mailto:|tel:)/i,
 }
 
+const MAIL_PURIFY_CONFIG: Config = {
+  ALLOWED_TAGS: [...ALLOWED_TAGS, 'img'],
+  ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'style'],
+  ALLOW_DATA_ATTR: false,
+  ALLOW_ARIA_ATTR: false,
+  ALLOW_UNKNOWN_PROTOCOLS: false,
+  ALLOWED_URI_REGEXP: /^(?:(?:https?):\/\/|mailto:|tel:|data:image\/)/i,
+}
+
 let hooksInstalled = false
+let mailStyleHookInstalled = false
 
 function ensureLinkHooks(): void {
   if (typeof window === 'undefined' || hooksInstalled) {
@@ -54,6 +63,23 @@ function ensureLinkHooks(): void {
     }
     el.setAttribute('target', '_blank')
     el.setAttribute('rel', 'noopener noreferrer')
+  })
+}
+
+function ensureMailStyleHook(): void {
+  if (typeof window === 'undefined' || mailStyleHookInstalled) {
+    return
+  }
+  mailStyleHookInstalled = true
+  DOMPurify.addHook('uponSanitizeAttribute', (node, data) => {
+    if (data.attrName !== 'style') {
+      return
+    }
+    const value = String(data.attrValue || '').trim()
+    const ok = node.nodeName === 'SPAN' && /^font-size:\s*\d+(\.\d+)?(pt|px)\s*;?$/i.test(value)
+    if (!ok) {
+      data.keepAttr = false
+    }
   })
 }
 
@@ -77,4 +103,20 @@ export function sanitizePublicHtml(html: string): string {
 
   ensureLinkHooks()
   return DOMPurify.sanitize(s, PURIFY_CONFIG)
+}
+
+/** HTML aus Mail-Vorlagen (TipTap) für die Vorschau. */
+export function sanitizeMailHtml(html: string): string {
+  const s = String(html || '').trim()
+  if (!s) {
+    return ''
+  }
+
+  if (typeof window === 'undefined') {
+    return fallbackStripTags(s)
+  }
+
+  ensureLinkHooks()
+  ensureMailStyleHook()
+  return DOMPurify.sanitize(s, MAIL_PURIFY_CONFIG)
 }

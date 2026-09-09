@@ -4,7 +4,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 
 **Stand:** Juni 2026 · **Status:** Spezifikation (Ziel); Umsetzung offen
 
-**Verwandt:** [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
+**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
 
 ---
 
@@ -25,14 +25,14 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 | Materialübersicht               | Zuweisung / Ausgabe **pro Ressort & Unterkategorie**; Lager vs. draussen                                                                                                                                                  |
 | **Phase 1**                     | Erstell-Button, Wizard, App-Shell, Platzhalter-Dashboard, MW-Benachrichtigung — [MVP §Phase 1](./MVP.md#phase-1-grundgerüst)                                                                                              |
 | **Erster Schnitt (MVP gesamt)** | Phase 1 + Ressorts + Planungsrunde Bedarf — [MVP.md](./MVP.md)                                                                                                                                                            |
-| Planungsrunden (MVP)            | `ressort_wuensche` — wie [Google Form PFF 27](https://docs.google.com/forms/d/e/1FAIpQLSfbk4Cvu7fLpnvW_Upu89BziYJlhd6rDF917xGasM1LEq3kGg/viewform); später `detailplanung` §9.2                                           |
+| Wünsche & Ideen                 | Planung-Tab: Formulare **Material** / **Firmenvorschlag** / **Frei** — [§9](#9-wünsche--ideen-formulare), [Konzept](./20260823_New_concept.md#81-formulare-statt-planungsrunden). Ist: eine «Planungsrunde» = Material. |
 | **Entwurf → Freigabe**          | CM plant alles; **Erst bei Freigabe** Einladungen an Gast-Depts                                                                                                                                                           |
 | Ressort-Hierarchie              | **Ressort → Unterressort / Bauprojekt** via `group.parent_id` + `group.grossanlass_kind` (CM im MVP; Mitglieder §4.2)                                                                                                     |
 | Gast-Pfadi-Dept                 | Weiter `**/activities`** — sichtbar **erst nach Freigabe**                                                                                                                                                                |
 | **Keine Doppelspur**            | Bestehende Layout-, UI-, API- und Inbox-Patterns erweitern — [§20](#20-implementierungsprinzipien--keine-doppelspur)                                                                                                      |
 
 
-Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt.
+Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt · [20260823_New_concept.md](./20260823_New_concept.md) — Konzept Partneranfragen / Grob–Fein (Aug 2026) · [kosten.md](./kosten.md) — Kostenübersicht Einkauf / Miete / Weiterverkauf.
 
 ---
 
@@ -45,13 +45,13 @@ Siehe auch: [MVP.md](./MVP.md) — erster Implementierungsschnitt.
   - [3.4 Hauptmenü — Sortierung & Sichtbarkeit](#34-hauptmenü--sortierung--sichtbarkeit)
   - [3.5 Routen & leere Seiten (Shell-first)](#35-routen--leere-seiten-shell-first)
   - [3.6 Einstellungen (Grossanlass-Dept)](#36-einstellungen-grossanlass-dept)
-  - [3.7 Beschaffung — Budget & Kosten](#37-beschaffung--budget--kosten)
+  - [3.7 Beschaffung — Budget & Kosten](#37-beschaffung--budget--kosten) — Soll-Kosten: [kosten.md](./kosten.md)
 4. [Ressorts = Gruppen](#4-ressorts--gruppen)
 5. [Struktur & Teilnehmer (Dept-weit)](#5-struktur--teilnehmer-dept-weit)
 6. [Activities & Rollen](#6-activities--rollen)
 7. [Planung & Entwurfmodus](#7-planung--entwurfmodus)
 8. [Teilnehmer, Einladungen & Inbox](#8-teilnehmer-einladungen--inbox)
-9. [Planungsrunden](#9-planungsrunden)
+9. [Wünsche & Ideen (Formulare)](#9-wünsche--ideen-formulare)
 10. [Materialien — Zentral erfassen](#10-materialien--zentral-erfassen)
 11. [Materialübersicht & Ausgabe](#11-materialübersicht--ausgabe)
 12. [J+S](#12-js)
@@ -72,7 +72,7 @@ Grossanlass ist **kein** camp/event und **kein** erweitertes event. Es ist ein *
 
 - Zentrallager + Leihgaben + Fuhrpark
 - Ressorts (Groups), Unterlager, eingeladene Pfadi-Departments
-- Planungsrunden **vor** dem Event
+- Wünsche & Ideen (Formulare) **vor** dem Event — [§9](#9-wünsche--ideen-formulare)
 - Mehrere **Activities** (Anlass, Aufbau, Abbau, Sitzungen, …) für Material & Pack pro Zeitraum
 - Immer sichtbar: **was im Lager ist vs. zugewiesen vs. draussen** — gesamt und pro Ressort
 
@@ -261,7 +261,7 @@ Gleiche **App-Shell** (`[AppLayout](../../frontend/src/components/layout/AppLayo
 | **Dashboard**                        | `/:deptId`                          | 1 ✓                                     |
 | **Planung**                          | `/:deptId/planung`                  | 2+                                      |
 | Materialien                          | `/:deptId/materials`                | später (Menü erst mit Inhalt)           |
-| Materialübersicht                    | `/:deptId/material-uebersicht`      | später                                  |
+| Materialübersicht                    | `/:deptId/material-uebersicht`      | später — Bestand + **Einsätze** + Konflikte innen ([Konzept §12.3](./20260823_New_concept.md#123-einsatzliste-ressort--bauprojekt-keine-doppelbuchung)) |
 | Aufgaben, Nachrichten, Einstellungen | wie Pfadi (Settings gefiltert §3.6) | 2+                                      |
 | **Beschaffung**                      | `/:deptId/beschaffung`              | 2+ Shell (PR2c); Inhalt ab Phase 5 §3.7 |
 
@@ -277,15 +277,16 @@ Phase 1 nur Platzhalter §3.0. Vollständige Widgets:
 | ------------------------ | ------------------------------------------------------------------- |
 | **Entwurf-Banner**       | solange `status: draft` — «Grossanlass freigeben» + Checkliste §7.2 |
 | **Anlass-Phase**         | Entwurf · Planung · Aufbau · Event · Abbau · Abgeschlossen          |
-| **Planungsrunden**       | Offen / geplant / geschlossen am Haupt-`anlass`                     |
+| **Offene Formulare**     | Wünsche & Ideen: offen / geplant / geschlossen                          |
 | **Lager vs. draussen**   | Gesamt: im Lager · zugewiesen · draussen (issued)                   |
 | **Pro Ressort (Kurz)**   | Verpflegung: 80/200 draußen · Technik: …                            |
 | **Teilnehmer**           | In Entwurf: geplant · Nach Freigabe: pending / accepted             |
 | **Nächste Activities**   | Aufbau 15.7., Vorevent Sitzung 12.5., …                             |
 | **Checkliste vor Start** | Runden geschlossen? Wünsche offen?                                  |
+| **Fahraufträge**         | Anzahl Einsätze mit Checkbox Fahrt; Klick → Liste. Selbstabholung nicht hier. Siehe [rollen-postfach-fahrten.md §7.4](./rollen-postfach-fahrten.md#74-dashboard--box-fahraufträge) |
 
 
-Klick → Planung, Materialübersicht oder gefiltertes Ressort.
+Klick → Planung, Materialübersicht, Fahrauftrag-Liste oder gefiltertes Ressort.
 
 ### 3.3 Dashboard — Layout (Wireframe)
 
@@ -297,6 +298,9 @@ Klick → Planung, Materialübersicht oder gefiltertes Ressort.
 │  │ Runden      │ │ Lager 1'240 │ │ Zusagen 8/12        │  │
 │  │ 2 offen     │ │ Draußen 156 │ │ pending             │  │
 │  └─────────────┘ └─────────────┘ └─────────────────────┘  │
+│  ┌─────────────┐                                           │
+│  │ Fahraufträge│  3 offen → Klick Liste (nur Checkbox Fahrt)│
+│  └─────────────┘                                           │
 │  Ressorts                                                    │
 │  Verpflegung    Lager 400 │ zugewiesen 120 │ draußen 80    │
 │  Technik        …                                          │
@@ -318,7 +322,7 @@ Implementierung: `[SidebarNavigation.vue](../../frontend/src/components/layout/S
 | 1   | **Dashboard**     | `mdi-view-grid`              | `/{deptId}`                     | immer                                       |
 | 2   | **Planung**       | `mdi-clipboard-text-outline` | `/{deptId}/planung`             | ab Phase 2                                  |
 | 3   | Materialien       | `mdi-package-variant`        | `/{deptId}/materials`           | **später** — Menüpunkt erst wenn §10 live   |
-| 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/material-uebersicht` | **später** — Menüpunkt erst wenn §11 live   |
+| 4   | Materialübersicht | `mdi-truck-delivery-outline` | `/{deptId}/material-uebersicht` | **später** — operativ: Bestand / Einsätze / Konflikte (Tabs innen, kein extra Sidebar «Einsätze») |
 | 5   | **Beschaffung**   | `mdi-cart-outline`           | `/{deptId}/beschaffung`         | ab Phase 2 — **Shell** §3.7; Inhalt Phase 5 |
 | —   | *Divider*         |                              |                                 |                                             |
 | 6   | **Aufgaben**      | `mdi-clipboard-list`         | `/{deptId}/tasks`               | ab Phase 2 (Runden-Inbox, MW-Tasks)         |
@@ -383,10 +387,10 @@ Pattern wie `[SettingsView.vue](../../frontend/src/views/SettingsView.vue)`: **S
 | Tab                       | Label                             | Phase | Leer-Zustand                         |
 | ------------------------- | --------------------------------- | ----- | ------------------------------------ |
 | **Ressorts & Mitglieder** | `grossanlass.planung.tabRessorts` | 2     | `EEmptyState` + «Ressort hinzufügen» |
-| **Planungsrunden**        | `grossanlass.planung.tabRounds`   | 3     | `EEmptyState` + «Runde anlegen»      |
+| **Wünsche & Ideen**       | `grossanlass.planung.tabWishes`   | 3     | `EEmptyState` + «Formular anlegen»   |
 
 
-Wünsche (PR4): **kein** eigener Sidebar/Tab — Detail unter `/planung/rounds/:id` oder Panel in Tab «Planungsrunden».
+Wünsche (PR4): **kein** eigener Sidebar-Eintrag — Detail unter `/planung/runden/:id` oder Panel im Tab «Wünsche & Ideen». Ist-Label der Tab-Route: «Planungsrunden» (`GrossanlassRoundsTab`) bis Rename.
 
 #### Wiederverwendbare Bausteine (Pflicht §20)
 
@@ -467,6 +471,8 @@ Implementierung: `visibleMenuItems` in `SettingsView.vue` — Branch `isGrossanl
 
 **Kein** Pfadi-Modul «Buchhaltung» ([accounting.md](../accounting.md)) — kein Follow-up-Warteschlange, Abschreibung oder Aktivitäts-Verbrauch.
 
+**Kostenübersicht (Soll):** Einkauf / Miete / Weiterverkauf, Zahler ≠ Organisator, eigene Tabellen — **[kosten.md](./kosten.md)** (abarbeiten). Ist-UI Finanzen bleibt Rahmen + Offerten/Bestellungen, bis die Phasen dort umgesetzt sind.
+
 **Ein Modul** für Budget-Übersicht und Beschaffungs-Workflow: Wünsche bündeln → Offerten → Budget → bestellen → Kosten → **erhalten**. Die **Übersicht** ist die Budget- & Kosten-Home (Soll/Ist); die weiteren Tabs sind der Weg dorthin.
 
 #### Phase 2 (PR2c) — nur Shell
@@ -498,8 +504,9 @@ Abhängigkeit: **PR4** (`activity_grossanlass_wish_line`) → dann Bedarf aus W�
 | Tab              | Inhalt                                                                            |
 | ---------------- | --------------------------------------------------------------------------------- |
 | **Übersicht**    | Soll/Ist gesamt + pro Ressort; offene Offerten; bestellt nicht erhalten           |
-| **Bedarf**       | CM bündelt Wunsch-Zeilen zu Beschaffungspositionen (merge/split)                  |
-| **Offerten**     | 1..n Angebote pro Position (Lieferant, CHF, Notiz/PDF-Ref); eine «gewählt» → Soll |
+| **Bedarf**       | CM bündelt **Material**-Wünsche zu Positionen (merge/split); nicht `company_tip`/`free` roh |
+| **Anfragen**     | Soll: n Firmen × Paket, Gmail — [Konzept](./20260823_New_concept.md)                      |
+| **Offerten**     | Ist: 1..n Angebote; Soll: Antworten/Konditionen auf Anfragen                               |
 | **Bestellungen** | Status «bestellt», Betrag, Bestelldatum, Rechnungsreferenz                        |
 | **Erhalten**     | «Vollständig erhalten» / Teillieferung; später Anbindung Zentrallager §10         |
 
@@ -524,6 +531,8 @@ Phase 2 Shell: Route erreichbar für MW/DC; Tabs zeigen nur Empty State.
 activity_grossanlass_procurement_line   — aus wish_line(s), group_id, qty, status
 activity_grossanlass_quote              — procurement_line_id, supplier, amount_chf, selected
 activity_grossanlass_procurement_order  — bestellt_am, cost_chf, order_ref, received_at?
+department_grossanlass_cost             — Ledger (Quelle Übersicht) — [kosten.md](./kosten.md)
+department_grossanlass_budget            — Rahmen gesamt + pro Zahler
 ```
 
 Optional später: `material_batch_id` bei «erhalten» → Zentrallager §10.
@@ -536,6 +545,8 @@ GET/POST/PUT/DELETE  …/grossanlass/beschaffung/lines/{id}/quotes
 POST                 …/beschaffung/lines/{id}/order
 POST                 …/beschaffung/lines/{id}/received
 GET                  …/grossanlass/beschaffung/overview
+CRUD                 …/grossanlass/beschaffung/costs
+PUT                  …/grossanlass/beschaffung/budgets
 ```
 
 Intern §20: keine parallele Ledger-UI — Export ans Vereins-Finanztool optional über bestehende Accounting-Entitäten **später**, nicht MVP.
@@ -838,32 +849,46 @@ GM: ablehnen → rejected
 
 ---
 
-## 9. Planungsrunden
+## 9. Wünsche & Ideen (Formulare)
 
-Am **Haupt-`anlass`** (`grossanlass_role: anlass`). **Mehrere Runden** gleichzeitig möglich (auch mehrere `open`).
+Planung sammelt **Wünsche und Ideen**, nicht einen Projektplan in «Runden». Technisch bleibt der Container `activity_grossanlass_round` (Name, `open`/`closed`, Zeitfenster, Formular-Builder, Inbox beim Öffnen).
 
-### 9.0 Rundentypen — Übersicht
+**Ist (MVP):** Tab-Label «Planungsrunden»; `round_type` immer `ressort_wuensche`; alle Antworten → Wunschzeilen → ein Bedarf-Pool.
 
+**Soll:** Tab **«Wünsche & Ideen»**. Beim Anlegen **Zweck** wählen. Antworten **getrennt** zuordnen. Mehrere Firmen für dasselbe Paket = [Beschaffung → Anfragen](./20260823_New_concept.md#61-wo-die-firmenliste-entsteht-und-kategorien-zugeordnet-werden), nicht das Formular.
 
-| `round_type`           | Phase   | Art            | Beschreibung                                                     |
-| ---------------------- | ------- | -------------- | ---------------------------------------------------------------- |
-| `**ressort_wuensche`** | **MVP** | Eingabe        | Grobe Bedarfserfassung pro Ressort/Bauprojekt §9.1               |
-| `**detailplanung`**    | später  | Eingabe        | Feinplanung am Bauprojekt — Bezug `group_id`, engere Felder §9.2 |
-| `js_vorgabe`           | später  | Eingabe (Gast) | Pfadi-Depts: J+S                                                 |
-| `eigenmaterial`        | später  | Eingabe (Gast) | eigenes Lager                                                    |
-| `grossanlass_central`  | später  | Steuerung      | CM: Zuweisung Zentrallager → Ressorts                            |
-| `freigabe`             | später  | Steuerung      | Freigabe vor Aufbau/Event                                        |
+Am **Haupt-`anlass`**. **Mehrere Formulare** gleichzeitig `open` erlaubt (auch überlappend).
+
+### 9.0 Formular-Typen
 
 
-**MVP:** nur `**ressort_wuensche`**. Orientierung am bisherigen [Google Form «Infrastruktur Planung» (PFF 27)](https://docs.google.com/forms/d/e/1FAIpQLSfbk4Cvu7fLpnvW_Upu89BziYJlhd6rDF917xGasM1LEq3kGg/viewform).
+| `round_type`            | Phase        | Art     | Landet in                                      | Nicht |
+| ----------------------- | ------------ | ------- | ---------------------------------------------- | ----- |
+| `**material_wish`**     | Soll; Ist = `ressort_wuensche` | Eingabe | Bedarf / Verfeinern desselben Wunsches [Konzept §9](./20260823_New_concept.md#9-grob--fein-ein-wunsch-zwei-schärfen) | Roh in Partnermails |
+| `**company_tip`**       | Soll         | Eingabe | Anfragen-Tab als **Vorschlag** (MW übernimmt)  | Als Beschaffungsposition |
+| `**free`**              | Soll         | Eingabe | Ideen-Posteingang; MW übernimmt explizit       | Automatisch bündeln |
+| `ressort_wuensche`      | **MVP Ist**  | Eingabe | wie `material_wish` (Alias bis Migration)      | — |
+| `detailplanung`         | veraltet als eigener Typ | — | Grob/Fein = Stufe am Wunsch, nicht zweite Typ-Runde | — |
+| `js_vorgabe`            | später       | Gast    | J+S                                            | — |
+| `eigenmaterial`         | später       | Gast    | eigenes Lager                                  | — |
+| `grossanlass_central`   | später       | Steuerung | Zuweisung Lager → Ressorts                   | — |
+| `freigabe`              | später       | Steuerung | Freigabe vor Aufbau                          | — |
 
-### 9.0.1 Runde anlegen (CM/MW)
+
+Nur **drei** Eingabe-Typen für Chief-intern: Material, Firmenvorschlag, Frei. «Frei» deckt Sonderfälle (Umfrage, wilde Idee).
+
+**Material-Kernfelder** (fest, Zusatzfragen erlaubt): wie bisher Google-Form-Mapping §9.1. Grob vs. Fein ist **Hinweis + Stufe am Wunsch**, kein dritter `round_type`.
+
+**Firmenvorschlag-Kernfelder:** Name, optional Kontakt/Mail, Kategorie/Bereich, URL, Notiz — kein Mengenkatalog.
+
+### 9.0.1 Formular anlegen (CM/MW)
 
 
 | Feld                    | Pflicht | Beschreibung                                                       |
 | ----------------------- | ------- | ------------------------------------------------------------------ |
-| **Name**                | ja      | z. B. «Infrastruktur Bedarf 2026»                                  |
-| `**round_type`**        | ja      | MVP: fest `ressort_wuensche`                                       |
+| **Name**                | ja      | z. B. «Material grob», «Wen kennt ihr?», «Ideen Küche»             |
+| `**round_type`**        | ja      | Soll: `material_wish` \| `company_tip` \| `free` (Ist: nur `ressort_wuensche`) |
+| **Stufe** (nur Material)| nein    | Grob oder Fein — Text an Ausfüllende [Konzept §9](./20260823_New_concept.md#9-grob--fein-ein-wunsch-zwei-schärfen) |
 | `**opens_at**`          | nein    | Start (manuell oder Auto)                                          |
 | `**closes_at**`         | nein    | Ende (manuell oder Auto)                                           |
 | `**use_auto_schedule**` | nein    | MW wählt Auto — System öffnet/schliesst bei `opens_at`/`closes_at` |
@@ -873,19 +898,20 @@ Am **Haupt-`anlass`** (`grossanlass_role: anlass`). **Mehrere Runden** gleichzei
 
 **Workflow:**
 
-1. CM/MW legt Runde an (`scheduled`)
+1. CM/MW legt Formular an (`scheduled`) inkl. Typ
 2. **Öffnen** manuell oder per Auto bei `opens_at`
-3. Bei `**open`:** Inbox (+ optional E-Mail) an **Mitglieder** der betroffenen Ressorts: «Runde ‹Name› offen — Bedarf einreichen»
-4. Wünsche nur solange `**open`**
+3. Bei `**open`:** Inbox (+ optional E-Mail) an **Mitglieder** der betroffenen Ressorts — Text je Typ (Material einreichen / Firma vorschlagen / Formular ausfüllen)
+4. Einreichen nur solange `**open`**; Material-Wünsche **verfeinern** auch nach Grobfenster über denselben Wunsch (Konzept), nicht nur solange diese eine Runde offen ist
 5. **Schliessen** manuell oder Auto bei `closes_at`
 
 **Regeln:**
 
-- **Mehrere** Runden parallel `open` erlaubt
-- Runden **dürfen sich überschneiden** — erlaubte Aktionen = **Vereinigung** offener Runden
+- **Mehrere** Formulare parallel `open` erlaubt
+- Überlappung erlaubt — Vereinigung offener Formulare
 - Chief-intern — **ohne** Gast-Freigabe (`publish`)
+- `free` und `company_tip` **nicht** in den Material-Bedarf-Pool mischen
 
-### 9.1 Bedarfserfassung (`ressort_wuensche`) — MVP-Kern
+### 9.1 Bedarfserfassung (`material_wish` / Ist `ressort_wuensche`)
 
 In einer **offenen** Runde trägt RL/User (oder CM) **Wunsch-Zeilen** ein.
 
@@ -914,26 +940,29 @@ In einer **offenen** Runde trägt RL/User (oder CM) **Wunsch-Zeilen** ein.
 | **Status**               | `requested` (MVP)                  | —       |
 
 
-**Bearbeiten / Löschen:** nur **Autor** (`created_by_user_id`), nur solange Runde `**open`**. CM sieht alle, ändert fremde Zeilen im MVP **nicht**.
+**Bearbeiten / Löschen (Ist):** nur **Autor**, nur solange dieses Formular `**open`**. **Soll (Material):** Verfeinern am **selben Wunsch** nach Grobfenster — [Konzept §9](./20260823_New_concept.md#9-grob--fein-ein-wunsch-zwei-schärfen). CM sieht alle.
 
 **MVP:** Fahrzeug = Bedarf melden (Freitext) — **kein** Fuhrpark-Stammdaten (§10.3). Material = Freitext — **kein** Katalog-Zwang.
 
 **Berechtigung:** User nur Zeilen im **eigenen Ressort-Baum**; CM/MW alle Ressorts.
 
-**UI:** Planung → Tab «Planungsrunden» → Runde `open` → Formular (wie Google Form) + Liste; CM: aggregierte Sicht pro Ressort.
+**UI Ist:** Planung → Tab «Planungsrunden» → Formular `open`. **UI Soll:** Planung → **Wünsche & Ideen** → Badge Material → einreichen / verfeinern; CM aggregiert pro Ressort.
 
 Siehe §14.4 (`activity_grossanlass_wish_line`).
 
-### 9.2 Detailplanung (`detailplanung`) — nach MVP
+### 9.2 Grob / Fein (ersetzt `detailplanung` als zweiten Typ)
 
-Zweite **Eingaberunde** — feinere Planung am **Bauprojekt** (Blatt-Knoten im Baum), nicht Ersatz für `ressort_wuensche`:
+Kein zweiter `round_type` für Details. Dieselbe Wunsch-Identität, zwei Schärfen; angefragte Menge einfrieren — [Konzept §9](./20260823_New_concept.md#9-grob--fein-ein-wunsch-zwei-schärfen). `detailplanung` in älteren Spec-Stellen = dieses Modell, nicht neu bauen.
 
-```
-Runde 1: ressort_wuensche   «Was brauchen wir grob?»
-Runde 2: detailplanung      «Wie genau am Bauprojekt Bühne?»
-```
+Optional später: Formular-Scope `target_group_id` (nur unter einem Ressort).
 
-Gleiche `wish_line`-Struktur möglich; UI kann strengere Pflichtfelder haben. Optional später: `target_group_id` auf der Runde (Scope «nur unter Bau»).
+### 9.3 Firmenvorschlag (`company_tip`) und Frei (`free`)
+
+**Firmenvorschlag:** Antworten sind Prospects, keine Mengen. MW übernimmt in Beschaffung → Anfragen (Kategorie zuordnen) oder verwirft. Gehen **nicht** in den Bedarf-Pool.
+
+**Frei:** Rohantworten in einem Ideen-Eingang. Übernahme nur explizit → Materialwunsch oder Firmenvorschlag. Nie automatisch bündeln.
+
+Details: [Konzept §8.1](./20260823_New_concept.md#81-formulare-statt-planungsrunden).
 
 ---
 
@@ -1011,6 +1040,8 @@ Ressort «Bau»
 4. Pack/Ausgabe an Activity, optional pro Teilbereich → **Draussen**
 
 Daten: `activity_grossanlass_ressort_line` (+ Progress) Phase 2+; v1 minimal: Zuweisung + Pack-Status.
+
+**Soll (Einsatz, keine Doppelbuchung):** Liste und Zeitachse pro Material/Fahrzeug × Ressort/Bauprojekt — [Konzept §12.3](./20260823_New_concept.md#123-einsatzliste-ressort--bauprojekt-keine-doppelbuchung). User buchen vor/während dem Anlass im gleichen Tool; Mehrbedarf / Verbrauch / Rückgabe — [§12.4](./20260823_New_concept.md#124-wer-bucht--und-wenn-mehr--weniger--verbraucht-wird). Unikate: überlappende Fenster blockieren. Mengen: Summe ≤ Bestand. Wunsch-Zeitraum ≠ Einsatz, bis gebucht.
 
 ---
 
@@ -1133,6 +1164,8 @@ activity_grossanlass_quote
   procurement_line_id, supplier, amount_chf, selected, notes
 activity_grossanlass_procurement_order
   procurement_line_id, ordered_at, cost_chf, order_ref, received_at?
+department_grossanlass_cost            — Ledger Kostenübersicht [kosten.md](./kosten.md)
+department_grossanlass_budget           — Rahmen gesamt (`payer_group_id` NULL) + pro Zahler
 activity_grossanlass_ressort_line       — Zuweisung Zentrallager (später)
 activity_grossanlass_js_submission
 ```
@@ -1164,8 +1197,9 @@ department_vehicle                      — Fahrzeuge (newUI §19.3)
 | POST                | `…/planung/rounds/{roundId}/open`                             | Runde öffnen                          |
 | POST                | `…/planung/rounds/{roundId}/close`                            | Runde schliessen                      |
 | GET/POST/PUT/DELETE | `…/planung/rounds/{roundId}/wishes`                           | Wunsch-Zeilen §9.1                    |
-| GET                 | `…/grossanlass/beschaffung/overview`                          | Übersicht Soll/Ist §3.7 (**Phase 5**) |
+| GET                 | `…/grossanlass/beschaffung/overview`                          | Übersicht Soll/Ist §3.7 (**Phase 5**); Cash/Netto/Zahler: [kosten.md](./kosten.md) |
 | CRUD                | `…/grossanlass/beschaffung/lines` (+ quotes, order, received) | Beschaffung §3.7 (**Phase 5**)        |
+| CRUD                | `…/grossanlass/beschaffung/costs` + `budgets`              | Ledger + Rahmen pro Zahler [kosten.md](./kosten.md) |
 | POST                | `/api/activities`                                             | `grossanlass` + `grossanlass_role` §6 |
 | GET                 | `/api/departments/{id}/grossanlass/material-uebersicht`       | §11                                   |
 | CRUD                | `/api/departments/{id}/material-usage-grants`                 | Leihweise §10                         |
@@ -1188,6 +1222,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 | **3**  | Planungsrunden — Name, Auto-Schedule, open/close, Benachrichtigung §9                                           | PR3                                           |
 | **4**  | Wunschformular `ressort_wuensche` §9.1 (Google Form)                                                            | PR4                                           |
 | **5**  | **Beschaffung** — Bedarf, Offerten, Budget, Bestellung, Erhalten §3.7                                           | PR5                                           |
+| **5b** | **Kostenübersicht** — Ledger, Zahler, Cash/Netto [kosten.md](./kosten.md) Phasen K1–K6                        | nach/parallel PR5                            |
 | **6**  | `detailplanung`-Runden §9.2                                                                                     | nach MVP                                      |
 | **7**  | `**publish`** + Gast-Inbox + accept                                                                             | §7.2, §8                                      |
 | **8**  | Materialübersicht v1                                                                                            | §11                                           |
@@ -1198,6 +1233,8 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 ---
 
 ## 17. Berechtigungs-Matrix
+
+**Soll (Aug 2026):** MW, CMW, OK-Leitung (`dc`), Bereichsleitung, Komm/Spon, Helfer; Postfach und Fahrten — [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md). Die Tabelle darunter ist der ältere Schnitt (CM = MW/DC).
 
 
 | Kürzel | Bedeutung                      |
@@ -1267,6 +1304,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 - Typ «KALA»
 - E-Mail/Push für Einladungen
 - Automatischer J+S-Versand
+- Pfadi-`/accounting` im Grossanlass; Kosten-Splits, Vereins-Abschreibung — [kosten.md §15](./kosten.md#15-out-of-scope-v1)
 
 ---
 
@@ -1309,11 +1347,12 @@ Grossanlass ist **Erweiterung** der bestehenden App — **kein** paralleles Prod
 | **MW-Zuweisung**         | `addMember`-Logik, `sendDepartmentMemberAddedEmail`                                                                                                       | separater Mail-Weg                                 |
 | **Inbox**                | `[InboxMessageService](../../backend/src/Service/InboxMessageService.php)`, Tabelle `inbox_message` — [nachrichtenzentrale.md](../nachrichtenzentrale.md) | zweites Notification-System                        |
 | **Beschaffung**          | eigene Entitäten §3.7 / §14.4 — Fassade `/grossanlass/beschaffung/`* (**Phase 5**)                                                                        | Follow-ups, Abschreibung, Pfadi-Kostenstellen-CRUD |
+| **Kosten Ledger**       | `department_grossanlass_cost` / `_budget` — [kosten.md](./kosten.md)                                                                                      | AccountingBooking, Follow-ups, Kostenstellen |
 | **Einladungen (später)** | `CATEGORY_ACTIVITY_DEPT_INVITE` / camp-event-Pattern                                                                                                      | neuer Invite-Stack                                 |
 | **Rechte**               | `AdminCapabilityChecker`, Membership-Rollen                                                                                                               | eigene Parallel-Matrix                             |
 
 
-Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `department_grossanlass_config`, `activity_grossanlass_`*, Inbox `grossanlass_mw_assigned`, `grossanlass_round_opened`.
+Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `department_grossanlass_config`, `department_grossanlass_cost` / `_budget`, `activity_grossanlass_`*, Inbox `grossanlass_mw_assigned`, `grossanlass_round_opened`.
 
 ### UI-Grossanlass vs. Pfadi — nur Unterschiede
 
@@ -1331,6 +1370,9 @@ Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `departm
 
 ## Siehe auch
 
+- [Konzept 2026-08-23](./20260823_New_concept.md) — Anfragen, Grob/Fein, Kontakt erst beim Nehmen
+- [Rollen, Postfach, Fahrten](./rollen-postfach-fahrten.md) — MW/CMW/OK-L, Label `eMatChef`, Einsatz mit Checkbox Fahrt = Fahrauftrag, Selbstabholung, Teilpacken, Dashboard-Box
+- [Kostenübersicht](./kosten.md) — Einkauf / Miete / Weiterverkauf, Zahler, Ledger
 - [Aktivitäten-Übersicht](../activities/README.md)
 - [J+S-Material](../activities/js-material/README.md)
 - [newUI / Fuhrpark](../activities/newUI/SPEC.md)

@@ -21,7 +21,7 @@ test.describe('Smoke', () => {
     await page.goto('/login')
     await page.getByRole('textbox', { name: /E-Mail/i }).fill(email!)
     await page.locator('input[type="password"]').first().fill(password!)
-    await page.getByRole('button', { name: /^Anmelden$/i }).click()
+    await page.getByRole('button', { name: /Anmelden/i }).click()
 
     const invalid = page.getByRole('alert').filter({ hasText: /Invalid credentials|ungültig|falsch/i })
     await Promise.race([

@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\Activity;
 use App\Entity\Department;
+use App\Entity\DepartmentSetting;
 use App\Entity\InboxMessage;
 use App\Entity\User;
 use App\Util\IdGenerator;
@@ -196,24 +197,14 @@ trait InboxMessageKindsTrait
         }
 
         $rows = $qb->getQuery()->getResult();
+        $rows = $this->pruneStaleDepartmentInviteMessages($rows);
 
         return array_map(fn (InboxMessage $m) => $this->toDepartmentInviteArray($m), $rows);
     }
 
     public function countUnreadDepartmentInvites(string $userId): int
     {
-        return (int) $this->entityManager->createQueryBuilder()
-            ->select('COUNT(m.id)')
-            ->from(InboxMessage::class, 'm')
-            ->where('m.recipientUserId = :userId')
-            ->andWhere('m.category = :cat')
-            ->andWhere('m.workflowStatus = :pending')
-            ->andWhere('m.readAt IS NULL')
-            ->setParameter('userId', $userId)
-            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
-            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
-            ->getQuery()
-            ->getSingleScalarResult();
+        return count($this->listDepartmentInvitesForUser($userId, 'unread', 200));
     }
 
     public function markDepartmentInviteRead(string $userId, string $notificationId): bool
@@ -243,6 +234,24 @@ trait InboxMessageKindsTrait
     public function removeDepartmentInvite(string $departmentId, string $userId, string $inviteId): void
     {
         $this->deleteDepartmentInviteByInviteId($departmentId, $userId, $inviteId);
+    }
+
+    /** MW löscht oder ersetzt eine Einladung: alle Aufgaben-Karten dazu weg. */
+    public function retractDepartmentInvite(string $departmentId, string $inviteId): void
+    {
+        if ($departmentId === '' || $inviteId === '') {
+            return;
+        }
+        $this->entityManager->createQueryBuilder()
+            ->delete(InboxMessage::class, 'm')
+            ->where('IDENTITY(m.department) = :deptId')
+            ->andWhere('m.sourceRefId = :inviteId')
+            ->andWhere('m.category = :cat')
+            ->setParameter('deptId', $departmentId)
+            ->setParameter('inviteId', $inviteId)
+            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
+            ->getQuery()
+            ->execute();
     }
 
     // --- Grossanlass planning round opened ---
@@ -676,7 +685,136 @@ trait InboxMessageKindsTrait
             ->getQuery()
             ->getResult();
 
+        $activity = array_map(fn (InboxMessage $m) => $this->toActivityDepartmentInviteArray($m), $rows);
+        $grossanlass = $this->listPendingGrossanlassDepartmentInvites($departmentId, $limit);
+
+        return array_values(array_merge($grossanlass, $activity));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listPendingGrossanlassDepartmentInvites(string $departmentId, int $limit = 200): array
+    {
+        $rows = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('IDENTITY(m.department) = :deptId')
+            ->andWhere('m.category = :cat')
+            ->andWhere('m.workflowStatus = :pending')
+            ->setParameter('deptId', $departmentId)
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE)
+            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
+            ->orderBy('m.createdAt', 'DESC')
+            ->setMaxResults(max(1, min($limit, 200)))
+            ->getQuery()
+            ->getResult();
+
         return array_map(fn (InboxMessage $m) => $this->toActivityDepartmentInviteArray($m), $rows);
+    }
+
+    public function syncGrossanlassParticipantInvites(Department $host): void
+    {
+        $pending = $this->entityManager->getRepository(\App\Entity\DepartmentGrossanlassParticipant::class)
+            ->createQueryBuilder('p')
+            ->innerJoin('p.guestDepartment', 'g')
+            ->addSelect('g')
+            ->where('p.hostDepartmentId = :id')
+            ->andWhere('p.status = :pending')
+            ->setParameter('id', $host->getId())
+            ->setParameter('pending', \App\Entity\DepartmentGrossanlassParticipant::STATUS_PENDING)
+            ->getQuery()
+            ->getResult();
+
+        $keep = [];
+        foreach ($pending as $row) {
+            if (!$row instanceof \App\Entity\DepartmentGrossanlassParticipant) {
+                continue;
+            }
+            $keep[$row->getId()] = true;
+            $this->upsertGrossanlassParticipantInvite($host, $row);
+        }
+
+        $existing = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.category = :cat')
+            ->andWhere('m.sourceRefId IS NOT NULL')
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE)
+            ->getQuery()
+            ->getResult();
+        foreach ($existing as $message) {
+            if (!$message instanceof InboxMessage) {
+                continue;
+            }
+            $ref = (string) $message->getSourceRefId();
+            if ($ref === '' || isset($keep[$ref])) {
+                continue;
+            }
+            $participant = $this->entityManager->getRepository(\App\Entity\DepartmentGrossanlassParticipant::class)->find($ref);
+            if ($participant instanceof \App\Entity\DepartmentGrossanlassParticipant
+                && $participant->getHostDepartment()->getId() === $host->getId()) {
+                $this->entityManager->remove($message);
+            }
+        }
+        $this->entityManager->flush();
+    }
+
+    public function removeGrossanlassParticipantInvite(\App\Entity\DepartmentGrossanlassParticipant $row): void
+    {
+        $this->entityManager->createQueryBuilder()
+            ->delete(InboxMessage::class, 'm')
+            ->where('m.sourceRefId = :ref')
+            ->andWhere('m.category = :cat')
+            ->setParameter('ref', $row->getId())
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE)
+            ->getQuery()
+            ->execute();
+    }
+
+    private function upsertGrossanlassParticipantInvite(
+        Department $host,
+        \App\Entity\DepartmentGrossanlassParticipant $row,
+    ): void {
+        $guest = $row->getGuestDepartment();
+        $config = $host->getGrossanlassConfig();
+        $guestType = $config?->getGuestActivityType() ?? 'camp';
+        $existing = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.sourceRefId = :ref')
+            ->andWhere('m.category = :cat')
+            ->setParameter('ref', $row->getId())
+            ->setParameter('cat', InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        $message = $existing instanceof InboxMessage ? $existing : new InboxMessage();
+        if (!$existing instanceof InboxMessage) {
+            $message->setId(IdGenerator::generateUnique($this->entityManager, InboxMessage::class));
+            $this->entityManager->persist($message);
+        }
+        $message->setDepartment($guest);
+        $message->setCategory(InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE);
+        $message->setType('grossanlass_department_invite');
+        $message->setRecipientScope(InboxMessage::RECIPIENT_DEPARTMENT_MW);
+        $message->setActivityId($config?->getMainActivityId());
+        $message->setSourceRefId($row->getId());
+        $message->setWorkflowStatus(InboxMessage::WORKFLOW_PENDING);
+        $message->setSubject($host->getName() . ' — Einladung Grossanlass');
+        $message->setPayload([
+            'kind' => 'grossanlass',
+            'participant_id' => $row->getId(),
+            'activity_id' => $config?->getMainActivityId(),
+            'activity_name' => $host->getName(),
+            'activity_type' => $guestType,
+            'usage_start' => $config?->getPlannedEventStart()->format(\DateTimeInterface::ATOM),
+            'usage_end' => $config?->getPlannedEventEnd()?->format(\DateTimeInterface::ATOM),
+            'source_department_id' => $host->getId(),
+            'source_department_name' => $host->getName(),
+            'invited_at' => ($row->getInvitedAt() ?? new \DateTime())->format(\DateTimeInterface::ATOM),
+        ]);
     }
 
     public function removeActivityDepartmentInvite(string $activityId, string $invitedDepartmentId): void
@@ -933,6 +1071,8 @@ trait InboxMessageKindsTrait
             'source_department_id' => $p['source_department_id'] ?? '',
             'source_department_name' => $p['source_department_name'] ?? '',
             'invited_at' => $p['invited_at'] ?? $m->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            'participant_id' => $p['participant_id'] ?? null,
+            'kind' => $p['kind'] ?? ($m->getCategory() === InboxMessage::CATEGORY_GROSSANLASS_DEPT_INVITE ? 'grossanlass' : 'activity'),
         ];
     }
 
@@ -982,6 +1122,78 @@ trait InboxMessageKindsTrait
             ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
             ->getQuery()
             ->execute();
+    }
+
+    /**
+     * @param list<InboxMessage> $rows
+     * @return list<InboxMessage>
+     */
+    private function pruneStaleDepartmentInviteMessages(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+        $openIdsByDept = [];
+        $kept = [];
+        $dirty = false;
+        foreach ($rows as $row) {
+            if (!$row instanceof InboxMessage) {
+                continue;
+            }
+            $deptId = $row->getDepartment()->getId();
+            if (!isset($openIdsByDept[$deptId])) {
+                $openIdsByDept[$deptId] = $this->openPendingInviteIds($deptId);
+            }
+            $inviteId = (string) $row->getSourceRefId();
+            if ($inviteId !== '' && isset($openIdsByDept[$deptId][$inviteId])) {
+                $kept[] = $row;
+                continue;
+            }
+            $this->entityManager->remove($row);
+            $dirty = true;
+        }
+        if ($dirty) {
+            $this->entityManager->flush();
+        }
+
+        return $kept;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function openPendingInviteIds(string $departmentId): array
+    {
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+            'departmentId' => $departmentId,
+            'settingKey' => 'join.pending_invites',
+        ]);
+        if (!$setting) {
+            return [];
+        }
+        try {
+            $decoded = json_decode((string) $setting->getSettingValue(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return [];
+        }
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $ids = [];
+        foreach ($decoded as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            if (($entry['status'] ?? 'pending') !== 'pending') {
+                continue;
+            }
+            $id = (string) ($entry['id'] ?? '');
+            if ($id !== '') {
+                $ids[$id] = true;
+            }
+        }
+
+        return $ids;
     }
 
     /**

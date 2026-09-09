@@ -364,7 +364,23 @@ final class MailTemplateContentStore
     private function sanitizeRichHtml(string $html): string
     {
         $html = str_replace(["\0"], '', $html);
+        $spanPlaceholders = [];
+        $html = preg_replace_callback('#<span\b([^>]*)>#i', function (array $m) use (&$spanPlaceholders): string {
+            $attrs = $m[1];
+            $style = '';
+            if (preg_match('#\bstyle\s*=\s*("|\')([^"\']*)\1#i', $attrs, $sm) === 1) {
+                $raw = strtolower(preg_replace('/\s+/', '', $sm[2]) ?? '');
+                if (preg_match('/^font-size:\d+(\.\d+)?(pt|px);?$/', $raw) === 1) {
+                    $style = htmlspecialchars(trim($sm[2]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                }
+            }
+            $key = '{{EMC_SPAN_' . count($spanPlaceholders) . '}}';
+            $spanPlaceholders[$key] = $style !== '' ? '<span style="' . $style . '">' : '<span>';
+
+            return $key;
+        }, $html) ?? $html;
         $html = strip_tags($html, '<p><br><strong><b><em><i><u><a><ul><ol><li><h2><h3><span>');
+        $html = strtr($html, $spanPlaceholders);
         $html = preg_replace('#<(script|iframe|object|embed)[^>]*>.*?</\1>#is', '', $html) ?? '';
         $html = preg_replace('#\s(on[a-z]+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+))#i', '', $html) ?? '';
         $html = preg_replace_callback('#<a\b[^>]*>#i', function (array $m): string {

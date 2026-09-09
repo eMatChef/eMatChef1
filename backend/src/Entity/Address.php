@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Util\GrossanlassContactName;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
@@ -119,6 +120,9 @@ class Address
      */
     #[ORM\Column(name: 'contact_last_name', type: 'string', length: 100, nullable: true)]
     private ?string $contactLastName = null;
+
+    #[ORM\Column(name: 'contact_salutation', type: 'string', length: 16, nullable: true)]
+    private ?string $contactSalutation = null;
 
     /**
      * E-Mail-Adresse
@@ -414,9 +418,28 @@ class Address
         return $this;
     }
 
+    public function getContactSalutation(): ?string
+    {
+        return $this->contactSalutation;
+    }
+
+    public function setContactSalutation(?string $contactSalutation): self
+    {
+        if ($contactSalutation === null || trim($contactSalutation) === '') {
+            $this->contactSalutation = null;
+            return $this;
+        }
+        $normalized = GrossanlassContactName::normalizeSalutation($contactSalutation);
+        $this->contactSalutation = $normalized !== '' ? $normalized : null;
+
+        return $this;
+    }
+
     public function getContactFullName(): string
     {
-        return trim(($this->contactFirstName ?? '') . ' ' . ($this->contactLastName ?? ''));
+        $label = GrossanlassContactName::salutationLabel($this->contactSalutation ?? '');
+
+        return trim($label . ' ' . ($this->contactFirstName ?? '') . ' ' . ($this->contactLastName ?? ''));
     }
 
     // === Email ===
@@ -661,6 +684,7 @@ class Address
             'has_coordinates' => $this->hasCoordinates(),
             'contact_first_name' => $this->contactFirstName,
             'contact_last_name' => $this->contactLastName,
+            'contact_salutation' => $this->contactSalutation,
             'contact_full_name' => $this->getContactFullName() ?: null,
             'email' => $this->email,
             'phone' => $this->phone,

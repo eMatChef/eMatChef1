@@ -21,6 +21,19 @@
         <em>I</em>
       </button>
       <span class="tiptap-tb-sep" />
+      <select
+        class="tiptap-tb-select tiptap-tb-select--size"
+        :aria-label="t('tiptap.fontSize')"
+        :title="t('tiptap.fontSize')"
+        :value="currentFontSize"
+        @change="onFontSize"
+      >
+        <option value="10pt">{{ t('tiptap.fontSizeSmall') }}</option>
+        <option value="">{{ t('tiptap.fontSizeNormal') }}</option>
+        <option value="14pt">{{ t('tiptap.fontSizeLarge') }}</option>
+        <option value="18pt">{{ t('tiptap.fontSizeHuge') }}</option>
+      </select>
+      <span class="tiptap-tb-sep" />
       <button
         type="button"
         class="tiptap-tb-btn"
@@ -93,6 +106,29 @@
       >
         ↷
       </button>
+      <template v-if="insertTokens.length">
+        <span class="tiptap-tb-sep" />
+        <select
+          class="tiptap-tb-select"
+          :aria-label="t('tiptap.placeholderMenu')"
+          :value="''"
+          @change="onInsertToken"
+        >
+          <option value="" disabled>{{ t('tiptap.placeholderMenu') }}</option>
+          <option v-for="item in insertTokens" :key="item.token" :value="item.token">
+            {{ item.label }}
+          </option>
+        </select>
+        <button
+          v-if="allowCustomTokens"
+          type="button"
+          class="tiptap-tb-btn"
+          :title="t('tiptap.placeholderAdd')"
+          @click="emit('addCustomToken')"
+        >
+          {{ t('tiptap.placeholderAdd') }}
+        </button>
+      </template>
     </div>
     <input
       ref="imageInput"
@@ -109,11 +145,12 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
+import { FontSize, TextStyle } from '@tiptap/extension-text-style'
 import { useI18n } from 'vue-i18n'
 import type { Editor } from '@tiptap/core'
 
@@ -122,12 +159,15 @@ const props = withDefaults(
     modelValue: string
     placeholder?: string
     disabled?: boolean
+    insertTokens?: { token: string; label: string }[]
+    allowCustomTokens?: boolean
   }>(),
-  { placeholder: undefined, disabled: false }
+  { placeholder: undefined, disabled: false, insertTokens: () => [], allowCustomTokens: false }
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  addCustomToken: []
 }>()
 
 const { t } = useI18n()
@@ -151,6 +191,8 @@ const editor = useEditor({
       openOnClick: false,
       HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
     }),
+    TextStyle,
+    FontSize,
     Placeholder.configure({ placeholder: placeholderText() }),
   ],
   editorProps: {
@@ -181,6 +223,44 @@ watch(
   },
   { immediate: true }
 )
+
+const FONT_SIZE_VALUES = ['10pt', '14pt', '18pt'] as const
+
+const currentFontSize = computed(() => {
+  const ed = editor.value
+  if (!ed) return ''
+  const size = String(ed.getAttributes('textStyle').fontSize || '').trim()
+  if (FONT_SIZE_VALUES.includes(size as (typeof FONT_SIZE_VALUES)[number])) return size
+  return ''
+})
+
+function onFontSize(event: Event) {
+  const ed = editor.value
+  const select = event.target as HTMLSelectElement
+  const size = select.value.trim()
+  if (!ed) return
+  if (!size) {
+    ed.chain().focus().unsetFontSize().run()
+    return
+  }
+  ed.chain().focus().setFontSize(size).run()
+}
+
+function onInsertToken(event: Event) {
+  const select = event.target as HTMLSelectElement
+  const token = select.value.trim()
+  select.value = ''
+  insertToken(token)
+}
+
+function insertToken(token: string) {
+  const ed = editor.value
+  const name = token.trim()
+  if (!ed || !name) return
+  ed.chain().focus().insertContent('{{' + name + '}}').run()
+}
+
+defineExpose({ insertToken })
 
 function setLink() {
   const ed = editor.value
@@ -371,13 +451,13 @@ function onPasteEvent(event: Event) {
 }
 
 .tiptap-tb-btn {
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 8px;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 6px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: #334155;
   cursor: pointer;
@@ -398,6 +478,22 @@ function onPasteEvent(event: Event) {
   height: 1.25rem;
   background: #cbd5e1;
   margin: 0 4px;
+}
+
+.tiptap-tb-select {
+  max-width: 11rem;
+  height: 1.75rem;
+  padding: 0 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.tiptap-tb-select--size {
+  max-width: 7.5rem;
 }
 
 .tiptap-content :deep(.tiptap) {

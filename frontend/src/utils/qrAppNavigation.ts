@@ -70,3 +70,18 @@ export function navigateToAppWorkshopTicket(
 
   void router.push({ path, query: { ticket: ticketId } })
 }
+
+export function navigateToAppGrossanlassCards(
+  router: Router,
+  departmentId: string,
+): void {
+  const path = `/${departmentId}/einstellungen/karten`
+  const linkOrigin = resolvePublicLinkOrigin()
+
+  if (linkOrigin && isQrPublicHost()) {
+    window.location.assign(`${linkOrigin}${path}`)
+    return
+  }
+
+  void router.push(path)
+}

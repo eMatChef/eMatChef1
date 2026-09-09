@@ -1,12 +1,14 @@
 # Grossanlass — MVP
 
-> Erster lieferbarer Schnitt. Vollständige Spezifikation: [README.md](./README.md).
+> Erster lieferbarer Schnitt. Vollständige Spezifikation: [README.md](./README.md) (§9 Wünsche & Ideen). Partneranfragen / Grob–Fein / Formular-Typen: [20260823_New_concept.md](./20260823_New_concept.md).
 
 ---
 
 ## MVP-Ziel (gesamt)
 
-**Chief-intern:** Grossanlass anlegen → **Ressort-Baum** → **Planungsrunde** mit **Bedarfserfassung**. Gast-Einladungen, Materialübersicht, Leihweise/Fuhrpark und Phasen-Activities folgen später.
+**Chief-intern (gebaut):** Grossanlass anlegen → **Ressort-Baum** → **Formular** mit Bedarfserfassung (`ressort_wuensche`).
+
+**Soll danach (Spec, nicht MVP-DoD):** Tab «Wünsche & Ideen»; Typen Material / Firmenvorschlag / Frei; Beschaffung Anfragen. Gast-Einladungen, Materialübersicht, Leihweise/Fuhrpark und Phasen-Activities folgen später.
 
 ---
 
@@ -120,7 +122,7 @@ Details: README §3.4–§3.7, §4, §9, §15.
 
 ### Phase 5 — Beschaffung Inhalt (PR5)
 
-**Nach PR4** (Wünsche). Spec: [README §3.7](./README.md#37-beschaffung--budget--kosten).
+**Nach PR4** (Wünsche). Spec: [README §3.7](./README.md#37-beschaffung--budget--kosten). Kostenübersicht (Zahler, Ledger, Cash/Netto): [kosten.md](./kosten.md) — nicht in PR5 erzwingen, Phasen K1–K6 dort.
 
 | # | Feature |
 |---|---------|

@@ -23,6 +23,11 @@ security:
             pattern: ^/api/auth/logout
             stateless: true
             security: false
+
+        google_oauth:
+            pattern: ^/api/auth/google
+            stateless: true
+            security: false
         
         login:
             pattern: ^/api/auth/login_check
@@ -71,6 +76,7 @@ security:
         - { path: ^/api/auth/password-reset/request, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/google, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }

@@ -42,6 +42,11 @@ function typeLabel(key: string): string {
   return te(path) ? t(path) : (ADDRESS_TYPES[key] || key)
 }
 
+const salutationItems = computed(() => [
+  { title: t('settings.addressForm.salutationHerr'), value: 'herr' },
+  { title: t('settings.addressForm.salutationFrau'), value: 'frau' },
+])
+
 const typeItems = computed(() => {
   const keys = props.allowedTypes?.length
     ? Object.keys(ADDRESS_TYPES).filter((k) => props.allowedTypes!.includes(k))
@@ -119,7 +124,15 @@ const PIN_COLOR_PRESETS = [
         hide-details="auto"
         @update:model-value="patch('company', String($event ?? '') || null)"
       />
-      <div class="form-row two-cols">
+      <div class="form-row contact-person-row">
+        <ESelect
+          :model-value="form.contact_salutation || ''"
+          :items="salutationItems"
+          :label="t('settings.addressForm.contactSalutation')"
+          clearable
+          hide-details="auto"
+          @update:model-value="patch('contact_salutation', String($event ?? '') || null)"
+        />
         <ETextField
           :model-value="form.contact_first_name ?? ''"
           :label="t('settings.addressForm.contactFirstName')"
@@ -250,6 +263,10 @@ const PIN_COLOR_PRESETS = [
 
 .form-row.two-cols {
   grid-template-columns: 1fr 1fr;
+}
+
+.form-row.contact-person-row {
+  grid-template-columns: minmax(7.5rem, 0.7fr) 1fr 1fr;
 }
 
 .form-row.street-number-row {

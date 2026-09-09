@@ -52,18 +52,28 @@
           <ETextField
             id="password"
             v-model="password"
-            type="password"
+            class="login-password-field"
+            :type="loginPasswordVisible ? 'text' : 'password'"
             :label="t('login.passwordLabel')"
             :placeholder="t('login.passwordPlaceholder')"
             autocomplete="current-password"
             :disabled="isLoading"
-          />
-
-          <div class="link-row">
-            <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('forgot')">
-              {{ t('login.forgotPassword') }}
-            </EButton>
-          </div>
+          >
+            <template #append-inner>
+              <div class="password-field-actions">
+                <button
+                  type="button"
+                  class="forgot-inline-btn"
+                  :disabled="isLoading"
+                  :aria-label="t('login.forgotPassword')"
+                  @click.stop.prevent="setMode('forgot')"
+                >
+                  {{ t('login.forgotPasswordShort') }}
+                </button>
+                <PasswordRevealToggle :visible="loginPasswordVisible" @toggle="toggleLoginPassword" />
+              </div>
+            </template>
+          </ETextField>
 
           <v-alert
             v-if="error"
@@ -93,9 +103,30 @@
                 ? t('login.redirecting')
                 : isLoading
                   ? t('common.loading')
-                  : t('login.loginButton')
+                  : t('login.loginWithEmatchef')
             }}
           </EButton>
+
+          <div class="login-or-divider" role="separator" :aria-label="t('login.orWith')">
+            <span class="login-or-divider__line" />
+            <span class="login-or-divider__label">{{ t('login.orWith') }}</span>
+            <span class="login-or-divider__line" />
+          </div>
+
+          <div class="social-login">
+            <button
+              v-for="provider in socialProviders"
+              :key="provider.id"
+              type="button"
+              class="social-login-btn"
+              :disabled="isLoading"
+              :aria-label="t(provider.labelKey)"
+              :title="t(provider.labelKey)"
+              @click="onSocialLogin(provider.id)"
+            >
+              <v-icon :icon="provider.icon" size="22" />
+            </button>
+          </div>
 
           <div class="form-footer">
             <p class="help-text">
@@ -223,7 +254,7 @@
           />
 
           <ESelect
-            v-if="!inviteOrganisationLocked"
+            v-if="!inviteFlowActive && !inviteOrganisationLocked"
             id="requestedOrganisationId"
             v-model="requestedOrganisationId"
             :items="organisationSelectItems"
@@ -231,15 +262,16 @@
             :disabled="isLoading"
           />
           <ETextField
-            v-else
+            v-else-if="inviteFlowActive || inviteOrganisationLocked"
             :label="t('login.organisationLabel')"
             :model-value="inviteOrganisationName || inviteOrganisationId"
             readonly
             disabled
           />
-          <p v-if="inviteOrganisationLocked" class="required-note">{{ t('login.organisationFromInvite') }}</p>
+          <p v-if="inviteOrganisationLocked && !inviteFlowActive" class="required-note">{{ t('login.organisationFromInvite') }}</p>
 
           <RegisterDepartmentPicker
+            v-if="!inviteFlowActive"
             :organisation-id="effectiveRequestedOrganisationId"
             :disabled="isLoading"
             :initial-query="registerDepartmentInitialQuery"
@@ -247,6 +279,7 @@
             @update:organisation-id="onRegisterOrganisationFromDepartment"
             @update:manual="registerManualDepartment = $event"
           />
+          <p v-else class="required-note">{{ t('login.departmentFromInvite') }}</p>
 
           <!-- Honeypot: Bots fuellen das oft aus -->
           <div class="form-group" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
@@ -269,28 +302,42 @@
             :label="t('login.emailAddressLabel')"
             :placeholder="t('login.emailPlaceholder')"
             autocomplete="email"
-            :disabled="isLoading"
+            :disabled="isLoading || inviteEmailLocked"
           />
 
           <ETextField
             id="registerPassword"
             v-model="registerPassword"
-            type="password"
+            :type="registerPasswordVisible ? 'text' : 'password'"
             :label="t('login.registerPasswordLabel')"
             :placeholder="t('login.minPasswordPlaceholder')"
             autocomplete="new-password"
             :disabled="isLoading"
-          />
+          >
+            <template #append-inner>
+              <PasswordRevealToggle
+                :visible="registerPasswordVisible"
+                @toggle="toggleRegisterPassword"
+              />
+            </template>
+          </ETextField>
 
           <ETextField
             id="registerPasswordConfirm"
             v-model="registerPasswordConfirm"
-            type="password"
+            :type="registerPasswordConfirmVisible ? 'text' : 'password'"
             :label="t('login.registerPasswordConfirmLabel')"
             :placeholder="t('login.registerPasswordConfirmPlaceholder')"
             autocomplete="new-password"
             :disabled="isLoading"
-          />
+          >
+            <template #append-inner>
+              <PasswordRevealToggle
+                :visible="registerPasswordConfirmVisible"
+                @toggle="toggleRegisterPasswordConfirm"
+              />
+            </template>
+          </ETextField>
 
           <ESelect
             id="language"
@@ -354,14 +401,16 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { confirmPasswordReset, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
+import { confirmPasswordReset, googleAuthStartUrl, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { EButton, ECard, ECheckbox, EOtpInput, ESelect, ETextField } from '@/components/form/base'
 import { getOrganisations, type Organisation } from '@/api/organisations'
+import PasswordRevealToggle from '@/components/auth/PasswordRevealToggle.vue'
 import RegisterDepartmentPicker, {
   type RegisterDepartmentManualRequest,
 } from '@/components/auth/RegisterDepartmentPicker.vue'
+import { useTimedPasswordReveal } from '@/composables/useTimedPasswordReveal'
 import type { PublicDepartmentSearchResult } from '@/api/publicDepartments'
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
@@ -386,6 +435,21 @@ const { t } = useI18n()
 const mode = ref<'login' | 'register' | 'forgot'>('login')
 const email = ref('')
 const password = ref('')
+const {
+  visible: loginPasswordVisible,
+  toggle: toggleLoginPassword,
+  hide: hideLoginPassword,
+} = useTimedPasswordReveal()
+const {
+  visible: registerPasswordVisible,
+  toggle: toggleRegisterPassword,
+  hide: hideRegisterPassword,
+} = useTimedPasswordReveal()
+const {
+  visible: registerPasswordConfirmVisible,
+  toggle: toggleRegisterPasswordConfirm,
+  hide: hideRegisterPasswordConfirm,
+} = useTimedPasswordReveal()
 
 const firstName = ref('')
 const lastName = ref('')
@@ -417,6 +481,9 @@ const registerLoading = ref(false)
 const isRedirecting = ref(false) // Verhindert Doppelklick nach erfolgreichem Login
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
+const socialProviders = [
+  { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
+]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
 const RESEND_VERIFICATION_ERROR_MARKERS = ['bestaetig', 'confirm your email', 'verify your email', 'verif']
@@ -426,9 +493,30 @@ const showResendVerification = computed(
     !!error.value &&
     RESEND_VERIFICATION_ERROR_MARKERS.some((m) => error.value!.toLowerCase().includes(m))
 )
-const inviteRedirect = computed(() => parseInternalRedirectPath(route.query.redirect))
+const inviteRedirect = computed(() => {
+  const nested = parseInternalRedirectPath(route.query.redirect)
+  if (nested && extractJoinCodeFromPath(nested)) {
+    return nested
+  }
+  const join = queryParamFirst(route.query.join_code).trim()
+  if (join) {
+    const params = new URLSearchParams()
+    params.set('join_code', join.toUpperCase())
+    for (const key of ['invite_role', 'invite_email', 'invite_id', 'department_id', 'auto_join'] as const) {
+      const value = queryParamFirst(route.query[key]).trim()
+      if (value) params.set(key, value)
+    }
+    return `/pending-assignment?${params.toString()}`
+  }
+  return nested
+})
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
+const inviteEmailLocked = computed(() => {
+  const fromQuery = queryParamFirst(route.query.email).trim().toLowerCase()
+  const fromRedirect = extractInviteEmailFromPath(inviteRedirect.value || '')
+  return inviteFlowActive.value && (!!fromQuery || !!fromRedirect)
+})
 const inviteOrganisationLocked = computed(() => {
   if (mode.value !== 'register' || !inviteFlowActive.value) return false
   const orgId = inviteOrganisationId.value.trim()
@@ -515,6 +603,16 @@ function extractJoinCodeFromPath(path: string): string | null {
   }
 }
 
+function extractInviteEmailFromPath(path: string): string {
+  if (!path.startsWith('/')) return ''
+  try {
+    const url = new URL(path, window.location.origin)
+    return (url.searchParams.get('invite_email') || '').trim().toLowerCase()
+  } catch {
+    return ''
+  }
+}
+
 function getStoredInviteRedirect(): string | null {
   const stored = localStorage.getItem(INVITE_REDIRECT_STORAGE_KEY)
   if (!stored) return null
@@ -531,9 +629,9 @@ function rememberInviteRedirect(redirectPath: string | null) {
 }
 
 watch(
-  () => route.query.redirect,
+  inviteRedirect,
   (value) => {
-    rememberInviteRedirect(parseInternalRedirectPath(value))
+    rememberInviteRedirect(value)
   },
   { immediate: true }
 )
@@ -550,17 +648,25 @@ function applyRegisterPrefillFromQuery() {
   const orgId = queryParamFirst(route.query.org_id).trim()
   const orgName = queryParamFirst(route.query.org_name).trim()
   const deptName = queryParamFirst(route.query.dept_name).trim()
+  const emailParam = queryParamFirst(route.query.email).trim().toLowerCase()
+  const inviteEmail = extractInviteEmailFromPath(inviteRedirect.value || '')
+  const prefillEmail = emailParam || inviteEmail
 
-  if (!wantsRegister && !orgId && !deptName) {
-    return
-  }
-
-  if (wantsRegister) {
+  if (inviteFlowActive.value || wantsRegister) {
     mode.value = 'register'
   }
 
+  if (prefillEmail) {
+    registerEmail.value = prefillEmail
+    email.value = prefillEmail
+  }
+
+  if (!wantsRegister && !orgId && !deptName && !inviteFlowActive.value) {
+    return
+  }
+
   const applyFields = () => {
-    if (!wantsRegister) return
+    if (!wantsRegister && !inviteFlowActive.value) return
     inviteOrganisationId.value = orgId
     inviteOrganisationName.value = orgName
     if (orgId && organisations.value.some((o) => o.id === orgId)) {
@@ -615,6 +721,7 @@ onMounted(() => {
   applyRegisterPrefillFromQuery()
   applyForgotPrefillFromQuery()
   applyDemoLoginPrefill()
+  void completeGoogleOAuthReturn()
   window.addEventListener('emc-demo-login', applyDemoLoginPrefill)
 })
 
@@ -623,7 +730,9 @@ watch(
     register: route.query.register,
     org_id: route.query.org_id,
     org_name: route.query.org_name,
-    dept_name: route.query.dept_name
+    dept_name: route.query.dept_name,
+    email: route.query.email,
+    redirect: route.query.redirect,
   }),
   () => applyRegisterPrefillFromQuery(),
   { deep: true }
@@ -651,6 +760,70 @@ function clearMessages() {
   error.value = null
   successMessage.value = null
   authStore.clearError()
+}
+
+function onSocialLogin(provider: 'google') {
+  if (provider !== 'google') return
+  const redirect =
+    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+  isRedirecting.value = true
+  window.location.assign(googleAuthStartUrl(redirect))
+}
+
+function oauthErrorMessage(reason: string): string {
+  const keys: Record<string, string> = {
+    not_configured: 'login.oauthNotConfigured',
+    denied: 'login.oauthDenied',
+    invalid_state: 'login.oauthInvalidState',
+    no_email: 'login.oauthNoEmail',
+    unverified_email: 'login.oauthUnverifiedEmail',
+    inactive: 'login.oauthInactive',
+    failed: 'login.oauthFailed',
+  }
+  return t(keys[reason] || 'login.oauthFailed')
+}
+
+async function completeGoogleOAuthReturn() {
+  const oauth = typeof route.query.oauth === 'string' ? route.query.oauth : ''
+  if (!oauth) return
+  if (oauth === 'error') {
+    const reason = typeof route.query.reason === 'string' ? route.query.reason : 'failed'
+    error.value = oauthErrorMessage(reason)
+    return
+  }
+  if (oauth !== 'ok') return
+  isRedirecting.value = true
+  const ok = await authStore.loadUserSessionFromCookie(true)
+  if (!ok) {
+    isRedirecting.value = false
+    error.value = t('login.oauthFailed')
+    return
+  }
+  setLocale(authStore.profile?.language || 'de')
+  await redirectAfterSuccessfulLogin()
+}
+
+async function redirectAfterSuccessfulLogin() {
+  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
+  const storedInviteRedirect = getStoredInviteRedirect()
+  const redirectTarget = routeRedirect || storedInviteRedirect
+  if (redirectTarget) {
+    localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
+    await router.replace(redirectTarget)
+    return
+  }
+
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
+    await router.replace('/dashboard')
+    return
+  }
+
+  if (authStore.activeDepartmentId) {
+    await router.replace(`/${authStore.activeDepartmentId}`)
+    return
+  }
+
+  await router.replace('/pending-assignment')
 }
 
 function resetRegisterForm() {
@@ -775,9 +948,16 @@ function resetForgotForm() {
   resetPasswordConfirm.value = ''
 }
 
+function hideRevealedPasswords() {
+  hideLoginPassword()
+  hideRegisterPassword()
+  hideRegisterPasswordConfirm()
+}
+
 function setMode(nextMode: 'login' | 'register' | 'forgot') {
   const previousMode = mode.value
   mode.value = nextMode
+  hideRevealedPasswords()
   if (previousMode === 'forgot' && nextMode !== 'forgot') {
     resetForgotForm()
   }
@@ -802,27 +982,8 @@ async function handleSubmit() {
   if (!success) return
   setLocale(authStore.profile?.language || 'de')
 
-  isRedirecting.value = true // Button bleibt deaktiviert bis Weiterleitung
-  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
-  const storedInviteRedirect = getStoredInviteRedirect()
-  const redirectTarget = routeRedirect || storedInviteRedirect
-  if (redirectTarget) {
-    localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
-    router.replace(redirectTarget)
-    return
-  }
-
-  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    router.replace('/dashboard')
-    return
-  }
-
-  if (authStore.activeDepartmentId) {
-    router.replace(`/${authStore.activeDepartmentId}`)
-    return
-  }
-
-  router.replace('/pending-assignment')
+  isRedirecting.value = true
+  await redirectAfterSuccessfulLogin()
 }
 
 async function handleRegister() {
@@ -833,13 +994,15 @@ async function handleRegister() {
     return
   }
 
-  if (!effectiveRequestedOrganisationId.value) {
-    error.value = t('login.validationOrganisationRequired')
-    return
-  }
-  if (!registerSelectedDepartment.value && !registerManualDepartment.value) {
-    error.value = t('login.validationDepartmentRequired')
-    return
+  if (!inviteFlowActive.value) {
+    if (!effectiveRequestedOrganisationId.value) {
+      error.value = t('login.validationOrganisationRequired')
+      return
+    }
+    if (!registerSelectedDepartment.value && !registerManualDepartment.value) {
+      error.value = t('login.validationDepartmentRequired')
+      return
+    }
   }
 
   if (!registerEmail.value.trim() || !registerPassword.value) {
@@ -891,8 +1054,18 @@ async function handleRegister() {
       requestedParentDepartmentId: registerManualDepartment.value?.parentDepartmentId || undefined,
       requestedParentDepartmentName: registerManualDepartment.value?.parentDepartmentName || undefined,
       website: website.value,
-      turnstileToken
+      turnstileToken,
+      inviteJoinCode: inviteJoinCode.value || undefined,
     })
+
+    if (response.invite_ready && inviteFlowActive.value) {
+      const success = await authStore.login(registerEmail.value.trim(), registerPassword.value)
+      if (success) {
+        isRedirecting.value = true
+        await redirectAfterSuccessfulLogin()
+        return
+      }
+    }
 
     successMessage.value = response.message || t('login.registerSuccessFallback')
     mode.value = 'login'
@@ -900,6 +1073,12 @@ async function handleRegister() {
     password.value = ''
     resetRegisterForm()
   } catch (err: any) {
+    if (err?.response?.status === 409 && inviteFlowActive.value) {
+      mode.value = 'login'
+      email.value = registerEmail.value.trim()
+      error.value = t('login.inviteEmailAlreadyRegistered')
+      return
+    }
     error.value = err?.response?.data?.error || t('login.registerFailedFallback')
     resetTurnstileWidget()
   } finally {
@@ -1142,14 +1321,108 @@ watch(
   margin-bottom: 10px;
 }
 
-.link-row {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
+.password-field-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.forgot-inline-btn {
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.forgot-inline-btn:hover,
+.forgot-inline-btn:focus-visible {
+  color: #1d4ed8;
+}
+
+.forgot-inline-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.forgot-inline-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.login-form :deep(.login-password-field.e-form-field:has(.password-reveal-toggle) .v-field__input) {
+  padding-inline-end: 118px;
 }
 
 .btn-submit {
   font-size: 18px;
+}
+
+.login-or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+}
+
+.login-or-divider__line {
+  flex: 1;
+  height: 1px;
+  background: #d1d5db;
+}
+
+.login-or-divider__label {
+  flex: none;
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.social-login {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.social-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+}
+
+.social-login-btn:hover:not(:disabled),
+.social-login-btn:focus-visible {
+  border-color: #9ca3af;
+  background: #f3f4f6;
+}
+
+.social-login-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+.social-login-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .form-footer {

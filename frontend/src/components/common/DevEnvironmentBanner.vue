@@ -99,7 +99,7 @@ function fillDemoLogin(account: DemoLogin) {
   height: calc(100% - var(--emc-dev-system-bar-height)) !important;
 }
 
-.emc-app:has(.dev-environment-banner) .page-main:not(.page-main--activity-detail) {
+.emc-app:has(.dev-environment-banner) .page-main:not(.page-main--activity-detail):not(.page-main--einsaetze) {
   --v-layout-top: 64px !important;
 }
 </style>

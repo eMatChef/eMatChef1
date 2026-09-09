@@ -96,7 +96,7 @@ Wenn ein Entwicklungsstand bereit ist:
   - Lokal dasselbe (ohne Playwright) via `.githooks/pre-push` — aktivieren mit `./scripts/install-git-hooks.sh`
 - `CD Develop` / `CD Staging` / `CD Prod` — Push auf den jeweiligen Branch (SSH); Staging teilt den Develop-Droplet (`/opt/ematchef/staging`)
 - `Deploy App Develop (Droplet)` — App/QR/Devices-SPA per rsync auf den Develop-Droplet (Caddy); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
-- `FTP Deploy *` — Hostpoint **Marketing**/Landing (App mittelfristig vom Droplet)
+- `FTP Deploy Prod Marketing` — Hostpoint **ematchef.ch**, nur manuell (`workflow_dispatch`); App auf Prod läuft über `Deploy Frontend Prod` (Droplet)
 - Dev-Tools-Ideen (Banner-Logins, Demo-Seed): [docs/DEV-TOOLS-BACKLOG.md](docs/DEV-TOOLS-BACKLOG.md)
 - `Fast forward` in `.github/workflows/fast-forward.yml`
   - Kommentar **`/fast-forward`**: `develop` → `staging` oder `staging` → `prod`
@@ -121,7 +121,8 @@ Fuer `CD Develop`:
 - `DEVELOP_SSH_KEY`
 - `DEVELOP_SSH_PORT`
 - `DEVELOP_DEPLOY_PATH`
-- `DEVELOP_APP_WEBROOT` — Zielordner der App-SPA auf dem Droplet (z. B. `/var/www/ematchef-app-develop`); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+- `DEVELOP_APP_WEBROOT` — Zielordner der App-SPA auf dem Develop-Droplet (z. B. `/var/www/ematchef-app-develop`); siehe [docs/APP-ON-DROPLET.md](docs/APP-ON-DROPLET.md)
+- `STAGING_APP_WEBROOT` / `PROD_APP_WEBROOT` — analog für Staging/Prod (`deploy-frontend-staging.yml` / `deploy-frontend-prod.yml`)
 
 
 Fuer `CD Staging` (API auf dem Develop-Droplet):

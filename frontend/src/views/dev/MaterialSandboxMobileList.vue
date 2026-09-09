@@ -4,7 +4,7 @@
       <v-list-item
         class="sandbox-material-mobile-list__item"
         :class="{ 'sandbox-material-mobile-list__item--combo': item.components?.length }"
-        @click="emit('select', item)"
+        @click="onRowClick(item)"
       >
         <template #prepend>
           <div class="material-icon sandbox-material-mobile-list__icon" :class="iconClass(item)">
@@ -146,6 +146,11 @@ function toggleCombo(id: string) {
   if (next.has(id)) next.delete(id)
   else next.add(id)
   expandedComboIds.value = next
+}
+
+function onRowClick(item: SandboxMaterialRow) {
+  if (item.components?.length) toggleCombo(item.id)
+  emit('select', item)
 }
 </script>
 

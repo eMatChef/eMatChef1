@@ -9,6 +9,10 @@ export interface ConfirmOptions {
   confirmText?: string
   cancelText?: string
   variant?: ConfirmVariant
+  /** Unix-ms: Dialog zeigt einen Live-Countdown bis zu diesem Zeitpunkt. */
+  countdownEndsAt?: number
+  /** Overlay-Klick schliesst den Dialog nicht (z. B. Session-Warnung). */
+  persistent?: boolean
 }
 
 interface ConfirmState {

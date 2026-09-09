@@ -622,6 +622,8 @@
               </div>
             </details>
 
+            <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
+
             <details
               class="profile-accordion"
               data-onboarding="profile-colors"
@@ -738,7 +740,7 @@ import { useConfirm } from '../../composables/useConfirm'
 import { useUnsavedLeaveGuard } from '../../composables/useUnsavedLeaveGuard'
 import {
   getPendingDepartmentActivityInvites,
-  decideDepartmentActivityInvite,
+  decidePendingDepartmentInvite,
   getReceivedDepartmentInvites,
   markReceivedDepartmentInviteRead,
   acceptDepartmentInvite,
@@ -761,6 +763,7 @@ import {
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,
@@ -1816,8 +1819,8 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
   )
   decrementUnreadCount()
   try {
-    await decideDepartmentActivityInvite({
-      activityId: invite.activity_id,
+    await decidePendingDepartmentInvite({
+      invite,
       departmentId: deptId,
       decision,
     })

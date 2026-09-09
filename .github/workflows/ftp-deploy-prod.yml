@@ -1,16 +1,11 @@
 name: FTP Deploy Prod Marketing (Hostpoint)
 
 # Nur Marketing (ematchef.ch) per FTP. App/QR/Devices → Prod-Droplet (Caddy/rsync).
+# Nicht bei App-Releases (Push auf prod): home und App teilen dieselbe Vue-Codebase,
+# daher wuerde frontend/** bei jedem App-Deploy Hostpoint unnoetig neu hochladen.
+# Manuell: Actions → FTP Deploy Prod Marketing (Hostpoint) → Run workflow (Branch prod).
 
 on:
-  push:
-    branches:
-      - prod
-    paths:
-      - "frontend/**"
-      - "scripts/build-hostpoint-deploy-prod.sh"
-      - "scripts/hostpoint-spa.htaccess"
-      - ".github/workflows/ftp-deploy-prod.yml"
   workflow_dispatch:
 
 concurrency:

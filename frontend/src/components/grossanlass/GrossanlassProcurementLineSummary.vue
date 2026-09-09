@@ -9,24 +9,63 @@
       </div>
       <slot name="actions" />
     </div>
-    <div class="proc-line-summary__meta">{{ line.group_name }} · {{ line.location }}</div>
-    <div v-if="line.budget_chf != null" class="proc-line-summary__meta">
-      {{ t('grossanlass.beschaffung.budgetSoll') }}: {{ formatChf(line.budget_chf) }}
-    </div>
-    <div v-if="line.order" class="proc-line-summary__meta">
-      {{ t('grossanlass.beschaffung.costIst') }}: {{ formatChf(line.order.cost_chf) }}
-    </div>
+    <div v-if="metaLine" class="proc-line-summary__meta">{{ metaLine }}</div>
+    <GrossanlassProcurementCoverage
+      :line="line"
+      compact
+      class="proc-line-summary__coverage"
+    />
+    <div v-if="moneyLine" class="proc-line-summary__meta">{{ moneyLine }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import GrossanlassProcurementCoverage from '@/components/grossanlass/GrossanlassProcurementCoverage.vue'
 import { formatChf, type GrossanlassProcurementLine } from '@/api/grossanlassProcurement'
 import { procurementStatusClass, procurementStatusLabel } from '@/utils/grossanlassProcurementStatus'
+import { formatGaDateLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 
-defineProps<{ line: GrossanlassProcurementLine }>()
+const props = defineProps<{ line: GrossanlassProcurementLine }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+const categoryLabel = computed(() => {
+  if (!props.line.category_name) return ''
+  if (props.line.category_parent_name) {
+    return `${props.line.category_parent_name} / ${props.line.category_name}`
+  }
+  return props.line.category_name
+})
+
+const needLine = computed(() => {
+  const from = props.line.need_from
+  const to = props.line.need_to
+  if (!from && !to) return ''
+  const fromLabel = from ? formatGaDateLabel(from, locale.value) : '—'
+  const toLabel = to ? formatGaDateLabel(to, locale.value) : '—'
+  return t('grossanlass.beschaffung.needWindow', { from: fromLabel, to: toLabel })
+})
+
+const metaLine = computed(() => {
+  return [
+    [props.line.group_name, props.line.location].filter(Boolean).join(' · '),
+    categoryLabel.value,
+    needLine.value,
+  ].filter(Boolean).join(' · ')
+})
+
+const moneyLine = computed(() => {
+  const parts: string[] = []
+  if (props.line.budget_chf != null) {
+    parts.push(`${t('grossanlass.beschaffung.budgetSoll')}: ${formatChf(props.line.budget_chf)}`)
+  }
+  if (props.line.order) {
+    parts.push(`${t('grossanlass.beschaffung.costIst')}: ${formatChf(props.line.order.cost_chf)}`)
+  }
+  return parts.join(' · ')
+})
 </script>
 
 <style scoped>
@@ -40,8 +79,11 @@ const { t } = useI18n()
 .proc-line-summary__meta {
   font-size: 0.78rem;
   color: #64748b;
-  margin-top: 4px;
+  margin-top: 3px;
+  line-height: 1.35;
 }
+
+.proc-line-summary__coverage { margin-top: 4px; }
 
 .proc-status {
   display: inline-block;

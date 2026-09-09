@@ -9,6 +9,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Index(name: 'idx_grossanlass_procurement_dept', columns: ['department_id'])]
 #[ORM\Index(name: 'idx_grossanlass_procurement_group', columns: ['group_id'])]
 #[ORM\Index(name: 'idx_grossanlass_procurement_status', columns: ['status'])]
+#[ORM\Index(name: 'idx_gpl_category', columns: ['category_id'])]
 class ActivityGrossanlassProcurementLine
 {
     public const STATUS_BEDARF = 'bedarf';
@@ -45,11 +46,21 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(type: 'integer')]
     private int $quantity;
 
+    #[ORM\Column(name: 'quantity_asked', type: 'integer', nullable: true)]
+    private ?int $quantityAsked = null;
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $location;
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
+
+    #[ORM\Column(name: 'category_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $categoryId = null;
+
+    #[ORM\ManyToOne(targetEntity: ActivityGrossanlassProcurementCategory::class)]
+    #[ORM\JoinColumn(name: 'category_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?ActivityGrossanlassProcurementCategory $category = null;
 
     #[ORM\Column(type: 'string', length: 32)]
     private string $status = self::STATUS_BEDARF;
@@ -157,6 +168,18 @@ class ActivityGrossanlassProcurementLine
         return $this;
     }
 
+    public function getQuantityAsked(): ?int
+    {
+        return $this->quantityAsked;
+    }
+
+    public function setQuantityAsked(?int $quantityAsked): self
+    {
+        $this->quantityAsked = $quantityAsked;
+
+        return $this;
+    }
+
     public function getLocation(): string
     {
         return $this->location;
@@ -177,6 +200,24 @@ class ActivityGrossanlassProcurementLine
     public function setNotes(?string $notes): self
     {
         $this->notes = $notes;
+
+        return $this;
+    }
+
+    public function getCategoryId(): ?string
+    {
+        return $this->categoryId;
+    }
+
+    public function getCategory(): ?ActivityGrossanlassProcurementCategory
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?ActivityGrossanlassProcurementCategory $category): self
+    {
+        $this->category = $category;
+        $this->categoryId = $category?->getId();
 
         return $this;
     }

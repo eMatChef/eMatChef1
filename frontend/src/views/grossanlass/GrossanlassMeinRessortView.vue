@@ -20,6 +20,23 @@
     />
 
     <div v-else class="mein-ressort-content">
+      <div v-if="isBereichsleitung" class="submit-einsatz">
+        <EButton variant="primary" size="small" @click="openSubmit">
+          {{ t('grossanlass.meinRessort.submitEinsatz') }}
+        </EButton>
+        <p>{{ t('grossanlass.meinRessort.submitEinsatzHint') }}</p>
+      </div>
+
+      <section v-if="pendingEinsaetze.length" class="pending-board">
+        <h3>{{ t('grossanlass.meinRessort.pendingTitle') }}</h3>
+        <ul>
+          <li v-for="row in pendingEinsaetze" :key="row.id">
+            <strong>{{ row.object_name }}</strong>
+            · {{ row.ressort }} · {{ t(`grossanlass.materialUebersicht.status.${row.status}`) }}
+          </li>
+        </ul>
+      </section>
+
       <div
         v-for="group in myGroupsTree"
         :key="group.id"
@@ -44,11 +61,43 @@
         <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.noWishesYet') }}</p>
       </div>
 
+      <div class="kosten-panel">
+        <h3>{{ t('grossanlass.beschaffung.kosten.linesTitle') }}</h3>
+        <p class="kosten-rahmen">
+          {{ t('grossanlass.meinRessort.rahmenSaved') }}:
+          {{ ownRahmenAmount == null ? '—' : formatChf(ownRahmenAmount) }}
+          · {{ t('grossanlass.meinRessort.nettoIst') }}:
+          {{ formatChf(ownNetto) }}
+        </p>
+        <div v-for="row in costRows" :key="row.id" class="wish-mini-row">
+          <span class="wish-label">{{ row.label }} · {{ t(`grossanlass.beschaffung.kosten.kind.${row.cost_kind}`) }}</span>
+          <span class="wish-meta">{{ formatChf(row.netto_chf) }} {{ t('grossanlass.beschaffung.kosten.statNetto') }}</span>
+        </div>
+        <p v-if="costRows.length === 0" class="no-wishes">{{ t('grossanlass.meinRessort.noCostsYet') }}</p>
+      </div>
+
       <div v-if="openRounds.length > 0" class="open-rounds-hint">
         <p>{{ t('grossanlass.meinRessort.openRoundsHint') }}</p>
         <EButton variant="primary" size="small" @click="goToPlanung">{{ t('sidebar.planung') }}</EButton>
       </div>
     </div>
+
+    <GrossanlassEinsatzBookPreviewDialog
+      v-if="isBereichsleitung"
+      v-model="submitOpen"
+      v-model:draft="submitDraft"
+      mode="einsatz"
+      :wishes="wishPicks"
+      :free-picks="freePicks"
+      :chauffeurs="submitChauffeurs"
+      :places="submitBoard?.places ?? []"
+      :groups="groups"
+      default-scope="project"
+      @confirm="onSubmitEinsatz"
+      @confirm-many="onSubmitMany"
+      @order="onSubmitOrder"
+      @place-created="onPlaceCreated"
+    />
   </PageShell>
 </template>
 
@@ -63,31 +112,130 @@ import { EButton } from '@/components/form/base'
 import { getGrossanlassGroups, type GrossanlassGroup, type GrossanlassNodeType } from '@/api/grossanlassGroups'
 import { getMyRessortWishes, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassPlanningRounds, type GrossanlassPlanningRound } from '@/api/grossanlassRounds'
+import { formatChf, listGrossanlassBudgets, listGrossanlassCosts, type GrossanlassBudget, type GrossanlassCost } from '@/api/grossanlassProcurement'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import {
   flattenGrossanlassGroupsFiltered,
 } from '@/utils/grossanlassGroupHierarchy'
+import { isEinsatzBookableWish } from '@/utils/grossanlassBookProjectPicker'
+import GrossanlassEinsatzBookPreviewDialog, {
+  type GaBookPreviewDraft,
+} from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
+import {
+  createGrossanlassEinsatz,
+  getGrossanlassSubmitBoard,
+  type GaSubmitBoard,
+} from '@/api/grossanlassUebersicht'
+import type { GaPlace } from '@/api/grossanlassLogistics'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
+const toast = useToast()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
 const groups = ref<GrossanlassGroup[]>([])
 const wishes = ref<GrossanlassWishLine[]>([])
 const rounds = ref<GrossanlassPlanningRound[]>([])
+const costRows = ref<GrossanlassCost[]>([])
+const budgets = ref<GrossanlassBudget[]>([])
 const isLoading = ref(true)
 const error = ref('')
+const submitOpen = ref(false)
+const submitDraft = ref<GaBookPreviewDraft | null>(null)
+const submitBoard = ref<GaSubmitBoard | null>(null)
 
 const groupsRef = computed(() => groups.value)
-const { isInAssignedRessortBranch } = useGrossanlassRessortScope(groupsRef)
+const { isInAssignedRessortBranch, isLeaderOfGroup } = useGrossanlassRessortScope(groupsRef)
+
+const isBereichsleitung = computed(() => groups.value.some((g) => isLeaderOfGroup(g)))
 
 const myGroupsTree = computed(() =>
   flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
 )
 
+const myGroupIds = computed(() => new Set(myGroupsTree.value.map((g) => g.id)))
+
+const ownRahmenAmount = computed(() => {
+  const amounts = budgets.value
+    .filter((row) => row.payer_group_id && myGroupIds.value.has(row.payer_group_id))
+    .map((row) => row.rahmen_chf)
+    .filter((value): value is number => value != null)
+  if (amounts.length === 0) return null
+  return amounts.reduce((sum, value) => sum + value, 0)
+})
+
+const ownNetto = computed(() => costRows.value.reduce((sum, row) => sum + (row.netto_chf || 0), 0))
+
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
+
+const pendingEinsaetze = computed(() =>
+  (submitBoard.value?.einsaetze ?? []).filter((row) => row.status === 'pending_approval'),
+)
+
+const defaultGroupId = computed(() => submitBoard.value?.groups[0]?.id ?? myGroupsTree.value[0]?.id ?? null)
+
+const freePicks = computed(() =>
+  (submitBoard.value?.objects ?? []).map((object) => ({
+    id: object.id,
+    label: object.name,
+    objectId: object.id,
+    objectName: object.name,
+    kind: 'quantity' as const,
+    qty: 1,
+    stock: object.qty,
+    fromIso: new Date().toISOString(),
+    toIso: new Date(Date.now() + 86400000).toISOString(),
+    fromLabel: object.name,
+    toLabel: '',
+    ressort: submitBoard.value?.groups[0]?.name ?? '',
+    who: '',
+    hasConflict: false,
+    groupId: defaultGroupId.value,
+  })),
+)
+
+const wishPicks = computed(() => {
+  const objects = submitBoard.value?.objects ?? []
+  return wishes.value
+    .filter((wish) => isEinsatzBookableWish({ formPurpose: wish.form_purpose }))
+    .map((wish) => {
+    const object = objects.find((row) => row.name === wish.label)
+      || objects.find((row) => wish.label.includes(row.name))
+    return {
+      id: wish.id,
+      label: wish.label,
+      objectId: object?.id || '',
+      objectName: object?.name || wish.label,
+      kind: 'quantity' as const,
+      qty: wish.quantity,
+      stock: object?.qty ?? wish.quantity,
+      fromIso: wish.valid_from || new Date().toISOString(),
+      toIso: wish.valid_to || new Date().toISOString(),
+      fromLabel: formatGaIsoLabel(wish.valid_from || '', locale.value),
+      toLabel: formatGaIsoLabel(wish.valid_to || '', locale.value),
+      ressort: wish.group_name || '',
+      who: '',
+      hasConflict: false,
+      groupId: wish.group_id,
+      formPurpose: wish.form_purpose,
+    }
+  })
+})
+
+const submitChauffeurs = computed(() =>
+  (submitBoard.value?.cards ?? []).map((card) => ({
+    value: card.user_id,
+    title: card.name,
+    subtitle: card.may_drive
+      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
+      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+    mayDrive: card.may_drive,
+  })),
+)
 
 function wishesForGroup(groupId: string): GrossanlassWishLine[] {
   return wishes.value.filter((w) => w.group_id === groupId)
@@ -109,19 +257,105 @@ function goToPlanung() {
   void router.push(`/${departmentId.value}/planung`)
 }
 
+async function openSubmit() {
+  if (!departmentId.value) return
+  try {
+    submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
+    submitDraft.value = null
+    submitOpen.value = true
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
+  }
+}
+
+function onPlaceCreated(place: GaPlace) {
+  const board = submitBoard.value
+  if (!board) return
+  if (board.places.some((row) => row.id === place.id)) return
+  submitBoard.value = { ...board, places: [...board.places, place] }
+}
+
+async function onSubmitEinsatz(current: GaBookPreviewDraft) {
+  if (!departmentId.value) return
+  try {
+    await createGrossanlassEinsatz(departmentId.value, {
+      kind: current.asOrder ? 'order' : 'einsatz',
+      commitment_id: current.objectId || undefined,
+      wish_line_id: current.fromWish ? current.id : null,
+      qty: current.qty,
+      from: current.fromIso,
+      to: current.toIso,
+      who: current.objectName || current.label || current.who,
+      chauffeur_user_id: current.chauffeurUserId || null,
+      delivery: current.delivery || 'pickup',
+      destination_place_id: current.destinationPlaceId || null,
+      group_id: current.groupId || defaultGroupId.value,
+      pending: true,
+    })
+    submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
+    toast.success(
+      current.asOrder
+        ? t('grossanlass.materialUebersicht.orderNoted')
+        : t('grossanlass.meinRessort.submitOk'),
+    )
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
+  }
+}
+
+async function onSubmitMany(drafts: GaBookPreviewDraft[]) {
+  if (!departmentId.value) return
+  try {
+    for (const current of drafts) {
+      await createGrossanlassEinsatz(departmentId.value, {
+        kind: 'einsatz',
+        commitment_id: current.objectId || undefined,
+        wish_line_id: current.fromWish ? current.id : null,
+        qty: current.qty,
+        from: current.fromIso,
+        to: current.toIso,
+        who: current.objectName || current.label || current.who,
+        chauffeur_user_id: current.chauffeurUserId || null,
+        delivery: current.delivery || 'pickup',
+        destination_place_id: current.destinationPlaceId || null,
+        group_id: current.groupId || defaultGroupId.value,
+        pending: true,
+      })
+    }
+    submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value)
+    toast.success(t('grossanlass.materialUebersicht.bookSavedMany', { count: drafts.length }))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.meinRessort.errorLoad'))
+  }
+}
+
+async function onSubmitOrder(current: GaBookPreviewDraft) {
+  await onSubmitEinsatz({ ...current, asOrder: true })
+}
+
 async function load() {
   if (!departmentId.value) return
   isLoading.value = true
   error.value = ''
   try {
-    const [groupList, wishList, roundList] = await Promise.all([
+    const [groupList, wishList, roundList, costs, budgetList] = await Promise.all([
       getGrossanlassGroups(departmentId.value),
       getMyRessortWishes(departmentId.value),
       getGrossanlassPlanningRounds(departmentId.value),
+      listGrossanlassCosts(departmentId.value).catch(() => [] as GrossanlassCost[]),
+      listGrossanlassBudgets(departmentId.value).catch(() => [] as GrossanlassBudget[]),
     ])
     groups.value = groupList
     wishes.value = wishList
     rounds.value = roundList
+    costRows.value = costs
+    budgets.value = budgetList
+    if (isBereichsleitung.value) {
+      submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value).catch(() => null)
+    }
   } catch (e: any) {
     error.value = e.response?.data?.error || t('grossanlass.meinRessort.errorLoad')
   } finally {
@@ -213,4 +447,44 @@ onMounted(load)
   border-radius: 8px;
   font-size: 0.9rem;
 }
+.kosten-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+}
+.kosten-panel h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+.kosten-rahmen {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.submit-einsatz {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #ecfdf5;
+  border-radius: 8px;
+}
+
+.submit-einsatz p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #047857;
+}
+
+.pending-board {
+  padding: 12px 14px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+.pending-board h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.pending-board ul { margin: 0; padding-left: 18px; font-size: 0.88rem; }
 </style>

@@ -19,38 +19,68 @@
           <span class="stat-card__value">{{ openRounds.length }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statOpenRounds') }}</span>
         </div>
-        <div v-if="canManageProcurement && procurementOverview" class="stat-card">
-          <span class="stat-card__value">{{ formatChf(procurementOverview.totals.soll_chf) }}</span>
-          <span class="stat-card__label">{{ t('grossanlass.dashboard.statBudgetSoll') }}</span>
-        </div>
+        <router-link
+          v-if="canManageProcurement && procurementOverview"
+          :to="kostenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ dashboardNettoDisplay }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statNetto') }}</span>
+        </router-link>
         <div v-if="canManageProcurement && procurementOverview" class="stat-card">
           <span class="stat-card__value">{{ procurementOverview.totals.ordered_not_received_count }}</span>
           <span class="stat-card__label">{{ t('grossanlass.dashboard.statAwaitingDelivery') }}</span>
         </div>
+        <router-link
+          v-if="canWorkMailbox && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.entwurf }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryDrafts') }}</span>
+        </router-link>
+        <router-link
+          v-if="canWorkMailbox && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.gesendet }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryWaiting') }}</span>
+        </router-link>
+        <router-link
+          v-if="canWorkMailbox && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.antwort }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryReplies') }}</span>
+        </router-link>
+        <router-link
+          v-if="canWorkMailbox && inquiryStats"
+          :to="anfragenLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ inquiryStats.zusage }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statInquiryYes') }}</span>
+        </router-link>
+        <router-link
+          v-if="canSeeUebersicht && uebersicht"
+          :to="tripsLink"
+          class="stat-card stat-card--link"
+        >
+          <span class="stat-card__value">{{ tripOrderCount }}</span>
+          <span class="stat-card__label">{{ t('grossanlass.dashboard.statTrips') }}</span>
+        </router-link>
       </div>
 
-      <!-- Offene Runden — Wunsch einreichen -->
-      <section class="ga-dashboard__section">
+      <!-- Offene Formulare — nur anzeigen, wenn welche offen sind -->
+      <section v-if="openRounds.length > 0" class="ga-dashboard__section">
         <div class="section-header">
           <h2 class="section-title">{{ t('grossanlass.dashboard.openRoundsTitle') }}</h2>
           <router-link :to="planungLink" class="section-link">{{ t('grossanlass.dashboard.allRounds') }}</router-link>
         </div>
 
-        <EEmptyState
-          v-if="openRounds.length === 0"
-          variant="default"
-          icon="mdi-calendar-clock"
-          :title="t('grossanlass.dashboard.noOpenRoundsTitle')"
-          :description="t('grossanlass.dashboard.noOpenRoundsDescription')"
-        >
-          <template v-if="canManageRounds" #actions>
-            <router-link :to="planungLink">
-              <EButton>{{ t('grossanlass.planung.rounds.addAction') }}</EButton>
-            </router-link>
-          </template>
-        </EEmptyState>
-
-        <div v-else class="round-cards">
+        <div class="round-cards">
           <article v-for="round in openRounds" :key="round.id" class="round-card">
             <div class="round-card__main">
               <h3 class="round-card__name">{{ round.name }}</h3>
@@ -109,13 +139,98 @@
           </router-link>
           <router-link
             v-if="canManageProcurement"
+            :to="materialsLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-package-variant" size="22" />
+            <span>{{ t('sidebar.materials') }}</span>
+          </router-link>
+          <router-link
+            v-if="canSeeUebersicht"
+            :to="materialUebersichtLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-truck-delivery-outline" size="22" />
+            <span>{{ t('sidebar.materialUebersicht') }}</span>
+          </router-link>
+          <router-link
+            v-if="canManageProcurement"
             :to="beschaffungLink"
             class="quick-link-card"
           >
             <v-icon icon="mdi-cart-outline" size="22" />
             <span>{{ t('sidebar.beschaffung') }}</span>
           </router-link>
+          <router-link
+            v-if="canManageProcurement"
+            :to="kostenLink"
+            class="quick-link-card"
+          >
+            <v-icon icon="mdi-cash-multiple" size="22" />
+            <span>{{ t('sidebar.kosten') }}</span>
+          </router-link>
         </div>
+      </section>
+
+      <!-- Gast-Abteilungen: echte Planungsdaten -->
+      <section v-if="known && hasGuestDepartments" class="ga-dashboard__section">
+        <div class="section-header">
+          <h2 class="section-title">{{ t('grossanlass.dashboard.previewParticipantsTitle') }}</h2>
+          <router-link :to="teilnehmerLink" class="section-link">
+            {{ t('grossanlass.dashboard.participantsAll') }}
+          </router-link>
+        </div>
+        <p class="participants-lead">{{ t('grossanlass.dashboard.participantsLiveText') }}</p>
+        <ul v-if="liveParticipants.length" class="participants-list">
+          <li v-for="row in liveParticipants" :key="row.id">
+            {{ row.name }}
+            <span class="participants-list__org" v-if="row.organisation_name">{{ row.organisation_name }}</span>
+            · {{ t(`grossanlass.planung.struktur.status.${row.status}`) }}
+          </li>
+        </ul>
+        <p v-else class="participants-empty">{{ t('grossanlass.dashboard.previewParticipantsEmpty') }}</p>
+
+        <div class="preview-freigabe">
+          <div>
+            <h3>{{ t('grossanlass.dashboard.previewFreigabeTitle') }}</h3>
+            <p>{{ published ? t('grossanlass.planung.freigabe.publishedHint') : t('grossanlass.dashboard.previewFreigabeText') }}</p>
+          </div>
+          <router-link :to="freigabeLink">
+            <EButton variant="secondary" size="small">
+              {{ t('grossanlass.dashboard.previewFreigabeAction') }}
+            </EButton>
+          </router-link>
+        </div>
+      </section>
+
+      <!-- Materialübersicht: Bestand und Konflikte -->
+      <section v-if="canManageProcurement" class="ga-dashboard__section">
+        <div class="section-header">
+          <h2 class="section-title">{{ t('grossanlass.dashboard.stockTitle') }}</h2>
+          <router-link :to="materialUebersichtLink" class="section-link">
+            {{ t('grossanlass.dashboard.stockAll') }}
+          </router-link>
+        </div>
+
+        <div class="ga-dashboard__stats">
+          <router-link :to="materialUebersichtLink" class="stat-card stat-card--link">
+            <span class="stat-card__value">{{ stock.lager }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockLager') }}</span>
+          </router-link>
+          <router-link :to="ausgabeLink" class="stat-card stat-card--link">
+            <span class="stat-card__value">{{ stock.assigned }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockAssigned') }}</span>
+          </router-link>
+          <router-link :to="ausgabeLink" class="stat-card stat-card--link">
+            <span class="stat-card__value">{{ stock.out }}</span>
+            <span class="stat-card__label">{{ t('grossanlass.dashboard.previewStockOut') }}</span>
+          </router-link>
+        </div>
+        <p v-if="conflictCount > 0" class="conflicts-link">
+          <router-link :to="konflikteLink">
+            {{ t('grossanlass.dashboard.conflictsLink', { count: conflictCount }) }}
+          </router-link>
+        </p>
       </section>
     </template>
 
@@ -133,11 +248,21 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  gaCanManageProcurement,
+  gaCanSeeAnlassOverview,
+  gaCanWorkMailbox,
+} from '@/utils/grossanlassAccess'
 import { useAuthStore } from '@/stores/auth'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
+import { getGrossanlassUebersicht, type GaUebersichtPayload } from '@/api/grossanlassUebersicht'
+import {
+  getGrossanlassPlanung,
+  type GrossanlassParticipant,
+  type GrossanlassPlanungOverview,
+} from '@/api/grossanlassPlanung'
 import {
   getGrossanlassPlanningRounds,
   type GrossanlassPlanningRound,
@@ -149,6 +274,8 @@ import {
   getGrossanlassProcurementOverview,
   type GrossanlassProcurementOverview,
 } from '@/api/grossanlassProcurement'
+import { getGrossanlassInquiries } from '@/api/grossanlassInquiries'
+import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 
 const props = defineProps<{
   departmentId: string
@@ -159,21 +286,26 @@ const router = useRouter()
 const { t } = useI18n()
 const authStore = useAuthStore()
 const { isUserRole } = useDepartmentMemberRole()
+const { hasGuestDepartments, known, setHasGuestDepartments } = useGrossanlassGuestDepartments(
+  () => props.departmentId,
+)
 
 const isLoading = ref(true)
 const error = ref('')
 const rounds = ref<GrossanlassPlanningRound[]>([])
 const ressortRootCount = ref(0)
 const procurementOverview = ref<GrossanlassProcurementOverview | null>(null)
+const inquiryStats = ref<{ entwurf: number; gesendet: number; antwort: number; zusage: number } | null>(null)
+const planung = ref<GrossanlassPlanungOverview | null>(null)
+const uebersicht = ref<GaUebersichtPayload | null>(null)
 
 const wishDialogOpen = ref(false)
 const activeWishRoundId = ref<string | null>(null)
 
 const canManageRounds = computed(() => !isUserRole.value)
-const canManageProcurement = computed(() => {
-  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return ['mw', 'dc', 'matwart', 'depchef'].includes(r)
-})
+const canManageProcurement = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
+const canWorkMailbox = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
+const canSeeUebersicht = computed(() => gaCanSeeAnlassOverview(authStore.currentDepartmentRole))
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
 const otherRounds = computed(() =>
@@ -184,9 +316,52 @@ const otherRounds = computed(() =>
 )
 
 const planungLink = computed(() => `/${props.departmentId}/planung`)
-const ressortsLink = computed(() => `/${props.departmentId}/ressorts`)
+const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const meinRessortLink = computed(() => `/${props.departmentId}/mein-ressort`)
-const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung`)
+const beschaffungLink = computed(() => `/${props.departmentId}/beschaffung/bedarf`)
+const kostenLink = computed(() => `/${props.departmentId}/kosten`)
+const anfragenLink = computed(() => `/${props.departmentId}/beschaffung/anfragen`)
+const dashboardNettoAmount = computed(() => {
+  const totals = procurementOverview.value?.totals
+  if (!totals) return null
+  return totals.netto_chf ?? totals.ist_chf
+})
+const dashboardRahmenAmount = computed(() => procurementOverview.value?.totals.rahmen_chf ?? null)
+const dashboardNettoDisplay = computed(() => {
+  const netto = formatChf(dashboardNettoAmount.value)
+  const rahmen = dashboardRahmenAmount.value
+  if (rahmen == null) return netto
+  return t('grossanlass.dashboard.statNettoOfRahmen', {
+    netto,
+    rahmen: formatChf(rahmen),
+  })
+})
+const materialsLink = computed(() => `/${props.departmentId}/materialien`)
+const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
+const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
+const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
+const tripsLink = computed(() => ({
+  path: `/${props.departmentId}/material-uebersicht/einsaetze`,
+  query: { delivery: 'trip' },
+}))
+const tripOrderCount = computed(() =>
+  (uebersicht.value?.einsaetze ?? []).filter(
+    (row) => row.delivery === 'trip' && row.status !== 'returned',
+  ).length,
+)
+const freigabeLink = computed(() => `/${props.departmentId}/einstellungen/freigabe`)
+const teilnehmerLink = computed(() => `/${props.departmentId}/einstellungen/teilnehmer`)
+const stock = computed(() => {
+  const issues = uebersicht.value?.issues ?? []
+  return {
+    lager: issues.filter((row) => row.place === 'lager').length,
+    assigned: issues.filter((row) => row.place === 'assigned').length,
+    out: issues.filter((row) => row.place === 'out').length,
+  }
+})
+const conflictCount = computed(() => uebersicht.value?.conflicts.length ?? 0)
+const liveParticipants = computed<GrossanlassParticipant[]>(() => planung.value?.participants ?? [])
+const published = computed(() => planung.value?.config.status === 'published')
 
 function roundDetailLink(roundId: string, tab?: 'input' | 'responses') {
   const base = `/${props.departmentId}/planung/runden/${roundId}`
@@ -247,18 +422,43 @@ async function load() {
   isLoading.value = true
   error.value = ''
   try {
-    const [roundList, groups] = await Promise.all([
+    const [roundList, groups, pack] = await Promise.all([
       getGrossanlassPlanningRounds(props.departmentId),
       getGrossanlassGroups(props.departmentId),
+      getGrossanlassPlanung(props.departmentId).catch(() => null),
     ])
     rounds.value = roundList
     ressortRootCount.value = groups.filter((g) => !g.parent_id).length
+    planung.value = pack
+    if (pack) {
+      setHasGuestDepartments(pack.config.has_guest_departments === true)
+    }
 
     if (canManageProcurement.value) {
       try {
         procurementOverview.value = await getGrossanlassProcurementOverview(props.departmentId)
       } catch {
         procurementOverview.value = null
+      }
+    }
+    if (canWorkMailbox.value) {
+      try {
+        const inquiries = await getGrossanlassInquiries(props.departmentId)
+        inquiryStats.value = {
+          entwurf: inquiries.filter((row) => row.status === 'entwurf').length,
+          gesendet: inquiries.filter((row) => row.status === 'gesendet').length,
+          antwort: inquiries.filter((row) => row.status === 'antwort').length,
+          zusage: inquiries.filter((row) => row.status === 'zusage').length,
+        }
+      } catch {
+        inquiryStats.value = null
+      }
+    }
+    if (canSeeUebersicht.value) {
+      try {
+        uebersicht.value = await getGrossanlassUebersicht(props.departmentId)
+      } catch {
+        uebersicht.value = null
       }
     }
   } catch (e: any) {
@@ -290,11 +490,13 @@ onMounted(load)
 
 .ga-dashboard__stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 12px;
 }
 
 .stat-card {
+  container-type: inline-size;
+  min-width: 0;
   background: var(--color-surface, #fff);
   border: 1px solid var(--color-border, #e5e7eb);
   border-radius: 10px;
@@ -305,16 +507,20 @@ onMounted(load)
 }
 
 .stat-card__value {
-  font-size: 1.35rem;
+  font-size: clamp(0.95rem, 10cqi, 1.35rem);
   font-weight: 700;
   line-height: 1.2;
   color: var(--color-text, #111827);
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 
-.stat-card__label {
-  font-size: 0.78rem;
-  color: var(--color-text-muted, #6b7280);
-  line-height: 1.3;
+.stat-card--link {
+  text-decoration: none;
+  color: inherit;
+}
+.stat-card--link:hover {
+  border-color: var(--color-primary, #16a34a);
 }
 
 .ga-dashboard__section {
@@ -447,6 +653,66 @@ onMounted(load)
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
+}
+
+.preview-freigabe {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.preview-freigabe h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.preview-freigabe p,
+.participants-lead,
+.participants-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.participants-empty {
+  font-style: italic;
+}
+
+.participants-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.participants-list__org {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.participants-list__org::before {
+  content: ' · ';
+}
+
+.conflicts-link {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.conflicts-link a {
+  color: var(--color-error, #b91c1c);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.conflicts-link a:hover {
+  text-decoration: underline;
 }
 
 .quick-link-card {

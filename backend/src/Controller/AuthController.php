@@ -3,13 +3,14 @@
 namespace App\Controller;
 
 use App\Config\LanguageConfig;
-use App\Entity\Profile;
-use App\Entity\User;
 use App\Entity\AdminJoinRequest;
 use App\Entity\Department;
+use App\Entity\DepartmentSetting;
 use App\Entity\JoinRequest;
 use App\Entity\Membership;
 use App\Entity\Organisation;
+use App\Entity\Profile;
+use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
@@ -22,6 +23,7 @@ use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
 use App\Service\VerificationEmailService;
 use App\Util\IdGenerator;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Model\RefreshTokenManagerInterface;
 use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
@@ -32,6 +34,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Psr\Cache\CacheItemPoolInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 #[Route('/api/auth', name: 'api_auth_')]
@@ -59,6 +62,7 @@ class AuthController extends AbstractController
         private AdminCapabilityChecker $adminCapabilityChecker,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
         private SupplierCompanyAccessService $supplierCompanyAccessService,
+        private LoggerInterface $logger,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -247,6 +251,7 @@ class AuthController extends AbstractController
         $requestedDepartmentName = trim((string) ($data['requestedDepartmentName'] ?? ''));
         $requestedParentDepartmentId = trim((string) ($data['requestedParentDepartmentId'] ?? ''));
         $requestedParentDepartmentName = trim((string) ($data['requestedParentDepartmentName'] ?? ''));
+        $inviteJoinCode = strtoupper(preg_replace('/[^A-Z0-9]/', '', (string) ($data['inviteJoinCode'] ?? '')) ?? '');
         $honeypotWebsite = trim((string) ($data['website'] ?? ''));
         $turnstileToken = trim((string) ($data['turnstileToken'] ?? ''));
 
@@ -273,10 +278,20 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Vorname und Nachname sind erforderlich'], 400);
         }
 
+        $inviteDepartment = $inviteJoinCode !== '' ? $this->findDepartmentByInviteJoinCode($inviteJoinCode) : null;
+        $inviteFlow = $inviteDepartment instanceof Department;
+        if ($inviteFlow) {
+            $pendingOk = $this->pendingInviteMatchesEmail($inviteDepartment->getId(), $email);
+            if (!$pendingOk) {
+                return new JsonResponse(['error' => 'Einladung nicht gefunden oder E-Mail stimmt nicht'], 400);
+            }
+            $requestedOrganisationId = $inviteDepartment->getOrganisationId();
+        }
+
         if ($requestedOrganisationId === '') {
             return new JsonResponse(['error' => 'Organisation ist erforderlich'], 400);
         }
-        if ($requestedDepartmentId === '' && $requestedDepartmentName === '') {
+        if (!$inviteFlow && $requestedDepartmentId === '' && $requestedDepartmentName === '') {
             return new JsonResponse(['error' => 'Bitte Abteilung suchen und auswaehlen oder Abteilungsname eingeben'], 400);
         }
 
@@ -309,7 +324,7 @@ class AuthController extends AbstractController
         if (!$org) {
             return new JsonResponse(['error' => 'Organisation nicht gefunden'], 404);
         }
-        if (!OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
+        if (!$inviteFlow && !OrganisationUserPickerFilter::isVisibleForUserPickers($org)) {
             return new JsonResponse(['error' => 'Organisation nicht verfuegbar'], 400);
         }
         $orgAllowedLanguages = $org->getAllowedLanguages();
@@ -332,9 +347,15 @@ class AuthController extends AbstractController
         $user->setProfile($profile);
         $user->setPassword($this->passwordHasher->hashPassword($user, $password));
         $user->setState('active');
-        $user->setEmailVerified(false);
-        $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
-        $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+        if ($inviteFlow) {
+            $user->setEmailVerified(true);
+            $user->setEmailVerificationToken(null);
+            $user->setEmailVerificationExpiresAt(null);
+        } else {
+            $user->setEmailVerified(false);
+            $user->setEmailVerificationToken(bin2hex(random_bytes(32)));
+            $user->setEmailVerificationExpiresAt((new \DateTime())->modify('+10 days'));
+        }
 
         $this->entityManager->persist($profile);
         $this->entityManager->persist($user);
@@ -351,6 +372,7 @@ class AuthController extends AbstractController
 
         $adminRequest = null;
         $joinRequest = null;
+        if (!$inviteFlow) {
         if ($matchedDepartment) {
             $joinRequest = new JoinRequest();
             $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
@@ -376,8 +398,22 @@ class AuthController extends AbstractController
             $adminRequest->setStatus('pending');
             $this->entityManager->persist($adminRequest);
         }
+        }
 
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->flush();
+        } catch (UniqueConstraintViolationException) {
+            return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits registriert'], 409);
+        } catch (\Throwable $e) {
+            $this->logger->error('auth.register persist failed', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'invite_flow' => $inviteFlow,
+            ]);
+
+            return new JsonResponse(['error' => 'Registrierung fehlgeschlagen. Bitte spaeter erneut versuchen.'], 500);
+        }
+        if (!$inviteFlow) {
         try {
             $this->verificationEmailService->sendVerificationEmail($user);
         } catch (\Throwable $e) {
@@ -397,6 +433,7 @@ class AuthController extends AbstractController
                 'error' => 'Verifikationsmail konnte nicht zugestellt werden. Bitte E-Mail-Adresse pruefen.'
             ], 400);
         }
+        }
 
         try {
             if ($joinRequest) {
@@ -408,27 +445,101 @@ class AuthController extends AbstractController
             // Registrierung bleibt gueltig auch wenn Manager-Mail fehlschlaegt
         }
 
-        $this->auditLogger->log(
-            'user',
-            $user->getId(),
-            'user_created_self',
-            null,
-            $user,
-            null,
-            [
-                'source' => ['old' => null, 'new' => 'self_registration'],
-                'profile_id' => ['old' => null, 'new' => $profile->getId()],
-                'email' => ['old' => null, 'new' => $profile->getEmail()],
-                'state' => ['old' => null, 'new' => $user->getState()],
-                'email_verified' => ['old' => null, 'new' => $user->isEmailVerified()],
-            ]
-        );
-        $this->entityManager->flush();
+        try {
+            $this->auditLogger->log(
+                'user',
+                $user->getId(),
+                'user_created_self',
+                null,
+                $user,
+                null,
+                [
+                    'source' => ['old' => null, 'new' => 'self_registration'],
+                    'profile_id' => ['old' => null, 'new' => $profile->getId()],
+                    'email' => ['old' => null, 'new' => $profile->getEmail()],
+                    'state' => ['old' => null, 'new' => $user->getState()],
+                    'email_verified' => ['old' => null, 'new' => $user->isEmailVerified()],
+                ]
+            );
+            $this->entityManager->flush();
+        } catch (\Throwable $e) {
+            $this->logger->error('auth.register audit failed', [
+                'exception' => $e::class,
+                'message' => $e->getMessage(),
+                'user_id' => $user->getId(),
+            ]);
+        }
 
         return new JsonResponse([
             'success' => true,
-            'message' => 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
+            'invite_ready' => $inviteFlow,
+            'message' => $inviteFlow
+                ? 'Konto erstellt. Du kannst dich jetzt anmelden und die Einladung annehmen.'
+                : 'Konto erstellt. Bitte bestaetigen Sie Ihre E-Mail-Adresse ueber den Link in der E-Mail (gueltig 10 Tage).'
         ], 201);
+    }
+
+    private function findDepartmentByInviteJoinCode(string $code): ?Department
+    {
+        if ($code === '') {
+            return null;
+        }
+        try {
+            $setting = $this->entityManager->createQueryBuilder()
+                ->select('s')
+                ->from(DepartmentSetting::class, 's')
+                ->where('s.settingKey = :key')
+                ->andWhere('UPPER(TRIM(s.settingValue)) = :code')
+                ->setParameter('key', 'join.invite_code')
+                ->setParameter('code', $code)
+                ->setMaxResults(1)
+                ->getQuery()
+                ->getOneOrNullResult();
+        } catch (\Throwable) {
+            $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+                'settingKey' => 'join.invite_code',
+                'settingValue' => $code,
+            ]);
+        }
+
+        return $setting instanceof DepartmentSetting ? $setting->getDepartment() : null;
+    }
+
+    private function pendingInviteMatchesEmail(string $departmentId, string $email): bool
+    {
+        $normalized = strtolower(trim($email));
+        if ($normalized === '' || !filter_var($normalized, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+        $setting = $this->entityManager->getRepository(DepartmentSetting::class)->findOneBy([
+            'departmentId' => $departmentId,
+            'settingKey' => 'join.pending_invites',
+        ]);
+        if (!$setting) {
+            return false;
+        }
+        try {
+            $decoded = json_decode((string) $setting->getSettingValue(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            return false;
+        }
+        if (!is_array($decoded)) {
+            return false;
+        }
+        foreach ($decoded as $invite) {
+            if (!is_array($invite)) {
+                continue;
+            }
+            if (($invite['status'] ?? 'pending') !== 'pending') {
+                continue;
+            }
+            $inviteEmail = strtolower(trim(rawurldecode((string) ($invite['email'] ?? ''))));
+            if ($inviteEmail === $normalized) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function allowRegistrationAttempt(string $clientIp, string $email): bool

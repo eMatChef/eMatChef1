@@ -41,6 +41,14 @@ final class GrossanlassDepartmentSerializer
             'planned_event_start' => $config->getPlannedEventStart()->format(\DateTimeInterface::ATOM),
             'planned_event_end' => $config->getPlannedEventEnd()?->format(\DateTimeInterface::ATOM),
             'main_activity_id' => $config->getMainActivityId(),
+            'location_text' => $config->getLocationText(),
+            'venue_address_id' => $config->getVenueAddressId(),
+            'notes' => $config->getNotes(),
+            'published_at' => $config->getPublishedAt()?->format(\DateTimeInterface::ATOM),
+            'guest_activity_type' => $config->getGuestActivityType(),
+            'has_guest_departments' => $config->hasGuestDepartments(),
+            'invite_group_ids' => $config->getInviteGroupIds(),
+            'logistics_group_id' => $config->getLogisticsGroupId(),
         ];
     }
 

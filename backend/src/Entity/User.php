@@ -98,6 +98,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(name: 'last_used_supplier_company_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?SupplierCompany $lastUsedSupplierCompany = null;
 
+    #[ORM\Column(name: 'google_id', type: 'string', length: 64, nullable: true, unique: true)]
+    private ?string $googleId = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTime();
@@ -330,7 +333,10 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             // Mapping zu Symfony Roles (Rollen sind jetzt Abkürzungen)
             $symfonyRole = match($departmentRole) {
                 'mw' => 'ROLE_MATWART',
+                'cmw' => 'ROLE_CO_MATWART',
                 'dc' => 'ROLE_DEPCHEF',
+                'komm' => 'ROLE_KOMMUNIKATION',
+                'spon' => 'ROLE_SPONSORING',
                 'l1' => 'ROLE_LEADER1',
                 'l2' => 'ROLE_LEADER2',
                 'l3' => 'ROLE_LEADER3',
@@ -485,5 +491,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         } catch (EntityNotFoundException) {
             return null;
         }
+    }
+
+    public function getGoogleId(): ?string
+    {
+        return $this->googleId;
+    }
+
+    public function setGoogleId(?string $googleId): self
+    {
+        $this->googleId = $googleId;
+        return $this;
     }
 }

@@ -5,8 +5,13 @@
 # Einstieg https://staging.ematchef.ch (Login)
 staging.ematchef.ch, app.staging.ematchef.ch, qr.staging.ematchef.ch, devices.staging.ematchef.ch,
 app-staging.ematchef.ch, qr-staging.ematchef.ch, devices-staging.ematchef.ch {
-	root * /var/www/ematchef-app-staging
-	encode gzip
-	try_files {path} /index.html
-	file_server
+	handle /api* {
+		reverse_proxy 127.0.0.1:8082
+	}
+	handle {
+		root * /var/www/ematchef-app-staging
+		encode gzip
+		try_files {path} /index.html
+		file_server
+	}
 }

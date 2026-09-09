@@ -9,7 +9,7 @@ Chat-Chronik / Cutover-Stand: [`HETZNER-CUTOVER.md`](HETZNER-CUTOVER.md)
 | Marketing Prod (`ematchef.ch`) | **Hostpoint** | selten FTP |
 | Marketing lokal | Docker (`ematchef.test`) | lokal |
 | Develop/Staging App | **Hetzner** | CI → rsync, Caddy |
-| Prod App | **Hetzner** Prod-Droplet | rsync / später CI |
+| Prod App | **Hetzner** Prod-Droplet | CI → rsync, Caddy |
 | API | Hetzner Compose | CD-Workflows |
 
 ### Hostnamen
@@ -31,7 +31,15 @@ bash scripts/build-droplet-frontend.sh develop
 
 Caddy: [`deploy/caddy/Caddyfile.develop.example`](../deploy/caddy/Caddyfile.develop.example)
 
-Secret: `DEVELOP_APP_WEBROOT` = `/var/www/ematchef-app-develop`
+### CI-Workflows & Secrets
+
+| Env | Workflow | Webroot-Secret (Beispiel) | SSH |
+|-----|----------|---------------------------|-----|
+| develop | `deploy-frontend-develop.yml` | `DEVELOP_APP_WEBROOT` = `/var/www/ematchef-app-develop` | `DEVELOP_SSH_*` |
+| staging | `deploy-frontend-staging.yml` | `STAGING_APP_WEBROOT` = `/var/www/ematchef-app-staging` | `DEVELOP_SSH_*` (gleicher Droplet) |
+| prod | `deploy-frontend-prod.yml` | `PROD_APP_WEBROOT` = `/var/www/ematchef-app-prod` | `PROD_SSH_*` |
+
+Die Versionszeile im Profil-Menü (`v4.0.1 · <sha>`) kommt aus dem **Frontend-Build** (`VITE_APP_GIT_SHA`). Sie entspricht dem Commit, der zuletzt per rsync ausgerollt wurde — nicht dem API-`git pull` allein.
 
 ### Cloudflare
 
@@ -39,7 +47,7 @@ A → `94.130.231.112` (Nur DNS): `dev`, `api.dev`, `qr.dev`, `devices.dev` (+ o
 
 ## Checkliste
 
-1. [ ] Caddy inkl. `dev.ematchef.ch` → App-Webroot  
-2. [ ] `APP_FRONTEND_URL=https://dev.ematchef.ch`, CORS inkl. `dev.`  
-3. [ ] Deploy Frontend Develop  
-4. [ ] Smoke: `https://dev.ematchef.ch/login` bleibt auf `dev.`  
+1. [ ] Caddy inkl. `dev.ematchef.ch` / `staging.ematchef.ch` / `app.ematchef.ch` → jeweiliger App-Webroot  
+2. [ ] `APP_FRONTEND_URL` + CORS passend zur Env  
+3. [ ] Deploy Frontend Develop / Staging / Prod Workflows + Secrets  
+4. [ ] Smoke: Login-Host bleibt auf der Env-Domain; Profil-Nav zeigt aktuellen Git-SHA  

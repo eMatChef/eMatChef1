@@ -20,6 +20,9 @@ class MediaStorageService
     public const CONTEXT_ACCOUNTING_FOLLOW_UP = 'accounting_follow_up';
     public const CONTEXT_ACTIVITY_JS_ORDER = 'activity_js_order';
     public const CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE = 'grossanlass_procurement_quote';
+    public const CONTEXT_GROSSANLASS_USER_CARD = 'grossanlass_user_card';
+    public const CONTEXT_GROSSANLASS_MAIL_ATTACHMENT = 'grossanlass_mail_attachment';
+    public const CONTEXT_USER_DRIVE_LICENSE = 'user_drive_license';
 
     public const KIND_PHOTOS = 'photos';
     public const KIND_DOCUMENTS = 'documents';
@@ -33,6 +36,9 @@ class MediaStorageService
         self::CONTEXT_ACCOUNTING_FOLLOW_UP => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'accounting-followup'],
         self::CONTEXT_ACTIVITY_JS_ORDER => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'activity-js-order'],
         self::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-procurement-quote'],
+        self::CONTEXT_GROSSANLASS_USER_CARD => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-user-card'],
+        self::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-mail-attachment'],
+        self::CONTEXT_USER_DRIVE_LICENSE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'user-drive-license'],
     ];
 
     private string $uploadsBaseDir;
@@ -52,7 +58,9 @@ class MediaStorageService
      *     url?: string,
      *     url_builder?: callable(string $filename): string,
      *     uploaded_by_supplier_company_id?: string,
-     *     original_filename?: string
+     *     original_filename?: string,
+     *     pdf?: bool,
+     *     max_bytes?: int
      * } $options
      *
      * @return array{
@@ -159,10 +167,12 @@ class MediaStorageService
             throw new \RuntimeException('Upload-Verzeichnis konnte nicht angelegt werden');
         }
 
-        $stored = $this->compressionService->storeReceiptOrImage(
-            $file,
-            $targetDir . '/' . $filenameBase,
-        );
+        $stored = !empty($options['pdf'])
+            ? $this->storePdfCopy($file, $targetDir . '/' . $filenameBase, (int) ($options['max_bytes'] ?? 32 * 1024 * 1024))
+            : $this->compressionService->storeReceiptOrImage(
+                $file,
+                $targetDir . '/' . $filenameBase,
+            );
 
         $filename = $filenameBase . '.' . $stored['filename_ext'];
 
@@ -188,6 +198,49 @@ class MediaStorageService
             'width' => $stored['width'],
             'height' => $stored['height'],
             'mime' => $stored['mime'],
+        ];
+    }
+
+    /**
+     * PDF ohne Bild-Kompression (Anlass-Mails, bis 32 MB).
+     *
+     * @return array{path: string, filename_ext: string, mime: string, bytes: int, width: int, height: int}
+     */
+    private function storePdfCopy(UploadedFile $file, string $targetPathWithoutExt, int $maxBytes): array
+    {
+        if (!$file->isValid()) {
+            $err = $file->getError();
+            if ($err === \UPLOAD_ERR_INI_SIZE || $err === \UPLOAD_ERR_FORM_SIZE) {
+                throw new \InvalidArgumentException('Datei zu gross (max. 32 MB)');
+            }
+            throw new \InvalidArgumentException('Ungültige Upload-Datei');
+        }
+        $size = (int) $file->getSize();
+        if ($size <= 0 || $size > $maxBytes) {
+            throw new \InvalidArgumentException('Datei zu gross (max. 32 MB)');
+        }
+        $mime = (string) $file->getMimeType();
+        $original = strtolower((string) $file->getClientOriginalName());
+        $ext = strtolower((string) $file->guessExtension());
+        $looksPdf = $mime === 'application/pdf'
+            || $mime === 'application/x-pdf'
+            || $ext === 'pdf'
+            || str_ends_with($original, '.pdf');
+        if (!$looksPdf) {
+            throw new \InvalidArgumentException('Nur PDF erlaubt');
+        }
+        $targetPath = $targetPathWithoutExt . '.pdf';
+        if (!copy($file->getPathname(), $targetPath)) {
+            throw new \RuntimeException('Datei konnte nicht gespeichert werden');
+        }
+
+        return [
+            'path' => $targetPath,
+            'filename_ext' => 'pdf',
+            'mime' => 'application/pdf',
+            'bytes' => (int) filesize($targetPath),
+            'width' => 0,
+            'height' => 0,
         ];
     }
 

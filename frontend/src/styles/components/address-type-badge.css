@@ -27,6 +27,8 @@
   --address-type-private-fg: #991b1b;
   --address-type-postal-bg: #ccfbf1;
   --address-type-postal-fg: #0f766e;
+  --address-type-inquiry-bg: #ede9fe;
+  --address-type-inquiry-fg: #6d28d9;
 }
 
 .address-type-badge {
@@ -57,6 +59,7 @@
 .address-type-badge.office { background: var(--address-type-office-bg); color: var(--address-type-office-fg); }
 .address-type-badge.private { background: var(--address-type-private-bg); color: var(--address-type-private-fg); }
 .address-type-badge.postal { background: var(--address-type-postal-bg); color: var(--address-type-postal-fg); }
+.address-type-badge.inquiry { background: var(--address-type-inquiry-bg); color: var(--address-type-inquiry-fg); }
 
 .contact-avatar.general,
 .contact-avatar-lg.general { background: var(--address-type-general-bg); color: var(--address-type-general-fg); }

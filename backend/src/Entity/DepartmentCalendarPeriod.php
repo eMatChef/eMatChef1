@@ -15,6 +15,8 @@ class DepartmentCalendarPeriod
     public const LABEL_CAMP_WEEK = 'camp_week';
     public const LABEL_OTHER = 'other';
     public const LABEL_GROSSANLASS = 'grossanlass';
+    public const LABEL_AUFBAU = 'aufbau';
+    public const LABEL_ABBAU = 'abbau';
 
     /** @var list<string> */
     public const ALLOWED_LABELS = [
@@ -23,6 +25,15 @@ class DepartmentCalendarPeriod
         self::LABEL_CAMP_WEEK,
         self::LABEL_OTHER,
         self::LABEL_GROSSANLASS,
+        self::LABEL_AUFBAU,
+        self::LABEL_ABBAU,
+    ];
+
+    /** @var list<string> Zeitmodule nur in Grossanlass-Departments. */
+    public const GROSSANLASS_MODULE_LABELS = [
+        self::LABEL_GROSSANLASS,
+        self::LABEL_AUFBAU,
+        self::LABEL_ABBAU,
     ];
 
     #[ORM\Id]
@@ -44,6 +55,12 @@ class DepartmentCalendarPeriod
     #[ORM\Column(name: 'end_date', type: 'date')]
     private \DateTimeInterface $endDate;
 
+    #[ORM\Column(name: 'start_time', type: 'time')]
+    private \DateTimeInterface $startTime;
+
+    #[ORM\Column(name: 'end_time', type: 'time')]
+    private \DateTimeInterface $endTime;
+
     #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $createdByUserId = null;
 
@@ -57,6 +74,8 @@ class DepartmentCalendarPeriod
     {
         $this->createdAt = new \DateTime();
         $this->updatedAt = new \DateTime();
+        $this->startTime = new \DateTime('00:00:00');
+        $this->endTime = new \DateTime('23:59:00');
     }
 
     public function getId(): string
@@ -127,6 +146,30 @@ class DepartmentCalendarPeriod
     public function setEndDate(\DateTimeInterface $endDate): self
     {
         $this->endDate = $endDate;
+
+        return $this;
+    }
+
+    public function getStartTime(): \DateTimeInterface
+    {
+        return $this->startTime;
+    }
+
+    public function setStartTime(\DateTimeInterface $startTime): self
+    {
+        $this->startTime = $startTime;
+
+        return $this;
+    }
+
+    public function getEndTime(): \DateTimeInterface
+    {
+        return $this->endTime;
+    }
+
+    public function setEndTime(\DateTimeInterface $endTime): self
+    {
+        $this->endTime = $endTime;
 
         return $this;
     }

@@ -1,7 +1,7 @@
 <template>
   <PageShell class="workshop-view">
     <template #title>{{ t('workshop.title') }}</template>
-    <template #subtitle>{{ t('workshop.description') }}</template>
+    <template #subtitle>{{ workshopSubtitle }}</template>
     <template #actions>
       <EButton variant="primary" @click="showCreateModal = true">
         <v-icon icon="mdi-plus" start size="20" />
@@ -996,7 +996,6 @@
       :code="selectedTicket?.public_code"
       :url="workshopPublicUrl"
       @close="closeWorkshopQrActionModal"
-      @add-to-print-cart="handleWorkshopQrAddToPrintCart"
       @print="handleWorkshopQrPrint"
     />
 
@@ -1045,8 +1044,7 @@ import { useListSearchQueryRoute } from '@/composables/useListSearchQueryRoute'
 import { parseSearchQuery, type SearchSuggestion } from '@/composables/useSearchNavigation'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicQrActionModal from '@/components/common/PublicQrActionModal.vue'
-import { addPrintCartItem } from '@/api/tasks'
-import { printHtmlDocument } from '@/utils/printHtml'
+import { usePrintJob } from '@/composables/usePrintJob'
 import { resolveWorkshopPublicUrl } from '@/utils/publicQrUrl'
 import {
   getTicketDisplayPhase,
@@ -1094,7 +1092,6 @@ import {
   getReceivedPurchasePartsForCompletion,
   getStockPartsForCompletion,
 } from '@/utils/workshopPartsCompletion'
-import QRCode from 'qrcode'
 import PageShell from '@/components/layout/PageShell.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
@@ -1107,9 +1104,14 @@ const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const detailTabsStore = useDetailTabsStore()
 const toast = useToast()
+const { openPrint } = usePrintJob()
 const { confirm: confirmDialog } = useConfirm()
 const currentDepartmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
+)
+const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(currentDepartmentId.value))
+const workshopSubtitle = computed(() =>
+  isGrossanlassDept.value ? t('workshop.grossanlassDescription') : t('workshop.description'),
 )
 
 /** Query ?material_id= — aus Material-Detail (Werkstatt nur für dieses Material) */
@@ -1596,31 +1598,6 @@ function closeWorkshopQrActionModal() {
   showWorkshopQrActionModal.value = false
 }
 
-async function handleWorkshopQrAddToPrintCart() {
-  const ticket = selectedTicket.value
-  const url = workshopPublicUrl.value
-  if (!ticket?.id || !url || !currentDepartmentId.value) {
-    toast.info(t('workshop.toastNoPublicLink'))
-    return
-  }
-  try {
-    const result = await addPrintCartItem({
-      department_id: currentDepartmentId.value,
-      entity_type: 'workshop',
-      entity_id: ticket.id,
-      label: ticket.title || t('workshop.title'),
-      public_code: ticket.public_code || null,
-      public_url: url,
-    })
-    toast.success(
-      result.created ? t('workshop.toastPrintCartAdded') : t('workshop.toastPrintCartAlready')
-    )
-    closeWorkshopQrActionModal()
-  } catch (err: any) {
-    toast.error(err?.response?.data?.error || t('workshop.errPrintCartAdd'))
-  }
-}
-
 async function handleWorkshopQrPrint() {
   const ticket = selectedTicket.value
   const url = workshopPublicUrl.value
@@ -1628,23 +1605,24 @@ async function handleWorkshopQrPrint() {
     toast.info(t('workshop.toastNoPublicLink'))
     return
   }
-  const qrDataUrl = await QRCode.toDataURL(url, { width: 300, margin: 1 })
-  const safeTitle = String(ticket.title || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  const safeCode = String(ticket.public_code || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  printHtmlDocument(`<!doctype html>
-<html><head><meta charset="utf-8" /><title>${safeTitle}</title>
-<style>body{font-family:Arial,sans-serif;text-align:center;padding:24px}img{width:280px;height:280px}.title{margin-top:12px;font-weight:700}.code{font-family:monospace;color:#64748b;margin-top:6px}</style>
-</head><body>
-<img src="${qrDataUrl}" alt="QR" />
-<div class="title">${safeTitle}</div>
-<div class="code">${safeCode}</div>
-</body></html>`)
+  const label = ticket.title || t('workshop.fallbackTabLabel', { id: ticket.id })
+  openPrint({
+    departmentId: currentDepartmentId.value,
+    items: [{
+      label,
+      public_code: ticket.public_code || null,
+      public_url: url,
+      cart: ticket.id && currentDepartmentId.value ? {
+        department_id: currentDepartmentId.value,
+        entity_type: 'workshop',
+        entity_id: ticket.id,
+        label,
+        public_code: ticket.public_code || null,
+        public_url: url,
+      } : undefined,
+    }],
+    kind: 'label',
+  })
   closeWorkshopQrActionModal()
 }
 

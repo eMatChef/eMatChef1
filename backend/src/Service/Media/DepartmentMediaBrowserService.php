@@ -125,6 +125,8 @@ class DepartmentMediaBrowserService
         $canReplace = !\in_array($context, [
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER,
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE,
+            MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD,
+            MediaStorageService::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT,
         ], true);
 
         $resolvedLinks = $links ?? [[
@@ -459,6 +461,7 @@ class DepartmentMediaBrowserService
             MediaStorageService::CONTEXT_ACCOUNTING_FOLLOW_UP => 'follow_up',
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER => 'js_order',
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => 'quote',
+            MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD => 'record',
             default => 'record',
         };
     }

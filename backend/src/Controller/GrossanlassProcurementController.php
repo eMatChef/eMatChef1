@@ -6,7 +6,11 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassCostService;
+use App\Service\Grossanlass\GrossanlassGmailAccountService;
+use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\Grossanlass\GrossanlassProcurementService;
+use App\Service\Grossanlass\GrossanlassCategoryInUseException;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,7 +25,9 @@ class GrossanlassProcurementController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassProcurementService $procurementService,
+        private GrossanlassGmailAccountService $gmail,
         private GroupAccessService $groupAccess,
+        private GrossanlassCostService $costService,
     ) {}
 
     #[Route('/bedarf', name: 'bedarf_overview', methods: ['GET'])]
@@ -71,6 +77,166 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         return new JsonResponse($line, 201);
+    }
+
+    #[Route('/categories', name: 'categories_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listCategories(string $departmentId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->procurementService->listCategories($department, $currentUser));
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Throwable $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    #[Route('/categories', name: 'categories_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createCategory(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $category = $this->procurementService->createCategory($department, $currentUser, $data);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        $this->gmail->ensureCategoryPackageLabels($department, $currentUser, $category);
+        $this->gmail->syncLabelsIfConnected($department, $currentUser);
+
+        return new JsonResponse($category, 201);
+    }
+
+    #[Route('/categories/{categoryId}', name: 'categories_update', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateCategory(string $departmentId, string $categoryId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $oldPath = $this->categoryPackagePathById($department, $currentUser, $categoryId);
+
+        try {
+            $category = $this->procurementService->updateCategory($department, $currentUser, $categoryId, $data);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        $newPath = GrossanlassMailMergeService::categoryPackagePathFromRow($category);
+        if ($oldPath !== '' && $newPath !== '' && $oldPath !== $newPath) {
+            $this->gmail->renameCategoryPackagePath($department, $currentUser, $oldPath, $newPath);
+        }
+        if (array_key_exists('name', $data) || array_key_exists('parent_id', $data)) {
+            $this->gmail->syncLabelsIfConnected($department, $currentUser);
+        }
+
+        return new JsonResponse($category);
+    }
+
+    #[Route('/categories/{categoryId}/usage', name: 'categories_usage', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function categoryUsage(string $departmentId, string $categoryId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->procurementService->categoryUsage($department, $currentUser, $categoryId));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/categories/{categoryId}', name: 'categories_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteCategory(string $departmentId, string $categoryId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $reassignTo = isset($data['reassign_to']) ? trim((string) $data['reassign_to']) : '';
+
+        try {
+            $result = $this->procurementService->deleteCategory(
+                $department,
+                $currentUser,
+                $categoryId,
+                $reassignTo !== '' ? $reassignTo : null,
+            );
+        } catch (GrossanlassCategoryInUseException $e) {
+            return new JsonResponse($e->toArray(), 409);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        if ($result['to_path'] !== '' && $result['from_paths'] !== []) {
+            $this->gmail->retargetPackageLabels(
+                $department,
+                $currentUser,
+                $result['from_paths'],
+                $result['to_path'],
+                $result['inquiry_ids'],
+            );
+        } elseif ($result['from_paths'] !== []) {
+            $this->gmail->removePackageLabels($department, $currentUser, $result['from_paths']);
+        }
+        $this->gmail->syncLabelsIfConnected($department, $currentUser);
+
+        return new JsonResponse(['success' => true, 'removed_ids' => $result['removed_ids']]);
     }
 
     #[Route('/lines/{lineId}', name: 'lines_update', methods: ['PUT'])]
@@ -169,6 +335,34 @@ class GrossanlassProcurementController extends AbstractController
 
         try {
             return new JsonResponse($this->procurementService->getOverview($department, $currentUser));
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/overview/rahmen', name: 'overview_rahmen', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function saveRahmen(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        try {
+            return new JsonResponse($this->procurementService->saveFinance($department, $currentUser, $data));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
         }
@@ -444,6 +638,85 @@ class GrossanlassProcurementController extends AbstractController
         return new JsonResponse($overview);
     }
 
+    #[Route('/collector/{wishId}/to-inquiry', name: 'collector_to_inquiry', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorToInquiry(string $departmentId, string $wishId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $overview = $this->procurementService->collectorToInquiry($department, $currentUser, $wishId, is_array($data) ? $data : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
+    #[Route('/collector/{wishId}/to-material', name: 'collector_to_material', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorToMaterial(string $departmentId, string $wishId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        try {
+            $overview = $this->procurementService->collectorToMaterial($department, $currentUser, $wishId, is_array($data) ? $data : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
+    #[Route('/collector/{wishId}/discard', name: 'collector_discard', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function collectorDiscard(string $departmentId, string $wishId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            $overview = $this->procurementService->collectorDiscard($department, $currentUser, $wishId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($overview);
+    }
+
     #[Route('/lines/{lineId}/wishes/{wishLineId}', name: 'lines_remove_wish', methods: ['DELETE'])]
     #[IsGranted('ROLE_USER')]
     public function removeWishFromLine(string $departmentId, string $lineId, string $wishLineId): JsonResponse
@@ -467,6 +740,171 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         return new JsonResponse($line);
+    }
+
+    #[Route('/costs', name: 'costs_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listCosts(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->costService->list($department, $currentUser, $request->query->all()));
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/costs', name: 'costs_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createCost(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        try {
+            return new JsonResponse($this->costService->create($department, $currentUser, $data), 201);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/costs/{costId}', name: 'costs_update', methods: ['PATCH', 'PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateCost(string $departmentId, string $costId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        try {
+            return new JsonResponse($this->costService->update($department, $currentUser, $costId, $data));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/costs/{costId}', name: 'costs_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteCost(string $departmentId, string $costId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            $this->costService->delete($department, $currentUser, $costId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse(null, 204);
+    }
+
+    #[Route('/budgets', name: 'budgets_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listBudgets(string $departmentId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->costService->listBudgets($department, $currentUser));
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    #[Route('/budgets', name: 'budgets_upsert', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function upsertBudget(string $departmentId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        try {
+            return new JsonResponse($this->costService->upsertBudget($department, $currentUser, $data));
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+    }
+
+    private function categoryPackagePathById(Department $department, User $user, string $categoryId): string
+    {
+        try {
+            foreach ($this->procurementService->listCategories($department, $user) as $row) {
+                if (($row['id'] ?? '') === $categoryId) {
+                    return GrossanlassMailMergeService::categoryPackagePathFromRow($row);
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        return '';
     }
 
     private function resolveGrossanlassDepartment(string $departmentId): Department|JsonResponse

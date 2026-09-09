@@ -227,7 +227,8 @@
   "errors": {
     "sessionExpired": "Tia sessiun è scridata. Profitar anc ina giada.",
     "sessionExpiringTitle": "La sessiun fina prest",
-    "sessionExpiringMessage": "Tia sessiun fina en pauc minutins. Restar annunzià?",
+    "sessionExpiringMessage": "Restar annunzià?",
+    "sessionExpiringCountdownLabel": "Deconnexion automatica en",
     "extendSession": "Prolungar"
   },
   "layout": {

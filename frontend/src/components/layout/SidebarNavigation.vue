@@ -141,13 +141,13 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.activities') }}</span>
       </router-link>
 
-      <!-- Grossanlass: Ressorts & Mitglieder (MW/DC — Name des Anlasses) -->
+      <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole"
-        :to="getLink('/ressorts')"
+        :to="getLink('/einstellungen')"
         class="nav-item"
-        :class="{ active: isDeptSectionNavActive('ressorts') }"
-        :title="grossanlassRessortsNavTitle"
+        :class="{ active: isGrossanlassEinstellungenNavActive }"
+        :title="grossanlassEinstellungenNavTitle"
       >
         <v-icon icon="mdi-sitemap" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label nav-label--grossanlass" :class="{ visible: showNavLabels }">{{ grossanlassNavLabel }}</span>
@@ -165,9 +165,9 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meinRessort') }}</span>
       </router-link>
 
-      <!-- Planung: Runden → Material sammeln → Beschaffung -->
+      <!-- Planung (MW / CMW / OK-Leitung) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassPlanungMenu"
         :to="getLink('/planung')"
         class="nav-item"
         :class="{ active: isPlanungNavActive }"
@@ -177,7 +177,7 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
       </router-link>
 
-      <!-- Beschaffung (Grossanlass, MW/DC — Phase 2c Shell) -->
+      <!-- Beschaffung (Grossanlass, MW/CMW) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
         :to="getLink('/beschaffung')"
@@ -188,6 +188,71 @@
         <v-icon icon="mdi-cart-outline" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.beschaffung') }}</span>
       </router-link>
+
+      <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMailboxOnlyMenu"
+        :to="getLink('/beschaffung/anfragen')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('beschaffung') }"
+        :title="t('sidebar.anfragenHint')"
+      >
+        <v-icon icon="mdi-email-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.anfragen') }}</span>
+      </router-link>
+
+      <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        :to="getLink('/kosten')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('kosten') }"
+        :title="t('sidebar.kostenHint')"
+      >
+        <v-icon icon="mdi-cash-multiple" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.kosten') }}</span>
+      </router-link>
+
+      <!-- Materialien (Stammdaten, Design-Vorschau) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
+        :to="getLink('/materialien')"
+        class="nav-item"
+        :class="{ active: isGrossanlassMaterialsNavActive }"
+        :title="t('sidebar.grossanlassMaterialsHint')"
+      >
+        <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
+      </router-link>
+
+      <!-- Materialübersicht: Bestand / Einsätze / Konflikte (Konzept §12.3) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtMenu"
+        :to="getLink('/material-uebersicht')"
+        class="nav-item"
+        :class="{ active: isGrossanlassMaterialUebersichtNavActive }"
+        :title="t('sidebar.materialUebersichtHint')"
+      >
+        <v-icon icon="mdi-truck-delivery-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materialUebersicht') }}</span>
+      </router-link>
+
+      <!-- Werkstatt (Grossanlass): eigene Fälle, nicht Pfadi-workshop_ticket -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassWorkshopMenu"
+        :to="getLink('/werkstatt')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('werkstatt') }"
+        :title="t('sidebar.grossanlassWorkshopHint')"
+      >
+        <v-icon icon="mdi-wrench" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.workshop') }}</span>
+      </router-link>
+
+      <div
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        class="nav-divider"
+      />
 
       <!-- Materialien -->
       <router-link
@@ -231,9 +296,18 @@
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
         data-onboarding="nav-tasks"
+        :title="tasksNavTitle"
       >
-        <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-icon-wrap">
+          <v-icon icon="mdi-clipboard-list" class="nav-icon nav-icon--mdi" size="20" />
+          <span v-if="printCartCount > 0 && canManageQrContact && !showNavLabels" class="nav-badge nav-badge--rail">
+            {{ printCartCount > 99 ? '99+' : printCartCount }}
+          </span>
+        </span>
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.tasks') }}</span>
+        <span v-if="printCartCount > 0 && canManageQrContact && showNavLabels" class="nav-badge">
+          {{ printCartCount > 99 ? '99+' : printCartCount }}
+        </span>
       </router-link>
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
@@ -340,6 +414,13 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { isDepartmentBasicMemberRole, useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import {
+  gaCanManageProcurement,
+  gaCanSeeAnlassOverview,
+  gaCanWorkMailbox,
+} from '@/utils/grossanlassAccess'
+import { gaHomePath, gaIsRoleHomePath } from '@/utils/grossanlassHome'
+import { usePrintCart } from '@/composables/usePrintCart'
 import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
 import {
@@ -352,7 +433,8 @@ import { getSupplierShopAvailability } from '@/api/supplierShop'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
-const { isUserRole } = useDepartmentMemberRole()
+const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
+const { count: printCartCount, refresh: refreshPrintCart } = usePrintCart()
 const { mdAndUp } = useDisplay()
 const drawerOpen = defineModel<boolean>({ default: false })
 const isHovered = ref(false)
@@ -593,7 +675,12 @@ const mainDashboardLink = computed(() => {
   }
   if (isSuperAdmin.value) return '/dashboard'
   const id = departmentId.value || authStore.activeDepartmentId
-  if (id) return `/${id}`
+  if (id) {
+    if (authStore.isDepartmentGrossanlass(id)) {
+      return gaHomePath(id, authStore.currentDepartmentRole)
+    }
+    return `/${id}`
+  }
   if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
   return '/pending-assignment'
 })
@@ -602,6 +689,9 @@ const isMainDashboardNavActive = computed(() => {
   const p = route.path
   if (authStore.isSupplierOnly && isSupplierDashboardActive.value) return true
   const id = departmentId.value || authStore.activeDepartmentId
+  if (id && authStore.isDepartmentGrossanlass(id)) {
+    return gaIsRoleHomePath(id, authStore.currentDepartmentRole, p)
+  }
   if (id && (p === `/${id}` || p === `/${id}/` || p === `/${id}/dashboard`)) return true
   if (p === '/dashboard') return true
   return false
@@ -637,15 +727,27 @@ const grossanlassNavLabel = computed(() => {
   return dept?.department?.name || t('grossanlass.label')
 })
 
-const grossanlassRessortsNavTitle = computed(() =>
-  t('sidebar.grossanlassRessortsHint', { name: grossanlassNavLabel.value }),
+const grossanlassEinstellungenNavTitle = computed(() =>
+  t('sidebar.grossanlassEinstellungenHint', { name: grossanlassNavLabel.value }),
 )
+
+const isGrossanlassEinstellungenNavActive = computed(() => {
+  const path = route.path
+  if (path.includes('/settings')) return false
+  return path.includes('/einstellungen')
+})
 
 const isPlanungNavActive = computed(() => {
   const path = route.path
-  if (path.includes('/settings')) return false
+  if (path.includes('/settings') || path.includes('/einstellungen')) return false
   return path.includes('/planung')
 })
+
+const isGrossanlassMaterialsNavActive = computed(() => route.path.includes('/materialien'))
+
+const isGrossanlassMaterialUebersichtNavActive = computed(() =>
+  route.path.includes('/material-uebersicht'),
+)
 
 /** Phase 1 Grossanlass: nur Dashboard, Konfiguration (+ Sandbox in Dev) — Ressorts/Planung, Aufgaben, Nachrichten */
 const showStandardDeptSidebarLinks = computed(
@@ -670,11 +772,31 @@ const showAccountingMenu = computed(() => {
   return false
 })
 
-/** Grossanlass-Beschaffung (Shell): nur MW/DC — kein Pfadi-/accounting-Modul */
+/** Grossanlass-Beschaffung: MW/CMW — nicht OK-Leitung */
 const showGrossanlassBeschaffungMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
-  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r === 'mw' || r === 'dc'
+  return gaCanManageProcurement(authStore.currentDepartmentRole)
+})
+
+const showGrossanlassMailboxOnlyMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  if (showGrossanlassBeschaffungMenu.value) return false
+  return gaCanWorkMailbox(authStore.currentDepartmentRole)
+})
+
+/** Stammdaten-Materialien: wie Beschaffung */
+const showGrossanlassMaterialsMenu = computed(() => showGrossanlassBeschaffungMenu.value)
+
+const showGrossanlassUebersichtMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  return gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
+})
+
+const showGrossanlassPlanungMenu = computed(() => showGrossanlassUebersichtMenu.value)
+
+const showGrossanlassWorkshopMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  return gaCanManageProcurement(authStore.currentDepartmentRole)
 })
 
 /** Lieferanten-Shop: Materialwart / Departmentchef */
@@ -745,6 +867,20 @@ function isDeptSectionNavActive(section: string): boolean {
   if (path.includes('/settings')) return false
   return path.includes(`/${section}`)
 }
+
+const tasksNavTitle = computed(() => {
+  const n = printCartCount.value
+  if (canManageQrContact.value && n > 0) return `${t('sidebar.tasks')} · ${n}`
+  return t('sidebar.tasks')
+})
+
+watch(
+  departmentId,
+  (id) => {
+    if (canManageQrContact.value) void refreshPrintCart(id)
+  },
+  { immediate: true },
+)
 
 // Mit Department-Kontext immer /{id}/… — auch wenn die Route gerade /admin-dashboard ist (Store/Primär-Dept)
 

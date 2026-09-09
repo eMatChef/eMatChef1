@@ -138,6 +138,13 @@ const visibleMenuItems = computed((): MenuItem[] => {
       to: '/admin-dashboard/verwaltung/js-leihkatalog',
     })
   }
+  if (canEditGlobalTemplates.value) {
+    start.push({
+      id: 'print-catalog',
+      label: t('verwaltung.nav.printCatalog'),
+      mdiIcon: 'mdi-printer-outline',
+    })
+  }
   const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), mdiIcon: 'mdi-briefcase-outline' }
   const mid: MenuItem[] = canAssignSupport.value
     ? [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), mdiIcon: 'mdi-lifebuoy' }]

@@ -60,6 +60,12 @@ export interface GrossanlassConfig {
   planned_event_start: string
   planned_event_end?: string | null
   main_activity_id?: string | null
+  location_text?: string
+  venue_address_id?: string | null
+  notes?: string
+  published_at?: string | null
+  guest_activity_type?: 'camp' | 'event'
+  logistics_group_id?: string | null
 }
 
 export interface CreateGrossanlassDepartmentRequest {

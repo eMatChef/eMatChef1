@@ -14,12 +14,19 @@ export interface CreateGrossanlassWishPayload {
   valid_to?: string
   timeframe_notes?: string | null
   notes?: string | null
+  last_stage?: 'grob' | 'fein' | string
+  refine_wish_id?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   custom_values?: Record<string, unknown>
 }
 
 export interface GrossanlassWishLine {
   id: string
   round_id: string
+  form_purpose?: string
   response_id?: string | null
   group_id: string
   group_name: string
@@ -32,10 +39,15 @@ export interface GrossanlassWishLine {
   timeframe_notes: string | null
   notes: string | null
   status: 'requested' | 'accepted' | string
+  last_stage?: 'grob' | 'fein' | string
   created_by_user_id: string
   created_by_name?: string
   created_at: string
   updated_at: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
   custom_values?: Record<string, unknown>
 }
 
@@ -73,6 +85,16 @@ export async function getGrossanlassRoundWishes(
   const response = await apiClient.get<GrossanlassWishLine[] | GrossanlassWishListResult>(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes`,
     { params: Object.keys(params).length ? params : undefined },
+  )
+  return response.data
+}
+
+export async function getGrossanlassRefineCandidates(
+  departmentId: string,
+  roundId: string,
+): Promise<GrossanlassWishLine[]> {
+  const response = await apiClient.get<GrossanlassWishLine[]>(
+    `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/refine-candidates`,
   )
   return response.data
 }

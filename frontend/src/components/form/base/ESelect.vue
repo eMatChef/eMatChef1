@@ -26,7 +26,13 @@
           :menu-props="mergedMenuProps"
           class="e-select"
           @update:model-value="onUpdate"
-        />
+        >
+          <template #item="slotProps">
+            <slot name="item" v-bind="slotProps">
+              <v-list-item v-bind="slotProps.props" />
+            </slot>
+          </template>
+        </v-select>
       </div>
     </div>
   </div>

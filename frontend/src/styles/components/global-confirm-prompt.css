@@ -67,6 +67,26 @@
   line-height: 1.35;
 }
 
+.global-confirm-dialog__countdown-label {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 12px 0 4px;
+}
+
+.global-confirm-dialog__countdown {
+  font-variant-numeric: tabular-nums;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #d97706;
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+.global-confirm-dialog__countdown--urgent {
+  color: #dc2626;
+}
+
 .global-confirm-dialog__message,
 .global-prompt-dialog__message {
   font-size: 0.95rem;
@@ -127,6 +147,10 @@
   .global-confirm-dialog__title,
   .global-prompt-dialog__title {
     font-size: 1.05rem;
+  }
+
+  .global-confirm-dialog__countdown {
+    font-size: 1.7rem;
   }
 
   .global-confirm-dialog__message,

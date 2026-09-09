@@ -329,7 +329,7 @@ class PrintTaskController extends AbstractController
     }
 
     /**
-     * Erlaubte entity_type: batch, activity, workshop, storage_address, storage_rack, storage_slot.
+     * Erlaubte entity_type: batch, activity, workshop, storage_address, storage_rack, storage_slot, user_card.
      * public_url muss zum QR-Schema passen (kein /i/b/-Only).
      */
     private function assertValidPublicUrl(string $entityType, string $publicUrl): true|JsonResponse
@@ -342,6 +342,7 @@ class PrintTaskController extends AbstractController
             'storage_address' => (bool) preg_match('#^/i/l/[^/]+/?$#', $path),
             'storage_rack' => (bool) preg_match('#^/i/r/[^/]+/?$#', $path),
             'storage_slot' => (bool) preg_match('#^/i/s/[^/]+/?$#', $path),
+            'user_card' => (bool) preg_match('#^/i/c/[^/]+/?$#', $path),
             default => false,
         };
         if (!$ok) {

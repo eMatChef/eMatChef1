@@ -11,7 +11,8 @@ on:
 
 concurrency:
   group: cd-develop
-  cancel-in-progress: true
+  # Laufenden Deploy nicht durch Cron/zweiten Push abbrechen (sonst Git schon neu, Compose unfertig).
+  cancel-in-progress: false
 
 jobs:
   deploy-develop:
@@ -26,8 +27,6 @@ jobs:
           username: ${{ secrets.DEVELOP_SSH_USER }}
           key: ${{ secrets.DEVELOP_SSH_KEY }}
           port: ${{ secrets.DEVELOP_SSH_PORT }}
-          script_stop: true
-          # Default ~10–15m: Compose/Entrypoint auf dem Droplet braucht oft länger
           command_timeout: 40m
           script: |
             set -euo pipefail
@@ -52,15 +51,20 @@ jobs:
             git fetch --no-tags origin "+refs/heads/develop:refs/remotes/origin/develop"
             LOCAL="$(git rev-parse HEAD)"
             REMOTE="$(git rev-parse origin/develop)"
-            if [[ "$LOCAL" == "$REMOTE" ]]; then
-              echo "Already at origin/develop ($LOCAL) — skip deploy."
-              exit 0
+            if [[ "$LOCAL" != "$REMOTE" ]]; then
+              echo "Updating $LOCAL -> $REMOTE"
+              git reset --hard origin/develop
+              echo "==> prod-update.sh reset $(date -u +%H:%M:%S)"
+              EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
+              EMATCHEF_GIT_BRANCH=develop \
+              COMPOSE_PROJECT_NAME=ematchef-develop \
+              ./deploy/prod-update.sh reset
+            else
+              echo "Already at origin/develop ($LOCAL) — compose/migrations (up)"
+              echo "==> prod-update.sh up $(date -u +%H:%M:%S)"
+              EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
+              EMATCHEF_GIT_BRANCH=develop \
+              COMPOSE_PROJECT_NAME=ematchef-develop \
+              ./deploy/prod-update.sh up
             fi
-            echo "Updating $LOCAL -> $REMOTE"
-            git reset --hard origin/develop
-            echo "==> prod-update.sh reset $(date -u +%H:%M:%S)"
-            EMATCHEF_PROD_ROOT="${{ secrets.DEVELOP_DEPLOY_PATH }}" \
-            EMATCHEF_GIT_BRANCH=develop \
-            COMPOSE_PROJECT_NAME=ematchef-develop \
-            ./deploy/prod-update.sh reset
             echo "==> CD Develop done $(date -u +%Y-%m-%dT%H:%M:%SZ)"

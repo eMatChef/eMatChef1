@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import { isWishPhaseSelectField } from '@/utils/grossanlassWishPeriod'
 
 export type GrossanlassFormFieldRole = 'input' | 'meta'
 
@@ -36,7 +37,12 @@ export interface GrossanlassRoundFormField {
   enabled: boolean
   sort_order: number
   options: { choices?: string[]; multiple?: boolean } | null
-  config: { allow_new_bauprojekt?: boolean; leader_scope?: boolean } | null
+  config: {
+    allow_new_bauprojekt?: boolean
+    leader_scope?: boolean
+    inquiry_key?: string
+    multiline?: boolean
+  } | null
   /** Gesetzt vom Backend — Feld hat bereits Antworten und darf nicht entfernt werden. */
   has_response_values?: boolean
 }
@@ -140,12 +146,17 @@ export function canRemoveFormBuilderField(field: GrossanlassRoundFormField): boo
 }
 
 export function normalizeSystemFieldLabels(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
-  return fields.map((f) => {
-    if (!f.system_key) return f
+  applySystemFieldDefaultLabels(fields)
+  return fields
+}
+
+/** Setzt System-Beschriftungen in-place — Objektidentität bleibt für v-model erhalten. */
+export function applySystemFieldDefaultLabels(fields: GrossanlassRoundFormField[]): void {
+  for (const f of fields) {
+    if (!f.system_key) continue
     const def = SYSTEM_FIELD_DEFS.find((d) => d.system_key === f.system_key)
-    if (!def) return f
-    return { ...f, label: def.defaultLabel }
-  })
+    if (def) f.label = def.defaultLabel
+  }
 }
 
 export function isEditableCustomField(field: GrossanlassRoundFormField): boolean {
@@ -265,6 +276,26 @@ export function sortFormFields(fields: GrossanlassRoundFormField[]): Grossanlass
   return [...fields].sort((a, b) => a.sort_order - b.sort_order || a.id.localeCompare(b.id))
 }
 
+/** Dieselben Objekt-Referenzen wie `fields` — für den Form-Builder (v-model). */
+export function listFormBuilderInputFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  return sortFormFields(fields.filter((f) => f.role === 'input'))
+}
+
+export function listFormBuilderMetaFields(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  return sortFormFields(fields.filter((f) => f.role === 'meta'))
+}
+
+/** Eingaben in gegebener Reihenfolge, Metadaten ans Ende; schreibt sort_order in-place. */
+export function applyFormBuilderFieldOrder(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
+  const inputs = fields.filter((f) => f.role === 'input')
+  const meta = listFormBuilderMetaFields(fields)
+  const ordered = [...inputs, ...meta]
+  ordered.forEach((f, i) => {
+    f.sort_order = (i + 1) * 10
+  })
+  return ordered
+}
+
 export function nextFormFieldSortOrder(fields: GrossanlassRoundFormField[]): number {
   if (fields.length === 0) return 10
   return Math.max(...fields.map((f) => f.sort_order)) + 10
@@ -281,7 +312,10 @@ export function availableFormBuilderAddOptions(
       options.push({ kind: 'system', system_key: def.system_key })
     }
   }
+  const hasPhaseWhen = fields.some((field) => isWishPhaseSelectField(field))
+  const hasSystemPeriod = fields.some((field) => field.system_key === 'period')
   for (const def of CUSTOM_TYPE_DEFS) {
+    if (def.type === 'date_range' && (hasPhaseWhen || hasSystemPeriod)) continue
     options.push({ kind: 'custom', custom_type: def.type })
   }
 

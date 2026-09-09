@@ -4,199 +4,158 @@
     :title="t('grossanlass.beschaffung.title')"
     :subtitle="t('grossanlass.beschaffung.subtitle')"
   >
-    <div class="grossanlass-beschaffung-view" :class="{ 'grossanlass-beschaffung-view--desktop': mdAndUp }">
-      <header v-if="!mdAndUp" class="grossanlass-beschaffung-view__mobile-bar">
-        <v-menu
-          v-model="mobileMenuOpen"
-          location="bottom start"
-          :close-on-content-click="true"
-          offset="8"
-          scroll-strategy="reposition"
-          content-class="settings-mobile-menu-overlay"
+    <template #filters>
+      <div class="materials-view-filters-stack">
+        <v-tabs
+          :model-value="activeTab"
+          class="materials-view-tabs"
+          color="primary"
+          show-arrows
+          @update:model-value="onTabChange"
         >
-          <template #activator="{ props: menuProps }">
-            <v-btn
-              v-bind="menuProps"
-              icon
-              variant="text"
-              size="small"
-              class="grossanlass-beschaffung-view__menu-btn"
-              :aria-label="t('layout.header.menuAria')"
-              :aria-expanded="mobileMenuOpen"
-            >
-              <v-icon icon="mdi-menu" size="24" />
-            </v-btn>
-          </template>
-          <v-card class="settings-mobile-menu-card" elevation="12" rounded="lg" :style="mobileMenuCardStyle">
-            <SettingsSubnavList
-              :items="tabItems"
-              :get-link="navLinkForTab"
-              :is-active="isTabActive"
-              menu-title-key="grossanlass.beschaffung.menuTitle"
-              list-density="default"
-              @navigate="mobileMenuOpen = false"
-            />
-          </v-card>
-        </v-menu>
-        <span class="grossanlass-beschaffung-view__mobile-title">{{ activeTabLabel }}</span>
-      </header>
-
-      <aside
-        v-if="mdAndUp"
-        class="settings-subnav-rail grossanlass-beschaffung-view__rail"
-        :class="{ 'settings-subnav-rail--expanded': desktopNavExpanded }"
-        @mouseenter="desktopNavHovered = true"
-        @mouseleave="onDesktopNavLeave"
-      >
-        <div class="settings-subnav-rail__panel" @click="onDesktopRailBackgroundClick">
-          <SettingsSubnavList
-            :items="tabItems"
-            :get-link="navLinkForTab"
-            :is-active="isTabActive"
-            menu-title-key="grossanlass.beschaffung.menuTitle"
-            show-title
-            @navigate="onDesktopNavClick"
-          />
-        </div>
-      </aside>
-
-      <div class="grossanlass-beschaffung-view__content">
-        <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+          <v-tab v-for="tab in tabItems" :key="tab.id" :value="tab.id">
+            <v-icon :icon="tab.icon" start size="18" />
+            {{ tab.label }}
+          </v-tab>
+        </v-tabs>
+        <nav v-if="showPaths" class="beschaffung-paths" :aria-label="t('grossanlass.beschaffung.pathsAria')">
+          <p class="beschaffung-paths__row">
+            <span class="beschaffung-paths__kind">{{ t('grossanlass.beschaffung.pathPartner') }}</span>
+            <span class="beschaffung-paths__steps">
+              <template v-for="(step, index) in partnerPath" :key="'p-' + step.id">
+                <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
+                <router-link
+                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  class="beschaffung-paths__step"
+                  :class="{ 'is-here': activeTab === step.id }"
+                  :aria-current="activeTab === step.id ? 'page' : undefined"
+                >{{ step.label }}</router-link>
+              </template>
+            </span>
+          </p>
+          <p class="beschaffung-paths__row">
+            <span class="beschaffung-paths__kind">{{ t('grossanlass.beschaffung.pathBuy') }}</span>
+            <span class="beschaffung-paths__steps">
+              <template v-for="(step, index) in buyPath" :key="'b-' + step.id">
+                <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
+                <router-link
+                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  class="beschaffung-paths__step"
+                  :class="{ 'is-here': activeTab === step.id }"
+                  :aria-current="activeTab === step.id ? 'page' : undefined"
+                >{{ step.label }}</router-link>
+              </template>
+            </span>
+          </p>
+        </nav>
       </div>
-    </div>
+    </template>
+
+    <router-view v-slot="{ Component }">
+      <transition name="fade" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
   </PageShell>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
+import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
 import PageShell from '@/components/layout/PageShell.vue'
-import SettingsSubnavList, { type SettingsNavItem } from '@/components/settings/SettingsSubnavList.vue'
-import '@/styles/views/settings-shell.css'
+import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const { t } = useI18n()
-const { mdAndUp } = useDisplay()
-
-const mobileMenuOpen = ref(false)
-const desktopNavHovered = ref(false)
-const desktopNavPinned = ref(false)
-
-const desktopNavExpanded = computed(() => desktopNavPinned.value || desktopNavHovered.value)
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const tabItems = computed<SettingsNavItem[]>(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), mdiIcon: 'mdi-clipboard-list-outline' },
-  { id: 'uebersicht', label: t('grossanlass.beschaffung.tabUebersicht'), mdiIcon: 'mdi-chart-box-outline' },
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), mdiIcon: 'mdi-file-document-outline' },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), mdiIcon: 'mdi-cart-outline' },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), mdiIcon: 'mdi-package-check' },
-])
-
-const activeTabLabel = computed(() => {
-  const tab = tabItems.value.find((item) => isTabActive(item.id))
-  return tab?.label || t('grossanlass.beschaffung.title')
+const tabItems = computed(() => {
+  const anfragen = { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen'), icon: 'mdi-email-multiple-outline' }
+  if (!gaCanManageProcurement(authStore.currentDepartmentRole)) {
+    return [anfragen]
+  }
+  return [
+    { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
+    anfragen,
+    { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
+    { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
+    { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
+  ]
 })
 
-const mobileMenuCardStyle = computed(() => ({
-  maxHeight: 'min(70vh, 520px)',
-  overflowY: 'auto' as const,
-}))
+const showPaths = computed(() => tabItems.value.length > 1)
 
-function getBeschaffungLink(tab: string): string {
-  if (!departmentId.value) return '#'
-  return `/${departmentId.value}/beschaffung/${tab}`
+const partnerPath = computed(() => [
+  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
+  { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen') },
+  { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen') },
+])
+
+const buyPath = computed(() => [
+  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
+  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten') },
+  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen') },
+])
+
+const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
+
+function onTabChange(tab: unknown) {
+  const id = departmentId.value
+  if (!id || typeof tab !== 'string') return
+  void router.push(`/${id}/beschaffung/${tab}`)
 }
-
-function navLinkForTab(tabId: string): string {
-  return getBeschaffungLink(tabId)
-}
-
-function isTabActive(tabId: string): boolean {
-  const base = departmentId.value ? `/${departmentId.value}/beschaffung` : ''
-  const path = (route.path || '').replace(/\/$/, '')
-  if (tabId === 'bedarf') {
-    return path === `${base}/bedarf` || path === base
-  }
-  if (tabId === 'uebersicht') {
-    return path === `${base}/uebersicht`
-  }
-  return path === `${base}/${tabId}`
-}
-
-function onDesktopNavLeave() {
-  if (!desktopNavPinned.value) {
-    desktopNavHovered.value = false
-  }
-}
-
-function onDesktopNavClick() {
-  if (!desktopNavPinned.value) {
-    desktopNavHovered.value = false
-  }
-}
-
-function onDesktopRailBackgroundClick(event: MouseEvent) {
-  const target = event.target as HTMLElement
-  if (target.closest('.v-list-item') || target.closest('a')) return
-  desktopNavPinned.value = !desktopNavPinned.value
-}
-
-watch(
-  () => route.fullPath,
-  () => {
-    mobileMenuOpen.value = false
-  },
-)
 </script>
 
 <style scoped>
 .grossanlass-beschaffung-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
 }
-
-.grossanlass-beschaffung-view {
+.beschaffung-paths {
+  display: grid;
+  gap: 4px;
+  padding: 2px 2px 4px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+.beschaffung-paths__row {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 320px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 10px;
+  margin: 0;
 }
-
-.grossanlass-beschaffung-view--desktop {
-  flex-direction: row;
-  align-items: flex-start;
-  gap: 0;
+.beschaffung-paths__kind {
+  flex: 0 0 4.5rem;
+  font-weight: 700;
+  color: #475569;
 }
-
-.grossanlass-beschaffung-view__mobile-bar {
+.beschaffung-paths__steps {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
 }
-
-.grossanlass-beschaffung-view__mobile-title {
-  font-weight: 600;
-  font-size: 1rem;
+.beschaffung-paths__arrow {
+  color: #cbd5e1;
 }
-
-.grossanlass-beschaffung-view__content {
-  flex: 1 1 auto;
-  min-width: 0;
+.beschaffung-paths__step {
+  color: var(--color-primary-dark, #166534);
+  text-decoration: none;
 }
-
-.grossanlass-beschaffung-view__rail {
-  flex-shrink: 0;
+.beschaffung-paths__step:hover {
+  text-decoration: underline;
+}
+.beschaffung-paths__step.is-here {
+  font-weight: 700;
+  color: #0f172a;
+  text-decoration: none;
 }
 </style>

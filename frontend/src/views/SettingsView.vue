@@ -72,6 +72,7 @@ import { useI18n } from 'vue-i18n'
 import { useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { gaCanSeeAnlassOverview, gaIsMailboxOnly } from '@/utils/grossanlassAccess'
 import SettingsSubnavList from '@/components/settings/SettingsSubnavList.vue'
 import '@/styles/views/settings-shell.css'
 
@@ -117,6 +118,9 @@ function isSettingsItemActive(itemId: string): boolean {
   }
   if (itemId === 'module') {
     return p === `${base}/module`
+  }
+  if (itemId === 'zeit') {
+    return p === `${base}/zeit`
   }
   if (itemId === 'my-department/fixed-dates') {
     return p === `${base}/my-department/fixed-dates`
@@ -175,7 +179,9 @@ const allMenuItems = computed(() => [
     mdiIcon: 'mdi-calendar-range',
     requiresMaterialManage: true,
   },
+  { id: 'print', label: t('settings.nav.print'), mdiIcon: 'mdi-printer-outline' },
   { id: 'my-department/display-screens', label: t('settings.nav.displayScreens'), mdiIcon: 'mdi-monitor' },
+  { id: 'zeit', label: t('settings.nav.timeLocation'), mdiIcon: 'mdi-clock-outline' },
   { id: 'module', label: t('settings.nav.module'), mdiIcon: 'mdi-tune' },
   {
     id: 'my-department/public-material-page',
@@ -194,15 +200,20 @@ const allMenuItems = computed(() => [
 
 const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
-/** Grossanlass-Dept: Mein Department (+ Module/Zeit für MW/DC) — README §3.6 */
-const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'module', 'my-department/fixed-dates'])
+/** Grossanlass-Dept: Mein Department + Zeit/Print für MW/CMW/OK-L; Komm/Spon nur Mein Department */
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates', 'print'])
+const GROSSANLASS_MAILBOX_MENU_IDS = new Set(['my-department'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
 
 const visibleMenuItems = computed(() => {
   if (isGrossanlassDept.value) {
-    const allowedIds = isUserRole.value ? GROSSANLASS_USER_MENU_IDS : GROSSANLASS_MW_MENU_IDS
+    const allowedIds = isUserRole.value
+      ? GROSSANLASS_USER_MENU_IDS
+      : gaIsMailboxOnly(authStore.currentDepartmentRole) || !gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
+        ? GROSSANLASS_MAILBOX_MENU_IDS
+        : GROSSANLASS_MW_MENU_IDS
     return allMenuItems.value
       .filter((item) => allowedIds.has(item.id))
       .map((item) => {
@@ -219,7 +230,7 @@ const visibleMenuItems = computed(() => {
 
   let items = isUserRole.value
     ? allMenuItems.value.filter((item) => USER_ALLOWED_MENU_IDS.has(item.id))
-    : allMenuItems.value
+    : allMenuItems.value.filter((item) => item.id !== 'zeit')
   if (!canManageMaterials.value) {
     items = items.filter((item) => !(item as { requiresMaterialManage?: boolean }).requiresMaterialManage)
   }

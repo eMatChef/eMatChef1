@@ -28,6 +28,9 @@ class ActivityGrossanlassProcurementOrder
     #[ORM\Column(name: 'order_ref', type: 'string', length: 255, nullable: true)]
     private ?string $orderRef = null;
 
+    #[ORM\Column(name: 'delivery_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $deliveryAt = null;
+
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
@@ -106,6 +109,18 @@ class ActivityGrossanlassProcurementOrder
     public function setOrderRef(?string $orderRef): self
     {
         $this->orderRef = $orderRef;
+
+        return $this;
+    }
+
+    public function getDeliveryAt(): ?\DateTime
+    {
+        return $this->deliveryAt;
+    }
+
+    public function setDeliveryAt(?\DateTime $deliveryAt): self
+    {
+        $this->deliveryAt = $deliveryAt;
 
         return $this;
     }

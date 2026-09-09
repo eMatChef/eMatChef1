@@ -16,6 +16,7 @@ export interface SupplierCompanyAddress {
   country: string
   contact_first_name: string | null
   contact_last_name: string | null
+  contact_salutation: string | null
   email: string | null
   phone: string | null
   mobile: string | null
@@ -81,6 +82,7 @@ export interface SupplierCompanyProfilePatch {
       | 'country'
       | 'contact_first_name'
       | 'contact_last_name'
+      | 'contact_salutation'
       | 'email'
       | 'phone'
       | 'mobile'
