@@ -306,36 +306,95 @@
 
         <div v-if="canManageMembersForGroup(selectedGroup)" class="add-member-section">
           <h4 class="section-title">{{ t('grossanlass.planung.ressorts.addMemberHeading') }}</h4>
-          <div v-if="isLoadingUsers" class="loading-inline">
-            <div class="spinner-sm"></div>
-            <span>{{ t('settings.groups.loadingUsers') }}</span>
-          </div>
-          <div v-else-if="unassignedUsers.length === 0" class="no-users-hint">
-            <p>{{ t('settings.groups.allUsersAssigned') }}</p>
-          </div>
-          <div v-else class="add-member-form">
-            <select v-model="addMemberForm.user_id" class="form-select user-select">
-              <option value="">{{ t('settings.groups.selectUser') }}</option>
-              <option v-for="user in unassignedUsers" :key="user.user_id" :value="user.user_id">
-                {{ user.name }} ({{ user.email }})
-              </option>
-            </select>
+          <div v-if="canFullyManage" class="add-member-role-row">
+            <label class="add-member-role-label" for="ga-add-member-role">{{ t('common.role') }}</label>
             <select
-              v-if="canFullyManage"
+              id="ga-add-member-role"
               v-model="addMemberForm.role"
               class="form-select role-select-sm"
             >
               <option value="member">{{ t('settings.groups.roleMember') }}</option>
               <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
             </select>
-            <EButton
-              variant="primary"
-              size="small"
-              :disabled="!addMemberForm.user_id"
-              @click="handleAddMember"
+          </div>
+          <div v-if="isLoadingUsers" class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span>{{ t('settings.groups.loadingUsers') }}</span>
+          </div>
+          <template v-else>
+            <p v-if="unassignedUsers.length === 0" class="no-users-hint">
+              {{ t('settings.groups.allUsersAssigned') }}
+            </p>
+            <ul v-else class="candidate-list">
+              <li v-for="user in unassignedUsers" :key="user.user_id" class="candidate-row">
+                <div class="candidate-meta">
+                  <strong>{{ user.name }}</strong>
+                  <span>{{ user.email }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="action-btn action-btn-add"
+                  :title="t('grossanlass.planung.ressorts.addMemberPlus')"
+                  :disabled="addingUserId === user.user_id"
+                  @click="handleAddMember(user.user_id)"
+                >
+                  <v-icon icon="mdi-plus" size="18" />
+                </button>
+              </li>
+            </ul>
+          </template>
+
+          <div class="outside-dept-block">
+            <h5 class="subsection-title">{{ t('grossanlass.planung.ressorts.addOutsideHeading') }}</h5>
+            <p class="outside-dept-hint">{{ t('grossanlass.planung.ressorts.addOutsideHint') }}</p>
+            <ETextField
+              v-model="outsideSearchQuery"
+              :label="t('grossanlass.planung.ressorts.addOutsideSearch')"
+              :placeholder="t('grossanlass.planung.ressorts.addOutsidePlaceholder')"
+              hide-details="auto"
+              clearable
+              autocomplete="off"
+            />
+            <p
+              v-if="outsideSearchTrimmed.length > 0 && outsideSearchTrimmed.length < 3"
+              class="add-user-search-hint"
             >
-              {{ t('common.add') }}
-            </EButton>
+              {{ t('settings.departmentUsers.autocompleteCharsHint', { n: 3 - outsideSearchTrimmed.length }) }}
+            </p>
+            <div v-if="isLoadingOutside" class="loading-inline">
+              <div class="spinner-sm"></div>
+              <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
+            </div>
+            <ul v-else-if="outsideCandidates.length > 0" class="candidate-list">
+              <li v-for="user in outsideCandidates" :key="user.id" class="candidate-row">
+                <div class="candidate-meta">
+                  <strong>{{ user.name }}</strong>
+                  <span>{{ user.email }}</span>
+                  <span class="candidate-dept">
+                    {{
+                      user.departments_label?.trim()
+                        || user.primary_department_name?.trim()
+                        || t('settings.departmentUsers.autocompleteNoDepartment')
+                    }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="action-btn action-btn-add"
+                  :title="t('grossanlass.planung.ressorts.addOutsidePlus')"
+                  :disabled="addingUserId === user.id"
+                  @click="handleAddOutsideUser(user)"
+                >
+                  <v-icon icon="mdi-plus" size="18" />
+                </button>
+              </li>
+            </ul>
+            <p
+              v-else-if="outsideSearchTrimmed.length >= 3 && !isLoadingOutside"
+              class="no-users-hint"
+            >
+              {{ t('grossanlass.planung.ressorts.addOutsideEmpty') }}
+            </p>
           </div>
         </div>
       </template>
@@ -367,12 +426,19 @@ import {
   addGrossanlassGroupMember,
   updateGrossanlassGroupMember,
   removeGrossanlassGroupMember,
+  createGrossanlassHelper,
   type GrossanlassGroup,
   type GrossanlassGroupKind,
   type GrossanlassNodeType,
 } from '@/api/grossanlassGroups'
-import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
+import {
+  getDepartmentMembers,
+  getAvailableUsersForDepartment,
+  type AvailableUser,
+  type DepartmentMember,
+} from '@/api/departments'
 import type { GroupMember } from '@/api/groups'
+import { filterAvailableUsersByQuery } from '@/utils/availableUserSearch'
 import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
@@ -408,7 +474,17 @@ const showMembersModal = ref(false)
 const selectedGroup = ref<GrossanlassGroup | null>(null)
 const departmentMembers = ref<DepartmentMember[]>([])
 const isLoadingUsers = ref(false)
-const addMemberForm = ref({ user_id: '', role: 'member' })
+const addMemberForm = ref({ role: 'member' })
+const addingUserId = ref<string | null>(null)
+const outsideSearchQuery = ref('')
+const outsideUsers = ref<AvailableUser[]>([])
+const isLoadingOutside = ref(false)
+let outsideSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+const outsideSearchTrimmed = computed(() => outsideSearchQuery.value.trim())
+const outsideCandidates = computed(() =>
+  filterAvailableUsersByQuery(outsideUsers.value, outsideSearchTrimmed.value).slice(0, 12),
+)
 
 const {
   canFullyManage,
@@ -703,31 +779,97 @@ async function handleDelete(group: GrossanlassGroup) {
 function openMembersModal(group: GrossanlassGroup) {
   selectedGroup.value = group
   showMembersModal.value = true
-  addMemberForm.value = { user_id: '', role: 'member' }
+  addMemberForm.value = { role: 'member' }
+  outsideSearchQuery.value = ''
+  outsideUsers.value = []
+  addingUserId.value = null
   loadDepartmentMembers()
 }
 
 function closeMembersModal() {
   showMembersModal.value = false
   selectedGroup.value = null
+  outsideSearchQuery.value = ''
+  outsideUsers.value = []
+  addingUserId.value = null
 }
 
-async function handleAddMember() {
-  if (!selectedGroup.value || !addMemberForm.value.user_id || !departmentId.value) return
+async function refreshSelectedGroup() {
+  await loadGroups()
+  const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+  if (updated) selectedGroup.value = updated
+}
+
+async function handleAddMember(userId: string) {
+  if (!selectedGroup.value || !userId || !departmentId.value || addingUserId.value) return
+  addingUserId.value = userId
   try {
     await addGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, {
-      user_id: addMemberForm.value.user_id,
+      user_id: userId,
       role: canFullyManage.value ? addMemberForm.value.role : 'member',
     })
-    await loadGroups()
-    const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
-    if (updated) selectedGroup.value = updated
-    addMemberForm.value = { user_id: '', role: 'member' }
+    await refreshSelectedGroup()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorAddMember'))
+  } finally {
+    addingUserId.value = null
   }
 }
+
+async function handleAddOutsideUser(user: AvailableUser) {
+  if (!selectedGroup.value || !departmentId.value || addingUserId.value) return
+  addingUserId.value = user.id
+  try {
+    // Bestehendes Konto: Dept + Ressort + User-Karte (wie Helfer-Anlegen, ohne neuen Account).
+    await createGrossanlassHelper(departmentId.value, selectedGroup.value.id, {
+      email: user.email,
+      name: user.name,
+    })
+    if (canFullyManage.value && addMemberForm.value.role === 'leader') {
+      await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, user.id, {
+        role: 'leader',
+      })
+    }
+    toast.success(t('grossanlass.planung.ressorts.addOutsideSuccess', { name: user.name }))
+    outsideSearchQuery.value = ''
+    outsideUsers.value = []
+    await refreshSelectedGroup()
+    await loadDepartmentMembers()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorAddMember'))
+  } finally {
+    addingUserId.value = null
+  }
+}
+
+async function loadOutsideUsers(query: string) {
+  if (!departmentId.value || query.trim().length < 3) {
+    outsideUsers.value = []
+    return
+  }
+  isLoadingOutside.value = true
+  try {
+    outsideUsers.value = await getAvailableUsersForDepartment(departmentId.value, query.trim())
+  } catch {
+    outsideUsers.value = []
+  } finally {
+    isLoadingOutside.value = false
+  }
+}
+
+watch(outsideSearchTrimmed, (query) => {
+  if (outsideSearchTimer) clearTimeout(outsideSearchTimer)
+  if (query.length < 3) {
+    outsideUsers.value = []
+    isLoadingOutside.value = false
+    return
+  }
+  outsideSearchTimer = setTimeout(() => {
+    void loadOutsideUsers(query)
+  }, 280)
+})
 
 async function handleRoleChange(member: GroupMember, newRole: string) {
   if (!selectedGroup.value || !departmentId.value) return
@@ -977,12 +1119,6 @@ onMounted(() => loadGroups())
 .action-buttons {
   display: flex;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.group-row:hover .action-buttons {
-  opacity: 1;
 }
 
 .action-btn {
@@ -1031,6 +1167,99 @@ onMounted(() => loadGroups())
   margin: 0 0 10px;
 }
 
+.subsection-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 16px 0 6px;
+}
+
+.add-member-role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.add-member-role-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.candidate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.candidate-row:last-child {
+  border-bottom: none;
+}
+
+.candidate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.candidate-meta strong {
+  color: #1e293b;
+  font-weight: 560;
+}
+
+.candidate-meta span {
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-dept {
+  font-size: 12px !important;
+  color: #94a3b8 !important;
+}
+
+.action-btn-add {
+  flex-shrink: 0;
+  color: var(--color-primary, #059669);
+}
+
+.action-btn-add:hover:not(:disabled) {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.action-btn-add:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.outside-dept-block {
+  margin-top: 4px;
+}
+
+.outside-dept-hint,
+.add-user-search-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
 .members-table {
   width: 100%;
   border-collapse: collapse;
@@ -1044,22 +1273,11 @@ onMounted(() => loadGroups())
   border-bottom: 1px solid #f1f5f9;
 }
 
-.add-member-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
 .form-select {
   padding: 8px 10px;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   font-size: 14px;
-}
-
-.user-select {
-  min-width: 240px;
 }
 
 .role-select,
