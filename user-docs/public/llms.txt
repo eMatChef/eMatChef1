@@ -1,0 +1,16 @@
+# eMatChef Hilfe
+
+> Öffentliche Produkthilfe zu eMatChef (Material, Lager, Ausleihen, Aktivitäten). Keine Organisations- oder Benutzerdaten. Touren bleiben in der App.
+
+## Seiten
+
+- Start: https://docs.ematchef.ch/
+- Touren und Hilfe: https://docs.ematchef.ch/hilfe/tours-und-hilfe
+- Aktivität anlegen: https://docs.ematchef.ch/hilfe/aktivitaet-anlegen
+- Externe Ausleihe: https://docs.ematchef.ch/hilfe/externe-ausleihe
+
+## Weitere öffentliche Seiten
+
+- Website: https://ematchef.ch/
+- FAQ: https://ematchef.ch/faq
+- App (Login): https://app.ematchef.ch/
