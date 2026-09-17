@@ -140,6 +140,7 @@ Fuer `CD Prod`:
 - `PROD_SSH_KEY`
 - `PROD_SSH_PORT`
 - `PROD_DEPLOY_PATH`
+- `PROD_DOCS_WEBROOT` — statische Nutzerhilfe (`docs.ematchef.ch`), z. B. `/var/www/ematchef-docs-prod`; nicht der App-Webroot. Siehe [user-docs/README.md](user-docs/README.md).
 
 ## Commit-Empfehlungen
 
