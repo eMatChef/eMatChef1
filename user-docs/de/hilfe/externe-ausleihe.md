@@ -18,5 +18,5 @@ Die geführte Tour in der App zeigt die Buttons in der aktuellen Version. Ergän
 
 ## Siehe auch
 
-- [Aktivität anlegen](/hilfe/aktivitaet-anlegen)
-- [Touren und Hilfe](/hilfe/tours-und-hilfe)
+- [Aktivität anlegen](./aktivitaet-anlegen)
+- [Touren und Hilfe](./tours-und-hilfe)

@@ -41,7 +41,7 @@ Caddy: [`deploy/caddy/Caddyfile.develop.example`](../deploy/caddy/Caddyfile.deve
 | prod | `deploy-frontend-prod.yml` | `PROD_APP_WEBROOT` = `/var/www/ematchef-app-prod` | `PROD_SSH_*` |
 | prod docs | `deploy-docs-prod.yml` | `PROD_DOCS_WEBROOT` = `/var/www/ematchef-docs-prod` | `PROD_SSH_*` |
 
-Quelle der Hilfe: [`user-docs/`](../user-docs/README.md). Caddy-Block: [`deploy/caddy/Caddyfile.prod-docs.example`](../deploy/caddy/Caddyfile.prod-docs.example). Cloudflare A `docs` → Prod-IP `178.104.22.40`. Weblate bleibt auf `ematchef-translate` und übersetzt nur Git; ausgeliefert wird der statische Build.
+Quelle der Hilfe: [`user-docs/`](../user-docs/README.md) (Ordner `de/` / `en/` / `fr/`). Caddy-Block: [`deploy/caddy/Caddyfile.prod-docs.example`](../deploy/caddy/Caddyfile.prod-docs.example). Cloudflare A `docs` → Prod-IP `178.104.22.40`. Weblate (`ematchef-translate`) übersetzt nur die App-Locales, nicht die Docs-Markdown-Dateien.
 
 Die Versionszeile im Profil-Menü (`v4.0.1 · <sha>`) kommt aus dem **Frontend-Build** (`VITE_APP_GIT_SHA`). Sie entspricht dem Commit, der zuletzt per rsync ausgerollt wurde — nicht dem API-`git pull` allein.
 

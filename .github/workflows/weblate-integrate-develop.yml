@@ -2,7 +2,7 @@
 
 # Wenn Weblate auf Branch `weblate` pusht: Locale-Dateien nach `develop` übernehmen.
 # Nur `frontend/src/locales/**` — kein Blind-Merge des ganzen weblate-Branches.
-# user-docs/ ist noch nicht Teil dieses Syncs (Weblate-Component folgt später).
+# user-docs/ wird nicht über Weblate synchronisiert (parallele Markdown-Ordner de/en/fr).
 # Direct push auf develop ist durch Branch-Protection blockiert → PR + Auto-Merge.
 
 name: Weblate integrate develop
