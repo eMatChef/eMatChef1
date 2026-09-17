@@ -20,9 +20,9 @@ The in-app **Help** button will later open the matching page here. Guided tours 
 
 ## Guides
 
-- [Create an activity](./help/create-activity)
-- [External loan](./help/external-loan)
-- [Tours and help](./help/tours-and-help)
+- [Create an activity](/en/help/create-activity)
+- [External loan](/en/help/external-loan)
+- [Tours and help](/en/help/tours-and-help)
 
 ## More
 
