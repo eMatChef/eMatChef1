@@ -18,5 +18,5 @@ Die genaue Klickfolge in *deiner* Oberfläche zeigt die **Tour** unter Hilfe →
 
 ## Siehe auch
 
-- [Externe Ausleihe](/hilfe/externe-ausleihe)
-- [Touren und Hilfe](/hilfe/tours-und-hilfe)
+- [Externe Ausleihe](./externe-ausleihe)
+- [Touren und Hilfe](./tours-und-hilfe)

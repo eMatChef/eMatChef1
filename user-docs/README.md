@@ -1,6 +1,16 @@
 # Öffentliche Nutzerhilfe (`docs.ematchef.ch`)
 
-VitePress-Quelle auf Deutsch. Touren bleiben in der App; hier nur nachlesbare Abläufe ohne Org-Daten.
+VitePress, drei Sprachordner. Touren bleiben in der App. **Weblate ist nur für die App-UI** (`frontend/src/locales`), nicht für diese Markdown-Hilfe.
+
+```text
+user-docs/
+  de/     Deutsch (Quelle, zuerst pflegen)
+  en/     English (gleiche Seiten parallel)
+  fr/     Français (gleiche Seiten parallel)
+  index.md   Sprachenwahl unter /
+```
+
+Neue Seite: Datei in **allen drei** Ordnern anlegen (sonst fehlt die Sprache im Umschalter-Inhalt) und in `.vitepress/config.ts` in die jeweilige Sidebar eintragen.
 
 ## Lokal
 
@@ -28,8 +38,6 @@ bash scripts/build-droplet-docs.sh
 | Deploy | Workflow `deploy-docs-prod.yml` auf Branch `prod` |
 | Secret | `PROD_DOCS_WEBROOT=/var/www/ematchef-docs-prod` (SSH wie Frontend-Prod) |
 
-Weblate: später eigene Component im gleichen Projekt `ematchef`, Dateimaske unter `user-docs/`. Die GitHub-Action **Weblate integrate develop** synct derzeit nur `frontend/src/locales/**` — Docs-Markdown dort ergänzen, sobald die Component existiert.
-
 ## Crawler
 
-`public/robots.txt`: Search und AI-Input erlaubt, Training (`GPTBot`, `Google-Extended`, `ClaudeBot`, …) nicht. `llms.txt` listet die öffentlichen Hilfeseiten.
+`public/robots.txt`: Search und AI-Input erlaubt, Training nicht. `llms.txt` listet die öffentlichen Hilfeseiten aller Sprachen.
