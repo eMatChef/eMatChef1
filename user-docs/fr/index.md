@@ -20,9 +20,9 @@ Le bouton **Aide** de l’app ouvrira plus tard la page correspondante ici. Les 
 
 ## Guides
 
-- [Créer une activité](./aide/creer-une-activite)
-- [Prêt externe](./aide/pret-externe)
-- [Visites et aide](./aide/visites-et-aide)
+- [Créer une activité](/fr/aide/creer-une-activite)
+- [Prêt externe](/fr/aide/pret-externe)
+- [Visites et aide](/fr/aide/visites-et-aide)
 
 ## Suite
 

@@ -20,9 +20,9 @@ In der App führt der Button **Hilfe** später auf die passende Seite hier. Die 
 
 ## Anleitungen
 
-- [Aktivität anlegen](./hilfe/aktivitaet-anlegen)
-- [Externe Ausleihe](./hilfe/externe-ausleihe)
-- [Touren und Hilfe](./hilfe/tours-und-hilfe)
+- [Aktivität anlegen](/de/hilfe/aktivitaet-anlegen)
+- [Externe Ausleihe](/de/hilfe/externe-ausleihe)
+- [Touren und Hilfe](/de/hilfe/tours-und-hilfe)
 
 ## Weiter
 
