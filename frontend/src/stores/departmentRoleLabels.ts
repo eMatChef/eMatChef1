@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import {
   EMPTY_DEPARTMENT_ROLE_LABELS,
   getDepartmentRoleLabels,
@@ -8,7 +9,10 @@ import {
 
 const ROLE_ALIASES: Record<string, string> = {
   matwart: 'mw',
+  co_matwart: 'cmw',
   depchef: 'dc',
+  kommunikation: 'komm',
+  sponsoring: 'spon',
   leader1: 'l1',
   leader2: 'l2',
   leader3: 'l3',
@@ -96,7 +100,14 @@ export const useDepartmentRoleLabelsStore = defineStore('departmentRoleLabels', 
       if (custom) return custom
     }
 
-    if (['mw', 'dc', 'l1', 'l2', 'l3', 'u'].includes(code)) {
+    if (code === 'dc' && departmentId) {
+      const auth = useAuthStore()
+      if (auth.isDepartmentGrossanlass(departmentId)) {
+        return t(`settings.${ns}.roles.dcGa`)
+      }
+    }
+
+    if (['mw', 'cmw', 'dc', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'].includes(code)) {
       return t(`settings.${ns}.roles.${code}`)
     }
 

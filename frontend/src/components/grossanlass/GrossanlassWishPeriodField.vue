@@ -9,6 +9,7 @@
         :department-id="departmentId"
         :show-presets="true"
         :show-markers="true"
+        :allow-past="allowPast"
         preset-mode="fixed-periods"
         :label-from="t('activities.zeitraum.timeStart')"
         :label-to="t('activities.zeitraum.timeEnd')"
@@ -23,13 +24,16 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import ActivityOutlinedDatetimeSection from '@/components/activities/wizard/ActivityOutlinedDatetimeSection.vue'
 import ActivityDateTimeFields from '@/components/activities/wizard/ActivityDateTimeFields.vue'
-import { combineDayAndTime, startOfLocalDay } from '@/utils/activityDateTimeParts'
+import { combineDayAndTime, localDateTimeToIso, parseLocalDateTimeIso, startOfLocalDay } from '@/utils/activityDateTimeParts'
 
-defineProps<{
+withDefaults(defineProps<{
   title: string
   departmentId: string
   required?: boolean
-}>()
+  allowPast?: boolean
+}>(), {
+  allowPast: true,
+})
 
 const { t } = useI18n()
 
@@ -77,14 +81,12 @@ function defaultQuarterTime(day: Date, hour: number, minute: number): Date {
 
 function getRange(): { from: string; to: string } | null {
   if (!startAt.value || !endAt.value) return null
-  return { from: startAt.value.toISOString(), to: endAt.value.toISOString() }
+  return { from: localDateTimeToIso(startAt.value), to: localDateTimeToIso(endAt.value) }
 }
 
 function setRange(from: string | null | undefined, to: string | null | undefined) {
-  startAt.value = from ? new Date(from) : null
-  endAt.value = to ? new Date(to) : null
-  if (startAt.value && Number.isNaN(startAt.value.getTime())) startAt.value = null
-  if (endAt.value && Number.isNaN(endAt.value.getTime())) endAt.value = null
+  startAt.value = parseLocalDateTimeIso(from)
+  endAt.value = parseLocalDateTimeIso(to)
 }
 
 function reset() {

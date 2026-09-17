@@ -86,10 +86,7 @@ final class GrossanlassGmailRouting
             $prefix = mb_substr($prefix, 0, 32);
         }
 
-        $root = self::sanitizeSegment((string) ($raw['label_root'] ?? $defaults['label_root']));
-        if ($root === '') {
-            $root = self::DEFAULT_ROOT;
-        }
+        $root = self::enforceEmatchefRoot((string) ($raw['label_root'] ?? $defaults['label_root']));
 
         return [
             'label_root' => $root,
@@ -275,13 +272,54 @@ final class GrossanlassGmailRouting
         return self::sanitizeSegment(self::DEFAULT_ROOT . '-' . $name);
     }
 
+    /** Wurzel muss `eMatChef` oder `eMatChef-…` sein — andere Werte werden präfixiert. */
+    public static function enforceEmatchefRoot(string $root): string
+    {
+        $root = self::sanitizeSegment($root);
+        if ($root === '' || strcasecmp($root, self::DEFAULT_ROOT) === 0) {
+            return self::DEFAULT_ROOT;
+        }
+        if (str_starts_with($root, self::DEFAULT_ROOT . '-')) {
+            return $root;
+        }
+
+        return self::sanitizeSegment(self::DEFAULT_ROOT . '-' . $root);
+    }
+
+    /**
+     * @param list<string> $labelNames
+     */
+    public static function hasRootLabel(array $labelNames, string $root): bool
+    {
+        $root = self::sanitizeSegment($root);
+        if ($root === '') {
+            return false;
+        }
+        foreach ($labelNames as $name) {
+            $name = (string) $name;
+            if ($name === $root || str_starts_with($name, $root . '/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Gmail-Suche: Leerzeichen im Label werden zu Bindestrichen. */
+    public static function inboxQuery(string $root, string $window = 'newer_than:21d'): string
+    {
+        $token = 'label:' . str_replace(' ', '-', self::sanitizeSegment($root));
+
+        return $window !== '' ? $token . ' ' . $window : $token;
+    }
+
     /**
      * @param array{label_root?: string} $routing
      */
     public static function resolveRoot(array $routing, string $departmentName = ''): string
     {
-        $root = self::sanitizeSegment((string) ($routing['label_root'] ?? ''));
-        if ($root === '' || $root === self::DEFAULT_ROOT) {
+        $root = self::enforceEmatchefRoot((string) ($routing['label_root'] ?? ''));
+        if ($root === self::DEFAULT_ROOT) {
             return self::composedRoot($departmentName);
         }
 
@@ -316,12 +354,12 @@ final class GrossanlassGmailRouting
         }
         $prefer = self::sanitizeSegment($departmentName);
         if ($prefer !== '' && isset($childCount[$prefer])) {
-            return $prefer;
+            return self::enforceEmatchefRoot($prefer);
         }
         arsort($childCount);
         foreach ($childCount as $root => $count) {
             if ($count > 0) {
-                return (string) $root;
+                return self::enforceEmatchefRoot((string) $root);
             }
         }
 

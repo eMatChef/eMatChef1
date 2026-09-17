@@ -80,6 +80,20 @@ final class GrossanlassGmailApi
         ]);
     }
 
+    public function deleteLabel(string $accessToken, string $labelId): void
+    {
+        if ($labelId === '') {
+            return;
+        }
+        try {
+            $this->request('DELETE', $accessToken, '/labels/' . rawurlencode($labelId));
+        } catch (GoogleOAuthException $e) {
+            if (!str_contains($e->getMessage(), '404') && !str_contains(strtolower($e->getMessage()), 'not found')) {
+                throw $e;
+            }
+        }
+    }
+
     /**
      * @param list<string> $labelIds
      * @param list<array{filename: string, mime: string, content: string}> $attachments
@@ -138,6 +152,32 @@ final class GrossanlassGmailApi
                 'id' => $id,
                 'threadId' => (string) ($message['threadId'] ?? ''),
             ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listThreadIdsByLabel(string $accessToken, string $labelId, int $max = 100): array
+    {
+        if ($labelId === '') {
+            return [];
+        }
+        $data = $this->get(
+            $accessToken,
+            '/threads?labelIds=' . rawurlencode($labelId) . '&maxResults=' . $max,
+        );
+        $out = [];
+        foreach ($data['threads'] ?? [] as $thread) {
+            if (!is_array($thread)) {
+                continue;
+            }
+            $id = (string) ($thread['id'] ?? '');
+            if ($id !== '') {
+                $out[] = $id;
+            }
         }
 
         return $out;
@@ -337,9 +377,13 @@ final class GrossanlassGmailApi
         try {
             $response = $this->httpClient->request($method, self::BASE . $path, $options);
             $status = $response->getStatusCode();
-            $data = $response->toArray(false);
+            $content = $response->getContent(false);
         } catch (\Throwable $e) {
             throw new GoogleOAuthException('gmail', 'Gmail API: ' . $e->getMessage());
+        }
+        $data = ($content === '' || $content === 'null') ? [] : json_decode($content, true);
+        if (!is_array($data)) {
+            $data = [];
         }
         if ($status >= 400) {
             $message = is_array($data['error'] ?? null)

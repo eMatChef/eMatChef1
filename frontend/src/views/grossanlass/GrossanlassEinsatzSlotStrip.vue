@@ -1,10 +1,10 @@
 <template>
-  <div v-if="dayTitle" class="ga-slot">
-    <div class="ga-slot__head">
+  <div v-if="dayTitle" class="ga-slot" :class="{ 'ga-slot--compact': compact }">
+    <div v-if="compact || showLegend" class="ga-slot__head">
       <strong>{{ dayTitle }}</strong>
-      <span>{{ legend }}</span>
+      <span v-if="showLegend">{{ legend }}</span>
     </div>
-    <div class="ga-slot__hours" aria-hidden="true">
+    <div v-if="showHours" class="ga-slot__hours" aria-hidden="true">
       <span v-for="column in columns" :key="column.key">{{ showHour(column.label) ? column.label : '' }}</span>
     </div>
     <div class="ga-slot__track">
@@ -28,7 +28,6 @@
         :title="pickTitle"
       />
     </div>
-    <p v-if="continues" class="ga-slot__note">{{ continues }}</p>
   </div>
 </template>
 
@@ -44,7 +43,7 @@ import {
   type GaPreviewEinsatz,
 } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   objectName: string
   fromDate: string
   toDate: string
@@ -52,13 +51,22 @@ const props = defineProps<{
   toIso: string
   bookings: GaPreviewEinsatz[]
   clash: boolean
-}>()
+  compact?: boolean
+  showHours?: boolean
+  showLegend?: boolean
+}>(), {
+  compact: false,
+  showHours: true,
+  showLegend: true,
+})
 
 const { t, locale } = useI18n()
 
 const windowRange = computed(() => {
   if (!props.fromDate) return null
-  return calendarWindow('day', parseLocalDate(`${props.fromDate}T00:00:00`))
+  const date = parseLocalDate(`${props.fromDate}T00:00:00`)
+  if (Number.isNaN(date.getTime())) return null
+  return calendarWindow('day', date)
 })
 
 const columns = computed(() => {
@@ -68,6 +76,13 @@ const columns = computed(() => {
 
 const dayTitle = computed(() => {
   if (!windowRange.value) return ''
+  if (props.compact) {
+    return windowRange.value.start.toLocaleDateString(locale.value, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }).replace(/\.$/, '')
+  }
   return formatCalendarTitle('day', windowRange.value.start, windowRange.value.end, locale.value)
 })
 
@@ -76,14 +91,6 @@ const legend = computed(() =>
     ? t('grossanlass.materialUebersicht.slotLegendClash')
     : t('grossanlass.materialUebersicht.slotLegendFree'),
 )
-
-const continues = computed(() => {
-  if (!props.fromDate || !props.toDate || props.fromDate === props.toDate) return ''
-  const to = parseLocalDate(`${props.toDate}T00:00:00`)
-  return t('grossanlass.materialUebersicht.slotContinues', {
-    to: to.toLocaleDateString(locale.value, { day: 'numeric', month: 'short' }),
-  })
-})
 
 const busyBars = computed(() => {
   if (!windowRange.value) return []
@@ -123,6 +130,22 @@ function showHour(label: string): boolean {
   margin: 4px 0 12px;
 }
 
+.ga-slot--compact {
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  margin: 4px 0;
+}
+
+.ga-slot--compact .ga-slot__head {
+  margin: 0;
+}
+
+.ga-slot--compact .ga-slot__hours {
+  display: none;
+}
+
 .ga-slot__head {
   display: flex;
   flex-wrap: wrap;
@@ -136,6 +159,12 @@ function showHour(label: string): boolean {
 .ga-slot__head strong {
   color: #111827;
   font-weight: 600;
+}
+
+.ga-slot--compact .ga-slot__head strong {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .ga-slot__hours {
@@ -157,6 +186,10 @@ function showHour(label: string): boolean {
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   background: #fff;
+}
+
+.ga-slot--compact .ga-slot__track {
+  height: 26px;
 }
 
 .ga-slot__tick {
@@ -187,13 +220,17 @@ function showHour(label: string): boolean {
   background: var(--color-primary, #0f766e);
 }
 
-.ga-slot__pick--clash {
-  background: var(--color-error, #b91c1c);
+.ga-slot--compact .ga-slot__busy {
+  top: 2px;
+  height: 9px;
 }
 
-.ga-slot__note {
-  margin: 6px 0 0;
-  font-size: 0.75rem;
-  color: #6b7280;
+.ga-slot--compact .ga-slot__pick {
+  top: 13px;
+  height: 10px;
+}
+
+.ga-slot__pick--clash {
+  background: var(--color-error, #b91c1c);
 }
 </style>

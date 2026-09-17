@@ -1,7 +1,7 @@
 import { computed, type Ref } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
+import { gaCanSeeAnlassOverview } from '@/utils/grossanlassAccess'
 
 function collectBranchIds(rootId: string, groups: GrossanlassGroup[]): Set<string> {
   const ids = new Set<string>()
@@ -30,12 +30,11 @@ function findRootRessortId(group: GrossanlassGroup, groups: GrossanlassGroup[]):
   return current?.id ?? group.id
 }
 
-/** MW/DC: volle Verwaltung; Ressort-Mitglieder: Bauprojekte + Mitglieder im eigenen Baum. */
+/** MW/CMW/OK-Leitung: volle Verwaltung; Bereichsleitung: Kinder am eigenen Knoten. */
 export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
   const authStore = useAuthStore()
-  const { isUserRole } = useDepartmentMemberRole()
 
-  const canFullyManage = computed(() => !isUserRole.value)
+  const canFullyManage = computed(() => gaCanSeeAnlassOverview(authStore.currentDepartmentRole))
 
   function isLeaderOfGroup(group: GrossanlassGroup): boolean {
     const userId = authStore.userId
@@ -73,7 +72,7 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
   }
 
   function canCreateChild(parent: GrossanlassGroup): boolean {
-    return canFullyManage.value || isMemberInRessortBranch(parent)
+    return canFullyManage.value || isLeaderOfGroup(parent)
   }
 
   function canEditGroup(): boolean {
@@ -85,7 +84,7 @@ export function useGrossanlassRessortScope(groups: Ref<GrossanlassGroup[]>) {
   }
 
   function canManageMembersForGroup(group: GrossanlassGroup): boolean {
-    return canFullyManage.value || isLeaderOfGroup(group) || isMemberInRessortBranch(group)
+    return canFullyManage.value || isLeaderOfGroup(group)
   }
 
   const isRessortMemberSomewhere = computed(() =>

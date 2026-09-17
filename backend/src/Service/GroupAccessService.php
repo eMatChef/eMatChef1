@@ -13,7 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 class GroupAccessService
 {
-    private const DEPARTMENT_GROUP_MANAGER_ROLES = ['mw', 'dc', 'sa', 'org', 'sub'];
+    private const DEPARTMENT_GROUP_MANAGER_ROLES = ['mw', 'cmw', 'dc', 'sa', 'org', 'sub'];
 
     public function __construct(
         private EntityManagerInterface $entityManager,

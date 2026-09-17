@@ -391,6 +391,24 @@ class DepartmentGrossanlassInquiry
         return $this->tipFrom;
     }
 
+    /**
+     * @return array{user_id: string, name: string, email: string}|null
+     */
+    public function serializeTipSubmitter(): ?array
+    {
+        $user = $this->tipWish?->getCreatedByUser();
+        if ($user === null) {
+            return null;
+        }
+        $profile = $user->getProfile();
+
+        return [
+            'user_id' => $user->getId(),
+            'name' => $profile?->getDisplayName() ?: 'Unbekannt',
+            'email' => $profile?->getEmail() ?? '',
+        ];
+    }
+
     public function setTipFrom(?string $tipFrom): self
     {
         $this->tipFrom = $tipFrom;

@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\Membership;
 use App\Enum\DepartmentRole;
 use App\Service\Bootstrap\DevBootstrapContextService;
+use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
@@ -15,6 +16,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -33,8 +35,19 @@ class CreateRoleUsersCommand extends Command
         private UserPasswordHasherInterface $passwordHasher,
         private DevBootstrapContextService $bootstrapContext,
         private DemoSupplierSeedService $demoSupplierSeed,
+        private DemoGrossanlassSeedService $demoGrossanlassSeed,
     ) {
         parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this->addOption(
+            'skip-delete',
+            null,
+            InputOption::VALUE_NONE,
+            'Bestehende @ematchef.ch-User nicht löschen (nur anlegen/aktualisieren)',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -46,6 +59,9 @@ class CreateRoleUsersCommand extends Command
         // Hole oder erstelle sichtbare Organisation und Department (kein GLOBALORG001 mehr)
         [$organisation, $department] = $this->bootstrapContext->findOrCreateOrganisationAndDepartment();
 
+        if ($input->getOption('skip-delete')) {
+            $io->note('Überspringe Löschen bestehender Test-User (--skip-delete).');
+        } else {
         // Lösche alle bestehenden Test-User (außer dem ersten Superadmin, falls er existiert)
         $io->section('Lösche alte Test-User...');
         $allUsers = $this->em->getRepository(User::class)->findAll();
@@ -72,6 +88,7 @@ class CreateRoleUsersCommand extends Command
         }
         $this->em->flush();
         $io->success("$deletedCount alte Test-User gelöscht");
+        }
 
         // Erstelle einen Superadmin als Erstes (wird als createdBy verwendet)
         $io->section('Erstelle Superadmin...');
@@ -124,6 +141,39 @@ class CreateRoleUsersCommand extends Command
         $this->em->flush();
         $io->success('Alle Rollen-Benutzer erfolgreich erstellt!');
 
+        $io->section('Grossanlass-Rollen (Demo Grossanlass)…');
+        $gaDepartment = $this->demoGrossanlassSeed->ensureDepartment($organisation, $superadminUser);
+        $gaSpecs = [
+            ['email' => 'ga-mw@ematchef.ch', 'first' => 'GA', 'last' => 'Materialchef', 'nick' => 'GA-MW', 'role' => DepartmentRole::MATWART],
+            ['email' => 'ga-cmw@ematchef.ch', 'first' => 'GA', 'last' => 'Co-Materialchef', 'nick' => 'GA-CMW', 'role' => DepartmentRole::CO_MATWART],
+            ['email' => 'ga-ok@ematchef.ch', 'first' => 'GA', 'last' => 'OK-Leitung', 'nick' => 'GA-OK', 'role' => DepartmentRole::DEPCHEF],
+            ['email' => 'ga-komm@ematchef.ch', 'first' => 'GA', 'last' => 'Kommunikation', 'nick' => 'GA-Komm', 'role' => DepartmentRole::KOMMUNIKATION],
+            ['email' => 'ga-spon@ematchef.ch', 'first' => 'GA', 'last' => 'Sponsoring', 'nick' => 'GA-Spon', 'role' => DepartmentRole::SPONSORING],
+            ['email' => 'ga-bereich@ematchef.ch', 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::USER],
+            ['email' => 'ga-helfer@ematchef.ch', 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
+        ];
+        $gaUsers = [];
+        foreach ($gaSpecs as $spec) {
+            $gaUsers[$spec['email']] = $this->createUser(
+                $spec['email'],
+                $spec['first'],
+                $spec['last'],
+                $spec['nick'],
+                $spec['role'],
+                $gaDepartment,
+                true,
+                $superadminUser
+            );
+            $io->text("✓ {$spec['nick']}: {$spec['email']} / " . self::DEMO_PASSWORD);
+        }
+        $this->em->flush();
+        $this->demoGrossanlassSeed->ensureDemoRessort(
+            $gaDepartment,
+            $gaUsers['ga-bereich@ematchef.ch'],
+            $gaUsers['ga-helfer@ematchef.ch'],
+        );
+        $io->success('Grossanlass-Demo: ' . DemoGrossanlassSeedService::DEPARTMENT_NAME . ' / ' . DemoGrossanlassSeedService::RESSORT_NAME);
+
         $io->section('Erstelle Demo-Lieferant...');
         $this->demoSupplierSeed->ensure($superadminUser);
         $io->success('Demo-Lieferant: ' . DemoSupplierSeedService::EMAIL . ' / ' . self::DEMO_PASSWORD);
@@ -140,6 +190,13 @@ class CreateRoleUsersCommand extends Command
             '  - leader2@ematchef.ch (Leader 2)',
             '  - leader3@ematchef.ch (Leader 3)',
             '  - user@ematchef.ch (User)',
+            '  - ga-mw@ematchef.ch (GA Materialchef)',
+            '  - ga-cmw@ematchef.ch (GA Co-Materialchef)',
+            '  - ga-ok@ematchef.ch (GA OK-Leitung)',
+            '  - ga-komm@ematchef.ch (GA Kommunikation)',
+            '  - ga-spon@ematchef.ch (GA Sponsoring)',
+            '  - ga-bereich@ematchef.ch (GA Bereichsleitung, Leader am Demo-Ressort)',
+            '  - ga-helfer@ematchef.ch (GA Helfer, Mitglied am Demo-Ressort)',
             '  - supplier@ematchef.ch (Lieferant / Testfirma, ohne Department)',
         ]);
 

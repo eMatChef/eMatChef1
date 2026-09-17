@@ -126,6 +126,7 @@ class DepartmentMediaBrowserService
             MediaStorageService::CONTEXT_ACTIVITY_JS_ORDER,
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE,
             MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD,
+            MediaStorageService::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT,
         ], true);
 
         $resolvedLinks = $links ?? [[

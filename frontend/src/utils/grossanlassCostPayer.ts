@@ -1,3 +1,17 @@
+export type GrossanlassPayerGroup = {
+  id: string
+  name: string
+  parent_id?: string | null
+  level?: number
+}
+
+export type GrossanlassPayerSelectItem = {
+  title: string
+  value: string | null
+  name: string
+  depth: number
+}
+
 export function grossanlassGroupPathTitle(
   group: { id: string; name: string; parent_id?: string | null },
   all: Array<{ id: string; name: string; parent_id?: string | null }>,
@@ -14,20 +28,53 @@ export function isGrossanlassLogisticsPayer(
   return payerGroupId == null
 }
 
+export function grossanlassPayerTreeDepth(
+  group: GrossanlassPayerGroup,
+  all: GrossanlassPayerGroup[],
+): number {
+  if (typeof group.level === 'number' && group.level >= 0) return group.level
+  let depth = 0
+  let parentId = group.parent_id ?? null
+  const seen = new Set<string>()
+  while (parentId) {
+    if (seen.has(parentId)) break
+    seen.add(parentId)
+    const parent = all.find((row) => row.id === parentId)
+    if (!parent) break
+    depth += 1
+    parentId = parent.parent_id ?? null
+  }
+  return depth
+}
+
 export function grossanlassPayerSelectItems(
-  groups: Array<{ id: string; name: string; parent_id?: string | null }>,
+  groups: GrossanlassPayerGroup[],
   logisticsGroupId: string | null | undefined,
   labels: { central: string; potSuffix: string },
-): Array<{ title: string; value: string | null }> {
-  const items = groups.map((group) => {
-    let title = grossanlassGroupPathTitle(group, groups)
-    if (logisticsGroupId && group.id === logisticsGroupId) {
-      title = `${title} ${labels.potSuffix}`
+): GrossanlassPayerSelectItem[] {
+  const mapped = groups.map((group) => {
+    const isPot = Boolean(logisticsGroupId && group.id === logisticsGroupId)
+    const name = isPot ? `${group.name} ${labels.potSuffix}`.trim() : group.name
+    const treeDepth = grossanlassPayerTreeDepth(group, groups)
+    return {
+      title: name,
+      name,
+      value: group.id as string | null,
+      depth: isPot ? 0 : treeDepth + 1,
     }
-    return { title, value: group.id as string | null }
   })
+
   if (!logisticsGroupId) {
-    return [{ title: labels.central, value: null }, ...items]
+    return [
+      { title: labels.central, name: labels.central, value: null, depth: 0 },
+      ...mapped.map((item) => ({
+        ...item,
+        depth: item.depth > 0 ? item.depth : 1,
+      })),
+    ]
   }
-  return items
+
+  const pot = mapped.filter((item) => item.value === logisticsGroupId)
+  const rest = mapped.filter((item) => item.value !== logisticsGroupId)
+  return [...pot, ...rest]
 }

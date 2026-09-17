@@ -11,9 +11,14 @@
         <div class="ga-conflict-card__icon">
           <v-icon icon="mdi-alert-decagram-outline" size="22" />
         </div>
-        <div>
+        <div class="ga-conflict-card__body">
           <h3 class="ga-conflict-card__title">{{ conflict.title }}</h3>
           <p class="ga-conflict-card__text">{{ conflict.text }}</p>
+          <EButton variant="primary" size="small" @click="openConflict(conflict)">
+            {{ conflict.einsatz_ids.length > 1
+              ? t('grossanlass.materialUebersicht.conflictResolveBoth')
+              : t('grossanlass.materialUebersicht.conflictResolveOne') }}
+          </EButton>
         </div>
       </article>
     </div>
@@ -24,23 +29,60 @@
     />
 
     <GrossanlassEinsatzPreviewPanel v-if="conflictRows.length" :rows="conflictRows" />
+
+    <GrossanlassConflictResolveDialog
+      v-model="dialogOpen"
+      :conflict="activeConflict"
+      :rows="allRows"
+      :present-from-iso="presentFromIso"
+      :present-to-iso="presentToIso"
+      :stock="activeStock"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { EButton } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
+import GrossanlassConflictResolveDialog from '@/views/grossanlass/GrossanlassConflictResolveDialog.vue'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import type { GaUebersichtConflict } from '@/api/grossanlassUebersicht'
 
 const { t } = useI18n()
 const uebersicht = useGaUebersicht()
+const catalog = useGaCommitmentCatalog()
+
+const dialogOpen = ref(false)
+const activeConflict = ref<GaUebersichtConflict | null>(null)
 
 const conflicts = computed(() => uebersicht.data.value?.conflicts ?? [])
-const conflictRows = computed(() =>
-  uebersicht.bookingRows().filter((row) => !!row.conflictId),
-)
+const allRows = computed(() => uebersicht.bookingRows())
+const conflictRows = computed(() => allRows.value.filter((row) => !!row.conflictId))
+
+const presentFromIso = computed(() => {
+  const id = activeConflict.value?.object_id
+  if (!id) return ''
+  return catalog.articles.value.find((article) => article.id === id)?.presentFromIso || ''
+})
+const presentToIso = computed(() => {
+  const id = activeConflict.value?.object_id
+  if (!id) return ''
+  return catalog.articles.value.find((article) => article.id === id)?.presentToIso || ''
+})
+const activeStock = computed(() => {
+  const id = activeConflict.value?.einsatz_ids[0]
+  const row = allRows.value.find((item) => item.id === id)
+  return row?.stock ?? 1
+})
+
+function openConflict(conflict: GaUebersichtConflict) {
+  activeConflict.value = conflict
+  dialogOpen.value = true
+}
 </script>
 
 <style scoped>
@@ -57,6 +99,7 @@ const conflictRows = computed(() =>
   background: var(--color-error-bg);
 }
 .ga-conflict-card__icon { color: var(--color-error); margin-top: 2px; }
-.ga-conflict-card__title { margin: 0 0 4px; font-size: 0.95rem; }
+.ga-conflict-card__body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.ga-conflict-card__title { margin: 0; font-size: 0.95rem; }
 .ga-conflict-card__text { margin: 0; font-size: 0.85rem; color: var(--color-error); }
 </style>

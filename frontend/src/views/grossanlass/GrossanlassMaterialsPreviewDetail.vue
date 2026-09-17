@@ -12,10 +12,9 @@
           {{ t('components.materialDetail.backToList') }}
         </EButton>
         <div v-if="item" class="header-title">
-          <span class="material-code">{{ item.barcode }}</span>
           <h1>{{ item.name }}</h1>
-          <span class="combo-type-badge" :class="lifecycleBadgeClass(item.lifecycle)">
-            {{ lifecycleLabel(item.lifecycle) }}
+          <span v-if="stemCharges.length > 1" class="combo-type-badge physical_combo">
+            {{ t('grossanlass.materials.chargeCount', { count: stemCharges.length }) }}
           </span>
         </div>
       </div>
@@ -33,7 +32,7 @@
           show-arrows
         >
           <v-tab value="data">{{ t('grossanlass.materials.detailTabData') }}</v-tab>
-          <v-tab value="window">{{ t('grossanlass.materials.detailTabWindow') }}</v-tab>
+          <v-tab value="wishes">{{ t('grossanlass.materials.detailTabWishes') }}</v-tab>
           <v-tab value="stock">{{ t('grossanlass.materials.detailTabStock') }}</v-tab>
           <v-tab value="usage">{{ t('grossanlass.materials.detailTabUsage') }}</v-tab>
         </v-tabs>
@@ -50,109 +49,39 @@
                         <dt>{{ t('common.name') }}</dt>
                         <dd>{{ item.name }}</dd>
                       </div>
-                      <div class="user-readonly-row">
-                        <dt>{{ t('components.materialDetail.labelEan') }}</dt>
-                        <dd>{{ item.barcode }}</dd>
-                      </div>
                       <div v-if="item.category_name" class="user-readonly-row">
                         <dt>{{ t('components.materialDetail.sidebarCategory') }}</dt>
                         <dd>{{ item.category_name }}</dd>
-                      </div>
-                      <div class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.detailFieldLifecycle') }}</dt>
-                        <dd>{{ lifecycleLabel(item.lifecycle) }}</dd>
-                      </div>
-                      <div v-if="item.location" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colLocation') }}</dt>
-                        <dd>{{ item.location }}</dd>
-                      </div>
-                      <div v-if="item.source" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colSource') }}</dt>
-                        <dd>{{ item.source }}</dd>
-                      </div>
-                      <div v-if="item.validFrom" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colFrom') }}</dt>
-                        <dd>{{ item.validFrom }}</dd>
-                      </div>
-                      <div v-if="item.validTo" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colTo') }}</dt>
-                        <dd>{{ item.validTo }}</dd>
-                      </div>
-                      <div v-if="item.plate" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colPlate') }}</dt>
-                        <dd>{{ item.plate }}</dd>
-                      </div>
-                      <div v-if="item.vehicleStatus" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.colStatus') }}</dt>
-                        <dd>{{ item.vehicleStatus }}</dd>
                       </div>
                       <div v-if="item.pack_unit" class="user-readonly-row">
                         <dt>{{ t('grossanlass.materials.detailFieldUnit') }}</dt>
                         <dd>{{ item.pack_unit }}</dd>
                       </div>
-                      <div v-if="details.weight" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.fieldWeight') }}</dt>
-                        <dd>{{ details.weight }}</dd>
-                      </div>
-                      <div v-if="details.notes" class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.fieldNotes') }}</dt>
-                        <dd>{{ details.notes }}</dd>
-                      </div>
                     </dl>
-                    <ul v-if="details.parts?.length" class="service-list">
-                      <li v-for="(part, index) in details.parts" :key="`${part.name}-${index}`">
-                        <strong>{{ part.name }}</strong>
-                        <span>{{ t('grossanlass.materials.zusage.qtyShort', { n: part.qty }) }}</span>
-                      </li>
-                    </ul>
                   </section>
                 </v-tabs-window-item>
 
-                <v-tabs-window-item value="window" class="material-detail-window-item">
-                  <section class="section-card">
-                    <h2 class="section-title">{{ t('grossanlass.materials.detailTabWindow') }}</h2>
-                    <p class="window-intro">{{ t('grossanlass.materials.zusage.windowIntro') }}</p>
-                    <dl v-if="zusage && zusage.presentFromIso" class="user-readonly-fields">
-                      <div class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.fieldPartner') }}</dt>
-                        <dd>{{ zusage.source }}</dd>
-                      </div>
-                      <div class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.sectionPresent') }}</dt>
-                        <dd>{{ formatIso(zusage.presentFromIso) }} – {{ formatIso(zusage.presentToIso) }}</dd>
-                      </div>
-                      <div class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.sectionHandover') }}</dt>
-                        <dd>{{ formatIso(zusage.handoverFromIso) }} – {{ formatIso(zusage.handoverToIso) }}</dd>
-                      </div>
-                      <div class="user-readonly-row">
-                        <dt>{{ t('grossanlass.materials.zusage.sectionReturn') }}</dt>
-                        <dd>{{ formatIso(zusage.returnFromIso) }} – {{ formatIso(zusage.returnToIso) }}</dd>
-                      </div>
-                    </dl>
-                    <p v-else class="user-readonly-empty">{{ t('grossanlass.materials.zusage.noWindow') }}</p>
-                    <ESwitch
-                      v-if="zusage"
-                      v-model="releasedModel"
-                      :label="t('grossanlass.materials.zusage.fieldRelease')"
-                      :hint="t('grossanlass.materials.zusage.fieldReleaseHint')"
-                      persistent-hint
-                      class="window-switch"
-                    />
-                    <p v-if="zusage?.feinWish" class="window-fein">
-                      {{ t('grossanlass.planung.feinPartner.wishWindow', {
-                        wish: zusage.feinWish.label,
-                        from: formatIso(zusage.feinWish.fromIso),
-                        to: formatIso(zusage.feinWish.toIso),
-                      }) }}
-                    </p>
-                  </section>
+                <v-tabs-window-item value="wishes" class="material-detail-window-item">
+                  <GrossanlassArticleWishesPanel
+                    v-if="wishArticle"
+                    :department-id="departmentId"
+                    :article="wishArticle"
+                    :wishes="articleWishes"
+                    @book="openBookFromWish"
+                    @saved="onWishSaved"
+                  />
+                </v-tabs-window-item>
 
-                  <section v-if="zusage?.family === 'vehicle'" class="section-card">
+                <v-tabs-window-item value="stock" class="material-detail-window-item">
+                  <GrossanlassArticleChargesPanel
+                    :charges="stemCharges"
+                    @release="onChargeRelease"
+                  />
+                  <section v-if="vehicleCharge" class="section-card">
                     <h2 class="section-title">{{ t('grossanlass.materials.zusage.sectionService') }}</h2>
                     <p class="window-intro">{{ t('grossanlass.materials.zusage.serviceHint') }}</p>
-                    <ul v-if="zusage.services.length" class="service-list">
-                      <li v-for="service in zusage.services" :key="service.id">
+                    <ul v-if="vehicleArticle?.services.length" class="service-list">
+                      <li v-for="service in vehicleArticle.services" :key="service.id">
                         <strong>{{ parkLabel(service.kind, service.label) }}</strong>
                         <span>{{ formatIso(service.fromIso) }} – {{ formatIso(service.toIso) }}</span>
                         <span>{{ service.who }}</span>
@@ -185,31 +114,14 @@
                   </section>
                 </v-tabs-window-item>
 
-                <v-tabs-window-item value="stock" class="material-detail-window-item">
-                  <section class="section-card">
-                    <h2 class="section-title">{{ t('grossanlass.materials.detailTabStock') }}</h2>
-                    <div class="stock-summary">
-                      <div class="stock-stat warehouse">
-                        <span class="stock-number">{{ formatQty(item.total_stock) }}</span>
-                        <span class="stock-label">{{ t('materialsView.colTotal') }}</span>
-                      </div>
-                      <div v-if="item.issued_out > 0" class="stock-stat issued">
-                        <span class="stock-number">{{ formatQty(item.issued_out) }}</span>
-                        <span class="stock-label">{{ t('components.materialDetail.stockLabelOut') }}</span>
-                      </div>
-                      <div class="stock-stat available">
-                        <span class="stock-number">{{ formatQty(item.available) }}</span>
-                        <span class="stock-label">{{ t('components.materialDetail.stockLabelAvailable') }}</span>
-                      </div>
-                    </div>
-                  </section>
-                </v-tabs-window-item>
-
                 <v-tabs-window-item value="usage" class="material-detail-window-item">
-                  <section class="section-card">
-                    <h2 class="section-title">{{ t('grossanlass.materials.detailTabUsage') }}</h2>
-                    <p class="user-readonly-empty">{{ t('grossanlass.materials.detailUsageEmpty') }}</p>
-                  </section>
+                  <GrossanlassArticleEinsatzPanel
+                    v-if="zusage"
+                    :article="zusage"
+                    :rows="articleEinsaetze"
+                    @book="openBook"
+                    @book-wish="openBookFromWish"
+                  />
                 </v-tabs-window-item>
               </v-tabs-window>
             </main>
@@ -227,32 +139,65 @@
         </div>
       </div>
     </div>
+
+    <GrossanlassEinsatzBookPreviewDialog
+      v-model="bookOpen"
+      v-model:draft="bookDraft"
+      mode="einsatz"
+      :wishes="articleWishes"
+      :free-picks="articleFreePicks"
+      :rows="articleEinsaetze"
+      :resources="articleResources"
+      :chauffeurs="chauffeurs"
+      :places="places"
+      :preset-object-id="itemId"
+      :preset-wish-id="bookWishId"
+      @confirm="onBookConfirm"
+      @place-created="uebersicht.addPlace"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { EButton, EDateField, ESelect, ESwitch, ETimeField } from '@/components/form/base'
+import { EButton, EDateField, ESelect, ETimeField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { useToast } from '@/composables/useToast'
-import { updateGrossanlassCommitment } from '@/api/grossanlassCommitments'
+import { updateGrossanlassCommitment, type GrossanlassCommitment } from '@/api/grossanlassCommitments'
+import {
+  listGrossanlassProcurementLines,
+  type GrossanlassProcurementLine,
+  type GrossanlassProcurementPoolWish,
+} from '@/api/grossanlassProcurement'
 import {
   findPreviewRowById,
-  type GaLifecycle,
   type GaMaterialsTabId,
 } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
-import { commitmentDetails } from '@/views/grossanlass/grossanlassCommitmentMap'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { commitmentsOnStem } from '@/views/grossanlass/gaCharge'
 import {
+  articleToResource,
   combineIso,
   formatGaIsoLabel,
   parkServiceLabel,
   type GaParkServiceKind,
+  type GaZusageArticle,
 } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import {
+  resourceToPickTemplate,
+  type GaPreviewWishTemplate,
+} from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import GrossanlassArticleWishesPanel from '@/views/grossanlass/GrossanlassArticleWishesPanel.vue'
+import GrossanlassArticleChargesPanel from '@/views/grossanlass/GrossanlassArticleChargesPanel.vue'
+import GrossanlassArticleEinsatzPanel from '@/views/grossanlass/GrossanlassArticleEinsatzPanel.vue'
+import GrossanlassEinsatzBookPreviewDialog, {
+  type GaBookPreviewDraft,
+} from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
 import '@/styles/materials-view.css'
 
 defineOptions({ name: 'GrossanlassMaterialsPreviewDetail' })
@@ -262,14 +207,20 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { t, locale } = useI18n()
 const toast = useToast()
-const { loading, rows, articles, commitments, upsert } = useGaCommitmentCatalog()
+const { loading, rows, articles, commitments, upsert, load: loadCatalog } = useGaCommitmentCatalog()
+const uebersicht = useGaUebersicht()
 
-const activeTab = ref('data')
+const TAB_IDS = ['data', 'wishes', 'stock', 'usage'] as const
+const activeTab = ref(String(route.query.tab || 'data'))
+const bookOpen = ref(false)
+const bookDraft = ref<GaBookPreviewDraft | null>(null)
+const bookWishId = ref<string | null>(null)
 const newServiceKind = ref<GaParkServiceKind>('clean')
 const newServiceDate = ref('')
 const newServiceFrom = ref('06:00')
 const newServiceTo = ref('08:00')
 const saving = ref(false)
+const procurementLine = ref<GrossanlassProcurementLine | null>(null)
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
@@ -279,17 +230,113 @@ const itemId = computed(() => String(route.params.itemId || ''))
 
 const item = computed(() => findPreviewRowById(rows.value, itemId.value))
 const zusage = computed(() => articles.value.find((article) => article.id === itemId.value))
-const details = computed(() => {
-  const row = commitments.value.find((entry) => entry.id === itemId.value)
-  return row ? commitmentDetails(row) : {}
+const currentCommitment = computed(() =>
+  commitments.value.find((entry) => entry.id === itemId.value) ?? null,
+)
+const stemCharges = computed(() => {
+  const current = currentCommitment.value
+  if (!current) return []
+  return commitmentsOnStem(commitments.value, current)
+})
+const stemIds = computed(() => new Set(stemCharges.value.map((row) => row.id)))
+const vehicleCharge = computed(() => stemCharges.value.find((row) => row.family === 'vehicle') ?? null)
+const vehicleArticle = computed(() =>
+  vehicleCharge.value
+    ? articles.value.find((article) => article.id === vehicleCharge.value!.id) ?? null
+    : null,
+)
+
+const wishArticle = computed<GaZusageArticle | undefined>(() => {
+  const base = zusage.value
+  if (!base) return undefined
+  if (stemCharges.value.length <= 1) return base
+  return { ...base, presentFromIso: '', presentToIso: '', source: '' }
 })
 
-const releasedModel = computed({
-  get: () => zusage.value?.released ?? false,
-  set: (value: boolean | null) => {
-    void saveReleased(Boolean(value))
-  },
+const articleWishes = computed<GaPreviewWishTemplate[]>(() => {
+  const stock = stemCharges.value.reduce((sum, row) => sum + (row.quantity || 0), 0)
+  const objectId = itemId.value
+  const fromLine = procurementLine.value
+  if (fromLine?.source_wishes?.length) {
+    return fromLine.source_wishes.map((wish) => poolWishToTemplate(wish, objectId, item.value?.name || fromLine.label, stock))
+  }
+  const lineId = currentCommitment.value?.item_details?.from_line_id || zusage.value?.fromLineId || ''
+  return uebersicht.wishTemplates.value.filter((wish) =>
+    stemIds.value.has(wish.objectId) || (lineId !== '' && wish.id === lineId),
+  )
 })
+
+const articleEinsaetze = computed(() =>
+  uebersicht.bookingRows().filter((row) => stemIds.value.has(row.objectId)),
+)
+
+const articleResources = computed(() =>
+  stemCharges.value
+    .map((row) => articles.value.find((article) => article.id === row.id))
+    .filter((article): article is GaZusageArticle => Boolean(article))
+    .map((article) => articleToResource(article)),
+)
+
+const articleFreePicks = computed(() =>
+  articleResources.value.map((resource) => {
+    const template = resourceToPickTemplate(resource, (key, values) =>
+      values ? String(t(key, values)) : String(t(key)),
+    )
+    const article = zusage.value
+    return {
+      ...template,
+      id: `pick-${resource.id}`,
+      objectId: resource.id,
+      fromIso: article?.presentFromIso || article?.handoverFromIso || template.fromIso,
+      toIso: article?.presentToIso || article?.returnToIso || template.toIso,
+      stock: resource.stock,
+      qty: resource.kind === 'quantity' ? Math.min(2, resource.stock) : 1,
+    }
+  }),
+)
+
+const chauffeurs = computed(() =>
+  (uebersicht.data.value?.cards ?? []).map((card) => ({
+    value: card.user_id,
+    title: card.name,
+    subtitle: card.may_drive
+      ? t('grossanlass.materialUebersicht.chauffeurMayDrive')
+      : t('grossanlass.materialUebersicht.chauffeurNoLicenseShort'),
+    mayDrive: card.may_drive,
+  })),
+)
+const places = computed(() => uebersicht.data.value?.places ?? [])
+
+watch(
+  () => String(route.query.tab || ''),
+  (tab) => {
+    if ((TAB_IDS as readonly string[]).includes(tab) && activeTab.value !== tab) {
+      activeTab.value = tab
+    }
+  },
+)
+
+watch(activeTab, (tab) => {
+  if (String(route.query.tab || '') === tab) return
+  void router.replace({ query: { ...route.query, tab } })
+})
+
+watch(
+  () => [departmentId.value, currentCommitment.value?.item_details?.from_line_id || ''] as const,
+  async ([dept, lineId]) => {
+    if (!dept || !lineId) {
+      procurementLine.value = null
+      return
+    }
+    try {
+      const lines = await listGrossanlassProcurementLines(dept)
+      procurementLine.value = lines.find((line) => line.id === lineId) ?? null
+    } catch {
+      procurementLine.value = null
+    }
+  },
+  { immediate: true },
+)
 
 const serviceItems = computed(() => [
   { title: t('grossanlass.materials.zusage.service.clean'), value: 'clean' },
@@ -298,8 +345,40 @@ const serviceItems = computed(() => [
 ])
 
 const canAddService = computed(() =>
-  Boolean(zusage.value && newServiceDate.value && newServiceFrom.value && newServiceTo.value && !saving.value),
+  Boolean(vehicleArticle.value && newServiceDate.value && newServiceFrom.value && newServiceTo.value && !saving.value),
 )
+
+function poolWishToTemplate(
+  wish: GrossanlassProcurementPoolWish,
+  objectId: string,
+  objectName: string,
+  stock: number,
+): GaPreviewWishTemplate {
+  return {
+    id: wish.id,
+    label: wish.label,
+    objectId,
+    objectName,
+    kind: 'quantity',
+    qty: wish.quantity,
+    stock,
+    fromIso: wish.valid_from,
+    toIso: wish.valid_to,
+    fromLabel: formatGaIsoLabel(wish.valid_from, locale.value),
+    toLabel: formatGaIsoLabel(wish.valid_to, locale.value),
+    ressort: wish.group_name,
+    who: wish.created_by_name,
+    hasConflict: false,
+    groupId: wish.group_id,
+    roundId: wish.round_id,
+    lastStage: wish.last_stage || undefined,
+    createdAt: wish.created_at,
+    enoughOnHand: Boolean(wish.enough_on_hand),
+    enoughOnHandSource: wish.enough_on_hand_source ?? null,
+    enoughOnHandDetail: wish.enough_on_hand_detail ?? null,
+    enoughOnHandRefId: wish.enough_on_hand_ref_id ?? null,
+  }
+}
 
 function formatIso(iso: string): string {
   if (!iso) return '—'
@@ -310,12 +389,11 @@ function parkLabel(kind: GaParkServiceKind, custom?: string): string {
   return parkServiceLabel(kind, (key) => String(t(key)), custom)
 }
 
-async function saveReleased(released: boolean) {
-  const id = zusage.value?.id
-  if (!id || !departmentId.value || saving.value) return
+async function onChargeRelease(row: GrossanlassCommitment, released: boolean) {
+  if (!departmentId.value || saving.value) return
   saving.value = true
   try {
-    const updated = await updateGrossanlassCommitment(departmentId.value, id, { released })
+    const updated = await updateGrossanlassCommitment(departmentId.value, row.id, { released })
     upsert(updated)
     toast.success(t('grossanlass.beschaffung.zusagen.releasedToast'))
   } catch (e: unknown) {
@@ -327,7 +405,7 @@ async function saveReleased(released: boolean) {
 }
 
 async function addService() {
-  const current = zusage.value
+  const current = vehicleArticle.value
   if (!current || !canAddService.value || !departmentId.value) return
   saving.value = true
   try {
@@ -359,31 +437,61 @@ async function addService() {
   }
 }
 
-function lifecycleLabel(kind: GaLifecycle): string {
-  return t(`grossanlass.materials.lifecycle.${kind}`)
-}
-
-function lifecycleBadgeClass(kind: GaLifecycle): string {
-  if (kind === 'loan' || kind === 'cut_consumable') return 'virtual_combo'
-  return 'physical_combo'
-}
-
-function formatQty(qty: number): string {
-  const unit = item.value?.pack_unit
-  return unit ? `${qty} ${unit}` : String(qty)
-}
-
 function listPath(tab: string): string {
   const id = departmentId.value
-  if (tab === 'eigen' || tab === 'leihweise' || tab === 'fahrzeuge') {
+  if (tab === 'eigen' || tab === 'leihweise') {
     return `/${id}/materialien/${tab}`
   }
+  if (tab === 'fahrzeuge') return `/${id}/materialien/eigen?family=vehicle`
+  if (tab === 'wareneingang') return `/${id}/material-uebersicht/wareneingang`
   return `/${id}/material-uebersicht`
 }
 
 function goBack() {
   const from = String(route.query.from || '') as GaMaterialsTabId | ''
   void router.push(listPath(from))
+}
+
+function openBook(wishId?: string) {
+  bookWishId.value = typeof wishId === 'string' && wishId ? wishId : null
+  bookDraft.value = null
+  bookOpen.value = true
+}
+
+function openBookFromWish(wishId?: string) {
+  openBook(wishId || articleWishes.value[0]?.id)
+}
+
+async function onWishSaved() {
+  await Promise.all([uebersicht.load(), loadCatalog()])
+}
+
+async function onBookConfirm(current: GaBookPreviewDraft) {
+  try {
+    await uebersicht.create({
+      kind: 'einsatz',
+      commitment_id: current.objectId || itemId.value,
+      wish_line_id: current.fromWish ? current.id : null,
+      qty: current.qty,
+      from: current.fromIso,
+      to: current.toIso,
+      who: current.who,
+      chauffeur_user_id: current.chauffeurUserId || null,
+      delivery: current.delivery || 'pickup',
+      destination_place_id: current.destinationPlaceId || null,
+      group_id: current.groupId || null,
+      pending: current.hasConflict,
+      has_conflict: current.hasConflict,
+    })
+    toast.success(
+      current.hasConflict
+        ? t('grossanlass.materialUebersicht.mwNoteSent')
+        : t('grossanlass.beschaffung.zusagen.createdToast'),
+    )
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  }
 }
 </script>
 

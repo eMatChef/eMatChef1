@@ -16,6 +16,7 @@
           :block-closed-dates="blockClosedDates"
           :show-presets="showPresets"
           :show-markers="showMarkers"
+          :view-date="viewDateModel"
         />
       </div>
     </div>
@@ -41,6 +42,8 @@ const props = withDefaults(
     blockClosedDates?: boolean
     showPresets?: boolean
     showMarkers?: boolean
+    /** API-Format yyyy-mm-dd — Kalender startet hier, wenn das Feld leer ist */
+    viewDate?: string
     errorMessages?: string | readonly string[]
   }>(),
   {
@@ -50,12 +53,14 @@ const props = withDefaults(
     blockClosedDates: false,
     showPresets: false,
     showMarkers: true,
+    viewDate: '',
   },
 )
 
 const model = defineModel<string>({ default: '' })
 const generatedId = useId()
 const fieldId = computed(() => props.id ?? generatedId)
+const viewDateModel = computed(() => isoDateStringToLocalDate(props.viewDate || ''))
 
 const hasError = computed(() => {
   const m = props.errorMessages

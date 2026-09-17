@@ -63,6 +63,19 @@ class ActivityGrossanlassWishLine
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $notes = null;
 
+    #[ORM\Column(name: 'enough_on_hand', type: 'boolean', options: ['default' => false])]
+    private bool $enoughOnHand = false;
+
+    /** stock | commitment */
+    #[ORM\Column(name: 'enough_on_hand_source', type: 'string', length: 20, nullable: true)]
+    private ?string $enoughOnHandSource = null;
+
+    #[ORM\Column(name: 'enough_on_hand_detail', type: 'string', length: 255, nullable: true)]
+    private ?string $enoughOnHandDetail = null;
+
+    #[ORM\Column(name: 'enough_on_hand_ref_id', type: 'string', length: 12, nullable: true)]
+    private ?string $enoughOnHandRefId = null;
+
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_REQUESTED;
 
@@ -246,6 +259,67 @@ class ActivityGrossanlassWishLine
         $this->notes = $notes;
 
         return $this;
+    }
+
+    public function isEnoughOnHand(): bool
+    {
+        return $this->enoughOnHand;
+    }
+
+    public function setEnoughOnHand(bool $enoughOnHand): self
+    {
+        $this->enoughOnHand = $enoughOnHand;
+
+        return $this;
+    }
+
+    public function getEnoughOnHandSource(): ?string
+    {
+        return $this->enoughOnHandSource;
+    }
+
+    public function setEnoughOnHandSource(?string $enoughOnHandSource): self
+    {
+        $this->enoughOnHandSource = $enoughOnHandSource;
+
+        return $this;
+    }
+
+    public function getEnoughOnHandDetail(): ?string
+    {
+        return $this->enoughOnHandDetail;
+    }
+
+    public function setEnoughOnHandDetail(?string $enoughOnHandDetail): self
+    {
+        $this->enoughOnHandDetail = $enoughOnHandDetail;
+
+        return $this;
+    }
+
+    public function getEnoughOnHandRefId(): ?string
+    {
+        return $this->enoughOnHandRefId;
+    }
+
+    public function setEnoughOnHandRefId(?string $enoughOnHandRefId): self
+    {
+        $this->enoughOnHandRefId = $enoughOnHandRefId;
+
+        return $this;
+    }
+
+    /**
+     * @return array{enough_on_hand: bool, enough_on_hand_source: ?string, enough_on_hand_detail: ?string, enough_on_hand_ref_id: ?string}
+     */
+    public function enoughOnHandPayload(): array
+    {
+        return [
+            'enough_on_hand' => $this->enoughOnHand,
+            'enough_on_hand_source' => $this->enoughOnHandSource,
+            'enough_on_hand_detail' => $this->enoughOnHandDetail,
+            'enough_on_hand_ref_id' => $this->enoughOnHandRefId,
+        ];
     }
 
     public function getStatus(): string

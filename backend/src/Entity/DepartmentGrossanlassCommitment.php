@@ -419,7 +419,7 @@ class DepartmentGrossanlassCommitment
 
     public function setQuantity(int $quantity): self
     {
-        $this->quantity = max(1, $quantity);
+        $this->quantity = max(0, $quantity);
         $this->touch();
 
         return $this;

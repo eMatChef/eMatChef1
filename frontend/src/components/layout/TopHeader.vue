@@ -622,6 +622,8 @@
               </div>
             </details>
 
+            <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
+
             <details
               class="profile-accordion"
               data-onboarding="profile-colors"
@@ -761,6 +763,7 @@ import {
 // @ts-ignore Vetur false positive in Vue 3 script-setup import
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,

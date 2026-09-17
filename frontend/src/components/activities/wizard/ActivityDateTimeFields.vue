@@ -14,6 +14,7 @@
         :disabled="disabled"
         :show-presets="showPresets"
         :show-markers="showMarkers"
+        :allow-past="allowPast"
         :preset-mode="presetMode === 'fixed-periods' ? 'fixed-periods' : 'single'"
       />
       <ActivityDateRangeField
@@ -23,6 +24,7 @@
         :disabled="disabled"
         :show-presets="showPresets"
         :show-markers="showMarkers"
+        :allow-past="allowPast"
         :preset-mode="presetMode"
       />
     </template>
@@ -62,6 +64,7 @@ const props = withDefaults(
     /** Von/Bis-Uhrzeit anzeigen */
     showTime?: boolean
     disabled?: boolean
+    allowPast?: boolean
     timesLocked?: boolean
     /** Material-Uhrzeiten: Nutzungsintervall in der Uhr nicht wählbar */
     blockedUsageRange?: { start: Date; end: Date } | null
@@ -78,6 +81,7 @@ const props = withDefaults(
     showPresets: false,
     showMarkers: true,
     showTime: true,
+    allowPast: false,
     disabled: false,
     timesLocked: false,
     blockedUsageRange: null,

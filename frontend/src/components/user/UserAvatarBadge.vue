@@ -14,6 +14,18 @@
   >
     <span class="user-avatar-badge__avatar" :style="avatarStyle">
       <span v-if="showLeaderStar && variant === 'badge'" class="user-avatar-badge__star" aria-hidden="true">★</span>
+      <span
+        v-if="showPrimaryHome && variant === 'badge'"
+        class="user-avatar-badge__home"
+        :title="t('common.userAvatar.primaryHome')"
+        aria-hidden="true"
+      >⌂</span>
+      <span
+        v-if="stageBadge && variant === 'badge'"
+        class="user-avatar-badge__stage"
+        :title="t(`common.userAvatar.deptStage.${stageBadge.role}`)"
+        aria-hidden="true"
+      >{{ stageBadge.short }}</span>
       {{ initials }}
     </span>
     <Teleport to="body">
@@ -45,6 +57,7 @@ import {
   getUserAvatarStyle,
   type UserAvatarFields,
 } from '@/utils/userAvatar'
+import { gaDeptStageBadge } from '@/utils/grossanlassAccess'
 
 export type UserAvatarVariant = 'badge' | 'profile'
 export type UserAvatarSize = 'sm' | 'md' | 'lg'
@@ -56,12 +69,16 @@ const props = withDefaults(
     variant?: UserAvatarVariant
     size?: UserAvatarSize
     showLeaderStar?: boolean
+    showPrimaryHome?: boolean
+    deptStageRole?: string | null
     showTooltip?: boolean
   }>(),
   {
     variant: 'badge',
     size: 'sm',
     showLeaderStar: false,
+    showPrimaryHome: false,
+    deptStageRole: null,
     showTooltip: true,
   }
 )
@@ -74,6 +91,7 @@ const floatingStyle = ref<Record<string, string>>({})
 
 const avatarStyle = computed(() => getUserAvatarStyle(props.user))
 const initials = computed(() => getUserAvatarInitials(props.user))
+const stageBadge = computed(() => gaDeptStageBadge(props.deptStageRole))
 
 const tooltip = computed(() => {
   if (!props.showTooltip) return null

@@ -29,6 +29,9 @@ class GrossanlassAccessService
         }
     }
 
+    /**
+     * Struktur anlassweit: MW, CMW, OK-Leitung (dc). Nicht Gmail, nicht Beschaffung.
+     */
     public function canManagePlanung(User $user, Department $department): bool
     {
         if (!$department->isGrossanlass()) {
@@ -38,7 +41,80 @@ class GrossanlassAccessService
         return $this->groupAccess->canFullyManageDepartmentGroups($user, $department->getId());
     }
 
-    /** Nur Materialwart (nicht DC): Formular-Builder bearbeiten. */
+    public function canWorkMailbox(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canWorkMailbox($this->gaRole($user, $department));
+    }
+
+    public function canTakeInquiry(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canTakeInquiry($this->gaRole($user, $department));
+    }
+
+    public function canCreateMailDrafts(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canCreateMailDrafts($this->gaRole($user, $department));
+    }
+
+    public function canSendMail(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canSendMail($this->gaRole($user, $department));
+    }
+
+    public function canConnectGmail(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canConnectGmail($this->gaRole($user, $department));
+    }
+
+    public function canApproveEinsatz(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canApproveEinsatz($this->gaRole($user, $department));
+    }
+
+    public function canReleaseTrip(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canReleaseTrip($this->gaRole($user, $department));
+    }
+
+    public function canManageProcurement(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canManageProcurement($this->gaRole($user, $department));
+    }
+
+    public function canSeeAnlassOverview(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canSeeAnlassOverview($this->gaRole($user, $department));
+    }
+
+    public function canOperateAusgabe(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canOperateAusgabe($this->gaRole($user, $department));
+    }
+
+    public function canVerifyDriveCard(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canVerifyDriveCard($this->gaRole($user, $department));
+    }
+
+    /**
+     * Leader am Knoten reicht ein; MW/CMW/OK-L sind direkt frei.
+     */
+    public function canSubmitEinsatz(User $user, Department $department, ?Group $group = null): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+        if (GrossanlassAccessRoles::submitsEinsatzDirectlyFree($this->membershipRole($user, $department) ?? '')) {
+            return true;
+        }
+        if ($group === null) {
+            return false;
+        }
+
+        return $this->groupAccess->isGroupLeaderOfGroup($user, $group->getId());
+    }
+
+    /** Nur Materialwart (nicht CMW/DC): Formular-Builder bearbeiten. */
     public function canManageGrossanlassForm(User $user, Department $department): bool
     {
         if (!$department->isGrossanlass()) {
@@ -54,6 +130,28 @@ class GrossanlassAccessService
         return $this->canManageGrossanlassForm($user, $department);
     }
 
+    public function membershipRole(User $user, Department $department): ?string
+    {
+        $membership = $this->entityManager->getRepository(\App\Entity\Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $department->getId(),
+        ]);
+        if ($membership === null) {
+            return null;
+        }
+
+        return GrossanlassAccessRoles::normalize((string) ($membership->getRole() ?? ''));
+    }
+
+    private function gaRole(User $user, Department $department): string
+    {
+        if (!$department->isGrossanlass()) {
+            return '';
+        }
+
+        return $this->membershipRole($user, $department) ?? '';
+    }
+
     private function isDepartmentMaterialwart(User $user, string $departmentId): bool
     {
         $membership = $this->entityManager->getRepository(\App\Entity\Membership::class)->findOneBy([
@@ -64,9 +162,9 @@ class GrossanlassAccessService
             return false;
         }
 
-        $role = strtolower(trim((string) ($membership->getRole() ?? '')));
+        $role = GrossanlassAccessRoles::normalize((string) ($membership->getRole() ?? ''));
 
-        return \in_array($role, ['mw', 'matwart'], true);
+        return $role === 'mw';
     }
 
     public function canCreateRootRessort(User $user, Department $department): bool
@@ -144,11 +242,6 @@ class GrossanlassAccessService
         }
 
         return $this->userIsMemberInRessortBranch($user, $department->getId(), $group);
-    }
-
-    public function canManageProcurement(User $user, Department $department): bool
-    {
-        return $this->canManagePlanung($user, $department);
     }
 
     /**

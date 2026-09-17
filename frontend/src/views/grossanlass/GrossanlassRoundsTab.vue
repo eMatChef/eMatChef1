@@ -23,10 +23,22 @@
         class="wish-form-group"
       >
         <div class="wish-form-group__head">
-          <h2 class="wish-form-group__title">
-            <span class="purpose-badge" :class="'purpose-' + group.purpose">{{ group.title }}</span>
-          </h2>
-          <p class="wish-form-group__landing">{{ group.landing }}</p>
+          <div>
+            <h2 class="wish-form-group__title">
+              <span class="purpose-badge" :class="'purpose-' + group.purpose">{{ group.title }}</span>
+            </h2>
+            <p class="wish-form-group__landing">{{ group.landing }}</p>
+          </div>
+          <EButton
+            v-if="group.purpose === 'material_wish' && (feinRound || canManage)"
+            variant="secondary"
+            size="small"
+            @click="goOrCreateFein"
+          >
+            {{ feinRound
+              ? t('grossanlass.planung.wishForms.openFein')
+              : t('grossanlass.planung.wishForms.createFein') }}
+          </EButton>
         </div>
 
         <v-alert
@@ -104,6 +116,15 @@
                 <td v-if="canManage" class="col-actions" @click="stopRowClick">
                   <div v-if="row.live" class="action-buttons">
                     <button
+                      class="action-btn action-btn-label action-btn-primary"
+                      type="button"
+                      :title="t('grossanlass.planung.rounds.responsesAction')"
+                      @click="openResponses(row.live)"
+                    >
+                      <v-icon icon="mdi-clipboard-text-outline" size="16" />
+                      {{ t('grossanlass.roundDetail.tabResponses') }}
+                    </button>
+                    <button
                       v-if="canEditForm && row.live.status !== 'closed'"
                       class="action-btn"
                       :title="t('grossanlass.formBuilder.editFormAction')"
@@ -114,7 +135,7 @@
                     <button
                       v-if="row.live.status !== 'closed'"
                       class="action-btn"
-                      :title="t('common.edit')"
+                      :title="t('grossanlass.planung.rounds.editRoundAction')"
                       @click="openEditModal(row.live)"
                     >
                       <v-icon icon="mdi-pencil-outline" size="16" />
@@ -209,18 +230,6 @@
           class="purpose-badge mb-3"
           :class="'purpose-' + form.purpose"
         >{{ purposeLabel(form.purpose) }}</span>
-        <p class="purpose-hint">{{ purposeHint }}</p>
-        <v-alert
-          v-if="form.purpose === 'material_wish'"
-          type="info"
-          variant="tonal"
-          density="compact"
-          class="mb-3 grob-fein-alert"
-        >
-          {{ form.materialStage === 'fein'
-            ? t('grossanlass.planung.wishForms.feinHint')
-            : t('grossanlass.planung.wishForms.grobFeinHint') }}
-        </v-alert>
         <ESelect
           v-if="form.purpose === 'material_wish' && !editingRound"
           v-model="form.materialStage"
@@ -353,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -461,17 +470,6 @@ const stageItems = computed(() => [
   { title: t('grossanlass.planung.wishForms.stageGrob'), value: 'grob' },
   { title: t('grossanlass.planung.wishForms.stageFein'), value: 'fein' },
 ])
-
-const purposeHint = computed(() => {
-  switch (form.value.purpose) {
-    case 'company_tip':
-      return t('grossanlass.planung.wishForms.purposeHintCompany')
-    case 'free':
-      return t('grossanlass.planung.wishForms.purposeHintFree')
-    default:
-      return t('grossanlass.planung.wishForms.purposeHintMaterial')
-  }
-})
 
 const namePlaceholder = computed(() => {
   switch (form.value.purpose) {
@@ -686,6 +684,38 @@ function openCreateModal(purpose: GrossanlassFormPurpose) {
   showModal.value = true
 }
 
+function openFeinCreate() {
+  openCreateModal('material_wish')
+  form.value.materialStage = 'fein'
+}
+
+const feinRound = computed(() => {
+  const material = rounds.value.filter(
+    (round) => purposeOf(round) === 'material_wish' && round.material_stage === 'fein',
+  )
+  return material.find((round) => round.status === 'open')
+    ?? material.find((round) => round.status === 'scheduled')
+    ?? material[0]
+    ?? null
+})
+
+function goOrCreateFein() {
+  if (feinRound.value) {
+    void router.push(`/${departmentId.value}/planung/runden/${feinRound.value.id}`)
+    return
+  }
+  if (canManage.value) openFeinCreate()
+}
+
+async function applyFeinDeepLink() {
+  if (String(route.query.fein || '') !== '1') return
+  if (isLoading.value) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.fein
+  await router.replace({ path: route.path, query: nextQuery })
+  goOrCreateFein()
+}
+
 function openEditModal(round: GrossanlassPlanningRound) {
   editingRound.value = round
   wizardStep.value = 1
@@ -826,6 +856,7 @@ async function loadRounds() {
   } finally {
     isLoading.value = false
   }
+  await applyFeinDeepLink()
 }
 
 async function handleOpen(round: GrossanlassPlanningRound) {
@@ -874,14 +905,26 @@ async function handleReopen(round: GrossanlassPlanningRound) {
 }
 
 function openRow(row: WishFormRow) {
-  if (row.live) {
-    void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
+  if (!row.live) return
+  if (canManage.value) {
+    openResponses(row.live)
+    return
   }
+  void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
+}
+
+function openResponses(round: GrossanlassPlanningRound) {
+  void router.push({
+    path: `/${departmentId.value}/planung/runden/${round.id}`,
+    query: { tab: 'responses' },
+  })
 }
 
 function stopRowClick(event: Event) {
   event.stopPropagation()
 }
+
+watch(() => route.query.fein, () => { void applyFeinDeepLink() })
 
 onMounted(loadRounds)
 </script>
@@ -912,6 +955,10 @@ onMounted(loadRounds)
 }
 
 .wish-form-group__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
 }
 
@@ -989,13 +1036,6 @@ onMounted(loadRounds)
 }
 
 .purpose-picker-card__hint {
-  color: #6b7280;
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.purpose-hint {
-  margin: 0 0 12px;
   color: #6b7280;
   font-size: 0.85rem;
   line-height: 1.45;
@@ -1147,13 +1187,21 @@ onMounted(loadRounds)
   border-color: #a7f3d0;
 }
 
+.action-btn-label {
+  width: auto;
+  gap: 6px;
+  padding: 0 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
 .action-btn-warning {
   color: #d97706;
   border-color: #fde68a;
 }
 
 .col-actions {
-  width: 156px;
+  width: 248px;
 }
 
 .col-auto {
@@ -1183,11 +1231,6 @@ onMounted(loadRounds)
 .round-single-time :deep(.activity-datetime-mobile__time-slot:last-child),
 .round-single-time :deep(.activity-pill-cell--time:last-child) {
   display: none;
-}
-
-.grob-fein-alert :deep(.v-alert__content) {
-  white-space: normal;
-  overflow-wrap: break-word;
 }
 
 .wizard-steps {
@@ -1220,10 +1263,5 @@ onMounted(loadRounds)
 .grossanlass-form-dialog-card .v-card-text.e-dialog__body {
   overflow-x: hidden;
   min-width: 0;
-}
-
-.grossanlass-form-dialog-card .grob-fein-alert .v-alert__content {
-  white-space: normal;
-  overflow-wrap: break-word;
 }
 </style>

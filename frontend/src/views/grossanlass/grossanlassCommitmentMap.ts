@@ -22,7 +22,7 @@ export function commitmentTabs(row: GrossanlassCommitment): GaMaterialsTabId[] {
 }
 
 export function commitmentQuantity(row: GrossanlassCommitment): number {
-  return Math.max(1, Number(row.quantity) || 1)
+  return Math.max(0, Number(row.quantity) || 0)
 }
 
 export function commitmentDetails(row: GrossanlassCommitment): GrossanlassCommitmentItemDetails {
@@ -65,6 +65,7 @@ export function commitmentToArticle(row: GrossanlassCommitment): GaZusageArticle
     stock: qty,
     stayMode: 'return',
     services: mapServices(row),
+    fromLineId: commitmentDetails(row).from_line_id || undefined,
     feinWish: wishFrom && wishTo
       ? { label: row.wish_label || '', ressort: '', fromIso: wishFrom, toIso: wishTo }
       : undefined,

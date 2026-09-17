@@ -23,6 +23,11 @@ export type GrossanlassUserCard = {
   drive_verified_by_name: string | null
   drive_has_extra_regulation: boolean
   drive_document: GrossanlassUserCardDriveDocument | null
+  profile_license?: {
+    drive_classes: string[]
+    valid_until: string | null
+    document: GrossanlassUserCardDriveDocument | null
+  } | null
   printed: boolean
   printed_at: string | null
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   applyFormBuilderFieldOrder,
+  availableFormBuilderAddOptions,
   createFormBuilderField,
   listFormBuilderInputFields,
   orderFormFieldsForRound,
@@ -48,14 +49,28 @@ describe('Form-Builder Feldlisten', () => {
     expect(note.label).toBe('Notiz')
   })
 
-  it('applyFormBuilderFieldOrder schreibt sort_order in-place', () => {
+  it('applyFormBuilderFieldOrder behält die gegebene Eingabereihenfolge', () => {
     const a = customText({ id: 'a', sort_order: 50 })
     const b = customText({ id: 'b', sort_order: 20 })
     const ordered = applyFormBuilderFieldOrder([a, b])
 
-    expect(ordered[0]).toBe(b)
-    expect(ordered[1]).toBe(a)
-    expect(b.sort_order).toBe(10)
-    expect(a.sort_order).toBe(20)
+    expect(ordered[0]).toBe(a)
+    expect(ordered[1]).toBe(b)
+    expect(a.sort_order).toBe(10)
+    expect(b.sort_order).toBe(20)
+  })
+
+  it('bietet Zeitraum nicht an, wenn Wann-Phasen schon existieren', () => {
+    const when = createFormBuilderField({ kind: 'custom', custom_type: 'select' }, 10)
+    when.options = { multiple: true, choices: ['Vor dem Anlass', 'Am Anlass', 'Nach dem Anlass'] }
+    const options = availableFormBuilderAddOptions([when])
+    expect(options.some((opt) => opt.kind === 'custom' && opt.custom_type === 'date_range')).toBe(false)
+  })
+
+  it('bietet Zeitraum an, wenn keine Wann-Phasen existieren', () => {
+    const color = createFormBuilderField({ kind: 'custom', custom_type: 'select' }, 10)
+    color.options = { choices: ['Rot', 'Blau'] }
+    const options = availableFormBuilderAddOptions([color])
+    expect(options.some((opt) => opt.kind === 'custom' && opt.custom_type === 'date_range')).toBe(true)
   })
 })

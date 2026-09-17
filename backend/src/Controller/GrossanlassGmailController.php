@@ -9,6 +9,7 @@ use App\Service\Auth\GoogleOAuthException;
 use App\Service\Grossanlass\GmailOAuthClient;
 use App\Service\Grossanlass\GmailOAuthState;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
+use App\Service\Grossanlass\GrossanlassMailAttachmentService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +30,7 @@ class GrossanlassGmailController extends AbstractController
         private EntityManagerInterface $entityManager,
         private GrossanlassGmailAccountService $gmail,
         private GrossanlassMailMergeService $merge,
+        private GrossanlassMailAttachmentService $mailAttachments,
         private GmailOAuthClient $oauth,
         private GmailOAuthState $oauthState,
         private GroupAccessService $groupAccess,
@@ -122,8 +124,9 @@ class GrossanlassGmailController extends AbstractController
         $templates = is_array($data['templates'] ?? null) ? $data['templates'] : $data;
         $custom = is_array($data['custom_placeholders'] ?? null) ? $data['custom_placeholders'] : [];
         $routing = is_array($data['gmail_routing'] ?? null) ? $data['gmail_routing'] : null;
+        $zeitraumText = array_key_exists('zeitraum_text', $data) ? (string) $data['zeitraum_text'] : null;
 
-        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom, $routing) {
+        return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom, $routing, $zeitraumText) {
             $this->gmail->status($department, $user);
 
             return $this->merge->saveTemplates(
@@ -131,7 +134,50 @@ class GrossanlassGmailController extends AbstractController
                 is_array($templates) ? $templates : [],
                 is_array($custom) ? $custom : [],
                 $routing,
+                $zeitraumText,
             );
+        });
+    }
+
+    #[Route('/zeitraum', name: 'zeitraum_save', methods: ['PUT'])]
+    #[IsGranted('ROLE_USER')]
+    public function saveZeitraum(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $text = (string) ($data['zeitraum_text'] ?? '');
+
+        return $this->handle($departmentId, function (Department $department, User $user) use ($text) {
+            $this->gmail->status($department, $user);
+            $this->merge->saveZeitraumText($department, $text);
+
+            return ['zeitraum_text' => $this->merge->storedZeitraumText($department)];
+        });
+    }
+
+    #[Route('/attachments', name: 'attachments_upload', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function uploadAttachment(string $departmentId, Request $request): JsonResponse
+    {
+        $file = $request->files->get('pdf');
+        if (!$file instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+            return new JsonResponse(['error' => 'pdf ist erforderlich'], 400);
+        }
+
+        return $this->handle($departmentId, function (Department $department, User $user) use ($file) {
+            $this->gmail->status($department, $user);
+
+            return ['attachments' => $this->mailAttachments->store($department, $user, $file)];
+        });
+    }
+
+    #[Route('/attachments/{fileId}', name: 'attachments_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteAttachment(string $departmentId, string $fileId): JsonResponse
+    {
+        return $this->handle($departmentId, function (Department $department, User $user) use ($fileId) {
+            $this->gmail->status($department, $user);
+
+            return ['attachments' => $this->mailAttachments->delete($department, $fileId)];
         });
     }
 

@@ -24,6 +24,9 @@ class DepartmentGrossanlassEinsatz
     public const PLACE_ASSIGNED = 'assigned';
     public const PLACE_OUT = 'out';
 
+    public const DELIVERY_TRIP = 'trip';
+    public const DELIVERY_PICKUP = 'pickup';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -73,8 +76,17 @@ class DepartmentGrossanlassEinsatz
     #[ORM\Column(type: 'string', length: 120, options: ['default' => ''])]
     private string $who = '';
 
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => self::DELIVERY_PICKUP])]
+    private string $delivery = self::DELIVERY_PICKUP;
+
+    #[ORM\Column(name: 'trip_released_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $tripReleasedAt = null;
+
     #[ORM\Column(name: 'chauffeur_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $chauffeurUserId = null;
+
+    #[ORM\Column(name: 'destination_place_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $destinationPlaceId = null;
 
     #[ORM\Column(name: 'issued_to_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $issuedToUserId = null;
@@ -165,10 +177,47 @@ class DepartmentGrossanlassEinsatz
     public function getWho(): string { return $this->who; }
     public function setWho(string $who): self { $this->who = $who; $this->touch(); return $this; }
 
+    public function getDelivery(): string { return $this->delivery; }
+    public function setDelivery(string $delivery): self
+    {
+        $this->delivery = $delivery === self::DELIVERY_TRIP ? self::DELIVERY_TRIP : self::DELIVERY_PICKUP;
+        if ($this->delivery === self::DELIVERY_PICKUP) {
+            $this->tripReleasedAt = null;
+        }
+        $this->touch();
+        return $this;
+    }
+
+    public function isTrip(): bool
+    {
+        return $this->delivery === self::DELIVERY_TRIP;
+    }
+
+    public function getTripReleasedAt(): ?\DateTime { return $this->tripReleasedAt; }
+    public function setTripReleasedAt(?\DateTime $tripReleasedAt): self
+    {
+        $this->tripReleasedAt = $tripReleasedAt;
+        $this->touch();
+        return $this;
+    }
+
+    public function isTripReleased(): bool
+    {
+        return $this->tripReleasedAt !== null;
+    }
+
     public function getChauffeurUserId(): ?string { return $this->chauffeurUserId; }
     public function setChauffeurUserId(?string $chauffeurUserId): self
     {
         $this->chauffeurUserId = $chauffeurUserId ?: null;
+        $this->touch();
+        return $this;
+    }
+
+    public function getDestinationPlaceId(): ?string { return $this->destinationPlaceId; }
+    public function setDestinationPlaceId(?string $destinationPlaceId): self
+    {
+        $this->destinationPlaceId = $destinationPlaceId ?: null;
         $this->touch();
         return $this;
     }

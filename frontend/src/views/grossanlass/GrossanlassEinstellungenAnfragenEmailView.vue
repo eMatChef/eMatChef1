@@ -6,6 +6,72 @@
       <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
 
+      <div class="zeitraum-block">
+        <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.zeitraumHint') }}</p>
+        <AutoSaveField
+          :model-value="zeitraumText"
+          :baseline="zeitraumBaseline"
+          type="textarea"
+          :label="t('grossanlass.einstellungen.anfragenEmail.zeitraumTitle')"
+          :placeholder="t('grossanlass.einstellungen.anfragenEmail.zeitraumPlaceholder')"
+          :rows="4"
+          :disabled="zeitraumSuggesting"
+          span-class="zeitraum-autosave"
+          :save="saveZeitraumField"
+          @update:model-value="onZeitraumModel"
+        />
+        <div class="actions">
+          <EButton variant="secondary" size="small" :loading="zeitraumSuggesting" @click="fillZeitraumFromDates">
+            {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumFromDates') }}
+          </EButton>
+          <EButton variant="text" size="small" :disabled="zeitraumSuggesting" @click="resetZeitraumToDefault">
+            {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumReset') }}
+          </EButton>
+        </div>
+      </div>
+
+      <div class="zeitraum-block">
+        <p class="editor-label">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsTitle') }}</p>
+        <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsHint') }}</p>
+        <ul v-if="mailAttachments.length" class="mail-file-list">
+          <li v-for="file in mailAttachments" :key="file.id">
+            <button
+              type="button"
+              class="mail-file-open"
+              :title="t('grossanlass.einstellungen.anfragenEmail.attachmentsView')"
+              :disabled="!file.url"
+              @click="openAttachmentPreview(file)"
+            >
+              <v-icon icon="mdi-file-pdf-box" size="22" color="error" />
+              <span>{{ file.original_filename }}</span>
+              <span class="mail-file-open-action">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsView') }}</span>
+            </button>
+            <EButton variant="text" size="small" :disabled="attachmentBusy" @click="removeMailAttachment(file.id)">
+              {{ t('common.delete') }}
+            </EButton>
+          </li>
+        </ul>
+        <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsEmpty') }}</p>
+        <div class="actions">
+          <input
+            ref="attachmentInputRef"
+            type="file"
+            accept="application/pdf"
+            class="hidden-file"
+            @change="onAttachmentSelected"
+          />
+          <EButton
+            variant="secondary"
+            size="small"
+            :loading="attachmentBusy"
+            :disabled="mailAttachments.length >= 8"
+            @click="attachmentInputRef?.click()"
+          >
+            {{ t('grossanlass.einstellungen.anfragenEmail.attachmentsAdd') }}
+          </EButton>
+        </div>
+      </div>
+
       <div class="template-tabs">
         <button
           v-for="row in templates"
@@ -75,17 +141,24 @@
       <div v-if="mailPreview" class="preview">
         <p class="mail-subject">{{ mailPreview.subject }}</p>
         <div class="mail-body" v-html="previewHtml" />
+        <p v-for="name in previewAttachmentNames" :key="name" class="mail-attach">
+          {{ t('grossanlass.beschaffung.anfragen.previewAttachment', { name }) }}
+        </p>
       </div>
     </section>
 
-    <v-expansion-panels v-model="openSetupPanels" multiple class="ga-mail-setup-accordions">
+    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
       <v-expansion-panel value="gmail">
         <v-expansion-panel-title>
-          {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
-          <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
-            {{ gmailIsReady
-              ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
-              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
+              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
+                {{ gmailIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+            </span>
           </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -102,7 +175,7 @@
           </p>
           <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
           <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
-          <div class="actions">
+          <div v-if="canConnectGmail" class="actions">
             <EButton
               v-if="!status?.connected"
               variant="primary"
@@ -121,11 +194,15 @@
 
       <v-expansion-panel value="routing">
         <v-expansion-panel-title>
-          {{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}
-          <span class="setup-badge" :class="routingIsReady ? 'is-done' : 'is-open'">
-            {{ routingIsReady
-              ? t('grossanlass.einstellungen.anfragenEmail.routingDoneBadge')
-              : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.routingTitle') }}
+              <span class="setup-badge" :class="routingIsReady ? 'is-done' : 'is-open'">
+                {{ routingIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.routingDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+            </span>
           </span>
         </v-expansion-panel-title>
         <v-expansion-panel-text>
@@ -307,6 +384,11 @@
         </EButton>
       </template>
     </EDialog>
+
+    <ReceiptPreviewDialog
+      v-model="attachmentPreviewOpen"
+      :receipt="previewAttachmentPhoto"
+    />
   </div>
 </template>
 
@@ -314,13 +396,18 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { AutoSaveField } from '@/components/common/autoSave'
+import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { EButton, ECheckbox, EDialog, ETextField, ETextarea } from '@/components/form/base'
+import ReceiptPreviewDialog from '@/components/accounting/ReceiptPreviewDialog.vue'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
+import { gaCanConnectGmail } from '@/utils/grossanlassAccess'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
+  deleteGrossanlassMailAttachment,
   disconnectGrossanlassGmail,
   getGrossanlassGmailLabels,
   getGrossanlassGmailStatus,
@@ -328,27 +415,36 @@ import {
   GROSSANLASS_GMAIL_ROUTING_DEFAULTS,
   GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS,
   GROSSANLASS_MAIL_OPTIONAL_KINDS,
+  GROSSANLASS_MAIL_ZEITRAUM_DEFAULT,
   grossanlassGmailConnectUrl,
   importGrossanlassGmailLabels,
   previewGrossanlassMail,
   saveGrossanlassMailTemplates,
+  saveGrossanlassMailZeitraum,
   syncGrossanlassGmailLabels,
+  uploadGrossanlassMailAttachment,
   type GrossanlassGmailLabelOverview,
   type GrossanlassGmailLabelRow,
   type GrossanlassGmailRouting,
   type GrossanlassGmailStatus,
   type GrossanlassMailCustomPlaceholder,
+  type GrossanlassMailEventAttachment,
   type GrossanlassMailPreview,
   type GrossanlassMailTemplate,
   type GrossanlassMailTemplateKind,
+  type GrossanlassMailTemplatePack,
 } from '@/api/grossanlassGmail'
 import { listGrossanlassProcurementCategories, type GrossanlassProcurementCategory } from '@/api/grossanlassProcurement'
+import { listDepartmentCalendarPeriods } from '@/api/calendarPeriods'
+import type { MediaPhoto } from '@/api/media'
+import { suggestZeitraumTextFromPeriods } from '@/utils/grossanlassMailZeitraum'
 
 defineOptions({ name: 'GrossanlassEinstellungenAnfragenEmail' })
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const canConnectGmail = computed(() => gaCanConnectGmail(authStore.currentDepartmentRole))
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
@@ -361,6 +457,17 @@ const gmailQuery = computed(() => String(route.query.gmail || ''))
 const status = ref<GrossanlassGmailStatus | null>(null)
 const statusLoading = ref(true)
 const templates = ref<GrossanlassMailTemplate[]>([])
+const zeitraumText = ref(GROSSANLASS_MAIL_ZEITRAUM_DEFAULT)
+const zeitraumBaseline = ref(GROSSANLASS_MAIL_ZEITRAUM_DEFAULT)
+const zeitraumSuggesting = ref(false)
+const lastSavedTemplates = ref<GrossanlassMailTemplate[]>([])
+const lastSavedPlaceholders = ref<GrossanlassMailCustomPlaceholder[]>([])
+const lastSavedRouting = ref<GrossanlassGmailRouting | null>(null)
+const mailAttachments = ref<GrossanlassMailEventAttachment[]>([])
+const attachmentBusy = ref(false)
+const attachmentInputRef = ref<HTMLInputElement | null>(null)
+const attachmentPreviewOpen = ref(false)
+const previewAttachment = ref<GrossanlassMailEventAttachment | null>(null)
 const customPlaceholders = ref<GrossanlassMailCustomPlaceholder[]>([])
 const activeKind = ref<string>('anfrage')
 const mailPreview = ref<GrossanlassMailPreview | null>(null)
@@ -383,6 +490,7 @@ const labelsSyncing = ref(false)
 const labelsImporting = ref(false)
 const labelsError = ref('')
 const labelsChecked = ref(false)
+let mailSettingsSeq = 0
 const procurementCategories = ref<GrossanlassProcurementCategory[]>([])
 
 const DEFAULT_STATUS_PATHS = [
@@ -407,10 +515,17 @@ function composedLabelRoot(eventName: string): string {
   return `eMatChef-${name}`.slice(0, 80)
 }
 
+function enforceEmatchefRoot(raw: string): string {
+  const name = raw.trim().split('/').join('-').slice(0, 80)
+  if (!name || name === 'eMatChef') return 'eMatChef'
+  if (name.startsWith('eMatChef-')) return name
+  return `eMatChef-${name}`.slice(0, 80)
+}
+
 const effectiveRoot = computed(() => {
   const raw = routing.label_root.trim().split('/').join('-')
   if (!raw || raw === 'eMatChef') return composedLabelRoot(departmentName.value)
-  return raw
+  return enforceEmatchefRoot(raw)
 })
 
 function revealRootEdit() {
@@ -483,6 +598,11 @@ function applySetupPanels() {
 }
 
 const previewHtml = computed(() => sanitizeMailHtml(mailPreview.value?.body || ''))
+const previewAttachmentNames = computed(() => {
+  const fromLive = mailPreview.value?.attachments
+  if (fromLive) return fromLive.filter(Boolean)
+  return mailAttachments.value.map((row) => row.original_filename).filter(Boolean)
+})
 
 const insertTokens = computed(() => {
   const builtin = GROSSANLASS_MAIL_BUILTIN_PLACEHOLDERS.map((token) => ({
@@ -509,6 +629,66 @@ function escapeHtml(value: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+function zeitraumTextForMail(plain: string): string {
+  const text = plain.trim() || GROSSANLASS_MAIL_ZEITRAUM_DEFAULT
+  return escapeHtml(text).replace(/\n/g, '<br>')
+}
+
+function asZeitraumString(value: AutoSaveFieldValue): string {
+  if (value == null) return ''
+  return String(value)
+}
+
+function onZeitraumModel(value: AutoSaveFieldValue) {
+  zeitraumText.value = asZeitraumString(value)
+}
+
+function applyZeitraumFromPack(pack: Pick<GrossanlassMailTemplatePack, 'zeitraum_text'>) {
+  const next = pack.zeitraum_text.trim() || GROSSANLASS_MAIL_ZEITRAUM_DEFAULT
+  zeitraumText.value = next
+  zeitraumBaseline.value = next
+}
+
+function snapshotMailPack(pack: GrossanlassMailTemplatePack) {
+  lastSavedTemplates.value = pack.templates.map((row) => ({ ...row }))
+  lastSavedPlaceholders.value = pack.custom_placeholders.map((row) => ({ ...row }))
+  lastSavedRouting.value = {
+    ...pack.gmail_routing,
+    extra_labels: [...pack.gmail_routing.extra_labels],
+  }
+}
+
+function gmailRoutingPayload(): GrossanlassGmailRouting {
+  return {
+    ...routing,
+    label_root: effectiveRoot.value,
+    extra_labels: extraLabelsText.value
+      .split(/\r\n|\n|\r/)
+      .map((line) => line.trim())
+      .filter(Boolean),
+  }
+}
+
+async function persistZeitraum(text: string): Promise<void> {
+  if (!departmentId.value) return
+  const pack = { zeitraum_text: await saveGrossanlassMailZeitraum(departmentId.value, text) }
+  applyZeitraumFromPack(pack)
+}
+
+async function saveZeitraumField(value: AutoSaveFieldValue): Promise<void> {
+  await persistZeitraum(asZeitraumString(value))
+}
+
+async function resetZeitraumToDefault() {
+  zeitraumText.value = GROSSANLASS_MAIL_ZEITRAUM_DEFAULT
+  try {
+    await persistZeitraum(GROSSANLASS_MAIL_ZEITRAUM_DEFAULT)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  }
 }
 
 function bodyForEditor(body: string): string {
@@ -620,14 +800,19 @@ async function refreshGmailStatus(withLabels = true) {
 
 async function load() {
   if (!departmentId.value) return
+  const seq = ++mailSettingsSeq
   try {
     await refreshGmailStatus()
     const pack = await getGrossanlassMailTemplates(departmentId.value)
+    if (seq !== mailSettingsSeq) return
     templates.value = pack.templates.map((row) => ({
       ...row,
       body: bodyForEditor(row.body),
     }))
     customPlaceholders.value = pack.custom_placeholders
+    applyZeitraumFromPack(pack)
+    snapshotMailPack(pack)
+    mailAttachments.value = pack.attachments
     Object.assign(routing, pack.gmail_routing)
     extraLabelsText.value = pack.gmail_routing.extra_labels.join('\n')
     try {
@@ -671,6 +856,100 @@ async function disconnect() {
   }
 }
 
+async function fillZeitraumFromDates() {
+  if (!departmentId.value) return
+  zeitraumSuggesting.value = true
+  try {
+    const periods = await listDepartmentCalendarPeriods(departmentId.value)
+    const suggested = suggestZeitraumTextFromPeriods(
+      periods,
+      {
+        aufbau: t('settings.fixedDates.labels.aufbau'),
+        grossanlass: t('settings.fixedDates.labels.grossanlass'),
+        abbau: t('settings.fixedDates.labels.abbau'),
+      },
+      t('grossanlass.einstellungen.anfragenEmail.zeitraumClosing'),
+    )
+    if (!suggested) {
+      toast.error(t('grossanlass.einstellungen.anfragenEmail.zeitraumFromDatesEmpty'))
+      return
+    }
+    zeitraumText.value = suggested
+    await persistZeitraum(suggested)
+    toast.success(t('grossanlass.einstellungen.anfragenEmail.zeitraumFromDatesToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    zeitraumSuggesting.value = false
+  }
+}
+
+function openAttachmentPreview(file: GrossanlassMailEventAttachment) {
+  if (!file.url) return
+  previewAttachment.value = file
+  attachmentPreviewOpen.value = true
+}
+
+const previewAttachmentPhoto = computed((): MediaPhoto | null => {
+  const file = previewAttachment.value
+  if (!file?.url) return null
+  return {
+    id: file.id,
+    filename: file.filename,
+    original_filename: file.original_filename,
+    url: file.url,
+    mime: file.mime || 'application/pdf',
+    bytes: file.bytes,
+  }
+})
+
+async function onAttachmentSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || !departmentId.value) return
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    toast.error(t('grossanlass.einstellungen.anfragenEmail.attachmentsPdfOnly'))
+    return
+  }
+  attachmentBusy.value = true
+  try {
+    const next = await uploadGrossanlassMailAttachment(departmentId.value, file)
+    if (!next.length) {
+      toast.error(t('grossanlass.einstellungen.anfragenEmail.attachmentsUploadError'))
+      return
+    }
+    mailSettingsSeq += 1
+    mailAttachments.value = next
+    toast.success(t('grossanlass.einstellungen.anfragenEmail.attachmentsUploaded'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.einstellungen.anfragenEmail.attachmentsUploadError'))
+  } finally {
+    attachmentBusy.value = false
+  }
+}
+
+async function removeMailAttachment(fileId: string) {
+  if (!departmentId.value) return
+  const ok = await confirm.confirm({
+    title: t('grossanlass.einstellungen.anfragenEmail.attachmentsRemoveTitle'),
+    message: t('grossanlass.einstellungen.anfragenEmail.attachmentsRemoveMessage'),
+  })
+  if (!ok) return
+  attachmentBusy.value = true
+  try {
+    mailSettingsSeq += 1
+    mailAttachments.value = await deleteGrossanlassMailAttachment(departmentId.value, fileId)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    attachmentBusy.value = false
+  }
+}
+
 async function save(quiet = false) {
   if (!departmentId.value) return
   saving.value = true
@@ -679,20 +958,17 @@ async function save(quiet = false) {
       departmentId.value,
       templates.value,
       customPlaceholders.value,
-      {
-        ...routing,
-        label_root: effectiveRoot.value,
-        extra_labels: extraLabelsText.value
-          .split(/\r\n|\n|\r/)
-          .map((line) => line.trim())
-          .filter(Boolean),
-      },
+      gmailRoutingPayload(),
+      zeitraumText.value,
     )
     templates.value = pack.templates.map((row) => ({
       ...row,
       body: bodyForEditor(row.body),
     }))
     customPlaceholders.value = pack.custom_placeholders
+    applyZeitraumFromPack(pack)
+    snapshotMailPack(pack)
+    mailAttachments.value = pack.attachments
     Object.assign(routing, pack.gmail_routing)
     extraLabelsText.value = pack.gmail_routing.extra_labels.join('\n')
     if (!quiet) {
@@ -801,17 +1077,30 @@ async function importFromGmail() {
 async function loadPreview() {
   const tpl = activeTemplate.value
   if (!tpl) return
-  const areas = procurementCategories.value.map((row) => row.name.trim()).filter(Boolean).join(', ') || 'Bereiche folgen'
-  let materialListe = areas
+  const leafNames = procurementCategories.value
+    .filter((row) => !procurementCategories.value.some((child) => child.parent_id === row.id))
+    .filter((row) => !!row.parent_id)
+    .map((row) => row.name.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(', ') || 'Positionen folgen'
+  const rootNames = procurementCategories.value
+    .filter((row) => !row.parent_id && row.system_key !== 'js')
+    .map((row) => row.name.trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .join(', ') || 'Bereiche folgen'
+  let materialListe = leafNames
+  let areas = rootNames
   if (departmentId.value) {
     try {
       const live = await previewGrossanlassMail(departmentId.value, { kind: tpl.kind })
-      const fromBedarf = (live.placeholders?.MATERIALLISTE || '').trim()
-      if (fromBedarf !== '') {
-        materialListe = fromBedarf
-      }
+      const liveList = (live.placeholders?.MATERIALLISTE || '').trim()
+      const liveAreas = (live.placeholders?.BEREICHE || '').trim()
+      if (liveList !== '') materialListe = liveList
+      if (liveAreas !== '') areas = liveAreas
     } catch {
-      /* lokale Vorschau mit Bereichen */
+      /* lokale Vorschau */
     }
   }
   const vars: Record<string, string> = {
@@ -819,7 +1108,7 @@ async function loadPreview() {
     FIRMA: 'Muster AG',
     ANLASS: 'Anlass',
     ORT: '',
-    ZEITRAUMTEXT: 'Aufbau, Anlasswoche und Rückgabe gemäss Absprache',
+    ZEITRAUMTEXT: zeitraumTextForMail(zeitraumText.value),
     MATERIALLISTE: materialListe,
     BEREICHE: areas,
     ABSENDER: 'OK Material & Logistik',
@@ -845,11 +1134,18 @@ async function loadPreview() {
     }
     return out
   }
+  const attachesFiles = ['anfrage', 'nachfassen', 'praezisieren'].includes(tpl.kind)
   mailPreview.value = {
     subject: apply(tpl.subject),
     body: apply(tpl.body),
     to: 'demo@firma.example',
     placeholders: vars,
+    attachments: attachesFiles
+      ? [
+          ...mailAttachments.value.map((row) => row.original_filename),
+          t('grossanlass.einstellungen.anfragenEmail.attachmentsMaterialSample'),
+        ]
+      : [],
   }
 }
 
@@ -885,15 +1181,6 @@ onUnmounted(() => {
 <style scoped>
 .ga-mail-settings { padding: 4px 0 24px; display: grid; gap: 16px; }
 .intro, .muted { margin: 0 0 8px; color: #64748b; font-size: 0.9rem; }
-.ga-mail-setup-accordions :deep(.v-expansion-panel) {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px !important;
-  margin-bottom: 0;
-}
-.ga-mail-setup-accordions :deep(.v-expansion-panel-title) {
-  font-weight: 600;
-  font-size: 1rem;
-}
 .setup-badge {
   margin-left: 10px;
   font-size: 0.75rem;
@@ -916,6 +1203,72 @@ onUnmounted(() => {
   padding: 16px;
 }
 .panel h2 { margin: 0 0 8px; font-size: 1rem; }
+.zeitraum-block {
+  margin: 0 0 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+.zeitraum-autosave {
+  width: 100%;
+  margin: 8px 0 0;
+}
+.mail-file-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.mail-file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.mail-file-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 4px 0;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.mail-file-open span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mail-file-open:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.mail-file-open:disabled {
+  color: #64748b;
+  cursor: default;
+}
+.mail-file-open-action {
+  flex: none;
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.hidden-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.mail-attach {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
 .root-row {
   display: flex;
   flex-wrap: wrap;

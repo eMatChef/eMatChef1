@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassProcurementOrder;
+use App\Entity\ActivityGrossanlassProcurementQuote;
+use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
+use App\Entity\DepartmentGrossanlassCost;
+use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassInquiry;
+use App\Entity\DepartmentGrossanlassPackLine;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -24,7 +31,10 @@ final class GrossanlassCommitmentService
      */
     public function list(Department $department, User $user): array
     {
-        $this->assertManage($department, $user);
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Zusagen');
+        }
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
             ->findBy(['departmentId' => $department->getId()], ['createdAt' => 'DESC']);
 
@@ -68,6 +78,15 @@ final class GrossanlassCommitmentService
         return $this->serialize($row);
     }
 
+    public function delete(Department $department, User $user, string $id): void
+    {
+        $this->assertManage($department, $user);
+        $row = $this->find($department, $id);
+        $this->detachRelated($row);
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -95,7 +114,129 @@ final class GrossanlassCommitmentService
             'origin' => DepartmentGrossanlassCommitment::ORIGIN_LOAN,
             'inquiry_id' => $inquiry->getId(),
             'category_id' => $inquiry->getCategoryIds()[0] ?? null,
+            'item_details' => [
+                'inbound_status' => 'expected',
+                'inbound_mode' => 'pickup',
+            ],
         ]);
+    }
+
+    /**
+     * Eigen-Charge am Bedarf-Stamm, wenn eine Bestellung gespeichert wird.
+     * Keine Absprache und keine zweite Kostenzeile — die Offerte bleibt die Akte.
+     */
+    public function ensureBuyChargeFromOrder(
+        Department $department,
+        User $user,
+        ActivityGrossanlassProcurementLine $line,
+        ActivityGrossanlassProcurementOrder $order,
+        ?ActivityGrossanlassProcurementQuote $quote,
+    ): void {
+        $this->assertManage($department, $user);
+
+        $related = $this->commitmentsForLine($department, $line->getId());
+        $existing = null;
+        foreach ($related as $row) {
+            if ($row->getOrigin() === DepartmentGrossanlassCommitment::ORIGIN_BUY) {
+                $existing = $row;
+                break;
+            }
+        }
+
+        $qty = max(0, $line->getQuantity());
+        $supplier = trim((string) ($quote?->getSupplier() ?? ''));
+        $source = $supplier !== '' ? $supplier : $line->getLabel();
+        $details = [
+            'from_line_id' => $line->getId(),
+            'inbound_status' => 'expected',
+            'inbound_mode' => 'delivery',
+        ];
+        if ($quote !== null) {
+            $details['quote_id'] = $quote->getId();
+        }
+        $details['order_id'] = $order->getId();
+        if ($order->getOrderRef()) {
+            $details['order_ref'] = $order->getOrderRef();
+        }
+
+        $family = $line->getWishKind() === 'fahrzeug'
+            ? DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+            : DepartmentGrossanlassCommitment::FAMILY_MATERIAL;
+
+        if ($existing instanceof DepartmentGrossanlassCommitment) {
+            $merged = array_merge($existing->getItemDetails(), $details);
+            $stillExpected = (($merged['inbound_status'] ?? 'expected') !== 'here')
+                && !$existing->isPacked()
+                && !$existing->isReturnedToFirm();
+            if ($stillExpected) {
+                $merged['inbound_status'] = 'expected';
+            }
+            $payload = [
+                'name' => $line->getLabel(),
+                'source' => $source,
+                'family' => $family,
+                'origin' => DepartmentGrossanlassCommitment::ORIGIN_BUY,
+                'item_details' => $merged,
+                'category_id' => $line->getCategoryId(),
+                'released' => true,
+            ];
+            if ($stillExpected && $qty > 0) {
+                $payload['quantity'] = $qty;
+            }
+            if ($stillExpected && $order->getDeliveryAt() instanceof \DateTime) {
+                $payload['present_from'] = $order->getDeliveryAt();
+            }
+            $this->apply($existing, $department, $payload, false);
+            $this->entityManager->flush();
+
+            return;
+        }
+
+        if ($qty <= 0) {
+            return;
+        }
+
+        $row = new DepartmentGrossanlassCommitment();
+        $row->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::COMMITMENT,
+            DepartmentGrossanlassCommitment::class,
+        ));
+        $row->setDepartment($department);
+        $this->apply($row, $department, [
+            'name' => $line->getLabel(),
+            'source' => $source,
+            'family' => $family,
+            'origin' => DepartmentGrossanlassCommitment::ORIGIN_BUY,
+            'quantity' => $qty,
+            'item_details' => $details,
+            'category_id' => $line->getCategoryId(),
+            'released' => true,
+            'present_from' => $order->getDeliveryAt(),
+        ], true);
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @return list<DepartmentGrossanlassCommitment>
+     */
+    private function commitmentsForLine(Department $department, string $lineId): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassCommitment) {
+                continue;
+            }
+            $from = trim((string) ($row->getItemDetails()['from_line_id'] ?? ''));
+            if ($from === $lineId) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
     }
 
     /**
@@ -107,6 +248,7 @@ final class GrossanlassCommitmentService
         array $data,
         bool $creating,
     ): void {
+        $previousQty = $row->getQuantity();
         if ($creating || array_key_exists('name', $data)) {
             $name = trim((string) ($data['name'] ?? ''));
             if ($name === '') {
@@ -136,7 +278,7 @@ final class GrossanlassCommitmentService
             $row->setOrigin($origin);
         }
         if (array_key_exists('quantity', $data) || $creating) {
-            $row->setQuantity(max(1, (int) ($data['quantity'] ?? 1)));
+            $row->setQuantity(max(0, (int) ($data['quantity'] ?? ($creating ? 1 : $previousQty))));
         }
         if (array_key_exists('item_details', $data) || $creating) {
             $details = $data['item_details'] ?? [];
@@ -203,6 +345,38 @@ final class GrossanlassCommitmentService
             }
             $row->setServices($services);
         }
+        if ($row->getQuantity() === 0) {
+            $row->setReleased(false);
+            if ($previousQty > 0) {
+                $this->releaseBookingsForZeroQuantity($row);
+            }
+        }
+    }
+
+    private function releaseBookingsForZeroQuantity(DepartmentGrossanlassCommitment $row): void
+    {
+        $einsaetze = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->findBy(['commitmentId' => $row->getId()]);
+        foreach ($einsaetze as $einsatz) {
+            if (!$einsatz instanceof DepartmentGrossanlassEinsatz) {
+                continue;
+            }
+            if ($einsatz->getKind() !== DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+                continue;
+            }
+            if ($einsatz->getStatus() === DepartmentGrossanlassEinsatz::STATUS_RETURNED) {
+                continue;
+            }
+            if (
+                $einsatz->getStatus() === DepartmentGrossanlassEinsatz::STATUS_ISSUED
+                || $einsatz->isPacked()
+            ) {
+                throw new \InvalidArgumentException(
+                    'Artikel ist noch ausgegeben oder gepackt — zuerst zurücknehmen, dann Menge 0.',
+                );
+            }
+            $this->entityManager->remove($einsatz);
+        }
     }
 
     /**
@@ -228,6 +402,41 @@ final class GrossanlassCommitmentService
         }
         if ($notes !== '') {
             $out['notes'] = mb_substr($notes, 0, 500);
+        }
+        $fromLineId = trim((string) ($raw['from_line_id'] ?? ''));
+        if ($fromLineId !== '') {
+            $out['from_line_id'] = mb_substr($fromLineId, 0, 12);
+        }
+        $inboundStatus = trim((string) ($raw['inbound_status'] ?? ''));
+        if (in_array($inboundStatus, ['expected', 'here'], true)) {
+            $out['inbound_status'] = $inboundStatus;
+        }
+        $inboundMode = trim((string) ($raw['inbound_mode'] ?? ''));
+        if (in_array($inboundMode, ['pickup', 'delivery'], true)) {
+            $out['inbound_mode'] = $inboundMode;
+        }
+        $quoteId = trim((string) ($raw['quote_id'] ?? ''));
+        if ($quoteId !== '') {
+            $out['quote_id'] = mb_substr($quoteId, 0, 12);
+        }
+        $orderId = trim((string) ($raw['order_id'] ?? ''));
+        if ($orderId !== '') {
+            $out['order_id'] = mb_substr($orderId, 0, 12);
+        }
+        $orderRef = trim((string) ($raw['order_ref'] ?? ''));
+        if ($orderRef !== '') {
+            $out['order_ref'] = mb_substr($orderRef, 0, 80);
+        }
+        if (array_key_exists('qty_checked', $raw)) {
+            $out['qty_checked'] = (bool) $raw['qty_checked'];
+        }
+        $pickupEinsatzId = trim((string) ($raw['pickup_einsatz_id'] ?? ''));
+        if ($pickupEinsatzId !== '') {
+            $out['pickup_einsatz_id'] = mb_substr($pickupEinsatzId, 0, 12);
+        }
+        $deliveryEinsatzId = trim((string) ($raw['delivery_einsatz_id'] ?? ''));
+        if ($deliveryEinsatzId !== '') {
+            $out['delivery_einsatz_id'] = mb_substr($deliveryEinsatzId, 0, 12);
         }
 
         $parts = [];
@@ -264,7 +473,7 @@ final class GrossanlassCommitmentService
         }
         $raw = (string) $value;
         try {
-            return new \DateTime($raw);
+            return GrossanlassQuarterHour::snap(new \DateTime($raw));
         } catch (\Exception) {
             throw new \InvalidArgumentException('Ungültiges Datum: ' . $raw);
         }
@@ -278,6 +487,44 @@ final class GrossanlassCommitmentService
         }
 
         return $row;
+    }
+
+    private function detachRelated(DepartmentGrossanlassCommitment $row): void
+    {
+        $costs = $this->entityManager->getRepository(DepartmentGrossanlassCost::class)
+            ->findBy(['commitmentId' => $row->getId()]);
+        foreach ($costs as $cost) {
+            if (!$cost instanceof DepartmentGrossanlassCost) {
+                continue;
+            }
+            if ($cost->getProcurementLineId() === null) {
+                $this->entityManager->remove($cost);
+            } else {
+                $cost->setCommitment(null);
+            }
+        }
+
+        $packLines = $this->entityManager->getRepository(DepartmentGrossanlassPackLine::class)
+            ->findBy(['commitmentId' => $row->getId()]);
+        foreach ($packLines as $packLine) {
+            if ($packLine instanceof DepartmentGrossanlassPackLine) {
+                $packLine->setCommitmentId(null);
+            }
+        }
+
+        $wishes = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->findBy(['enoughOnHandRefId' => $row->getId()]);
+        foreach ($wishes as $wish) {
+            if (!$wish instanceof ActivityGrossanlassWishLine) {
+                continue;
+            }
+            if ($wish->getEnoughOnHandSource() === 'commitment') {
+                $wish->setEnoughOnHand(false);
+                $wish->setEnoughOnHandSource(null);
+                $wish->setEnoughOnHandDetail(null);
+            }
+            $wish->setEnoughOnHandRefId(null);
+        }
     }
 
     /**
@@ -327,7 +574,7 @@ final class GrossanlassCommitmentService
     private function assertManage(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canTakeInquiry($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Zusagen');
         }
     }

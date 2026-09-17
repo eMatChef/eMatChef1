@@ -93,7 +93,7 @@ class GrossanlassCostService
         $this->bindCentralPotToLogisticsGroup($department);
 
         $rows = $this->loadBudgets($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             $branchIds = $this->access->resolveAssignedGroupBranchIds($user, $department->getId());
             $rows = array_values(array_filter(
                 $rows,
@@ -290,7 +290,7 @@ class GrossanlassCostService
         $this->bindCentralPotToLogisticsGroup($department);
         $this->backfillMissingLineCosts($department);
 
-        $manage = $this->access->canManagePlanung($user, $department);
+        $manage = $this->access->canManageProcurement($user, $department);
         $costs = $this->loadCosts($department, $user, []);
         $budgets = $this->loadBudgets($department);
 
@@ -720,7 +720,7 @@ class GrossanlassCostService
             ->setParameter('departmentId', $department->getId())
             ->orderBy('c.createdAt', 'DESC');
 
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             $branchIds = $this->access->resolveAssignedGroupBranchIds($user, $department->getId());
             if ($branchIds === []) {
                 return [];
@@ -1052,7 +1052,7 @@ class GrossanlassCostService
     private function assertCanRead(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if ($this->access->canManagePlanung($user, $department)) {
+        if ($this->access->canManageProcurement($user, $department)) {
             return;
         }
         if ($this->access->resolveAssignedGroupBranchIds($user, $department->getId()) !== []) {
@@ -1065,7 +1065,7 @@ class GrossanlassCostService
     private function assertCanManage(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageProcurement($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Kosten');
         }
     }

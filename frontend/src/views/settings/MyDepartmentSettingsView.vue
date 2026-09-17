@@ -412,6 +412,7 @@ import UsersSettingsView from '@/views/settings/UsersSettingsView.vue'
 import GroupsSettingsView from '@/views/settings/GroupsSettingsView.vue'
 import { EButton, ESelect } from '@/components/form/base'
 import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onboardingTours'
+import { gaCanManageDepartmentUsers } from '@/utils/grossanlassAccess'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -421,12 +422,17 @@ const confirm = useConfirm()
 const { t } = useI18n()
 const { isUserRole, isDepartmentLeader } = useDepartmentMemberRole()
 
-/** Reines Mitglied «u»: nur Liste; L1–L3 und MW/DC: volle Verwaltung. */
-const membersReadOnly = computed(() => isUserRole.value && !isDepartmentLeader.value)
-
 const isSelectedDeptGrossanlass = computed(() => {
   const id = selectedDepartmentId.value || authStore.activeDepartmentId
   return authStore.isDepartmentGrossanlass(id)
+})
+
+/** Reines Mitglied «u»: nur Liste; L1–L3 und MW/DC: volle Verwaltung. Grossanlass: nur MW. */
+const membersReadOnly = computed(() => {
+  if (isSelectedDeptGrossanlass.value) {
+    return !gaCanManageDepartmentUsers(authStore.currentDepartmentRole)
+  }
+  return isUserRole.value && !isDepartmentLeader.value
 })
 
 const isLoading = ref(false)

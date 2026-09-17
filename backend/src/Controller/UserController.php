@@ -12,6 +12,7 @@ use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminCapabilityRegistry;
 use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
+use App\Service\MembershipRoleCatalog;
 use App\Util\E2eSmokeUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -24,8 +25,6 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 #[Route('/api/users', name: 'api_users_')]
 class UserController extends AbstractController
 {
-    private const MEMBERSHIP_ROLE_HIERARCHY = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'];
-
     public function __construct(
         private UserRepository $userRepository,
         private EntityManagerInterface $entityManager,
@@ -449,7 +448,8 @@ class UserController extends AbstractController
             foreach ($requestedMemberships as $membershipRow) {
                 $departmentId = (string) $membershipRow['department_id'];
                 $role = strtolower((string) ($membershipRow['role'] ?? 'u'));
-                if (!in_array($role, self::MEMBERSHIP_ROLE_HIERARCHY, true)) {
+                $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+                if (!MembershipRoleCatalog::isAllowed($department, $role)) {
                     return new JsonResponse(['error' => "Ungültige Rolle für Department {$departmentId}"], 400);
                 }
                 $isPrimary = (bool) ($membershipRow['is_primary'] ?? false);

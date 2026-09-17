@@ -1,7 +1,9 @@
 import type { GrossanlassRoundFormField } from '@/api/grossanlassRoundForm'
 import { sortFormFields } from '@/api/grossanlassRoundForm'
 import type { GrossanlassWishKind, GrossanlassWishLine } from '@/api/grossanlassWishes'
-import { formatActivityDateDe, formatActivityDateRangeDe } from '@/utils/activityDateIso'
+import { formatActivityDateRangeDe } from '@/utils/activityDateIso'
+import type { DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
 
 export interface GrossanlassWishTableColumn {
   id: string
@@ -45,8 +47,11 @@ export function formatGrossanlassWishCellValue(
   field: GrossanlassRoundFormField,
   labels: {
     wishKind: (kind: GrossanlassWishKind) => string
+    calendarPeriods?: DepartmentCalendarPeriod[]
   },
 ): string {
+  const need = resolveWishNeedPeriod(wish, labels.calendarPeriods || [])
+  const needRange = formatDateRangeFromIso(need?.from, need?.to)
   const systemKey = field.system_key
   if (systemKey === 'bauprojekt' || systemKey === 'ressort_wahl' || systemKey === 'ressort') {
     return wish.group_name || '–'
@@ -64,7 +69,7 @@ export function formatGrossanlassWishCellValue(
     return wish.location || '–'
   }
   if (systemKey === 'period') {
-    return formatDateRangeFromIso(wish.valid_from, wish.valid_to)
+    return needRange
   }
   if (systemKey === 'notes') {
     return wish.notes || '–'
@@ -80,20 +85,23 @@ export function formatGrossanlassWishCellValue(
   }
 
   const raw = wish.custom_values?.[field.id]
+  if (field.custom_type === 'date_range') {
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      const range = raw as { from?: string; to?: string }
+      const stored = formatDateRangeFromIso(range.from, range.to)
+      if (stored !== '–') return stored
+    }
+    return needRange
+  }
+
   if (raw === null || raw === undefined || raw === '') {
     return '–'
   }
 
-  if (field.custom_type === 'date_range') {
-    if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
-      const range = raw as { from?: string; to?: string }
-      return formatDateRangeFromIso(range.from, range.to)
-    }
-    return '–'
-  }
-
   if (field.custom_type === 'select' && Array.isArray(raw)) {
-    return raw.length > 0 ? raw.join(', ') : '–'
+    const choices = raw.length > 0 ? raw.map(String).join(', ') : ''
+    if (choices && needRange && needRange !== '–') return `${choices} · ${needRange}`
+    return choices || needRange || '–'
   }
 
   return String(raw)

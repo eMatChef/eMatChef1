@@ -83,6 +83,8 @@
         handle=".drag-handle"
         ghost-class="field-row--dragging"
         class="field-list"
+        :disabled="readonly"
+        @start="onFieldsDragStart"
         @end="onFieldsReordered"
       >
         <template #item="{ element: field, index }">
@@ -101,6 +103,7 @@
                 <span class="field-type-badge">{{ fieldTypeLabel(field) }}</span>
                 <span v-if="field.system_key === 'bauprojekt'" class="meta-hint">{{ t('grossanlass.formBuilder.systemFieldHint') }}</span>
                 <span v-else-if="field.system_key === 'ressort_wahl'" class="meta-hint">{{ t('grossanlass.formBuilder.ressortWahlHint') }}</span>
+                <span v-else-if="field.custom_type === 'date_range' && hasPhaseSelectInDraft" class="meta-hint">{{ t('grossanlass.formBuilder.dateRangeCombinedHint') }}</span>
                 <span v-else-if="isLegacySystemInputField(field)" class="meta-hint">{{ t('grossanlass.formBuilder.legacySystemHint') }}</span>
               </div>
 
@@ -162,6 +165,7 @@
                   {{ t('grossanlass.formBuilder.allowMultiple') }}
                 </label>
                 <p class="select-options-hint">{{ t('grossanlass.formBuilder.selectDisplayHint') }}</p>
+                <p v-if="isWishPhaseSelectField(field)" class="select-options-hint">{{ t('grossanlass.formBuilder.phaseWhenHint') }}</p>
               </div>
 
               <div v-if="field.system_key === 'bauprojekt'" class="bauprojekt-config mt-2">
@@ -274,6 +278,7 @@ import {
   type GrossanlassRoundForm,
   type GrossanlassRoundFormField,
 } from '@/api/grossanlassRoundForm'
+import { isWishPhaseSelectField } from '@/utils/grossanlassWishPeriod'
 
 const props = withDefaults(
   defineProps<{
@@ -307,6 +312,7 @@ const selectOptionsDraft = ref<Record<string, string[]>>({})
 const selectOptionRowKeys = ref<Record<string, string[]>>({})
 const addMenuOpen = ref(false)
 const skipAutoSave = ref(false)
+const isDraggingFields = ref(false)
 const hasUnsavedChanges = ref(false)
 const autoSaveStatus = ref<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
 
@@ -333,6 +339,7 @@ const orderedInputFieldsModel = computed({
 })
 
 const addOptions = computed(() => availableFormBuilderAddOptions(draft.value?.fields || []))
+const hasPhaseSelectInDraft = computed(() => (draft.value?.fields || []).some((field) => isWishPhaseSelectField(field)))
 
 const availableSystemOptions = computed(() =>
   addOptions.value.filter((o): o is Extract<FormBuilderAddKind, { kind: 'system' }> => o.kind === 'system'),
@@ -570,7 +577,7 @@ async function load() {
 }
 
 function markDirty() {
-  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value) return
+  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value || isDraggingFields.value) return
   localEditGeneration++
   hasUnsavedChanges.value = true
   autoSaveStatus.value = 'pending'
@@ -622,11 +629,11 @@ async function saveSelectOption(
 }
 
 function scheduleAutoSave() {
-  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value || !hasUnsavedChanges.value) return
+  if (!autoSaveEnabled.value || loading.value || skipAutoSave.value || isDraggingFields.value || !hasUnsavedChanges.value) return
   if (autoSaveTimer) clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => {
     void runAutoSave()
-  }, 80)
+  }, 400)
 }
 
 async function runAutoSave(): Promise<boolean> {
@@ -655,7 +662,13 @@ async function runAutoSave(): Promise<boolean> {
   return ok
 }
 
+function onFieldsDragStart() {
+  isDraggingFields.value = true
+  cancelPendingAutoSave()
+}
+
 function onFieldsReordered() {
+  isDraggingFields.value = false
   markDirty()
   scheduleAutoSave()
 }
@@ -778,10 +791,17 @@ async function saveNow(options?: { auto?: boolean }): Promise<boolean | 'stale'>
     const payload = {
       intro_text: draft.value.intro_text?.trim() || null,
       fields: draft.value.fields.map((f, i) => ({
-        ...f,
-        sort_order: (i + 1) * 10,
-        enabled: true,
         id: f.id.startsWith('new_') ? undefined : f.id,
+        role: f.role,
+        system_key: f.system_key,
+        custom_type: f.custom_type,
+        label: f.label,
+        help_text: f.help_text,
+        required: f.required,
+        enabled: true,
+        sort_order: (i + 1) * 10,
+        options: f.options,
+        config: f.config,
       })),
     }
     const saved = await updateGrossanlassRoundForm(props.departmentId, props.roundId, payload as any)

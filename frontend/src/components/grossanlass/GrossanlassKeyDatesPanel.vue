@@ -93,7 +93,7 @@ const fixedPeriods = computed(() =>
     .sort((a, b) => {
       const sa = `${a.start_date}T${calendarPeriodTime(a.start_time, '00:00')}`
       const sb = `${b.start_date}T${calendarPeriodTime(b.start_time, '00:00')}`
-      return sb.localeCompare(sa) || a.name.localeCompare(b.name)
+      return sa.localeCompare(sb) || a.name.localeCompare(b.name)
     })
     .map((p) => {
       const typeLabel = t(`settings.fixedDates.labels.${p.label}`)

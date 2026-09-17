@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import { isWishPhaseSelectField } from '@/utils/grossanlassWishPeriod'
 
 export type GrossanlassFormFieldRole = 'input' | 'meta'
 
@@ -284,9 +285,11 @@ export function listFormBuilderMetaFields(fields: GrossanlassRoundFormField[]): 
   return sortFormFields(fields.filter((f) => f.role === 'meta'))
 }
 
-/** Sortiert Eingabe- vor Metafeldern und schreibt sort_order in-place. */
+/** Eingaben in gegebener Reihenfolge, Metadaten ans Ende; schreibt sort_order in-place. */
 export function applyFormBuilderFieldOrder(fields: GrossanlassRoundFormField[]): GrossanlassRoundFormField[] {
-  const ordered = [...listFormBuilderInputFields(fields), ...listFormBuilderMetaFields(fields)]
+  const inputs = fields.filter((f) => f.role === 'input')
+  const meta = listFormBuilderMetaFields(fields)
+  const ordered = [...inputs, ...meta]
   ordered.forEach((f, i) => {
     f.sort_order = (i + 1) * 10
   })
@@ -309,7 +312,10 @@ export function availableFormBuilderAddOptions(
       options.push({ kind: 'system', system_key: def.system_key })
     }
   }
+  const hasPhaseWhen = fields.some((field) => isWishPhaseSelectField(field))
+  const hasSystemPeriod = fields.some((field) => field.system_key === 'period')
   for (const def of CUSTOM_TYPE_DEFS) {
+    if (def.type === 'date_range' && (hasPhaseWhen || hasSystemPeriod)) continue
     options.push({ kind: 'custom', custom_type: def.type })
   }
 

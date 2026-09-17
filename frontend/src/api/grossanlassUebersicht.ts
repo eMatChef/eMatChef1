@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { GrossanlassUserCard } from './grossanlassUserCards'
+import type { GaLogisticsPack, GaPlace } from './grossanlassLogistics'
 
 export type GaUebersichtEinsatz = {
   id: string
@@ -20,13 +21,18 @@ export type GaUebersichtEinsatz = {
   wish_line_id: string | null
   chauffeur_user_id: string | null
   issued_to_user_id: string | null
+  delivery: 'trip' | 'pickup'
+  trip_released: boolean
+  trip_released_at: string | null
+  destination_place_id: string | null
+  packs?: GaLogisticsPack[]
   bar_role: 'einsatz'
   conflict_id?: string
 }
 
 export type GaUebersichtConflict = {
   id: string
-  kind: 'unique_overlap' | 'quantity_overbook'
+  kind: 'unique_overlap' | 'quantity_overbook' | 'outside_window'
   object_id: string
   object_name: string
   einsatz_ids: string[]
@@ -79,6 +85,14 @@ export type GaUebersichtWish = {
   ressort: string
   group_id: string
   who: string
+  round_id?: string
+  form_purpose?: string
+  last_stage?: 'grob' | 'fein' | string
+  created_at?: string
+  enough_on_hand?: boolean
+  enough_on_hand_source?: 'stock' | 'commitment' | string | null
+  enough_on_hand_detail?: string | null
+  enough_on_hand_ref_id?: string | null
 }
 
 export type GaUebersichtPayload = {
@@ -91,6 +105,15 @@ export type GaUebersichtPayload = {
   cards: GrossanlassUserCard[]
   wishes: GaUebersichtWish[]
   issued_by_object: Record<string, number>
+  places?: GaPlace[]
+}
+
+export type GaSubmitBoard = {
+  groups: Array<{ id: string; name: string }>
+  objects: Array<{ id: string; name: string; qty: number; family: string }>
+  places: GaPlace[]
+  einsaetze: GaUebersichtEinsatz[]
+  cards: GrossanlassUserCard[]
 }
 
 export type GaUebersichtCreatePayload = {
@@ -106,7 +129,11 @@ export type GaUebersichtCreatePayload = {
   chauffeur_user_id?: string | null
   pending?: boolean
   has_conflict?: boolean
+  delivery?: 'trip' | 'pickup'
+  destination_place_id?: string | null
 }
+
+export type GaUebersichtCreateResult = GaUebersichtPayload | { einsatz: GaUebersichtEinsatz }
 
 export async function getGrossanlassUebersicht(departmentId: string): Promise<GaUebersichtPayload> {
   const response = await apiClient.get<GaUebersichtPayload>(
@@ -118,10 +145,17 @@ export async function getGrossanlassUebersicht(departmentId: string): Promise<Ga
 export async function createGrossanlassEinsatz(
   departmentId: string,
   data: GaUebersichtCreatePayload,
-): Promise<GaUebersichtPayload> {
-  const response = await apiClient.post<GaUebersichtPayload>(
+): Promise<GaUebersichtCreateResult> {
+  const response = await apiClient.post<GaUebersichtCreateResult>(
     `/api/departments/${departmentId}/grossanlass/uebersicht/einsaetze`,
     data,
+  )
+  return response.data
+}
+
+export async function getGrossanlassSubmitBoard(departmentId: string): Promise<GaSubmitBoard> {
+  const response = await apiClient.get<GaSubmitBoard>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/submit-board`,
   )
   return response.data
 }
@@ -129,7 +163,18 @@ export async function createGrossanlassEinsatz(
 export async function updateGrossanlassEinsatz(
   departmentId: string,
   id: string,
-  data: { packed?: boolean; status?: string; pack_phase?: string },
+  data: {
+    packed?: boolean
+    status?: string
+    pack_phase?: string
+    delivery?: 'trip' | 'pickup'
+    trip_released?: boolean
+    chauffeur_user_id?: string | null
+    destination_place_id?: string | null
+    from?: string
+    to?: string
+    qty?: number
+  },
 ): Promise<GaUebersichtPayload> {
   const response = await apiClient.patch<GaUebersichtPayload>(
     `/api/departments/${departmentId}/grossanlass/uebersicht/einsaetze/${id}`,

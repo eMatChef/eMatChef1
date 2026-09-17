@@ -330,9 +330,7 @@ class GrossanlassRoundFormService
                 continue;
             }
             if ($this->fieldHasResponseValues($id)) {
-                throw new \InvalidArgumentException(
-                    sprintf('Feld «%s» kann nicht entfernt werden, da bereits Antworten existieren', $field->getLabel()),
-                );
+                continue;
             }
             $this->entityManager->remove($field);
         }
@@ -486,6 +484,7 @@ class GrossanlassRoundFormService
             'sort_order' => $field->getSortOrder(),
             'options' => $field->getOptionsJson(),
             'config' => $field->getConfigJson(),
+            'has_response_values' => $this->fieldHasResponseValues($field->getId()),
         ];
     }
 }
