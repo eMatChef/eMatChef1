@@ -1,0 +1,21 @@
+# Öffentliche Nutzerhilfe auf dem Prod-Droplet (ematchef-api-prod).
+# Eigenes Webroot, nicht der App-Ordner.
+#
+# Einmalig auf dem Droplet:
+#   mkdir -p /var/www/ematchef-docs-prod
+# Diesen Block in /etc/caddy/Caddyfile einfügen, dann:
+#   caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy
+#
+# Cloudflare: A-Record docs → 178.104.22.40 (Prod)
+# GitHub Secret: PROD_DOCS_WEBROOT=/var/www/ematchef-docs-prod
+
+docs.ematchef.ch {
+	root * /var/www/ematchef-docs-prod
+	encode gzip
+	try_files {path} {path}.html {path}/index.html
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+}

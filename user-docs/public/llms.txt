@@ -1,0 +1,31 @@
+# eMatChef Hilfe
+
+> Öffentliche Produkthilfe zu eMatChef (Material, Lager, Ausleihen, Aktivitäten). Keine Organisations- oder Benutzerdaten. Touren bleiben in der App.
+
+## Deutsch
+
+- Start: https://docs.ematchef.ch/de/
+- Touren und Hilfe: https://docs.ematchef.ch/de/hilfe/tours-und-hilfe
+- Aktivität anlegen: https://docs.ematchef.ch/de/hilfe/aktivitaet-anlegen
+- Externe Ausleihe: https://docs.ematchef.ch/de/hilfe/externe-ausleihe
+
+## English
+
+- Home: https://docs.ematchef.ch/en/
+- Tours and help: https://docs.ematchef.ch/en/help/tours-and-help
+- Create an activity: https://docs.ematchef.ch/en/help/create-activity
+- External loan: https://docs.ematchef.ch/en/help/external-loan
+
+## Français
+
+- Accueil: https://docs.ematchef.ch/fr/
+- Visites et aide: https://docs.ematchef.ch/fr/aide/visites-et-aide
+- Créer une activité: https://docs.ematchef.ch/fr/aide/creer-une-activite
+- Prêt externe: https://docs.ematchef.ch/fr/aide/pret-externe
+
+## Weitere öffentliche Seiten
+
+- Sprachenwahl: https://docs.ematchef.ch/
+- Website: https://ematchef.ch/
+- FAQ: https://ematchef.ch/faq
+- App (Login): https://app.ematchef.ch/
