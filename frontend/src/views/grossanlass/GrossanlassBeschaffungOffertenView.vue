@@ -1,6 +1,8 @@
 <template>
   <div class="beschaffung-offerten">
-    <p class="tab-intro">{{ t('grossanlass.beschaffung.offerten.intro') }}</p>
+    <p class="tab-intro">
+      {{ canManageProcurement ? t('grossanlass.beschaffung.offerten.intro') : t('grossanlass.beschaffung.offerten.introDelegate') }}
+    </p>
 
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
@@ -9,7 +11,7 @@
       variant="default"
       icon="mdi-file-document-outline"
       :title="t('grossanlass.beschaffung.offerten.emptyTitle')"
-      :description="t('grossanlass.beschaffung.offerten.emptyDescription')"
+      :description="canManageProcurement ? t('grossanlass.beschaffung.offerten.emptyDescription') : t('grossanlass.beschaffung.offerten.emptyDescriptionDelegate')"
     />
 
     <div v-else class="lines-list">
@@ -39,7 +41,7 @@
               </div>
               <div class="quote-actions">
                 <EButton
-                  v-if="!quote.selected && canEditQuotes(line)"
+                  v-if="!quote.selected && canSelectQuote(line)"
                   variant="primary"
                   size="small"
                   :loading="selectingId === quote.id"
@@ -49,7 +51,7 @@
                 </EButton>
                 <span v-if="quote.selected" class="selected-badge">{{ t('grossanlass.beschaffung.offerten.selected') }}</span>
                 <EButton
-                  v-if="quote.selected"
+                  v-if="quote.selected && canManageProcurement"
                   variant="secondary"
                   size="small"
                   @click="goToZusage(line, quote)"
@@ -103,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -114,6 +116,8 @@ import GrossanlassProcurementLineSummary from '@/components/grossanlass/Grossanl
 import GrossanlassProcurementQuoteDialog from '@/components/grossanlass/GrossanlassProcurementQuoteDialog.vue'
 import { EButton } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 import {
   deleteGrossanlassProcurementQuote,
   formatChf,
@@ -138,8 +142,17 @@ const quoteDialogOpen = ref(false)
 const quoteDialogLine = ref<GrossanlassProcurementLine | null>(null)
 const quoteDialogQuote = ref<GrossanlassProcurementQuote | null>(null)
 
+const groups = ref<Awaited<ReturnType<typeof getGrossanlassGroups>>>([])
+const groupsRef = computed(() => groups.value)
+const { canManageProcurement, canEditQuotesForLine, canSelectQuoteForLine } =
+  useGrossanlassProcurementScope(groupsRef)
+
 function canEditQuotes(line: GrossanlassProcurementLine): boolean {
-  return ['bedarf', 'offerte_eingeholt', 'budgetiert'].includes(line.status)
+  return canEditQuotesForLine(line)
+}
+
+function canSelectQuote(line: GrossanlassProcurementLine): boolean {
+  return canSelectQuoteForLine(line)
 }
 
 function resolvePdfUrl(url: string): string {
@@ -150,7 +163,11 @@ async function load() {
   if (!departmentId()) return
   isLoading.value = true
   try {
-    const all = await listGrossanlassProcurementLines(departmentId())
+    groups.value = await getGrossanlassGroups(departmentId())
+    const all = await listGrossanlassProcurementLines(
+      departmentId(),
+      canManageProcurement.value ? undefined : { scope: 'direct' },
+    )
     lines.value = all.filter((l) => l.status !== 'erhalten')
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.offerten.errorLoad'))

@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
@@ -143,6 +144,92 @@ class GrossanlassAccessService
         }
 
         return $this->userIsMemberInRessortBranch($user, $department->getId(), $group);
+    }
+
+    public function canManageProcurement(User $user, Department $department): bool
+    {
+        return $this->canManagePlanung($user, $department);
+    }
+
+    /**
+     * Gruppen-IDs, in denen der User Direkt-Beschaffung anlegen/die Offerten pflegen darf
+     * (MW/DC: alle Gruppen des Depts; sonst: can_procure-Mitgliedschaft + Nachfahren).
+     *
+     * @return list<string>|null null = kein Limit (MW sieht alles)
+     */
+    public function resolveProcurementGroupScope(User $user, Department $department): ?array
+    {
+        $this->assertGrossanlassDepartment($department);
+        if ($this->canManageProcurement($user, $department)) {
+            return null;
+        }
+
+        /** @var list<GroupMembership> $memberships */
+        $memberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->createQueryBuilder('gm')
+            ->innerJoin('gm.group', 'g')
+            ->where('gm.userId = :userId')
+            ->andWhere('g.departmentId = :departmentId')
+            ->andWhere('gm.canProcure = true')
+            ->setParameter('userId', $user->getId())
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getResult();
+
+        $visible = [];
+        foreach ($memberships as $membership) {
+            if (!$membership instanceof GroupMembership) {
+                continue;
+            }
+            $branch = $this->hierarchy->expandWithDescendants($department->getId(), [$membership->getGroupId()]);
+            foreach ($branch as $id) {
+                $visible[$id] = true;
+            }
+        }
+
+        return array_keys($visible);
+    }
+
+    public function canProcureInGroup(User $user, Department $department, Group $group): bool
+    {
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+
+        $scope = $this->resolveProcurementGroupScope($user, $department);
+        if ($scope === null) {
+            return true;
+        }
+
+        return in_array($group->getId(), $scope, true);
+    }
+
+    public function canManageDirectProcurementLine(User $user, Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+        if ($line->getSource() !== ActivityGrossanlassProcurementLine::SOURCE_DIRECT || !$line->isSelfOrganized()) {
+            return false;
+        }
+
+        return $this->canProcureInGroup($user, $department, $line->getGroup());
+    }
+
+    public function canEditQuotesForLine(User $user, Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        return $this->canManageDirectProcurementLine($user, $department, $line);
+    }
+
+    public function userHasProcurementDelegateSomewhere(User $user, Department $department): bool
+    {
+        $this->assertGrossanlassDepartment($department);
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+        $scope = $this->resolveProcurementGroupScope($user, $department);
+
+        return $scope !== null && $scope !== [];
     }
 
     public function userIsMemberInRessortBranch(User $user, string $departmentId, Group $group): bool

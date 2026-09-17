@@ -45,6 +45,10 @@ class GroupMembership
     #[ORM\Column(name: 'is_primary', type: 'boolean', options: ['default' => false])]
     private bool $isPrimary = false;
 
+    /** MW-Freigabe: Ressort darf Direkt-Bedarf und Offerten pflegen (Grossanlass). */
+    #[ORM\Column(name: 'can_procure', type: 'boolean', options: ['default' => false])]
+    private bool $canProcure = false;
+
     // Timestamps
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -121,6 +125,17 @@ class GroupMembership
     public function setIsPrimary(bool $isPrimary): self
     {
         $this->isPrimary = $isPrimary;
+        return $this;
+    }
+
+    public function getCanProcure(): bool
+    {
+        return $this->canProcure;
+    }
+
+    public function setCanProcure(bool $canProcure): self
+    {
+        $this->canProcure = $canProcure;
         return $this;
     }
 

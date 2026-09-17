@@ -253,6 +253,7 @@
                 <th>{{ t('common.name') }}</th>
                 <th>{{ t('settings.groups.memberColEmail') }}</th>
                 <th>{{ t('common.role') }}</th>
+                <th v-if="canFullyManage">{{ t('grossanlass.planung.ressorts.colProcure') }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -275,6 +276,16 @@
                   <span v-else class="role-readonly">
                     {{ member.is_leader ? t('settings.groups.roleLeader') : t('settings.groups.roleMember') }}
                   </span>
+                </td>
+                <td v-if="canFullyManage">
+                  <label class="procure-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="!!member.can_procure"
+                      @change="handleCanProcureChange(member, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ t('grossanlass.planung.ressorts.canProcureShort') }}</span>
+                  </label>
                 </td>
                 <td>
                   <button
@@ -886,6 +897,21 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
   }
 }
 
+async function handleCanProcureChange(member: GroupMember, canProcure: boolean) {
+  if (!selectedGroup.value || !departmentId.value || !canFullyManage.value) return
+  try {
+    await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
+      can_procure: canProcure,
+    })
+    await loadGroups()
+    const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+    if (updated) selectedGroup.value = updated
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorProcureFlag'))
+  }
+}
+
 async function onHelperCreated() {
   await loadGroups()
   const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
@@ -1329,4 +1355,6 @@ onMounted(() => loadGroups())
 .member-overview__row { display: flex; align-items: center; gap: 10px; }
 .member-overview__meta { display: flex; flex-direction: column; gap: 2px; }
 .member-overview__meta span { color: #64748b; font-size: 0.8rem; }
+.procure-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569; cursor: pointer; white-space: nowrap; }
+.procure-toggle input { margin: 0; }
 </style>

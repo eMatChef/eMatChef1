@@ -259,14 +259,16 @@ Planung → Wünsche & Ideen
             Frei (nur nach Review)
         ↓
 Beschaffung
-  1 Bedarf        nur aus Materialwünschen
-  2 Anfragen      n Firmen × Paket
-  3 Rückmeldungen inkl. Dank / Nicht-genommen
-  4 Zuteilung     m von n nehmen
-  5 Erhalten      Kontakt + Objekt (Leih/Kauf/Weiterverkauf)
+  1 Bedarf        Materialwünsche (MW) **oder** Direkt-Bedarf (Ressort mit can_procure)
+  2 Anfragen      n Firmen × Paket (nur MW)
+  3 Offerten      MW überall; Ressort nur bei Direkt-Lines
+  4 Rückmeldungen inkl. Dank / Nicht-genommen
+  5 Zuteilung     m von n nehmen (MW)
+  6 Erhalten      Kontakt + Objekt (Leih/Kauf/Weiterverkauf) — MW
         ↓
 Lager
   Ausgabe (Fahrer-Kontrolle) → Retour → Geber oder Verkauf
+  Einsätze über Commitment (commitment_id), nicht direkt procurement_line
 ```
 
 In der **Haupt-Spec:** [README §9](./README.md#9-wünsche--ideen-formulare).

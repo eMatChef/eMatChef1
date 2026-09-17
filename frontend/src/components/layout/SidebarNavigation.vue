@@ -177,10 +177,10 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.planung') }}</span>
       </router-link>
 
-      <!-- Beschaffung (Grossanlass, MW/DC) -->
+      <!-- Beschaffung (Grossanlass, MW/DC oder Ressort-Delegierte) -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
-        :to="getLink('/beschaffung')"
+        :to="grossanlassBeschaffungLink"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
         :title="t('sidebar.beschaffungHint')"
@@ -191,7 +191,7 @@
 
       <!-- Kosten (Grossanlass, MW/DC) — nicht Pfadi-Buchhaltung -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassBeschaffungMenu"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassKostenMenu"
         :to="getLink('/kosten')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('kosten') }"
@@ -412,6 +412,7 @@ import {
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import { getSupplierShopAvailability } from '@/api/supplierShop'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
 const route = useRoute()
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -746,15 +747,61 @@ const showAccountingMenu = computed(() => {
   return false
 })
 
-/** Grossanlass-Beschaffung (Shell): nur MW/DC — kein Pfadi-/accounting-Modul */
+/** Grossanlass-Beschaffung: MW/DC oder freigegebene Ressort-Delegierte */
+const procurementDelegateVisible = ref(false)
+
+async function refreshProcurementDelegateVisibility() {
+  const depId = departmentId.value
+  if (!depId || !isGrossanlassDept.value || isSuperAdmin.value) {
+    procurementDelegateVisible.value = false
+    return
+  }
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  if (r === 'mw' || r === 'dc' || r === 'matwart' || r === 'depchef') {
+    procurementDelegateVisible.value = true
+    return
+  }
+  const userId = authStore.userId
+  if (!userId) {
+    procurementDelegateVisible.value = false
+    return
+  }
+  try {
+    const groups = await getGrossanlassGroups(depId)
+    procurementDelegateVisible.value = groups.some((group) =>
+      group.members?.some((member) => member.user_id === userId && member.can_procure),
+    )
+  } catch {
+    procurementDelegateVisible.value = false
+  }
+}
+
 const showGrossanlassBeschaffungMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
   const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
-  return r === 'mw' || r === 'dc'
+  if (r === 'mw' || r === 'dc' || r === 'matwart' || r === 'depchef') return true
+  return procurementDelegateVisible.value
 })
 
-/** Materialien-Stammdaten (Design-Vorschau): wie Beschaffung nur MW/DC */
-const showGrossanlassMaterialsMenu = computed(() => showGrossanlassBeschaffungMenu.value)
+const showGrossanlassKostenMenu = computed(() => {
+  if (isSuperAdmin.value || !isGrossanlassDept.value) return false
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  return r === 'mw' || r === 'dc' || r === 'matwart' || r === 'depchef'
+})
+
+const grossanlassBeschaffungLink = computed(() => {
+  const r = String(authStore.currentDepartmentRole || '').toLowerCase().trim()
+  if (r === 'mw' || r === 'dc' || r === 'matwart' || r === 'depchef') {
+    return getLink('/beschaffung')
+  }
+  if (procurementDelegateVisible.value) {
+    return getLink('/beschaffung/offerten')
+  }
+  return getLink('/beschaffung')
+})
+
+/** Materialien-Stammdaten (Design-Vorschau): nur MW/DC */
+const showGrossanlassMaterialsMenu = computed(() => showGrossanlassKostenMenu.value)
 
 /** Lieferanten-Shop: Materialwart / Departmentchef */
 const showSupplierShopLink = computed(() => {
@@ -787,6 +834,7 @@ watch(
   [departmentId, showSupplierShopLink, isGrossanlassDept],
   () => {
     void refreshSupplierShopAvailability()
+    void refreshProcurementDelegateVisibility()
   },
   { immediate: true },
 )

@@ -188,6 +188,8 @@ class GrossanlassProcurementService
         $line->setDepartment($department);
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BEDARF);
+        $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_FROM_WISH);
+        $line->setSelfOrganized(false);
 
         $this->applyWishAggregation($line, $wishes, $data);
         $this->applyCategory($line, $department, $data);
@@ -201,6 +203,66 @@ class GrossanlassProcurementService
             $this->markWishAcceptedForProcurement($wish, $user);
         }
 
+        $this->costService->ensureMainForLine($line, $data);
+        $this->entityManager->flush();
+
+        return $this->lineToArray($line);
+    }
+
+    /**
+     * Direkt-Bedarf ohne Wunsch (Ressort self-organized, MW-freigegeben).
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function createLineDirect(Department $department, User $user, array $data = []): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+
+        $groupId = trim((string) ($data['group_id'] ?? ''));
+        if ($groupId === '') {
+            throw new \InvalidArgumentException('Ressort ist erforderlich');
+        }
+        $group = $this->findGroupInDepartment($department, $groupId);
+        if (!$this->access->canProcureInGroup($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung für Direkt-Beschaffung in diesem Ressort');
+        }
+
+        $label = trim((string) ($data['label'] ?? ''));
+        if ($label === '') {
+            throw new \InvalidArgumentException('Bezeichnung ist erforderlich');
+        }
+        $location = trim((string) ($data['location'] ?? ''));
+        if ($location === '') {
+            throw new \InvalidArgumentException('Ort ist erforderlich');
+        }
+        $quantity = max(1, (int) ($data['quantity'] ?? 1));
+        $wishKind = trim((string) ($data['wish_kind'] ?? 'material'));
+        if (!in_array($wishKind, ['material', 'fahrzeug', 'beides'], true)) {
+            $wishKind = 'material';
+        }
+
+        $line = new ActivityGrossanlassProcurementLine();
+        $line->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_LINE,
+            ActivityGrossanlassProcurementLine::class,
+        ));
+        $line->setDepartment($department);
+        $line->setGroup($group);
+        $line->setLabel($label);
+        $line->setQuantity($quantity);
+        $line->setLocation($location);
+        $line->setWishKind($wishKind);
+        $line->setNotes(trim((string) ($data['notes'] ?? '')) ?: null);
+        $line->setCreatedByUser($user);
+        $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BEDARF);
+        $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_DIRECT);
+        $line->setSelfOrganized(true);
+        $this->applyCategory($line, $department, $data);
+
+        $this->entityManager->persist($line);
         $this->costService->ensureMainForLine($line, $data);
         $this->entityManager->flush();
 
@@ -694,10 +756,11 @@ class GrossanlassProcurementService
     /**
      * @return list<array<string, mixed>>
      */
-    public function listAllLines(Department $department, User $user, ?string $statusFilter = null): array
+    public function listAllLines(Department $department, User $user, ?string $statusFilter = null, ?string $scope = null): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        $groupScope = $this->access->resolveProcurementGroupScope($user, $department);
+        if ($groupScope !== null && $groupScope === []) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -715,6 +778,15 @@ class GrossanlassProcurementService
 
         if ($statusFilter !== null && $statusFilter !== '') {
             $qb->andWhere('p.status = :status')->setParameter('status', $statusFilter);
+        }
+
+        if ($groupScope !== null) {
+            $qb->andWhere('p.groupId IN (:groupIds)')->setParameter('groupIds', $groupScope);
+            if ($scope === 'own' || $scope === 'direct') {
+                $qb->andWhere('p.source = :directSource')
+                    ->andWhere('p.selfOrganized = true')
+                    ->setParameter('directSource', ActivityGrossanlassProcurementLine::SOURCE_DIRECT);
+            }
         }
 
         $lines = $qb->getQuery()->getResult();
@@ -886,7 +958,7 @@ class GrossanlassProcurementService
     public function extractContactFromQuotePdf(Department $department, User $user, UploadedFile $file): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->userHasProcurementDelegateSomewhere($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Beschaffung');
         }
 
@@ -922,7 +994,8 @@ class GrossanlassProcurementService
      */
     public function selectQuote(Department $department, User $user, string $lineId, string $quoteId): array
     {
-        $line = $this->requireLineForProcurement($department, $user, $lineId);
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
         $quote = $this->findQuoteInLine($line, $quoteId);
         $this->assertLineAllowsQuoteEdit($line);
 
@@ -946,7 +1019,8 @@ class GrossanlassProcurementService
      */
     public function upsertOrder(Department $department, User $user, string $lineId, array $data): array
     {
-        $line = $this->requireLineForProcurement($department, $user, $lineId);
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
         if ($this->findSelectedQuote($line) === null) {
             throw new \InvalidArgumentException('Bitte zuerst eine Offerte wählen (Budget)');
         }
@@ -999,7 +1073,8 @@ class GrossanlassProcurementService
      */
     public function recordReceived(Department $department, User $user, string $lineId, array $data): array
     {
-        $line = $this->requireLineForProcurement($department, $user, $lineId);
+        $this->assertCanManageProcurement($department, $user);
+        $line = $this->findLineInDepartment($department, $lineId);
         if ($this->findOrderForLine($line) === null) {
             throw new \InvalidArgumentException('Position muss zuerst bestellt sein');
         }
@@ -1009,6 +1084,13 @@ class GrossanlassProcurementService
 
         $links = $this->loadWishLinksForLine($line);
         if ($links === []) {
+            if ($line->getSource() === ActivityGrossanlassProcurementLine::SOURCE_DIRECT && !empty($data['full'])) {
+                $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_ERHALTEN);
+                $line->touchUpdatedAt();
+                $this->entityManager->flush();
+
+                return $this->lineToArray($line);
+            }
             throw new \InvalidArgumentException('Keine Grundeingaben verknüpft');
         }
 
@@ -1299,14 +1381,6 @@ class GrossanlassProcurementService
         }
 
         return $group;
-    }
-
-    private function assertCanManageProcurement(Department $department, User $user): void
-    {
-        $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
-            throw new \RuntimeException('Keine Berechtigung für Beschaffung');
-        }
     }
 
     /**
@@ -1649,6 +1723,9 @@ class GrossanlassProcurementService
             'category_parent_id' => $parent?->getId(),
             'category_parent_name' => $parent?->getName(),
             'status' => $line->getStatus(),
+            'source' => $line->getSource(),
+            'self_organized' => $line->isSelfOrganized(),
+            'created_by_user_id' => $line->getCreatedByUserId(),
             'quantity_asked' => $line->getQuantityAsked(),
             'quantity_current' => $sourceQuantitySum,
             'quantity_delta' => GrossanlassProcurementQuantityFreeze::delta($line->getQuantityAsked(), $sourceQuantitySum),
@@ -1735,11 +1812,20 @@ class GrossanlassProcurementService
         string $lineId,
     ): ActivityGrossanlassProcurementLine {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canManagePlanung($user, $department)) {
-            throw new \RuntimeException('Keine Berechtigung für Beschaffung');
+        $line = $this->findLineInDepartment($department, $lineId);
+        if (!$this->access->canEditQuotesForLine($user, $department, $line)) {
+            throw new \RuntimeException('Keine Berechtigung für diese Beschaffungsposition');
         }
 
-        return $this->findLineInDepartment($department, $lineId);
+        return $line;
+    }
+
+    private function assertCanManageProcurement(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canManageProcurement($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Beschaffung');
+        }
     }
 
     private function assertLineAllowsQuoteEdit(ActivityGrossanlassProcurementLine $line): void

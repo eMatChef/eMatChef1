@@ -28,12 +28,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import PageShell from '@/components/layout/PageShell.vue'
 import '@/styles/views/materials-view-tabs.css'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,14 +46,29 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const tabItems = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
-  { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen'), icon: 'mdi-email-multiple-outline' },
-  { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
-  { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
-  { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-  { id: 'erhalten', label: t('grossanlass.beschaffung.tabErhalten'), icon: 'mdi-package-check' },
-])
+const groups = ref<Awaited<ReturnType<typeof getGrossanlassGroups>>>([])
+const groupsRef = computed(() => groups.value)
+const { canManageProcurement, hasProcurementDelegate } = useGrossanlassProcurementScope(groupsRef)
+
+const allTabItems = [
+  { id: 'bedarf', labelKey: 'grossanlass.beschaffung.tabBedarf', icon: 'mdi-clipboard-list-outline' },
+  { id: 'anfragen', labelKey: 'grossanlass.beschaffung.tabAnfragen', icon: 'mdi-email-multiple-outline' },
+  { id: 'offerten', labelKey: 'grossanlass.beschaffung.tabOfferten', icon: 'mdi-file-document-outline' },
+  { id: 'zusagen', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
+  { id: 'bestellungen', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
+  { id: 'erhalten', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
+] as const
+
+const tabItems = computed(() => {
+  const items = canManageProcurement.value
+    ? allTabItems
+    : allTabItems.filter((tab) => tab.id === 'offerten')
+  return items.map((tab) => ({
+    id: tab.id,
+    label: t(tab.labelKey),
+    icon: tab.icon,
+  }))
+})
 
 const activeTab = computed(() => (route.meta.beschaffungTab as string) || 'bedarf')
 
@@ -60,6 +77,32 @@ function onTabChange(tab: unknown) {
   if (!id || typeof tab !== 'string') return
   void router.push(`/${id}/beschaffung/${tab}`)
 }
+
+async function ensureGroupsLoaded() {
+  if (!departmentId.value) return
+  try {
+    groups.value = await getGrossanlassGroups(departmentId.value)
+  } catch {
+    groups.value = []
+  }
+}
+
+watch(
+  departmentId,
+  async () => {
+    await ensureGroupsLoaded()
+    if (
+      !canManageProcurement.value &&
+      hasProcurementDelegate.value &&
+      activeTab.value !== 'offerten'
+    ) {
+      void router.replace(`/${departmentId.value}/beschaffung/offerten`)
+    }
+  },
+  { immediate: true },
+)
+
+onMounted(ensureGroupsLoaded)
 </script>
 
 <style scoped>

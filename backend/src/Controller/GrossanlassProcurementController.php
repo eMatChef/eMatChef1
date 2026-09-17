@@ -68,7 +68,9 @@ class GrossanlassProcurementController extends AbstractController
         $wishLineIds = is_array($data['wish_line_ids'] ?? null) ? $data['wish_line_ids'] : [];
 
         try {
-            $line = $this->procurementService->createLineFromWishes($department, $currentUser, $wishLineIds, $data);
+            $line = $wishLineIds === []
+                ? $this->procurementService->createLineDirect($department, $currentUser, $data)
+                : $this->procurementService->createLineFromWishes($department, $currentUser, $wishLineIds, $data);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {
@@ -335,12 +337,14 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         $status = $request->query->get('status');
+        $scope = $request->query->get('scope');
 
         try {
             return new JsonResponse($this->procurementService->listAllLines(
                 $department,
                 $currentUser,
                 is_string($status) ? $status : null,
+                is_string($scope) ? $scope : null,
             ));
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);

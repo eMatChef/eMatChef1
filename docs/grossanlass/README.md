@@ -511,20 +511,35 @@ Abhängigkeit: **PR4** (`activity_grossanlass_wish_line`) → dann Bedarf aus W�
 
 #### Berechtigung (Ziel)
 
+Zwei Spuren in der Beschaffung:
 
-| Aktion                              | MW/DC | RL                              | U   |
-| ----------------------------------- | ----- | ------------------------------- | --- |
-| Beschaffung lesen (Übersicht)       | ✓     | optional später eigenes Ressort | —   |
-| Bedarf, Offerten, Budget, Bestellen | ✓     | —                               | —   |
-| Erhalten markieren                  | ✓     | —                               | —   |
+| Spur | Entstehung | Wer pflegt Offerten | Wer wählt / bestellt / erhält |
+| ---- | ---------- | ------------------- | ----------------------------- |
+| **Zentral (MW)** | Materialwünsche → Bedarf-Pool → Position | MW/DC | MW/DC |
+| **Ressort (self-organized)** | Direkt-Bedarf ohne Wunsch (`source=direct`, `self_organized=true`) | MW/DC **oder** freigegebene Ressort-Mitglieder (`group_membership.can_procure`) | nur MW/DC |
 
+Freigabe «Beschaffung» pro Mitglied: MW setzt `can_procure` in Planung → Ressorts → Mitglieder. Gilt für den Ressort-Zweig (Nachfahren inklusive).
 
-Phase 2 Shell: Route erreichbar für MW/DC; Tabs zeigen nur Empty State.
+| Aktion | MW/DC | Delegierter (`can_procure`) | U |
+| ------ | ----- | --------------------------- | - |
+| Bedarf aus Wünschen bündeln | ✓ | — | — |
+| Direkt-Bedarf anlegen | ✓ | ✓ (eigener Zweig) | — |
+| Offerten erfassen / bearbeiten | ✓ (alle Positionen) | ✓ (nur eigene Direkt-Positionen) | — |
+| Offerte wählen, budgetieren, bestellen | ✓ | — | — |
+| Anfragen / Gmail | ✓ | — | — |
+| Erhalten markieren | ✓ | — | — |
+| `can_procure` setzen | ✓ | — | — |
+| Beschaffung lesen (Offerten, eigene Direkt-Lines) | ✓ | ✓ | — |
+
+**Mein Ressort:** Delegierte erfassen Direkt-Bedarf; Link zu Beschaffung → Offerten.
+
+**Einsätze:** Material später über **Commitment** (`commitment_id`) in Einsätze buchen — nicht direkt an `procurement_line`.
 
 #### Datenmodell (Ziel, §14.4 — Phase 5+)
 
 ```
-activity_grossanlass_procurement_line   — aus wish_line(s), group_id, qty, status
+activity_grossanlass_procurement_line   — group_id, qty, status; source: from_wish | direct; self_organized
+group_membership.can_procure            — MW-Freigabe für Direkt-Bedarf + Offerten im Zweig
 activity_grossanlass_quote              — procurement_line_id, supplier, amount_chf, selected
 activity_grossanlass_procurement_order  — bestellt_am, cost_chf, order_ref, received_at?
 department_grossanlass_cost             — Ledger (Quelle Übersicht) — [kosten.md](./kosten.md)
@@ -1258,7 +1273,8 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 | Materialübersicht gesamt                              | ✓   | ✓   | —   | —   |
 | Materialübersicht eigenes Ressort                     | —   | ✓   | ✓   | —   |
 | Zuweisung Zentrallager → Ressort                      | ✓   | ✓   | —   | —   |
-| **Beschaffung** (Bedarf, Offerten, Bestellen)         | ✓   | ✓   | —   | —   |
+| **Beschaffung** (Bedarf, Offerten, Bestellen)         | ✓   | ✓   | ✓*  | —   |
+| Beschaffung **Direkt-Bedarf + Offerten** (Delegierter) | —   | —   | ✓** | —   |
 | **Erhalten** markieren                                | ✓   | ✓   | —   | —   |
 | Beschaffung **Shell** (Phase 2, leer)                 | ✓   | ✓   | —   | —   |
 | Settings (Benutzer, Dept)                             | ✓   | ✓   | —   | —   |
@@ -1267,7 +1283,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 | Grossanlass in Pfadi-`/activities`                    | —   | —   | —   | ✓** |
 
 
- RL/User: gefilterte Sicht im **eigenen Ressort-Baum**; Bauprojekte **jederzeit** anlegbar §4.2. * + `guest_group_id` für Leiter/User.
+ RL/User: gefilterte Sicht im **eigenen Ressort-Baum**; Bauprojekte **jederzeit** anlegbar §4.2. * + `guest_group_id` für Leiter/User. ** Mit `can_procure` im Ressort-Zweig.
 
 ### Backend (Ziel)
 
