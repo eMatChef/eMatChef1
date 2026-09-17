@@ -77,8 +77,8 @@
       <div class="members-accordion__body">
         <p v-if="pendingInvitesError" class="pending-error">{{ pendingInvitesError }}</p>
         <p v-else-if="isLoadingPendingInvites" class="pending-muted">{{ t('settings.departmentUsers.pendingLoading') }}</p>
-        <ul v-else-if="pendingInvites.length > 0" class="pending-list">
-          <li v-for="invite in pendingInvites" :key="invite.id" class="pending-item">
+        <ul v-else-if="visiblePendingInvites.length > 0" class="pending-list">
+          <li v-for="invite in visiblePendingInvites" :key="invite.id" class="pending-item">
             <div class="pending-item-main">
               <span class="pending-email">{{ invite.email }}</span>
               <span v-if="invite.user_name" class="pending-user-name">{{ invite.user_name }}</span>
@@ -133,23 +133,23 @@
     </details>
 
     <details
-      v-if="canManagePendingInvites && !isLoading"
+      v-if="canManagePendingInvites && !isLoading && (isLoadingPendingJoinRequests || visiblePendingJoinRequests.length > 0)"
       class="members-accordion"
       :open="pendingJoinRequestsAccordionOpen"
       @toggle="onPendingJoinRequestsAccordionToggle"
     >
       <summary class="members-accordion__summary">
         {{
-          pendingJoinRequests.length > 0
-            ? t('settings.departmentUsers.pendingJoinRequestsTitleCount', { n: pendingJoinRequests.length })
+          visiblePendingJoinRequests.length > 0
+            ? t('settings.departmentUsers.pendingJoinRequestsTitleCount', { n: visiblePendingJoinRequests.length })
             : t('settings.departmentUsers.pendingJoinRequestsTitle')
         }}
       </summary>
       <div class="members-accordion__body">
         <p v-if="pendingJoinRequestsError" class="pending-error">{{ pendingJoinRequestsError }}</p>
         <p v-else-if="isLoadingPendingJoinRequests" class="pending-muted">{{ t('settings.departmentUsers.pendingJoinRequestsLoading') }}</p>
-        <ul v-else-if="pendingJoinRequests.length > 0" class="pending-list">
-          <li v-for="jr in pendingJoinRequests" :key="jr.id" class="pending-item">
+        <ul v-else-if="visiblePendingJoinRequests.length > 0" class="pending-list">
+          <li v-for="jr in visiblePendingJoinRequests" :key="jr.id" class="pending-item">
             <div class="pending-item-main">
               <span class="pending-email">{{ jr.name }}</span>
               <span v-if="jr.email" class="pending-user-name">{{ jr.email }}</span>
@@ -207,7 +207,15 @@
     </EEmptyState>
 
     <!-- Users Table -->
-    <div v-else class="table-wrapper">
+    <div v-else class="members-list-section">
+      <h3 class="members-list-section__title">
+        {{
+          members.length > 0
+            ? t('settings.departmentUsers.membersListTitleCount', { n: members.length })
+            : t('settings.departmentUsers.membersListTitle')
+        }}
+      </h3>
+      <div class="table-wrapper">
       <table class="users-table">
         <thead>
           <tr>
@@ -283,6 +291,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <EDialog
@@ -705,7 +714,29 @@ const editAddressAccordionOpen = ref(false)
 // === Computed ===
 
 const openPendingInviteCount = computed(() =>
-  pendingInvites.value.filter((inv) => isInviteOpen(inv)).length
+  visiblePendingInvites.value.filter((inv) => isInviteOpen(inv)).length
+)
+
+const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
+
+const existingMemberEmails = computed(
+  () => new Set(members.value.map((m) => (m.email || '').trim().toLowerCase()).filter(Boolean)),
+)
+
+const visiblePendingJoinRequests = computed(() =>
+  pendingJoinRequests.value.filter((jr) => {
+    if (existingMemberUserIds.value.has(jr.user_id)) return false
+    const email = (jr.email || '').trim().toLowerCase()
+    return email === '' || !existingMemberEmails.value.has(email)
+  }),
+)
+
+const visiblePendingInvites = computed(() =>
+  pendingInvites.value.filter((invite) => {
+    if (!isInviteOpen(invite)) return true
+    const email = invite.email.trim().toLowerCase()
+    return email === '' || !existingMemberEmails.value.has(email)
+  }),
 )
 
 const pendingInvitesAccordionOpen = ref(false)
@@ -728,7 +759,7 @@ watch(openPendingInviteCount, (count, previous) => {
 })
 
 watch(
-  () => pendingJoinRequests.value.length,
+  () => visiblePendingJoinRequests.value.length,
   (count, previous) => {
     if (count > 0 && (previous === undefined || previous === 0)) {
       pendingJoinRequestsAccordionOpen.value = true
@@ -933,8 +964,6 @@ async function decidePendingJoin(id: string, status: 'approved' | 'rejected') {
     toast.error(err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites'))
   }
 }
-
-const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
 
 function excludeExistingDepartmentMembers(users: AvailableUser[]): AvailableUser[] {
   const ids = existingMemberUserIds.value
@@ -1572,6 +1601,19 @@ onUnmounted(() => {
 /* ========================================
    Users Table
    ======================================== */
+.members-list-section {
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.members-list-section__title {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #334155;
+}
+
 .table-wrapper {
   background: white;
   border: 1px solid #e5e7eb;

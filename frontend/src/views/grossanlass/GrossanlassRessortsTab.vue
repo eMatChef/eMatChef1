@@ -259,22 +259,37 @@
         </template>
       </template>
       <template v-if="selectedGroup">
-        <div v-if="selectedGroup.members.length > 0" class="members-section">
+        <div class="members-section">
           <h4 class="section-title">
-            {{ t('grossanlass.planung.ressorts.sectionCurrentMembers', { count: selectedGroup.members.length }) }}
+            {{
+              selectedGroup.members.length > 0
+                ? t('grossanlass.planung.ressorts.sectionCurrentMembers', { count: selectedGroup.members.length })
+                : t('grossanlass.planung.ressorts.membersTableHeading')
+            }}
           </h4>
+          <p v-if="canFullyManage" class="members-role-hint">{{ t('grossanlass.planung.ressorts.roleHint') }}</p>
           <table class="members-table">
             <thead>
               <tr>
                 <th>{{ t('common.name') }}</th>
                 <th>{{ t('settings.groups.memberColEmail') }}</th>
-                <th>{{ t('settings.groups.roleLeader') }}</th>
+                <th>{{ t('common.role') }}</th>
+                <th>{{ t('grossanlass.planung.ressorts.colGroupLeader') }}</th>
                 <th v-if="canFullyManage">{{ t('grossanlass.planung.ressorts.colProcure') }}</th>
-                <th>{{ t('grossanlass.planung.ressorts.primaryHome') }}</th>
+                <th>
+                  <span :title="t('grossanlass.planung.ressorts.primaryHomeHint')">
+                    {{ t('grossanlass.planung.ressorts.primaryHome') }}
+                  </span>
+                </th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
+              <tr v-if="selectedGroup.members.length === 0">
+                <td class="empty-members-cell" :colspan="membersTableColspan">
+                  {{ t('grossanlass.planung.ressorts.emptyNoMembers') }}
+                </td>
+              </tr>
               <tr v-for="member in selectedGroup.members" :key="member.user_id">
                 <td class="member-name">
                   <UserAvatarBadge
@@ -286,13 +301,32 @@
                   <span class="name-text">{{ member.name }}</span>
                 </td>
                 <td class="member-email">{{ member.email }}</td>
+                <td class="member-dept-role">
+                  <select
+                    v-if="canEditDeptRole(member.user_id)"
+                    :value="deptMemberFor(member.user_id)?.role || 'u'"
+                    class="form-select role-select-sm"
+                    @change="handleDeptRoleChange(member.user_id, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option
+                      v-for="item in editRoleSelectItems"
+                      :key="item.value"
+                      :value="item.value"
+                    >
+                      {{ item.title }}
+                    </option>
+                  </select>
+                  <span v-else class="role-readonly">
+                    {{ deptRoleLabelFor(member.user_id) }}
+                  </span>
+                </td>
                 <td>
                   <button
                     v-if="canManageMembersForGroup(selectedGroup)"
                     type="button"
                     class="flag-toggle"
                     :class="{ 'is-on': member.is_leader }"
-                    :title="t('settings.groups.roleLeader')"
+                    :title="t('grossanlass.planung.ressorts.colGroupLeader')"
                     :aria-pressed="member.is_leader"
                     @click="handleRoleChange(member, member.is_leader ? 'member' : 'leader')"
                   >
@@ -346,32 +380,62 @@
             </tbody>
           </table>
         </div>
-        <div v-else class="empty-members">
-          <p>{{ t('grossanlass.planung.ressorts.emptyNoMembers') }}</p>
-        </div>
 
-        <div v-if="canManageMembersForGroup(selectedGroup)" class="add-helper-section">
-          <h4 class="section-title">{{ t('grossanlass.planung.ressorts.helperHeading') }}</h4>
-          <GrossanlassHelperInviteForm
-            :department-id="departmentId"
-            :groups="groups"
-            :fixed-group-id="selectedGroup.id"
-            @created="onHelperCreated"
-          />
-        </div>
+        <details v-if="canManageMembersForGroup(selectedGroup)" class="member-modal-accordion">
+          <summary class="member-modal-accordion__summary">
+            {{ t('grossanlass.planung.ressorts.helperHeading') }}
+          </summary>
+          <div class="member-modal-accordion__body">
+            <GrossanlassHelperInviteForm
+              :department-id="departmentId"
+              :groups="groups"
+              :fixed-group-id="selectedGroup.id"
+              @created="onHelperCreated"
+            />
+          </div>
+        </details>
 
-        <div v-if="canManageMembersForGroup(selectedGroup)" class="add-member-section">
-          <h4 class="section-title">{{ t('grossanlass.planung.ressorts.addMemberHeading') }}</h4>
+        <details v-if="canManageMembersForGroup(selectedGroup)" class="member-modal-accordion">
+          <summary class="member-modal-accordion__summary">
+            {{ t('grossanlass.planung.ressorts.addMemberHeading') }}
+          </summary>
+          <div class="member-modal-accordion__body add-member-section">
           <div v-if="canFullyManage" class="add-member-role-row">
-            <label class="add-member-role-label" for="ga-add-member-role">{{ t('common.role') }}</label>
+            <label class="add-member-role-label" for="ga-add-member-dept-role">{{ t('common.role') }}</label>
             <select
-              id="ga-add-member-role"
-              v-model="addMemberForm.role"
+              v-if="canAssignDeptRoles"
+              id="ga-add-member-dept-role"
+              v-model="addMemberForm.deptRole"
+              class="form-select role-select-sm"
+            >
+              <option
+                v-for="item in editRoleSelectItems"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.title }}
+              </option>
+            </select>
+            <span v-else class="role-readonly">{{ getRoleLabel(addMemberForm.deptRole) }}</span>
+            <label class="add-member-role-label" for="ga-add-member-group-role">
+              {{ t('grossanlass.planung.ressorts.colGroupLeader') }}
+            </label>
+            <select
+              id="ga-add-member-group-role"
+              v-model="addMemberForm.groupRole"
               class="form-select role-select-sm"
             >
               <option value="member">{{ t('settings.groups.roleMember') }}</option>
               <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
             </select>
+            <label class="procure-toggle add-member-procure">
+              <input v-model="addMemberForm.can_procure" type="checkbox" />
+              <span>
+                <strong>{{ t('grossanlass.planung.ressorts.colProcure') }}</strong>
+                — {{ t('grossanlass.planung.ressorts.canProcureShort') }}
+              </span>
+            </label>
+            <p class="add-member-procure-hint">{{ t('grossanlass.planung.ressorts.canProcureAddHint') }}</p>
           </div>
           <div v-if="isLoadingUsers" class="loading-inline">
             <div class="spinner-sm"></div>
@@ -452,7 +516,8 @@
               {{ t('grossanlass.planung.ressorts.addOutsideEmpty') }}
             </p>
           </div>
-        </div>
+          </div>
+        </details>
       </template>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeMembersModal">{{ t('settings.groups.close') }}</EButton>
@@ -504,6 +569,7 @@ import {
 import {
   getDepartmentMembers,
   getAvailableUsersForDepartment,
+  updateDepartmentMember,
   type AvailableUser,
   type DepartmentMember,
 } from '@/api/departments'
@@ -513,7 +579,8 @@ import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
 } from '@/utils/grossanlassGroupHierarchy'
-import { getGrossanlassPlanung, updateGrossanlassPlanung } from '@/api/grossanlassPlanung'
+import { gaCanManageDepartmentUsers } from '@/utils/grossanlassAccess'
+import { getDeptRoleShort } from '@/utils/departmentMemberRoles'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -525,7 +592,13 @@ const departmentId = computed(() => (route.params.departmentId as string) || aut
 const {
   canManageMember,
   removeFromDepartment,
+  editRoleSelectItems,
+  getRoleLabel,
 } = useDepartmentMemberAdmin(departmentId)
+
+const canAssignDeptRoles = computed(() =>
+  gaCanManageDepartmentUsers(authStore.currentDepartmentRole),
+)
 
 const groups = ref<GrossanlassGroup[]>([])
 const logisticsGroupId = ref<string | null>(null)
@@ -549,7 +622,7 @@ const showMembersModal = ref(false)
 const selectedGroup = ref<GrossanlassGroup | null>(null)
 const departmentMembers = ref<DepartmentMember[]>([])
 const isLoadingUsers = ref(false)
-const addMemberForm = ref({ role: 'member' })
+const addMemberForm = ref({ groupRole: 'member', deptRole: 'u', can_procure: false })
 const addingUserId = ref<string | null>(null)
 const outsideSearchQuery = ref('')
 const outsideUsers = ref<AvailableUser[]>([])
@@ -579,6 +652,8 @@ const ressortsSubtitle = computed(() => {
   if (isRessortMemberSomewhere.value) return t('grossanlass.planung.ressorts.subtitleMember')
   return t('grossanlass.planung.ressorts.subtitleReadOnly')
 })
+
+const membersTableColspan = computed(() => (canFullyManage.value ? 7 : 6))
 
 const rootCount = computed(() => groups.value.filter((g) => !g.parent_id).length)
 const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
@@ -807,6 +882,41 @@ async function loadDepartmentMembers() {
   }
 }
 
+function deptRoleLabelFor(userId: string): string {
+  const member = deptMemberFor(userId)
+  if (!member) return '—'
+  const short = getDeptRoleShort(member.role, true)
+  return short ? `${short} – ${getRoleLabel(member.role)}` : getRoleLabel(member.role)
+}
+
+function canEditDeptRole(userId: string): boolean {
+  if (!canAssignDeptRoles.value) return false
+  const member = deptMemberFor(userId)
+  return !!member && canManageMember(member)
+}
+
+async function handleDeptRoleChange(userId: string, role: string) {
+  if (!departmentId.value || !canEditDeptRole(userId)) return
+  try {
+    await updateDepartmentMember(departmentId.value, userId, { role })
+    await loadDepartmentMembers()
+    await refreshSelectedGroup()
+    toast.success(t('grossanlass.planung.ressorts.roleSaved'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorRoleSave'))
+  }
+}
+
+async function applyAddMemberDeptRole(userId: string) {
+  if (!departmentId.value || !canAssignDeptRoles.value) return
+  const existing = deptMemberFor(userId)
+  if (!existing || existing.role === addMemberForm.value.deptRole) return
+  if (!canManageMember(existing)) return
+  await updateDepartmentMember(departmentId.value, userId, { role: addMemberForm.value.deptRole })
+  await loadDepartmentMembers()
+}
+
 function deptMemberFor(userId: string): DepartmentMember | undefined {
   return departmentMembers.value.find((m) => m.user_id === userId)
 }
@@ -917,7 +1027,7 @@ async function handleDelete(group: GrossanlassGroup) {
 function openMembersModal(group: GrossanlassGroup) {
   selectedGroup.value = group
   showMembersModal.value = true
-  addMemberForm.value = { role: 'member' }
+  addMemberForm.value = { groupRole: 'member', deptRole: 'u', can_procure: false }
   outsideSearchQuery.value = ''
   outsideUsers.value = []
   addingUserId.value = null
@@ -944,8 +1054,10 @@ async function handleAddMember(userId: string) {
   try {
     await addGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, {
       user_id: userId,
-      role: canFullyManage.value ? addMemberForm.value.role : 'member',
+      role: canFullyManage.value ? addMemberForm.value.groupRole : 'member',
+      can_procure: canFullyManage.value ? addMemberForm.value.can_procure : undefined,
     })
+    await applyAddMemberDeptRole(userId)
     await refreshSelectedGroup()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
@@ -964,11 +1076,17 @@ async function handleAddOutsideUser(user: AvailableUser) {
       email: user.email,
       name: user.name,
     })
-    if (canFullyManage.value && addMemberForm.value.role === 'leader') {
+    if (canFullyManage.value && addMemberForm.value.groupRole === 'leader') {
       await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, user.id, {
         role: 'leader',
       })
     }
+    if (canFullyManage.value && addMemberForm.value.can_procure) {
+      await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, user.id, {
+        can_procure: true,
+      })
+    }
+    await applyAddMemberDeptRole(user.id)
     toast.success(t('grossanlass.planung.ressorts.addOutsideSuccess', { name: user.name }))
     outsideSearchQuery.value = ''
     outsideUsers.value = []
@@ -1344,9 +1462,72 @@ onMounted(() => loadGroups())
 
 .add-member-role-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 8px 12px;
   margin-bottom: 10px;
+}
+
+.add-member-procure {
+  margin-left: 4px;
+}
+
+.add-member-procure-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.empty-members-cell {
+  padding: 12px 10px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.members-role-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.member-dept-role {
+  min-width: 9rem;
+}
+
+.member-modal-accordion {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.member-modal-accordion__summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
+  list-style: none;
+}
+
+.member-modal-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-modal-accordion__summary::before {
+  content: '▸ ';
+  color: #94a3b8;
+}
+
+.member-modal-accordion[open] > .member-modal-accordion__summary::before {
+  content: '▾ ';
+}
+
+.member-modal-accordion__body {
+  padding: 0 12px 12px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .add-member-role-label {

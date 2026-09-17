@@ -41,10 +41,10 @@
         class="nav-item"
         :class="{ active: isMainDashboardNavActive }"
         data-onboarding="nav-dashboard"
-        :title="!showNavLabels ? t('sidebar.dashboard') : undefined"
+        :title="!showNavLabels ? mainDashboardNavLabel : undefined"
       >
-        <v-icon icon="mdi-view-grid" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.dashboard') }}</span>
+        <v-icon :icon="mainDashboardNavIcon" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ mainDashboardNavLabel }}</span>
       </router-link>
 
       <!-- Supplier-only: gleiche Top-Level-Icons wie die Abteilungs-App -->
@@ -155,7 +155,7 @@
 
       <!-- Mein Ressort (Ressort-Mitglieder: Bauprojekte & Materialwünsche) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && isUserRole"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && isUserRole && showMeinRessortSidebarLink"
         :to="getLink('/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
@@ -191,7 +191,7 @@
 
       <!-- Anfragen (Komm/Spon; MW/CMW über Beschaffung) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMailboxOnlyMenu"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassAnfragenSidebarLink"
         :to="getLink('/beschaffung/anfragen')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('beschaffung') }"
@@ -227,7 +227,7 @@
 
       <!-- Materialübersicht: Bestand / Einsätze / Konflikte (Konzept §12.3) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtMenu"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtSidebarLink"
         :to="getLink('/material-uebersicht')"
         class="nav-item"
         :class="{ active: isGrossanlassMaterialUebersichtNavActive }"
@@ -419,7 +419,7 @@ import {
   gaCanSeeAnlassOverview,
   gaCanWorkMailbox,
 } from '@/utils/grossanlassAccess'
-import { gaHomePath, gaIsRoleHomePath } from '@/utils/grossanlassHome'
+import { gaHomePath, gaHomeKind, gaIsRoleHomePath } from '@/utils/grossanlassHome'
 import { usePrintCart } from '@/composables/usePrintCart'
 import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
@@ -698,6 +698,41 @@ const isMainDashboardNavActive = computed(() => {
   return false
 })
 
+const grossanlassHomeKind = computed(() => {
+  const id = departmentId.value || authStore.activeDepartmentId
+  if (!id || !authStore.isDepartmentGrossanlass(id)) return null
+  return gaHomeKind(authStore.currentDepartmentRole)
+})
+
+const mainDashboardNavLabel = computed(() => {
+  switch (grossanlassHomeKind.value) {
+    case 'mein-bereich':
+      return t('sidebar.meinRessort')
+    case 'mailbox':
+      return t('sidebar.anfragen')
+    case 'uebersicht':
+      return t('sidebar.materialUebersicht')
+    default:
+      return t('sidebar.dashboard')
+  }
+})
+
+const mainDashboardNavIcon = computed(() => {
+  switch (grossanlassHomeKind.value) {
+    case 'mein-bereich':
+      return 'mdi-home-group'
+    case 'mailbox':
+      return 'mdi-email-outline'
+    case 'uebersicht':
+      return 'mdi-truck-delivery-outline'
+    default:
+      return 'mdi-view-grid'
+  }
+})
+
+/** Rollen-Heimat ist schon der Dashboard-Link — kein zweiter identischer Eintrag darunter. */
+const showMeinRessortSidebarLink = computed(() => grossanlassHomeKind.value !== 'mein-bereich')
+
 const homeLink = computed(() => {
   if (isPendingAssignmentRoute.value) return '/pending-assignment'
   return mainDashboardLink.value
@@ -835,6 +870,14 @@ const showGrossanlassUebersichtMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false
   return gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
 })
+
+const showGrossanlassAnfragenSidebarLink = computed(
+  () => showGrossanlassMailboxOnlyMenu.value && grossanlassHomeKind.value !== 'mailbox',
+)
+
+const showGrossanlassUebersichtSidebarLink = computed(
+  () => showGrossanlassUebersichtMenu.value && grossanlassHomeKind.value !== 'uebersicht',
+)
 
 const showGrossanlassPlanungMenu = computed(() => showGrossanlassUebersichtMenu.value)
 

@@ -15,6 +15,8 @@
       </span>
     </template>
 
+    <PendingDepartmentInvitesPanel />
+
     <GrossanlassDashboardPanel v-if="departmentId" :key="departmentId" :department-id="departmentId" />
   </PageShell>
 
@@ -75,6 +77,8 @@
 
     <!-- Content -->
     <div v-else class="dashboard-content">
+      <PendingDepartmentInvitesPanel />
+
       <!-- Superadmin: globale Verwaltungs-Shortcuts -->
       <section v-if="isSuperAdmin" class="dashboard-section admin-global-shortcuts">
         <h2 class="section-title">{{ t('dashboard.orgAndDepartments') }}</h2>
@@ -341,6 +345,7 @@ import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PageShell from '@/components/layout/PageShell.vue'
 import GrossanlassDashboardPanel from '@/components/grossanlass/GrossanlassDashboardPanel.vue'
+import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
 import { EButton } from '@/components/form/base'
 import { formatPeriodCompact } from '@/utils/formatPeriod'
 import { intlLocaleForUiLanguage } from '@/config/languages'
