@@ -72,6 +72,7 @@ export async function addGrossanlassGroupMember(
     user_id: string
     role?: string
     is_primary?: boolean
+    can_procure?: boolean
   },
 ): Promise<GroupMember> {
   const response = await apiClient.post<GroupMember>(
@@ -88,6 +89,7 @@ export async function updateGrossanlassGroupMember(
   data: {
     role?: string
     is_primary?: boolean
+    can_procure?: boolean
   },
 ): Promise<GroupMember> {
   const response = await apiClient.patch<GroupMember>(

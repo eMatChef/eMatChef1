@@ -22,6 +22,11 @@
         'page-content--material-detail': isMaterialDetailView,
       }"
     >
+      <PendingDepartmentInvitesPanel
+        v-if="showGlobalPendingInvites"
+        :compact="!isPendingAssignmentRoute"
+        class="pending-invites-global"
+      />
       <router-view v-slot="{ Component }">
         <keep-alive :include="['MaterialsView', 'ActivitiesView']" :max="8">
           <component :is="Component" :key="route.path" />
@@ -58,6 +63,7 @@ import OnboardingTourOverlay from '@/components/onboarding/OnboardingTourOverlay
 import { provideGaEventPeriod } from '@/composables/useGaEventPeriod'
 import SidebarNavigation from './SidebarNavigation.vue'
 import TopHeader from './TopHeader.vue'
+import PendingDepartmentInvitesPanel from '@/components/dashboard/PendingDepartmentInvitesPanel.vue'
 
 const route = useRoute()
 const { t } = useI18n()
@@ -75,6 +81,20 @@ const isMaterialDetailView = computed(() => {
   if (route.name === 'MaterialDetail') return true
   return typeof route.params.materialId === 'string' && route.params.materialId.length > 0
 })
+
+const isDashboardRoute = computed(() => {
+  const p = (route.path.split('?')[0] || '').replace(/\/$/, '') || '/'
+  if (p === '/dashboard') return true
+  const deptId = String(route.params.departmentId || '').trim()
+  if (!deptId) return false
+  return p === `/${deptId}` || p === `/${deptId}/dashboard`
+})
+
+const isPendingAssignmentRoute = computed(() => route.name === 'PendingAssignment')
+
+const showGlobalPendingInvites = computed(
+  () => authStore.isLoggedIn && !isDashboardRoute.value && route.name !== 'Login',
+)
 
 useUnsavedChangesReminder()
 const drawerOpen = ref(false)
@@ -163,6 +183,14 @@ watch(
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.pending-invites-global {
+  margin: 12px 16px 0;
+  max-width: 980px;
+  width: calc(100% - 32px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .help-shortcut-btn {

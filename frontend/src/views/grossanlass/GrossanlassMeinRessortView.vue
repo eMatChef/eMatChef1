@@ -80,6 +80,58 @@
         <p>{{ t('grossanlass.meinRessort.openRoundsHint') }}</p>
         <EButton variant="primary" size="small" @click="goToPlanung">{{ t('sidebar.planung') }}</EButton>
       </div>
+
+      <div v-if="showDirectProcurement" class="procurement-panel">
+        <div class="procurement-panel__head">
+          <h3>{{ t('grossanlass.meinRessort.procureTitle') }}</h3>
+          <EButton variant="secondary" size="small" @click="goToOfferten">
+            {{ t('grossanlass.meinRessort.procureOffertenLink') }}
+          </EButton>
+        </div>
+        <p class="procurement-hint">{{ t('grossanlass.meinRessort.procureHint') }}</p>
+
+        <form class="procure-form" @submit.prevent="submitDirectLine">
+          <label class="procure-field">
+            <span>{{ t('grossanlass.meinRessort.procureGroup') }}</span>
+            <select v-model="procureForm.group_id" required>
+              <option value="" disabled>{{ t('grossanlass.meinRessort.procureGroupPlaceholder') }}</option>
+              <option v-for="group in procureGroupOptions" :key="group.id" :value="group.id">
+                {{ group.name }}
+              </option>
+            </select>
+          </label>
+          <label class="procure-field">
+            <span>{{ t('grossanlass.meinRessort.procureLabel') }}</span>
+            <input v-model="procureForm.label" type="text" required />
+          </label>
+          <div class="procure-row">
+            <label class="procure-field">
+              <span>{{ t('grossanlass.meinRessort.procureQuantity') }}</span>
+              <input v-model.number="procureForm.quantity" type="number" min="1" required />
+            </label>
+            <label class="procure-field">
+              <span>{{ t('grossanlass.meinRessort.procureLocation') }}</span>
+              <input v-model="procureForm.location" type="text" required />
+            </label>
+          </div>
+          <label class="procure-field">
+            <span>{{ t('grossanlass.meinRessort.procureNotes') }}</span>
+            <input v-model="procureForm.notes" type="text" />
+          </label>
+          <EButton type="submit" variant="primary" size="small" :loading="procureSaving">
+            {{ t('grossanlass.meinRessort.procureSubmit') }}
+          </EButton>
+        </form>
+
+        <div v-if="directLines.length > 0" class="direct-lines">
+          <h4>{{ t('grossanlass.meinRessort.procureLinesTitle') }}</h4>
+          <div v-for="line in directLines" :key="line.id" class="wish-mini-row">
+            <span class="wish-label">{{ line.quantity }}× {{ line.label }}</span>
+            <span class="wish-meta">{{ line.group_name }} · {{ t(`grossanlass.beschaffung.status.${line.status}`) }}</span>
+          </div>
+        </div>
+        <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.procureNoLines') }}</p>
+      </div>
     </div>
 
     <GrossanlassEinsatzBookPreviewDialog
@@ -109,11 +161,22 @@ import PageShell from '@/components/layout/PageShell.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
+import { useToast } from '@/composables/useToast'
 import { getGrossanlassGroups, type GrossanlassGroup, type GrossanlassNodeType } from '@/api/grossanlassGroups'
 import { getMyRessortWishes, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassPlanningRounds, type GrossanlassPlanningRound } from '@/api/grossanlassRounds'
-import { formatChf, listGrossanlassBudgets, listGrossanlassCosts, type GrossanlassBudget, type GrossanlassCost } from '@/api/grossanlassProcurement'
+import {
+  createGrossanlassProcurementLineDirect,
+  formatChf,
+  listGrossanlassBudgets,
+  listGrossanlassCosts,
+  listGrossanlassProcurementLines,
+  type GrossanlassBudget,
+  type GrossanlassCost,
+  type GrossanlassProcurementLine,
+} from '@/api/grossanlassProcurement'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
+import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 import {
   flattenGrossanlassGroupsFiltered,
 } from '@/utils/grossanlassGroupHierarchy'
@@ -128,7 +191,6 @@ import {
 } from '@/api/grossanlassUebersicht'
 import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import { useToast } from '@/composables/useToast'
 
 const route = useRoute()
 const router = useRouter()
@@ -142,16 +204,35 @@ const wishes = ref<GrossanlassWishLine[]>([])
 const rounds = ref<GrossanlassPlanningRound[]>([])
 const costRows = ref<GrossanlassCost[]>([])
 const budgets = ref<GrossanlassBudget[]>([])
+const directLines = ref<GrossanlassProcurementLine[]>([])
 const isLoading = ref(true)
 const error = ref('')
+const procureSaving = ref(false)
+const procureForm = ref({
+  group_id: '',
+  label: '',
+  quantity: 1,
+  location: '',
+  notes: '',
+})
 const submitOpen = ref(false)
 const submitDraft = ref<GaBookPreviewDraft | null>(null)
 const submitBoard = ref<GaSubmitBoard | null>(null)
 
 const groupsRef = computed(() => groups.value)
 const { isInAssignedRessortBranch, isLeaderOfGroup } = useGrossanlassRessortScope(groupsRef)
+const { canManageProcurement, hasProcurementDelegate, userCanProcureInGroup } =
+  useGrossanlassProcurementScope(groupsRef)
 
 const isBereichsleitung = computed(() => groups.value.some((g) => isLeaderOfGroup(g)))
+
+const showDirectProcurement = computed(
+  () => hasProcurementDelegate.value && !canManageProcurement.value,
+)
+
+const procureGroupOptions = computed(() =>
+  myGroupsTree.value.filter((g) => userCanProcureInGroup(g.id)),
+)
 
 const myGroupsTree = computed(() =>
   flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
@@ -257,6 +338,49 @@ function goToPlanung() {
   void router.push(`/${departmentId.value}/planung`)
 }
 
+function goToOfferten() {
+  void router.push(`/${departmentId.value}/beschaffung/offerten`)
+}
+
+async function loadDirectLines() {
+  if (!departmentId.value || !showDirectProcurement.value) {
+    directLines.value = []
+    return
+  }
+  try {
+    directLines.value = await listGrossanlassProcurementLines(departmentId.value, { scope: 'direct' })
+  } catch {
+    directLines.value = []
+  }
+}
+
+async function submitDirectLine() {
+  if (!departmentId.value || procureSaving.value) return
+  procureSaving.value = true
+  try {
+    await createGrossanlassProcurementLineDirect(departmentId.value, {
+      group_id: procureForm.value.group_id,
+      label: procureForm.value.label.trim(),
+      quantity: procureForm.value.quantity,
+      location: procureForm.value.location.trim(),
+      notes: procureForm.value.notes.trim() || null,
+    })
+    toast.success(t('grossanlass.meinRessort.procureSuccess'))
+    procureForm.value = {
+      group_id: procureGroupOptions.value[0]?.id || '',
+      label: '',
+      quantity: 1,
+      location: '',
+      notes: '',
+    }
+    await loadDirectLines()
+  } catch (e: any) {
+    toast.error(e.response?.data?.error || t('grossanlass.meinRessort.procureError'))
+  } finally {
+    procureSaving.value = false
+  }
+}
+
 async function openSubmit() {
   if (!departmentId.value) return
   try {
@@ -353,6 +477,10 @@ async function load() {
     rounds.value = roundList
     costRows.value = costs
     budgets.value = budgetList
+    if (procureGroupOptions.value.length > 0 && !procureForm.value.group_id) {
+      procureForm.value.group_id = procureGroupOptions.value[0].id
+    }
+    await loadDirectLines()
     if (isBereichsleitung.value) {
       submitBoard.value = await getGrossanlassSubmitBoard(departmentId.value).catch(() => null)
     }
@@ -487,4 +615,64 @@ onMounted(load)
 }
 .pending-board h3 { margin: 0 0 8px; font-size: 0.95rem; }
 .pending-board ul { margin: 0; padding-left: 18px; font-size: 0.88rem; }
+
+.procurement-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.procurement-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.procurement-panel__head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.procurement-hint {
+  margin: 0 0 12px;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.procure-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.procure-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+}
+
+.procure-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.procure-field input,
+.procure-field select {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.9rem;
+}
+
+.direct-lines h4 {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
 </style>

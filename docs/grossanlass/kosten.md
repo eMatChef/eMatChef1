@@ -20,7 +20,7 @@ Kein Pfadi-`/accounting`. Grobe Soll/Ist-Spur, Cash vs. Netto, Rahmen pro Zahler
 
 | # | Entscheidung | Wert |
 | --- | --- | --- |
-| D1 | Zahler ≠ Organisator | Organisator immer Material & Logistik (MW). Zahler = Ressort-Budget oder Anlass-Topf. |
+| D1 | Zahler ≠ Organisator | Organisator zentral = MW. Bei `self_organized` organisiert das Ressort, Zahler bleibt konfigurierbar (`payer_group_id`). |
 | D2 | Ein Zahler pro Zeile | Kein Prozent-Split in v1. Zwei Zahler → zwei Zeilen. |
 | D3 | Anlass-Topf = Logistik-Knoten | Kein synthetischer `payer_group_id = NULL`-Topf. Der Gesamtrahmen sitzt auf dem konfigurierten Ressort (`logistics_group_id`, z. B. Material & Logistik). Setzen in der **Ressort-Übersicht** (Button an Ressort/Unterressort, Flag danach nur dort). |
 | D4 | Rahmen | Gesamtrahmen **und** Rahmen pro Zahler. Kategorie-Rahmen bleibt MW-Planung, nicht Zahler. |
@@ -51,7 +51,7 @@ Beschaffungs-Workflow (Bedarf → Anfragen → Offerten → Bestellungen → Erh
 | Rolle | Bedeutung | Speicherung |
 | --- | --- | --- |
 | **Bedarf** | Wer das Material/Fahrzeug braucht | `requesting_group_id` (Default aus `procurement_line.group_id` / Wunsch) |
-| **Organisator** | Wer anfragt, mietet, kauft, verkauft | immer MW / Material & Logistik — **kein** DB-Feld |
+| **Organisator** | Wer anfragt, mietet, kauft, verkauft | **Zentral:** immer MW / Material & Logistik. **Self-organized** (`self_organized`): Ressort organisiert selbst (Offerten), MW wählt/budgetiert/bestellt — kein DB-Feld |
 | **Zahler** | Wessen Rahmen belastet wird | `payer_group_id`; `NULL` = zentraler Logistik-Topf |
 
 Beispiel: Bau will Gerüst. Logistik mietet. Zahler = Bau. MW-Übersicht: «organisiert, zahlt Bau». Bau in Mein Ressort: Miete auf ihrem Rahmen.

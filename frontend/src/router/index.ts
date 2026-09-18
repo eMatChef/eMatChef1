@@ -982,7 +982,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/grossanlass/GrossanlassBeschaffungView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MAILBOX_ROUTE_ROLES],
           ...routeHead('grossanlassBeschaffung'),
         },
         children: [
@@ -1033,7 +1032,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('@/views/grossanlass/GrossanlassBeschaffungOffertenView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_PROCUREMENT_ROUTE_ROLES],
               beschaffungTab: 'offerten',
               ...routeHead('grossanlassBeschaffungOfferten'),
             },

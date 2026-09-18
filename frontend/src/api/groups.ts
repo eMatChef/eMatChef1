@@ -16,6 +16,7 @@ export interface GroupMember {
   role_label: string
   is_leader: boolean
   is_primary: boolean
+  can_procure?: boolean
 }
 
 export interface Group {

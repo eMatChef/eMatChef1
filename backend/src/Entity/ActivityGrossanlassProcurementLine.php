@@ -19,6 +19,9 @@ class ActivityGrossanlassProcurementLine
     public const STATUS_TEILWEISE = 'teilweise_erhalten';
     public const STATUS_ERHALTEN = 'erhalten';
 
+    public const SOURCE_FROM_WISH = 'from_wish';
+    public const SOURCE_DIRECT = 'direct';
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -64,6 +67,12 @@ class ActivityGrossanlassProcurementLine
 
     #[ORM\Column(type: 'string', length: 32)]
     private string $status = self::STATUS_BEDARF;
+
+    #[ORM\Column(type: 'string', length: 20, options: ['default' => self::SOURCE_FROM_WISH])]
+    private string $source = self::SOURCE_FROM_WISH;
+
+    #[ORM\Column(name: 'self_organized', type: 'boolean', options: ['default' => false])]
+    private bool $selfOrganized = false;
 
     #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $createdByUserId;
@@ -230,6 +239,30 @@ class ActivityGrossanlassProcurementLine
     public function setStatus(string $status): self
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getSource(): string
+    {
+        return $this->source;
+    }
+
+    public function setSource(string $source): self
+    {
+        $this->source = $source;
+
+        return $this;
+    }
+
+    public function isSelfOrganized(): bool
+    {
+        return $this->selfOrganized;
+    }
+
+    public function setSelfOrganized(bool $selfOrganized): self
+    {
+        $this->selfOrganized = $selfOrganized;
 
         return $this;
     }

@@ -88,6 +88,8 @@ export interface GrossanlassProcurementOrder {
   updated_at: string
 }
 
+export type GrossanlassProcurementLineSource = 'from_wish' | 'direct'
+
 export interface GrossanlassProcurementLine {
   id: string
   department_id: string
@@ -103,6 +105,9 @@ export interface GrossanlassProcurementLine {
   category_parent_id: string | null
   category_parent_name: string | null
   status: GrossanlassProcurementStatus
+  source: GrossanlassProcurementLineSource
+  self_organized: boolean
+  created_by_user_id: string | null
   quantity_asked: number | null
   quantity_current: number
   quantity_delta: number | null
@@ -413,11 +418,14 @@ export async function saveGrossanlassProcurementRahmen(
 
 export async function listGrossanlassProcurementLines(
   departmentId: string,
-  status?: string,
+  options?: { status?: string; scope?: 'direct' | 'own' },
 ): Promise<GrossanlassProcurementLine[]> {
+  const params: Record<string, string> = {}
+  if (options?.status) params.status = options.status
+  if (options?.scope) params.scope = options.scope
   const response = await apiClient.get<GrossanlassProcurementLine[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/lines`,
-    { params: status ? { status } : undefined },
+    { params: Object.keys(params).length ? params : undefined },
   )
   return response.data
 }
@@ -425,11 +433,12 @@ export async function listGrossanlassProcurementLines(
 export async function createGrossanlassProcurementLine(
   departmentId: string,
   data: {
-    wish_line_ids: string[]
+    wish_line_ids?: string[]
     label?: string
     quantity?: number
     location?: string
     group_id?: string
+    wish_kind?: GrossanlassWishKind
     notes?: string | null
     category_id?: string | null
     cost_kind?: GrossanlassCostKind
@@ -442,6 +451,24 @@ export async function createGrossanlassProcurementLine(
     data,
   )
   return response.data
+}
+
+export async function createGrossanlassProcurementLineDirect(
+  departmentId: string,
+  data: {
+    group_id: string
+    label: string
+    quantity?: number
+    location: string
+    wish_kind?: GrossanlassWishKind
+    notes?: string | null
+    category_id?: string | null
+  },
+): Promise<GrossanlassProcurementLine> {
+  return createGrossanlassProcurementLine(departmentId, {
+    wish_line_ids: [],
+    ...data,
+  })
 }
 
 export async function addWishesToGrossanlassProcurementLine(

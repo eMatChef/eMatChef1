@@ -259,21 +259,37 @@
         </template>
       </template>
       <template v-if="selectedGroup">
-        <div v-if="selectedGroup.members.length > 0" class="members-section">
+        <div class="members-section">
           <h4 class="section-title">
-            {{ t('grossanlass.planung.ressorts.sectionCurrentMembers', { count: selectedGroup.members.length }) }}
+            {{
+              selectedGroup.members.length > 0
+                ? t('grossanlass.planung.ressorts.sectionCurrentMembers', { count: selectedGroup.members.length })
+                : t('grossanlass.planung.ressorts.membersTableHeading')
+            }}
           </h4>
+          <p v-if="canFullyManage" class="members-role-hint">{{ t('grossanlass.planung.ressorts.roleHint') }}</p>
           <table class="members-table">
             <thead>
               <tr>
                 <th>{{ t('common.name') }}</th>
                 <th>{{ t('settings.groups.memberColEmail') }}</th>
-                <th>{{ t('settings.groups.roleLeader') }}</th>
-                <th>{{ t('grossanlass.planung.ressorts.primaryHome') }}</th>
+                <th>{{ t('common.role') }}</th>
+                <th>{{ t('grossanlass.planung.ressorts.colGroupLeader') }}</th>
+                <th v-if="canFullyManage">{{ t('grossanlass.planung.ressorts.colProcure') }}</th>
+                <th>
+                  <span :title="t('grossanlass.planung.ressorts.primaryHomeHint')">
+                    {{ t('grossanlass.planung.ressorts.primaryHome') }}
+                  </span>
+                </th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
+              <tr v-if="selectedGroup.members.length === 0">
+                <td class="empty-members-cell" :colspan="membersTableColspan">
+                  {{ t('grossanlass.planung.ressorts.emptyNoMembers') }}
+                </td>
+              </tr>
               <tr v-for="member in selectedGroup.members" :key="member.user_id">
                 <td class="member-name">
                   <UserAvatarBadge
@@ -285,19 +301,48 @@
                   <span class="name-text">{{ member.name }}</span>
                 </td>
                 <td class="member-email">{{ member.email }}</td>
+                <td class="member-dept-role">
+                  <select
+                    v-if="canEditDeptRole(member.user_id)"
+                    :value="deptMemberFor(member.user_id)?.role || 'u'"
+                    class="form-select role-select-sm"
+                    @change="handleDeptRoleChange(member.user_id, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option
+                      v-for="item in editRoleSelectItems"
+                      :key="item.value"
+                      :value="item.value"
+                    >
+                      {{ item.title }}
+                    </option>
+                  </select>
+                  <span v-else class="role-readonly">
+                    {{ deptRoleLabelFor(member.user_id) }}
+                  </span>
+                </td>
                 <td>
                   <button
                     v-if="canManageMembersForGroup(selectedGroup)"
                     type="button"
                     class="flag-toggle"
                     :class="{ 'is-on': member.is_leader }"
-                    :title="t('settings.groups.roleLeader')"
+                    :title="t('grossanlass.planung.ressorts.colGroupLeader')"
                     :aria-pressed="member.is_leader"
                     @click="handleRoleChange(member, member.is_leader ? 'member' : 'leader')"
                   >
                     ★
                   </button>
                   <span v-else class="role-readonly">{{ member.is_leader ? '★' : '—' }}</span>
+                </td>
+                <td v-if="canFullyManage">
+                  <label class="procure-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="!!member.can_procure"
+                      @change="handleCanProcureChange(member, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ t('grossanlass.planung.ressorts.canProcureShort') }}</span>
+                  </label>
                 </td>
                 <td>
                   <button
@@ -335,54 +380,144 @@
             </tbody>
           </table>
         </div>
-        <div v-else class="empty-members">
-          <p>{{ t('grossanlass.planung.ressorts.emptyNoMembers') }}</p>
-        </div>
 
-        <div v-if="canManageMembersForGroup(selectedGroup)" class="add-helper-section">
-          <h4 class="section-title">{{ t('grossanlass.planung.ressorts.helperHeading') }}</h4>
-          <GrossanlassHelperInviteForm
-            :department-id="departmentId"
-            :groups="groups"
-            :fixed-group-id="selectedGroup.id"
-            @created="onHelperCreated"
-          />
-        </div>
+        <details v-if="canManageMembersForGroup(selectedGroup)" class="member-modal-accordion">
+          <summary class="member-modal-accordion__summary">
+            {{ t('grossanlass.planung.ressorts.helperHeading') }}
+          </summary>
+          <div class="member-modal-accordion__body">
+            <GrossanlassHelperInviteForm
+              :department-id="departmentId"
+              :groups="groups"
+              :fixed-group-id="selectedGroup.id"
+              @created="onHelperCreated"
+            />
+          </div>
+        </details>
 
-        <div v-if="canManageMembersForGroup(selectedGroup)" class="add-member-section">
-          <h4 class="section-title">{{ t('grossanlass.planung.ressorts.addMemberHeading') }}</h4>
-          <div v-if="isLoadingUsers" class="loading-inline">
-            <div class="spinner-sm"></div>
-            <span>{{ t('settings.groups.loadingUsers') }}</span>
-          </div>
-          <div v-else-if="unassignedUsers.length === 0" class="no-users-hint">
-            <p>{{ t('settings.groups.allUsersAssigned') }}</p>
-          </div>
-          <div v-else class="add-member-form">
-            <select v-model="addMemberForm.user_id" class="form-select user-select">
-              <option value="">{{ t('settings.groups.selectUser') }}</option>
-              <option v-for="user in unassignedUsers" :key="user.user_id" :value="user.user_id">
-                {{ user.name }} ({{ user.email }})
+        <details v-if="canManageMembersForGroup(selectedGroup)" class="member-modal-accordion">
+          <summary class="member-modal-accordion__summary">
+            {{ t('grossanlass.planung.ressorts.addMemberHeading') }}
+          </summary>
+          <div class="member-modal-accordion__body add-member-section">
+          <div v-if="canFullyManage" class="add-member-role-row">
+            <label class="add-member-role-label" for="ga-add-member-dept-role">{{ t('common.role') }}</label>
+            <select
+              v-if="canAssignDeptRoles"
+              id="ga-add-member-dept-role"
+              v-model="addMemberForm.deptRole"
+              class="form-select role-select-sm"
+            >
+              <option
+                v-for="item in editRoleSelectItems"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.title }}
               </option>
             </select>
+            <span v-else class="role-readonly">{{ getRoleLabel(addMemberForm.deptRole) }}</span>
+            <label class="add-member-role-label" for="ga-add-member-group-role">
+              {{ t('grossanlass.planung.ressorts.colGroupLeader') }}
+            </label>
             <select
-              v-if="canFullyManage"
-              v-model="addMemberForm.role"
+              id="ga-add-member-group-role"
+              v-model="addMemberForm.groupRole"
               class="form-select role-select-sm"
             >
               <option value="member">{{ t('settings.groups.roleMember') }}</option>
               <option value="leader">{{ t('settings.groups.roleLeader') }}</option>
             </select>
-            <EButton
-              variant="primary"
-              size="small"
-              :disabled="!addMemberForm.user_id"
-              @click="handleAddMember"
-            >
-              {{ t('common.add') }}
-            </EButton>
+            <label class="procure-toggle add-member-procure">
+              <input v-model="addMemberForm.can_procure" type="checkbox" />
+              <span>
+                <strong>{{ t('grossanlass.planung.ressorts.colProcure') }}</strong>
+                — {{ t('grossanlass.planung.ressorts.canProcureShort') }}
+              </span>
+            </label>
+            <p class="add-member-procure-hint">{{ t('grossanlass.planung.ressorts.canProcureAddHint') }}</p>
           </div>
-        </div>
+          <div v-if="isLoadingUsers" class="loading-inline">
+            <div class="spinner-sm"></div>
+            <span>{{ t('settings.groups.loadingUsers') }}</span>
+          </div>
+          <template v-else>
+            <p v-if="unassignedUsers.length === 0" class="no-users-hint">
+              {{ t('settings.groups.allUsersAssigned') }}
+            </p>
+            <ul v-else class="candidate-list">
+              <li v-for="user in unassignedUsers" :key="user.user_id" class="candidate-row">
+                <div class="candidate-meta">
+                  <strong>{{ user.name }}</strong>
+                  <span>{{ user.email }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="action-btn action-btn-add"
+                  :title="t('grossanlass.planung.ressorts.addMemberPlus')"
+                  :disabled="addingUserId === user.user_id"
+                  @click="handleAddMember(user.user_id)"
+                >
+                  <v-icon icon="mdi-plus" size="18" />
+                </button>
+              </li>
+            </ul>
+          </template>
+
+          <div class="outside-dept-block">
+            <h5 class="subsection-title">{{ t('grossanlass.planung.ressorts.addOutsideHeading') }}</h5>
+            <p class="outside-dept-hint">{{ t('grossanlass.planung.ressorts.addOutsideHint') }}</p>
+            <ETextField
+              v-model="outsideSearchQuery"
+              :label="t('grossanlass.planung.ressorts.addOutsideSearch')"
+              :placeholder="t('grossanlass.planung.ressorts.addOutsidePlaceholder')"
+              hide-details="auto"
+              clearable
+              autocomplete="off"
+            />
+            <p
+              v-if="outsideSearchTrimmed.length > 0 && outsideSearchTrimmed.length < 3"
+              class="add-user-search-hint"
+            >
+              {{ t('settings.departmentUsers.autocompleteCharsHint', { n: 3 - outsideSearchTrimmed.length }) }}
+            </p>
+            <div v-if="isLoadingOutside" class="loading-inline">
+              <div class="spinner-sm"></div>
+              <span>{{ t('settings.departmentUsers.modalLoadingAvailable') }}</span>
+            </div>
+            <ul v-else-if="outsideCandidates.length > 0" class="candidate-list">
+              <li v-for="user in outsideCandidates" :key="user.id" class="candidate-row">
+                <div class="candidate-meta">
+                  <strong>{{ user.name }}</strong>
+                  <span>{{ user.email }}</span>
+                  <span class="candidate-dept">
+                    {{
+                      user.departments_label?.trim()
+                        || user.primary_department_name?.trim()
+                        || t('settings.departmentUsers.autocompleteNoDepartment')
+                    }}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  class="action-btn action-btn-add"
+                  :title="t('grossanlass.planung.ressorts.addOutsidePlus')"
+                  :disabled="addingUserId === user.id"
+                  @click="handleAddOutsideUser(user)"
+                >
+                  <v-icon icon="mdi-plus" size="18" />
+                </button>
+              </li>
+            </ul>
+            <p
+              v-else-if="outsideSearchTrimmed.length >= 3 && !isLoadingOutside"
+              class="no-users-hint"
+            >
+              {{ t('grossanlass.planung.ressorts.addOutsideEmpty') }}
+            </p>
+          </div>
+          </div>
+        </details>
       </template>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeMembersModal">{{ t('settings.groups.close') }}</EButton>
@@ -426,17 +561,26 @@ import {
   addGrossanlassGroupMember,
   updateGrossanlassGroupMember,
   removeGrossanlassGroupMember,
+  createGrossanlassHelper,
   type GrossanlassGroup,
   type GrossanlassGroupKind,
   type GrossanlassNodeType,
 } from '@/api/grossanlassGroups'
-import { getDepartmentMembers, type DepartmentMember } from '@/api/departments'
+import {
+  getDepartmentMembers,
+  getAvailableUsersForDepartment,
+  updateDepartmentMember,
+  type AvailableUser,
+  type DepartmentMember,
+} from '@/api/departments'
 import type { GroupMember } from '@/api/groups'
+import { filterAvailableUsersByQuery } from '@/utils/availableUserSearch'
 import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
 } from '@/utils/grossanlassGroupHierarchy'
-import { getGrossanlassPlanung, updateGrossanlassPlanung } from '@/api/grossanlassPlanung'
+import { gaCanManageDepartmentUsers } from '@/utils/grossanlassAccess'
+import { getDeptRoleShort } from '@/utils/departmentMemberRoles'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -448,7 +592,13 @@ const departmentId = computed(() => (route.params.departmentId as string) || aut
 const {
   canManageMember,
   removeFromDepartment,
+  editRoleSelectItems,
+  getRoleLabel,
 } = useDepartmentMemberAdmin(departmentId)
+
+const canAssignDeptRoles = computed(() =>
+  gaCanManageDepartmentUsers(authStore.currentDepartmentRole),
+)
 
 const groups = ref<GrossanlassGroup[]>([])
 const logisticsGroupId = ref<string | null>(null)
@@ -472,9 +622,19 @@ const showMembersModal = ref(false)
 const selectedGroup = ref<GrossanlassGroup | null>(null)
 const departmentMembers = ref<DepartmentMember[]>([])
 const isLoadingUsers = ref(false)
-const addMemberForm = ref({ user_id: '', role: 'member' })
+const addMemberForm = ref({ groupRole: 'member', deptRole: 'u', can_procure: false })
+const addingUserId = ref<string | null>(null)
+const outsideSearchQuery = ref('')
+const outsideUsers = ref<AvailableUser[]>([])
+const isLoadingOutside = ref(false)
+let outsideSearchTimer: ReturnType<typeof setTimeout> | null = null
 const showMemberDetail = ref(false)
 const editingMember = ref<DepartmentMember | null>(null)
+
+const outsideSearchTrimmed = computed(() => outsideSearchQuery.value.trim())
+const outsideCandidates = computed(() =>
+  filterAvailableUsersByQuery(outsideUsers.value, outsideSearchTrimmed.value).slice(0, 12),
+)
 
 const {
   canFullyManage,
@@ -492,6 +652,8 @@ const ressortsSubtitle = computed(() => {
   if (isRessortMemberSomewhere.value) return t('grossanlass.planung.ressorts.subtitleMember')
   return t('grossanlass.planung.ressorts.subtitleReadOnly')
 })
+
+const membersTableColspan = computed(() => (canFullyManage.value ? 7 : 6))
 
 const rootCount = computed(() => groups.value.filter((g) => !g.parent_id).length)
 const totalMembers = computed(() => groups.value.reduce((sum, g) => sum + g.member_count, 0))
@@ -720,6 +882,41 @@ async function loadDepartmentMembers() {
   }
 }
 
+function deptRoleLabelFor(userId: string): string {
+  const member = deptMemberFor(userId)
+  if (!member) return '—'
+  const short = getDeptRoleShort(member.role, true)
+  return short ? `${short} – ${getRoleLabel(member.role)}` : getRoleLabel(member.role)
+}
+
+function canEditDeptRole(userId: string): boolean {
+  if (!canAssignDeptRoles.value) return false
+  const member = deptMemberFor(userId)
+  return !!member && canManageMember(member)
+}
+
+async function handleDeptRoleChange(userId: string, role: string) {
+  if (!departmentId.value || !canEditDeptRole(userId)) return
+  try {
+    await updateDepartmentMember(departmentId.value, userId, { role })
+    await loadDepartmentMembers()
+    await refreshSelectedGroup()
+    toast.success(t('grossanlass.planung.ressorts.roleSaved'))
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorRoleSave'))
+  }
+}
+
+async function applyAddMemberDeptRole(userId: string) {
+  if (!departmentId.value || !canAssignDeptRoles.value) return
+  const existing = deptMemberFor(userId)
+  if (!existing || existing.role === addMemberForm.value.deptRole) return
+  if (!canManageMember(existing)) return
+  await updateDepartmentMember(departmentId.value, userId, { role: addMemberForm.value.deptRole })
+  await loadDepartmentMembers()
+}
+
 function deptMemberFor(userId: string): DepartmentMember | undefined {
   return departmentMembers.value.find((m) => m.user_id === userId)
 }
@@ -830,31 +1027,105 @@ async function handleDelete(group: GrossanlassGroup) {
 function openMembersModal(group: GrossanlassGroup) {
   selectedGroup.value = group
   showMembersModal.value = true
-  addMemberForm.value = { user_id: '', role: 'member' }
+  addMemberForm.value = { groupRole: 'member', deptRole: 'u', can_procure: false }
+  outsideSearchQuery.value = ''
+  outsideUsers.value = []
+  addingUserId.value = null
   loadDepartmentMembers()
 }
 
 function closeMembersModal() {
   showMembersModal.value = false
   selectedGroup.value = null
+  outsideSearchQuery.value = ''
+  outsideUsers.value = []
+  addingUserId.value = null
 }
 
-async function handleAddMember() {
-  if (!selectedGroup.value || !addMemberForm.value.user_id || !departmentId.value) return
+async function refreshSelectedGroup() {
+  await loadGroups()
+  const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+  if (updated) selectedGroup.value = updated
+}
+
+async function handleAddMember(userId: string) {
+  if (!selectedGroup.value || !userId || !departmentId.value || addingUserId.value) return
+  addingUserId.value = userId
   try {
     await addGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, {
-      user_id: addMemberForm.value.user_id,
-      role: canFullyManage.value ? addMemberForm.value.role : 'member',
+      user_id: userId,
+      role: canFullyManage.value ? addMemberForm.value.groupRole : 'member',
+      can_procure: canFullyManage.value ? addMemberForm.value.can_procure : undefined,
     })
-    await loadGroups()
-    const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
-    if (updated) selectedGroup.value = updated
-    addMemberForm.value = { user_id: '', role: 'member' }
+    await applyAddMemberDeptRole(userId)
+    await refreshSelectedGroup()
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorAddMember'))
+  } finally {
+    addingUserId.value = null
   }
 }
+
+async function handleAddOutsideUser(user: AvailableUser) {
+  if (!selectedGroup.value || !departmentId.value || addingUserId.value) return
+  addingUserId.value = user.id
+  try {
+    // Bestehendes Konto: Dept + Ressort + User-Karte (wie Helfer-Anlegen, ohne neuen Account).
+    await createGrossanlassHelper(departmentId.value, selectedGroup.value.id, {
+      email: user.email,
+      name: user.name,
+    })
+    if (canFullyManage.value && addMemberForm.value.groupRole === 'leader') {
+      await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, user.id, {
+        role: 'leader',
+      })
+    }
+    if (canFullyManage.value && addMemberForm.value.can_procure) {
+      await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, user.id, {
+        can_procure: true,
+      })
+    }
+    await applyAddMemberDeptRole(user.id)
+    toast.success(t('grossanlass.planung.ressorts.addOutsideSuccess', { name: user.name }))
+    outsideSearchQuery.value = ''
+    outsideUsers.value = []
+    await refreshSelectedGroup()
+    await loadDepartmentMembers()
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorAddMember'))
+  } finally {
+    addingUserId.value = null
+  }
+}
+
+async function loadOutsideUsers(query: string) {
+  if (!departmentId.value || query.trim().length < 3) {
+    outsideUsers.value = []
+    return
+  }
+  isLoadingOutside.value = true
+  try {
+    outsideUsers.value = await getAvailableUsersForDepartment(departmentId.value, query.trim())
+  } catch {
+    outsideUsers.value = []
+  } finally {
+    isLoadingOutside.value = false
+  }
+}
+
+watch(outsideSearchTrimmed, (query) => {
+  if (outsideSearchTimer) clearTimeout(outsideSearchTimer)
+  if (query.length < 3) {
+    outsideUsers.value = []
+    isLoadingOutside.value = false
+    return
+  }
+  outsideSearchTimer = setTimeout(() => {
+    void loadOutsideUsers(query)
+  }, 280)
+})
 
 async function handleRoleChange(member: GroupMember, newRole: string) {
   if (!selectedGroup.value || !departmentId.value) return
@@ -868,6 +1139,21 @@ async function handleRoleChange(member: GroupMember, newRole: string) {
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     toast.error(e.response?.data?.error || t('settings.groups.errorRoleChange'))
+  }
+}
+
+async function handleCanProcureChange(member: GroupMember, canProcure: boolean) {
+  if (!selectedGroup.value || !departmentId.value || !canFullyManage.value) return
+  try {
+    await updateGrossanlassGroupMember(departmentId.value, selectedGroup.value.id, member.user_id, {
+      can_procure: canProcure,
+    })
+    await loadGroups()
+    const updated = groups.value.find((g) => g.id === selectedGroup.value?.id)
+    if (updated) selectedGroup.value = updated
+  } catch (err: unknown) {
+    const e = err as { response?: { data?: { error?: string } } }
+    toast.error(e.response?.data?.error || t('grossanlass.planung.ressorts.errorProcureFlag'))
   }
 }
 
@@ -1119,12 +1405,6 @@ onMounted(() => loadGroups())
 .action-buttons {
   display: flex;
   gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.group-row:hover .action-buttons {
-  opacity: 1;
 }
 
 .action-btn {
@@ -1171,6 +1451,162 @@ onMounted(() => loadGroups())
   font-weight: 600;
   color: #475569;
   margin: 0 0 10px;
+}
+
+.subsection-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 16px 0 6px;
+}
+
+.add-member-role-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.add-member-procure {
+  margin-left: 4px;
+}
+
+.add-member-procure-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.empty-members-cell {
+  padding: 12px 10px;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.members-role-hint {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.member-dept-role {
+  min-width: 9rem;
+}
+
+.member-modal-accordion {
+  margin-top: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.member-modal-accordion__summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #334155;
+  list-style: none;
+}
+
+.member-modal-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-modal-accordion__summary::before {
+  content: '▸ ';
+  color: #94a3b8;
+}
+
+.member-modal-accordion[open] > .member-modal-accordion__summary::before {
+  content: '▾ ';
+}
+
+.member-modal-accordion__body {
+  padding: 0 12px 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.add-member-role-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.candidate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.candidate-row:last-child {
+  border-bottom: none;
+}
+
+.candidate-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.candidate-meta strong {
+  color: #1e293b;
+  font-weight: 560;
+}
+
+.candidate-meta span {
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-dept {
+  font-size: 12px !important;
+  color: #94a3b8 !important;
+}
+
+.action-btn-add {
+  flex-shrink: 0;
+  color: var(--color-primary, #059669);
+}
+
+.action-btn-add:hover:not(:disabled) {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.action-btn-add:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.outside-dept-block {
+  margin-top: 4px;
+}
+
+.outside-dept-hint,
+.add-user-search-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
 }
 
 .members-table {
@@ -1232,10 +1668,6 @@ onMounted(() => loadGroups())
   font-size: 14px;
 }
 
-.user-select {
-  min-width: 240px;
-}
-
 .role-select,
 .role-select-sm {
   min-width: 120px;
@@ -1282,4 +1714,6 @@ onMounted(() => loadGroups())
   justify-content: flex-end;
   gap: 8px;
 }
+.procure-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #475569; cursor: pointer; white-space: nowrap; }
+.procure-toggle input { margin: 0; }
 </style>

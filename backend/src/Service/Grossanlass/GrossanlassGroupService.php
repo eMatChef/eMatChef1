@@ -279,6 +279,9 @@ class GrossanlassGroupService
         if (isset($data['is_primary'])) {
             $membership->setIsPrimary((bool) $data['is_primary']);
         }
+        if (array_key_exists('can_procure', $data)) {
+            $membership->setCanProcure((bool) $data['can_procure']);
+        }
 
         $this->entityManager->flush();
 
@@ -417,6 +420,7 @@ class GrossanlassGroupService
             'role_label' => $membership->getRoleLabel(),
             'is_leader' => $membership->isLeader(),
             'is_primary' => $membership->getIsPrimary(),
+            'can_procure' => $membership->getCanProcure(),
         ];
     }
 

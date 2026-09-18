@@ -60,13 +60,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
+import { gaCanManageProcurement, gaCanWorkMailbox } from '@/utils/grossanlassAccess'
 import PageShell from '@/components/layout/PageShell.vue'
 import '@/styles/views/materials-view-tabs.css'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 
 const route = useRoute()
 const router = useRouter()
@@ -77,21 +79,45 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
+const groups = ref<Awaited<ReturnType<typeof getGrossanlassGroups>>>([])
+const groupsRef = computed(() => groups.value)
+const { canManageProcurement, hasProcurementDelegate } = useGrossanlassProcurementScope(groupsRef)
+
+const allTabItems = [
+  { id: 'bedarf', labelKey: 'grossanlass.beschaffung.tabBedarf', icon: 'mdi-clipboard-list-outline' },
+  { id: 'anfragen', labelKey: 'grossanlass.beschaffung.tabAnfragen', icon: 'mdi-email-multiple-outline' },
+  { id: 'offerten', labelKey: 'grossanlass.beschaffung.tabOfferten', icon: 'mdi-file-document-outline' },
+  { id: 'zusagen', labelKey: 'grossanlass.beschaffung.tabZusagen', icon: 'mdi-handshake-outline' },
+  { id: 'bestellungen', labelKey: 'grossanlass.beschaffung.tabBestellungen', icon: 'mdi-cart-outline' },
+  { id: 'erhalten', labelKey: 'grossanlass.beschaffung.tabErhalten', icon: 'mdi-package-check' },
+] as const
+
 const tabItems = computed(() => {
-  const anfragen = { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen'), icon: 'mdi-email-multiple-outline' }
-  if (!gaCanManageProcurement(authStore.currentDepartmentRole)) {
-    return [anfragen]
+  if (gaCanManageProcurement(authStore.currentDepartmentRole)) {
+    return allTabItems.map((tab) => ({
+      id: tab.id,
+      label: t(tab.labelKey),
+      icon: tab.icon,
+    }))
   }
-  return [
-    { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf'), icon: 'mdi-clipboard-list-outline' },
-    anfragen,
-    { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten'), icon: 'mdi-file-document-outline' },
-    { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen'), icon: 'mdi-handshake-outline' },
-    { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen'), icon: 'mdi-cart-outline' },
-  ]
+  if (gaCanWorkMailbox(authStore.currentDepartmentRole)) {
+    return [{
+      id: 'anfragen',
+      label: t('grossanlass.beschaffung.tabAnfragen'),
+      icon: 'mdi-email-multiple-outline',
+    }]
+  }
+  if (hasProcurementDelegate.value) {
+    return [{
+      id: 'offerten',
+      label: t('grossanlass.beschaffung.tabOfferten'),
+      icon: 'mdi-file-document-outline',
+    }]
+  }
+  return []
 })
 
-const showPaths = computed(() => tabItems.value.length > 1)
+const showPaths = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 
 const partnerPath = computed(() => [
   { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
@@ -112,6 +138,39 @@ function onTabChange(tab: unknown) {
   if (!id || typeof tab !== 'string') return
   void router.push(`/${id}/beschaffung/${tab}`)
 }
+
+async function ensureGroupsLoaded() {
+  if (!departmentId.value) return
+  try {
+    groups.value = await getGrossanlassGroups(departmentId.value)
+  } catch {
+    groups.value = []
+  }
+}
+
+watch(
+  departmentId,
+  async () => {
+    await ensureGroupsLoaded()
+    if (
+      !canManageProcurement.value &&
+      hasProcurementDelegate.value &&
+      activeTab.value !== 'offerten'
+    ) {
+      void router.replace(`/${departmentId.value}/beschaffung/offerten`)
+    }
+    if (
+      gaCanWorkMailbox(authStore.currentDepartmentRole) &&
+      !gaCanManageProcurement(authStore.currentDepartmentRole) &&
+      activeTab.value !== 'anfragen'
+    ) {
+      void router.replace(`/${departmentId.value}/beschaffung/anfragen`)
+    }
+  },
+  { immediate: true },
+)
+
+onMounted(ensureGroupsLoaded)
 </script>
 
 <style scoped>
