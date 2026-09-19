@@ -98,7 +98,9 @@ async function loadInvites() {
     }
     pendingInvites.value = response.items.filter(
       (item): item is ReceivedDepartmentInviteNotification =>
-        item.type === 'department_invite' && item.status === 'pending',
+        item.type === 'department_invite' &&
+        item.status === 'pending' &&
+        !authStore.departments.some((d) => d.department_id === item.department_id),
     )
   } catch {
     pendingInvites.value = []

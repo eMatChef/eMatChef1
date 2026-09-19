@@ -58,6 +58,13 @@ class Group
     public const GROSSANLASS_KIND_RESSORT = 'ressort';
     public const GROSSANLASS_KIND_TEILBEREICH = 'teilbereich';
 
+    /** Grossanlass-Bauprojekt: grobes Zeitfenster (Aufbau/Einsatz), keine Doppelbuchung */
+    #[ORM\Column(name: 'window_start', type: 'date', nullable: true)]
+    private ?\DateTimeInterface $windowStart = null;
+
+    #[ORM\Column(name: 'window_end', type: 'date', nullable: true)]
+    private ?\DateTimeInterface $windowEnd = null;
+
     // Mitgliedschaften
     #[ORM\OneToMany(mappedBy: 'group', targetEntity: GroupMembership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
@@ -193,6 +200,30 @@ class Group
     public function setGrossanlassKind(?string $grossanlassKind): self
     {
         $this->grossanlassKind = $grossanlassKind;
+
+        return $this;
+    }
+
+    public function getWindowStart(): ?\DateTimeInterface
+    {
+        return $this->windowStart;
+    }
+
+    public function setWindowStart(?\DateTimeInterface $windowStart): self
+    {
+        $this->windowStart = $windowStart;
+
+        return $this;
+    }
+
+    public function getWindowEnd(): ?\DateTimeInterface
+    {
+        return $this->windowEnd;
+    }
+
+    public function setWindowEnd(?\DateTimeInterface $windowEnd): self
+    {
+        $this->windowEnd = $windowEnd;
 
         return $this;
     }

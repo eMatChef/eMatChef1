@@ -10,6 +10,7 @@ use Doctrine\ORM\Mapping as ORM;
 #[ORM\Table(name: 'department_grossanlass_place')]
 #[ORM\UniqueConstraint(name: 'uniq_ga_place_code', columns: ['public_code'])]
 #[ORM\Index(name: 'idx_ga_place_dept', columns: ['department_id'])]
+#[ORM\Index(name: 'idx_ga_place_map', columns: ['map_id'])]
 class DepartmentGrossanlassPlace
 {
     #[ORM\Id]
@@ -31,6 +32,33 @@ class DepartmentGrossanlassPlace
 
     #[ORM\Column(name: 'unterlager_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $unterlagerId = null;
+
+    /** bauprojekt | unterlager | matplatz | anfahrt | poi — Event-Standort, nicht Lager */
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => 'poi'])]
+    private string $kind = 'poi';
+
+    #[ORM\Column(name: 'map_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $mapId = null;
+
+    #[ORM\ManyToOne(targetEntity: DepartmentGrossanlassMap::class)]
+    #[ORM\JoinColumn(name: 'map_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?DepartmentGrossanlassMap $map = null;
+
+    #[ORM\Column(name: 'map_x', type: 'float', nullable: true)]
+    private ?float $mapX = null;
+
+    #[ORM\Column(name: 'map_y', type: 'float', nullable: true)]
+    private ?float $mapY = null;
+
+    #[ORM\Column(name: 'latitude', type: 'float', nullable: true)]
+    private ?float $latitude = null;
+
+    #[ORM\Column(name: 'longitude', type: 'float', nullable: true)]
+    private ?float $longitude = null;
+
+    /** Wichtige Punkte (Abladezone, Anfahrt) auf Stammdaten */
+    #[ORM\Column(name: 'starred', type: 'boolean', options: ['default' => false])]
+    private bool $starred = false;
 
     #[ORM\Column(name: 'public_code', type: 'string', length: 32)]
     private string $publicCode = '';
@@ -63,6 +91,33 @@ class DepartmentGrossanlassPlace
 
     public function getUnterlagerId(): ?string { return $this->unterlagerId; }
     public function setUnterlagerId(?string $unterlagerId): self { $this->unterlagerId = $unterlagerId ?: null; return $this; }
+
+    public function getKind(): string { return $this->kind; }
+    public function setKind(string $kind): self { $this->kind = $kind; return $this; }
+
+    public function getMapId(): ?string { return $this->mapId; }
+    public function getMap(): ?DepartmentGrossanlassMap { return $this->map; }
+    public function setMap(?DepartmentGrossanlassMap $map): self
+    {
+        $this->map = $map;
+        $this->mapId = $map?->getId();
+        return $this;
+    }
+
+    public function getMapX(): ?float { return $this->mapX; }
+    public function setMapX(?float $mapX): self { $this->mapX = $mapX; return $this; }
+
+    public function getMapY(): ?float { return $this->mapY; }
+    public function setMapY(?float $mapY): self { $this->mapY = $mapY; return $this; }
+
+    public function getLatitude(): ?float { return $this->latitude; }
+    public function setLatitude(?float $latitude): self { $this->latitude = $latitude; return $this; }
+
+    public function getLongitude(): ?float { return $this->longitude; }
+    public function setLongitude(?float $longitude): self { $this->longitude = $longitude; return $this; }
+
+    public function isStarred(): bool { return $this->starred; }
+    public function setStarred(bool $starred): self { $this->starred = $starred; return $this; }
 
     public function getPublicCode(): string { return $this->publicCode; }
     public function setPublicCode(string $publicCode): self { $this->publicCode = $publicCode; return $this; }

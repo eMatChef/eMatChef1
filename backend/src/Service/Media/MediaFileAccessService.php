@@ -7,6 +7,7 @@ namespace App\Service\Media;
 use App\Entity\AccountingAcquisitionFollowUp;
 use App\Entity\AccountingBooking;
 use App\Entity\ActivityGrossanlassProcurementQuote;
+use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassUserCard;
 use App\Entity\ActivityIssueReport;
 use App\Entity\ActivityJsOrder;
@@ -51,6 +52,7 @@ class MediaFileAccessService
             MediaStorageService::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => $this->assertGrossanlassQuote($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_USER_CARD => $this->assertGrossanlassUserCard($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT => $this->assertGrossanlassMailAttachment($user, $departmentId),
+            MediaStorageService::CONTEXT_GROSSANLASS_MAP => $this->assertGrossanlassMap($user, $departmentId, $contextId),
             MediaStorageService::CONTEXT_USER_DRIVE_LICENSE => $this->assertOwnDriveLicense($user, $contextId),
             default => throw new \InvalidArgumentException('Ungültiger Medien-Kontext'),
         };
@@ -137,6 +139,27 @@ class MediaFileAccessService
         if ($quote->getProcurementLine()->getDepartmentId() !== $departmentId) {
             throw new \InvalidArgumentException('Datei nicht gefunden');
         }
+    }
+
+    private function assertGrossanlassMap(User $user, string $departmentId, string $mapId): void
+    {
+        $department = $this->entityManager->find(Department::class, $departmentId);
+        if (!$department instanceof Department) {
+            throw new \InvalidArgumentException('Datei nicht gefunden');
+        }
+        $this->grossanlassAccess->assertGrossanlassDepartment($department);
+        $map = $this->entityManager->find(DepartmentGrossanlassMap::class, $mapId);
+        if (!$map instanceof DepartmentGrossanlassMap || $map->getDepartmentId() !== $departmentId) {
+            throw new \InvalidArgumentException('Datei nicht gefunden');
+        }
+        if ($this->grossanlassAccess->canSeeAnlassOverview($user, $department)
+            || $this->grossanlassAccess->canSubmitEinsatz($user, $department)
+            || $this->grossanlassAccess->canOperateAusgabe($user, $department)
+            || $this->grossanlassAccess->membershipRole($user, $department) !== null
+        ) {
+            return;
+        }
+        throw new AccessDeniedHttpException('Kein Zugriff auf diese Datei');
     }
 
     private function assertGrossanlassMailAttachment(User $user, string $departmentId): void

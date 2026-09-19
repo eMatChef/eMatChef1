@@ -38,6 +38,11 @@ export function gaCanSeeAnlassOverview(role: string | null | undefined): boolean
   return ['mw', 'cmw', 'dc'].includes(gaRole(role))
 }
 
+/** Helfer (`u`): Mein Ressort, eigene Einsätze, gefilterte Aufgaben — kein Planung/Postfach. */
+export function gaIsGrossanlassHelper(role: string | null | undefined): boolean {
+  return gaRole(role) === 'u'
+}
+
 /** Komm/Spon: Postfach + Vorlagen, ohne Beschaffungs-Kommando. */
 export function gaIsMailboxOnly(role: string | null | undefined): boolean {
   return gaCanWorkMailbox(role) && !gaCanManageProcurement(role)
@@ -80,3 +85,9 @@ export const GA_MAILBOX_ROUTE_ROLES = ['matwart', 'mw', 'cmw', 'komm', 'spon'] a
 
 /** Router: Materialübersicht / Einsätze. */
 export const GA_UEBERSICHT_ROUTE_ROLES = ['matwart', 'mw', 'cmw', 'depchef', 'dc'] as const
+
+/** Router: Planung / Struktur / Freigabe. */
+export const GA_PLANUNG_ROUTE_ROLES = [...GA_UEBERSICHT_ROUTE_ROLES] as const
+
+/** Router: Meine Einsätze (Helfer). */
+export const GA_HELPER_ROUTE_ROLES = ['user', 'u'] as const

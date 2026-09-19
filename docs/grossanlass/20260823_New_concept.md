@@ -612,6 +612,7 @@ Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-
 
 - [README.md](./README.md) — Gesamt-Spec (Department, Ressorts, §3.7 Beschaffung, §9 Runden, §10 Leihweise, §11 Übersicht)
 - [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) — wer Postfach sieht (Label `eMatChef`), nehmen vs. senden, Einsatz mit Checkbox Fahrt = Fahrauftrag (sonst Selbstabholung)
+- [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) — Bauprojekt = Ort + Fenster + Aufgaben/Material-Wunsch; GA-Ort-QR, kein zweites Fahrt-Modul
 - [kosten.md](./kosten.md) — Kostenübersicht Material & Logistik (Einkauf / Miete / Weiterverkauf, Zahler)
 - [MVP.md](./MVP.md) — ursprünglicher Schnitt Phase 1–4; Beschaffung-Inhalt war Phase 5 und ist im Code weiter als die MVP-Datei
 - Drive/Excel: Firmen (Bereich), Grobübersicht Material & Fahrzeuge; eine Logistik-Sheet-Vorlage (Anfragen / Kommunikation / Zusagen) als CRM-Vorbild ausserhalb der App, solange der Anfrage-Tab fehlt

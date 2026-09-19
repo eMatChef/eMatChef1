@@ -60,7 +60,7 @@ const tabItems = computed(() => {
     { id: 'stammdaten', label: t('grossanlass.planung.tabStammdaten'), icon: 'mdi-card-account-details-outline' },
     { id: 'ressorts', label: t('grossanlass.planung.tabRessorts'), icon: 'mdi-sitemap' },
     { id: 'karten', label: t('grossanlass.planung.tabKarten'), icon: 'mdi-card-account-details' },
-    { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-warehouse' },
+    { id: 'standorte', label: t('grossanlass.einstellungen.tabStandorte'), icon: 'mdi-map-marker-radius-outline' },
     ...(gaCanManageProcurement(authStore.currentDepartmentRole)
       ? [{ id: 'kategorien', label: t('grossanlass.einstellungen.tabKategorien'), icon: 'mdi-folder-outline' }]
       : []),

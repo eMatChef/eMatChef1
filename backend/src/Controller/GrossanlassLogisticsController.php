@@ -4,11 +4,14 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassBauprojektService;
+use App\Service\Grossanlass\GrossanlassMapService;
 use App\Service\Grossanlass\GrossanlassPackService;
 use App\Service\Grossanlass\GrossanlassPlaceService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
@@ -20,6 +23,8 @@ class GrossanlassLogisticsController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassPlaceService $places,
+        private GrossanlassBauprojektService $bauprojekt,
+        private GrossanlassMapService $maps,
         private GrossanlassPackService $packs,
         private GroupAccessService $groupAccess,
     ) {}
@@ -41,6 +46,82 @@ class GrossanlassLogisticsController extends AbstractController
             $departmentId,
             fn (Department $d, User $u) => $this->places->create($d, $u, is_array($data) ? $data : []),
             201,
+        );
+    }
+
+    #[Route('/places/{placeId}', name: 'places_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updatePlace(string $departmentId, string $placeId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->places->update($d, $u, $placeId, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/places/{placeId}/briefing', name: 'places_briefing', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function placeBriefing(string $departmentId, string $placeId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->bauprojekt->briefingForPlace($d, $u, $placeId),
+        );
+    }
+
+    #[Route('/maps', name: 'maps_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listMaps(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->maps->list($d, $u));
+    }
+
+    #[Route('/maps', name: 'maps_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createMap(string $departmentId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->maps->create($d, $u, is_array($data) ? $data : []),
+            201,
+        );
+    }
+
+    #[Route('/maps/{mapId}', name: 'maps_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateMap(string $departmentId, string $mapId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->maps->update($d, $u, $mapId, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/maps/{mapId}/background', name: 'maps_background', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function uploadMapBackground(string $departmentId, string $mapId, Request $request): JsonResponse
+    {
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            return new JsonResponse(['error' => 'Datei fehlt'], 400);
+        }
+        $bounds = [];
+        foreach (['bounds_north', 'bounds_south', 'bounds_east', 'bounds_west'] as $key) {
+            $value = $request->request->get($key);
+            if ($value !== null && $value !== '') {
+                $bounds[$key] = $value;
+            }
+        }
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->maps->uploadBackground($d, $u, $mapId, $file, $bounds),
         );
     }
 

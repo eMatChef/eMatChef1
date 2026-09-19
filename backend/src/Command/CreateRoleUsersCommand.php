@@ -2,6 +2,10 @@
 
 namespace App\Command;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassRound;
+use App\Entity\ActivityGrossanlassWishLine;
+use App\Entity\ActivityGrossanlassWishResponse;
 use App\Entity\User;
 use App\Entity\Profile;
 use App\Entity\Department;
@@ -10,6 +14,7 @@ use App\Enum\DepartmentRole;
 use App\Service\Bootstrap\DevBootstrapContextService;
 use App\Service\Bootstrap\DemoGrossanlassSeedService;
 use App\Service\Bootstrap\DemoSupplierSeedService;
+use App\Util\DemoUserNames;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -48,6 +53,12 @@ class CreateRoleUsersCommand extends Command
             InputOption::VALUE_NONE,
             'Bestehende @ematchef.ch-User nicht löschen (nur anlegen/aktualisieren)',
         );
+        $this->addOption(
+            'with-ga-demo',
+            null,
+            InputOption::VALUE_NONE,
+            'Demo-Grossanlass-Department + PFF-Szenario anlegen (Standard: aus)',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -62,18 +73,29 @@ class CreateRoleUsersCommand extends Command
         if ($input->getOption('skip-delete')) {
             $io->note('Überspringe Löschen bestehender Test-User (--skip-delete).');
         } else {
-        // Lösche alle bestehenden Test-User (außer dem ersten Superadmin, falls er existiert)
+        // Lösche alle bestehenden Test-User (außer Superadmin + E2E-Smoke)
         $io->section('Lösche alte Test-User...');
         $allUsers = $this->em->getRepository(User::class)->findAll();
         $deletedCount = 0;
+        $superadminProfile = $this->em->getRepository(Profile::class)->findOneBy(['email' => 'superadmin@ematchef.ch']);
+        $superadminKeep = $superadminProfile
+            ? $this->em->getRepository(User::class)->findOneBy(['profileId' => $superadminProfile->getId()])
+            : null;
         foreach ($allUsers as $user) {
             $profile = $user->getProfile();
             if (!$profile || !str_ends_with($profile->getEmail(), '@ematchef.ch')) {
                 continue;
             }
+            // Superadmin bleibt (created_by für GA-Runden u. a.)
+            if ($profile->getEmail() === 'superadmin@ematchef.ch') {
+                continue;
+            }
             // E2E-Smoke bleibt erhalten (wird von app:ensure-e2e-user / app:dev-demo:reset gepflegt)
             if (E2eSmokeUser::isExcluded($profile->getEmail())) {
                 continue;
+            }
+            if ($superadminKeep instanceof User && $superadminKeep->getId() !== $user->getId()) {
+                $this->reassignCreatedByReferences($user->getId(), $superadminKeep->getId());
             }
             // Lösche Membership-Zuordnungen
             $memberships = $this->em->getRepository(Membership::class)
@@ -94,9 +116,9 @@ class CreateRoleUsersCommand extends Command
         $io->section('Erstelle Superadmin...');
         $superadminUser = $this->createUser(
             'superadmin@ematchef.ch',
-            'Superadmin',
-            'User',
-            'Superadmin',
+            DemoUserNames::firstNameForEmail('superadmin@ematchef.ch'),
+            DepartmentRole::SUPERADMIN->getLabel(),
+            DemoUserNames::firstNameForEmail('superadmin@ematchef.ch'),
             DepartmentRole::SUPERADMIN,
             $department,
             true
@@ -118,12 +140,11 @@ class CreateRoleUsersCommand extends Command
         ];
 
         foreach ($roles as $role) {
-            // Verwende den vollständigen Namen für Email und Anzeige
             $fullName = $role->getFullName();
             $email = $fullName . '@ematchef.ch';
-            $firstName = ucfirst($fullName);
-            $lastName = 'User';
-            $nickname = ucfirst($fullName);
+            $firstName = DemoUserNames::firstNameForEmail($email);
+            $lastName = $role->getLabel();
+            $nickname = $firstName;
 
             $this->createUser(
                 $email,
@@ -141,8 +162,6 @@ class CreateRoleUsersCommand extends Command
         $this->em->flush();
         $io->success('Alle Rollen-Benutzer erfolgreich erstellt!');
 
-        $io->section('Grossanlass-Rollen (Demo Grossanlass)…');
-        $gaDepartment = $this->demoGrossanlassSeed->ensureDepartment($organisation, $superadminUser);
         $gaSpecs = [
             ['email' => 'ga-mw@ematchef.ch', 'first' => 'GA', 'last' => 'Materialchef', 'nick' => 'GA-MW', 'role' => DepartmentRole::MATWART],
             ['email' => 'ga-cmw@ematchef.ch', 'first' => 'GA', 'last' => 'Co-Materialchef', 'nick' => 'GA-CMW', 'role' => DepartmentRole::CO_MATWART],
@@ -152,11 +171,18 @@ class CreateRoleUsersCommand extends Command
             ['email' => 'ga-bereich@ematchef.ch', 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::USER],
             ['email' => 'ga-helfer@ematchef.ch', 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
         ];
+
+        $io->section('Grossanlass-Rollen (Demo Grossanlass)…');
+        if (!$input->getOption('with-ga-demo')) {
+            $io->note('Überspringe Demo-Grossanlass (--with-ga-demo zum Anlegen). GA-User werden ohne Grossanlass-Dept aktualisiert.');
+            $this->ensureGaUsersWithoutDepartment($gaSpecs, $superadminUser, $io);
+        } else {
+        $gaDepartment = $this->demoGrossanlassSeed->ensureDepartment($organisation, $superadminUser);
         $gaUsers = [];
         foreach ($gaSpecs as $spec) {
             $gaUsers[$spec['email']] = $this->createUser(
                 $spec['email'],
-                $spec['first'],
+                DemoUserNames::firstNameForEmail($spec['email']),
                 $spec['last'],
                 $spec['nick'],
                 $spec['role'],
@@ -167,12 +193,19 @@ class CreateRoleUsersCommand extends Command
             $io->text("✓ {$spec['nick']}: {$spec['email']} / " . self::DEMO_PASSWORD);
         }
         $this->em->flush();
-        $this->demoGrossanlassSeed->ensureDemoRessort(
+        $this->demoGrossanlassSeed->ensureDemoScenario(
             $gaDepartment,
-            $gaUsers['ga-bereich@ematchef.ch'],
-            $gaUsers['ga-helfer@ematchef.ch'],
+            $gaUsers,
+            $superadminUser,
         );
-        $io->success('Grossanlass-Demo: ' . DemoGrossanlassSeedService::DEPARTMENT_NAME . ' / ' . DemoGrossanlassSeedService::RESSORT_NAME);
+        $io->success(sprintf(
+            'Grossanlass-Demo: %s — %s / %s / %s',
+            DemoGrossanlassSeedService::DEPARTMENT_NAME,
+            DemoGrossanlassSeedService::NAME_INFRASTRUKTUR,
+            DemoGrossanlassSeedService::NAME_BAUTEN,
+            DemoGrossanlassSeedService::NAME_LOGISTIK,
+        ));
+        }
 
         $io->section('Erstelle Demo-Lieferant...');
         $this->demoSupplierSeed->ensure($superadminUser);
@@ -220,6 +253,9 @@ class CreateRoleUsersCommand extends Command
             if ($existingUser) {
                 // Profile-Rollen aktualisieren (für sa/org/sub)
                 $existingProfile->setRoles($this->getProfileRolesForRole($role));
+                $existingProfile->setFirstName($firstName);
+                $existingProfile->setLastName($lastName);
+                $existingProfile->setNickname($nickname);
                 $existingUser->setPassword($this->passwordHasher->hashPassword($existingUser, self::DEMO_PASSWORD));
                 $existingUser->setState('active');
                 $existingUser->setEmailVerified(true);
@@ -259,6 +295,75 @@ class CreateRoleUsersCommand extends Command
         $this->createMembership($user, $department, $role, $isPrimary);
 
         return $user;
+    }
+
+    /**
+     * GA-Testuser aktualisieren/anlegen ohne Grossanlass-Department (Passwort, Profil).
+     *
+     * @param list<array{email: string, first: string, last: string, nick: string, role: DepartmentRole}> $gaSpecs
+     */
+    private function ensureGaUsersWithoutDepartment(array $gaSpecs, User $superadminUser, SymfonyStyle $io): void
+    {
+        foreach ($gaSpecs as $spec) {
+            $existingProfile = $this->em->getRepository(Profile::class)->findOneBy(['email' => $spec['email']]);
+            if ($existingProfile) {
+                $existingUser = $this->em->getRepository(User::class)->findOneBy(['profileId' => $existingProfile->getId()]);
+                if ($existingUser) {
+                    $existingProfile->setRoles($this->getProfileRolesForRole($spec['role']));
+                    $existingProfile->setFirstName(DemoUserNames::firstNameForEmail($spec['email']));
+                    $existingProfile->setLastName($spec['last']);
+                    $existingProfile->setNickname($spec['nick']);
+                    $existingUser->setPassword($this->passwordHasher->hashPassword($existingUser, self::DEMO_PASSWORD));
+                    $existingUser->setState('active');
+                    $existingUser->setEmailVerified(true);
+                    $io->text("↻ {$spec['nick']}: {$spec['email']} (ohne Dept)");
+                    continue;
+                }
+            }
+
+            $profile = new Profile();
+            $profile->setId(IdGenerator::generateUnique($this->em, Profile::class));
+            $profile->setEmail($spec['email']);
+            $profile->setFirstName(DemoUserNames::firstNameForEmail($spec['email']));
+            $profile->setLastName($spec['last']);
+            $profile->setNickname($spec['nick']);
+            $profile->setRoles($this->getProfileRolesForRole($spec['role']));
+            $this->em->persist($profile);
+
+            $user = new User();
+            $user->setId(IdGenerator::generateUnique($this->em, User::class));
+            $user->setProfileId($profile->getId());
+            $user->setProfile($profile);
+            $user->setState('active');
+            $user->setPassword($this->passwordHasher->hashPassword($user, self::DEMO_PASSWORD));
+            $user->setEmailVerified(true);
+            $user->setCreatedBy($superadminUser);
+            $this->em->persist($user);
+            $io->text("✓ {$spec['nick']}: {$spec['email']} (ohne Dept)");
+        }
+        $this->em->flush();
+    }
+
+    /**
+     * Grossanlass-Entitäten referenzieren created_by mit ON DELETE RESTRICT.
+     */
+    private function reassignCreatedByReferences(string $fromUserId, string $toUserId): void
+    {
+        foreach (
+            [
+                ActivityGrossanlassRound::class,
+                ActivityGrossanlassWishLine::class,
+                ActivityGrossanlassWishResponse::class,
+                ActivityGrossanlassProcurementLine::class,
+            ] as $entityClass
+        ) {
+            $this->em->createQuery(
+                'UPDATE ' . $entityClass . ' e SET e.createdByUserId = :to WHERE e.createdByUserId = :from',
+            )
+                ->setParameter('to', $toUserId)
+                ->setParameter('from', $fromUserId)
+                ->execute();
+        }
     }
 
     /**

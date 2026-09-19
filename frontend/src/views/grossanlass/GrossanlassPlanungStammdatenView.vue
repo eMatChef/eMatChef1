@@ -24,10 +24,20 @@
           :show-markers="true"
         />
         <div class="mt-3 venue-wrap">
-          <label class="venue-label" for="ga-venue-address-search">{{ t('grossanlass.planung.stammdaten.location') }}</label>
+          <label class="venue-label">{{ t('grossanlass.planung.stammdaten.location') }}</label>
           <p class="hint">{{ t('grossanlass.planung.stammdaten.locationHint') }}</p>
+          <button
+            v-if="canManage && !venueAddressId"
+            type="button"
+            class="venue-set-cta"
+            data-onboarding="activity-venue-add"
+            @click="openAddVenueAddressModal()"
+          >
+            <span class="venue-set-cta-plus" aria-hidden="true">+</span>
+            <span>{{ t('grossanlass.planung.stammdaten.setEventVenue') }}</span>
+          </button>
           <DepartmentAddressAutocomplete
-            v-if="canManage"
+            v-else-if="canManage"
             ref="venueAddressAutocompleteRef"
             input-id="ga-venue-address-search"
             :addresses="rentalAddresses"
@@ -54,9 +64,16 @@
             v-if="venueAddressId"
             :venue-address-id="venueAddressId"
             :department-id="departmentId"
+            :ga-department-id="departmentId"
+            ga-map-mode="starred"
             :read-only="!canManage"
             @updated="loadRentalAddresses"
           />
+          <p v-if="venueAddressId && canManage" class="hint venue-standorte-link">
+            <router-link :to="`/${departmentId}/einstellungen/standorte`">
+              {{ t('grossanlass.planung.stammdaten.locationStandorteLink') }}
+            </router-link>
+          </p>
         </div>
         <section class="card guest-card">
           <h3>{{ t('grossanlass.planung.stammdaten.guestTitle') }}</h3>
@@ -372,6 +389,36 @@ onMounted(() => {
 .warn { color: #9a3412; }
 .form { max-width: 880px; }
 .venue-label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 4px; }
+.venue-set-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #059669;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.venue-set-cta:hover .venue-set-cta-plus,
+.venue-set-cta:focus-visible .venue-set-cta-plus {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+.venue-set-cta-plus {
+  width: 42px;
+  height: 42px;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  line-height: 1;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
 .venue-readonly { margin: 0; color: #334155; }
 .selected-address { margin: 8px 0 0; font-size: 0.85rem; color: #475569; }
 .clear-selection {

@@ -133,6 +133,8 @@ const props = withDefaults(
     showMarkers?: boolean
     /** Schnellauswahl: range = Samstage + Fixe Daten; fixed-periods = nur Lagerwoche/Sonstiges */
     presetMode?: 'range' | 'fixed-periods'
+    /** Zwei Monate nebeneinander; undefined = ab sm Breakpoint */
+    dualCalendar?: boolean
   }>(),
   {
     density: 'compact',
@@ -154,7 +156,9 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const toast = useToast()
 const smAndUp = useSmAndUp()
-const dualCalendar = computed(() => smAndUp.value)
+const dualCalendar = computed(() =>
+  props.dualCalendar !== undefined ? props.dualCalendar : smAndUp.value,
+)
 const menuOpen = ref(false)
 const activatorRef = ref<{ $el: HTMLElement } | null>(null)
 const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)

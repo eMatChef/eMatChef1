@@ -1,0 +1,66 @@
+.ga-helper-bar--planned {
+  --ga-helper-bar: var(--color-primary, #0f766e);
+  --ga-helper-bar-bg: color-mix(in srgb, var(--ga-helper-bar) 12%, #fff);
+}
+
+.ga-helper-bar--pending {
+  --ga-helper-bar: #f59e0b;
+  --ga-helper-bar-bg: #fff7ed;
+}
+
+.ga-helper-bar--issued {
+  --ga-helper-bar: var(--activity-status-packing, #2563eb);
+  --ga-helper-bar-bg: color-mix(in srgb, var(--ga-helper-bar) 12%, #fff);
+}
+
+.ga-helper-bar--returned {
+  --ga-helper-bar: var(--activity-status-completed, #16a34a);
+  --ga-helper-bar-bg: color-mix(in srgb, var(--ga-helper-bar) 12%, #fff);
+}
+
+.ga-helper-bar--unreleased {
+  --ga-helper-bar: #fdba74;
+  --ga-helper-bar-bg: #fff7ed;
+}
+
+.ga-helper-bar--handover {
+  --ga-helper-bar: #0f766e;
+  --ga-helper-bar-bg: #ecfdf5;
+}
+
+.ga-helper-bar--giveback {
+  --ga-helper-bar: #7c3aed;
+  --ga-helper-bar-bg: #f5f3ff;
+}
+
+.ga-helper-bar--service {
+  --ga-helper-bar: #a16207;
+  --ga-helper-bar-bg: #fefce8;
+}
+
+.ga-helper-bar--fixed {
+  --ga-helper-bar: #334155;
+  --ga-helper-bar-bg: #f8fafc;
+}
+
+.ga-helper-bar__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ga-helper-bar-bg, #f1f5f9);
+  color: var(--ga-helper-bar, #334155);
+  border: 1px solid color-mix(in srgb, var(--ga-helper-bar, #cbd5e1) 35%, transparent);
+}
+
+.ga-helper-bar__badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--ga-helper-bar, #64748b);
+  flex-shrink: 0;
+}

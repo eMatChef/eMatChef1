@@ -33,6 +33,15 @@
         >
           🌍
         </button>
+        <button
+          v-if="overlay?.url"
+          type="button"
+          :class="['activity-dual-location-map__layer-btn', { active: showPlan }]"
+          :title="t('components.mapView.layerPlanTitle')"
+          @click.stop="showPlan = !showPlan"
+        >
+          🗺️
+        </button>
       </div>
     </div>
     <p v-if="pins.length === 0 && !editablePinId" class="activity-dual-location-map__empty field-hint text-muted">
@@ -59,6 +68,14 @@ export interface ActivityLocationPin {
 
 type MapBaseLayer = 'swisstopo' | 'swissimage' | 'osm'
 
+export type ActivityMapOverlay = {
+  url: string
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
 const WMTS_BASE = 'https://wmts.geo.admin.ch/1.0.0'
 const SWISSTOPO_ATTRIBUTION =
   '&copy; <a href="https://www.swisstopo.admin.ch">swisstopo</a>'
@@ -75,6 +92,8 @@ const props = withDefaults(
     preferSwissMap?: boolean
     /** Layer-Umschalter (Landeskarte / Luftbild / OSM). */
     showLayerControl?: boolean
+    /** Optionaler Geländeplan über dem Ausschnitt. */
+    overlay?: ActivityMapOverlay | null
   }>(),
   {
     height: '220px',
@@ -82,6 +101,7 @@ const props = withDefaults(
     editablePinId: null,
     preferSwissMap: true,
     showLayerControl: true,
+    overlay: null,
   },
 )
 
@@ -95,8 +115,10 @@ const mapContainer = ref<HTMLDivElement>()
 let map: L.Map | null = null
 let markersLayer: L.LayerGroup | null = null
 let activeTileLayer: L.TileLayer | null = null
+let overlayLayer: L.ImageOverlay | null = null
 const markerById = new Map<string, L.Marker>()
 const currentLayer = ref<MapBaseLayer>('swisstopo')
+const showPlan = ref(true)
 
 const SWISS_BOUNDS = L.latLngBounds([45.8, 5.9], [47.85, 10.55])
 const DEFAULT_CENTER: L.LatLngExpression = [46.8182, 8.2275]
@@ -146,7 +168,31 @@ function setLayer(layer: MapBaseLayer) {
   }
   activeTileLayer = createTileLayer(layer)
   activeTileLayer.addTo(map)
+  applyOverlay()
   // Marker über den Tiles halten (FeatureGroup-API; LayerGroup-Typen ohne bringToFront)
+  if (markersLayer) (markersLayer as L.FeatureGroup).bringToFront()
+}
+
+function overlayLatLngBounds(overlay: ActivityMapOverlay): L.LatLngBounds {
+  return L.latLngBounds(
+    [overlay.south, overlay.west],
+    [overlay.north, overlay.east],
+  )
+}
+
+function applyOverlay() {
+  if (!map) return
+  if (overlayLayer) {
+    map.removeLayer(overlayLayer)
+    overlayLayer = null
+  }
+  const overlay = props.overlay
+  if (!overlay?.url || !showPlan.value) return
+  overlayLayer = L.imageOverlay(overlay.url, overlayLatLngBounds(overlay), {
+    opacity: 0.92,
+    interactive: false,
+  })
+  overlayLayer.addTo(map)
   if (markersLayer) (markersLayer as L.FeatureGroup).bringToFront()
 }
 
@@ -173,6 +219,8 @@ function fitToCurrentPins(pinsToRender: ActivityLocationPin[]) {
   } else if (pinsToRender.length > 1) {
     const bounds = L.latLngBounds(pinsToRender.map((p) => [p.latitude, p.longitude] as L.LatLngExpression))
     map.fitBounds(bounds.pad(0.35), { animate: false, maxZoom: 16, padding: [28, 28] })
+  } else if (props.overlay?.url && showPlan.value) {
+    map.fitBounds(overlayLatLngBounds(props.overlay).pad(0.08), { animate: false, maxZoom: 17 })
   } else {
     map.fitBounds(SWISS_BOUNDS, { animate: false })
   }
@@ -285,6 +333,7 @@ function destroyMap() {
     map = null
     markersLayer = null
     activeTileLayer = null
+    overlayLayer = null
     markerById.clear()
   }
 }
@@ -302,7 +351,18 @@ function fitToPins() {
   fitToCurrentPins(props.pins)
 }
 
-defineExpose({ invalidateSize, fitToPins })
+function getBounds(): { north: number; south: number; east: number; west: number } | null {
+  if (!map) return null
+  const bounds = map.getBounds()
+  return {
+    north: bounds.getNorth(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    west: bounds.getWest(),
+  }
+}
+
+defineExpose({ invalidateSize, fitToPins, getBounds })
 
 watch(
   () => props.pins.map((p) => `${p.id}:${p.latitude}:${p.longitude}:${p.color ?? ''}`).join('|'),
@@ -329,6 +389,13 @@ watch(
   (useSwiss) => {
     if (!map) return
     setLayer(useSwiss ? 'swisstopo' : 'osm')
+  },
+)
+
+watch(
+  () => [props.overlay?.url, props.overlay?.north, props.overlay?.south, props.overlay?.east, props.overlay?.west, showPlan.value] as const,
+  () => {
+    applyOverlay()
   },
 )
 

@@ -1,0 +1,128 @@
+.user-global-admin-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-global-admin-accordion .member-profile-accordion {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.user-global-admin-accordion .member-profile-accordion__summary {
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: #1f2937;
+  cursor: pointer;
+  list-style: none;
+  background: #f8fafc;
+}
+
+.user-global-admin-accordion .member-profile-accordion__body {
+  padding: 12px 14px 14px;
+}
+
+.user-global-admin-accordion__subtitle {
+  margin: 0 0 10px;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.user-global-admin-accordion__readonly-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #64748b;
+  background: #e2e8f0;
+  vertical-align: middle;
+}
+
+.user-global-admin-accordion__role-hint {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0c4a6e;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.user-global-admin-accordion__scope-summary {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.88rem;
+  color: #334155;
+}
+
+.user-global-admin-accordion .capability-group {
+  margin-bottom: 14px;
+}
+
+.user-global-admin-accordion .capability-group:last-child {
+  margin-bottom: 0;
+}
+
+.user-global-admin-accordion .capability-group-title {
+  font-weight: 600;
+  font-size: 0.84rem;
+  margin-bottom: 6px;
+  color: #374151;
+}
+
+.user-global-admin-accordion .capability-group-hint {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.user-global-admin-accordion .scope-tree {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.user-global-admin-accordion .scope-org {
+  margin-bottom: 12px;
+}
+
+.user-global-admin-accordion .scope-org-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  padding: 4px 0;
+}
+
+.user-global-admin-accordion .scope-dept-node {
+  margin-bottom: 4px;
+}
+
+.user-global-admin-accordion .scope-dept-node--org-selected {
+  opacity: 0.75;
+}
+
+.user-global-admin-accordion .inline-hint {
+  color: #6b7280;
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+
+.user-global-admin-accordion .scope-org-no-depts {
+  margin: 0 0 8px 28px;
+  font-style: italic;
+}

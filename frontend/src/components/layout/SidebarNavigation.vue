@@ -103,22 +103,25 @@
         </template>
       </div>
 
-      <!-- Verwaltung der Webseite: Superadmin / Organisationschef / Suborgchef -->
+      <!-- Organisation & Abteilungen: Superadmin / Organisationschef / Suborgchef -->
       <router-link
         v-if="!isPendingAssignmentRoute && hasGlobalAdminAccess"
         :to="verwaltungEntryLink"
         class="nav-item"
         :class="{ active: isVerwaltungNavActive }"
+        :title="!showNavLabels ? t('sidebar.siteAdmin') : undefined"
       >
         <v-icon icon="mdi-shield-account" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.siteAdmin') }}</span>
       </router-link>
 
+      <!-- Öffentliche Webseite (Startseite, Blog, FAQ …): Superadmin / Webadmin -->
       <router-link
         v-if="!isPendingAssignmentRoute && canEditPublicWebsite"
         to="/site-inhalt"
         class="nav-item"
         :class="{ active: $route.path.startsWith('/site-inhalt') }"
+        :title="!showNavLabels ? t('sidebar.website') : undefined"
       >
         <v-icon icon="mdi-web" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.website') }}</span>
@@ -159,10 +162,22 @@
         :to="getLink('/mein-ressort')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('mein-ressort') }"
-        :title="t('sidebar.meinRessortHint')"
+        :title="meinRessortSidebarHint"
       >
         <v-icon icon="mdi-home-group" class="nav-icon nav-icon--mdi" size="20" />
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meinRessort') }}</span>
+      </router-link>
+
+      <!-- Meine Einsätze (Helfer) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showGrossanlassHelperNav && showMeineEinsaetzeSidebarLink"
+        :to="getLink('/meine-einsaetze')"
+        class="nav-item"
+        :class="{ active: isDeptSectionNavActive('meine-einsaetze') }"
+        :title="t('sidebar.meineEinsaetzeHint')"
+      >
+        <v-icon icon="mdi-truck-delivery-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meineEinsaetze') }}</span>
       </router-link>
 
       <!-- Planung (MW / CMW / OK-Leitung) -->
@@ -291,7 +306,7 @@
 
       <!-- Aufgaben -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks"
         :to="getLink('/tasks')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('tasks') }"
@@ -312,7 +327,7 @@
 
       <!-- Nachrichtenzentrale (unter Aufgaben) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks && !showGrossanlassHelperNav"
         :to="getLink('/notifications')"
         class="nav-item"
         :class="{ active: isDeptSectionNavActive('notifications') }"
@@ -372,7 +387,7 @@
       </router-link>
 
       <router-link
-        v-if="!isPendingAssignmentRoute && showDeptContextSidebarLinks"
+        v-if="!isPendingAssignmentRoute && (showGrossanlassHelperNav ? showGrossanlassHelperSidebarLinks : showDeptContextSidebarLinks)"
         :to="getLink('/settings')"
         class="nav-item"
         :class="{ active: $route.path.includes('/settings') }"
@@ -418,8 +433,10 @@ import {
   gaCanManageProcurement,
   gaCanSeeAnlassOverview,
   gaCanWorkMailbox,
+  gaIsGrossanlassHelper,
 } from '@/utils/grossanlassAccess'
 import { gaHomePath, gaHomeKind, gaIsRoleHomePath } from '@/utils/grossanlassHome'
+import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 import { usePrintCart } from '@/composables/usePrintCart'
 import { canUseDepartmentOnboarding, canUseHelpEinrichtung } from '@/utils/onboardingGate'
 import { countOpenChecklistItems } from '@/utils/onboardingChecklist'
@@ -652,12 +669,16 @@ const isDevPlaygroundNavActive = computed(() => {
   const p = route.path
   return p.includes('/dev/ui-playground') || /\/[^/]+\/sandbox\/?$/.test(p)
 })
-/** Einstieg Verwaltung: Unterbereich (nicht die Übersicht — die ist unter „Dashboard“) */
+/** Einstieg Verwaltung: erste erreichbare Seite (nicht leere /verwaltung — die ist SA-only Global Addresses). */
 const verwaltungEntryLink = computed(() => {
-  if (isAdminDashboardRoute.value) return '/admin-dashboard/verwaltung'
-  if (!departmentId.value && isSuperAdmin.value) return '/admin-dashboard/verwaltung'
+  if (isAdminDashboardRoute.value) {
+    return resolveVerwaltungLandingPath(authStore, { isAdminDashboard: true })
+  }
+  if (!departmentId.value && isSuperAdmin.value) {
+    return resolveVerwaltungLandingPath(authStore, { isAdminDashboard: true })
+  }
   if (!departmentId.value) return '/pending-assignment'
-  return `/${departmentId.value}/verwaltung`
+  return resolveVerwaltungLandingPath(authStore, { departmentId: departmentId.value })
 })
 
 const isVerwaltungNavActive = computed(() => {
@@ -756,6 +777,23 @@ const hasGlobalAdminAccess = computed(() =>
 const showActivitiesMenu = computed(() => !isSuperAdmin.value)
 
 const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+
+const showGrossanlassHelperNav = computed(
+  () => isGrossanlassDept.value && gaIsGrossanlassHelper(authStore.currentDepartmentRole),
+)
+
+const meinRessortSidebarHint = computed(() =>
+  showGrossanlassHelperNav.value
+    ? t('sidebar.meinRessortHintHelper')
+    : t('sidebar.meinRessortHint'),
+)
+
+/** Helfer: nur Mein Ressort, Meine Einsätze, Aufgaben, Konfiguration (gefiltert). */
+const showGrossanlassHelperSidebarLinks = computed(
+  () => showDeptContextSidebarLinks.value && showGrossanlassHelperNav.value,
+)
+
+const showMeineEinsaetzeSidebarLink = computed(() => showGrossanlassHelperNav.value)
 
 const grossanlassNavLabel = computed(() => {
   const id = departmentId.value

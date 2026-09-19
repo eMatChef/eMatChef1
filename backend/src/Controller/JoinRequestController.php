@@ -891,11 +891,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -938,11 +934,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1009,11 +1001,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1185,6 +1173,26 @@ class JoinRequestController extends AbstractController
         }
 
         [$department, $invite] = $resolved;
+
+        if ($this->userHasDepartmentMembership($currentUser->getId(), $department->getId())) {
+            if (($invite['status'] ?? 'pending') === 'pending') {
+                $this->finalizeInviteAccepted($department, $invite, $currentUser);
+                $this->entityManager->flush();
+            } else {
+                $inviteId = (string) ($invite['id'] ?? '');
+                if ($inviteId !== '') {
+                    $this->userDepartmentInviteNotifications->markInviteAccepted($currentUser, $department, $inviteId);
+                }
+            }
+
+            return new JsonResponse([
+                'success' => true,
+                'department_id' => $department->getId(),
+                'department_name' => $department->getName(),
+                'reload_required' => false,
+                'already_member' => true,
+            ]);
+        }
 
         $inviteStatus = (string) ($invite['status'] ?? 'pending');
         if ($inviteStatus !== 'pending') {
@@ -1361,11 +1369,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1408,11 +1412,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1544,11 +1544,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
         }
 
-        $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $departmentId,
-        ]);
-        if (!$myMembership || !in_array($myMembership->getRole(), self::MANAGER_ROLES, true)) {
+        if (!$this->canManageDepartmentInvites($currentUser, $departmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
@@ -1642,6 +1638,10 @@ class JoinRequestController extends AbstractController
         }
 
         $departmentId = $joinRequest->getDepartmentId();
+        if ($this->hasGlobalAdminRole($currentUser)) {
+            return $this->adminCapabilityChecker->canAccessDepartment($currentUser, $departmentId);
+        }
+
         $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
             'userId' => $currentUser->getId(),
             'departmentId' => $departmentId,
@@ -1856,7 +1856,7 @@ class JoinRequestController extends AbstractController
     private function canManageDepartmentInvites(User $user, string $departmentId): bool
     {
         if ($this->hasGlobalAdminRole($user)) {
-            return true;
+            return $this->adminCapabilityChecker->canAccessDepartment($user, $departmentId);
         }
         $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
             'userId' => $user->getId(),
@@ -1951,8 +1951,8 @@ class JoinRequestController extends AbstractController
         $hasAnyMembership = count($this->entityManager->getRepository(Membership::class)->findBy([
             'userId' => $user->getId(),
         ])) > 0;
-        $isPrimary = !empty($invite['is_primary']);
-        $membership->setIsPrimary($isPrimary || !$hasAnyMembership);
+        $wantPrimary = !empty($invite['is_primary']) || !$hasAnyMembership;
+        $this->applyPrimaryMembershipFlag($membership, $wantPrimary);
 
         $this->auditLogger->log(
             'membership',
@@ -2181,6 +2181,27 @@ class JoinRequestController extends AbstractController
             'userId' => $userId,
             'departmentId' => $departmentId,
         ]) !== null;
+    }
+
+    private function applyPrimaryMembershipFlag(Membership $membership, bool $shouldBePrimary): void
+    {
+        if ($shouldBePrimary) {
+            $existingPrimaries = $this->entityManager->getRepository(Membership::class)->findBy([
+                'userId' => $membership->getUserId(),
+                'isPrimary' => true,
+            ]);
+            $demoted = false;
+            foreach ($existingPrimaries as $existingPrimary) {
+                if ($existingPrimary instanceof Membership) {
+                    $existingPrimary->setIsPrimary(false);
+                    $demoted = true;
+                }
+            }
+            if ($demoted) {
+                $this->entityManager->flush();
+            }
+        }
+        $membership->setIsPrimary($shouldBePrimary);
     }
 
     /**

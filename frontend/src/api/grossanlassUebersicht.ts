@@ -25,9 +25,12 @@ export type GaUebersichtEinsatz = {
   trip_released: boolean
   trip_released_at: string | null
   destination_place_id: string | null
+  destination_place_name?: string
   packs?: GaLogisticsPack[]
   bar_role: 'einsatz'
   conflict_id?: string
+  task_kind?: 'einsatz' | 'fahrauftrag' | 'bauauftrag'
+  operable?: boolean
 }
 
 export type GaUebersichtConflict = {
@@ -116,6 +119,17 @@ export type GaSubmitBoard = {
   cards: GrossanlassUserCard[]
 }
 
+export type GaMyEinsaetzePayload = {
+  einsaetze: GaUebersichtEinsatz[]
+  fahrauftraege: GaUebersichtEinsatz[]
+  bauauftraege: GaUebersichtEinsatz[]
+  cards: GrossanlassUserCard[]
+}
+
+export type GaHelperScanContextPayload = GaMyEinsaetzePayload & {
+  place: GaPlace | null
+}
+
 export type GaUebersichtCreatePayload = {
   kind?: 'einsatz' | 'order'
   commitment_id?: string
@@ -160,6 +174,24 @@ export async function getGrossanlassSubmitBoard(departmentId: string): Promise<G
   return response.data
 }
 
+export async function getGrossanlassMyEinsaetze(departmentId: string): Promise<GaMyEinsaetzePayload> {
+  const response = await apiClient.get<GaMyEinsaetzePayload>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/meine-einsaetze`,
+  )
+  return response.data
+}
+
+export async function getGrossanlassHelperScanContext(
+  departmentId: string,
+  params: { placeId?: string; einsatzId?: string },
+): Promise<GaHelperScanContextPayload> {
+  const response = await apiClient.get<GaHelperScanContextPayload>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/scan-context`,
+    { params: { place_id: params.placeId, einsatz_id: params.einsatzId } },
+  )
+  return response.data
+}
+
 export async function updateGrossanlassEinsatz(
   departmentId: string,
   id: string,
@@ -175,8 +207,8 @@ export async function updateGrossanlassEinsatz(
     to?: string
     qty?: number
   },
-): Promise<GaUebersichtPayload> {
-  const response = await apiClient.patch<GaUebersichtPayload>(
+): Promise<GaUebersichtPayload | GaMyEinsaetzePayload> {
+  const response = await apiClient.patch<GaUebersichtPayload | GaMyEinsaetzePayload>(
     `/api/departments/${departmentId}/grossanlass/uebersicht/einsaetze/${id}`,
     data,
   )

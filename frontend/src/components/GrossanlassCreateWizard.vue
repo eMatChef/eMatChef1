@@ -38,6 +38,7 @@
             :show-presets="true"
             :show-markers="true"
             preset-mode="fixed-periods"
+            :dual-calendar="false"
             :label-from="t('activities.zeitraum.timeStart')"
             :label-to="t('activities.zeitraum.timeEnd')"
             :aria-label="t('grossanlass.wizard.eventPeriodLabel')"
@@ -162,7 +163,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
@@ -208,7 +209,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
-const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 
@@ -373,15 +373,30 @@ function formatUserName(user: AvailableUser): string {
   return user.name
 }
 
-function onOrganisationChange() {
-  formData.value.parentId = null
-  selectedChiefMw.value = null
-  chiefMwSearchQuery.value = ''
-  availableUsers.value = []
-  if (chiefMwSearchTimer) {
-    clearTimeout(chiefMwSearchTimer)
-    chiefMwSearchTimer = null
+const lastKnownOrganisationId = ref('')
+
+function onOrganisationChange(newOrgId: string | null) {
+  const nextOrgId = newOrgId ?? ''
+  const previousOrgId = lastKnownOrganisationId.value
+  lastKnownOrganisationId.value = nextOrgId
+  if (previousOrgId && previousOrgId !== nextOrgId) {
+    formData.value.parentId = null
+    selectedChiefMw.value = null
+    chiefMwSearchQuery.value = ''
+    availableUsers.value = []
+    if (chiefMwSearchTimer) {
+      clearTimeout(chiefMwSearchTimer)
+      chiefMwSearchTimer = null
+    }
   }
+}
+
+function applyPreselection() {
+  if (props.preselectedOrganisationId) {
+    formData.value.organisationId = props.preselectedOrganisationId
+  }
+  formData.value.parentId = props.preselectedParentId ?? null
+  lastKnownOrganisationId.value = formData.value.organisationId
 }
 
 function syncChiefMwDropdownPosition() {
@@ -505,8 +520,8 @@ async function seedDefaultPeriod() {
 function resetForm() {
   formData.value = {
     name: '',
-    organisationId: props.preselectedOrganisationId || '',
-    parentId: props.preselectedParentId || null,
+    organisationId: '',
+    parentId: null,
   }
   plannedEventStartAt.value = null
   plannedEventEndAt.value = null
@@ -514,14 +529,15 @@ function resetForm() {
   chiefMwSearchQuery.value = ''
   showChiefMwWarning.value = false
   error.value = null
+  lastKnownOrganisationId.value = ''
+  applyPreselection()
 }
 
 watch(
   () => [props.preselectedOrganisationId, props.preselectedParentId],
   () => {
     if (props.isOpen) {
-      formData.value.organisationId = props.preselectedOrganisationId || formData.value.organisationId
-      formData.value.parentId = props.preselectedParentId ?? formData.value.parentId
+      applyPreselection()
     }
   },
 )
@@ -540,10 +556,24 @@ watch(
         isSuperAdmin: isSuperAdmin.value,
         memberOrganisationIds: memberOrganisationIds.value,
       })
-      list = sortOrganisationsMembersFirst(list, memberOrganisationIds.value)
+      const preselOrgId = props.preselectedOrganisationId
+      if (preselOrgId && !list.some((o) => o.id === preselOrgId)) {
+        const missing =
+          picked.find((o) => o.id === preselOrgId) || rawOrgs.find((o) => o.id === preselOrgId)
+        if (missing) {
+          list = sortOrganisationsMembersFirst(
+            [missing, ...list.filter((o) => o.id !== missing.id)],
+            memberOrganisationIds.value,
+          )
+        }
+      } else {
+        list = sortOrganisationsMembersFirst(list, memberOrganisationIds.value)
+      }
       organisations.value = list
+      applyPreselection()
       if (!formData.value.organisationId && list.length === 1) {
         formData.value.organisationId = list[0].id
+        lastKnownOrganisationId.value = list[0].id
       }
       await Promise.all([seedDefaultPeriod()])
     } catch {
@@ -599,11 +629,9 @@ async function handleSubmit() {
     })
 
     await authStore.loadDepartments()
-    await authStore.setActiveDepartment(created.id)
     emit('created', created.id)
     close()
     toast.success(t('grossanlass.wizard.createdSuccess', { name: created.name }))
-    await router.push(`/${created.id}/dashboard`)
   } catch (err: unknown) {
     const e = err as { response?: { data?: { error?: string } } }
     error.value = e.response?.data?.error || t('grossanlass.wizard.createError')

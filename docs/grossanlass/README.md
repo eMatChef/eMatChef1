@@ -4,7 +4,7 @@ Spezifikation für department-übergreifende Grossanlässe (PFF, Kantonslager): 
 
 **Stand:** Juni 2026 · **Status:** Spezifikation (Ziel); Umsetzung offen
 
-**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
+**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) (Bauprojekt, GA-Ort, Aufgaben & Material) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
 
 ---
 
@@ -1388,6 +1388,7 @@ Neu darf es nur sein, was **domänenspezifisch** ist: `is_grossanlass`, `departm
 
 - [Konzept 2026-08-23](./20260823_New_concept.md) — Anfragen, Grob/Fein, Kontakt erst beim Nehmen
 - [Rollen, Postfach, Fahrten](./rollen-postfach-fahrten.md) — MW/CMW/OK-L, Label `eMatChef`, Einsatz mit Checkbox Fahrt = Fahrauftrag, Selbstabholung, Teilpacken, Dashboard-Box
+- [Bauprojekt, GA-Ort, Helfer](./bauprojekt-ort-helfer.md) — Projektfenster, Aufgaben + Material=Wunsch, Standort `/i/ga/`, Druck aus denselben Objekten
 - [Kostenübersicht](./kosten.md) — Einkauf / Miete / Weiterverkauf, Zahler, Ledger
 - [Aktivitäten-Übersicht](../activities/README.md)
 - [J+S-Material](../activities/js-material/README.md)

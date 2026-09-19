@@ -91,6 +91,9 @@
                 </div>
                 <div class="name-stack">
                   <span class="group-name">{{ group.name }}</span>
+                  <span v-if="group.node_type === 'bauprojekt' && projectWindow(group)" class="window-chip">
+                    {{ projectWindow(group) }}
+                  </span>
                   <span class="kind-row">
                     <span class="kind-badge">{{ kindLabel(group) }}</span>
                     <button
@@ -140,6 +143,14 @@
             </td>
             <td v-if="showManagementActions" class="col-actions">
               <div class="action-buttons">
+                <button
+                  v-if="group.node_type === 'bauprojekt'"
+                  class="action-btn"
+                  :title="t('grossanlass.planung.ressorts.openProject')"
+                  @click="openProjectPanel(group)"
+                >
+                  <v-icon icon="mdi-clipboard-list-outline" size="16" />
+                </button>
                 <button
                   v-if="canCreateChild(group) && group.level < 10"
                   class="action-btn"
@@ -237,6 +248,15 @@
         :disabled="!!fixedParentId && !editingGroup"
         hide-details
       />
+      <EDateRangeField
+        v-if="showProjectWindow"
+        :department-id="departmentId"
+        :label="t('grossanlass.planung.ressorts.windowLabel')"
+        v-model:start="groupForm.window_start"
+        v-model:end="groupForm.window_end"
+        allow-past
+      />
+      <p v-if="showProjectWindow" class="window-hint">{{ t('grossanlass.planung.ressorts.windowHint') }}</p>
       <template #actions>
         <EButton variant="secondary" size="small" @click="closeGroupModal">{{ t('common.cancel') }}</EButton>
         <EButton
@@ -532,6 +552,23 @@
       @saved="onMemberDetailSaved"
       @removed="onMemberDetailSaved"
     />
+
+    <EDialog
+      v-model="showProjectModal"
+      :max-width="640"
+      :title="projectModalTitle"
+    >
+      <GrossanlassBauprojektPanel
+        v-if="projectGroup && departmentId"
+        :department-id="departmentId"
+        :group-id="projectGroup.id"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="showProjectModal = false">
+          {{ t('settings.groups.close') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -550,9 +587,10 @@ import {
 } from '@/components/members'
 import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
 import GrossanlassHelperInviteForm from '@/components/grossanlass/GrossanlassHelperInviteForm.vue'
+import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import { EButton, EDialog, ETextField, ESelect } from '@/components/form/base'
+import { EButton, EDateRangeField, EDialog, ETextField, ESelect } from '@/components/form/base'
 import {
   getGrossanlassGroups,
   createGrossanlassGroup,
@@ -580,7 +618,9 @@ import {
   grossanlassGroupSelectTitle,
 } from '@/utils/grossanlassGroupHierarchy'
 import { gaCanManageDepartmentUsers } from '@/utils/grossanlassAccess'
+import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
 import { getDeptRoleShort } from '@/utils/departmentMemberRoles'
+import { getGrossanlassPlanung, updateGrossanlassPlanung } from '@/api/grossanlassPlanung'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -616,7 +656,11 @@ const groupForm = ref({
   name: '',
   parent_id: null as string | null,
   kind: 'ressort' as GrossanlassGroupKind,
+  window_start: '',
+  window_end: '',
 })
+const showProjectModal = ref(false)
+const projectGroup = ref<GrossanlassGroup | null>(null)
 
 const showMembersModal = ref(false)
 const selectedGroup = ref<GrossanlassGroup | null>(null)
@@ -738,6 +782,18 @@ const showChildKindSelect = computed(() => {
   return !!(fixedParentId.value || groupForm.value.parent_id)
 })
 
+const showProjectWindow = computed(() => {
+  const hasParent = !!(fixedParentId.value || groupForm.value.parent_id || editingGroup.value?.parent_id)
+  if (!hasParent) return false
+  return groupForm.value.kind === 'teilbereich' || editingGroup.value?.node_type === 'bauprojekt'
+})
+
+const projectModalTitle = computed(() =>
+  projectGroup.value
+    ? t('grossanlass.planung.ressorts.projectTitle', { name: projectGroup.value.name })
+    : t('grossanlass.planung.ressorts.openProject'),
+)
+
 const childKindSelectItems = computed(() => [
   {
     title: t('grossanlass.planung.ressorts.kindUnterressort'),
@@ -772,6 +828,15 @@ const unassignedUsers = computed(() => {
   const assignedIds = new Set(selectedGroup.value.members.map((m) => m.user_id))
   return departmentMembers.value.filter((u) => !assignedIds.has(u.user_id))
 })
+
+function projectWindow(group: GrossanlassGroup): string {
+  return formatBauprojektWindow(group.window_start, group.window_end)
+}
+
+function openProjectPanel(group: GrossanlassGroup) {
+  projectGroup.value = group
+  showProjectModal.value = true
+}
 
 function nodeIcon(nodeType: GrossanlassNodeType): string {
   if (nodeType === 'bauprojekt') return 'mdi-hammer-wrench'
@@ -956,7 +1021,7 @@ async function onMemberDetailSaved() {
 function openCreateModal(parentId: string | null = null) {
   editingGroup.value = null
   fixedParentId.value = parentId
-  groupForm.value = { name: '', parent_id: parentId, kind: 'ressort' }
+  groupForm.value = { name: '', parent_id: parentId, kind: 'ressort', window_start: '', window_end: '' }
   showGroupModal.value = true
   nextTick(() => groupNameInput.value?.focus?.())
 }
@@ -968,6 +1033,8 @@ function openEditModal(group: GrossanlassGroup) {
     name: group.name,
     parent_id: group.parent_id,
     kind: group.kind,
+    window_start: group.window_start || '',
+    window_end: group.window_end || '',
   }
   showGroupModal.value = true
   nextTick(() => groupNameInput.value?.focus?.())
@@ -988,12 +1055,16 @@ async function saveGroup() {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
         kind: editingGroup.value.parent_id ? groupForm.value.kind : undefined,
+        window_start: showProjectWindow.value ? groupForm.value.window_start || null : undefined,
+        window_end: showProjectWindow.value ? groupForm.value.window_end || null : undefined,
       })
     } else {
       await createGrossanlassGroup(departmentId.value, {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
         kind: groupForm.value.parent_id ? groupForm.value.kind : undefined,
+        window_start: showProjectWindow.value ? groupForm.value.window_start || null : undefined,
+        window_end: showProjectWindow.value ? groupForm.value.window_end || null : undefined,
       })
     }
     closeGroupModal()
@@ -1201,6 +1272,9 @@ async function handleRemoveMember(member: GroupMember) {
 }
 
 watch(departmentId, () => loadGroups())
+watch(showProjectModal, (open) => {
+  if (!open) void loadGroups()
+})
 onMounted(() => loadGroups())
 </script>
 
@@ -1337,6 +1411,17 @@ onMounted(() => loadGroups())
 
 .group-name {
   font-weight: 500;
+}
+
+.window-chip {
+  font-size: 12px;
+  color: #475569;
+}
+
+.window-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #64748b;
 }
 
 .kind-badge {

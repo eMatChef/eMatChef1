@@ -5,11 +5,17 @@
       <span class="ga-trips__count">{{ rows.length }}</span>
     </div>
     <ul class="ga-trips__list">
-      <li v-for="row in rows" :key="row.id" class="ga-trips__item">
+      <li
+        v-for="row in rows"
+        :key="row.id"
+        class="ga-trips__item"
+        :class="{ 'ga-trips__item--clickable': clickable }"
+        @click="onRowClick(row)"
+      >
         <div class="ga-trips__meta">
           <strong>{{ row.objectName }}</strong>
-          <span>{{ t('grossanlass.materialUebersicht.qty', { n: row.qty }) }} · {{ row.ressort || '–' }}</span>
-          <span>{{ row.fromLabel }} – {{ row.toLabel }}</span>
+          <span>{{ t('grossanlass.materialUebersicht.qty', { n: row.qty }) }} · {{ helperOrgLabel(row) }}</span>
+          <span>{{ formatHelperWhenLabel(row.fromIso, row.toIso, locale) }}</span>
           <span v-if="row.who">{{ row.who }}</span>
         </div>
         <div class="ga-trips__flags">
@@ -27,7 +33,7 @@
             {{ t('grossanlass.materialUebersicht.status.issued') }}
           </span>
         </div>
-        <div class="ga-trips__actions">
+        <div class="ga-trips__actions" @click.stop>
           <EButton
             v-if="row.status !== 'issued'"
             variant="secondary"
@@ -38,7 +44,7 @@
             {{ row.packed ? t('grossanlass.materialUebersicht.tripsUnpack') : t('grossanlass.materialUebersicht.tripsPack') }}
           </EButton>
           <EButton
-            v-if="row.packed && !row.tripReleased && row.status !== 'issued'"
+            v-if="!packOnly && row.packed && !row.tripReleased && row.status !== 'issued'"
             variant="primary"
             size="small"
             :disabled="busyId === row.id"
@@ -47,7 +53,7 @@
             {{ t('grossanlass.materialUebersicht.tripsRelease') }}
           </EButton>
           <EButton
-            v-if="row.tripReleased && row.status !== 'issued'"
+            v-if="!packOnly && row.tripReleased && row.status !== 'issued'"
             variant="primary"
             size="small"
             :disabled="busyId === row.id || !canStart(row)"
@@ -62,28 +68,46 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import type { GaPreviewEinsatz } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { formatHelperWhenLabel, helperOrgLabel } from '@/views/grossanlass/grossanlassHelperAssignment'
 
-const props = defineProps<{
-  rows: GaPreviewEinsatz[]
-  busyId?: string | null
-  canStartTrip?: (row: GaPreviewEinsatz) => boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    rows: GaPreviewEinsatz[]
+    busyId?: string | null
+    canStartTrip?: (row: GaPreviewEinsatz) => boolean
+    /** Nur Packen — für Helfer als Chauffeur (kein Freigeben/Ausgeben). */
+    packOnly?: boolean
+    /** Zeile antippen öffnet Detail (Helfer). */
+    clickable?: boolean
+  }>(),
+  { packOnly: false, clickable: false },
+)
 
-defineEmits<{
+const emit = defineEmits<{
   'toggle-packed': [row: GaPreviewEinsatz]
   release: [row: GaPreviewEinsatz]
   issue: [row: GaPreviewEinsatz]
+  open: [row: GaPreviewEinsatz]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
+
+const packOnly = computed(() => props.packOnly)
+const clickable = computed(() => props.clickable)
 
 function canStart(row: GaPreviewEinsatz): boolean {
   if (!row.destinationPlaceId) return false
   if (props.canStartTrip) return props.canStartTrip(row)
   return true
+}
+
+function onRowClick(row: GaPreviewEinsatz) {
+  if (!clickable.value) return
+  emit('open', row)
 }
 </script>
 
@@ -125,6 +149,12 @@ function canStart(row: GaPreviewEinsatz): boolean {
   border-top: 1px solid #f1f5f9;
 }
 .ga-trips__item:first-child { border-top: 0; padding-top: 0; }
+.ga-trips__item--clickable {
+  cursor: pointer;
+}
+.ga-trips__item--clickable:hover .ga-trips__meta strong {
+  color: var(--color-primary-dark, #1d4ed8);
+}
 .ga-trips__meta {
   display: flex;
   flex-direction: column;

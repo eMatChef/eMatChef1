@@ -53,16 +53,20 @@
     <p v-if="editingVenue" class="event-venue-edit-hint">
       {{ createPinMode ? t('activities.venueLocations.createPinHint') : t('contacts.detail.mapEditHint') }}
     </p>
+    <p v-else-if="extraEditablePinId && !readOnly" class="event-venue-edit-hint">
+      {{ extraPlaceHintText }}
+    </p>
 
     <ActivityDualLocationMap
       ref="overviewMapRef"
       :pins="displayPins"
       height="280px"
-      :interactive="editingVenue"
-      :editable-pin-id="editingVenue ? 'venue' : null"
+      :interactive="mapInteractive"
+      :editable-pin-id="mapEditablePinId"
       :prefer-swiss-map="true"
       :show-layer-control="true"
-      @pin-moved="onVenuePinMoved"
+      :overlay="overlay"
+      @pin-moved="onMapPinMoved"
       @map-click="onVenueMapClick"
     />
 
@@ -90,6 +94,17 @@
             />
             <span class="event-venue-detail-accordion-label">{{ site.label }}</span>
             <span v-if="site.summary" class="event-venue-detail-accordion-summary">{{ site.summary }}</span>
+          </button>
+          <button
+            v-if="!readOnly && !createPinMode && site.extra && allowStarExtra"
+            type="button"
+            class="event-venue-accordion-star-btn"
+            :class="{ 'is-on': site.starred }"
+            :aria-label="t('activities.venueLocations.starToggle')"
+            :title="t('activities.venueLocations.starToggle')"
+            @click.stop.prevent="emit('toggle-extra-star', site.id)"
+          >
+            <v-icon :icon="site.starred ? 'mdi-star' : 'mdi-star-outline'" size="16" />
           </button>
           <button
             v-if="!readOnly && !createPinMode && expandedId !== site.id"
@@ -137,6 +152,9 @@
             <p v-if="site.address && !site.pin" class="field-hint text-muted">
               {{ t('activities.venueLocations.noCoordsForAddress') }}
             </p>
+            <p v-else-if="site.extra && !site.pin" class="field-hint text-muted">
+              {{ t('activities.venueLocations.extraNoCoords') }}
+            </p>
             <div class="event-venue-detail-accordion-actions">
               <button
                 v-if="!readOnly"
@@ -147,6 +165,15 @@
               >
                 <v-icon icon="mdi-pencil-outline" size="16" />
               </button>
+              <a
+                v-if="site.qrUrl"
+                :href="site.qrUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline btn-sm"
+              >
+                {{ t('activities.venueLocations.extraQr') }}
+              </a>
               <template v-if="site.pin">
                 <a
                   :href="googleMapsLinkFor(site.pin)"
@@ -171,7 +198,7 @@
       </div>
 
       <button
-        v-if="!readOnly && allowChildren && !createPinMode"
+        v-if="!readOnly && allowChildren && !createPinMode && (allowPoiChildren || !deliveryAddress)"
         type="button"
         class="event-venue-detail-add-row"
         data-onboarding="activity-venue-delivery-add"
@@ -181,9 +208,18 @@
         <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
         <span>{{ addChildButtonLabel }}</span>
       </button>
+      <button
+        v-if="!readOnly && allowExtraSites && allowCreateExtra && !createPinMode"
+        type="button"
+        class="event-venue-detail-add-row"
+        @click="startExtraPlace"
+      >
+        <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
+        <span>{{ extraAddLabel }}</span>
+      </button>
     </div>
 
-    <p v-if="!createPinMode && allowChildren" class="field-hint text-muted">{{ t('activities.venueLocations.overviewHint') }}</p>
+    <p v-if="!createPinMode && (allowChildren || allowExtraSites)" class="field-hint text-muted">{{ overviewHintText }}</p>
     <p v-else-if="!createPinMode && !allowChildren" class="field-hint text-muted">
       {{ t('activities.venueLocations.venueMapEditHint') }}
     </p>
@@ -196,13 +232,27 @@ import { useI18n } from 'vue-i18n'
 import type { Address } from '@/api/addresses'
 import { updateAddress } from '@/api/addresses'
 import { EButton, ETextField } from '@/components/form/base'
-import ActivityDualLocationMap, { type ActivityLocationPin } from '@/components/activities/ActivityDualLocationMap.vue'
+import ActivityDualLocationMap, {
+  type ActivityLocationPin,
+  type ActivityMapOverlay,
+} from '@/components/activities/ActivityDualLocationMap.vue'
 import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
 import { useToast } from '@/composables/useToast'
 
 const VENUE_COLOR = '#2563eb'
 const DELIVERY_COLOR = '#ea580c'
 const POI_FALLBACK_COLOR = '#16a34a'
+
+export type VenueExtraSite = {
+  id: string
+  label: string
+  summary?: string
+  hint?: string
+  color: string
+  pin: ActivityLocationPin | null
+  qrUrl?: string | null
+  starred?: boolean
+}
 
 type AccordionSite = {
   id: string
@@ -212,6 +262,9 @@ type AccordionSite = {
   color: string
   address: Address | null
   pin: ActivityLocationPin | null
+  extra?: boolean
+  starred?: boolean
+  qrUrl?: string | null
   onEdit: () => void
 }
 
@@ -232,6 +285,17 @@ const props = withDefaults(
     highlightDelivery?: boolean
     /** Bezeichnung von oben (Kontaktformular) — vorausfüllen / synchron halten. */
     suggestedName?: string
+    extraSites?: VenueExtraSite[]
+    allowExtraSites?: boolean
+    allowCreateExtra?: boolean
+    allowStarExtra?: boolean
+    /** Nach dem Zustellpunkt weitere Address-POIs — beim Grossanlass aus, dort sind Extra-Punkte GA-Orte. */
+    allowPoiChildren?: boolean
+    extraEditablePinId?: string | null
+    extraPlaceHint?: string
+    addExtraButtonLabel?: string
+    overviewHint?: string
+    overlay?: ActivityMapOverlay | null
   }>(),
   {
     eventAddress: null,
@@ -243,6 +307,16 @@ const props = withDefaults(
     hideTitle: false,
     highlightDelivery: false,
     suggestedName: '',
+    extraSites: () => [],
+    allowExtraSites: false,
+    allowCreateExtra: true,
+    allowStarExtra: false,
+    allowPoiChildren: true,
+    extraEditablePinId: null,
+    extraPlaceHint: '',
+    addExtraButtonLabel: '',
+    overviewHint: '',
+    overlay: null,
   },
 )
 
@@ -253,6 +327,11 @@ const emit = defineEmits<{
   'venue-updated': [address: Address]
   'pin-accepted': [payload: { latitude: number; longitude: number; name: string }]
   'update:suggestedName': [name: string]
+  'edit-extra': [id: string]
+  'create-extra': []
+  'toggle-extra-star': [id: string]
+  'extra-pin-moved': [payload: { id: string; latitude: number; longitude: number }]
+  'extra-map-click': [payload: { id: string; latitude: number; longitude: number }]
 }>()
 
 const { t, locale } = useI18n()
@@ -315,6 +394,27 @@ const addChildButtonLabel = computed(() =>
     ? t('activities.venueLocations.addExtraAddressButton')
     : t('activities.venueLocations.addDeliveryAddressButton'),
 )
+
+const extraAddLabel = computed(
+  () => props.addExtraButtonLabel || t('activities.venueLocations.addExtraGaPlaceButton'),
+)
+
+const extraPlaceHintText = computed(
+  () => props.extraPlaceHint || t('activities.venueLocations.extraPlaceHint'),
+)
+
+const overviewHintText = computed(
+  () => props.overviewHint || t('activities.venueLocations.overviewHint'),
+)
+
+const mapInteractive = computed(
+  () => editingVenue.value || (!!props.extraEditablePinId && !props.readOnly),
+)
+
+const mapEditablePinId = computed(() => {
+  if (editingVenue.value) return 'venue'
+  return props.extraEditablePinId
+})
 
 const canAcceptVenue = computed(() => {
   if (draftLat.value == null || draftLng.value == null) return false
@@ -402,38 +502,55 @@ const accordionSites = computed((): AccordionSite[] => {
     },
   ]
 
-  if (!props.allowChildren) return sites
+  if (props.allowChildren) {
+    const delivery = deliveryAddress.value
+    if (delivery) {
+      sites.push({
+        id: delivery.id,
+        label: t('activities.venueLocations.accordionDelivery'),
+        summary: addressSummary(delivery),
+        hint: t('activities.venueLocations.deliveryManageHint'),
+        color: DELIVERY_COLOR,
+        address: delivery,
+        pin: pinFromAddress(
+          delivery.id,
+          t('activities.venueLocations.deliveryPinLabel'),
+          delivery,
+          'delivery',
+        ),
+        onEdit: () => emit('edit-child', delivery),
+      })
+    }
 
-  const delivery = deliveryAddress.value
-  if (delivery) {
-    sites.push({
-      id: delivery.id,
-      label: t('activities.venueLocations.accordionDelivery'),
-      summary: addressSummary(delivery),
-      hint: t('activities.venueLocations.deliveryManageHint'),
-      color: DELIVERY_COLOR,
-      address: delivery,
-      pin: pinFromAddress(
-        delivery.id,
-        t('activities.venueLocations.deliveryPinLabel'),
-        delivery,
-        'delivery',
-      ),
-      onEdit: () => emit('edit-child', delivery),
-    })
+    for (const poi of poiAddresses.value) {
+      const color = poi.pin_color || POI_FALLBACK_COLOR
+      const label = poi.name || t('activities.venueLocations.poiFallbackLabel')
+      sites.push({
+        id: poi.id,
+        label,
+        summary: addressSummary(poi),
+        color,
+        address: poi,
+        pin: pinFromAddress(poi.id, label, poi, 'poi', color),
+        onEdit: () => emit('edit-child', poi),
+      })
+    }
   }
 
-  for (const poi of poiAddresses.value) {
-    const color = poi.pin_color || POI_FALLBACK_COLOR
-    const label = poi.name || t('activities.venueLocations.poiFallbackLabel')
+  for (const extra of props.extraSites) {
+    const pin = extra.pin
     sites.push({
-      id: poi.id,
-      label,
-      summary: addressSummary(poi),
-      color,
-      address: poi,
-      pin: pinFromAddress(poi.id, label, poi, 'poi', color),
-      onEdit: () => emit('edit-child', poi),
+      id: extra.id,
+      label: extra.label,
+      summary: extra.summary || (pin ? formatCoords(pin.latitude, pin.longitude) : t('activities.venueLocations.siteMissing')),
+      hint: extra.hint,
+      color: extra.color,
+      address: null,
+      pin,
+      extra: true,
+      starred: extra.starred === true,
+      qrUrl: extra.qrUrl ?? null,
+      onEdit: () => emit('edit-extra', extra.id),
     })
   }
 
@@ -486,6 +603,11 @@ async function refreshMaps() {
   overviewMapRef.value?.invalidateSize()
 }
 
+function startExtraPlace() {
+  editingVenue.value = false
+  emit('create-extra')
+}
+
 function startVenueEdit() {
   if (props.readOnly) return
   // Beim Erfassen: kein Auto-Pin → ganze Schweiz sichtbar; Pin per Klick setzen
@@ -501,17 +623,29 @@ function startVenueEdit() {
   }
 }
 
-function onVenuePinMoved(payload: { id: string; latitude: number; longitude: number }) {
-  if (payload.id !== 'venue') return
-  draftLat.value = payload.latitude
-  draftLng.value = payload.longitude
+function onMapPinMoved(payload: { id: string; latitude: number; longitude: number }) {
+  if (payload.id === 'venue') {
+    draftLat.value = payload.latitude
+    draftLng.value = payload.longitude
+    return
+  }
+  emit('extra-pin-moved', payload)
 }
 
 function onVenueMapClick(payload: { latitude: number; longitude: number }) {
-  if (!editingVenue.value) return
-  draftLat.value = payload.latitude
-  draftLng.value = payload.longitude
-  expandedId.value = 'venue'
+  if (editingVenue.value) {
+    draftLat.value = payload.latitude
+    draftLng.value = payload.longitude
+    expandedId.value = 'venue'
+    return
+  }
+  if (props.extraEditablePinId) {
+    emit('extra-map-click', {
+      id: props.extraEditablePinId,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    })
+  }
 }
 
 async function acceptVenueDraft() {
@@ -677,7 +811,11 @@ async function focusDeliveryHighlight() {
   }, 3200)
 }
 
-defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight })
+function getBounds(): { north: number; south: number; east: number; west: number } | null {
+  return overviewMapRef.value?.getBounds() ?? null
+}
+
+defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight, getBounds })
 </script>
 
 <style scoped>
@@ -791,6 +929,28 @@ defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight })
   background: #f3f4f6;
   color: #111827;
   border-color: #d1d5db;
+}
+
+.event-venue-accordion-star-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.event-venue-accordion-star-btn:hover,
+.event-venue-accordion-star-btn.is-on {
+  color: #d97706;
+  border-color: #fbbf24;
+  background: #fffbeb;
 }
 
 .event-venue-detail-accordion-chevron {

@@ -905,7 +905,9 @@ async function load() {
     inviteItems.value = inv.items || []
     const receivedItems = deptInv.items || []
     departmentInviteAll.value = receivedItems.filter(
-      (i): i is ReceivedDepartmentInviteNotification => i.type === 'department_invite',
+      (i): i is ReceivedDepartmentInviteNotification =>
+        i.type === 'department_invite' &&
+        !authStore.departments.some((d) => d.department_id === i.department_id),
     )
     grossanlassMwAssignedAll.value = receivedItems.filter(
       (i): i is GrossanlassMwAssignedNotification => i.type === 'grossanlass_mw_assigned',

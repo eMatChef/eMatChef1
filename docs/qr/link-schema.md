@@ -51,6 +51,22 @@ https://qr.ematchef.ch/i/a/{activityCode}
 https://qr.ematchef.ch/i/w/{workshopCode}
 ```
 
+### Grossanlass-Ort (Event-Standort)
+
+Kanonisch (neu drucken):
+
+```text
+https://qr.ematchef.ch/i/ga/{placeCode}
+```
+
+Alias für bereits gedruckte Schilder: `/i/p/{placeCode}` — gleicher Datensatz (`entity_type = ga_place`). Nicht Lager (`/i/l/`), nicht `Address.event_poi`. Siehe [grossanlass/bauprojekt-ort-helfer.md](../grossanlass/bauprojekt-ort-helfer.md).
+
+### Grossanlass-Pack (Palette)
+
+```text
+https://qr.ematchef.ch/i/k/{packCode}
+```
+
 ### Nicht auf `qr.`
 
 - Abteilungs-Infoscreen (`app.ematchef.ch/display/{publicId}`, PIN + Cookie)
@@ -86,8 +102,10 @@ https://app.ematchef.ch/i/s/{slotCode}         Fach
 | Material + Charge | `GET /api/public/lookup/m/{materialCode}/b/{batchCode}` |
 | Aktivität | `GET /api/public/lookup/a/{code}` |
 | Werkstatt | `GET /api/public/lookup/w/{code}` |
+| GA-Ort | `GET /api/public/lookup/ga/{code}` (Alias `…/p/{code}`) |
+| GA-Pack | `GET /api/public/lookup/k/{code}` |
 
-Frontend-Routen: `/i/m/:matCode/b/:batchCode`, `/i/a/:activityCode`, `/i/w/:workshopCode`.
+Frontend-Routen: `/i/m/:matCode/b/:batchCode`, `/i/a/:activityCode`, `/i/w/:workshopCode`, `/i/ga/:placeCode` (Alias `/i/p/`), `/i/k/:packCode`.
 
 Legacy `/i/m/:code` ohne Batch → Fehlerseite. **`/i/b/:code` entfernt.**
 

@@ -2,24 +2,62 @@
   <PageShell
     class="grossanlass-mein-ressort"
     :title="t('grossanlass.meinRessort.title')"
-    :subtitle="t('grossanlass.meinRessort.subtitle')"
+    :subtitle="pageSubtitle"
   >
-    <ELoadingState v-if="isLoading" variant="list" :message="t('grossanlass.meinRessort.loading')" />
+    <GrossanlassMeinRessortSkeleton
+      v-if="isLoading"
+      :helper-view="isHelperHomeView"
+      role="status"
+      :aria-label="t('grossanlass.meinRessort.loading')"
+    />
 
     <div v-else-if="error" class="mein-ressort-error">
       <v-alert type="error" variant="tonal" :text="error" />
       <EButton variant="secondary" class="mt-3" @click="load">{{ t('common.retry') }}</EButton>
     </div>
 
-    <EEmptyState
-      v-else-if="myGroupsTree.length === 0"
-      variant="default"
-      icon="mdi-home-group"
-      :title="t('grossanlass.meinRessort.emptyTitle')"
-      :description="t('grossanlass.meinRessort.emptyDescription')"
-    />
+    <div v-else-if="showEmptyState && !isHelperHomeView" class="mein-ressort-empty-only">
+      <EEmptyState
+        variant="default"
+        icon="mdi-home-group"
+        :title="t('grossanlass.meinRessort.emptyTitle')"
+        :description="emptyDescription"
+      />
+    </div>
 
     <div v-else class="mein-ressort-content">
+      <section v-if="isHelperHomeView" class="helper-scan-panel">
+        <MaterialJourneyScanBar
+          v-model="scanQuery"
+          :loading="scanLoading"
+          :session-log="scanSessionLog"
+          :pack-target-label="scanPackTargetLabel"
+          label-key="grossanlass.meinRessort.scanLabel"
+          placeholder-key="grossanlass.meinRessort.scanPlaceholder"
+          input-id="ga-helper-scan-input"
+          @submit="submitHelperScan"
+          @clear="scanQuery = ''"
+          @deselect="clearScanActivePack"
+        />
+        <GrossanlassHelperScanResultPanel
+          v-if="scanResult"
+          :result="scanResult"
+          :arrive-busy="scanArriveBusy"
+          @close="clearScanResult"
+          @arrive="arriveAtScannedPlace"
+          @open-assignment="openAssignmentDetail"
+        />
+      </section>
+
+      <EEmptyState
+        v-if="showEmptyState"
+        variant="default"
+        icon="mdi-home-group"
+        :title="t('grossanlass.meinRessort.emptyTitle')"
+        :description="emptyDescription"
+      />
+
+      <template v-else>
       <div v-if="isBereichsleitung" class="submit-einsatz">
         <EButton variant="primary" size="small" @click="openSubmit">
           {{ t('grossanlass.meinRessort.submitEinsatz') }}
@@ -38,30 +76,67 @@
       </section>
 
       <div
-        v-for="group in myGroupsTree"
+        v-for="group in displayGroupsTree"
         :key="group.id"
         class="ressort-card"
-        :class="{ 'is-child': group._level > 0 }"
+        :class="{ 'is-child': !isHelperHomeView && group._level > 0, 'ressort-card--helper': isHelperHomeView }"
       >
-        <div class="ressort-card__head" :style="{ paddingLeft: group._level * 24 + 'px' }">
-          <span v-if="group._level > 0" class="indent-icon">↳</span>
+        <div class="ressort-card__head" :style="helperHeadStyle(group)">
+          <span v-if="!isHelperHomeView && group._level > 0" class="indent-icon">↳</span>
           <v-icon :icon="nodeIcon(group.node_type)" size="20" />
           <div>
             <h3>{{ group.name }}</h3>
-            <span class="kind-badge">{{ kindLabel(group) }}</span>
+            <span v-if="isHelperHomeView" class="kind-badge">{{ helperGroupCaption(group) }}</span>
+            <span v-else class="kind-badge">{{ kindLabel(group) }}</span>
           </div>
         </div>
 
-        <div v-if="wishesForGroup(group.id).length > 0" class="wish-mini-list">
-          <div v-for="wish in wishesForGroup(group.id)" :key="wish.id" class="wish-mini-row">
-            <span class="wish-label">{{ wish.quantity }}× {{ wish.label }}</span>
-            <span class="wish-meta">{{ wish.location }} · {{ wish.group_name }}</span>
+        <template v-if="!isHelperHomeView">
+          <div v-if="wishesForGroup(group.id).length > 0" class="wish-mini-list">
+            <div v-for="wish in wishesForGroup(group.id)" :key="wish.id" class="wish-mini-row">
+              <span class="wish-label">{{ wish.quantity }}× {{ wish.label }}</span>
+              <span class="wish-meta">{{ wish.location }} · {{ wish.group_name }}</span>
+            </div>
           </div>
-        </div>
-        <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.noWishesYet') }}</p>
+          <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.noWishesYet') }}</p>
+        </template>
       </div>
 
-      <div class="kosten-panel">
+      <section v-if="isHelperHomeView && homeFahrauftraege.length" class="assignments-panel">
+        <div class="assignments-panel__head">
+          <h3>{{ t('grossanlass.meinRessort.homeFahrauftraegeTitle') }}</h3>
+          <EButton variant="secondary" size="small" @click="goToMeineEinsaetze">
+            {{ t('grossanlass.meinRessort.homeAllLink') }}
+          </EButton>
+        </div>
+        <ul class="assignments-list">
+          <li v-for="row in homeFahrauftraege" :key="row.id">
+            <GrossanlassHelperAssignmentRow
+              :assignment="toAssignment(row, 'fahrauftrag')"
+              @open="openAssignmentDetail"
+            />
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="isHelperHomeView && homeEinsaetze.length" class="assignments-panel">
+        <div class="assignments-panel__head">
+          <h3>{{ t('grossanlass.meinRessort.homeEinsaetzeTitle') }}</h3>
+          <EButton v-if="homeFahrauftraege.length === 0" variant="secondary" size="small" @click="goToMeineEinsaetze">
+            {{ t('grossanlass.meinRessort.homeAllLink') }}
+          </EButton>
+        </div>
+        <ul class="assignments-list">
+          <li v-for="row in homeEinsaetze" :key="row.id">
+            <GrossanlassHelperAssignmentRow
+              :assignment="toAssignment(row, assignmentKindFor(row))"
+              @open="openAssignmentDetail"
+            />
+          </li>
+        </ul>
+      </section>
+
+      <div v-if="showKostenPanel" class="kosten-panel">
         <h3>{{ t('grossanlass.beschaffung.kosten.linesTitle') }}</h3>
         <p class="kosten-rahmen">
           {{ t('grossanlass.meinRessort.rahmenSaved') }}:
@@ -76,9 +151,9 @@
         <p v-if="costRows.length === 0" class="no-wishes">{{ t('grossanlass.meinRessort.noCostsYet') }}</p>
       </div>
 
-      <div v-if="openRounds.length > 0" class="open-rounds-hint">
+      <div v-if="showOpenRoundsHint" class="open-rounds-hint">
         <p>{{ t('grossanlass.meinRessort.openRoundsHint') }}</p>
-        <EButton variant="primary" size="small" @click="goToPlanung">{{ t('sidebar.planung') }}</EButton>
+        <EButton variant="primary" size="small" @click="goToOpenRound">{{ t('grossanlass.meinRessort.openRoundAction') }}</EButton>
       </div>
 
       <div v-if="showDirectProcurement" class="procurement-panel">
@@ -132,7 +207,18 @@
         </div>
         <p v-else class="no-wishes">{{ t('grossanlass.meinRessort.procureNoLines') }}</p>
       </div>
+      </template>
     </div>
+
+    <GrossanlassHelperAssignmentDetailDialog
+      v-if="isHelperHomeView"
+      v-model="assignmentDetailOpen"
+      :assignment="selectedAssignment"
+      :cards="helperDetailCards"
+      :busy="assignmentBusyId === selectedAssignment?.id"
+      :can-toggle-packed="canTogglePackedSelected"
+      @toggle-packed="onTogglePackedAssignment"
+    />
 
     <GrossanlassEinsatzBookPreviewDialog
       v-if="isBereichsleitung"
@@ -159,9 +245,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import PageShell from '@/components/layout/PageShell.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
+import GrossanlassMeinRessortSkeleton from '@/views/grossanlass/GrossanlassMeinRessortSkeleton.vue'
+import MaterialJourneyScanBar from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
+import GrossanlassHelperScanResultPanel from '@/views/grossanlass/GrossanlassHelperScanResultPanel.vue'
+import { useGrossanlassHelperScan } from '@/composables/useGrossanlassHelperScan'
 import { EButton } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { gaIsGrossanlassHelper } from '@/utils/grossanlassAccess'
 import { getGrossanlassGroups, type GrossanlassGroup, type GrossanlassNodeType } from '@/api/grossanlassGroups'
 import { getMyRessortWishes, type GrossanlassWishLine } from '@/api/grossanlassWishes'
 import { getGrossanlassPlanningRounds, type GrossanlassPlanningRound } from '@/api/grossanlassRounds'
@@ -186,16 +277,31 @@ import GrossanlassEinsatzBookPreviewDialog, {
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
 import {
   createGrossanlassEinsatz,
+  getGrossanlassMyEinsaetze,
   getGrossanlassSubmitBoard,
+  updateGrossanlassEinsatz,
+  type GaMyEinsaetzePayload,
   type GaSubmitBoard,
+  type GaUebersichtEinsatz,
 } from '@/api/grossanlassUebersicht'
+import type { GrossanlassUserCard } from '@/api/grossanlassUserCards'
+import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
+import GrossanlassHelperAssignmentRow from '@/views/grossanlass/GrossanlassHelperAssignmentRow.vue'
+import {
+  toHelperAssignment,
+  groupsToOrgGroups,
+  type GaHelperAssignment,
+  type GaHelperTaskKind,
+} from '@/views/grossanlass/grossanlassHelperAssignment'
 import type { GaPlace } from '@/api/grossanlassLogistics'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
+import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
 
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -218,13 +324,132 @@ const procureForm = ref({
 const submitOpen = ref(false)
 const submitDraft = ref<GaBookPreviewDraft | null>(null)
 const submitBoard = ref<GaSubmitBoard | null>(null)
+const myEinsaetze = ref<GaMyEinsaetzePayload | null>(null)
+const assignmentDetailOpen = ref(false)
+const selectedAssignment = ref<GaHelperAssignment | null>(null)
+const assignmentBusyId = ref<string | null>(null)
 
 const groupsRef = computed(() => groups.value)
+const helperOrgGroups = computed(() => groupsToOrgGroups(groups.value))
 const { isInAssignedRessortBranch, isLeaderOfGroup } = useGrossanlassRessortScope(groupsRef)
 const { canManageProcurement, hasProcurementDelegate, userCanProcureInGroup } =
   useGrossanlassProcurementScope(groupsRef)
 
 const isBereichsleitung = computed(() => groups.value.some((g) => isLeaderOfGroup(g)))
+
+const isHelperHomeView = computed(() => gaIsGrossanlassHelper(authStore.currentDepartmentRole))
+
+async function reloadMyEinsaetze() {
+  if (!departmentId.value || !isHelperHomeView.value) return
+  myEinsaetze.value = await getGrossanlassMyEinsaetze(departmentId.value)
+}
+
+const {
+  scanQuery,
+  scanLoading,
+  arriveBusy: scanArriveBusy,
+  sessionLog: scanSessionLog,
+  scanResult,
+  scanCards,
+  packTargetLabel: scanPackTargetLabel,
+  submit: submitHelperScan,
+  arriveAtScannedPlace,
+  clearActivePackSelection: clearScanActivePack,
+  clearScanResult,
+} = useGrossanlassHelperScan({
+  departmentId: () => departmentId.value,
+  locale: () => locale.value,
+  orgGroups: () => helperOrgGroups.value,
+  onChanged: reloadMyEinsaetze,
+})
+
+const helperDetailCards = computed(() => {
+  const byId = new Map<string, GrossanlassUserCard>()
+  for (const card of myEinsaetze.value?.cards ?? []) {
+    byId.set(card.user_id, card)
+  }
+  for (const card of scanCards.value) {
+    if (!byId.has(card.user_id)) byId.set(card.user_id, card)
+  }
+  return [...byId.values()]
+})
+
+const pageSubtitle = computed(() =>
+  isHelperHomeView.value
+    ? t('grossanlass.meinRessort.subtitleHelper')
+    : t('grossanlass.meinRessort.subtitle'),
+)
+
+const emptyDescription = computed(() =>
+  isHelperHomeView.value
+    ? t('grossanlass.meinRessort.emptyDescriptionHelper')
+    : t('grossanlass.meinRessort.emptyDescription'),
+)
+
+const showKostenPanel = computed(() => !isHelperHomeView.value)
+
+const homeFahrauftraege = computed(() => myEinsaetze.value?.fahrauftraege ?? [])
+
+const homeEinsaetze = computed(() => [
+  ...(myEinsaetze.value?.einsaetze ?? []),
+  ...(myEinsaetze.value?.bauauftraege ?? []),
+])
+
+const hasHelperAssignments = computed(
+  () => homeFahrauftraege.value.length > 0 || homeEinsaetze.value.length > 0,
+)
+
+const showEmptyState = computed(() => {
+  if (displayGroupsTree.value.length > 0) return false
+  if (isHelperHomeView.value && hasHelperAssignments.value) return false
+  return true
+})
+
+const canTogglePackedSelected = computed(() => {
+  const row = selectedAssignment.value
+  if (!row || row.taskKind !== 'fahrauftrag') return false
+  if (row.operable === false) return false
+  if (row.chauffeurUserId !== authStore.userId) return false
+  return row.status !== 'issued'
+})
+
+function toAssignment(row: GaUebersichtEinsatz, taskKind: GaHelperTaskKind): GaHelperAssignment {
+  return toHelperAssignment(row, locale.value, taskKind, helperOrgGroups.value)
+}
+
+function assignmentKindFor(row: GaUebersichtEinsatz): GaHelperTaskKind {
+  if (row.task_kind === 'bauauftrag') return 'bauauftrag'
+  return 'einsatz'
+}
+
+function openAssignmentDetail(assignment: GaHelperAssignment) {
+  selectedAssignment.value = assignment
+  assignmentDetailOpen.value = true
+}
+
+async function onTogglePackedAssignment(assignment: GaHelperAssignment) {
+  if (!departmentId.value || assignmentBusyId.value) return
+  assignmentBusyId.value = assignment.id
+  try {
+    const result = await updateGrossanlassEinsatz(departmentId.value, assignment.id, {
+      packed: !assignment.packed,
+    })
+    if ('fahrauftraege' in result) {
+      myEinsaetze.value = result
+      const updated = [...result.fahrauftraege, ...result.einsaetze, ...result.bauauftraege].find(
+        (row) => row.id === assignment.id,
+      )
+      if (updated) {
+        selectedAssignment.value = toHelperAssignment(updated, locale.value, assignment.taskKind, helperOrgGroups.value)
+      }
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.meineEinsaetze.errorUpdate'))
+  } finally {
+    assignmentBusyId.value = null
+  }
+}
 
 const showDirectProcurement = computed(
   () => hasProcurementDelegate.value && !canManageProcurement.value,
@@ -236,6 +461,18 @@ const procureGroupOptions = computed(() =>
 
 const myGroupsTree = computed(() =>
   flattenGrossanlassGroupsFiltered(groups.value, (g) => isInAssignedRessortBranch(g)),
+)
+
+const helperMemberGroups = computed(() => {
+  const userId = authStore.userId
+  if (!userId) return []
+  return myGroupsTree.value.filter((group) =>
+    group.members?.some((member) => member.user_id === userId),
+  )
+})
+
+const displayGroupsTree = computed(() =>
+  isHelperHomeView.value ? helperMemberGroups.value : myGroupsTree.value,
 )
 
 const myGroupIds = computed(() => new Set(myGroupsTree.value.map((g) => g.id)))
@@ -252,6 +489,10 @@ const ownRahmenAmount = computed(() => {
 const ownNetto = computed(() => costRows.value.reduce((sum, row) => sum + (row.netto_chf || 0), 0))
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
+
+const showOpenRoundsHint = computed(
+  () => openRounds.value.length > 0 && isBereichsleitung.value,
+)
 
 const pendingEinsaetze = computed(() =>
   (submitBoard.value?.einsaetze ?? []).filter((row) => row.status === 'pending_approval'),
@@ -334,12 +575,46 @@ function kindLabel(group: GrossanlassGroup): string {
   return t('grossanlass.planung.ressorts.kindRessort')
 }
 
-function goToPlanung() {
-  void router.push(`/${departmentId.value}/planung`)
+function helperGroupCaption(group: GrossanlassGroup): string {
+  const parentPath = parentPathLabel(group)
+  if (parentPath) {
+    return t('grossanlass.meinRessort.helperAssignedIn', { path: parentPath })
+  }
+  return t('grossanlass.meinRessort.helperAssigned')
+}
+
+function parentPathLabel(group: GrossanlassGroup): string {
+  const parts: string[] = []
+  let current: GrossanlassGroup | undefined = group
+  const seen = new Set<string>()
+  while (current?.parent_id) {
+    if (seen.has(current.id)) break
+    seen.add(current.id)
+    const parent = groups.value.find((row) => row.id === current!.parent_id)
+    if (!parent) break
+    parts.unshift(parent.name)
+    current = parent
+  }
+  return parts.join(' · ')
+}
+
+function helperHeadStyle(group: GrossanlassGroup): Record<string, string> {
+  if (isHelperHomeView.value) return {}
+  return { paddingLeft: `${group._level * 24}px` }
+}
+
+function goToOpenRound() {
+  const round = openRounds.value[0]
+  if (!round || !departmentId.value) return
+  void router.push(grossanlassOpenRoundWishRoute(departmentId.value, round.id))
 }
 
 function goToOfferten() {
   void router.push(`/${departmentId.value}/beschaffung/offerten`)
+}
+
+function goToMeineEinsaetze() {
+  void router.push(`/${departmentId.value}/meine-einsaetze`)
 }
 
 async function loadDirectLines() {
@@ -465,18 +740,32 @@ async function load() {
   isLoading.value = true
   error.value = ''
   try {
-    const [groupList, wishList, roundList, costs, budgetList] = await Promise.all([
-      getGrossanlassGroups(departmentId.value),
-      getMyRessortWishes(departmentId.value),
-      getGrossanlassPlanningRounds(departmentId.value),
-      listGrossanlassCosts(departmentId.value).catch(() => [] as GrossanlassCost[]),
-      listGrossanlassBudgets(departmentId.value).catch(() => [] as GrossanlassBudget[]),
-    ])
+    const groupList = await getGrossanlassGroups(departmentId.value)
     groups.value = groupList
+    const loadRounds = groupList.some((g) => isLeaderOfGroup(g))
+    const helperHome = gaIsGrossanlassHelper(authStore.currentDepartmentRole)
+    const [wishList, roundList, costs, budgetList, mine] = await Promise.all([
+      helperHome
+        ? Promise.resolve([] as GrossanlassWishLine[])
+        : getMyRessortWishes(departmentId.value),
+      loadRounds
+        ? getGrossanlassPlanningRounds(departmentId.value)
+        : Promise.resolve([] as GrossanlassPlanningRound[]),
+      helperHome
+        ? Promise.resolve([] as GrossanlassCost[])
+        : listGrossanlassCosts(departmentId.value).catch(() => [] as GrossanlassCost[]),
+      helperHome
+        ? Promise.resolve([] as GrossanlassBudget[])
+        : listGrossanlassBudgets(departmentId.value).catch(() => [] as GrossanlassBudget[]),
+      helperHome
+        ? getGrossanlassMyEinsaetze(departmentId.value)
+        : Promise.resolve(null),
+    ])
     wishes.value = wishList
     rounds.value = roundList
     costRows.value = costs
     budgets.value = budgetList
+    myEinsaetze.value = mine
     if (procureGroupOptions.value.length > 0 && !procureForm.value.group_id) {
       procureForm.value.group_id = procureGroupOptions.value[0].id
     }
@@ -516,6 +805,10 @@ onMounted(load)
 
 .ressort-card.is-child {
   background: #fafbfc;
+}
+
+.ressort-card--helper {
+  background: #fff;
 }
 
 .indent-icon {
@@ -575,6 +868,49 @@ onMounted(load)
   border-radius: 8px;
   font-size: 0.9rem;
 }
+.assignments-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+}
+.assignments-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.assignments-panel__head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.assignments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.assignments-list li {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.helper-scan-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+}
+
+.helper-scan-panel :deep(.material-journey-scan-bar) {
+  margin: 0;
+}
+
 .kosten-panel {
   border: 1px solid #e5e7eb;
   border-radius: 10px;

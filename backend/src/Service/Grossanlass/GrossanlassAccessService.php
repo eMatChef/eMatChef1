@@ -86,6 +86,42 @@ class GrossanlassAccessService
         return GrossanlassAccessRoles::canSeeAnlassOverview($this->gaRole($user, $department));
     }
 
+    public function isGrossanlassHelper(User $user, Department $department): bool
+    {
+        return ($this->membershipRole($user, $department) ?? '') === 'u';
+    }
+
+    public function canSeeOwnEinsaetze(User $user, Department $department): bool
+    {
+        return $this->isGrossanlassHelper($user, $department);
+    }
+
+    public function canOperateAssignedEinsatz(User $user, Department $department, \App\Entity\DepartmentGrossanlassEinsatz $row): bool
+    {
+        if ($this->canSeeAnlassOverview($user, $department)) {
+            return true;
+        }
+        if (!$this->isGrossanlassHelper($user, $department)) {
+            return false;
+        }
+        if ($row->getChauffeurUserId() === $user->getId()) {
+            return true;
+        }
+        if ($row->getIssuedToUserId() === $user->getId()) {
+            return true;
+        }
+        $groupId = $row->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+        $assignedBranchIds = array_fill_keys(
+            $this->resolveAssignedGroupBranchIds($user, $department->getId()),
+            true,
+        );
+
+        return isset($assignedBranchIds[$groupId]);
+    }
+
     public function canOperateAusgabe(User $user, Department $department): bool
     {
         return GrossanlassAccessRoles::canOperateAusgabe($this->gaRole($user, $department));

@@ -2,13 +2,22 @@
   <EDialog
     v-model="dialogOpen"
     :max-width="1180"
-    :title="isEdit ? t('components.departmentModal.editTitle') : t('components.departmentModal.addTitle')"
+    :title="dialogTitle"
     scrollable
     persistent
+    :retain-focus="false"
     card-class="department-modal-card"
   >
     <form id="department-modal-form" class="department-modal-body" @submit.prevent="handleSubmit">
-          <!-- Department Name -->
+      <details
+        class="dept-modal-accordion"
+        :open="stammdatenAccordionOpen"
+        @toggle="onStammdatenAccordionToggle"
+      >
+        <summary class="dept-modal-accordion__summary">
+          {{ t('components.departmentModal.accordionStammdaten') }}
+        </summary>
+        <div class="dept-modal-accordion__body">
           <ETextField
             id="department-name"
             v-model="formData.name"
@@ -18,7 +27,6 @@
             class="mb-3"
           />
 
-          <!-- Organisation Auswahl -->
           <ESelect
             id="organisation"
             v-model="formData.organisationId"
@@ -29,7 +37,6 @@
             @update:model-value="onOrganisationChange"
           />
 
-          <!-- Parent Department Auswahl (optional, nur wenn Organisation gewählt) -->
           <div v-if="formData.organisationId" class="form-group">
             <label class="form-label">{{ t('components.departmentModal.parentLabel') }}</label>
             <div class="tree-select-container">
@@ -49,7 +56,7 @@
                   v-for="dept in availableParentDepartmentsTree"
                   :key="dept.id"
                   class="tree-select-item"
-                  :class="{ 
+                  :class="{
                     selected: formData.parentId === dept.id,
                     disabled: isEdit && dept.id === props.department?.id
                   }"
@@ -70,143 +77,20 @@
               {{ t('components.departmentModal.parentHint') }}
             </p>
           </div>
+        </div>
+      </details>
 
-          <!-- User-Verwaltung (nur im Edit-Modus) -->
-          <div v-if="isEdit && props.department?.id" class="form-group user-management-section">
-            <label class="form-label">{{ t('components.departmentModal.usersSectionLabel') }}</label>
+      <UsersSettingsView
+        v-if="isEdit && props.department?.id"
+        :key="`${props.department.id}-${initialFocus}`"
+        :department-id="props.department.id"
+        :is-grossanlass="isGrossanlassDept"
+        :initial-open-section="usersInitialOpenSection"
+        embedded
+        @changed="emit('users-changed')"
+      />
 
-            <p v-if="isGrossanlassDept" class="form-hint grossanlass-member-hint">
-              {{ t('components.departmentModal.grossanlassMemberHint') }}
-            </p>
-
-            <div v-if="isMembersLoading" class="user-management-hint">{{ t('components.departmentModal.loadingUsers') }}</div>
-
-            <template v-else>
-              <div v-if="members.length === 0" class="user-management-hint">
-                {{ t('components.departmentModal.noMembersYet') }}
-              </div>
-              <div v-else class="members-table-wrap">
-                <table class="members-table">
-                  <thead>
-                    <tr>
-                      <th>{{ t('common.name') }}</th>
-                      <th>{{ t('components.departmentModal.colEmail') }}</th>
-                      <th>{{ t('common.role') }}</th>
-                      <th>{{ t('components.departmentModal.colPrimary') }}</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="member in members" :key="member.user_id">
-                      <td>{{ formatMemberName(member) }}</td>
-                      <td>{{ member.email }}</td>
-                      <td>
-                        <select v-model="member.role" class="form-select small-select">
-                          <option v-for="role in memberRoleOptions(member)" :key="role.value" :value="role.value">
-                            {{ role.label }}
-                          </option>
-                        </select>
-                      </td>
-                      <td>
-                        <input type="checkbox" v-model="member.is_primary" />
-                      </td>
-                      <td class="member-actions">
-                        <button
-                          type="button"
-                          class="btn-inline"
-                          :disabled="memberActionLoading"
-                          @click="saveMember(member)"
-                        >
-                          {{ t('common.save') }}
-                        </button>
-                        <button
-                          v-if="!isCurrentUser(member)"
-                          type="button"
-                          class="btn-inline btn-inline-danger"
-                          :disabled="memberActionLoading"
-                          @click="deleteMember(member)"
-                        >
-                          {{ t('common.remove') }}
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div class="add-member-box">
-                <div class="add-member-title">{{ t('components.departmentModal.addUserTitle') }}</div>
-                <div class="add-member-search-row">
-                  <div class="autocomplete-wrapper add-member-search">
-                    <div v-if="selectedAvailableUser" class="selected-user-chip">
-                      <span>{{ formatAvailableUserName(selectedAvailableUser) }} ({{ selectedAvailableUser.email }})</span>
-                      <button type="button" class="chip-remove" @click="clearSelectedAvailableUser">×</button>
-                    </div>
-                    <div v-else>
-                      <input
-                        v-model="newMemberSearchQuery"
-                        type="text"
-                        class="form-input"
-                        :placeholder="t('components.departmentModal.userSearchPlaceholder')"
-                        @focus="showAvailableDropdown = true"
-                        @blur="handleAvailableBlur"
-                      />
-                      <div
-                        v-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && isSearchingAvailableUsers"
-                        class="autocomplete-dropdown"
-                      >
-                        <div class="autocomplete-empty">{{ t('components.departmentModal.searchRunning') }}</div>
-                      </div>
-                      <div
-                        v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && availableSearchResults.length > 0"
-                        class="autocomplete-dropdown"
-                      >
-                        <div
-                          v-for="user in availableSearchResults"
-                          :key="user.id"
-                          class="autocomplete-item"
-                          @mousedown.prevent="selectAvailableUser(user)"
-                        >
-                          <span class="ac-name">{{ formatAvailableUserName(user) }}</span>
-                          <span class="ac-email">{{ user.email }}</span>
-                        </div>
-                      </div>
-                      <div
-                        v-else-if="showAvailableDropdown && newMemberSearchQuery.trim().length >= 2 && !isSearchingAvailableUsers"
-                        class="autocomplete-dropdown"
-                      >
-                        <div class="autocomplete-empty">{{ t('components.departmentModal.noSearchResults') }}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="add-member-controls-row">
-                  <select v-model="newMemberRole" class="form-select small-select">
-                    <option v-for="role in newMemberRoleOptions" :key="role.value" :value="role.value">
-                      {{ role.label }}
-                    </option>
-                  </select>
-                  <label class="checkbox-inline">
-                    <input type="checkbox" v-model="newMemberPrimary" />
-                    {{ t('components.departmentModal.primaryCheckbox') }}
-                  </label>
-                  <button
-                    type="button"
-                    class="btn-inline"
-                    :disabled="!newMemberUserId || memberActionLoading"
-                    @click="addMember"
-                  >
-                    {{ t('common.add') }}
-                  </button>
-                </div>
-                <p v-if="newMemberUserId" class="form-hint pending-member-hint">
-                  {{ t('components.departmentModal.pendingMemberHint') }}
-                </p>
-              </div>
-            </template>
-          </div>
-
-          <v-alert v-if="error" type="error" variant="tonal" class="mt-2" :text="error" />
+      <v-alert v-if="error" type="error" variant="tonal" class="mt-2" :text="error" />
     </form>
 
     <template #actions>
@@ -226,24 +110,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed, onUnmounted } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import UsersSettingsView, { type UsersSettingsOpenSection } from '@/views/settings/UsersSettingsView.vue'
 import {
   createDepartment,
   updateDepartment,
   getDepartments,
-  getDepartmentMembers,
-  getAvailableUsersForDepartment,
-  updateDepartmentMember,
-  removeDepartmentMember,
-  addDepartmentMember,
   type Department,
-  type DepartmentMember,
-  type AvailableUser
 } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
 import {
@@ -258,23 +135,26 @@ interface Props {
   department?: Department | null
   preselectedOrganisationId?: string | null
   preselectedParentId?: string | null
+  /** Beim Öffnen: Stammdaten oder Benutzer-Akkordeon fokussieren. */
+  initialFocus?: 'stammdaten' | 'users'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   department: null,
   preselectedOrganisationId: null,
-  preselectedParentId: null
+  preselectedParentId: null,
+  initialFocus: 'stammdaten',
 })
 
 const emit = defineEmits<{
-  'close': []
-  'saved': []
+  close: []
+  saved: []
+  'users-changed': []
 }>()
 
 const { t } = useI18n()
 const toast = useToast()
 const authStore = useAuthStore()
-const roleLabelsStore = useDepartmentRoleLabelsStore()
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
 )
@@ -283,91 +163,44 @@ const memberOrganisationIds = computed(() =>
 )
 const isEdit = computed(() => !!props.department)
 const isGrossanlassDept = computed(() => Boolean(props.department?.is_grossanlass))
+
+const dialogTitle = computed(() => {
+  if (isEdit.value && props.department?.name) {
+    return t('components.departmentModal.editTitleNamed', { name: props.department.name })
+  }
+  if (isEdit.value) {
+    return t('components.departmentModal.editTitle')
+  }
+  return t('components.departmentModal.addTitle')
+})
+
+const usersInitialOpenSection = computed((): UsersSettingsOpenSection | null =>
+  props.initialFocus === 'users' ? 'members' : null,
+)
+
 const dialogOpen = computed({
   get: () => props.isOpen,
   set: (value: boolean) => {
     if (!value) close()
   },
 })
+
 const organisationItems = computed(() =>
   organisations.value.map((org) => ({ title: org.name, value: org.id })),
 )
+
 const isSubmitting = ref(false)
 const error = ref<string | null>(null)
 const organisations = ref<Organisation[]>([])
 const allDepartments = ref<Department[]>([])
-const members = ref<DepartmentMember[]>([])
-const availableSearchResults = ref<AvailableUser[]>([])
-const isSearchingAvailableUsers = ref(false)
-const isMembersLoading = ref(false)
-const memberActionLoading = ref(false)
-const newMemberUserId = ref('')
-const newMemberRole = ref<'mw' | 'cmw' | 'dc' | 'komm' | 'spon' | 'l1' | 'l2' | 'l3' | 'u'>('u')
-const newMemberPrimary = ref(false)
-const newMemberSearchQuery = ref('')
-const showAvailableDropdown = ref(false)
-const selectedAvailableUser = ref<AvailableUser | null>(null)
-let availableSearchTimer: ReturnType<typeof setTimeout> | null = null
+const stammdatenAccordionOpen = ref(true)
 
-const roleOrder = ['mw', 'dc', 'l1', 'l2', 'l3', 'u'] as const
-const grossanlassRoleOrder = ['mw', 'cmw', 'dc', 'komm', 'spon', 'u'] as const
-
-function roleLabel(value: string): string {
-  return roleLabelsStore.labelFor(value, props.department?.id, t, {
-    i18nNamespace: 'adminUsers',
-  })
+function onStammdatenAccordionToggle(event: Event) {
+  stammdatenAccordionOpen.value = (event.target as HTMLDetailsElement).open
 }
 
-const hasMwMember = computed(() => members.value.some((m) => m.role === 'mw'))
-
-const roleOptions = computed(() =>
-  roleOrder.map((value) => ({
-    value,
-    label: roleLabel(value),
-  })),
-)
-
-function memberRoleOptions(member: DepartmentMember) {
-  if (!isGrossanlassDept.value) return roleOptions.value
-  const roles = [...grossanlassRoleOrder]
-  if (member.role && !roles.includes(member.role as (typeof roles)[number])) {
-    roles.unshift(member.role as (typeof roles)[number])
-  }
-  return roles.map((value) => ({ value, label: roleLabel(value) }))
-}
-
-const newMemberRoleOptions = computed(() => {
-  if (!isGrossanlassDept.value) return roleOptions.value
-  return grossanlassRoleOrder.map((value) => ({ value, label: roleLabel(value) }))
-})
-
-const existingMemberUserIds = computed(() => new Set(members.value.map((m) => m.user_id)))
-
-function joinNonEmpty(values: Array<string | null | undefined>, separator: string): string {
-  return values.map((v) => (v || '').trim()).filter(Boolean).join(separator)
-}
-
-function formatAvailableUserName(user: AvailableUser): string {
-  const legalName = joinNonEmpty([user.first_name, user.last_name], ' ')
-  const nickname = (user.nickname || '').trim()
-  if (legalName && nickname) return `${legalName} (${nickname})`
-  if (legalName) return legalName
-  if (nickname) return nickname
-  return user.name
-}
-
-function formatMemberName(member: DepartmentMember): string {
-  const legalName = joinNonEmpty([member.first_name, member.last_name], ' ')
-  const nickname = (member.nickname || '').trim()
-  if (legalName && nickname) return `${legalName} (${nickname})`
-  if (legalName) return legalName
-  if (nickname) return nickname
-  return member.name
-}
-
-function isCurrentUser(member: DepartmentMember): boolean {
-  const uid = authStore.userId
-  return uid !== null && member.user_id === uid
+function applyInitialFocus() {
+  stammdatenAccordionOpen.value = props.initialFocus !== 'users'
 }
 
 const formData = ref({
@@ -376,15 +209,13 @@ const formData = ref({
   parentId: null as string | null
 })
 
-// Verfügbare Parent-Departments als Tree-Struktur
 const availableParentDepartmentsTree = computed(() => {
   if (!formData.value.organisationId) {
     return []
   }
-  
+
   const currentDeptId = isEdit.value ? props.department?.id : null
-  
-  // Funktion um zu prüfen ob ein Department ein Nachkomme des aktuellen Departments ist
+
   const isDescendant = (deptId: string): boolean => {
     if (!currentDeptId) return false
     const dept = allDepartments.value.find(d => d.id === deptId)
@@ -392,42 +223,37 @@ const availableParentDepartmentsTree = computed(() => {
     if (dept.parent_id === currentDeptId) return true
     return isDescendant(dept.parent_id)
   }
-  
-  // Filtere verfügbare Departments
-  const available = allDepartments.value.filter(dept => 
+
+  const available = allDepartments.value.filter(dept =>
     dept.organisation_id === formData.value.organisationId &&
     dept.id !== currentDeptId &&
     !isDescendant(dept.id)
   )
-  
-  // Erstelle hierarchische Tree-Struktur
+
   const mainDepts = available.filter(d => !d.parent_id)
-  const subDepts = available.filter(d => d.parent_id)
-  
+
   interface TreeDept {
     id: string
     name: string
     level: number
   }
-  
+
   function buildTree(parentId: string | null, level: number): TreeDept[] {
     const children = available.filter(d => d.parent_id === parentId)
     const result: TreeDept[] = []
-    
+
     children.forEach(dept => {
       result.push({
         id: dept.id,
         name: dept.name,
         level
       })
-      // Rekursiv Unter-Departments hinzufügen
       result.push(...buildTree(dept.id, level + 1))
     })
-    
+
     return result
   }
-  
-  // Baue Tree auf, beginnend mit Haupt-Departments
+
   const tree: TreeDept[] = []
   mainDepts.forEach(dept => {
     tree.push({
@@ -437,18 +263,17 @@ const availableParentDepartmentsTree = computed(() => {
     })
     tree.push(...buildTree(dept.id, 1))
   })
-  
+
   return tree
 })
 
 function selectParentDepartment(dept: { id: string }) {
   if (isEdit.value && dept.id === props.department?.id) {
-    return // Kann nicht sein eigener Parent sein
+    return
   }
   formData.value.parentId = dept.id
 }
 
-// Watch für Department-Änderungen (Edit-Modus) und vorausgewählte Organisation/Parent
 watch(
   () => [props.department, props.preselectedOrganisationId, props.preselectedParentId],
   (tuple) => {
@@ -473,15 +298,13 @@ watch(
 )
 
 function onOrganisationChange() {
-  // Parent zurücksetzen wenn Organisation geändert wird
   formData.value.parentId = null
 }
 
-// Watch für Modal-Öffnung
 watch(() => props.isOpen, async (open) => {
   if (open) {
     error.value = null
-    // Organisationen und Departments laden
+    applyInitialFocus()
     try {
       const [rawOrgs, depts] = await Promise.all([getOrganisations(), getDepartments()])
       allDepartments.value = depts
@@ -502,182 +325,18 @@ watch(() => props.isOpen, async (open) => {
         }
       }
       organisations.value = list
-    } catch (err: any) {
+    } catch {
       error.value = t('components.departmentModal.loadDataError')
     }
-
-    if (isEdit.value && props.department?.id) {
-      await Promise.all([
-        loadMembersData(props.department.id),
-        roleLabelsStore.load(props.department.id),
-      ])
-    }
-  } else {
-    members.value = []
-    availableSearchResults.value = []
-    newMemberUserId.value = ''
-    newMemberRole.value = 'u'
-    newMemberPrimary.value = false
-    newMemberSearchQuery.value = ''
-    selectedAvailableUser.value = null
-    showAvailableDropdown.value = false
   }
 })
 
 watch(
-  () => newMemberSearchQuery.value,
-  (query) => {
-    if (availableSearchTimer) clearTimeout(availableSearchTimer)
-    if (selectedAvailableUser.value) return
-    const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      availableSearchResults.value = []
-      isSearchingAvailableUsers.value = false
-      return
-    }
-    if (!props.department?.id) return
-    isSearchingAvailableUsers.value = true
-    availableSearchTimer = setTimeout(() => {
-      void searchAvailableUsers(props.department!.id, trimmed)
-    }, 300)
+  () => props.initialFocus,
+  () => {
+    if (props.isOpen) applyInitialFocus()
   },
 )
-
-watch(newMemberRoleOptions, (options) => {
-  if (!options.some((o) => o.value === newMemberRole.value)) {
-    newMemberRole.value = (options[0]?.value as typeof newMemberRole.value) || 'u'
-  }
-})
-
-watch(
-  () => props.department?.id,
-  async (departmentId) => {
-    if (!props.isOpen || !isEdit.value || !departmentId) return
-    await loadMembersData(departmentId)
-    await roleLabelsStore.load(departmentId)
-  },
-)
-
-async function searchAvailableUsers(departmentId: string, query: string) {
-  try {
-    const results = await getAvailableUsersForDepartment(departmentId, query)
-    availableSearchResults.value = results.filter((u) => !existingMemberUserIds.value.has(u.id))
-  } catch (err: any) {
-    availableSearchResults.value = []
-    toast.error(err.response?.data?.error || t('components.departmentModal.loadMembersError'))
-  } finally {
-    isSearchingAvailableUsers.value = false
-  }
-}
-
-async function loadMembersData(departmentId: string) {
-  isMembersLoading.value = true
-  try {
-    members.value = await getDepartmentMembers(departmentId)
-    if (newMemberUserId.value && existingMemberUserIds.value.has(newMemberUserId.value)) {
-      clearPendingMemberSelection()
-    }
-    if (isGrossanlassDept.value && hasMwMember.value && newMemberRole.value === 'mw') {
-      newMemberRole.value = 'u'
-    }
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('components.departmentModal.loadMembersError'))
-  } finally {
-    isMembersLoading.value = false
-  }
-}
-
-function clearPendingMemberSelection() {
-  newMemberUserId.value = ''
-  newMemberRole.value = isGrossanlassDept.value && hasMwMember.value ? 'u' : 'u'
-  newMemberPrimary.value = false
-  newMemberSearchQuery.value = ''
-  selectedAvailableUser.value = null
-  showAvailableDropdown.value = false
-  availableSearchResults.value = []
-}
-
-async function saveMember(member: DepartmentMember) {
-  if (!props.department?.id || memberActionLoading.value) return
-  memberActionLoading.value = true
-  try {
-    await updateDepartmentMember(props.department.id, member.user_id, {
-      role: member.role,
-      is_primary: member.is_primary
-    })
-    toast.success(t('components.departmentModal.toastMemberUpdated'))
-    await loadMembersData(props.department.id)
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberUpdateError'))
-  } finally {
-    memberActionLoading.value = false
-  }
-}
-
-async function deleteMember(member: DepartmentMember) {
-  if (!props.department?.id || memberActionLoading.value) return
-  if (isCurrentUser(member)) {
-    toast.error(t('components.departmentModal.toastCannotRemoveSelf'))
-    return
-  }
-  if (!window.confirm(t('components.departmentModal.confirmRemoveMember', { name: member.name })))
-    return
-  memberActionLoading.value = true
-  try {
-    await removeDepartmentMember(props.department.id, member.user_id)
-    toast.success(t('components.departmentModal.toastMemberRemoved'))
-    await loadMembersData(props.department.id)
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberRemoveError'))
-  } finally {
-    memberActionLoading.value = false
-  }
-}
-
-async function commitPendingMember(): Promise<boolean> {
-  if (!props.department?.id || !newMemberUserId.value || memberActionLoading.value) return true
-  memberActionLoading.value = true
-  try {
-    await addDepartmentMember(props.department.id, {
-      user_id: newMemberUserId.value,
-      role: newMemberRole.value,
-      is_primary: newMemberPrimary.value,
-    })
-    toast.success(t('components.departmentModal.toastMemberAdded'))
-    clearPendingMemberSelection()
-    await loadMembersData(props.department.id)
-    return true
-  } catch (err: any) {
-    toast.error(err.response?.data?.error || t('components.departmentModal.toastMemberAddError'))
-    return false
-  } finally {
-    memberActionLoading.value = false
-  }
-}
-
-async function addMember() {
-  await commitPendingMember()
-}
-
-function selectAvailableUser(user: AvailableUser) {
-  selectedAvailableUser.value = user
-  newMemberUserId.value = user.id
-  newMemberSearchQuery.value = ''
-  showAvailableDropdown.value = false
-}
-
-function clearSelectedAvailableUser() {
-  selectedAvailableUser.value = null
-  newMemberUserId.value = ''
-  newMemberSearchQuery.value = ''
-  availableSearchResults.value = []
-}
-
-function handleAvailableBlur() {
-  setTimeout(() => {
-    showAvailableDropdown.value = false
-  }, 200)
-}
 
 async function handleSubmit() {
   if (!formData.value.name || !formData.value.organisationId) {
@@ -690,10 +349,6 @@ async function handleSubmit() {
     error.value = null
 
     if (isEdit.value && props.department) {
-      if (newMemberUserId.value) {
-        const added = await commitPendingMember()
-        if (!added) return
-      }
       await updateDepartment(props.department.id, {
         name: formData.value.name,
         organisation_id: formData.value.organisationId,
@@ -722,14 +377,7 @@ function close() {
   emit('close')
   formData.value = { name: '', organisationId: '', parentId: null }
   error.value = null
-  members.value = []
-  availableSearchResults.value = []
-  clearPendingMemberSelection()
 }
-
-onUnmounted(() => {
-  if (availableSearchTimer) clearTimeout(availableSearchTimer)
-})
 </script>
 
 <style scoped>
@@ -740,7 +388,49 @@ onUnmounted(() => {
 .department-modal-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+}
+
+.dept-modal-accordion {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.dept-modal-accordion__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dept-modal-accordion__summary::-webkit-details-marker {
+  display: none;
+}
+
+.dept-modal-accordion__summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: #94a3b8;
+  transition: transform 0.15s ease;
+}
+
+.dept-modal-accordion[open] > .dept-modal-accordion__summary::after {
+  transform: rotate(-180deg);
+}
+
+.dept-modal-accordion__body {
+  padding: 12px 14px 14px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
 }
 
 .form-label {
@@ -749,16 +439,6 @@ onUnmounted(() => {
   font-weight: 500;
   color: #374151;
   margin-bottom: 8px;
-}
-
-.grossanlass-member-hint,
-.pending-member-hint {
-  margin-top: 0;
-  margin-bottom: 12px;
-}
-
-.pending-member-hint {
-  color: #2563eb;
 }
 
 .form-hint {
@@ -853,202 +533,5 @@ onUnmounted(() => {
 
 .tree-select-item.selected .folder-icon {
   color: #3b82f6;
-}
-
-.user-management-section {
-  border-top: 1px solid #e5e7eb;
-  margin-top: 20px;
-  padding-top: 16px;
-}
-
-.user-management-hint {
-  padding: 10px 12px;
-  background: #f9fafb;
-  border-radius: 6px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.members-table-wrap {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.members-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.members-table th,
-.members-table td {
-  border-bottom: 1px solid #f1f5f9;
-  padding: 8px 10px;
-  font-size: 13px;
-  text-align: left;
-}
-
-.members-table th {
-  background: #f8fafc;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  font-size: 11px;
-}
-
-.members-table tr:last-child td {
-  border-bottom: none;
-}
-
-.member-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.btn-inline {
-  border: 1px solid #d1d5db;
-  background: white;
-  color: #374151;
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.btn-inline:hover:not(:disabled) {
-  background: #f3f4f6;
-}
-
-.btn-inline:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-inline-danger {
-  color: #b91c1c;
-  border-color: #fecaca;
-  background: #fff7f7;
-}
-
-.small-select {
-  min-width: 120px;
-}
-
-.add-member-box {
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 10px;
-  background: #fcfcfd;
-}
-
-.add-member-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  margin-bottom: 8px;
-}
-
-.add-member-search-row {
-  margin-bottom: 10px;
-}
-
-.add-member-controls-row {
-  display: grid;
-  grid-template-columns: 140px auto auto;
-  gap: 8px;
-  align-items: center;
-  justify-content: end;
-}
-
-.add-member-search {
-  width: 100%;
-}
-
-.checkbox-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #374151;
-}
-
-.autocomplete-wrapper {
-  position: relative;
-}
-
-.autocomplete-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.2);
-  z-index: 80;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.autocomplete-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-  padding: 9px 10px;
-  cursor: pointer;
-}
-
-.autocomplete-item:hover {
-  background: #f3f4f6;
-}
-
-.ac-name {
-  color: #1f2937;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.ac-email {
-  color: #6b7280;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.autocomplete-empty {
-  padding: 10px;
-  color: #6b7280;
-  text-align: center;
-  font-size: 13px;
-}
-
-.selected-user-chip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  border: 1px solid #c7d2fe;
-  background: #eef2ff;
-  color: #3730a3;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.chip-remove {
-  border: none;
-  background: transparent;
-  color: #4338ca;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-@media (max-width: 900px) {
-  .add-member-controls-row {
-    grid-template-columns: 1fr 1fr;
-    justify-content: stretch;
-  }
 }
 </style>

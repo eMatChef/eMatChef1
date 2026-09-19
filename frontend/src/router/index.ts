@@ -35,9 +35,12 @@ import {
   gaIsMailboxOnly,
   GA_MAILBOX_ROUTE_ROLES,
   GA_PROCUREMENT_ROUTE_ROLES,
+  GA_PLANUNG_ROUTE_ROLES,
+  GA_HELPER_ROUTE_ROLES,
   GA_UEBERSICHT_ROUTE_ROLES,
 } from '@/utils/grossanlassAccess'
 import { gaHomePath } from '@/utils/grossanlassHome'
+import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -187,8 +190,17 @@ const routes: RouteRecordRaw[] = [
     },
   },
   {
-    path: '/i/p/:placeCode',
+    path: '/i/ga/:placeCode',
     name: 'PublicLookupGaPlace',
+    component: () => import('@/views/public/PublicGrossanlassPlaceView.vue'),
+    meta: {
+      requiresAuth: false,
+      ...routeHead('publicLookup', 'publicLookup'),
+    },
+  },
+  {
+    path: '/i/p/:placeCode',
+    name: 'PublicLookupGaPlaceLegacy',
     component: () => import('@/views/public/PublicGrossanlassPlaceView.vue'),
     meta: {
       requiresAuth: false,
@@ -213,6 +225,7 @@ const routes: RouteRecordRaw[] = [
       if (type === 'w' && code) return `/i/w/${code}`
       if (type === 'm' && code) return `/i/m/${code}`
       if (type === 'c' && code) return `/i/c/${code}`
+      if (type === 'ga' && code) return `/i/ga/${code}`
       if (type === 'p' && code) return `/i/p/${code}`
       if (type === 'k' && code) return `/i/k/${code}`
       return '/'
@@ -443,6 +456,13 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
+            redirect: (to) => {
+              const authStore = useAuthStore()
+              return resolveVerwaltungLandingPath(authStore, { isAdminDashboard: true })
+            },
+          },
+          {
+            path: 'global-addresses',
             name: 'AdminGlobalAddresses',
             component: () => import('@/views/GlobalAddressesView.vue'),
             meta: {
@@ -569,12 +589,10 @@ const routes: RouteRecordRaw[] = [
           },
           {
             path: 'global-admin-roles',
-            name: 'AdminGlobalAdminRoles',
-            component: () => import('@/views/settings/GlobalAdminRolesSettingsView.vue'),
-            meta: {
-              requiredRoles: ['superadmin'],
-              ...routeHead('globalAdminRoles'),
-            }
+            redirect: (to) => ({
+              path: '/admin-dashboard/verwaltung/users',
+              query: { ...to.query, focus: to.query.focus ?? 'verwaltung' },
+            }),
           },
           {
             path: 'user-org-overview',
@@ -791,11 +809,31 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'meine-einsaetze',
+        name: 'GrossanlassMeineEinsaetze',
+        component: () => import('@/views/grossanlass/GrossanlassMeineEinsaetzeView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_HELPER_ROUTE_ROLES],
+          ...routeHead('grossanlassMeineEinsaetze'),
+        },
+      },
+      {
+        path: 'helferauftrag/:groupId',
+        name: 'GrossanlassHelferauftragPrint',
+        component: () => import('@/views/grossanlass/GrossanlassHelferauftragPrintView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          ...routeHead('grossanlassHelferauftrag'),
+        },
+      },
+      {
         path: 'planung/runden/:roundId',
         name: 'GrossanlassRoundDetail',
         component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_PLANUNG_ROUTE_ROLES],
           ...routeHead('grossanlassRoundDetail'),
         },
       },
@@ -815,6 +853,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/grossanlass/GrossanlassPlanungView.vue'),
         meta: {
           requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_PLANUNG_ROUTE_ROLES],
           ...routeHead('grossanlassPlanung'),
         },
       },
@@ -1254,6 +1293,14 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
+            redirect: (to) => {
+              const authStore = useAuthStore()
+              const departmentId = to.params.departmentId as string | undefined
+              return resolveVerwaltungLandingPath(authStore, { departmentId })
+            },
+          },
+          {
+            path: 'global-addresses',
             name: 'DepartmentGlobalAddresses',
             component: () => import('@/views/GlobalAddressesView.vue'),
             meta: {

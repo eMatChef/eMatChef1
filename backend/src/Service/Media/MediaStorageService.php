@@ -22,6 +22,7 @@ class MediaStorageService
     public const CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE = 'grossanlass_procurement_quote';
     public const CONTEXT_GROSSANLASS_USER_CARD = 'grossanlass_user_card';
     public const CONTEXT_GROSSANLASS_MAIL_ATTACHMENT = 'grossanlass_mail_attachment';
+    public const CONTEXT_GROSSANLASS_MAP = 'grossanlass_map';
     public const CONTEXT_USER_DRIVE_LICENSE = 'user_drive_license';
 
     public const KIND_PHOTOS = 'photos';
@@ -38,6 +39,7 @@ class MediaStorageService
         self::CONTEXT_GROSSANLASS_PROCUREMENT_QUOTE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-procurement-quote'],
         self::CONTEXT_GROSSANLASS_USER_CARD => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-user-card'],
         self::CONTEXT_GROSSANLASS_MAIL_ATTACHMENT => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'grossanlass-mail-attachment'],
+        self::CONTEXT_GROSSANLASS_MAP => ['kind' => self::KIND_PHOTOS, 'folder' => 'grossanlass-map'],
         self::CONTEXT_USER_DRIVE_LICENSE => ['kind' => self::KIND_DOCUMENTS, 'folder' => 'user-drive-license'],
     ];
 

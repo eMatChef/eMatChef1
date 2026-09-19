@@ -108,6 +108,11 @@
               {{ t('tasksGeneral.actionAccountingView') }}
             </EButton>
           </template>
+          <template v-else-if="task.gaEinsatz">
+            <EButton variant="primary" size="small" @click="openGaEinsatzTask(task)">
+              {{ t('tasksGeneral.actionOpenEinsatz') }}
+            </EButton>
+          </template>
         </div>
       </article>
     </div>
@@ -171,6 +176,7 @@ import {
 } from '@/composables/useDepartmentTasks'
 import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
+import { gaIsGrossanlassHelper } from '@/utils/grossanlassAccess'
 
 type StatusTab = DepartmentTaskStatus
 
@@ -188,6 +194,9 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 const roleOptions = computed(() => ({
   isUserRole: isUserRole.value,
   canManageQrContact: canManageQrContact.value,
+  isGrossanlassHelper:
+    gaIsGrossanlassHelper(authStore.currentDepartmentRole) &&
+    authStore.isDepartmentGrossanlass(departmentId.value),
 }))
 
 const { tasks, isLoading, error, reload } = useDepartmentTasksLoader(departmentId, roleOptions)
@@ -254,6 +263,12 @@ function taskKindLabel(kind: DepartmentTaskKind): string {
       return t('tasksGeneral.kindCampInvite')
     case 'accounting_followup':
       return t('tasksGeneral.kindAccounting')
+    case 'ga_einsatz':
+      return t('tasksGeneral.kindGaEinsatz')
+    case 'ga_fahrauftrag':
+      return t('tasksGeneral.kindGaFahrauftrag')
+    case 'ga_bauauftrag':
+      return t('tasksGeneral.kindGaBauauftrag')
     default:
       return ''
   }
@@ -373,6 +388,12 @@ async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) 
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
       : (note.planung_url || `/${note.department_id}/planung`),
   )
+}
+
+function openGaEinsatzTask(task: DepartmentTaskItem) {
+  const id = departmentId.value
+  if (!id) return
+  void router.push(`/${id}/meine-einsaetze`)
 }
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {

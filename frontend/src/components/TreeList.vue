@@ -36,6 +36,8 @@
         :level="0"
         :selected-items="selectedItems"
         :expanded-items="expandedItems"
+        :allow-add-grossanlass="allowAddGrossanlass"
+        :allow-manage-users="allowManageUsers"
         @toggle-select="handleToggleSelect"
         @toggle-expand="handleToggleExpand"
         @edit="(item) => $emit('edit-item', item)"
@@ -43,6 +45,8 @@
         @show-details="(item) => $emit('show-details', item)"
         @show-department-details="(item) => $emit('show-department-details', item)"
         @add-department="(item) => $emit('add-department', item)"
+        @add-grossanlass="(item) => $emit('add-grossanlass', item)"
+        @manage-users="(item) => $emit('manage-users', item)"
       />
     </div>
   </div>
@@ -68,12 +72,16 @@ interface Props {
   headerLabel?: string
   selectedItems?: string[]
   expandedItems?: string[]
+  allowAddGrossanlass?: boolean
+  allowManageUsers?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   headerLabel: '',
   selectedItems: () => [],
-  expandedItems: () => []
+  expandedItems: () => [],
+  allowAddGrossanlass: false,
+  allowManageUsers: false,
 })
 
 const emit = defineEmits<{
@@ -85,6 +93,8 @@ const emit = defineEmits<{
   'show-details': [item: TreeItemData]
   'show-department-details': [item: TreeItemData]
   'add-department': [item: TreeItemData]
+  'add-grossanlass': [item: TreeItemData]
+  'manage-users': [item: TreeItemData]
 }>()
 
 const treeContentRef = ref<HTMLElement>()
@@ -254,7 +264,7 @@ function handleToggleExpand(itemId: string) {
 }
 
 .actions-cell {
-  width: 120px;
+  width: 156px;
   flex-shrink: 0;
   justify-content: center;
 }

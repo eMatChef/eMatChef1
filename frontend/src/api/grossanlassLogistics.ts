@@ -1,12 +1,41 @@
 import apiClient from './apiClient'
 
+export type GaPlaceKind = 'bauprojekt' | 'unterlager' | 'matplatz' | 'anfahrt' | 'poi'
+
 export type GaPlace = {
   id: string
   name: string
   group_id: string | null
   unterlager_id: string | null
+  kind?: GaPlaceKind
+  map_id?: string | null
+  map_x?: number | null
+  map_y?: number | null
+  latitude?: number | null
+  longitude?: number | null
+  starred?: boolean
   public_code: string
   qr_url: string
+}
+
+export type GaMapBounds = {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+export type GaMap = {
+  id: string
+  name: string
+  image_url: string | null
+  image_width: number
+  image_height: number
+  bounds_north?: number | null
+  bounds_south?: number | null
+  bounds_east?: number | null
+  bounds_west?: number | null
+  places: GaPlace[]
 }
 
 export type GaPackLine = {
@@ -48,11 +77,99 @@ export async function listGrossanlassPlaces(departmentId: string): Promise<GaPla
 
 export async function createGrossanlassPlace(
   departmentId: string,
-  payload: { name: string; group_id?: string | null },
+  payload: {
+    name: string
+    group_id?: string | null
+    kind?: GaPlaceKind
+    map_id?: string | null
+    map_x?: number | null
+    map_y?: number | null
+    latitude?: number | null
+    longitude?: number | null
+    starred?: boolean
+  },
 ): Promise<GaPlace> {
   const { data } = await apiClient.post<GaPlace>(
     `/api/departments/${departmentId}/grossanlass/places`,
     payload,
+  )
+  return data
+}
+
+export async function updateGrossanlassPlace(
+  departmentId: string,
+  placeId: string,
+  payload: {
+    name?: string
+    kind?: GaPlaceKind
+    map_id?: string | null
+    map_x?: number | null
+    map_y?: number | null
+    latitude?: number | null
+    longitude?: number | null
+    starred?: boolean
+  },
+): Promise<GaPlace> {
+  const { data } = await apiClient.patch<GaPlace>(
+    `/api/departments/${departmentId}/grossanlass/places/${placeId}`,
+    payload,
+  )
+  return data
+}
+
+export async function listGrossanlassMaps(departmentId: string): Promise<GaMap[]> {
+  const { data } = await apiClient.get<GaMap[]>(
+    `/api/departments/${departmentId}/grossanlass/maps`,
+  )
+  return data
+}
+
+export async function createGrossanlassMap(
+  departmentId: string,
+  payload: { name?: string } = {},
+): Promise<GaMap> {
+  const { data } = await apiClient.post<GaMap>(
+    `/api/departments/${departmentId}/grossanlass/maps`,
+    payload,
+  )
+  return data
+}
+
+export async function updateGrossanlassMap(
+  departmentId: string,
+  mapId: string,
+  payload: Partial<GaMapBounds> & { name?: string },
+): Promise<GaMap> {
+  const { data } = await apiClient.patch<GaMap>(
+    `/api/departments/${departmentId}/grossanlass/maps/${mapId}`,
+    {
+      name: payload.name,
+      bounds_north: payload.north,
+      bounds_south: payload.south,
+      bounds_east: payload.east,
+      bounds_west: payload.west,
+    },
+  )
+  return data
+}
+
+export async function uploadGrossanlassMapBackground(
+  departmentId: string,
+  mapId: string,
+  file: File,
+  bounds?: GaMapBounds | null,
+): Promise<GaMap> {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (bounds) {
+    formData.append('bounds_north', String(bounds.north))
+    formData.append('bounds_south', String(bounds.south))
+    formData.append('bounds_east', String(bounds.east))
+    formData.append('bounds_west', String(bounds.west))
+  }
+  const { data } = await apiClient.post<GaMap>(
+    `/api/departments/${departmentId}/grossanlass/maps/${mapId}/background`,
+    formData,
   )
   return data
 }

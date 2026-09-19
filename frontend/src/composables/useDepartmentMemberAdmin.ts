@@ -18,7 +18,10 @@ import {
  * Zentrale Mitglieder-Verwaltung: Rechte, Entfernen mit Warnung, Rollen-Labels.
  * Nutzen: Benutzer-Tabelle, Ressorts-Mitglieder, Detail-Dialog.
  */
-export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>) {
+export function useDepartmentMemberAdmin(
+  departmentId: MaybeRefOrGetter<string>,
+  isGrossanlassOverride?: MaybeRefOrGetter<boolean | null | undefined>,
+) {
   const { t } = useI18n()
   const authStore = useAuthStore()
   const toast = useToast()
@@ -29,7 +32,12 @@ export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>)
 
   const isGlobalAdmin = computed(() => hasGlobalAdminPrivilege(authStore.userRoles || []))
 
-  const isGrossanlass = computed(() => authStore.isDepartmentGrossanlass(deptId.value))
+  const isGrossanlass = computed(() => {
+    const forced = toValue(isGrossanlassOverride)
+    if (forced === true) return true
+    if (forced === false) return false
+    return authStore.isDepartmentGrossanlass(deptId.value)
+  })
 
   function canManageMember(member: Pick<DepartmentMember, 'user_id' | 'role'>): boolean {
     return canManageDepartmentMember({

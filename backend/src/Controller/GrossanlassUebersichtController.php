@@ -36,6 +36,31 @@ class GrossanlassUebersichtController extends AbstractController
         return $this->handle($departmentId, fn (Department $d, User $u) => $this->uebersicht->submitBoard($d, $u));
     }
 
+    #[Route('/meine-einsaetze', name: 'mine', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function myEinsaetze(string $departmentId): JsonResponse
+    {
+        return $this->handle($departmentId, fn (Department $d, User $u) => $this->uebersicht->myEinsaetze($d, $u));
+    }
+
+    #[Route('/scan-context', name: 'scan_context', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function scanContext(string $departmentId, Request $request): JsonResponse
+    {
+        $placeId = trim((string) $request->query->get('place_id', ''));
+        $einsatzId = trim((string) $request->query->get('einsatz_id', ''));
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->uebersicht->helperScanContext(
+                $d,
+                $u,
+                $placeId !== '' ? $placeId : null,
+                $einsatzId !== '' ? $einsatzId : null,
+            ),
+        );
+    }
+
     #[Route('/einsaetze', name: 'create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function create(string $departmentId, Request $request): JsonResponse

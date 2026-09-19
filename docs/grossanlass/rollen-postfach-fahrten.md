@@ -4,7 +4,7 @@ Produktklärung 30.08.2026. **Dieses Dokument gilt**, wo es von [README §3.6 / 
 
 **Status:** Soll — Phase R1–R7 umgesetzt. Checkboxen in [§11](#11-phasen-abarbeiten) abhaken.
 
-**Verwandt:** [README.md](./README.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [kosten.md](./kosten.md)
+**Verwandt:** [README.md](./README.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) · [kosten.md](./kosten.md)
 
 ---
 
@@ -320,10 +320,10 @@ Werkzeug, das nur am Samstag braucht wird, darf nicht die ganze Woche am Ziel li
 | QR | Träger | Scan |
 | --- | --- | --- |
 | **Pack / Palette** | Etikett am realen Pack | Fahrt übernehmen / unterwegs (Identität des Einsatz-Packs) |
-| **Substandort** | Schild am Ort (Bühne, Küche Nord, Tor, Unterlager) | Standort des Packs wird dieser Ort |
+| **GA-Ort** | Schild am Event-Standort (Bühne, Küche Nord, Tor, Unterlager) | Standort des Packs wird dieser Ort |
 | **User-Karte** `/i/c/…` | schon da | Ausgabe / «darf fahren» |
 
-Neu z. B. `/i/p/:placeCode` für Substandorte. Orte: Event-POI / Zustellpunkt, Unterlager, Bauprojekt-Knoten mit Ort — ein Typ **Grossanlass-Ort** mit `public_code` reicht.
+Kanonisch `/i/ga/:placeCode` (Alias `/i/p/…` für alte Schilder). Nicht Lager-QR, nicht `Address.event_poi`. Ein Typ **GA-Ort** mit `kind` — [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md).
 
 Zweite Palette = zweites Pack (eigener QR), gleicher Einsatz oder Kind.
 
@@ -371,9 +371,10 @@ pack_line
   qty_packed vs qty_needed
   missing → Warnung, kein hartes Lock
 
-place (Substandort)
-  public_code            /i/p/…
-  group_id?              Bauprojekt / Unterlager
+place (GA-Ort)
+  public_code            /i/ga/…  (Alias /i/p/…)
+  kind                   bauprojekt | unterlager | matplatz | poi
+  group_id?              Bauprojekt / Ressort
 ```
 
 Profil: Ausweis-Klassen + Nachweis (nicht nur an `department_grossanlass_user_card`).
@@ -466,7 +467,7 @@ Checkboxen in diesem File. Nicht alles in einem PR. Reihenfolge = Abhängigkeit.
 
 ### Phase R7 — Substandort-QR + Standort
 
-- [x] Grossanlass-Ort mit QR (`/i/p/…` oder analog)
+- [x] Grossanlass-Ort mit QR (`/i/ga/…`, Alias `/i/p/…`) — Kind/Namespace: [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md)
 - [x] Pack-QR scannen → unterwegs
 - [x] Ziel-QR scannen → `current_place_id` dieses Packs
 - [x] Falscher Ort: Fehler

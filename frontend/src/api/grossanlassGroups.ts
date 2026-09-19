@@ -1,5 +1,6 @@
 import apiClient from './apiClient'
 import type { GroupMember } from './groups'
+import type { GaPlace } from './grossanlassLogistics'
 
 export type GrossanlassGroupKind = 'ressort' | 'teilbereich'
 export type GrossanlassNodeType = 'ressort' | 'unterressort' | 'bauprojekt'
@@ -13,6 +14,9 @@ export interface GrossanlassGroup {
   level: number
   kind: GrossanlassGroupKind
   node_type: GrossanlassNodeType
+  window_start?: string | null
+  window_end?: string | null
+  place?: GaPlace | null
   member_count: number
   leader_count: number
   members: GroupMember[]
@@ -35,6 +39,8 @@ export async function createGrossanlassGroup(
     parent_id?: string | null
     kind?: GrossanlassGroupKind
     sort_order?: number
+    window_start?: string | null
+    window_end?: string | null
   },
 ): Promise<GrossanlassGroup> {
   const response = await apiClient.post<GrossanlassGroup>(
@@ -52,6 +58,8 @@ export async function updateGrossanlassGroup(
     parent_id?: string | null
     kind?: GrossanlassGroupKind
     sort_order?: number
+    window_start?: string | null
+    window_end?: string | null
   },
 ): Promise<GrossanlassGroup> {
   const response = await apiClient.put<GrossanlassGroup>(

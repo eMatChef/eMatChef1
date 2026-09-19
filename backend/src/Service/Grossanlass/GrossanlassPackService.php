@@ -238,6 +238,24 @@ final class GrossanlassPackService
         $einsatz->setPacked($packed);
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listAtPlace(Department $department, string $placeId): array
+    {
+        $packs = $this->entityManager->getRepository(DepartmentGrossanlassPack::class)
+            ->findBy(['currentPlaceId' => $placeId], ['sortOrder' => 'ASC']);
+        $out = [];
+        foreach ($packs as $pack) {
+            if (!$pack instanceof DepartmentGrossanlassPack || $pack->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $out[] = $this->serializePack($pack);
+        }
+
+        return $out;
+    }
+
     public function qrUrl(string $code): string
     {
         $base = trim($this->appPublicQrUrl) !== ''

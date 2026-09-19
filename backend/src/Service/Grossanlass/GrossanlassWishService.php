@@ -208,11 +208,100 @@ class GrossanlassWishService
     }
 
     /**
+     * Material am Bauprojekt: Wunschzeilen dieses group_id (sichtbar unter Wünsche, zählbar beim Bündeln).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listMaterialWishesForGroup(Department $department, User $user, Group $group): array
+    {
+        $allowed = $this->resolveVisibleGroupIds($department, $user);
+        if ($allowed !== null && !in_array($group->getId(), $allowed, true)) {
+            return [];
+        }
+
+        $lines = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->addSelect('r')
+            ->innerJoin('w.group', 'g')
+            ->addSelect('g')
+            ->innerJoin('w.createdByUser', 'u')
+            ->leftJoin('u.profile', 'p')
+            ->addSelect('u', 'p')
+            ->where('w.groupId = :groupId')
+            ->andWhere('w.status != :discarded')
+            ->andWhere('r.formPurpose = :purpose')
+            ->setParameter('groupId', $group->getId())
+            ->setParameter('discarded', ActivityGrossanlassWishLine::STATUS_DISCARDED)
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->orderBy('w.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return array_map(fn (ActivityGrossanlassWishLine $w) => $this->toArray($w), $lines);
+    }
+
+    public function findOpenMaterialRound(Department $department): ?ActivityGrossanlassRound
+    {
+        $round = $this->entityManager->getRepository(ActivityGrossanlassRound::class)
+            ->createQueryBuilder('r')
+            ->innerJoin('r.activity', 'a')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('r.formPurpose = :purpose')
+            ->andWhere('r.status = :status')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->setParameter('status', ActivityGrossanlassRound::STATUS_OPEN)
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $round instanceof ActivityGrossanlassRound ? $round : null;
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
      */
-    public function createWish(Department $department, User $user, string $roundId, array $data): array
+    public function createProjectMaterialWish(Department $department, User $user, Group $group, array $data): array
+    {
+        $round = $this->findOpenMaterialRound($department);
+        if ($round === null) {
+            throw new \InvalidArgumentException('Keine offene Material-Runde — bitte zuerst eine Runde öffnen');
+        }
+        $payload = $data;
+        $payload['group_id'] = $group->getId();
+        if (!isset($payload['wish_kind']) || trim((string) $payload['wish_kind']) === '') {
+            $payload['wish_kind'] = ActivityGrossanlassWishLine::KIND_MATERIAL;
+        }
+        if (empty($payload['valid_from'])) {
+            if ($group->getWindowStart() instanceof \DateTimeInterface) {
+                $payload['valid_from'] = $group->getWindowStart()->format('Y-m-d');
+                $end = $group->getWindowEnd() ?? $group->getWindowStart();
+                $payload['valid_to'] = $end->format('Y-m-d');
+            } else {
+                [$from, $to] = $this->defaultNeedPeriodFromCalendar($department);
+                if ($from instanceof \DateTimeInterface) {
+                    $payload['valid_from'] = $from->format('Y-m-d');
+                    $payload['valid_to'] = ($to ?? $from)->format('Y-m-d');
+                }
+            }
+        }
+        if (!isset($payload['location']) || trim((string) $payload['location']) === '') {
+            $payload['location'] = $group->getName();
+        }
+
+        return $this->createWish($department, $user, $round->getId(), $payload, $group);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function createWish(Department $department, User $user, string $roundId, array $data, ?Group $defaultGroup = null): array
     {
         $round = $this->roundService->findRoundForDepartment($department, $roundId);
         if ($round->getStatus() !== ActivityGrossanlassRound::STATUS_OPEN) {
@@ -225,7 +314,7 @@ class GrossanlassWishService
         }
 
         $form = $this->formService->findOrCreateFormForRound($round);
-        $parsed = $this->parsePayloadAgainstForm($department, $user, $data, $form);
+        $parsed = $this->parsePayloadAgainstForm($department, $user, $data, $form, $defaultGroup);
 
         if (!$this->canWriteWishForGroup($department, $user, $parsed['group'])) {
             throw new \RuntimeException('Keine Berechtigung für dieses Ressort/Bauprojekt');
@@ -540,6 +629,9 @@ class GrossanlassWishService
 
             $fieldId = $field->getId();
             $raw = array_key_exists($fieldId, $customValuesInput) ? $customValuesInput[$fieldId] : null;
+            if (($raw === null || $raw === '' || $raw === []) && $defaultGroup !== null) {
+                $raw = $this->fallbackCustomRawFromLineData($field, $data);
+            }
             $customValues[$fieldId] = $this->parseCustomValue($field, $raw);
         }
 
@@ -549,13 +641,21 @@ class GrossanlassWishService
             $group = $resolvedRessortGroup;
         }
 
-        if (!$bauprojektEnabled && !$ressortWahlEnabled && $group === null && $defaultGroup !== null) {
+        $explicitId = trim((string) ($data['group_id'] ?? ''));
+        if ($explicitId !== '') {
+            $explicit = $this->entityManager->getRepository(Group::class)->find($explicitId);
+            if ($explicit instanceof Group && $explicit->getDepartmentId() === $department->getId()) {
+                $group = $explicit;
+            }
+        }
+
+        if ($group === null && $defaultGroup !== null) {
             $group = $defaultGroup;
         }
-        if ($bauprojektEnabled && $bauprojektFieldRequired && $resolvedBauprojektGroup === null && $resolvedRessortGroup === null) {
+        if ($bauprojektEnabled && $bauprojektFieldRequired && $resolvedBauprojektGroup === null && $resolvedRessortGroup === null && $group === null) {
             throw new \InvalidArgumentException('Bauprojekt ist erforderlich');
         }
-        if ($ressortWahlEnabled && $ressortFieldRequired && $resolvedRessortGroup === null && $resolvedBauprojektGroup === null) {
+        if ($ressortWahlEnabled && $ressortFieldRequired && $resolvedRessortGroup === null && $resolvedBauprojektGroup === null && $group === null) {
             throw new \InvalidArgumentException('Ressort ist erforderlich');
         }
         if (($bauprojektEnabled || $ressortWahlEnabled) && $group === null) {
@@ -811,6 +911,63 @@ class GrossanlassWishService
         $value->setValueJson(null);
     }
 
+    /**
+     * Projekt-Material (label/quantity/location/Zeitraum) in Custom-Formularfelder übernehmen.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function fallbackCustomRawFromLineData(ActivityGrossanlassRoundFormField $field, array $data): mixed
+    {
+        $type = $field->getCustomType();
+        $labelLower = mb_strtolower($field->getLabel());
+        if ($type === GrossanlassFormFieldCatalog::CUSTOM_TEXT) {
+            if (str_contains($labelLower, 'ort') || str_contains($labelLower, 'wo ')) {
+                $location = trim((string) ($data['location'] ?? ''));
+
+                return $location !== '' ? $location : null;
+            }
+            if (str_contains($labelLower, 'notiz')
+                || str_contains($labelLower, 'bemerk')
+                || str_contains($labelLower, 'hinweis')
+            ) {
+                return null;
+            }
+            $label = trim((string) ($data['label'] ?? ''));
+
+            return $label !== '' ? $label : null;
+        }
+        if ($type === GrossanlassFormFieldCatalog::CUSTOM_NUMBER && array_key_exists('quantity', $data)) {
+            return $data['quantity'];
+        }
+        if ($type === GrossanlassFormFieldCatalog::CUSTOM_DATE_RANGE) {
+            $from = $data['valid_from'] ?? null;
+            $to = $data['valid_to'] ?? null;
+            if ($from && $to) {
+                return ['from' => $from, 'to' => $to];
+            }
+
+            return null;
+        }
+        if ($type === GrossanlassFormFieldCatalog::CUSTOM_SELECT) {
+            $kind = trim((string) ($data['wish_kind'] ?? ''));
+            if ($kind === '') {
+                return null;
+            }
+            $options = $field->getOptionsJson() ?? [];
+            $choices = is_array($options['choices'] ?? null) ? $options['choices'] : [];
+            if ($choices === [] || in_array($kind, $choices, true)) {
+                return $kind;
+            }
+            foreach ($choices as $choice) {
+                if (is_string($choice) && mb_strtolower($choice) === $kind) {
+                    return $choice;
+                }
+            }
+        }
+
+        return null;
+    }
+
     private function parseCustomValue(ActivityGrossanlassRoundFormField $field, mixed $raw): mixed
     {
         $label = $field->getLabel();
@@ -1037,7 +1194,7 @@ class GrossanlassWishService
         try {
             return $this->resolveGroupForRessortWahl($department, $user, $data, $field);
         } catch (\InvalidArgumentException $e) {
-            if (!$field->isRequired()) {
+            if (!$field->isRequired() || trim((string) ($data['group_id'] ?? '')) !== '') {
                 return null;
             }
             throw $e;

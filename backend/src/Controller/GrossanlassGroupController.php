@@ -6,6 +6,7 @@ use App\Entity\Department;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassAccessService;
+use App\Service\Grossanlass\GrossanlassBauprojektService;
 use App\Service\Grossanlass\GrossanlassGroupService;
 use App\Service\Grossanlass\GrossanlassHelperService;
 use App\Service\GroupAccessService;
@@ -22,6 +23,7 @@ class GrossanlassGroupController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassGroupService $groupService,
+        private GrossanlassBauprojektService $bauprojekt,
         private GrossanlassHelperService $helperService,
         private GrossanlassAccessService $access,
         private GroupAccessService $groupAccess,
@@ -278,6 +280,128 @@ class GrossanlassGroupController extends AbstractController
         }
 
         return new JsonResponse(['success' => true]);
+    }
+
+    #[Route('/{groupId}/bauprojekt', name: 'bauprojekt_get', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function bauprojekt(string $departmentId, string $groupId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->briefingForGroup($d, $u, $g),
+        );
+    }
+
+    #[Route('/{groupId}/bauprojekt', name: 'bauprojekt_patch', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function patchBauprojekt(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->updateWindow($d, $u, $g, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/tasks', name: 'tasks_list', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listTasks(string $departmentId, string $groupId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->listTasks($d, $u, $g),
+        );
+    }
+
+    #[Route('/{groupId}/tasks', name: 'tasks_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createTask(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->createTask($d, $u, $g, is_array($data) ? $data : []),
+            201,
+        );
+    }
+
+    #[Route('/{groupId}/tasks/{taskId}', name: 'tasks_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateTask(string $departmentId, string $groupId, string $taskId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->updateTask($d, $u, $g, $taskId, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/tasks/{taskId}', name: 'tasks_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteTask(string $departmentId, string $groupId, string $taskId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            function (Department $d, User $u, Group $g) use ($taskId) {
+                $this->bauprojekt->deleteTask($d, $u, $g, $taskId);
+
+                return ['success' => true];
+            },
+        );
+    }
+
+    #[Route('/{groupId}/material', name: 'material_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function addMaterial(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->addMaterial($d, $u, $g, is_array($data) ? $data : []),
+            201,
+        );
+    }
+
+    /**
+     * @param callable(Department, User, Group): mixed $fn
+     */
+    private function handleBauprojekt(string $departmentId, string $groupId, callable $fn, int $okStatus = 200): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if ($group === null || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->userHasDepartmentMembership($currentUser->getId(), $departmentId)) {
+            return new JsonResponse(['error' => 'Kein Zugriff auf diese Abteilung'], 403);
+        }
+        try {
+            return new JsonResponse($fn($department, $currentUser, $group), $okStatus);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 500);
+        }
     }
 
     private function resolveGrossanlassDepartment(string $departmentId): Department|JsonResponse

@@ -8,26 +8,35 @@
       </div>
     </div>
 
-    <!-- Kompakte Zeile: Anzahl + Hinzufügen -->
-    <div v-if="!isLoading" class="members-toolbar">
-      <span v-if="members.length > 0" class="members-count">
-        <strong>{{ members.length }}</strong>
-        {{ t('settings.departmentUsers.statsUsers') }}
-      </span>
-      <span v-else class="members-count members-count--empty"></span>
-      <EButton
-        variant="primary"
-        :size="embedded ? 'small' : undefined"
-        data-onboarding="settings-user-add"
-        @click="openAddModal()"
-      >
-        <v-icon icon="mdi-account-plus" start :size="embedded ? 18 : 20" />
-        {{ t('settings.departmentUsers.addUser') }}
-      </EButton>
-    </div>
+    <Transition name="users-settings-reveal" mode="out-in">
+      <UsersSettingsSkeleton
+        v-if="isLoading"
+        key="loading"
+        :embedded="embedded"
+        :is-grossanlass="isGrossanlassDept"
+        :open-members="membersAccordionOpen"
+        :message="t('settings.departmentUsers.loading')"
+      />
+
+      <div v-else key="content" class="users-settings-content">
+        <div v-if="!embedded" class="members-toolbar">
+          <span v-if="members.length > 0" class="members-count">
+            <strong>{{ members.length }}</strong>
+            {{ t('settings.departmentUsers.statsUsers') }}
+          </span>
+          <span v-else class="members-count members-count--empty"></span>
+          <EButton
+            variant="primary"
+            data-onboarding="settings-user-add"
+            @click="openAddModal()"
+          >
+            <v-icon icon="mdi-account-plus" start :size="20" />
+            {{ t('settings.departmentUsers.addUser') }}
+          </EButton>
+        </div>
 
     <details
-      v-if="canEditRoleLabels && !isGrossanlassDept && !isLoading"
+      v-if="canEditRoleLabels && !isGrossanlassDept"
       class="members-accordion"
     >
       <summary class="members-accordion__summary">
@@ -62,7 +71,39 @@
     </details>
 
     <details
-      v-if="canManagePendingInvites && !isLoading"
+      v-if="canEditRoleLabels && isGrossanlassDept"
+      class="members-accordion"
+    >
+      <summary class="members-accordion__summary">
+        {{ t('settings.departmentUsers.grossanlassDetailsTitle') }}
+      </summary>
+      <div class="members-accordion__body">
+        <p class="role-labels-hint">{{ t('settings.departmentUsers.grossanlassDetailsHint') }}</p>
+        <p v-if="isLoadingGrossanlassDetails" class="grossanlass-details-muted">
+          {{ t('common.loading') }}
+        </p>
+        <p v-else-if="grossanlassDetailsError" class="grossanlass-details-error">
+          {{ grossanlassDetailsError }}
+        </p>
+        <dl v-else-if="grossanlassConfig" class="grossanlass-details-grid">
+          <div class="grossanlass-details-row">
+            <dt>{{ t('settings.departmentUsers.grossanlassDetailsPeriod') }}</dt>
+            <dd>{{ grossanlassPeriodLabel || '—' }}</dd>
+          </div>
+          <div class="grossanlass-details-row">
+            <dt>{{ t('settings.departmentUsers.grossanlassDetailsStatus') }}</dt>
+            <dd>{{ grossanlassStatusLabel }}</dd>
+          </div>
+          <div v-if="grossanlassConfig?.location_text" class="grossanlass-details-row">
+            <dt>{{ t('settings.departmentUsers.grossanlassDetailsLocation') }}</dt>
+            <dd>{{ grossanlassConfig.location_text }}</dd>
+          </div>
+        </dl>
+      </div>
+    </details>
+
+    <details
+      v-if="canManagePendingInvites && (isLoadingPendingInvites || visiblePendingInvites.length > 0)"
       class="members-accordion"
       :open="pendingInvitesAccordionOpen"
       @toggle="onPendingInvitesAccordionToggle"
@@ -133,7 +174,7 @@
     </details>
 
     <details
-      v-if="canManagePendingInvites && !isLoading && (isLoadingPendingJoinRequests || visiblePendingJoinRequests.length > 0)"
+      v-if="canManagePendingInvites && (isLoadingPendingJoinRequests || visiblePendingJoinRequests.length > 0)"
       class="members-accordion"
       :open="pendingJoinRequestsAccordionOpen"
       @toggle="onPendingJoinRequestsAccordionToggle"
@@ -169,9 +210,9 @@
       </div>
     </details>
 
-    <!-- Suche direkt oberhalb der Benutzerliste -->
+    <!-- Suche direkt oberhalb der Benutzerliste (nur auf eigener Seite) -->
     <div
-      v-if="!isLoading && (members.length > 3 || showSearchForTour)"
+      v-if="!embedded && (members.length > 3 || showSearchForTour)"
       class="search-bar"
       data-onboarding="settings-user-search"
     >
@@ -183,116 +224,149 @@
       </div>
     </div>
 
-    <ELoadingState
-      v-if="isLoading"
-      variant="table"
-      :rows="6"
-      :message="t('settings.departmentUsers.loading')"
-    />
-
-    <div v-else-if="error" class="users-settings-error">
+    <div v-if="error" class="users-settings-error">
       <v-alert type="error" variant="tonal" :text="error" />
       <EButton variant="secondary" class="mt-3" @click="loadMembers">{{ t('common.retry') }}</EButton>
     </div>
 
-    <EEmptyState
-      v-else-if="members.length === 0"
-      variant="create"
-      :title="t('settings.departmentUsers.emptyTitle')"
-      :description="t('settings.departmentUsers.emptyText')"
+    <details
+      v-else
+      class="members-accordion"
+      :open="membersAccordionOpen"
+      @toggle="onMembersAccordionToggle"
     >
-      <template #actions>
-        <EButton @click="openAddModal()">{{ t('settings.departmentUsers.emptyCta') }}</EButton>
-      </template>
-    </EEmptyState>
-
-    <!-- Users Table -->
-    <div v-else class="members-list-section">
-      <h3 class="members-list-section__title">
+      <summary class="members-accordion__summary">
         {{
           members.length > 0
             ? t('settings.departmentUsers.membersListTitleCount', { n: members.length })
             : t('settings.departmentUsers.membersListTitle')
         }}
-      </h3>
-      <div class="table-wrapper">
-      <table class="users-table">
-        <thead>
-          <tr>
-            <th class="col-name" @click="toggleSort('name')">
-              {{ t('common.name') }}
-              <span v-if="sortBy === 'name'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
-            </th>
-            <th class="col-email">{{ t('settings.departmentUsers.colEmail') }}</th>
-            <th class="col-role" @click="toggleSort('role')">
-              {{ t('common.role') }}
-              <span v-if="sortBy === 'role'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
-            </th>
-            <th class="col-primary">{{ t('settings.departmentUsers.colPrimary') }}</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr 
-            v-for="member in filteredMembers" 
-            :key="member.user_id"
-            class="user-row"
+      </summary>
+      <div class="members-accordion__body">
+        <div v-if="canManagePendingInvites" class="members-toolbar members-toolbar--in-accordion">
+          <span v-if="members.length > 0" class="members-count">
+            <strong>{{ members.length }}</strong>
+            {{ t('settings.departmentUsers.statsUsers') }}
+          </span>
+          <span v-else class="members-count members-count--empty"></span>
+          <EButton
+            variant="primary"
+            :size="embedded ? 'small' : undefined"
+            data-onboarding="settings-user-add"
+            @click="openAddModal()"
           >
-            <!-- Name -->
-            <td class="col-name">
-              <div class="name-cell">
-                <UserAvatarBadge :user="member" size="md" :show-tooltip="false" />
-                <div class="name-info">
-                  <span class="user-name">{{ member.name }}</span>
-                  <span v-if="member.state !== 'active'" class="state-badge inactive">{{ member.state }}</span>
-                </div>
-              </div>
-            </td>
+            <v-icon icon="mdi-account-plus" start :size="embedded ? 18 : 20" />
+            {{ t('settings.departmentUsers.addUser') }}
+          </EButton>
+        </div>
 
-            <!-- Email -->
-            <td class="col-email">
-              <span class="email-text">{{ member.email }}</span>
-            </td>
+        <div
+          v-if="members.length > 3 || showSearchForTour"
+          class="search-bar search-bar--in-accordion"
+          data-onboarding="settings-user-search"
+        >
+          <div class="search-box">
+            <ESearchField
+              v-model="searchQuery"
+              :label="t('settings.departmentUsers.searchPlaceholder')"
+            />
+          </div>
+        </div>
 
-            <!-- Rolle -->
-            <td class="col-role">
-              <span 
-                class="role-badge"
-                :style="{ background: getRoleColor(member.role) + '18', color: getRoleColor(member.role) }"
+        <EEmptyState
+          v-if="members.length === 0"
+          variant="create"
+          :title="t('settings.departmentUsers.emptyTitle')"
+          :description="emptyStateDescription"
+        >
+          <template #actions>
+            <EButton @click="openAddModal()">{{ t('settings.departmentUsers.emptyCta') }}</EButton>
+          </template>
+        </EEmptyState>
+
+        <div v-else class="members-list-section members-list-section--in-accordion">
+          <div class="table-wrapper">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th class="col-name" @click="toggleSort('name')">
+                  {{ t('common.name') }}
+                  <span v-if="sortBy === 'name'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th class="col-email">{{ t('settings.departmentUsers.colEmail') }}</th>
+                <th class="col-role" @click="toggleSort('role')">
+                  {{ t('common.role') }}
+                  <span v-if="sortBy === 'role'" class="sort-indicator">{{ sortDir === 'asc' ? '↑' : '↓' }}</span>
+                </th>
+                <th class="col-primary">{{ t('settings.departmentUsers.colPrimary') }}</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr 
+                v-for="member in filteredMembers" 
+                :key="member.user_id"
+                class="user-row"
               >
-                <span class="role-short">{{ getRoleShort(member.role) }}</span>
-                {{ getRoleLabel(member.role) }}
-              </span>
-              <span
-                v-if="member.is_js_coach"
-                class="coach-flag-badge"
-                :title="t('settings.departmentUsers.jsCoachFlagTitle')"
-              >
-                {{ t('settings.departmentUsers.jsCoachFlagShort') }}
-              </span>
-            </td>
+                <!-- Name -->
+                <td class="col-name">
+                  <div class="name-cell">
+                    <UserAvatarBadge :user="member" size="md" :show-tooltip="false" />
+                    <div class="name-info">
+                      <span class="user-name">{{ member.name }}</span>
+                      <span v-if="member.state !== 'active'" class="state-badge inactive">{{ member.state }}</span>
+                    </div>
+                  </div>
+                </td>
 
-            <!-- Primär -->
-            <td class="col-primary">
-              <span v-if="member.is_primary" class="primary-star" :title="t('settings.departmentUsers.primaryStarTitle')">★</span>
-              <span v-else class="text-muted">–</span>
-            </td>
+                <!-- Email -->
+                <td class="col-email">
+                  <span class="email-text">{{ member.email }}</span>
+                </td>
 
-            <!-- Aktionen -->
-            <td class="col-actions">
-              <DepartmentMemberActions
-                :can-manage="canManageMember(member)"
-                :tour-hover="member.user_id === firstEditableMemberId && isUserEditTourHoverStep()"
-                :onboarding="member.user_id === firstEditableMemberId ? 'settings-user-edit' : null"
-                @details="openEditModal(member)"
-                @remove="handleRemove(member)"
-              />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                <!-- Rolle -->
+                <td class="col-role">
+                  <span 
+                    class="role-badge"
+                    :style="{ background: getRoleColor(member.role) + '18', color: getRoleColor(member.role) }"
+                  >
+                    <span class="role-short">{{ getRoleShort(member.role) }}</span>
+                    {{ getRoleLabel(member.role) }}
+                  </span>
+                  <span
+                    v-if="member.is_js_coach"
+                    class="coach-flag-badge"
+                    :title="t('settings.departmentUsers.jsCoachFlagTitle')"
+                  >
+                    {{ t('settings.departmentUsers.jsCoachFlagShort') }}
+                  </span>
+                </td>
+
+                <!-- Primär -->
+                <td class="col-primary">
+                  <span v-if="member.is_primary" class="primary-star" :title="t('settings.departmentUsers.primaryStarTitle')">★</span>
+                  <span v-else class="text-muted">–</span>
+                </td>
+
+                <!-- Aktionen -->
+                <td class="col-actions">
+                  <DepartmentMemberActions
+                    :can-manage="canManageMember(member)"
+                    :tour-hover="member.user_id === firstEditableMemberId && isUserEditTourHoverStep()"
+                    :onboarding="member.user_id === firstEditableMemberId ? 'settings-user-edit' : null"
+                    @details="openEditModal(member)"
+                    @remove="handleRemove(member)"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
       </div>
-    </div>
+    </details>
+      </div>
+    </Transition>
 
     <EDialog
       v-model="showAddModal"
@@ -497,7 +571,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import ELoadingState from '@/components/layout/ELoadingState.vue'
+import UsersSettingsSkeleton from '@/components/settings/UsersSettingsSkeleton.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import EAutocomplete from '@/components/form/base/EAutocomplete.vue'
 import { AutoSaveField } from '@/components/common/autoSave'
@@ -529,8 +603,10 @@ import {
 import {
   getDepartmentMembers,
   getAvailableUsersForDepartment,
+  getDepartment,
   type DepartmentMember,
-  type AvailableUser
+  type AvailableUser,
+  type GrossanlassConfig,
 } from '@/api/departments'
 import {
   saveDepartmentRoleLabels,
@@ -539,6 +615,8 @@ import {
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import { getGroups, type Group } from '@/api/groups'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import { formatPeriodCompact } from '@/utils/formatPeriod'
+import { resolveIsGrossanlassDepartmentId } from '@/utils/departmentSwitch'
 import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
@@ -546,22 +624,34 @@ import {
   type GrossanlassGroupWithLevel,
 } from '@/utils/grossanlassGroupHierarchy'
 
+export type UsersSettingsOpenSection = 'members' | 'invites' | 'roleLabels' | 'grossanlassDetails'
+
 const props = withDefaults(
   defineProps<{
     /** Override when embedded (e.g. Mein Department accordion). */
     departmentId?: string
     /** Hide page title; compact toolbar only. */
     embedded?: boolean
+    /** Explizit Grossanlass (z. B. Admin-Modal ohne Auth-Mitgliedschaft). */
+    isGrossanlass?: boolean | null
+    /** Beim Öffnen diesen Accordion-Bereich aufklappen. */
+    initialOpenSection?: UsersSettingsOpenSection | null
   }>(),
   {
     departmentId: undefined,
     embedded: false,
+    isGrossanlass: null,
+    initialOpenSection: null,
   },
 )
 
 const emit = defineEmits<{
   changed: [memberCount: number]
 }>()
+
+function notifyMembersChanged() {
+  emit('changed', members.value.length)
+}
 
 const route = useRoute()
 const { t } = useI18n()
@@ -577,7 +667,12 @@ const departmentId = computed(
     || authStore.activeDepartmentId
     || '',
 )
-const isGrossanlassDept = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+const isGrossanlassDept = computed(() =>
+  resolveIsGrossanlassDepartmentId(departmentId.value, {
+    forced: props.isGrossanlass,
+    fromAuth: (id) => authStore.isDepartmentGrossanlass(id),
+  }),
+)
 
 const {
   canManageMember,
@@ -588,7 +683,7 @@ const {
   getRoleShort,
   isGlobalAdmin,
   removeFromDepartment,
-} = useDepartmentMemberAdmin(departmentId)
+} = useDepartmentMemberAdmin(departmentId, () => isGrossanlassDept.value)
 
 function isInviteUsersTourStep(stepId: string): boolean {
   return (
@@ -640,6 +735,48 @@ async function saveRoleLabelField(
   roleLabelBaselines.value = { ...next }
   roleLabelsStore.setLocal(departmentId.value, next)
 }
+
+const grossanlassConfig = ref<GrossanlassConfig | null>(null)
+const isLoadingGrossanlassDetails = ref(false)
+const grossanlassDetailsError = ref('')
+
+async function loadGrossanlassDetails() {
+  grossanlassConfig.value = null
+  grossanlassDetailsError.value = ''
+  if (!departmentId.value || !isGrossanlassDept.value) return
+
+  isLoadingGrossanlassDetails.value = true
+  try {
+    const department = await getDepartment(departmentId.value)
+    grossanlassConfig.value = department.grossanlass_config ?? null
+    if (!grossanlassConfig.value) {
+      grossanlassDetailsError.value = t('settings.departmentUsers.grossanlassDetailsLoadError')
+    }
+  } catch {
+    grossanlassDetailsError.value = t('settings.departmentUsers.grossanlassDetailsLoadError')
+  } finally {
+    isLoadingGrossanlassDetails.value = false
+  }
+}
+
+const grossanlassPeriodLabel = computed(() => {
+  const config = grossanlassConfig.value
+  if (!config?.planned_event_start) return ''
+  return formatPeriodCompact(config.planned_event_start, config.planned_event_end)
+})
+
+const grossanlassStatusLabel = computed(() => {
+  const status = grossanlassConfig.value?.status || 'draft'
+  return status === 'published'
+    ? t('grossanlass.chain.publishedBadge')
+    : t('grossanlass.dashboard.draftBadge')
+})
+
+const emptyStateDescription = computed(() =>
+  isGrossanlassDept.value
+    ? t('settings.departmentUsers.emptyTextGrossanlass')
+    : t('settings.departmentUsers.emptyText'),
+)
 
 const addUserUnitLabels = computed(() => {
   if (isGrossanlassDept.value) {
@@ -741,6 +878,18 @@ const visiblePendingInvites = computed(() =>
 
 const pendingInvitesAccordionOpen = ref(false)
 const pendingJoinRequestsAccordionOpen = ref(false)
+const membersAccordionOpen = ref(props.initialOpenSection === 'members')
+
+function onMembersAccordionToggle(event: Event) {
+  membersAccordionOpen.value = (event.target as HTMLDetailsElement).open
+}
+
+function applyInitialOpenSection() {
+  const section = props.initialOpenSection
+  if (!section) return
+  membersAccordionOpen.value = section === 'members'
+  pendingInvitesAccordionOpen.value = section === 'invites'
+}
 
 function onPendingInvitesAccordionToggle(event: Event) {
   pendingInvitesAccordionOpen.value = (event.target as HTMLDetailsElement).open
@@ -829,7 +978,7 @@ const filteredMembers = computed(() => {
     if (sortBy.value === 'name') {
       cmp = a.name.localeCompare(b.name)
     } else if (sortBy.value === 'role') {
-      const roleOrder = hierarchyForDepartment(authStore.isDepartmentGrossanlass(departmentId.value))
+      const roleOrder = hierarchyForDepartment(isGrossanlassDept.value)
       cmp = roleOrder.indexOf(normalizeDeptRole(a.role) as DeptRoleKey)
         - roleOrder.indexOf(normalizeDeptRole(b.role) as DeptRoleKey)
     }
@@ -895,7 +1044,6 @@ async function loadMembers() {
   error.value = null
   try {
     members.value = await getDepartmentMembers(departmentId.value)
-    emit('changed', members.value.length)
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.departmentUsers.errLoadMembers')
   } finally {
@@ -960,6 +1108,7 @@ async function decidePendingJoin(id: string, status: 'approved' | 'rejected') {
     await decideJoinRequest(id, status)
     toast.success(status === 'approved' ? t('settings.departmentUsers.pendingJoinApprove') : t('settings.departmentUsers.pendingJoinReject'))
     await Promise.all([loadPendingJoinRequests(), loadMembers()])
+    if (status === 'approved') notifyMembersChanged()
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('settings.departmentUsers.errLoadPendingInvites'))
   }
@@ -1172,11 +1321,15 @@ function closeEditModal() {
 async function onMemberDetailSaved() {
   closeEditModal()
   await loadMembers()
+  notifyMembersChanged()
 }
 
 async function handleRemove(member: DepartmentMember) {
   const removed = await removeFromDepartment(member)
-  if (removed) await loadMembers()
+  if (removed) {
+    await loadMembers()
+    notifyMembersChanged()
+  }
 }
 
 async function removePendingInviteItem(inviteId: string) {
@@ -1228,6 +1381,8 @@ watch(departmentId, () => {
   loadPendingInvites()
   loadPendingJoinRequests()
   loadRoleLabels()
+  loadGrossanlassDetails()
+  applyInitialOpenSection()
 })
 watch(selectedAvailableUser, (user) => {
   addForm.value.user_id = user?.id ?? ''
@@ -1252,11 +1407,22 @@ watch(userSearchQuery, (value) => {
   }, 300)
 })
 
+watch(
+  () => props.initialOpenSection,
+  () => applyInitialOpenSection(),
+)
+
+watch(isLoading, (loading) => {
+  if (!loading) applyInitialOpenSection()
+})
+
 onMounted(() => {
   loadMembers()
   loadPendingInvites()
   loadPendingJoinRequests()
   loadRoleLabels()
+  loadGrossanlassDetails()
+  applyInitialOpenSection()
 })
 
 onUnmounted(() => {
@@ -1280,6 +1446,25 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.users-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.users-settings-reveal-enter-active {
+  transition: opacity 0.28s ease;
+}
+
+.users-settings-reveal-leave-active {
+  transition: opacity 0.16s ease;
+}
+
+.users-settings-reveal-enter-from,
+.users-settings-reveal-leave-to {
+  opacity: 0;
 }
 
 .members-toolbar {
@@ -1397,6 +1582,44 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.grossanlass-details-muted {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.grossanlass-details-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 0.9rem;
+}
+
+.grossanlass-details-grid {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.grossanlass-details-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 34%) 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.grossanlass-details-row dt {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.grossanlass-details-row dd {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #1e293b;
 }
 
 @media (max-width: 720px) {
@@ -1605,6 +1828,20 @@ onUnmounted(() => {
   margin-top: 20px;
   padding-top: 4px;
   border-top: 1px solid #e5e7eb;
+}
+
+.members-list-section--in-accordion {
+  margin-top: 12px;
+  padding-top: 0;
+  border-top: none;
+}
+
+.members-toolbar--in-accordion {
+  margin-bottom: 8px;
+}
+
+.search-bar--in-accordion {
+  margin: 8px 0 4px;
 }
 
 .members-list-section__title {
