@@ -1,7 +1,8 @@
 <template>
-  <div class="grossanlass-key-dates">
-    <h3 class="key-dates-title">{{ t('grossanlass.planung.keyDates.title') }}</h3>
-    <p class="key-dates-hint">{{ t('grossanlass.planung.keyDates.hint') }}</p>
+  <div class="grossanlass-key-dates" :class="{ 'is-embedded': embedded }">
+    <h3 v-if="!embedded" class="key-dates-title">{{ t('grossanlass.planung.keyDates.title') }}</h3>
+    <h4 v-else class="key-dates-title key-dates-title--embedded">{{ t('grossanlass.planung.keyDates.title') }}</h4>
+    <p class="key-dates-hint">{{ hintText }}</p>
 
     <ul v-if="fixedPeriods.length > 0" class="key-dates-list">
       <li v-for="period in fixedPeriods" :key="period.id" class="key-dates-item">
@@ -54,9 +55,19 @@ import {
   type DepartmentCalendarPeriod,
 } from '@/api/calendarPeriods'
 
-const props = defineProps<{
-  departmentId: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    departmentId: string
+    /** Event Durchführung ausblenden — liegt bereits im Anlass-Zeitraum darüber. */
+    hideEventPeriod?: boolean
+    /** Ohne Karten-Rahmen, direkt unter dem Datumsfeld. */
+    embedded?: boolean
+  }>(),
+  {
+    hideEventPeriod: false,
+    embedded: false,
+  },
+)
 
 const { t, locale } = useI18n()
 const { canManageMaterials } = useDepartmentMemberRole()
@@ -86,9 +97,20 @@ function formatRange(row: DepartmentCalendarPeriod): string {
 
 const KEY_DATE_LABELS = new Set<string>([...GROSSANLASS_TIME_MODULE_LABELS, 'other'])
 
+const visibleKeyDateLabels = computed(() => {
+  if (!props.hideEventPeriod) return KEY_DATE_LABELS
+  return new Set([...KEY_DATE_LABELS].filter((label) => label !== 'grossanlass'))
+})
+
+const hintText = computed(() =>
+  props.hideEventPeriod
+    ? t('grossanlass.planung.keyDates.hintWithoutEvent')
+    : t('grossanlass.planung.keyDates.hint'),
+)
+
 const fixedPeriods = computed(() =>
   periods.value
-    .filter((p) => KEY_DATE_LABELS.has(p.label))
+    .filter((p) => visibleKeyDateLabels.value.has(p.label))
     .slice()
     .sort((a, b) => {
       const sa = `${a.start_date}T${calendarPeriodTime(a.start_time, '00:00')}`
@@ -130,6 +152,20 @@ watch(() => [props.departmentId, cacheRevision.value] as const, () => void loadP
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   background: #f9fafb;
+}
+
+.grossanlass-key-dates.is-embedded {
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.key-dates-title--embedded {
+  margin: 16px 0 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #334155;
 }
 
 .key-dates-title {

@@ -11,17 +11,40 @@ export type GaBauprojektTask = {
   created_at: string
 }
 
+export type GaBauprojektEinsatz = {
+  id: string
+  qty: number
+  from: string
+  to: string
+  status: string
+  delivery: string
+  who: string
+  object_name: string
+  wish_line_id: string | null
+}
+
 export type GaBauprojektBriefing = {
   group: Pick<GrossanlassGroup, 'id' | 'name' | 'department_id' | 'parent_id' | 'kind'> & {
     window_start?: string | null
     window_end?: string | null
+    description?: string | null
   } | null
   window_start: string | null
   window_end: string | null
+  description?: string | null
   place: GaPlace | null
   tasks: GaBauprojektTask[]
   material: GrossanlassWishLine[]
+  direct_material?: Array<{
+    id: string
+    label: string
+    quantity: number
+    notes?: string | null
+    status: string
+    source: 'direct'
+  }>
   packs: GaLogisticsPack[]
+  einsaetze?: GaBauprojektEinsatz[]
   map: Pick<GaMap, 'id' | 'name' | 'image_url' | 'image_width' | 'image_height'> & {
     bounds_north?: number | null
     bounds_south?: number | null
@@ -44,7 +67,7 @@ export async function getGrossanlassBauprojekt(
 export async function patchGrossanlassBauprojektWindow(
   departmentId: string,
   groupId: string,
-  data: { window_start?: string | null; window_end?: string | null },
+  data: { window_start?: string | null; window_end?: string | null; description?: string | null },
 ): Promise<GaBauprojektBriefing> {
   const { data: out } = await apiClient.patch<GaBauprojektBriefing>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/bauprojekt`,
@@ -78,7 +101,7 @@ export async function deleteGrossanlassBauprojektTask(
 export async function addGrossanlassBauprojektMaterial(
   departmentId: string,
   groupId: string,
-  payload: { label: string; quantity?: number; location?: string },
+  payload: { label: string; quantity?: number; location?: string; notes?: string | null; mode?: 'wish' | 'direct' },
 ): Promise<GrossanlassWishLine> {
   const { data } = await apiClient.post<GrossanlassWishLine>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/material`,

@@ -46,6 +46,10 @@ class DepartmentGrossanlassMap
     #[ORM\Column(name: 'bounds_west', type: 'float', nullable: true)]
     private ?float $boundsWest = null;
 
+    /** 0–1: wie deckend der Geländeplan über der Basiskarte liegt (1 = undurchsichtig). */
+    #[ORM\Column(name: 'overlay_opacity', type: 'float', options: ['default' => 0.92])]
+    private float $overlayOpacity = 0.92;
+
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
 
@@ -125,6 +129,14 @@ class DepartmentGrossanlassMap
             && $this->boundsWest !== null
             && $this->boundsNorth > $this->boundsSouth
             && $this->boundsEast > $this->boundsWest;
+    }
+
+    public function getOverlayOpacity(): float { return $this->overlayOpacity; }
+    public function setOverlayOpacity(float $overlayOpacity): self
+    {
+        $this->overlayOpacity = max(0.3, min(1.0, $overlayOpacity));
+        $this->touch();
+        return $this;
     }
 
     public function getCreatedAt(): \DateTime { return $this->createdAt; }

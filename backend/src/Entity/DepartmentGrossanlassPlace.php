@@ -33,7 +33,7 @@ class DepartmentGrossanlassPlace
     #[ORM\Column(name: 'unterlager_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
     private ?string $unterlagerId = null;
 
-    /** bauprojekt | unterlager | matplatz | anfahrt | poi — Event-Standort, nicht Lager */
+    /** bauprojekt | unterlager | anfahrt | poi | area — Event-Standort. matplatz nur Altbestand; neu = Lagerstandort */
     #[ORM\Column(type: 'string', length: 16, options: ['default' => 'poi'])]
     private string $kind = 'poi';
 
@@ -55,6 +55,10 @@ class DepartmentGrossanlassPlace
 
     #[ORM\Column(name: 'longitude', type: 'float', nullable: true)]
     private ?float $longitude = null;
+
+    /** WGS84-Eckpunkte eines Bereich-Polygons (GA-area). */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $polygon = null;
 
     /** Wichtige Punkte (Abladezone, Anfahrt) auf Stammdaten */
     #[ORM\Column(name: 'starred', type: 'boolean', options: ['default' => false])]
@@ -115,6 +119,12 @@ class DepartmentGrossanlassPlace
 
     public function getLongitude(): ?float { return $this->longitude; }
     public function setLongitude(?float $longitude): self { $this->longitude = $longitude; return $this; }
+
+    /** @return list<array{lat: float, lng: float}>|null */
+    public function getPolygon(): ?array { return $this->polygon; }
+
+    /** @param list<array{lat: float, lng: float}>|null $polygon */
+    public function setPolygon(?array $polygon): self { $this->polygon = $polygon; return $this; }
 
     public function isStarred(): bool { return $this->starred; }
     public function setStarred(bool $starred): self { $this->starred = $starred; return $this; }

@@ -373,7 +373,8 @@ pack_line
 
 place (GA-Ort)
   public_code            /i/ga/…  (Alias /i/p/…)
-  kind                   bauprojekt | unterlager | matplatz | poi
+  kind                   bauprojekt | unterlager | anfahrt | poi
+                         (Matplatz = Lagerstandort, kein GA-Ort-kind)
   group_id?              Bauprojekt / Ressort
 ```
 

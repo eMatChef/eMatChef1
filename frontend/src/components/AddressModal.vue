@@ -274,6 +274,9 @@
               :show-coordinates="true"
               :show-layer-control="true"
               :zoom="addressMapZoom"
+              :overlay="mapOverlay"
+              :scroll-wheel-zoom="true"
+              :scroll-wheel-zoom-require-ctrl="Boolean(mapOverlay)"
               height="400px"
               @update:latitude="formData.latitude = $event"
               @update:longitude="formData.longitude = $event"
@@ -281,7 +284,13 @@
             />
           </div>
           <p class="map-hint">
-            {{ isSimplifiedLocationMode ? t('settings.addressModal.eventChildMapHint') : t('settings.addressModal.mapHint') }}
+            {{
+              mapOverlay
+                ? t('settings.addressModal.mapOverlayHint')
+                : isSimplifiedLocationMode
+                  ? t('settings.addressModal.eventChildMapHint')
+                  : t('settings.addressModal.mapHint')
+            }}
           </p>
           <div v-if="formData.latitude && formData.longitude" class="coordinates-info">
             <span class="coord-badge">
@@ -380,6 +389,7 @@ import { ref, watch, computed, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import MapView from './MapView.vue'
+import type { ActivityMapOverlay } from '@/components/activities/ActivityDualLocationMap.vue'
 import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
 import { googleMapsCoordinatesUrl } from '@/utils/mapExternalLinks'
 import { 
@@ -422,6 +432,8 @@ interface Props {
   /** Start-Zentrum der Karte (z. B. Eventstandort beim Anlegen eines Standortkinds). */
   initialLatitude?: number | null
   initialLongitude?: number | null
+  /** Geländeplan aus Grossanlass-Standorte (Overlay + Strg+Scroll-Zoom). */
+  mapOverlay?: ActivityMapOverlay | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -433,6 +445,7 @@ const props = withDefaults(defineProps<Props>(), {
   apiMode: 'department',
   initialLatitude: null,
   initialLongitude: null,
+  mapOverlay: null,
 })
 
 const emit = defineEmits<{
@@ -1154,6 +1167,7 @@ async function handleSubmit() {
     }
 
     emit('saved', savedAddress)
+    close()
   } catch (err: any) {
     const msg = err.response?.data?.error || t('settings.addressModal.saveError')
     error.value = msg

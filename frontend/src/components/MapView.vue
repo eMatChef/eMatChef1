@@ -108,7 +108,9 @@ import { useI18n } from 'vue-i18n'
 import L from 'leaflet'
 import proj4 from 'proj4'
 import 'proj4leaflet'
+import type { ActivityMapOverlay } from '@/components/activities/ActivityDualLocationMap.vue'
 import { googleMapsCoordinatesUrl, swisstopoMapUrl, openStreetMapUrl, geoAdminZoomFromLv95LeafletZoom } from '@/utils/mapExternalLinks'
+import { gaMapOverlayOpacity } from '@/utils/grossanlassGaMap'
 import 'leaflet/dist/leaflet.css'
 
 void proj4
@@ -140,6 +142,10 @@ interface Props {
   interactive?: boolean
   /** Nur Mausrad-Zoom (de)aktivieren, ohne übrige Interaktivität anzutasten. */
   scrollWheelZoom?: boolean
+  /** Mausrad-Zoom nur mit Strg/Cmd (Seite scrollt sonst weiter). */
+  scrollWheelZoomRequireCtrl?: boolean
+  /** Geländeplan über der Basiskarte (Grossanlass). */
+  overlay?: ActivityMapOverlay | null
   /** Links zu map.geo.admin.ch und Google Maps unter der Karte. */
   showExternalMapLinks?: boolean
   /**
@@ -162,6 +168,8 @@ const props = withDefaults(defineProps<Props>(), {
   preferSwissMap: true,
   interactive: true,
   scrollWheelZoom: true,
+  scrollWheelZoomRequireCtrl: false,
+  overlay: null,
   showExternalMapLinks: false,
   useSwissProjection: false,
 })
@@ -180,6 +188,8 @@ let map: L.Map | null = null
 let marker: L.Marker | null = null
 let currentTileLayer: L.Layer | null = null
 let tileLayerInstances: Partial<Record<MapBaseLayer, L.Layer>> | null = null
+let overlayLayer: L.ImageOverlay | null = null
+let unbindCtrlScroll: (() => void) | null = null
 
 /** Aktive Karten-Projektion. OSM gibt es nur in Web-Mercator, swisstopo/swissimage je nach Prop. */
 type Projection = 'lv95' | 'webmercator'
@@ -585,7 +595,7 @@ function createMap(
     // Stufenloser Zoom, um den exakten Maßstab von map.geo.admin.ch zu treffen.
     zoomSnap: swiss ? 0 : 1,
     zoomControl: props.interactive,
-    scrollWheelZoom: props.interactive && props.scrollWheelZoom,
+    scrollWheelZoom: props.interactive && props.scrollWheelZoom && !props.scrollWheelZoomRequireCtrl,
     touchZoom: props.interactive,
     doubleClickZoom: props.interactive,
     boxZoom: props.interactive,
@@ -596,6 +606,7 @@ function createMap(
   tileLayerInstances = buildTileLayerInstances(projection)
   currentTileLayer = null
   applyActiveLayer(initialLayer)
+  applyOverlay()
   applyMapInteractivity()
 
   if (props.latitude != null && props.longitude != null) {
@@ -677,6 +688,7 @@ function setMarker(
     }).addTo(map)
     applyMarkerEditability()
   }
+  marker?.bringToFront()
 
   if (recenter) {
     const targetZoom =
@@ -863,18 +875,115 @@ watch(
   }
 )
 
+function overlayLatLngBounds(
+  overlay: Pick<ActivityMapOverlay, 'north' | 'south' | 'east' | 'west'>,
+): L.LatLngBounds {
+  return L.latLngBounds(
+    [overlay.south, overlay.west],
+    [overlay.north, overlay.east],
+  )
+}
+
+function setScrollZoom(on: boolean) {
+  if (!map) return
+  if (on) map.scrollWheelZoom.enable()
+  else map.scrollWheelZoom.disable()
+}
+
+function isCtrlZoom(event: KeyboardEvent | WheelEvent): boolean {
+  return event.ctrlKey || event.metaKey
+}
+
+function bindCtrlScrollZoom(instance: L.Map): () => void {
+  instance.scrollWheelZoom.disable()
+  const el = instance.getContainer()
+
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (isCtrlZoom(event)) setScrollZoom(true)
+  }
+  const onKeyUp = (event: KeyboardEvent) => {
+    if (!isCtrlZoom(event)) setScrollZoom(false)
+  }
+  const onWheel = (event: WheelEvent) => {
+    if (isCtrlZoom(event)) {
+      event.preventDefault()
+      setScrollZoom(true)
+      return
+    }
+    setScrollZoom(false)
+  }
+  const onBlur = () => setScrollZoom(false)
+
+  window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)
+  window.addEventListener('blur', onBlur)
+  el.addEventListener('wheel', onWheel, { capture: true, passive: false })
+
+  return () => {
+    window.removeEventListener('keydown', onKeyDown)
+    window.removeEventListener('keyup', onKeyUp)
+    window.removeEventListener('blur', onBlur)
+    el.removeEventListener('wheel', onWheel, true)
+  }
+}
+
+function teardownCtrlScrollZoom() {
+  unbindCtrlScroll?.()
+  unbindCtrlScroll = null
+}
+
+function setupCtrlScrollZoom() {
+  teardownCtrlScrollZoom()
+  if (!map || !props.interactive || !props.scrollWheelZoom || !props.scrollWheelZoomRequireCtrl) return
+  unbindCtrlScroll = bindCtrlScrollZoom(map)
+}
+
+function applyOverlay() {
+  if (!map) return
+  const overlay = props.overlay
+  if (!overlay?.url) {
+    if (overlayLayer) {
+      map.removeLayer(overlayLayer)
+      overlayLayer = null
+    }
+    return
+  }
+  const bounds = overlayLatLngBounds(overlay)
+  const opacity = gaMapOverlayOpacity(overlay.opacity, false)
+  if (overlayLayer) {
+    overlayLayer.setBounds(bounds)
+    overlayLayer.setOpacity(opacity)
+  } else {
+    overlayLayer = L.imageOverlay(overlay.url, bounds, {
+      opacity,
+      interactive: false,
+    })
+    overlayLayer.addTo(map)
+  }
+  marker?.bringToFront()
+}
+
 function applyMapInteractivity() {
   if (!map) return
   const on = props.interactive
   if (on) {
-    if (props.scrollWheelZoom) map.scrollWheelZoom.enable()
-    else map.scrollWheelZoom.disable()
+    if (props.scrollWheelZoomRequireCtrl) {
+      map.scrollWheelZoom.disable()
+      setupCtrlScrollZoom()
+    } else if (props.scrollWheelZoom) {
+      teardownCtrlScrollZoom()
+      map.scrollWheelZoom.enable()
+    } else {
+      teardownCtrlScrollZoom()
+      map.scrollWheelZoom.disable()
+    }
     map.touchZoom.enable()
     map.doubleClickZoom.enable()
     map.boxZoom.enable()
     map.keyboard.enable()
     map.dragging.enable()
   } else {
+    teardownCtrlScrollZoom()
     map.scrollWheelZoom.disable()
     map.touchZoom.disable()
     map.doubleClickZoom.disable()
@@ -927,9 +1036,24 @@ function applyMarkerEditability() {
   }
 }
 
-watch([() => props.interactive, () => props.scrollWheelZoom, () => props.editable], () => {
-  applyMapInteractivity()
-})
+watch(
+  [
+    () => props.interactive,
+    () => props.scrollWheelZoom,
+    () => props.scrollWheelZoomRequireCtrl,
+    () => props.editable,
+  ],
+  () => {
+    applyMapInteractivity()
+  },
+)
+
+watch(
+  () => [props.overlay?.url, props.overlay?.north, props.overlay?.south, props.overlay?.east, props.overlay?.west, props.overlay?.opacity] as const,
+  () => {
+    applyOverlay()
+  },
+)
 
 onMounted(() => {
   nextTick(() => {
@@ -944,6 +1068,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  teardownCtrlScrollZoom()
+  overlayLayer = null
   if (map) {
     map.remove()
     map = null

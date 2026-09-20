@@ -2,6 +2,11 @@
   <div class="beschaffung-bedarf">
     <p class="bedarf-intro">{{ t('grossanlass.beschaffung.bedarf.intro') }}</p>
 
+    <GrossanlassDirectProcurePanel
+      :department-id="departmentId"
+      @created="load"
+    />
+
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
     <template v-else>
@@ -603,6 +608,7 @@ import GrossanlassProcurementBundleDialog from '@/components/grossanlass/Grossan
 import GrossanlassProcurementCategoryManager from '@/components/grossanlass/GrossanlassProcurementCategoryManager.vue'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
+import GrossanlassDirectProcurePanel from '@/components/grossanlass/GrossanlassDirectProcurePanel.vue'
 import { EAutocomplete, EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import {
   addWishesToGrossanlassProcurementLine,

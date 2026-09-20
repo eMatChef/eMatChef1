@@ -1,6 +1,6 @@
 <template>
   <section class="ga-trips">
-    <div class="ga-trips__head">
+    <div v-if="showTitle" class="ga-trips__head">
       <h3 class="ga-trips__title">{{ t('grossanlass.materialUebersicht.tripsTitle') }}</h3>
       <span class="ga-trips__count">{{ rows.length }}</span>
     </div>
@@ -33,7 +33,7 @@
             {{ t('grossanlass.materialUebersicht.status.issued') }}
           </span>
         </div>
-        <div class="ga-trips__actions" @click.stop>
+        <div v-if="!readOnly" class="ga-trips__actions" @click.stop>
           <EButton
             v-if="row.status !== 'issued'"
             variant="secondary"
@@ -83,8 +83,11 @@ const props = withDefaults(
     packOnly?: boolean
     /** Zeile antippen öffnet Detail (Helfer). */
     clickable?: boolean
+    /** OK-Übersicht: keine Pack-/Freigabe-Buttons. */
+    readOnly?: boolean
+    showTitle?: boolean
   }>(),
-  { packOnly: false, clickable: false },
+  { packOnly: false, clickable: false, readOnly: false, showTitle: true },
 )
 
 const emit = defineEmits<{
@@ -98,6 +101,8 @@ const { t, locale } = useI18n()
 
 const packOnly = computed(() => props.packOnly)
 const clickable = computed(() => props.clickable)
+const readOnly = computed(() => props.readOnly)
+const showTitle = computed(() => props.showTitle)
 
 function canStart(row: GaPreviewEinsatz): boolean {
   if (!row.destinationPlaceId) return false

@@ -6,11 +6,13 @@ use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassUserCard;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
+use App\Entity\Membership;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use App\Service\DepartmentRoleLabelService;
 
 class GrossanlassUserCardService
 {
@@ -21,6 +23,7 @@ class GrossanlassUserCardService
         private GrossanlassAccessService $access,
         private GrossanlassUserCardDriveProofStorageService $proofStorage,
         private GrossanlassDriveLicenseService $licenses,
+        private DepartmentRoleLabelService $roleLabels,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $appFrontendUrl,
         #[Autowire('%env(APP_PUBLIC_QR_URL)%')] private string $appPublicQrUrl,
     ) {
@@ -90,7 +93,7 @@ class GrossanlassUserCardService
 
         $people = $this->collectMembers($department);
         if (!isset($people[$userId])) {
-            throw new \InvalidArgumentException('Person ist in keinem Ressort');
+            throw new \InvalidArgumentException('Person gehört nicht zu diesem Grossanlass');
         }
 
         $card = $this->ensureCard($department, $people[$userId]['user']);
@@ -138,7 +141,7 @@ class GrossanlassUserCardService
         }
         $people = $this->collectMembers($department);
         if (!isset($people[$userId])) {
-            throw new \InvalidArgumentException('Person ist in keinem Ressort');
+            throw new \InvalidArgumentException('Person gehört nicht zu diesem Grossanlass');
         }
 
         $card = $this->ensureCard($department, $people[$userId]['user']);
@@ -171,7 +174,7 @@ class GrossanlassUserCardService
         }
         $people = $this->collectMembers($department);
         if (!isset($people[$userId])) {
-            throw new \InvalidArgumentException('Person ist in keinem Ressort');
+            throw new \InvalidArgumentException('Person gehört nicht zu diesem Grossanlass');
         }
 
         $card = $this->ensureCard($department, $people[$userId]['user']);
@@ -347,6 +350,25 @@ class GrossanlassUserCardService
                 'group' => $group,
                 'ressort' => $group->getName(),
                 'role' => $membership->getRoleLabel(),
+            ];
+        }
+
+        $deptMemberships = $this->entityManager->getRepository(Membership::class)->findBy([
+            'departmentId' => $department->getId(),
+        ]);
+        foreach ($deptMemberships as $deptMembership) {
+            if (!$deptMembership instanceof Membership) {
+                continue;
+            }
+            $user = $deptMembership->getUser();
+            if (isset($people[$user->getId()])) {
+                continue;
+            }
+            $people[$user->getId()] = [
+                'user' => $user,
+                'group' => null,
+                'ressort' => 'OK',
+                'role' => $this->roleLabels->labelForRole($deptMembership->getRole(), $department->getId()),
             ];
         }
 

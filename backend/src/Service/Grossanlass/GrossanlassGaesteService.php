@@ -32,7 +32,7 @@ final class GrossanlassGaesteService
      */
     public function overview(Department $host, User $user): array
     {
-        $this->assertManage($host, $user);
+        $this->assertSee($host, $user);
         $participants = $this->acceptedGuests($host);
         $shares = $this->entityManager->getRepository(DepartmentGrossanlassGuestShare::class)
             ->findBy(['hostDepartmentId' => $host->getId()], ['createdAt' => 'DESC']);
@@ -508,6 +508,17 @@ final class GrossanlassGaesteService
             return new \DateTime((string) $value);
         } catch (\Exception) {
             throw new \InvalidArgumentException('Ungültiges Datum');
+        }
+    }
+
+    private function assertSee(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (
+            !$this->access->canSeeMaterialUebersicht($user, $department)
+            && !$this->access->canManagePlanung($user, $department)
+        ) {
+            throw new \RuntimeException('Keine Berechtigung für Gäste-Material');
         }
     }
 

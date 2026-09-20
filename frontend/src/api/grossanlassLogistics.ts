@@ -1,6 +1,8 @@
 import apiClient from './apiClient'
 
-export type GaPlaceKind = 'bauprojekt' | 'unterlager' | 'matplatz' | 'anfahrt' | 'poi'
+export type GaPlaceKind = 'bauprojekt' | 'unterlager' | 'matplatz' | 'anfahrt' | 'poi' | 'area'
+
+export type GaPolygonPoint = { lat: number; lng: number }
 
 export type GaPlace = {
   id: string
@@ -13,9 +15,12 @@ export type GaPlace = {
   map_y?: number | null
   latitude?: number | null
   longitude?: number | null
+  polygon?: GaPolygonPoint[] | null
   starred?: boolean
   public_code: string
   qr_url: string
+  can_delete?: boolean
+  can_change_kind?: boolean
 }
 
 export type GaMapBounds = {
@@ -31,6 +36,7 @@ export type GaMap = {
   image_url: string | null
   image_width: number
   image_height: number
+  overlay_opacity?: number
   bounds_north?: number | null
   bounds_south?: number | null
   bounds_east?: number | null
@@ -86,6 +92,7 @@ export async function createGrossanlassPlace(
     map_y?: number | null
     latitude?: number | null
     longitude?: number | null
+    polygon?: GaPolygonPoint[] | null
     starred?: boolean
   },
 ): Promise<GaPlace> {
@@ -107,6 +114,7 @@ export async function updateGrossanlassPlace(
     map_y?: number | null
     latitude?: number | null
     longitude?: number | null
+    polygon?: GaPolygonPoint[] | null
     starred?: boolean
   },
 ): Promise<GaPlace> {
@@ -115,6 +123,13 @@ export async function updateGrossanlassPlace(
     payload,
   )
   return data
+}
+
+export async function deleteGrossanlassPlace(
+  departmentId: string,
+  placeId: string,
+): Promise<void> {
+  await apiClient.delete(`/api/departments/${departmentId}/grossanlass/places/${placeId}`)
 }
 
 export async function listGrossanlassMaps(departmentId: string): Promise<GaMap[]> {
@@ -138,7 +153,7 @@ export async function createGrossanlassMap(
 export async function updateGrossanlassMap(
   departmentId: string,
   mapId: string,
-  payload: Partial<GaMapBounds> & { name?: string },
+  payload: Partial<GaMapBounds> & { name?: string; overlay_opacity?: number | null },
 ): Promise<GaMap> {
   const { data } = await apiClient.patch<GaMap>(
     `/api/departments/${departmentId}/grossanlass/maps/${mapId}`,
@@ -148,6 +163,7 @@ export async function updateGrossanlassMap(
       bounds_south: payload.south,
       bounds_east: payload.east,
       bounds_west: payload.west,
+      overlay_opacity: payload.overlay_opacity,
     },
   )
   return data
@@ -170,6 +186,16 @@ export async function uploadGrossanlassMapBackground(
   const { data } = await apiClient.post<GaMap>(
     `/api/departments/${departmentId}/grossanlass/maps/${mapId}/background`,
     formData,
+  )
+  return data
+}
+
+export async function deleteGrossanlassMapBackground(
+  departmentId: string,
+  mapId: string,
+): Promise<GaMap> {
+  const { data } = await apiClient.delete<GaMap>(
+    `/api/departments/${departmentId}/grossanlass/maps/${mapId}/background`,
   )
   return data
 }

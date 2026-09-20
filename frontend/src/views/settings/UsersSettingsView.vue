@@ -513,10 +513,9 @@
                 >
                   <template #label>
                     <span class="group-picker-row">
+                      <GrossanlassGroupNodeIcon :node-type="gaNodeType(group)" />
                       <span class="group-picker-name">{{ group.name }}</span>
-                      <span v-if="isGrossanlassBauprojekt(group)" class="kind-badge kind-badge--bauprojekt">
-                        {{ t('grossanlass.planung.ressorts.kindBauprojekt') }}
-                      </span>
+                      <span class="kind-badge">{{ t(grossanlassGroupNodeKindKey(gaNodeType(group))) }}</span>
                     </span>
                   </template>
                 </v-checkbox>
@@ -623,6 +622,8 @@ import {
   isBauprojektGroup,
   type GrossanlassGroupWithLevel,
 } from '@/utils/grossanlassGroupHierarchy'
+import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
+import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 
 export type UsersSettingsOpenSection = 'members' | 'invites' | 'roleLabels' | 'grossanlassDetails'
 
@@ -955,6 +956,10 @@ const hierarchicalGroupsForAdd = computed(() => {
 
 function isGrossanlassBauprojekt(group: Group & { _level: number } | GrossanlassGroupWithLevel): boolean {
   return isGrossanlassDept.value && isBauprojektGroup(group as GrossanlassGroup)
+}
+
+function gaNodeType(group: Group & { _level: number } | GrossanlassGroupWithLevel): string {
+  return 'node_type' in group ? String(group.node_type || '') : ''
 }
 
 const filteredMembers = computed(() => {

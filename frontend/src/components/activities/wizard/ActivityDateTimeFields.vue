@@ -76,7 +76,7 @@ const props = withDefaults(
     labelTo: string
     ariaLabel?: string
     layout?: 'auto' | 'pill' | 'stacked'
-    /** Zwei Monate nebeneinander im Zeitraum-Kalender; undefined = ab sm Breakpoint */
+    /** Zwei Monate nebeneinander im Zeitraum-Kalender; undefined = wenn Platz reicht */
     dualCalendar?: boolean
   }>(),
   {
@@ -90,6 +90,7 @@ const props = withDefaults(
     blockedUsageRange: null,
     presetMode: 'range',
     layout: 'auto',
+    dualCalendar: undefined,
   },
 )
 

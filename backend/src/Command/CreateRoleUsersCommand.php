@@ -168,7 +168,7 @@ class CreateRoleUsersCommand extends Command
             ['email' => 'ga-ok@ematchef.ch', 'first' => 'GA', 'last' => 'OK-Leitung', 'nick' => 'GA-OK', 'role' => DepartmentRole::DEPCHEF],
             ['email' => 'ga-komm@ematchef.ch', 'first' => 'GA', 'last' => 'Kommunikation', 'nick' => 'GA-Komm', 'role' => DepartmentRole::KOMMUNIKATION],
             ['email' => 'ga-spon@ematchef.ch', 'first' => 'GA', 'last' => 'Sponsoring', 'nick' => 'GA-Spon', 'role' => DepartmentRole::SPONSORING],
-            ['email' => 'ga-bereich@ematchef.ch', 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::USER],
+            ['email' => 'ga-bereich@ematchef.ch', 'first' => 'GA', 'last' => 'Bereichsleitung', 'nick' => 'GA-BL', 'role' => DepartmentRole::BEREICHSLEITUNG],
             ['email' => 'ga-helfer@ematchef.ch', 'first' => 'GA', 'last' => 'Helfer', 'nick' => 'GA-Helfer', 'role' => DepartmentRole::USER],
         ];
 
@@ -228,7 +228,7 @@ class CreateRoleUsersCommand extends Command
             '  - ga-ok@ematchef.ch (GA OK-Leitung)',
             '  - ga-komm@ematchef.ch (GA Kommunikation)',
             '  - ga-spon@ematchef.ch (GA Sponsoring)',
-            '  - ga-bereich@ematchef.ch (GA Bereichsleitung, Leader am Demo-Ressort)',
+            '  - ga-bereich@ematchef.ch (GA Bereichsleitung, Rolle bl, Stern am Demo-Ressort)',
             '  - ga-helfer@ematchef.ch (GA Helfer, Mitglied am Demo-Ressort)',
             '  - supplier@ematchef.ch (Lieferant / Testfirma, ohne Department)',
         ]);

@@ -28,6 +28,7 @@
           v-if="dualCalendar"
           :model-value="pickerRange"
           :min="minDate"
+          :view-date="derivedViewDate"
           :allowed-dates="allowedDates"
           :menu-open="menuOpen"
           @update:model-value="onRangeUpdate"
@@ -98,7 +99,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VDatePicker, VTextField } from 'vuetify/components'
-import { useSmAndUp } from '@/composables/useSmAndUp'
+import { useDualDateCalendarLayout } from '@/composables/useSmAndUp'
 import { useActivityDatePickerLayoutProps } from '@/composables/useActivityDatePickerLayoutProps'
 import { useActivityDatePickerDelayedClose } from '@/composables/useActivityDatePickerDelayedClose'
 import { useActivityDatePickerEvents } from '@/composables/useActivityDatePickerEvents'
@@ -106,9 +107,10 @@ import { useActivityDatePickerPaneMonth } from '@/composables/useActivityDatePic
 import { useActivityDatePresets } from '@/composables/useActivityDatePresets'
 import { useActivityDateRangePicker } from '@/composables/useActivityDateRangePicker'
 import { useToast } from '@/composables/useToast'
+import { useGaEventPeriod } from '@/composables/useGaEventPeriod'
 import { formatActivityDateRangeDe } from '@/utils/activityDateIso'
 import { rangeContainsDepartmentClosedDate, withDepartmentClosedPresetFlags } from '@/utils/activityDatePickerModel'
-import type { ActivityDatePresetItem } from '@/utils/activityDatePresets'
+import { calendarPeriodViewDate, type ActivityDatePresetItem } from '@/utils/activityDatePresets'
 import { startOfToday } from '@/utils/swissMovableFeasts'
 import ActivityDatePickerControlsBar from './ActivityDatePickerControlsBar.vue'
 import ActivityDatePickerDay from './ActivityDatePickerDay.vue'
@@ -133,8 +135,10 @@ const props = withDefaults(
     showMarkers?: boolean
     /** Schnellauswahl: range = Samstage + Fixe Daten; fixed-periods = nur Lagerwoche/Sonstiges */
     presetMode?: 'range' | 'fixed-periods'
-    /** Zwei Monate nebeneinander; undefined = ab sm Breakpoint */
+    /** Zwei Monate nebeneinander; undefined = wenn Viewport für zwei Kalender reicht */
     dualCalendar?: boolean
+    /** Kalender-Monat, wenn noch kein Datum gewählt (z. B. Eventfenster) */
+    viewDate?: Date | null
   }>(),
   {
     density: 'compact',
@@ -146,6 +150,8 @@ const props = withDefaults(
     disabled: false,
     showMarkers: true,
     presetMode: 'range',
+    dualCalendar: undefined,
+    viewDate: null,
   },
 )
 
@@ -155,10 +161,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
-const smAndUp = useSmAndUp()
-const dualCalendar = computed(() =>
-  props.dualCalendar !== undefined ? props.dualCalendar : smAndUp.value,
-)
+const dualLayout = useDualDateCalendarLayout()
+const dualCalendar = computed(() => {
+  if (props.dualCalendar === true) return true
+  if (props.dualCalendar === false) return false
+  return dualLayout.value
+})
 const menuOpen = ref(false)
 const activatorRef = ref<{ $el: HTMLElement } | null>(null)
 const { scheduleClose } = useActivityDatePickerDelayedClose(menuOpen)
@@ -199,6 +207,13 @@ const {
   blockClosedDates: () => props.blockClosedDates,
 })
 
+const eventPeriod = useGaEventPeriod()
+const derivedViewDate = computed(
+  () =>
+    (props.viewDate && Number.isFinite(props.viewDate.getTime()) ? props.viewDate : null) ??
+    calendarPeriodViewDate(calendarPeriods.value, eventPeriod?.defaultAnchor.value ?? null),
+)
+
 const {
   month: singlePaneMonth,
   year: singlePaneYear,
@@ -211,7 +226,14 @@ const {
   onYearFromPicker: onSingleYearFromPicker,
 } = useActivityDatePickerPaneMonth({
   menuOpen,
-  anchorDate: () => pickerRange.value?.[0] ?? props.modelValue?.[0] ?? minDate.value,
+  anchorDate: () =>
+    pickerRange.value?.[0] ?? props.modelValue?.[0] ?? derivedViewDate.value ?? minDate.value,
+})
+
+watch(derivedViewDate, () => {
+  if (menuOpen.value && !pickerRange.value?.[0] && !props.modelValue?.[0]) {
+    syncAnchorFromDate()
+  }
 })
 
 watch(

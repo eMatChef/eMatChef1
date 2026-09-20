@@ -39,6 +39,7 @@ final class GrossanlassIdGenerator
     public const PACK = 'pack';
     public const PACK_LINE = 'pack_line';
     public const TASK = 'task';
+    public const GROUP_SHARE = 'group_share';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -68,6 +69,7 @@ final class GrossanlassIdGenerator
         self::PACK => 'pk',
         self::PACK_LINE => 'pn',
         self::TASK => 'gt',
+        self::GROUP_SHARE => 'gl',
     ];
 
     public static function prefix(string $kind): string

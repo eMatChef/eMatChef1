@@ -11,6 +11,7 @@ const ROLE_ALIASES: Record<string, string> = {
   matwart: 'mw',
   co_matwart: 'cmw',
   depchef: 'dc',
+  bereichsleitung: 'bl',
   kommunikation: 'komm',
   sponsoring: 'spon',
   leader1: 'l1',
@@ -100,14 +101,16 @@ export const useDepartmentRoleLabelsStore = defineStore('departmentRoleLabels', 
       if (custom) return custom
     }
 
-    if (code === 'dc' && departmentId) {
+    if (departmentId) {
       const auth = useAuthStore()
       if (auth.isDepartmentGrossanlass(departmentId)) {
-        return t(`settings.${ns}.roles.dcGa`)
+        if (code === 'dc') return t(`settings.${ns}.roles.dcGa`)
+        if (code === 'bl') return t(`settings.${ns}.roles.blGa`)
+        if (code === 'u') return t(`settings.${ns}.roles.uGa`)
       }
     }
 
-    if (['mw', 'cmw', 'dc', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'].includes(code)) {
+    if (['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'].includes(code)) {
       return t(`settings.${ns}.roles.${code}`)
     }
 

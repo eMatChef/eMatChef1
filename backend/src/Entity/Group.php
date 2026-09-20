@@ -65,6 +65,10 @@ class Group
     #[ORM\Column(name: 'window_end', type: 'date', nullable: true)]
     private ?\DateTimeInterface $windowEnd = null;
 
+    /** Grossanlass: Beschrieb am Ressort/Bauprojekt (Arbeit, Kontext für Crew). */
+    #[ORM\Column(name: 'description', type: 'text', nullable: true)]
+    private ?string $description = null;
+
     // Mitgliedschaften
     #[ORM\OneToMany(mappedBy: 'group', targetEntity: GroupMembership::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $memberships;
@@ -224,6 +228,19 @@ class Group
     public function setWindowEnd(?\DateTimeInterface $windowEnd): self
     {
         $this->windowEnd = $windowEnd;
+
+        return $this;
+    }
+
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(?string $description): self
+    {
+        $trimmed = $description !== null ? trim($description) : '';
+        $this->description = $trimmed === '' ? null : $trimmed;
 
         return $this;
     }

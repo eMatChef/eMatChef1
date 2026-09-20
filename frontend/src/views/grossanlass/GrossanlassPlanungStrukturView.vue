@@ -43,6 +43,7 @@
                 @change="toggleInvite(row.id)"
               >
               <span v-if="row._level > 0" class="indent-icon">↳</span>
+              <GrossanlassGroupNodeIcon :node-type="row.node_type" />
               <strong>{{ row.name }}</strong>
               <span class="kind-badge">{{ kindLabel(row) }}</span>
             </label>
@@ -249,6 +250,8 @@ import {
   type GrossanlassStrukturModus,
 } from '@/api/grossanlassPlanung'
 import { flattenTreeWithLevel, nestTreeWithLevel } from '@/utils/grossanlassGroupHierarchy'
+import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
+import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 import GrossanlassUnterlagerTree from '@/components/grossanlass/GrossanlassUnterlagerTree.vue'
 
 defineOptions({ name: 'GrossanlassPlanungStruktur' })
@@ -376,9 +379,7 @@ function deptsInUnterlager(unterlagerId: string): GrossanlassParticipant[] {
 }
 
 function kindLabel(row: GrossanlassPlanungRessort): string {
-  if (row.node_type === 'bauprojekt') return String(t('grossanlass.planung.ressorts.kindBauprojekt'))
-  if (row.node_type === 'unterressort') return String(t('grossanlass.planung.ressorts.kindUnterressort'))
-  return String(t('grossanlass.planung.ressorts.kindRessort'))
+  return String(t(grossanlassGroupNodeKindKey(row.node_type)))
 }
 
 async function toggleInvite(groupId: string) {

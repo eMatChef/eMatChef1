@@ -102,6 +102,12 @@ function fillDemoLogin(account: DemoLogin) {
 .emc-app:has(.dev-environment-banner) .page-main:not(.page-main--activity-detail):not(.page-main--einsaetze) {
   --v-layout-top: 64px !important;
 }
+
+.emc-app:has(.dev-environment-banner) .login-page,
+.emc-app:has(.dev-environment-banner) .landing-page,
+.emc-app:has(.dev-environment-banner) .verify-email-page {
+  min-height: calc(100dvh - var(--emc-dev-system-bar-height));
+}
 </style>
 
 <style scoped>

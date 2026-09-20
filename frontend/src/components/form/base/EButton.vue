@@ -57,7 +57,14 @@ const resolvedVariant = computed(() => {
   border-color: #f87171;
 }
 
-.e-button.v-btn--variant-outlined.text-error:hover:not(:disabled) {
-  background: #fef2f2;
+.e-button.v-btn--variant-outlined.text-error:hover:not(.v-btn--disabled) {
+  background-color: #dc2626 !important;
+  border-color: #dc2626 !important;
+  color: #fff !important;
+}
+
+.e-button.v-btn--variant-outlined.text-error:hover:not(.v-btn--disabled) :deep(.v-btn__overlay),
+.e-button.v-btn--variant-outlined.text-error:hover:not(.v-btn--disabled) :deep(.v-btn__underlay) {
+  opacity: 0 !important;
 }
 </style>

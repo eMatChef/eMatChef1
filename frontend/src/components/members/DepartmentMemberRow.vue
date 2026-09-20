@@ -5,12 +5,16 @@
       :size="avatarSize"
       :show-leader-star="showLeaderStar"
       :show-primary-home="showPrimaryHome"
+      :show-procure="showProcure"
       :dept-stage-role="deptStageRole"
       :show-tooltip="showTooltip"
     />
     <div class="department-member-row__meta">
       <strong class="department-member-row__name">{{ name }}</strong>
       <span v-if="subtitle" class="department-member-row__subtitle">{{ subtitle }}</span>
+    </div>
+    <div v-if="$slots.aside" class="department-member-row__aside">
+      <slot name="aside" />
     </div>
     <DepartmentMemberActions
       v-if="showActions"
@@ -38,6 +42,7 @@ const props = withDefaults(
     avatarSize?: 'sm' | 'md' | 'lg'
     showLeaderStar?: boolean
     showPrimaryHome?: boolean
+    showProcure?: boolean
     deptStageRole?: string | null
     showTooltip?: boolean
     showActions?: boolean
@@ -50,6 +55,7 @@ const props = withDefaults(
     avatarSize: 'md',
     showLeaderStar: false,
     showPrimaryHome: false,
+    showProcure: false,
     deptStageRole: null,
     showTooltip: true,
     showActions: true,
@@ -82,6 +88,10 @@ const avatarUser = computed(() => props.avatar)
   background: #f8fafc;
 }
 
+.department-member-row__aside {
+  flex: 0 0 auto;
+  min-width: 0;
+}
 .department-member-row__meta {
   display: flex;
   flex-direction: column;

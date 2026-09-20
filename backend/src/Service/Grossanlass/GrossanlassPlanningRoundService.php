@@ -94,6 +94,50 @@ class GrossanlassPlanningRoundService
     }
 
     /**
+     * Container for project-level material wishes. Bereichsleitung can fill the
+     * list without waiting for Planung to open a round.
+     */
+    public function ensureOpenMaterialWishRound(Department $department, User $user): ActivityGrossanlassRound
+    {
+        $activity = $this->resolveMainActivity($department);
+        $this->applyAutoSchedule($department, $activity);
+
+        $existing = $this->entityManager->getRepository(ActivityGrossanlassRound::class)
+            ->createQueryBuilder('r')
+            ->where('r.activityId = :activityId')
+            ->andWhere('r.formPurpose = :purpose')
+            ->andWhere('r.status = :status')
+            ->setParameter('activityId', $activity->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->setParameter('status', ActivityGrossanlassRound::STATUS_OPEN)
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($existing instanceof ActivityGrossanlassRound) {
+            return $existing;
+        }
+
+        $round = new ActivityGrossanlassRound();
+        $round->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::ROUND, ActivityGrossanlassRound::class));
+        $round->setActivity($activity);
+        $round->setName('Material am Projekt');
+        $round->setRoundType(ActivityGrossanlassRound::TYPE_RESSORT_WUENSCHE);
+        $round->setFormPurpose(ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH);
+        $round->setMaterialStage(GrossanlassMaterialStage::GROB);
+        $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
+        $round->setOpenedAt(new \DateTime());
+        $round->setCreatedByUser($user);
+
+        $this->entityManager->persist($round);
+        $this->formService->createDefaultFormForRound($round);
+        $this->entityManager->flush();
+
+        return $round;
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>

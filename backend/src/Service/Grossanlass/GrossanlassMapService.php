@@ -76,6 +76,7 @@ final class GrossanlassMapService
             }
         }
         $this->applyBounds($row, $data);
+        $this->applyOverlayOpacity($row, $data);
         $this->places->syncDepartmentPlacesToMap($department, $row);
         $this->entityManager->flush();
 
@@ -107,6 +108,32 @@ final class GrossanlassMapService
         $row->setImageWidth((int) ($stored['width'] ?? 0));
         $row->setImageHeight((int) ($stored['height'] ?? 0));
         $this->applyBounds($row, $bounds);
+        $this->places->syncDepartmentPlacesToMap($department, $row);
+        $this->entityManager->flush();
+
+        return $this->serialize($department, $row);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function removeBackground(Department $department, User $user, string $mapId): array
+    {
+        $this->assertCanEdit($department, $user);
+        $row = $this->requireMap($department, $mapId);
+        $filename = $row->getImageFilename();
+        if ($filename) {
+            $this->mediaStorage->deleteStoredFile(
+                MediaStorageService::CONTEXT_GROSSANLASS_MAP,
+                $department->getId(),
+                $row->getId(),
+                $filename,
+            );
+        }
+        $row->setImageFilename(null);
+        $row->setImageWidth(0);
+        $row->setImageHeight(0);
+        $row->setBounds(null, null, null, null);
         $this->places->syncDepartmentPlacesToMap($department, $row);
         $this->entityManager->flush();
 
@@ -154,8 +181,28 @@ final class GrossanlassMapService
             'bounds_south' => $row->getBoundsSouth(),
             'bounds_east' => $row->getBoundsEast(),
             'bounds_west' => $row->getBoundsWest(),
+            'overlay_opacity' => $row->getOverlayOpacity(),
             'places' => $pins,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyOverlayOpacity(DepartmentGrossanlassMap $row, array $data): void
+    {
+        if (!array_key_exists('overlay_opacity', $data)) {
+            return;
+        }
+        $value = $data['overlay_opacity'];
+        if ($value === null || $value === '') {
+            $row->setOverlayOpacity(0.92);
+            return;
+        }
+        if (!is_numeric($value)) {
+            throw new \InvalidArgumentException('overlay_opacity muss zwischen 0.3 und 1 liegen');
+        }
+        $row->setOverlayOpacity((float) $value);
     }
 
     private function assertCanSee(Department $department, User $user): void

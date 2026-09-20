@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Service\Grossanlass;
 
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassMap;
+use App\Entity\DepartmentGrossanlassPack;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\DepartmentGrossanlassUnterlager;
 use App\Entity\Group;
@@ -59,10 +61,13 @@ final class GrossanlassPlaceService
         $groupId = isset($data['group_id']) ? trim((string) $data['group_id']) : '';
         $row = $this->makePlace($department, $name);
         $row->setGroupId($groupId !== '' ? $groupId : null);
-        $row->setKind($this->inferKind($department, $data, null));
+        $kind = $this->inferKind($department, $data, null);
+        $this->assertWritableKind($kind, null);
+        $row->setKind($kind);
         $this->applyStarred($department, $row, $data, true);
         $this->applyMapPosition($department, $row, $data);
         $this->applyGeoPosition($department, $row, $data);
+        $this->applyPolygon($department, $row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);
@@ -91,8 +96,10 @@ final class GrossanlassPlaceService
             }
             $row->setName($name);
         }
-        if (array_key_exists('kind', $data)) {
-            $row->setKind($this->inferKind($department, $data, $row->getUnterlagerId()));
+        if (array_key_exists('kind', $data) && $this->canChangeKind($row)) {
+            $kind = $this->inferKind($department, $data, $row->getUnterlagerId());
+            $this->assertWritableKind($kind, $row->getKind());
+            $row->setKind($kind);
         }
         if (array_key_exists('group_id', $data)) {
             $groupId = trim((string) $data['group_id']);
@@ -101,9 +108,27 @@ final class GrossanlassPlaceService
         $this->applyStarred($department, $row, $data, false);
         $this->applyMapPosition($department, $row, $data);
         $this->applyGeoPosition($department, $row, $data);
+        $this->applyPolygon($department, $row, $data);
         $this->entityManager->flush();
 
         return $this->serialize($row);
+    }
+
+    public function delete(Department $department, User $user, string $placeId): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeAnlassOverview($user, $department)
+            && !$this->access->canSubmitEinsatz($user, $department)
+        ) {
+            throw new \RuntimeException('Keine Berechtigung für Orte');
+        }
+        $row = $this->getPlace($department, $placeId);
+        $blockers = $this->deleteBlockers($department, $row);
+        if ($blockers !== []) {
+            throw new \RuntimeException('Löschen nicht möglich: ' . implode(' ', $blockers));
+        }
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
     }
 
     /**
@@ -211,8 +236,12 @@ final class GrossanlassPlaceService
         if ($existing instanceof DepartmentGrossanlassPlace) {
             if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
                 $existing->setKind(GrossanlassPlaceCodes::KIND_BAUPROJEKT);
-                $this->entityManager->flush();
+                $existing->setPolygon(null);
             }
+            if ($existing->getName() !== $group->getName()) {
+                $existing->setName($group->getName());
+            }
+            $this->entityManager->flush();
 
             return $existing;
         }
@@ -222,6 +251,49 @@ final class GrossanlassPlaceService
         $this->entityManager->flush();
 
         return $row;
+    }
+
+    public function ensureForArea(Department $department, Group $group): DepartmentGrossanlassPlace
+    {
+        $existing = $this->findForGroup($department, $group->getId());
+        if ($existing instanceof DepartmentGrossanlassPlace) {
+            if ($existing->getKind() !== GrossanlassPlaceCodes::KIND_AREA) {
+                $existing->setKind(GrossanlassPlaceCodes::KIND_AREA);
+            }
+            if ($existing->getName() !== $group->getName()) {
+                $existing->setName($group->getName());
+            }
+            $this->entityManager->flush();
+
+            return $existing;
+        }
+        $row = $this->makePlace($department, $group->getName());
+        $row->setGroupId($group->getId());
+        $row->setKind(GrossanlassPlaceCodes::KIND_AREA);
+        $this->entityManager->flush();
+
+        return $row;
+    }
+
+    public function removeAreaForGroup(Department $department, Group $group): void
+    {
+        $this->detachOrgPlaceForGroup($department, $group, GrossanlassPlaceCodes::KIND_AREA);
+    }
+
+    public function detachOrgPlaceForGroup(Department $department, Group $group, ?string $onlyKind = null): void
+    {
+        $row = $this->findForGroup($department, $group->getId());
+        if (!$row instanceof DepartmentGrossanlassPlace) {
+            return;
+        }
+        if ($onlyKind !== null && $row->getKind() !== $onlyKind) {
+            return;
+        }
+        $row->setGroupId(null);
+        if ($this->deleteBlockers($department, $row) === []) {
+            $this->entityManager->remove($row);
+        }
+        $this->entityManager->flush();
     }
 
     private function seedFromUnterlager(Department $department): void
@@ -276,6 +348,8 @@ final class GrossanlassPlaceService
      */
     public function serialize(DepartmentGrossanlassPlace $row): array
     {
+        $department = $row->getDepartment();
+
         return [
             'id' => $row->getId(),
             'name' => $row->getName(),
@@ -287,10 +361,75 @@ final class GrossanlassPlaceService
             'map_y' => $row->getMapY(),
             'latitude' => $row->getLatitude(),
             'longitude' => $row->getLongitude(),
+            'polygon' => $row->getPolygon(),
             'starred' => $row->isStarred(),
             'public_code' => $row->getPublicCode(),
             'qr_url' => $this->qrUrl($row->getPublicCode()),
+            'can_delete' => $this->canDelete($department, $row),
+            'can_change_kind' => $this->canChangeKind($row),
         ];
+    }
+
+    public function canDelete(Department $department, DepartmentGrossanlassPlace $row): bool
+    {
+        return $this->deleteBlockers($department, $row) === [];
+    }
+
+    public function canChangeKind(DepartmentGrossanlassPlace $row): bool
+    {
+        return $row->getGroupId() === null && $row->getUnterlagerId() === null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function deleteBlockers(Department $department, DepartmentGrossanlassPlace $row): array
+    {
+        $blockers = [];
+        if (
+            $row->getGroupId() !== null
+            && $row->getGroupId() !== ''
+            && $row->getKind() === GrossanlassPlaceCodes::KIND_BAUPROJEKT
+        ) {
+            $blockers[] = 'Mit Bauprojekt verknüpft.';
+        }
+        if ($row->getUnterlagerId() !== null && $row->getUnterlagerId() !== '') {
+            $blockers[] = 'Unterlager-Ort.';
+        }
+        if ($this->countEinsatzDestinations($department, $row->getId()) > 0) {
+            $blockers[] = 'Noch als Einsatz-Ziel gesetzt.';
+        }
+        if ($this->countPackLocations($department, $row->getId()) > 0) {
+            $blockers[] = 'Noch als Pack-Standort gesetzt.';
+        }
+
+        return $blockers;
+    }
+
+    private function countEinsatzDestinations(Department $department, string $placeId): int
+    {
+        return (int) $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->createQueryBuilder('e')
+            ->select('COUNT(e.id)')
+            ->where('e.departmentId = :departmentId')
+            ->andWhere('e.destinationPlaceId = :placeId')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('placeId', $placeId)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    private function countPackLocations(Department $department, string $placeId): int
+    {
+        return (int) $this->entityManager->getRepository(DepartmentGrossanlassPack::class)
+            ->createQueryBuilder('p')
+            ->select('COUNT(p.id)')
+            ->where('p.departmentId = :departmentId')
+            ->andWhere('p.currentPlaceId = :placeId')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('placeId', $placeId)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     /**
@@ -312,6 +451,17 @@ final class GrossanlassPlaceService
             $unterlagerId,
             $groupIsBauprojekt,
         );
+    }
+
+    private function assertWritableKind(string $kind, ?string $existing): void
+    {
+        if ($kind !== GrossanlassPlaceCodes::KIND_MATPLATZ) {
+            return;
+        }
+        if ($existing === GrossanlassPlaceCodes::KIND_MATPLATZ) {
+            return;
+        }
+        throw new \InvalidArgumentException('Matplatz ist der Lagerstandort — kein GA-Ort');
     }
 
     /**
@@ -347,11 +497,43 @@ final class GrossanlassPlaceService
                 $row->setMap($map);
             }
         }
-        if (array_key_exists('map_x', $data) || array_key_exists('map_y', $data)) {
-            $row->setMapX(GrossanlassPlaceCodes::clampAxis($data['map_x'] ?? $row->getMapX()));
-            $row->setMapY(GrossanlassPlaceCodes::clampAxis($data['map_y'] ?? $row->getMapY()));
+        if (array_key_exists('map_x', $data)) {
+            $row->setMapX(GrossanlassPlaceCodes::clampAxis($data['map_x']));
+        }
+        if (array_key_exists('map_y', $data)) {
+            $row->setMapY(GrossanlassPlaceCodes::clampAxis($data['map_y']));
         }
         $this->fillMissingGeoFromMap($row);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function applyPolygonData(DepartmentGrossanlassPlace $row, mixed $polygon): void
+    {
+        $points = GrossanlassPlaceCodes::normalizePolygon($polygon);
+        $row->setPolygon($points);
+        if ($points === null) {
+            return;
+        }
+        $centroid = GrossanlassPlaceCodes::centroidFromPolygon($points);
+        if ($centroid === null) {
+            return;
+        }
+        $row->setLatitude($centroid['lat']);
+        $row->setLongitude($centroid['lng']);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyPolygon(Department $department, DepartmentGrossanlassPlace $row, array $data): void
+    {
+        if (!array_key_exists('polygon', $data)) {
+            return;
+        }
+        $this->applyPolygonData($row, $data['polygon']);
+        $this->syncPlaceToPrimaryMap($department, $row);
     }
 
     /**
@@ -360,9 +542,11 @@ final class GrossanlassPlaceService
     private function applyGeoPosition(Department $department, DepartmentGrossanlassPlace $row, array $data): void
     {
         $touched = array_key_exists('latitude', $data) || array_key_exists('longitude', $data);
-        if ($touched) {
-            $row->setLatitude(GrossanlassPlaceCodes::optionalLatitude($data['latitude'] ?? $row->getLatitude()));
-            $row->setLongitude(GrossanlassPlaceCodes::optionalLongitude($data['longitude'] ?? $row->getLongitude()));
+        if (array_key_exists('latitude', $data)) {
+            $row->setLatitude(GrossanlassPlaceCodes::optionalLatitude($data['latitude']));
+        }
+        if (array_key_exists('longitude', $data)) {
+            $row->setLongitude(GrossanlassPlaceCodes::optionalLongitude($data['longitude']));
         }
         $this->syncPlaceToPrimaryMap($department, $row);
         if (!$touched) {

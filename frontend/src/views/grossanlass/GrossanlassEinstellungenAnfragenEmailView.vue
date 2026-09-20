@@ -15,16 +15,16 @@
           :label="t('grossanlass.einstellungen.anfragenEmail.zeitraumTitle')"
           :placeholder="t('grossanlass.einstellungen.anfragenEmail.zeitraumPlaceholder')"
           :rows="4"
-          :disabled="zeitraumSuggesting"
+          :disabled="!canEditMailTemplates || zeitraumSuggesting"
           span-class="zeitraum-autosave"
           :save="saveZeitraumField"
           @update:model-value="onZeitraumModel"
         />
         <div class="actions">
-          <EButton variant="secondary" size="small" :loading="zeitraumSuggesting" @click="fillZeitraumFromDates">
+          <EButton variant="secondary" size="small" :disabled="!canEditMailTemplates" :loading="zeitraumSuggesting" @click="fillZeitraumFromDates">
             {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumFromDates') }}
           </EButton>
-          <EButton variant="text" size="small" :disabled="zeitraumSuggesting" @click="resetZeitraumToDefault">
+          <EButton variant="text" size="small" :disabled="!canEditMailTemplates || zeitraumSuggesting" @click="resetZeitraumToDefault">
             {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumReset') }}
           </EButton>
         </div>
@@ -46,7 +46,7 @@
               <span>{{ file.original_filename }}</span>
               <span class="mail-file-open-action">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsView') }}</span>
             </button>
-            <EButton variant="text" size="small" :disabled="attachmentBusy" @click="removeMailAttachment(file.id)">
+            <EButton v-if="canEditMailTemplates" variant="text" size="small" :disabled="attachmentBusy" @click="removeMailAttachment(file.id)">
               {{ t('common.delete') }}
             </EButton>
           </li>
@@ -64,7 +64,7 @@
             variant="secondary"
             size="small"
             :loading="attachmentBusy"
-            :disabled="mailAttachments.length >= 8"
+            :disabled="!canEditMailTemplates || mailAttachments.length >= 8"
             @click="attachmentInputRef?.click()"
           >
             {{ t('grossanlass.einstellungen.anfragenEmail.attachmentsAdd') }}
@@ -84,7 +84,7 @@
           {{ kindLabel(row.kind) }}
         </button>
         <EButton
-          v-if="unusedKinds.length"
+          v-if="canEditMailTemplates && unusedKinds.length"
           variant="secondary"
           size="small"
           @click="showAddPicker = true"
@@ -98,6 +98,7 @@
         v-if="activeTemplate"
         v-model="activeTemplate.subject"
         :label="t('grossanlass.einstellungen.anfragenEmail.subject')"
+        :disabled="!canEditMailTemplates"
         hide-details
         class="mb-3"
       />
@@ -109,6 +110,7 @@
           v-model="activeTemplate.body"
           :placeholder="t('grossanlass.einstellungen.anfragenEmail.bodyPlaceholder')"
           :insert-tokens="insertTokens"
+          :disabled="!canEditMailTemplates"
           allow-custom-tokens
           @add-custom-token="openCustomTokenDialog"
         />
@@ -124,7 +126,7 @@
       </div>
       <div class="actions">
         <EButton
-          v-if="activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
+          v-if="canEditMailTemplates && activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
           variant="secondary"
           size="small"
           @click="removeActiveTemplate"
@@ -134,7 +136,7 @@
         <EButton variant="secondary" size="small" @click="loadPreview">
           {{ t('grossanlass.einstellungen.anfragenEmail.previewAction') }}
         </EButton>
-        <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
+        <EButton v-if="canEditMailTemplates" variant="primary" size="small" :loading="saving" @click="save(false)">
           {{ t('common.save') }}
         </EButton>
       </div>
@@ -404,7 +406,7 @@ import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanConnectGmail } from '@/utils/grossanlassAccess'
+import { gaCanConnectGmail, gaCanWorkMailbox } from '@/utils/grossanlassAccess'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
   deleteGrossanlassMailAttachment,
@@ -445,6 +447,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const canConnectGmail = computed(() => gaCanConnectGmail(authStore.currentDepartmentRole))
+const canEditMailTemplates = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()

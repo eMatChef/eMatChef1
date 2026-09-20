@@ -56,6 +56,42 @@ export const CALENDAR_PERIOD_LABELS_QUICK_SELECT_GROSSANLASS = [
   'other',
 ] as const
 
+const VIEW_DATE_LABEL_PRIORITY: readonly CalendarPeriodLabel[] = [
+  'grossanlass',
+  'aufbau',
+  'abbau',
+  'camp_week',
+  'other',
+]
+
+/**
+ * Leerer Datepicker: zuerst Eventfenster, sonst nächster Fixer Zeitraum
+ * (Event-Durchführung vor Aufbau/Abbau).
+ */
+export function calendarPeriodViewDate(
+  periods: readonly DepartmentCalendarPeriod[],
+  eventAnchor?: Date | null,
+): Date | null {
+  if (eventAnchor && Number.isFinite(eventAnchor.getTime())) {
+    return startOfLocalDay(eventAnchor)
+  }
+  const today = startOfToday().getTime()
+  const candidates = periods.filter((row) => {
+    if (row.label === 'department_break' || row.label === 'school_vacation') return false
+    const end = parseIsoDateLocal(row.end_date)
+    return end.getTime() >= today
+  })
+  candidates.sort((a, b) => {
+    const ia = VIEW_DATE_LABEL_PRIORITY.indexOf(a.label)
+    const ib = VIEW_DATE_LABEL_PRIORITY.indexOf(b.label)
+    const pa = ia === -1 ? 99 : ia
+    const pb = ib === -1 ? 99 : ib
+    if (pa !== pb) return pa - pb
+    return a.start_date.localeCompare(b.start_date)
+  })
+  return candidates[0] ? parseIsoDateLocal(candidates[0].start_date) : null
+}
+
 /** Fixe Daten (Lagerwoche, Sonstiges, Event, Aufbau, Abbau) — nur wenn noch nicht vorbei. */
 export function calendarPeriodRangePresets(
   periods: readonly DepartmentCalendarPeriod[],

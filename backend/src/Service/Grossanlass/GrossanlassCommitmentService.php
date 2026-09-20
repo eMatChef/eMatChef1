@@ -32,7 +32,7 @@ final class GrossanlassCommitmentService
     public function list(Department $department, User $user): array
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für Zusagen');
         }
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassCommitment::class)

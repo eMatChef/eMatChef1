@@ -12,6 +12,7 @@ import {
   getDeptRoleColor,
   getDeptRoleShort,
   hasGlobalAdminPrivilege,
+  normalizeDeptRole,
 } from '@/utils/departmentMemberRoles'
 
 /**
@@ -66,11 +67,24 @@ export function useDepartmentMemberAdmin(
   }
 
   const editRoleSelectItems = computed(() =>
-    Object.entries(assignableRoles.value).map(([key, cfg]) => ({
-      title: `${cfg?.short ?? key} – ${getRoleLabel(key)}`,
+    Object.entries(assignableRoles.value).map(([key]) => ({
+      title: `${getDeptRoleShort(key, isGrossanlass.value)} – ${getRoleLabel(key)}`,
       value: key,
     })),
   )
+
+  /** Zuweisbare Rollen plus aktuelle Rolle, damit das Select den Stand immer anzeigt. */
+  function roleSelectItemsFor(currentRole?: string | null) {
+    const items = [...editRoleSelectItems.value]
+    const current = currentRole ? normalizeDeptRole(currentRole) : ''
+    if (current && !items.some((item) => item.value === current)) {
+      items.unshift({
+        title: `${getDeptRoleShort(current, isGrossanlass.value)} – ${getRoleLabel(current)}`,
+        value: current,
+      })
+    }
+    return items
+  }
 
   async function removeFromDepartment(member: DepartmentMember): Promise<boolean> {
     if (!canManageMember(member)) {
@@ -103,6 +117,7 @@ export function useDepartmentMemberAdmin(
     canManageMember,
     assignableRoles,
     editRoleSelectItems,
+    roleSelectItemsFor,
     getRoleLabel,
     getRoleColor: getDeptRoleColor,
     getRoleShort: (role: string) => getDeptRoleShort(role, isGrossanlass.value),

@@ -68,7 +68,7 @@
     <EDialog
       v-model="showForm"
       :title="editingId ? t('settings.fixedDates.editTitle') : t('settings.fixedDates.createTitle')"
-      :max-width="640"
+      :max-width="720"
       :retain-focus="false"
       :z-index="2600"
     >
@@ -84,6 +84,7 @@
           :block-closed-dates="false"
           :show-presets="false"
           :show-markers="true"
+          :view-date="periodViewDate"
         />
         <label class="fd-time-field">
           <span class="fd-time-field__label">{{ t('settings.fixedDates.startTime') }}</span>
@@ -304,6 +305,14 @@ function sortMark(key: SortKey): string {
   if (sortKey.value !== key) return '↕'
   return sortDir.value === 'asc' ? '↑' : '↓'
 }
+
+/** Leerer Kalender springt auf den gewählten Zeitraum-Typ, sonst Event-Durchführung. */
+const periodViewDate = computed(() => {
+  const match = periods.value.find((row) => row.label === form.label && row.id !== editingId.value)
+  if (match) return match.start_date.slice(0, 10)
+  const event = periods.value.find((row) => row.label === 'grossanlass')
+  return event?.start_date.slice(0, 10) ?? ''
+})
 
 const canSubmit = computed(() => {
   if (!form.name.trim() || !form.start_date || !form.end_date) return false

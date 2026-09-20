@@ -14,11 +14,24 @@ final class GrossanlassPlaceCodes
     public const KIND_MATPLATZ = 'matplatz';
     public const KIND_ANFAHRT = 'anfahrt';
     public const KIND_POI = 'poi';
+    public const KIND_AREA = 'area';
 
     public const KINDS = [
         self::KIND_BAUPROJEKT,
         self::KIND_UNTERLAGER,
         self::KIND_MATPLATZ,
+        self::KIND_ANFAHRT,
+        self::KIND_POI,
+        self::KIND_AREA,
+    ];
+
+    public const POLYGON_MIN_POINTS = 3;
+    public const POLYGON_MAX_POINTS = 32;
+
+    /** Neu anlegbar. Matplatz ist der Lagerstandort, kein GA-Ort. */
+    public const CREATE_KINDS = [
+        self::KIND_BAUPROJEKT,
+        self::KIND_UNTERLAGER,
         self::KIND_ANFAHRT,
         self::KIND_POI,
     ];
@@ -29,6 +42,11 @@ final class GrossanlassPlaceCodes
     public static function isKind(string $kind): bool
     {
         return in_array($kind, self::KINDS, true);
+    }
+
+    public static function isCreateKind(string $kind): bool
+    {
+        return in_array($kind, self::CREATE_KINDS, true);
     }
 
     public static function normalizeKind(?string $kind): string
@@ -156,6 +174,68 @@ final class GrossanlassPlaceCodes
         }
 
         return (float) $north > (float) $south && (float) $east > (float) $west;
+    }
+
+    /**
+     * @return list<array{lat: float, lng: float}>|null
+     */
+    public static function normalizePolygon(mixed $value): ?array
+    {
+        if ($value === null || $value === '' || $value === []) {
+            return null;
+        }
+        if (!is_array($value)) {
+            return null;
+        }
+        $points = [];
+        foreach ($value as $item) {
+            $lat = null;
+            $lng = null;
+            if (is_array($item)) {
+                if (array_key_exists('lat', $item) || array_key_exists('lng', $item)) {
+                    $lat = self::optionalLatitude($item['lat'] ?? null);
+                    $lng = self::optionalLongitude($item['lng'] ?? null);
+                } elseif (array_is_list($item) && count($item) >= 2) {
+                    $lat = self::optionalLatitude($item[0] ?? null);
+                    $lng = self::optionalLongitude($item[1] ?? null);
+                }
+            }
+            if ($lat === null || $lng === null) {
+                continue;
+            }
+            $points[] = ['lat' => $lat, 'lng' => $lng];
+            if (count($points) >= self::POLYGON_MAX_POINTS) {
+                break;
+            }
+        }
+        if (count($points) < self::POLYGON_MIN_POINTS) {
+            return null;
+        }
+
+        return $points;
+    }
+
+    /**
+     * @param list<array{lat: float, lng: float}> $points
+     * @return array{lat: float, lng: float}|null
+     */
+    public static function centroidFromPolygon(array $points): ?array
+    {
+        if ($points === []) {
+            return null;
+        }
+        $lat = 0.0;
+        $lng = 0.0;
+        foreach ($points as $point) {
+            $lat += $point['lat'];
+            $lng += $point['lng'];
+        }
+        $count = count($points);
+
+        return [
+            'lat' => $lat / $count,
+            'lng' => $lng / $count,
+        ];
     }
 
     private static function optionalDegree(mixed $value, float $min, float $max): ?float

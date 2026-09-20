@@ -46,6 +46,23 @@
               </div>
               <span class="storage-address">{{ addr.full_address }}</span>
             </div>
+            <div v-if="storageQrById[addr.id]" class="storage-qr">
+              <PublicQrTag
+                :url="storageQrById[addr.id].public_url"
+                :code="storageQrById[addr.id].public_code"
+                :size="88"
+                :image-label="addr.name || addr.street_line"
+                :image-entity-id="addr.id"
+              />
+              <a
+                :href="storageQrById[addr.id].public_url"
+                target="_blank"
+                rel="noopener"
+                class="storage-qr__code"
+              >
+                {{ storageQrById[addr.id].public_code }}
+              </a>
+            </div>
             <div class="storage-actions">
               <button
                 v-if="!addr.is_primary"
@@ -165,6 +182,9 @@
       :department-id="departmentId"
       :address="editingAddress"
       :default-type="addressKind"
+      :map-overlay="mapOverlay"
+      :initial-latitude="editingAddress ? null : initialLatitude"
+      :initial-longitude="editingAddress ? null : initialLongitude"
       @close="closeAddressModal"
       @saved="handleAddressSaved"
     />
@@ -177,14 +197,22 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { getAddresses, deleteAddress as apiDeleteAddress, setAddressPrimary, type Address } from '@/api/addresses'
+import { ensureStorageAddressQr, type StorageQrPayload } from '@/api/storageQr'
 import MapView from '@/components/MapView.vue'
 import AddressModal from '@/components/AddressModal.vue'
+import type { ActivityMapOverlay } from '@/components/activities/ActivityDualLocationMap.vue'
+import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
 
 const props = defineProps<{
   departmentId: string
   addressKind: 'storage' | 'billing'
+  /** Geländeplan aus Grossanlass (im Adress-Modal auf der Karte). */
+  mapOverlay?: ActivityMapOverlay | null
+  /** Karten-Zentrum beim Anlegen (z. B. Eventstandort). */
+  initialLatitude?: number | null
+  initialLongitude?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -200,6 +228,7 @@ const isLoading = ref(false)
 const isAddressModalOpen = ref(false)
 const editingAddress = ref<Address | null>(null)
 const expandedMaps = ref(new Set<string>())
+const storageQrById = ref<Record<string, StorageQrPayload>>({})
 
 const filteredAddresses = computed(() =>
   addresses.value.filter((a) => a.type === props.addressKind)
@@ -223,12 +252,29 @@ async function loadAddresses() {
   try {
     const result = await getAddresses(props.departmentId)
     addresses.value = result.addresses
+    if (props.addressKind === 'storage') {
+      await ensureStorageQrs(result.addresses.filter((row) => row.type === 'storage'))
+    }
   } catch (err: unknown) {
     console.error(err)
     addresses.value = []
   } finally {
     isLoading.value = false
   }
+}
+
+async function ensureStorageQrs(rows: Address[]) {
+  const next: Record<string, StorageQrPayload> = {}
+  await Promise.all(
+    rows.map(async (row) => {
+      try {
+        next[row.id] = await ensureStorageAddressQr(row.id)
+      } catch {
+        /* QR bleibt optional sichtbar */
+      }
+    }),
+  )
+  storageQrById.value = next
 }
 
 function openAddressModal(address?: Address) {
@@ -241,10 +287,14 @@ function closeAddressModal() {
   editingAddress.value = null
 }
 
-async function handleAddressSaved() {
-  await loadAddresses()
-  emit('changed')
+async function handleAddressSaved(_saved?: Address) {
   closeAddressModal()
+  try {
+    await loadAddresses()
+  } catch {
+    /* Adresse ist gespeichert — Kartenliste trotzdem aktualisieren */
+  }
+  emit('changed')
 }
 
 async function deleteAddressItem(address: Address) {
@@ -291,6 +341,7 @@ watch(
 defineExpose({
   reload: loadAddresses,
   count: computed(() => filteredAddresses.value.length),
+  openAddressModal,
 })
 </script>
 
@@ -368,6 +419,22 @@ defineExpose({
   font-size: 13px;
   color: #4b5563;
   margin-top: 6px;
+}
+.storage-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.storage-qr__code {
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #334155;
+  text-decoration: none;
+}
+.storage-qr__code:hover {
+  text-decoration: underline;
 }
 .storage-actions,
 .address-actions {

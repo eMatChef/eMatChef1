@@ -54,7 +54,7 @@ final class GrossanlassGmailAccountService
      */
     public function status(Department $department, User $user): array
     {
-        $this->assertMailbox($department, $user);
+        $this->assertSeeMailSettings($department, $user);
         $account = $this->findAccount($department);
 
         return [
@@ -1673,6 +1673,19 @@ final class GrossanlassGmailAccountService
         }
 
         return GrossanlassGmailRouting::hasRootLabel($names, $root);
+    }
+
+    public function assertCanEditMailTemplates(Department $department, User $user): void
+    {
+        $this->assertMailbox($department, $user);
+    }
+
+    private function assertSeeMailSettings(Department $department, User $user): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeMailSettings($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für die Mail-Einstellungen');
+        }
     }
 
     private function assertMailbox(Department $department, User $user): void

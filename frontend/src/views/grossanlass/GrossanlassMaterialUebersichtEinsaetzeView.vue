@@ -68,6 +68,9 @@
       :chauffeurs="chauffeurs"
       :places="places"
       :groups="groups"
+      :preset-wish-id="presetWishId"
+      :preset-group-id="presetGroupId"
+      :preset-place-id="presetPlaceId"
       :default-scope="bookDefaultScope"
       @confirm="onConfirm"
       @confirm-many="onConfirmMany"
@@ -78,9 +81,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { EButton } from '@/components/form/base'
 import { gaCanApproveEinsatz, gaIsMaterialwart } from '@/utils/grossanlassAccess'
@@ -104,6 +107,7 @@ import type { GaUebersichtCreatePayload } from '@/api/grossanlassUebersicht'
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const { articles } = useGaCommitmentCatalog()
@@ -175,6 +179,24 @@ const calendarFocusIso = ref<string | null>(null)
 const calendarFocusObjectId = ref<string | null>(null)
 const bookDefaultScope = computed(() =>
   gaIsMaterialwart(authStore.currentDepartmentRole) ? 'single' : 'project',
+)
+const presetWishId = computed(() => String(route.query.wish || '') || null)
+const presetGroupId = computed(() => String(route.query.group || '') || null)
+const presetPlaceId = computed(() => String(route.query.place || '') || null)
+
+watch(
+  [() => uebersicht.loading.value, presetWishId, presetGroupId, () => String(route.query.book || '')],
+  ([loading]) => {
+    if (loading || dialogOpen.value) return
+    const book = String(route.query.book || '') === '1'
+    if (!presetWishId.value && !presetGroupId.value && !book) return
+    mode.value = 'einsatz'
+    dialogOpen.value = true
+    if (book) {
+      const { book: _removed, ...rest } = route.query
+      void router.replace({ query: rest })
+    }
+  },
 )
 
 function revealEinsatz(fromIso?: string, objectId?: string) {

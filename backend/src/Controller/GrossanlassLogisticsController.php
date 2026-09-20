@@ -61,6 +61,20 @@ class GrossanlassLogisticsController extends AbstractController
         );
     }
 
+    #[Route('/places/{placeId}', name: 'places_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deletePlace(string $departmentId, string $placeId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            function (Department $d, User $u) use ($placeId): array {
+                $this->places->delete($d, $u, $placeId);
+
+                return ['ok' => true];
+            },
+        );
+    }
+
     #[Route('/places/{placeId}/briefing', name: 'places_briefing', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function placeBriefing(string $departmentId, string $placeId): JsonResponse
@@ -122,6 +136,16 @@ class GrossanlassLogisticsController extends AbstractController
         return $this->handle(
             $departmentId,
             fn (Department $d, User $u) => $this->maps->uploadBackground($d, $u, $mapId, $file, $bounds),
+        );
+    }
+
+    #[Route('/maps/{mapId}/background', name: 'maps_background_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteMapBackground(string $departmentId, string $mapId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $d, User $u) => $this->maps->removeBackground($d, $u, $mapId),
         );
     }
 

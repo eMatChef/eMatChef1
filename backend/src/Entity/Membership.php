@@ -27,7 +27,7 @@ class Membership
 
     #[ORM\Column(type: 'string', length: 20)]
     #[Assert\Choice(choices: [
-        'mw', 'cmw', 'dc', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'
+        'mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'
     ], message: 'Ungültige Rolle')]
     private string $role = 'u';
 

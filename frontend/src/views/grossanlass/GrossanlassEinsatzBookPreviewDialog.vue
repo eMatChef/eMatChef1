@@ -109,6 +109,10 @@
                 <span class="book-project-dd__row">
                   <span class="book-project-dd__name">
                     <span v-if="projectRow(item).depth > 0" class="book-project-dd__mark" aria-hidden="true">↳</span>
+                    <GrossanlassGroupNodeIcon
+                      v-if="projectRow(item).nodeType"
+                      :node-type="projectRow(item).nodeType"
+                    />
                     {{ projectRow(item).name }}
                   </span>
                   <span class="book-project-dd__meta">
@@ -461,6 +465,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { EAutocomplete, EButton, ECheckbox, EDateRangeField, EDialog, ETextField, ETimeField } from '@/components/form/base'
+import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 import GrossanlassEinsatzSlotStrip from '@/views/grossanlass/GrossanlassEinsatzSlotStrip.vue'
 import { createGrossanlassPlace, type GaPlace } from '@/api/grossanlassLogistics'
 import { useToast } from '@/composables/useToast'
@@ -482,6 +487,7 @@ import {
   buildBookProjectPickerItems,
   isEinsatzBookableWish,
 } from '@/utils/grossanlassBookProjectPicker'
+import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
 
 export type GaBookPreviewMode = 'einsatz' | 'order'
 export type GaBookPreviewDraft = GaPreviewWishTemplate & {
@@ -528,6 +534,8 @@ const props = defineProps<{
   places?: Array<{ id: string; name: string }>
   presetObjectId?: string
   presetWishId?: string | null
+  presetGroupId?: string | null
+  presetPlaceId?: string | null
   groups?: GaBookGroup[]
   defaultScope?: BookScope
 }>()
@@ -780,10 +788,8 @@ function projectRow(item: { raw?: Record<string, unknown>; [key: string]: unknow
 }
 
 function projectKindLabel(nodeType: string): string {
-  if (nodeType === 'bauprojekt') return t('grossanlass.planung.ressorts.kindBauprojekt')
-  if (nodeType === 'unterressort') return t('grossanlass.planung.ressorts.kindUnterressort')
-  if (nodeType === 'ressort') return t('grossanlass.planung.ressorts.kindRessort')
-  return ''
+  if (!nodeType) return ''
+  return t(grossanlassGroupNodeKindKey(nodeType))
 }
 
 function projectItemSubtitle(row: { nodeType: string; belowCount: number }): string {
@@ -859,12 +865,19 @@ watch(open, async (isOpen) => {
     newPlaceName.value = ''
     return
   }
+  applyPresetDestination()
   if (props.presetWishId) {
     scope.value = 'single'
     source.value = 'wish'
     pickedId.value = props.presetWishId
     await nextTick()
     goDetails()
+    return
+  }
+  if (props.presetGroupId) {
+    scope.value = 'project'
+    projectId.value = props.presetGroupId
+    step.value = 'pick'
     return
   }
   if (props.presetObjectId && scopedPicks.value[0]) {
@@ -966,12 +979,17 @@ function formatSlot(date: string, time: string): string {
   return `${day}.${month}.${year}, ${time}`
 }
 
+function applyPresetDestination() {
+  if (props.presetPlaceId) destinationPlaceId.value = props.presetPlaceId
+}
+
 function goDetails() {
   if (!draft.value) return
   applyWishPeriod(draft.value)
   chauffeurId.value = null
   destinationPlaceId.value = null
   delivery.value = 'pickup'
+  applyPresetDestination()
   step.value = 'details'
 }
 

@@ -1,5 +1,16 @@
 <template>
   <div class="ga-dashboard">
+    <GrossanlassOkLagePanel
+      v-if="isOkLeitung"
+      :department-id="departmentId"
+    />
+    <GrossanlassOkLagePanel
+      v-else-if="isBereichsleitung"
+      :department-id="departmentId"
+      variant="bereich"
+    />
+
+    <template v-else>
     <ELoadingState
       v-if="isLoading"
       variant="page"
@@ -129,7 +140,7 @@
             <v-icon icon="mdi-sitemap" size="22" />
             <span>{{ t('grossanlass.dashboard.linkRessorts') }}</span>
           </router-link>
-          <router-link v-else :to="meinRessortLink" class="quick-link-card">
+          <router-link :to="meinRessortLink" class="quick-link-card">
             <v-icon icon="mdi-home-group" size="22" />
             <span>{{ t('sidebar.meinRessort') }}</span>
           </router-link>
@@ -240,6 +251,7 @@
       :round-id="activeWishRoundId"
       @submitted="onWishSubmitted"
     />
+    </template>
   </div>
 </template>
 
@@ -252,11 +264,14 @@ import {
   gaCanManageProcurement,
   gaCanSeeAnlassOverview,
   gaCanWorkMailbox,
+  gaIsBereichsleitung,
+  gaIsOkLeitung,
 } from '@/utils/grossanlassAccess'
 import { useAuthStore } from '@/stores/auth'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton } from '@/components/form/base'
 import GrossanlassWishSubmitDialog from '@/components/grossanlass/GrossanlassWishSubmitDialog.vue'
+import GrossanlassOkLagePanel from '@/components/grossanlass/GrossanlassOkLagePanel.vue'
 import { getGrossanlassUebersicht, type GaUebersichtPayload } from '@/api/grossanlassUebersicht'
 import {
   getGrossanlassPlanung,
@@ -306,6 +321,8 @@ const canManageRounds = computed(() => !isUserRole.value)
 const canManageProcurement = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 const canWorkMailbox = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
 const canSeeUebersicht = computed(() => gaCanSeeAnlassOverview(authStore.currentDepartmentRole))
+const isOkLeitung = computed(() => gaIsOkLeitung(authStore.currentDepartmentRole))
+const isBereichsleitung = computed(() => gaIsBereichsleitung(authStore.currentDepartmentRole))
 
 const openRounds = computed(() => rounds.value.filter((r) => r.status === 'open'))
 const otherRounds = computed(() =>
@@ -340,10 +357,7 @@ const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
 const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
-const tripsLink = computed(() => ({
-  path: `/${props.departmentId}/material-uebersicht/einsaetze`,
-  query: { delivery: 'trip' },
-}))
+const tripsLink = computed(() => `/${props.departmentId}/material-uebersicht/fahrauftraege`)
 const tripOrderCount = computed(() =>
   (uebersicht.value?.einsaetze ?? []).filter(
     (row) => row.delivery === 'trip' && row.status !== 'returned',
@@ -418,13 +432,16 @@ function tryOpenWishFromQuery() {
 }
 
 async function load() {
-  if (!props.departmentId) return
+  if (!props.departmentId || isOkLeitung.value || isBereichsleitung.value) {
+    if (isOkLeitung.value || isBereichsleitung.value) isLoading.value = false
+    return
+  }
   isLoading.value = true
   error.value = ''
   try {
-    const [roundList, groups, pack] = await Promise.all([
+    const groups = await getGrossanlassGroups(props.departmentId)
+    const [roundList, pack] = await Promise.all([
       getGrossanlassPlanningRounds(props.departmentId),
-      getGrossanlassGroups(props.departmentId),
       getGrossanlassPlanung(props.departmentId).catch(() => null),
     ])
     rounds.value = roundList

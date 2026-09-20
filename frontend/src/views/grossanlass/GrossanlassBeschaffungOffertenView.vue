@@ -4,6 +4,12 @@
       {{ canManageProcurement ? t('grossanlass.beschaffung.offerten.intro') : t('grossanlass.beschaffung.offerten.introDelegate') }}
     </p>
 
+    <GrossanlassDirectProcurePanel
+      v-if="!canManageProcurement"
+      :department-id="departmentId()"
+      @created="load"
+    />
+
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
     <EEmptyState
@@ -135,6 +141,7 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
 import GrossanlassProcurementQuoteDialog from '@/components/grossanlass/GrossanlassProcurementQuoteDialog.vue'
+import GrossanlassDirectProcurePanel from '@/components/grossanlass/GrossanlassDirectProcurePanel.vue'
 import { EButton } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
 import { getGrossanlassGroups } from '@/api/grossanlassGroups'

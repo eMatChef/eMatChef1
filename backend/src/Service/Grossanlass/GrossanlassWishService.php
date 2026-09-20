@@ -267,10 +267,8 @@ class GrossanlassWishService
      */
     public function createProjectMaterialWish(Department $department, User $user, Group $group, array $data): array
     {
-        $round = $this->findOpenMaterialRound($department);
-        if ($round === null) {
-            throw new \InvalidArgumentException('Keine offene Material-Runde — bitte zuerst eine Runde öffnen');
-        }
+        $round = $this->findOpenMaterialRound($department)
+            ?? $this->roundService->ensureOpenMaterialWishRound($department, $user);
         $payload = $data;
         $payload['group_id'] = $group->getId();
         if (!isset($payload['wish_kind']) || trim((string) $payload['wish_kind']) === '') {
@@ -713,6 +711,24 @@ class GrossanlassWishService
         }
 
         $this->syncLineFieldsFromCustomValues($fields, $customValues, $label, $quantity, $location);
+
+        $explicitLabel = trim((string) ($data['label'] ?? ''));
+        if ($explicitLabel !== '') {
+            $label = $explicitLabel;
+        }
+        if (array_key_exists('quantity', $data) && is_numeric($data['quantity'])) {
+            $qty = (int) $data['quantity'];
+            if ($qty >= 1) {
+                $quantity = $qty;
+            }
+        }
+        $explicitLocation = trim((string) ($data['location'] ?? ''));
+        if ($explicitLocation !== '') {
+            $location = $explicitLocation;
+        }
+        if ($notes === null && array_key_exists('notes', $data)) {
+            $notes = $this->optionalString($data['notes']);
+        }
 
         return [
             'group' => $group,

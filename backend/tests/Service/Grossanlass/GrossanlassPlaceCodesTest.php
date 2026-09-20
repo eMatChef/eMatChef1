@@ -41,6 +41,31 @@ class GrossanlassPlaceCodesTest extends TestCase
             GrossanlassPlaceCodes::KIND_ANFAHRT,
             GrossanlassPlaceCodes::normalizeKind('anfahrt'),
         );
+        self::assertFalse(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_MATPLATZ));
+        self::assertTrue(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_ANFAHRT));
+        self::assertTrue(GrossanlassPlaceCodes::isKind(GrossanlassPlaceCodes::KIND_AREA));
+        self::assertFalse(GrossanlassPlaceCodes::isCreateKind(GrossanlassPlaceCodes::KIND_AREA));
+        self::assertSame(
+            GrossanlassPlaceCodes::KIND_AREA,
+            GrossanlassPlaceCodes::inferKind('area', null, false),
+        );
+    }
+
+    public function testNormalizePolygonKeepsValidPointsAndCentroid(): void
+    {
+        $points = GrossanlassPlaceCodes::normalizePolygon([
+            ['lat' => 47.4, 'lng' => 8.5],
+            ['lat' => 47.41, 'lng' => 8.52],
+            [47.39, 8.51],
+            ['lat' => 200, 'lng' => 8.5],
+        ]);
+        self::assertNotNull($points);
+        self::assertCount(3, $points);
+        $centroid = GrossanlassPlaceCodes::centroidFromPolygon($points);
+        self::assertNotNull($centroid);
+        self::assertEqualsWithDelta(47.4, $centroid['lat'], 0.02);
+        self::assertNull(GrossanlassPlaceCodes::normalizePolygon([['lat' => 47.4, 'lng' => 8.5]]));
+        self::assertNull(GrossanlassPlaceCodes::normalizePolygon(null));
     }
 
     public function testClampAxisKeepsPinsOnTheBoard(): void

@@ -4,7 +4,7 @@
     :title="t('grossanlass.materialUebersicht.title')"
     :subtitle="t('grossanlass.materialUebersicht.subtitle')"
   >
-    <template v-if="activeTab === 'einsaetze'" #actions>
+    <template v-if="showBookAction" #actions>
       <EButton variant="primary" size="small" @click="einsatzComposer.open('einsatz')">
         {{ t('grossanlass.materialUebersicht.actionBook') }}
       </EButton>
@@ -69,6 +69,8 @@ const tabItems = computed(() => {
   const tabs = [
     { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
     { id: 'einsaetze', label: t('grossanlass.materialUebersicht.tabEinsaetze'), icon: 'mdi-calendar-range' },
+    { id: 'bauauftraege', label: t('grossanlass.materialUebersicht.tabBauauftraege'), icon: 'mdi-hammer-wrench' },
+    { id: 'fahrauftraege', label: t('grossanlass.materialUebersicht.tabFahrauftraege'), icon: 'mdi-truck-fast-outline' },
     { id: 'wareneingang', label: t('grossanlass.materialUebersicht.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
     { id: 'konflikte', label: t('grossanlass.materialUebersicht.tabKonflikte'), icon: 'mdi-alert-outline' },
     { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
@@ -80,6 +82,9 @@ const tabItems = computed(() => {
 })
 
 const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')
+const showBookAction = computed(() =>
+  ['einsaetze', 'bauauftraege', 'fahrauftraege'].includes(activeTab.value),
+)
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value

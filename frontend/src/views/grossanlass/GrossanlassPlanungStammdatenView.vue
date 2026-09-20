@@ -11,55 +11,40 @@
           :disabled="!canManage"
           hide-details
         />
-        <EDateRangeField
-          v-model:start="periodStart"
-          v-model:end="periodEnd"
-          class="mt-3"
-          :label="t('grossanlass.planung.stammdaten.period')"
-          :department-id="departmentId"
-          :disabled="!canManage"
-          :allow-past="true"
-          :block-closed-dates="false"
-          :show-presets="false"
-          :show-markers="true"
-        />
-        <div class="mt-3 venue-wrap">
-          <label class="venue-label">{{ t('grossanlass.planung.stammdaten.location') }}</label>
-          <p class="hint">{{ t('grossanlass.planung.stammdaten.locationHint') }}</p>
-          <button
-            v-if="canManage && !venueAddressId"
-            type="button"
-            class="venue-set-cta"
-            data-onboarding="activity-venue-add"
-            @click="openAddVenueAddressModal()"
-          >
-            <span class="venue-set-cta-plus" aria-hidden="true">+</span>
-            <span>{{ t('grossanlass.planung.stammdaten.setEventVenue') }}</span>
-          </button>
-          <DepartmentAddressAutocomplete
-            v-else-if="canManage"
-            ref="venueAddressAutocompleteRef"
-            input-id="ga-venue-address-search"
-            :addresses="rentalAddresses"
-            :selected-id="venueAddressId"
-            primary-type="event"
-            :placeholder="t('grossanlass.planung.stammdaten.locationPlaceholder')"
-            :add-button-title="t('activities.wizard.form.addVenueAddressTitle')"
-            :edit-button-title="t('activities.wizard.form.editVenueAddressTitle')"
-            :empty-addresses-label="t('activities.wizard.form.noAddressesWithAdd')"
-            inline-create-label-key="addresses.search.createEventVenueInline"
-            show-edit-button
-            @update:selected-id="onVenueSelected"
-            @create="openAddVenueAddressModal"
-            @edit="openEditVenueAddressModal"
+        <section class="period-block mt-3">
+          <EDateRangeField
+            v-model:start="periodStart"
+            v-model:end="periodEnd"
+            :label="t('grossanlass.planung.stammdaten.period')"
+            :department-id="departmentId"
+            :disabled="!canManage"
+            :allow-past="true"
+            :block-closed-dates="false"
+            :show-presets="false"
+            :show-markers="true"
           />
-          <p v-else class="venue-readonly">{{ venueAddressSummary }}</p>
-          <p v-if="canManage && venueAddressId" class="selected-address">
-            {{ t('activities.wizard.form.selectedPrefix') }}{{ venueAddressSummary }}
-            <button type="button" class="clear-selection" :title="t('activities.wizard.form.clearSelectionTitle')" @click="clearVenueAddress">
-              ×
+          <GrossanlassKeyDatesPanel
+            :department-id="departmentId"
+            hide-event-period
+            embedded
+          />
+        </section>
+        <div class="mt-3 venue-wrap">
+          <template v-if="!venueAddressId">
+            <label class="venue-label">{{ t('grossanlass.planung.stammdaten.location') }}</label>
+            <p class="hint">{{ t('grossanlass.planung.stammdaten.locationHint') }}</p>
+            <button
+              v-if="canManage"
+              type="button"
+              class="venue-set-cta"
+              data-onboarding="activity-venue-add"
+              @click="openAddVenueAddressModal()"
+            >
+              <span class="venue-set-cta-plus" aria-hidden="true">+</span>
+              <span>{{ t('grossanlass.planung.stammdaten.setEventVenue') }}</span>
             </button>
-          </p>
+            <p v-else class="venue-readonly">{{ venueAddressSummary }}</p>
+          </template>
           <ActivityVenueOverviewBlock
             v-if="venueAddressId"
             :venue-address-id="venueAddressId"
@@ -139,23 +124,14 @@
         </section>
         <ETextarea
           v-model="notes"
-          class="mt-3"
+          class="notes-field"
           :label="t('grossanlass.planung.stammdaten.notes')"
           :placeholder="t('grossanlass.planung.stammdaten.notesPlaceholder')"
           :disabled="!canManage"
           rows="3"
           hide-details="auto"
         />
-        <div v-if="canManage" class="actions">
-          <EButton variant="primary" size="small" :loading="saving" @click="save">
-            {{ t('common.save') }}
-          </EButton>
-        </div>
       </div>
-
-      <section class="panel">
-        <GrossanlassKeyDatesPanel :department-id="departmentId" />
-      </section>
     </template>
 
     <v-dialog
@@ -189,21 +165,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import GrossanlassKeyDatesPanel from '@/components/grossanlass/GrossanlassKeyDatesPanel.vue'
-import { DepartmentAddressAutocomplete } from '@/components/addresses'
 import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import ContactDetailView from '@/components/contacts/ContactDetailView.vue'
-import { EButton, EDateRangeField, ETextField, ETextarea } from '@/components/form/base'
+import { EDateRangeField, ETextField, ETextarea } from '@/components/form/base'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { getAddresses, type Address } from '@/api/addresses'
 import { getGrossanlassPlanung, updateGrossanlassPlanung, type GrossanlassGuestActivityType, type GrossanlassPlanungOverview } from '@/api/grossanlassPlanung'
 import { useGrossanlassGuestDepartments } from '@/composables/useGrossanlassGuestDepartments'
 import { bumpCalendarPeriodsCache } from '@/composables/useCalendarPeriodsCache'
+import { DEFAULT_AUTO_SAVE_DELAY_MS } from '@/composables/useAutoSaveField'
 import { formatAddressOption } from '@/utils/departmentAddressSearch'
 import { grossanlassGroupPathTitle } from '@/utils/grossanlassCostPayer'
 import '@/styles/contacts-view.css'
@@ -226,12 +202,12 @@ const deptName = computed(() => membership.value?.department?.name || '')
 const pack = ref<GrossanlassPlanungOverview | null>(null)
 const loading = ref(true)
 const saving = ref(false)
+const isHydrating = ref(false)
 const error = ref('')
 const periodStart = ref('')
 const periodEnd = ref('')
 const venueAddressId = ref<string | null>(null)
 const rentalAddresses = ref<Address[]>([])
-const venueAddressAutocompleteRef = ref<InstanceType<typeof DepartmentAddressAutocomplete> | null>(null)
 const showVenueContactModal = ref(false)
 const venueContactModalMode = ref<'view' | 'create'>('view')
 const venueContactModalId = ref<string | null>(null)
@@ -252,11 +228,15 @@ const logisticsName = computed(() => {
   return grossanlassGroupPathTitle(row, all)
 })
 
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+let autoSaveToken = 0
+
 function toDay(iso: string | null | undefined): string {
   return iso ? iso.slice(0, 10) : ''
 }
 
 function apply(next: GrossanlassPlanungOverview) {
+  isHydrating.value = true
   pack.value = next
   periodStart.value = toDay(next.config.planned_event_start)
   periodEnd.value = toDay(next.config.planned_event_end)
@@ -267,6 +247,9 @@ function apply(next: GrossanlassPlanungOverview) {
   hasGuestDepartments.value = next.config.has_guest_departments === true
   logisticsGroupId.value = next.config.logistics_group_id || null
   setHasGuestDepartments(hasGuestDepartments.value)
+  void nextTick(() => {
+    isHydrating.value = false
+  })
 }
 
 async function load() {
@@ -283,28 +266,64 @@ async function load() {
   }
 }
 
-async function save() {
-  if (!departmentId.value) return
-  saving.value = true
-  try {
-    apply(await updateGrossanlassPlanung(departmentId.value, {
-      department_name: deptNameDraft.value.trim(),
-      venue_address_id: venueAddressId.value,
-      notes: notes.value,
-      planned_event_start: periodStart.value || undefined,
-      planned_event_end: periodEnd.value || null,
-      guest_activity_type: guestType.value,
-      has_guest_departments: hasGuestDepartments.value,
-    }))
-    bumpCalendarPeriodsCache()
-    toast.success(t('grossanlass.planung.stammdaten.saved'))
-  } catch (e: unknown) {
-    const err = e as { response?: { data?: { error?: string } } }
-    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
-  } finally {
-    saving.value = false
+function clearAutoSaveTimer() {
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    autoSaveTimer = null
   }
 }
+
+async function persistStammdaten(immediate = false) {
+  if (!departmentId.value || !canManage.value || isHydrating.value || loading.value) return
+  const name = deptNameDraft.value.trim()
+  if (!name) return
+
+  const run = async () => {
+    const token = ++autoSaveToken
+    saving.value = true
+    try {
+      apply(
+        await updateGrossanlassPlanung(departmentId.value, {
+          department_name: name,
+          venue_address_id: venueAddressId.value,
+          notes: notes.value,
+          planned_event_start: periodStart.value || undefined,
+          planned_event_end: periodEnd.value || null,
+          guest_activity_type: guestType.value,
+          has_guest_departments: hasGuestDepartments.value,
+        }),
+      )
+      if (token !== autoSaveToken) return
+      bumpCalendarPeriodsCache()
+    } catch (e: unknown) {
+      if (token !== autoSaveToken) return
+      const err = e as { response?: { data?: { error?: string } } }
+      toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+    } finally {
+      if (token === autoSaveToken) saving.value = false
+    }
+  }
+
+  if (immediate) {
+    clearAutoSaveTimer()
+    await run()
+    return
+  }
+
+  clearAutoSaveTimer()
+  autoSaveTimer = setTimeout(() => {
+    autoSaveTimer = null
+    void run()
+  }, DEFAULT_AUTO_SAVE_DELAY_MS)
+}
+
+watch([deptNameDraft, periodStart, periodEnd, notes], () => {
+  void persistStammdaten()
+})
+
+watch([guestType, hasGuestDepartments], () => {
+  void persistStammdaten(true)
+})
 
 const venueAddressSummary = computed(() => {
   if (!venueAddressId.value) return t('activities.wizard.form.summaryEmpty')
@@ -331,12 +350,18 @@ async function loadRentalAddresses() {
   }
 }
 
-function onVenueSelected(id: string | null) {
-  venueAddressId.value = id
-}
-
-function clearVenueAddress() {
-  venueAddressId.value = null
+async function persistVenueAddress(id: string | null) {
+  if (!departmentId.value) return
+  saving.value = true
+  try {
+    apply(await updateGrossanlassPlanung(departmentId.value, { venue_address_id: id }))
+    bumpCalendarPeriodsCache()
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    saving.value = false
+  }
 }
 
 function closeVenueContactModal() {
@@ -351,16 +376,13 @@ function openAddVenueAddressModal(presetName = '') {
   showVenueContactModal.value = true
 }
 
-function openEditVenueAddressModal(id: string) {
-  venueContactModalMode.value = 'view'
-  venueContactModalId.value = id
-  showVenueContactModal.value = true
-}
-
 async function onVenueContactCreated(addr: Address) {
   closeVenueContactModal()
   await loadRentalAddresses()
-  if (addr?.id) venueAddressId.value = addr.id
+  if (addr?.id) {
+    await persistVenueAddress(addr.id)
+    toast.success(t('grossanlass.planung.stammdaten.venueSaved'))
+  }
 }
 
 async function onVenueContactUpdated() {
@@ -380,6 +402,10 @@ onMounted(() => {
   void load()
   void loadRentalAddresses()
 })
+
+onBeforeUnmount(() => {
+  clearAutoSaveTimer()
+})
 </script>
 
 <style scoped>
@@ -388,6 +414,7 @@ onMounted(() => {
 .hint a { color: #166534; }
 .warn { color: #9a3412; }
 .form { max-width: 880px; }
+.period-block { display: block; }
 .venue-label { display: block; font-size: 0.85rem; font-weight: 600; color: #334155; margin-bottom: 4px; }
 .venue-set-cta {
   display: inline-flex;
@@ -420,18 +447,8 @@ onMounted(() => {
   transition: border-color 0.2s ease, background 0.2s ease;
 }
 .venue-readonly { margin: 0; color: #334155; }
-.selected-address { margin: 8px 0 0; font-size: 0.85rem; color: #475569; }
-.clear-selection {
-  margin-left: 8px;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-size: 1.1rem;
-  line-height: 1;
-  color: #64748b;
-}
 .mt-3 { margin-top: 12px; }
-.actions { margin-top: 16px; }
+.notes-field { margin-top: 28px; }
 .card {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -466,12 +483,4 @@ onMounted(() => {
   background: #ecfdf5;
 }
 .modus-card.is-active strong { color: #166534; }
-.panel {
-  margin-top: 24px;
-  max-width: 880px;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-}
 </style>

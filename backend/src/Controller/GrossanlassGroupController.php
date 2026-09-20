@@ -147,6 +147,61 @@ class GrossanlassGroupController extends AbstractController
         return new JsonResponse(['success' => true]);
     }
 
+    #[Route('/{groupId}/shares', name: 'share_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function share(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if ($group === null || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        $data = json_decode($request->getContent(), true) ?? [];
+        try {
+            $share = $this->groupService->shareGroup($department, $currentUser, $group, is_array($data) ? $data : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 400);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse($share, 201);
+    }
+
+    #[Route('/{groupId}/shares/{shareId}', name: 'share_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function unshare(string $departmentId, string $groupId, string $shareId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+        $group = $this->entityManager->getRepository(Group::class)->find($groupId);
+        if ($group === null || $group->getDepartmentId() !== $departmentId) {
+            return new JsonResponse(['error' => 'Gruppe nicht gefunden'], 404);
+        }
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        try {
+            $this->groupService->unshareGroup($department, $currentUser, $group, $shareId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 404);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return new JsonResponse(['success' => true]);
+    }
+
     #[Route('/{groupId}/members', name: 'add_member', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function addMember(string $departmentId, string $groupId, Request $request): JsonResponse

@@ -18,11 +18,11 @@ Ein **Bauprojekt** (Bühne, Wasserstelle) ist Ort + grobes Zeitfenster + zwei Li
 
 | Welt | Gegenstand | QR |
 | --- | --- | --- |
-| **Lager** | Magazin, Regal, Fach | `/i/l/`, `/i/r/`, `/i/s/` |
+| **Lager** | **Lagerstandort** (Matplatz), Regal, Fach | `/i/l/`, `/i/r/`, `/i/s/` |
 | **Adresse** | Event, Zustellpunkt, `event_poi` in Kontakten | kein Pack-Ziel |
 | **GA-Ort** | Standorte **im** Anlass | kanonisch `/i/ga/{code}`, Alias `/i/p/{code}` |
 
-Fahrauftrag, Helferauftrag und Bauprojekt zielen nur auf **GA-Ort**. Lager-QR und Kontakt-POI nicht als Bühnen-Schild verwenden.
+**Matplatz = Lagerstandort** (`Address` `type=storage`), nichts Neues und kein GA-Ort-`kind`. Ausgabe und Selbstabholung laufen über diesen bestehenden Standort. Fahrauftrag, Helferauftrag und Bauprojekt zielen nur auf **GA-Ort**. Lager-QR und Kontakt-POI nicht als Bühnen-Schild verwenden.
 
 `kind: order` am Einsatz bleibt **Nachbedarf**, nicht Bauauftrag und nicht Fahrt.
 
@@ -31,10 +31,12 @@ Fahrauftrag, Helferauftrag und Bauprojekt zielen nur auf **GA-Ort**. Lager-QR un
 ## 3. Objekte
 
 ```
-GA-Ort ─────────────────┬── kind (bauprojekt | unterlager | matplatz | poi)
+GA-Ort ─────────────────┬── kind (bauprojekt | unterlager | anfahrt | poi)
   QR /i/ga/{code}       ├── group_id? → Bauprojekt / Ressort
                         ├── unterlager_id?
                         └── Position: WGS84; Stern = auf Stammdaten; map_x / map_y auf dem Geländeplan
+
+Lagerstandort (Matplatz)  Address type=storage · QR /i/l/ sichtbar am Standort — kein GA-Ort
 
 Bauprojekt (Group, teilbereich)
   grobes Fenster (von–bis)
@@ -56,9 +58,10 @@ Ein Typ, aufgeschlüsselt über `kind`:
 | --- | --- | --- |
 | `bauprojekt` | Bühne, Wasserstelle | `group_id` auf Group `grossanlass_kind = teilbereich` |
 | `unterlager` | Region Ost | `unterlager_id` (Ist: Seed aus Unterlager) |
-| `matplatz` | zentrales Material | optional Logistics-Knoten |
-| `poi` | Tor, Infopoint | ohne Projekt |
 | `anfahrt` | Anfahrpunkt / Tor für Fahrten | Ziel-Ort für Fahrauftrag |
+| `poi` | Tor, Infopoint | ohne Projekt |
+
+Kein `kind: matplatz`. Zentraler Materialplatz = **Lagerstandort** unter Standorte (bereits da). Alte GA-Orte mit diesem kind bleiben lesbar, neue legt ihr nicht an.
 
 **IDs:** intern 12-stellig wie bisher (`pl…` bleibt gültig). **Neue public_codes** Prefix `ga` (12 Zeichen). Lookup akzeptiert alte `pl…`-Codes.
 
@@ -179,6 +182,7 @@ Heute ohne die neuen Felder: Projekt anlegen, Wünsche im Formular auf das Proje
 - Material als Einsatz **und** als Wunsch pflegen
 - Wünsche automatisch aus jedem Einsatz
 - `Address.event_poi` oder Lager-QR als Event-Standort
+- Matplatz als zweiten GA-Ort-Typ (das ist der Lagerstandort)
 - OSM/Swissimage **ohne** Overlay als einzige Helfer-Geländekarte (Hintergrund bleibt das hochgeladene Bild, jetzt auf der Stammdaten-Karte)
 - Aufgaben in den Bedarf-Pool
 
@@ -194,5 +198,6 @@ Heute ohne die neuen Felder: Projekt anlegen, Wünsche im Formular auf das Proje
 - [x] **P5** Ort-Scan-Seite: Ankommen + Aufgaben + Material (kein Fork)
 - [x] **P6** Helferdruck aus Ort + Aufgaben + Wünsche
 - [x] **P7** Eine Karte: Stammdaten-Leaflet mit Eventstandort, Zustellpunkt und GA-Orten; optional Geländeplan als Overlay
+- [x] **P8** Einsatz aus dem Bauprojekt im bestehenden Einsatz-Tool (Fenster + GA-Ort vorausgefüllt)
 
 Umsetzung: bestehende `GrossanlassPlaceService` / Pack / Wunsch erweitern — keine Parallelmodule.

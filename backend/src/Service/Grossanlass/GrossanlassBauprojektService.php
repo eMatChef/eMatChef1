@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\DepartmentGrossanlassTask;
@@ -25,6 +27,7 @@ final class GrossanlassBauprojektService
         private GrossanlassMapService $maps,
         private GrossanlassWishService $wishes,
         private GrossanlassPackService $packs,
+        private GrossanlassProcurementService $procurement,
     ) {}
 
     /**
@@ -63,10 +66,13 @@ final class GrossanlassBauprojektService
             'group' => null,
             'window_start' => null,
             'window_end' => null,
+            'description' => null,
             'place' => $this->places->serialize($place),
             'tasks' => [],
             'material' => [],
+            'direct_material' => [],
             'packs' => $this->packs->listAtPlace($department, $place->getId()),
+            'einsaetze' => [],
             'map' => $this->mapSnippet($department, $place),
             'can_edit' => false,
         ];
@@ -88,6 +94,10 @@ final class GrossanlassBauprojektService
         }
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
+        if (array_key_exists('description', $data)) {
+            $raw = $data['description'];
+            $group->setDescription($raw === null ? null : (string) $raw);
+        }
         $group->updateTimestamps();
         $this->entityManager->flush();
 
@@ -193,6 +203,16 @@ final class GrossanlassBauprojektService
         if ($place instanceof DepartmentGrossanlassPlace && (!isset($data['location']) || trim((string) $data['location']) === '')) {
             $data['location'] = $place->getName();
         }
+        $mode = strtolower(trim((string) ($data['mode'] ?? $data['source'] ?? 'wish')));
+        if ($mode === 'direct' || $mode === 'fix') {
+            $payload = $data;
+            $payload['group_id'] = $group->getId();
+            if (!isset($payload['location']) || trim((string) $payload['location']) === '') {
+                $payload['location'] = $group->getName();
+            }
+
+            return $this->procurement->createLineDirect($department, $user, $payload);
+        }
 
         return $this->wishes->createProjectMaterialWish($department, $user, $group, $data);
     }
@@ -214,18 +234,22 @@ final class GrossanlassBauprojektService
             'kind' => $group->getGrossanlassKind(),
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'description' => $group->getDescription(),
         ];
 
         return [
             'group' => $groupPayload,
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
             'tasks' => $this->serializeTasks($group),
             'material' => $this->wishes->listMaterialWishesForGroup($department, $user, $group),
+            'direct_material' => $this->serializeDirectMaterial($group),
             'packs' => $place instanceof DepartmentGrossanlassPlace
                 ? $this->packs->listAtPlace($department, $place->getId())
                 : [],
+            'einsaetze' => $this->serializeEinsaetze($group),
             'map' => $this->mapSnippet($department, $place),
             'can_edit' => $this->canEdit($department, $user, $group),
         ];
@@ -259,6 +283,68 @@ final class GrossanlassBauprojektService
             'bounds_east' => $serialized['bounds_east'] ?? null,
             'bounds_west' => $serialized['bounds_west'] ?? null,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function serializeDirectMaterial(Group $group): array
+    {
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->findBy(
+                [
+                    'groupId' => $group->getId(),
+                    'source' => ActivityGrossanlassProcurementLine::SOURCE_DIRECT,
+                ],
+                ['createdAt' => 'ASC'],
+            );
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $out[] = [
+                'id' => $row->getId(),
+                'label' => $row->getLabel(),
+                'quantity' => $row->getQuantity(),
+                'notes' => $row->getNotes(),
+                'status' => $row->getStatus(),
+                'source' => 'direct',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function serializeEinsaetze(Group $group): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->findBy(
+                ['groupId' => $group->getId(), 'kind' => DepartmentGrossanlassEinsatz::KIND_EINSATZ],
+                ['startsAt' => 'ASC'],
+            );
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassEinsatz) {
+                continue;
+            }
+            $out[] = [
+                'id' => $row->getId(),
+                'qty' => $row->getQty(),
+                'from' => $row->getStartsAt()->format(\DateTimeInterface::ATOM),
+                'to' => $row->getEndsAt()->format(\DateTimeInterface::ATOM),
+                'status' => $row->getStatus(),
+                'delivery' => $row->getDelivery(),
+                'who' => $row->getWho(),
+                'object_name' => $row->getCommitment()?->getName() ?: $row->getWho(),
+                'wish_line_id' => $row->getWishLineId(),
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -348,8 +434,11 @@ final class GrossanlassBauprojektService
         if ($this->access->canManagePlanung($user, $department)) {
             return true;
         }
+        if ($this->access->userIsMemberInRessortBranch($user, $department->getId(), $group)) {
+            return true;
+        }
 
-        return $this->access->userIsMemberInRessortBranch($user, $department->getId(), $group);
+        return $this->access->canPlanSharedGroup($user, $department, $group);
     }
 
     private function parseOptionalDate(mixed $value, string $field): ?\DateTime

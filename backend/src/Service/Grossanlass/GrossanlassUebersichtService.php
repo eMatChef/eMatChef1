@@ -128,11 +128,17 @@ final class GrossanlassUebersichtService
                 $row->setGroup($group);
             }
         }
+        if ($row->getDestinationPlaceId() === null && $group instanceof Group) {
+            $place = $this->places->findForGroup($department, $group->getId());
+            if ($place instanceof DepartmentGrossanlassPlace) {
+                $row->setDestinationPlaceId($place->getId());
+            }
+        }
         if (!$this->access->canSubmitEinsatz($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung für Einsätze');
         }
         $pending = !empty($data['pending']) || !empty($data['has_conflict']);
-        if (!$this->access->canApproveEinsatz($user, $department)) {
+        if (!$this->access->submitsEinsatzDirectlyFree($user, $department)) {
             $pending = true;
         }
         $row->setStatus($pending
@@ -161,7 +167,7 @@ final class GrossanlassUebersichtService
         $this->packs->ensureDefaultPack($row);
         $this->entityManager->flush();
 
-        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             return ['einsatz' => $this->serializeEinsatz($row)];
         }
 
@@ -355,7 +361,7 @@ final class GrossanlassUebersichtService
         $row = $this->findEinsatz($department, $id);
         $this->assertSeeOrOwn($department, $user, $row);
         $helperOwns = $this->access->canOperateAssignedEinsatz($user, $department, $row)
-            && !$this->access->canSeeAnlassOverview($user, $department);
+            && !$this->access->canSeeMaterialUebersicht($user, $department);
         if ($helperOwns) {
             $allowedKeys = ['packed'];
             foreach (array_keys($data) as $key) {
@@ -460,7 +466,7 @@ final class GrossanlassUebersichtService
         $this->syncPlaceFromPack($row);
         $this->entityManager->flush();
 
-        if ($this->access->canSeeAnlassOverview($user, $department)) {
+        if ($this->access->canSeeMaterialUebersicht($user, $department)) {
             return $this->overview($department, $user);
         }
 
@@ -1008,7 +1014,7 @@ final class GrossanlassUebersichtService
     private function assertSee(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für die Materialübersicht');
         }
     }
@@ -1016,7 +1022,7 @@ final class GrossanlassUebersichtService
     private function assertSeeOrOwn(Department $department, User $user, DepartmentGrossanlassEinsatz $row): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if ($this->access->canSeeAnlassOverview($user, $department)) {
+        if ($this->access->canSeeMaterialUebersicht($user, $department)) {
             return;
         }
         if (!$this->access->canOperateAssignedEinsatz($user, $department, $row)) {

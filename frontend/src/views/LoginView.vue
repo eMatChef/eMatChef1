@@ -1195,19 +1195,17 @@ watch(
 
 <style scoped>
 .login-page {
-  min-height: calc(100dvh - 36px);
+  min-height: calc(100dvh - var(--emc-dev-system-bar-height, 0px));
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 100%);
   padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .login-page--register {
-  align-items: flex-start;
-  min-height: calc(100dvh - 36px);
-  height: auto;
-  overflow: visible;
   padding-top: 16px;
   padding-bottom: 24px;
 }
@@ -1215,6 +1213,13 @@ watch(
 .login-container {
   width: 100%;
   max-width: 560px;
+  margin-top: auto;
+  margin-bottom: auto;
+  flex-shrink: 0;
+}
+
+.login-page--register .login-container {
+  margin-top: 0;
 }
 
 .login-header {

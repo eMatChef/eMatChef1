@@ -170,12 +170,18 @@
             {{ t('settings.departmentUsers.editSectionMembership') }}
           </summary>
           <div class="member-profile-accordion__body member-membership-fields">
-            <ESelect
-              v-model="editForm.role"
-              :label="t('common.role')"
-              :items="editRoleSelectItems"
-              hide-details
-            />
+            <label class="member-form-field member-form-field--full">
+              <span>{{ t('common.role') }}</span>
+              <select v-model="editForm.role" class="form-select">
+                <option
+                  v-for="item in roleSelectItemsFor(editForm.role)"
+                  :key="item.value"
+                  :value="item.value"
+                >
+                  {{ item.title }}
+                </option>
+              </select>
+            </label>
             <div v-if="!hideJsCoach" data-onboarding="settings-user-edit-coach">
               <ECheckbox
                 v-model="editForm.is_js_coach"
@@ -232,7 +238,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
-import { EButton, EDialog, ESelect, ECheckbox } from '@/components/form/base'
+import { EButton, EDialog, ECheckbox } from '@/components/form/base'
 import { buildAvatarInitials, type UserAvatarFields } from '@/utils/userAvatar'
 import {
   createAddress,
@@ -252,6 +258,7 @@ import {
   type DepartmentMember,
 } from '@/api/departments'
 import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
+import { normalizeDeptRole } from '@/utils/departmentMemberRoles'
 
 const props = withDefaults(
   defineProps<{
@@ -259,11 +266,13 @@ const props = withDefaults(
     member: DepartmentMember | null
     departmentId: string
     hideJsCoach?: boolean
+    isGrossanlass?: boolean | null
     membershipAccordionOpen?: boolean
     addressAccordionOpen?: boolean
   }>(),
   {
     hideJsCoach: false,
+    isGrossanlass: null,
     membershipAccordionOpen: false,
     addressAccordionOpen: false,
   },
@@ -277,8 +286,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const toast = useToast()
-const { editRoleSelectItems, canManageMember, removeFromDepartment } = useDepartmentMemberAdmin(
+const { roleSelectItemsFor, canManageMember, removeFromDepartment } = useDepartmentMemberAdmin(
   () => props.departmentId,
+  () => props.isGrossanlass,
 )
 
 const swissCantons = SWISS_CANTONS
@@ -337,7 +347,7 @@ function resetEditAddressForm() {
 
 function hydrateFromMember(member: DepartmentMember) {
   editForm.value = {
-    role: member.role,
+    role: normalizeDeptRole(member.role),
     is_primary: member.is_primary,
     is_js_coach: !!member.is_js_coach,
     first_name: member.first_name || '',

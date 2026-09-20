@@ -2,7 +2,7 @@
   <div class="ga-preview-page">
     <p class="ga-preview-intro">{{ t(introKey) }}</p>
     <div class="ga-preview-actions">
-      <EButton variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
+      <EButton v-if="canManageMaterials" variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
       <EButton
         variant="secondary"
         size="small"
@@ -25,6 +25,7 @@ import { useAuthStore } from '@/stores/auth'
 import GrossanlassMaterialsPreviewTable from '@/views/grossanlass/GrossanlassMaterialsPreviewTable.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
 import { EButton } from '@/components/form/base'
+import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { GaMaterialsTabId } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
@@ -49,6 +50,8 @@ const tab = computed<GaMaterialsTabId>(() => {
 })
 
 const vehiclesOnly = computed(() => String(route.query.family || '') === 'vehicle')
+
+const canManageMaterials = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 
 const introKey = computed(() => `grossanlass.materials.${tab.value}Intro`)
 const addKey = computed(() => `grossanlass.materials.zusage.addFromZusage`)

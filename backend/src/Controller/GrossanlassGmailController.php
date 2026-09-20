@@ -127,7 +127,7 @@ class GrossanlassGmailController extends AbstractController
         $zeitraumText = array_key_exists('zeitraum_text', $data) ? (string) $data['zeitraum_text'] : null;
 
         return $this->handle($departmentId, function (Department $department, User $user) use ($templates, $custom, $routing, $zeitraumText) {
-            $this->gmail->status($department, $user);
+            $this->gmail->assertCanEditMailTemplates($department, $user);
 
             return $this->merge->saveTemplates(
                 $department,
@@ -147,7 +147,7 @@ class GrossanlassGmailController extends AbstractController
         $text = (string) ($data['zeitraum_text'] ?? '');
 
         return $this->handle($departmentId, function (Department $department, User $user) use ($text) {
-            $this->gmail->status($department, $user);
+            $this->gmail->assertCanEditMailTemplates($department, $user);
             $this->merge->saveZeitraumText($department, $text);
 
             return ['zeitraum_text' => $this->merge->storedZeitraumText($department)];
@@ -164,7 +164,7 @@ class GrossanlassGmailController extends AbstractController
         }
 
         return $this->handle($departmentId, function (Department $department, User $user) use ($file) {
-            $this->gmail->status($department, $user);
+            $this->gmail->assertCanEditMailTemplates($department, $user);
 
             return ['attachments' => $this->mailAttachments->store($department, $user, $file)];
         });
@@ -175,7 +175,7 @@ class GrossanlassGmailController extends AbstractController
     public function deleteAttachment(string $departmentId, string $fileId): JsonResponse
     {
         return $this->handle($departmentId, function (Department $department, User $user) use ($fileId) {
-            $this->gmail->status($department, $user);
+            $this->gmail->assertCanEditMailTemplates($department, $user);
 
             return ['attachments' => $this->mailAttachments->delete($department, $fileId)];
         });

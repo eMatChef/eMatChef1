@@ -201,7 +201,7 @@ const allMenuItems = computed(() => [
 const USER_ALLOWED_MENU_IDS = new Set(['my-department'])
 
 /** Grossanlass-Dept: Mein Department + Zeit/Print für MW/CMW/OK-L; Komm/Spon nur Mein Department */
-const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates', 'print'])
+const GROSSANLASS_MW_MENU_IDS = new Set(['my-department', 'zeit', 'my-department/fixed-dates', 'print', 'user-karten'])
 const GROSSANLASS_MAILBOX_MENU_IDS = new Set(['my-department'])
 const GROSSANLASS_USER_MENU_IDS = new Set(['my-department'])
 
@@ -214,7 +214,7 @@ const visibleMenuItems = computed(() => {
       : gaIsMailboxOnly(authStore.currentDepartmentRole) || !gaCanSeeAnlassOverview(authStore.currentDepartmentRole)
         ? GROSSANLASS_MAILBOX_MENU_IDS
         : GROSSANLASS_MW_MENU_IDS
-    return allMenuItems.value
+    const items = allMenuItems.value
       .filter((item) => allowedIds.has(item.id))
       .map((item) => {
         if (item.id === 'my-department' && isUserRole.value) {
@@ -226,6 +226,14 @@ const visibleMenuItems = computed(() => {
         }
         return item
       })
+    if (allowedIds.has('user-karten')) {
+      items.push({
+        id: 'user-karten',
+        label: t('settings.nav.userKarten'),
+        mdiIcon: 'mdi-card-account-details',
+      })
+    }
+    return items
   }
 
   let items = isUserRole.value
