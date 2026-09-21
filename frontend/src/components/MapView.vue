@@ -688,7 +688,7 @@ function setMarker(
     }).addTo(map)
     applyMarkerEditability()
   }
-  ;(marker as L.Layer | null)?.bringToFront()
+  ;(marker as { bringToFront?: () => void } | null)?.bringToFront?.()
 
   if (recenter) {
     const targetZoom =
@@ -960,7 +960,7 @@ function applyOverlay() {
     })
     overlayLayer.addTo(map)
   }
-  ;(marker as L.Layer | null)?.bringToFront()
+  ;(marker as { bringToFront?: () => void } | null)?.bringToFront?.()
 }
 
 function applyMapInteractivity() {
