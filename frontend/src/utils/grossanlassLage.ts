@@ -5,7 +5,8 @@ import type { GaUebersichtEinsatz } from '@/api/grossanlassUebersicht'
 export type GaLageTaskKind = 'einsatz' | 'fahrauftrag' | 'bauauftrag'
 
 export function gaLageTaskKind(
-  row: Pick<GaUebersichtEinsatz, 'delivery' | 'group_id' | 'destination_place_id'>,
+  row: Pick<GaUebersichtEinsatz, 'delivery' | 'group_id'> &
+    Partial<Pick<GaUebersichtEinsatz, 'destination_place_id'>>,
   groups: Pick<GrossanlassGroup, 'id' | 'node_type'>[],
   places: Pick<GaPlace, 'id' | 'kind' | 'group_id'>[] = [],
 ): GaLageTaskKind {

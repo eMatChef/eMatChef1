@@ -1371,9 +1371,10 @@ function parentPathLabel(group: GrossanlassGroup): string {
   return parts.join(' · ')
 }
 
-function helperHeadStyle(group: GrossanlassGroup): Record<string, string> {
+function helperHeadStyle(group: GrossanlassGroup & { _level?: number }): Record<string, string> {
   if (isHelperHomeView.value) return {}
-  return { paddingLeft: `${group._level * 24}px` }
+  const level = group._level ?? group.level ?? 0
+  return { paddingLeft: `${level * 24}px` }
 }
 
 function goToMeineEinsaetze() {

@@ -852,7 +852,10 @@ export function buildOrgCalendarRings(
   function ensureRing(key: string, label: string) {
     const existing = byRing.get(key)
     if (existing) return existing
-    const created = { label, projects: new Map<string, GaPreviewEinsatz[]>() }
+    const created: { label: string; group?: GaEinsatzOrgGroup; projects: Map<string, GaPreviewEinsatz[]> } = {
+      label,
+      projects: new Map<string, GaPreviewEinsatz[]>(),
+    }
     byRing.set(key, created)
     return created
   }

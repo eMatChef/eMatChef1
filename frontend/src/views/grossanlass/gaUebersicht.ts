@@ -147,7 +147,8 @@ export function createGaUebersichtStore(
     payload: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number },
   ) {
     if (!departmentId.value) return
-    apply(await updateGrossanlassEinsatz(departmentId.value, id, payload))
+    const result = await updateGrossanlassEinsatz(departmentId.value, id, payload)
+    if ('orders' in result) apply(result)
   }
 
   async function togglePacked(commitmentId: string, packed: boolean) {
