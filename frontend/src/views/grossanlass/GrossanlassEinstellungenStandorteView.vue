@@ -113,7 +113,21 @@
             <span class="ga-places__kind">{{ t(`grossanlass.einstellungen.placesKind${kindLabelKey(placeKind(place))}`) }}</span>
             <span v-if="place.latitude == null" class="ga-places__missing">{{ t('grossanlass.einstellungen.placesNoCoords') }}</span>
           </button>
-          <a :href="place.qr_url" target="_blank" rel="noopener">{{ place.public_code }}</a>
+          <div class="ga-places__refs">
+            <a :href="place.qr_url" target="_blank" rel="noopener">{{ place.public_code }}</a>
+            <button
+              v-if="place.group_id"
+              type="button"
+              class="ga-places__link"
+              @click="openLinkedGroup(place)"
+            >
+              {{
+                placeKind(place) === 'bauprojekt'
+                  ? t('activities.venueLocations.openLinkedBauprojekt')
+                  : t('activities.venueLocations.openLinkedBereich')
+              }}
+            </button>
+          </div>
           <div class="ga-places__actions">
             <button
               type="button"
@@ -266,6 +280,10 @@ function kindLabelKey(kind: GaPlaceKind) {
 
 function placeKind(place: GaPlace): GaPlaceKind {
   return gaPlaceKind(place.kind)
+}
+
+function openLinkedGroup(place: GaPlace) {
+  void mapRef.value?.openLinkedGroupByPlaceId?.(place.id)
 }
 
 async function loadPlaces() {
@@ -563,6 +581,21 @@ onMounted(() => {
 .ga-places__missing {
   font-size: 0.75rem;
   color: #b45309;
+}
+.ga-places__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ga-places__link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #0f766e;
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
 }
 .ga-places__actions {
   display: flex;

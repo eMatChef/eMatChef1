@@ -52,6 +52,7 @@
       @undo-polygon="undoInlinePolygonPoint"
       @redraw-polygon="resetInlinePolygon"
       @save-area="emit('save-area')"
+      @open-linked-group="openLinkedGroupByPlaceId"
     />
 
     <div
@@ -226,6 +227,68 @@
         </div>
       </template>
     </EDialog>
+
+    <EDialog
+      v-model="linkedBereichOpen"
+      :title="linkedBereichTitle"
+      :max-width="720"
+      :z-index="2600"
+      scrollable
+    >
+      <ETextField
+        v-model="linkedBereichForm.name"
+        :label="linkedBereichNameLabel"
+        hide-details="auto"
+      />
+      <ETextarea
+        v-model="linkedBereichForm.description"
+        :label="t('grossanlass.planung.ressorts.descriptionHeading')"
+        :placeholder="t('grossanlass.planung.ressorts.descriptionPlaceholder')"
+        rows="4"
+        hide-details="auto"
+      />
+      <ESwitch
+        v-model="linkedBereichForm.include_on_map"
+        :label="t('grossanlass.planung.ressorts.includeOnMap')"
+        :hint="t('grossanlass.planung.ressorts.includeOnMapHint')"
+        persistent-hint
+        hide-details="auto"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="linkedBereichOpen = false">
+          {{ t('common.cancel') }}
+        </EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="!linkedBereichForm.name.trim() || linkedBereichSaving"
+          :loading="linkedBereichSaving"
+          @click="saveLinkedBereich"
+        >
+          {{ t('common.save') }}
+        </EButton>
+      </template>
+    </EDialog>
+
+    <EDialog
+      v-model="linkedProjectOpen"
+      :title="linkedProjectTitle"
+      :max-width="920"
+      :z-index="2600"
+      :retain-focus="false"
+      scrollable
+    >
+      <GrossanlassBauprojektPanel
+        v-if="linkedProjectGroup && props.gaDepartmentId"
+        :department-id="props.gaDepartmentId"
+        :group-id="linkedProjectGroup.id"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="linkedProjectOpen = false">
+          {{ t('settings.groups.close') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -254,7 +317,13 @@ import AddressModal from '@/components/AddressModal.vue'
 import EventVenueDetailLocations, {
   type VenueExtraSite,
 } from '@/components/contacts/EventVenueDetailLocations.vue'
-import { EButton, EDialog } from '@/components/form/base'
+import {
+  getGrossanlassGroups,
+  updateGrossanlassGroup,
+  type GrossanlassGroup,
+} from '@/api/grossanlassGroups'
+import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { EButton, EDialog, ESwitch, ETextField, ETextarea } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
 import {
@@ -322,7 +391,14 @@ const overlayFileEl = ref<HTMLInputElement | null>(null)
 const venueAddress = ref<Address | null>(null)
 const childAddresses = ref<Address[]>([])
 const gaPlaces = ref<GaPlace[]>([])
+const gaGroups = ref<GrossanlassGroup[]>([])
 const gaMap = ref<GaMap | null>(null)
+const linkedBereichOpen = ref(false)
+const linkedBereichSaving = ref(false)
+const linkedBereichGroup = ref<GrossanlassGroup | null>(null)
+const linkedBereichForm = ref({ name: '', description: '', include_on_map: false })
+const linkedProjectOpen = ref(false)
+const linkedProjectGroup = ref<GrossanlassGroup | null>(null)
 const hasStorageLocation = ref(false)
 const primaryStorageAddress = ref<Address | null>(null)
 const primaryStorageSummary = ref('')
@@ -473,6 +549,18 @@ const gaOverviewHint = computed(() => {
     : t('activities.venueLocations.gaOverviewHint')
 })
 
+function groupForPlace(place: GaPlace | null | undefined): GrossanlassGroup | null {
+  if (!place?.group_id) return null
+  return gaGroups.value.find((row) => row.id === place.group_id) ?? null
+}
+
+function groupLinkKindForPlace(place: GaPlace | null | undefined): 'bereich' | 'bauprojekt' | null {
+  if (!place?.group_id) return null
+  const group = groupForPlace(place)
+  if (group) return group.node_type === 'bauprojekt' ? 'bauprojekt' : 'bereich'
+  return gaPlaceKind(place.kind) === 'bauprojekt' ? 'bauprojekt' : 'bereich'
+}
+
 const extraSites = computed((): VenueExtraSite[] => {
   const source =
     props.gaMapMode === 'starred'
@@ -498,6 +586,7 @@ const extraSites = computed((): VenueExtraSite[] => {
       starred: place.starred === true,
       detailOnly: place.starred !== true,
       canDelete: place.can_delete === true,
+      groupLinkKind: groupLinkKindForPlace(place),
       polygon: isArea ? polygon : null,
       pin:
         !isArea && lat != null && lng != null
@@ -585,6 +674,91 @@ function kindLabelKey(kind: GaPlaceKind): 'Bauprojekt' | 'Unterlager' | 'Matplat
   return gaPlaceKindLabelKey(kind)
 }
 
+const linkedBereichTitle = computed(() =>
+  linkedBereichGroup.value
+    ? t('grossanlass.meinRessort.editTitle', { name: linkedBereichGroup.value.name })
+    : t('activities.venueLocations.openLinkedBereich'),
+)
+
+const linkedProjectTitle = computed(() =>
+  linkedProjectGroup.value
+    ? t('grossanlass.planung.ressorts.projectTitle', { name: linkedProjectGroup.value.name })
+    : t('activities.venueLocations.openLinkedBauprojekt'),
+)
+
+const linkedBereichNameLabel = computed(() =>
+  linkedBereichGroup.value && !linkedBereichGroup.value.parent_id
+    ? t('grossanlass.planung.ressorts.nameLabelRessort')
+    : t('grossanlass.planung.ressorts.nameLabelUnterressort'),
+)
+
+function fillLinkedBereichForm(group: GrossanlassGroup) {
+  linkedBereichForm.value = {
+    name: group.name,
+    description: group.description || '',
+    include_on_map: group.include_on_map === true || group.place?.kind === 'area',
+  }
+}
+
+async function ensureGaGroups(): Promise<GrossanlassGroup[]> {
+  const departmentId = props.gaDepartmentId
+  if (!departmentId) return []
+  if (gaGroups.value.length) return gaGroups.value
+  try {
+    gaGroups.value = await getGrossanlassGroups(departmentId)
+  } catch {
+    gaGroups.value = []
+  }
+  return gaGroups.value
+}
+
+async function openLinkedGroupByPlaceId(placeId: string) {
+  const place = gaPlaces.value.find((row) => row.id === placeId)
+  if (!place?.group_id) return
+  await ensureGaGroups()
+  const group = groupForPlace(place)
+  const kind = groupLinkKindForPlace(place)
+  if (kind === 'bauprojekt') {
+    linkedProjectGroup.value = group ?? ({ id: place.group_id, name: place.name } as GrossanlassGroup)
+    linkedProjectOpen.value = true
+    return
+  }
+  if (!group) {
+    toast.error(t('activities.venueLocations.linkedGroupMissing'))
+    return
+  }
+  linkedBereichGroup.value = group
+  fillLinkedBereichForm(group)
+  linkedBereichOpen.value = true
+}
+
+async function saveLinkedBereich() {
+  const departmentId = props.gaDepartmentId
+  const group = linkedBereichGroup.value
+  if (!departmentId || !group || !linkedBereichForm.value.name.trim() || linkedBereichSaving.value) {
+    return
+  }
+  linkedBereichSaving.value = true
+  try {
+    const saved = await updateGrossanlassGroup(departmentId, group.id, {
+      name: linkedBereichForm.value.name.trim(),
+      description: linkedBereichForm.value.description.trim() || null,
+      include_on_map: linkedBereichForm.value.include_on_map,
+    })
+    gaGroups.value = gaGroups.value.map((row) => (row.id === saved.id ? { ...row, ...saved } : row))
+    linkedBereichGroup.value = gaGroups.value.find((row) => row.id === saved.id) ?? saved
+    fillLinkedBereichForm(linkedBereichGroup.value)
+    toast.success(t('grossanlass.meinRessort.ressortUpdated'))
+    await loadGa()
+    emit('updated')
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
+  } finally {
+    linkedBereichSaving.value = false
+  }
+}
+
 async function loadVenue() {
   const id = props.venueAddressId
   if (!id) {
@@ -630,18 +804,22 @@ async function loadGa() {
   const departmentId = props.gaDepartmentId
   if (!departmentId) {
     gaPlaces.value = []
+    gaGroups.value = []
     gaMap.value = null
     return
   }
   try {
-    const [places, maps] = await Promise.all([
+    const [places, maps, groups] = await Promise.all([
       listGrossanlassPlaces(departmentId),
       listGrossanlassMaps(departmentId),
+      getGrossanlassGroups(departmentId).catch(() => [] as GrossanlassGroup[]),
     ])
     gaPlaces.value = places
+    gaGroups.value = groups
     gaMap.value = maps[0] ?? null
   } catch {
     gaPlaces.value = []
+    gaGroups.value = []
     gaMap.value = null
   }
 }
@@ -1324,6 +1502,7 @@ defineExpose({
   clearInlineDraft,
   refreshMaps: () => locationsRef.value?.refreshMaps(),
   openGaPlaceDialog,
+  openLinkedGroupByPlaceId,
   canCreateGaPlaces: allowCreateExtra,
   hasDelivery: hasDeliveryChild,
   hasStorage: hasStorageLocation,

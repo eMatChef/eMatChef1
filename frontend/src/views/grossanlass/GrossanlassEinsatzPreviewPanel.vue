@@ -195,6 +195,12 @@
               size="18"
             />
             <span>{{ ring.label }}</span>
+            <span
+              v-if="ring.status"
+              class="ga-gantt__ring-status"
+              :class="`ga-gantt__ring-status--${ring.statusKind || 'planned'}`"
+            >{{ ring.status }}</span>
+            <span v-if="ring.windowText" class="ga-gantt__ring-window">{{ ring.windowText }}</span>
           </button>
           <template v-if="isRingOpen(ring.id)">
           <template v-for="block in ring.blocks" :key="block.id">
@@ -342,6 +348,7 @@ import {
   createGrossanlassEinsatzPreview,
   einsatzBarKind,
   enrichEinsatzFromGroups,
+  isUsageWindowEinsatz,
   formatCalendarTitle,
   groupEinsatzBlocksByRing,
   parseLocalDate,
@@ -532,12 +539,14 @@ const fixedDatePeriods = computed((): GaFixedDatePeriod[] =>
 const objectRings = computed(() => groupEinsatzBlocksByRing(filteredBlocks.value))
 const fixedRing = computed(() => buildFixedDateCalendarRing(fixedDatePeriods.value, tr))
 const orgRings = computed(() =>
-  buildOrgCalendarRings(calendarResources.value, orgRows.value, tr),
+  buildOrgCalendarRings(calendarResources.value, orgRows.value, tr, orgGroups.value),
 )
 
 function filterRingByQuery(ring: GaEinsatzRingBlock, query: string): GaEinsatzRingBlock | null {
   if (!query) return ring
   if (ring.label.toLowerCase().includes(query)) return ring
+  if ((ring.status || '').toLowerCase().includes(query)) return ring
+  if ((ring.windowText || '').toLowerCase().includes(query)) return ring
   const blocks = ring.blocks
     .map((block) => {
       if (block.label.toLowerCase().includes(query)) return block
@@ -556,11 +565,11 @@ function filterRingByQuery(ring: GaEinsatzRingBlock, query: string): GaEinsatzRi
 const displayRings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   const rings: GaEinsatzRingBlock[] = []
-  rings.push(...objectRings.value)
   for (const ring of orgRings.value) {
     const next = filterRingByQuery(ring, query)
     if (next) rings.push(next)
   }
+  rings.push(...objectRings.value)
   return rings
 })
 
@@ -721,6 +730,7 @@ function openEinsatz(
   booking: GaPreviewEinsatz,
   resource: { id: string; stayMode: GaEinsatzStayMode },
 ) {
+  if (isUsageWindowEinsatz(booking)) return
   selectedBooking.value = booking
   selectedStayMode.value = resource.stayMode
   focusedId.value = resource.id
@@ -1172,6 +1182,58 @@ function barTitle(booking: GaPreviewEinsatz): string {
 .ga-gantt__ring:hover,
 .ga-gantt__ring--closed {
   background: #e4eaf2;
+}
+
+.ga-gantt__ring-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.ga-gantt__ring-status--planned {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.ga-gantt__ring-status--build {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.ga-gantt__ring-status--use {
+  background: #99f6e4;
+  color: #115e59;
+}
+
+.ga-gantt__ring-status--teardown {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.ga-gantt__ring-status--done {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.ga-gantt__ring-status--aborted {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.ga-gantt__ring-window {
+  margin-left: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #64748b;
 }
 
 .ga-gantt__cat {

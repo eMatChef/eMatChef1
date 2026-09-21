@@ -40,7 +40,9 @@ describe('buildBookProjectPickerItems', () => {
       'Infrastruktur',
       'BL Wasser',
       'Wasserstelle A2',
+      'Wasserstellen Test',
       'Material & Logistik',
+      'Leeres Ressort',
     ])
     expect(items.find((row) => row.value === 'infra')).toMatchObject({
       depth: 0,
@@ -62,8 +64,15 @@ describe('buildBookProjectPickerItems', () => {
       title: 'Infrastruktur › BL Wasser › Wasserstelle A2',
     })
     expect(items.find((row) => row.value === 'logistik')?.wishCount).toBe(1)
-    expect(items.some((row) => row.value === 'empty')).toBe(false)
-    expect(items.some((row) => row.value === 'test')).toBe(false)
+    expect(items.find((row) => row.value === 'empty')).toMatchObject({
+      wishCount: 0,
+      props: { disabled: true },
+    })
+    expect(items.find((row) => row.value === 'test')).toMatchObject({
+      name: 'Wasserstellen Test',
+      wishCount: 0,
+      props: { disabled: true },
+    })
   })
 
   it('keeps a ressort selectable when wishes sit on the ressort itself', () => {
@@ -71,7 +80,20 @@ describe('buildBookProjectPickerItems', () => {
     const infra = items.find((row) => row.value === 'infra')
     expect(infra?.wishCount).toBe(1)
     expect(infra?.props).toBeUndefined()
-    expect(items).toHaveLength(1)
+    expect(items.some((row) => row.value === 'wasser')).toBe(true)
+  })
+
+  it('lists created Bereiche even without wishes', () => {
+    const items = buildBookProjectPickerItems(tree, [], '', { disableEmpty: false })
+    expect(items.map((row) => row.name)).toEqual([
+      'Infrastruktur',
+      'BL Wasser',
+      'Wasserstelle A2',
+      'Wasserstellen Test',
+      'Material & Logistik',
+      'Leeres Ressort',
+    ])
+    expect(items.every((row) => row.props === undefined)).toBe(true)
   })
 
   it('falls back to the wish label when groups are missing', () => {

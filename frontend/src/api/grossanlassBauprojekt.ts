@@ -19,6 +19,7 @@ export type GaBauprojektEinsatz = {
   status: string
   delivery: string
   who: string
+  object_id?: string | null
   object_name: string
   wish_line_id: string | null
 }
@@ -27,10 +28,12 @@ export type GaBauprojektBriefing = {
   group: Pick<GrossanlassGroup, 'id' | 'name' | 'department_id' | 'parent_id' | 'kind'> & {
     window_start?: string | null
     window_end?: string | null
+    build_status?: string | null
     description?: string | null
   } | null
   window_start: string | null
   window_end: string | null
+  build_status?: string | null
   description?: string | null
   place: GaPlace | null
   tasks: GaBauprojektTask[]
@@ -42,6 +45,7 @@ export type GaBauprojektBriefing = {
     notes?: string | null
     status: string
     source: 'direct'
+    self_organized?: boolean
   }>
   packs: GaLogisticsPack[]
   einsaetze?: GaBauprojektEinsatz[]
@@ -67,7 +71,12 @@ export async function getGrossanlassBauprojekt(
 export async function patchGrossanlassBauprojektWindow(
   departmentId: string,
   groupId: string,
-  data: { window_start?: string | null; window_end?: string | null; description?: string | null },
+  data: {
+    window_start?: string | null
+    window_end?: string | null
+    build_status?: string | null
+    description?: string | null
+  },
 ): Promise<GaBauprojektBriefing> {
   const { data: out } = await apiClient.patch<GaBauprojektBriefing>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/bauprojekt`,

@@ -9,6 +9,16 @@
         {{ t('grossanlass.materialUebersicht.actionBook') }}
       </EButton>
     </template>
+    <template v-else-if="showAddBauauftrag" #actions>
+      <EButton variant="primary" size="small" @click="bauauftragComposer.open()">
+        {{ t('grossanlass.materialUebersicht.addBauauftrag') }}
+      </EButton>
+    </template>
+    <template v-else-if="showAddFahrauftrag" #actions>
+      <EButton variant="primary" size="small" @click="fahrauftragComposer.open()">
+        {{ t('grossanlass.materialUebersicht.addFahrauftrag') }}
+      </EButton>
+    </template>
     <template #filters>
       <v-tabs
         :model-value="activeTab"
@@ -45,6 +55,14 @@ import {
   gaEinsatzComposerKey,
   type GaEinsatzComposer,
 } from '@/views/grossanlass/gaEinsatzComposer'
+import {
+  gaBauauftragComposerKey,
+  type GaBauauftragComposer,
+} from '@/views/grossanlass/gaBauauftragComposer'
+import {
+  gaFahrauftragComposerKey,
+  type GaFahrauftragComposer,
+} from '@/views/grossanlass/gaFahrauftragComposer'
 import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
 import '@/styles/views/materials-view-tabs.css'
 
@@ -60,6 +78,18 @@ const einsatzComposer = reactive<GaEinsatzComposer>({
   open: () => {},
 })
 provide(gaEinsatzComposerKey, einsatzComposer)
+
+const bauauftragComposer = reactive<GaBauauftragComposer>({
+  open: () => {},
+  canAdd: false,
+})
+provide(gaBauauftragComposerKey, bauauftragComposer)
+
+const fahrauftragComposer = reactive<GaFahrauftragComposer>({
+  open: () => {},
+  canAdd: false,
+})
+provide(gaFahrauftragComposerKey, fahrauftragComposer)
 
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
@@ -82,8 +112,12 @@ const tabItems = computed(() => {
 })
 
 const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')
-const showBookAction = computed(() =>
-  ['einsaetze', 'bauauftraege', 'fahrauftraege'].includes(activeTab.value),
+const showBookAction = computed(() => activeTab.value === 'einsaetze')
+const showAddBauauftrag = computed(() =>
+  activeTab.value === 'bauauftraege' && bauauftragComposer.canAdd,
+)
+const showAddFahrauftrag = computed(() =>
+  activeTab.value === 'fahrauftraege' && fahrauftragComposer.canAdd,
 )
 
 function onTabChange(tab: unknown) {

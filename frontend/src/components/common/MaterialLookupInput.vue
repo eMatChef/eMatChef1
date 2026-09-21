@@ -131,6 +131,7 @@ const props = withDefaults(
     teleportDropdown?: boolean
     dropdownMinWidth?: number
     dropdownMaxHeight?: string
+    dropdownZIndex?: number
     getResultKey?: (item: GenericItem, index: number) => string | number
     getResultLabel?: (item: GenericItem) => string
     getResultSecondary?: (item: GenericItem) => string
@@ -235,7 +236,7 @@ function syncDropdownPosition() {
       left: `${left}px`,
       width: `${width}px`,
       maxHeight: `min(${preferredMaxHeight}, ${Math.max(spaceBelow - 4, 80)}px)`,
-      zIndex: String(resolveDropdownZIndex()),
+      zIndex: String(props.dropdownZIndex ?? resolveDropdownZIndex()),
     }
     return
   }
@@ -247,7 +248,7 @@ function syncDropdownPosition() {
     width: `${width}px`,
     bottom: `${vh - rect.top + 4}px`,
     maxHeight: maxHeight,
-    zIndex: String(resolveDropdownZIndex()),
+    zIndex: String(props.dropdownZIndex ?? resolveDropdownZIndex()),
   }
 }
 

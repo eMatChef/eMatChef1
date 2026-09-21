@@ -1228,24 +1228,22 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'bauauftraege',
             name: 'GrossanlassMaterialUebersichtBauauftraege',
-            component: () => import('@/views/grossanlass/GrossanlassAuftragUebersichtView.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassBauauftraegeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
               materialUebersichtTab: 'bauauftraege',
-              lageKind: 'bauauftrag',
               ...routeHead('grossanlassMaterialUebersichtBauauftraege'),
             },
           },
           {
             path: 'fahrauftraege',
             name: 'GrossanlassMaterialUebersichtFahrauftraege',
-            component: () => import('@/views/grossanlass/GrossanlassAuftragUebersichtView.vue'),
+            component: () => import('@/views/grossanlass/GrossanlassFahrauftraegeView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
               requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
               materialUebersichtTab: 'fahrauftraege',
-              lageKind: 'fahrauftrag',
               ...routeHead('grossanlassMaterialUebersichtFahrauftraege'),
             },
           },

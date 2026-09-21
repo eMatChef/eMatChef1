@@ -25,6 +25,9 @@ export function groupsToOrgGroups(groups: GrossanlassGroup[]): GaEinsatzOrgGroup
     name: group.name,
     parent_id: group.parent_id,
     node_type: group.node_type,
+    window_start: group.window_start,
+    window_end: group.window_end,
+    build_status: group.build_status,
   }))
 }
 

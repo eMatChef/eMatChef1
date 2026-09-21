@@ -5,6 +5,12 @@
         <GrossanlassGroupNodeIcon :node-type="group.node_type" />
         <strong>{{ group.name }}</strong>
         <span class="kind-badge">{{ kindLabel(group) }}</span>
+        <span
+          v-if="buildStatusChip(group)"
+          class="status-chip"
+          :class="`status-chip--${resolveBuildStatus(group)}`"
+        >{{ buildStatusChip(group) }}</span>
+        <span v-if="usageWindow(group)" class="window-chip">{{ usageWindow(group) }}</span>
         <span v-if="shareCaption(group)" class="share-badge">{{ shareCaption(group) }}</span>
         <span class="branch__count">{{ childCount }}</span>
       </span>
@@ -18,14 +24,6 @@
           @click="openCreateChild('ressort', group.id)"
         >
           {{ t('grossanlass.planung.ressorts.modalNewUnterressort') }}
-        </EButton>
-        <EButton
-          v-if="canCreateChild(group)"
-          variant="secondary"
-          size="small"
-          @click="openCreateChild('teilbereich', group.id)"
-        >
-          {{ t('grossanlass.planung.ressorts.modalNewBauprojekt') }}
         </EButton>
         <EButton
           v-if="canShareGroup(group)"
@@ -69,6 +67,11 @@
             <button type="button" class="bauprojekt-row__name" @click="openProject(project)">
               {{ project.name }}
             </button>
+            <span
+              v-if="buildStatusChip(project)"
+              class="status-chip"
+              :class="`status-chip--${resolveBuildStatus(project)}`"
+            >{{ buildStatusChip(project) }}</span>
             <span class="bauprojekt-row__meta">{{ projectMaterialSummary(project.id) }}</span>
             <span v-if="shareCaption(project)" class="share-badge">{{ shareCaption(project) }}</span>
           </div>
@@ -106,6 +109,12 @@ import { computed, inject, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton } from '@/components/form/base'
 import type { GrossanlassGroup } from '@/api/grossanlassGroups'
+import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
+import {
+  gaBuildStatusI18nKey,
+  resolveBuildStatus,
+  showsGaBuildStatus,
+} from '@/utils/grossanlassBuildStatus'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 import {
   MEIN_RESSORT_TREE_KEY,
@@ -151,6 +160,15 @@ const childCount = computed(() => childAreas.value.length + projects.value.lengt
 const showSelfDelete = computed(() => props.allowSelfDelete && canDeleteGroup(props.group))
 const expandedChildIds = ref<string[]>([])
 
+function usageWindow(group: GrossanlassGroup): string {
+  return formatBauprojektWindow(group.window_start, group.window_end)
+}
+
+function buildStatusChip(group: GrossanlassGroup): string {
+  if (!showsGaBuildStatus(group)) return ''
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(group)))
+}
+
 watch(
   childAreas,
   (areas) => {
@@ -190,6 +208,45 @@ watch(
 .kind-badge {
   font-size: 0.78rem;
   color: #6b7280;
+}
+.window-chip {
+  font-size: 0.75rem;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.status-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.status-chip--planned {
+  background: #e2e8f0;
+  color: #334155;
+}
+.status-chip--build {
+  background: #fde68a;
+  color: #92400e;
+}
+.status-chip--use {
+  background: #99f6e4;
+  color: #115e59;
+}
+.status-chip--teardown {
+  background: #fed7aa;
+  color: #9a3412;
+}
+.status-chip--done {
+  background: #bbf7d0;
+  color: #166534;
+}
+.status-chip--aborted {
+  background: #fecaca;
+  color: #991b1b;
 }
 .share-badge {
   font-size: 0.72rem;

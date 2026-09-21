@@ -58,12 +58,33 @@ class Group
     public const GROSSANLASS_KIND_RESSORT = 'ressort';
     public const GROSSANLASS_KIND_TEILBEREICH = 'teilbereich';
 
+    public const BUILD_STATUS_PLANNED = 'planned';
+    public const BUILD_STATUS_BUILD = 'build';
+    public const BUILD_STATUS_USE = 'use';
+    public const BUILD_STATUS_TEARDOWN = 'teardown';
+    public const BUILD_STATUS_DONE = 'done';
+    public const BUILD_STATUS_ABORTED = 'aborted';
+
+    /** @var list<string> */
+    public const BUILD_STATUSES = [
+        self::BUILD_STATUS_PLANNED,
+        self::BUILD_STATUS_BUILD,
+        self::BUILD_STATUS_USE,
+        self::BUILD_STATUS_TEARDOWN,
+        self::BUILD_STATUS_DONE,
+        self::BUILD_STATUS_ABORTED,
+    ];
+
     /** Grossanlass-Bauprojekt: grobes Zeitfenster (Aufbau/Einsatz), keine Doppelbuchung */
     #[ORM\Column(name: 'window_start', type: 'date', nullable: true)]
     private ?\DateTimeInterface $windowStart = null;
 
     #[ORM\Column(name: 'window_end', type: 'date', nullable: true)]
     private ?\DateTimeInterface $windowEnd = null;
+
+    /** Grossanlass: Status des Bauvorhabens (Bereich/Bauprojekt); null = aus Nutzungszeit ableiten */
+    #[ORM\Column(name: 'build_status', type: 'string', length: 20, nullable: true)]
+    private ?string $buildStatus = null;
 
     /** Grossanlass: Beschrieb am Ressort/Bauprojekt (Arbeit, Kontext für Crew). */
     #[ORM\Column(name: 'description', type: 'text', nullable: true)]
@@ -228,6 +249,19 @@ class Group
     public function setWindowEnd(?\DateTimeInterface $windowEnd): self
     {
         $this->windowEnd = $windowEnd;
+
+        return $this;
+    }
+
+    public function getBuildStatus(): ?string
+    {
+        return $this->buildStatus;
+    }
+
+    public function setBuildStatus(?string $buildStatus): self
+    {
+        $trimmed = $buildStatus !== null ? strtolower(trim($buildStatus)) : '';
+        $this->buildStatus = $trimmed === '' ? null : $trimmed;
 
         return $this;
     }

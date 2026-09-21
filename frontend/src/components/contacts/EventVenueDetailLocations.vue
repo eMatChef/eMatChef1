@@ -221,6 +221,18 @@
               >
                 {{ t('activities.venueLocations.extraQr') }}
               </a>
+              <button
+                v-if="item.site.groupLinkKind"
+                type="button"
+                class="btn btn-outline btn-sm"
+                @click.stop.prevent="emit('open-linked-group', item.site.id)"
+              >
+                {{
+                  item.site.groupLinkKind === 'bauprojekt'
+                    ? t('activities.venueLocations.openLinkedBauprojekt')
+                    : t('activities.venueLocations.openLinkedBereich')
+                }}
+              </button>
               <template v-if="item.site.pin">
                 <a
                   :href="googleMapsLinkFor(item.site.pin)"
@@ -355,6 +367,7 @@ export type VenueExtraSite = {
   starred?: boolean
   detailOnly?: boolean
   canDelete?: boolean
+  groupLinkKind?: 'bereich' | 'bauprojekt' | null
 }
 
 type AccordionSite = {
@@ -370,6 +383,7 @@ type AccordionSite = {
   qrUrl?: string | null
   polygon?: GaPolygonPoint[] | null
   canDelete?: boolean
+  groupLinkKind?: 'bereich' | 'bauprojekt' | null
   onEdit: () => void
   onDelete?: () => void
 }
@@ -476,6 +490,7 @@ const emit = defineEmits<{
   'undo-polygon': []
   'redraw-polygon': []
   'save-area': []
+  'open-linked-group': [id: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -739,6 +754,7 @@ const accordionSites = computed((): AccordionSite[] => {
       qrUrl: extra.qrUrl ?? null,
       polygon,
       canDelete: extra.canDelete === true,
+      groupLinkKind: extra.groupLinkKind ?? null,
       onEdit: () => emit('edit-extra', extra.id),
       onDelete: () => emit('delete-extra', extra.id),
     })

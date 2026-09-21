@@ -194,15 +194,24 @@
         :label="t('grossanlass.planung.ressorts.parentLabel')"
         hide-details
       />
-      <EDateRangeField
-        v-if="showEditProjectWindow"
+      <GaBuildMetaFields
+        v-if="showEditUsageWindow"
         :department-id="departmentId"
-        :label="t('grossanlass.planung.ressorts.windowLabel')"
+        :autosave="!!editingGroup"
         v-model:start="createForm.window_start"
         v-model:end="createForm.window_end"
-        allow-past
-        show-presets
-        preset-mode="fixed-periods"
+        v-model:status="createForm.build_status"
+        :window-label="showEditProjectWindow
+          ? t('grossanlass.planung.ressorts.windowLabel')
+          : t('grossanlass.planung.ressorts.usageWindowLabel')"
+        :window-hint="showEditProjectWindow
+          ? t('grossanlass.planung.ressorts.windowHint')
+          : t('grossanlass.planung.ressorts.usageWindowHint')"
+        :window-baseline="usageWindowBaseline"
+        :status-baseline="buildStatusBaseline"
+        hint-class="group-modal-map__hint"
+        :save-window="saveUsageWindowAutosave"
+        :save-status="saveBuildStatusAutosave"
       />
       <ETextarea
         v-if="showEditDescription"
@@ -302,11 +311,13 @@
       v-model="showProjectModal"
       :max-width="920"
       :title="projectModalTitle"
+      :retain-focus="false"
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"
         :department-id="departmentId"
         :group-id="projectGroup.id"
+        @meta-saved="onProjectMetaSaved"
       />
       <template #actions>
         <EButton
@@ -364,13 +375,19 @@ import GrossanlassMeinRessortSkeleton from '@/views/grossanlass/GrossanlassMeinR
 import MaterialJourneyScanBar from '@/components/activities/materialJourney/MaterialJourneyScanBar.vue'
 import GrossanlassHelperScanResultPanel from '@/views/grossanlass/GrossanlassHelperScanResultPanel.vue'
 import { useGrossanlassHelperScan } from '@/composables/useGrossanlassHelperScan'
-import { EButton, EDateRangeField, EDialog, ESelect, ESwitch, ETextField, ETextarea } from '@/components/form/base'
+import { EButton, EDialog, ESelect, ESwitch, ETextField, ETextarea } from '@/components/form/base'
 import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
 import { gaCanApproveEinsatz, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
+import {
+  packBauprojektWindow,
+  unpackBauprojektWindow,
+} from '@/utils/grossanlassBauprojektWindow'
+import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassMeinRessortBranch from '@/components/grossanlass/GrossanlassMeinRessortBranch.vue'
 import GrossanlassShareTargetTree, {
   type ShareTargetNode,
@@ -497,6 +514,7 @@ const createForm = ref({
   kind: 'teilbereich' as GrossanlassGroupKind,
   window_start: '',
   window_end: '',
+  build_status: '',
   description: '',
   include_on_map: false,
 })
@@ -553,6 +571,15 @@ const showEditProjectWindow = computed(() => {
   if (createForm.value.kind === 'teilbereich') return true
   return editingGroup.value?.node_type === 'bauprojekt'
 })
+const showEditBereichWindow = computed(() => {
+  if (showEditProjectWindow.value) return false
+  if (createAsRoot.value && !createForm.value.parent_id) return false
+  if (editingGroup.value && !editingGroup.value.parent_id && !createForm.value.parent_id) return false
+  return createForm.value.kind === 'ressort' || editingGroup.value?.node_type === 'unterressort'
+})
+const showEditUsageWindow = computed(() => showEditProjectWindow.value || showEditBereichWindow.value)
+const usageWindowBaseline = ref('|')
+const buildStatusBaseline = ref('')
 const showEditDescription = computed(() => !!editingGroup.value || showEditProjectWindow.value)
 const showEditAreaToggle = computed(() => !showEditProjectWindow.value)
 const showEditAreaMap = computed(() => showEditAreaToggle.value && createForm.value.include_on_map)
@@ -584,12 +611,15 @@ const projectModalTitle = computed(() =>
 )
 
 function emptyCreateForm(kind: GrossanlassGroupKind, parentId = ''): typeof createForm.value {
+  usageWindowBaseline.value = '|'
+  buildStatusBaseline.value = ''
   return {
     name: '',
     parent_id: parentId,
     kind,
     window_start: '',
     window_end: '',
+    build_status: '',
     description: '',
     include_on_map: false,
   }
@@ -684,8 +714,9 @@ async function persistGroup(closeAfter: boolean) {
       name: createForm.value.name.trim(),
       parent_id: asRoot ? null : createForm.value.parent_id,
       kind,
-      window_start: kind === 'teilbereich' ? (createForm.value.window_start || null) : null,
-      window_end: kind === 'teilbereich' ? (createForm.value.window_end || null) : null,
+      window_start: showEditUsageWindow.value ? (createForm.value.window_start || null) : null,
+      window_end: showEditUsageWindow.value ? (createForm.value.window_end || null) : null,
+      build_status: showEditUsageWindow.value ? (createForm.value.build_status || null) : null,
       description: createForm.value.description.trim() || null,
       include_on_map: showEditAreaToggle.value ? includeOnMap : undefined,
       polygon: includeOnMap ? polygon : undefined,
@@ -732,6 +763,50 @@ async function persistGroup(closeAfter: boolean) {
     toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   } finally {
     createSaving.value = false
+  }
+}
+
+function patchLocalGroup(saved: GrossanlassGroup) {
+  groups.value = groups.value.map((row) => (row.id === saved.id ? { ...row, ...saved } : row))
+  if (editingGroup.value?.id === saved.id) {
+    editingGroup.value = { ...editingGroup.value, ...saved }
+  }
+  if (projectGroup.value?.id === saved.id) {
+    projectGroup.value = { ...projectGroup.value, ...saved }
+  }
+}
+
+async function persistUsageMeta() {
+  if (!departmentId.value || !editingGroup.value || !showEditUsageWindow.value) return
+  const saved = await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
+    window_start: createForm.value.window_start || null,
+    window_end: createForm.value.window_end || null,
+    build_status: createForm.value.build_status || null,
+  })
+  patchLocalGroup(saved)
+  usageWindowBaseline.value = packBauprojektWindow(saved.window_start, saved.window_end)
+  buildStatusBaseline.value = saved.build_status || ''
+}
+
+async function saveUsageWindowAutosave(value: AutoSaveFieldValue) {
+  const next = unpackBauprojektWindow(value)
+  createForm.value.window_start = next.start
+  createForm.value.window_end = next.end
+  await persistUsageMeta()
+}
+
+async function saveBuildStatusAutosave(value: AutoSaveFieldValue) {
+  createForm.value.build_status = value == null ? '' : String(value)
+  await persistUsageMeta()
+}
+
+function onProjectMetaSaved(group: { id: string; window_start?: string | null; window_end?: string | null; build_status?: string | null }) {
+  groups.value = groups.value.map((row) => (row.id === group.id ? { ...row, ...group } : row))
+  if (editingGroup.value?.id === group.id) {
+    editingGroup.value = { ...editingGroup.value, ...group }
+  }
+  if (projectGroup.value?.id === group.id) {
+    projectGroup.value = { ...projectGroup.value, ...group }
   }
 }
 
@@ -992,9 +1067,12 @@ function openEditGroup(group: GrossanlassGroup) {
     kind: group.kind,
     window_start: group.window_start || '',
     window_end: group.window_end || '',
+    build_status: group.build_status || '',
     description: group.description || '',
     include_on_map: group.include_on_map === true || group.place?.kind === 'area',
   }
+  usageWindowBaseline.value = packBauprojektWindow(group.window_start, group.window_end)
+  buildStatusBaseline.value = group.build_status || ''
   showCreateProject.value = true
   void syncGroupMapPlacement()
 }
@@ -1230,16 +1308,20 @@ function wishesForGroup(groupId: string): GrossanlassWishLine[] {
 
 function projectMaterialSummary(groupId: string): string {
   const wishCount = wishesForGroup(groupId).length
-  const fixCount = directLines.value.filter((line) => line.group_id === groupId).length
-  if (wishCount === 0 && fixCount === 0) {
+  const selfCount = directLines.value.filter((line) => line.group_id === groupId).length
+  const einsatzCount = (submitBoard.value?.einsaetze ?? []).filter((row) => row.group_id === groupId).length
+  if (wishCount === 0 && selfCount === 0 && einsatzCount === 0) {
     return t('grossanlass.meinRessort.noWishesYet')
   }
   const parts: string[] = []
   if (wishCount > 0) {
     parts.push(t('grossanlass.meinRessort.wishCount', { n: wishCount }))
   }
-  if (fixCount > 0) {
-    parts.push(t('grossanlass.meinRessort.fixCount', { n: fixCount }))
+  if (einsatzCount > 0) {
+    parts.push(t('grossanlass.meinRessort.einsatzCount', { n: einsatzCount }))
+  }
+  if (selfCount > 0) {
+    parts.push(t('grossanlass.meinRessort.selfCount', { n: selfCount }))
   }
   return parts.join(' · ')
 }
@@ -1299,7 +1381,7 @@ function goToMeineEinsaetze() {
 }
 
 async function loadDirectLines() {
-  if (!departmentId.value || !isBereichsleitung.value) {
+  if (!departmentId.value || !showEinsatzTools.value) {
     directLines.value = []
     return
   }

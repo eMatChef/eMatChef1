@@ -24,6 +24,7 @@ export interface GrossanlassGroup {
   node_type: GrossanlassNodeType
   window_start?: string | null
   window_end?: string | null
+  build_status?: string | null
   description?: string | null
   place?: GaPlace | null
   include_on_map?: boolean
@@ -53,6 +54,7 @@ export async function createGrossanlassGroup(
     sort_order?: number
     window_start?: string | null
     window_end?: string | null
+    build_status?: string | null
     description?: string | null
     include_on_map?: boolean
     polygon?: GaPolygonPoint[] | null
@@ -75,6 +77,7 @@ export async function updateGrossanlassGroup(
     sort_order?: number
     window_start?: string | null
     window_end?: string | null
+    build_status?: string | null
     description?: string | null
     include_on_map?: boolean
     polygon?: GaPolygonPoint[] | null

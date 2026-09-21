@@ -184,7 +184,7 @@
           </div>
           <p class="book-project-period__hint">{{ t('grossanlass.materialUebersicht.bookProjectPeriodHint') }}</p>
         </div>
-        <div v-if="projectId && selectedWishIds.length" class="book-delivery">
+        <div v-if="projectId && selectedWishIds.length && showDeliveryToggle" class="book-delivery">
           <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
           <div class="book-delivery__row">
             <ECheckbox
@@ -259,6 +259,46 @@
         <strong>{{ draft.objectName }}</strong>
         <span>{{ t('grossanlass.materialUebersicht.qty', { n: draft.qty }) }} · {{ draft.ressort }}</span>
       </p>
+      <EAutocomplete
+        v-model="groupId"
+        v-model:menu="groupMenuOpen"
+        :items="bereichItems"
+        item-title="title"
+        item-value="value"
+        :label="t('grossanlass.materialUebersicht.bookBereichLabel')"
+        :placeholder="t('grossanlass.materialUebersicht.bookBereichPlaceholder')"
+        :hint="t('grossanlass.materialUebersicht.bookBereichHint')"
+        persistent-hint
+        :menu-props="projectMenuProps"
+        :no-filter="false"
+        clearable
+        hide-details="auto"
+      >
+        <template #item="{ props: itemProps, item }">
+          <v-list-item
+            v-bind="projectItemBind(itemProps)"
+            class="book-project-dd"
+            :class="{ 'book-project-dd--nested': projectRow(item).depth > 0 }"
+            :style="{ paddingInlineStart: `${12 + projectRow(item).depth * 16}px` }"
+          >
+            <template #title>
+              <span class="book-project-dd__row">
+                <span class="book-project-dd__name">
+                  <span v-if="projectRow(item).depth > 0" class="book-project-dd__mark" aria-hidden="true">↳</span>
+                  <GrossanlassGroupNodeIcon
+                    v-if="projectRow(item).nodeType"
+                    :node-type="projectRow(item).nodeType"
+                  />
+                  {{ projectRow(item).name }}
+                </span>
+              </span>
+            </template>
+            <template #subtitle>
+              {{ projectKindLabel(projectRow(item).nodeType) }}
+            </template>
+          </v-list-item>
+        </template>
+      </EAutocomplete>
 
       <EDateRangeField
         v-model:start="fromDate"
@@ -299,7 +339,7 @@
           />
         </div>
       </div>
-      <div v-if="mode === 'einsatz'" class="book-delivery">
+      <div v-if="mode === 'einsatz' && showDeliveryToggle" class="book-delivery">
         <p class="book-delivery__label">{{ t('grossanlass.materialUebersicht.deliveryLabel') }}</p>
         <div class="book-delivery__row">
           <ECheckbox
@@ -503,6 +543,7 @@ export type GaBookGroup = {
   parent_id?: string | null
   node_type?: string
   sort_order?: number | null
+  place?: { id: string } | null
 }
 type BookSource = 'own' | 'wish'
 type BookScope = 'single' | 'project'
@@ -531,13 +572,15 @@ const props = defineProps<{
   rows?: GaPreviewEinsatz[]
   resources?: GaEinsatzResource[]
   chauffeurs?: Array<{ value: string; title: string; subtitle: string; mayDrive: boolean }>
-  places?: Array<{ id: string; name: string }>
+  places?: Array<{ id: string; name: string; kind?: string }>
   presetObjectId?: string
   presetWishId?: string | null
   presetGroupId?: string | null
   presetPlaceId?: string | null
   groups?: GaBookGroup[]
   defaultScope?: BookScope
+  presetDelivery?: 'trip' | 'pickup' | null
+  lockDelivery?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -555,10 +598,12 @@ function initialScope(): BookScope {
 }
 const pickMenuOpen = ref(false)
 const projectMenuOpen = ref(false)
+const groupMenuOpen = ref(false)
 const chauffeurMenuOpen = ref(false)
 const placeMenuOpen = ref(false)
 const pickedId = ref<string | null>(null)
 const projectId = ref<string | null>(null)
+const groupId = ref<string | null>(null)
 const selectedWishIds = ref<string[]>([])
 const orderedIds = ref(new Set<string>())
 const orderingId = ref<string | null>(null)
@@ -571,7 +616,11 @@ const toTime = ref('18:00')
 const chauffeurId = ref<string | null>(null)
 const destinationPlaceId = ref<string | null>(null)
 const delivery = ref<'trip' | 'pickup'>('pickup')
-const extraPlaces = ref<Array<{ id: string; name: string }>>([])
+function initialDelivery(): 'trip' | 'pickup' {
+  return props.presetDelivery === 'trip' ? 'trip' : 'pickup'
+}
+const showDeliveryToggle = computed(() => !props.lockDelivery)
+const extraPlaces = ref<Array<{ id: string; name: string; kind?: string }>>([])
 const showPlaceCreate = ref(false)
 const newPlaceName = ref('')
 const placeSaving = ref(false)
@@ -646,13 +695,25 @@ const chauffeurItems = computed(() =>
 
 const placeItems = computed(() => {
   const seen = new Set<string>()
-  const items: Array<{ value: string; title: string }> = []
+  const items: Array<{ value: string; title: string; kind: string }> = []
   for (const place of [...(props.places ?? []), ...extraPlaces.value]) {
     if (seen.has(place.id)) continue
     seen.add(place.id)
-    items.push({ value: place.id, title: place.name })
+    const kind = String(place.kind || '')
+    const kindLabel = kind === 'area'
+      ? t('grossanlass.einstellungen.placesKindArea')
+      : ''
+    items.push({
+      value: place.id,
+      title: kindLabel ? `${place.name} · ${kindLabel}` : place.name,
+      kind,
+    })
   }
-  return items
+  return items.sort((a, b) => {
+    if (a.kind === 'area' && b.kind !== 'area') return -1
+    if (a.kind !== 'area' && b.kind === 'area') return 1
+    return a.title.localeCompare(b.title, 'de')
+  })
 })
 
 const needsDriver = computed(() =>
@@ -808,6 +869,10 @@ const projectItems = computed(() =>
   ),
 )
 
+const bereichItems = computed(() =>
+  buildBookProjectPickerItems(props.groups ?? [], [], '', { disableEmpty: false }),
+)
+
 const projectWishes = computed(() => {
   if (!projectId.value) return []
   if (projectId.value === BOOK_PROJECT_UNASSIGNED) {
@@ -849,10 +914,12 @@ watch(open, async (isOpen) => {
     scope.value = initialScope()
     pickMenuOpen.value = false
     projectMenuOpen.value = false
+    groupMenuOpen.value = false
     chauffeurMenuOpen.value = false
     placeMenuOpen.value = false
     pickedId.value = null
     projectId.value = null
+    groupId.value = null
     selectedWishIds.value = []
     orderedIds.value = new Set()
     orderingId.value = null
@@ -860,12 +927,13 @@ watch(open, async (isOpen) => {
     step.value = 'pick'
     chauffeurId.value = null
     destinationPlaceId.value = null
-    delivery.value = 'pickup'
+    delivery.value = initialDelivery()
     showPlaceCreate.value = false
     newPlaceName.value = ''
     return
   }
   applyPresetDestination()
+  delivery.value = initialDelivery()
   if (props.presetWishId) {
     scope.value = 'single'
     source.value = 'wish'
@@ -927,7 +995,7 @@ function setScope(next: BookScope) {
   step.value = 'pick'
   chauffeurId.value = null
   destinationPlaceId.value = null
-  delivery.value = 'pickup'
+  delivery.value = initialDelivery()
 }
 
 function setSource(next: BookSource) {
@@ -983,13 +1051,25 @@ function applyPresetDestination() {
   if (props.presetPlaceId) destinationPlaceId.value = props.presetPlaceId
 }
 
+function selectedGroup() {
+  return (props.groups ?? []).find((item) => item.id === groupId.value) ?? null
+}
+
+function applyGroupDestination() {
+  if (delivery.value !== 'trip' || destinationPlaceId.value) return
+  const placeId = selectedGroup()?.place?.id
+  if (placeId) destinationPlaceId.value = placeId
+}
+
 function goDetails() {
   if (!draft.value) return
   applyWishPeriod(draft.value)
   chauffeurId.value = null
   destinationPlaceId.value = null
-  delivery.value = 'pickup'
+  delivery.value = initialDelivery()
+  groupId.value = draft.value.groupId || props.presetGroupId || null
   applyPresetDestination()
+  applyGroupDestination()
   step.value = 'details'
 }
 
@@ -998,7 +1078,9 @@ function onDeliveryTrip(on: boolean | null) {
   if (delivery.value === 'pickup') {
     chauffeurId.value = null
     showPlaceCreate.value = false
+    return
   }
+  applyGroupDestination()
 }
 
 function onDeliveryPickup(on: boolean | null) {
@@ -1006,8 +1088,14 @@ function onDeliveryPickup(on: boolean | null) {
   if (delivery.value === 'pickup') {
     chauffeurId.value = null
     showPlaceCreate.value = false
+    return
   }
+  applyGroupDestination()
 }
+
+watch(groupId, () => {
+  applyGroupDestination()
+})
 
 function togglePlaceCreate() {
   showPlaceCreate.value = !showPlaceCreate.value
@@ -1120,6 +1208,8 @@ function confirm() {
       chauffeurUserId: chauffeurId.value || undefined,
       destinationPlaceId: destinationPlaceId.value || undefined,
       delivery: delivery.value,
+      groupId: groupId.value || next.groupId,
+      ressort: selectedGroup()?.name || next.ressort,
       hasConflict: slotBusy.value || slotIssuedLock.value || slotUnreleased.value || slotOutside.value,
     }
   }

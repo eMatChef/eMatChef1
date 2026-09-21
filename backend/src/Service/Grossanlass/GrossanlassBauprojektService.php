@@ -66,6 +66,7 @@ final class GrossanlassBauprojektService
             'group' => null,
             'window_start' => null,
             'window_end' => null,
+            'build_status' => null,
             'description' => null,
             'place' => $this->places->serialize($place),
             'tasks' => [],
@@ -94,6 +95,18 @@ final class GrossanlassBauprojektService
         }
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
+        if (array_key_exists('build_status', $data)) {
+            $raw = $data['build_status'];
+            if ($raw === null || $raw === '') {
+                $group->setBuildStatus(null);
+            } else {
+                $status = strtolower(trim((string) $raw));
+                if (!in_array($status, Group::BUILD_STATUSES, true)) {
+                    throw new \InvalidArgumentException('Ungültiger Bauvorhaben-Status');
+                }
+                $group->setBuildStatus($status);
+            }
+        }
         if (array_key_exists('description', $data)) {
             $raw = $data['description'];
             $group->setDescription($raw === null ? null : (string) $raw);
@@ -234,6 +247,7 @@ final class GrossanlassBauprojektService
             'kind' => $group->getGrossanlassKind(),
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'build_status' => $group->getBuildStatus(),
             'description' => $group->getDescription(),
         ];
 
@@ -241,6 +255,7 @@ final class GrossanlassBauprojektService
             'group' => $groupPayload,
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'build_status' => $group->getBuildStatus(),
             'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
             'tasks' => $this->serializeTasks($group),
@@ -310,6 +325,7 @@ final class GrossanlassBauprojektService
                 'notes' => $row->getNotes(),
                 'status' => $row->getStatus(),
                 'source' => 'direct',
+                'self_organized' => $row->isSelfOrganized(),
             ];
         }
 
@@ -321,14 +337,15 @@ final class GrossanlassBauprojektService
      */
     private function serializeEinsaetze(Group $group): array
     {
+        $groupId = trim($group->getId());
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
-            ->findBy(
-                ['groupId' => $group->getId(), 'kind' => DepartmentGrossanlassEinsatz::KIND_EINSATZ],
-                ['startsAt' => 'ASC'],
-            );
+            ->findBy(['departmentId' => $group->getDepartmentId()], ['startsAt' => 'ASC']);
         $out = [];
         foreach ($rows as $row) {
             if (!$row instanceof DepartmentGrossanlassEinsatz) {
+                continue;
+            }
+            if (trim((string) $row->getGroupId()) !== $groupId) {
                 continue;
             }
             $out[] = [
@@ -339,8 +356,10 @@ final class GrossanlassBauprojektService
                 'status' => $row->getStatus(),
                 'delivery' => $row->getDelivery(),
                 'who' => $row->getWho(),
+                'object_id' => $row->getCommitment()?->getId(),
                 'object_name' => $row->getCommitment()?->getName() ?: $row->getWho(),
                 'wish_line_id' => $row->getWishLineId(),
+                'kind' => $row->getKind(),
             ];
         }
 

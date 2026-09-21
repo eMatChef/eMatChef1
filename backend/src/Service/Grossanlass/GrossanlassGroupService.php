@@ -109,6 +109,7 @@ class GrossanlassGroupService
             $group->setSortOrder((int) $data['sort_order']);
         }
         $this->applyWindow($group, $data);
+        $this->applyBuildStatus($group, $data);
         $this->applyDescription($group, $data);
 
         $this->entityManager->persist($group);
@@ -176,6 +177,7 @@ class GrossanlassGroupService
             );
         }
         $this->applyWindow($group, $data);
+        $this->applyBuildStatus($group, $data);
         $this->applyDescription($group, $data);
 
         $group->updateTimestamps();
@@ -522,6 +524,7 @@ class GrossanlassGroupService
             'node_type' => $nodeType,
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'build_status' => $group->getBuildStatus(),
             'description' => $group->getDescription(),
             'place' => $place,
             'include_on_map' => is_array($place) && ($place['kind'] ?? '') === GrossanlassPlaceCodes::KIND_AREA,
@@ -570,7 +573,8 @@ class GrossanlassGroupService
         if (!array_key_exists('window_start', $data) && !array_key_exists('window_end', $data)) {
             return;
         }
-        if ($this->resolveStoredKind($group) !== Group::GROSSANLASS_KIND_TEILBEREICH) {
+        $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));
+        if ($nodeType === 'ressort') {
             $group->setWindowStart(null);
             $group->setWindowEnd(null);
 
@@ -584,6 +588,33 @@ class GrossanlassGroupService
         }
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyBuildStatus(Group $group, array $data): void
+    {
+        if (!array_key_exists('build_status', $data)) {
+            return;
+        }
+        $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));
+        if ($nodeType === 'ressort') {
+            $group->setBuildStatus(null);
+
+            return;
+        }
+        $raw = $data['build_status'];
+        if ($raw === null || $raw === '') {
+            $group->setBuildStatus(null);
+
+            return;
+        }
+        $status = strtolower(trim((string) $raw));
+        if (!in_array($status, Group::BUILD_STATUSES, true)) {
+            throw new \InvalidArgumentException('Ungültiger Bauvorhaben-Status');
+        }
+        $group->setBuildStatus($status);
     }
 
     /**

@@ -30,21 +30,9 @@
       </li>
     </ul>
 
-    <p v-if="tripsOnly" class="ga-trips-filter-hint">{{ t('grossanlass.materialUebersicht.tripsFilterHint') }}</p>
-
-    <GrossanlassFahrauftragList
-      v-if="tripRows.length"
-      :rows="tripRows"
-      :busy-id="busyTripId"
-      :can-start-trip="canStartTrip"
-      @toggle-packed="onTogglePacked"
-      @release="onReleaseTrip"
-      @issue="onIssueTrip"
-    />
-
     <ELoadingState v-if="uebersicht.loading.value" variant="inline" :message="t('common.loading')" />
     <GrossanlassEinsatzPreviewPanel
-      v-else-if="resources.length || displayRows.length"
+      v-else-if="resources.length || displayRows.length || groups.length"
       :rows="displayRows"
       :resources="resources"
       :groups="groups"
@@ -90,7 +78,6 @@ import { gaCanApproveEinsatz, gaIsMaterialwart } from '@/utils/grossanlassAccess
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
-import GrossanlassFahrauftragList from '@/views/grossanlass/GrossanlassFahrauftragList.vue'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
   type GaBookPreviewMode,
@@ -137,16 +124,7 @@ const freePicks = computed(() =>
 const wishes = computed(() => uebersicht.wishTemplates.value)
 const orders = computed(() => uebersicht.data.value?.orders ?? [])
 const occupancy = computed(() => zusageOccupancyBars(articles.value, tr, locale.value))
-const tripsOnly = computed(() => String(route.query.delivery || '') === 'trip')
-const tripRows = computed(() =>
-  uebersicht.bookingRows().filter(
-    (row) => row.delivery === 'trip' && row.status !== 'returned',
-  ),
-)
-const displayRows = computed(() => {
-  if (tripsOnly.value) return tripRows.value
-  return [...uebersicht.bookingRows(), ...occupancy.value]
-})
+const displayRows = computed(() => [...uebersicht.bookingRows(), ...occupancy.value])
 const pendingRows = computed(() =>
   uebersicht.bookingRows().filter((row) => row.status === 'pending_approval'),
 )
@@ -164,12 +142,6 @@ const chauffeurs = computed(() =>
   })),
 )
 const places = computed(() => uebersicht.data.value?.places ?? [])
-
-function canStartTrip(row: GaPreviewEinsatz): boolean {
-  if (!row.destinationPlaceId || !row.chauffeurUserId) return false
-  const card = (uebersicht.data.value?.cards ?? []).find((item) => item.user_id === row.chauffeurUserId)
-  return !!card?.may_drive
-}
 
 const groups = ref<GrossanlassGroup[]>([])
 const mode = ref<GaBookPreviewMode>('einsatz')
@@ -298,20 +270,6 @@ async function withTrip(row: GaPreviewEinsatz, fn: () => Promise<void>) {
   }
 }
 
-async function onTogglePacked(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.updateEinsatz(row.id, { packed: !row.packed }))
-}
-
-async function onReleaseTrip(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.updateEinsatz(row.id, { trip_released: true }))
-  toast.success(t('grossanlass.materialUebersicht.tripsReleasedToast'))
-}
-
-async function onIssueTrip(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.issue(row.id, row.chauffeurUserId || undefined))
-  toast.success(t('grossanlass.materialUebersicht.tripsIssuedToast'))
-}
-
 async function onApproveEinsatz(row: GaPreviewEinsatz) {
   await withTrip(row, () => uebersicht.updateEinsatz(row.id, { status: 'planned' }))
   toast.success(t('grossanlass.materialUebersicht.approveEinsatzToast'))
@@ -358,10 +316,5 @@ async function onApproveEinsatz(row: GaPreviewEinsatz) {
   gap: 8px;
 }
 .wish-book__orders li { display: flex; flex-direction: column; gap: 2px; }
-.ga-trips-filter-hint {
-  margin: 0 0 12px;
-  font-size: 0.85rem;
-  color: #0f766e;
-}
 .wish-book__orders span, .wish-book__orders em { font-size: 0.8rem; color: #64748b; font-style: normal; }
 </style>
