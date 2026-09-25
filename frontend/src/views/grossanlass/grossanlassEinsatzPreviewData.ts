@@ -905,7 +905,11 @@ export function buildOrgCalendarRings(
     if (group.node_type !== 'unterressort') continue
     const chain = chainOf(group.id)
     const ressort = chain.find((item) => item.node_type === 'ressort')
-    const parent = ensureRessort(ressort?.id || group.parent_id || group.id, ressort?.name || group.name, ressort)
+    if (!ressort) {
+      ensureRessort(group.id, group.name, group)
+      continue
+    }
+    const parent = ensureRessort(ressort.id, ressort.name, ressort)
     ensureChild(parent, group.id, group.name, group)
   }
   for (const group of groups) {
@@ -933,12 +937,21 @@ export function buildOrgCalendarRings(
   }
 
   function toRing(bucket: Bucket, depth: number, parentId?: string): GaEinsatzRingBlock {
-    const named = [...bucket.projects.keys()].some((project) => project !== '')
+    const projectEntries = [...bucket.projects.entries()].filter(([project, rows]) => {
+      if (rows.length > 0) return true
+      const projectGroup = groups.find((group) =>
+        group.node_type === 'bauprojekt'
+        && group.name === project
+        && (group.parent_id === bucket.group?.id || group.parent_id === bucket.id),
+      )
+      return Boolean(projectGroup && (projectGroup.window_start || projectGroup.window_end))
+    })
+    const named = projectEntries.some(([project]) => project !== '')
     const usage = bucket.group && bucket.group.node_type !== 'ressort'
       ? orgUsageResource(bucket.group, bucket.id, t)
       : null
     const skipCategory = !named
-    const blocks: GaEinsatzCategoryBlock[] = [...bucket.projects.entries()]
+    const blocks: GaEinsatzCategoryBlock[] = projectEntries
       .sort(([a], [b]) => a.localeCompare(b, 'de'))
       .map(([project, rows]) => {
         const packed = withPackedResources(rowsByObjectId(rows), resources, `org:${bucket.id}::${project}:`)
@@ -1000,8 +1013,13 @@ export function buildOrgCalendarRings(
   const sortedRessorts = [...ressorts.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
   for (const ressort of sortedRessorts) {
     const children = [...ressort.children.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+    const childRings = children.map((child) => toRing(child, 1, `org:${ressort.id}`))
+    const hasOwnContent = ressort.projects.size > 0 || ressort.group?.node_type === 'unterressort'
+    if (!hasOwnContent && childRings.length > 0) {
+      rings.push(...childRings.map((child) => ({ ...child, depth: 0, parentId: undefined })))
+      continue
+    }
     const own = toRing(ressort, 0)
-    const childRings = children.map((child) => toRing(child, 1, own.id))
     rings.push(own, ...childRings)
   }
   return rings
