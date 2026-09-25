@@ -146,7 +146,7 @@
 
       <!-- Grossanlass: Einstellungen (Ressorts, Bauprojekte, Stammdaten) -->
       <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole"
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && !isUserRole && !isBereichsleitung"
         :to="getLink('/einstellungen')"
         class="nav-item"
         :class="{ active: isGrossanlassEinstellungenNavActive }"
@@ -180,7 +180,7 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.meineEinsaetze') }}</span>
       </router-link>
 
-      <!-- Planung (MW / CMW / OK-Leitung) -->
+      <!-- Planung: Wünsche, Aufträge, Belegung — gleiche Tabs für MW, CMW, OK und Bereichsleitung -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassPlanungMenu"
         :to="getLink('/planung')"
@@ -240,7 +240,18 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
       </router-link>
 
-      <!-- Materialübersicht: Bestand / Einsätze / Konflikte (Konzept §12.3) -->
+      <router-link
+        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
+        :to="getLink('/fahrzeuge')"
+        class="nav-item"
+        :class="{ active: isGrossanlassFahrzeugeNavActive }"
+        :title="t('sidebar.fahrzeugeHint')"
+      >
+        <v-icon icon="mdi-truck-outline" class="nav-icon nav-icon--mdi" size="20" />
+        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.fahrzeuge') }}</span>
+      </router-link>
+
+      <!-- Materialübersicht: Bestand, Wareneingang, was weg ist -->
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassUebersichtSidebarLink"
         :to="getLink('/material-uebersicht')"
@@ -822,6 +833,8 @@ const isPlanungNavActive = computed(() => {
 
 const isGrossanlassMaterialsNavActive = computed(() => route.path.includes('/materialien'))
 
+const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/fahrzeuge'))
+
 const isGrossanlassMaterialUebersichtNavActive = computed(() =>
   route.path.includes('/material-uebersicht'),
 )
@@ -923,9 +936,7 @@ const showGrossanlassUebersichtSidebarLink = computed(
   () => showGrossanlassUebersichtMenu.value && grossanlassHomeKind.value !== 'uebersicht',
 )
 
-const showGrossanlassPlanungMenu = computed(() =>
-  showGrossanlassUebersichtMenu.value && gaCanSeeAnlassOverview(authStore.currentDepartmentRole),
-)
+const showGrossanlassPlanungMenu = computed(() => showGrossanlassUebersichtMenu.value)
 
 const showGrossanlassWorkshopMenu = computed(() => {
   if (isSuperAdmin.value || !isGrossanlassDept.value) return false

@@ -14,7 +14,6 @@ function t(key: string): string {
     'grossanlass.materialUebersicht.orgNoProject': 'Ohne Bauprojekt',
     'grossanlass.materialUebersicht.ringFixed': 'Fixe Termine',
     'grossanlass.materialUebersicht.usageWindowRow': 'Nutzungszeit',
-    'grossanlass.materialUebersicht.usageWindowHintShort': 'Danach abbrechen',
     'grossanlass.planung.ressorts.buildStatus.planned': 'Geplant',
     'grossanlass.planung.ressorts.buildStatus.build': 'Aufbau',
     'grossanlass.planung.ressorts.buildStatus.use': 'In Nutzung',

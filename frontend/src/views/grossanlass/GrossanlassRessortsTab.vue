@@ -333,7 +333,7 @@
           ? t('grossanlass.planung.ressorts.windowLabel')
           : t('grossanlass.planung.ressorts.usageWindowLabel')"
         :window-hint="showProjectWindow
-          ? t('grossanlass.planung.ressorts.windowHint')
+          ? ''
           : t('grossanlass.planung.ressorts.usageWindowHint')"
         :window-baseline="usageWindowBaseline"
         :status-baseline="buildStatusBaseline"
@@ -767,6 +767,7 @@
       :max-width="920"
       :title="projectModalTitle"
       :retain-focus="false"
+      highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"

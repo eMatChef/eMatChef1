@@ -208,14 +208,14 @@ const intro = computed(() =>
     : t('grossanlass.dashboard.okIntro'),
 )
 
-const einsaetzeLink = computed(() => `/${props.departmentId}/material-uebersicht/einsaetze`)
-const bauLink = computed(() => `/${props.departmentId}/material-uebersicht/bauauftraege`)
+const einsaetzeLink = computed(() => `/${props.departmentId}/planung/belegung`)
+const bauLink = computed(() => `/${props.departmentId}/planung/bauauftraege`)
 const createEinsatzLink = computed(() => ({
   path: einsaetzeLink.value,
   query: { book: '1' },
 }))
-const tripsLink = computed(() => `/${props.departmentId}/material-uebersicht/fahrauftraege`)
-const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
+const tripsLink = computed(() => `/${props.departmentId}/planung/transporte`)
+const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
 const ressortsLink = computed(() => `/${props.departmentId}/einstellungen/ressorts`)
 const planungLink = computed(() => `/${props.departmentId}/planung`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)

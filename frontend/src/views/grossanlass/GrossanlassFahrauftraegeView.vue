@@ -97,7 +97,7 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
@@ -131,6 +131,7 @@ import {
 } from '@/views/grossanlass/grossanlassHelperAssignment'
 
 const route = useRoute()
+const router = useRouter()
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
 const toast = useToast()
@@ -363,6 +364,11 @@ watch(canAdd, (value) => {
 
 onMounted(() => {
   if (composer) composer.open = openCreate
+  if (String(route.query.create || '') === '1') {
+    const { create: _removed, ...rest } = route.query
+    void router.replace({ query: rest })
+    openCreate()
+  }
   const dept = departmentId.value
   if (!dept) {
     groupsLoading.value = false

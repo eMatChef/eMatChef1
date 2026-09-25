@@ -36,7 +36,7 @@
     <p v-if="windowHint" :class="hintClass">{{ windowHint }}</p>
 
     <AutoSaveField
-      v-if="autosave"
+      v-if="autosave && canSetStatus"
       :model-value="status"
       :baseline="statusBaseline"
       type="select"
@@ -48,19 +48,21 @@
       @update:model-value="onStatus"
     />
     <ESelect
-      v-else
+      v-else-if="canSetStatus"
       v-model="status"
       :items="statusSelectItems"
       :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
       hide-details
     />
-    <p :class="hintClass">{{ t('grossanlass.planung.ressorts.buildStatusHint') }}</p>
+    <p v-if="canSetStatus" :class="hintClass">{{ t('grossanlass.planung.ressorts.buildStatusHint') }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useAuthStore } from '@/stores/auth'
+import { gaIsMaterialwart } from '@/utils/grossanlassAccess'
 import { AutoSaveField } from '@/components/common/autoSave'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { EDateRangeField, ESelect } from '@/components/form/base'
@@ -101,6 +103,8 @@ const props = withDefaults(defineProps<{
 })
 
 const { t } = useI18n()
+const authStore = useAuthStore()
+const canSetStatus = computed(() => gaIsMaterialwart(authStore.currentDepartmentRole))
 const packedWindow = computed(() => packBauprojektWindow(start.value, end.value))
 const statusOptions = computed(() => gaBuildStatusAutoSaveOptions(t))
 const statusSelectItems = computed(() => gaBuildStatusSelectItems(t))

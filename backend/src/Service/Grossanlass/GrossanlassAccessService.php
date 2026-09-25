@@ -30,6 +30,16 @@ class GrossanlassAccessService
         }
     }
 
+    /** Status des Bauvorhabens setzt nur der Materialwart. */
+    public function canSetBuildStatus(User $user, Department $department): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+
+        return GrossanlassAccessRoles::normalize($this->gaRole($user, $department)) === 'mw';
+    }
+
     /**
      * Planung anlassweit: MW/CMW (nicht OK-Leitung, nicht Bereichsleitung).
      */

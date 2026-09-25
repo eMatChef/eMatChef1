@@ -276,6 +276,7 @@
       :max-width="920"
       :z-index="2600"
       :retain-focus="false"
+      highlight-outside
       scrollable
     >
       <GrossanlassBauprojektPanel

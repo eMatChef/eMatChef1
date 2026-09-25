@@ -1,8 +1,12 @@
 <template>
+  <div v-if="isDetail" class="ga-fahrzeuge-detail-host">
+    <router-view />
+  </div>
   <PageShell
-    class="grossanlass-material-uebersicht-shell"
-    :title="t('grossanlass.materialUebersicht.title')"
-    :subtitle="t('grossanlass.materialUebersicht.subtitle')"
+    v-else
+    class="grossanlass-fahrzeuge-shell"
+    :title="t('grossanlass.fahrzeuge.title')"
+    :subtitle="t('grossanlass.fahrzeuge.subtitle')"
   >
     <template #filters>
       <v-tabs
@@ -35,7 +39,6 @@ import { useAuthStore } from '@/stores/auth'
 import PageShell from '@/components/layout/PageShell.vue'
 import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
-import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
@@ -46,37 +49,44 @@ const { t } = useI18n()
 provideGaCommitmentCatalog()
 provideGaUebersicht()
 
+const isDetail = computed(() => route.name === 'GrossanlassFahrzeugArtikel')
+
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const tabItems = computed(() => {
-  const tabs = [
-    { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
-    { id: 'wareneingang', label: t('grossanlass.materialUebersicht.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
-    { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
-    { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed' },
-    { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return' },
-  ]
-  if (gaCanOperateAusgabe(authStore.currentDepartmentRole)) return tabs
-  return tabs.filter((tab) => tab.id !== 'ausgabe')
-})
+const tabItems = computed(() => [
+  { id: 'wuensche', label: t('grossanlass.fahrzeuge.tabWuensche'), icon: 'mdi-lightbulb-on-outline' },
+  { id: 'fuhrpark', label: t('grossanlass.fahrzeuge.tabFuhrpark'), icon: 'mdi-truck-outline' },
+])
 
-const activeTab = computed(() => (route.meta.materialUebersichtTab as string) || 'bestand')
+const activeTab = computed(() => (route.meta.fahrzeugeTab as string) || 'wuensche')
 
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  if (tab === 'bestand') {
-    void router.push(`/${id}/material-uebersicht`)
-    return
-  }
-  void router.push(`/${id}/material-uebersicht/${tab}`)
+  void router.push(`/${id}/fahrzeuge/${tab}`)
 }
 </script>
 
 <style scoped>
-.grossanlass-material-uebersicht-shell :deep(.page-shell__header) {
+.grossanlass-fahrzeuge-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
+}
+
+.ga-fahrzeuge-detail-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.ga-fahrzeuge-detail-host :deep(.material-detail-view) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

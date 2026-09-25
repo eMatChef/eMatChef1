@@ -6,6 +6,7 @@ export type GaUebersichtEinsatz = {
   id: string
   kind: 'einsatz' | 'order'
   object_id: string
+  object_family?: string
   object_name: string
   einsatz_kind: 'unique' | 'quantity'
   qty: number
@@ -88,6 +89,7 @@ export type GaUebersichtWish = {
   ressort: string
   group_id: string
   who: string
+  wish_kind?: 'material' | 'fahrzeug' | 'beides' | string
   round_id?: string
   form_purpose?: string
   last_stage?: 'grob' | 'fein' | string
@@ -203,9 +205,11 @@ export async function updateGrossanlassEinsatz(
     trip_released?: boolean
     chauffeur_user_id?: string | null
     destination_place_id?: string | null
+    commitment_id?: string | null
     from?: string
     to?: string
     qty?: number
+    kind?: 'einsatz'
   },
 ): Promise<GaUebersichtPayload | GaMyEinsaetzePayload> {
   const response = await apiClient.patch<GaUebersichtPayload | GaMyEinsaetzePayload>(

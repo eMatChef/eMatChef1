@@ -57,26 +57,50 @@
               </EButton>
             </div>
 
-            <GrossanlassWishDynamicForm
-              v-if="roundForm"
-              ref="wishFormRef"
-              :form="roundForm"
-              :department-id="departmentId"
-              :groups="groups"
-              :can-fully-manage="canFullyManage"
-              :is-member-in-ressort-branch="isMemberInRessortBranch"
-              :is-leader-of-group="isLeaderOfGroup"
-              :can-create-child="canCreateChild"
-            />
+            <div class="wish-input-split">
+              <div>
+                <GrossanlassWishDynamicForm
+                  v-if="roundForm"
+                  ref="wishFormRef"
+                  :form="roundForm"
+                  :department-id="departmentId"
+                  :groups="groups"
+                  :can-fully-manage="canFullyManage"
+                  :is-member-in-ressort-branch="isMemberInRessortBranch"
+                  :is-leader-of-group="isLeaderOfGroup"
+                  :can-create-child="canCreateChild"
+                  @project-change="onProjectChange"
+                />
 
-            <EButton variant="primary" :loading="isSaving" class="mt-4" @click="submitWish">
-              {{ refineWishId ? t('grossanlass.wishes.refineSave') : t('grossanlass.wishes.submit') }}
-            </EButton>
+                <EButton variant="primary" :loading="isSaving" class="mt-4" @click="submitWish">
+                  {{ refineWishId ? t('grossanlass.wishes.refineSave') : t('grossanlass.wishes.submit') }}
+                </EButton>
+              </div>
+
+              <aside class="project-material">
+                <h3 class="section-title">{{ t('grossanlass.wishes.projectMaterialTitle') }}</h3>
+                <p class="section-hint">{{ t('grossanlass.wishes.projectMaterialHint') }}</p>
+                <p v-if="!selectedProjectId" class="section-hint">{{ t('grossanlass.wishes.projectMaterialPick') }}</p>
+                <p v-else-if="projectMaterialLoading" class="section-hint">{{ t('common.loading') }}</p>
+                <ul v-else-if="projectMaterialLines.length" class="project-material-list">
+                  <li v-for="line in projectMaterialLines" :key="line.id">
+                    {{ line.quantity }} {{ unitLabel(line.quantity_unit) }} × {{ line.label }}
+                  </li>
+                </ul>
+                <p v-else class="section-hint">{{ t('grossanlass.wishes.projectMaterialEmpty') }}</p>
+              </aside>
+            </div>
           </div>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="responses">
           <div class="tab-panel">
+            <div v-if="round.status === 'open'" class="responses-submit">
+              <EButton variant="primary" size="small" @click="activeTab = 'input'">
+                <v-icon icon="mdi-plus" start size="18" />
+                {{ t('grossanlass.dashboard.submitWish') }}
+              </EButton>
+            </div>
             <GrossanlassRoundResponsesPanel
               ref="responsesRef"
               :department-id="departmentId"
@@ -98,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
@@ -122,6 +146,8 @@ import {
 import { getGrossanlassRoundForm, orderFormFieldsForRound, type GrossanlassRoundForm } from '@/api/grossanlassRoundForm'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
+import { getGrossanlassBauprojekt } from '@/api/grossanlassBauprojekt'
+import { getStockUnitLabel } from '@/utils/materialStockUnit'
 
 const route = useRoute()
 const router = useRouter()
@@ -143,6 +169,47 @@ const wishFormRef = ref<InstanceType<typeof GrossanlassWishDynamicForm> | null>(
 const responsesRef = ref<InstanceType<typeof GrossanlassRoundResponsesPanel> | null>(null)
 const refineCandidates = ref<GrossanlassWishLine[]>([])
 const refineWishId = ref<string | null>(null)
+const selectedProjectId = ref<string | null>(null)
+const projectMaterialLoading = ref(false)
+const projectMaterialLines = ref<Array<{ id: string; label: string; quantity: number; quantity_unit?: string | null }>>([])
+
+function unitLabel(unit: string | null | undefined) {
+  return getStockUnitLabel(unit)
+}
+
+function onProjectChange(id: string | null) {
+  selectedProjectId.value = id
+}
+
+async function loadProjectMaterial(id: string | null) {
+  projectMaterialLines.value = []
+  if (!id) return
+  projectMaterialLoading.value = true
+  try {
+    const detail = await getGrossanlassBauprojekt(departmentId.value, id)
+    const wishes = (detail.material || []).map((line) => ({
+      id: line.id,
+      label: line.label,
+      quantity: line.quantity,
+      quantity_unit: line.quantity_unit,
+    }))
+    const direct = (detail.direct_material || []).map((line) => ({
+      id: line.id,
+      label: line.label,
+      quantity: line.quantity,
+      quantity_unit: line.quantity_unit,
+    }))
+    projectMaterialLines.value = [...wishes, ...direct]
+  } catch {
+    projectMaterialLines.value = []
+  } finally {
+    projectMaterialLoading.value = false
+  }
+}
+
+watch(selectedProjectId, (id) => {
+  void loadProjectMaterial(id)
+})
 
 const groupsRef = computed(() => groups.value)
 const { canFullyManage, isMemberInRessortBranch, isLeaderOfGroup, canCreateChild } = useGrossanlassRessortScope(groupsRef)
@@ -266,7 +333,7 @@ async function submitWish() {
 
   isSaving.value = true
   try {
-    await createGrossanlassWish(departmentId.value, roundId.value, {
+    const created = await createGrossanlassWish(departmentId.value, roundId.value, {
       ...payload,
       refine_wish_id: refineWishId.value || undefined,
     })
@@ -275,11 +342,13 @@ async function submitWish() {
     refineWishId.value = null
     if (payload.new_bauprojekt) {
       groups.value = await getGrossanlassGroups(departmentId.value)
+      await nextTick()
+      wishFormRef.value?.selectExistingProject(created.group_id)
     }
+    await loadProjectMaterial(created.group_id)
     await loadPendingCount()
     await loadRefineCandidates()
     responsesRef.value?.reload()
-    activeTab.value = 'responses'
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.wishes.errorSave'))
   } finally {
@@ -360,6 +429,40 @@ onMounted(load)
 
 .tab-panel {
   padding: 20px 0 8px;
+}
+
+.responses-submit {
+  margin-bottom: 16px;
+}
+
+.wish-input-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: 28px;
+  align-items: start;
+}
+
+.project-material {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #f9fafb;
+}
+
+.project-material-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #1f2937;
+}
+
+.project-material-list li + li {
+  margin-top: 6px;
+}
+
+@media (max-width: 900px) {
+  .wish-input-split {
+    grid-template-columns: 1fr;
+  }
 }
 
 .section-title {

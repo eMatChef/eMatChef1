@@ -864,7 +864,13 @@ const devicesHomeUrl = computed(() => {
   const url = getDevicesHomeUrl(id)
   return url.startsWith('http') ? url : ''
 })
-const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
+const {
+  isUserRole,
+  canManageQrContact,
+  canManageMaterials,
+  canSeeDepartmentManagerInbox,
+  canSeeInviteAcceptedInbox,
+} = useDepartmentMemberRole()
 const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromUserMessage } =
   useNotificationSender()
 const { bellLine, bellSubtitle } = useActivityNotificationText()
@@ -1620,20 +1626,19 @@ async function loadDepartmentInvites() {
       items: [] as UserDirectMessage[],
     }))
 
-    const campInvitesPromise = isUserRole.value
-      ? Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
-      : getPendingDepartmentActivityInvites(deptId).catch(() => ({
+    const campInvitesPromise = canSeeDepartmentManagerInbox.value
+      ? getPendingDepartmentActivityInvites(deptId).catch(() => ({
           count: 0,
           items: [] as PendingDepartmentActivityInvite[],
         }))
+      : Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
 
-    const foundPromise =
-      !isUserRole.value && canManageQrContact.value
-        ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
-            unread_count: 0,
-            items: [] as PublicFoundItemMessage[],
-          }))
-        : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
+    const foundPromise = canSeeDepartmentManagerInbox.value
+      ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
+          unread_count: 0,
+          items: [] as PublicFoundItemMessage[],
+        }))
+      : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
 
     const activityMwPromise = canManageMaterials.value
       ? getActivityMwNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
@@ -1652,7 +1657,7 @@ async function loadDepartmentInvites() {
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
-    const inviteAcceptedPromise = !isUserRole.value
+    const inviteAcceptedPromise = canSeeInviteAcceptedInbox.value
       ? getInviteNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => [] as InviteAcceptedNotification[])
       : Promise.resolve([] as InviteAcceptedNotification[])
 
@@ -1728,9 +1733,8 @@ async function loadDepartmentInvites() {
 
     const taskCount = accountingInBell
 
-    const qrUnread =
-      !isUserRole.value && canManageQrContact.value
-        ? typeof foundResult.unread_count === 'number'
+    const qrUnread = canSeeDepartmentManagerInbox.value
+      ? typeof foundResult.unread_count === 'number'
           ? foundResult.unread_count
           : publicFoundPreview.value.filter((m) => m.status === 'open').length
         : 0

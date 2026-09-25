@@ -442,12 +442,17 @@ function listPath(tab: string): string {
   if (tab === 'eigen' || tab === 'leihweise') {
     return `/${id}/materialien/${tab}`
   }
-  if (tab === 'fahrzeuge') return `/${id}/materialien/eigen?family=vehicle`
+  if (tab === 'fahrzeuge') return `/${id}/fahrzeuge`
   if (tab === 'wareneingang') return `/${id}/material-uebersicht/wareneingang`
   return `/${id}/material-uebersicht`
 }
 
 function goBack() {
+  const id = departmentId.value
+  if (route.name === 'GrossanlassFahrzeugArtikel' || String(route.query.from || '') === 'fahrzeuge') {
+    void router.push(`/${id}/fahrzeuge`)
+    return
+  }
   const from = String(route.query.from || '') as GaMaterialsTabId | ''
   void router.push(listPath(from))
 }

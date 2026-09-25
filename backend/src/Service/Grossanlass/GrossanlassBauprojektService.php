@@ -95,7 +95,7 @@ final class GrossanlassBauprojektService
         }
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
-        if (array_key_exists('build_status', $data)) {
+        if (array_key_exists('build_status', $data) && $this->access->canSetBuildStatus($user, $department)) {
             $raw = $data['build_status'];
             if ($raw === null || $raw === '') {
                 $group->setBuildStatus(null);
@@ -138,8 +138,9 @@ final class GrossanlassBauprojektService
         $this->assertBauprojekt($department, $group);
         $this->assertCanEdit($department, $user, $group);
         $title = trim((string) ($data['title'] ?? ''));
-        if ($title === '') {
-            throw new \InvalidArgumentException('Titel ist erforderlich');
+        $description = trim((string) ($data['description'] ?? ''));
+        if ($title === '' && $description === '') {
+            throw new \InvalidArgumentException('Titel oder Beschrieb ist erforderlich');
         }
         $max = (int) $this->entityManager->getRepository(DepartmentGrossanlassTask::class)
             ->createQueryBuilder('t')
@@ -158,7 +159,9 @@ final class GrossanlassBauprojektService
         $task->setDepartment($department);
         $task->setGroup($group);
         $task->setTitle($title);
+        $task->setDescription($description === '' ? null : $description);
         $task->setSortOrder($max + 1);
+        $this->applyTaskSchedule($task, $data);
         $this->entityManager->persist($task);
         $this->entityManager->flush();
 
@@ -176,15 +179,19 @@ final class GrossanlassBauprojektService
         $this->assertCanEdit($department, $user, $group);
         $task = $this->findTask($department, $group, $taskId);
         if (array_key_exists('title', $data)) {
-            $title = trim((string) $data['title']);
-            if ($title === '') {
-                throw new \InvalidArgumentException('Titel ist erforderlich');
-            }
-            $task->setTitle($title);
+            $task->setTitle(trim((string) $data['title']));
+        }
+        if (array_key_exists('description', $data)) {
+            $description = trim((string) $data['description']);
+            $task->setDescription($description === '' ? null : $description);
+        }
+        if (trim($task->getTitle()) === '' && trim((string) $task->getDescription()) === '') {
+            throw new \InvalidArgumentException('Titel oder Beschrieb ist erforderlich');
         }
         if (array_key_exists('sort_order', $data)) {
             $task->setSortOrder((int) $data['sort_order']);
         }
+        $this->applyTaskSchedule($task, $data);
         $this->entityManager->flush();
 
         return $this->serializeTask($task);
@@ -231,6 +238,84 @@ final class GrossanlassBauprojektService
     }
 
     /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function updateMaterial(Department $department, User $user, Group $group, string $lineId, array $data): array
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $mode = strtolower(trim((string) ($data['mode'] ?? $data['source'] ?? 'wish')));
+        if ($mode === 'direct' || $mode === 'fix') {
+            return $this->updateDirectMaterial($department, $group, $lineId, $data);
+        }
+
+        return $this->wishes->updateProjectMaterialLine($department, $group, $lineId, $data);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    private function updateDirectMaterial(Department $department, Group $group, string $lineId, array $data): array
+    {
+        $line = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)->find($lineId);
+        if (!$line instanceof ActivityGrossanlassProcurementLine
+            || $line->getDepartmentId() !== $department->getId()
+            || $line->getGroupId() !== $group->getId()
+        ) {
+            throw new \InvalidArgumentException('Materialzeile nicht gefunden');
+        }
+        if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
+            throw new \InvalidArgumentException('Position kann nur im Status «Bedarf» bearbeitet werden');
+        }
+        $this->applyMaterialFields($line, $data);
+        $line->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return [
+            'id' => $line->getId(),
+            'label' => $line->getLabel(),
+            'quantity' => $line->getQuantity(),
+            'quantity_unit' => $line->getQuantityUnit(),
+            'pickup_need' => $line->getPickupNeed(),
+            'pickup_place' => $line->getPickupPlace(),
+            'return_needed' => $line->isReturnNeeded(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyMaterialFields(ActivityGrossanlassProcurementLine $line, array $data): void
+    {
+        if (isset($data['label'])) {
+            $label = trim((string) $data['label']);
+            if ($label === '') {
+                throw new \InvalidArgumentException('Bezeichnung ist erforderlich');
+            }
+            $line->setLabel($label);
+        }
+        if (isset($data['quantity'])) {
+            $line->setQuantity(max(1, (int) $data['quantity']));
+        }
+        if (array_key_exists('pickup_need', $data) || array_key_exists('pickup_place', $data)) {
+            $need = strtolower(trim((string) ($data['pickup_need'] ?? '')));
+            $line->setPickupNeed(in_array($need, ['can', 'must'], true) ? $need : null);
+            $place = trim((string) ($data['pickup_place'] ?? ''));
+            $line->setPickupPlace($line->getPickupNeed() !== null && $place !== '' ? mb_substr($place, 0, 255) : null);
+        }
+        if (array_key_exists('return_needed', $data)) {
+            $line->setReturnNeeded(filter_var($data['return_needed'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('quantity_unit', $data)) {
+            $line->setQuantityUnit((string) $data['quantity_unit']);
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function briefing(
@@ -251,6 +336,14 @@ final class GrossanlassBauprojektService
             'description' => $group->getDescription(),
         ];
 
+        $material = $this->wishes->listMaterialWishesForGroup($department, $user, $group);
+        foreach ($material as $wish) {
+            $wishId = trim((string) ($wish['id'] ?? ''));
+            if ($wishId !== '') {
+                $this->procurement->syncUncoveredWishDemand($department, $user, $wishId);
+            }
+        }
+
         return [
             'group' => $groupPayload,
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
@@ -259,7 +352,7 @@ final class GrossanlassBauprojektService
             'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
             'tasks' => $this->serializeTasks($group),
-            'material' => $this->wishes->listMaterialWishesForGroup($department, $user, $group),
+            'material' => $material,
             'direct_material' => $this->serializeDirectMaterial($group),
             'packs' => $place instanceof DepartmentGrossanlassPlace
                 ? $this->packs->listAtPlace($department, $place->getId())
@@ -326,6 +419,10 @@ final class GrossanlassBauprojektService
                 'status' => $row->getStatus(),
                 'source' => 'direct',
                 'self_organized' => $row->isSelfOrganized(),
+                'pickup_need' => $row->getPickupNeed(),
+                'pickup_place' => $row->getPickupPlace(),
+                'return_needed' => $row->isReturnNeeded(),
+                'quantity_unit' => $row->getQuantityUnit(),
             ];
         }
 
@@ -392,9 +489,37 @@ final class GrossanlassBauprojektService
             'id' => $task->getId(),
             'group_id' => $task->getGroupId(),
             'title' => $task->getTitle(),
+            'description' => $task->getDescription(),
             'sort_order' => $task->getSortOrder(),
+            'starts_at' => $task->getStartsAt()?->format('Y-m-d\TH:i:s'),
+            'duration_minutes' => $task->getDurationMinutes(),
+            'assignee_user_id' => $task->getAssigneeUserId(),
             'created_at' => $task->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyTaskSchedule(DepartmentGrossanlassTask $task, array $data): void
+    {
+        if (array_key_exists('starts_at', $data)) {
+            $raw = $data['starts_at'];
+            if ($raw === null || $raw === '') {
+                $task->setStartsAt(null);
+            } else {
+                $parsed = new \DateTime((string) $raw);
+                $task->setStartsAt($parsed);
+            }
+        }
+        if (array_key_exists('duration_minutes', $data)) {
+            $mins = $data['duration_minutes'];
+            $task->setDurationMinutes($mins === null || $mins === '' ? null : max(0, (int) $mins));
+        }
+        if (array_key_exists('assignee_user_id', $data)) {
+            $raw = $data['assignee_user_id'];
+            $task->setAssigneeUserId($raw === null ? null : trim((string) $raw));
+        }
     }
 
     private function findTask(Department $department, Group $group, string $taskId): DepartmentGrossanlassTask

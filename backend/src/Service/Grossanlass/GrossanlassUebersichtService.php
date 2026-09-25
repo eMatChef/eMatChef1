@@ -29,6 +29,7 @@ final class GrossanlassUebersichtService
         private GrossanlassPackService $packs,
         private GrossanlassPlaceService $places,
         private GroupHierarchyService $hierarchy,
+        private GrossanlassProcurementService $procurement,
     ) {}
 
     /**
@@ -166,6 +167,10 @@ final class GrossanlassUebersichtService
         $this->syncPlaceFromPack($row);
         $this->packs->ensureDefaultPack($row);
         $this->entityManager->flush();
+        $wishLineId = trim((string) $row->getWishLineId());
+        if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+            $this->procurement->syncUncoveredWishDemand($department, $user, $wishLineId);
+        }
 
         if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             return ['einsatz' => $this->serializeEinsatz($row)];
@@ -370,6 +375,25 @@ final class GrossanlassUebersichtService
                 }
             }
         }
+        if (array_key_exists('commitment_id', $data) || array_key_exists('object_id', $data)) {
+            if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
+                throw new \RuntimeException('Keine Berechtigung für diese Aktion');
+            }
+            $commitmentId = trim((string) ($data['commitment_id'] ?? $data['object_id'] ?? ''));
+            $existing = $row->getCommitment();
+            if ($existing instanceof DepartmentGrossanlassCommitment
+                && $existing->getFamily() !== DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                && $commitmentId !== ''
+                && $commitmentId !== $existing->getId()
+            ) {
+                throw new \InvalidArgumentException('Dieser Auftrag hat schon Material. Das Fahrzeug entsteht über den Fahrzeugwunsch.');
+            }
+            if ($commitmentId === '') {
+                $row->setCommitment(null);
+            } else {
+                $row->setCommitment($this->findCommitment($department, $commitmentId));
+            }
+        }
         if (array_key_exists('packed', $data) || array_key_exists('pack_phase', $data)) {
             if (!$helperOwns) {
                 $this->assertAusgabe($department, $user);
@@ -445,6 +469,15 @@ final class GrossanlassUebersichtService
         if (array_key_exists('qty', $data)) {
             $row->setQty((int) $data['qty']);
         }
+        if (array_key_exists('kind', $data)) {
+            $nextKind = (string) $data['kind'];
+            if ($nextKind !== DepartmentGrossanlassEinsatz::KIND_EINSATZ
+                || $row->getKind() !== DepartmentGrossanlassEinsatz::KIND_ORDER
+            ) {
+                throw new \InvalidArgumentException('Nur eine Notiz ohne Zeitraum kann zum Einsatz werden');
+            }
+            $row->setKind(DepartmentGrossanlassEinsatz::KIND_EINSATZ);
+        }
         $fromInput = $data['from'] ?? $data['fromIso'] ?? null;
         $toInput = $data['to'] ?? $data['toIso'] ?? null;
         if ($fromInput !== null || $toInput !== null) {
@@ -465,6 +498,10 @@ final class GrossanlassUebersichtService
         }
         $this->syncPlaceFromPack($row);
         $this->entityManager->flush();
+        $wishLineId = trim((string) $row->getWishLineId());
+        if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+            $this->procurement->syncUncoveredWishDemand($department, $user, $wishLineId);
+        }
 
         if ($this->access->canSeeMaterialUebersicht($user, $department)) {
             return $this->overview($department, $user);
@@ -777,6 +814,38 @@ final class GrossanlassUebersichtService
             ->getQuery()
             ->getResult();
 
+        $seenWishIds = [];
+        foreach ($lines as $line) {
+            if ($line instanceof ActivityGrossanlassWishLine) {
+                $seenWishIds[] = $line->getId();
+            }
+        }
+        $vehicleQuery = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->innerJoin('r.activity', 'a')
+            ->innerJoin('w.group', 'g')
+            ->addSelect('g', 'r')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('w.status != :discarded')
+            ->andWhere('r.formPurpose != :companyTip')
+            ->andWhere('w.wishKind IN (:vehicleKinds)')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('discarded', ActivityGrossanlassWishLine::STATUS_DISCARDED)
+            ->setParameter('companyTip', ActivityGrossanlassRound::PURPOSE_COMPANY_TIP)
+            ->setParameter('vehicleKinds', [
+                ActivityGrossanlassWishLine::KIND_FAHRZEUG,
+                ActivityGrossanlassWishLine::KIND_BEIDES,
+            ])
+            ->orderBy('w.createdAt', 'DESC');
+        if ($seenWishIds !== []) {
+            $vehicleQuery->andWhere('w.id NOT IN (:seenIds)')
+                ->setParameter('seenIds', $seenWishIds);
+        }
+        foreach ($vehicleQuery->getQuery()->getResult() as $line) {
+            $lines[] = $line;
+        }
+
         $lineMap = $this->procurementLineIdByWish($department);
         $out = [];
         foreach ($lines as $line) {
@@ -799,6 +868,7 @@ final class GrossanlassUebersichtService
                 'ressort' => $line->getGroup()->getName(),
                 'group_id' => $line->getGroupId(),
                 'who' => $line->getCreatedByUser()->getProfile()?->getDisplayName() ?? '',
+                'wish_kind' => $line->getWishKind(),
                 'round_id' => $line->getRoundId(),
                 'form_purpose' => $line->getRound()->getFormPurpose(),
                 'last_stage' => $line->getLastStage(),
@@ -904,6 +974,7 @@ final class GrossanlassUebersichtService
             'id' => $row->getId(),
             'kind' => $row->getKind(),
             'object_id' => $row->getCommitmentId() ?? '',
+            'object_family' => $commitment?->getFamily() ?? '',
             'object_name' => $commitment?->getName() ?? $row->getWho(),
             'einsatz_kind' => ($commitment && $commitment->getQuantity() > 1) ? 'quantity' : 'unique',
             'qty' => $row->getQty(),

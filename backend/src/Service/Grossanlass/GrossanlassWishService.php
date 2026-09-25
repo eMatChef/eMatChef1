@@ -2,6 +2,7 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\ActivityGrossanlassProcurementLineWish;
 use App\Entity\ActivityGrossanlassRound;
 use App\Entity\ActivityGrossanlassRoundForm;
@@ -295,6 +296,36 @@ class GrossanlassWishService
     }
 
     /**
+     * Materialzeile am Bauprojekt — Rechte prüft der Bauprojekt-Service.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function updateProjectMaterialLine(Department $department, Group $group, string $lineId, array $data): array
+    {
+        $line = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($lineId);
+        if (!$line instanceof ActivityGrossanlassWishLine || $line->getGroupId() !== $group->getId()) {
+            throw new \InvalidArgumentException('Wunsch nicht gefunden');
+        }
+        if (isset($data['label'])) {
+            $label = trim((string) $data['label']);
+            if ($label === '') {
+                throw new \InvalidArgumentException('Bezeichnung ist erforderlich');
+            }
+            $line->setLabel($label);
+        }
+        if (isset($data['quantity'])) {
+            $line->setQuantity(max(1, (int) $data['quantity']));
+        }
+        $this->applyPickup($line, $data);
+        $line->touchUpdatedAt();
+        $this->entityManager->flush();
+
+        return $this->toArray($line);
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
@@ -338,6 +369,7 @@ class GrossanlassWishService
         $line->setValidTo($parsed['valid_to']);
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
+        $this->applyPickup($line, $data);
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
         $line->setLastStage(
@@ -486,6 +518,7 @@ class GrossanlassWishService
         $line->setValidTo($parsed['valid_to']);
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
+        $this->applyPickup($line, $data);
         $this->applyEnoughOnHandFromClient($line, $department, $user, $data);
         if (GrossanlassMaterialStage::isFein($line->getRound()->getMaterialStage())
             || GrossanlassMaterialStage::isFein((string) ($data['last_stage'] ?? ''))
@@ -665,6 +698,19 @@ class GrossanlassWishService
 
         if (isset($enabledSystemKeys[GrossanlassFormFieldCatalog::SYSTEM_WISH_KIND]) && $wishKind === null) {
             throw new \InvalidArgumentException('Art ist erforderlich');
+        }
+        if ($wishKind === null) {
+            $explicitKind = trim((string) ($data['wish_kind'] ?? ''));
+            if ($explicitKind !== '') {
+                if (!in_array($explicitKind, [
+                    ActivityGrossanlassWishLine::KIND_MATERIAL,
+                    ActivityGrossanlassWishLine::KIND_FAHRZEUG,
+                    ActivityGrossanlassWishLine::KIND_BEIDES,
+                ], true)) {
+                    throw new \InvalidArgumentException('wish_kind ungültig');
+                }
+                $wishKind = $explicitKind;
+            }
         }
         if ($wishKind === null) {
             $wishKind = ActivityGrossanlassWishLine::KIND_MATERIAL;
@@ -1643,6 +1689,7 @@ class GrossanlassWishService
             || str_contains($n, 'grossanlass')
             || str_contains($n, 'durchführung')
             || str_contains($n, 'durchfuehrung')
+            || str_contains($n, 'event')
         ) {
             return DepartmentCalendarPeriod::LABEL_GROSSANLASS;
         }
@@ -1819,6 +1866,10 @@ class GrossanlassWishService
             'valid_to' => $line->getValidTo()->format(\DateTimeInterface::ATOM),
             'timeframe_notes' => $line->getTimeframeNotes(),
             'notes' => $line->getNotes(),
+            'pickup_need' => $line->getPickupNeed(),
+            'pickup_place' => $line->getPickupPlace(),
+            'return_needed' => $line->isReturnNeeded(),
+            'quantity_unit' => $line->getQuantityUnit(),
             ...$line->enoughOnHandPayload(),
             'status' => $line->getStatus(),
             'last_stage' => $line->getLastStage(),
@@ -1828,5 +1879,108 @@ class GrossanlassWishService
             'updated_at' => $line->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             'custom_values' => $customValues,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyPickup(ActivityGrossanlassWishLine $line, array $data): void
+    {
+        [$need, $place] = $this->parsePickup($data);
+        $line->setPickupNeed($need);
+        $line->setPickupPlace($place);
+        if (array_key_exists('return_needed', $data)) {
+            $line->setReturnNeeded(filter_var($data['return_needed'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('quantity_unit', $data)) {
+            $line->setQuantityUnit((string) $data['quantity_unit']);
+        }
+    }
+
+    /**
+     * Abholungen beim Partner — für Aufgaben, nicht für die Planung.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listPartnerPickups(Department $department, User $user): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $visible = $this->resolveVisibleGroupIds($department, $user);
+        $out = [];
+
+        $wishQb = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->innerJoin('r.activity', 'a')
+            ->innerJoin('w.group', 'g')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('w.pickupNeed IS NOT NULL')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('w.createdAt', 'DESC');
+        if ($visible !== null) {
+            if ($visible === []) {
+                return [];
+            }
+            $wishQb->andWhere('w.groupId IN (:groupIds)')->setParameter('groupIds', $visible);
+        }
+        foreach ($wishQb->getQuery()->getResult() as $line) {
+            if (!$line instanceof ActivityGrossanlassWishLine) {
+                continue;
+            }
+            $out[] = [
+                'id' => $line->getId(),
+                'source' => 'wish',
+                'label' => $line->getLabel(),
+                'quantity' => $line->getQuantity(),
+                'group_id' => $line->getGroupId(),
+                'group_name' => $line->getGroup()->getName(),
+                'pickup_need' => $line->getPickupNeed(),
+                'pickup_place' => $line->getPickupPlace(),
+            ];
+        }
+
+        $lineQb = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->createQueryBuilder('p')
+            ->innerJoin('p.group', 'g')
+            ->where('p.departmentId = :departmentId')
+            ->andWhere('p.pickupNeed IS NOT NULL')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('p.createdAt', 'DESC');
+        if ($visible !== null) {
+            $lineQb->andWhere('p.groupId IN (:groupIds)')->setParameter('groupIds', $visible);
+        }
+        foreach ($lineQb->getQuery()->getResult() as $line) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $out[] = [
+                'id' => $line->getId(),
+                'source' => 'direct',
+                'label' => $line->getLabel(),
+                'quantity' => $line->getQuantity(),
+                'group_id' => $line->getGroupId(),
+                'group_name' => $line->getGroup()->getName(),
+                'pickup_need' => $line->getPickupNeed(),
+                'pickup_place' => $line->getPickupPlace(),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function parsePickup(array $data): array
+    {
+        $need = strtolower(trim((string) ($data['pickup_need'] ?? '')));
+        if (!in_array($need, ['can', 'must'], true)) {
+            $need = '';
+        }
+        $place = trim((string) ($data['pickup_place'] ?? ''));
+
+        return [$need !== '' ? $need : null, $place !== '' ? mb_substr($place, 0, 255) : null];
     }
 }

@@ -74,6 +74,18 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(name: 'self_organized', type: 'boolean', options: ['default' => false])]
     private bool $selfOrganized = false;
 
+    #[ORM\Column(name: 'pickup_need', type: 'string', length: 8, nullable: true)]
+    private ?string $pickupNeed = null;
+
+    #[ORM\Column(name: 'pickup_place', type: 'string', length: 255, nullable: true)]
+    private ?string $pickupPlace = null;
+
+    #[ORM\Column(name: 'return_needed', type: 'boolean', options: ['default' => false])]
+    private bool $returnNeeded = false;
+
+    #[ORM\Column(name: 'quantity_unit', type: 'string', length: 8, options: ['default' => 'Stk'])]
+    private string $quantityUnit = 'Stk';
+
     #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $createdByUserId;
 
@@ -263,6 +275,54 @@ class ActivityGrossanlassProcurementLine
     public function setSelfOrganized(bool $selfOrganized): self
     {
         $this->selfOrganized = $selfOrganized;
+
+        return $this;
+    }
+
+    public function getPickupNeed(): ?string
+    {
+        return $this->pickupNeed;
+    }
+
+    public function setPickupNeed(?string $pickupNeed): self
+    {
+        $this->pickupNeed = $pickupNeed;
+
+        return $this;
+    }
+
+    public function getPickupPlace(): ?string
+    {
+        return $this->pickupPlace;
+    }
+
+    public function setPickupPlace(?string $pickupPlace): self
+    {
+        $this->pickupPlace = $pickupPlace;
+
+        return $this;
+    }
+
+    public function isReturnNeeded(): bool
+    {
+        return $this->returnNeeded;
+    }
+
+    public function setReturnNeeded(bool $returnNeeded): self
+    {
+        $this->returnNeeded = $returnNeeded;
+
+        return $this;
+    }
+
+    public function getQuantityUnit(): string
+    {
+        return $this->quantityUnit !== '' ? $this->quantityUnit : 'Stk';
+    }
+
+    public function setQuantityUnit(?string $quantityUnit): self
+    {
+        $this->quantityUnit = strtolower(trim((string) $quantityUnit)) === 'm' ? 'm' : 'Stk';
 
         return $this;
     }

@@ -93,13 +93,20 @@ final class GrossanlassFormFieldCatalog
     ];
 
     /**
-     * Standard-Formular: Ressort-Zuordnung + Metadaten. Bauprojekt optional per Builder.
+     * Festes Minimum für Materialwünsche: landet als Zeile auf dem Bauauftrag.
      *
      * @return list<array<string, mixed>>
      */
     public static function defaultRessortWuenscheFields(): array
     {
-        return array_merge(self::ressortAndMetaFields(), []);
+        return array_merge(self::ressortAndMetaPrefix(), [
+            ['role' => self::ROLE_INPUT, 'system_key' => self::SYSTEM_LABEL, 'label' => 'Was brauchst du?', 'required' => true, 'enabled' => true, 'sort_order' => 20, 'config' => ['locked' => true]],
+            ['role' => self::ROLE_INPUT, 'system_key' => self::SYSTEM_LOCATION, 'label' => 'Wo brauchst du es? Ort', 'required' => true, 'enabled' => true, 'sort_order' => 30, 'config' => ['locked' => true]],
+            ['role' => self::ROLE_INPUT, 'system_key' => self::SYSTEM_QUANTITY, 'label' => 'Wie viel brauchst du davon?', 'required' => true, 'enabled' => true, 'sort_order' => 40, 'config' => ['locked' => true]],
+            ['role' => self::ROLE_INPUT, 'system_key' => self::SYSTEM_BAUPROJEKT, 'label' => 'Bauprojekt', 'required' => true, 'enabled' => true, 'sort_order' => 50, 'config' => ['allow_new_bauprojekt' => true, 'locked' => true]],
+            ['role' => self::ROLE_INPUT, 'custom_type' => self::CUSTOM_SELECT, 'label' => 'Zeitraum', 'required' => true, 'enabled' => true, 'sort_order' => 60, 'options' => ['choices' => ['Aufbau', 'Während Event', 'Abbau'], 'multiple' => true], 'config' => ['locked' => true]],
+            ['role' => self::ROLE_INPUT, 'system_key' => self::SYSTEM_NOTES, 'label' => 'Infos zum Wunsch', 'required' => false, 'enabled' => true, 'sort_order' => 70, 'config' => ['locked' => true]],
+        ], self::metaFields());
     }
 
     /**

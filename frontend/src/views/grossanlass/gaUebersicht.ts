@@ -26,7 +26,7 @@ export type GaUebersichtStore = {
   issue: (id: string, userId?: string) => Promise<void>
   updateEinsatz: (
     id: string,
-    data: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number },
+    data: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number; kind?: 'einsatz' },
   ) => Promise<void>
   togglePacked: (commitmentId: string, packed: boolean) => Promise<void>
   markReturned: (commitmentId: string) => Promise<void>
@@ -144,7 +144,7 @@ export function createGaUebersichtStore(
 
   async function updateEinsatz(
     id: string,
-    payload: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number },
+    payload: { packed?: boolean; trip_released?: boolean; status?: string; from?: string; to?: string; qty?: number; kind?: 'einsatz' },
   ) {
     if (!departmentId.value) return
     const result = await updateGrossanlassEinsatz(departmentId.value, id, payload)

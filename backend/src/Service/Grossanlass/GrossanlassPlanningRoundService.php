@@ -67,6 +67,9 @@ class GrossanlassPlanningRoundService
         if (!in_array($formPurpose, ActivityGrossanlassRound::FORM_PURPOSES, true)) {
             throw new \InvalidArgumentException('Ungültiger Formular-Zweck');
         }
+        if ($formPurpose === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular ist fest und wird nicht neu angelegt');
+        }
         $materialStage = GrossanlassMaterialStage::normalize($formPurpose, $data['material_stage'] ?? null);
 
         $opensAt = $this->parseOptionalDateTime($data['opens_at'] ?? null);
@@ -149,6 +152,9 @@ class GrossanlassPlanningRoundService
         }
 
         $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular ist fest und lässt sich nicht bearbeiten');
+        }
         if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
             throw new \InvalidArgumentException('Geschlossene Runden können nicht bearbeitet werden');
         }
@@ -221,6 +227,9 @@ class GrossanlassPlanningRoundService
         }
 
         $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular bleibt offen');
+        }
         if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
             return $this->toArray($round);
         }
@@ -274,6 +283,9 @@ class GrossanlassPlanningRoundService
         $changed = false;
         foreach ($rounds as $round) {
             if (!$round instanceof ActivityGrossanlassRound) {
+                continue;
+            }
+            if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
                 continue;
             }
             if (

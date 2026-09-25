@@ -109,7 +109,7 @@ class GrossanlassGroupService
             $group->setSortOrder((int) $data['sort_order']);
         }
         $this->applyWindow($group, $data);
-        $this->applyBuildStatus($group, $data);
+        $this->applyBuildStatus($department, $user, $group, $data);
         $this->applyDescription($group, $data);
 
         $this->entityManager->persist($group);
@@ -177,7 +177,7 @@ class GrossanlassGroupService
             );
         }
         $this->applyWindow($group, $data);
-        $this->applyBuildStatus($group, $data);
+        $this->applyBuildStatus($department, $user, $group, $data);
         $this->applyDescription($group, $data);
 
         $group->updateTimestamps();
@@ -593,9 +593,12 @@ class GrossanlassGroupService
     /**
      * @param array<string, mixed> $data
      */
-    private function applyBuildStatus(Group $group, array $data): void
+    private function applyBuildStatus(Department $department, User $user, Group $group, array $data): void
     {
         if (!array_key_exists('build_status', $data)) {
+            return;
+        }
+        if (!$this->access->canSetBuildStatus($user, $department)) {
             return;
         }
         $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));

@@ -34,8 +34,20 @@ class DepartmentGrossanlassTask
     #[ORM\Column(type: 'string', length: 255)]
     private string $title = '';
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $description = null;
+
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
+
+    #[ORM\Column(name: 'starts_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $startsAt = null;
+
+    #[ORM\Column(name: 'duration_minutes', type: 'integer', nullable: true)]
+    private ?int $durationMinutes = null;
+
+    #[ORM\Column(name: 'assignee_user_id', type: 'string', length: 12, nullable: true, columnDefinition: 'CHARACTER(12) NULL')]
+    private ?string $assigneeUserId = null;
 
     #[ORM\Column(name: 'created_at', type: 'datetime')]
     private \DateTime $createdAt;
@@ -105,6 +117,19 @@ class DepartmentGrossanlassTask
         return $this;
     }
 
+    public function getDescription(): ?string
+    {
+        return $this->description;
+    }
+
+    public function setDescription(?string $description): self
+    {
+        $trimmed = $description !== null ? trim($description) : '';
+        $this->description = $trimmed === '' ? null : $trimmed;
+
+        return $this;
+    }
+
     public function getSortOrder(): int
     {
         return $this->sortOrder;
@@ -113,6 +138,42 @@ class DepartmentGrossanlassTask
     public function setSortOrder(int $sortOrder): self
     {
         $this->sortOrder = $sortOrder;
+
+        return $this;
+    }
+
+    public function getStartsAt(): ?\DateTime
+    {
+        return $this->startsAt;
+    }
+
+    public function setStartsAt(?\DateTime $startsAt): self
+    {
+        $this->startsAt = $startsAt;
+
+        return $this;
+    }
+
+    public function getDurationMinutes(): ?int
+    {
+        return $this->durationMinutes;
+    }
+
+    public function setDurationMinutes(?int $durationMinutes): self
+    {
+        $this->durationMinutes = $durationMinutes;
+
+        return $this;
+    }
+
+    public function getAssigneeUserId(): ?string
+    {
+        return $this->assigneeUserId;
+    }
+
+    public function setAssigneeUserId(?string $assigneeUserId): self
+    {
+        $this->assigneeUserId = $assigneeUserId !== null && $assigneeUserId !== '' ? $assigneeUserId : null;
 
         return $this;
     }

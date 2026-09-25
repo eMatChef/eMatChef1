@@ -14,6 +14,10 @@ export interface CreateGrossanlassWishPayload {
   valid_to?: string
   timeframe_notes?: string | null
   notes?: string | null
+  pickup_need?: 'can' | 'must' | null
+  pickup_place?: string | null
+  return_needed?: boolean
+  quantity_unit?: string | null
   last_stage?: 'grob' | 'fein' | string
   refine_wish_id?: string
   enough_on_hand?: boolean
@@ -38,6 +42,10 @@ export interface GrossanlassWishLine {
   valid_to: string
   timeframe_notes: string | null
   notes: string | null
+  pickup_need?: 'can' | 'must' | null
+  pickup_place?: string | null
+  return_needed?: boolean
+  quantity_unit?: string | null
   status: 'requested' | 'accepted' | string
   last_stage?: 'grob' | 'fein' | string
   created_by_user_id: string
@@ -141,6 +149,24 @@ export async function acceptGrossanlassWish(
 ): Promise<GrossanlassWishLine> {
   const response = await apiClient.post<GrossanlassWishLine>(
     `/api/departments/${departmentId}/grossanlass/planung/rounds/${roundId}/wishes/${wishId}/accept`,
+  )
+  return response.data
+}
+
+export type GaPartnerPickup = {
+  id: string
+  source: 'wish' | 'direct'
+  label: string
+  quantity: number
+  group_id: string
+  group_name: string
+  pickup_need: 'can' | 'must' | null
+  pickup_place: string | null
+}
+
+export async function getPartnerPickups(departmentId: string): Promise<GaPartnerPickup[]> {
+  const response = await apiClient.get<GaPartnerPickup[]>(
+    `/api/departments/${departmentId}/grossanlass/abholen`,
   )
   return response.data
 }

@@ -1,5 +1,6 @@
 <template>
   <VTextField
+    ref="activatorRef"
     class="activity-v-time-picker-field activity-time-field e-form-field"
     variant="outlined"
     :density="density"
@@ -23,6 +24,7 @@
       :open-on-click="false"
       min-width="0"
       content-class="activity-time-picker-menu"
+      @click:outside="closeOnOutside"
     >
       <VTimePicker
         v-model="pickerModel"
@@ -39,9 +41,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type ComponentPublicInstance } from 'vue'
 import { VMenu, VTextField, VTimePicker } from 'vuetify/components'
 import { ACTIVITY_PICKER_MENU_Z_INDEX } from '@/composables/useActivityDateMenuProps'
+import { useActivityPickerOutsideClose } from '@/composables/useActivityPickerOutsideClose'
 import { snapDateToQuarterHour } from '@/utils/activityPlanningFromDefaults'
 import { startOfLocalDay } from '@/utils/activityDateTimeParts'
 import {
@@ -66,6 +69,11 @@ const emit = defineEmits<{
 }>()
 
 const menuOpen = ref(false)
+const activatorRef = ref<ComponentPublicInstance | null>(null)
+const { closeOnOutside } = useActivityPickerOutsideClose({
+  open: menuOpen,
+  activator: activatorRef,
+})
 const pickerModel = ref<string | null>(null)
 const pickerViewMode = ref<'hour' | 'minute' | 'second'>('hour')
 const draftHour = ref<number | null>(null)
@@ -120,13 +128,22 @@ function allowedQuarterMinutes(minute: number): boolean {
   return !isBlockedInstant(hour, minute)
 }
 
-watch(menuOpen, (open) => {
+watch(menuOpen, (open, wasOpen) => {
   if (open) {
     draftHour.value = null
     pickerModel.value = displayValue.value || null
     pickerViewMode.value = 'hour'
+    return
   }
+  if (wasOpen) commitDraftHour()
 })
+
+function commitDraftHour() {
+  if (draftHour.value == null || !props.modelValue) return
+  const hour = draftHour.value
+  draftHour.value = null
+  applyHourMinute(hour, props.modelValue.getMinutes())
+}
 
 function onFieldClick(e: MouseEvent) {
   if (isFieldDisabled.value) return
@@ -157,6 +174,7 @@ function onMinutePicked(minute: number) {
   if (!props.modelValue) return
   if (!allowedQuarterMinutes(minute)) return
   const hour = draftHour.value ?? props.modelValue.getHours()
+  draftHour.value = null
   applyHourMinute(hour, minute)
   menuOpen.value = false
 }

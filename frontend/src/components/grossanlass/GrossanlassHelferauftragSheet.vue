@@ -33,7 +33,7 @@
     <section>
       <h2>{{ t('grossanlass.planung.ressorts.tasksHeading') }}</h2>
       <ol v-if="tasks.length" class="helfer-sheet__list">
-        <li v-for="task in tasks" :key="task.id">{{ task.title }}</li>
+        <li v-for="task in tasks" :key="task.id">{{ task.title.trim() || task.description }}</li>
       </ol>
       <p v-else class="muted">{{ t('grossanlass.planung.ressorts.tasksEmpty') }}</p>
     </section>

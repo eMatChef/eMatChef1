@@ -29,16 +29,6 @@
             </h2>
             <p class="wish-form-group__landing">{{ group.landing }}</p>
           </div>
-          <EButton
-            v-if="group.purpose === 'material_wish' && (feinRound || canManage)"
-            variant="secondary"
-            size="small"
-            @click="goOrCreateFein"
-          >
-            {{ feinRound
-              ? t('grossanlass.planung.wishForms.openFein')
-              : t('grossanlass.planung.wishForms.createFein') }}
-          </EButton>
         </div>
 
         <v-alert
@@ -116,6 +106,16 @@
                 <td v-if="canManage" class="col-actions" @click="stopRowClick">
                   <div v-if="row.live" class="action-buttons">
                     <button
+                      v-if="isFixedMaterialForm(row)"
+                      class="action-btn action-btn-label action-btn-primary"
+                      type="button"
+                      :title="t('grossanlass.dashboard.submitWish')"
+                      @click="openWishForm(row.live)"
+                    >
+                      <v-icon icon="mdi-plus" size="16" />
+                      {{ t('grossanlass.dashboard.submitWish') }}
+                    </button>
+                    <button
                       class="action-btn action-btn-label action-btn-primary"
                       type="button"
                       :title="t('grossanlass.planung.rounds.responsesAction')"
@@ -125,7 +125,7 @@
                       {{ t('grossanlass.roundDetail.tabResponses') }}
                     </button>
                     <button
-                      v-if="canEditForm && row.live.status !== 'closed'"
+                      v-if="canEditForm && row.live.status !== 'closed' && !isFixedMaterialForm(row)"
                       class="action-btn"
                       :title="t('grossanlass.formBuilder.editFormAction')"
                       @click="openFormModal(row.live)"
@@ -133,7 +133,7 @@
                       <v-icon icon="mdi-form-select" size="16" />
                     </button>
                     <button
-                      v-if="row.live.status !== 'closed'"
+                      v-if="row.live.status !== 'closed' && !isFixedMaterialForm(row)"
                       class="action-btn"
                       :title="t('grossanlass.planung.rounds.editRoundAction')"
                       @click="openEditModal(row.live)"
@@ -141,7 +141,7 @@
                       <v-icon icon="mdi-pencil-outline" size="16" />
                     </button>
                     <button
-                      v-if="row.live.status === 'scheduled'"
+                      v-if="row.live.status === 'scheduled' && !isFixedMaterialForm(row)"
                       class="action-btn action-btn-primary"
                       :title="t('grossanlass.planung.rounds.openAction')"
                       @click="handleOpen(row.live)"
@@ -149,7 +149,7 @@
                       <v-icon icon="mdi-play-circle-outline" size="16" />
                     </button>
                     <button
-                      v-if="row.live.status === 'open'"
+                      v-if="row.live.status === 'open' && !isFixedMaterialForm(row)"
                       class="action-btn action-btn-warning"
                       :title="t('grossanlass.planung.rounds.closeAction')"
                       @click="handleClose(row.live)"
@@ -157,7 +157,7 @@
                       <v-icon icon="mdi-stop-circle-outline" size="16" />
                     </button>
                     <button
-                      v-if="row.live.status === 'closed'"
+                      v-if="row.live.status === 'closed' && !isFixedMaterialForm(row)"
                       class="action-btn action-btn-primary"
                       :title="t('grossanlass.planung.rounds.reopenAction')"
                       @click="handleReopen(row.live)"
@@ -367,7 +367,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
+import { gaCanManagePlanung } from '@/utils/grossanlassAccess'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ECheckbox, EDialog, ESelect, ETextField } from '@/components/form/base'
@@ -405,10 +407,11 @@ const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
-const { isUserRole, isMaterialwart } = useDepartmentMemberRole()
+const authStore = useAuthStore()
+const { isMaterialwart } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
-const canManage = computed(() => !isUserRole.value)
+const canManage = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
 const canEditForm = computed(() => isMaterialwart.value)
 
 const rounds = ref<GrossanlassPlanningRound[]>([])
@@ -449,11 +452,6 @@ const purposeItems = computed(() => [
 ])
 
 const purposeChoices = computed(() => [
-  {
-    purpose: 'material_wish' as const,
-    title: t('grossanlass.planung.wishForms.purposeMaterial'),
-    hint: t('grossanlass.planung.wishForms.purposeHintMaterial'),
-  },
   {
     purpose: 'company_tip' as const,
     title: t('grossanlass.planung.wishForms.purposeCompany'),
@@ -911,6 +909,17 @@ function openRow(row: WishFormRow) {
     return
   }
   void router.push(`/${departmentId.value}/planung/runden/${row.live.id}`)
+}
+
+function isFixedMaterialForm(row: { purpose: GrossanlassFormPurpose }) {
+  return row.purpose === 'material_wish'
+}
+
+function openWishForm(round: GrossanlassPlanningRound) {
+  void router.push({
+    path: `/${departmentId.value}/planung/runden/${round.id}`,
+    query: { tab: 'input' },
+  })
 }
 
 function openResponses(round: GrossanlassPlanningRound) {

@@ -498,6 +498,10 @@ export async function updateGrossanlassProcurementLine(
     group_id: string
     notes: string | null
     category_id: string | null
+    pickup_need: 'can' | 'must' | null
+    pickup_place: string | null
+    return_needed?: boolean
+    quantity_unit?: string | null
   }>,
 ): Promise<GrossanlassProcurementLine> {
   const response = await apiClient.put<GrossanlassProcurementLine>(

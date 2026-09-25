@@ -17,6 +17,7 @@ use App\Entity\ActivityGrossanlassWishResponseValue;
 use App\Entity\Address;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
+use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\Group;
 use App\Entity\User;
@@ -127,9 +128,13 @@ class GrossanlassProcurementService
         $lines = $qb->getQuery()->getResult();
         $result = [];
         foreach ($lines as $line) {
-            if ($line instanceof ActivityGrossanlassWishLine) {
-                $result[] = $this->wishToPoolArray($line);
+            if (!$line instanceof ActivityGrossanlassWishLine) {
+                continue;
             }
+            if ($this->coveredQtyForWish($line->getId()) >= $line->getQuantity()) {
+                continue;
+            }
+            $result[] = $this->wishToPoolArray($line);
         }
 
         return $result;
@@ -261,6 +266,19 @@ class GrossanlassProcurementService
         $line->setLocation($location);
         $line->setWishKind($wishKind);
         $line->setNotes(trim((string) ($data['notes'] ?? '')) ?: null);
+        $need = strtolower(trim((string) ($data['pickup_need'] ?? '')));
+        if (!in_array($need, ['can', 'must'], true)) {
+            $need = '';
+        }
+        $place = trim((string) ($data['pickup_place'] ?? ''));
+        $line->setPickupNeed($need !== '' ? $need : null);
+        $line->setPickupPlace($place !== '' ? mb_substr($place, 0, 255) : null);
+        if (array_key_exists('return_needed', $data)) {
+            $line->setReturnNeeded(filter_var($data['return_needed'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('quantity_unit', $data)) {
+            $line->setQuantityUnit((string) $data['quantity_unit']);
+        }
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BEDARF);
         $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_DIRECT);
@@ -272,6 +290,135 @@ class GrossanlassProcurementService
         $this->entityManager->flush();
 
         return $this->lineToArray($line);
+    }
+
+    /**
+     * Offene Wunschmenge (Wunsch minus Bestandseinsätze) als Bedarfsposition.
+     * Volle Deckung entfernt die Position wieder, solange sie noch «Bedarf» ist.
+     */
+    public function syncUncoveredWishDemand(Department $department, User $user, string $wishLineId): void
+    {
+        $wishLineId = trim($wishLineId);
+        if ($wishLineId === '') {
+            return;
+        }
+        $wish = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($wishLineId);
+        if (!$wish instanceof ActivityGrossanlassWishLine || !$this->wishBelongsToDepartment($wish, $department)) {
+            return;
+        }
+        if ($wish->getRound()->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            return;
+        }
+
+        $open = max(0, $wish->getQuantity() - $this->coveredQtyForWish($wishLineId));
+        $link = $this->findWishLinkInDepartment($department, $wishLineId);
+        $line = $link?->getProcurementLine();
+
+        if ($line instanceof ActivityGrossanlassProcurementLine && !$this->canAutoAdjustDemandLine($line)) {
+            return;
+        }
+
+        if ($open < 1) {
+            if ($line instanceof ActivityGrossanlassProcurementLine) {
+                $this->dropAutoDemandLine($line, $user);
+            }
+
+            return;
+        }
+
+        if (!$line instanceof ActivityGrossanlassProcurementLine) {
+            $this->createOpenDemandLine($department, $user, $wish, $open);
+
+            return;
+        }
+
+        if ($line->getQuantity() !== $open) {
+            $line->setQuantity($open);
+            $line->touchUpdatedAt();
+            $this->entityManager->flush();
+        }
+    }
+
+    private function coveredQtyForWish(string $wishLineId): int
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->findBy([
+                'wishLineId' => $wishLineId,
+                'kind' => DepartmentGrossanlassEinsatz::KIND_EINSATZ,
+            ]);
+        $sum = 0;
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassEinsatz) {
+                $sum += max(0, $row->getQty());
+            }
+        }
+
+        return $sum;
+    }
+
+    private function canAutoAdjustDemandLine(ActivityGrossanlassProcurementLine $line): bool
+    {
+        if ($line->getStatus() !== ActivityGrossanlassProcurementLine::STATUS_BEDARF) {
+            return false;
+        }
+        if ($line->getQuantityAsked() !== null) {
+            return false;
+        }
+        if ($line->getSource() !== ActivityGrossanlassProcurementLine::SOURCE_FROM_WISH) {
+            return false;
+        }
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['procurementLineId' => $line->getId()]);
+        if (count($links) !== 1) {
+            return false;
+        }
+        $quotes = $this->entityManager->getRepository(ActivityGrossanlassProcurementQuote::class)
+            ->findBy(['procurementLine' => $line]);
+
+        return $quotes === [];
+    }
+
+    private function dropAutoDemandLine(ActivityGrossanlassProcurementLine $line, User $user): void
+    {
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['procurementLineId' => $line->getId()]);
+        foreach ($links as $link) {
+            if ($link instanceof ActivityGrossanlassProcurementLineWish) {
+                $this->releaseWishFromProcurement($link->getWishLine(), $user);
+                $this->entityManager->remove($link);
+            }
+        }
+        $this->entityManager->remove($line);
+        $this->entityManager->flush();
+    }
+
+    private function createOpenDemandLine(
+        Department $department,
+        User $user,
+        ActivityGrossanlassWishLine $wish,
+        int $open,
+    ): void {
+        $line = new ActivityGrossanlassProcurementLine();
+        $line->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::PROCUREMENT_LINE,
+            ActivityGrossanlassProcurementLine::class,
+        ));
+        $line->setDepartment($department);
+        $line->setCreatedByUser($user);
+        $line->setStatus(ActivityGrossanlassProcurementLine::STATUS_BEDARF);
+        $line->setSource(ActivityGrossanlassProcurementLine::SOURCE_FROM_WISH);
+        $line->setSelfOrganized(false);
+        $this->applyWishAggregation($line, [$wish], ['quantity' => $open]);
+
+        $this->entityManager->persist($line);
+        $link = new ActivityGrossanlassProcurementLineWish();
+        $link->setProcurementLine($line);
+        $link->setWishLine($wish);
+        $this->entityManager->persist($link);
+        $this->markWishAcceptedForProcurement($wish, $user);
+        $this->costService->ensureMainForLine($line, []);
+        $this->entityManager->flush();
     }
 
     /**
@@ -359,6 +506,23 @@ class GrossanlassProcurementService
         if (array_key_exists('notes', $data)) {
             $notes = trim((string) ($data['notes'] ?? ''));
             $line->setNotes($notes === '' ? null : $notes);
+        }
+        if (array_key_exists('pickup_need', $data) || array_key_exists('pickup_place', $data)) {
+            $need = strtolower(trim((string) ($data['pickup_need'] ?? $line->getPickupNeed() ?? '')));
+            if (!in_array($need, ['can', 'must'], true)) {
+                $need = '';
+            }
+            $place = array_key_exists('pickup_place', $data)
+                ? trim((string) ($data['pickup_place'] ?? ''))
+                : (string) ($line->getPickupPlace() ?? '');
+            $line->setPickupNeed($need !== '' ? $need : null);
+            $line->setPickupPlace($place !== '' ? mb_substr($place, 0, 255) : null);
+        }
+        if (array_key_exists('return_needed', $data)) {
+            $line->setReturnNeeded(filter_var($data['return_needed'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('quantity_unit', $data)) {
+            $line->setQuantityUnit((string) $data['quantity_unit']);
         }
         if (!empty($data['group_id'])) {
             $group = $this->findGroupInDepartment($department, (string) $data['group_id']);
@@ -2082,6 +2246,10 @@ class GrossanlassProcurementService
             'status' => $line->getStatus(),
             'source' => $line->getSource(),
             'self_organized' => $line->isSelfOrganized(),
+            'pickup_need' => $line->getPickupNeed(),
+            'pickup_place' => $line->getPickupPlace(),
+            'return_needed' => $line->isReturnNeeded(),
+            'quantity_unit' => $line->getQuantityUnit(),
             'created_by_user_id' => $line->getCreatedByUserId(),
             'quantity_asked' => $line->getQuantityAsked(),
             'quantity_current' => $sourceQuantitySum,

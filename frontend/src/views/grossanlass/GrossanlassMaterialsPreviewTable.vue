@@ -191,10 +191,12 @@ const uebersicht = inject(gaUebersichtKey, null)
 
 const tabItems = computed(() => {
   const issued = uebersicht?.data.value?.issued_by_object ?? {}
-  const vehiclesOnly = String(route.query.family || '') === 'vehicle'
   return rows.value
     .filter((row) => row.tabs.includes(props.tab))
-    .filter((row) => (vehiclesOnly ? row.tabs.includes('fahrzeuge') : true))
+    .filter((row) => {
+      const isVehicle = row.tabs.includes('fahrzeuge')
+      return props.tab === 'fahrzeuge' ? isVehicle : !isVehicle
+    })
     .map((row) => {
       const out = issued[row.id] ?? row.issued_out
       const available = row.releasedForEinsatz === false

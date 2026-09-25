@@ -355,9 +355,9 @@ const dashboardNettoDisplay = computed(() => {
 })
 const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
-const konflikteLink = computed(() => `/${props.departmentId}/material-uebersicht/konflikte`)
+const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)
-const tripsLink = computed(() => `/${props.departmentId}/material-uebersicht/fahrauftraege`)
+const tripsLink = computed(() => `/${props.departmentId}/planung/transporte`)
 const tripOrderCount = computed(() =>
   (uebersicht.value?.einsaetze ?? []).filter(
     (row) => row.delivery === 'trip' && row.status !== 'returned',

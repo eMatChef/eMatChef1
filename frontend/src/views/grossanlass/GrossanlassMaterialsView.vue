@@ -67,10 +67,7 @@ const activeTab = computed(() => (route.meta.materialsTab as string) || 'eigen')
 function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
-  const query = (tab === 'eigen' || tab === 'leihweise') && route.query.family
-    ? { family: String(route.query.family) }
-    : {}
-  void router.push({ path: `/${id}/materialien/${tab}`, query })
+  void router.push({ path: `/${id}/materialien/${tab}` })
 }
 </script>
 

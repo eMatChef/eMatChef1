@@ -13,6 +13,7 @@ export function mapWishPhaseChoiceToCalendarLabel(choice: string): CalendarPerio
     || n.includes('grossanlass')
     || n.includes('durchführung')
     || n.includes('durchfuehrung')
+    || n.includes('event')
   ) {
     return 'grossanlass'
   }

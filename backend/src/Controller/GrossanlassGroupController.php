@@ -414,6 +414,19 @@ class GrossanlassGroupController extends AbstractController
         );
     }
 
+    #[Route('/{groupId}/material/{lineId}', name: 'material_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateMaterial(string $departmentId, string $groupId, string $lineId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->updateMaterial($d, $u, $g, $lineId, is_array($data) ? $data : []),
+        );
+    }
+
     #[Route('/{groupId}/material', name: 'material_create', methods: ['POST'])]
     #[IsGranted('ROLE_USER')]
     public function addMaterial(string $departmentId, string $groupId, Request $request): JsonResponse

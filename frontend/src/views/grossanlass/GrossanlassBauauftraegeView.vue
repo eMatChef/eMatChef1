@@ -1,7 +1,10 @@
 <template>
   <div class="ga-bauauftraege">
-    <div class="ga-bauauftraege__toolbar">
-      <p class="ga-bauauftraege__intro">{{ t('grossanlass.materialUebersicht.bauauftraegeIntro') }}</p>
+    <div class="ga-bauauftraege__subtabs">
+      <v-tabs v-model="listMode" class="materials-view-tabs" color="primary">
+        <v-tab value="mine">{{ t('grossanlass.planung.bauListMine') }}</v-tab>
+        <v-tab value="tree">{{ t('grossanlass.planung.bauListTree') }}</v-tab>
+      </v-tabs>
       <EButton
         v-if="canAdd"
         variant="primary"
@@ -15,7 +18,7 @@
     <ELoadingState v-if="loading" variant="inline" :message="t('common.loading')" />
 
     <EEmptyState
-      v-else-if="!sections.length"
+      v-else-if="listMode === 'mine' ? !projectRows.length : !sections.length"
       icon="mdi-hammer-wrench"
       :title="t('grossanlass.materialUebersicht.emptyBauauftraegeTitle')"
       :description="t('grossanlass.materialUebersicht.emptyBauauftraegeText')"
@@ -24,6 +27,22 @@
         <EButton @click="openCreate">{{ t('grossanlass.materialUebersicht.addBauauftrag') }}</EButton>
       </template>
     </EEmptyState>
+
+    <ul v-else-if="listMode === 'mine'" class="ga-bauauftraege__list">
+      <li v-for="project in projectRows" :key="project.id" @click="openProject(project)">
+        <span class="ga-bauauftraege__name">{{ project.name }}</span>
+        <span v-if="parentPath(project)" class="ga-bauauftraege__path">{{ parentPath(project) }}</span>
+        <span
+          v-if="statusChip(project)"
+          class="status-chip"
+          :class="`status-chip--${resolveBuildStatus(project)}`"
+        >{{ statusChip(project) }}</span>
+        <span v-if="windowText(project)" class="window-chip">{{ windowText(project) }}</span>
+        <EButton variant="secondary" size="small" @click.stop="openProject(project)">
+          {{ t('grossanlass.planung.ressorts.openProject') }}
+        </EButton>
+      </li>
+    </ul>
 
     <v-expansion-panels v-else v-model="openIds" multiple class="e-accordions ga-bauauftraege__tree">
       <GrossanlassBauauftragBranch
@@ -60,7 +79,6 @@
           v-model:end="createForm.window_end"
           v-model:status="createForm.build_status"
           :window-label="t('grossanlass.planung.ressorts.windowLabel')"
-          :window-hint="t('grossanlass.planung.ressorts.windowHint')"
         />
       </div>
       <template #actions>
@@ -77,9 +95,10 @@
 
     <EDialog
       v-model="showProject"
-      :max-width="920"
+      :max-width="1400"
       :title="projectTitle"
       :retain-focus="false"
+      highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"
@@ -99,7 +118,7 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
@@ -122,9 +141,17 @@ import {
   type NestedTreeNode,
 } from '@/utils/grossanlassGroupHierarchy'
 import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
+import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
+import {
+  gaBuildStatusI18nKey,
+  resolveBuildStatus,
+  showsGaBuildStatus,
+} from '@/utils/grossanlassBuildStatus'
 import { gaBauauftragComposerKey } from '@/views/grossanlass/gaBauauftragComposer'
+import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
+const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
 
@@ -132,6 +159,7 @@ const departmentId = computed(() => String(route.params.departmentId || ''))
 const groups = ref<GrossanlassGroup[]>([])
 const loading = ref(true)
 const openIds = ref<string[]>([])
+const listMode = ref<'mine' | 'tree'>('mine')
 const showCreate = ref(false)
 const showProject = ref(false)
 const projectGroup = ref<GrossanlassGroup | null>(null)
@@ -172,6 +200,36 @@ const sections = computed(() =>
     .filter((node) => node.node_type !== 'bauprojekt')
     .map(toSection),
 )
+
+const projectRows = computed(() =>
+  visibleGroups.value
+    .filter((group) => group.node_type === 'bauprojekt')
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'de')),
+)
+
+function parentPath(group: GrossanlassGroup): string {
+  const names: string[] = []
+  let parentId = group.parent_id
+  const guard = new Set<string>()
+  while (parentId && !guard.has(parentId)) {
+    guard.add(parentId)
+    const parent = groups.value.find((row) => row.id === parentId)
+    if (!parent) break
+    names.unshift(parent.name)
+    parentId = parent.parent_id
+  }
+  return names.join(' · ')
+}
+
+function windowText(group: GrossanlassGroup): string {
+  return formatBauprojektWindow(group.window_start, group.window_end)
+}
+
+function statusChip(group: GrossanlassGroup): string {
+  if (!showsGaBuildStatus(group)) return ''
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(group)))
+}
 
 const parentItems = computed(() =>
   flattenTreeWithLevel(visibleGroups.value)
@@ -265,7 +323,17 @@ watch(canAdd, (value) => {
 
 onMounted(() => {
   if (composer) composer.open = openCreate
-  void load()
+  void load().then(() => {
+    const projectId = String(route.query.project || '')
+    if (projectId) {
+      const found = groups.value.find((group) => group.id === projectId)
+      if (found) openProject(found)
+    }
+    if (String(route.query.create || '') === '1') openCreate()
+    if (!projectId && String(route.query.create || '') !== '1') return
+    const { project: _project, create: _create, ...rest } = route.query
+    void router.replace({ query: rest })
+  })
 })
 
 onBeforeUnmount(() => {
@@ -282,22 +350,62 @@ onBeforeUnmount(() => {
   gap: 16px;
   padding: 4px 0 24px;
 }
-.ga-bauauftraege__toolbar {
+.ga-bauauftraege__subtabs {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: 12px;
 }
-.ga-bauauftraege__intro {
-  margin: 0;
-  flex: 1 1 240px;
-  color: var(--color-text-muted, #6b7280);
-  font-size: 0.9rem;
+.ga-bauauftraege__subtabs :deep(.v-tabs.materials-view-tabs) {
+  flex: 0 0 auto;
+  width: fit-content;
+  max-width: 100%;
 }
 .ga-bauauftraege__tree {
   border-radius: 10px;
 }
+.ga-bauauftraege__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.ga-bauauftraege__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+}
+.ga-bauauftraege__list li:hover {
+  background: #f8fafc;
+}
+.ga-bauauftraege__name {
+  font-weight: 650;
+}
+.ga-bauauftraege__path {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+.window-chip,
+.status-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.window-chip { color: #475569; background: #f1f5f9; }
+.status-chip--planned { background: #e2e8f0; color: #334155; }
+.status-chip--build { background: #fde68a; color: #92400e; }
+.status-chip--use { background: #99f6e4; color: #115e59; }
+.status-chip--teardown { background: #fed7aa; color: #9a3412; }
+.status-chip--done { background: #bbf7d0; color: #166534; }
+.status-chip--aborted { background: #fecaca; color: #991b1b; }
 .ga-bauauftraege__create {
   display: flex;
   flex-direction: column;

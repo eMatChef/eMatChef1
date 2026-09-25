@@ -42,6 +42,9 @@ export interface GrossanlassRoundFormField {
     leader_scope?: boolean
     inquiry_key?: string
     multiline?: boolean
+    locked?: boolean
+    choices?: string[]
+    multiple?: boolean
   } | null
   /** Gesetzt vom Backend — Feld hat bereits Antworten und darf nicht entfernt werden. */
   has_response_values?: boolean
@@ -142,6 +145,7 @@ export function isFixedSystemField(field: GrossanlassRoundFormField): boolean {
 }
 
 export function canRemoveFormBuilderField(field: GrossanlassRoundFormField): boolean {
+  if (field.config?.locked) return false
   return !isFixedSystemField(field) && !field.has_response_values
 }
 

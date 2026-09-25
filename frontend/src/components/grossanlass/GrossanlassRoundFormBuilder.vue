@@ -216,7 +216,7 @@
               <v-icon icon="mdi-delete-outline" size="18" />
             </button>
             <span
-              v-else-if="!isFixedSystemField(field) && field.has_response_values"
+              v-else-if="field.config?.locked || (!isFixedSystemField(field) && field.has_response_values)"
               class="field-locked-hint"
               :title="t('grossanlass.formBuilder.fieldLockedHint')"
             >

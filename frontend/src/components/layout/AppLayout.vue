@@ -74,7 +74,7 @@ const isActivityDetailView = computed(() => {
   return name === 'ActivityDetail' || name === 'ActivityDetailTab' || name === 'ActivityPackJourney'
 })
 
-const isEinsaetzeView = computed(() => route.name === 'GrossanlassMaterialUebersichtEinsaetze')
+const isEinsaetzeView = computed(() => route.name === 'GrossanlassPlanungBelegung')
 const headerScrollsWithContent = computed(() => isActivityDetailView.value || isEinsaetzeView.value)
 
 const isMaterialDetailView = computed(() => {

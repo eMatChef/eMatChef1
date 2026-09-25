@@ -191,10 +191,17 @@ function render(opts: { fit?: boolean } = {}) {
     pinMarker = L.marker([props.latitude as number, props.longitude as number], {
       icon: pinIcon(),
       zIndexOffset: 600,
+      draggable: props.editable,
+      autoPan: true,
     })
     if (props.label) {
       pinMarker.bindTooltip(props.label, { direction: 'top', offset: [0, -8] })
     }
+    pinMarker.on('dragend', () => {
+      const point = pinMarker?.getLatLng()
+      if (!point || !props.editable) return
+      emit('pick', point.lat, point.lng)
+    })
     pinMarker.addTo(map)
   }
 
@@ -220,23 +227,33 @@ function isCtrlZoom(event: KeyboardEvent | WheelEvent): boolean {
 
 function bindCtrlScrollZoom(instance: L.Map): () => void {
   instance.scrollWheelZoom.disable()
+  instance.dragging.disable()
   const el = instance.getContainer()
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (isCtrlZoom(event)) setScrollZoom(true)
+    if (!isCtrlZoom(event)) return
+    setScrollZoom(true)
+    instance.dragging.enable()
   }
   const onKeyUp = (event: KeyboardEvent) => {
-    if (!isCtrlZoom(event)) setScrollZoom(false)
+    if (isCtrlZoom(event)) return
+    setScrollZoom(false)
+    instance.dragging.disable()
   }
   const onWheel = (event: WheelEvent) => {
     if (isCtrlZoom(event)) {
       event.preventDefault()
       setScrollZoom(true)
+      instance.dragging.enable()
       return
     }
     setScrollZoom(false)
+    instance.dragging.disable()
   }
-  const onBlur = () => setScrollZoom(false)
+  const onBlur = () => {
+    setScrollZoom(false)
+    instance.dragging.disable()
+  }
 
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
@@ -302,10 +319,11 @@ watch(
 )
 
 watch(
-  () => [props.latitude, props.longitude, props.label, props.overlay] as const,
+  () => [props.latitude, props.longitude, props.label, props.overlay, props.editable] as const,
   () => {
-    render({ fit: !hasPin() })
-    if (hasPin() && map) {
+    const hadPin = !!pinMarker
+    render({ fit: false })
+    if (!hadPin && hasPin() && map) {
       map.setView([props.latitude as number, props.longitude as number], Math.max(map.getZoom(), 15), {
         animate: false,
       })
@@ -350,5 +368,6 @@ defineExpose({ refreshSize })
   background: #d97706;
   border: 2px solid #fff;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.35);
+  cursor: grab;
 }
 </style>

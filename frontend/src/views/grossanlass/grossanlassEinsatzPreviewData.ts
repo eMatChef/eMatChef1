@@ -27,6 +27,9 @@ export type GaPreviewEinsatz = {
   orgRingKey?: string
   status: GaEinsatzStatus
   who: string
+  description?: string
+  /** Aufgabe am Bauauftrag, kein Material-Einsatz. */
+  source?: 'task'
   conflictId?: string
   barRole?: GaEinsatzBarRole
   delivery?: 'trip' | 'pickup'
@@ -75,6 +78,7 @@ export type GaEinsatzCategoryBlock = {
   ringId: GaEinsatzRingId
   ringLabel: string
   label: string
+  groupId?: string
   resources: Array<GaEinsatzResource & {
     bookings: GaPreviewEinsatz[]
     lanes: number
@@ -85,6 +89,8 @@ export type GaEinsatzCategoryBlock = {
 export type GaEinsatzRingBlock = {
   id: string
   label: string
+  depth?: number
+  parentId?: string
   status?: string
   statusKind?: string
   windowText?: string
@@ -680,7 +686,7 @@ function orgUsageResource(
     toLabel: span || to || from,
     ressort: group.name,
     status: 'planned',
-    who: t('grossanlass.materialUebersicht.usageWindowHintShort'),
+    who: '',
     barRole: 'fixed',
   }
   return {
@@ -843,91 +849,162 @@ export function buildOrgCalendarRings(
   const orgBookings = bookings.filter(isOrgEinsatz)
   const unassigned = t('grossanlass.materialUebersicht.bookProjectUnassigned')
   const noProject = t('grossanlass.materialUebersicht.orgNoProject')
-  const byRing = new Map<string, {
+  const byId = new Map(groups.map((group) => [group.id, group]))
+
+  type Bucket = {
+    id: string
     label: string
     group?: GaEinsatzOrgGroup
     projects: Map<string, GaPreviewEinsatz[]>
-  }>()
+  }
 
-  function ensureRing(key: string, label: string) {
-    const existing = byRing.get(key)
-    if (existing) return existing
-    const created: { label: string; group?: GaEinsatzOrgGroup; projects: Map<string, GaPreviewEinsatz[]> } = {
-      label,
-      projects: new Map<string, GaPreviewEinsatz[]>(),
+  function chainOf(groupId?: string | null): GaEinsatzOrgGroup[] {
+    const chain: GaEinsatzOrgGroup[] = []
+    const seen = new Set<string>()
+    let cursor = groupId ? byId.get(groupId) : undefined
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id)
+      chain.push(cursor)
+      cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined
     }
-    byRing.set(key, created)
+    return chain
+  }
+
+  const ressorts = new Map<string, Bucket & { children: Map<string, Bucket> }>()
+
+  function ensureRessort(id: string, label: string, group?: GaEinsatzOrgGroup) {
+    const existing = ressorts.get(id)
+    if (existing) {
+      if (group) existing.group = group
+      return existing
+    }
+    const created = {
+      id,
+      label,
+      group,
+      projects: new Map<string, GaPreviewEinsatz[]>(),
+      children: new Map<string, Bucket>(),
+    }
+    ressorts.set(id, created)
     return created
   }
 
-  for (const row of orgBookings) {
-    const label = row.ressort.trim() || unassigned
-    const key = row.orgRingKey || label
-    const project = row.bauprojekt?.trim() || ''
-    const ring = ensureRing(key, label)
-    const list = ring.projects.get(project) ?? []
-    list.push(row)
-    ring.projects.set(project, list)
+  function ensureChild(parent: Bucket & { children: Map<string, Bucket> }, id: string, label: string, group?: GaEinsatzOrgGroup) {
+    const existing = parent.children.get(id)
+    if (existing) {
+      if (group) existing.group = group
+      return existing
+    }
+    const created: Bucket = { id, label, group, projects: new Map() }
+    parent.children.set(id, created)
+    return created
+  }
+
+  for (const group of groups) {
+    if (group.node_type === 'ressort') ensureRessort(group.id, group.name, group)
+    if (group.node_type !== 'unterressort') continue
+    const chain = chainOf(group.id)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    const parent = ensureRessort(ressort?.id || group.parent_id || group.id, ressort?.name || group.name, ressort)
+    ensureChild(parent, group.id, group.name, group)
   }
   for (const group of groups) {
-    if (group.node_type !== 'unterressort') continue
-    const label = group.name.trim()
-    if (!label) continue
-    const ring = ensureRing(group.id, label)
-    ring.group = group
+    if (group.node_type !== 'bauprojekt') continue
+    const chain = chainOf(group.id)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    const bereich = chain.find((item) => item.node_type === 'unterressort')
+    const parent = ensureRessort(ressort?.id || group.parent_id || group.id, ressort?.name || group.name, ressort)
+    const bucket = bereich ? ensureChild(parent, bereich.id, bereich.name, bereich) : parent
+    if (!bucket.projects.has(group.name)) bucket.projects.set(group.name, [])
   }
-  if (!byRing.size) return []
 
-  return [...byRing.entries()]
-    .sort(([, a], [, b]) => a.label.localeCompare(b.label, 'de'))
-    .map(([key, ring]) => {
-      const named = [...ring.projects.keys()].some((project) => project !== '')
-      const usage = ring.group ? orgUsageResource(ring.group, key, t) : null
-      const skipCategory = !named
-      const blocks: GaEinsatzCategoryBlock[] = [...ring.projects.entries()]
-        .sort(([a], [b]) => a.localeCompare(b, 'de'))
-        .map(([project, rows]) => ({
-          id: `org:${key}::${project}`,
+  for (const row of orgBookings) {
+    const chain = chainOf(row.groupId)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    const bereich = chain.find((item) => item.node_type === 'unterressort')
+    const project = row.bauprojekt?.trim() || ''
+    const ressortId = ressort?.id || row.orgRingKey || row.ressort.trim() || unassigned
+    const ressortLabel = ressort?.name || row.ressort.trim() || unassigned
+    const parent = ensureRessort(ressortId, ressortLabel, ressort)
+    const bucket = bereich ? ensureChild(parent, bereich.id, bereich.name, bereich) : parent
+    const list = bucket.projects.get(project) ?? []
+    list.push(row)
+    bucket.projects.set(project, list)
+  }
+
+  function toRing(bucket: Bucket, depth: number, parentId?: string): GaEinsatzRingBlock {
+    const named = [...bucket.projects.keys()].some((project) => project !== '')
+    const usage = bucket.group && bucket.group.node_type !== 'ressort'
+      ? orgUsageResource(bucket.group, bucket.id, t)
+      : null
+    const skipCategory = !named
+    const blocks: GaEinsatzCategoryBlock[] = [...bucket.projects.entries()]
+      .sort(([a], [b]) => a.localeCompare(b, 'de'))
+      .map(([project, rows]) => {
+        const packed = withPackedResources(rowsByObjectId(rows), resources, `org:${bucket.id}::${project}:`)
+        const projectGroup = groups.find((group) =>
+          group.node_type === 'bauprojekt'
+          && group.name === project
+          && (group.parent_id === bucket.group?.id || group.parent_id === bucket.id),
+        )
+        const projectUsage = projectGroup ? orgUsageResource(projectGroup, projectGroup.id, t) : null
+        return {
+          id: `org:${bucket.id}::${project}`,
           ringId: 'org' as const,
-          ringLabel: ring.label,
-          label: orgProjectCategoryLabel(project, rows, groups, named, noProject, ring.label, t),
-          resources: withPackedResources(rowsByObjectId(rows), resources, `org:${key}::${project}:`),
-        }))
-      if (usage) {
-        if (skipCategory && blocks.length === 1) {
-          blocks[0].resources = [usage, ...blocks[0].resources]
-        } else if (skipCategory && blocks.length === 0) {
-          blocks.push({
-            id: `org:${key}::usage`,
-            ringId: 'org',
-            ringLabel: ring.label,
-            label: ring.label,
-            resources: [usage],
-          })
-        } else {
-          blocks.unshift({
-            id: `org:${key}::usage`,
-            ringId: 'org',
-            ringLabel: ring.label,
-            label: t('grossanlass.materialUebersicht.usageWindowRow'),
-            resources: [usage],
-          })
+          ringLabel: bucket.label,
+          label: orgProjectCategoryLabel(project, rows, groups, named, noProject, bucket.label, t),
+          groupId: projectGroup?.id,
+          resources: projectUsage ? [projectUsage, ...packed] : packed,
         }
+      })
+    if (usage) {
+      if (skipCategory && blocks.length === 1) {
+        blocks[0].resources = [usage, ...blocks[0].resources]
+      } else if (skipCategory && blocks.length === 0) {
+        blocks.push({
+          id: `org:${bucket.id}::usage`,
+          ringId: 'org',
+          ringLabel: bucket.label,
+          label: bucket.label,
+          resources: [usage],
+        })
+      } else {
+        blocks.unshift({
+          id: `org:${bucket.id}::usage`,
+          ringId: 'org',
+          ringLabel: bucket.label,
+          label: t('grossanlass.materialUebersicht.usageWindowRow'),
+          resources: [usage],
+        })
       }
-      const windowText = ring.group
-        ? formatBauprojektWindow(ring.group.window_start, ring.group.window_end)
-        : ''
-      const statusKind = ring.group ? resolveBuildStatus(ring.group) : undefined
-      return {
-        id: `org:${key}`,
-        label: ring.label,
-        status: statusKind ? t(gaBuildStatusI18nKey(statusKind)) : undefined,
-        statusKind,
-        windowText: windowText || undefined,
-        skipCategory,
-        blocks,
-      }
-    })
+    }
+    const showMeta = bucket.group && bucket.group.node_type !== 'ressort'
+    const windowText = showMeta
+      ? formatBauprojektWindow(bucket.group?.window_start, bucket.group?.window_end)
+      : ''
+    const statusKind = showMeta && bucket.group ? resolveBuildStatus(bucket.group) : undefined
+    return {
+      id: `org:${bucket.id}`,
+      label: bucket.label,
+      depth,
+      parentId,
+      status: statusKind ? t(gaBuildStatusI18nKey(statusKind)) : undefined,
+      statusKind,
+      windowText: windowText || undefined,
+      skipCategory,
+      blocks,
+    }
+  }
+
+  const rings: GaEinsatzRingBlock[] = []
+  const sortedRessorts = [...ressorts.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+  for (const ressort of sortedRessorts) {
+    const children = [...ressort.children.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+    const own = toRing(ressort, 0)
+    const childRings = children.map((child) => toRing(child, 1, own.id))
+    rings.push(own, ...childRings)
+  }
+  return rings
 }
 
 export function buildEinsatzCalendarBlocks(

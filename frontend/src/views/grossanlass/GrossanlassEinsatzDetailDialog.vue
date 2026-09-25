@@ -11,8 +11,12 @@
         <dt>{{ t('grossanlass.materialUebersicht.colRessort') }}</dt>
         <dd>
           {{ booking.ressort || '–' }}
-          <template v-if="booking.bauprojekt"> · {{ booking.bauprojekt }}</template>
+          <template v-if="booking.bauprojekt && booking.bauprojekt !== booking.ressort"> · {{ booking.bauprojekt }}</template>
         </dd>
+      </div>
+      <div v-if="booking.description && !editingTask">
+        <dt>{{ t('grossanlass.planung.ressorts.descriptionHeading') }}</dt>
+        <dd>{{ booking.description }}</dd>
       </div>
       <div>
         <dt>{{ t('grossanlass.materialUebersicht.colWhen') }}</dt>
@@ -43,6 +47,15 @@
         <ETimeField v-model="fromTime" :label="t('grossanlass.materialUebersicht.fieldFromTime')" />
         <ETimeField v-model="toTime" :label="t('grossanlass.materialUebersicht.fieldToTime')" />
       </div>
+      <ETextarea
+        v-if="isTask"
+        v-model="description"
+        :label="t('grossanlass.planung.ressorts.taskBlockTitle')"
+        rows="3"
+        auto-grow
+        hide-details
+        class="mb-3"
+      />
       <ETextField
         v-if="booking?.kind === 'quantity'"
         v-model="qty"
@@ -99,7 +112,8 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton, EDateRangeField, EDialog, ETextField, ETimeField } from '@/components/form/base'
+import { EButton, EDateRangeField, EDialog, ETextarea, ETextField, ETimeField } from '@/components/form/base'
+import { updateGrossanlassBauprojektTask } from '@/api/grossanlassBauprojekt'
 import {
   einsatzBarKind,
   parseLocalDate,
@@ -113,9 +127,11 @@ import { useToast } from '@/composables/useToast'
 const props = defineProps<{
   booking: GaPreviewEinsatz | null
   stayMode?: GaEinsatzStayMode | null
+  startEditing?: boolean
 }>()
 
 const open = defineModel<boolean>({ default: false })
+const emit = defineEmits<{ saved: [] }>()
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -128,6 +144,7 @@ const toDate = ref('')
 const fromTime = ref('08:00')
 const toTime = ref('18:00')
 const qty = ref('1')
+const description = ref('')
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const kind = computed(() => (props.booking ? einsatzBarKind(props.booking) : 'planned'))
@@ -151,6 +168,9 @@ const stayText = computed(() => {
     ? t('grossanlass.materialUebersicht.stayReturn')
     : t('grossanlass.materialUebersicht.stayUntilEnd')
 })
+
+const isTask = computed(() => props.booking?.source === 'task' && Boolean(props.booking.groupId))
+const editingTask = computed(() => isTask.value && editing.value)
 
 const editable = computed(() => {
   const row = props.booking
@@ -186,7 +206,7 @@ const canSave = computed(() => {
 })
 
 watch(
-  () => [open.value, props.booking?.id] as const,
+  () => [open.value, props.booking?.id, props.startEditing] as const,
   () => {
     const row = props.booking
     if (!open.value || !row) return
@@ -195,8 +215,9 @@ watch(
     fromTime.value = isoTimePart(row.fromIso) || '08:00'
     toTime.value = isoTimePart(row.toIso) || '18:00'
     qty.value = String(row.qty || 1)
+    description.value = row.description || ''
     saving.value = false
-    editing.value = false
+    editing.value = Boolean(props.startEditing && editable.value)
   },
   { immediate: true },
 )
@@ -219,13 +240,26 @@ async function save() {
   if (!canSave.value || !props.booking) return
   saving.value = true
   try {
-    await uebersicht.updateEinsatz(props.booking.id, {
-      from: slot.value.from,
-      to: slot.value.to,
-      ...(props.booking.kind === 'quantity'
-        ? { qty: Math.max(1, Number(qty.value) || 1) }
-        : {}),
-    })
+    if (isTask.value && props.booking.groupId) {
+      const from = parseLocalDate(slot.value.from)
+      const to = parseLocalDate(slot.value.to)
+      const minutes = Math.round((to.getTime() - from.getTime()) / 60000)
+      await updateGrossanlassBauprojektTask(departmentId.value, props.booking.groupId, props.booking.id, {
+        title: props.booking.objectName,
+        description: description.value.trim() || null,
+        starts_at: slot.value.from,
+        duration_minutes: minutes > 0 ? minutes : null,
+      })
+      emit('saved')
+    } else {
+      await uebersicht.updateEinsatz(props.booking.id, {
+        from: slot.value.from,
+        to: slot.value.to,
+        ...(props.booking.kind === 'quantity'
+          ? { qty: Math.max(1, Number(qty.value) || 1) }
+          : {}),
+      })
+    }
     toast.success(t('grossanlass.materialUebersicht.einsatzDialogSaved'))
     open.value = false
   } catch (e: unknown) {

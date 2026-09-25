@@ -5,6 +5,7 @@
     <ETextField v-model="name" :label="t('grossanlass.materials.zusage.fieldName')" hide-details />
     <div class="zusage-grid">
       <ESelect
+        v-if="familyItems.length > 1"
         v-model="family"
         :items="familyItems"
         item-title="title"
@@ -81,24 +82,26 @@
       hide-details
     />
 
-    <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionArticle') }}</h3>
-    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.articleHint') }}</p>
-    <div class="zusage-grid">
-      <ETextField v-model="quantity" type="number" :label="t('grossanlass.materials.zusage.fieldQuantity')" hide-details />
-      <ETextField v-model="weight" :label="t('grossanlass.materials.zusage.fieldWeight')" hide-details />
-    </div>
-    <div class="zusage-grid">
-      <ETextField v-model="packUnit" :label="t('grossanlass.materials.zusage.fieldPackUnit')" hide-details />
-      <ETextField v-model="packSize" :label="t('grossanlass.materials.zusage.fieldPackSize')" hide-details />
-    </div>
-    <ETextarea v-model="notes" :label="t('grossanlass.materials.zusage.fieldNotes')" rows="2" hide-details />
-    <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.partsHint') }}</p>
-    <div v-for="(part, index) in parts" :key="index" class="zusage-part">
-      <ETextField v-model="part.name" :label="t('grossanlass.materials.zusage.fieldPartName')" hide-details />
-      <ETextField v-model="part.qty" type="number" :label="t('grossanlass.materials.zusage.fieldPartQty')" hide-details />
-      <EButton variant="text" size="small" @click="removePart(index)">{{ t('grossanlass.materials.zusage.removePart') }}</EButton>
-    </div>
-    <EButton variant="secondary" size="small" @click="addPart">{{ t('grossanlass.materials.zusage.addPart') }}</EButton>
+    <template v-if="family !== 'vehicle'">
+      <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionArticle') }}</h3>
+      <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.articleHint') }}</p>
+      <div class="zusage-grid">
+        <ETextField v-model="quantity" type="number" :label="t('grossanlass.materials.zusage.fieldQuantity')" hide-details />
+        <ETextField v-model="weight" :label="t('grossanlass.materials.zusage.fieldWeight')" hide-details />
+      </div>
+      <div class="zusage-grid">
+        <ETextField v-model="packUnit" :label="t('grossanlass.materials.zusage.fieldPackUnit')" hide-details />
+        <ETextField v-model="packSize" :label="t('grossanlass.materials.zusage.fieldPackSize')" hide-details />
+      </div>
+      <ETextarea v-model="notes" :label="t('grossanlass.materials.zusage.fieldNotes')" rows="2" hide-details />
+      <p class="zusage-hint zusage-hint--muted">{{ t('grossanlass.materials.zusage.partsHint') }}</p>
+      <div v-for="(part, index) in parts" :key="index" class="zusage-part">
+        <ETextField v-model="part.name" :label="t('grossanlass.materials.zusage.fieldPartName')" hide-details />
+        <ETextField v-model="part.qty" type="number" :label="t('grossanlass.materials.zusage.fieldPartQty')" hide-details />
+        <EButton variant="text" size="small" @click="removePart(index)">{{ t('grossanlass.materials.zusage.removePart') }}</EButton>
+      </div>
+      <EButton variant="secondary" size="small" @click="addPart">{{ t('grossanlass.materials.zusage.addPart') }}</EButton>
+    </template>
 
     <h3 class="zusage-section">{{ t('grossanlass.materials.zusage.sectionPresent') }}</h3>
     <EDateRangeField
@@ -240,9 +243,14 @@ import {
 } from '@/api/grossanlassCommitments'
 
 const open = defineModel<boolean>({ default: false })
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   preset?: Partial<GaZusageCreateDraft> | null
-}>()
+  allowVehicle?: boolean
+  vehicleOnly?: boolean
+}>(), {
+  allowVehicle: true,
+  vehicleOnly: false,
+})
 const emit = defineEmits<{
   created: [article: GrossanlassCommitment]
 }>()
@@ -291,10 +299,13 @@ const cashOutChf = ref<string | number>('')
 const depositChf = ref<string | number>('')
 const proceedsExpectedChf = ref<string | number>('')
 
-const familyItems = computed(() => [
-  { title: t('grossanlass.materials.zusage.familyMaterial'), value: 'material' },
-  { title: t('grossanlass.materials.zusage.familyVehicle'), value: 'vehicle' },
-])
+const familyItems = computed(() => {
+  const material = { title: t('grossanlass.materials.zusage.familyMaterial'), value: 'material' as const }
+  const vehicle = { title: t('grossanlass.materials.zusage.familyVehicle'), value: 'vehicle' as const }
+  if (props.vehicleOnly) return [vehicle]
+  if (!props.allowVehicle) return [material]
+  return [material, vehicle]
+})
 const originItems = computed(() => [
   { title: t('grossanlass.materials.lifecycle.loan'), value: 'loan' },
   { title: t('grossanlass.materials.lifecycle.reusable'), value: 'buy' },
@@ -328,7 +339,7 @@ const canSubmit = computed(() =>
 function applyPreset() {
   const preset = props.preset ?? {}
   name.value = preset.name ?? ''
-  family.value = preset.family ?? 'material'
+  family.value = props.vehicleOnly ? 'vehicle' : (preset.family ?? 'material')
   origin.value = preset.origin ?? 'loan'
   source.value = preset.source ?? ''
   fromLineId.value = preset.fromLineId ?? ''
