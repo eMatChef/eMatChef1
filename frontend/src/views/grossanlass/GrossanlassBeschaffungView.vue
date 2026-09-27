@@ -20,6 +20,20 @@
         </v-tabs>
         <nav v-if="showPaths" class="beschaffung-paths" :aria-label="t('grossanlass.beschaffung.pathsAria')">
           <p class="beschaffung-paths__row">
+            <span class="beschaffung-paths__kind">{{ t('grossanlass.beschaffung.pathShared') }}</span>
+            <span class="beschaffung-paths__steps">
+              <template v-for="(step, index) in sharedPath" :key="'s-' + step.id">
+                <span v-if="index > 0" class="beschaffung-paths__arrow" aria-hidden="true">→</span>
+                <router-link
+                  :to="`/${departmentId}/beschaffung/${step.id}`"
+                  class="beschaffung-paths__step"
+                  :class="{ 'is-here': activeTab === step.id }"
+                  :aria-current="activeTab === step.id ? 'page' : undefined"
+                >{{ step.label }}</router-link>
+              </template>
+            </span>
+          </p>
+          <p class="beschaffung-paths__row">
             <span class="beschaffung-paths__kind">{{ t('grossanlass.beschaffung.pathPartner') }}</span>
             <span class="beschaffung-paths__steps">
               <template v-for="(step, index) in partnerPath" :key="'p-' + step.id">
@@ -119,14 +133,16 @@ const tabItems = computed(() => {
 
 const showPaths = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 
-const partnerPath = computed(() => [
+const sharedPath = computed(() => [
   { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
   { id: 'anfragen', label: t('grossanlass.beschaffung.tabAnfragen') },
+])
+
+const partnerPath = computed(() => [
   { id: 'zusagen', label: t('grossanlass.beschaffung.tabZusagen') },
 ])
 
 const buyPath = computed(() => [
-  { id: 'bedarf', label: t('grossanlass.beschaffung.tabBedarf') },
   { id: 'offerten', label: t('grossanlass.beschaffung.tabOfferten') },
   { id: 'bestellungen', label: t('grossanlass.beschaffung.tabBestellungen') },
 ])

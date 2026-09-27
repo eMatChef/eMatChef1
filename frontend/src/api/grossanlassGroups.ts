@@ -2,7 +2,7 @@ import apiClient from './apiClient'
 import type { GroupMember } from './groups'
 import type { GaPlace, GaPolygonPoint } from './grossanlassLogistics'
 
-export type GrossanlassGroupKind = 'ressort' | 'teilbereich'
+export type GrossanlassGroupKind = 'ressort' | 'bereich' | 'teilbereich'
 export type GrossanlassNodeType = 'ressort' | 'unterressort' | 'bauprojekt'
 
 export type GrossanlassGroupShare = {

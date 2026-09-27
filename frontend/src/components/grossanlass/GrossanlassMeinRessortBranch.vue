@@ -21,9 +21,9 @@
           v-if="canCreateChild(group)"
           variant="secondary"
           size="small"
-          @click="openCreateChild('ressort', group.id)"
+          @click="openCreateChild('bereich', group.id)"
         >
-          {{ t('grossanlass.planung.ressorts.modalNewUnterressort') }}
+          {{ t('grossanlass.planung.ressorts.addAction') }}
         </EButton>
         <EButton
           v-if="canShareGroup(group)"
@@ -164,9 +164,16 @@ function usageWindow(group: GrossanlassGroup): string {
   return formatBauprojektWindow(group.window_start, group.window_end)
 }
 
+function reportedUnder(group: GrossanlassGroup): string[] {
+  if (group.node_type === 'bauprojekt') return []
+  const direct = bauprojekteOf(group).map((project) => project.build_status)
+  const nested = unterressortsOf(group).flatMap((area) => reportedUnder(area))
+  return [...direct, ...nested].filter((status): status is string => !!status)
+}
+
 function buildStatusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group)))
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reportedUnder(group))))
 }
 
 watch(

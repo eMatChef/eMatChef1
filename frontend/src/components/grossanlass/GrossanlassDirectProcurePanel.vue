@@ -1,50 +1,72 @@
 <template>
-  <section v-if="hasProcurementDelegate && groupItems.length" class="direct-procure">
-    <h3>{{ t('grossanlass.beschaffung.direct.title') }}</h3>
-    <p class="direct-procure__hint">{{ t('grossanlass.beschaffung.direct.hint') }}</p>
+  <v-expansion-panels
+    v-if="hasProcurementDelegate && groupItems.length"
+    v-model="openPanels"
+    class="e-accordions direct-procure"
+  >
+    <v-expansion-panel>
+      <v-expansion-panel-title>
+        <span class="panel-head">
+          <span class="panel-head__label">
+            {{ t('grossanlass.beschaffung.direct.title') }}
+          </span>
+        </span>
+      </v-expansion-panel-title>
+      <v-expansion-panel-text>
+        <p class="direct-procure__hint">{{ t('grossanlass.beschaffung.direct.hint') }}</p>
 
-    <form class="direct-procure__form" @submit.prevent="submit">
-      <ESelect
-        v-model="form.group_id"
-        :items="groupItems"
-        :label="t('grossanlass.beschaffung.direct.group')"
-        hide-details
-      />
-      <ETextField
-        v-model="form.label"
-        :label="t('grossanlass.beschaffung.direct.label')"
-        hide-details="auto"
-      />
-      <div class="direct-procure__row">
-        <ETextField
-          v-model.number="form.quantity"
-          type="number"
-          min="1"
-          :label="t('grossanlass.beschaffung.direct.quantity')"
-          hide-details="auto"
-        />
-        <ETextField
-          v-model="form.location"
-          :label="t('grossanlass.beschaffung.direct.location')"
-          hide-details="auto"
-        />
-      </div>
-      <ETextField
-        v-model="form.notes"
-        :label="t('grossanlass.beschaffung.direct.notes')"
-        hide-details="auto"
-      />
-      <EButton
-        type="submit"
-        variant="primary"
-        size="small"
-        :disabled="!canSubmit"
-        :loading="saving"
-      >
-        {{ t('grossanlass.beschaffung.direct.submit') }}
-      </EButton>
-    </form>
-  </section>
+        <form class="direct-procure__form" @submit.prevent="submit">
+          <ESelect
+            v-model="form.group_id"
+            :items="groupItems"
+            :label="t('grossanlass.beschaffung.direct.group')"
+            hide-details
+          />
+          <ETextField
+            v-model="form.label"
+            :label="t('grossanlass.beschaffung.direct.label')"
+            hide-details="auto"
+          />
+          <div class="direct-procure__row">
+            <ETextField
+              v-model.number="form.quantity"
+              type="number"
+              min="1"
+              :label="t('grossanlass.beschaffung.direct.quantity')"
+              hide-details="auto"
+            />
+            <ETextField
+              v-model="form.location"
+              :label="t('grossanlass.beschaffung.direct.location')"
+              hide-details="auto"
+            />
+          </div>
+          <ESelect
+            v-model="form.cost_kind"
+            :items="kindItems"
+            item-title="title"
+            item-value="value"
+            :label="t('grossanlass.beschaffung.bedarf.supplyModeLabel')"
+            hide-details
+          />
+          <ETextField
+            v-model="form.notes"
+            :label="t('grossanlass.beschaffung.direct.notes')"
+            hide-details="auto"
+          />
+          <EButton
+            type="submit"
+            variant="primary"
+            size="small"
+            :disabled="!canSubmit"
+            :loading="saving"
+          >
+            {{ t('grossanlass.beschaffung.direct.submit') }}
+          </EButton>
+        </form>
+      </v-expansion-panel-text>
+    </v-expansion-panel>
+  </v-expansion-panels>
 </template>
 
 <script setup lang="ts">
@@ -53,7 +75,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import { EButton, ESelect, ETextField } from '@/components/form/base'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
-import { createGrossanlassProcurementLineDirect } from '@/api/grossanlassProcurement'
+import { createGrossanlassProcurementLineDirect, type GrossanlassCostKind } from '@/api/grossanlassProcurement'
 import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 import { flattenTreeWithLevel } from '@/utils/grossanlassGroupHierarchy'
 
@@ -73,12 +95,21 @@ const groupsRef = computed(() => groups.value)
 const { hasProcurementDelegate, userCanProcureInGroup } = useGrossanlassProcurementScope(groupsRef)
 
 const saving = ref(false)
+const openPanels = ref<number[]>([])
+const kindItems = computed(() =>
+  (['purchase', 'rental', 'loan'] as GrossanlassCostKind[]).map((value) => ({
+    title: t(`grossanlass.beschaffung.kosten.kind.${value}`),
+    value,
+  })),
+)
+
 const form = ref({
   group_id: '',
   label: '',
   quantity: 1,
   location: '',
   notes: '',
+  cost_kind: 'loan' as GrossanlassCostKind,
 })
 
 const groupItems = computed(() =>
@@ -101,6 +132,7 @@ function resetForm() {
     quantity: 1,
     location: '',
     notes: '',
+    cost_kind: 'loan' as GrossanlassCostKind,
   }
 }
 
@@ -126,6 +158,7 @@ async function submit() {
       quantity: Number(form.value.quantity) || 1,
       location: form.value.location.trim(),
       notes: form.value.notes.trim() || null,
+      cost_kind: form.value.cost_kind,
     })
     toast.success(t('grossanlass.beschaffung.direct.success'))
     resetForm()
@@ -149,15 +182,7 @@ onMounted(() => {
 
 <style scoped>
 .direct-procure {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 14px 16px;
-  background: #fff;
   margin-bottom: 16px;
-}
-.direct-procure h3 {
-  margin: 0 0 4px;
-  font-size: 1rem;
 }
 .direct-procure__hint {
   margin: 0 0 12px;

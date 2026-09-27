@@ -1,9 +1,24 @@
 import apiClient, { absoluteApiUrl } from './apiClient'
 
+export type GrossanlassMailboxProviderInfo = {
+  id: string
+  label: string
+  configured: boolean
+  redirect_uri?: string
+  capabilities: {
+    drafts: boolean
+    inbox: boolean
+    folders: boolean
+  }
+}
+
 export type GrossanlassGmailStatus = {
   oauth_configured: boolean
   redirect_uri: string
   connected: boolean
+  provider?: string | null
+  provider_label?: string | null
+  providers?: GrossanlassMailboxProviderInfo[]
   email: string | null
   connected_at: string | null
   settings_path: string
@@ -79,6 +94,10 @@ export async function getGrossanlassGmailStatus(departmentId: string): Promise<G
 
 export function grossanlassGmailConnectUrl(departmentId: string): string {
   return absoluteApiUrl(`/api/departments/${departmentId}/grossanlass/gmail/connect`)
+}
+
+export function grossanlassOutlookConnectUrl(departmentId: string): string {
+  return absoluteApiUrl(`/api/departments/${departmentId}/grossanlass/outlook/connect`)
 }
 
 export async function disconnectGrossanlassGmail(departmentId: string): Promise<GrossanlassGmailStatus> {

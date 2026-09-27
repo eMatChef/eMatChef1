@@ -57,6 +57,9 @@ export interface GrossanlassProcurementQuote {
   notes: string | null
   delivery_at: string | null
   lead_days: number | null
+  inbound_mode?: 'pickup' | 'delivery' | null
+  return_needed?: boolean
+  return_at?: string | null
   selected: boolean
   pdf_filename: string | null
   pdf_url: string | null
@@ -106,15 +109,29 @@ export interface GrossanlassProcurementLine {
   category_parent_name: string | null
   status: GrossanlassProcurementStatus
   source: GrossanlassProcurementLineSource
+  cost_kind?: GrossanlassCostKind | null
+  supply_mode?: 'open' | 'partner' | 'buy'
   self_organized: boolean
+  pickup_need?: 'can' | 'must' | null
+  pickup_place?: string | null
+  return_needed?: boolean
   created_by_user_id: string | null
   quantity_asked: number | null
+  extra_wishes?: string[]
   quantity_current: number
   quantity_delta: number | null
   merge_frozen: boolean
   wish_line_ids: string[]
   wish_count: number
   source_wishes: GrossanlassProcurementPoolWish[]
+  source_vehicles?: Array<{
+    id: string
+    group_id: string
+    group_name: string
+    vehicle_label: string
+    task_label: string
+    quantity: number
+  }>
   source_quantity_sum: number
   received_quantity_sum: number
   quantity_loaned?: number
@@ -434,6 +451,7 @@ export async function createGrossanlassProcurementLine(
   departmentId: string,
   data: {
     wish_line_ids?: string[]
+    vehicle_need_ids?: string[]
     label?: string
     quantity?: number
     location?: string
@@ -463,6 +481,7 @@ export async function createGrossanlassProcurementLineDirect(
     wish_kind?: GrossanlassWishKind
     notes?: string | null
     category_id?: string | null
+    cost_kind?: GrossanlassCostKind
   },
 ): Promise<GrossanlassProcurementLine> {
   return createGrossanlassProcurementLine(departmentId, {
@@ -476,6 +495,7 @@ export async function addWishesToGrossanlassProcurementLine(
   lineId: string,
   data: {
     wish_line_ids: string[]
+    vehicle_need_ids?: string[]
     label?: string
     quantity?: number
     category_id?: string | null
@@ -499,6 +519,8 @@ export async function updateGrossanlassProcurementLine(
     notes: string | null
     category_id: string | null
     pickup_need: 'can' | 'must' | null
+    supply_mode: 'open' | 'partner' | 'buy'
+    cost_kind: GrossanlassCostKind
     pickup_place: string | null
     return_needed?: boolean
     quantity_unit?: string | null
@@ -620,6 +642,9 @@ export async function createGrossanlassProcurementQuote(
     notes?: string | null
     delivery_at?: string | null
     lead_days?: number | null
+    inbound_mode?: 'pickup' | 'delivery' | null
+    return_needed?: boolean
+    return_at?: string | null
   },
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.post<GrossanlassProcurementQuote>(
@@ -640,6 +665,9 @@ export async function updateGrossanlassProcurementQuote(
     notes: string | null
     delivery_at: string | null
     lead_days: number | null
+    inbound_mode?: 'pickup' | 'delivery' | null
+    return_needed?: boolean
+    return_at?: string | null
   }>,
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.put<GrossanlassProcurementQuote>(

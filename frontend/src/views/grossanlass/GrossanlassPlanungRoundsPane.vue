@@ -1,6 +1,6 @@
 <template>
   <div class="planung-rounds-pane">
-    <GrossanlassKeyDatesPanel v-if="departmentId" :department-id="departmentId" />
+    <GrossanlassKeyDatesPanel v-if="departmentId" :department-id="departmentId" accordion />
     <GrossanlassRoundsTab />
   </div>
 </template>

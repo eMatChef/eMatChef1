@@ -19,6 +19,10 @@ class DepartmentGrossanlassGmailAccount
     #[ORM\Column(type: 'string', length: 180)]
     private string $email = '';
 
+    /** gmail | outlook — welches Postfach die Tokens bedient. */
+    #[ORM\Column(type: 'string', length: 16, options: ['default' => 'gmail'])]
+    private string $provider = 'gmail';
+
     #[ORM\Column(name: 'refresh_token_enc', type: 'text')]
     private string $refreshTokenEnc = '';
 
@@ -69,6 +73,18 @@ class DepartmentGrossanlassGmailAccount
     public function setEmail(string $email): self
     {
         $this->email = $email;
+
+        return $this;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider !== '' ? $this->provider : 'gmail';
+    }
+
+    public function setProvider(string $provider): self
+    {
+        $this->provider = $provider;
 
         return $this;
     }

@@ -50,7 +50,7 @@
         @click="sourceTab = 'material'"
       >
         {{ t('grossanlass.beschaffung.bedarf.sourceMaterial') }}
-        <span class="source-tabs__count">{{ pool.length }}</span>
+        <span class="source-tabs__count">{{ pool.length + openVehicleNeeds.length }}</span>
       </button>
       <button
         type="button"
@@ -76,7 +76,7 @@
       <section class="bedarf-panel bedarf-panel--pool">
         <div class="panel-head">
           <h3>{{ poolPanelTitle }}</h3>
-          <span class="panel-count">{{ sourceTab === 'material' ? filteredPool.length : filteredCollector.length }}</span>
+          <span class="panel-count">{{ sourceTab === 'material' ? materialDemandCount : filteredCollector.length }}</span>
         </div>
         <p class="panel-hint">{{ poolPanelHint }}</p>
 
@@ -141,35 +141,35 @@
         </div>
 
         <EEmptyState
-          v-if="sourceTab === 'material' && filteredPool.length === 0"
+          v-if="sourceTab === 'material' && materialDemandCount === 0"
           variant="default"
           icon="mdi-clipboard-check-outline"
-          :title="pool.length === 0
+          :title="pool.length + openVehicleNeeds.length === 0
             ? t('grossanlass.beschaffung.bedarf.poolEmptyTitle')
             : t('grossanlass.beschaffung.bedarf.poolFilterEmptyTitle')"
-          :description="pool.length === 0
+          :description="pool.length + openVehicleNeeds.length === 0
             ? t('grossanlass.beschaffung.bedarf.poolEmptyDescription')
             : t('grossanlass.beschaffung.bedarf.poolFilterEmptyDescription')"
         />
 
-        <div v-else-if="sourceTab === 'material'" class="pool-actions">
-          <p v-if="visibleSelectedIds.length > 0" class="bundle-preview">
+        <div v-if="sourceTab === 'material' && (filteredPool.length > 0 || filteredVehicleNeeds.length > 0)" class="pool-actions">
+          <p v-if="selectionCount > 0" class="bundle-preview">
             {{ t('grossanlass.beschaffung.bedarf.bundlePreview', {
-              count: visibleSelectedIds.length,
+              count: selectionCount,
               sum: selectedQuantitySum,
             }) }}
           </p>
           <EButton
             variant="primary"
             size="small"
-            :disabled="visibleSelectedIds.length === 0 || isSaving"
+            :disabled="selectionCount === 0 || isSaving"
             :loading="isSaving"
             @click="openBundleFromSelection"
           >
-            {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: visibleSelectedIds.length }) }}
+            {{ t('grossanlass.beschaffung.bedarf.bundleAction', { count: selectionCount }) }}
           </EButton>
           <EButton
-            v-if="visibleSelectedIds.length > 0 && mergeLineItems.length > 0"
+            v-if="selectionCount > 0 && mergeLineItems.length > 0"
             variant="secondary"
             size="small"
             :disabled="isSaving"
@@ -221,6 +221,32 @@
             >
               <v-icon icon="mdi-pencil-outline" size="16" />
             </button>
+          </div>
+        </div>
+
+        <div v-if="sourceTab === 'material' && filteredVehicleNeeds.length > 0" class="wish-pool-list">
+          <div
+            v-for="row in filteredVehicleNeeds"
+            :key="row.id"
+            class="pool-row pool-row--vehicle"
+            :class="{ 'is-selected': selectedVehicleIds.includes(row.id) }"
+          >
+            <label class="pool-row__select">
+              <input
+                type="checkbox"
+                :checked="selectedVehicleIds.includes(row.id)"
+                @change="toggleVehicle(row.id)"
+              />
+              <div class="pool-row__body">
+                <div class="pool-row__main">
+                  <strong>1× {{ row.vehicle_label || '–' }}</strong>
+                  <span class="kind-tag">{{ t('grossanlass.wishes.kindFahrzeug') }}</span>
+                </div>
+                <div class="pool-row__meta">
+                  {{ row.group_name }} · {{ row.task_label || '–' }}
+                </div>
+              </div>
+            </label>
           </div>
         </div>
 
@@ -368,7 +394,7 @@
               </div>
               <div class="line-card__actions">
                 <button
-                  v-if="line.status === 'bedarf'"
+                  v-if="canEditLine(line)"
                   type="button"
                   class="icon-btn"
                   :title="t('common.edit')"
@@ -391,11 +417,24 @@
               {{ line.group_name }} · {{ line.location }}
               <span v-if="categoryPath(line)" class="category-chip">{{ categoryPath(line) }}</span>
             </div>
+            <div class="supply-mode">
+              <span class="supply-mode__label">{{ t('grossanlass.beschaffung.bedarf.supplyModeLabel') }}</span>
+              <span class="supply-mode__value">{{ costKindLabel(line.cost_kind) }}</span>
+            </div>
             <div class="line-card__total">
               <span class="line-card__total-label">{{ t('grossanlass.beschaffung.bedarf.totalQuantity') }}</span>
               <strong class="line-card__total-value">{{ line.quantity }}×</strong>
               <span
-                v-if="line.quantity_asked != null"
+                v-if="line.extra_wishes?.length"
+                class="quantity-adjusted-hint"
+              >
+                {{ t('grossanlass.beschaffung.bedarf.extraWishes', {
+                  asked: line.quantity_asked ?? line.quantity,
+                  names: line.extra_wishes.join(', '),
+                }) }}
+              </span>
+              <span
+                v-else-if="line.quantity_asked != null"
                 class="quantity-adjusted-hint"
               >
                 {{ t('grossanlass.beschaffung.bedarf.askedVsCurrent', {
@@ -411,7 +450,7 @@
                 {{ t('grossanlass.beschaffung.bedarf.quantityAdjusted', { sum: line.source_quantity_sum }) }}
               </span>
             </div>
-            <div v-if="line.source_wishes?.length" class="line-card__sources">
+            <div v-if="line.source_wishes?.length || line.source_vehicles?.length" class="line-card__sources">
               <button
                 type="button"
                 class="sources-toggle"
@@ -423,7 +462,7 @@
                 />
                 {{
                   t('grossanlass.beschaffung.bedarf.sourceWishesToggle', {
-                    count: line.source_wishes.length,
+                    count: (line.source_wishes?.length ?? 0) + (line.source_vehicles?.length ?? 0),
                     sum: line.source_quantity_sum ?? line.quantity,
                   })
                 }}
@@ -432,6 +471,15 @@
                 {{ t('grossanlass.beschaffung.bedarf.sourceWishesHint') }}
               </p>
               <ul v-if="expandedLineIds.includes(line.id)" class="sources-list">
+                <li v-for="vehicle in line.source_vehicles || []" :key="vehicle.id" class="source-row">
+                  <div>
+                    <div class="source-row__main">
+                      <strong>1× {{ vehicle.vehicle_label }}</strong>
+                      <span class="kind-tag">{{ t('grossanlass.wishes.kindFahrzeug') }}</span>
+                    </div>
+                    <div class="source-row__meta">{{ vehicle.group_name }} · {{ vehicle.task_label || '–' }}</div>
+                  </div>
+                </li>
                 <li v-for="source in line.source_wishes" :key="source.id" class="source-row">
                   <div>
                     <div class="source-row__main">
@@ -496,6 +544,7 @@
       v-model="bundleDialogOpen"
       :department-id="departmentId"
       :wishes="bundleWishes"
+      :vehicles="bundleVehicles"
       :suggested-label="bundleSuggestedLabel"
       :categories="categories"
       @saved="onBundleSaved"
@@ -511,6 +560,7 @@
       <p v-if="mergeMatchCount > 0" class="panel-hint panel-hint--match">
         {{ t('grossanlass.beschaffung.bedarf.mergeMatchHint', { count: mergeMatchCount }) }}
       </p>
+      <p v-if="mergeExtraHint" class="panel-hint">{{ mergeExtraHint }}</p>
       <EAutocomplete
         v-model="mergeTargetLineId"
         :items="mergeLineItems"
@@ -638,6 +688,7 @@ import type { GrossanlassWishKind } from '@/api/grossanlassWishes'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
 import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { listGrossanlassVehicleNeeds, type GaBauprojektVehicleNeed } from '@/api/grossanlassBauprojekt'
 import { enoughOnHandBadgeLabel } from '@/utils/grossanlassEnoughOnHand'
 
 const route = useRoute()
@@ -648,6 +699,13 @@ const confirm = useConfirm()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const focusedLineId = computed(() => String(route.query.line || ''))
+
+function costKindLabel(kind: string | null | undefined): string {
+  if (kind === 'purchase' || kind === 'rental' || kind === 'loan' || kind === 'buy_resale') {
+    return t(`grossanlass.beschaffung.kosten.kind.${kind}`)
+  }
+  return '–'
+}
 
 function goCategorySettings() {
   void router.push(`/${departmentId.value}/einstellungen/kategorien`)
@@ -667,12 +725,14 @@ const materialAssignRoundId = ref<string | null>(null)
 const materialAssignLabel = ref('')
 const materialAssignQuantity = ref('1')
 const lines = ref<GrossanlassProcurementLine[]>([])
+const vehicleNeeds = ref<Array<GaBauprojektVehicleNeed & { group_name: string }>>([])
 const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
 const categories = ref<GrossanlassProcurementCategory[]>([])
 const suggestions = ref<GrossanlassProcurementBundleSuggestion[]>([])
 const isLoading = ref(true)
 const isSaving = ref(false)
 const selectedWishIds = ref<string[]>([])
+const selectedVehicleIds = ref<string[]>([])
 const mergeTargetLineId = ref<string | null>(null)
 const mergeDialogOpen = ref(false)
 const mergeCategoryId = ref<string | null>(null)
@@ -683,6 +743,7 @@ const editWishDialogOpen = ref(false)
 const editWish = ref<GrossanlassProcurementPoolWish | null>(null)
 const bundleDialogOpen = ref(false)
 const bundleWishes = ref<GrossanlassProcurementPoolWish[]>([])
+const bundleVehicles = ref<Array<GaBauprojektVehicleNeed & { group_name: string }>>([])
 const bundleSuggestedLabel = ref('')
 const categoryFilter = ref('all')
 const UNCATEGORIZED_FILTER = '__uncategorized'
@@ -757,6 +818,20 @@ const filteredPool = computed(() =>
   }),
 )
 
+const openVehicleNeeds = computed(() => vehicleNeeds.value.filter((row) => !row.procurement_line_id))
+
+const filteredVehicleNeeds = computed(() => {
+  if (poolKind.value !== FILTER_ALL && poolKind.value !== 'fahrzeug') return []
+  if (poolStage.value !== FILTER_ALL) return []
+  if (poolRoundId.value !== FILTER_ALL) return []
+  return openVehicleNeeds.value.filter((row) => {
+    if (poolGroupId.value !== FILTER_ALL && row.group_id !== poolGroupId.value) return false
+    return true
+  })
+})
+
+const materialDemandCount = computed(() => filteredPool.value.length + filteredVehicleNeeds.value.length)
+
 const filteredPoolIds = computed(() => new Set(filteredPool.value.map((wish) => wish.id)))
 
 const visibleSuggestions = computed(() =>
@@ -812,26 +887,37 @@ const poolStageItems = computed(() => [
   { title: t('grossanlass.planung.wishForms.stageFein'), value: 'fein' },
 ])
 
-const selectedQuantitySum = computed(() =>
-  filteredPool.value
-    .filter((w) => selectedWishIds.value.includes(w.id))
-    .reduce((sum, w) => sum + w.quantity, 0),
-)
-
 const visibleSelectedIds = computed(() =>
   selectedWishIds.value.filter((id) => filteredPoolIds.value.has(id)),
 )
 
-const mergeQueryLabels = computed(() =>
+const visibleSelectedVehicleIds = computed(() => {
+  const visible = new Set(filteredVehicleNeeds.value.map((row) => row.id))
+  return selectedVehicleIds.value.filter((id) => visible.has(id))
+})
+
+const selectionCount = computed(() => visibleSelectedIds.value.length + visibleSelectedVehicleIds.value.length)
+
+const selectedQuantitySum = computed(() =>
   filteredPool.value
+    .filter((w) => selectedWishIds.value.includes(w.id))
+    .reduce((sum, w) => sum + w.quantity, 0)
+  + visibleSelectedVehicleIds.value.length,
+)
+
+const mergeQueryLabels = computed(() => [
+  ...filteredPool.value
     .filter((wish) => selectedWishIds.value.includes(wish.id))
     .map((wish) => wish.label),
-)
+  ...filteredVehicleNeeds.value
+    .filter((row) => selectedVehicleIds.value.includes(row.id))
+    .map((row) => row.vehicle_label),
+])
 
 const mergeLineItems = computed(() => {
   const rank = (match: ProcurementMatchKind) => (match === 'exact' ? 2 : match === 'similar' ? 1 : 0)
   return lines.value
-    .filter((line) => line.status === 'bedarf' && !line.merge_frozen)
+    .filter((line) => canEditLine(line))
     .map((line) => {
       const candidateLabels = [
         line.label,
@@ -856,6 +942,26 @@ const mergeLineItems = computed(() => {
 const mergeMatchCount = computed(
   () => mergeLineItems.value.filter((row) => row.match === 'exact' || row.match === 'similar').length,
 )
+
+const mergeExtraHint = computed(() => {
+  const line = lines.value.find((row) => row.id === mergeTargetLineId.value)
+  if (!line) return ''
+  const asked = line.quantity_asked != null || line.status !== 'bedarf' || (line.quotes?.length ?? 0) > 0
+  if (!asked) return ''
+  const names = [
+    ...filteredPool.value.filter((wish) => selectedWishIds.value.includes(wish.id)).map((wish) => wish.label),
+    ...filteredVehicleNeeds.value.filter((row) => selectedVehicleIds.value.includes(row.id)).map((row) => row.vehicle_label),
+  ]
+  if (names.length === 0) return ''
+  return t('grossanlass.beschaffung.bedarf.mergeExtraHint', {
+    asked: line.quantity_asked ?? line.quantity,
+    names: names.join(', '),
+  })
+})
+
+function canEditLine(line: GrossanlassProcurementLine): boolean {
+  return line.status === 'bedarf' || line.status === 'offerte_eingeholt' || line.status === 'budgetiert'
+}
 
 function filterMergeLine(
   _value: string,
@@ -1001,17 +1107,28 @@ function toggleWish(id: string) {
   }
 }
 
+function toggleVehicle(id: string) {
+  if (selectedVehicleIds.value.includes(id)) {
+    selectedVehicleIds.value = selectedVehicleIds.value.filter((x) => x !== id)
+  } else {
+    selectedVehicleIds.value = [...selectedVehicleIds.value, id]
+  }
+}
+
 async function load() {
   if (!departmentId.value) return
   isLoading.value = true
   try {
-    const [data, periods] = await Promise.all([
+    const [data, periods, vehicles] = await Promise.all([
       getGrossanlassBedarfOverview(departmentId.value),
       listDepartmentCalendarPeriods(departmentId.value).catch(() => [] as DepartmentCalendarPeriod[]),
+      listGrossanlassVehicleNeeds(departmentId.value).catch(() => []),
     ])
     calendarPeriods.value = periods
+    vehicleNeeds.value = vehicles
     applyBedarfOverview(data)
     selectedWishIds.value = []
+    selectedVehicleIds.value = []
     mergeTargetLineId.value = mergeLineItems.value[0]?.value ?? null
   } catch (e: any) {
     toast.error(e.response?.data?.error || t('grossanlass.beschaffung.bedarf.errorLoad'))
@@ -1097,7 +1214,8 @@ function onCategoryDeleted(categoryId: string, reassignTo?: GrossanlassProcureme
 
 function openBundleFromSelection() {
   bundleWishes.value = filteredPool.value.filter((w) => selectedWishIds.value.includes(w.id))
-  bundleSuggestedLabel.value = bundleWishes.value[0]?.label ?? ''
+  bundleVehicles.value = filteredVehicleNeeds.value.filter((row) => selectedVehicleIds.value.includes(row.id))
+  bundleSuggestedLabel.value = bundleWishes.value[0]?.label ?? bundleVehicles.value[0]?.vehicle_label ?? ''
   bundleDialogOpen.value = true
 }
 
@@ -1105,6 +1223,7 @@ function openBundleFromSuggestion(suggestion: GrossanlassProcurementBundleSugges
   bundleWishes.value = suggestion.wishes?.length
     ? suggestion.wishes
     : pool.value.filter((w) => suggestion.wish_ids.includes(w.id))
+  bundleVehicles.value = []
   bundleSuggestedLabel.value = suggestion.suggested_label
   bundleDialogOpen.value = true
 }
@@ -1115,7 +1234,7 @@ async function onBundleSaved() {
 }
 
 function openMergeDialog() {
-  if (visibleSelectedIds.value.length === 0 || mergeLineItems.value.length === 0) return
+  if (selectionCount.value === 0 || mergeLineItems.value.length === 0) return
   const best =
     mergeLineItems.value.find((row) => row.match === 'exact')
     ?? mergeLineItems.value.find((row) => row.match === 'similar')
@@ -1133,13 +1252,14 @@ watch(mergeTargetLineId, (id) => {
 })
 
 async function confirmMergeIntoLine() {
-  if (!departmentId.value || !mergeTargetLineId.value || !mergeCategoryId.value || visibleSelectedIds.value.length === 0) {
+  if (!departmentId.value || !mergeTargetLineId.value || !mergeCategoryId.value || selectionCount.value === 0) {
     return
   }
   isSaving.value = true
   try {
     await addWishesToGrossanlassProcurementLine(departmentId.value, mergeTargetLineId.value, {
       wish_line_ids: visibleSelectedIds.value,
+      vehicle_need_ids: visibleSelectedVehicleIds.value,
       category_id: mergeCategoryId.value,
     })
     mergeDialogOpen.value = false
@@ -1383,6 +1503,10 @@ watch(focusedLineId, () => {
   border-radius: 10px;
   padding: 14px 16px;
   background: #fff;
+}
+
+.pool-row--vehicle .pool-row__body {
+  flex: 1;
 }
 
 .panel-head {
@@ -1629,6 +1753,26 @@ watch(focusedLineId, () => {
   margin-top: 4px;
 }
 
+.supply-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.supply-mode__label {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.supply-mode__value {
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
 .status-chip {
   display: inline-block;
   margin-left: 8px;

@@ -33,7 +33,7 @@
     <section>
       <h2>{{ t('grossanlass.planung.ressorts.tasksHeading') }}</h2>
       <ol v-if="tasks.length" class="helfer-sheet__list">
-        <li v-for="task in tasks" :key="task.id">{{ task.title.trim() || task.description }}</li>
+        <li v-for="task in tasks" :key="task.id">{{ taskLine(task) }}</li>
       </ol>
       <p v-else class="muted">{{ t('grossanlass.planung.ressorts.tasksEmpty') }}</p>
     </section>
@@ -67,6 +67,22 @@ const title = computed(() => props.briefing.group?.name || props.briefing.place?
 const place = computed(() => props.briefing.place)
 const map = computed(() => props.briefing.map)
 const tasks = computed(() => props.briefing.tasks)
+
+function taskLine(task: GaBauprojektBriefing['tasks'][number]): string {
+  const name = task.title.trim() || task.description?.trim() || ''
+  if (!task.starts_at) return name
+  const start = new Date(task.starts_at)
+  if (Number.isNaN(start.getTime())) return name
+  const end = new Date(start)
+  if (task.duration_minutes && task.duration_minutes > 0) {
+    end.setMinutes(end.getMinutes() + task.duration_minutes)
+  }
+  const pad = (value: number) => String(value).padStart(2, '0')
+  const day = `${pad(start.getDate())}.${pad(start.getMonth() + 1)}.`
+  const from = `${pad(start.getHours())}:${pad(start.getMinutes())}`
+  const to = `${pad(end.getHours())}:${pad(end.getMinutes())}`
+  return `${day} ${from}–${to} · ${name}`
+}
 const material = computed(() => props.briefing.material)
 const windowLabel = computed(() =>
   formatBauprojektWindow(props.briefing.window_start, props.briefing.window_end),

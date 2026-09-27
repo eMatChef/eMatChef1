@@ -53,6 +53,7 @@ export type GrossanlassCommitmentItemDetails = {
   notes?: string
   parts?: GrossanlassCommitmentPart[]
   from_line_id?: string
+  absprache?: boolean
   inbound_status?: 'expected' | 'here'
   inbound_mode?: 'pickup' | 'delivery'
   quote_id?: string

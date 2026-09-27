@@ -1213,6 +1213,7 @@ final class GrossanlassUebersichtService
             $kind = strtolower(trim((string) ($group->getGrossanlassKind() ?? '')));
             if ($group->getParentId() !== null && $group->getParentId() !== ''
                 && $kind !== Group::GROSSANLASS_KIND_RESSORT
+                && $kind !== Group::GROSSANLASS_KIND_BEREICH
                 && $kind !== Group::GROSSANLASS_KIND_TEILBEREICH
             ) {
                 return 'bauauftrag';

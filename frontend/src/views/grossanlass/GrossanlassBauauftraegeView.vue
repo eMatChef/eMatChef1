@@ -140,12 +140,13 @@ import {
   nestTreeWithLevel,
   type NestedTreeNode,
 } from '@/utils/grossanlassGroupHierarchy'
-import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
 import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
 import {
+  childReportedStatuses,
   gaBuildStatusI18nKey,
   resolveBuildStatus,
   showsGaBuildStatus,
+  watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
 import { gaBauauftragComposerKey } from '@/views/grossanlass/gaBauauftragComposer'
 import '@/styles/views/materials-view-tabs.css'
@@ -156,6 +157,7 @@ const { t } = useI18n()
 const toast = useToast()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+watchGrossanlassBuildPeriods(departmentId)
 const groups = ref<GrossanlassGroup[]>([])
 const loading = ref(true)
 const openIds = ref<string[]>([])
@@ -182,7 +184,9 @@ const visibleGroups = computed(() =>
 )
 
 function kindLabel(group: GrossanlassGroup): string {
-  return t(grossanlassGroupNodeKindKey(group.node_type))
+  if (group.node_type === 'bauprojekt') return t('grossanlass.planung.ressorts.kindBauprojekt')
+  if (group.node_type === 'unterressort') return t('grossanlass.materialUebersicht.bauauftragBereichLabel')
+  return t('grossanlass.planung.ressorts.kindRessort')
 }
 
 function toSection(node: NestedTreeNode<GrossanlassGroup>): GaBauauftragSection {
@@ -228,7 +232,8 @@ function windowText(group: GrossanlassGroup): string {
 
 function statusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group)))
+  const reports = group.node_type === 'bauprojekt' ? [] : childReportedStatuses(group.id, groups.value)
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reports)))
 }
 
 const parentItems = computed(() =>
@@ -241,11 +246,17 @@ const parentItems = computed(() =>
 )
 
 const canAdd = computed(() => parentItems.value.length > 0)
-const projectTitle = computed(() =>
-  projectGroup.value
-    ? t('grossanlass.planung.ressorts.projectTitle', { name: projectGroup.value.name })
-    : t('grossanlass.planung.ressorts.openProject'),
-)
+const projectTitle = computed(() => {
+  const group = projectGroup.value
+  if (!group) return t('grossanlass.planung.ressorts.openProject')
+  if (group.node_type === 'bauprojekt') {
+    return t('grossanlass.planung.ressorts.projectTitle', { name: group.name })
+  }
+  if (group.node_type === 'unterressort') {
+    return t('grossanlass.planung.ressorts.bereichTitle', { name: group.name })
+  }
+  return t('grossanlass.planung.ressorts.ressortTitle', { name: group.name })
+})
 
 function openCreate() {
   createForm.value = {

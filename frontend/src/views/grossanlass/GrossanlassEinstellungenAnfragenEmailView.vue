@@ -1,8 +1,10 @@
 <template>
   <div class="ga-mail-settings">
-    <p class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
+    <p v-if="statusLoading" class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
+    <p v-else-if="gmailIsReady" class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
+    <p v-else class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.introDisconnected') }}</p>
 
-    <section class="panel templates-panel">
+    <section v-if="gmailIsReady" class="panel templates-panel">
       <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
 
@@ -166,7 +168,9 @@
         <v-expansion-panel-text>
           <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
           <p v-else-if="status?.connected" class="ok">
-            {{ t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
+            {{ status.provider_label
+              ? t('grossanlass.einstellungen.anfragenEmail.connectedVia', { email: status.email || '', provider: status.provider_label })
+              : t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
           </p>
           <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
           <p v-if="status?.redirect_uri" class="muted">
@@ -177,7 +181,7 @@
           </p>
           <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
           <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
-          <div v-if="canConnectGmail" class="actions">
+          <div v-if="canConnectGmail" class="actions actions--stack">
             <EButton
               v-if="!status?.connected"
               variant="primary"
@@ -190,11 +194,17 @@
             <EButton v-else variant="secondary" size="small" :loading="disconnecting" @click="disconnect">
               {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
             </EButton>
+            <span class="dev-button">
+              <EButton variant="secondary" size="small" disabled>
+                {{ t('grossanlass.einstellungen.anfragenEmail.outlookConnect') }}
+              </EButton>
+              <span class="dev-button__flag">{{ t('grossanlass.einstellungen.anfragenEmail.outlookDevBadge') }}</span>
+            </span>
           </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
-      <v-expansion-panel value="routing">
+      <v-expansion-panel v-if="gmailIsReady" value="routing">
         <v-expansion-panel-title>
           <span class="panel-head">
             <span class="panel-head__label">
@@ -455,7 +465,7 @@ const confirm = useConfirm()
 const departmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
 )
-const gmailQuery = computed(() => String(route.query.gmail || ''))
+const gmailQuery = computed(() => String(route.query.gmail || route.query.outlook || ''))
 
 const status = ref<GrossanlassGmailStatus | null>(null)
 const statusLoading = ref(true)
@@ -1199,6 +1209,26 @@ onUnmounted(() => {
   background: #ffedd5;
   color: #9a3412;
 }
+.dev-button {
+  position: relative;
+  display: inline-flex;
+}
+.dev-button__flag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  transform: translate(42%, -50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.3;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .panel {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -1287,7 +1317,8 @@ onUnmounted(() => {
 }
 .ok { color: #166534; font-size: 0.9rem; }
 .warn { color: #9a3412; font-size: 0.85rem; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 6px; overflow: visible; }
+.actions--stack { flex-direction: column; align-items: flex-start; gap: 14px; }
 .mb-3 { margin-bottom: 12px; }
 .template-tabs {
   display: flex;

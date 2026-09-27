@@ -199,8 +199,8 @@ final class GrossanlassGmailInbound
             foreach ($message['labelIds'] ?? [] as $label) {
                 $labels[] = strtoupper((string) $label);
             }
-            $isDraft = in_array('DRAFT', $labels, true);
-            $isSent = in_array('SENT', $labels, true);
+            $isDraft = ($message['isDraft'] ?? false) === true || in_array('DRAFT', $labels, true);
+            $isSent = ($message['isSent'] ?? false) === true || in_array('SENT', $labels, true);
             $from = (string) ($message['from'] ?? '');
             $subject = (string) ($message['subject'] ?? '');
             $headers = is_array($message['headers'] ?? null) ? $message['headers'] : [];

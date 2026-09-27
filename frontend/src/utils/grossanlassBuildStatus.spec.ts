@@ -25,12 +25,39 @@ describe('deriveBuildStatus', () => {
 })
 
 describe('resolveBuildStatus', () => {
-  it('keeps an explicit override', () => {
+  it('follows the window even when a stored status exists', () => {
     expect(resolveBuildStatus({
       build_status: 'build',
       window_start: '2026-10-28',
       window_end: '2026-11-13',
+    }, '2026-09-21')).toBe('planned')
+  })
+
+  it('uses a status reported on the Bauauftrag', () => {
+    expect(resolveBuildStatus({
+      node_type: 'bauprojekt',
+      build_status: 'build',
+      window_start: '2026-10-28',
+      window_end: '2026-11-13',
     }, '2026-09-21')).toBe('build')
+  })
+
+  it('uses the earliest reported Bauauftrag under a Bereich', () => {
+    expect(resolveBuildStatus({
+      node_type: 'unterressort',
+      window_start: '2026-10-28',
+      window_end: '2026-11-13',
+    }, '2026-11-01', ['done', 'build'])).toBe('build')
+  })
+
+  it('uses Aufbau from the fixed dates inside the window', () => {
+    expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-10-29', [
+      {
+        label: 'aufbau',
+        start_date: '2026-10-28',
+        end_date: '2026-10-30',
+      } as never,
+    ])).toBe('build')
   })
 
   it('falls back to the window when empty', () => {

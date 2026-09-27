@@ -435,6 +435,7 @@ async function submit() {
         pack_size: packSize.value.trim() || undefined,
         notes: notes.value.trim() || undefined,
         from_line_id: fromLineId.value || undefined,
+        absprache: true,
         inbound_status: 'expected',
         inbound_mode: inboundMode.value,
         parts: parts.value

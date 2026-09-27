@@ -101,10 +101,8 @@ class GrossanlassGroupService
         $group->setName(trim((string) $data['name']));
         if ($parent !== null) {
             $group->setParent($parent);
-            $group->setGrossanlassKind($this->resolveKindForCreate($parent, $data));
-        } else {
-            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
         }
+        $group->setGrossanlassKind($this->kindFromChoice($parent, $data['kind'] ?? null));
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
         }
@@ -167,15 +165,7 @@ class GrossanlassGroupService
             $group->setSortOrder((int) $data['sort_order']);
         }
 
-        if (array_key_exists('kind', $data) && $this->access->canManageStruktur($user, $department)) {
-            $this->applyKindChange($group, $data['kind'] ?? null);
-        } elseif ($group->getGrossanlassKind() === null) {
-            $group->setGrossanlassKind(
-                $group->getParentId() === null
-                    ? Group::GROSSANLASS_KIND_RESSORT
-                    : Group::GROSSANLASS_KIND_TEILBEREICH,
-            );
-        }
+        $this->applyStructuralKind($group, $data['kind'] ?? $group->getGrossanlassKind());
         $this->applyWindow($group, $data);
         $this->applyBuildStatus($department, $user, $group, $data);
         $this->applyDescription($group, $data);
@@ -817,32 +807,27 @@ class GrossanlassGroupService
         $this->entityManager->flush();
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function resolveKindForCreate(Group $parent, array $data): string
+    private function applyStructuralKind(Group $group, mixed $requested): void
     {
-        $kind = isset($data['kind']) ? strtolower(trim((string) $data['kind'])) : Group::GROSSANLASS_KIND_TEILBEREICH;
-        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
-            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
-        }
-
-        return $kind;
+        $group->setGrossanlassKind($this->kindFromChoice($group->getParent(), $requested));
     }
 
-    private function applyKindChange(Group $group, mixed $kindRaw): void
+    private function kindFromChoice(?Group $parent, mixed $requested): string
     {
-        if ($group->getParentId() === null) {
-            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
-
-            return;
+        $kind = strtolower(trim((string) ($requested ?? '')));
+        if ($kind === Group::GROSSANLASS_KIND_BEREICH || $kind === 'unterressort') {
+            return Group::GROSSANLASS_KIND_BEREICH;
+        }
+        if ($kind === Group::GROSSANLASS_KIND_RESSORT) {
+            return Group::GROSSANLASS_KIND_RESSORT;
+        }
+        if ($kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
+            return Group::GROSSANLASS_KIND_TEILBEREICH;
         }
 
-        $kind = strtolower(trim((string) ($kindRaw ?? '')));
-        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
-            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
-        }
-        $group->setGrossanlassKind($kind);
+        return $parent instanceof Group
+            ? Group::GROSSANLASS_KIND_BEREICH
+            : Group::GROSSANLASS_KIND_RESSORT;
     }
 
     private function resolveStoredKind(Group $group): string
@@ -859,10 +844,12 @@ class GrossanlassGroupService
 
     private function resolveNodeType(Group $group, string $kind): string
     {
-        if ($group->getParentId() === null) {
-            return 'ressort';
-        }
+        unset($group);
 
-        return $kind === Group::GROSSANLASS_KIND_RESSORT ? 'unterressort' : 'bauprojekt';
+        return match (strtolower($kind)) {
+            Group::GROSSANLASS_KIND_TEILBEREICH => 'bauprojekt',
+            Group::GROSSANLASS_KIND_BEREICH => 'unterressort',
+            default => 'ressort',
+        };
     }
 }

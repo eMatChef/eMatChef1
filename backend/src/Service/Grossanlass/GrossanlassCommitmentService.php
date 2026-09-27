@@ -115,6 +115,7 @@ final class GrossanlassCommitmentService
             'inquiry_id' => $inquiry->getId(),
             'category_id' => $inquiry->getCategoryIds()[0] ?? null,
             'item_details' => [
+                'absprache' => true,
                 'inbound_status' => 'expected',
                 'inbound_mode' => 'pickup',
             ],

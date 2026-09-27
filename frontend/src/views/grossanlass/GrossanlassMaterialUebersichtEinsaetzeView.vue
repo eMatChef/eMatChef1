@@ -56,6 +56,7 @@
       :department-id="String(route.params.departmentId || '')"
       :groups="groups"
       :trips="calendarTrips"
+      :vehicles="calendarVehicles"
       @open="openCalendarBlock"
     />
 
@@ -71,6 +72,7 @@
       :reload-key="belegungReload"
       @create="createOpen = true"
       @open-project="openProjectFromBelegung"
+      @edit-window="openWindowFromBelegung"
     />
     <EEmptyState
       v-else
@@ -110,6 +112,7 @@
         v-if="projectGroup"
         :department-id="String(route.params.departmentId || '')"
         :group-id="projectGroup.id"
+        :initial-open="projectSections"
         @meta-saved="onProjectMetaSaved"
       />
       <template #actions>
@@ -229,6 +232,19 @@ const chauffeurs = computed(() =>
 const places = computed(() => uebersicht.data.value?.places ?? [])
 
 const groups = ref<GrossanlassGroup[]>([])
+const vehicleIds = computed(() => new Set(
+  articles.value.filter((article) => article.family === 'vehicle').map((article) => article.id),
+))
+const calendarVehicles = computed(() =>
+  articles.value
+    .filter((article) => article.family === 'vehicle')
+    .map((article) => ({
+      id: article.id,
+      name: article.name,
+      from: article.presentFromIso || '',
+      to: article.presentToIso || article.presentFromIso || '',
+    })),
+)
 const calendarTrips = computed(() =>
   (uebersicht.data.value?.einsaetze ?? [])
     .filter((row) => row.task_kind === 'fahrauftrag' || row.delivery === 'trip')
@@ -239,6 +255,7 @@ const calendarTrips = computed(() =>
       from: row.from,
       to: row.to,
       groupId: row.group_id,
+      vehicle: !!row.object_id && vehicleIds.value.has(row.object_id),
     })),
 )
 const unscheduledJobs = computed(() =>
@@ -255,16 +272,26 @@ function parentName(job: GrossanlassGroup): string {
 const showProject = ref(false)
 const belegungReload = ref(0)
 const projectGroup = ref<GrossanlassGroup | null>(null)
+const projectSections = ref<string[]>(['material', 'tasks'])
 const tripDetailOpen = ref(false)
 const tripAssignment = ref<GaHelperAssignment | null>(null)
 const tripCards = computed(() => uebersicht.data.value?.cards ?? [])
-const projectTitle = computed(() =>
-  projectGroup.value
-    ? t('grossanlass.planung.ressorts.projectTitle', { name: projectGroup.value.name })
-    : t('grossanlass.planung.ressorts.openProject'),
-)
+const projectTitle = computed(() => {
+  const group = projectGroup.value
+  if (!group) return t('grossanlass.planung.ressorts.openProject')
+  if (group.node_type === 'unterressort') {
+    return t('grossanlass.planung.ressorts.bereichTitle', { name: group.name })
+  }
+  return t('grossanlass.planung.ressorts.projectTitle', { name: group.name })
+})
 
 function openProjectFromBelegung(id: string) {
+  projectSections.value = ['material', 'tasks']
+  openCalendarBlock({ kind: 'bau', id })
+}
+
+function openWindowFromBelegung(id: string) {
+  projectSections.value = ['window']
   openCalendarBlock({ kind: 'bau', id })
 }
 

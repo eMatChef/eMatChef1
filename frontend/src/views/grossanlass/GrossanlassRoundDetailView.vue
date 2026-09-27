@@ -112,7 +112,9 @@
               :is-member-in-ressort-branch="isMemberInRessortBranch"
               :is-leader-of-group="isLeaderOfGroup"
               :can-create-child="canCreateChild"
+              :only-material="onlyMaterialWishes"
               @changed="onResponseChanged"
+              @counts="onResponseCounts"
             />
           </div>
         </v-tabs-window-item>
@@ -156,6 +158,7 @@ const toast = useToast()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 const roundId = computed(() => String(route.params.roundId || ''))
+const onlyMaterialWishes = computed(() => String(route.query.kind || '') === 'material')
 
 const round = ref<GrossanlassPlanningRound | null>(null)
 const roundForm = ref<GrossanlassRoundForm | null>(null)
@@ -267,9 +270,8 @@ async function loadPendingCount() {
     const result = await getGrossanlassRoundWishes(departmentId.value, roundId.value, {
       page: 1,
       limit: 1,
-      status: 'requested',
     })
-    pendingCount.value = (result as GrossanlassWishListResult).counts.requested
+    pendingCount.value = (result as GrossanlassWishListResult).total
   } catch {
     pendingCount.value = 0
   }
@@ -378,6 +380,10 @@ function clearRefine() {
 
 function onResponseChanged() {
   void loadPendingCount()
+}
+
+function onResponseCounts(value: { total: number }) {
+  pendingCount.value = value.total
 }
 
 onMounted(load)

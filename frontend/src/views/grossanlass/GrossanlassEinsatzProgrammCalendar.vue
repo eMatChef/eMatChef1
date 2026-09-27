@@ -90,6 +90,17 @@
       </div>
     </header>
 
+    <section v-if="fleetRows.length" class="prog-cal__acc">
+      <button type="button" class="prog-cal__acc-head" @click="fleetOpen = !fleetOpen">
+        <v-icon :icon="fleetOpen ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" />
+        <i class="prog-cal__acc-dot" />
+        {{ t('grossanlass.planung.calKindFleet') }}
+      </button>
+      <ul v-show="fleetOpen" class="prog-cal__acc-list">
+        <li v-for="row in fleetRows" :key="row.id">{{ row.name }}</li>
+      </ul>
+    </section>
+
     <div class="prog-cal__scroll">
       <div class="prog-cal__grid" :style="gridStyle">
         <div class="prog-cal__corner">
@@ -225,6 +236,13 @@ const props = defineProps<{
     from: string
     to: string
     groupId: string | null
+    vehicle?: boolean
+  }>
+  vehicles?: Array<{
+    id: string
+    name: string
+    from: string
+    to: string
   }>
 }>()
 
@@ -236,7 +254,7 @@ const HOUR_START = 7
 const HOUR_END = 23
 const PX = 42
 
-type CalLane = 'bauprojekt' | 'ressort' | 'fahrt'
+type CalLane = 'bauprojekt' | 'ressort' | 'fahrt' | 'fahrzeug'
 
 type Block = {
   key: string
@@ -257,6 +275,7 @@ const LANE_COLOR: Record<CalLane, string> = {
   bauprojekt: '#86efac',
   ressort: '#93c5fd',
   fahrt: '#fdba74',
+  fahrzeug: '#7dd3fc',
 }
 
 const anchor = ref(startOfDay(new Date()))
@@ -270,9 +289,11 @@ const kindOn = reactive<Record<CalLane, boolean>>({
   bauprojekt: true,
   ressort: true,
   fahrt: true,
+  fahrzeug: true,
 })
 const selectedRessortIds = ref<string[]>([])
 const locked = ref(true)
+const fleetOpen = ref(true)
 const moving = ref(false)
 const skipClick = ref(false)
 const resizing = ref<{
@@ -324,12 +345,16 @@ const gridStyle = computed(() => ({
   gridTemplateColumns: `56px repeat(${days.value.length}, minmax(0, 1fr))`,
 }))
 
-const modeBlocks = computed(() => blocks.value.filter((block) => block.kind === 'bau' || block.kind === 'fahrt'))
+const modeBlocks = computed(() => [
+  ...blocks.value.filter((block) => block.kind === 'bau' || block.kind === 'fahrt' || block.lane === 'fahrzeug'),
+  ...vehicleBlocks(),
+])
 
 const kindFilters = computed(() => ([
   { id: 'bauprojekt' as const, label: t('grossanlass.planung.calKindBau'), color: LANE_COLOR.bauprojekt },
   { id: 'ressort' as const, label: t('grossanlass.planung.calKindRessort'), color: LANE_COLOR.ressort },
   { id: 'fahrt' as const, label: t('grossanlass.planung.calKindFahrt'), color: LANE_COLOR.fahrt },
+  { id: 'fahrzeug' as const, label: t('grossanlass.planung.calKindFleet'), color: LANE_COLOR.fahrzeug },
 ]))
 
 const visibleBlocks = computed(() =>
@@ -359,7 +384,12 @@ const ressortOptions = computed(() => {
 })
 
 const filterActive = computed(() =>
-  onlyMine.value || selectedRessortIds.value.length > 0 || !kindOn.bauprojekt || !kindOn.ressort || !kindOn.fahrt,
+  onlyMine.value
+  || selectedRessortIds.value.length > 0
+  || !kindOn.bauprojekt
+  || !kindOn.ressort
+  || !kindOn.fahrt
+  || !kindOn.fahrzeug,
 )
 
 function later() {
@@ -456,6 +486,7 @@ function ressortOf(groupId: string): GrossanlassGroup | null {
 }
 
 function blockCaption(block: Block): { name: string; no: string } {
+  if (block.lane === 'fahrzeug') return { name: block.projectName, no: '' }
   const project = groupById.value.get(block.groupId)
   const name = project?.node_type === 'bauprojekt' ? project.name : block.projectName
   if (block.kind !== 'bau') return { name, no: '' }
@@ -601,7 +632,7 @@ async function saveNewTask() {
 }
 
 function startResize(block: Block, event: MouseEvent, edge: 'start' | 'end') {
-  if (locked.value) return
+  if (locked.value || block.lane === 'fahrzeug') return
   resizing.value = {
     block,
     edge,
@@ -637,8 +668,40 @@ function clockLabel(block: Block): string {
   return `${fmt(block.start)}–${fmt(end)}`
 }
 
+const fleetRows = computed(() => props.vehicles ?? [])
+
+function vehicleBlocks(): Block[] {
+  const rows: Block[] = []
+  for (const vehicle of props.vehicles ?? []) {
+    const from = parseDay(vehicle.from)
+    const to = parseDay(vehicle.to || vehicle.from)
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) continue
+    let cursor = from
+    let guard = 0
+    while (cursor.getTime() <= to.getTime() && guard < 45) {
+      const start = new Date(cursor)
+      start.setHours(8, 0, 0, 0)
+      rows.push({
+        key: `veh-${vehicle.id}-${ymd(cursor)}`,
+        kind: 'fenster',
+        lane: 'fahrzeug',
+        taskId: vehicle.id,
+        groupId: vehicle.id,
+        projectName: vehicle.name,
+        title: '',
+        sortOrder: 0,
+        start,
+        durationMin: 10 * 60,
+      })
+      cursor = addDays(cursor, 1)
+      guard += 1
+    }
+  }
+  return rows
+}
+
 function startDrag(block: Block, event: MouseEvent) {
-  if (locked.value) return
+  if (locked.value || block.lane === 'fahrzeug') return
   if ((event.target as HTMLElement).closest('.prog-cal__resize')) return
   event.preventDefault()
   dragging.value = { block, startY: event.clientY, origin: new Date(block.start) }
@@ -796,7 +859,9 @@ async function loadBlocks() {
   const packs = await Promise.all(projects.map(async (project) => {
     try {
       const briefing = await getGrossanlassBauprojekt(props.departmentId, project.id)
-      return (briefing.tasks ?? []).map((task) => toBlock(project, task)).filter((row): row is Block => !!row)
+      const tasks = (briefing.tasks ?? []).map((task) => toBlock(project, task)).filter((row): row is Block => !!row)
+      const vehicles = (briefing.vehicles ?? []).map((need) => vehicleNeedBlock(project, need)).filter((row): row is Block => !!row)
+      return [...tasks, ...vehicles]
     } catch {
       return [] as Block[]
     }
@@ -814,7 +879,7 @@ function tripBlocks(): Block[] {
       : Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000))
     return [{
       key: `fahrt-${trip.id}`,
-      lane: 'fahrt' as const,
+      lane: (trip.vehicle ? 'fahrzeug' : 'fahrt') as CalLane,
       kind: 'fahrt' as const,
       taskId: trip.id,
       groupId: trip.groupId || trip.id,
@@ -825,6 +890,29 @@ function tripBlocks(): Block[] {
       durationMin,
     }]
   })
+}
+
+function vehicleNeedBlock(
+  project: GrossanlassGroup,
+  need: { id: string; vehicle_label: string; task_label: string; starts_at?: string | null; duration_minutes?: number | null },
+): Block | null {
+  if (!need.starts_at) return null
+  const label = [need.task_label.trim(), need.vehicle_label.trim()].filter(Boolean).join(' · ')
+  if (!label) return null
+  const start = new Date(need.starts_at)
+  if (Number.isNaN(start.getTime())) return null
+  return {
+    key: `vehneed-${need.id}`,
+    kind: 'fenster',
+    lane: 'fahrzeug',
+    taskId: need.id,
+    groupId: project.id,
+    projectName: label,
+    title: '',
+    sortOrder: 0,
+    start,
+    durationMin: need.duration_minutes && need.duration_minutes > 0 ? need.duration_minutes : 60,
+  }
 }
 
 function toBlock(project: GrossanlassGroup, task: GaBauprojektTask): Block | null {
@@ -892,6 +980,37 @@ onBeforeUnmount(() => {
   margin: 0 0 0;
   padding: 4px 4px 8px;
   border-bottom: 1px solid #e5e7eb;
+}
+.prog-cal__acc {
+  margin: 8px 0 4px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+}
+.prog-cal__acc-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.prog-cal__acc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #7dd3fc;
+}
+.prog-cal__acc-list {
+  margin: 0;
+  padding: 0 12px 8px 36px;
+  list-style: none;
+  font-size: 0.85rem;
 }
 .prog-cal__kinds {
   display: flex;

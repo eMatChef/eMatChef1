@@ -34,45 +34,27 @@
       preset-mode="fixed-periods"
     />
     <p v-if="windowHint" :class="hintClass">{{ windowHint }}</p>
-
-    <AutoSaveField
-      v-if="autosave && canSetStatus"
-      :model-value="status"
-      :baseline="statusBaseline"
-      type="select"
-      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
-      :options="statusOptions"
-      :disabled="disabled"
-      span-class="ga-build-meta-fields__status"
-      :save="onSaveStatus"
-      @update:model-value="onStatus"
-    />
-    <ESelect
-      v-else-if="canSetStatus"
-      v-model="status"
-      :items="statusSelectItems"
-      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
-      hide-details
-    />
-    <p v-if="canSetStatus" :class="hintClass">{{ t('grossanlass.planung.ressorts.buildStatusHint') }}</p>
+    <p :class="hintClass">
+      <span class="ga-build-meta-fields__status-label">{{ t('grossanlass.planung.ressorts.buildStatusLabel') }}:</span>
+      {{ derivedStatusLabel }}
+    </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick } from 'vue'
+import { computed, nextTick, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useAuthStore } from '@/stores/auth'
-import { gaIsMaterialwart } from '@/utils/grossanlassAccess'
 import { AutoSaveField } from '@/components/common/autoSave'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
-import { EDateRangeField, ESelect } from '@/components/form/base'
+import { EDateRangeField } from '@/components/form/base'
 import {
   packBauprojektWindow,
   unpackBauprojektWindow,
 } from '@/utils/grossanlassBauprojektWindow'
 import {
-  gaBuildStatusAutoSaveOptions,
-  gaBuildStatusSelectItems,
+  gaBuildStatusI18nKey,
+  resolveBuildStatus,
+  watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
 
 defineOptions({ name: 'GaBuildMetaFields' })
@@ -92,6 +74,8 @@ const props = withDefaults(defineProps<{
   hintClass?: string
   saveWindow?: (value: AutoSaveFieldValue) => Promise<void>
   saveStatus?: (value: AutoSaveFieldValue) => Promise<void>
+  nodeType?: string | null
+  reportedStatuses?: Array<string | null | undefined>
 }>(), {
   departmentId: null,
   autosave: false,
@@ -100,23 +84,24 @@ const props = withDefaults(defineProps<{
   windowBaseline: undefined,
   statusBaseline: undefined,
   hintClass: 'window-hint',
+  nodeType: null,
+  reportedStatuses: () => [],
 })
 
 const { t } = useI18n()
-const authStore = useAuthStore()
-const canSetStatus = computed(() => gaIsMaterialwart(authStore.currentDepartmentRole))
+watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
 const packedWindow = computed(() => packBauprojektWindow(start.value, end.value))
-const statusOptions = computed(() => gaBuildStatusAutoSaveOptions(t))
-const statusSelectItems = computed(() => gaBuildStatusSelectItems(t))
+const derivedStatusLabel = computed(() => t(gaBuildStatusI18nKey(resolveBuildStatus({
+  node_type: props.nodeType,
+  build_status: status.value,
+  window_start: start.value,
+  window_end: end.value,
+}, undefined, props.reportedStatuses))))
 
 function onPackedWindow(value: AutoSaveFieldValue) {
   const next = unpackBauprojektWindow(value)
   start.value = next.start
   end.value = next.end
-}
-
-function onStatus(value: AutoSaveFieldValue) {
-  status.value = value == null ? '' : String(value)
 }
 
 function touchWindow(onChange: () => void) {
@@ -128,10 +113,6 @@ async function onSaveWindow(value: AutoSaveFieldValue) {
   await props.saveWindow(value)
 }
 
-async function onSaveStatus(value: AutoSaveFieldValue) {
-  if (!props.saveStatus) return
-  await props.saveStatus(value)
-}
 </script>
 
 <style scoped>
@@ -147,7 +128,7 @@ async function onSaveStatus(value: AutoSaveFieldValue) {
 .ga-build-meta-fields__window :deep(.e-date-range-field .autosave-label) {
   display: none;
 }
-.ga-build-meta-fields__status {
-  margin-top: 4px;
+.ga-build-meta-fields__status-label {
+  font-weight: 600;
 }
 </style>

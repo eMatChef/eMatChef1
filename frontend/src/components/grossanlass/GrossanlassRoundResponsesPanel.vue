@@ -1,13 +1,11 @@
 <template>
   <div class="round-responses">
     <div class="responses-toolbar">
-      <ETextField
+      <ESearchField
         v-model="searchQuery"
         :label="t('grossanlass.responses.search')"
-        hide-details
-        density="compact"
         class="responses-search"
-        @keyup.enter="applyFilters"
+        @keydown.enter="applyFilters"
       />
       <ESelect
         v-model="statusFilter"
@@ -85,13 +83,27 @@
                 {{ cellValue(item, col.field) }}
                 <span v-if="item.wish_kind" class="kind-tag">{{ wishKindLabel(item.wish_kind) }}</span>
               </template>
+              <template v-else-if="col.field?.system_key === 'submitter'">
+                <span class="submitter">
+                  <UserAvatarBadge
+                    v-if="item.created_by"
+                    :user="item.created_by"
+                    size="sm"
+                    :show-tooltip="false"
+                  />
+                  <span class="submitter__text">
+                    <span class="submitter__nick">{{ submitterNick(item) }}</span>
+                    <span v-if="submitterFullName(item)" class="submitter__name">{{ submitterFullName(item) }}</span>
+                  </span>
+                </span>
+              </template>
               <template v-else>
                 {{ col.field ? cellValue(item, col.field) : '–' }}
               </template>
             </td>
             <td>
-              <span class="status-chip" :class="'status-' + item.status">
-                {{ statusLabel(item.status) }}
+              <span class="status-chip" :class="item.self_organized ? 'status-self' : 'status-' + item.status">
+                {{ item.self_organized ? t('grossanlass.responses.statusSelfOrganized') : statusLabel(item.status) }}
               </span>
             </td>
           </tr>
@@ -146,7 +158,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESearchField, ESelect } from '@/components/form/base'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import GrossanlassWishDynamicForm from '@/components/grossanlass/GrossanlassWishDynamicForm.vue'
 import {
   deleteGrossanlassWish,
@@ -181,10 +194,12 @@ const props = defineProps<{
   isMemberInRessortBranch: (g: GrossanlassGroup) => boolean
   isLeaderOfGroup: (g: GrossanlassGroup) => boolean
   canCreateChild: (g: GrossanlassGroup) => boolean
+  onlyMaterial?: boolean
 }>()
 
 const emit = defineEmits<{
   changed: []
+  counts: [value: { requested: number; accepted: number; total: number }]
 }>()
 
 const { t } = useI18n()
@@ -240,6 +255,7 @@ const showActionsColumn = computed(() => {
 })
 
 function canModifyItem(item: GrossanlassWishLine): boolean {
+  if (item.source === 'direct') return false
   if (!roundIsOpen.value) return false
   if (isMaterialwart.value) return true
   return item.created_by_user_id === authStore.userId
@@ -263,6 +279,22 @@ function wishKindLabel(kind: GrossanlassWishKind): string {
   }
 }
 
+function submitterNick(item: GrossanlassWishLine): string {
+  const person = item.created_by
+  const nick = person?.nickname?.trim()
+  if (nick) return nick
+  return submitterFullName(item) || item.created_by_name || '–'
+}
+
+function submitterFullName(item: GrossanlassWishLine): string {
+  const person = item.created_by
+  const nick = person?.nickname?.trim()
+  if (!nick) return ''
+  const name = [person?.first_name, person?.last_name].map((part) => part?.trim()).filter(Boolean).join(' ')
+  if (!name || name === nick) return ''
+  return name
+}
+
 function statusLabel(status: string): string {
   if (status === 'accepted') return t('grossanlass.responses.statusInProcurement')
   return t('grossanlass.responses.statusSubmitted')
@@ -283,9 +315,13 @@ async function load() {
       listDepartmentCalendarPeriods(props.departmentId).catch(() => [] as DepartmentCalendarPeriod[]),
     ])
     const data = result as GrossanlassWishListResult
-    items.value = data.items
-    total.value = data.total
+    const rows = props.onlyMaterial
+      ? data.items.filter((item) => item.wish_kind !== 'fahrzeug')
+      : data.items
+    items.value = rows
+    total.value = props.onlyMaterial ? rows.length : data.total
     counts.value = data.counts
+    emit('counts', { ...data.counts, total: total.value })
     page.value = data.page
     calendarPeriods.value = periods
   } catch {
@@ -400,8 +436,15 @@ defineExpose({ reload: load })
 }
 
 .responses-search {
-  flex: 1 1 220px;
-  min-width: 180px;
+  flex: 1 1 640px;
+  min-width: min(100%, 480px);
+  max-width: none;
+}
+
+.responses-search :deep(.e-search-field),
+.responses-search :deep(.search-field) {
+  width: 100%;
+  max-width: none;
 }
 
 .responses-filter {
@@ -447,6 +490,26 @@ defineExpose({ reload: load })
   white-space: nowrap;
 }
 
+.submitter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.submitter__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.submitter__nick {
+  font-weight: 600;
+  line-height: 1.2;
+}
+.submitter__name {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.2;
+}
 .kind-tag {
   display: inline-block;
   margin-left: 6px;
@@ -467,7 +530,8 @@ defineExpose({ reload: load })
   color: #92400e;
 }
 
-.status-accepted {
+.status-accepted,
+.status-self {
   background: #d1fae5;
   color: #065f46;
 }

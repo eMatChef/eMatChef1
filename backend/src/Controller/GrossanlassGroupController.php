@@ -414,6 +414,48 @@ class GrossanlassGroupController extends AbstractController
         );
     }
 
+    #[Route('/{groupId}/vehicles', name: 'vehicles_create', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function createVehicleNeed(string $departmentId, string $groupId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->createVehicleNeed($d, $u, $g, is_array($data) ? $data : []),
+            201,
+        );
+    }
+
+    #[Route('/{groupId}/vehicles/{needId}', name: 'vehicles_update', methods: ['PATCH'])]
+    #[IsGranted('ROLE_USER')]
+    public function updateVehicleNeed(string $departmentId, string $groupId, string $needId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            fn (Department $d, User $u, Group $g) => $this->bauprojekt->updateVehicleNeed($d, $u, $g, $needId, is_array($data) ? $data : []),
+        );
+    }
+
+    #[Route('/{groupId}/vehicles/{needId}', name: 'vehicles_delete', methods: ['DELETE'])]
+    #[IsGranted('ROLE_USER')]
+    public function deleteVehicleNeed(string $departmentId, string $groupId, string $needId): JsonResponse
+    {
+        return $this->handleBauprojekt(
+            $departmentId,
+            $groupId,
+            function (Department $d, User $u, Group $g) use ($needId) {
+                $this->bauprojekt->deleteVehicleNeed($d, $u, $g, $needId);
+
+                return ['success' => true];
+            },
+        );
+    }
+
     #[Route('/{groupId}/material/{lineId}', name: 'material_update', methods: ['PATCH'])]
     #[IsGranted('ROLE_USER')]
     public function updateMaterial(string $departmentId, string $groupId, string $lineId, Request $request): JsonResponse

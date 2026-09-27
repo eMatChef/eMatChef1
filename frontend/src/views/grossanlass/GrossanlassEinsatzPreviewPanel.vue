@@ -19,10 +19,15 @@
           type="button"
           class="ga-gantt__scale-btn"
           :class="{ 'ga-gantt__scale-btn--active': scale === item.id }"
-          @click="scale = item.id"
+          @click="selectScale(item.id)"
         >
           {{ item.label }}
         </button>
+      </div>
+      <div v-if="scale !== 'day'" class="ga-gantt__zoom">
+        <button type="button" :aria-label="t('grossanlass.planung.calZoomLess')" :disabled="shownDays <= 1" @click="changeDayZoom(-1)">−</button>
+        <span>{{ shownDays }} {{ t('grossanlass.planung.calZoomDays') }}</span>
+        <button type="button" :aria-label="t('grossanlass.planung.calZoomMore')" :disabled="shownDays >= 62" @click="changeDayZoom(1)">+</button>
       </div>
       <strong class="ga-gantt__title">{{ windowTitle }}</strong>
       <ESearchField
@@ -80,18 +85,16 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMonthPrev')"
-            @click="shiftMonth(-1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            @click="shiftByDays(-10)"
           >
             &lt;&lt;
           </button>
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMidPrev')"
-            @click="shiftMid(-1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            @click="shiftByDays(-2)"
           >
             &lt;
           </button>
@@ -118,18 +121,16 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMidNext')"
-            @click="shiftMid(1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            @click="shiftByDays(2)"
           >
             &gt;
           </button>
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMonthNext')"
-            @click="shiftMonth(1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            @click="shiftByDays(10)"
           >
             &gt;&gt;
           </button>
@@ -202,30 +203,41 @@
     />
     <div v-else-if="displayRings.length" class="ga-gantt__body" :style="gridTemplateStyle">
         <template v-for="ring in displayRings" :key="ring.id">
-          <button
+          <div
             v-show="isRingShown(ring)"
-            type="button"
             class="ga-gantt__ring"
             :class="{
               'ga-gantt__ring--closed': !isRingOpen(ring.id),
               'ga-gantt__ring--child': (ring.depth || 0) > 0,
             }"
             :style="{ gridColumn: '1 / -1' }"
-            :aria-expanded="isRingOpen(ring.id)"
-            @click="toggleRing(ring)"
           >
-            <v-icon
-              :icon="isRingOpen(ring.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-              size="18"
-            />
-            <span>{{ ring.label }}</span>
-            <span
-              v-if="ring.status"
-              class="ga-gantt__ring-status"
-              :class="`ga-gantt__ring-status--${ring.statusKind || 'planned'}`"
-            >{{ ring.status }}</span>
-            <span v-if="ring.windowText" class="ga-gantt__ring-window">{{ ring.windowText }}</span>
-          </button>
+            <button
+              type="button"
+              class="ga-gantt__ring-main"
+              :aria-expanded="isRingOpen(ring.id)"
+              @click="toggleRing(ring)"
+            >
+              <v-icon
+                :icon="isRingOpen(ring.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                size="18"
+              />
+              <span>{{ ring.label }}</span>
+              <span
+                v-if="ring.status"
+                class="ga-gantt__ring-status"
+                :class="`ga-gantt__ring-status--${ring.statusKind || 'planned'}`"
+              >{{ ring.status }}</span>
+            </button>
+            <button
+              v-if="ring.windowText && ring.groupId"
+              type="button"
+              class="ga-gantt__ring-window"
+              @click="emit('editWindow', ring.groupId)"
+            >
+              {{ ring.windowText }}
+            </button>
+          </div>
           <template v-if="isRingShown(ring) && isRingOpen(ring.id)">
           <template v-for="block in ring.blocks" :key="block.id">
           <div
@@ -259,28 +271,31 @@
             <span v-else>{{ block.label }}</span>
           </div>
           <div
-            v-if="!ring.skipCategory"
+            v-if="!ring.skipCategory && !isBlockOpen(block.id)"
             class="ga-gantt__track ga-gantt__track--summary"
-            :style="{ gridColumn: `3 / span ${columns.length}`, minHeight: '28px' }"
+            :style="{ gridColumn: `3 / span ${columns.length}`, height: `${summaryTrackHeight()}px` }"
           >
-            <span
-              v-for="(column, colIndex) in columns"
-              :key="`${block.id}-sum-${column.key}`"
-              class="ga-gantt__cell"
-              :class="{
-                'ga-gantt__cell--weekend': column.weekend,
-                'ga-gantt__cell--month-start': column.monthStart,
-              }"
-              :style="cellStyle(colIndex)"
-            />
-            <span
-              v-for="booking in summaryBookings(block)"
-              :key="`${block.id}-sum-${booking.id}`"
-              class="ga-gantt__bar-wrap ga-gantt__bar-wrap--summary"
-              :style="barBox(booking, 0, 1)"
-            >
-              <span class="ga-gantt__bar" :class="barClass(booking)" />
-            </span>
+            <div class="ga-gantt__summary-stack">
+              <span
+                v-for="slot in summarySlots(block).filter((item) => item.fill)"
+                :key="`${block.id}-bg-${slot.booking.id}`"
+                class="ga-gantt__summary-bg"
+                :style="summarySpan(slot.booking)"
+              />
+              <div
+                v-for="lane in summaryLaneCount(block)"
+                :key="`${block.id}-lane-${lane}`"
+                class="ga-gantt__summary-lane"
+              >
+                <span
+                  v-for="slot in summarySlots(block).filter((item) => !item.fill && item.lane === lane - 1)"
+                  :key="`${block.id}-sum-${slot.booking.id}`"
+                  class="ga-gantt__bar ga-gantt__summary-mark"
+                  :class="[barClass(slot.booking), { 'ga-gantt__bar--vehicle': slot.booking.id.startsWith('vehneed-') }]"
+                  :style="summarySpan(slot.booking)"
+                />
+              </div>
+            </div>
           </div>
           <template v-for="row in rowsFor(ring, block)" :key="row.key">
             <div
@@ -349,7 +364,7 @@
                       v-bind="tipProps"
                       type="button"
                       class="ga-gantt__bar"
-                      :class="barClass(booking)"
+                      :class="[barClass(booking), { 'ga-gantt__bar--vehicle': row.resource.family === 'vehicle' }]"
                       :aria-label="barTitle(booking)"
                       @click.stop="openEinsatz(booking, row.resource)"
                     >
@@ -481,7 +496,7 @@ const props = withDefaults(defineProps<{
   showCreate: false,
 })
 
-const emit = defineEmits<{ create: []; openProject: [id: string] }>()
+const emit = defineEmits<{ create: []; openProject: [id: string]; editWindow: [id: string] }>()
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -496,6 +511,7 @@ function tr(key: string, values?: Record<string, string | number>): string {
 }
 
 const scale = ref<GaCalendarScale>('month')
+const zoomDays = ref<number | null>(null)
 const jumpMode = ref<'event' | 'month' | 'mid'>('event')
 const anchorTouched = ref(false)
 const anchor = ref(parseLocalDate(GA_EINSATZ_ANCHOR_ISO))
@@ -503,12 +519,34 @@ const focusedId = ref<string | null>(null)
 const collapsedBlocks = ref<Set<string>>(new Set())
 const openedProjects = ref<Set<string>>(new Set())
 const taskBars = ref<Record<string, GaPreviewEinsatz[]>>({})
+const vehicleNeedBars = ref<Record<string, GaPreviewEinsatz[]>>({})
 const collapsedRings = ref<Set<string>>(new Set())
 const searchQuery = ref('')
 const einsatzDialogOpen = ref(false)
 const selectedBooking = ref<GaPreviewEinsatz | null>(null)
 const selectedStayMode = ref<GaEinsatzStayMode | null>(null)
 const selectedStartEditing = ref(false)
+
+const shownDays = computed(() => {
+  if (zoomDays.value != null && scale.value !== 'day') return zoomDays.value
+  const ms = windowRange.value.end.getTime() - windowRange.value.start.getTime()
+  return Math.max(1, Math.round(ms / 86400000))
+})
+
+function selectScale(next: GaCalendarScale) {
+  zoomDays.value = null
+  scale.value = next
+}
+
+function changeDayZoom(delta: number) {
+  if (zoomDays.value == null) {
+    const start = windowRange.value.start
+    anchor.value = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    anchorTouched.value = true
+  }
+  const current = zoomDays.value ?? shownDays.value
+  zoomDays.value = Math.min(62, Math.max(1, current + delta))
+}
 
 const scales = computed(() => [
   { id: 'month' as const, label: t('grossanlass.materialUebersicht.scaleMonth') },
@@ -527,6 +565,12 @@ const orgRows = computed(() =>
 const onlyWithBookings = computed(() => !(props.resources && props.resources.length > 0))
 
 const windowRange = computed(() => {
+  if (zoomDays.value != null && scale.value !== 'day') {
+    const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate())
+    const end = new Date(start)
+    end.setDate(end.getDate() + zoomDays.value)
+    return { start, end }
+  }
   if (scale.value === 'month' && jumpMode.value === 'mid') {
     return midMonthWindow(anchor.value)
   }
@@ -800,6 +844,14 @@ watch(displayRings, (next) => {
   if (!stillVisible) focusedId.value = null
 })
 
+function shiftByDays(days: number) {
+  anchorTouched.value = true
+  const start = windowRange.value.start
+  const length = zoomDays.value ?? shownDays.value
+  anchor.value = new Date(start.getFullYear(), start.getMonth(), start.getDate() + days)
+  zoomDays.value = length
+}
+
 function shiftMonth(direction: -1 | 1) {
   anchorTouched.value = true
   const base = jumpMode.value === 'month' ? anchor.value : windowRange.value.start
@@ -862,7 +914,7 @@ function onSelectDay(ymd: string, startMs: number) {
 }
 
 function canEditBooking(booking: GaPreviewEinsatz): boolean {
-  if (!booking.id || isUsageWindowEinsatz(booking)) return false
+  if (!booking.id || isUsageWindowEinsatz(booking) || booking.id.startsWith('vehneed-')) return false
   if ((booking.barRole ?? 'einsatz') !== 'einsatz') return false
   return booking.status !== 'issued' && booking.status !== 'returned'
 }
@@ -872,7 +924,7 @@ function openEinsatz(
   resource: { id: string; stayMode: GaEinsatzStayMode },
   edit = false,
 ) {
-  if (isUsageWindowEinsatz(booking)) return
+  if (isUsageWindowEinsatz(booking) || booking.id.startsWith('vehneed-')) return
   selectedBooking.value = booking
   selectedStayMode.value = resource.stayMode
   selectedStartEditing.value = edit && canEditBooking(booking)
@@ -939,6 +991,21 @@ function toggleBlock(block: GaEinsatzCategoryBlock) {
   collapsedBlocks.value = next
 }
 
+function vehicleNeedRows(groupId: string): GaEinsatzCategoryBlock['resources'] {
+  return (vehicleNeedBars.value[groupId] || []).map((booking) => ({
+    id: booking.id,
+    name: booking.objectName,
+    family: 'vehicle' as const,
+    stayMode: 'stay' as const,
+    categoryId: 'fahrzeuge',
+    kind: 'unique' as const,
+    stock: 1,
+    bookings: [booking],
+    lanes: 1,
+    laneOf: { [booking.id]: 0 },
+  }))
+}
+
 function taskRows(groupId: string): GaEinsatzCategoryBlock['resources'] {
   return (taskBars.value[groupId] || []).map((booking) => ({
     id: booking.id,
@@ -963,15 +1030,24 @@ function rowsFor(ring: GaEinsatzRingBlock, block: GaEinsatzCategoryBlock): Array
   if (!isCategoryOpen(ring, block)) return []
   if (!block.groupId) return block.resources.map((resource) => ({ key: resource.id, resource }))
   const usage = block.resources.filter((resource) => isUsageResource(resource))
+  const vehicles = block.resources.filter((resource) => resource.family === 'vehicle')
   const transport = block.resources.filter((resource) =>
-    !isUsageResource(resource) && resource.bookings.length > 0 && resource.bookings.every((booking) => booking.delivery === 'trip'),
+    !isUsageResource(resource)
+    && resource.family !== 'vehicle'
+    && resource.bookings.length > 0
+    && resource.bookings.every((booking) => booking.delivery === 'trip'),
   )
-  const project = block.resources.filter((resource) => !usage.includes(resource) && !transport.includes(resource))
+  const project = block.resources.filter((resource) =>
+    !usage.includes(resource) && !vehicles.includes(resource) && !transport.includes(resource),
+  )
   const tasks = taskRows(block.groupId)
+  const vehicleNeeds = vehicleNeedRows(block.groupId)
   return [
     ...usage.map((resource) => ({ key: resource.id, resource, compact: true })),
     ...project.map((resource) => ({ key: resource.id, resource })),
     ...tasks.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...vehicles.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...vehicleNeeds.map((resource) => ({ key: resource.id, resource, compact: true })),
     ...transport.map((resource) => ({ key: resource.id, resource, compact: true })),
   ]
 }
@@ -983,6 +1059,34 @@ async function loadTaskBars() {
   const packs = await Promise.all(projects.map(async (project) => {
     try {
       const briefing = await getGrossanlassBauprojekt(id, project.id)
+      const vehicleBookings = (briefing.vehicles ?? []).flatMap((need) => {
+        if (!need.starts_at) return []
+        const label = [need.task_label.trim(), need.vehicle_label.trim()].filter(Boolean).join(' · ')
+        if (!label) return []
+        const start = parseLocalDate(need.starts_at)
+        const end = new Date(start)
+        end.setMinutes(end.getMinutes() + (need.duration_minutes && need.duration_minutes > 0 ? need.duration_minutes : 60))
+        const pad = (value: number) => String(value).padStart(2, '0')
+        const toIso = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00`
+        return [{
+          id: `vehneed-${need.id}`,
+          objectId: need.id,
+          objectName: label,
+          kind: 'unique' as const,
+          qty: 1,
+          stock: 1,
+          fromIso: need.starts_at,
+          toIso,
+          fromLabel: need.starts_at.slice(0, 16).replace('T', ' '),
+          toLabel: toIso.slice(0, 16).replace('T', ' '),
+          ressort: project.name,
+          bauprojekt: project.name,
+          groupId: project.id,
+          status: 'planned' as const,
+          who: label,
+          barRole: 'einsatz' as const,
+        }]
+      })
       const bookings = (briefing.tasks ?? []).flatMap((task) => {
         if (!task.starts_at || !task.title.trim()) return []
         const start = parseLocalDate(task.starts_at)
@@ -1020,12 +1124,13 @@ async function loadTaskBars() {
           barRole: 'einsatz' as const,
         }]
       })
-      return [project.id, bookings] as const
+      return [project.id, bookings, vehicleBookings] as const
     } catch {
-      return [project.id, []] as const
+      return [project.id, [], []] as const
     }
   }))
-  taskBars.value = Object.fromEntries(packs)
+  taskBars.value = Object.fromEntries(packs.map(([id, bookings]) => [id, bookings]))
+  vehicleNeedBars.value = Object.fromEntries(packs.map(([id, , vehicles]) => [id, vehicles]))
 }
 
 watch(() => orgGroups.value.map((group) => group.id).join('|'), () => { void loadTaskBars() }, { immediate: true })
@@ -1107,9 +1212,64 @@ function isUsageResource(resource: { id: string; bookings: GaPreviewEinsatz[] })
   return resource.id.includes(':usage') || resource.bookings.some((booking) => booking.id.startsWith('usage-'))
 }
 
+function bookingDuration(booking: GaPreviewEinsatz): number {
+  const from = parseLocalDate(booking.fromIso).getTime()
+  const to = parseLocalDate(booking.toIso).getTime()
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0
+  return Math.max(0, to - from)
+}
+
 function summaryBookings(block: GaEinsatzCategoryBlock): GaPreviewEinsatz[] {
   const tasks = block.groupId ? (taskBars.value[block.groupId] || []) : []
-  return visibleBookings([...block.resources.flatMap((resource) => resource.bookings), ...tasks])
+  const vehicles = block.groupId ? (vehicleNeedBars.value[block.groupId] || []) : []
+  return visibleBookings([...block.resources.flatMap((resource) => resource.bookings), ...tasks, ...vehicles])
+}
+
+function isSummaryBackground(booking: GaPreviewEinsatz): boolean {
+  return isUsageWindowEinsatz(booking) || (booking.barRole ?? 'einsatz') === 'fixed'
+}
+
+function summarySlots(block: GaEinsatzCategoryBlock): Array<{ booking: GaPreviewEinsatz; lane: number; fill: boolean }> {
+  const all = summaryBookings(block)
+  const background = all.filter((booking) => isSummaryBackground(booking))
+  const front = all
+    .filter((booking) => !isSummaryBackground(booking))
+    .slice()
+    .sort((a, b) => {
+      const duration = bookingDuration(b) - bookingDuration(a)
+      if (duration !== 0) return duration
+      return parseLocalDate(a.fromIso).getTime() - parseLocalDate(b.fromIso).getTime()
+    })
+  const placed: Array<{ booking: GaPreviewEinsatz; lane: number; start: number; end: number }> = []
+  for (const booking of front) {
+    const start = parseLocalDate(booking.fromIso).getTime()
+    const end = parseLocalDate(booking.toIso).getTime()
+    const used = new Set(
+      placed.filter((item) => start < item.end && item.start < end).map((item) => item.lane),
+    )
+    let lane = 0
+    while (used.has(lane) && lane < 3) lane += 1
+    placed.push({ booking, lane, start, end })
+  }
+  return [
+    ...background.map((booking) => ({ booking, lane: 0, fill: true })),
+    ...placed.map((item) => ({ booking: item.booking, lane: item.lane, fill: false })),
+  ]
+}
+
+function summaryLaneCount(block: GaEinsatzCategoryBlock): number {
+  const lanes = summarySlots(block).filter((slot) => !slot.fill).map((slot) => slot.lane + 1)
+  return Math.max(1, ...lanes)
+}
+
+function summaryTrackHeight(): number {
+  return 26
+}
+
+function summarySpan(booking: GaPreviewEinsatz): Record<string, string> {
+  const pos = barStyleInWindow(booking, windowRange.value.start, windowRange.value.end, scale.value)
+  if (!pos) return { display: 'none' }
+  return { left: pos.left, width: pos.width }
 }
 
 function visibleBookings(bookings: GaPreviewEinsatz[]): GaPreviewEinsatz[] {
@@ -1299,6 +1459,26 @@ function barTitle(booking: GaPreviewEinsatz): string {
   background: var(--ga-table-row);
 }
 
+.ga-gantt__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.ga-gantt__zoom button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.ga-gantt__zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .ga-gantt__scale-btn,
 .ga-gantt__nav-btn {
   border: 0;
@@ -1436,6 +1616,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__body {
   display: grid;
+  align-items: start;
   min-width: 720px;
   border: 1px solid var(--ga-table-border);
   border-top: 0;
@@ -1525,22 +1706,64 @@ function barTitle(booking: GaPreviewEinsatz): string {
   color: #991b1b;
 }
 
+.ga-gantt__ring-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .ga-gantt__ring-window {
   margin-left: 2px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
-  color: #64748b;
+  color: var(--color-primary-dark, #166534);
+  cursor: pointer;
+}
+
+.ga-gantt__ring-window:hover {
+  text-decoration: underline;
 }
 
 .ga-gantt__track--summary {
-  min-height: 28px;
-  background: #f8fafc;
+  background: transparent;
 }
-.ga-gantt__bar-wrap--summary {
-  pointer-events: none;
-  height: 14px;
+.ga-gantt__summary-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.ga-gantt__summary-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  border-radius: 6px;
+  background: #334155;
+}
+.ga-gantt__summary-lane {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0;
+  min-height: 0;
 }
 .ga-gantt__section {
   padding: 6px 8px 4px 52px;
@@ -1763,6 +1986,20 @@ function barTitle(booking: GaPreviewEinsatz): string {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--emc-logo-fg, #fff) 40%, transparent);
 }
 
+.ga-gantt__bar.ga-gantt__summary-mark {
+  inset: auto;
+  top: 1px;
+  right: auto;
+  bottom: 1px;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
+  cursor: default;
+  box-shadow: none;
+}
+
 .ga-gantt__bar:hover,
 .ga-gantt__bar:focus-visible {
   filter: brightness(1.08);
@@ -1803,6 +2040,10 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__bar--planned {
   background: var(--color-primary);
+}
+.ga-gantt__bar--vehicle {
+  background: #38bdf8;
+  color: #0c4a6e;
 }
 
 .ga-gantt__bar--fixed {

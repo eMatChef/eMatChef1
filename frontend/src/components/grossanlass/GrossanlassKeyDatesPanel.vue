@@ -1,5 +1,41 @@
 <template>
-  <div class="grossanlass-key-dates" :class="{ 'is-embedded': embedded }">
+  <v-expansion-panels
+    v-if="accordion"
+    v-model="openPanels"
+    class="e-accordions key-dates-accordion"
+  >
+    <v-expansion-panel>
+      <v-expansion-panel-title>
+        <span class="panel-head">
+          <span class="panel-head__label key-dates-acc__label">
+            <span class="panel-title">{{ t('grossanlass.planung.keyDates.title') }}</span>
+            <span class="key-dates-summary">{{ summaryText }}</span>
+          </span>
+        </span>
+      </v-expansion-panel-title>
+      <v-expansion-panel-text>
+        <div class="grossanlass-key-dates is-in-accordion">
+          <p class="key-dates-hint">{{ hintText }}</p>
+          <ul v-if="fixedPeriods.length > 0" class="key-dates-list">
+            <li v-for="period in fixedPeriods" :key="period.id" class="key-dates-item">
+              <span class="key-dates-badge">{{ period.typeLabel }}</span>
+              <span v-if="period.name" class="key-dates-name">{{ period.name }}</span>
+              <span v-else class="key-dates-name key-dates-name--empty"></span>
+              <span class="key-dates-range">{{ period.rangeText }}</span>
+            </li>
+          </ul>
+          <ELoadingState v-else-if="loading" variant="inline" :message="t('common.loading')" />
+          <p v-else class="key-dates-empty">{{ t('grossanlass.planung.keyDates.empty') }}</p>
+          <p v-if="canManageMaterials" class="key-dates-manage">
+            <button type="button" class="key-dates-link" @click="showManager = true">
+              {{ t('grossanlass.planung.keyDates.openFixedDates') }}
+            </button>
+          </p>
+        </div>
+      </v-expansion-panel-text>
+    </v-expansion-panel>
+  </v-expansion-panels>
+  <div v-else class="grossanlass-key-dates" :class="{ 'is-embedded': embedded }">
     <h3 v-if="!embedded" class="key-dates-title">{{ t('grossanlass.planung.keyDates.title') }}</h3>
     <h4 v-else class="key-dates-title key-dates-title--embedded">{{ t('grossanlass.planung.keyDates.title') }}</h4>
     <p class="key-dates-hint">{{ hintText }}</p>
@@ -38,6 +74,21 @@
       />
     </EDialog>
   </div>
+  <EDialog
+    v-if="accordion"
+    v-model="showManager"
+    :title="t('settings.fixedDates.title')"
+    :max-width="960"
+    :retain-focus="false"
+    :z-index="2400"
+  >
+    <p class="manager-lead">{{ t('settings.fixedDates.descriptionGrossanlass') }}</p>
+    <DepartmentFixedDatesManager
+      v-if="showManager && departmentId"
+      :department-id="departmentId"
+      @changed="loadPeriods"
+    />
+  </EDialog>
 </template>
 
 <script setup lang="ts">
@@ -62,10 +113,13 @@ const props = withDefaults(
     hideEventPeriod?: boolean
     /** Ohne Karten-Rahmen, direkt unter dem Datumsfeld. */
     embedded?: boolean
+    /** Zugeklappt: Titel und Zeitraum-Zeile, Inhalt erst beim Öffnen. */
+    accordion?: boolean
   }>(),
   {
     hideEventPeriod: false,
     embedded: false,
+    accordion: false,
   },
 )
 
@@ -76,6 +130,7 @@ const cacheRevision = useCalendarPeriodsCacheRevision()
 const periods = ref<DepartmentCalendarPeriod[]>([])
 const loading = ref(false)
 const showManager = ref(false)
+const openPanels = ref<number[]>([])
 
 function formatDateTime(iso: string, time: string | undefined, fallback: string): string {
   const day = iso.slice(0, 10)
@@ -107,6 +162,12 @@ const hintText = computed(() =>
     ? t('grossanlass.planung.keyDates.hintWithoutEvent')
     : t('grossanlass.planung.keyDates.hint'),
 )
+
+const summaryText = computed(() => {
+  if (loading.value && fixedPeriods.value.length === 0) return t('common.loading')
+  if (fixedPeriods.value.length === 0) return t('grossanlass.planung.keyDates.empty')
+  return fixedPeriods.value.map((period) => `${period.typeLabel} ${period.rangeText}`).join(' · ')
+})
 
 const fixedPeriods = computed(() =>
   periods.value
@@ -146,6 +207,34 @@ watch(() => [props.departmentId, cacheRevision.value] as const, () => void loadP
 </script>
 
 <style scoped>
+.key-dates-accordion {
+  margin-bottom: 20px;
+}
+
+.key-dates-accordion :deep(.key-dates-acc__label) {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.key-dates-accordion :deep(.panel-title) {
+  min-height: 0;
+}
+
+.key-dates-summary {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: #4b5563;
+  white-space: normal;
+}
+
+.grossanlass-key-dates.is-in-accordion {
+  margin-bottom: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .grossanlass-key-dates {
   margin-bottom: 20px;
   padding: 16px;

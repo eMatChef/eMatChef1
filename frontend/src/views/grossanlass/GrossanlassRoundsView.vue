@@ -3,7 +3,7 @@
     class="grossanlass-rounds-shell"
     :title="t('grossanlass.planung.tabWishes')"
   >
-    <GrossanlassKeyDatesPanel v-if="departmentId" :department-id="departmentId" />
+    <GrossanlassKeyDatesPanel v-if="departmentId" :department-id="departmentId" accordion />
     <GrossanlassRoundsTab />
   </PageShell>
 </template>

@@ -94,7 +94,15 @@
                 <span v-if="group._level > 0" class="indent-icon">↳</span>
                 <GrossanlassGroupNodeIcon :node-type="group.node_type" />
                 <div class="name-stack">
-                  <span class="group-name">{{ group.name }}</span>
+                  <button
+                    v-if="canOpenDetail(group)"
+                    type="button"
+                    class="group-name group-name--open"
+                    @click="openProjectPanel(group)"
+                  >
+                    {{ group.name }}
+                  </button>
+                  <span v-else class="group-name">{{ group.name }}</span>
                   <span
                     v-if="buildStatusChip(group)"
                     class="status-chip"
@@ -151,7 +159,7 @@
             <td v-if="showManagementActions" class="col-actions">
               <div class="action-buttons">
                 <button
-                  v-if="group.node_type === 'bauprojekt'"
+                  v-if="canOpenDetail(group)"
                   class="action-btn"
                   :title="t('grossanlass.planung.ressorts.openProject')"
                   @click="openProjectPanel(group)"
@@ -308,13 +316,6 @@
         hide-details="auto"
       />
       <ESelect
-        v-if="showChildKindSelect"
-        v-model="groupForm.kind"
-        :items="childKindSelectItems"
-        :label="t('grossanlass.planung.ressorts.childKindLabel')"
-        hide-details
-      />
-      <ESelect
         v-if="canManageStruktur"
         v-model="groupForm.parent_id"
         :items="parentGroupSelectItems"
@@ -322,6 +323,7 @@
         :disabled="!!fixedParentId && !editingGroup"
         hide-details
       />
+      <GrossanlassUnitSlider v-model="unitChoice" />
       <GaBuildMetaFields
         v-if="showUsageWindow"
         :department-id="departmentId"
@@ -337,11 +339,13 @@
           : t('grossanlass.planung.ressorts.usageWindowHint')"
         :window-baseline="usageWindowBaseline"
         :status-baseline="buildStatusBaseline"
+        :node-type="structuralNodeType"
+        :reported-statuses="editingReportedStatuses"
         :save-window="saveUsageWindowAutosave"
         :save-status="saveBuildStatusAutosave"
       />
       <ETextarea
-        v-if="showProjectWindow || editingGroup"
+        v-if="showProjectWindow"
         v-model="groupForm.description"
         :label="t('grossanlass.planung.ressorts.descriptionHeading')"
         :placeholder="t('grossanlass.planung.ressorts.descriptionPlaceholder')"
@@ -834,7 +838,10 @@ import { textMatchesAllTokens } from '@/utils/searchHighlight'
 import {
   flattenGrossanlassGroupsWithLevel,
   grossanlassGroupSelectTitle,
+  defaultKindForParent,
+  nodeTypeForKind,
 } from '@/utils/grossanlassGroupHierarchy'
+import GrossanlassUnitSlider from '@/components/grossanlass/GrossanlassUnitSlider.vue'
 import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
 import { gaDeptRoleSkipsGroupFlags } from '@/utils/grossanlassAccess'
 import {
@@ -843,9 +850,11 @@ import {
   unpackBauprojektWindow,
 } from '@/utils/grossanlassBauprojektWindow'
 import {
+  childReportedStatuses,
   gaBuildStatusI18nKey,
   resolveBuildStatus,
   showsGaBuildStatus,
+  watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { getDeptRoleShort, normalizeDeptRole, ROLE_HIERARCHY_GROSSANLASS } from '@/utils/departmentMemberRoles'
@@ -859,6 +868,7 @@ const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
 const departmentId = computed(() => (route.params.departmentId as string) || authStore.activeDepartmentId || '')
+watchGrossanlassBuildPeriods(departmentId)
 
 const {
   canManageMember,
@@ -1086,35 +1096,32 @@ const parentGroupSelectItems = computed(() => [
   })),
 ])
 
+function formParentGroup(): GrossanlassGroup | null {
+  const parentId = fixedParentId.value || groupForm.value.parent_id
+  if (!parentId) return null
+  return groups.value.find((row) => row.id === parentId) ?? null
+}
+
+const unitChoice = computed({
+  get(): 'ressort' | 'bereich' | 'teilbereich' {
+    if (groupForm.value.kind === 'bereich' || groupForm.value.kind === 'teilbereich') return groupForm.value.kind
+    return 'ressort'
+  },
+  set(value: 'ressort' | 'bereich' | 'teilbereich') {
+    groupForm.value.kind = value
+  },
+})
+
+const structuralNodeType = computed(() => nodeTypeForKind(groupForm.value.kind))
+
 const groupModalTitle = computed(() => {
   if (editingGroup.value) return t('grossanlass.planung.ressorts.modalEdit')
-  if (fixedParentId.value || groupForm.value.parent_id) {
-    return groupForm.value.kind === 'ressort'
-      ? t('grossanlass.planung.ressorts.modalNewUnterressort')
-      : t('grossanlass.planung.ressorts.modalNewBauprojekt')
-  }
-  return t('grossanlass.planung.ressorts.modalNewRessort')
+  return t('grossanlass.planung.ressorts.addAction')
 })
 
-const showChildKindSelect = computed(() => {
-  if (editingGroup.value) {
-    return !!editingGroup.value.parent_id && canEditGroup(editingGroup.value)
-  }
-  return !!(fixedParentId.value || groupForm.value.parent_id)
-})
+const showProjectWindow = computed(() => structuralNodeType.value === 'bauprojekt')
 
-const showProjectWindow = computed(() => {
-  const hasParent = !!(fixedParentId.value || groupForm.value.parent_id || editingGroup.value?.parent_id)
-  if (!hasParent) return false
-  return groupForm.value.kind === 'teilbereich' || editingGroup.value?.node_type === 'bauprojekt'
-})
-
-const showBereichWindow = computed(() => {
-  if (showProjectWindow.value) return false
-  const hasParent = !!(fixedParentId.value || groupForm.value.parent_id || editingGroup.value?.parent_id)
-  if (!hasParent) return false
-  return groupForm.value.kind === 'ressort' || editingGroup.value?.node_type === 'unterressort'
-})
+const showBereichWindow = computed(() => structuralNodeType.value === 'unterressort')
 
 const showUsageWindow = computed(() => showProjectWindow.value || showBereichWindow.value)
 const usageWindowBaseline = ref('|')
@@ -1124,39 +1131,25 @@ const showAreaMapToggle = computed(() => !showProjectWindow.value)
 
 const showAreaMap = computed(() => showAreaMapToggle.value && groupForm.value.include_on_map)
 
-const projectModalTitle = computed(() =>
-  projectGroup.value
-    ? t('grossanlass.planung.ressorts.projectTitle', { name: projectGroup.value.name })
-    : t('grossanlass.planung.ressorts.openProject'),
-)
-
-const childKindSelectItems = computed(() => [
-  {
-    title: t('grossanlass.planung.ressorts.kindUnterressort'),
-    value: 'ressort' as GrossanlassGroupKind,
-  },
-  {
-    title: t('grossanlass.planung.ressorts.kindBauprojekt'),
-    value: 'teilbereich' as GrossanlassGroupKind,
-  },
-])
+const projectModalTitle = computed(() => {
+  const group = projectGroup.value
+  if (!group) return t('grossanlass.planung.ressorts.openProject')
+  if (group.node_type === 'unterressort') {
+    return t('grossanlass.planung.ressorts.bereichTitle', { name: group.name })
+  }
+  return t('grossanlass.planung.ressorts.projectTitle', { name: group.name })
+})
 
 const groupNameLabel = computed(() => {
-  if (!fixedParentId.value && !groupForm.value.parent_id && !editingGroup.value?.parent_id) {
-    return t('grossanlass.planung.ressorts.nameLabelRessort')
-  }
-  return groupForm.value.kind === 'ressort' || editingGroup.value?.kind === 'ressort'
-    ? t('grossanlass.planung.ressorts.nameLabelUnterressort')
-    : t('grossanlass.planung.ressorts.nameLabelBauprojekt')
+  if (structuralNodeType.value === 'unterressort') return t('grossanlass.planung.ressorts.nameLabelUnterressort')
+  if (structuralNodeType.value === 'bauprojekt') return t('grossanlass.planung.ressorts.nameLabelBauprojekt')
+  return t('grossanlass.planung.ressorts.nameLabelRessort')
 })
 
 const groupNamePlaceholder = computed(() => {
-  if (!fixedParentId.value && !groupForm.value.parent_id && !editingGroup.value?.parent_id) {
-    return t('grossanlass.planung.ressorts.namePlaceholderRessort')
-  }
-  return groupForm.value.kind === 'ressort' || editingGroup.value?.kind === 'ressort'
-    ? t('grossanlass.planung.ressorts.namePlaceholderUnterressort')
-    : t('grossanlass.planung.ressorts.namePlaceholderBauprojekt')
+  if (structuralNodeType.value === 'unterressort') return t('grossanlass.planung.ressorts.namePlaceholderUnterressort')
+  if (structuralNodeType.value === 'bauprojekt') return t('grossanlass.planung.ressorts.namePlaceholderBauprojekt')
+  return t('grossanlass.planung.ressorts.namePlaceholderRessort')
 })
 
 const unassignedUsers = computed(() => {
@@ -1169,9 +1162,24 @@ function projectWindow(group: GrossanlassGroup): string {
   return formatBauprojektWindow(group.window_start, group.window_end)
 }
 
+function reportedFor(group: GrossanlassGroup): string[] {
+  if (group.node_type === 'bauprojekt') return []
+  return childReportedStatuses(group.id, groups.value)
+}
+
+const editingReportedStatuses = computed(() => {
+  const group = editingGroup.value
+  if (!group || group.node_type === 'bauprojekt') return []
+  return childReportedStatuses(group.id, groups.value)
+})
+
 function buildStatusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group)))
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reportedFor(group))))
+}
+
+function canOpenDetail(group: GrossanlassGroup): boolean {
+  return group.node_type === 'bauprojekt' || group.node_type === 'unterressort'
 }
 
 function openProjectPanel(group: GrossanlassGroup) {
@@ -1386,7 +1394,7 @@ function openCreateModal(parentId: string | null = null) {
     name: '',
     include_on_map: false,
     parent_id: parentId,
-    kind: parentId && !canManageStruktur.value ? 'teilbereich' : 'ressort',
+    kind: defaultKindForParent(parentId ? groups.value.find((row) => row.id === parentId) : null),
     window_start: '',
     window_end: '',
     build_status: '',
@@ -1462,7 +1470,7 @@ async function syncGroupMapPlacement() {
     groupMapRef.value?.beginEditPlace(editingGroup.value.place.id)
     return
   }
-  if (groupForm.value.kind === 'teilbereich') {
+  if (structuralNodeType.value === 'bauprojekt') {
     groupMapRef.value?.beginInlineDraft(groupForm.value.name, 'bauprojekt')
   }
 }
@@ -1538,7 +1546,7 @@ async function persistGroup(closeAfter: boolean) {
       saved = await updateGrossanlassGroup(departmentId.value, editingGroup.value.id, {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
-        kind: editingGroup.value.parent_id ? groupForm.value.kind : undefined,
+        kind: groupForm.value.kind,
         window_start: showUsageWindow.value ? groupForm.value.window_start || null : undefined,
         window_end: showUsageWindow.value ? groupForm.value.window_end || null : undefined,
         build_status: showUsageWindow.value ? groupForm.value.build_status || null : undefined,
@@ -1550,7 +1558,7 @@ async function persistGroup(closeAfter: boolean) {
       saved = await createGrossanlassGroup(departmentId.value, {
         name: groupForm.value.name.trim(),
         parent_id: groupForm.value.parent_id,
-        kind: groupForm.value.parent_id ? groupForm.value.kind : undefined,
+        kind: groupForm.value.kind,
         window_start: showUsageWindow.value ? groupForm.value.window_start || null : undefined,
         window_end: showUsageWindow.value ? groupForm.value.window_end || null : undefined,
         build_status: showUsageWindow.value ? groupForm.value.build_status || null : undefined,
@@ -2081,6 +2089,21 @@ onMounted(() => {
 
 .group-name {
   font-weight: 500;
+}
+
+.group-name--open {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.group-name--open:hover {
+  color: var(--color-primary, #059669);
 }
 
 .window-chip {

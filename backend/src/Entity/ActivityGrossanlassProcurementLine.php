@@ -22,6 +22,13 @@ class ActivityGrossanlassProcurementLine
     public const SOURCE_FROM_WISH = 'from_wish';
     public const SOURCE_DIRECT = 'direct';
 
+    public const SUPPLY_OPEN = 'open';
+    public const SUPPLY_PARTNER = 'partner';
+    public const SUPPLY_BUY = 'buy';
+
+    /** @var list<string> */
+    public const SUPPLY_MODES = [self::SUPPLY_OPEN, self::SUPPLY_PARTNER, self::SUPPLY_BUY];
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -52,6 +59,10 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(name: 'quantity_asked', type: 'integer', nullable: true)]
     private ?int $quantityAsked = null;
 
+    /** @var list<string> */
+    #[ORM\Column(name: 'asked_wish_ids', type: 'json', nullable: true)]
+    private ?array $askedWishIds = null;
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $location;
 
@@ -70,6 +81,9 @@ class ActivityGrossanlassProcurementLine
 
     #[ORM\Column(type: 'string', length: 20, options: ['default' => self::SOURCE_FROM_WISH])]
     private string $source = self::SOURCE_FROM_WISH;
+
+    #[ORM\Column(name: 'supply_mode', type: 'string', length: 16, options: ['default' => self::SUPPLY_OPEN])]
+    private string $supplyMode = self::SUPPLY_OPEN;
 
     #[ORM\Column(name: 'self_organized', type: 'boolean', options: ['default' => false])]
     private bool $selfOrganized = false;
@@ -201,6 +215,24 @@ class ActivityGrossanlassProcurementLine
         return $this;
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getAskedWishIds(): array
+    {
+        return array_values($this->askedWishIds ?? []);
+    }
+
+    /**
+     * @param list<string> $askedWishIds
+     */
+    public function setAskedWishIds(array $askedWishIds): self
+    {
+        $this->askedWishIds = array_values($askedWishIds);
+
+        return $this;
+    }
+
     public function getLocation(): string
     {
         return $this->location;
@@ -263,6 +295,18 @@ class ActivityGrossanlassProcurementLine
     public function setSource(string $source): self
     {
         $this->source = $source;
+
+        return $this;
+    }
+
+    public function getSupplyMode(): string
+    {
+        return $this->supplyMode;
+    }
+
+    public function setSupplyMode(string $supplyMode): self
+    {
+        $this->supplyMode = $supplyMode;
 
         return $this;
     }

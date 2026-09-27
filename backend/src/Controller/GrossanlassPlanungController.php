@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\Department;
 use App\Entity\User;
+use App\Service\Grossanlass\GrossanlassBauprojektService;
 use App\Service\Grossanlass\GrossanlassPlanungService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,8 +22,19 @@ class GrossanlassPlanungController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassPlanungService $planung,
+        private GrossanlassBauprojektService $bauprojekt,
         private GroupAccessService $groupAccess,
     ) {}
+
+    #[Route('/planung/fahrzeug-wuensche', name: 'vehicle_needs', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function vehicleNeeds(string $departmentId): JsonResponse
+    {
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->bauprojekt->listVehicleNeeds($department, $user),
+        );
+    }
 
     #[Route('/planung', name: 'overview', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]

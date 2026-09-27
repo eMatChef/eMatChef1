@@ -15,6 +15,8 @@ export type GrossanlassInquiryThreadEntry = {
   from?: string
   subject?: string
   kind?: string
+  via?: 'phone' | 'mail' | 'mailbox' | string
+  deal?: 'open' | 'loan' | 'rental' | 'purchase' | 'no' | string
   gmail_message_id?: string
 }
 
@@ -68,6 +70,10 @@ export type GrossanlassInquiry = {
   contact_last_name?: string
   phone: string
   category_ids: string[]
+  line_ids?: string[]
+  asked_via?: 'phone' | 'mail' | 'mailbox' | null
+  asked_at?: string | null
+  asked_lines?: Array<{ id: string; label: string; quantity: number }>
   status: GrossanlassInquiryStatus
   tip_from: string | null
   tip_wish_id: string | null
@@ -100,6 +106,7 @@ export type GrossanlassInquiryWrite = {
   contact_last_name?: string
   phone?: string
   category_ids?: string[] | string
+  line_ids?: string[]
   status?: GrossanlassInquiryStatus
 }
 
@@ -191,13 +198,43 @@ export async function importGrossanlassInquiryCsv(
   }
 }
 
+export async function downloadGrossanlassInquiryMaterialPdf(
+  departmentId: string,
+  inquiryId: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiClient.get<Blob>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}/material-pdf`,
+    { responseType: 'blob' },
+  )
+  const header = String(response.headers['content-disposition'] ?? '')
+  const match = /filename="([^"]+)"/.exec(header)
+  return {
+    blob: response.data,
+    filename: match?.[1] || 'materialliste.pdf',
+  }
+}
+
 export async function markGrossanlassInquiriesSent(
   departmentId: string,
   ids: string[],
+  manual = false,
+  via?: 'phone' | 'mail',
 ): Promise<GrossanlassInquiry[]> {
   const response = await apiClient.post<GrossanlassInquiry[]>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/mark-sent`,
-    { ids },
+    { ids, manual, ...(via ? { via } : {}) },
+  )
+  return response.data
+}
+
+export async function recordGrossanlassInquiryChannel(
+  departmentId: string,
+  inquiryId: string,
+  data: { via: 'phone' | 'mail'; text?: string; deal?: string; reply?: string },
+): Promise<GrossanlassInquiry> {
+  const response = await apiClient.post<GrossanlassInquiry>(
+    `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}/channel-note`,
+    data,
   )
   return response.data
 }

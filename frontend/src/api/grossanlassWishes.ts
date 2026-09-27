@@ -50,6 +50,15 @@ export interface GrossanlassWishLine {
   last_stage?: 'grob' | 'fein' | string
   created_by_user_id: string
   created_by_name?: string
+  created_by?: {
+    name?: string | null
+    first_name?: string | null
+    last_name?: string | null
+    nickname?: string | null
+    avatar_initials?: string | null
+    background_color?: string | null
+    text_color?: string | null
+  } | null
   created_at: string
   updated_at: string
   enough_on_hand?: boolean
@@ -57,6 +66,8 @@ export interface GrossanlassWishLine {
   enough_on_hand_detail?: string | null
   enough_on_hand_ref_id?: string | null
   custom_values?: Record<string, unknown>
+  self_organized?: boolean
+  source?: 'direct' | string
 }
 
 export interface GrossanlassWishListResult {

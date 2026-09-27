@@ -835,6 +835,16 @@ const routes: RouteRecordRaw[] = [
         },
       },
       {
+        path: 'planung/fahrzeuge',
+        name: 'GrossanlassFahrzeugWuensche',
+        component: () => import('@/views/grossanlass/GrossanlassFahrzeugWuenscheView.vue'),
+        meta: {
+          requiresGrossanlassDepartment: true,
+          requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+          ...routeHead('grossanlassRoundDetail'),
+        },
+      },
+      {
         path: 'planung/runden/:roundId',
         name: 'GrossanlassRoundDetail',
         component: () => import('@/views/grossanlass/GrossanlassRoundDetailView.vue'),

@@ -104,7 +104,27 @@
                   <span v-else class="text-muted">–</span>
                 </td>
                 <td v-if="canManage" class="col-actions" @click="stopRowClick">
-                  <div v-if="row.live" class="action-buttons">
+                  <div v-if="row.vehicles" class="action-buttons">
+                    <button
+                      class="action-btn action-btn-label action-btn-primary"
+                      type="button"
+                      :title="t('grossanlass.dashboard.submitWish')"
+                      @click="openVehicleWishes(true)"
+                    >
+                      <v-icon icon="mdi-plus" size="16" />
+                      {{ t('grossanlass.dashboard.submitWish') }}
+                    </button>
+                    <button
+                      class="action-btn action-btn-label action-btn-primary"
+                      type="button"
+                      :title="t('grossanlass.planung.rounds.responsesAction')"
+                      @click="openVehicleWishes(false)"
+                    >
+                      <v-icon icon="mdi-clipboard-text-outline" size="16" />
+                      {{ t('grossanlass.roundDetail.tabResponses') }}
+                    </button>
+                  </div>
+                  <div v-else-if="row.live" class="action-buttons">
                     <button
                       v-if="isFixedMaterialForm(row)"
                       class="action-btn action-btn-label action-btn-primary"
@@ -400,6 +420,7 @@ type WishFormRow = {
   closes_at: string | null
   use_auto_schedule: boolean
   live: GrossanlassPlanningRound | null
+  vehicles?: boolean
 }
 
 const route = useRoute()
@@ -525,7 +546,25 @@ const formGroups = computed(() => [
     landing: t('grossanlass.planung.wishForms.landingMaterial'),
     emptyTitle: t('grossanlass.planung.wishForms.emptyMaterialTitle'),
     emptyDescription: t('grossanlass.planung.wishForms.emptyMaterialDescription'),
-    rows: toLiveRows('material_wish'),
+    rows: [
+      ...toLiveRows('material_wish').map((row) => (
+        row.name === 'Material am Projekt'
+          ? { ...row, name: t('grossanlass.planung.wishForms.materialAtProject') }
+          : row
+      )),
+      {
+        id: 'fahrzeug-wuensche',
+        name: t('grossanlass.planung.wishForms.vehiclesAtProject'),
+        purpose: 'material_wish' as const,
+        material_stage: null,
+        status: 'open' as const,
+        opens_at: null,
+        closes_at: null,
+        use_auto_schedule: false,
+        live: null,
+        vehicles: true,
+      },
+    ],
   },
   {
     purpose: 'company_tip' as const,
@@ -902,7 +941,18 @@ async function handleReopen(round: GrossanlassPlanningRound) {
   }
 }
 
+function openVehicleWishes(submit = false) {
+  void router.push({
+    path: `/${departmentId.value}/planung/fahrzeuge`,
+    query: submit ? { einreichen: '1' } : {},
+  })
+}
+
 function openRow(row: WishFormRow) {
+  if (row.vehicles) {
+    openVehicleWishes(false)
+    return
+  }
   if (!row.live) return
   if (canManage.value) {
     openResponses(row.live)
@@ -925,7 +975,9 @@ function openWishForm(round: GrossanlassPlanningRound) {
 function openResponses(round: GrossanlassPlanningRound) {
   void router.push({
     path: `/${departmentId.value}/planung/runden/${round.id}`,
-    query: { tab: 'responses' },
+    query: round.form_purpose === 'material_wish'
+      ? { tab: 'responses', kind: 'material' }
+      : { tab: 'responses' },
   })
 }
 

@@ -3,9 +3,13 @@
 namespace App\Service\Grossanlass;
 
 use App\Entity\ActivityGrossanlassProcurementCategory;
+use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassProcurementQuote;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassGmailAccount;
 use App\Entity\DepartmentGrossanlassInquiry;
 use App\Entity\User;
+use App\Service\Grossanlass\Mailbox\GrossanlassMailboxRegistry;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -20,6 +24,7 @@ class GrossanlassInquiryService
         private GrossanlassMailMergeService $merge,
         private GrossanlassPlaceGeocoder $geocoder,
         private GrossanlassInquiryWebLookup $contactLookup,
+        private GrossanlassMailboxRegistry $mailboxes,
     ) {}
 
     /**
@@ -34,6 +39,7 @@ class GrossanlassInquiryService
             } catch (\Throwable) {
                 // Offene Wünsche sollen die Firmenliste nicht blockieren.
             }
+            $this->ensureInquiriesFromQuotes($department);
         }
 
         $rows = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)
@@ -145,9 +151,13 @@ class GrossanlassInquiryService
      * @param list<string> $ids
      * @return list<array<string, mixed>>
      */
-    public function markSent(Department $department, User $user, array $ids): array
+    public function markSent(Department $department, User $user, array $ids, bool $manual = false, ?string $via = null): array
     {
         $this->assertSend($department, $user);
+        $via = $via ?? ($manual ? 'phone' : 'mail');
+        if (!in_array($via, ['phone', 'mail'], true)) {
+            throw new \InvalidArgumentException('Ungültiger Kanal');
+        }
         $updated = [];
         foreach ($ids as $id) {
             if (!is_string($id) || $id === '') {
@@ -157,7 +167,7 @@ class GrossanlassInquiryService
             if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
                 continue;
             }
-            if (!$inquiry->isReadyForMail()) {
+            if (!$manual && !$inquiry->isReadyForMail()) {
                 throw new \InvalidArgumentException(
                     'E-Mail oder Kategorie fehlt für ' . $inquiry->getName(),
                 );
@@ -169,15 +179,76 @@ class GrossanlassInquiryService
                 continue;
             }
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_GESENDET);
+            if ($inquiry->getAskedVia() === null) {
+                $inquiry->setAskedVia($via);
+                $inquiry->setAskedAt(new \DateTime());
+                $inquiry->setAskedLines($this->snapshotAskedLines($inquiry));
+            }
             $inquiry->appendThread([
                 'who' => 'ok',
-                'text' => 'Als gesendet gemerkt (ohne Gmail).',
+                'via' => $via,
+                'text' => $via === 'phone'
+                    ? 'Anruf: als angefragt gemerkt.'
+                    : 'Mail: als gesendet gemerkt.',
             ]);
             $updated[] = $this->serialize($inquiry);
         }
         $this->entityManager->flush();
 
         return $updated;
+    }
+
+    /**
+     * Hält einen Anruf oder eine analoge Mail fest, inklusive Abmachung (Leih, Miete, Kauf).
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    public function recordChannelNote(Department $department, User $user, string $inquiryId, array $data): array
+    {
+        $this->assertSend($department, $user);
+        $inquiry = $this->find($department, $inquiryId);
+        $via = ($data['via'] ?? '') === 'mail' ? 'mail' : 'phone';
+        $deal = (string) ($data['deal'] ?? 'open');
+        if (!in_array($deal, ['open', 'loan', 'rental', 'purchase', 'no'], true)) {
+            $deal = 'open';
+        }
+        $text = trim((string) ($data['text'] ?? ''));
+        if ($text === '') {
+            $text = $via === 'phone' ? 'Anruf festgehalten.' : 'Mail festgehalten.';
+        }
+        if ($inquiry->getAskedVia() === null && !in_array($inquiry->getStatus(), [
+            DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
+            DepartmentGrossanlassInquiry::STATUS_ABSAGE,
+        ], true)) {
+            $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_GESENDET);
+            $inquiry->setAskedVia($via);
+            $inquiry->setAskedAt(new \DateTime());
+            $inquiry->setAskedLines($this->snapshotAskedLines($inquiry));
+        }
+        $inquiry->appendThread([
+            'who' => 'ok',
+            'via' => $via,
+            'deal' => $deal,
+            'text' => $text,
+        ]);
+        $reply = trim((string) ($data['reply'] ?? ''));
+        if ($reply !== '') {
+            $inquiry->appendThread(['who' => 'firm', 'via' => $via, 'text' => $reply]);
+            if (in_array($inquiry->getStatus(), [
+                DepartmentGrossanlassInquiry::STATUS_GESENDET,
+                DepartmentGrossanlassInquiry::STATUS_ENTWURF,
+                DepartmentGrossanlassInquiry::STATUS_VORSCHLAG,
+            ], true)) {
+                $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ANTWORT);
+            }
+        }
+        if ($deal === 'no' && $inquiry->getStatus() !== DepartmentGrossanlassInquiry::STATUS_ZUSAGE) {
+            $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ABSAGE);
+        }
+        $this->entityManager->flush();
+
+        return $this->serialize($inquiry);
     }
 
     /**
@@ -379,6 +450,73 @@ class GrossanlassInquiryService
         return array_values(array_unique($ids));
     }
 
+    /**
+     * Lieferant einer Offerte ist dieselbe Firma wie in den Anfragen.
+     * Der Bereich der Bedarfsposition hängt an der Firma, damit die Wünsche dort zuordenbar sind.
+     */
+    private function ensureInquiriesFromQuotes(Department $department): void
+    {
+        $quotes = $this->entityManager->getRepository(ActivityGrossanlassProcurementQuote::class)
+            ->createQueryBuilder('q')
+            ->innerJoin('q.procurementLine', 'l')
+            ->addSelect('l')
+            ->where('l.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getResult();
+
+        /** @var array<string, DepartmentGrossanlassInquiry> $byName */
+        $byName = [];
+        foreach ($this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->findBy([
+            'departmentId' => $department->getId(),
+        ]) as $inquiry) {
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                continue;
+            }
+            $byName[mb_strtolower(trim($inquiry->getName()))] = $inquiry;
+        }
+
+        $changed = false;
+        foreach ($quotes as $quote) {
+            if (!$quote instanceof ActivityGrossanlassProcurementQuote) {
+                continue;
+            }
+            $line = $quote->getProcurementLine();
+            if (!$line instanceof ActivityGrossanlassProcurementLine || $line->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $name = trim($quote->getSupplier());
+            if ($name === '') {
+                continue;
+            }
+            $key = mb_strtolower($name);
+            $inquiry = $byName[$key] ?? null;
+            if (!$inquiry instanceof DepartmentGrossanlassInquiry) {
+                $inquiry = $this->newInquiry($department);
+                $inquiry->setName($name);
+                $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ENTWURF);
+                $inquiry->appendThread([
+                    'who' => 'ok',
+                    'text' => 'Aus der Offerte zu «' . $line->getLabel() . '» übernommen.',
+                ]);
+                $this->entityManager->persist($inquiry);
+                $byName[$key] = $inquiry;
+                $changed = true;
+            }
+            $categoryId = $line->getCategoryId();
+            if ($categoryId !== null && $categoryId !== '' && !in_array($categoryId, $inquiry->getCategoryIds(), true)) {
+                $ids = $inquiry->getCategoryIds();
+                $ids[] = $categoryId;
+                $inquiry->setCategoryIds(array_values(array_unique($ids)));
+                $changed = true;
+            }
+        }
+
+        if ($changed) {
+            $this->entityManager->flush();
+        }
+    }
+
     private function newInquiry(Department $department): DepartmentGrossanlassInquiry
     {
         $inquiry = new DepartmentGrossanlassInquiry();
@@ -472,6 +610,19 @@ class GrossanlassInquiryService
             }
             $inquiry->setCategoryIds($ids);
         }
+        if (array_key_exists('line_ids', $data)) {
+            $rawLines = $data['line_ids'];
+            $lineIds = [];
+            if (is_array($rawLines)) {
+                foreach ($rawLines as $item) {
+                    $value = trim((string) $item);
+                    if ($value !== '') {
+                        $lineIds[] = $value;
+                    }
+                }
+            }
+            $inquiry->setLineIds($lineIds);
+        }
         if (array_key_exists('status', $data)) {
             $status = (string) $data['status'];
             if (!in_array($status, DepartmentGrossanlassInquiry::STATUSES, true)) {
@@ -510,6 +661,10 @@ class GrossanlassInquiryService
             ...$inquiry->serializeContact(),
             'phone' => $inquiry->getPhone(),
             'category_ids' => $inquiry->getCategoryIds(),
+            'line_ids' => $inquiry->getLineIds(),
+            'asked_via' => $inquiry->getAskedVia() ?? $this->inferAskedVia($inquiry),
+            'asked_at' => ($inquiry->getAskedAt() ?? $this->inferAskedAt($inquiry))?->format(\DateTimeInterface::ATOM),
+            'asked_lines' => $inquiry->getAskedLines(),
             'status' => $inquiry->getStatus(),
             'tip_from' => $inquiry->getTipFrom(),
             'tip_wish_id' => $inquiry->getTipWishId(),
@@ -524,16 +679,98 @@ class GrossanlassInquiryService
         ];
     }
 
-    private function gmailOpenUrl(DepartmentGrossanlassInquiry $inquiry): ?string
+    /**
+     * @return list<array{id: string, label: string, quantity: int}>
+     */
+    private function snapshotAskedLines(DepartmentGrossanlassInquiry $inquiry): array
     {
-        if ($inquiry->getGmailThreadId()) {
-            return 'https://mail.google.com/mail/u/0/#all/' . $inquiry->getGmailThreadId();
+        $ids = $inquiry->getLineIds();
+        if ($ids === []) {
+            return [];
         }
-        if ($inquiry->getGmailDraftId()) {
-            return 'https://mail.google.com/mail/u/0/#drafts';
+        $rows = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->findBy(['id' => $ids]);
+        $byId = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof ActivityGrossanlassProcurementLine || $row->getDepartmentId() !== $inquiry->getDepartmentId()) {
+                continue;
+            }
+            $byId[$row->getId()] = [
+                'id' => $row->getId(),
+                'label' => $row->getLabel(),
+                'quantity' => $row->getQuantity(),
+            ];
+        }
+        $out = [];
+        foreach ($ids as $id) {
+            if (isset($byId[$id])) {
+                $out[] = $byId[$id];
+            }
+        }
+
+        return $out;
+    }
+
+    private function inferAskedVia(DepartmentGrossanlassInquiry $inquiry): ?string
+    {
+        if (in_array($inquiry->getStatus(), [
+            DepartmentGrossanlassInquiry::STATUS_ENTWURF,
+            DepartmentGrossanlassInquiry::STATUS_VORSCHLAG,
+        ], true)) {
+            return null;
+        }
+        foreach ($inquiry->getThread() as $entry) {
+            $text = (string) ($entry['text'] ?? '');
+            if (str_contains($text, 'Im Postfach')) {
+                return 'mailbox';
+            }
+            if (str_contains($text, 'Anruf') || str_contains($text, 'Manuell')) {
+                return 'phone';
+            }
+            if (str_contains($text, 'Mail') || str_contains($text, 'gesendet')) {
+                return 'mail';
+            }
+        }
+        if ($inquiry->getGmailThreadId() || $inquiry->getGmailMessageId()) {
+            return 'mailbox';
         }
 
         return null;
+    }
+
+    private function inferAskedAt(DepartmentGrossanlassInquiry $inquiry): ?\DateTime
+    {
+        if (in_array($inquiry->getStatus(), [
+            DepartmentGrossanlassInquiry::STATUS_ENTWURF,
+            DepartmentGrossanlassInquiry::STATUS_VORSCHLAG,
+        ], true)) {
+            return null;
+        }
+        foreach ($inquiry->getThread() as $entry) {
+            $at = (string) ($entry['at'] ?? '');
+            if ($at === '') {
+                continue;
+            }
+            try {
+                return new \DateTime($at);
+            } catch (\Exception) {
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    private function gmailOpenUrl(DepartmentGrossanlassInquiry $inquiry): ?string
+    {
+        $account = $this->entityManager->getRepository(DepartmentGrossanlassGmailAccount::class)
+            ->find($inquiry->getDepartmentId());
+        $providerId = $account instanceof DepartmentGrossanlassGmailAccount ? $account->getProvider() : 'gmail';
+
+        return $this->mailboxes->get($providerId)->openUrl(
+            $inquiry->getGmailThreadId(),
+            $inquiry->getGmailMessageId() ?: $inquiry->getGmailDraftId(),
+        );
     }
 
     private function assertMailbox(Department $department, User $user): void

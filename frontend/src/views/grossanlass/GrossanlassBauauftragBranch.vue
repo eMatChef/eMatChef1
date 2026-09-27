@@ -5,6 +5,19 @@
         <GrossanlassGroupNodeIcon :node-type="section.group.node_type" />
         <strong>{{ section.group.name }}</strong>
         <span class="ga-bau-branch__kind">{{ kindLabel(section.group) }}</span>
+        <span v-if="windowText(section.group)" class="window-chip">{{ windowText(section.group) }}</span>
+        <span
+          v-if="statusChip(section.group)"
+          class="status-chip"
+          :class="`status-chip--${resolveBuildStatus(section.group)}`"
+        >{{ statusChip(section.group) }}</span>
+        <EButton
+          variant="secondary"
+          size="small"
+          @click.stop="emit('open', section.group)"
+        >
+          {{ t('common.edit') }}
+        </EButton>
         <span class="ga-bau-branch__count">{{ projectCount }}</span>
       </span>
     </v-expansion-panel-title>

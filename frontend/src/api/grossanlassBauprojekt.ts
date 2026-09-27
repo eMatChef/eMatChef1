@@ -26,11 +26,12 @@ export type GaBauprojektEinsatz = {
   object_id?: string | null
   object_name: string
   wish_line_id: string | null
-  kind?: string
+    kind?: string
+    node_type?: 'ressort' | 'unterressort' | 'bauprojekt' | string | null
 }
 
 export type GaBauprojektBriefing = {
-  group: Pick<GrossanlassGroup, 'id' | 'name' | 'department_id' | 'parent_id' | 'kind'> & {
+  group: Pick<GrossanlassGroup, 'id' | 'name' | 'department_id' | 'parent_id' | 'kind' | 'node_type'> & {
     window_start?: string | null
     window_end?: string | null
     build_status?: string | null
@@ -42,6 +43,7 @@ export type GaBauprojektBriefing = {
   description?: string | null
   place: GaPlace | null
   tasks: GaBauprojektTask[]
+  vehicles?: GaBauprojektVehicleNeed[]
   material: GrossanlassWishLine[]
   direct_material?: Array<{
     id: string
@@ -55,6 +57,7 @@ export type GaBauprojektBriefing = {
     pickup_place?: string | null
     return_needed?: boolean
     quantity_unit?: string | null
+    wish_kind?: 'material' | 'fahrzeug' | string | null
   }>
   packs: GaLogisticsPack[]
   einsaetze?: GaBauprojektEinsatz[]
@@ -65,6 +68,15 @@ export type GaBauprojektBriefing = {
     bounds_west?: number | null
   } | null
   can_edit: boolean
+}
+
+export async function listGrossanlassVehicleNeeds(
+  departmentId: string,
+): Promise<Array<GaBauprojektVehicleNeed & { group_name: string }>> {
+  const { data } = await apiClient.get<Array<GaBauprojektVehicleNeed & { group_name: string }>>(
+    `/api/departments/${departmentId}/grossanlass/planung/fahrzeug-wuensche`,
+  )
+  return data
 }
 
 export async function getGrossanlassBauprojekt(
@@ -119,6 +131,51 @@ export async function updateGrossanlassBauprojektTask(
   return data
 }
 
+export type GaBauprojektVehicleNeed = {
+  id: string
+  group_id: string
+  vehicle_label: string
+  task_label: string
+  sort_order: number
+  starts_at?: string | null
+  duration_minutes?: number | null
+  procurement_line_id?: string | null
+  created_at: string
+}
+
+export async function createGrossanlassBauprojektVehicle(
+  departmentId: string,
+  groupId: string,
+  payload: { vehicle_label: string; task_label: string; starts_at?: string | null; duration_minutes?: number | null },
+): Promise<GaBauprojektVehicleNeed> {
+  const { data } = await apiClient.post<GaBauprojektVehicleNeed>(
+    `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles`,
+    payload,
+  )
+  return data
+}
+
+export async function updateGrossanlassBauprojektVehicle(
+  departmentId: string,
+  groupId: string,
+  needId: string,
+  payload: { vehicle_label?: string; task_label?: string; starts_at?: string | null; duration_minutes?: number | null },
+): Promise<GaBauprojektVehicleNeed> {
+  const { data } = await apiClient.patch<GaBauprojektVehicleNeed>(
+    `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles/${needId}`,
+    payload,
+  )
+  return data
+}
+
+export async function deleteGrossanlassBauprojektVehicle(
+  departmentId: string,
+  groupId: string,
+  needId: string,
+): Promise<void> {
+  await apiClient.delete(`/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles/${needId}`)
+}
+
 export async function deleteGrossanlassBauprojektTask(
   departmentId: string,
   groupId: string,
@@ -141,6 +198,8 @@ export async function updateGrossanlassBauprojektMaterial(
     pickup_place?: string | null
     return_needed?: boolean
     quantity_unit?: string | null
+    wish_kind?: 'material' | 'fahrzeug'
+    self_organized?: boolean
   },
 ): Promise<void> {
   await apiClient.patch(
@@ -162,6 +221,8 @@ export async function addGrossanlassBauprojektMaterial(
     pickup_place?: string | null
     return_needed?: boolean
     quantity_unit?: string | null
+    wish_kind?: 'material' | 'fahrzeug'
+    self_organized?: boolean
   },
 ): Promise<GrossanlassWishLine> {
   const { data } = await apiClient.post<GrossanlassWishLine>(

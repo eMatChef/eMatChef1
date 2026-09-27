@@ -39,6 +39,7 @@ final class GrossanlassIdGenerator
     public const PACK = 'pack';
     public const PACK_LINE = 'pack_line';
     public const TASK = 'task';
+    public const VEHICLE_NEED = 'vehicle_need';
     public const GROUP_SHARE = 'group_share';
 
     /** @var array<string, string> */
@@ -69,6 +70,7 @@ final class GrossanlassIdGenerator
         self::PACK => 'pk',
         self::PACK_LINE => 'pn',
         self::TASK => 'gt',
+        self::VEHICLE_NEED => 'gv',
         self::GROUP_SHARE => 'gl',
     ];
 

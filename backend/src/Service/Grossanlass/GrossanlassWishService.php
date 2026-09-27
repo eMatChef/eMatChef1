@@ -85,6 +85,15 @@ class GrossanlassWishService
         if ($groupIdFilter !== null) {
             $countQb->andWhere('w.groupId = :groupId')->setParameter('groupId', $groupIdFilter);
         }
+        if ($search !== '') {
+            $countQb->innerJoin('w.group', 'cg')
+                ->innerJoin('w.createdByUser', 'cu')
+                ->innerJoin('cu.profile', 'cp')
+                ->andWhere(
+                    'LOWER(w.label) LIKE :q OR LOWER(w.location) LIKE :q OR LOWER(cg.name) LIKE :q OR LOWER(cp.firstName) LIKE :q OR LOWER(cp.lastName) LIKE :q OR LOWER(cp.nickname) LIKE :q',
+                )
+                ->setParameter('q', '%' . strtolower($search) . '%');
+        }
 
         $counts = ['requested' => 0, 'accepted' => 0];
         foreach ($countQb->getQuery()->getArrayResult() as $row) {
@@ -128,11 +137,12 @@ class GrossanlassWishService
             ->getQuery()
             ->getSingleScalarResult();
 
-        $lines = $qb
-            ->setFirstResult(($page - 1) * $limit)
-            ->setMaxResults($limit)
-            ->getQuery()
-            ->getResult();
+        $includeDirect = $round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH;
+        if (!$includeDirect) {
+            $qb->setFirstResult(($page - 1) * $limit)->setMaxResults($limit);
+        }
+
+        $lines = $qb->getQuery()->getResult();
 
         $items = [];
         foreach ($lines as $line) {
@@ -142,6 +152,18 @@ class GrossanlassWishService
             $items[] = $this->toArray($line);
         }
 
+        if ($includeDirect) {
+            foreach ($this->directMaterialWishRows($department, $round, $allowedGroupIds, $groupIdFilter, $search) as $row) {
+                if ($statusFilter !== null && $statusFilter !== ActivityGrossanlassWishLine::STATUS_REQUESTED) {
+                    continue;
+                }
+                $items[] = $row;
+                $counts['requested']++;
+            }
+            $total = count($items);
+            $items = array_slice($items, ($page - 1) * $limit, $limit);
+        }
+
         return [
             'items' => $items,
             'total' => $total,
@@ -149,6 +171,104 @@ class GrossanlassWishService
             'limit' => $limit,
             'counts' => $counts,
         ];
+    }
+
+    /**
+     * Selbst organisierte Zeilen am Bauauftrag gehören in dieselbe Liste wie die Wünsche.
+     *
+     * @param list<string>|null $allowedGroupIds
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function directMaterialWishRows(
+        Department $department,
+        ActivityGrossanlassRound $round,
+        ?array $allowedGroupIds,
+        ?string $groupIdFilter,
+        string $search,
+    ): array {
+        if ($allowedGroupIds !== null && $allowedGroupIds === []) {
+            return [];
+        }
+
+        $qb = $this->entityManager->getRepository(ActivityGrossanlassProcurementLine::class)
+            ->createQueryBuilder('l')
+            ->innerJoin('l.group', 'g')
+            ->addSelect('g')
+            ->innerJoin('l.createdByUser', 'u')
+            ->innerJoin('u.profile', 'p')
+            ->addSelect('u', 'p')
+            ->where('l.departmentId = :departmentId')
+            ->andWhere('l.source = :source')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('source', ActivityGrossanlassProcurementLine::SOURCE_DIRECT)
+            ->orderBy('l.createdAt', 'DESC');
+
+        if ($allowedGroupIds !== null) {
+            $qb->andWhere('l.groupId IN (:groupIds)')->setParameter('groupIds', $allowedGroupIds);
+        }
+        if ($groupIdFilter !== null) {
+            $qb->andWhere('l.groupId = :groupId')->setParameter('groupId', $groupIdFilter);
+        }
+
+        $needle = mb_strtolower($search);
+        $out = [];
+        foreach ($qb->getQuery()->getResult() as $line) {
+            if (!$line instanceof ActivityGrossanlassProcurementLine) {
+                continue;
+            }
+            $profile = $line->getCreatedByUser()->getProfile();
+            $name = $profile ? $profile->getDisplayName() : 'Unbekannt';
+            $haystack = mb_strtolower($line->getLabel() . ' ' . $line->getLocation() . ' ' . $line->getGroup()->getName() . ' ' . $name);
+            if ($needle !== '' && !str_contains($haystack, $needle)) {
+                continue;
+            }
+            $created = $line->getCreatedAt();
+            $out[] = [
+                'id' => $line->getId(),
+                'round_id' => $round->getId(),
+                'form_purpose' => ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH,
+                'response_id' => null,
+                'group_id' => $line->getGroupId(),
+                'group_name' => $line->getGroup()->getName(),
+                'wish_kind' => $line->getWishKind(),
+                'label' => $line->getLabel(),
+                'quantity' => $line->getQuantity(),
+                'location' => $line->getLocation(),
+                'valid_from' => $created->format(\DateTimeInterface::ATOM),
+                'valid_to' => $created->format(\DateTimeInterface::ATOM),
+                'timeframe_notes' => null,
+                'notes' => $line->getNotes(),
+                'pickup_need' => $line->getPickupNeed(),
+                'pickup_place' => $line->getPickupPlace(),
+                'return_needed' => $line->isReturnNeeded(),
+                'quantity_unit' => $line->getQuantityUnit(),
+                'enough_on_hand' => false,
+                'enough_on_hand_source' => null,
+                'enough_on_hand_detail' => null,
+                'enough_on_hand_ref_id' => null,
+                'status' => ActivityGrossanlassWishLine::STATUS_REQUESTED,
+                'last_stage' => GrossanlassMaterialStage::GROB,
+                'created_by_user_id' => $line->getCreatedByUserId(),
+                'created_by_name' => $name,
+                'created_by' => [
+                    'name' => $name,
+                    'first_name' => $profile?->getFirstName(),
+                    'last_name' => $profile?->getLastName(),
+                    'nickname' => $profile?->getNickname(),
+                    'avatar_initials' => $profile?->getAvatarInitials(),
+                    'background_color' => $profile?->getBackgroundColor(),
+                    'text_color' => $profile?->getTextColor(),
+                ],
+                'created_at' => $created->format(\DateTimeInterface::ATOM),
+                'updated_at' => $line->getUpdatedAt()->format(\DateTimeInterface::ATOM),
+                'custom_values' => [],
+                'self_organized' => true,
+                'source' => 'direct',
+            ];
+        }
+
+        return $out;
     }
 
     /**
@@ -318,7 +438,17 @@ class GrossanlassWishService
         if (isset($data['quantity'])) {
             $line->setQuantity(max(1, (int) $data['quantity']));
         }
+        if (array_key_exists('wish_kind', $data)) {
+            $kind = trim((string) $data['wish_kind']);
+            if (!in_array($kind, [ActivityGrossanlassWishLine::KIND_MATERIAL, ActivityGrossanlassWishLine::KIND_FAHRZEUG], true)) {
+                throw new \InvalidArgumentException('Art ist ungültig');
+            }
+            $line->setWishKind($kind);
+        }
         $this->applyPickup($line, $data);
+        if (array_key_exists('self_organized', $data)) {
+            $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
+        }
         $line->touchUpdatedAt();
         $this->entityManager->flush();
 
@@ -370,6 +500,9 @@ class GrossanlassWishService
         $line->setTimeframeNotes($parsed['timeframe_notes']);
         $line->setNotes($parsed['notes']);
         $this->applyPickup($line, $data);
+        if (array_key_exists('self_organized', $data)) {
+            $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
+        }
         $line->setCreatedByUser($user);
         $line->setStatus(ActivityGrossanlassWishLine::STATUS_REQUESTED);
         $line->setLastStage(
@@ -555,6 +688,8 @@ class GrossanlassWishService
             throw new \InvalidArgumentException('Wunsch ist an eine eingefrorene Beschaffungsposition gebunden');
         }
 
+        $this->removeOpenDemandForWish($line);
+
         $response = $line->getResponse();
         $line->setResponse(null);
         $this->entityManager->remove($line);
@@ -662,6 +797,10 @@ class GrossanlassWishService
             $raw = array_key_exists($fieldId, $customValuesInput) ? $customValuesInput[$fieldId] : null;
             if (($raw === null || $raw === '' || $raw === []) && $defaultGroup !== null) {
                 $raw = $this->fallbackCustomRawFromLineData($field, $data);
+                if ($raw === null || $raw === '' || $raw === []) {
+                    $customValues[$fieldId] = $customType === GrossanlassFormFieldCatalog::CUSTOM_SELECT ? [] : null;
+                    continue;
+                }
             }
             $customValues[$fieldId] = $this->parseCustomValue($field, $raw);
         }
@@ -1385,6 +1524,27 @@ class GrossanlassWishService
         return $line;
     }
 
+    private function removeOpenDemandForWish(ActivityGrossanlassWishLine $line): void
+    {
+        $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+            ->findBy(['wishLineId' => $line->getId()]);
+        foreach ($links as $link) {
+            if (!$link instanceof ActivityGrossanlassProcurementLineWish) {
+                continue;
+            }
+            $procurement = $link->getProcurementLine();
+            $siblings = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
+                ->findBy(['procurementLineId' => $procurement->getId()]);
+            $onlyThisWish = count($siblings) === 1;
+            $stillNeed = $procurement->getStatus() === ActivityGrossanlassProcurementLine::STATUS_BEDARF
+                && $procurement->getQuantityAsked() === null;
+            $this->entityManager->remove($link);
+            if ($onlyThisWish && $stillNeed) {
+                $this->entityManager->remove($procurement);
+            }
+        }
+    }
+
     private function wishHasFrozenProcurement(ActivityGrossanlassWishLine $line): bool
     {
         $links = $this->entityManager->getRepository(ActivityGrossanlassProcurementLineWish::class)
@@ -1870,11 +2030,21 @@ class GrossanlassWishService
             'pickup_place' => $line->getPickupPlace(),
             'return_needed' => $line->isReturnNeeded(),
             'quantity_unit' => $line->getQuantityUnit(),
+            'self_organized' => $line->isSelfOrganized(),
             ...$line->enoughOnHandPayload(),
             'status' => $line->getStatus(),
             'last_stage' => $line->getLastStage(),
             'created_by_user_id' => $line->getCreatedByUserId(),
             'created_by_name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'created_by' => $profile ? [
+                'name' => $profile->getDisplayName(),
+                'first_name' => $profile->getFirstName(),
+                'last_name' => $profile->getLastName(),
+                'nickname' => $profile->getNickname(),
+                'avatar_initials' => $profile->getAvatarInitials(),
+                'background_color' => $profile->getBackgroundColor(),
+                'text_color' => $profile->getTextColor(),
+            ] : null,
             'created_at' => $line->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $line->getUpdatedAt()->format(\DateTimeInterface::ATOM),
             'custom_values' => $customValues,

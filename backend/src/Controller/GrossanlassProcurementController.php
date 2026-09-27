@@ -67,9 +67,10 @@ class GrossanlassProcurementController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
         $wishLineIds = is_array($data['wish_line_ids'] ?? null) ? $data['wish_line_ids'] : [];
+        $vehicleNeedIds = is_array($data['vehicle_need_ids'] ?? null) ? $data['vehicle_need_ids'] : [];
 
         try {
-            $line = $wishLineIds === []
+            $line = $wishLineIds === [] && $vehicleNeedIds === []
                 ? $this->procurementService->createLineDirect($department, $currentUser, $data)
                 : $this->procurementService->createLineFromWishes($department, $currentUser, $wishLineIds, $data);
         } catch (\InvalidArgumentException $e) {

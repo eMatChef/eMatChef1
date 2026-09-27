@@ -6,7 +6,7 @@
       <v-expansion-panels v-model="openSections" multiple class="e-accordions ga-bauprojekt-panel__accordions">
         <v-expansion-panel value="window">
           <v-expansion-panel-title>
-            {{ t('grossanlass.planung.ressorts.windowLabel') }}
+            {{ windowHeading }}
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <GaBuildMetaFields
@@ -16,9 +16,11 @@
               v-model:start="windowStart"
               v-model:end="windowEnd"
               v-model:status="buildStatus"
-              :window-label="t('grossanlass.planung.ressorts.windowLabel')"
+              :window-label="windowHeading"
+              :window-hint="briefing.group?.node_type === 'unterressort' ? t('grossanlass.planung.ressorts.usageWindowHint') : ''"
               :window-baseline="windowBaseline"
               :status-baseline="buildStatusBaseline"
+              :node-type="briefing.group?.node_type"
               hint-class="muted"
               :save-window="saveWindowAutosave"
               :save-status="saveStatusAutosave"
@@ -270,6 +272,83 @@
           </v-expansion-panel-text>
         </v-expansion-panel>
 
+        <v-expansion-panel value="vehicles">
+          <v-expansion-panel-title>
+            {{ t('grossanlass.planung.ressorts.vehiclesHeading') }}
+          </v-expansion-panel-title>
+          <v-expansion-panel-text>
+            <p v-if="!briefing.can_edit && !vehicleBlocks.length" class="muted">{{ t('grossanlass.planung.ressorts.vehiclesEmpty') }}</p>
+            <div v-for="block in vehicleBlocks" :key="block.key" class="ga-block ga-vehicle">
+              <div class="ga-block__time">
+                <EDateField
+                  v-model="block.date"
+                  :label="t('grossanlass.planung.ressorts.taskBlockDate')"
+                  :department-id="departmentId"
+                  allow-past
+                  :disabled="!briefing.can_edit"
+                />
+                <ETimeField
+                  v-model="block.time"
+                  :label="t('grossanlass.planung.ressorts.taskBlockTimeStart')"
+                  :disabled="!briefing.can_edit"
+                  hide-details
+                />
+                <ETimeField
+                  v-model="block.end"
+                  :label="t('grossanlass.planung.ressorts.taskBlockTimeEnd')"
+                  :disabled="!briefing.can_edit"
+                  hide-details
+                />
+              </div>
+              <p v-if="neededLabel(block)" class="ga-block__needed">{{ neededLabel(block) }}</p>
+              <ETextField
+                v-model="block.task"
+                class="ga-vehicle__task"
+                :label="t('grossanlass.planung.ressorts.vehicleTask')"
+                :disabled="!briefing.can_edit"
+                hide-details
+              />
+              <ETextField
+                v-model="block.vehicle"
+                class="ga-vehicle__wish"
+                :label="t('grossanlass.planung.ressorts.vehicleWish')"
+                :placeholder="t('grossanlass.planung.ressorts.materialVehiclePlaceholder')"
+                :disabled="!briefing.can_edit"
+                hide-details
+              />
+              <div class="ga-block__tools">
+                <span
+                  v-if="vehicleSaveHint[block.key]"
+                  class="ga-block__save"
+                  :class="{ 'is-saved': vehicleSaveHint[block.key] === 'saved' }"
+                  :title="vehicleSaveHint[block.key] === 'saved'
+                    ? t('grossanlass.planung.ressorts.vehicleSaved')
+                    : t('grossanlass.planung.ressorts.taskBlockSaving')"
+                >
+                  <v-icon icon="mdi-content-save" size="16" />
+                </span>
+                <button
+                  v-if="briefing.can_edit && block.id"
+                  type="button"
+                  class="action-btn"
+                  :title="t('common.delete')"
+                  @click="removeVehicle(block.id)"
+                >
+                  <v-icon icon="mdi-delete-outline" size="18" />
+                </button>
+              </div>
+            </div>
+            <button
+              v-if="briefing.can_edit"
+              type="button"
+              class="ga-block__add"
+              @click="addVehicleBlock"
+            >
+              <v-icon icon="mdi-plus" size="22" />
+            </button>
+          </v-expansion-panel-text>
+        </v-expansion-panel>
+
         <v-expansion-panel value="material">
           <v-expansion-panel-title>
             {{ t('grossanlass.planung.ressorts.materialHeading') }}
@@ -322,20 +401,6 @@
                         {{ t('grossanlass.planung.ressorts.materialModeSelf') }}
                       </label>
                     </div>
-                    <label class="ga-mat-check">
-                      <input v-model="row.pickup" type="checkbox" />
-                      {{ t('grossanlass.planung.ressorts.materialPickup') }}
-                    </label>
-                    <label class="ga-mat-check">
-                      <input v-model="row.bringBack" type="checkbox" />
-                      {{ t('grossanlass.planung.ressorts.materialReturn') }}
-                    </label>
-                    <ETextField
-                      v-if="row.pickup"
-                      v-model="row.pickupPlace"
-                      :label="t('grossanlass.planung.ressorts.materialPickupPlace')"
-                      hide-details
-                    />
                   </div>
                 </div>
                 <div class="ga-mat-entry__side ga-mat-entry__side--row">
@@ -425,8 +490,8 @@
                     </div>
                     <ETextField
                       v-model="materialComposer.label"
-                    :label="t('grossanlass.planung.ressorts.materialLabel')"
-                    hide-details
+                      :label="t('grossanlass.planung.ressorts.materialLabel')"
+                      hide-details
                   />
                 </div>
                   <div class="ga-mat-entry__line ga-mat-entry__line--second">
@@ -440,20 +505,6 @@
                         {{ t('grossanlass.planung.ressorts.materialModeSelf') }}
                       </label>
                     </div>
-                    <label class="ga-mat-check">
-                      <input v-model="materialComposer.pickup" type="checkbox" />
-                      {{ t('grossanlass.planung.ressorts.materialPickup') }}
-                    </label>
-                    <label class="ga-mat-check">
-                      <input v-model="materialComposer.bringBack" type="checkbox" />
-                      {{ t('grossanlass.planung.ressorts.materialReturn') }}
-                    </label>
-                    <ETextField
-                      v-if="materialComposer.pickup"
-                      v-model="materialComposer.pickupPlace"
-                      :label="t('grossanlass.planung.ressorts.materialPickupPlace')"
-                      hide-details
-                    />
                   </div>
               </div>
               <span
@@ -507,7 +558,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toRef, watch } from 'vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRouter } from 'vue-router'
@@ -530,6 +581,7 @@ import {
 import {
   gaBuildStatusI18nKey,
   resolveBuildStatus,
+  watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import { gaMapOverlayBounds } from '@/utils/grossanlassGaMap'
@@ -550,6 +602,9 @@ import {
   createGrossanlassBauprojektTask,
   deleteGrossanlassBauprojektTask,
   updateGrossanlassBauprojektTask,
+  createGrossanlassBauprojektVehicle,
+  deleteGrossanlassBauprojektVehicle,
+  updateGrossanlassBauprojektVehicle,
   getGrossanlassBauprojekt,
   patchGrossanlassBauprojektWindow,
   type GaBauprojektBriefing,
@@ -558,7 +613,9 @@ import {
 const props = defineProps<{
   departmentId: string
   groupId: string
+  initialOpen?: string[]
 }>()
+watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
 const emit = defineEmits<{
   'meta-saved': [group: NonNullable<GaBauprojektBriefing['group']>]
 }>()
@@ -582,6 +639,7 @@ const description = ref('')
 const buildStatusText = computed(() => {
   if (!briefing.value) return ''
   return t(gaBuildStatusI18nKey(resolveBuildStatus({
+    node_type: briefing.value.group?.node_type,
     build_status: briefing.value.build_status ?? briefing.value.group?.build_status,
     window_start: briefing.value.window_start,
     window_end: briefing.value.window_end,
@@ -600,7 +658,7 @@ const savingMaterial = ref(false)
 const savingPlace = ref(false)
 const placeEditing = ref(false)
 const placeName = ref('')
-const openSections = ref<string[]>(['material', 'tasks'])
+const openSections = ref<string[]>([...(props.initialOpen ?? ['material', 'tasks'])])
 const placeMapRef = ref<{ refreshSize: () => void } | null>(null)
 const fixMaterialId = ref<string | null>(null)
 const fixSearchQuery = ref('')
@@ -615,6 +673,12 @@ const anlassStatus = computed(() => {
   return row?.department?.grossanlass_config?.status || 'draft'
 })
 const canPrintHelper = computed(() => anlassStatus.value !== 'draft')
+const windowHeading = computed(() =>
+  briefing.value?.group?.node_type === 'unterressort'
+    ? t('grossanlass.planung.ressorts.usageWindowLabel')
+    : t('grossanlass.planung.ressorts.windowLabel'),
+)
+
 const windowText = computed(() =>
   formatBauprojektWindow(briefing.value?.window_start, briefing.value?.window_end),
 )
@@ -1033,6 +1097,7 @@ type MatDraft = {
   quantity: string
   unit: 'Stk' | 'm'
   pickup: boolean
+  vehicle: boolean
   bringBack: boolean
   pickupPlace: string
   saving: boolean
@@ -1047,6 +1112,7 @@ function emptyMaterialRow(): MatDraft {
     quantity: '1',
     unit: 'Stk',
     pickup: false,
+    vehicle: false,
     bringBack: false,
     pickupPlace: '',
     saving: false,
@@ -1054,6 +1120,21 @@ function emptyMaterialRow(): MatDraft {
 }
 
 const taskBlocks = ref<TaskBlock[]>([])
+type VehicleBlock = {
+  key: string
+  id: string | null
+  date: string
+  time: string
+  end: string
+  task: string
+  vehicle: string
+  saving: boolean
+}
+const vehicleBlocks = ref<VehicleBlock[]>([])
+const vehicleSavedFingerprint = new Map<string, string>()
+const vehicleAutosaveTimers = new Map<string, number>()
+const vehicleSaveHint = ref<Record<string, 'saving' | 'saved'>>({})
+const vehicleSaveHintTimers = new Map<string, number>()
 const taskSavedFingerprint = new Map<string, string>()
 const taskAutosaveTimers = new Map<string, number>()
 const taskSaveHint = ref<Record<string, 'saving' | 'saved'>>({})
@@ -1088,6 +1169,14 @@ function clockFromMinutes(total: number): string {
   const hours = Math.floor(minutes / 60)
   const mins = minutes % 60
   return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`
+}
+
+function ensureMinDuration(block: { time: string; end: string }) {
+  const start = clockMinutes(block.time)
+  if (start == null) return
+  const minutes = durationMinutes(block.time, block.end)
+  if (minutes != null && minutes >= 15) return
+  block.end = clockFromMinutes(start + 15)
 }
 
 function durationMinutes(start: string, end: string): number | null {
@@ -1129,15 +1218,17 @@ function syncEditors() {
   for (const block of taskBlocks.value) {
     taskSavedFingerprint.set(block.key, taskFingerprint(block))
   }
+  syncVehicleEditors()
   const wishes = (briefing.value?.material ?? []).map((line) => ({
     key: line.id,
     id: line.id,
     roundId: line.round_id,
-    self: false,
+    self: !!line.self_organized,
     label: line.label,
     quantity: String(line.quantity),
     unit: materialUnit(line.quantity_unit),
     pickup: line.pickup_need === 'can' || line.pickup_need === 'must',
+    vehicle: line.wish_kind === 'fahrzeug',
     bringBack: !!line.return_needed,
     pickupPlace: line.pickup_place || '',
     saving: false,
@@ -1150,6 +1241,7 @@ function syncEditors() {
     quantity: String(line.quantity),
     unit: materialUnit(line.quantity_unit),
     pickup: line.pickup_need === 'can' || line.pickup_need === 'must',
+    vehicle: line.wish_kind === 'fahrzeug',
     bringBack: !!line.return_needed,
     pickupPlace: line.pickup_place || '',
     saving: false,
@@ -1219,7 +1311,12 @@ function blankTaskBlock(): TaskBlock {
   }
 }
 
-function addTaskBlock() {
+async function addTaskBlock() {
+  const pending = taskBlocks.value.filter((block) => !block.id && (block.title.trim() || block.description.trim()))
+  for (const block of pending) {
+    await saveTaskBlock(block, true)
+    if (!block.id) return
+  }
   const previous = taskBlocks.value[taskBlocks.value.length - 1]
   const block = blankTaskBlock()
   if (previous) {
@@ -1247,7 +1344,9 @@ function scheduleTaskAutosave(block: TaskBlock) {
 
 watch(taskBlocks, () => {
   if (!briefing.value?.can_edit) return
+  for (const block of taskBlocks.value) ensureMinDuration(block)
   for (const block of taskBlocks.value) {
+    if (!block.id) continue
     if (taskSavedFingerprint.get(block.key) === taskFingerprint(block)) continue
     if (!block.title.trim() && !block.description.trim()) continue
     scheduleTaskAutosave(block)
@@ -1259,6 +1358,10 @@ onBeforeUnmount(() => {
   taskAutosaveTimers.clear()
   taskSaveHintTimers.forEach((timer) => window.clearTimeout(timer))
   taskSaveHintTimers.clear()
+  vehicleAutosaveTimers.forEach((timer) => window.clearTimeout(timer))
+  vehicleAutosaveTimers.clear()
+  vehicleSaveHintTimers.forEach((timer) => window.clearTimeout(timer))
+  vehicleSaveHintTimers.clear()
   materialAutosaveTimers.forEach((timer) => window.clearTimeout(timer))
   materialAutosaveTimers.clear()
   materialSaveHintTimers.forEach((timer) => window.clearTimeout(timer))
@@ -1270,7 +1373,7 @@ function assigneeHint(block: TaskBlock): string {
   return t('grossanlass.planung.ressorts.taskBlockAssigneeHint')
 }
 
-function neededLabel(block: TaskBlock): string {
+function neededLabel(block: { time: string; end: string }): string {
   const minutes = durationMinutes(block.time, block.end)
   if (!minutes) return ''
   const hours = Math.floor(minutes / 60)
@@ -1362,6 +1465,7 @@ function addMaterialRow() {
     quantity: '1',
     unit: 'Stk',
     pickup: false,
+    vehicle: false,
     bringBack: false,
     pickupPlace: '',
     saving: false,
@@ -1374,12 +1478,7 @@ function materialExtra(row: MatDraft): string {
       ? t('grossanlass.planung.ressorts.materialModeSelf')
       : t('grossanlass.planung.ressorts.materialModeWish'),
   ]
-  if (row.pickup) {
-    parts.push(row.pickupPlace.trim()
-      ? `${t('grossanlass.planung.ressorts.materialPickup')} · ${row.pickupPlace.trim()}`
-      : t('grossanlass.planung.ressorts.materialPickup'))
-  }
-  if (row.bringBack) parts.push(t('grossanlass.planung.ressorts.materialReturn'))
+  if (row.vehicle) parts.unshift(t('grossanlass.planung.ressorts.materialVehicle'))
   return parts.join(' · ')
 }
 
@@ -1389,9 +1488,7 @@ function materialFingerprint(row: MatDraft): string {
     row.quantity,
     row.unit,
     row.self ? '1' : '0',
-    row.pickup ? '1' : '0',
-    row.bringBack ? '1' : '0',
-    row.pickupPlace,
+    row.vehicle ? '1' : '0',
   ].join('\u0000')
 }
 
@@ -1428,21 +1525,11 @@ watch(materialDrafts, () => {
   }
 }, { deep: true })
 
-watch(materialComposer, () => {
-  if (!briefing.value?.can_edit || materialEditKey.value) return
-  const row = materialComposer.value
-  if (!row.label.trim()) return
-  if (materialSavedFingerprint.get(row.key) === materialFingerprint(row)) return
-  if (materialSaveBlocked.get(row.key) === materialFingerprint(row)) return
-  scheduleMaterialAutosave(row)
-}, { deep: true })
-
 function materialFlags(row: MatDraft) {
   return {
-    pickup_need: row.pickup ? 'must' as const : null,
-    pickup_place: row.pickup ? row.pickupPlace.trim() || null : null,
-    return_needed: row.bringBack,
     quantity_unit: row.unit || 'Stk',
+    wish_kind: row.vehicle ? 'fahrzeug' as const : 'material' as const,
+    self_organized: row.self,
   }
 }
 
@@ -1454,25 +1541,9 @@ async function saveMaterialRow(row: MatDraft, silent = false) {
   row.saving = true
   showMaterialSaveHint(row.key, 'saving')
   const flags = materialFlags(row)
-  const recreates = !row.id || Boolean(row.self && row.roundId) || Boolean(row.id && !row.self && !row.roundId)
+  const created = !row.id
   try {
     if (!row.id) {
-      await addGrossanlassBauprojektMaterial(props.departmentId, props.groupId, {
-        label,
-        quantity: Math.max(1, Number(row.quantity) || 1),
-        mode: row.self ? 'direct' : 'wish',
-        ...flags,
-      })
-    } else if (row.self && row.roundId) {
-      await deleteGrossanlassWish(props.departmentId, row.roundId, row.id)
-      await addGrossanlassBauprojektMaterial(props.departmentId, props.groupId, {
-        label,
-        quantity: Math.max(1, Number(row.quantity) || 1),
-        mode: 'direct',
-        ...flags,
-      })
-    } else if (!row.self && !row.roundId) {
-      await deleteGrossanlassProcurementLine(props.departmentId, row.id)
       await addGrossanlassBauprojektMaterial(props.departmentId, props.groupId, {
         label,
         quantity: Math.max(1, Number(row.quantity) || 1),
@@ -1492,8 +1563,8 @@ async function saveMaterialRow(row: MatDraft, silent = false) {
     materialEditSnapshot.value = materialEditKey.value === row.key ? { ...row } : materialEditSnapshot.value
     showMaterialSaveHint(row.key, 'saved')
     if (!silent) toast.success(t('grossanlass.planung.ressorts.materialRowSaved'))
-    if (!silent || recreates) {
-      if (!row.id) materialComposer.value = emptyMaterialRow()
+    if (created) {
+      materialComposer.value = emptyMaterialRow()
       materialEditKey.value = null
       materialEditSnapshot.value = null
       await reloadKeepScroll()
@@ -1507,6 +1578,144 @@ async function saveMaterialRow(row: MatDraft, silent = false) {
     toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   } finally {
     row.saving = false
+  }
+}
+
+function blankVehicleBlock(): VehicleBlock {
+  return {
+    key: `new-${Date.now()}-${vehicleBlocks.value.length}`,
+    id: null,
+    date: windowStart.value || '',
+    time: '08:00',
+    end: '08:00',
+    task: '',
+    vehicle: '',
+    saving: false,
+  }
+}
+
+function vehicleFingerprint(block: VehicleBlock): string {
+  return [block.task, block.vehicle, block.date, block.time, block.end].join('\u0000')
+}
+
+function syncVehicleEditors() {
+  vehicleAutosaveTimers.forEach((timer) => window.clearTimeout(timer))
+  vehicleAutosaveTimers.clear()
+  vehicleSavedFingerprint.clear()
+  vehicleBlocks.value = (briefing.value?.vehicles ?? []).map((row) => {
+    const slot = splitStarts(row.starts_at)
+    const start = slot.time || '08:00'
+    const startMin = clockMinutes(start)
+    return {
+      key: row.id,
+      id: row.id,
+      task: row.task_label,
+      vehicle: row.vehicle_label,
+      date: slot.date,
+      time: start,
+      end: row.duration_minutes && startMin != null
+        ? clockFromMinutes(startMin + row.duration_minutes)
+        : start,
+      saving: false,
+    }
+  })
+  if (briefing.value?.can_edit && vehicleBlocks.value.length === 0) {
+    vehicleBlocks.value.push(blankVehicleBlock())
+  }
+  for (const block of vehicleBlocks.value) {
+    vehicleSavedFingerprint.set(block.key, vehicleFingerprint(block))
+  }
+}
+
+async function addVehicleBlock() {
+  const pending = vehicleBlocks.value.filter((block) => !block.id && (block.task.trim() || block.vehicle.trim()))
+  for (const block of pending) {
+    await saveVehicleBlock(block)
+    if (!block.id) return
+  }
+  const previous = vehicleBlocks.value[vehicleBlocks.value.length - 1]
+  const block = blankVehicleBlock()
+  if (previous) {
+    const start = previous.end || previous.time || '08:00'
+    block.date = previous.date || block.date
+    block.time = start
+    block.end = start
+  }
+  vehicleBlocks.value.push(block)
+  vehicleSavedFingerprint.set(block.key, vehicleFingerprint(block))
+}
+
+function scheduleVehicleAutosave(block: VehicleBlock) {
+  const existing = vehicleAutosaveTimers.get(block.key)
+  if (existing) window.clearTimeout(existing)
+  vehicleAutosaveTimers.set(block.key, window.setTimeout(() => {
+    vehicleAutosaveTimers.delete(block.key)
+    void saveVehicleBlock(block)
+  }, 700))
+}
+
+watch(vehicleBlocks, () => {
+  if (!briefing.value?.can_edit) return
+  for (const block of vehicleBlocks.value) ensureMinDuration(block)
+  for (const block of vehicleBlocks.value) {
+    if (!block.id) continue
+    if (vehicleSavedFingerprint.get(block.key) === vehicleFingerprint(block)) continue
+    if (!block.task.trim() && !block.vehicle.trim()) continue
+    scheduleVehicleAutosave(block)
+  }
+}, { deep: true })
+
+async function saveVehicleBlock(block: VehicleBlock) {
+  if (!block.task.trim() && !block.vehicle.trim()) return
+  const fp = vehicleFingerprint(block)
+  if (vehicleSavedFingerprint.get(block.key) === fp) return
+  if (block.saving) {
+    scheduleVehicleAutosave(block)
+    return
+  }
+  block.saving = true
+  vehicleSaveHint.value = { ...vehicleSaveHint.value, [block.key]: 'saving' }
+  const payload = {
+    task_label: block.task.trim(),
+    vehicle_label: block.vehicle.trim(),
+    starts_at: block.date ? `${block.date}T${block.time || '00:00'}:00` : null,
+    duration_minutes: durationMinutes(block.time, block.end),
+  }
+  try {
+    if (block.id) {
+      await updateGrossanlassBauprojektVehicle(props.departmentId, props.groupId, block.id, payload)
+    } else {
+      const created = await createGrossanlassBauprojektVehicle(props.departmentId, props.groupId, payload)
+      block.id = created.id
+    }
+    vehicleSavedFingerprint.set(block.key, fp)
+    vehicleSaveHint.value = { ...vehicleSaveHint.value, [block.key]: 'saved' }
+    const previous = vehicleSaveHintTimers.get(block.key)
+    if (previous) window.clearTimeout(previous)
+    vehicleSaveHintTimers.set(block.key, window.setTimeout(() => {
+      const next = { ...vehicleSaveHint.value }
+      delete next[block.key]
+      vehicleSaveHint.value = next
+      vehicleSaveHintTimers.delete(block.key)
+    }, 1400))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    const next = { ...vehicleSaveHint.value }
+    delete next[block.key]
+    vehicleSaveHint.value = next
+    toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
+  } finally {
+    block.saving = false
+  }
+}
+
+async function removeVehicle(needId: string) {
+  try {
+    await deleteGrossanlassBauprojektVehicle(props.departmentId, props.groupId, needId)
+    await reloadKeepScroll()
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.planung.ressorts.errorSave'))
   }
 }
 
@@ -1599,8 +1808,7 @@ async function removeMaterial(line: { id: string | null; self: boolean; roundId?
   if (!ok) return
   deletingMaterialId.value = line.id
   try {
-    if (!line.self && line.roundId) {
-      if (!line.roundId) return
+    if (line.roundId) {
       await deleteGrossanlassWish(props.departmentId, line.roundId, line.id)
     } else {
       await deleteGrossanlassProcurementLine(props.departmentId, line.id)
@@ -1652,7 +1860,10 @@ watch(materialMode, (mode) => {
   if (mode === 'self') void loadOrganizerGroups()
 })
 
-watch(() => props.groupId, () => { void load() })
+watch(() => props.groupId, () => {
+  openSections.value = [...(props.initialOpen ?? ['material', 'tasks'])]
+  void load()
+})
 onMounted(() => {
   void load()
   void loadOrganizerGroups()
@@ -1850,6 +2061,14 @@ onMounted(() => {
   align-self: start;
   min-width: 0;
 }
+.ga-vehicle {
+  grid-template-columns: 168px minmax(0, 1fr) minmax(180px, 260px) auto;
+}
+.ga-vehicle .ga-block__time,
+.ga-vehicle .ga-block__needed { grid-column: 1; }
+.ga-vehicle__task { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.ga-vehicle__wish { grid-column: 3; grid-row: 1 / span 2; align-self: start; }
+.ga-vehicle .ga-block__tools { grid-column: 4; }
 .ga-block__tools {
   grid-column: 5;
   grid-row: 1 / span 2;

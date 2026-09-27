@@ -93,6 +93,7 @@ export type GaEinsatzRingBlock = {
   parentId?: string
   status?: string
   statusKind?: string
+  groupId?: string
   windowText?: string
   skipCategory?: boolean
   blocks: GaEinsatzCategoryBlock[]
@@ -1003,6 +1004,7 @@ export function buildOrgCalendarRings(
       parentId,
       status: statusKind ? t(gaBuildStatusI18nKey(statusKind)) : undefined,
       statusKind,
+      groupId: bucket.group?.id,
       windowText: windowText || undefined,
       skipCategory,
       blocks,

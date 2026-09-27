@@ -35,8 +35,22 @@
       </div>
     </div>
 
+    <section v-if="phoneDeals.length" class="phone-deals">
+      <h2>{{ t('grossanlass.beschaffung.zusagen.dealTitle') }}</h2>
+      <p>{{ t('grossanlass.beschaffung.zusagen.dealHint') }}</p>
+      <article v-for="row in phoneDeals" :key="row.id" class="phone-deal">
+        <header>
+          <strong>{{ row.name }}</strong>
+          <span class="phone-deal__kind">{{ t(`grossanlass.beschaffung.anfragen.channelDealKind.${row.deal}`) }}</span>
+        </header>
+        <p class="phone-deal__who">{{ row.who }}</p>
+        <p class="phone-deal__text">{{ row.text }}</p>
+        <p class="phone-deal__when">{{ t('grossanlass.beschaffung.zusagen.dealWhen', { when: row.when, via: row.via }) }}</p>
+      </article>
+    </section>
+
     <EEmptyState
-      v-if="filteredRows.length === 0"
+      v-if="filteredRows.length === 0 && phoneDeals.length === 0"
       variant="default"
       icon="mdi-handshake-outline"
       :title="t('grossanlass.beschaffung.zusagen.noMatchTitle')"
@@ -669,6 +683,7 @@ type ZusageRow = {
   inquiryId: string | null
   isShell: boolean
   fromLineId: string
+  absprache: boolean
   quantity: number
   hasWindow: boolean
 }
@@ -698,6 +713,30 @@ const sortBy = ref<SortBy>('handover')
 const openGroups = ref<string[]>([])
 const articles = ref<GrossanlassCommitment[]>([])
 const inquiries = ref<GrossanlassInquiry[]>([])
+const allInquiries = ref<GrossanlassInquiry[]>([])
+
+const phoneDeals = computed(() =>
+  allInquiries.value.flatMap((inquiry) => {
+    const entry = [...(inquiry.thread ?? [])].reverse().find((row) => row.deal)
+    if (!entry?.deal) return []
+    const who = [inquiry.contact_name, inquiry.phone].filter(Boolean).join(' · ')
+    const when = entry.at
+      ? new Date(entry.at).toLocaleString('de-CH', { dateStyle: 'short', timeStyle: 'short' })
+      : ''
+    const via = entry.via === 'phone'
+      ? t('grossanlass.beschaffung.anfragen.rowCall')
+      : t('grossanlass.beschaffung.anfragen.rowMail')
+    return [{
+      id: inquiry.id,
+      name: inquiry.name,
+      who,
+      text: entry.text,
+      deal: entry.deal,
+      when,
+      via,
+    }]
+  }),
+)
 const lines = ref<GrossanlassProcurementLine[]>([])
 const categories = ref<GrossanlassProcurementCategory[]>([])
 const calendarPeriods = ref<DepartmentCalendarPeriod[]>([])
@@ -837,6 +876,10 @@ function articleIsQuoteKauf(article: GrossanlassCommitment): boolean {
   return line.quotes.some((quote) => quote.supplier.toLowerCase() === article.source.toLowerCase())
 }
 
+function belongsOnAbsprachen(row: ZusageRow): boolean {
+  return Boolean(row.inquiryId || row.fromLineId || row.absprache)
+}
+
 function isQuoteBackedKauf(row: ZusageRow): boolean {
   if (row.inquiryId) return false
   const line = matchLineForRow(row)
@@ -911,6 +954,7 @@ const rows = computed<ZusageRow[]>(() =>
     inquiryId: article.inquiry_id,
     isShell: isPartnerShell(article),
     fromLineId: article.item_details?.from_line_id || '',
+    absprache: article.item_details?.absprache === true,
     quantity: article.quantity,
     hasWindow: Boolean(article.present_from && article.present_to),
   }
@@ -919,7 +963,7 @@ const rows = computed<ZusageRow[]>(() =>
 
 const filteredRows = computed(() => {
   const q = query.value.trim().toLowerCase()
-  const list = rows.value.filter((row) => !isQuoteBackedKauf(row))
+  const list = rows.value.filter((row) => belongsOnAbsprachen(row) && !isQuoteBackedKauf(row))
   const matched = q
     ? list.filter((row) =>
         [row.name, row.source, row.wishLabel].some((value) => value.toLowerCase().includes(q)),
@@ -1301,7 +1345,7 @@ function resolvedNeedForArticle(article: GrossanlassCommitment): { from: string;
   return {
     from: need?.from || '',
     to: need?.to || '',
-    label: article.wish_label || article.name,
+    label: article.wish_label || '',
   }
 }
 
@@ -1625,6 +1669,7 @@ async function load() {
     calendarPeriods.value = periods
     logisticsGroupId.value = planung?.config.logistics_group_id || null
     articles.value = commitmentRows
+    allInquiries.value = inquiryRows
     inquiries.value = inquiryRows.filter((row) => row.status === 'zusage')
     lines.value = overview?.lines ?? []
     categories.value = overview?.categories ?? []
@@ -1991,6 +2036,48 @@ onMounted(() => {
 .take-item__over {
   color: #b45309 !important;
   font-weight: 600;
+}
+.phone-deals {
+  margin: 0 0 16px;
+}
+.phone-deals h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+.phone-deals > p {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 0.84rem;
+}
+.phone-deal {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.phone-deal header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.phone-deal__kind {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.phone-deal__who,
+.phone-deal__when {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.phone-deal__text {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
 }
 .take-item__kauf {
   margin: 8px 0 4px;

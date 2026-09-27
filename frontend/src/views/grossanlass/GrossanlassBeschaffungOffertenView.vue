@@ -186,6 +186,16 @@ function quoteSchedule(quote: GrossanlassProcurementQuote): string {
   if (quote.lead_days != null) {
     parts.push(t('grossanlass.beschaffung.offerten.leadDaysShort', { count: quote.lead_days }))
   }
+  if (quote.inbound_mode === 'pickup') {
+    parts.push(t('grossanlass.materials.zusage.inboundPickup'))
+  } else if (quote.inbound_mode === 'delivery') {
+    parts.push(t('grossanlass.materials.zusage.inboundDelivery'))
+  }
+  if (quote.return_needed) {
+    parts.push(quote.return_at
+      ? `${t('grossanlass.beschaffung.offerten.returnNeeded')} ${formatGaDateLabel(quote.return_at, locale.value)}`
+      : t('grossanlass.beschaffung.offerten.returnNeeded'))
+  }
   return parts.join(' · ')
 }
 

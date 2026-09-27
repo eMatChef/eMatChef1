@@ -145,6 +145,7 @@ describe('buildOrgCalendarRings', () => {
       [{ ...groups[1], window_start: '2026-11-10', window_end: '2026-11-12' }],
     )
     expect(rings[0].label).toBe('BL Wasser')
+    expect(rings[0].groupId).toBe('wasser')
     expect(rings[0].windowText).toBe('2026-11-10 – 2026-11-12')
     expect(rings[0].statusKind).toBe('planned')
     expect(rings[0].blocks[0].resources[0].name).toBe('Nutzungszeit')

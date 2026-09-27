@@ -17,6 +17,8 @@
       min="1"
       step="1"
       :label="t('grossanlass.beschaffung.bedarf.editQuantity')"
+      :disabled="quantityLocked"
+      :hint="quantityLocked ? t('grossanlass.beschaffung.bedarf.editQuantityLocked') : undefined"
       hide-details="auto"
     />
     <ETextField
@@ -38,6 +40,15 @@
       :categories="categories"
       @created="emit('category-created', $event)"
     />
+    <ESelect
+      v-model="form.costKind"
+      class="mt-3"
+      :items="kindItems"
+      item-title="title"
+      item-value="value"
+      :label="t('grossanlass.beschaffung.bedarf.supplyModeLabel')"
+      hide-details
+    />
 
     <p v-if="errorMessage" class="edit-dialog-error">{{ errorMessage }}</p>
 
@@ -53,15 +64,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   updateGrossanlassProcurementLine,
+  type GrossanlassCostKind,
   type GrossanlassProcurementCategory,
   type GrossanlassProcurementLine,
 } from '@/api/grossanlassProcurement'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
-import { EButton, EDialog, ETextField } from '@/components/form/base'
+import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 
 const props = defineProps<{
   departmentId: string
@@ -77,7 +89,27 @@ const emit = defineEmits<{
 const open = defineModel<boolean>({ required: true })
 const { t } = useI18n()
 
-const form = ref({ label: '', quantity: '', location: '', notes: '', categoryId: null as string | null })
+const quantityLocked = computed(() => {
+  const line = props.line
+  if (!line) return false
+  return line.status !== 'bedarf' || line.merge_frozen
+})
+
+const kindItems = computed(() =>
+  (['purchase', 'rental', 'loan'] as GrossanlassCostKind[]).map((value) => ({
+    title: t(`grossanlass.beschaffung.kosten.kind.${value}`),
+    value,
+  })),
+)
+
+const form = ref({
+  label: '',
+  quantity: '',
+  location: '',
+  notes: '',
+  categoryId: null as string | null,
+  costKind: 'loan' as GrossanlassCostKind,
+})
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
@@ -85,12 +117,14 @@ watch(
   [open, () => props.line?.id],
   ([visible]) => {
     if (!visible || !props.line) return
+    const kind = props.line.cost_kind
     form.value = {
       label: props.line.label,
       quantity: String(props.line.quantity),
       location: props.line.location,
       notes: props.line.notes ?? '',
       categoryId: props.line.category_id,
+      costKind: kind === 'purchase' || kind === 'rental' || kind === 'loan' ? kind : 'loan',
     }
     errorMessage.value = ''
   },
@@ -111,10 +145,11 @@ async function submit() {
   try {
     await updateGrossanlassProcurementLine(props.departmentId, props.line.id, {
       label,
-      quantity,
+      ...(quantityLocked.value ? {} : { quantity }),
       location: form.value.location.trim(),
       notes: form.value.notes.trim() || null,
       category_id: form.value.categoryId,
+      cost_kind: form.value.costKind,
     })
     open.value = false
     emit('saved')

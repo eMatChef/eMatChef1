@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Service\Grossanlass;
 
 use App\Entity\ActivityGrossanlassProcurementLine;
+use App\Entity\ActivityGrossanlassWishLine;
 use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassMap;
 use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\DepartmentGrossanlassTask;
+use App\Entity\DepartmentGrossanlassVehicleNeed;
 use App\Entity\Group;
 use App\Entity\User;
 use App\Util\GrossanlassIdGenerator;
@@ -70,6 +72,7 @@ final class GrossanlassBauprojektService
             'description' => null,
             'place' => $this->places->serialize($place),
             'tasks' => [],
+            'vehicles' => [],
             'material' => [],
             'direct_material' => [],
             'packs' => $this->packs->listAtPlace($department, $place->getId()),
@@ -211,6 +214,115 @@ final class GrossanlassBauprojektService
      *
      * @return array<string, mixed>
      */
+    public function createVehicleNeed(Department $department, User $user, Group $group, array $data): array
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $vehicle = trim((string) ($data['vehicle_label'] ?? ''));
+        $task = trim((string) ($data['task_label'] ?? ''));
+        if ($vehicle === '' && $task === '') {
+            throw new \InvalidArgumentException('Fahrzeug oder Aufgabe ist erforderlich');
+        }
+        $max = (int) $this->entityManager->getRepository(DepartmentGrossanlassVehicleNeed::class)
+            ->createQueryBuilder('v')
+            ->select('MAX(v.sortOrder)')
+            ->where('v.groupId = :groupId')
+            ->setParameter('groupId', $group->getId())
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        $row = new DepartmentGrossanlassVehicleNeed();
+        $row->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::VEHICLE_NEED,
+            DepartmentGrossanlassVehicleNeed::class,
+        ));
+        $row->setDepartment($department);
+        $row->setGroup($group);
+        $row->setVehicleLabel($vehicle);
+        $row->setTaskLabel($task);
+        $row->setSortOrder($max + 1);
+        $this->applyVehicleSchedule($row, $data);
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+
+        return $this->serializeVehicleNeed($row);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function updateVehicleNeed(Department $department, User $user, Group $group, string $needId, array $data): array
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $row = $this->findVehicleNeed($department, $group, $needId);
+        if (array_key_exists('vehicle_label', $data)) {
+            $row->setVehicleLabel(trim((string) $data['vehicle_label']));
+        }
+        if (array_key_exists('task_label', $data)) {
+            $row->setTaskLabel(trim((string) $data['task_label']));
+        }
+        if (trim($row->getVehicleLabel()) === '' && trim($row->getTaskLabel()) === '') {
+            throw new \InvalidArgumentException('Fahrzeug oder Aufgabe ist erforderlich');
+        }
+        $this->applyVehicleSchedule($row, $data);
+        $this->entityManager->flush();
+
+        return $this->serializeVehicleNeed($row);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function listVehicleNeeds(Department $department, User $user): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassVehicleNeed::class)
+            ->createQueryBuilder('v')
+            ->innerJoin('v.group', 'g')
+            ->addSelect('g')
+            ->where('v.departmentId = :departmentId')
+            ->setParameter('departmentId', $department->getId())
+            ->orderBy('v.startsAt', 'ASC')
+            ->addOrderBy('g.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassVehicleNeed) {
+                continue;
+            }
+            try {
+                $this->assertCanSee($department, $user, $row->getGroup());
+            } catch (\RuntimeException) {
+                continue;
+            }
+            $item = $this->serializeVehicleNeed($row);
+            $item['group_name'] = $row->getGroup()->getName();
+            $out[] = $item;
+        }
+
+        return $out;
+    }
+
+    public function deleteVehicleNeed(Department $department, User $user, Group $group, string $needId): void
+    {
+        $this->assertBauprojekt($department, $group);
+        $this->assertCanEdit($department, $user, $group);
+        $row = $this->findVehicleNeed($department, $group, $needId);
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
     public function addMaterial(Department $department, User $user, Group $group, array $data): array
     {
         $this->assertBauprojekt($department, $group);
@@ -234,7 +346,14 @@ final class GrossanlassBauprojektService
             return $this->procurement->createLineDirect($department, $user, $payload);
         }
 
-        return $this->wishes->createProjectMaterialWish($department, $user, $group, $data);
+        $created = $this->wishes->createProjectMaterialWish($department, $user, $group, $data);
+        $wishId = trim((string) ($created['id'] ?? ''));
+        $wish = $wishId !== '' ? $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($wishId) : null;
+        if ($wish instanceof ActivityGrossanlassWishLine) {
+            $this->procurement->syncWishOrganization($department, $user, $wish);
+        }
+
+        return $created;
     }
 
     /**
@@ -251,7 +370,13 @@ final class GrossanlassBauprojektService
             return $this->updateDirectMaterial($department, $group, $lineId, $data);
         }
 
-        return $this->wishes->updateProjectMaterialLine($department, $group, $lineId, $data);
+        $updated = $this->wishes->updateProjectMaterialLine($department, $group, $lineId, $data);
+        $wish = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)->find($lineId);
+        if ($wish instanceof ActivityGrossanlassWishLine) {
+            $this->procurement->syncWishOrganization($department, $user, $wish);
+        }
+
+        return $updated;
     }
 
     /**
@@ -313,6 +438,16 @@ final class GrossanlassBauprojektService
         if (array_key_exists('quantity_unit', $data)) {
             $line->setQuantityUnit((string) $data['quantity_unit']);
         }
+        if (array_key_exists('self_organized', $data)) {
+            $line->setSelfOrganized(filter_var($data['self_organized'], FILTER_VALIDATE_BOOLEAN));
+        }
+        if (array_key_exists('wish_kind', $data)) {
+            $kind = trim((string) $data['wish_kind']);
+            if (!in_array($kind, ['material', 'fahrzeug'], true)) {
+                throw new \InvalidArgumentException('Art ist ungültig');
+            }
+            $line->setWishKind($kind);
+        }
     }
 
     /**
@@ -330,6 +465,7 @@ final class GrossanlassBauprojektService
             'department_id' => $group->getDepartmentId(),
             'parent_id' => $group->getParentId(),
             'kind' => $group->getGrossanlassKind(),
+            'node_type' => $this->nodeTypeOf($group),
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
             'build_status' => $group->getBuildStatus(),
@@ -352,6 +488,7 @@ final class GrossanlassBauprojektService
             'description' => $group->getDescription(),
             'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
             'tasks' => $this->serializeTasks($group),
+            'vehicles' => $this->serializeVehicleNeeds($group),
             'material' => $material,
             'direct_material' => $this->serializeDirectMaterial($group),
             'packs' => $place instanceof DepartmentGrossanlassPlace
@@ -423,6 +560,7 @@ final class GrossanlassBauprojektService
                 'pickup_place' => $row->getPickupPlace(),
                 'return_needed' => $row->isReturnNeeded(),
                 'quantity_unit' => $row->getQuantityUnit(),
+                'wish_kind' => $row->getWishKind(),
             ];
         }
 
@@ -522,6 +660,70 @@ final class GrossanlassBauprojektService
         }
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function serializeVehicleNeeds(Group $group): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassVehicleNeed::class)
+            ->findBy(['groupId' => $group->getId()], ['sortOrder' => 'ASC', 'createdAt' => 'ASC']);
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassVehicleNeed) {
+                $out[] = $this->serializeVehicleNeed($row);
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeVehicleNeed(DepartmentGrossanlassVehicleNeed $row): array
+    {
+        return [
+            'id' => $row->getId(),
+            'group_id' => $row->getGroupId(),
+            'vehicle_label' => $row->getVehicleLabel(),
+            'task_label' => $row->getTaskLabel(),
+            'sort_order' => $row->getSortOrder(),
+            'starts_at' => $row->getStartsAt()?->format('Y-m-d\TH:i:s'),
+            'duration_minutes' => $row->getDurationMinutes(),
+            'procurement_line_id' => $row->getProcurementLineId(),
+            'created_at' => $row->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyVehicleSchedule(DepartmentGrossanlassVehicleNeed $row, array $data): void
+    {
+        if (array_key_exists('starts_at', $data)) {
+            $raw = $data['starts_at'];
+            $row->setStartsAt($raw === null || $raw === '' ? null : new \DateTime((string) $raw));
+        }
+        if (array_key_exists('duration_minutes', $data)) {
+            $mins = $data['duration_minutes'];
+            $row->setDurationMinutes($mins === null || $mins === '' ? null : max(0, (int) $mins));
+        }
+    }
+
+    private function findVehicleNeed(Department $department, Group $group, string $needId): DepartmentGrossanlassVehicleNeed
+    {
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassVehicleNeed::class)->find($needId);
+        if (
+            !$row instanceof DepartmentGrossanlassVehicleNeed
+            || $row->getDepartmentId() !== $department->getId()
+            || $row->getGroupId() !== $group->getId()
+        ) {
+            throw new \InvalidArgumentException('Fahrzeugwunsch nicht gefunden');
+        }
+
+        return $row;
+    }
+
     private function findTask(Department $department, Group $group, string $taskId): DepartmentGrossanlassTask
     {
         $task = $this->entityManager->getRepository(DepartmentGrossanlassTask::class)->find($taskId);
@@ -544,15 +746,18 @@ final class GrossanlassBauprojektService
         }
     }
 
+    private function nodeTypeOf(Group $group): string
+    {
+        return match (strtolower(trim((string) ($group->getGrossanlassKind() ?? '')))) {
+            Group::GROSSANLASS_KIND_TEILBEREICH => 'bauprojekt',
+            Group::GROSSANLASS_KIND_BEREICH => 'unterressort',
+            default => 'ressort',
+        };
+    }
+
     private function assertBauprojekt(Department $department, Group $group): void
     {
         $this->assertGroup($department, $group);
-        $kind = $group->getGrossanlassKind();
-        $isBauprojekt = $kind === Group::GROSSANLASS_KIND_TEILBEREICH
-            || (($kind === null || $kind === '') && $group->getParentId() !== null);
-        if (!$isBauprojekt) {
-            throw new \InvalidArgumentException('Aufgaben und Material nur am Bauprojekt');
-        }
     }
 
     private function assertCanSee(Department $department, User $user, Group $group): void
