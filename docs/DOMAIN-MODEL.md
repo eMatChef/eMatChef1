@@ -1,6 +1,6 @@
 # Domänenmodell
 
-Beziehungen, die in `backend/src/Entity/` stehen. Keine Zielbilder. Tiefere Regeln stehen in der verlinkten Fachdoku; wenn die vom Code abweicht, gilt der Code und die Doku ist im selben Schritt zu korrigieren.
+Beziehungen, die in `backend/src/Entity/` stehen. Keine Zielbilder. Tiefere Regeln stehen in der verlinkten Fachdoku. Weicht die Fachdoku von diesem Ist ab, gilt nicht automatisch der Code: Soll-Text bleibt Soll, offensichtlich veraltete Sätze werden ersetzt, unklare Konflikte werden entschieden und danach hier oder in der Fachdatei festgehalten.
 
 ## Organisation und Zugang
 
@@ -64,7 +64,7 @@ Aktivitäts-Abschluss und Buchhaltungs-Abschluss sind entkoppelt; Regeln in [acc
 
 ## Grossanlass-Entities
 
-`DepartmentGrossanlass*` und `ActivityGrossanlass*` erweitern Department bzw. Activity (Config, Budget, Pack, Beschaffung, Runden, Wünsche, …). Ressorts sind `Group` im Grossanlass-Department (`Group.grossanlassKind`, `Group.parent`). Fachregeln: [grossanlass/README.md](./grossanlass/README.md). Der Dokumentkopf dort mischt Spezifikation und Umsetzung — Entities und Controller sind der Ist-Nachweis.
+`DepartmentGrossanlass*` und `ActivityGrossanlass*` erweitern Department bzw. Activity (Config, Budget, Pack, Beschaffung, Runden, Wünsche, …). Ressorts sind `Group` im Grossanlass-Department (`Group.grossanlassKind`, `Group.parent`). Fachregeln: [grossanlass/README.md](./grossanlass/README.md). Der Kopf dort trennt Ist und Soll; Entities und Controller bleiben der Ist-Nachweis.
 
 ## Was dieses Dokument nicht ist
 

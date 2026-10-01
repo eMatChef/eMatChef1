@@ -2,7 +2,7 @@
 
 Konzept-Dokumentation zum **Vorlagen-Editor** (`TemplateEditDialog`, `TemplatesSettingsView`, `TemplateStartWizard`): generische Rezepte (nicht nur Zelte), Hersteller-Picker an das **Address-Scope-Modell**, Start-Assistent, Sortierung/Gruppierung — unabhängig vom Combo-Umbau ([combos/README.md](../combos/README.md), Pakete 0–7 erledigt).
 
-**Stand:** Mai 2026 · **Paket 1 (Editor-Umbau) implementiert** · Paket 2 (Komponenten-Auflösung) offen — siehe [plan.md](./plan.md)
+**Stand:** Mai 2026 · **Paket 1 und 2 implementiert** (Editor und Komponenten-Auflösung Vorlage → Material) — siehe [plan.md](./plan.md)
 
 Verwandt:
 

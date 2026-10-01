@@ -2,7 +2,7 @@
 
 Produktklärung 18.09.2026. **Dieses Dokument gilt** für Projektplanung am Bauprojekt, Event-Standorte und den Helferauftrag. Ergänzt [20260823_New_concept.md](./20260823_New_concept.md) §12.3 (Einsatz) und [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Fahrauftrag, Pack, Standort-QR).
 
-**Status:** Soll — Phasen in [§8](#8-phasen) abhaken.
+**Status:** Phasen P0–P8 in [§8](#8-phasen) sind umgesetzt. Ist-Ergänzungen, die nach diesem Dokument dazukamen: [README §0.2](./README.md#02-baum-ressort-bereich-bauprojekt) und [§0.3](./README.md#03-bauprojekt-karte-aufgaben-fahrzeugwunsch) (Bauvorhaben-Status, gespeichertes `grossanlass_kind = bereich`, Teilen, Polygon, Aufgaben-Zeitblock/Beschrieb/Verantwortliche, Fahrzeugwunsch mit Kategorie und Beschaffungsposition).
 
 **Verwandt:** [README.md](./README.md) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) · [qr/link-schema.md](../qr/link-schema.md)
 
@@ -171,7 +171,7 @@ Bauprojekt anlegen + grober Termin + GA-Ort (kind=bauprojekt) + QR
        Helfer vor Ort, Ort-QR scannen
 ```
 
-Heute ohne die neuen Felder: Projekt anlegen, Wünsche im Formular auf das Projekt, Einsätze danach — kein Arbeitspaket, kein Helferblatt.
+Der Ablauf oben ist Ist, soweit P1–P8 abgehakt sind. Bauvorhaben-Status, Polygon, Teilen, Fahrzeugwunsch und die Aufgabenfelder Start/Dauer/Beschrieb/Verantwortliche stehen in [README §0](./README.md#0-ist-stand), nicht in der Phasenliste.
 
 ---
 

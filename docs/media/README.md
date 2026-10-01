@@ -2,27 +2,33 @@
 
 Zentrales Modell für Bild-Uploads in eMatChef: **ein gemeinsamer Storage-Service**, **kontextspezifische API-Routes** und **wiederverwendbare Frontend-Bausteine**.
 
-**Stand:** Mai 2026 · **Ist-Zustand:** nur Lieferanten-Reparatur (`WorkshopPhotoStorageService`, Paket 14 Supplier-Portal). Schaden melden, Werkstatt-MW und Material-Abbildung sind vorbereitet (URL-Felder), aber ohne echten Datei-Upload.
+**Stand:** Oktober 2026 · **Ist:** `MediaStorageService` für die Kontexte unten. Pakete 0–6 laut [plan.md](./plan.md). [mediathek-zukunft.md](./mediathek-zukunft.md) bleibt Soll.
 
 **Abarbeitung:** [plan.md](./plan.md)
 
 ---
 
-## 1. Problem
+## 1. Ist
 
-Heute existieren **fragmentierte** Foto-Stellen:
+Uploads laufen über `MediaStorageService` (`var/uploads/{departmentId}/…`). `photo_url` an der Schadenmeldung bleibt als Legacy-Feld und wird zusammen mit `photos` gelesen.
 
-| Kontext | DB-Feld | Upload | UI |
-|---------|---------|--------|-----|
-| Werkstatt-Ticket | `workshop_ticket.photos` (JSON) | Lieferant ✅, MW nur URL-PATCH | Supplier-Portal |
-| Schadenmeldung | `activity_issue_report.photo_url` (String) | ❌ | `DamageReportWizard` ohne Foto |
-| Material-Abbildung | — (Frontend `image_url` ohne Backend) | ❌ | Platzhalter in `MaterialDetailView` |
-
-Das führt zu doppelter Logik, uneinheitlichen Metadaten (wer/wann) und erschwert **Retention** (alte Reparatur-Fotos löschen) sowie **Kompression**.
+| Kontext | Konstante | Art |
+|---------|-----------|-----|
+| Werkstatt-Ticket | `workshop_ticket` | Foto |
+| Schadenmeldung | `issue_report` | Foto |
+| Material | `material_item` | Foto |
+| Buchung | `accounting_booking` | Dokument |
+| Follow-up | `accounting_follow_up` | Dokument |
+| J+S-Bestellung | `activity_js_order` | Dokument |
+| Grossanlass-Offerte | `grossanlass_procurement_quote` | Dokument |
+| Grossanlass-Ausweis | `grossanlass_user_card` | Dokument |
+| Grossanlass-Mailanhang | `grossanlass_mail_attachment` | Dokument |
+| Grossanlass-Plan | `grossanlass_map` | Foto |
+| Führerschein | `user_drive_license` | Dokument |
 
 ---
 
-## 2. Zielmodell
+## 2. Modell
 
 ### 2.1 Ein Service, viele Kontexte
 
@@ -92,7 +98,7 @@ var/uploads/{departmentId}/
 }
 ```
 
-`activity_issue_report.photo_url` wird perspektivisch zu **`photos` JSON** (Migration) oder bleibt ein Einzel-Foto mit gleichem Objekt-Shape in einem Array der Länge 1.
+`activity_issue_report` hat `photos` (JSON) und weiterhin `photo_url` für den älteren Einzelstring (Dual-Read, erstes Foto oder Legacy-URL).
 
 ### 2.4 Kompression
 
@@ -103,7 +109,7 @@ var/uploads/{departmentId}/
 - Max. Upload 10 MB roh; nach Kompression typisch 200 KB–1 MB
 - GIF: nur speichern wenn Animation, sonst erstes Frame → JPEG
 
-**Optional später (Paket 5):** Console-Command `app:media:compress-legacy` für bestehende Dateien.
+**Ist (Paket 5):** `app:media:compress-legacy` und `app:media:retention`.
 
 ### 2.5 Retention (Datenmenge)
 
@@ -146,15 +152,17 @@ Siehe [wiederverwendbare-komponenten.md § Medien/Fotos](../wiederverwendbare-ko
 
 ---
 
-## 5. Ist-Zustand (Referenz)
+## 5. Code
 
 | Datei | Rolle |
 |-------|-------|
-| `WorkshopPhotoStorageService.php` | Prototyp — wird zu `MediaStorageService` |
-| `WorkshopPhotoAccessService.php` | Werkstatt-Berechtigung |
-| `SupplierRepairController.php` | Upload/Download Lieferant |
-| `WorkshopPhotoController.php` | Download MW |
-| `SupplierRepairsView.vue` | Erstes UI mit `<input type="file">` |
+| `backend/src/Service/Media/MediaStorageService.php` | Pfade, Speichern, Löschen |
+| `backend/src/Service/Media/MediaFileAccessService.php` | Zugriff je Kontext |
+| `WorkshopPhotoStorageService.php` | Werkstatt-Fotos, delegiert an den zentralen Speicher |
+| `WorkshopPhotoController.php` | Upload Materialwart |
+| `SupplierRepairController.php` | Upload Lieferant |
+| `MaterialPhotoController.php` | Upload Material |
+| `ActivityWorkflowController` | Upload Schadenmeldung |
 
 ---
 

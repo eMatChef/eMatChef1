@@ -1,8 +1,8 @@
 # Lieferanten-Portal (Supplier Portal)
 
-Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Später: Reparatur-Workflow.
+Konzept-Dokumentation für ein **Lieferanten-Portal** mit Firmen-Modell (`SupplierCompany`), mehreren Usern pro Firma, B2B-Katalog für Materialwarte (MW) und optional **eigenem Vermietungsbetrieb** (Operator). Reparatur-Workflow ist umgesetzt (Paket 14).
 
-**Stand:** Mai 2026 · Konzept; **Paket 0–3 implementiert** — Address-Scope, Firmen-Modell, Auth, Plattform-Admin-Onboarding
+**Stand:** Oktober 2026 · **Ist:** Pakete 0–15 laut [plan.md](./plan.md) — Firma, Katalog, Vorlagen, Übergaben, Shop-Import, Sichtbarkeit, Reparaturen. Der folgende Text beschreibt das Modell. Ein eigener Vermietungsbetrieb (Operator) ist darin nicht als umgesetzt gekennzeichnet.
 
 Verwandt:
 
@@ -21,13 +21,13 @@ Eine **Lieferanten-Firma** (z. B. Tortuga AG, Hajk, Zelt-Reparaturbetrieb) kann 
 2. **Material-Vorlagen** pflegen (Stücklisten, Combos, Konfiguratoren — analog zu globalen Vorlagen)
 3. **Lieferungen / Übergaben** erfassen — inkl. **Seriennummern** für serialisiertes Material
 4. **Sichtbarkeit wählen:** nur Entwurf, bestimmte Departments, oder global (mit Freigabe)
-5. *(später)* **Reparaturen** bearbeiten, die an ihn geroutet wurden
+5. **Reparaturen** bearbeiten, die an ihn geroutet wurden (`WorkshopTicket`, Capability `repairs`)
 
 Der **Materialwart (MW)** nutzt den Katalog wie einen **Shop**: Budget kalkulieren, Artikel und Vorlagen **importieren** — ohne manuelles Excel-Mapping. Bei echten Lieferungen kann der Lieferant **Seriennummern mit übergeben**; der MW bestätigt den Import. Der Lieferant schreibt **nicht direkt** in den Department-Bestand.
 
 **Organisation:** Mehrere User pro Firma (`SupplierMembership` mit Rollen). Ein User kann gleichzeitig in **mehreren Departments** und **einer oder mehreren Supplier-Firmen** sein (Abschnitt Phase 1).
 
-**Fundament zuerst:** Phase 1 legt `SupplierCompany` + Membership + öffentliche Kontaktdaten — **Shop/Delivery kommt in Phase 2 auf dieselbe Firma**, ohne erneuten Umbau.
+`SupplierCompany` + Membership sind das Fundament. Katalog, Übergaben, Shop-Import und Reparaturen hängen an derselben Firma (Pakete 8–14, Ist).
 
 ```text
 Lieferant pflegt Katalog + Vorlagen
@@ -39,7 +39,7 @@ MW stöbert / kalkuliert Budget (Shop) · sieht offene Übergaben
 MW importiert bewusst → MaterialItem + MaterialBatch(s) im Department
         (serialisiert: 1 Batch pro SN auf material_batch.serial_number)
         ↓
-(später) MW weist Reparatur zu → Lieferant bearbeitet Ticket
+MW weist Reparatur zu → Lieferant bearbeitet Ticket
 ```
 
 ---
@@ -159,12 +159,12 @@ Dashboard
 ▼ Meine Firma                    ← aufklappbar (Toggle), nur bei Supplier-Membership
     Profil & Kontakt             ← Phase 1 (öffentliche Stammdaten)
     Team                         ← Phase 1, nur admin (User, Join-Code)
-    (ab Phase 2: Katalog, …)     ← erst wenn Capability + Phase 2
+    Katalog, Vorlagen, Reparaturen   ← umgesetzt (Capability)
 ─────────────────────────────────
 Material / Aktivitäten / …       ← normales Department-Menü
 ```
 
-Submenüs **minimal** — nur was Phase 1 braucht; spätere Punkte erst wenn Phase 2/3 existieren.
+Submenüs folgen den Capabilities. Katalog, Shop und Reparaturen sind umgesetzt.
 
 **MW-Seite (Phase 2):** eigenes **Toggle-Submenü** z. B. „Lieferanten-Shop“ — dort liegt der MW-Hauptnutzen; Supplier-Menü bleibt schlank.
 
@@ -172,7 +172,7 @@ Submenüs **minimal** — nur was Phase 1 braucht; spätere Punkte erst wenn Pha
 
 | Bereich | Inhalt | Sichtbarkeit |
 |---------|--------|--------------|
-| **Profil & Kontakt** | Firmenname, `manufacturer_key`; **Adresse + Kontakt** (`address`, `scope=supplier`) | Kontaktdaten **öffentlich** für alle MW (Import, Picker, später Shop) |
+| **Profil & Kontakt** | Firmenname, `manufacturer_key`; **Adresse + Kontakt** (`address`, `scope=supplier`) | Kontaktdaten **öffentlich** für alle MW (Import, Picker, Shop) |
 | **Team** | Memberships, Join-Code für weitere User | nur **admin** |
 | **Operator** | Toggle „Wir vermieten auch“ → `linked_department_id` | nur **admin** (siehe unten) |
 
@@ -717,10 +717,10 @@ Ersetzt: `loadSuppliers(GLOBAL000000)` in `MaterialImportService` und `GLOBAL_SU
 |---------|--------|
 | Migration | Alle `address` in `GLOBAL000000` → `scope=global`, `department_id=NULL` |
 | Code | `GlobalAddressController` filtert `scope=global`, nicht `department_id=GLOBAL000000` |
-| UI | Global Addresses = globale Lieferanten-Stammdaten (bis Firmen-Modell); später Supplier-Admin |
-| Später | `GLOBAL000000` / `GLOBALORG001` löschen, wenn nichts mehr referenziert |
+| UI | Supplier-Admin ist der Pflegeweg; globale Addressen bleiben der Legacy-Scope |
+| Ist | `GLOBAL000000` / `GLOBALORG001` sind entfernt (Paket 15) |
 
-Das Global-Department wird **überflüssig**, nicht nur versteckt.
+Das Global-Department ist entfernt (Paket 15), nicht nur versteckt.
 
 ### 8.6 Tabellen-Übersicht nach Phase
 

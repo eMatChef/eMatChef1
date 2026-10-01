@@ -89,13 +89,11 @@ Ohne geklärte Werkstatt-/Verlust-Kosten: Follow-up noch nicht final verrechnen 
 
 **Ist:** Offene Werkstatt-Tickets mit Aktivitätsbezug erscheinen in `/accounting` als Platzhalter «Kosten folgen» (kein Betrag/Buchung). Echte Follow-ups `activity_workshop` weiterhin erst nach Ticket-Abschluss mit `actual_cost > 0`.
 
-**Ziel:** In der Buchhaltung sichtbar machen, dass zu einer Aktivität noch **Werkstatt-Einträge offen** sind und **Kosten folgen** werden — ohne schon eine Buchung anzulegen.
-
-| Ort (Ziel) | Anzeige |
+| Ort | Anzeige |
 | --- | --- |
-| Übersicht `/accounting` | KPI oder Hinweis: «n Aktivitäten / Tickets mit ausstehenden Werkstatt-Kosten» |
-| Buchungen → Zuordnen / Pending-Liste | Neben echten `pending`-Follow-ups: **Platzhalter-Zeilen** «Werkstatt offen — Kosten folgen» (pro Ticket oder aggregiert pro Aktivität) |
-| Optional Aufgaben / Inbox | gleiche Info, Link zur Werkstatt bzw. Aktivität |
+| Übersicht `/accounting` | KPI `expected_workshop_open_count` |
+| Buchungen → Zuordnen / Pending-Liste | Platzhalter-Zeilen «Kosten folgen» pro offenem Ticket |
+| Aufgaben / Inbox | nicht angebunden |
 
 **Platzhalter-Inhalt (Minimum):**
 

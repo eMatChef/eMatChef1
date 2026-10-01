@@ -4,11 +4,13 @@ Handheld (**Zebra TC700H**), Pistolen-Scanner (**Datalogic PowerScan 8530** am P
 
 **QR-URLs** (Etiketten, PDF, Display): [docs/qr/](../qr/)
 
-**Stand:** August 2026 · **Status:** D1–D3 im Frontend umgesetzt · D4 (Retour) offen · **D5 geplant:** Universal-Scan-Hub · **geplant:** Geräte-Kopplung (QR) + User-PIN + Zugriffs-Tracking
+**Stand:** Oktober 2026 · **Ist:** D1–D3 und D5 Desktop-Layout (`DevicesHomeView`, `DevicesPackSessionView`, Flow nur «Hin», Home-Scan nur Aktivitäts-QR). **Soll:** D4 Retour. **Soll:** Universal-Scan-Hub (kein Phasenname D5; D5 im [rollout-plan.md](./rollout-plan.md) ist das Desktop-Lager). **Soll:** Geräte-Kopplung (QR) + User-PIN + Zugriffs-Tracking.
+
+Entscheidung Oktober 2026: Phase D5 bleibt «Desktop Lager». Der Scan-Hub bleibt geplant und bekommt diese Nummer nicht.
 
 ---
 
-## Universal-Scan-Hub (geplant, D5)
+## Universal-Scan-Hub (Soll)
 
 Ein zentraler Scan-Einstieg auf `devices.ematchef.ch/{dept}/` — Parser erkennt den QR-Typ und schlägt die passende Aktion vor:
 
@@ -21,7 +23,7 @@ Ein zentraler Scan-Einstieg auf `devices.ematchef.ch/{dept}/` — Parser erkennt
 
 Die **App-Journey** bleibt für Kamera, Kisten, Sets und Regal-Übersicht; Link «Im Lager-Scanner öffnen» in der Pack-Journey führt direkt zur Pack-Session auf `devices.`.
 
-Siehe [rollout-plan.md](./rollout-plan.md) Phase D5.
+Nicht Teil von Phase D5. Phase D5 im [rollout-plan.md](./rollout-plan.md) ist das Desktop-Lager und im Layout umgesetzt. Der Hub (Material-, Lager- und Werkstatt-QR von der Startseite) ist Soll.
 
 ## Dokumentation
 
@@ -64,10 +66,8 @@ Login heute einmal pro Schicht; **ein Gerät = eine Abteilung**.
 
 ## Zwei Flows
 
-1. **Hin** — Materiallager → Aktivität  
-2. **Retour** — Aktivität → Materiallager  
-
-Umschalter in der Pack-Session; gleiche APIs wie `ActivityPackListTab` in der App.
+1. **Hin** — Ist. Pack-Session, festes Badge «Hin».
+2. **Retour** — Soll (Rollout D4). Ein Umschalter in der Pack-Session ist nicht umgesetzt.
 
 ---
 

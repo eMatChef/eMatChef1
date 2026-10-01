@@ -331,23 +331,26 @@ Zweite Palette = zweites Pack (eigener QR), gleicher Einsatz oder Kind.
 
 ## 8. Ist vs. Soll
 
-| Thema | Ist | Soll |
-| --- | --- | --- |
-| Dept-Rollen GA | mw, dc, u | + `cmw`, `komm`, `spon`; `dc` = OK-Leitung (eingeschränkt) |
-| Gmail-Recht | `canManagePlanung` (mw+dc) | Mailbox / nehmen / Welle / senden getrennt §4 |
-| Label-Wurzel | `eMatChef` Default | App-Inbox = nur dieses Label |
-| Nehmen | wer planen darf | mw+cmw; Komm/Spon nein |
-| Wellen-Drafts | wer planen darf | nur mw |
-| Fahrer | Klassen an der Karte | + Profil-Accordion; Karte = Anlass-Freigabe |
-| Einsatz-Status | `pending_approval` u. a. | Einsatz-Frei; **Fahrt-Frei** nur wenn Checkbox Fahrt |
-| Zustellung | — | Checkbox **Fahrt** XOR **Selbst abholen**; nur Fahrt = Fahrauftrag |
-| `kind: order` | Nachbedarf | bleibt Nachbedarf, **nicht** Fahrt |
-| Chauffeur | Feld am Einsatz | nur bei Fahrt: Einsatz + Pack-QR + Ziel-Ort |
-| Materialplatz | Bestand bis Ausgabe | leer schon nach Teilpack + MW-Freigabe, vor Fahrt/`starts_at` |
-| Dashboard | Kennzahlen Beschaffung | Box **Fahraufträge** (Klick → Liste), nur Einsätze mit Fahrt |
-| Pack | Checkbox `packed` am Commitment | Zeilen, Teilpack+Warnung, Palette-QR, Standort nach Ziel-Scan |
-| Substandort-QR | — | Ort mit `public_code`, Scan setzt Standort |
-| Mein Ressort | User sieht eigenen Baum | Bereichsleitung + Helfer Homes; OK-L anlassweit |
+Die Phasen R1–R7 sind abgehakt. Die frühere Ist-Spalte (nur `mw`/`dc`/`u`, Gmail über `canManagePlanung`) ist ersetzt. Heute gilt die Soll-Spalte dieser Datei als Ist, ausser den offenen Punkten in [§12](#12-offene-punkte-nicht-blockierend).
+
+Outlook-Connect ist **PARTIAL / DEVELOPMENT** und steht in [README §0.5](./README.md#05-beschaffung-anfragen-wareneingang-kosten), nicht als fertiges Postfach hier.
+
+| Thema | Ist (R1–R7) |
+| --- | --- |
+| Dept-Rollen GA | `mw`, `cmw`, `dc` als OK-Leitung, `komm`, `spon`, `u` als Helfer |
+| Gmail-Recht | Mailbox / nehmen / Welle / senden / verbinden getrennt §4 |
+| Label-Wurzel | App-Inbox filtert auf `eMatChef` |
+| Nehmen | mw+cmw; Komm/Spon nein |
+| Wellen-Drafts und Senden | nur mw |
+| Fahrer | Profil-Accordion plus Anlass-Freigabe auf der Karte |
+| Einsatz | Einsatz frei nach Freigabe; Fahrt frei nur bei Checkbox Fahrt |
+| Zustellung | Checkbox **Fahrt** XOR **Selbst abholen** |
+| `kind: order` | Nachbedarf, nicht Fahrt |
+| Materialplatz | nach Teilpack und MW-Freigabe leer, auch vor Fahrt/`starts_at` |
+| Dashboard | Box **Fahraufträge** nur für Einsätze mit Fahrt |
+| Pack | Zeilen, Teilpack-Warnung, Palette-QR, Standort nach Ziel-Scan |
+| GA-Ort | `/i/ga/…`, Alias `/i/p/…` |
+| Homes | Bereichsleitung und Helfer im eigenen Baum; OK-Leitung anlassweit |
 
 ---
 

@@ -1,8 +1,14 @@
 # Grossanlass — Konzept 2026-08-23
 
-Ideen und Soll-Ablauf aus der Produktklärung (Material & Logistik am Grossanlass). **Ergänzt** [README.md](./README.md) — Formular-Typen sind in **[README §9](./README.md#9-wünsche--ideen-formulare)** aufgenommen. Wo dieses Dokument und ältere README-Stellen (nur `ressort_wuensche`) divergieren, gilt für **Partneranfragen, Grob/Fein, Formular-Zweck und Kontakt-Schnitt** dieses Konzept plus README §9 Soll.
+> **Historischer Konzeptstand** vom 23. August 2026. Keine Ist-Quelle.
+>
+> **Ist heute:** [README.md §0](./README.md#0-ist-stand). Dort sind unter anderem Anfragen, Gmail, Zusagen, Materialübersicht, Wareneingang und Freigabe beschrieben. Outlook ist dort **PARTIAL / DEVELOPMENT**, nicht fertig.
+>
+> Sätze unten, die etwas als «noch nicht gebaut» oder «Anfrage-Tab fehlt» bezeichnen, sind der Stand von August 2026. Sie sind irreführend für den heutigen Code. Offene Ideen in diesem Dokument bleiben **PLANNED**, soweit README §0.8 sie nicht als Ist führt.
 
-**Stand:** 23. August 2026 · **Status:** Konzept (noch nicht implementiert, ausser wo «Ist» markiert)
+Ideen und Soll-Ablauf aus der Produktklärung (Material & Logistik am Grossanlass). Formular-Typen: [README §9](./README.md#9-wünsche--ideen-formulare). Für den heutigen Partneranfrage- und Grob/Fein-Stand gilt README §0 und §9, nicht die Ist-Spalte in §2 dieser Datei.
+
+**Stand des Dokuments:** 23. August 2026 · **Status:** historisches Konzept. Abschnitt 2 ist eine Momentaufnahme vom August 2026.
 
 **Kontext:** Fragerunde → Wunschliste → Beschaffung → Leihgabe/Ausgabe → Rückgabe an Firmen. Gilt für jeden Grossanlass (Folk-Fest, Kantonslager, …), nicht für einen einzelnen benannten Event. Live-Schnitt App ~Ende September 2026 (Planung/Bedarf); Ausgabe und Rückgabe an Geber vor der jeweiligen Anlasswoche.
 
@@ -589,7 +595,7 @@ Der Kern (Pakete, Anfragen-Tab, Gmail-Entwürfe, Thread, Labels, Dank bei Absage
 - Übergabeprotokoll (was, Zustand, Foto optional).
 - Schaden während des Anlasses → Geber (bei Leih).
 - **Rückgabe-Termin** und Checkliste «alles wieder beim Geber» (nur Leih).
-- Fahrzeuge: Ausgabe-Kontrolle §12.1 (darf fahren, Ausweis, Schlüssel) — spezifiziert, noch nicht gebaut.
+- Fahrzeuge: Ausgabe-Kontrolle §12.1 (darf fahren, Ausweis, Schlüssel) — **Stand August 2026 in diesem Konzept.** Heutiger Ist: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) R4–R5 und [README §0](./README.md#0-ist-stand).
 - Herkunft §12.2: Leih / Kauf / Kauf+Weiterverkauf mit kleiner Abschreibung.
 
 Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-genommen-Mail** sind in §7.2 festgehalten — ohne sie reisst die Mail-Kette. Ohne §12.1/§12.2 reisst Ausgabe und Kostenwahrheit.
@@ -615,4 +621,4 @@ Das gehört nicht alles in den ersten Bau; **Gesendet vs. Entwurf** und **Nicht-
 - [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) — Bauprojekt = Ort + Fenster + Aufgaben/Material-Wunsch; GA-Ort-QR, kein zweites Fahrt-Modul
 - [kosten.md](./kosten.md) — Kostenübersicht Material & Logistik (Einkauf / Miete / Weiterverkauf, Zahler)
 - [MVP.md](./MVP.md) — ursprünglicher Schnitt Phase 1–4; Beschaffung-Inhalt war Phase 5 und ist im Code weiter als die MVP-Datei
-- Drive/Excel: Firmen (Bereich), Grobübersicht Material & Fahrzeuge; eine Logistik-Sheet-Vorlage (Anfragen / Kommunikation / Zusagen) als CRM-Vorbild ausserhalb der App, solange der Anfrage-Tab fehlt
+- Drive/Excel: Firmen (Bereich), Grobübersicht Material & Fahrzeuge; eine Logistik-Sheet-Vorlage als CRM-Vorbild ausserhalb der App. Der Anfrage-Tab ist inzwischen gebaut ([README §0.5](./README.md#05-beschaffung-anfragen-wareneingang-kosten)); der Satz «solange der Anfrage-Tab fehlt» gilt nicht mehr.

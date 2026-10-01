@@ -114,6 +114,8 @@ Phasenplan für Umsetzung und Einführung. Baut auf abgeschlossenem [QR-URL-Umba
 
 ### D4 — Flow Retour
 
+**Status:** Soll (Oktober 2026). Die Pack-Session hat nur den Flow «Hin».
+
 **Ziel:** Rückweg Aktivität → Lager.
 
 | Aufgabe | |
@@ -127,6 +129,8 @@ Phasenplan für Umsetzung und Einführung. Baut auf abgeschlossenem [QR-URL-Umba
 ---
 
 ### D5 — Desktop Lager + PowerScan
+
+**Status:** Desktop-Layout in `DevicesHomeView` und `DevicesPackSessionView` umgesetzt (Oktober 2026). Die Startseite öffnet bei einem Aktivitäts-QR die Pack-Session. Scan-Log, alle Zusatzspalten und «In App öffnen» sind damit nicht als abgenommen gekennzeichnet.
 
 **Ziel:** PC mit Pistole — volleres UI, Wedge-Betrieb.
 
@@ -198,9 +202,9 @@ Phasenplan für Umsetzung und Einführung. Baut auf abgeschlossenem [QR-URL-Umba
 
 ### Nginx / Hosting (Richtlinie)
 
-- `devices.ematchef.ch` → **dieselbe** statische SPA wie `app.` (ein Build, mehrere `server_name`).
-- Develop: `devices-dev.ematchef.ch` → gleicher Hostpoint-Ordner wie `app-dev.ematchef.ch` (kein extra FTP-Job).
-- Build: `VITE_DEVICES_HOST` in `scripts/build-hostpoint-deploy-*.sh` (App-Artefakt); CORS auf dem API-Droplet (siehe `deploy/SERVER-UPDATE.md`).
+- `devices.ematchef.ch` → **dieselbe** statische SPA wie `app.` (ein Build, mehrere Hosts).
+- Deploy: Hetzner, rsync, gleicher Webroot wie die App. Hosts und Workflows: [APP-ON-DROPLET.md](../APP-ON-DROPLET.md).
+- CORS auf dem API-Droplet (siehe `deploy/SERVER-UPDATE.md`).
 - API bleibt `api.ematchef.ch` (oder Proxy `/api` in Dev).
 
 ### Lokale Entwicklung

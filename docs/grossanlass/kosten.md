@@ -2,7 +2,7 @@
 
 Spezifikation zum Abarbeiten. Ergänzt [README §3.7](./README.md#37-beschaffung--budget--kosten) und [Konzept §12.2](./20260823_New_concept.md#122-herkunft-leihen-kaufen-kaufen-und-wieder-verkaufen).
 
-**Stand:** 28. August 2026 · **Status:** Spezifikation (entschieden) · Umsetzung nach Phasen unten
+**Stand der Entscheidungen:** 28. August 2026. **Umsetzung:** Phasen K1–K6 unten sind abgehakt und im Code (Cost, Budget, Kosten-Route). Ist-Überblick: [README §0.5](./README.md#05-beschaffung-anfragen-wareneingang-kosten). Der Tab «Erhalten» existiert nicht mehr; der Eingang ist der Wareneingang.
 
 **Verwandt:** [README.md](./README.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [accounting.md](../accounting.md) (nur Abgrenzung — **nicht** anbinden)
 
@@ -32,7 +32,11 @@ Kein Pfadi-`/accounting`. Grobe Soll/Ist-Spur, Cash vs. Netto, Rahmen pro Zahler
 
 ---
 
-## 3. Ist vs. Soll
+## 3. Ausgangslage August 2026 (historisch)
+
+Die Tabelle beschreibt den Stand vor K1–K6. Die Soll-Spalte ist umgesetzt, soweit die Phasen unten abgehakt sind. Nicht als heutige Lücke lesen.
+
+## 3a. Damalige Lücke
 
 | Ist | Problem | Soll |
 | --- | --- | --- |
@@ -42,7 +46,7 @@ Kein Pfadi-`/accounting`. Grobe Soll/Ist-Spur, Cash vs. Netto, Rahmen pro Zahler
 | Finanzen «pro Ressort» | rollt Bedarf | Toggle **Nach Zahler** / **Nach Bedarf** |
 | `activity_grossanlass_procurement_finance.rahmen_chf` | nur gesamt | plus `department_grossanlass_budget` pro Zahler |
 
-Beschaffungs-Workflow (Bedarf → Anfragen → Offerten → Bestellungen → Erhalten) bleibt. Diese Spec ändert **nicht** den Mail-/Zusage-Fluss, sondern Geld und Rahmen.
+Beschaffungs-Workflow (Bedarf → Anfragen → Offerten → Bestellungen → Wareneingang) bleibt. Diese Spec ändert den Mail-/Zusage-Fluss nicht, sondern Geld und Rahmen. Der frühere Tab «Erhalten» ist der Wareneingang.
 
 ---
 

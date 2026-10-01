@@ -2,7 +2,7 @@
 
 Dokumentation zum **Werkstatt-Workflow** in eMatChef: Ticket-Lebenszyklus, Eingänge, Abschluss, Integrationen und Verbesserungsvorschläge.
 
-**Stand:** Juni 2026
+**Stand:** Oktober 2026 · **Ist:** Ticket mit Legacy-`status` und zusätzlich `strategy` / `phase`. Die MW-Oberfläche folgt dem Dual-Track in [plan.md](./plan.md). [materialwart-workflow2026.md](./materialwart-workflow2026.md) bleibt die Soll-Spezifikation, wo der Plan einen Punkt noch offen hat.
 
 | Datei | Inhalt |
 |--------|--------|
@@ -41,6 +41,8 @@ Dokumentation zum **Werkstatt-Workflow** in eMatChef: Ticket-Lebenszyklus, Eing�
 ## Aktueller Stand: Was existiert?
 
 Die Werkstatt ist ein **Ticket-System** (`WorkshopTicket`) mit eigener Ansicht, History, Statistiken und Anbindung an Aktivitäten, Material, Buchhaltung und externe Lieferanten.
+
+Zwei Spuren laufen parallel, absichtlich (siehe [plan.md](./plan.md)): `status` bleibt für Übergänge und das Lieferanten-Portal. Die Materialwart-Ansicht steuert über `strategy` und `phase`. Die Statusmaschine unten ist damit Ist, nicht der einzige Bedienpfad.
 
 ### Kern-Datenmodell
 
