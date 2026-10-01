@@ -1,6 +1,8 @@
-# Nach Review und gruenen Checks: Kommentar /fast-forward auf dem Release-PR.
-# Erlaubt: develop → staging und staging → prod.
-# Kein separater Bot-Account: Merge per github.token (siehe docs/SETUP-GITHUB.md).
+# Release-Promotion: develop → staging und staging → prod.
+# Der PR bleibt für Review und CI. Abgeschlossen wird er nur durch
+# den Kommentar /fast-forward. Der Ziel-Ref wird per Fast-Forward
+# auf den geprüften Head-SHA gesetzt. Kein Squash, kein Merge-Commit,
+# kein Rebase, kein Force-Push.
 name: Fast forward (release)
 
 on:
@@ -10,6 +12,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  checks: read
 
 concurrency:
   group: fast-forward-release
@@ -17,77 +20,19 @@ concurrency:
 
 jobs:
   fast_forward:
-    name: Fast-forward merge
+    name: Fast-forward promotion
     runs-on: ubuntu-latest
     if: github.event.issue.pull_request && github.event.comment.body == '/fast-forward'
-
     steps:
-      - name: Check permission (Core-Team)
-        id: permission
-        uses: actions-cool/check-user-permission@v2
+      - name: Checkout
+        uses: actions/checkout@v7
         with:
-          require: maintain
-          username: ${{ github.event.comment.user.login }}
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Comment on permission denied
-        if: steps.permission.outputs.require-result != 'true'
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          pr-number: ${{ github.event.issue.number }}
-          message: |
-            `/fast-forward` darf nur von Personen mit **Maintain**- oder **Admin**-Rolle in diesem Repository ausgeloest werden.
-
-      - name: Exit if insufficient permission
-        if: steps.permission.outputs.require-result != 'true'
-        run: exit 1
-
-      - name: Validate PR (staging ← develop oder prod ← staging)
-        id: validate
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number,
-            });
-            if (pr.draft) {
-              core.setFailed('Fast-forward nicht fuer Draft-PRs.');
-              return;
-            }
-            const allowed = [
-              { base: 'staging', head: 'develop' },
-              { base: 'prod', head: 'staging' },
-            ];
-            const ok = allowed.some((p) => pr.base.ref === p.base && pr.head.ref === p.head);
-            if (!ok) {
-              core.setFailed(
-                `Nur PRs **staging** <- **develop** oder **prod** <- **staging**. ` +
-                `Dieser PR: **${pr.base.ref}** <- **${pr.head.ref}**.`
-              );
-              return;
-            }
-            // clean = alles gruen; unstable = oft nur optionale/cancelled Checks (z. B. FTP),
-            // waehrend required "CI ok" bereits gruen ist — Releases sonst unnoetig blockiert.
-            const allowedStates = new Set(['clean', 'unstable']);
-            if (!allowedStates.has(pr.mergeable_state)) {
-              core.setFailed(
-                `Kein Fast-forward (mergeable_state: **${pr.mergeable_state}**). ` +
-                'Konflikte / blocked Checks zuerst klaeren.'
-              );
-              return;
-            }
-            core.setOutput('base', pr.base.ref);
-            core.setOutput('head', pr.head.ref);
-
-      - name: Fast-forward merge
-        uses: endre-spotlab/fast-forward-js-action@2.1
-        with:
-          GITHUB_TOKEN: ${{ github.token }}
-          success_message: |
-            Erfolg: **${{ steps.validate.outputs.base }}** wurde per Fast-forward auf **${{ steps.validate.outputs.head }}** gesetzt.
-
-            ```bash
-            git checkout ${{ steps.validate.outputs.base }} && git merge ${{ steps.validate.outputs.head }} --ff-only
-            ```
-          failure_message: 'Fast-forward fehlgeschlagen (Branch-Historie erlaubt kein FF).'
+      - name: Promote by fast-forward
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: node scripts/release-fast-forward.mjs

@@ -26,7 +26,7 @@ Dieses Dokument beschreibt unseren Git-Workflow mit `develop` als Arbeits-Branch
 - Nie direkt auf `staging` oder `prod` committen oder pushen.
 - Neue Arbeit immer von `develop` abzweigen.
 - Jede Aenderung geht per Pull Request (PR) zurueck nach `develop`.
-- Release-Kette: `develop` → `staging` → `prod`, jeweils per Release-PR und Kommentar **`/fast-forward`** (kein normaler Merge-Button auf `staging`/`prod`).
+- Release-Kette: `develop` → `staging` → `prod`. Der Release-PR dient Review und CI. Abgeschlossen wird er nur mit dem Kommentar **`/fast-forward`**. Squash, Merge-Commit und Rebase sind auf diesen PRs keine Promotion.
 - Kleine, klare PRs bevorzugen (ein Thema pro PR).
 
 ## Lokaler Ablauf fuer Features und Fixes
@@ -50,13 +50,33 @@ Anschliessend auf GitHub einen PR erstellen:
 
 ## Release-Ablauf (Fast-forward)
 
-Wenn ein Entwicklungsstand bereit ist:
+Feature, Fix und Chore:
 
-1. PR von `develop` nach `staging` erstellen, CI/Review, Kommentar **`/fast-forward`** (nur **Maintain**/**Admin**; siehe `docs/SETUP-GITHUB.md`)
-2. Auf Staging pruefen (Basic Auth, dann App-Login) — Hosts siehe `deploy/SERVER-UPDATE.md`
-3. PR von `staging` nach `prod` erstellen, CI/Review, erneut **`/fast-forward`**
-4. **CD Staging** bzw. **CD Prod** starten nach dem jeweiligen Push; FTP-Deploy bei Frontend-Aenderungen
-5. Optional ein Release-Tag setzen (z. B. `v1.0.0`)
+1. Branch von `develop`
+2. Pull Request nach `develop`
+3. Normaler Merge gemaess den Regeln fuer `develop` (Merge, Squash oder Rebase)
+
+Release nach Staging:
+
+1. Pull Request `develop` → `staging` (nur Review und CI)
+2. Check `CI ok` muss am Head-Commit erfolgreich sein
+3. Abschluss ausschliesslich durch Kommentar **`/fast-forward`** (Maintain oder Admin)
+4. Der Workflow prueft, dass `staging` ein echter Vorfahre von `develop` ist, und setzt `staging` per Fast-Forward auf genau diesen Commit
+5. Der Push startet CD Staging und das Frontend-Deploy. Auf Staging pruefen (Basic Auth, dann App-Login) — Hosts siehe `deploy/SERVER-UPDATE.md`
+
+Release nach Produktion:
+
+1. Pull Request `staging` → `prod` (nur Review und CI)
+2. Erneut nur **`/fast-forward`**, mit denselben Pruefungen
+3. Der Push startet CD Prod und das Frontend-Deploy. FTP fuer das Prod-Marketing bleibt manuell
+
+Squash, Merge-Commit und Rebase schliessen einen Release-PR nicht ab. Ein Force-Push ist keine Promotion.
+
+Die Rulesets `protect-staging` und `protect-prod` muessen dazu passen: kein Squash, kein Merge, kein Rebase als Button, und der Workflow darf den Fast-Forward-Push ausfuehren. Diese Ruleset-Anpassung ist ein eigener Schritt und ist mit dieser Workflow-Aenderung noch nicht erledigt.
+
+Die bestehende History-Abweichung von `staging` und `prod` wird separat repariert. Bis dahin ist ein Fast-Forward fachlich noch nicht moeglich, auch wenn der Workflow die Pruefung schon durchfuehrt.
+
+Optional danach ein Release-Tag setzen (z. B. `v1.0.0`).
 
 ## Pull-Request-Richtlinien
 
@@ -75,7 +95,8 @@ Wenn ein Entwicklungsstand bereit ist:
 - Require status checks to pass before merging (`CI ok`)
 - Require branches to be up to date before merging
 - Restrict who can push to matching branches
-- Do not allow bypassing the above settings (ausser Ruleset-Bypass fuer GitHub Actions beim Fast-forward)
+- Auf `staging` und `prod` keinen Abschluss per Squash, Merge-Commit oder Rebase. Promotion nur durch `/fast-forward`
+- Der Fast-Forward-Workflow braucht einen Ruleset-Bypass fuer GitHub Actions, sonst kann er den Ref nicht setzen. Der Bypass ist noch nicht gesetzt
 - Allow force pushes: OFF
 - Allow deletions: OFF
 
@@ -99,8 +120,12 @@ Wenn ein Entwicklungsstand bereit ist:
 - `FTP Deploy Prod Marketing` — Hostpoint **ematchef.ch**, nur manuell (`workflow_dispatch`); App auf Prod läuft über `Deploy Frontend Prod` (Droplet)
 - Dev-Tools-Ideen (Banner-Logins, Demo-Seed): [docs/DEV-TOOLS-BACKLOG.md](docs/DEV-TOOLS-BACKLOG.md)
 - `Fast forward` in `.github/workflows/fast-forward.yml`
-  - Kommentar **`/fast-forward`**: `develop` → `staging` oder `staging` → `prod`
-  - Nur Personen mit **Maintain** oder **Admin**; kein separater Bot-Token (nutzt `GITHUB_TOKEN` + Ruleset-Bypass fuer GitHub Actions)
+  - Kommentar **`/fast-forward`**: nur `develop` → `staging` oder `staging` → `prod`
+  - Nur Personen mit **Maintain** oder **Admin**
+  - Pflicht: offener PR, kein Draft, Check **CI ok** erfolgreich, Ziel-SHA ist Vorfahre des Head-SHA, Head unveraendert bis zum Push
+  - Push ohne `--force`: `<head-sha>:refs/heads/<ziel>`
+- `Release PR guard` in `.github/workflows/release-pr-guard.yml`
+  - Kommentar auf Release-PRs. Merged nicht, deployed nicht, ist kein Required Check
 - Übersetzungen: self-hosted [Weblate](https://translate.ematchef.ch) — Setup und erlaubte Sprachen in [docs/TRANSLATION.md](docs/TRANSLATION.md)
 
 
