@@ -1618,7 +1618,7 @@ final class GrossanlassGmailAccountService
             'thread' => $inquiry->getThread(),
             'gmail_draft_id' => $inquiry->getGmailDraftId(),
             'gmail_thread_id' => $inquiry->getGmailThreadId(),
-            'gmail_open_url' => $this->openUrl($department, $inquiry),
+            'gmail_open_url' => $this->openUrl($inquiry->getDepartment(), $inquiry),
             'gmail_message_id' => $inquiry->getGmailMessageId(),
             'created_at' => $inquiry->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'updated_at' => $inquiry->getUpdatedAt()->format(\DateTimeInterface::ATOM),
