@@ -6,6 +6,7 @@ import {
 
 export const GA_BUILD_STATUSES = [
   'planned',
+  'quoted',
   'build',
   'use',
   'teardown',
@@ -74,11 +75,50 @@ export function deriveBuildStatus(
     return true
   })
   if (active.some((period) => period.label === 'abbau')) return 'teardown'
-  if (active.some((period) => period.label === 'aufbau')) return 'build'
-  return 'use'
+  if (active.some((period) => period.label === 'grossanlass')) return 'use'
+  return 'planned'
 }
 
-const REPORT_ORDER: GaBuildStatus[] = ['aborted', 'planned', 'build', 'use', 'teardown', 'done']
+const REPORT_ORDER: GaBuildStatus[] = ['aborted', 'planned', 'quoted', 'build', 'use', 'teardown', 'done']
+
+export type GaProcurementProgress = 'quoted' | 'build'
+
+export function descendantProcurementProgress(
+  rootId: string,
+  groups: Array<{ id: string; parent_id?: string | null; procurement_progress?: string | null }>,
+): GaProcurementProgress | null {
+  const byParent = new Map<string, typeof groups>()
+  for (const group of groups) {
+    const parentId = group.parent_id || ''
+    const list = byParent.get(parentId) ?? []
+    list.push(group)
+    byParent.set(parentId, list)
+  }
+  let progress: GaProcurementProgress | null = null
+  const walk = (id: string) => {
+    for (const child of byParent.get(id) ?? []) {
+      const next = normalizeProcurementProgress(child.procurement_progress)
+      if (next === 'build') progress = 'build'
+      else if (next === 'quoted' && progress !== 'build') progress = 'quoted'
+      walk(child.id)
+    }
+  }
+  walk(rootId)
+  return progress
+}
+
+function normalizeProcurementProgress(value: string | null | undefined): GaProcurementProgress | null {
+  if (value === 'build') return 'build'
+  if (value === 'quoted' || value === 'use') return 'quoted'
+  return null
+}
+
+function raiseBuildStatus(status: GaBuildStatus, floor: string | null | undefined): GaBuildStatus {
+  const next = normalizeProcurementProgress(floor)
+  if (next === 'build' && (status === 'planned' || status === 'quoted')) return 'build'
+  if (next === 'quoted' && status === 'planned') return 'quoted'
+  return status
+}
 
 export function childReportedStatuses(
   rootId: string,
@@ -111,24 +151,34 @@ export function resolveBuildStatus(
     build_status?: string | null
     window_start?: string | null
     window_end?: string | null
+    procurement_progress?: string | null
   },
   today = todayYmd(),
   childReports: Array<string | null | undefined> = [],
+  childProcurement: string | null = null,
 ): GaBuildStatus {
-  const reports: GaBuildStatus[] = []
-  if (group.node_type === 'bauprojekt' && isGaBuildStatus(group.build_status)) {
-    reports.push(group.build_status)
+  if (isGaBuildStatus(group.build_status)) {
+    return group.build_status
   }
+  const reports: GaBuildStatus[] = []
   for (const value of childReports) {
     if (isGaBuildStatus(value)) reports.push(value)
   }
-  if (reports.length === 0) {
-    return deriveBuildStatus(group.window_start, group.window_end, today)
+  let status = deriveBuildStatus(group.window_start, group.window_end, today)
+  if (reports.length > 0) {
+    if (reports.includes('aborted')) {
+      status = 'aborted'
+    } else {
+      for (const step of REPORT_ORDER) {
+        if (reports.includes(step)) {
+          status = step
+          break
+        }
+      }
+    }
   }
-  for (const status of REPORT_ORDER) {
-    if (reports.includes(status)) return status
-  }
-  return deriveBuildStatus(group.window_start, group.window_end, today)
+  status = raiseBuildStatus(status, group.procurement_progress)
+  return raiseBuildStatus(status, childProcurement)
 }
 
 export function gaBuildStatusI18nKey(status: GaBuildStatus): string {

@@ -21,6 +21,8 @@
               :window-baseline="windowBaseline"
               :status-baseline="buildStatusBaseline"
               :node-type="briefing.group?.node_type"
+              :procurement-progress="briefing.group?.procurement_progress"
+              :allow-manual="briefing.can_set_build_status === true"
               hint-class="muted"
               :save-window="saveWindowAutosave"
               :save-status="saveStatusAutosave"
@@ -118,6 +120,7 @@
         <v-expansion-panel value="tasks">
           <v-expansion-panel-title>
             {{ t('grossanlass.planung.ressorts.tasksHeading') }}
+            <span v-if="taskTitleMeta" class="ga-bauprojekt-panel__title-meta">{{ taskTitleMeta }}</span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <p v-if="!briefing.can_edit && !taskBlocks.length" class="muted">{{ t('grossanlass.planung.ressorts.tasksEmpty') }}</p>
@@ -275,10 +278,16 @@
         <v-expansion-panel value="vehicles">
           <v-expansion-panel-title>
             {{ t('grossanlass.planung.ressorts.vehiclesHeading') }}
+            <span v-if="vehicleTitleMeta" class="ga-bauprojekt-panel__title-meta">{{ vehicleTitleMeta }}</span>
           </v-expansion-panel-title>
           <v-expansion-panel-text>
             <p v-if="!briefing.can_edit && !vehicleBlocks.length" class="muted">{{ t('grossanlass.planung.ressorts.vehiclesEmpty') }}</p>
-            <div v-for="block in vehicleBlocks" :key="block.key" class="ga-block ga-vehicle">
+            <div
+              v-for="block in vehicleBlocks"
+              :key="block.key"
+              class="ga-block ga-vehicle"
+              :class="{ 'is-unsaved': isVehicleUnsaved(block) }"
+            >
               <div class="ga-block__time">
                 <EDateField
                   v-model="block.date"
@@ -308,6 +317,11 @@
                 :disabled="!briefing.can_edit"
                 hide-details
               />
+              <GrossanlassVehicleCategoryField
+                v-model="block.category"
+                :department-id="departmentId"
+                :disabled="!briefing.can_edit"
+              />
               <ETextField
                 v-model="block.vehicle"
                 class="ga-vehicle__wish"
@@ -328,6 +342,16 @@
                   <v-icon icon="mdi-content-save" size="16" />
                 </span>
                 <button
+                  v-if="briefing.can_edit && !block.id"
+                  type="button"
+                  class="ga-mat-entry__plus"
+                  :disabled="!canSaveNewVehicle(block) || block.saving"
+                  :title="t('grossanlass.planung.ressorts.vehicleRowSave')"
+                  @click="addVehicleBlock"
+                >
+                  <v-icon icon="mdi-plus" size="22" />
+                </button>
+                <button
                   v-if="briefing.can_edit && block.id"
                   type="button"
                   class="action-btn"
@@ -339,7 +363,7 @@
               </div>
             </div>
             <button
-              v-if="briefing.can_edit"
+              v-if="briefing.can_edit && !vehicleBlocks.some((row) => !row.id)"
               type="button"
               class="ga-block__add"
               @click="addVehicleBlock"
@@ -466,7 +490,7 @@
                 </div>
               </template>
             </div>
-            <div v-if="briefing.can_edit && !materialEditKey" class="ga-mat-entry ga-mat-entry--add">
+            <div v-if="briefing.can_edit" class="ga-mat-entry ga-mat-entry--add">
               <div class="ga-mat-entry__body">
                   <div class="ga-mat-entry__line">
                     <ETextField
@@ -565,6 +589,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import { EAutocomplete, EButton, EDateField, ESelect, ETextarea, ETextField, ETimeField } from '@/components/form/base'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
+import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import GrossanlassPlacePreviewMap from '@/components/grossanlass/GrossanlassPlacePreviewMap.vue'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useToast } from '@/composables/useToast'
@@ -641,6 +666,7 @@ const buildStatusText = computed(() => {
   return t(gaBuildStatusI18nKey(resolveBuildStatus({
     node_type: briefing.value.group?.node_type,
     build_status: briefing.value.build_status ?? briefing.value.group?.build_status,
+    procurement_progress: briefing.value.group?.procurement_progress,
     window_start: briefing.value.window_start,
     window_end: briefing.value.window_end,
   })))
@@ -870,6 +896,18 @@ const materialTitleMeta = computed(() => {
   if (wishCount) parts.push(t('grossanlass.meinRessort.wishCount', { n: wishCount }))
   if (selfCount) parts.push(t('grossanlass.meinRessort.selfCount', { n: selfCount }))
   return parts.length ? `· ${parts.join(' · ')}` : ''
+})
+
+const vehicleTitleMeta = computed(() => {
+  const count = vehicleBlocks.value.filter((block) => block.id).length
+  if (!count) return ''
+  return `· ${t('grossanlass.meinRessort.vehicleCount', { n: count })}`
+})
+
+const taskTitleMeta = computed(() => {
+  const count = taskBlocks.value.filter((block) => block.id).length
+  if (!count) return ''
+  return `· ${t('grossanlass.meinRessort.taskCount', { n: count })}`
 })
 
 const einsatzTitleMeta = computed(() => {
@@ -1128,6 +1166,7 @@ type VehicleBlock = {
   end: string
   task: string
   vehicle: string
+  category: string
   saving: boolean
 }
 const vehicleBlocks = ref<VehicleBlock[]>([])
@@ -1590,12 +1629,13 @@ function blankVehicleBlock(): VehicleBlock {
     end: '08:00',
     task: '',
     vehicle: '',
+    category: '',
     saving: false,
   }
 }
 
 function vehicleFingerprint(block: VehicleBlock): string {
-  return [block.task, block.vehicle, block.date, block.time, block.end].join('\u0000')
+  return [block.task, block.vehicle, block.category, block.date, block.time, block.end].join('\u0000')
 }
 
 function syncVehicleEditors() {
@@ -1611,6 +1651,7 @@ function syncVehicleEditors() {
       id: row.id,
       task: row.task_label,
       vehicle: row.vehicle_label,
+      category: row.category_label || '',
       date: slot.date,
       time: start,
       end: row.duration_minutes && startMin != null
@@ -1619,7 +1660,7 @@ function syncVehicleEditors() {
       saving: false,
     }
   })
-  if (briefing.value?.can_edit && vehicleBlocks.value.length === 0) {
+  if (briefing.value?.can_edit && !vehicleBlocks.value.some((row) => !row.id)) {
     vehicleBlocks.value.push(blankVehicleBlock())
   }
   for (const block of vehicleBlocks.value) {
@@ -1628,11 +1669,12 @@ function syncVehicleEditors() {
 }
 
 async function addVehicleBlock() {
-  const pending = vehicleBlocks.value.filter((block) => !block.id && (block.task.trim() || block.vehicle.trim()))
+  const pending = vehicleBlocks.value.filter((block) => !block.id && canSaveNewVehicle(block))
   for (const block of pending) {
     await saveVehicleBlock(block)
     if (!block.id) return
   }
+  if (vehicleBlocks.value.some((block) => !block.id)) return
   const previous = vehicleBlocks.value[vehicleBlocks.value.length - 1]
   const block = blankVehicleBlock()
   if (previous) {
@@ -1643,6 +1685,23 @@ async function addVehicleBlock() {
   }
   vehicleBlocks.value.push(block)
   vehicleSavedFingerprint.set(block.key, vehicleFingerprint(block))
+}
+
+function canSaveNewVehicle(block: VehicleBlock): boolean {
+  return Boolean(block.task.trim() || block.vehicle.trim())
+}
+
+function isVehicleUnsaved(block: VehicleBlock): boolean {
+  if (!briefing.value?.can_edit) return false
+  if (!block.id) return canSaveNewVehicle(block)
+  return vehicleSavedFingerprint.get(block.key) !== vehicleFingerprint(block)
+}
+
+function isTaskUnsaved(block: TaskBlock): boolean {
+  if (!briefing.value?.can_edit) return false
+  const hasContent = Boolean(block.title.trim() || block.description.trim())
+  if (!block.id) return hasContent
+  return taskSavedFingerprint.get(block.key) !== taskFingerprint(block)
 }
 
 function scheduleVehicleAutosave(block: VehicleBlock) {
@@ -1678,6 +1737,7 @@ async function saveVehicleBlock(block: VehicleBlock) {
   const payload = {
     task_label: block.task.trim(),
     vehicle_label: block.vehicle.trim(),
+    category_label: block.category.trim() || null,
     starts_at: block.date ? `${block.date}T${block.time || '00:00'}:00` : null,
     duration_minutes: durationMinutes(block.time, block.end),
   }
@@ -1846,6 +1906,33 @@ function openPrint() {
     params: { departmentId: props.departmentId, groupId: props.groupId },
   })
 }
+
+const hasUnsavedChanges = computed(() => {
+  if (!briefing.value?.can_edit) return false
+  const savedDescription = (briefing.value.description || briefing.value.group?.description || '').trim()
+  if (description.value.trim() !== savedDescription) return true
+  if (vehicleBlocks.value.some((block) => isVehicleUnsaved(block))) return true
+  if (taskBlocks.value.some((block) => isTaskUnsaved(block))) return true
+  if (materialComposer.value.label.trim()) return true
+  if (materialEditKey.value) {
+    const row = materialDrafts.value.find((item) => item.key === materialEditKey.value)
+    if (row && materialSavedFingerprint.get(row.key) !== materialFingerprint(row)) return true
+  }
+  return false
+})
+
+async function confirmClose(): Promise<boolean> {
+  if (!hasUnsavedChanges.value) return true
+  return confirm.confirm({
+    title: t('grossanlass.planung.ressorts.unsavedCloseTitle'),
+    message: t('grossanlass.planung.ressorts.unsavedCloseMessage'),
+    confirmText: t('settings.groups.close'),
+    cancelText: t('layout.confirm.back'),
+    variant: 'warning',
+  })
+}
+
+defineExpose({ confirmClose })
 
 watch(placeSectionOpen, (open) => {
   if (!open) return
@@ -2063,6 +2150,16 @@ onMounted(() => {
 }
 .ga-vehicle {
   grid-template-columns: 168px minmax(0, 1fr) minmax(180px, 260px) auto;
+}
+.ga-vehicle.is-unsaved {
+  border: 2px solid var(--color-primary, #059669);
+  border-radius: 10px;
+  padding: 10px 8px;
+  background: color-mix(in srgb, var(--color-primary, #059669) 8%, #fff);
+  margin-bottom: 8px;
+}
+.ga-vehicle.is-unsaved :deep(.v-field) {
+  box-shadow: inset 0 0 0 1.5px var(--color-primary, #059669);
 }
 .ga-vehicle .ga-block__time,
 .ga-vehicle .ga-block__needed { grid-column: 1; }

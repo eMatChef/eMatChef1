@@ -4,8 +4,67 @@
     <p v-else-if="gmailIsReady" class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
     <p v-else class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.introDisconnected') }}</p>
 
-    <section v-if="gmailIsReady" class="panel templates-panel">
-      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
+    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
+      <v-expansion-panel value="gmail">
+        <v-expansion-panel-title>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
+              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
+                {{ gmailIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+              <span v-if="canConnectGmail" class="mailbox-options" @click.stop>
+                <EButton
+                  v-if="!status?.connected"
+                  variant="primary"
+                  size="x-small"
+                  :disabled="!status?.oauth_configured"
+                  @click="connect"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
+                </EButton>
+                <EButton v-else variant="secondary" size="x-small" :loading="disconnecting" @click="disconnect">
+                  {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
+                </EButton>
+                <span class="dev-button">
+                  <EButton variant="secondary" size="x-small" disabled>
+                    {{ t('grossanlass.einstellungen.anfragenEmail.outlookConnect') }}
+                  </EButton>
+                  <span class="dev-button__flag">{{ t('grossanlass.einstellungen.anfragenEmail.outlookDevBadge') }}</span>
+                </span>
+              </span>
+            </span>
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
+          <p v-else-if="status?.connected" class="ok">
+            {{ status.provider_label
+              ? t('grossanlass.einstellungen.anfragenEmail.connectedVia', { email: status.email || '', provider: status.provider_label })
+              : t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
+          </p>
+          <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
+          <p v-if="status?.redirect_uri" class="muted">
+            {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="status && !status.oauth_configured" class="warn">
+            {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
+          <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+      <v-expansion-panel value="templates">
+        <v-expansion-panel-title>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}
+            </span>
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
 
       <div class="zeitraum-block">
@@ -149,58 +208,6 @@
           {{ t('grossanlass.beschaffung.anfragen.previewAttachment', { name }) }}
         </p>
       </div>
-    </section>
-
-    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
-      <v-expansion-panel value="gmail">
-        <v-expansion-panel-title>
-          <span class="panel-head">
-            <span class="panel-head__label">
-              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
-              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
-                {{ gmailIsReady
-                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
-                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
-              </span>
-            </span>
-          </span>
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
-          <p v-else-if="status?.connected" class="ok">
-            {{ status.provider_label
-              ? t('grossanlass.einstellungen.anfragenEmail.connectedVia', { email: status.email || '', provider: status.provider_label })
-              : t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
-          </p>
-          <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
-          <p v-if="status?.redirect_uri" class="muted">
-            {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
-          </p>
-          <p v-if="status && !status.oauth_configured" class="warn">
-            {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
-          </p>
-          <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
-          <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
-          <div v-if="canConnectGmail" class="actions actions--stack">
-            <EButton
-              v-if="!status?.connected"
-              variant="primary"
-              size="small"
-              :disabled="!status?.oauth_configured"
-              @click="connect"
-            >
-              {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
-            </EButton>
-            <EButton v-else variant="secondary" size="small" :loading="disconnecting" @click="disconnect">
-              {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
-            </EButton>
-            <span class="dev-button">
-              <EButton variant="secondary" size="small" disabled>
-                {{ t('grossanlass.einstellungen.anfragenEmail.outlookConnect') }}
-              </EButton>
-              <span class="dev-button__flag">{{ t('grossanlass.einstellungen.anfragenEmail.outlookDevBadge') }}</span>
-            </span>
-          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
@@ -591,7 +598,7 @@ const unusedKinds = computed(() =>
   GROSSANLASS_MAIL_OPTIONAL_KINDS.filter((kind) => !templates.value.some((row) => row.kind === kind)),
 )
 
-const openSetupPanels = ref<string[]>(['gmail', 'routing'])
+const openSetupPanels = ref<string[]>(['templates'])
 
 const gmailIsReady = computed(() => !!status.value?.connected)
 
@@ -605,8 +612,9 @@ const routingIsReady = computed(
 
 function applySetupPanels() {
   const open: string[] = []
-  if (!gmailIsReady.value) open.push('gmail')
-  if (!routingIsReady.value) open.push('routing')
+  if (openSetupPanels.value.includes('templates')) open.push('templates')
+  if (openSetupPanels.value.includes('gmail')) open.push('gmail')
+  if (gmailIsReady.value && !routingIsReady.value) open.push('routing')
   openSetupPanels.value = open
 }
 
@@ -1319,6 +1327,19 @@ onUnmounted(() => {
 .warn { color: #9a3412; font-size: 0.85rem; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 6px; overflow: visible; }
 .actions--stack { flex-direction: column; align-items: flex-start; gap: 14px; }
+.mailbox-options {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+.mailbox-options :deep(.v-btn) {
+  height: 26px;
+  min-height: 26px;
+  font-size: 0.75rem;
+  padding-inline: 10px;
+}
 .mb-3 { margin-bottom: 12px; }
 .template-tabs {
   display: flex;

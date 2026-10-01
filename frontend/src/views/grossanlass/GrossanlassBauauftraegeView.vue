@@ -79,6 +79,7 @@
           v-model:end="createForm.window_end"
           v-model:status="createForm.build_status"
           :window-label="t('grossanlass.planung.ressorts.windowLabel')"
+          :allow-manual="canSetStatusOnCreate"
         />
       </div>
       <template #actions>
@@ -98,16 +99,18 @@
       :max-width="1400"
       :title="projectTitle"
       :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
       highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"
+        ref="bauprojektPanelRef"
         :department-id="departmentId"
         :group-id="projectGroup.id"
         @meta-saved="onProjectMetaSaved"
       />
       <template #actions>
-        <EButton variant="secondary" size="small" @click="showProject = false">
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
           {{ t('settings.groups.close') }}
         </EButton>
       </template>
@@ -119,6 +122,8 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { gaCanSetBuildStatus } from '@/utils/grossanlassAccess'
 import { useToast } from '@/composables/useToast'
 import { useGrossanlassRessortScope } from '@/composables/useGrossanlassRessortScope'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
@@ -141,8 +146,10 @@ import {
   type NestedTreeNode,
 } from '@/utils/grossanlassGroupHierarchy'
 import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import {
   childReportedStatuses,
+  descendantProcurementProgress,
   gaBuildStatusI18nKey,
   resolveBuildStatus,
   showsGaBuildStatus,
@@ -152,6 +159,7 @@ import { gaBauauftragComposerKey } from '@/views/grossanlass/gaBauauftragCompose
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
+const authStore = useAuthStore()
 const router = useRouter()
 const { t } = useI18n()
 const toast = useToast()
@@ -164,8 +172,14 @@ const openIds = ref<string[]>([])
 const listMode = ref<'mine' | 'tree'>('mine')
 const showCreate = ref(false)
 const showProject = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProject)
 const projectGroup = ref<GrossanlassGroup | null>(null)
 const saving = ref(false)
+const canSetStatusOnCreate = computed(() => {
+  const parent = groups.value.find((row) => row.id === createForm.value.parent_id) ?? null
+  return gaCanSetBuildStatus(authStore.currentDepartmentRole, authStore.userId, parent, groups.value)
+})
+
 const createForm = ref({
   name: '',
   parent_id: '',
@@ -233,7 +247,12 @@ function windowText(group: GrossanlassGroup): string {
 function statusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
   const reports = group.node_type === 'bauprojekt' ? [] : childReportedStatuses(group.id, groups.value)
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reports)))
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(
+    group,
+    undefined,
+    reports,
+    descendantProcurementProgress(group.id, groups.value),
+  )))
 }
 
 const parentItems = computed(() =>
@@ -412,6 +431,7 @@ onBeforeUnmount(() => {
 }
 .window-chip { color: #475569; background: #f1f5f9; }
 .status-chip--planned { background: #e2e8f0; color: #334155; }
+.status-chip--quoted { background: #dbeafe; color: #1e40af; }
 .status-chip--build { background: #fde68a; color: #92400e; }
 .status-chip--use { background: #99f6e4; color: #115e59; }
 .status-chip--teardown { background: #fed7aa; color: #9a3412; }

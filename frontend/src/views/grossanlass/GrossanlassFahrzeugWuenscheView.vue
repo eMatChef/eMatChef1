@@ -46,6 +46,7 @@
             <tr>
               <th>{{ t('grossanlass.planung.wishForms.colProject') }}</th>
               <th>{{ t('grossanlass.planung.ressorts.vehicleTask') }}</th>
+              <th>{{ t('grossanlass.planung.ressorts.vehicleCategory') }}</th>
               <th>{{ t('grossanlass.planung.ressorts.vehicleWish') }}</th>
               <th>{{ t('grossanlass.materialUebersicht.colWhen') }}</th>
             </tr>
@@ -54,6 +55,7 @@
             <tr v-for="row in visibleRows" :key="row.id">
               <td>{{ row.group_name }}</td>
               <td>{{ row.task_label || '–' }}</td>
+              <td>{{ row.category_label || '–' }}</td>
               <td>{{ row.vehicle_label || '–' }}</td>
               <td>{{ whenLabel(row) }}</td>
             </tr>
@@ -75,6 +77,7 @@
         :label="t('grossanlass.planung.ressorts.vehicleTask')"
         hide-details
       />
+      <GrossanlassVehicleCategoryField v-model="form.category" :department-id="departmentId" />
       <ETextField
         v-model="form.vehicle"
         :label="t('grossanlass.planung.ressorts.vehicleWish')"
@@ -106,6 +109,7 @@ import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
 import PageShell from '@/components/layout/PageShell.vue'
 import { EButton, EDateField, ESearchField, ESelect, ETextField, ETimeField } from '@/components/form/base'
+import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
 import {
   createGrossanlassBauprojektVehicle,
@@ -131,6 +135,7 @@ const form = ref({
   groupId: '',
   task: '',
   vehicle: '',
+  category: '',
   date: '',
   time: '08:00',
   end: '08:15',
@@ -146,7 +151,7 @@ const visibleRows = computed(() => {
   const query = search.value.trim().toLowerCase()
   if (!query) return rows.value
   return rows.value.filter((row) =>
-    [row.group_name, row.task_label, row.vehicle_label].join(' ').toLowerCase().includes(query),
+    [row.group_name, row.task_label, row.category_label, row.vehicle_label].join(' ').toLowerCase().includes(query),
   )
 })
 
@@ -195,12 +200,14 @@ async function submitWish() {
     await createGrossanlassBauprojektVehicle(departmentId.value, form.value.groupId, {
       task_label: form.value.task.trim(),
       vehicle_label: form.value.vehicle.trim(),
+      category_label: form.value.category.trim() || null,
       starts_at: form.value.date ? `${form.value.date}T${form.value.time || '08:00'}:00` : null,
       duration_minutes: duration,
     })
     toast.success(t('grossanlass.planung.ressorts.vehicleSaved'))
     form.value.task = ''
     form.value.vehicle = ''
+    form.value.category = ''
     rows.value = await listGrossanlassVehicleNeeds(departmentId.value)
     activeTab.value = 'responses'
   } catch (e: unknown) {

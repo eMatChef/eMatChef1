@@ -18,6 +18,7 @@ use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentDefaultCoachSyncService;
 use App\Service\DepartmentResetService;
 use App\Service\DepartmentRoleLabelService;
+use App\Service\UserEmailAliasService;
 use App\Service\DevEnvironmentService;
 use App\Service\Grossanlass\GrossanlassDepartmentCreateService;
 use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
@@ -50,6 +51,7 @@ class DepartmentController extends AbstractController
         private GrossanlassDepartmentCreateService $grossanlassDepartmentCreateService,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private DepartmentDefaultCoachSyncService $departmentDefaultCoachSync,
+        private UserEmailAliasService $emailAliases,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -1101,6 +1103,9 @@ class DepartmentController extends AbstractController
             if ($requestedEmail !== $currentEmail) {
                 $existing = $this->entityManager->getRepository(Profile::class)->findOneBy(['email' => $requestedEmail]);
                 if ($existing && $existing->getId() !== $profile->getId()) {
+                    return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
+                }
+                if ($this->emailAliases->isEmailTaken($requestedEmail, $targetUser)) {
                     return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
                 }
 

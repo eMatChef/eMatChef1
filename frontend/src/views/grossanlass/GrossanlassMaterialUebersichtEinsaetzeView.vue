@@ -106,17 +106,19 @@
       :max-width="1400"
       :title="projectTitle"
       :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
       highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup"
+        ref="bauprojektPanelRef"
         :department-id="String(route.params.departmentId || '')"
         :group-id="projectGroup.id"
         :initial-open="projectSections"
         @meta-saved="onProjectMetaSaved"
       />
       <template #actions>
-        <EButton variant="secondary" size="small" @click="showProject = false">
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
           {{ t('settings.groups.close') }}
         </EButton>
       </template>
@@ -161,6 +163,7 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
 import GrossanlassEinsatzProgrammCalendar from '@/views/grossanlass/GrossanlassEinsatzProgrammCalendar.vue'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
 import { groupsToOrgGroups, toHelperAssignment, type GaHelperAssignment } from '@/views/grossanlass/grossanlassHelperAssignment'
 import '@/styles/views/materials-view-tabs.css'
@@ -270,6 +273,7 @@ function parentName(job: GrossanlassGroup): string {
 }
 
 const showProject = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProject)
 const belegungReload = ref(0)
 const projectGroup = ref<GrossanlassGroup | null>(null)
 const projectSections = ref<string[]>(['material', 'tasks'])

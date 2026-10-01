@@ -168,6 +168,7 @@ function statusChip(group: GrossanlassGroup): string {
   background: #f1f5f9;
 }
 .status-chip--planned { background: #e2e8f0; color: #334155; }
+.status-chip--quoted { background: #dbeafe; color: #1e40af; }
 .status-chip--build { background: #fde68a; color: #92400e; }
 .status-chip--use { background: #99f6e4; color: #115e59; }
 .status-chip--teardown { background: #fed7aa; color: #9a3412; }

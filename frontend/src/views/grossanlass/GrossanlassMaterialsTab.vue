@@ -28,6 +28,7 @@ import type { GaMaterialsTabId } from '@/views/grossanlass/grossanlassMaterialsP
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { commitmentTabs } from '@/views/grossanlass/grossanlassCommitmentMap'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 
 const route = useRoute()
 const router = useRouter()
@@ -73,7 +74,7 @@ function onCreated(row: GrossanlassCommitment) {
   if (!id) return
   const tabs = commitmentTabs(row)
   const from = tabs.includes('leihweise') ? 'leihweise' : 'eigen'
-  void router.push({ path: `/${id}/materialien/artikel/${row.id}`, query: { from } })
+  void router.push(gaBestandArtikelPath(id, row.id, from))
 }
 </script>
 

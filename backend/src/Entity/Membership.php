@@ -38,6 +38,10 @@ class Membership
     #[ORM\Column(name: 'is_js_coach', type: 'boolean', options: ['default' => false])]
     private bool $isJsCoach = false;
 
+    /** Empfänger für Mails dieses Departments. Leer = Hauptadresse (Profil). */
+    #[ORM\Column(name: 'notification_email', type: 'string', length: 180, nullable: true)]
+    private ?string $notificationEmail = null;
+
     public function getUserId(): string
     {
         return $this->userId;
@@ -114,6 +118,19 @@ class Membership
     public function setIsJsCoach(bool $isJsCoach): self
     {
         $this->isJsCoach = $isJsCoach;
+        return $this;
+    }
+
+    public function getNotificationEmail(): ?string
+    {
+        return $this->notificationEmail;
+    }
+
+    public function setNotificationEmail(?string $notificationEmail): self
+    {
+        $normalized = strtolower(trim((string) $notificationEmail));
+        $this->notificationEmail = $normalized !== '' ? $normalized : null;
+
         return $this;
     }
 }

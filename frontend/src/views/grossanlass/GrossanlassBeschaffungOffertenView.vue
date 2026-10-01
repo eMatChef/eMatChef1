@@ -36,6 +36,7 @@
             <li v-for="quote in line.quotes" :key="quote.id" class="quote-row" :class="{ 'is-selected': quote.selected }">
               <div>
                 <strong>{{ quote.supplier }}</strong>
+                <span v-if="quoteSource(quote)" class="quote-source">{{ quoteSource(quote) }}</span>
                 <span v-if="quote.supplier_address?.city_line" class="quote-supplier-meta">
                   · {{ quote.supplier_address.city_line }}
                 </span>
@@ -44,7 +45,7 @@
                   · {{ quoteSchedule(quote) }}
                   <span v-if="quoteIsLate(line, quote)" class="quote-late">{{ t('grossanlass.beschaffung.offerten.deliveryLate') }}</span>
                 </span>
-                <p v-if="quote.notes" class="quote-notes">{{ quote.notes }}</p>
+                <p v-if="quoteNoteText(quote)" class="quote-notes">{{ quoteNoteText(quote) }}</p>
                 <a
                   v-if="quote.pdf_url"
                   :href="resolvePdfUrl(quote.pdf_url)"
@@ -175,6 +176,21 @@ const groups = ref<Awaited<ReturnType<typeof getGrossanlassGroups>>>([])
 const groupsRef = computed(() => groups.value)
 const { canManageProcurement, canEditQuotesForLine, canSelectQuoteForLine } =
   useGrossanlassProcurementScope(groupsRef)
+
+function quoteSource(quote: GrossanlassProcurementQuote): string {
+  const notes = quote.notes || ''
+  if (notes.startsWith('Vom Telefon')) return t('grossanlass.beschaffung.offerten.fromPhone')
+  if (notes.startsWith('Von der Mail')) return t('grossanlass.beschaffung.offerten.fromMail')
+  return ''
+}
+
+function quoteNoteText(quote: GrossanlassProcurementQuote): string {
+  return (quote.notes || '')
+    .split('\n')
+    .filter((line) => line !== 'Vom Telefon' && line !== 'Von der Mail' && !line.startsWith('anfrage:'))
+    .join('\n')
+    .trim()
+}
 
 function quoteSchedule(quote: GrossanlassProcurementQuote): string {
   const parts: string[] = []
@@ -333,6 +349,15 @@ onMounted(load)
 .quote-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
 .quote-row.is-selected { border-color: #93c5fd; background: #eff6ff; }
 .quote-amount { margin-left: 8px; font-weight: 600; }
+.quote-source {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0e7490;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 .quote-schedule { font-size: 0.78rem; color: #475569; }
 .quote-schedule.is-late { color: #b45309; font-weight: 600; }
 .quote-late { margin-left: 4px; font-size: 0.72rem; }

@@ -176,6 +176,7 @@ import {
 } from '@/api/grossanlassProcurement'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 import {
   commitmentStemKey,
   expectedAtIso,
@@ -330,7 +331,7 @@ function openArticle(row: GrossanlassCommitment) {
   const id = departmentId.value
   if (!id) return
   void router.push({
-    path: `/${id}/materialien/artikel/${row.id}`,
+    ...gaBestandArtikelPath(id, row.id, 'uebersicht'),
     query: { from: 'uebersicht', tab: 'stock' },
   })
 }
@@ -339,7 +340,7 @@ function openHistory(row: GrossanlassCommitment) {
   const id = departmentId.value
   if (!id) return
   void router.push({
-    path: `/${id}/materialien/artikel/${row.id}`,
+    ...gaBestandArtikelPath(id, row.id, 'uebersicht'),
     query: { from: 'uebersicht', tab: 'usage' },
   })
 }

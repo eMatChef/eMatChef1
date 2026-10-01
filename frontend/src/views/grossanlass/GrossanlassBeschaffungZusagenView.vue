@@ -41,10 +41,48 @@
       <article v-for="row in phoneDeals" :key="row.id" class="phone-deal">
         <header>
           <strong>{{ row.name }}</strong>
-          <span class="phone-deal__kind">{{ t(`grossanlass.beschaffung.anfragen.channelDealKind.${row.deal}`) }}</span>
+          <span v-if="row.deal !== 'open'" class="phone-deal__kind">{{ t(`grossanlass.beschaffung.anfragen.channelDealKind.${row.deal}`) }}</span>
         </header>
         <p class="phone-deal__who">{{ row.who }}</p>
-        <p class="phone-deal__text">{{ row.text }}</p>
+        <p v-if="row.agreement?.collaborate === false" class="phone-deal__text">
+          {{ t('grossanlass.beschaffung.anfragen.channelCollaborate') }}:
+          {{ t('grossanlass.beschaffung.anfragen.channelNo') }}
+          <template v-if="row.agreement.reason"> — {{ row.agreement.reason }}</template>
+        </p>
+        <ul v-else-if="row.agreement?.collaborate === true" class="phone-deal__items">
+          <li v-for="item in row.agreement.items" :key="item.id">
+            {{ item.count || item.quantity }} {{ item.unit || 'Stk' }} {{ item.label }}
+            — {{ item.yes === true
+              ? t('grossanlass.beschaffung.anfragen.channelYes')
+              : item.yes === false
+                ? t('grossanlass.beschaffung.anfragen.channelNo')
+                : t('grossanlass.beschaffung.anfragen.channelOpen') }}
+            <template v-if="item.yes === true && item.kind">
+              · {{ t(`grossanlass.beschaffung.anfragen.channelDealKind.${item.kind}`) }}
+            </template>
+            <template v-if="item.yes === true && item.period"> · {{ item.period }}</template>
+            <template v-if="item.yes === true && item.size"> · {{ item.size }}</template>
+            <template v-if="item.yes === true && item.price"> · {{ item.price }} CHF</template>
+            <template v-if="item.yes === true && item.delivery_at">
+              · {{ t('grossanlass.beschaffung.offerten.onSite', { date: formatGaIsoLabel(item.delivery_at.length === 10 ? `${item.delivery_at}T12:00:00` : item.delivery_at, locale) }) }}
+            </template>
+            <template v-if="item.yes === true && item.inbound_mode === 'pickup'">
+              · {{ t('grossanlass.materials.zusage.inboundPickup') }}
+            </template>
+            <template v-if="item.yes === true && item.inbound_mode === 'delivery'">
+              · {{ t('grossanlass.materials.zusage.inboundDelivery') }}
+            </template>
+            <template v-if="item.yes === true && item.return_needed">
+              · {{ t('grossanlass.beschaffung.offerten.returnNeeded') }}
+              <template v-if="item.return_at"> {{ formatGaIsoLabel(item.return_at.length === 10 ? `${item.return_at}T12:00:00` : item.return_at, locale) }}</template>
+            </template>
+            <template v-if="item.yes === true && item.lead_days">
+              · {{ t('grossanlass.beschaffung.offerten.leadDaysShort', { count: item.lead_days }) }}
+            </template>
+            <template v-if="item.yes === true && item.note"> · {{ item.note }}</template>
+          </li>
+        </ul>
+        <p v-else class="phone-deal__text">{{ row.text }}</p>
         <p class="phone-deal__when">{{ t('grossanlass.beschaffung.zusagen.dealWhen', { when: row.when, via: row.via }) }}</p>
       </article>
     </section>
@@ -732,6 +770,7 @@ const phoneDeals = computed(() =>
       who,
       text: entry.text,
       deal: entry.deal,
+      agreement: entry.agreement ?? null,
       when,
       via,
     }]
@@ -2079,6 +2118,11 @@ onMounted(() => {
   margin: 6px 0 0;
   white-space: pre-wrap;
 }
+.phone-deal__items {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+}
+.phone-deal__items li + li { margin-top: 4px; }
 .take-item__kauf {
   margin: 8px 0 4px;
   padding: 10px 12px;

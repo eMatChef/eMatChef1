@@ -308,7 +308,12 @@
         </div>
 
         <div v-if="showUserDropdown" class="user-dropdown">
-        <div class="user-info">
+        <button
+          type="button"
+          class="user-info"
+          :title="t('layout.userMenu.editProfile')"
+          @click="editProfile"
+        >
           <UserAvatarBadge
             :user="headerAvatarUser"
             variant="profile"
@@ -319,7 +324,7 @@
             <div class="user-name-full">{{ userFullName }}</div>
             <div class="user-email">{{ userEmail }}</div>
           </div>
-        </div>
+        </button>
         <div class="dropdown-divider"></div>
         <div data-onboarding="header-dept-switch">
         <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
@@ -364,6 +369,18 @@
           </span>
         </button>
         </div>
+        <div v-if="showAbteilungsmatLink" class="dropdown-divider"></div>
+        <button
+          v-if="showAbteilungsmatLink"
+          type="button"
+          class="dropdown-item"
+          @click="goAbteilungsmat"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ t('layout.userMenu.manageDepartmentMaterial') }}
+        </button>
         <div class="dropdown-divider"></div>
         <button
           type="button"
@@ -1838,6 +1855,19 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
   }
 }
 
+const showAbteilungsmatLink = computed(() => {
+  const fromRoute = typeof route.params.departmentId === 'string' ? route.params.departmentId : ''
+  const id = fromRoute || authStore.activeDepartmentId || ''
+  return id !== '' && authStore.isDepartmentGrossanlass(id)
+})
+
+function goAbteilungsmat() {
+  const id = authStore.activeDepartmentId
+  if (!id) return
+  showUserDropdown.value = false
+  void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
+}
+
 function editProfile() {
   const profile = authStore.profile
   profileForm.value = {
@@ -2926,8 +2956,19 @@ watch(
 .user-info {
   display: flex;
   align-items: center;
+  width: 100%;
   padding: 16px;
   gap: 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.user-info:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .user-details {

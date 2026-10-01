@@ -60,6 +60,7 @@ class Group
     public const GROSSANLASS_KIND_TEILBEREICH = 'teilbereich';
 
     public const BUILD_STATUS_PLANNED = 'planned';
+    public const BUILD_STATUS_QUOTED = 'quoted';
     public const BUILD_STATUS_BUILD = 'build';
     public const BUILD_STATUS_USE = 'use';
     public const BUILD_STATUS_TEARDOWN = 'teardown';
@@ -69,6 +70,7 @@ class Group
     /** @var list<string> */
     public const BUILD_STATUSES = [
         self::BUILD_STATUS_PLANNED,
+        self::BUILD_STATUS_QUOTED,
         self::BUILD_STATUS_BUILD,
         self::BUILD_STATUS_USE,
         self::BUILD_STATUS_TEARDOWN,

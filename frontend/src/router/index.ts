@@ -51,6 +51,24 @@ function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
   return target ? { redirect: target } : {}
 }
 
+/** Einladungslink bleibt auf /pending-assignment, auch wenn schon ein Department da ist. */
+function departmentInviteLandingPath(to: RouteLocationNormalized): string | null {
+  const rawRedirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
+  const candidate = to.path === '/pending-assignment'
+    ? to.fullPath
+    : (parseInternalRedirectPath(rawRedirect) || '')
+  if (!candidate.startsWith('/pending-assignment')) return null
+  try {
+    const url = new URL(candidate, 'https://local.invalid')
+    const inviteId = (url.searchParams.get('invite_id') || '').trim()
+    const departmentId = (url.searchParams.get('department_id') || '').trim()
+    if (!inviteId || !departmentId) return null
+    return candidate
+  } catch {
+    return null
+  }
+}
+
 /** Routen-Sperre für Basissicht (u, l1–l3) — gleich wie früher nur «u». */
 const DENY_BASIC_MEMBER_ROLES = [...DEPARTMENT_BASIC_MEMBER_ROLES]
 
@@ -807,6 +825,14 @@ const routes: RouteRecordRaw[] = [
         redirect: (to) => ({ path: `/${to.params.departmentId}/einstellungen/ressorts` }),
       },
       {
+        path: 'abteilungsmat',
+        name: 'GrossanlassAbteilungsmat',
+        component: () => import('@/views/grossanlass/GrossanlassAbteilungsmatView.vue'),
+        meta: {
+          ...routeHead('grossanlassAbteilungsmat'),
+        },
+      },
+      {
         path: 'mein-ressort',
         name: 'GrossanlassMeinRessort',
         component: () => import('@/views/grossanlass/GrossanlassMeinRessortView.vue'),
@@ -1249,81 +1275,56 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: 'materialien',
-        component: () => import('@/views/grossanlass/GrossanlassMaterialsView.vue'),
-        meta: {
-          requiresGrossanlassDepartment: true,
-          requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-          ...routeHead('grossanlassMaterials'),
-        },
-        children: [
-          {
-            path: '',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/materialien/eigen` }),
-          },
-          {
-            path: 'uebersicht',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/material-uebersicht` }),
-          },
-          {
-            path: 'eigen',
-            name: 'GrossanlassMaterials',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              materialsTab: 'eigen',
-              ...routeHead('grossanlassMaterials'),
-            },
-          },
-          {
-            path: 'leihweise',
-            name: 'GrossanlassMaterialsLeihweise',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              materialsTab: 'leihweise',
-              ...routeHead('grossanlassMaterialsLeihweise'),
-            },
-          },
-          {
-            path: 'gaeste',
-            name: 'GrossanlassMaterialsGaeste',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              materialsTab: 'gaeste',
-              ...routeHead('grossanlassMaterialsGaeste'),
-            },
-          },
-          {
-            path: 'js',
-            name: 'GrossanlassMaterialsJs',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsJsView.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              materialsTab: 'js',
-              ...routeHead('grossanlassMaterialsJs'),
-            },
-          },
-          {
-            path: 'fahrzeuge',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/fahrzeuge` }),
-          },
-          {
-            path: 'artikel/:itemId',
-            name: 'GrossanlassMaterialsArtikel',
-            component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
-            meta: {
-              requiresGrossanlassDepartment: true,
-              requiredRoles: [...GA_MATERIALS_ROUTE_ROLES],
-              materialsTab: 'detail',
-              ...routeHead('grossanlassMaterialsArtikel'),
-            },
-          },
-        ],
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/uebersicht',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/eigen',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand/eigen`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/leihweise',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand/leihweise`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/gaeste',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand/gaeste`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/js',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/bestand/js`,
+          query: to.query,
+        }),
+      },
+      {
+        path: 'materialien/fahrzeuge',
+        redirect: (to) => ({ path: `/${to.params.departmentId}/fahrzeuge` }),
+      },
+      {
+        path: 'materialien/artikel/:itemId',
+        redirect: (to) => ({
+          path: `/${to.params.departmentId}/material-uebersicht/artikel/${to.params.itemId}`,
+          query: to.query,
+        }),
       },
       {
         path: 'material-uebersicht',
@@ -1336,7 +1337,13 @@ const routes: RouteRecordRaw[] = [
         children: [
           {
             path: '',
-            name: 'GrossanlassMaterialUebersicht',
+            redirect: (to) => ({
+              path: `/${to.params.departmentId}/material-uebersicht/bestand`,
+              query: to.query,
+            }),
+          },
+          {
+            path: 'bestand',
             component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtBestandView.vue'),
             meta: {
               requiresGrossanlassDepartment: true,
@@ -1344,10 +1351,83 @@ const routes: RouteRecordRaw[] = [
               materialUebersichtTab: 'bestand',
               ...routeHead('grossanlassMaterialUebersicht'),
             },
+            children: [
+              {
+                path: '',
+                name: 'GrossanlassMaterialUebersicht',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialUebersichtBestandAllesView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+                  materialUebersichtTab: 'bestand',
+                  bestandSubTab: 'alles',
+                  ...routeHead('grossanlassMaterialUebersicht'),
+                },
+              },
+              {
+                path: 'eigen',
+                name: 'GrossanlassMaterials',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+                  materialUebersichtTab: 'bestand',
+                  materialsTab: 'eigen',
+                  bestandSubTab: 'eigen',
+                  ...routeHead('grossanlassMaterials'),
+                },
+              },
+              {
+                path: 'leihweise',
+                name: 'GrossanlassMaterialsLeihweise',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsTab.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+                  materialUebersichtTab: 'bestand',
+                  materialsTab: 'leihweise',
+                  bestandSubTab: 'leihweise',
+                  ...routeHead('grossanlassMaterialsLeihweise'),
+                },
+              },
+              {
+                path: 'gaeste',
+                name: 'GrossanlassMaterialsGaeste',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsGaesteView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+                  materialUebersichtTab: 'bestand',
+                  materialsTab: 'gaeste',
+                  bestandSubTab: 'gaeste',
+                  ...routeHead('grossanlassMaterialsGaeste'),
+                },
+              },
+              {
+                path: 'js',
+                name: 'GrossanlassMaterialsJs',
+                component: () => import('@/views/grossanlass/GrossanlassMaterialsJsView.vue'),
+                meta: {
+                  requiresGrossanlassDepartment: true,
+                  requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+                  materialUebersichtTab: 'bestand',
+                  materialsTab: 'js',
+                  bestandSubTab: 'js',
+                  ...routeHead('grossanlassMaterialsJs'),
+                },
+              },
+            ],
           },
           {
-            path: 'bestand',
-            redirect: (to) => ({ path: `/${to.params.departmentId}/material-uebersicht` }),
+            path: 'artikel/:itemId',
+            name: 'GrossanlassMaterialsArtikel',
+            component: () => import('@/views/grossanlass/GrossanlassMaterialsPreviewDetail.vue'),
+            meta: {
+              requiresGrossanlassDepartment: true,
+              requiredRoles: [...GA_MATERIAL_UEBERSICHT_ROUTE_ROLES],
+              materialsTab: 'detail',
+              ...routeHead('grossanlassMaterialsArtikel'),
+            },
           },
           {
             path: 'einsaetze',
@@ -2410,6 +2490,8 @@ router.beforeEach(async (to, from, next) => {
         if (siteEditorRoute && canEditPublicSite()) {
           /* Webseiten-Editor ohne Abteilung (z. B. Superadmin) */
         } else if (to.meta.requiresAuth || to.path === '/login') {
+          const inviteLanding = departmentInviteLandingPath(to)
+          if (inviteLanding) return next(inviteLanding)
           return next('/pending-assignment')
         }
       }
@@ -2447,6 +2529,8 @@ router.beforeEach(async (to, from, next) => {
     }
 
     if (appLoginOrRoot && primaryDepartmentId) {
+      const inviteLanding = departmentInviteLandingPath(to)
+      if (inviteLanding) return next(inviteLanding)
       return next(`/${primaryDepartmentId}`)
     }
 
@@ -2466,7 +2550,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
-    if (to.path === '/pending-assignment' && primaryDepartmentId) {
+    if (to.path === '/pending-assignment' && primaryDepartmentId && !departmentInviteLandingPath(to)) {
       if (isSuperAdmin()) {
         return next('/dashboard')
       }
@@ -2474,7 +2558,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // Supplier-only: Pending-Seite → Supplier-Bereich
-    if (to.path === '/pending-assignment' && authStore.isSupplierOnly && authStore.hasSupplierAccess) {
+    if (to.path === '/pending-assignment' && authStore.isSupplierOnly && authStore.hasSupplierAccess && !departmentInviteLandingPath(to)) {
       const supplierHome = defaultSupplierPath()
       if (supplierHome) return next(supplierHome)
     }

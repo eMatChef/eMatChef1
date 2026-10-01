@@ -1681,6 +1681,11 @@ function barTitle(booking: GaPreviewEinsatz): string {
   color: #334155;
 }
 
+.ga-gantt__ring-status--quoted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .ga-gantt__ring-status--build {
   background: #fde68a;
   color: #92400e;

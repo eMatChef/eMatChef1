@@ -15,8 +15,18 @@ describe('deriveBuildStatus', () => {
     expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-09-21')).toBe('planned')
   })
 
-  it('is in use during the window', () => {
-    expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-11-01')).toBe('use')
+  it('stays planned inside the window until the event itself', () => {
+    expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-11-01')).toBe('planned')
+  })
+
+  it('is in use during the event period', () => {
+    expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-11-01', [
+      {
+        label: 'grossanlass',
+        start_date: '2026-11-01',
+        end_date: '2026-11-02',
+      } as never,
+    ])).toBe('use')
   })
 
   it('is done after the window', () => {
@@ -25,17 +35,8 @@ describe('deriveBuildStatus', () => {
 })
 
 describe('resolveBuildStatus', () => {
-  it('follows the window even when a stored status exists', () => {
+  it('keeps a status set by hand', () => {
     expect(resolveBuildStatus({
-      build_status: 'build',
-      window_start: '2026-10-28',
-      window_end: '2026-11-13',
-    }, '2026-09-21')).toBe('planned')
-  })
-
-  it('uses a status reported on the Bauauftrag', () => {
-    expect(resolveBuildStatus({
-      node_type: 'bauprojekt',
       build_status: 'build',
       window_start: '2026-10-28',
       window_end: '2026-11-13',
@@ -50,14 +51,38 @@ describe('resolveBuildStatus', () => {
     }, '2026-11-01', ['done', 'build'])).toBe('build')
   })
 
-  it('uses Aufbau from the fixed dates inside the window', () => {
+  it('raises Geplant to Aufbau only when material is on site or work is in progress', () => {
+    expect(resolveBuildStatus({
+      procurement_progress: 'build',
+      window_start: '2026-10-28',
+      window_end: '2026-11-13',
+    }, '2026-09-21')).toBe('build')
+  })
+
+  it('shows Geplant / Offerten when material was only quoted or ordered', () => {
+    expect(resolveBuildStatus({
+      procurement_progress: 'quoted',
+      window_start: '2026-10-28',
+      window_end: '2026-11-13',
+    }, '2026-11-01')).toBe('quoted')
+  })
+
+  it('keeps a later date status ahead of procurement', () => {
+    expect(resolveBuildStatus({
+      procurement_progress: 'build',
+      window_start: '2026-10-28',
+      window_end: '2026-11-13',
+    }, '2026-11-20')).toBe('done')
+  })
+
+  it('stays planned during the Aufbau dates until work or material is on site', () => {
     expect(deriveBuildStatus('2026-10-28', '2026-11-13', '2026-10-29', [
       {
         label: 'aufbau',
         start_date: '2026-10-28',
         end_date: '2026-10-30',
       } as never,
-    ])).toBe('build')
+    ])).toBe('planned')
   })
 
   it('falls back to the window when empty', () => {
@@ -84,6 +109,7 @@ describe('gaBuildStatusSelectItems', () => {
     expect(items.map((item) => item.value)).toEqual([
       '',
       'planned',
+      'quoted',
       'build',
       'use',
       'teardown',

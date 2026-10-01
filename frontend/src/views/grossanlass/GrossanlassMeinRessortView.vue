@@ -205,6 +205,9 @@
         :status-baseline="buildStatusBaseline"
         :node-type="structuralNodeType"
         :reported-statuses="editingReportedStatuses"
+        :procurement-progress="editingGroup?.procurement_progress"
+        :child-procurement="editingChildProcurement"
+        :allow-manual="canSetStatusHere"
         hint-class="group-modal-map__hint"
         :save-window="saveUsageWindowAutosave"
         :save-status="saveBuildStatusAutosave"
@@ -308,10 +311,12 @@
       :max-width="920"
       :title="projectModalTitle"
       :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
       highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"
+        ref="bauprojektPanelRef"
         :department-id="departmentId"
         :group-id="projectGroup.id"
         @meta-saved="onProjectMetaSaved"
@@ -334,7 +339,7 @@
         >
           {{ t('common.delete') }}
         </EButton>
-        <EButton variant="secondary" size="small" @click="showProjectModal = false">
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
           {{ t('settings.groups.close') }}
         </EButton>
       </template>
@@ -377,13 +382,14 @@ import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOve
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanApproveEinsatz, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
+import { gaCanApproveEinsatz, gaCanSetBuildStatus, gaIsHelperHomeView } from '@/utils/grossanlassAccess'
 import {
   packBauprojektWindow,
   unpackBauprojektWindow,
 } from '@/utils/grossanlassBauprojektWindow'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassMeinRessortBranch from '@/components/grossanlass/GrossanlassMeinRessortBranch.vue'
 import GrossanlassShareTargetTree, {
@@ -444,7 +450,7 @@ import {
   type GaHelperTaskKind,
 } from '@/views/grossanlass/grossanlassHelperAssignment'
 import { updateGrossanlassPlace, type GaPlace } from '@/api/grossanlassLogistics'
-import { childReportedStatuses, watchGrossanlassBuildPeriods } from '@/utils/grossanlassBuildStatus'
+import { childReportedStatuses, descendantProcurementProgress, watchGrossanlassBuildPeriods } from '@/utils/grossanlassBuildStatus'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 
@@ -506,6 +512,7 @@ const shareCreateParentId = ref<string | null>(null)
 const shareCreateName = ref('')
 const shareCreateSaving = ref(false)
 const showProjectModal = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProjectModal)
 const createSaving = ref(false)
 const deletingGroupId = ref<string | null>(null)
 const expandedParentIds = ref<string[]>([])
@@ -568,6 +575,19 @@ const editingReportedStatuses = computed(() => {
   const group = editingGroup.value
   if (!group || group.node_type === 'bauprojekt') return []
   return childReportedStatuses(group.id, groups.value)
+})
+
+const canSetStatusHere = computed(() => {
+  const target = editingGroup.value
+    ?? groups.value.find((row) => row.id === createForm.value.parent_id)
+    ?? null
+  return gaCanSetBuildStatus(authStore.currentDepartmentRole, authStore.userId, target, groups.value)
+})
+
+const editingChildProcurement = computed(() => {
+  const group = editingGroup.value
+  if (!group) return null
+  return descendantProcurementProgress(group.id, groups.value)
 })
 
 const showEditProjectWindow = computed(() => structuralNodeType.value === 'bauprojekt')
@@ -1126,11 +1146,12 @@ async function syncGroupPlaceCoords(group: GrossanlassGroup | null) {
   }
 }
 
-function openShare(group: GrossanlassGroup) {
+async function openShare(group: GrossanlassGroup) {
   shareGroup.value = group
   shareTargetId.value = ''
   shareCreateParentId.value = null
   shareCreateName.value = ''
+  if (bauprojektPanelRef.value && !(await bauprojektPanelRef.value.confirmClose())) return
   showProjectModal.value = false
   showShareDialog.value = true
 }

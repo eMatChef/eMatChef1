@@ -276,16 +276,18 @@
       :max-width="920"
       :z-index="2600"
       :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
       highlight-outside
       scrollable
     >
       <GrossanlassBauprojektPanel
         v-if="linkedProjectGroup && props.gaDepartmentId"
+        ref="bauprojektPanelRef"
         :department-id="props.gaDepartmentId"
         :group-id="linkedProjectGroup.id"
       />
       <template #actions>
-        <EButton variant="secondary" size="small" @click="linkedProjectOpen = false">
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
           {{ t('settings.groups.close') }}
         </EButton>
       </template>
@@ -324,6 +326,7 @@ import {
   type GrossanlassGroup,
 } from '@/api/grossanlassGroups'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import { EButton, EDialog, ESwitch, ETextField, ETextarea } from '@/components/form/base'
 import { useConfirm } from '@/composables/useConfirm'
 import { useToast } from '@/composables/useToast'
@@ -399,6 +402,7 @@ const linkedBereichSaving = ref(false)
 const linkedBereichGroup = ref<GrossanlassGroup | null>(null)
 const linkedBereichForm = ref({ name: '', description: '', include_on_map: false })
 const linkedProjectOpen = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(linkedProjectOpen)
 const linkedProjectGroup = ref<GrossanlassGroup | null>(null)
 const hasStorageLocation = ref(false)
 const primaryStorageAddress = ref<Address | null>(null)

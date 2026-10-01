@@ -35,6 +35,7 @@ export type GaBauprojektBriefing = {
     window_start?: string | null
     window_end?: string | null
     build_status?: string | null
+    procurement_progress?: 'quoted' | 'build' | 'use' | null
     description?: string | null
   } | null
   window_start: string | null
@@ -68,6 +69,7 @@ export type GaBauprojektBriefing = {
     bounds_west?: number | null
   } | null
   can_edit: boolean
+  can_set_build_status?: boolean
 }
 
 export async function listGrossanlassVehicleNeeds(
@@ -136,6 +138,7 @@ export type GaBauprojektVehicleNeed = {
   group_id: string
   vehicle_label: string
   task_label: string
+  category_label?: string | null
   sort_order: number
   starts_at?: string | null
   duration_minutes?: number | null
@@ -146,7 +149,7 @@ export type GaBauprojektVehicleNeed = {
 export async function createGrossanlassBauprojektVehicle(
   departmentId: string,
   groupId: string,
-  payload: { vehicle_label: string; task_label: string; starts_at?: string | null; duration_minutes?: number | null },
+  payload: { vehicle_label: string; task_label: string; category_label?: string | null; starts_at?: string | null; duration_minutes?: number | null },
 ): Promise<GaBauprojektVehicleNeed> {
   const { data } = await apiClient.post<GaBauprojektVehicleNeed>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles`,
@@ -159,7 +162,7 @@ export async function updateGrossanlassBauprojektVehicle(
   departmentId: string,
   groupId: string,
   needId: string,
-  payload: { vehicle_label?: string; task_label?: string; starts_at?: string | null; duration_minutes?: number | null },
+  payload: { vehicle_label?: string; task_label?: string; category_label?: string | null; starts_at?: string | null; duration_minutes?: number | null },
 ): Promise<GaBauprojektVehicleNeed> {
   const { data } = await apiClient.patch<GaBauprojektVehicleNeed>(
     `/api/departments/${departmentId}/grossanlass/groups/${groupId}/vehicles/${needId}`,

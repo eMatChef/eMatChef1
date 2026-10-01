@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\UserEmailAliasService;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -23,6 +24,7 @@ final class GoogleOAuthAccountService
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly LanguageConfig $languageConfig,
         private readonly AuditLogger $auditLogger,
+        private readonly UserEmailAliasService $emailAliases,
     ) {}
 
     public function resolveOrCreate(GoogleOAuthUserInfo $info): User
@@ -34,6 +36,19 @@ final class GoogleOAuthAccountService
             $this->entityManager->flush();
 
             return $user;
+        }
+
+        $aliasUser = $this->emailAliases->findUserByEmail($info->email);
+        if ($aliasUser instanceof User && $aliasUser->getProfile()?->getEmail() !== $info->email) {
+            $this->assertActive($aliasUser);
+            if ($aliasUser->getGoogleId() !== null && $aliasUser->getGoogleId() !== $info->googleId) {
+                throw new GoogleOAuthException('failed', 'Email already linked to another Google account');
+            }
+            $aliasUser->setGoogleId($info->googleId);
+            $this->ensureVerified($aliasUser);
+            $this->entityManager->flush();
+
+            return $aliasUser;
         }
 
         $profile = $this->profileRepository->findOneBy(['email' => $info->email]);

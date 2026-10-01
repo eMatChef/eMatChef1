@@ -1,5 +1,9 @@
 <template>
+  <div v-if="isDetail" class="ga-uebersicht-detail-host">
+    <router-view />
+  </div>
   <PageShell
+    v-else
     class="grossanlass-material-uebersicht-shell"
     :title="t('grossanlass.materialUebersicht.title')"
     :subtitle="t('grossanlass.materialUebersicht.subtitle')"
@@ -36,6 +40,7 @@ import PageShell from '@/components/layout/PageShell.vue'
 import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
+import { gaBestandListPath } from '@/views/grossanlass/gaBestandPaths'
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
@@ -49,6 +54,8 @@ provideGaUebersicht()
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
+
+const isDetail = computed(() => route.name === 'GrossanlassMaterialsArtikel')
 
 const tabItems = computed(() => {
   const tabs = [
@@ -68,7 +75,7 @@ function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
   if (tab === 'bestand') {
-    void router.push(`/${id}/material-uebersicht`)
+    void router.push(gaBestandListPath(id))
     return
   }
   void router.push(`/${id}/material-uebersicht/${tab}`)
@@ -78,5 +85,19 @@ function onTabChange(tab: unknown) {
 <style scoped>
 .grossanlass-material-uebersicht-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
+}
+.ga-uebersicht-detail-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.ga-uebersicht-detail-host :deep(.material-detail-view) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

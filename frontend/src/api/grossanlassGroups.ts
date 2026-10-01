@@ -25,6 +25,7 @@ export interface GrossanlassGroup {
   window_start?: string | null
   window_end?: string | null
   build_status?: string | null
+  procurement_progress?: 'quoted' | 'build' | 'use' | null
   description?: string | null
   place?: GaPlace | null
   include_on_map?: boolean

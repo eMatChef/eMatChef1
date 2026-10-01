@@ -466,8 +466,9 @@ async function acceptIncomingEmailInvite(): Promise<boolean> {
       await authStore.refreshAfterInviteAccepted(result.department_id)
       return true
     }
-  } catch {
+  } catch (err: any) {
     autoJoinTriggered = false
+    error.value = err?.response?.data?.error || t('pendingAssignment.errorSendFailed')
   } finally {
     loading.value = false
   }

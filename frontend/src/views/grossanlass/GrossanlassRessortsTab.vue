@@ -341,6 +341,9 @@
         :status-baseline="buildStatusBaseline"
         :node-type="structuralNodeType"
         :reported-statuses="editingReportedStatuses"
+        :procurement-progress="editingGroup?.procurement_progress"
+        :child-procurement="editingChildProcurement"
+        :allow-manual="canSetStatusHere"
         :save-window="saveUsageWindowAutosave"
         :save-status="saveBuildStatusAutosave"
       />
@@ -771,16 +774,18 @@
       :max-width="920"
       :title="projectModalTitle"
       :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
       highlight-outside
     >
       <GrossanlassBauprojektPanel
         v-if="projectGroup && departmentId"
+        ref="bauprojektPanelRef"
         :department-id="departmentId"
         :group-id="projectGroup.id"
         @meta-saved="onProjectMetaSaved"
       />
       <template #actions>
-        <EButton variant="secondary" size="small" @click="showProjectModal = false">
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
           {{ t('settings.groups.close') }}
         </EButton>
       </template>
@@ -804,6 +809,7 @@ import {
 import { useDepartmentMemberAdmin } from '@/composables/useDepartmentMemberAdmin'
 import GrossanlassHelperInviteForm from '@/components/grossanlass/GrossanlassHelperInviteForm.vue'
 import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassGroupNodeIcon from '@/components/grossanlass/GrossanlassGroupNodeIcon.vue'
 import ActivityVenueOverviewBlock from '@/components/activities/ActivityVenueOverviewBlock.vue'
@@ -843,7 +849,7 @@ import {
 } from '@/utils/grossanlassGroupHierarchy'
 import GrossanlassUnitSlider from '@/components/grossanlass/GrossanlassUnitSlider.vue'
 import { grossanlassGroupNodeKindKey } from '@/utils/grossanlassGroupNode'
-import { gaDeptRoleSkipsGroupFlags } from '@/utils/grossanlassAccess'
+import { gaCanSetBuildStatus, gaDeptRoleSkipsGroupFlags } from '@/utils/grossanlassAccess'
 import {
   formatBauprojektWindow,
   packBauprojektWindow,
@@ -851,6 +857,7 @@ import {
 } from '@/utils/grossanlassBauprojektWindow'
 import {
   childReportedStatuses,
+  descendantProcurementProgress,
   gaBuildStatusI18nKey,
   resolveBuildStatus,
   showsGaBuildStatus,
@@ -905,6 +912,7 @@ const groupForm = ref({
   description: '',
 })
 const showProjectModal = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProjectModal)
 const projectGroup = ref<GrossanlassGroup | null>(null)
 const venueAddressId = ref<string | null>(null)
 const groupMapRef = ref<InstanceType<typeof ActivityVenueOverviewBlock> | null>(null)
@@ -1173,9 +1181,27 @@ const editingReportedStatuses = computed(() => {
   return childReportedStatuses(group.id, groups.value)
 })
 
+const canSetStatusHere = computed(() => {
+  const target = editingGroup.value
+    ?? groups.value.find((row) => row.id === (fixedParentId.value || groupForm.value.parent_id))
+    ?? null
+  return gaCanSetBuildStatus(authStore.currentDepartmentRole, authStore.userId, target, groups.value)
+})
+
+const editingChildProcurement = computed(() => {
+  const group = editingGroup.value
+  if (!group) return null
+  return descendantProcurementProgress(group.id, groups.value)
+})
+
 function buildStatusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reportedFor(group))))
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(
+    group,
+    undefined,
+    reportedFor(group),
+    descendantProcurementProgress(group.id, groups.value),
+  )))
 }
 
 function canOpenDetail(group: GrossanlassGroup): boolean {
@@ -2124,6 +2150,11 @@ onMounted(() => {
 .status-chip--planned {
   background: #e2e8f0;
   color: #334155;
+}
+
+.status-chip--quoted {
+  background: #dbeafe;
+  color: #1e40af;
 }
 
 .status-chip--build {

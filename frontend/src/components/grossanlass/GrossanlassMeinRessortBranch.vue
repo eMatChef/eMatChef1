@@ -164,6 +164,24 @@ function usageWindow(group: GrossanlassGroup): string {
   return formatBauprojektWindow(group.window_start, group.window_end)
 }
 
+function procurementUnder(group: GrossanlassGroup): 'quoted' | 'build' | null {
+  let progress: 'quoted' | 'build' | null = null
+  const visit = (node: GrossanlassGroup) => {
+    if (node.procurement_progress === 'build') progress = 'build'
+    else if (
+      (node.procurement_progress === 'quoted' || node.procurement_progress === 'use')
+      && progress !== 'build'
+    ) {
+      progress = 'quoted'
+    }
+    for (const project of bauprojekteOf(node)) visit(project)
+    for (const area of unterressortsOf(node)) visit(area)
+  }
+  for (const project of bauprojekteOf(group)) visit(project)
+  for (const area of unterressortsOf(group)) visit(area)
+  return progress
+}
+
 function reportedUnder(group: GrossanlassGroup): string[] {
   if (group.node_type === 'bauprojekt') return []
   const direct = bauprojekteOf(group).map((project) => project.build_status)
@@ -173,7 +191,12 @@ function reportedUnder(group: GrossanlassGroup): string[] {
 
 function buildStatusChip(group: GrossanlassGroup): string {
   if (!showsGaBuildStatus(group)) return ''
-  return t(gaBuildStatusI18nKey(resolveBuildStatus(group, undefined, reportedUnder(group))))
+  return t(gaBuildStatusI18nKey(resolveBuildStatus(
+    group,
+    undefined,
+    reportedUnder(group),
+    procurementUnder(group),
+  )))
 }
 
 watch(
@@ -234,6 +257,10 @@ watch(
 .status-chip--planned {
   background: #e2e8f0;
   color: #334155;
+}
+.status-chip--quoted {
+  background: #dbeafe;
+  color: #1e40af;
 }
 .status-chip--build {
   background: #fde68a;

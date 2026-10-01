@@ -98,14 +98,22 @@
                 <table class="combo-sub-table">
                   <thead>
                     <tr>
-                      <th>{{ t('grossanlass.materialUebersicht.colWho') }}</th>
-                      <th>{{ t('grossanlass.materialUebersicht.colRessort') }}</th>
-                      <th>{{ t('grossanlass.materialUebersicht.colWhen') }}</th>
+                      <th>{{ t('grossanlass.materials.expandPosition') }}</th>
+                      <th>{{ t('grossanlass.materials.expandOrigin') }}</th>
+                      <th>{{ t('grossanlass.materials.expandWindow') }}</th>
                       <th>{{ t('materialsView.subColQty') }}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="comp in item.components" :key="comp.id">
+                    <tr
+                      v-for="comp in item.components"
+                      :key="comp.id"
+                      :class="{
+                        'is-part': isBestandPartLine(comp),
+                        'is-clickable': !isBestandPartLine(comp),
+                      }"
+                      @click.stop="!isBestandPartLine(comp) && openDetail({ id: bestandChargeId(comp) })"
+                    >
                       <td class="comp-name">{{ comp.name }}</td>
                       <td>
                         <span class="assignment-badge" :class="comp.assignment === 'fixed' ? 'fix' : 'bulk'">
@@ -164,6 +172,12 @@ import {
   type GaMaterialsTabId,
   type GaPreviewRow,
 } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
+import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
+import {
+  bestandChargeId,
+  groupBestandPreviewRows,
+  isBestandPartLine,
+} from '@/views/grossanlass/gaBestandGroup'
 import '@/styles/ui/tables.css'
 import '@/styles/ui/storage.css'
 import '@/styles/materials-view.css'
@@ -186,12 +200,12 @@ const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
-const { loading, rows } = useGaCommitmentCatalog()
+const { loading, rows, commitments } = useGaCommitmentCatalog()
 const uebersicht = inject(gaUebersichtKey, null)
 
 const tabItems = computed(() => {
   const issued = uebersicht?.data.value?.issued_by_object ?? {}
-  return rows.value
+  const mapped = rows.value
     .filter((row) => row.tabs.includes(props.tab))
     .filter((row) => {
       const isVehicle = row.tabs.includes('fahrzeuge')
@@ -204,6 +218,7 @@ const tabItems = computed(() => {
         : Math.max(0, row.total_stock - out)
       return { ...row, issued_out: out, available }
     })
+  return groupBestandPreviewRows(mapped, commitments.value, t)
 })
 
 const filteredItems = computed(() => searchPreviewRows(tabItems.value, searchQuery.value))
@@ -261,10 +276,7 @@ function toggleExpanded(id: string) {
 function openDetail(item: { id: string }) {
   const id = departmentId.value
   if (!id) return
-  void router.push({
-    path: `/${id}/materialien/artikel/${item.id}`,
-    query: { from: props.tab },
-  })
+  void router.push(gaBestandArtikelPath(id, item.id, props.tab))
 }
 
 function rowProps({ item }: { item: GaPreviewRow }) {
@@ -309,6 +321,10 @@ function onSelectSuggestion(item: MaterialJourneyScanSuggestion) {
 }
 
 function originBadge(item: GaPreviewRow): string {
+  const charges = (item.components ?? []).filter((line) => !isBestandPartLine(line))
+  if (charges.length > 1) {
+    return t('grossanlass.materials.chargeCount', { count: charges.length })
+  }
   if (item.origin === 'buy_resale') return t('grossanlass.materials.originBadge.buy_resale')
   if (item.origin === 'buy') return t('grossanlass.materials.originBadge.buy')
   if (item.lifecycle === 'loan' || item.origin === 'loan') {
@@ -341,4 +357,11 @@ function iconName(item: GaPreviewRow) {
 .ga-preview-table-block { padding: 0 0 8px; }
 .mt-4 { margin-top: 16px; }
 .name-info .combo-type-badge { margin-top: 4px; }
+.combo-sub-table tbody tr.is-part .comp-name {
+  padding-left: 16px;
+  font-weight: 400;
+  color: #64748b;
+}
+.combo-sub-table tbody tr.is-clickable { cursor: pointer; }
+.combo-sub-table tbody tr.is-clickable:hover { background: #eef2f7; }
 </style>

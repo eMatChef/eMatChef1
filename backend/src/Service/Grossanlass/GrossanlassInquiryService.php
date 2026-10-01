@@ -209,13 +209,19 @@ class GrossanlassInquiryService
         $this->assertSend($department, $user);
         $inquiry = $this->find($department, $inquiryId);
         $via = ($data['via'] ?? '') === 'mail' ? 'mail' : 'phone';
-        $deal = (string) ($data['deal'] ?? 'open');
-        if (!in_array($deal, ['open', 'loan', 'rental', 'purchase', 'no'], true)) {
-            $deal = 'open';
-        }
-        $text = trim((string) ($data['text'] ?? ''));
-        if ($text === '') {
-            $text = $via === 'phone' ? 'Anruf festgehalten.' : 'Mail festgehalten.';
+        $agreement = $this->sanitizeAgreement($data['agreement'] ?? null);
+        if ($agreement !== null) {
+            $deal = $this->agreementDeal($agreement);
+            $text = $this->agreementText($agreement, $via);
+        } else {
+            $deal = (string) ($data['deal'] ?? 'open');
+            if (!in_array($deal, ['open', 'loan', 'rental', 'purchase', 'no'], true)) {
+                $deal = 'open';
+            }
+            $text = trim((string) ($data['text'] ?? ''));
+            if ($text === '') {
+                $text = $via === 'phone' ? 'Anruf festgehalten.' : 'Mail festgehalten.';
+            }
         }
         if ($inquiry->getAskedVia() === null && !in_array($inquiry->getStatus(), [
             DepartmentGrossanlassInquiry::STATUS_ZUSAGE,
@@ -226,12 +232,16 @@ class GrossanlassInquiryService
             $inquiry->setAskedAt(new \DateTime());
             $inquiry->setAskedLines($this->snapshotAskedLines($inquiry));
         }
-        $inquiry->appendThread([
+        $entry = [
             'who' => 'ok',
             'via' => $via,
             'deal' => $deal,
             'text' => $text,
-        ]);
+        ];
+        if ($agreement !== null) {
+            $entry['agreement'] = $agreement;
+        }
+        $inquiry->appendThread($entry);
         $reply = trim((string) ($data['reply'] ?? ''));
         if ($reply !== '') {
             $inquiry->appendThread(['who' => 'firm', 'via' => $via, 'text' => $reply]);
@@ -247,8 +257,425 @@ class GrossanlassInquiryService
             $inquiry->setStatus(DepartmentGrossanlassInquiry::STATUS_ABSAGE);
         }
         $this->entityManager->flush();
+        if ($agreement !== null) {
+            $this->syncPurchaseQuotes($department, $user, $inquiry, $agreement, $via);
+        }
 
         return $this->serialize($inquiry);
+    }
+
+    /**
+     * Kauf vom Telefon oder von der Mail wird zur Offerte an der Position.
+     *
+     * @param array{collaborate: bool|null, reason: string, items: list<array<string, mixed>>} $agreement
+     */
+    private function syncPurchaseQuotes(
+        Department $department,
+        User $user,
+        DepartmentGrossanlassInquiry $inquiry,
+        array $agreement,
+        string $via,
+    ): void {
+        $marker = 'anfrage:'.$inquiry->getId();
+        $wanted = [];
+        if ($agreement['collaborate'] === true) {
+            foreach ($agreement['items'] as $item) {
+                if (($item['yes'] ?? null) !== true || ($item['kind'] ?? '') !== 'purchase') {
+                    continue;
+                }
+                $lineId = trim((string) ($item['id'] ?? ''));
+                if ($lineId === '') {
+                    continue;
+                }
+                $wanted[$lineId] = $item;
+            }
+        }
+
+        $existing = $this->entityManager->getRepository(ActivityGrossanlassProcurementQuote::class)
+            ->createQueryBuilder('q')
+            ->where('q.notes LIKE :marker')
+            ->setParameter('marker', '%'.$marker.'%')
+            ->getQuery()
+            ->getResult();
+
+        $byLine = [];
+        foreach ($existing as $quote) {
+            if (!$quote instanceof ActivityGrossanlassProcurementQuote) {
+                continue;
+            }
+            $byLine[$quote->getProcurementLineId()] = $quote;
+        }
+
+        $supplier = trim($inquiry->getName());
+        if ($supplier === '') {
+            $supplier = 'Firma';
+        }
+        $source = $via === 'mail' ? 'Von der Mail' : 'Vom Telefon';
+
+        foreach ($wanted as $lineId => $item) {
+            $line = $this->entityManager->find(ActivityGrossanlassProcurementLine::class, $lineId);
+            if (!$line instanceof ActivityGrossanlassProcurementLine || $line->getDepartmentId() !== $department->getId()) {
+                continue;
+            }
+            $notes = $this->purchaseQuoteNotes($source, $marker, $item);
+            $amount = $this->parseLooseChf((string) ($item['price'] ?? ''));
+            $schedule = $this->scheduleForKind('purchase', $item);
+            $payload = [
+                'supplier' => $supplier,
+                'amount_chf' => $amount,
+                'notes' => $notes,
+                'delivery_at' => $this->quoteDateTime($schedule['delivery_at']),
+                'lead_days' => $schedule['lead_days'],
+                'inbound_mode' => $schedule['inbound_mode'] !== '' ? $schedule['inbound_mode'] : null,
+                'return_needed' => $schedule['return_needed'],
+                'return_at' => $schedule['return_needed'] ? $this->quoteDateTime($schedule['return_at']) : null,
+            ];
+            try {
+                $quote = $byLine[$lineId] ?? null;
+                if ($quote instanceof ActivityGrossanlassProcurementQuote) {
+                    $this->procurement->updateQuote($department, $user, $lineId, $quote->getId(), $payload);
+                } else {
+                    $this->procurement->createQuote($department, $user, $lineId, $payload);
+                }
+            } catch (\Throwable) {
+                // Die Absprache bleibt stehen, auch wenn die Position keine Offerte mehr annimmt.
+            }
+        }
+
+        foreach ($byLine as $lineId => $quote) {
+            if (isset($wanted[$lineId]) || $quote->isSelected()) {
+                continue;
+            }
+            try {
+                $this->procurement->deleteQuote($department, $user, (string) $lineId, $quote->getId());
+            } catch (\Throwable) {
+            }
+        }
+    }
+
+    /**
+     * Offerte und Absprache bleiben dieselben Angaben: Anzahl, Einheit, Grösse, Preis, Notiz.
+     *
+     * @param array<string, mixed> $fields
+     */
+    public function applyQuoteToAgreement(Department $department, string $lineId, string $notes, array $fields): void
+    {
+        if (!preg_match('/anfrage:([A-Za-z0-9]{12})/', $notes, $match)) {
+            return;
+        }
+        $inquiry = $this->entityManager->find(DepartmentGrossanlassInquiry::class, $match[1]);
+        if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
+            return;
+        }
+
+        $count = max(0, (int) ($fields['count'] ?? 0));
+        $unit = strtolower(trim((string) ($fields['unit'] ?? ''))) === 'm' ? 'm' : 'Stk';
+        $size = substr(trim((string) ($fields['size'] ?? '')), 0, 160);
+        $note = substr(trim((string) ($fields['note'] ?? '')), 0, 400);
+        $price = $this->formatAgreementPrice((string) ($fields['price'] ?? ''));
+
+        $thread = $inquiry->getThread();
+        for ($i = count($thread) - 1; $i >= 0; --$i) {
+            $agreement = $thread[$i]['agreement'] ?? null;
+            if (!is_array($agreement) || ($agreement['collaborate'] ?? null) !== true || !is_array($agreement['items'] ?? null)) {
+                continue;
+            }
+            $hit = false;
+            foreach ($agreement['items'] as $index => $item) {
+                if (!is_array($item) || (string) ($item['id'] ?? '') !== $lineId) {
+                    continue;
+                }
+                $item['count'] = $count;
+                $item['unit'] = $unit;
+                $item['size'] = $size;
+                $item['price'] = $price;
+                $item['note'] = $note;
+                $item['yes'] = true;
+                $item['kind'] = 'purchase';
+                $item = array_merge($item, $this->sanitizeSchedule($fields));
+                $agreement['items'][$index] = $item;
+                $hit = true;
+            }
+            if (!$hit) {
+                return;
+            }
+            $via = ($thread[$i]['via'] ?? '') === 'mail' ? 'mail' : 'phone';
+            $thread[$i]['agreement'] = $agreement;
+            $thread[$i]['text'] = $this->agreementText($agreement, $via);
+            $thread[$i]['deal'] = $this->agreementDeal($agreement);
+            $encoded = json_encode(array_values($thread));
+            if (!is_string($encoded)) {
+                return;
+            }
+            /** @var list<array<string, mixed>> $copy */
+            $copy = json_decode($encoded, true);
+            $inquiry->setThread($copy);
+            $this->entityManager->flush();
+
+            return;
+        }
+    }
+
+    private function formatAgreementPrice(string $raw): string
+    {
+        $clean = str_replace(["'", '’', ' '], '', trim($raw));
+        if ($clean === '' || !is_numeric(str_replace(',', '.', $clean))) {
+            return substr(trim($raw), 0, 40);
+        }
+        $amount = (float) str_replace(',', '.', $clean);
+        $formatted = number_format($amount, 2, '.', '');
+        if (str_ends_with($formatted, '.00')) {
+            $formatted = substr($formatted, 0, -3);
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     *
+     * @return array{delivery_at: string, inbound_mode: string, return_needed: bool, return_at: string, lead_days: int|null}
+     */
+    private function sanitizeSchedule(array $row): array
+    {
+        $delivery = substr(trim((string) ($row['delivery_at'] ?? '')), 0, 10);
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $delivery)) {
+            $delivery = '';
+        }
+        $mode = (string) ($row['inbound_mode'] ?? '');
+        if (!in_array($mode, ['pickup', 'delivery'], true)) {
+            $mode = '';
+        }
+        $returnNeeded = filter_var($row['return_needed'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $returnAt = substr(trim((string) ($row['return_at'] ?? '')), 0, 10);
+        if (!$returnNeeded || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $returnAt)) {
+            $returnAt = '';
+        }
+        $leadRaw = $row['lead_days'] ?? null;
+        $lead = ($leadRaw === null || $leadRaw === '') ? null : max(0, (int) $leadRaw);
+
+        return [
+            'delivery_at' => $delivery,
+            'inbound_mode' => $mode,
+            'return_needed' => $returnNeeded,
+            'return_at' => $returnAt,
+            'lead_days' => $lead,
+        ];
+    }
+
+    /**
+     * Kauf bleibt beim Partner. Zurückbringen gilt nur für Leih und Miete.
+     *
+     * @param array<string, mixed> $row
+     *
+     * @return array{delivery_at: string, inbound_mode: string, return_needed: bool, return_at: string, lead_days: int|null}
+     */
+    private function scheduleForKind(string $kind, array $row): array
+    {
+        $schedule = $this->sanitizeSchedule($row);
+        if ($kind === 'purchase') {
+            $schedule['return_needed'] = false;
+            $schedule['return_at'] = '';
+        }
+
+        return $schedule;
+    }
+
+    private function quoteDateTime(string $day): ?string
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $day)) {
+            return null;
+        }
+
+        return $day.'T12:00:00';
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     *
+     * @return list<string>
+     */
+    private function scheduleBits(array $item): array
+    {
+        $bits = [];
+        $delivery = trim((string) ($item['delivery_at'] ?? ''));
+        if ($delivery !== '') {
+            $bits[] = 'auf Platz '.$delivery;
+        }
+        $mode = (string) ($item['inbound_mode'] ?? '');
+        if ($mode === 'pickup') {
+            $bits[] = 'wir holen ab';
+        } elseif ($mode === 'delivery') {
+            $bits[] = 'Firma bringt es';
+        }
+        if (($item['return_needed'] ?? false) === true) {
+            $returnAt = trim((string) ($item['return_at'] ?? ''));
+            $bits[] = $returnAt !== '' ? 'zurück '.$returnAt : 'zurückbringen';
+        }
+        $lead = $item['lead_days'] ?? null;
+        if ($lead !== null && $lead !== '' && (int) $lead > 0) {
+            $bits[] = (int) $lead.' Tage Lieferzeit';
+        }
+
+        return $bits;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function purchaseQuoteNotes(string $source, string $marker, array $item): string
+    {
+        $bits = [];
+        $count = (int) ($item['count'] ?? $item['quantity'] ?? 0);
+        $unit = (string) ($item['unit'] ?? 'Stk');
+        if ($count > 0) {
+            $bits[] = $count.' '.$unit;
+        }
+        $size = trim((string) ($item['size'] ?? ''));
+        if ($size !== '') {
+            $bits[] = 'Grösse '.$size;
+        }
+        $lines = [$source];
+        if ($bits !== []) {
+            $lines[] = implode(' · ', $bits);
+        }
+        $lines[] = $marker;
+
+        return implode("\n", $lines);
+    }
+
+    private function parseLooseChf(string $raw): float
+    {
+        $clean = str_replace(["'", '’', ' '], '', $raw);
+        if (!preg_match('/\d+(?:[.,]\d+)?/', $clean, $match)) {
+            return 0.0;
+        }
+
+        return max(0, (float) str_replace(',', '.', $match[0]));
+    }
+
+    /**
+     * @return array{collaborate: bool|null, reason: string, items: list<array<string, mixed>>}|null
+     */
+    private function sanitizeAgreement(mixed $raw): ?array
+    {
+        if (!is_array($raw) || !array_key_exists('collaborate', $raw)) {
+            return null;
+        }
+        $collaborate = $raw['collaborate'];
+        if ($collaborate !== true && $collaborate !== false) {
+            $collaborate = null;
+        }
+        $items = [];
+        if ($collaborate === true) {
+            foreach (array_slice((array) ($raw['items'] ?? []), 0, 40) as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $kind = (string) ($row['kind'] ?? '');
+                if (!in_array($kind, ['loan', 'rental', 'purchase'], true)) {
+                    $kind = '';
+                }
+                $yes = $row['yes'] ?? null;
+                if ($yes !== true && $yes !== false) {
+                    $yes = null;
+                }
+                $unit = strtolower(trim((string) ($row['unit'] ?? ''))) === 'm' ? 'm' : 'Stk';
+                $items[] = [
+                    'id' => substr((string) ($row['id'] ?? ''), 0, 64),
+                    'label' => substr(trim((string) ($row['label'] ?? '')), 0, 180),
+                    'quantity' => max(0, (int) ($row['quantity'] ?? 0)),
+                    'category_name' => substr(trim((string) ($row['category_name'] ?? '')), 0, 180),
+                    'yes' => $yes,
+                    'count' => max(0, (int) ($row['count'] ?? $row['quantity'] ?? 0)),
+                    'unit' => $unit,
+                    'period' => substr(trim((string) ($row['period'] ?? '')), 0, 180),
+                    'size' => substr(trim((string) ($row['size'] ?? '')), 0, 160),
+                    'price' => substr(trim((string) ($row['price'] ?? '')), 0, 40),
+                    'kind' => $kind,
+                    'note' => substr(trim((string) ($row['note'] ?? '')), 0, 400),
+                    ...$this->scheduleForKind($kind, $row),
+                ];
+            }
+        }
+
+        return [
+            'collaborate' => $collaborate,
+            'reason' => $collaborate === false ? substr(trim((string) ($raw['reason'] ?? '')), 0, 400) : '',
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array{collaborate: bool|null, reason: string, items: list<array<string, mixed>>} $agreement
+     */
+    private function agreementDeal(array $agreement): string
+    {
+        if ($agreement['collaborate'] === false) {
+            return 'no';
+        }
+        if ($agreement['collaborate'] !== true) {
+            return 'open';
+        }
+        $kinds = [];
+        foreach ($agreement['items'] as $item) {
+            if (($item['yes'] ?? null) === true && ($item['kind'] ?? '') !== '') {
+                $kinds[] = $item['kind'];
+            }
+        }
+        if ($kinds !== [] && count(array_unique($kinds)) === 1) {
+            return (string) $kinds[0];
+        }
+
+        return 'open';
+    }
+
+    /**
+     * @param array{collaborate: bool|null, reason: string, items: list<array<string, mixed>>} $agreement
+     */
+    private function agreementText(array $agreement, string $via): string
+    {
+        if ($agreement['collaborate'] === false) {
+            $reason = trim($agreement['reason']);
+            $line = 'Zusammenarbeit: Nein';
+
+            return $reason !== '' ? $line."\n".$reason : $line;
+        }
+        if ($agreement['collaborate'] !== true) {
+            return $via === 'phone' ? 'Anruf festgehalten.' : 'Mail festgehalten.';
+        }
+        $kinds = ['loan' => 'Leih', 'rental' => 'Miete', 'purchase' => 'Kauf'];
+        $lines = ['Zusammenarbeit: Ja'];
+        foreach ($agreement['items'] as $item) {
+            $count = (int) ($item['count'] ?? $item['quantity'] ?? 0);
+            $unit = (string) ($item['unit'] ?? 'Stk');
+            $name = trim(($count > 0 ? $count.' '.$unit.' ' : '').(string) ($item['label'] ?? ''));
+            if (($item['yes'] ?? null) === true) {
+                $bits = [];
+                $kind = (string) ($item['kind'] ?? '');
+                if ($kind !== '' && isset($kinds[$kind])) {
+                    $bits[] = $kinds[$kind];
+                }
+                $price = trim((string) ($item['price'] ?? ''));
+                if ($price !== '') {
+                    $bits[] = $price.' CHF';
+                }
+                foreach (['period', 'size', 'note'] as $field) {
+                    $value = trim((string) ($item[$field] ?? ''));
+                    if ($value !== '') {
+                        $bits[] = $value;
+                    }
+                }
+                $bits = array_merge($bits, $this->scheduleBits($item));
+                $lines[] = $name.': Ja'.($bits !== [] ? ' — '.implode(', ', $bits) : '');
+            } elseif (($item['yes'] ?? null) === false) {
+                $lines[] = $name.': Nein';
+            } else {
+                $lines[] = $name.': offen';
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**

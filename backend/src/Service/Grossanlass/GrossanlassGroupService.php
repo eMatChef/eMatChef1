@@ -24,6 +24,7 @@ class GrossanlassGroupService
         private GroupAccessService $groupAccess,
         private GroupHierarchyService $hierarchy,
         private GrossanlassPlaceService $places,
+        private GrossanlassProcurementProgress $procurementProgress,
     ) {}
 
     /**
@@ -46,6 +47,7 @@ class GrossanlassGroupService
         $membershipsByGroup = $this->loadMembershipsByGroup($groupIds);
         $placesByGroup = $this->loadPlacesByGroup($department);
         $shares = $this->loadShares($department);
+        $procurementProgress = $this->procurementProgress->buildProgressByGroup($department->getId());
         $namesById = [];
         foreach ($groups as $group) {
             $namesById[$group->getId()] = $group->getName();
@@ -60,6 +62,7 @@ class GrossanlassGroupService
                 $placesByGroup[$group->getId()] ?? null,
                 $shares,
                 $namesById,
+                $procurementProgress[$group->getId()] ?? null,
             );
         }
 
@@ -474,6 +477,7 @@ class GrossanlassGroupService
         ?array $place = null,
         array $shares = [],
         array $namesById = [],
+        ?string $procurementProgress = null,
     ): array {
         $level = $this->hierarchy->computeDepth($department->getId(), $group->getId());
         $leaders = array_values(array_filter($members, static fn (array $m) => $m['is_leader']));
@@ -515,6 +519,7 @@ class GrossanlassGroupService
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
             'build_status' => $group->getBuildStatus(),
+            'procurement_progress' => $procurementProgress,
             'description' => $group->getDescription(),
             'place' => $place,
             'include_on_map' => is_array($place) && ($place['kind'] ?? '') === GrossanlassPlaceCodes::KIND_AREA,
@@ -588,7 +593,7 @@ class GrossanlassGroupService
         if (!array_key_exists('build_status', $data)) {
             return;
         }
-        if (!$this->access->canSetBuildStatus($user, $department)) {
+        if (!$this->access->canSetBuildStatus($user, $department, $group)) {
             return;
         }
         $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));

@@ -9,6 +9,9 @@
         </li>
       </ul>
       <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.askedListLegacy') }}</p>
+      <div v-if="$slots.actions" class="ask-list__actions">
+        <slot name="actions" />
+      </div>
     </template>
     <template v-else>
       <p class="ask-list__title">{{ t('grossanlass.beschaffung.anfragen.askListTitle') }}</p>

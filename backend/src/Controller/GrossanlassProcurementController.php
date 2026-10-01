@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
+use App\Service\Grossanlass\GrossanlassInquiryService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\Grossanlass\GrossanlassProcurementService;
 use App\Service\Grossanlass\GrossanlassCategoryInUseException;
@@ -25,6 +26,7 @@ class GrossanlassProcurementController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassProcurementService $procurementService,
+        private GrossanlassInquiryService $inquiryService,
         private GrossanlassGmailAccountService $gmail,
         private GroupAccessService $groupAccess,
         private GrossanlassCostService $costService,
@@ -445,6 +447,15 @@ class GrossanlassProcurementController extends AbstractController
 
         try {
             $quote = $this->procurementService->updateQuote($department, $currentUser, $lineId, $quoteId, $data);
+            $agreementItem = $data['agreement_item'] ?? null;
+            if (is_array($agreementItem)) {
+                $this->inquiryService->applyQuoteToAgreement(
+                    $department,
+                    $lineId,
+                    (string) ($quote['notes'] ?? ''),
+                    $agreementItem,
+                );
+            }
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {

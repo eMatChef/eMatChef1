@@ -244,6 +244,16 @@ const props = defineProps<{
     from: string
     to: string
   }>
+  onlyVehicles?: boolean
+  plannedVehicles?: Array<{
+    id: string
+    group_id: string
+    vehicle_label: string
+    task_label: string
+    category_label?: string | null
+    starts_at?: string | null
+    duration_minutes?: number | null
+  }>
 }>()
 
 const { t, locale } = useI18n()
@@ -286,8 +296,8 @@ const selectedPeriodId = ref<string | null>(null)
 const zoomDays = ref(7)
 const onlyMine = ref(false)
 const kindOn = reactive<Record<CalLane, boolean>>({
-  bauprojekt: true,
-  ressort: true,
+  bauprojekt: !props.onlyVehicles,
+  ressort: !props.onlyVehicles,
   fahrt: true,
   fahrzeug: true,
 })
@@ -355,7 +365,7 @@ const kindFilters = computed(() => ([
   { id: 'ressort' as const, label: t('grossanlass.planung.calKindRessort'), color: LANE_COLOR.ressort },
   { id: 'fahrt' as const, label: t('grossanlass.planung.calKindFahrt'), color: LANE_COLOR.fahrt },
   { id: 'fahrzeug' as const, label: t('grossanlass.planung.calKindFleet'), color: LANE_COLOR.fahrzeug },
-]))
+].filter((kind) => !props.onlyVehicles || kind.id === 'fahrt' || kind.id === 'fahrzeug')))
 
 const visibleBlocks = computed(() =>
   modeBlocks.value.filter((block) => {
@@ -853,6 +863,16 @@ async function saveBlock(block: Block) {
 }
 
 async function loadBlocks() {
+  if (props.onlyVehicles) {
+    const planned = (props.plannedVehicles ?? []).flatMap((need) => {
+      const project = props.groups.find((group) => group.id === need.group_id)
+      if (!project) return []
+      const block = vehicleNeedBlock(project, need)
+      return block ? [block] : []
+    })
+    blocks.value = [...planned, ...tripBlocks()]
+    return
+  }
   const projects = props.groups.filter((group) =>
     group.node_type === 'bauprojekt' || group.node_type === 'ressort' || group.node_type === 'unterressort',
   )
@@ -894,10 +914,10 @@ function tripBlocks(): Block[] {
 
 function vehicleNeedBlock(
   project: GrossanlassGroup,
-  need: { id: string; vehicle_label: string; task_label: string; starts_at?: string | null; duration_minutes?: number | null },
+  need: { id: string; vehicle_label: string; task_label: string; category_label?: string | null; starts_at?: string | null; duration_minutes?: number | null },
 ): Block | null {
   if (!need.starts_at) return null
-  const label = [need.task_label.trim(), need.vehicle_label.trim()].filter(Boolean).join(' · ')
+  const label = [need.category_label?.trim(), need.task_label.trim(), need.vehicle_label.trim()].filter(Boolean).join(' · ')
   if (!label) return null
   const start = new Date(need.starts_at)
   if (Number.isNaN(start.getTime())) return null
@@ -960,7 +980,12 @@ watch(
 )
 
 watch(
-  () => [props.departmentId, props.groups.map((group) => group.id).join('|'), props.trips.map((trip) => trip.id).join('|')],
+  () => [
+    props.departmentId,
+    props.groups.map((group) => group.id).join('|'),
+    props.trips.map((trip) => trip.id).join('|'),
+    (props.plannedVehicles ?? []).map((need) => `${need.id}:${need.starts_at || ''}`).join('|'),
+  ],
   () => { void load() },
 )
 

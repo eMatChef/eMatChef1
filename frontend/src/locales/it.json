@@ -278,6 +278,7 @@
       "infoAria": "Informazioni"
     },
     "userMenu": {
+      "manageDepartmentMaterial": "Gestisci il materiale della tua sezione",
       "editProfile": "Modifica profilo",
       "switchDepartment": "Cambia reparto",
       "logout": "Esci"
@@ -344,7 +345,10 @@
     "brandSubtitle": "Gestione materiale e prestiti",
     "uiLanguageLabel": "Lingua dell'interfaccia",
     "inviteDetected": "Invito rilevato",
-    "inviteHint": "Crea un account (imposta una password) o accedi. Poi accetti l'invito.",
+    "inviteHint": "Crea un account (imposta una password) o usa un account esistente. Poi accetti l'invito.",
+    "useExistingAccount": "Usa un account esistente",
+    "inviteClaimHint": "Invito per {email}. Accedi con il tuo account esistente — l'indirizzo viene poi collegato.",
+    "subtitleLoginInviteClaim": "Accesso con il tuo account esistente. {email} viene poi aggiunto.",
     "inviteEmailAlreadyRegistered": "Questa e-mail ha gia un account. Accedi, poi accetti l'invito.",
     "titleLogin": "Accedi",
     "titleRegister": "Crea un account",

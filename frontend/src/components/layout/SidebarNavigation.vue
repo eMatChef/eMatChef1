@@ -228,18 +228,6 @@
         <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.kosten') }}</span>
       </router-link>
 
-      <!-- Materialien (Stammdaten, Design-Vorschau) -->
-      <router-link
-        v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
-        :to="getLink('/materialien')"
-        class="nav-item"
-        :class="{ active: isGrossanlassMaterialsNavActive }"
-        :title="t('sidebar.grossanlassMaterialsHint')"
-      >
-        <v-icon icon="mdi-package-variant" class="nav-icon nav-icon--mdi" size="20" />
-        <span class="nav-label" :class="{ visible: showNavLabels }">{{ t('sidebar.materials') }}</span>
-      </router-link>
-
       <router-link
         v-if="!isPendingAssignmentRoute && isGrossanlassDept && showDeptContextSidebarLinks && showGrossanlassMaterialsMenu"
         :to="getLink('/fahrzeuge')"
@@ -830,8 +818,6 @@ const isPlanungNavActive = computed(() => {
   if (path.includes('/settings') || path.includes('/einstellungen')) return false
   return path.includes('/planung')
 })
-
-const isGrossanlassMaterialsNavActive = computed(() => route.path.includes('/materialien'))
 
 const isGrossanlassFahrzeugeNavActive = computed(() => route.path.includes('/fahrzeuge'))
 

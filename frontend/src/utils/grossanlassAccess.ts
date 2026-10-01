@@ -48,6 +48,29 @@ export function gaDeptRoleSkipsGroupFlags(role: string | null | undefined): bool
   return gaCanManagePlanung(role)
 }
 
+/** MW/CMW überall, OK-Leitung nur als Leitung dieses Ressorts oder eines Eltern-Ressorts. */
+export function gaCanSetBuildStatus(
+  role: string | null | undefined,
+  userId: string | null | undefined,
+  group: { id: string; parent_id?: string | null; leaders?: Array<{ user_id: string }>; members?: Array<{ user_id: string; is_leader?: boolean }> } | null | undefined,
+  groups: Array<{ id: string; parent_id?: string | null; leaders?: Array<{ user_id: string }>; members?: Array<{ user_id: string; is_leader?: boolean }> }>,
+): boolean {
+  const normalized = gaRole(role)
+  if (normalized === 'mw' || normalized === 'cmw') return true
+  if (normalized !== 'dc' || !userId || !group) return false
+  const byId = new Map(groups.map((row) => [row.id, row]))
+  let current: { id: string; parent_id?: string | null } | undefined = group
+  const seen = new Set<string>()
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id)
+    const full = byId.get(current.id) ?? current
+    const leaders = full.leaders ?? full.members?.filter((member) => member.is_leader) ?? []
+    if (leaders.some((member) => member.user_id === userId)) return true
+    current = full.parent_id ? byId.get(full.parent_id) : undefined
+  }
+  return false
+}
+
 /** OK-Leitung (`dc`): Anlass-Überblick, kein Materialbetrieb. */
 export function gaIsOkLeitung(role: string | null | undefined): boolean {
   return gaRole(role) === 'dc'

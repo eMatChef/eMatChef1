@@ -149,14 +149,6 @@
             <span>{{ t('sidebar.planung') }}</span>
           </router-link>
           <router-link
-            v-if="canManageProcurement"
-            :to="materialsLink"
-            class="quick-link-card"
-          >
-            <v-icon icon="mdi-package-variant" size="22" />
-            <span>{{ t('sidebar.materials') }}</span>
-          </router-link>
-          <router-link
             v-if="canSeeUebersicht"
             :to="materialUebersichtLink"
             class="quick-link-card"
@@ -353,7 +345,6 @@ const dashboardNettoDisplay = computed(() => {
     rahmen: formatChf(rahmen),
   })
 })
-const materialsLink = computed(() => `/${props.departmentId}/materialien`)
 const materialUebersichtLink = computed(() => `/${props.departmentId}/material-uebersicht`)
 const konflikteLink = computed(() => `/${props.departmentId}/planung/konflikte`)
 const ausgabeLink = computed(() => `/${props.departmentId}/material-uebersicht/ausgabe`)

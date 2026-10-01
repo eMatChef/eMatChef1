@@ -23,6 +23,8 @@ use App\Service\JoinRequestManagerNotificationService;
 use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
+use App\Service\UserEmailAliasConflictException;
+use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
 use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
@@ -54,6 +56,7 @@ class JoinRequestController extends AbstractController
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
         private DepartmentRoleLabelService $departmentRoleLabelService,
+        private UserEmailAliasService $emailAliases,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -1174,16 +1177,22 @@ class JoinRequestController extends AbstractController
 
         [$department, $invite] = $resolved;
 
+        $claimError = $this->claimInviteEmail($currentUser, $invite);
+        if ($claimError instanceof JsonResponse) {
+            return $claimError;
+        }
+
         if ($this->userHasDepartmentMembership($currentUser->getId(), $department->getId())) {
+            $this->rememberInviteNotificationEmail($currentUser, $department, $invite);
             if (($invite['status'] ?? 'pending') === 'pending') {
                 $this->finalizeInviteAccepted($department, $invite, $currentUser);
-                $this->entityManager->flush();
             } else {
                 $inviteId = (string) ($invite['id'] ?? '');
                 if ($inviteId !== '') {
                     $this->userDepartmentInviteNotifications->markInviteAccepted($currentUser, $department, $inviteId);
                 }
             }
+            $this->entityManager->flush();
 
             return new JsonResponse([
                 'success' => true,
@@ -1966,6 +1975,7 @@ class JoinRequestController extends AbstractController
                 'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
             ]
         );
+        $this->rememberInviteNotificationEmailOn($membership, $user, $invite);
         $this->entityManager->persist($membership);
 
         $groupIds = is_array($invite['group_ids'] ?? null) ? $invite['group_ids'] : [];
@@ -2061,8 +2071,6 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
         }
 
-        $userEmail = strtolower(trim($profile->getEmail()));
-
         if ($notificationId !== '') {
             $settings = $this->entityManager->getRepository(DepartmentSetting::class)->findBy([
                 'settingKey' => UserDepartmentInviteNotificationService::SETTING_KEY_PREFIX . $user->getId(),
@@ -2104,8 +2112,16 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Einladung nicht gefunden'], 404);
         }
 
-        if (strtolower((string) ($invite['email'] ?? '')) !== $userEmail) {
-            return new JsonResponse(['error' => 'Diese Einladung ist nicht fuer dich bestimmt'], 403);
+        $inviteEmail = strtolower(trim((string) ($invite['email'] ?? '')));
+        if (!$this->emailAliases->userOwnsEmail($user, $inviteEmail)) {
+            if ($inviteEmail === '' || !filter_var($inviteEmail, FILTER_VALIDATE_EMAIL)) {
+                return new JsonResponse(['error' => 'Diese Einladung ist nicht fuer dich bestimmt'], 403);
+            }
+            if ($this->emailAliases->isEmailTaken($inviteEmail, $user)) {
+                return new JsonResponse([
+                    'error' => 'Diese Einladung gehört zu einem anderen Konto. Melde dich mit dieser Adresse an.',
+                ], 403);
+            }
         }
 
         return [$department, $invite];
@@ -2247,7 +2263,7 @@ class JoinRequestController extends AbstractController
 
                 $email = strtolower(trim((string) ($entry['email'] ?? '')));
                 $acceptedUserId = (string) ($entry['accepted_user_id'] ?? '');
-                if ($email !== $userEmail && $acceptedUserId !== $user->getId()) {
+                if (!$this->emailAliases->userOwnsEmail($user, $email) && $acceptedUserId !== $user->getId()) {
                     continue;
                 }
 
@@ -2332,7 +2348,7 @@ class JoinRequestController extends AbstractController
                 if (($entry['status'] ?? 'pending') !== 'pending') {
                     continue;
                 }
-                if (strtolower(trim((string) ($entry['email'] ?? ''))) !== $userEmail) {
+                if (!$this->emailAliases->userOwnsEmail($user, (string) ($entry['email'] ?? ''))) {
                     continue;
                 }
 
@@ -2378,16 +2394,56 @@ class JoinRequestController extends AbstractController
 
     private function findUserByEmail(string $email): ?User
     {
-        $profile = $this->entityManager->getRepository(Profile::class)->findOneBy([
-            'email' => strtolower(trim($email)),
-        ]);
-        if (!$profile) {
+        return $this->emailAliases->findUserByEmail($email);
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function claimInviteEmail(User $user, array $invite): ?JsonResponse
+    {
+        $inviteEmail = strtolower(trim((string) ($invite['email'] ?? '')));
+        if ($inviteEmail === '' || $this->emailAliases->userOwnsEmail($user, $inviteEmail)) {
             return null;
         }
 
-        return $this->entityManager->getRepository(User::class)->findOneBy([
-            'profileId' => $profile->getId(),
+        try {
+            $this->emailAliases->claimVerifiedEmail($user, $inviteEmail);
+        } catch (UserEmailAliasConflictException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function rememberInviteNotificationEmail(User $user, Department $department, array $invite): void
+    {
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $department->getId(),
         ]);
+        if (!$membership instanceof Membership) {
+            return;
+        }
+        $this->rememberInviteNotificationEmailOn($membership, $user, $invite);
+    }
+
+    /**
+     * @param array<string, mixed> $invite
+     */
+    private function rememberInviteNotificationEmailOn(Membership $membership, User $user, array $invite): void
+    {
+        $inviteEmail = strtolower(trim((string) ($invite['email'] ?? '')));
+        $primary = strtolower(trim((string) ($user->getProfile()?->getEmail() ?? '')));
+        if ($inviteEmail === '' || $inviteEmail === $primary) {
+            return;
+        }
+        if ($membership->getNotificationEmail() === null || $membership->getNotificationEmail() === '') {
+            $membership->setNotificationEmail($inviteEmail);
+        }
     }
 
     private function appendInviteAcceptedNotification(Department $department, array $invite, User $joinedUser): void

@@ -30,14 +30,22 @@ class GrossanlassAccessService
         }
     }
 
-    /** Status des Bauvorhabens setzt nur der Materialwart. */
-    public function canSetBuildStatus(User $user, Department $department): bool
+    /** Status setzt der Materialwart überall, die OK-Leitung nur an ihrem Ressort. */
+    public function canSetBuildStatus(User $user, Department $department, ?Group $group = null): bool
     {
         if (!$department->isGrossanlass()) {
             return false;
         }
 
-        return GrossanlassAccessRoles::normalize($this->gaRole($user, $department)) === 'mw';
+        $role = GrossanlassAccessRoles::normalize($this->gaRole($user, $department));
+        if (GrossanlassAccessRoles::isOneOf($role, ['mw', 'cmw'])) {
+            return true;
+        }
+        if ($role !== 'dc' || !$group instanceof Group) {
+            return false;
+        }
+
+        return $this->isLeaderOfGroupOrAncestor($user, $group);
     }
 
     /**

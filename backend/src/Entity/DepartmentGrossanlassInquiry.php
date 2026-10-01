@@ -510,6 +510,17 @@ class DepartmentGrossanlassInquiry
         return $this;
     }
 
+    /**
+     * @param list<array<string, mixed>> $thread
+     */
+    public function setThread(array $thread): self
+    {
+        $this->thread = array_values($thread);
+        $this->updatedAt = new \DateTime();
+
+        return $this;
+    }
+
     public function getGmailDraftId(): ?string
     {
         return $this->gmailDraftId;

@@ -8,6 +8,7 @@ use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
 use App\Service\Grossanlass\GrossanlassDriveLicenseService;
+use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,6 +30,7 @@ class ProfileController extends AbstractController
         private AuditLogger $auditLogger,
         private UserPasswordHasherInterface $passwordHasher,
         private GrossanlassDriveLicenseService $driveLicenses,
+        private UserEmailAliasService $emailAliases,
     ) {}
 
     /**
@@ -123,6 +125,9 @@ class ProfileController extends AbstractController
             if ($requestedEmail !== $currentEmail) {
                 $existing = $this->profileRepository->findOneBy(['email' => $requestedEmail]);
                 if ($existing && $existing->getId() !== $profile->getId()) {
+                    return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
+                }
+                if ($this->emailAliases->isEmailTaken($requestedEmail, $user)) {
                     return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
                 }
 

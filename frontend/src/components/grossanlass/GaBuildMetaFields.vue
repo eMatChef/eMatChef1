@@ -34,7 +34,26 @@
       preset-mode="fixed-periods"
     />
     <p v-if="windowHint" :class="hintClass">{{ windowHint }}</p>
-    <p :class="hintClass">
+    <AutoSaveField
+      v-if="allowManual && autosave"
+      :model-value="status"
+      :baseline="statusBaseline"
+      type="select"
+      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
+      :options="statusOptions"
+      :disabled="disabled"
+      span-class="ga-build-meta-fields__status"
+      :save="onSaveStatus"
+      @update:model-value="onStatus"
+    />
+    <ESelect
+      v-else-if="allowManual"
+      v-model="status"
+      :items="statusSelectItems"
+      :label="t('grossanlass.planung.ressorts.buildStatusLabel')"
+      hide-details
+    />
+    <p v-if="!allowManual || !status" :class="hintClass">
       <span class="ga-build-meta-fields__status-label">{{ t('grossanlass.planung.ressorts.buildStatusLabel') }}:</span>
       {{ derivedStatusLabel }}
     </p>
@@ -46,13 +65,15 @@ import { computed, nextTick, toRef } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AutoSaveField } from '@/components/common/autoSave'
 import type { AutoSaveFieldValue } from '@/components/common/autoSave/types'
-import { EDateRangeField } from '@/components/form/base'
+import { EDateRangeField, ESelect } from '@/components/form/base'
 import {
   packBauprojektWindow,
   unpackBauprojektWindow,
 } from '@/utils/grossanlassBauprojektWindow'
 import {
+  gaBuildStatusAutoSaveOptions,
   gaBuildStatusI18nKey,
+  gaBuildStatusSelectItems,
   resolveBuildStatus,
   watchGrossanlassBuildPeriods,
 } from '@/utils/grossanlassBuildStatus'
@@ -76,6 +97,9 @@ const props = withDefaults(defineProps<{
   saveStatus?: (value: AutoSaveFieldValue) => Promise<void>
   nodeType?: string | null
   reportedStatuses?: Array<string | null | undefined>
+  procurementProgress?: string | null
+  childProcurement?: string | null
+  allowManual?: boolean
 }>(), {
   departmentId: null,
   autosave: false,
@@ -86,22 +110,32 @@ const props = withDefaults(defineProps<{
   hintClass: 'window-hint',
   nodeType: null,
   reportedStatuses: () => [],
+  procurementProgress: null,
+  childProcurement: null,
+  allowManual: false,
 })
 
 const { t } = useI18n()
 watchGrossanlassBuildPeriods(toRef(props, 'departmentId'))
 const packedWindow = computed(() => packBauprojektWindow(start.value, end.value))
+const statusOptions = computed(() => gaBuildStatusAutoSaveOptions(t))
+const statusSelectItems = computed(() => gaBuildStatusSelectItems(t))
 const derivedStatusLabel = computed(() => t(gaBuildStatusI18nKey(resolveBuildStatus({
   node_type: props.nodeType,
   build_status: status.value,
+  procurement_progress: props.procurementProgress,
   window_start: start.value,
   window_end: end.value,
-}, undefined, props.reportedStatuses))))
+}, undefined, props.reportedStatuses, props.childProcurement))))
 
 function onPackedWindow(value: AutoSaveFieldValue) {
   const next = unpackBauprojektWindow(value)
   start.value = next.start
   end.value = next.end
+}
+
+function onStatus(value: AutoSaveFieldValue) {
+  status.value = value == null ? '' : String(value)
 }
 
 function touchWindow(onChange: () => void) {
@@ -111,6 +145,11 @@ function touchWindow(onChange: () => void) {
 async function onSaveWindow(value: AutoSaveFieldValue) {
   if (!props.saveWindow) return
   await props.saveWindow(value)
+}
+
+async function onSaveStatus(value: AutoSaveFieldValue) {
+  if (!props.saveStatus) return
+  await props.saveStatus(value)
 }
 
 </script>

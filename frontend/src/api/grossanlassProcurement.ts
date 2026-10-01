@@ -101,6 +101,7 @@ export interface GrossanlassProcurementLine {
   wish_kind: GrossanlassWishKind
   label: string
   quantity: number
+  quantity_unit?: 'Stk' | 'm' | string | null
   location: string
   notes: string | null
   category_id: string | null
@@ -668,6 +669,18 @@ export async function updateGrossanlassProcurementQuote(
     inbound_mode?: 'pickup' | 'delivery' | null
     return_needed?: boolean
     return_at?: string | null
+    agreement_item?: {
+      count: number
+      unit: 'Stk' | 'm'
+      size: string
+      note: string
+      price: string
+      delivery_at?: string
+      inbound_mode?: 'pickup' | 'delivery'
+      return_needed?: boolean
+      return_at?: string
+      lead_days?: string | number | null
+    }
   }>,
 ): Promise<GrossanlassProcurementQuote> {
   const response = await apiClient.put<GrossanlassProcurementQuote>(

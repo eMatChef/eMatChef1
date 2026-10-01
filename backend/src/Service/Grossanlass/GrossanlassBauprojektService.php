@@ -30,6 +30,7 @@ final class GrossanlassBauprojektService
         private GrossanlassWishService $wishes,
         private GrossanlassPackService $packs,
         private GrossanlassProcurementService $procurement,
+        private GrossanlassProcurementProgress $procurementProgress,
     ) {}
 
     /**
@@ -98,7 +99,7 @@ final class GrossanlassBauprojektService
         }
         $group->setWindowStart($start);
         $group->setWindowEnd($end);
-        if (array_key_exists('build_status', $data) && $this->access->canSetBuildStatus($user, $department)) {
+        if (array_key_exists('build_status', $data) && $this->access->canSetBuildStatus($user, $department, $group)) {
             $raw = $data['build_status'];
             if ($raw === null || $raw === '') {
                 $group->setBuildStatus(null);
@@ -241,6 +242,7 @@ final class GrossanlassBauprojektService
         $row->setGroup($group);
         $row->setVehicleLabel($vehicle);
         $row->setTaskLabel($task);
+        $row->setCategoryLabel($this->categoryLabel($data));
         $row->setSortOrder($max + 1);
         $this->applyVehicleSchedule($row, $data);
         $this->entityManager->persist($row);
@@ -264,6 +266,9 @@ final class GrossanlassBauprojektService
         }
         if (array_key_exists('task_label', $data)) {
             $row->setTaskLabel(trim((string) $data['task_label']));
+        }
+        if (array_key_exists('category_label', $data)) {
+            $row->setCategoryLabel($this->categoryLabel($data));
         }
         if (trim($row->getVehicleLabel()) === '' && trim($row->getTaskLabel()) === '') {
             throw new \InvalidArgumentException('Fahrzeug oder Aufgabe ist erforderlich');
@@ -469,6 +474,7 @@ final class GrossanlassBauprojektService
             'window_start' => $group->getWindowStart()?->format('Y-m-d'),
             'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
             'build_status' => $group->getBuildStatus(),
+            'procurement_progress' => $this->procurementProgress->buildProgressByGroup($department->getId())[$group->getId()] ?? null,
             'description' => $group->getDescription(),
         ];
 
@@ -497,6 +503,7 @@ final class GrossanlassBauprojektService
             'einsaetze' => $this->serializeEinsaetze($group),
             'map' => $this->mapSnippet($department, $place),
             'can_edit' => $this->canEdit($department, $user, $group),
+            'can_set_build_status' => $this->access->canSetBuildStatus($user, $department, $group),
         ];
     }
 
@@ -687,12 +694,23 @@ final class GrossanlassBauprojektService
             'group_id' => $row->getGroupId(),
             'vehicle_label' => $row->getVehicleLabel(),
             'task_label' => $row->getTaskLabel(),
+            'category_label' => $row->getCategoryLabel(),
             'sort_order' => $row->getSortOrder(),
             'starts_at' => $row->getStartsAt()?->format('Y-m-d\TH:i:s'),
             'duration_minutes' => $row->getDurationMinutes(),
             'procurement_line_id' => $row->getProcurementLineId(),
             'created_at' => $row->getCreatedAt()->format(\DateTimeInterface::ATOM),
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function categoryLabel(array $data): ?string
+    {
+        $category = trim((string) ($data['category_label'] ?? ''));
+
+        return $category === '' ? null : $category;
     }
 
     /**

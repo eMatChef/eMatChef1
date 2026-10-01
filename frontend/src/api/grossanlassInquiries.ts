@@ -8,6 +8,32 @@ export type GrossanlassInquiryStatus =
   | 'absage'
   | 'vorschlag'
 
+export type GrossanlassInquiryAgreementItem = {
+  id: string
+  label: string
+  quantity: number
+  category_name?: string
+  yes: boolean | null
+  count: number
+  unit: 'Stk' | 'm'
+  period: string
+  size: string
+  price: string
+  kind: 'loan' | 'rental' | 'purchase' | ''
+  note: string
+  delivery_at?: string
+  inbound_mode?: 'pickup' | 'delivery' | ''
+  return_needed?: boolean
+  return_at?: string
+  lead_days?: number | string | null
+}
+
+export type GrossanlassInquiryAgreement = {
+  collaborate: boolean | null
+  reason?: string
+  items: GrossanlassInquiryAgreementItem[]
+}
+
 export type GrossanlassInquiryThreadEntry = {
   who: 'ok' | 'firm' | string
   text: string
@@ -17,6 +43,7 @@ export type GrossanlassInquiryThreadEntry = {
   kind?: string
   via?: 'phone' | 'mail' | 'mailbox' | string
   deal?: 'open' | 'loan' | 'rental' | 'purchase' | 'no' | string
+  agreement?: GrossanlassInquiryAgreement
   gmail_message_id?: string
 }
 
@@ -230,7 +257,13 @@ export async function markGrossanlassInquiriesSent(
 export async function recordGrossanlassInquiryChannel(
   departmentId: string,
   inquiryId: string,
-  data: { via: 'phone' | 'mail'; text?: string; deal?: string; reply?: string },
+  data: {
+    via: 'phone' | 'mail'
+    text?: string
+    deal?: string
+    reply?: string
+    agreement?: GrossanlassInquiryAgreement
+  },
 ): Promise<GrossanlassInquiry> {
   const response = await apiClient.post<GrossanlassInquiry>(
     `/api/departments/${departmentId}/grossanlass/beschaffung/anfragen/${inquiryId}/channel-note`,

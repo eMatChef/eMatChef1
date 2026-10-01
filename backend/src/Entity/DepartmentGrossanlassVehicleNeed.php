@@ -36,6 +36,9 @@ class DepartmentGrossanlassVehicleNeed
     #[ORM\Column(name: 'task_label', type: 'string', length: 255)]
     private string $taskLabel = '';
 
+    #[ORM\Column(name: 'category_label', type: 'string', length: 255, nullable: true)]
+    private ?string $categoryLabel = null;
+
     #[ORM\Column(name: 'sort_order', type: 'integer', options: ['default' => 0])]
     private int $sortOrder = 0;
 
@@ -123,6 +126,18 @@ class DepartmentGrossanlassVehicleNeed
     public function setTaskLabel(string $taskLabel): self
     {
         $this->taskLabel = $taskLabel;
+
+        return $this;
+    }
+
+    public function getCategoryLabel(): ?string
+    {
+        return $this->categoryLabel;
+    }
+
+    public function setCategoryLabel(?string $categoryLabel): self
+    {
+        $this->categoryLabel = $categoryLabel;
 
         return $this;
     }

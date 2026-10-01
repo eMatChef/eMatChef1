@@ -50,6 +50,8 @@ const props = withDefaults(
     /** Tour-Spotlight: Target auf der ganzen Dialog-Karte (inkl. Actions) */
     dataOnboarding?: string
     zIndex?: number
+    /** false verhindert das Schliessen (z. B. ungespeicherte Eingaben). */
+    beforeClose?: () => boolean | Promise<boolean>
   }>(),
   {
     maxWidth: 560,
@@ -76,7 +78,11 @@ function clearPulseTimers() {
   pulseTimers.splice(0).forEach((timer) => window.clearTimeout(timer))
 }
 
-function onUpdate(value: boolean) {
+async function onUpdate(value: boolean) {
+  if (!value && props.beforeClose) {
+    const allowed = await props.beforeClose()
+    if (!allowed) return
+  }
   model.value = value
 }
 
