@@ -59,11 +59,11 @@ export function gaCanSetBuildStatus(
   if (normalized === 'mw' || normalized === 'cmw') return true
   if (normalized !== 'dc' || !userId || !group) return false
   const byId = new Map(groups.map((row) => [row.id, row]))
-  let current: { id: string; parent_id?: string | null } | undefined = group
+  let current: (typeof groups)[number] | undefined = group
   const seen = new Set<string>()
   while (current && !seen.has(current.id)) {
     seen.add(current.id)
-    const full = byId.get(current.id) ?? current
+    const full: (typeof groups)[number] = byId.get(current.id) ?? current
     const leaders = full.leaders ?? full.members?.filter((member) => member.is_leader) ?? []
     if (leaders.some((member) => member.user_id === userId)) return true
     current = full.parent_id ? byId.get(full.parent_id) : undefined

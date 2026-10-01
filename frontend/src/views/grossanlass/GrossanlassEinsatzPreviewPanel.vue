@@ -1124,9 +1124,9 @@ async function loadTaskBars() {
           barRole: 'einsatz' as const,
         }]
       })
-      return [project.id, bookings, vehicleBookings] as const
+      return [project.id, bookings, vehicleBookings] as [string, GaPreviewEinsatz[], GaPreviewEinsatz[]]
     } catch {
-      return [project.id, [], []] as const
+      return [project.id, [] as GaPreviewEinsatz[], [] as GaPreviewEinsatz[]] as [string, GaPreviewEinsatz[], GaPreviewEinsatz[]]
     }
   }))
   taskBars.value = Object.fromEntries(packs.map(([id, bookings]) => [id, bookings]))
