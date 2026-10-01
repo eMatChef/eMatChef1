@@ -1,6 +1,10 @@
 # Grossanlass — MVP
 
-> Erster lieferbarer Schnitt. Vollständige Spezifikation: [README.md](./README.md) (§9 Wünsche & Ideen). Partneranfragen / Grob–Fein / Formular-Typen: [20260823_New_concept.md](./20260823_New_concept.md).
+> **Historischer Planungsstand** (erster lieferbarer Schnitt). Das ist nicht die aktuelle Ist-Dokumentation.
+>
+> **Ist heute:** [README.md §0](./README.md#0-ist-stand).
+>
+> Checklisten und Sätze wie «nicht im MVP» oder «Beschaffung ohne Backend» beschreiben diesen alten Schnitt. Sie gelten nicht als Aussage über den heutigen Code. Partneranfragen / Grob–Fein: historisches [20260823_New_concept.md](./20260823_New_concept.md).
 
 ---
 
@@ -8,7 +12,7 @@
 
 **Chief-intern (gebaut):** Grossanlass anlegen → **Ressort-Baum** → **Formular** mit Bedarfserfassung (`ressort_wuensche`).
 
-**Soll danach (Spec, nicht MVP-DoD):** Tab «Wünsche & Ideen»; Typen Material / Firmenvorschlag / Frei; Beschaffung Anfragen. Gast-Einladungen, Materialübersicht, Leihweise/Fuhrpark und Phasen-Activities folgen später.
+Die Checklisten unten sind der ursprüngliche Schnitt. Was darüber hinaus gebaut ist, steht in [README §0](./README.md#0-ist-stand), nicht in dieser Datei.
 
 ---
 
