@@ -2,7 +2,7 @@
 
 Abarbeitbare Checkliste für zentrale Foto-Speicherung mit **kontextspezifischen APIs**. Das **Warum/Zielmodell** steht in [README.md](./README.md). Dieser Plan = **Was & in welcher Reihenfolge**.
 
-**Stand:** Mai 2026 · **Erledigt:** Paket 0 + 1 (Foundation + Werkstatt-Migration). **Als Nächstes:** Paket 2 (Schaden melden) — oder Paket 6 vorher, wenn `PhotoUpload` für Paket 2 gewünscht.
+**Stand:** Oktober 2026 · **Erledigt:** Pakete 0–6 (siehe Tabelle unten). Offene Punkte sind die manuellen Testzeilen in den Paketen, nicht der Upload-Pfad.
 
 ---
 

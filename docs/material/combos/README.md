@@ -127,7 +127,7 @@ flowchart TB
 
 ### Was die Vorlage liefert
 
-`MaterialTemplate`: `material_type`, `tent_type`, `capacity`, `reservation_mode`.
+`MaterialTemplate`: `material_type`, `tent_type`, `capacity`. `reservation_mode` ist entfernt (Abschnitt 3).
 `MaterialTemplateComponent`: `component_type`, `required_qty`, **`is_optional`**, `tracking` (serialized/bulk), `is_generic`, `sort_order`. Diese Struktur fließt 1:1 in die `MaterialComboComponent` der erzeugten Kombo.
 
 ---

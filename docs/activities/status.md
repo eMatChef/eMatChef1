@@ -49,11 +49,11 @@ Einheitlich in `frontend/src/styles/activity-status.css` (Dashboard, Aktivitäte
 | `approved` | Grün | Bestätigt |
 | `packing` | Orange | Wird gepackt |
 | `packed` | Primary (Grün) | Gepackt |
-| `transport_out` | *(noch zu definieren)* | Transport hin |
+| `transport_out` | Türkis | Transport hin |
 | `at_event` | Dunkelgrün | Am Anlass |
-| `transport_back` | *(noch zu definieren)* | Transport zurück |
+| `transport_back` | Cyan | Transport zurück |
 | `returned` | Türkis | Retour |
-| `storing` | *(noch zu definieren)* | Einlagern |
+| `storing` | Indigo | Einlagern |
 | `completed` | Grau | Abgeschlossen |
 | `cancelled` | Rot | Storniert |
 

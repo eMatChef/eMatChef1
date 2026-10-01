@@ -45,6 +45,10 @@ Die Nachrichtenzentrale (`NotificationsCenterView`) führt alle Typen in **einem
 | QR-Kontakt | `InboxMessageService` | `qr_found` | `…/public-found-messages` | Status open/in_progress/done |
 | Buchhaltung | `InboxMessageService` + `accounting_acquisition_follow_up` | `accounting_followup` (Spiegel) | `…/acquisition-followups` | Inbox-Zeile weg bei „erfasst“ |
 | Einladung angenommen (für Einladende) | `InboxMessageService` | `invite_accepted` | `…/invite/notifications` | dauerhaft, nur gelesen markieren |
+| Grossanlass: MW ernannt | `InboxMessageService` | `grossanlass_mw_assigned` | Inbox des Users | dauerhaft, nur gelesen markieren |
+| Grossanlass: Planungsrunde geöffnet | `InboxMessageService` | `grossanlass_round_opened` | Inbox des Users | dauerhaft, nur gelesen markieren |
+| Grossanlass: Gast-Einladung | `InboxMessageService` | `grossanlass_department_invite` | Inbox des Users | löschen, wenn die Teilnehmer-Einladung entfernt wird |
+| Werkstatt: Bestell-Erinnerung | `InboxMessageService` | `workshop_order_reminder` | Inbox des Departments | löschen mit `removeWorkshopOrderReminderInbox` |
 
 **Hinweis:** `join.pending_invites` bleibt die fachliche Quelle für Einladungs-Workflow (Annahme/Ablehnung). Die Inbox zeigt nur die Benachrichtigung. Buchhaltungs-Fachdaten bleiben in `accounting_acquisition_follow_up`, die Glocke liest zusätzlich `inbox_message`.
 
