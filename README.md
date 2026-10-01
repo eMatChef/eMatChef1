@@ -39,5 +39,7 @@ Sollten Sie bei der Einrichtung auf Probleme stoßen oder Fragen haben, keine So
 
 Bevor Sie mit dem Programmieren beginnen, lesen Sie bitte unsere [Richtlinien für Mitwirkende](CONTRIBUTING.md).
 
+Technischer Einstieg für Entwicklung (Architektur, Domäne, lokale Commands): [docs/README.md](docs/README.md).
+
 - Machen Sie sich mit der [Dokumentation im Wiki](https://github.com/eMatChef/eMatChef1/wiki) vertraut.
 - Wählen Sie ein [Problem mit der Bezeichnung „gutes erstes Problem“](https://github.com/eMatChef/eMatChef1/issues) und versuchen Sie, es zu lösen.
