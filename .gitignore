@@ -37,7 +37,6 @@ logs/
 !backend/.env
 docs-private/
 doku/
-.cursor/
 
 ## Secret key/certificate material
 *.pem
