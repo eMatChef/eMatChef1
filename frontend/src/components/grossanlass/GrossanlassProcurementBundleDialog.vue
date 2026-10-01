@@ -51,12 +51,30 @@
 
     <p class="review-sum">
       {{ t('grossanlass.beschaffung.bedarf.bundlePreview', {
-        count: selectedIds.length,
+        count: selectedIds.length + selectedVehicleIds.length,
         sum: selectedQuantitySum,
       }) }}
     </p>
 
     <div class="review-list">
+      <label
+        v-for="row in vehicles"
+        :key="row.id"
+        class="review-row"
+        :class="{ 'is-selected': selectedVehicleIds.includes(row.id) }"
+      >
+        <input
+          type="checkbox"
+          :checked="selectedVehicleIds.includes(row.id)"
+          @change="toggleVehicle(row.id)"
+        />
+        <div class="review-row__body">
+          <div class="review-row__main">
+            <strong>1× {{ row.vehicle_label || '–' }}</strong>
+          </div>
+          <div class="review-row__meta">{{ row.group_name }} · {{ row.task_label || '–' }}</div>
+        </div>
+      </label>
       <label
         v-for="wish in wishes"
         :key="wish.id"
@@ -87,11 +105,11 @@
       <EButton
         variant="primary"
         size="small"
-        :disabled="selectedIds.length === 0 || !categoryId"
+        :disabled="selectedIds.length + selectedVehicleIds.length === 0 || !categoryId"
         :loading="isSubmitting"
         @click="submit"
       >
-        {{ t('grossanlass.beschaffung.bedarf.bundleConfirm', { count: selectedIds.length }) }}
+        {{ t('grossanlass.beschaffung.bedarf.bundleConfirm', { count: selectedIds.length + selectedVehicleIds.length }) }}
       </EButton>
     </template>
   </EDialog>
@@ -107,18 +125,22 @@ import {
   type GrossanlassProcurementPoolWish,
 } from '@/api/grossanlassProcurement'
 import { getGrossanlassGroups, type GrossanlassGroup } from '@/api/grossanlassGroups'
+import type { GaBauprojektVehicleNeed } from '@/api/grossanlassBauprojekt'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import GrossanlassProcurementCategoryPicker from '@/components/grossanlass/GrossanlassProcurementCategoryPicker.vue'
 import GrossanlassCategoryDropdownItem from '@/components/grossanlass/GrossanlassCategoryDropdownItem.vue'
 import { EButton, EDialog, ESelect, ETextField } from '@/components/form/base'
 import { grossanlassPayerSelectItems } from '@/utils/grossanlassCostPayer'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   departmentId: string
   wishes: GrossanlassProcurementPoolWish[]
+  vehicles?: Array<GaBauprojektVehicleNeed & { group_name: string }>
   suggestedLabel?: string
   categories: GrossanlassProcurementCategory[]
-}>()
+}>(), {
+  vehicles: () => [],
+})
 
 const emit = defineEmits<{
   saved: []
@@ -135,11 +157,12 @@ const payerGroupId = ref<string | null>(null)
 const groups = ref<GrossanlassGroup[]>([])
 const logisticsGroupId = ref<string | null>(null)
 const selectedIds = ref<string[]>([])
+const selectedVehicleIds = ref<string[]>([])
 const isSubmitting = ref(false)
 const errorMessage = ref('')
 
 const kindItems = computed(() =>
-  (['purchase', 'rental', 'loan', 'buy_resale'] as GrossanlassCostKind[]).map((value) => ({
+  (['purchase', 'rental', 'loan'] as GrossanlassCostKind[]).map((value) => ({
     title: t(`grossanlass.beschaffung.kosten.kind.${value}`),
     value,
   })),
@@ -153,6 +176,11 @@ const payerItems = computed(() => {
     known.add(wish.group_id)
     extra.push({ id: wish.group_id, name: wish.group_name, parent_id: null })
   }
+  for (const row of props.vehicles) {
+    if (!row.group_id || known.has(row.group_id)) continue
+    known.add(row.group_id)
+    extra.push({ id: row.group_id, name: row.group_name, parent_id: null })
+  }
   return grossanlassPayerSelectItems([...fromApi, ...extra], logisticsGroupId.value, {
     central: t('grossanlass.beschaffung.kosten.payerCentral'),
     potSuffix: t('grossanlass.beschaffung.kosten.payerPotSuffix'),
@@ -162,15 +190,17 @@ const payerItems = computed(() => {
 const selectedQuantitySum = computed(() =>
   props.wishes
     .filter((w) => selectedIds.value.includes(w.id))
-    .reduce((sum, w) => sum + w.quantity, 0),
+    .reduce((sum, w) => sum + w.quantity, 0)
+  + selectedVehicleIds.value.length,
 )
 
 watch(
-  [open, () => props.wishes.map((w) => w.id).join(',')],
+  [open, () => props.wishes.map((w) => w.id).join(','), () => props.vehicles.map((row) => row.id).join(',')],
   async ([visible]) => {
     if (!visible) return
     selectedIds.value = props.wishes.map((w) => w.id)
-    label.value = (props.suggestedLabel ?? props.wishes[0]?.label ?? '').trim()
+    selectedVehicleIds.value = props.vehicles.map((row) => row.id)
+    label.value = (props.suggestedLabel ?? props.wishes[0]?.label ?? props.vehicles[0]?.vehicle_label ?? '').trim()
     categoryId.value = null
     costKind.value = 'loan'
     errorMessage.value = ''
@@ -199,9 +229,17 @@ function toggleWish(id: string) {
   }
 }
 
+function toggleVehicle(id: string) {
+  if (selectedVehicleIds.value.includes(id)) {
+    selectedVehicleIds.value = selectedVehicleIds.value.filter((x) => x !== id)
+  } else {
+    selectedVehicleIds.value = [...selectedVehicleIds.value, id]
+  }
+}
+
 async function submit() {
   const trimmed = label.value.trim()
-  if (!trimmed || selectedIds.value.length === 0 || !categoryId.value) {
+  if (!trimmed || selectedIds.value.length + selectedVehicleIds.value.length === 0 || !categoryId.value) {
     errorMessage.value = t('grossanlass.beschaffung.bedarf.bundleReviewValidation')
     return
   }
@@ -211,6 +249,7 @@ async function submit() {
   try {
     await createGrossanlassProcurementLine(props.departmentId, {
       wish_line_ids: selectedIds.value,
+      vehicle_need_ids: selectedVehicleIds.value,
       label: trimmed,
       category_id: categoryId.value,
       cost_kind: costKind.value,

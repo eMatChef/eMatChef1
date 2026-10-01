@@ -191,6 +191,8 @@ class GrossanlassDepartmentCreateService
                 );
 
                 $this->entityManager->persist($membership);
+                $this->entityManager->flush();
+                $this->inboxMessageService->pruneDepartmentInvitesForExistingMember($chiefMwUser, $department);
             }
 
             $this->entityManager->flush();

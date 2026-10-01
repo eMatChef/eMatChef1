@@ -45,6 +45,9 @@ class GrossanlassRoundFormService
         }
 
         $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular ist fest');
+        }
         if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
             throw new \InvalidArgumentException('Geschlossene Runden: Formular nicht mehr bearbeitbar');
         }
@@ -72,6 +75,7 @@ class GrossanlassRoundFormService
             ->findOneBy(['roundId' => $round->getId()]);
         if ($existing instanceof ActivityGrossanlassRoundForm) {
             $this->ensureCompanyTipInquiryFields($round, $existing);
+            $this->ensureMaterialWishCoreFields($round, $existing);
 
             return $existing;
         }
@@ -96,7 +100,11 @@ class GrossanlassRoundFormService
         $form = $this->entityManager->getRepository(ActivityGrossanlassRoundForm::class)
             ->findOneBy(['roundId' => $round->getId()]);
         if ($form instanceof ActivityGrossanlassRoundForm) {
-            if ($this->ensureCompanyTipInquiryFields($round, $form)) {
+            $dirty = $this->ensureCompanyTipInquiryFields($round, $form);
+            if ($this->ensureMaterialWishCoreFields($round, $form)) {
+                $dirty = true;
+            }
+            if ($dirty) {
                 $this->entityManager->flush();
             }
 
@@ -126,6 +134,69 @@ class GrossanlassRoundFormService
             ->getResult();
 
         return array_values(array_filter($fields, fn ($f) => $f instanceof ActivityGrossanlassRoundFormField));
+    }
+
+    /**
+     * Offene Materialformulare bekommen das feste Minimum, ohne vorhandene Fragen zu ersetzen.
+     */
+    public function ensureMaterialWishCoreFields(ActivityGrossanlassRound $round, ActivityGrossanlassRoundForm $form): bool
+    {
+        if ($round->getFormPurpose() !== ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            return false;
+        }
+        if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
+            return false;
+        }
+
+        $fields = $this->entityManager->getRepository(ActivityGrossanlassRoundFormField::class)
+            ->findBy(['formId' => $form->getId()]);
+        $haveSystem = [];
+        $hasPhaseSelect = false;
+        foreach ($fields as $field) {
+            if (!$field instanceof ActivityGrossanlassRoundFormField) {
+                continue;
+            }
+            $systemKey = $field->getSystemKey();
+            if ($systemKey !== null) {
+                $haveSystem[$systemKey] = true;
+            }
+            if ($field->getCustomType() === GrossanlassFormFieldCatalog::CUSTOM_SELECT) {
+                $options = $field->getOptionsJson() ?? [];
+                $choices = is_array($options['choices'] ?? null) ? $options['choices'] : [];
+                foreach ($choices as $choice) {
+                    $label = mb_strtolower(trim((string) $choice));
+                    if ($label !== '' && (str_contains($label, 'aufbau') || str_contains($label, 'abbau') || str_contains($label, 'event'))) {
+                        $hasPhaseSelect = true;
+                    }
+                }
+            }
+        }
+
+        $dirty = false;
+        foreach (GrossanlassFormFieldCatalog::defaultRessortWuenscheFields() as $def) {
+            if (($def['role'] ?? '') !== GrossanlassFormFieldCatalog::ROLE_INPUT) {
+                continue;
+            }
+            $systemKey = is_string($def['system_key'] ?? null) ? $def['system_key'] : null;
+            if ($systemKey === GrossanlassFormFieldCatalog::SYSTEM_RESSORT_WAHL) {
+                continue;
+            }
+            if ($systemKey !== null && isset($haveSystem[$systemKey])) {
+                continue;
+            }
+            if ($systemKey === null && $hasPhaseSelect) {
+                continue;
+            }
+            $this->entityManager->persist($this->createFieldFromDefinition($form, $def));
+            if ($systemKey !== null) {
+                $haveSystem[$systemKey] = true;
+            } else {
+                $hasPhaseSelect = true;
+            }
+            $dirty = true;
+        }
+
+        return $dirty;
     }
 
     public function ensureCompanyTipInquiryFields(ActivityGrossanlassRound $round, ActivityGrossanlassRoundForm $form): bool
@@ -330,6 +401,10 @@ class GrossanlassRoundFormService
                 continue;
             }
             if ($this->fieldHasResponseValues($id)) {
+                continue;
+            }
+            $config = $field->getConfigJson() ?? [];
+            if (!empty($config['locked'])) {
                 continue;
             }
             $this->entityManager->remove($field);

@@ -2,34 +2,33 @@
   <div class="ga-preview-page">
     <p class="ga-preview-intro">{{ t(introKey) }}</p>
     <div class="ga-preview-actions">
-      <EButton variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
-      <EButton
-        variant="secondary"
-        size="small"
-        :class="{ 'is-on': vehiclesOnly }"
-        @click="toggleVehicles"
-      >
-        {{ t('grossanlass.materials.filterVehicles') }}
-      </EButton>
+      <EButton v-if="canManageMaterials" variant="primary" size="small" @click="createOpen = true">{{ t(addKey) }}</EButton>
     </div>
     <GrossanlassMaterialsPreviewTable :tab="tab" />
-    <GrossanlassZusageCreatePreviewDialog v-model="createOpen" :preset="createPreset" @created="onCreated" />
+    <GrossanlassZusageCreatePreviewDialog
+      v-model="createOpen"
+      :preset="createPreset"
+      :allow-vehicle="false"
+      @created="onCreated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import GrossanlassMaterialsPreviewTable from '@/views/grossanlass/GrossanlassMaterialsPreviewTable.vue'
 import GrossanlassZusageCreatePreviewDialog from '@/views/grossanlass/GrossanlassZusageCreatePreviewDialog.vue'
 import { EButton } from '@/components/form/base'
+import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
 import type { GrossanlassCommitment } from '@/api/grossanlassCommitments'
 import type { GaMaterialsTabId } from '@/views/grossanlass/grossanlassMaterialsPreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { commitmentTabs } from '@/views/grossanlass/grossanlassCommitmentMap'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
+import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,24 +47,26 @@ const tab = computed<GaMaterialsTabId>(() => {
   return 'eigen'
 })
 
-const vehiclesOnly = computed(() => String(route.query.family || '') === 'vehicle')
+const canManageMaterials = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
 
 const introKey = computed(() => `grossanlass.materials.${tab.value}Intro`)
 const addKey = computed(() => `grossanlass.materials.zusage.addFromZusage`)
 
 const createPreset = computed<Partial<GaZusageCreateDraft>>(() => ({
-  family: vehiclesOnly.value ? 'vehicle' : 'material',
+  family: 'material',
   origin: tab.value === 'eigen' ? 'buy' : 'loan',
 }))
 
-function toggleVehicles() {
-  const id = departmentId.value
-  if (!id) return
-  void router.replace({
-    path: route.path,
-    query: vehiclesOnly.value ? {} : { family: 'vehicle' },
-  })
-}
+watch(
+  () => String(route.query.family || ''),
+  (family) => {
+    const id = departmentId.value
+    if (family === 'vehicle' && id) {
+      void router.replace(`/${id}/fahrzeuge`)
+    }
+  },
+  { immediate: true },
+)
 
 function onCreated(row: GrossanlassCommitment) {
   catalog.upsert(row)
@@ -73,7 +74,7 @@ function onCreated(row: GrossanlassCommitment) {
   if (!id) return
   const tabs = commitmentTabs(row)
   const from = tabs.includes('leihweise') ? 'leihweise' : 'eigen'
-  void router.push({ path: `/${id}/materialien/artikel/${row.id}`, query: { from } })
+  void router.push(gaBestandArtikelPath(id, row.id, from))
 }
 </script>
 
@@ -81,5 +82,4 @@ function onCreated(row: GrossanlassCommitment) {
 .ga-preview-page { padding: 8px 0 24px; }
 .ga-preview-intro { margin: 0 0 16px; color: #64748b; font-size: 0.9rem; }
 .ga-preview-actions { margin-bottom: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-.ga-preview-actions .is-on { font-weight: 700; }
 </style>

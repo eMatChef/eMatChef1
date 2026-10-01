@@ -2,6 +2,16 @@
   <div class="ga-gantt">
     <div class="ga-gantt__stick">
     <div class="ga-gantt__toolbar">
+      <button
+        v-if="showCreate"
+        type="button"
+        class="ga-gantt__add"
+        :aria-label="t('grossanlass.planung.createEntry')"
+        @click="emit('create')"
+      >
+        <v-icon icon="mdi-plus" size="18" />
+        {{ t('grossanlass.planung.addLabel') }}
+      </button>
       <div class="ga-gantt__scales" role="tablist">
         <button
           v-for="item in scales"
@@ -9,10 +19,15 @@
           type="button"
           class="ga-gantt__scale-btn"
           :class="{ 'ga-gantt__scale-btn--active': scale === item.id }"
-          @click="scale = item.id"
+          @click="selectScale(item.id)"
         >
           {{ item.label }}
         </button>
+      </div>
+      <div v-if="scale !== 'day'" class="ga-gantt__zoom">
+        <button type="button" :aria-label="t('grossanlass.planung.calZoomLess')" :disabled="shownDays <= 1" @click="changeDayZoom(-1)">−</button>
+        <span>{{ shownDays }} {{ t('grossanlass.planung.calZoomDays') }}</span>
+        <button type="button" :aria-label="t('grossanlass.planung.calZoomMore')" :disabled="shownDays >= 62" @click="changeDayZoom(1)">+</button>
       </div>
       <strong class="ga-gantt__title">{{ windowTitle }}</strong>
       <ESearchField
@@ -70,18 +85,16 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMonthPrev')"
-            @click="shiftMonth(-1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            @click="shiftByDays(-10)"
           >
             &lt;&lt;
           </button>
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMidPrev')"
-            @click="shiftMid(-1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            @click="shiftByDays(-2)"
           >
             &lt;
           </button>
@@ -108,18 +121,16 @@
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'mid' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMidNext')"
-            @click="shiftMid(1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 2 })"
+            @click="shiftByDays(2)"
           >
             &gt;
           </button>
           <button
             type="button"
             class="ga-gantt__axis-nav-btn"
-            :class="{ 'ga-gantt__axis-nav-btn--on': jumpMode === 'month' }"
-            :aria-label="t('grossanlass.materialUebersicht.jumpMonthNext')"
-            @click="shiftMonth(1)"
+            :aria-label="t('grossanlass.materialUebersicht.jumpDays', { n: 10 })"
+            @click="shiftByDays(10)"
           >
             &gt;&gt;
           </button>
@@ -166,6 +177,16 @@
               <span class="ga-gantt__bar-label ga-gantt__bar-label--time">{{ booking.objectName }}</span>
               <span class="ga-gantt__bar-label ga-gantt__bar-label--full">{{ booking.objectName }}</span>
             </button>
+            <button
+              v-if="canEditBooking(booking)"
+              type="button"
+              class="ga-gantt__bar-edit"
+              :aria-label="t('grossanlass.materialUebersicht.editEinsatz')"
+              :title="t('grossanlass.materialUebersicht.editEinsatz')"
+              @click.stop="openEinsatz(booking, { id: 'fixed', stayMode: 'stay' }, true)"
+            >
+              <v-icon icon="mdi-cog" size="14" />
+            </button>
           </span>
         </div>
         <span class="ga-gantt__axis-nav ga-gantt__axis-nav--spacer" aria-hidden="true" />
@@ -182,60 +203,133 @@
     />
     <div v-else-if="displayRings.length" class="ga-gantt__body" :style="gridTemplateStyle">
         <template v-for="ring in displayRings" :key="ring.id">
-          <button
-            type="button"
+          <div
+            v-show="isRingShown(ring)"
             class="ga-gantt__ring"
-            :class="{ 'ga-gantt__ring--closed': !isRingOpen(ring.id) }"
+            :class="{
+              'ga-gantt__ring--closed': !isRingOpen(ring.id),
+              'ga-gantt__ring--child': (ring.depth || 0) > 0,
+            }"
             :style="{ gridColumn: '1 / -1' }"
-            :aria-expanded="isRingOpen(ring.id)"
-            @click="toggleRing(ring)"
           >
-            <v-icon
-              :icon="isRingOpen(ring.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-              size="18"
-            />
-            <span>{{ ring.label }}</span>
-          </button>
-          <template v-if="isRingOpen(ring.id)">
+            <button
+              type="button"
+              class="ga-gantt__ring-main"
+              :aria-expanded="isRingOpen(ring.id)"
+              @click="toggleRing(ring)"
+            >
+              <v-icon
+                :icon="isRingOpen(ring.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                size="18"
+              />
+              <span>{{ ring.label }}</span>
+              <span
+                v-if="ring.status"
+                class="ga-gantt__ring-status"
+                :class="`ga-gantt__ring-status--${ring.statusKind || 'planned'}`"
+              >{{ ring.status }}</span>
+            </button>
+            <button
+              v-if="ring.windowText && ring.groupId"
+              type="button"
+              class="ga-gantt__ring-window"
+              @click="emit('editWindow', ring.groupId)"
+            >
+              {{ ring.windowText }}
+            </button>
+          </div>
+          <template v-if="isRingShown(ring) && isRingOpen(ring.id)">
           <template v-for="block in ring.blocks" :key="block.id">
-          <button
+          <div
             v-if="!ring.skipCategory"
-            type="button"
             class="ga-gantt__cat"
-            :class="{ 'ga-gantt__cat--closed': !isBlockOpen(block.id) }"
-            :style="{ gridColumn: '1 / -1' }"
-            :aria-expanded="isBlockOpen(block.id)"
-            @click="toggleBlock(block)"
+            :class="{
+              'ga-gantt__cat--closed': !isBlockOpen(block.id),
+              'ga-gantt__cat--child': (ring.depth || 0) > 0,
+            }"
+            :style="{ gridColumn: '1' }"
           >
-            <v-icon
-              :icon="isBlockOpen(block.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
-              size="16"
-            />
-            <span>{{ block.label }}</span>
-          </button>
-          <template v-for="resource in block.resources" :key="resource.id">
+            <button
+              type="button"
+              class="ga-gantt__cat-toggle"
+              :aria-expanded="isBlockOpen(block.id)"
+              @click="toggleBlock(block)"
+            >
+              <v-icon
+                :icon="isBlockOpen(block.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                size="16"
+              />
+            </button>
+            <button
+              v-if="block.groupId"
+              type="button"
+              class="ga-gantt__cat-link"
+              @click="emit('openProject', block.groupId)"
+            >
+              {{ block.label }}
+            </button>
+            <span v-else>{{ block.label }}</span>
+          </div>
+          <div
+            v-if="!ring.skipCategory && !isBlockOpen(block.id)"
+            class="ga-gantt__track ga-gantt__track--summary"
+            :style="{ gridColumn: `3 / span ${columns.length}`, height: `${summaryTrackHeight()}px` }"
+          >
+            <div class="ga-gantt__summary-stack">
+              <span
+                v-for="slot in summarySlots(block).filter((item) => item.fill)"
+                :key="`${block.id}-bg-${slot.booking.id}`"
+                class="ga-gantt__summary-bg"
+                :style="summarySpan(slot.booking)"
+              />
+              <div
+                v-for="lane in summaryLaneCount(block)"
+                :key="`${block.id}-lane-${lane}`"
+                class="ga-gantt__summary-lane"
+              >
+                <span
+                  v-for="slot in summarySlots(block).filter((item) => !item.fill && item.lane === lane - 1)"
+                  :key="`${block.id}-sum-${slot.booking.id}`"
+                  class="ga-gantt__bar ga-gantt__summary-mark"
+                  :class="[barClass(slot.booking), { 'ga-gantt__bar--vehicle': slot.booking.id.startsWith('vehneed-') }]"
+                  :style="summarySpan(slot.booking)"
+                />
+              </div>
+            </div>
+          </div>
+          <template v-for="row in rowsFor(ring, block)" :key="row.key">
             <div
-              v-show="isCategoryOpen(ring, block)"
+              v-if="row.section"
+              class="ga-gantt__section"
+              :class="{ 'ga-gantt__section--deep': (ring.depth || 0) > 0 }"
+              :style="{ gridColumn: '1 / -1' }"
+            >
+              {{ row.section }}
+            </div>
+            <div
+              v-else-if="row.resource"
               class="ga-gantt__name"
               :class="{
-                'ga-gantt__name--open': focusedId === resource.id,
+                'ga-gantt__name--open': focusedId === row.resource.id,
                 'ga-gantt__name--nested': !ring.skipCategory,
+                'ga-gantt__name--deep': (ring.depth || 0) > 0,
+                'ga-gantt__name--compact': row.compact,
               }"
             >
               <span class="ga-gantt__name-text">
-                <strong>{{ resource.name }}</strong>
-                <small>{{ kindLabel(resource) }}</small>
+                <strong>{{ row.resource.name }}</strong>
+                <small v-if="!row.compact">{{ kindLabel(row.resource) }}</small>
               </span>
             </div>
             <div
-              v-show="isCategoryOpen(ring, block)"
+              v-if="row.resource"
               class="ga-gantt__track"
-              :class="{ 'ga-gantt__track--open': focusedId === resource.id }"
-              :style="{ gridColumn: `3 / span ${columns.length}`, minHeight: `${trackHeight(resource.lanes)}px` }"
+              :class="{ 'ga-gantt__track--open': focusedId === row.resource.id }"
+              :style="{ gridColumn: `3 / span ${columns.length}`, minHeight: `${trackHeight(row.resource.lanes)}px` }"
             >
               <span
                 v-for="(column, colIndex) in columns"
-                :key="`${resource.id}-${column.key}`"
+                :key="`${row.resource.id}-${column.key}`"
                 class="ga-gantt__cell"
                 :class="{
                   'ga-gantt__cell--weekend': column.weekend,
@@ -244,17 +338,17 @@
                 :style="cellStyle(colIndex)"
               />
               <span
-                v-for="shade in presenceShades(resource)"
+                v-for="shade in presenceShades(row.resource)"
                 :key="shade.key"
                 class="ga-gantt__shade"
                 :class="`ga-gantt__shade--${shade.kind}`"
                 :style="shadeBox(shade)"
               />
               <span
-                v-for="booking in visibleBookings(resource.bookings)"
+                v-for="booking in visibleBookings(row.resource.bookings)"
                 :key="booking.id"
                 class="ga-gantt__bar-wrap"
-                :style="barBox(booking, resource.laneOf[booking.id] ?? 0, resource.lanes)"
+                :style="barBox(booking, row.resource.laneOf[booking.id] ?? 0, row.resource.lanes)"
               >
                 <VTooltip
                   location="top"
@@ -270,9 +364,9 @@
                       v-bind="tipProps"
                       type="button"
                       class="ga-gantt__bar"
-                      :class="barClass(booking)"
+                      :class="[barClass(booking), { 'ga-gantt__bar--vehicle': row.resource.family === 'vehicle' }]"
                       :aria-label="barTitle(booking)"
-                      @click.stop="openEinsatz(booking, resource)"
+                      @click.stop="openEinsatz(booking, row.resource)"
                     >
                       <span class="ga-gantt__bar-label ga-gantt__bar-label--time">{{ barTime(booking) }}</span>
                       <span class="ga-gantt__bar-label ga-gantt__bar-label--full">{{ barLabel(booking) }}</span>
@@ -280,13 +374,13 @@
                   </template>
                   <div class="ga-gantt-bar-tip__body">
                     <strong>{{ booking.objectName }}</strong>
-                    <span>{{ booking.who }}</span>
+                    <span v-if="booking.who">{{ booking.who }}</span>
                     <span>
-                      {{ booking.ressort }}<template v-if="booking.bauprojekt"> · {{ booking.bauprojekt }}</template>
+                      {{ booking.ressort }}<template v-if="booking.bauprojekt && booking.bauprojekt !== booking.ressort"> · {{ booking.bauprojekt }}</template>
                     </span>
                     <span>{{ booking.fromLabel }} – {{ booking.toLabel }}</span>
                     <span v-if="booking.kind === 'quantity'">{{ t('grossanlass.materialUebersicht.qty', { n: booking.qty }) }}</span>
-                    <span>{{ stayLabel(resource.stayMode) }} · {{ statusLabel(booking) }}</span>
+                    <span v-if="!isUsageWindowEinsatz(booking)">{{ stayLabel(row.resource.stayMode) }} · {{ statusLabel(booking) }}</span>
                     <span
                       v-if="einsatzBarKind(booking) === 'handover' || einsatzBarKind(booking) === 'giveback'"
                       class="ga-gantt-bar-tip__conflict"
@@ -298,9 +392,19 @@
                     </span>
                   </div>
                 </VTooltip>
+                <button
+                  v-if="canEditBooking(booking)"
+                  type="button"
+                  class="ga-gantt__bar-edit"
+                  :aria-label="t('grossanlass.materialUebersicht.editEinsatz')"
+                  :title="t('grossanlass.materialUebersicht.editEinsatz')"
+                  @click.stop="openEinsatz(booking, row.resource, true)"
+                >
+                  <v-icon icon="mdi-cog" size="14" />
+                </button>
               </span>
             </div>
-            <span class="ga-gantt__row-end" aria-hidden="true" />
+            <span v-if="row.resource" class="ga-gantt__row-end" aria-hidden="true" />
           </template>
           </template>
           </template>
@@ -312,11 +416,13 @@
     v-model="einsatzDialogOpen"
     :booking="selectedBooking"
     :stay-mode="selectedStayMode"
+    :start-editing="selectedStartEditing"
+    @saved="loadTaskBars"
   />
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { VTooltip } from 'vuetify/components'
@@ -342,6 +448,7 @@ import {
   createGrossanlassEinsatzPreview,
   einsatzBarKind,
   enrichEinsatzFromGroups,
+  isUsageWindowEinsatz,
   formatCalendarTitle,
   groupEinsatzBlocksByRing,
   parseLocalDate,
@@ -364,6 +471,7 @@ import {
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { mergedEinsatzResources } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import { getGrossanlassBauprojekt } from '@/api/grossanlassBauprojekt'
 import {
   calendarPeriodTime,
   listDepartmentCalendarPeriods,
@@ -377,13 +485,18 @@ const props = withDefaults(defineProps<{
   groups?: GaEinsatzOrgGroup[]
   focusIso?: string | null
   focusObjectId?: string | null
+  showCreate?: boolean
+  reloadKey?: number
 }>(), {
   rows: undefined,
   resources: undefined,
   groups: undefined,
   focusIso: null,
   focusObjectId: null,
+  showCreate: false,
 })
+
+const emit = defineEmits<{ create: []; openProject: [id: string]; editWindow: [id: string] }>()
 
 const { t, locale } = useI18n()
 const route = useRoute()
@@ -398,16 +511,42 @@ function tr(key: string, values?: Record<string, string | number>): string {
 }
 
 const scale = ref<GaCalendarScale>('month')
+const zoomDays = ref<number | null>(null)
 const jumpMode = ref<'event' | 'month' | 'mid'>('event')
 const anchorTouched = ref(false)
 const anchor = ref(parseLocalDate(GA_EINSATZ_ANCHOR_ISO))
 const focusedId = ref<string | null>(null)
 const collapsedBlocks = ref<Set<string>>(new Set())
+const openedProjects = ref<Set<string>>(new Set())
+const taskBars = ref<Record<string, GaPreviewEinsatz[]>>({})
+const vehicleNeedBars = ref<Record<string, GaPreviewEinsatz[]>>({})
 const collapsedRings = ref<Set<string>>(new Set())
 const searchQuery = ref('')
 const einsatzDialogOpen = ref(false)
 const selectedBooking = ref<GaPreviewEinsatz | null>(null)
 const selectedStayMode = ref<GaEinsatzStayMode | null>(null)
+const selectedStartEditing = ref(false)
+
+const shownDays = computed(() => {
+  if (zoomDays.value != null && scale.value !== 'day') return zoomDays.value
+  const ms = windowRange.value.end.getTime() - windowRange.value.start.getTime()
+  return Math.max(1, Math.round(ms / 86400000))
+})
+
+function selectScale(next: GaCalendarScale) {
+  zoomDays.value = null
+  scale.value = next
+}
+
+function changeDayZoom(delta: number) {
+  if (zoomDays.value == null) {
+    const start = windowRange.value.start
+    anchor.value = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+    anchorTouched.value = true
+  }
+  const current = zoomDays.value ?? shownDays.value
+  zoomDays.value = Math.min(62, Math.max(1, current + delta))
+}
 
 const scales = computed(() => [
   { id: 'month' as const, label: t('grossanlass.materialUebersicht.scaleMonth') },
@@ -426,6 +565,12 @@ const orgRows = computed(() =>
 const onlyWithBookings = computed(() => !(props.resources && props.resources.length > 0))
 
 const windowRange = computed(() => {
+  if (zoomDays.value != null && scale.value !== 'day') {
+    const start = new Date(anchor.value.getFullYear(), anchor.value.getMonth(), anchor.value.getDate())
+    const end = new Date(start)
+    end.setDate(end.getDate() + zoomDays.value)
+    return { start, end }
+  }
   if (scale.value === 'month' && jumpMode.value === 'mid') {
     return midMonthWindow(anchor.value)
   }
@@ -532,12 +677,14 @@ const fixedDatePeriods = computed((): GaFixedDatePeriod[] =>
 const objectRings = computed(() => groupEinsatzBlocksByRing(filteredBlocks.value))
 const fixedRing = computed(() => buildFixedDateCalendarRing(fixedDatePeriods.value, tr))
 const orgRings = computed(() =>
-  buildOrgCalendarRings(calendarResources.value, orgRows.value, tr),
+  buildOrgCalendarRings(calendarResources.value, orgRows.value, tr, orgGroups.value),
 )
 
 function filterRingByQuery(ring: GaEinsatzRingBlock, query: string): GaEinsatzRingBlock | null {
   if (!query) return ring
   if (ring.label.toLowerCase().includes(query)) return ring
+  if ((ring.status || '').toLowerCase().includes(query)) return ring
+  if ((ring.windowText || '').toLowerCase().includes(query)) return ring
   const blocks = ring.blocks
     .map((block) => {
       if (block.label.toLowerCase().includes(query)) return block
@@ -556,11 +703,11 @@ function filterRingByQuery(ring: GaEinsatzRingBlock, query: string): GaEinsatzRi
 const displayRings = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
   const rings: GaEinsatzRingBlock[] = []
-  rings.push(...objectRings.value)
   for (const ring of orgRings.value) {
     const next = filterRingByQuery(ring, query)
     if (next) rings.push(next)
   }
+  rings.push(...objectRings.value)
   return rings
 })
 
@@ -637,13 +784,54 @@ watch(() => [props.focusIso, props.focusObjectId] as const, ([iso, objectId]) =>
   if (objectId) focusedId.value = objectId
 }, { immediate: true })
 
-watch(() => eventPeriod.defaultAnchor.value, (date) => {
-  if (!date || anchorTouched.value || props.focusIso) return
-  anchor.value = date
-})
+function fixedSpan(): { start: Date; end: Date } | null {
+  const dates: Date[] = []
+  for (const period of calendarPeriods.value) {
+    if (!KEY_DATE_LABELS.has(period.label)) continue
+    dates.push(parseLocalDate(`${period.start_date.slice(0, 10)}T00:00:00`))
+    dates.push(parseLocalDate(`${period.end_date.slice(0, 10)}T00:00:00`))
+  }
+  if (!dates.length) {
+    const span = eventPeriod.spanDates.value
+    if (!span.length) return null
+    return { start: span[0], end: span[span.length - 1] }
+  }
+  let start = dates[0]
+  let end = dates[0]
+  for (const date of dates) {
+    if (date < start) start = date
+    if (date > end) end = date
+  }
+  return { start, end }
+}
+
+function placeOnFixedDates() {
+  if (anchorTouched.value || props.focusIso) return
+  const span = fixedSpan()
+  if (!span) return
+  const crosses = span.start.getFullYear() !== span.end.getFullYear() || span.start.getMonth() !== span.end.getMonth()
+  if (scale.value === 'month' && crosses) {
+    jumpMode.value = 'mid'
+    const mid = new Date(span.start.getTime() + (span.end.getTime() - span.start.getTime()) / 2)
+    anchor.value = mid.getDate() < 16
+      ? new Date(mid.getFullYear(), mid.getMonth() - 1, 16)
+      : new Date(mid.getFullYear(), mid.getMonth(), 16)
+    return
+  }
+  jumpMode.value = 'event'
+  anchor.value = span.start
+}
+
+watch(
+  () => [
+    calendarPeriods.value.map((period) => `${period.id}:${period.start_date}:${period.end_date}`).join('|'),
+    eventPeriod.spanDates.value.map((date) => date.toISOString()).join('|'),
+  ],
+  () => { placeOnFixedDates() },
+)
 
 watch(scale, (next) => {
-  if (next === 'month') jumpMode.value = 'event'
+  if (next === 'month') placeOnFixedDates()
 })
 
 watch(displayRings, (next) => {
@@ -655,6 +843,14 @@ watch(displayRings, (next) => {
   )
   if (!stillVisible) focusedId.value = null
 })
+
+function shiftByDays(days: number) {
+  anchorTouched.value = true
+  const start = windowRange.value.start
+  const length = zoomDays.value ?? shownDays.value
+  anchor.value = new Date(start.getFullYear(), start.getMonth(), start.getDate() + days)
+  zoomDays.value = length
+}
 
 function shiftMonth(direction: -1 | 1) {
   anchorTouched.value = true
@@ -717,24 +913,41 @@ function onSelectDay(ymd: string, startMs: number) {
   goToDay(startMs)
 }
 
+function canEditBooking(booking: GaPreviewEinsatz): boolean {
+  if (!booking.id || isUsageWindowEinsatz(booking) || booking.id.startsWith('vehneed-')) return false
+  if ((booking.barRole ?? 'einsatz') !== 'einsatz') return false
+  return booking.status !== 'issued' && booking.status !== 'returned'
+}
+
 function openEinsatz(
   booking: GaPreviewEinsatz,
   resource: { id: string; stayMode: GaEinsatzStayMode },
+  edit = false,
 ) {
+  if (isUsageWindowEinsatz(booking) || booking.id.startsWith('vehneed-')) return
   selectedBooking.value = booking
   selectedStayMode.value = resource.stayMode
+  selectedStartEditing.value = edit && canEditBooking(booking)
   focusedId.value = resource.id
   einsatzDialogOpen.value = true
 }
 
 function isBlockOpen(id: string): boolean {
   if (searchQuery.value.trim()) return true
+  if (id.startsWith('org:') && !id.endsWith('::usage')) return openedProjects.value.has(id)
   return !collapsedBlocks.value.has(id)
 }
 
 function isRingOpen(id: string): boolean {
   if (searchQuery.value.trim()) return true
   return !collapsedRings.value.has(id)
+}
+
+function isRingShown(ring: GaEinsatzRingBlock): boolean {
+  if (!ring.parentId) return true
+  const parent = displayRings.value.find((item) => item.id === ring.parentId)
+  if (!parent) return true
+  return isRingOpen(parent.id) && isRingShown(parent)
 }
 
 function isCategoryOpen(ring: GaEinsatzRingBlock, block: GaEinsatzCategoryBlock): boolean {
@@ -759,6 +972,13 @@ function toggleRing(ring: GaEinsatzRingBlock) {
 }
 
 function toggleBlock(block: GaEinsatzCategoryBlock) {
+  if (block.groupId) {
+    const next = new Set(openedProjects.value)
+    if (next.has(block.id)) next.delete(block.id)
+    else next.add(block.id)
+    openedProjects.value = next
+    return
+  }
   const next = new Set(collapsedBlocks.value)
   if (next.has(block.id)) {
     next.delete(block.id)
@@ -770,6 +990,159 @@ function toggleBlock(block: GaEinsatzCategoryBlock) {
   }
   collapsedBlocks.value = next
 }
+
+function vehicleNeedRows(groupId: string): GaEinsatzCategoryBlock['resources'] {
+  return (vehicleNeedBars.value[groupId] || []).map((booking) => ({
+    id: booking.id,
+    name: booking.objectName,
+    family: 'vehicle' as const,
+    stayMode: 'stay' as const,
+    categoryId: 'fahrzeuge',
+    kind: 'unique' as const,
+    stock: 1,
+    bookings: [booking],
+    lanes: 1,
+    laneOf: { [booking.id]: 0 },
+  }))
+}
+
+function taskRows(groupId: string): GaEinsatzCategoryBlock['resources'] {
+  return (taskBars.value[groupId] || []).map((booking) => ({
+    id: booking.id,
+    name: booking.objectName,
+    family: 'material' as const,
+    stayMode: 'stay' as const,
+    categoryId: 'infra',
+    kind: 'unique' as const,
+    stock: 1,
+    bookings: [booking],
+    lanes: 1,
+    laneOf: { [booking.id]: 0 },
+  }))
+}
+
+function rowsFor(ring: GaEinsatzRingBlock, block: GaEinsatzCategoryBlock): Array<{
+  key: string
+  section?: string
+  compact?: boolean
+  resource?: GaEinsatzCategoryBlock['resources'][number]
+}> {
+  if (!isCategoryOpen(ring, block)) return []
+  if (!block.groupId) return block.resources.map((resource) => ({ key: resource.id, resource }))
+  const usage = block.resources.filter((resource) => isUsageResource(resource))
+  const vehicles = block.resources.filter((resource) => resource.family === 'vehicle')
+  const transport = block.resources.filter((resource) =>
+    !isUsageResource(resource)
+    && resource.family !== 'vehicle'
+    && resource.bookings.length > 0
+    && resource.bookings.every((booking) => booking.delivery === 'trip'),
+  )
+  const project = block.resources.filter((resource) =>
+    !usage.includes(resource) && !vehicles.includes(resource) && !transport.includes(resource),
+  )
+  const tasks = taskRows(block.groupId)
+  const vehicleNeeds = vehicleNeedRows(block.groupId)
+  return [
+    ...usage.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...project.map((resource) => ({ key: resource.id, resource })),
+    ...tasks.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...vehicles.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...vehicleNeeds.map((resource) => ({ key: resource.id, resource, compact: true })),
+    ...transport.map((resource) => ({ key: resource.id, resource, compact: true })),
+  ]
+}
+
+async function loadTaskBars() {
+  const id = departmentId.value
+  if (!id) return
+  const projects = orgGroups.value.filter((group) => group.node_type === 'bauprojekt')
+  const packs = await Promise.all(projects.map(async (project) => {
+    try {
+      const briefing = await getGrossanlassBauprojekt(id, project.id)
+      const vehicleBookings = (briefing.vehicles ?? []).flatMap((need) => {
+        if (!need.starts_at) return []
+        const label = [need.task_label.trim(), need.vehicle_label.trim()].filter(Boolean).join(' · ')
+        if (!label) return []
+        const start = parseLocalDate(need.starts_at)
+        const end = new Date(start)
+        end.setMinutes(end.getMinutes() + (need.duration_minutes && need.duration_minutes > 0 ? need.duration_minutes : 60))
+        const pad = (value: number) => String(value).padStart(2, '0')
+        const toIso = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00`
+        return [{
+          id: `vehneed-${need.id}`,
+          objectId: need.id,
+          objectName: label,
+          kind: 'unique' as const,
+          qty: 1,
+          stock: 1,
+          fromIso: need.starts_at,
+          toIso,
+          fromLabel: need.starts_at.slice(0, 16).replace('T', ' '),
+          toLabel: toIso.slice(0, 16).replace('T', ' '),
+          ressort: project.name,
+          bauprojekt: project.name,
+          groupId: project.id,
+          status: 'planned' as const,
+          who: label,
+          barRole: 'einsatz' as const,
+        }]
+      })
+      const bookings = (briefing.tasks ?? []).flatMap((task) => {
+        if (!task.starts_at || !task.title.trim()) return []
+        const start = parseLocalDate(task.starts_at)
+        const end = new Date(start)
+        end.setMinutes(end.getMinutes() + (task.duration_minutes && task.duration_minutes > 0 ? task.duration_minutes : 60))
+        const pad = (value: number) => String(value).padStart(2, '0')
+        const toIso = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00`
+        const chain: GaEinsatzOrgGroup[] = []
+        const seen = new Set<string>()
+        let cursor: GaEinsatzOrgGroup | undefined = project
+        while (cursor && !seen.has(cursor.id)) {
+          seen.add(cursor.id)
+          chain.push(cursor)
+          cursor = cursor.parent_id ? orgGroups.value.find((group) => group.id === cursor?.parent_id) : undefined
+        }
+        const ressort = chain.find((group) => group.node_type === 'ressort' || group.node_type === 'unterressort')
+        return [{
+          id: task.id,
+          objectId: task.id,
+          objectName: task.title.trim(),
+          kind: 'unique' as const,
+          qty: 1,
+          stock: 1,
+          fromIso: task.starts_at,
+          toIso,
+          fromLabel: task.starts_at.slice(0, 16).replace('T', ' '),
+          toLabel: toIso.slice(0, 16).replace('T', ' '),
+          ressort: ressort?.name || project.name,
+          bauprojekt: project.name,
+          groupId: project.id,
+          status: 'planned' as const,
+          who: task.title.trim(),
+          description: task.description?.trim() || '',
+          source: 'task' as const,
+          barRole: 'einsatz' as const,
+        }]
+      })
+      return [project.id, bookings, vehicleBookings] as [string, GaPreviewEinsatz[], GaPreviewEinsatz[]]
+    } catch {
+      return [project.id, [] as GaPreviewEinsatz[], [] as GaPreviewEinsatz[]] as [string, GaPreviewEinsatz[], GaPreviewEinsatz[]]
+    }
+  }))
+  taskBars.value = Object.fromEntries(packs.map(([id, bookings]) => [id, bookings]))
+  vehicleNeedBars.value = Object.fromEntries(packs.map(([id, , vehicles]) => [id, vehicles]))
+}
+
+watch(() => orgGroups.value.map((group) => group.id).join('|'), () => { void loadTaskBars() }, { immediate: true })
+watch(() => props.reloadKey, () => { void loadTaskBars() })
+
+let taskReloadTimer = 0
+onMounted(() => {
+  taskReloadTimer = window.setInterval(() => { void loadTaskBars() }, 15000)
+})
+onBeforeUnmount(() => {
+  if (taskReloadTimer) window.clearInterval(taskReloadTimer)
+})
 
 function resourceMatches(
   resource: GaEinsatzCategoryBlock['resources'][number],
@@ -833,6 +1206,70 @@ function shadeBox(shade: GaPresenceShade): Record<string, string> {
 
 function trackHeight(lanes: number): number {
   return 12 + lanes * 22
+}
+
+function isUsageResource(resource: { id: string; bookings: GaPreviewEinsatz[] }): boolean {
+  return resource.id.includes(':usage') || resource.bookings.some((booking) => booking.id.startsWith('usage-'))
+}
+
+function bookingDuration(booking: GaPreviewEinsatz): number {
+  const from = parseLocalDate(booking.fromIso).getTime()
+  const to = parseLocalDate(booking.toIso).getTime()
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return 0
+  return Math.max(0, to - from)
+}
+
+function summaryBookings(block: GaEinsatzCategoryBlock): GaPreviewEinsatz[] {
+  const tasks = block.groupId ? (taskBars.value[block.groupId] || []) : []
+  const vehicles = block.groupId ? (vehicleNeedBars.value[block.groupId] || []) : []
+  return visibleBookings([...block.resources.flatMap((resource) => resource.bookings), ...tasks, ...vehicles])
+}
+
+function isSummaryBackground(booking: GaPreviewEinsatz): boolean {
+  return isUsageWindowEinsatz(booking) || (booking.barRole ?? 'einsatz') === 'fixed'
+}
+
+function summarySlots(block: GaEinsatzCategoryBlock): Array<{ booking: GaPreviewEinsatz; lane: number; fill: boolean }> {
+  const all = summaryBookings(block)
+  const background = all.filter((booking) => isSummaryBackground(booking))
+  const front = all
+    .filter((booking) => !isSummaryBackground(booking))
+    .slice()
+    .sort((a, b) => {
+      const duration = bookingDuration(b) - bookingDuration(a)
+      if (duration !== 0) return duration
+      return parseLocalDate(a.fromIso).getTime() - parseLocalDate(b.fromIso).getTime()
+    })
+  const placed: Array<{ booking: GaPreviewEinsatz; lane: number; start: number; end: number }> = []
+  for (const booking of front) {
+    const start = parseLocalDate(booking.fromIso).getTime()
+    const end = parseLocalDate(booking.toIso).getTime()
+    const used = new Set(
+      placed.filter((item) => start < item.end && item.start < end).map((item) => item.lane),
+    )
+    let lane = 0
+    while (used.has(lane) && lane < 3) lane += 1
+    placed.push({ booking, lane, start, end })
+  }
+  return [
+    ...background.map((booking) => ({ booking, lane: 0, fill: true })),
+    ...placed.map((item) => ({ booking: item.booking, lane: item.lane, fill: false })),
+  ]
+}
+
+function summaryLaneCount(block: GaEinsatzCategoryBlock): number {
+  const lanes = summarySlots(block).filter((slot) => !slot.fill).map((slot) => slot.lane + 1)
+  return Math.max(1, ...lanes)
+}
+
+function summaryTrackHeight(): number {
+  return 26
+}
+
+function summarySpan(booking: GaPreviewEinsatz): Record<string, string> {
+  const pos = barStyleInWindow(booking, windowRange.value.start, windowRange.value.end, scale.value)
+  if (!pos) return { display: 'none' }
+  return { left: pos.left, width: pos.width }
 }
 
 function visibleBookings(bookings: GaPreviewEinsatz[]): GaPreviewEinsatz[] {
@@ -900,7 +1337,8 @@ function barLabel(booking: GaPreviewEinsatz): string {
 
 function barTitle(booking: GaPreviewEinsatz): string {
   const role = einsatzBarKind(booking)
-  const base = `${booking.objectName} · ${booking.who} · ${booking.ressort} · ${booking.fromLabel} – ${booking.toLabel}`
+  const who = booking.who ? ` · ${booking.who}` : ''
+  const base = `${booking.objectName}${who} · ${booking.ressort} · ${booking.fromLabel} – ${booking.toLabel}`
   if (role === 'handover' || role === 'giveback') {
     return `${base} · ${t('grossanlass.materialUebersicht.occupancyFixedHint')}`
   }
@@ -929,9 +1367,25 @@ function barTitle(booking: GaPreviewEinsatz): string {
   margin-bottom: 10px;
 }
 
+.ga-gantt__add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 12px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--emc-logo-fg, #fff);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
 .ga-gantt__search {
-  flex: 1 1 220px;
-  min-width: min(100%, 200px);
+  flex: 0 1 168px;
+  min-width: 120px;
+  max-width: 180px;
 }
 
 .ga-gantt__legend {
@@ -1005,6 +1459,26 @@ function barTitle(booking: GaPreviewEinsatz): string {
   background: var(--ga-table-row);
 }
 
+.ga-gantt__zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+.ga-gantt__zoom button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.ga-gantt__zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .ga-gantt__scale-btn,
 .ga-gantt__nav-btn {
   border: 0;
@@ -1142,6 +1616,7 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__body {
   display: grid;
+  align-items: start;
   min-width: 720px;
   border: 1px solid var(--ga-table-border);
   border-top: 0;
@@ -1174,10 +1649,147 @@ function barTitle(booking: GaPreviewEinsatz): string {
   background: #e4eaf2;
 }
 
+.ga-gantt__ring--child {
+  padding-left: 28px;
+  background: #f8fafc;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  border-top-width: 1px;
+}
+
+.ga-gantt__ring--child:hover,
+.ga-gantt__ring--child.ga-gantt__ring--closed {
+  background: #eef2f7;
+}
+
+.ga-gantt__ring-status {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+  text-transform: none;
+}
+
+.ga-gantt__ring-status--planned {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.ga-gantt__ring-status--quoted {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.ga-gantt__ring-status--build {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.ga-gantt__ring-status--use {
+  background: #99f6e4;
+  color: #115e59;
+}
+
+.ga-gantt__ring-status--teardown {
+  background: #fed7aa;
+  color: #9a3412;
+}
+
+.ga-gantt__ring-status--done {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.ga-gantt__ring-status--aborted {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.ga-gantt__ring-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ga-gantt__ring-window {
+  margin-left: 2px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-primary-dark, #166534);
+  cursor: pointer;
+}
+
+.ga-gantt__ring-window:hover {
+  text-decoration: underline;
+}
+
+.ga-gantt__track--summary {
+  background: transparent;
+}
+.ga-gantt__summary-stack {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.ga-gantt__summary-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  border-radius: 6px;
+  background: #334155;
+}
+.ga-gantt__summary-lane {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0;
+  min-height: 0;
+}
+.ga-gantt__section {
+  padding: 6px 8px 4px 52px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: #fff;
+  border-top: 1px solid var(--ga-table-border);
+}
+.ga-gantt__section--deep {
+  padding-left: 72px;
+}
 .ga-gantt__cat {
   display: flex;
   align-items: center;
   gap: 4px;
+  position: sticky;
+  left: 0;
+  z-index: 3;
   width: 100%;
   margin: 0;
   border: 0;
@@ -1192,6 +1804,27 @@ function barTitle(booking: GaPreviewEinsatz): string {
   text-align: left;
   padding: 5px 8px 5px 22px;
   cursor: pointer;
+}
+
+.ga-gantt__cat--child {
+  padding-left: 48px;
+}
+.ga-gantt__cat-toggle,
+.ga-gantt__cat-link {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+.ga-gantt__cat-link {
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  text-align: left;
+}
+.ga-gantt__cat-link:hover {
+  text-decoration: underline;
 }
 
 .ga-gantt__cat:hover,
@@ -1217,6 +1850,22 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__name--nested {
   padding-left: 40px;
+}
+
+.ga-gantt__name--deep {
+  padding-left: 46px;
+}
+
+.ga-gantt__name--deep.ga-gantt__name--nested {
+  padding-left: 66px;
+}
+.ga-gantt__name--compact {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.ga-gantt__name--compact .ga-gantt__name-text strong {
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 
 .ga-gantt__name--open {
@@ -1294,6 +1943,30 @@ function barTitle(booking: GaPreviewEinsatz): string {
   pointer-events: auto;
 }
 
+.ga-gantt__bar-edit {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-muted, #64748b);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+  transform: translate(50%, -50%);
+  cursor: pointer;
+}
+.ga-gantt__bar-edit:hover {
+  color: var(--color-primary-dark, #047857);
+  border-color: var(--color-primary-muted-border, #a7f3d0);
+}
+
 .ga-gantt__bar {
   position: absolute;
   inset: 0;
@@ -1311,11 +1984,25 @@ function barTitle(booking: GaPreviewEinsatz): string {
   font-size: 0.65rem;
   line-height: 18px;
   text-align: left;
-  padding: 0 4px;
+  padding: 0 20px 0 4px;
   overflow: hidden;
   white-space: nowrap;
   cursor: pointer;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--emc-logo-fg, #fff) 40%, transparent);
+}
+
+.ga-gantt__bar.ga-gantt__summary-mark {
+  inset: auto;
+  top: 1px;
+  right: auto;
+  bottom: 1px;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  padding: 0;
+  line-height: 1;
+  cursor: default;
+  box-shadow: none;
 }
 
 .ga-gantt__bar:hover,
@@ -1358,6 +2045,10 @@ function barTitle(booking: GaPreviewEinsatz): string {
 
 .ga-gantt__bar--planned {
   background: var(--color-primary);
+}
+.ga-gantt__bar--vehicle {
+  background: #38bdf8;
+  color: #0c4a6e;
 }
 
 .ga-gantt__bar--fixed {

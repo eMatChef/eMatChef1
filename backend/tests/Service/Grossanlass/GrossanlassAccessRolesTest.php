@@ -40,11 +40,26 @@ class GrossanlassAccessRolesTest extends TestCase
     {
         self::assertTrue(GrossanlassAccessRoles::canApproveEinsatz('dc'));
         self::assertTrue(GrossanlassAccessRoles::canSeeAnlassOverview('dc'));
+        self::assertTrue(GrossanlassAccessRoles::canManageStruktur('dc'));
+        self::assertTrue(GrossanlassAccessRoles::canManageStruktur('mw'));
+        self::assertFalse(GrossanlassAccessRoles::canManageStruktur('bl'));
+        self::assertFalse(GrossanlassAccessRoles::canManageStruktur('komm'));
         self::assertFalse(GrossanlassAccessRoles::canWorkMailbox('dc'));
         self::assertFalse(GrossanlassAccessRoles::canConnectGmail('dc'));
         self::assertFalse(GrossanlassAccessRoles::canManageProcurement('dc'));
         self::assertFalse(GrossanlassAccessRoles::canReleaseTrip('dc'));
         self::assertTrue(GrossanlassAccessRoles::submitsEinsatzDirectlyFree('dc'));
+        self::assertFalse(GrossanlassAccessRoles::submitsEinsatzDirectlyFree('bl'));
+        self::assertFalse(GrossanlassAccessRoles::submitsEinsatzDirectlyFree('u'));
+        self::assertTrue(GrossanlassAccessRoles::isBereichsleitung('bl'));
+        self::assertFalse(GrossanlassAccessRoles::isBereichsleitung('u'));
+        self::assertFalse(GrossanlassAccessRoles::isBereichsleitung('dc'));
+        self::assertFalse(GrossanlassAccessRoles::canSeeAnlassOverview('bl'));
+        self::assertFalse(GrossanlassAccessRoles::canSeeAnlassOverview('u'));
+        self::assertTrue(GrossanlassAccessRoles::canSeeMailSettings('dc'));
+        self::assertTrue(GrossanlassAccessRoles::canSeeMailSettings('mw'));
+        self::assertTrue(GrossanlassAccessRoles::canSeeMailSettings('komm'));
+        self::assertFalse(GrossanlassAccessRoles::canSeeMailSettings('u'));
     }
 
     public function testMwOnlyMailCampaign(): void
@@ -69,9 +84,16 @@ class GrossanlassAccessRolesTest extends TestCase
     {
         self::assertTrue(MembershipRoleCatalog::canAssign('mw', 'cmw', true));
         self::assertTrue(MembershipRoleCatalog::canAssign('cmw', 'dc', true));
-        self::assertFalse(MembershipRoleCatalog::canAssign('dc', 'cmw', true));
+        self::assertTrue(MembershipRoleCatalog::canAssign('dc', 'cmw', true));
+        self::assertTrue(MembershipRoleCatalog::canAssign('dc', 'dc', true));
+        self::assertTrue(MembershipRoleCatalog::canAssign('dc', 'bl', true));
+        self::assertTrue(MembershipRoleCatalog::canAssign('cmw', 'cmw', true));
+        self::assertFalse(MembershipRoleCatalog::canAssign('dc', 'mw', true));
+        self::assertFalse(MembershipRoleCatalog::canAssign('bl', 'u', true));
+        self::assertFalse(MembershipRoleCatalog::canAssign('bl', 'dc', true));
         self::assertFalse(MembershipRoleCatalog::canAssign('komm', 'spon', true));
         self::assertTrue(MembershipRoleCatalog::canAssign('komm', 'u', true));
         self::assertFalse(MembershipRoleCatalog::isAllowed(null, 'cmw'));
+        self::assertFalse(MembershipRoleCatalog::isAllowed(null, 'bl'));
     }
 }

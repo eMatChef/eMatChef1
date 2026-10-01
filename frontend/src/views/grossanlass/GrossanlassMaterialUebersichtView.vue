@@ -1,14 +1,13 @@
 <template>
+  <div v-if="isDetail" class="ga-uebersicht-detail-host">
+    <router-view />
+  </div>
   <PageShell
+    v-else
     class="grossanlass-material-uebersicht-shell"
     :title="t('grossanlass.materialUebersicht.title')"
     :subtitle="t('grossanlass.materialUebersicht.subtitle')"
   >
-    <template v-if="activeTab === 'einsaetze'" #actions>
-      <EButton variant="primary" size="small" @click="einsatzComposer.open('einsatz')">
-        {{ t('grossanlass.materialUebersicht.actionBook') }}
-      </EButton>
-    </template>
     <template #filters>
       <v-tabs
         :model-value="activeTab"
@@ -33,19 +32,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, provide, reactive } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
-import { EButton } from '@/components/form/base'
 import PageShell from '@/components/layout/PageShell.vue'
 import { provideGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { provideGaUebersicht } from '@/views/grossanlass/gaUebersicht'
-import {
-  gaEinsatzComposerKey,
-  type GaEinsatzComposer,
-} from '@/views/grossanlass/gaEinsatzComposer'
 import { gaCanOperateAusgabe } from '@/utils/grossanlassAccess'
+import { gaBestandListPath } from '@/views/grossanlass/gaBestandPaths'
 import '@/styles/views/materials-view-tabs.css'
 
 const route = useRoute()
@@ -56,21 +51,16 @@ const { t } = useI18n()
 provideGaCommitmentCatalog()
 provideGaUebersicht()
 
-const einsatzComposer = reactive<GaEinsatzComposer>({
-  open: () => {},
-})
-provide(gaEinsatzComposerKey, einsatzComposer)
-
 const departmentId = computed(() => {
   return (route.params.departmentId as string) || authStore.activeDepartmentId || ''
 })
 
+const isDetail = computed(() => route.name === 'GrossanlassMaterialsArtikel')
+
 const tabItems = computed(() => {
   const tabs = [
     { id: 'bestand', label: t('grossanlass.materialUebersicht.tabBestand'), icon: 'mdi-warehouse' },
-    { id: 'einsaetze', label: t('grossanlass.materialUebersicht.tabEinsaetze'), icon: 'mdi-calendar-range' },
     { id: 'wareneingang', label: t('grossanlass.materialUebersicht.tabWareneingang'), icon: 'mdi-truck-delivery-outline' },
-    { id: 'konflikte', label: t('grossanlass.materialUebersicht.tabKonflikte'), icon: 'mdi-alert-outline' },
     { id: 'ausgabe', label: t('grossanlass.materialUebersicht.tabAusgabe'), icon: 'mdi-export-variant' },
     { id: 'pack', label: t('grossanlass.materialUebersicht.tabPack'), icon: 'mdi-package-variant-closed' },
     { id: 'retour', label: t('grossanlass.materialUebersicht.tabRetour'), icon: 'mdi-keyboard-return' },
@@ -85,7 +75,7 @@ function onTabChange(tab: unknown) {
   const id = departmentId.value
   if (!id || typeof tab !== 'string') return
   if (tab === 'bestand') {
-    void router.push(`/${id}/material-uebersicht`)
+    void router.push(gaBestandListPath(id))
     return
   }
   void router.push(`/${id}/material-uebersicht/${tab}`)
@@ -95,5 +85,19 @@ function onTabChange(tab: unknown) {
 <style scoped>
 .grossanlass-material-uebersicht-shell :deep(.page-shell__header) {
   margin-bottom: 16px;
+}
+.ga-uebersicht-detail-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.ga-uebersicht-detail-host :deep(.material-detail-view) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 </style>

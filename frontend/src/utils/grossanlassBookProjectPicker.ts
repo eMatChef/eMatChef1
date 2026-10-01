@@ -88,12 +88,19 @@ function belowCountOf(
   return total
 }
 
-/** Ressort → Unterressort → Bauprojekt, nur Knoten mit Wünschen oder Vorfahren davon. */
+export type BuildBookProjectPickerOptions = {
+  /** false: Knoten ohne direkte Wünsche bleiben wählbar (Einsatz einem Bereich zuordnen). */
+  disableEmpty?: boolean
+}
+
+/** Ressort → Bereich → Bauprojekt; angelegte Knoten bleiben sichtbar, auch ohne Wunsch. */
 export function buildBookProjectPickerItems(
   groups: BookProjectPickerGroup[],
   wishes: BookProjectPickerWish[],
   unassignedLabel = '',
+  options: BuildBookProjectPickerOptions = {},
 ): BookProjectPickerItem[] {
+  const disableEmpty = options.disableEmpty !== false
   const byId = new Map<string, BookProjectPickerGroup>()
   for (const group of groups) byId.set(group.id, group)
 
@@ -118,23 +125,7 @@ export function buildBookProjectPickerItems(
     }
   }
 
-  const needed = new Set(wishCount.keys())
-  for (const id of [...needed]) {
-    let current = byId.get(id)
-    const seen = new Set<string>()
-    while (current?.parent_id) {
-      if (seen.has(current.id)) break
-      seen.add(current.id)
-      const parent = byId.get(current.parent_id)
-      if (!parent) break
-      needed.add(parent.id)
-      current = parent
-    }
-  }
-
-  const subset = [...needed]
-    .map((id) => byId.get(id))
-    .filter((group): group is BookProjectPickerGroup => Boolean(group))
+  const subset = [...byId.values()]
   const children = childrenByParent(subset)
   const belowMemo = new Map<string, number>()
   const items = flattenTreeWithLevel(subset.map(toNode)).map((node) => {
@@ -149,7 +140,7 @@ export function buildBookProjectPickerItems(
       nodeType: ('node_type' in group ? group.node_type : '') || '',
       wishCount: count,
       belowCount: below,
-      ...(count === 0 ? { props: { disabled: true as const } } : {}),
+      ...(disableEmpty && count === 0 ? { props: { disabled: true as const } } : {}),
     }
   })
 

@@ -8,6 +8,7 @@ use App\Entity\Department;
 use App\Entity\User;
 use App\Service\Grossanlass\GrossanlassCostService;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
+use App\Service\Grossanlass\GrossanlassInquiryService;
 use App\Service\Grossanlass\GrossanlassMailMergeService;
 use App\Service\Grossanlass\GrossanlassProcurementService;
 use App\Service\Grossanlass\GrossanlassCategoryInUseException;
@@ -25,6 +26,7 @@ class GrossanlassProcurementController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassProcurementService $procurementService,
+        private GrossanlassInquiryService $inquiryService,
         private GrossanlassGmailAccountService $gmail,
         private GroupAccessService $groupAccess,
         private GrossanlassCostService $costService,
@@ -67,9 +69,12 @@ class GrossanlassProcurementController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
         $wishLineIds = is_array($data['wish_line_ids'] ?? null) ? $data['wish_line_ids'] : [];
+        $vehicleNeedIds = is_array($data['vehicle_need_ids'] ?? null) ? $data['vehicle_need_ids'] : [];
 
         try {
-            $line = $this->procurementService->createLineFromWishes($department, $currentUser, $wishLineIds, $data);
+            $line = $wishLineIds === [] && $vehicleNeedIds === []
+                ? $this->procurementService->createLineDirect($department, $currentUser, $data)
+                : $this->procurementService->createLineFromWishes($department, $currentUser, $wishLineIds, $data);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {
@@ -383,12 +388,14 @@ class GrossanlassProcurementController extends AbstractController
         }
 
         $status = $request->query->get('status');
+        $scope = $request->query->get('scope');
 
         try {
             return new JsonResponse($this->procurementService->listAllLines(
                 $department,
                 $currentUser,
                 is_string($status) ? $status : null,
+                is_string($scope) ? $scope : null,
             ));
         } catch (\RuntimeException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 403);
@@ -440,6 +447,15 @@ class GrossanlassProcurementController extends AbstractController
 
         try {
             $quote = $this->procurementService->updateQuote($department, $currentUser, $lineId, $quoteId, $data);
+            $agreementItem = $data['agreement_item'] ?? null;
+            if (is_array($agreementItem)) {
+                $this->inquiryService->applyQuoteToAgreement(
+                    $department,
+                    $lineId,
+                    (string) ($quote['notes'] ?? ''),
+                    $agreementItem,
+                );
+            }
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], 400);
         } catch (\RuntimeException $e) {

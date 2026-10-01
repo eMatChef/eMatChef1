@@ -153,7 +153,7 @@ export async function getPublicUserCardByCode(code: string): Promise<PublicLooku
 }
 
 export async function getPublicGaPlaceByCode(code: string) {
-  const { data } = await apiClient.get(`/api/public/lookup/p/${encodeURIComponent(code)}`)
+  const { data } = await apiClient.get(`/api/public/lookup/ga/${encodeURIComponent(code)}`)
   return data as import('../grossanlassLogistics').GaPlace & {
     entity_type?: string
     department?: { id: string; name: string }

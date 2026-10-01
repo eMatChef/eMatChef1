@@ -38,10 +38,16 @@
           class="e-autocomplete"
           @update:model-value="onUpdate"
         >
+          <template v-if="$slots['prepend-item']" #prepend-item>
+            <slot name="prepend-item" />
+          </template>
           <template #item="slotProps">
             <slot name="item" v-bind="slotProps">
               <v-list-item v-bind="slotProps.props" />
             </slot>
+          </template>
+          <template v-if="$slots.selection" #selection="slotProps">
+            <slot name="selection" v-bind="slotProps" />
           </template>
           <template v-if="$slots['no-data']" #no-data>
             <slot name="no-data" />

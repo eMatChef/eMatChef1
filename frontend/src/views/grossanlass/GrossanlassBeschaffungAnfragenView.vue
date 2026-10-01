@@ -110,9 +110,9 @@
             {{ t('grossanlass.beschaffung.anfragen.gmailSettings') }}
           </EButton>
           <EButton
+            v-if="gmailStatus?.connected"
             variant="secondary"
             size="x-small"
-            :disabled="!gmailStatus?.connected"
             :loading="isSyncing"
             @click="syncGmail"
           >
@@ -435,9 +435,11 @@
           <tr
             v-for="firma in sortedFirms"
             :key="firma.id"
+            class="firm-row"
             :class="{ 'is-blocked': !isReadyForMail(firma) }"
+            @click="openEditFirm(firma)"
           >
-            <td class="col-check">
+            <td class="col-check" @click.stop>
               <input
                 type="checkbox"
                 :checked="selected.includes(firma.id)"
@@ -454,6 +456,7 @@
               <span v-if="!firma.category_ids.length" class="meta meta--warn">
                 {{ t('grossanlass.beschaffung.anfragen.missingPackage') }}
               </span>
+              <span v-if="askRowNote(firma)" class="meta">{{ askRowNote(firma) }}</span>
               <span v-if="firma.tip_from" class="meta">{{ t('grossanlass.beschaffung.anfragen.tipFrom', { ressort: firma.tip_from }) }}</span>
               <span v-if="firma.tip_submitted_by" class="meta meta--submitter">
                 {{ t('grossanlass.beschaffung.anfragen.tipSubmitter', { name: firma.tip_submitted_by.name }) }}
@@ -472,7 +475,7 @@
               <button
                 type="button"
                 class="pkg-edit"
-                @click="inquiryMailLocked(firma) ? openPreview(firma) : openEditFirm(firma)"
+                @click="openEditFirm(firma)"
               >
                 <span v-if="!firma.category_ids.length" class="pkg-chip pkg-chip--empty">
                   {{ t('grossanlass.beschaffung.anfragen.noPackage') }}
@@ -487,21 +490,41 @@
             </td>
             <td>
               <span class="status-chip" :class="`status-chip--${inquiryMailPhase(firma)}`">
-                {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(firma)}`) }}
+                {{ inquiryStatusLabel(firma) }}
               </span>
             </td>
-            <td>
-              <template v-if="inquiryMailLocked(firma)">
+            <td @click.stop>
+              <div class="row-actions">
+                <EButton variant="text" size="small" :title="t('grossanlass.beschaffung.anfragen.rowEdit')" @click="openEditFirm(firma)">
+                  <v-icon icon="mdi-pencil" size="18" />
+                </EButton>
                 <EButton variant="text" size="small" @click="openPreview(firma)">
-                  {{ t('grossanlass.beschaffung.anfragen.tabMailThread') }}
+                  {{ t('grossanlass.beschaffung.anfragen.preview') }}
                 </EButton>
                 <EButton
-                  v-if="firma.gmail_open_url"
+                  v-if="!inquiryMailLocked(firma)"
                   variant="text"
                   size="small"
-                  @click="openGmailFor(firma)"
+                  :title="t('grossanlass.beschaffung.anfragen.rowDelete')"
+                  @click="deleteFirm(firma)"
                 >
-                  {{ t('grossanlass.beschaffung.anfragen.openGmail') }}
+                  <v-icon icon="mdi-delete-outline" size="18" />
+                </EButton>
+                <EButton
+                  v-if="canSendMail"
+                  :variant="channelButtonVariant(firma, 'mail')"
+                  size="x-small"
+                  @click="openChannel(firma, 'mail')"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.rowMail') }}
+                </EButton>
+                <EButton
+                  v-if="canSendMail"
+                  :variant="channelButtonVariant(firma, 'phone')"
+                  size="x-small"
+                  @click="openChannel(firma, 'phone')"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.rowCall') }}
                 </EButton>
                 <EButton
                   v-if="firma.status === 'zusage'"
@@ -511,18 +534,7 @@
                 >
                   {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
                 </EButton>
-              </template>
-              <template v-else>
-                <EButton variant="text" size="small" @click="openEditFirm(firma)">
-                  {{ t('common.edit') }}
-                </EButton>
-                <EButton variant="text" size="small" @click="openPreview(firma)">
-                  {{ t('grossanlass.beschaffung.anfragen.preview') }}
-                </EButton>
-                <EButton variant="text" size="small" @click="deleteFirm(firma)">
-                  {{ t('common.delete') }}
-                </EButton>
-              </template>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -557,40 +569,41 @@
               </span>
             </div>
             <span class="status-chip" :class="`status-chip--${inquiryMailPhase(firma)}`">
-              {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(firma)}`) }}
+              {{ inquiryStatusLabel(firma) }}
             </span>
-            <template v-if="inquiryMailLocked(firma)">
-              <EButton variant="text" size="small" @click="openPreview(firma)">
-                {{ t('grossanlass.beschaffung.anfragen.tabMailThread') }}
-              </EButton>
-              <EButton
-                v-if="firma.gmail_open_url"
-                variant="text"
-                size="small"
-                @click="openGmailFor(firma)"
-              >
-                {{ t('grossanlass.beschaffung.anfragen.openGmail') }}
-              </EButton>
-              <EButton
-                v-if="firma.status === 'zusage'"
-                variant="text"
-                size="small"
-                @click="goZuteilung(firma)"
-              >
-                {{ t('grossanlass.beschaffung.anfragen.goZuteilung') }}
-              </EButton>
-            </template>
-            <template v-else>
-              <EButton variant="text" size="small" @click="openEditFirm(firma)">
-                {{ t('common.edit') }}
+            <div class="row-actions">
+              <EButton variant="text" size="small" :title="t('grossanlass.beschaffung.anfragen.rowEdit')" @click="openEditFirm(firma)">
+                <v-icon icon="mdi-pencil" size="18" />
               </EButton>
               <EButton variant="text" size="small" @click="openPreview(firma)">
                 {{ t('grossanlass.beschaffung.anfragen.preview') }}
               </EButton>
-              <EButton variant="text" size="small" @click="deleteFirm(firma)">
-                {{ t('common.delete') }}
+              <EButton
+                v-if="!inquiryMailLocked(firma)"
+                variant="text"
+                size="small"
+                :title="t('grossanlass.beschaffung.anfragen.rowDelete')"
+                @click="deleteFirm(firma)"
+              >
+                <v-icon icon="mdi-delete-outline" size="18" />
               </EButton>
-            </template>
+              <EButton
+                v-if="canSendMail"
+                :variant="channelButtonVariant(firma, 'mail')"
+                size="x-small"
+                @click="openChannel(firma, 'mail')"
+              >
+                {{ t('grossanlass.beschaffung.anfragen.rowMail') }}
+              </EButton>
+              <EButton
+                v-if="canSendMail"
+                :variant="channelButtonVariant(firma, 'phone')"
+                size="x-small"
+                @click="openChannel(firma, 'phone')"
+              >
+                {{ t('grossanlass.beschaffung.anfragen.rowCall') }}
+              </EButton>
+            </div>
           </li>
         </ul>
       </section>
@@ -613,12 +626,12 @@
         density="comfortable"
       >
         <v-tab value="firm">{{ t('grossanlass.beschaffung.anfragen.tabFirm') }}</v-tab>
+        <v-tab value="material">{{ t('grossanlass.beschaffung.anfragen.tabMaterial') }}</v-tab>
         <v-tab value="mail">{{ firmMailTabLabel }}</v-tab>
       </v-tabs>
 
       <v-tabs-window v-model="firmModalTab" class="firm-modal-window">
         <v-tabs-window-item value="firm">
-          <fieldset class="firm-fields" :disabled="previewMailLocked">
           <p
             v-if="previewFirma?.tip_submitted_by"
             class="submitter-card"
@@ -635,50 +648,116 @@
               :href="submitterMailto(previewFirma)"
             >{{ t('grossanlass.beschaffung.anfragen.tipSubmitterAsk') }}</a>
           </p>
-          <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.mailFieldsHint') }}</p>
-          <div class="firm-name-wrap">
-            <ETextField v-model="editForm.name" :label="t('grossanlass.beschaffung.anfragen.colFirm')" hide-details="auto" />
-          </div>
-          <ETextField v-model="editForm.place" :label="t('grossanlass.beschaffung.anfragen.placeLabel')" hide-details="auto" class="mb-2" />
-          <ETextField v-model="editForm.website" :label="t('grossanlass.beschaffung.anfragen.websiteLabel')" hide-details="auto" class="mb-2" />
-          <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.packagesLabel') }}</p>
-          <GrossanlassCategoryCheckboxTree
-            v-if="procurementCategories.length"
-            v-model="editForm.categoryIds"
-            :categories="procurementCategories"
-          />
-          <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.packagesHint') }}</p>
-          <ETextField v-model="editForm.offering" :label="t('grossanlass.beschaffung.anfragen.offeringLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
-          <ETextField v-model="editForm.notes" :label="t('grossanlass.beschaffung.anfragen.notesLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
-          <div class="contact-name-row">
-            <ESelect
-              v-model="editForm.contactSalutation"
-              :label="t('grossanlass.beschaffung.anfragen.contactSalutationLabel')"
-              :items="salutationItems"
-              clearable
-              hide-details="auto"
-            />
-            <ETextField v-model="editForm.contactFirstName" :label="t('grossanlass.beschaffung.anfragen.contactFirstNameLabel')" hide-details="auto" />
-            <ETextField v-model="editForm.contactLastName" :label="t('grossanlass.beschaffung.anfragen.contactLastNameLabel')" hide-details="auto" />
-          </div>
-          <ETextField v-model="editForm.email" :label="t('grossanlass.beschaffung.anfragen.emailLabel')" hide-details="auto" class="mb-2" />
-          <ETextField v-model="editForm.phone" :label="t('grossanlass.beschaffung.anfragen.phoneLabel')" hide-details="auto" class="mb-2">
-            <template #append-inner>
-              <a
-                v-if="firmTelHref(editForm.phone)"
-                class="phone-tel-link"
-                :href="firmTelHref(editForm.phone)"
-              >
-                {{ t('grossanlass.beschaffung.anfragen.webLookupCall') }}
-              </a>
-            </template>
-          </ETextField>
-          <GrossanlassInquiryWebLookupPanel
-            :key="editFirma?.id ?? 'edit'"
-            v-model="editForm"
-            :department-id="departmentId"
-          />
+          <fieldset class="firm-fields" :disabled="previewMailLocked">
+            <v-expansion-panels v-model="firmPanels" multiple class="e-accordions firm-accordions">
+              <v-expansion-panel value="firm">
+                <v-expansion-panel-title>{{ t('grossanlass.beschaffung.anfragen.tabFirm') }}</v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <p class="review-hint">{{ t('grossanlass.beschaffung.anfragen.mailFieldsHint') }}</p>
+                  <div class="firm-name-wrap">
+                    <ETextField v-model="editForm.name" :label="t('grossanlass.beschaffung.anfragen.colFirm')" hide-details="auto" />
+                  </div>
+                  <ETextField v-model="editForm.place" :label="t('grossanlass.beschaffung.anfragen.placeLabel')" hide-details="auto" class="mb-2" />
+                  <ETextField v-model="editForm.website" :label="t('grossanlass.beschaffung.anfragen.websiteLabel')" hide-details="auto" class="mb-2" />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+              <v-expansion-panel value="contact">
+                <v-expansion-panel-title>{{ t('grossanlass.beschaffung.anfragen.firmAccordionContact') }}</v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <div class="contact-name-row">
+                    <ESelect
+                      v-model="editForm.contactSalutation"
+                      :label="t('grossanlass.beschaffung.anfragen.contactSalutationLabel')"
+                      :items="salutationItems"
+                      clearable
+                      hide-details="auto"
+                    />
+                    <ETextField v-model="editForm.contactFirstName" :label="t('grossanlass.beschaffung.anfragen.contactFirstNameLabel')" hide-details="auto" />
+                    <ETextField v-model="editForm.contactLastName" :label="t('grossanlass.beschaffung.anfragen.contactLastNameLabel')" hide-details="auto" />
+                  </div>
+                  <ETextField v-model="editForm.email" :label="t('grossanlass.beschaffung.anfragen.emailLabel')" hide-details="auto" class="mb-2" />
+                  <ETextField v-model="editForm.phone" :label="t('grossanlass.beschaffung.anfragen.phoneLabel')" hide-details="auto" class="mb-2">
+                    <template #append-inner>
+                      <a
+                        v-if="firmTelHref(editForm.phone)"
+                        class="phone-tel-link"
+                        :href="firmTelHref(editForm.phone)"
+                      >
+                        {{ t('grossanlass.beschaffung.anfragen.webLookupCall') }}
+                      </a>
+                    </template>
+                  </ETextField>
+                  <GrossanlassInquiryWebLookupPanel
+                    :key="editFirma?.id ?? 'edit'"
+                    v-model="editForm"
+                    :department-id="departmentId"
+                  />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+              <v-expansion-panel value="notes">
+                <v-expansion-panel-title>{{ t('grossanlass.beschaffung.anfragen.firmAccordionNotes') }}</v-expansion-panel-title>
+                <v-expansion-panel-text>
+                  <ETextField v-model="editForm.offering" :label="t('grossanlass.beschaffung.anfragen.offeringLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+                  <ETextField v-model="editForm.notes" :label="t('grossanlass.beschaffung.anfragen.notesLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
           </fieldset>
+        </v-tabs-window-item>
+
+        <v-tabs-window-item value="material">
+          <v-expansion-panels v-model="materialPanels" multiple class="e-accordions firm-accordions">
+            <v-expansion-panel value="areas">
+              <v-expansion-panel-title>{{ t('grossanlass.beschaffung.anfragen.materialAreas') }}</v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <fieldset class="firm-fields" :disabled="previewMailLocked">
+                  <GrossanlassCategoryCheckboxTree
+                    v-if="procurementCategories.length"
+                    v-model="editForm.categoryIds"
+                    :categories="procurementCategories"
+                  />
+                  <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.packagesHint') }}</p>
+                </fieldset>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+            <v-expansion-panel value="lines">
+              <v-expansion-panel-title>
+                {{ t('grossanlass.beschaffung.anfragen.materialPositions') }}
+                <span v-if="materialPositionCount" class="panel-head__count">{{ materialPositionCount }}</span>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <GrossanlassInquiryLinePicker
+                  v-if="previewMailLocked && (previewFirma?.asked_lines?.length ?? 0) > 0"
+                  :lines="bedarfLines"
+                  :selected-ids="editForm.lineIds"
+                  locked
+                  :asked-via="previewFirma?.asked_via ?? null"
+                  :asked-at="previewFirma?.asked_at ?? null"
+                  :asked-lines="previewFirma?.asked_lines ?? []"
+                />
+                <template v-else-if="previewMailLocked">
+                  <p class="material-link__title">{{ t('grossanlass.beschaffung.anfragen.materialLinkTitle') }}</p>
+                  <ul v-if="editMaterialLines.length" class="material-link__items">
+                    <li v-for="line in editMaterialLines" :key="line.id">
+                      {{ line.quantity }}× {{ line.label }}
+                      <span v-if="line.category_name"> · {{ line.category_name }}</span>
+                    </li>
+                  </ul>
+                  <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.materialLinkEmpty') }}</p>
+                </template>
+                <GrossanlassInquiryLinePicker
+                  v-else
+                  :lines="bedarfLines"
+                  :categories="procurementCategories"
+                  :category-ids="editForm.categoryIds"
+                  :selected-ids="editForm.lineIds"
+                  :locked="false"
+                  @add="addAskLine(editForm, $event)"
+                  @remove="removeAskLine(editForm, $event)"
+                />
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
         </v-tabs-window-item>
 
         <v-tabs-window-item value="mail">
@@ -689,12 +768,19 @@
               }) }}
             </p>
             <span class="status-chip" :class="`status-chip--${inquiryMailPhase(previewFirma)}`">
-              {{ t(`grossanlass.beschaffung.anfragen.status.${inquiryMailPhase(previewFirma)}`) }}
+              {{ inquiryStatusLabel(previewFirma) }}
             </span>
             <template v-if="previewMailLocked">
               <p v-if="previewStatus === 'gesendet'" class="review-hint">
-                {{ t('grossanlass.beschaffung.anfragen.nextAfterSent') }}
+                {{ t(previewFirma.gmail_open_url
+                  ? 'grossanlass.beschaffung.anfragen.nextAfterSent'
+                  : 'grossanlass.beschaffung.anfragen.manualNextAfterSent') }}
               </p>
+              <ul v-if="(previewFirma.asked_lines?.length ?? 0) > 0" class="ask-list__items">
+                <li v-for="line in previewFirma.asked_lines" :key="'mail-asked-' + line.id">
+                  {{ line.quantity }}× {{ line.label }}
+                </li>
+              </ul>
               <ELoadingState
                 v-if="conversationLoading"
                 variant="inline"
@@ -844,7 +930,7 @@
         <EButton variant="secondary" size="small" @click="closeFirmModal">
           {{ t('common.close') }}
         </EButton>
-        <template v-if="firmModalTab === 'firm'">
+        <template v-if="firmModalTab !== 'mail'">
           <EButton
             v-if="!previewMailLocked"
             variant="danger"
@@ -864,6 +950,46 @@
             {{ t('grossanlass.beschaffung.anfragen.reviewSkip') }}
           </EButton>
           <EButton
+            v-if="canSendMail && editFirma"
+            variant="secondary"
+            size="small"
+            @click="openChannelFromEdit('mail')"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.rowMail') }}
+          </EButton>
+          <EButton
+            v-if="canSendMail && editFirma"
+            variant="secondary"
+            size="small"
+            @click="openChannelFromEdit('phone')"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.rowCall') }}
+          </EButton>
+          <EButton
+            v-if="previewStatus === 'gesendet'"
+            variant="secondary"
+            size="small"
+            @click="replyPreview"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.simulateReply') }}
+          </EButton>
+          <EButton
+            v-if="previewStatus === 'antwort'"
+            variant="secondary"
+            size="small"
+            @click="rejectPreview"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.markAbsage') }}
+          </EButton>
+          <EButton
+            v-if="previewStatus === 'antwort'"
+            variant="primary"
+            size="small"
+            @click="acceptPreview"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.markZusage') }}
+          </EButton>
+          <EButton
             v-if="!previewMailLocked"
             variant="primary"
             size="small"
@@ -877,6 +1003,22 @@
           </EButton>
         </template>
         <template v-else>
+          <EButton
+            variant="secondary"
+            size="small"
+            :loading="isDownloadingMail"
+            @click="downloadMailPreview"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.previewDownload') }}
+          </EButton>
+          <EButton
+            variant="secondary"
+            size="small"
+            :loading="isDownloadingPdf"
+            @click="downloadMaterialPdf"
+          >
+            {{ t('grossanlass.beschaffung.anfragen.previewDownloadPdf') }}
+          </EButton>
           <EButton
             v-if="canPushPreviewDraft"
             variant="primary"
@@ -1002,6 +1144,15 @@
         :hint="t('grossanlass.beschaffung.anfragen.packagesHint')"
         hide-details="auto"
         class="mb-2"
+      />
+      <GrossanlassInquiryLinePicker
+        :lines="bedarfLines"
+        :categories="procurementCategories"
+        :category-ids="createForm.categoryIds"
+        :selected-ids="createForm.lineIds"
+        :locked="false"
+        @add="addAskLine(createForm, $event)"
+        @remove="removeAskLine(createForm, $event)"
       />
       <ETextField v-model="createForm.offering" :label="t('grossanlass.beschaffung.anfragen.offeringLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
       <ETextField v-model="createForm.notes" :label="t('grossanlass.beschaffung.anfragen.notesLabel')" hide-details="auto" class="mb-2" textarea rows="2" />
@@ -1160,6 +1311,278 @@
         </EButton>
       </template>
     </EDialog>
+
+    <EDialog
+      v-model="channelOpen"
+      :title="channelMode === 'phone'
+        ? t('grossanlass.beschaffung.anfragen.channelCallTitle')
+        : t('grossanlass.beschaffung.anfragen.channelMailTitle')"
+      max-width="760"
+    >
+      <template v-if="channelFirma">
+        <p class="channel-firm">{{ channelFirma.name }}</p>
+        <p class="muted">
+          {{ t('grossanlass.beschaffung.anfragen.channelPerson') }}:
+          {{ channelContact || t('grossanlass.beschaffung.anfragen.channelPersonEmpty') }}
+        </p>
+        <p v-if="channelMode === 'phone'" class="muted">
+          <a v-if="firmTelHref(channelFirma.phone)" class="phone-tel-link" :href="firmTelHref(channelFirma.phone)">
+            {{ channelFirma.phone }}
+          </a>
+          <span v-else>{{ t('grossanlass.beschaffung.anfragen.channelPhoneEmpty') }}</span>
+        </p>
+        <p v-else class="muted">{{ channelFirma.email || t('grossanlass.beschaffung.anfragen.missingEmail') }}</p>
+        <div v-if="channelMode === 'mail'" class="channel-mail">
+          <p v-if="channelMailSubject" class="mail-subject">{{ channelMailSubject }}</p>
+          <pre class="channel-mail__body">{{ channelMailText }}</pre>
+          <div class="channel-mail__actions">
+            <EButton variant="secondary" size="small" :disabled="!channelMailText" @click="copyChannelMail">
+              {{ t('grossanlass.beschaffung.anfragen.channelCopy') }}
+            </EButton>
+            <EButton
+              variant="primary"
+              size="small"
+              :loading="channelMarkingSent"
+              :disabled="channelMailAlreadySent"
+              @click="markChannelMailSent"
+            >
+              {{ t('grossanlass.beschaffung.anfragen.channelMailSent') }}
+            </EButton>
+          </div>
+        </div>
+        <p class="editor-label">{{ t('grossanlass.beschaffung.anfragen.channelAgreeTitle') }}</p>
+        <div class="channel-principle">
+          <span>{{ t('grossanlass.beschaffung.anfragen.channelCollaborate') }}</span>
+          <div class="channel-deals">
+            <button
+              type="button"
+              class="channel-deal"
+              :class="{ 'is-active': channelCollaborate === true }"
+              @click="setCollaborate(true)"
+            >
+              {{ t('grossanlass.beschaffung.anfragen.channelYes') }}
+            </button>
+            <button
+              type="button"
+              class="channel-deal"
+              :class="{ 'is-active is-no': channelCollaborate === false }"
+              @click="setCollaborate(false)"
+            >
+              {{ t('grossanlass.beschaffung.anfragen.channelNo') }}
+            </button>
+          </div>
+        </div>
+        <p v-if="channelCollaborate === null" class="muted">{{ t('grossanlass.beschaffung.anfragen.channelAgreeHint') }}</p>
+        <p v-else-if="channelCollaborate === false" class="muted">{{ t('grossanlass.beschaffung.anfragen.channelCollaborateNoHint') }}</p>
+        <ETextField
+          v-if="channelCollaborate === false"
+          v-model="channelReason"
+          :label="t('grossanlass.beschaffung.anfragen.channelItemNote')"
+          :placeholder="t('grossanlass.beschaffung.anfragen.channelItemNotePlaceholder')"
+          hide-details
+          class="mb-3"
+        />
+        <div v-if="channelFixedRows.length || channelWishEnvelope" class="channel-times">
+          <template v-if="channelFixedRows.length">
+            <p class="editor-label">{{ t('grossanlass.beschaffung.anfragen.channelFixedTitle') }}</p>
+            <p v-for="row in channelFixedRows" :key="row.label" class="muted">{{ row.label }}: {{ row.text }}</p>
+          </template>
+          <p class="editor-label">{{ t('grossanlass.beschaffung.anfragen.channelWishEnvelopeTitle') }}</p>
+          <p class="muted">{{ channelWishEnvelope || t('grossanlass.beschaffung.anfragen.channelWishEnvelopeEmpty') }}</p>
+          <p class="muted">{{ t('grossanlass.beschaffung.anfragen.channelWishEnvelopeHint') }}</p>
+        </div>
+        <ul v-if="channelItems.length" class="channel-items">
+          <li v-for="item in channelItems" :key="item.id" class="channel-item">
+            <div class="channel-item__head">
+              <span>
+                {{ item.quantity }}× {{ item.label }}
+                <span v-if="item.category_name" class="channel-item__cat"> · {{ item.category_name }}</span>
+              </span>
+              <div v-if="channelCollaborate === true" class="channel-deals">
+                <button
+                  type="button"
+                  class="channel-deal"
+                  :class="{ 'is-active': item.yes === true }"
+                  @click="setItemYes(item, true)"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.channelYes') }}
+                </button>
+                <button
+                  type="button"
+                  class="channel-deal"
+                  :class="{ 'is-active is-no': item.yes === false }"
+                  @click="setItemYes(item, false)"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.channelNo') }}
+                </button>
+              </div>
+            </div>
+            <p v-if="wishLabel(item.id)" class="channel-item__wish">
+              {{ t('grossanlass.beschaffung.anfragen.channelWishPeriod') }}: {{ wishLabel(item.id) }}
+            </p>
+            <div v-if="channelCollaborate === true && item.yes === true" class="channel-item__details">
+              <div class="channel-item__pair">
+                <ETextField
+                  v-model.number="item.count"
+                  type="number"
+                  :label="t('grossanlass.beschaffung.anfragen.channelItemCount')"
+                  hide-details
+                />
+                <div>
+                  <p class="editor-label">{{ t('grossanlass.beschaffung.anfragen.channelItemUnit') }}</p>
+                  <div class="channel-deals">
+                    <button
+                      type="button"
+                      class="channel-deal"
+                      :class="{ 'is-active': item.unit === 'Stk' }"
+                      @click="item.unit = 'Stk'"
+                    >
+                      {{ t('grossanlass.beschaffung.anfragen.channelUnitPiece') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="channel-deal"
+                      :class="{ 'is-active': item.unit === 'm' }"
+                      @click="item.unit = 'm'"
+                    >
+                      {{ t('grossanlass.beschaffung.anfragen.channelUnitMeter') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p class="editor-label">{{ t('grossanlass.beschaffung.anfragen.channelItemKind') }}</p>
+              <div class="channel-deals">
+                <button
+                  v-for="kind in channelKinds"
+                  :key="kind"
+                  type="button"
+                  class="channel-deal"
+                  :class="{ 'is-active': item.kind === kind }"
+                  @click="setItemKind(item, kind)"
+                >
+                  {{ t(`grossanlass.beschaffung.anfragen.channelDealKind.${kind}`) }}
+                </button>
+              </div>
+              <template v-if="item.kind">
+                <ETextField
+                  v-model="item.size"
+                  :label="t('grossanlass.beschaffung.anfragen.channelItemSize')"
+                  hide-details
+                />
+                <template v-if="item.kind === 'loan'">
+                  <ETextField
+                    v-model="item.period"
+                    :label="t('grossanlass.beschaffung.anfragen.channelItemPeriod')"
+                    hide-details
+                  />
+                  <div class="channel-deals">
+                    <button type="button" class="channel-deal" @click="applyWishPeriod(item)">
+                      {{ t('grossanlass.beschaffung.anfragen.channelPeriodWish') }}
+                    </button>
+                    <button type="button" class="channel-deal" @click="applyAbovePeriod(item)">
+                      {{ t('grossanlass.beschaffung.anfragen.channelPeriodAbove') }}
+                    </button>
+                  </div>
+                </template>
+                <ETextField
+                  v-if="item.kind === 'purchase'"
+                  v-model="item.price"
+                  :label="t('grossanlass.beschaffung.anfragen.channelItemPrice')"
+                  hide-details
+                />
+                <ETextField
+                  v-model="item.note"
+                  :label="t('grossanlass.beschaffung.anfragen.channelItemNote')"
+                  :placeholder="t('grossanlass.beschaffung.anfragen.channelItemNotePlaceholder')"
+                  hide-details
+                />
+              </template>
+              <div class="channel-schedule">
+                <EDateField
+                  v-model="item.delivery_at"
+                  :department-id="departmentId"
+                  :label="t('grossanlass.beschaffung.offerten.deliveryAt')"
+                  :view-date="(wishRangeForLine(item.id)?.from || '').slice(0, 10)"
+                  allow-past
+                />
+                <p class="muted">{{ t('grossanlass.beschaffung.offerten.deliveryAtHint') }}</p>
+                <p class="editor-label">{{ t('grossanlass.beschaffung.offerten.logisticsTitle') }}</p>
+                <p class="muted">{{ item.kind === 'purchase'
+                  ? t('grossanlass.beschaffung.anfragen.channelPurchaseLogisticsHint')
+                  : t('grossanlass.beschaffung.offerten.logisticsHint') }}</p>
+                <div class="channel-logistics" role="tablist" :aria-label="t('grossanlass.materials.zusage.inboundHow')">
+                  <button
+                    type="button"
+                    role="tab"
+                    class="channel-logistics__btn"
+                    :aria-selected="item.inbound_mode === 'pickup'"
+                    :class="{ 'is-on': item.inbound_mode === 'pickup' }"
+                    @click="item.inbound_mode = 'pickup'"
+                  >
+                    {{ t('grossanlass.materials.zusage.inboundPickup') }}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    class="channel-logistics__btn"
+                    :aria-selected="item.inbound_mode === 'delivery'"
+                    :class="{ 'is-on': item.inbound_mode === 'delivery' }"
+                    @click="item.inbound_mode = 'delivery'"
+                  >
+                    {{ t('grossanlass.materials.zusage.inboundDelivery') }}
+                  </button>
+                </div>
+                <template v-if="item.kind !== 'purchase'">
+                  <ECheckbox
+                    v-model="item.return_needed"
+                    :label="t('grossanlass.beschaffung.offerten.returnNeeded')"
+                    hide-details
+                  />
+                  <template v-if="item.return_needed">
+                    <EDateField
+                      v-model="item.return_at"
+                      :department-id="departmentId"
+                      :label="t('grossanlass.beschaffung.offerten.returnAt')"
+                      :view-date="item.delivery_at || (wishRangeForLine(item.id)?.from || '').slice(0, 10)"
+                      allow-past
+                    />
+                    <p class="muted">{{ t('grossanlass.beschaffung.offerten.returnAtHint') }}</p>
+                  </template>
+                </template>
+                <ETextField
+                  v-model="item.lead_days"
+                  type="number"
+                  min="0"
+                  step="1"
+                  :label="t('grossanlass.beschaffung.offerten.leadDays')"
+                  hide-details
+                />
+                <p class="muted">{{ t('grossanlass.beschaffung.offerten.leadDaysHint') }}</p>
+              </div>
+            </div>
+          </li>
+        </ul>
+        <p v-else class="muted">{{ t('grossanlass.beschaffung.anfragen.channelAskEmpty') }}</p>
+        <ETextField
+          v-if="channelMode === 'mail'"
+          v-model="channelReply"
+          :label="t('grossanlass.beschaffung.anfragen.channelReply')"
+          textarea
+          rows="3"
+          hide-details
+        />
+      </template>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="channelOpen = false">
+          {{ t('common.close') }}
+        </EButton>
+        <EButton variant="primary" size="small" :loading="channelBusy" @click="saveChannel">
+          {{ channelMode === 'phone'
+            ? t('grossanlass.beschaffung.anfragen.channelSaveCall')
+            : t('grossanlass.beschaffung.anfragen.channelSaveMail') }}
+        </EButton>
+      </template>
+    </EDialog>
   </div>
 </template>
 
@@ -1178,7 +1601,7 @@ import {
   gaCanSendMail,
   gaCanTakeInquiry,
 } from '@/utils/grossanlassAccess'
-import { EButton, ECheckbox, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
+import { EButton, ECheckbox, EDateField, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import TiptapEditor from '@/components/site/TiptapEditor.vue'
@@ -1201,9 +1624,12 @@ import {
   getGrossanlassGmailUnmatched,
   getGrossanlassInquiries,
   getGrossanlassInquiryConversation,
+  downloadGrossanlassInquiryMaterialPdf,
   importGrossanlassInquiryCsv,
   importGrossanlassInquiryTips,
   markGrossanlassInquiriesSent,
+  recordGrossanlassInquiryChannel,
+  type GrossanlassInquiryAgreementItem,
   recordGrossanlassInquiryReply,
   syncGrossanlassInquiryGmail,
   unmatchedToGrossanlassInquiry,
@@ -1217,6 +1643,7 @@ import { getAddress } from '@/api/addresses'
 import { getGrossanlassPlanung } from '@/api/grossanlassPlanung'
 import GrossanlassInquiryMap, { type InquiryMapPin } from '@/components/grossanlass/GrossanlassInquiryMap.vue'
 import GrossanlassInquiryWebLookupPanel from '@/components/grossanlass/GrossanlassInquiryWebLookupPanel.vue'
+import GrossanlassInquiryLinePicker from '@/components/grossanlass/GrossanlassInquiryLinePicker.vue'
 import {
   getGrossanlassGmailStatus,
   previewGrossanlassMail,
@@ -1226,9 +1653,14 @@ import {
   type GrossanlassMailPreview,
 } from '@/api/grossanlassGmail'
 import {
+  getGrossanlassBedarfOverview,
   listGrossanlassProcurementCategories,
   type GrossanlassProcurementCategory,
+  type GrossanlassProcurementLine,
 } from '@/api/grossanlassProcurement'
+import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
+import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
+import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
   isPackageProcurementCategory,
@@ -1260,6 +1692,7 @@ type FirmFormFields = {
   email: string
   phone: string
   categoryIds: string[]
+  lineIds: string[]
   categoriesText: string
 }
 
@@ -1278,6 +1711,7 @@ function emptyFirmForm(categoryId?: string): FirmFormFields {
     categoryIds: categoryId
       ? toggleProcurementCategorySelection(procurementCategories.value, [], categoryId, true)
       : [],
+    lineIds: [],
     categoriesText: '',
   }
 }
@@ -1294,6 +1728,7 @@ function assignFirmForm(target: FirmFormFields, source: FirmFormFields) {
   target.email = source.email
   target.phone = source.phone
   target.categoryIds = [...source.categoryIds]
+  target.lineIds = [...source.lineIds]
   target.categoriesText = source.categoriesText
 }
 
@@ -1339,6 +1774,7 @@ function formFromInquiry(firma: GrossanlassInquiry): FirmFormFields {
     email: firma.email,
     phone: firma.phone || '',
     categoryIds: normalizeProcurementCategorySelection(procurementCategories.value, firma.category_ids),
+    lineIds: [...(firma.line_ids ?? [])],
     categoriesText: '',
   }
 }
@@ -1351,7 +1787,7 @@ const canCreateMailDrafts = computed(() => gaCanCreateMailDrafts(authStore.curre
 const canSendMail = computed(() => gaCanSendMail(authStore.currentDepartmentRole))
 const canTakeInquiry = computed(() => gaCanTakeInquiry(authStore.currentDepartmentRole))
 const canManageProcurement = computed(() => gaCanManageProcurement(authStore.currentDepartmentRole))
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -1359,6 +1795,49 @@ const salutationItems = computed(() => [
   { title: t('grossanlass.beschaffung.anfragen.salutationHerr'), value: 'herr' },
   { title: t('grossanlass.beschaffung.anfragen.salutationFrau'), value: 'frau' },
 ])
+
+function allowedAskCategoryIds(categoryIds: string[]): Set<string> {
+  const leaves = leafIdsOfProcurementCategorySelection(procurementCategories.value, categoryIds)
+  return new Set([...categoryIds, ...leaves])
+}
+
+function pruneAskLines(form: FirmFormFields) {
+  if (!procurementCategories.value.length || !form.lineIds.length) return
+  const allowed = allowedAskCategoryIds(form.categoryIds)
+  form.lineIds = form.lineIds.filter((id) => {
+    const line = bedarfLines.value.find((row) => row.id === id)
+    return !!line?.category_id && allowed.has(line.category_id)
+  })
+}
+
+function addAskLine(form: FirmFormFields, lineId: string) {
+  if (form.lineIds.includes(lineId)) return
+  form.lineIds = [...form.lineIds, lineId]
+}
+
+function removeAskLine(form: FirmFormFields, lineId: string) {
+  form.lineIds = form.lineIds.filter((id) => id !== lineId)
+}
+
+function askRowNote(firma: GrossanlassInquiry): string {
+  const count = inquiryMailLocked(firma)
+    ? (firma.asked_lines?.length ?? 0)
+    : (firma.line_ids?.length ?? 0)
+  if (inquiryMailLocked(firma)) {
+    const via = firma.asked_via === 'phone'
+      ? t('grossanlass.beschaffung.anfragen.viaPhone')
+      : firma.asked_via === 'mailbox'
+        ? t('grossanlass.beschaffung.anfragen.viaMailbox')
+        : firma.asked_via === 'mail'
+          ? t('grossanlass.beschaffung.anfragen.viaMail')
+          : t('grossanlass.beschaffung.anfragen.viaUnknown')
+    return count > 0
+      ? t('grossanlass.beschaffung.anfragen.askRowDone', { via, count })
+      : via
+  }
+  if (count < 1) return ''
+  return t('grossanlass.beschaffung.anfragen.askRowOpen', { count })
+}
 
 function categoryLabel(categoryId: string): string {
   const rows = procurementCategories.value
@@ -1401,7 +1880,9 @@ const firmSortKey = ref<FirmSortKey>('name')
 const firmSortDir = ref<'asc' | 'desc'>('asc')
 const selected = ref<string[]>([])
 const firmModalOpen = ref(false)
-const firmModalTab = ref<'firm' | 'mail'>('mail')
+const firmModalTab = ref<'firm' | 'material' | 'mail'>('mail')
+const firmPanels = ref<string[]>(['firm'])
+const materialPanels = ref<string[]>(['areas', 'lines'])
 const draftsOpen = ref(false)
 const createOpen = ref(false)
 const isLoading = ref(true)
@@ -1412,6 +1893,8 @@ const csvInput = ref<HTMLInputElement | null>(null)
 const isDrafting = ref(false)
 const isDraftingOne = ref(false)
 const isPreviewLoading = ref(false)
+const isDownloadingMail = ref(false)
+const isDownloadingPdf = ref(false)
 const conversationLoading = ref(false)
 const conversation = ref<GrossanlassInquiryConversation>({
   sent: [],
@@ -1425,7 +1908,22 @@ const previewPdfItems = ref<string[]>([])
 const previewPdfTouched = ref(false)
 const draftEdits = reactive<Record<string, { subject: string; body: string; pdfItems: string[]; pdfTouched: boolean }>>({})
 const isSyncing = ref(false)
+const channelOpen = ref(false)
+const channelMode = ref<'phone' | 'mail'>('phone')
+const channelFirma = ref<GrossanlassInquiry | null>(null)
+const channelReply = ref('')
+const channelCollaborate = ref<boolean | null>(null)
+const channelReason = ref('')
+const channelItems = ref<GrossanlassInquiryAgreementItem[]>([])
+const channelPeriods = ref<DepartmentCalendarPeriod[]>([])
+const channelKinds = ['loan', 'rental', 'purchase'] as const
+const channelFixedOrder = ['aufbau', 'grossanlass', 'abbau'] as const
+const channelMailSubject = ref('')
+const channelMailText = ref('')
+const channelBusy = ref(false)
+const channelMarkingSent = ref(false)
 const firms = ref<GrossanlassInquiry[]>([])
+const bedarfLines = ref<GrossanlassProcurementLine[]>([])
 const unmatched = ref<GrossanlassGmailUnmatched[]>([])
 const assignTarget = reactive<Record<string, string>>({})
 const unmatchedBusy = ref<string | null>(null)
@@ -1485,6 +1983,8 @@ function toggleStatusFilter(status: string) {
 const pageOpen = ref(true)
 const editFirma = ref<GrossanlassInquiry | null>(null)
 const editForm = reactive(emptyFirmForm())
+watch(() => [...editForm.categoryIds], () => pruneAskLines(editForm))
+watch(() => [...createForm.categoryIds], () => pruneAskLines(createForm))
 const radiusKm = ref(30)
 const isGeocoding = ref(false)
 const venuePin = ref<{ latitude: number; longitude: number; label: string } | null>(null)
@@ -1579,6 +2079,24 @@ function inquiryMailLocked(firma: GrossanlassInquiry): boolean {
   return ['gesendet', 'antwort', 'zusage', 'absage'].includes(inquiryMailPhase(firma))
 }
 
+function channelButtonVariant(firma: GrossanlassInquiry, mode: 'mail' | 'phone'): 'primary' | 'secondary' {
+  if (mode === 'phone' && firma.asked_via === 'phone') return 'primary'
+  if (mode === 'mail' && (firma.asked_via === 'mail' || firma.asked_via === 'mailbox')) return 'primary'
+  return 'secondary'
+}
+
+function inquiryStatusLabel(firma: GrossanlassInquiry): string {
+  const phase = inquiryMailPhase(firma)
+  const via = firma.asked_via
+  if (
+    (via === 'phone' || via === 'mail' || via === 'mailbox')
+    && (phase === 'gesendet' || phase === 'antwort' || phase === 'zusage' || phase === 'absage')
+  ) {
+    return t(`grossanlass.beschaffung.anfragen.statusVia.${phase}.${via}`)
+  }
+  return t(`grossanlass.beschaffung.anfragen.status.${phase}`)
+}
+
 function formatThreadAt(iso?: string): string {
   if (!iso) return ''
   const date = new Date(iso)
@@ -1626,6 +2144,12 @@ async function load() {
   isLoading.value = true
   try {
     firms.value = await getGrossanlassInquiries(departmentId.value)
+    try {
+      const overview = await getGrossanlassBedarfOverview(departmentId.value)
+      bedarfLines.value = overview.lines
+    } catch {
+      bedarfLines.value = []
+    }
     gmailStatus.value = await getGrossanlassGmailStatus(departmentId.value)
     try {
       categoriesLoadError.value = ''
@@ -2040,9 +2564,44 @@ const activeDraftCheck = computed(() =>
 )
 
 const previewStatus = computed(() => previewFirma.value?.status ?? 'entwurf')
+const canMarkAsked = computed(() =>
+  canSendMail.value
+  && !!previewFirma.value
+  && (previewStatus.value === 'entwurf' || previewStatus.value === 'vorschlag'),
+)
 const previewThread = computed(() => previewFirma.value?.thread ?? [])
 const previewMailLocked = computed(() =>
   previewFirma.value ? inquiryMailLocked(previewFirma.value) : false,
+)
+
+function materialLinksFor(
+  firma: Pick<GrossanlassInquiry, 'asked_lines'> | null,
+  categoryIds: string[],
+  lineIds: string[],
+) {
+  const asked = firma?.asked_lines ?? []
+  if (asked.length) {
+    return asked.map((row) => {
+      const live = bedarfLines.value.find((line) => line.id === row.id)
+      return {
+        id: row.id,
+        quantity: live?.quantity ?? row.quantity,
+        label: live?.label || row.label,
+        category_name: live?.category_name ?? null,
+      }
+    })
+  }
+  const picked = lineIds.flatMap((id) => {
+    const line = bedarfLines.value.find((row) => row.id === id)
+    return line ? [line] : []
+  })
+  if (picked.length) return picked
+  const allowed = allowedAskCategoryIds(categoryIds)
+  return bedarfLines.value.filter((line) => !!line.category_id && allowed.has(line.category_id))
+}
+
+const editMaterialLines = computed(() =>
+  materialLinksFor(previewFirma.value, editForm.categoryIds, editForm.lineIds),
 )
 const conversationChat = computed(() => {
   const rows: GrossanlassInquiryConversationMessage[] = [
@@ -2167,6 +2726,7 @@ function firmWritePayload(form: FirmFormFields) {
     email: form.email.trim(),
     phone: form.phone.trim(),
     category_ids: procurementCategories.value.length ? form.categoryIds : form.categoriesText,
+    line_ids: form.lineIds,
   }
 }
 
@@ -2229,7 +2789,7 @@ function advanceReview() {
 }
 
 function openEditFirm(firma: GrossanlassInquiry) {
-  void openFirmModal(firma, inquiryMailLocked(firma) ? 'mail' : 'firm')
+  void openFirmModal(firma, 'firm')
 }
 
 async function saveEditFirm() {
@@ -2367,7 +2927,12 @@ async function loadFirmMailPreview(firma: GrossanlassInquiry) {
   }
 }
 
-async function openFirmModal(firma: GrossanlassInquiry, tab: 'firm' | 'mail' = 'mail') {
+const materialPositionCount = computed(() => {
+  if (previewMailLocked.value) return editMaterialLines.value.length
+  return editForm.lineIds.length
+})
+
+async function openFirmModal(firma: GrossanlassInquiry, tab: 'firm' | 'material' | 'mail' = 'mail') {
   if (reviewQueue.value.length && reviewQueue.value[reviewIndex.value] !== firma.id) {
     stopReview()
   }
@@ -2385,6 +2950,81 @@ async function openFirmModal(firma: GrossanlassInquiry, tab: 'firm' | 'mail' = '
 
 async function openPreview(firma: GrossanlassInquiry) {
   await openFirmModal(firma, 'mail')
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function mailFileName(name: string): string {
+  const slug = name.trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-|-$/g, '') || 'Anfrage'
+  return `Anfrage-${slug.slice(0, 40)}.html`
+}
+
+async function downloadMailPreview() {
+  if (!previewFirma.value || !departmentId.value || isDownloadingMail.value) return
+  isDownloadingMail.value = true
+  try {
+    let subject = mailEditSubject.value.trim()
+    let body = mailEditBody.value.trim()
+    if (!body) {
+      const preview = await previewGrossanlassMail(departmentId.value, {
+        kind: 'anfrage',
+        inquiry_id: previewFirma.value.id,
+      })
+      subject = preview.subject?.trim() || subject
+      body = preview.body?.trim() || ''
+    }
+    if (!body) {
+      toast.error(t('grossanlass.beschaffung.anfragen.previewDownloadEmpty'))
+      return
+    }
+    const title = subject || previewFirma.value.name
+    const html = `<!DOCTYPE html><html lang="de"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`
+    saveBlob(new Blob([html], { type: 'text/html;charset=utf-8' }), mailFileName(previewFirma.value.name))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    isDownloadingMail.value = false
+  }
+}
+
+async function downloadMaterialPdf() {
+  if (!previewFirma.value || !departmentId.value || isDownloadingPdf.value) return
+  isDownloadingPdf.value = true
+  try {
+    const file = await downloadGrossanlassInquiryMaterialPdf(departmentId.value, previewFirma.value.id)
+    saveBlob(file.blob, file.filename)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: Blob | { error?: string } } }
+    let message = t('grossanlass.beschaffung.anfragen.saveError')
+    const data = err.response?.data
+    if (data instanceof Blob) {
+      try {
+        const parsed = JSON.parse(await data.text()) as { error?: string }
+        if (parsed.error) message = parsed.error
+      } catch {
+        message = t('grossanlass.beschaffung.anfragen.saveError')
+      }
+    }
+    toast.error(message)
+  } finally {
+    isDownloadingPdf.value = false
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 watch(firmModalOpen, (open) => {
@@ -2470,12 +3110,320 @@ async function runGmailSync(silent: boolean) {
   }
 }
 
+const channelContact = computed(() =>
+  channelFirma.value ? inquiryContactParts(channelFirma.value).full : '',
+)
+
+const channelMailAlreadySent = computed(() => {
+  const firma = channelFirma.value
+  if (!firma) return false
+  return (firma.asked_via === 'mail' || firma.asked_via === 'mailbox')
+    && ['gesendet', 'antwort', 'zusage', 'absage'].includes(firma.status)
+})
+
+function setCollaborate(value: boolean) {
+  channelCollaborate.value = channelCollaborate.value === value ? null : value
+}
+
+function setItemYes(item: GrossanlassInquiryAgreementItem, value: boolean) {
+  item.yes = item.yes === value ? null : value
+}
+
+function setItemKind(item: GrossanlassInquiryAgreementItem, kind: 'loan' | 'rental' | 'purchase') {
+  item.kind = item.kind === kind ? '' : kind
+  if (item.kind === 'purchase') {
+    item.return_needed = false
+    item.return_at = ''
+  }
+}
+
+function clockStamp(date: string, time?: string): string {
+  const day = date.slice(0, 10)
+  const clock = (time || '00:00').slice(0, 5)
+  return `${day}T${/^\d{2}:\d{2}$/.test(clock) ? clock : '00:00'}:00`
+}
+
+function formatSpan(from: string, to: string): string {
+  if (!from || !to) return ''
+  return `${formatGaIsoLabel(from, locale.value)} – ${formatGaIsoLabel(to, locale.value)}`
+}
+
+const channelFixedRows = computed(() =>
+  channelFixedOrder.flatMap((label) => {
+    const row = channelPeriods.value.find((period) => period.label === label)
+    if (!row) return []
+    return [{
+      label: t(`settings.fixedDates.labels.${label}`),
+      text: formatSpan(clockStamp(row.start_date, row.start_time), clockStamp(row.end_date, row.end_time)),
+    }]
+  }),
+)
+
+const channelFixedSpan = computed(() => {
+  let from = ''
+  let to = ''
+  for (const label of channelFixedOrder) {
+    const row = channelPeriods.value.find((period) => period.label === label)
+    if (!row) continue
+    const start = clockStamp(row.start_date, row.start_time)
+    const end = clockStamp(row.end_date, row.end_time)
+    if (!from || start < from) from = start
+    if (!to || end > to) to = end
+  }
+  return formatSpan(from, to)
+})
+
+function wishRangeForLine(lineId: string): { from: string; to: string } | null {
+  const line = bedarfLines.value.find((row) => row.id === lineId)
+  let from = ''
+  let to = ''
+  for (const wish of line?.source_wishes ?? []) {
+    const need = resolveWishNeedPeriod(wish, channelPeriods.value)
+    if (!need?.from || !need?.to) continue
+    if (!from || need.from < from) from = need.from
+    if (!to || need.to > to) to = need.to
+  }
+  if (from && to) return { from, to }
+  if (line?.need_from && line.need_to) return { from: line.need_from, to: line.need_to }
+  return null
+}
+
+function wishLabel(lineId: string): string {
+  const range = wishRangeForLine(lineId)
+  return range ? formatSpan(range.from, range.to) : ''
+}
+
+const channelWishEnvelope = computed(() => {
+  let from = ''
+  let to = ''
+  for (const item of channelItems.value) {
+    const range = wishRangeForLine(item.id)
+    if (!range) continue
+    if (!from || range.from < from) from = range.from
+    if (!to || range.to > to) to = range.to
+  }
+  return formatSpan(from, to)
+})
+
+function applyWishPeriod(item: GrossanlassInquiryAgreementItem) {
+  if (channelWishEnvelope.value) item.period = channelWishEnvelope.value
+}
+
+function applyAbovePeriod(item: GrossanlassInquiryAgreementItem) {
+  const index = channelItems.value.findIndex((row) => row.id === item.id)
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const text = channelItems.value[i]?.period.trim()
+    if (text) {
+      item.period = text
+      return
+    }
+  }
+  if (channelFixedSpan.value) item.period = channelFixedSpan.value
+}
+
+async function ensureChannelPeriods() {
+  if (!departmentId.value || channelPeriods.value.length) return
+  try {
+    channelPeriods.value = await listDepartmentCalendarPeriods(departmentId.value)
+  } catch {
+    channelPeriods.value = []
+  }
+}
+
+function seedChannelAgreement(firma: GrossanlassInquiry) {
+  const previous = [...(firma.thread ?? [])].reverse().find((entry) => entry.agreement || entry.deal)
+  const saved = previous?.agreement
+  channelCollaborate.value = saved
+    ? saved.collaborate
+    : previous?.deal === 'no'
+      ? false
+      : null
+  channelReason.value = saved?.reason ?? ''
+  const lines = materialLinksFor(firma, firma.category_ids ?? [], firma.line_ids ?? [])
+  channelItems.value = lines.map((line) => {
+    const match = saved?.items?.find((row) => row.id === line.id)
+    const kind = match?.kind
+    const live = bedarfLines.value.find((row) => row.id === line.id)
+    const liveUnit = live?.quantity_unit === 'm' ? 'm' : 'Stk'
+    return {
+      id: line.id,
+      label: line.label,
+      quantity: line.quantity,
+      category_name: line.category_name ?? '',
+      yes: match?.yes ?? null,
+      count: match?.count ?? line.quantity,
+      unit: match?.unit === 'm' || match?.unit === 'Stk' ? match.unit : liveUnit,
+      period: match?.period ?? '',
+      size: match?.size ?? '',
+      price: match?.price ?? '',
+      kind: kind === 'loan' || kind === 'rental' || kind === 'purchase' ? kind : '',
+      note: match?.note ?? '',
+      delivery_at: (match?.delivery_at || '').slice(0, 10),
+      inbound_mode: match?.inbound_mode === 'pickup' || match?.inbound_mode === 'delivery'
+        ? match.inbound_mode
+        : (live?.pickup_need === 'can' || live?.pickup_need === 'must' ? 'pickup' : 'delivery'),
+      return_needed: kind === 'purchase' ? false : (match?.return_needed ?? !!live?.return_needed),
+      return_at: kind === 'purchase' ? '' : (match?.return_at || '').slice(0, 10),
+      lead_days: match?.lead_days != null && match.lead_days !== '' ? String(match.lead_days) : '',
+    }
+  })
+}
+
+function plainMail(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function openChannelFromEdit(mode: 'phone' | 'mail') {
+  const base = editFirma.value ?? previewFirma.value
+  if (!base) return
+  const contact = [editForm.contactFirstName, editForm.contactLastName].filter(Boolean).join(' ')
+  openChannel({
+    ...base,
+    name: editForm.name.trim() || base.name,
+    email: editForm.email,
+    phone: editForm.phone,
+    category_ids: [...editForm.categoryIds],
+    line_ids: [...editForm.lineIds],
+    contact_salutation: editForm.contactSalutation,
+    contact_first_name: editForm.contactFirstName,
+    contact_last_name: editForm.contactLastName,
+    contact_name: contact || base.contact_name,
+  }, mode)
+}
+
+async function openChannel(firma: GrossanlassInquiry, mode: 'phone' | 'mail') {
+  channelFirma.value = firma
+  channelMode.value = mode
+  channelReply.value = ''
+  channelMailSubject.value = ''
+  channelMailText.value = ''
+  seedChannelAgreement(firma)
+  channelOpen.value = true
+  void ensureChannelPeriods()
+  if (mode !== 'mail' || !departmentId.value) return
+  try {
+    const preview = await previewGrossanlassMail(departmentId.value, {
+      kind: 'anfrage',
+      inquiry_id: firma.id,
+    })
+    channelMailSubject.value = preview.subject?.trim() || ''
+    channelMailText.value = plainMail(preview.body || '')
+  } catch {
+    channelMailText.value = ''
+  }
+}
+
+async function markChannelMailSent() {
+  const firma = channelFirma.value
+  if (!firma || !departmentId.value || channelMarkingSent.value || channelMailAlreadySent.value) return
+  channelMarkingSent.value = true
+  try {
+    const updated = await markGrossanlassInquiriesSent(departmentId.value, [firma.id], true, 'mail')
+    const next = updated.find((row) => row.id === firma.id) ?? updated[0]
+    if (next) {
+      replaceFirm(next)
+      channelFirma.value = next
+      if (previewFirma.value?.id === next.id) previewFirma.value = next
+      if (editFirma.value?.id === next.id) editFirma.value = next
+    }
+    toast.success(t('grossanlass.beschaffung.anfragen.channelMailSentToast'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    channelMarkingSent.value = false
+  }
+}
+
+async function copyChannelMail() {
+  const text = [channelMailSubject.value, channelMailText.value].filter(Boolean).join('\n\n')
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.success(t('grossanlass.beschaffung.anfragen.channelCopied'))
+  } catch {
+    toast.error(t('grossanlass.beschaffung.anfragen.saveError'))
+  }
+}
+
+async function saveChannel() {
+  const firma = channelFirma.value
+  if (!firma || !departmentId.value || channelBusy.value) return
+  channelBusy.value = true
+  try {
+    const updated = await recordGrossanlassInquiryChannel(departmentId.value, firma.id, {
+      via: channelMode.value,
+      reply: channelMode.value === 'mail' ? channelReply.value.trim() : '',
+      agreement: {
+        collaborate: channelCollaborate.value,
+        reason: channelCollaborate.value === false ? channelReason.value.trim() : '',
+        items: channelCollaborate.value === true ? channelItems.value : [],
+      },
+    })
+    replaceFirm(updated)
+    channelFirma.value = updated
+    if (previewFirma.value?.id === updated.id) previewFirma.value = updated
+    if (editFirma.value?.id === updated.id) editFirma.value = updated
+    channelOpen.value = false
+    const purchased = channelCollaborate.value === true
+      && channelItems.value.some((item) => item.yes === true && item.kind === 'purchase')
+    toast.success(t(purchased
+      ? 'grossanlass.beschaffung.anfragen.channelSavedPurchase'
+      : 'grossanlass.beschaffung.anfragen.channelSaved'))
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+  } finally {
+    channelBusy.value = false
+  }
+}
+
 async function markPreviewSent() {
+  await markPreviewSentAs(false)
+}
+
+async function markPreviewAsked() {
+  if (!previewFirma.value || !departmentId.value || !editForm.name.trim()) return
+  isSaving.value = true
+  try {
+    const next = await updateGrossanlassInquiry(
+      departmentId.value,
+      previewFirma.value.id,
+      firmWritePayload(editForm),
+    )
+    replaceFirm(next)
+    previewFirma.value = next
+    editFirma.value = next
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
+    isSaving.value = false
+    return
+  }
+  isSaving.value = false
+  await markPreviewSentAs(true)
+}
+
+async function markPreviewSentAs(manual: boolean) {
   if (!previewFirma.value || !departmentId.value) return
   try {
-    const updated = await markGrossanlassInquiriesSent(departmentId.value, [previewFirma.value.id])
+    const updated = await markGrossanlassInquiriesSent(
+      departmentId.value,
+      [previewFirma.value.id],
+      manual,
+      manual ? 'phone' : 'mail',
+    )
     updated.forEach(replaceFirm)
-    toast.success(t('grossanlass.beschaffung.anfragen.sentToast'))
+    toast.success(t(manual
+      ? 'grossanlass.beschaffung.anfragen.manualAskToast'
+      : 'grossanlass.beschaffung.anfragen.sentToast'))
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('grossanlass.beschaffung.anfragen.saveError'))
@@ -3199,12 +4147,154 @@ onUnmounted(() => {
 .phone-tel-link:hover {
   text-decoration: underline;
 }
+.firm-row { cursor: pointer; }
+.firm-row:hover td { background: #f8fafc; }
+.material-link {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 10px;
+  background: #f0fdfa;
+}
+.material-link__title { margin: 0 0 6px; font-weight: 700; color: #0f766e; }
+.material-link__items { margin: 0; padding-left: 1.1rem; }
+.material-link__items li + li { margin-top: 4px; }
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+.channel-firm {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.channel-script {
+  margin: 0 0 12px;
+  padding-left: 1.1rem;
+}
+.channel-mail {
+  margin: 0 0 12px;
+}
+.channel-mail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.channel-mail__body {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+}
+.channel-deals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.channel-deal {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.channel-deal.is-active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+.channel-deal.is-no.is-active {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+.channel-principle {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+.channel-items {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.channel-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fff;
+}
+.channel-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.channel-item__cat { color: #64748b; font-weight: 500; }
+.channel-item__details {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.channel-item__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.channel-item__wish {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 0.8rem;
+}
+.channel-schedule {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.channel-logistics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.channel-logistics__btn {
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+.channel-logistics__btn + .channel-logistics__btn { border-left: 1px solid #e5e7eb; }
+.channel-logistics__btn.is-on { background: #0f766e; color: #fff; }
+.channel-times {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
 .status-chip {
   display: inline-flex;
   padding: 2px 8px;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 .status-chip--kein_entwurf { background: #f1f5f9; color: #475569; }
 .status-chip--entwurf { background: #eff6ff; color: #1d4ed8; }
@@ -3244,6 +4334,11 @@ onUnmounted(() => {
 .firm-modal-tabs { margin: 0 0 12px; }
 .firm-modal-window { min-height: 12rem; }
 .mail-kicker, .review-hint { margin: 0 0 8px; color: #64748b; font-size: 0.82rem; }
+.wish-assign { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; }
+.ask-list { margin: 0 0 14px; padding: 10px 12px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; }
+.ask-list__title { margin: 0 0 4px; font-size: 0.92rem; font-weight: 700; color: #0f766e; }
+.ask-list__items { margin: 6px 0 0; padding-left: 1.1rem; }
+.ask-list__items li { margin: 2px 0; font-size: 0.88rem; }
 .mail-subject { margin: 0 0 10px; font-weight: 700; }
 .mail-editor {
   margin: 0 0 10px;

@@ -85,86 +85,107 @@
       persistent
     >
       <template v-if="editForm">
-        <div class="form-grid">
-          <ETextField
-            v-model="editForm.first_name"
-            :label="t('settings.adminUsers.fields.firstName')"
-            hide-details="auto"
+        <details class="member-profile-accordion user-edit-accordion" open>
+          <summary class="member-profile-accordion__summary">
+            {{ t('settings.globalAdminAccordion.editSections.profile') }}
+          </summary>
+          <div class="member-profile-accordion__body">
+            <div class="form-grid">
+              <ETextField
+                v-model="editForm.first_name"
+                :label="t('settings.adminUsers.fields.firstName')"
+                hide-details="auto"
+              />
+              <ETextField
+                v-model="editForm.last_name"
+                :label="t('settings.adminUsers.fields.lastName')"
+                hide-details="auto"
+              />
+              <ETextField
+                v-model="editForm.nickname"
+                :label="t('settings.adminUsers.fields.nickname')"
+                hide-details="auto"
+              />
+              <ETextField
+                v-model="editForm.email"
+                :label="t('settings.adminUsers.fields.email')"
+                type="email"
+                hide-details="auto"
+              />
+              <ESelect
+                v-model="editForm.state"
+                :label="t('common.status')"
+                :items="stateSelectItems"
+                hide-details="auto"
+              />
+            </div>
+          </div>
+        </details>
+
+        <div ref="globalAdminSectionRef" class="user-edit-global-admin-wrap">
+          <UserGlobalAdminAccordion
+            v-model:global-admin-role="editForm.global_admin_role"
+            v-model:admin-capabilities="editForm.admin_capabilities"
+            :departments="departments"
+            :organisations="organisations"
+            :readonly="!isSuperAdminEditor"
+            class="user-edit-global-admin"
           />
-          <ETextField
-            v-model="editForm.last_name"
-            :label="t('settings.adminUsers.fields.lastName')"
-            hide-details="auto"
-          />
-          <ETextField
-            v-model="editForm.nickname"
-            :label="t('settings.adminUsers.fields.nickname')"
-            hide-details="auto"
-          />
-          <ETextField
-            v-model="editForm.email"
-            :label="t('settings.adminUsers.fields.email')"
-            type="email"
-            hide-details="auto"
-          />
-          <ESelect
-            v-model="editForm.state"
-            :label="t('common.status')"
-            :items="stateSelectItems"
-            hide-details="auto"
-          />
+          <p v-if="!isSuperAdminEditor" class="inline-hint admin-users-hint">
+            {{ t('settings.globalAdminAccordion.superadminOnlyHint') }}
+          </p>
         </div>
 
-        <p v-if="isSuperAdminEditor" class="inline-hint admin-users-hint">
-          {{ t('settings.adminUsers.globalRolesMovedHint') }}
-          <router-link to="/admin-dashboard/verwaltung/global-admin-roles">
-            {{ t('settings.adminUsers.globalRolesMovedLink') }}
-          </router-link>
-        </p>
+        <details class="member-profile-accordion user-edit-accordion" open>
+          <summary class="member-profile-accordion__summary">
+            {{ t('settings.globalAdminAccordion.editSections.memberships') }}
+          </summary>
+          <div class="member-profile-accordion__body">
+            <div class="membership-headline">
+              <p class="membership-intro">{{ t('settings.adminUsers.membershipsTitle') }}</p>
+              <EButton variant="secondary" size="small" @click="addMembershipRow">
+                {{ t('settings.adminUsers.addDepartment') }}
+              </EButton>
+            </div>
 
-        <div class="membership-headline">
-          <h4>{{ t('settings.adminUsers.membershipsTitle') }}</h4>
-          <EButton variant="secondary" size="small" @click="addMembershipRow">
-            {{ t('settings.adminUsers.addDepartment') }}
-          </EButton>
-        </div>
+            <div v-if="editForm.memberships.length === 0" class="inline-hint">
+              {{ t('settings.adminUsers.noDepartment') }}
+            </div>
 
-        <div v-if="editForm.memberships.length === 0" class="inline-hint">
-          {{ t('settings.adminUsers.noDepartment') }}
-        </div>
+            <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
+              <DepartmentMembershipPicker
+                v-model="membership.department_id"
+                :departments="manageableDepartments"
+                :organisation-name-by-id="organisationNameById"
+                :excluded-department-ids="excludedDepartmentIdsFor(index)"
+                :auto-focus="membershipFocusId === membership.local_id"
+              />
 
-        <div v-for="(membership, index) in editForm.memberships" :key="membership.local_id" class="membership-row">
-          <DepartmentMembershipPicker
-            v-model="membership.department_id"
-            :departments="manageableDepartments"
-            :organisation-name-by-id="organisationNameById"
-            :excluded-department-ids="excludedDepartmentIdsFor(index)"
-            :auto-focus="membershipFocusId === membership.local_id"
-          />
+              <ESelect
+                v-model="membership.role"
+                :items="roleSelectItems"
+                hide-details="auto"
+                class="role-select"
+              />
 
-          <ESelect
-            v-model="membership.role"
-            :items="roleSelectItems"
-            hide-details="auto"
-            class="role-select"
-          />
+              <ECheckbox
+                :model-value="membership.is_primary"
+                :label="t('settings.adminUsers.primary')"
+                hide-details
+                @update:model-value="(v) => v && setPrimaryMembership(index)"
+              />
 
-          <ECheckbox
-            :model-value="membership.is_primary"
-            :label="t('settings.adminUsers.primary')"
-            hide-details
-            @update:model-value="(v) => v && setPrimaryMembership(index)"
-          />
-
-          <EButton
-            variant="text"
-            size="small"
-            :title="t('settings.adminUsers.removeDepartment')"
-            @click="removeMembershipRow(index)"
-          >
-            <v-icon icon="mdi-close" size="18" color="error" />
-          </EButton>
-        </div>
+              <EButton
+                variant="text"
+                size="small"
+                :title="t('settings.adminUsers.removeDepartment')"
+                @click="removeMembershipRow(index)"
+              >
+                <v-icon icon="mdi-close" size="18" color="error" />
+              </EButton>
+            </div>
+          </div>
+        </details>
       </template>
 
       <template #actions>
@@ -183,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getDepartments, type Department } from '@/api/departments'
@@ -200,12 +221,19 @@ import {
   type DepartmentRole,
 } from '@/api/adminUsers'
 import DepartmentMembershipPicker from '@/components/admin/DepartmentMembershipPicker.vue'
+import UserGlobalAdminAccordion from '@/components/admin/UserGlobalAdminAccordion.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, ECheckbox, EDialog, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
-import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
+import {
+  cloneAdminCapabilities,
+  filterDepartmentsByAccessibleIds,
+  normalizeAdminCapabilities,
+  type AdminCapabilities,
+  type GlobalAdminRole,
+} from '@/utils/adminCapabilities'
 
 type SortBy = 'created_at' | 'name' | 'email' | 'departments_count'
 type SortDir = 'asc' | 'desc'
@@ -225,6 +253,8 @@ interface EditForm {
   nickname: string
   email: string
   state: string
+  global_admin_role: GlobalAdminRole
+  admin_capabilities: AdminCapabilities
   memberships: EditableMembership[]
 }
 
@@ -247,6 +277,7 @@ const editForm = ref<EditForm | null>(null)
 const departments = ref<Department[]>([])
 const organisations = ref<Array<{ id: string; name: string }>>([])
 const membershipFocusId = ref<string | null>(null)
+const globalAdminSectionRef = ref<HTMLElement | null>(null)
 
 const organisationNameById = computed(
   () => new Map(organisations.value.map((o) => [o.id, o.name]))
@@ -357,9 +388,18 @@ function excludedDepartmentIdsFor(index: number): string[] {
     .filter(Boolean)
 }
 
+async function scrollToGlobalAdminSectionIfRequested() {
+  if (route.query.focus !== 'verwaltung') return
+  await nextTick()
+  globalAdminSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 async function openEditModal(userId: string) {
   try {
     const detail = await getAdminUserDetail(userId)
+    const globalRole = (detail.global_admin_role === 'org' || detail.global_admin_role === 'sub'
+      ? detail.global_admin_role
+      : 'none') as GlobalAdminRole
     editForm.value = {
       user_id: detail.id,
       display_name: detail.name,
@@ -368,6 +408,10 @@ async function openEditModal(userId: string) {
       nickname: detail.nickname || '',
       email: detail.email,
       state: detail.state,
+      global_admin_role: globalRole,
+      admin_capabilities: cloneAdminCapabilities(
+        normalizeAdminCapabilities(detail.admin_capabilities_stored ?? detail.admin_capabilities, globalRole)
+      ),
       memberships: detail.memberships.map((membership) => ({
         local_id: `${membership.department_id}-${Math.random().toString(36).slice(2, 8)}`,
         department_id: membership.department_id,
@@ -376,14 +420,15 @@ async function openEditModal(userId: string) {
       })),
     }
     showEditModal.value = true
+    await scrollToGlobalAdminSectionIfRequested()
   } catch (err: any) {
     toast.error(err.response?.data?.error || t('settings.adminUsers.detailsLoadError'))
   }
 }
 
 function clearEditQuery() {
-  if (!route.query.edit) return
-  const { edit: _edit, ...rest } = route.query
+  if (!route.query.edit && !route.query.focus) return
+  const { edit: _edit, focus: _focus, ...rest } = route.query
   void router.replace({ query: rest })
 }
 
@@ -432,7 +477,7 @@ async function saveUser() {
   if (!editForm.value || !canSave.value || isSaving.value) return
   isSaving.value = true
   try {
-    await updateAdminUser(editForm.value.user_id, {
+    const payload: Parameters<typeof updateAdminUser>[1] = {
       first_name: editForm.value.first_name.trim() || null,
       last_name: editForm.value.last_name.trim() || null,
       nickname: editForm.value.nickname.trim() || null,
@@ -443,7 +488,17 @@ async function saveUser() {
         role: membership.role,
         is_primary: membership.is_primary,
       })),
-    })
+    }
+
+    if (isSuperAdminEditor.value) {
+      payload.global_admin_role = editForm.value.global_admin_role
+      payload.admin_capabilities =
+        editForm.value.global_admin_role !== 'none'
+          ? cloneAdminCapabilities(editForm.value.admin_capabilities)
+          : undefined
+    }
+
+    await updateAdminUser(editForm.value.user_id, payload)
     toast.success(t('settings.adminUsers.toastUpdated'))
     closeEditModal()
     await loadUsers()
@@ -562,16 +617,32 @@ watch(
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 20px;
 }
 
-/* Form group/input/select base uses shared ui/forms.css */
+.user-edit-accordion {
+  margin-bottom: 10px;
+}
+
+.user-edit-global-admin-wrap {
+  margin-bottom: 10px;
+}
+
+.user-edit-global-admin {
+  margin-bottom: 0;
+}
 
 .membership-headline {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
+}
+
+.membership-intro {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748b;
 }
 
 .inline-hint {
@@ -594,10 +665,12 @@ watch(
 }
 
 .admin-users-hint {
-  margin-bottom: 16px;
+  margin: 0 0 12px;
   padding: 10px 12px;
   background: #f0f9ff;
   border-radius: 8px;
   border: 1px solid #bae6fd;
 }
 </style>
+
+<style src="@/styles/components/department-member-detail.css"></style>

@@ -4,6 +4,15 @@
       <div>
         <h1>{{ t('settings.myDepartment.title') }}</h1>
       </div>
+      <EButton
+        v-if="!isSelectedDeptGrossanlass"
+        variant="text"
+        size="small"
+        class="create-dept-btn"
+        @click="goCreateAnotherDepartment"
+      >
+        {{ t('settings.myDepartment.createAnother') }}
+      </EButton>
     </div>
 
     <!-- Department Selector (wenn User in mehreren Departments ist) -->
@@ -370,7 +379,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
@@ -415,6 +424,7 @@ import { ONBOARDING_TOUR_QUERY, ONBOARDING_TOUR_STEP_QUERY } from '@/config/onbo
 import { gaCanManageDepartmentUsers } from '@/utils/grossanlassAccess'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const roleLabelsStore = useDepartmentRoleLabelsStore()
 const toast = useToast()
@@ -426,6 +436,12 @@ const isSelectedDeptGrossanlass = computed(() => {
   const id = selectedDepartmentId.value || authStore.activeDepartmentId
   return authStore.isDepartmentGrossanlass(id)
 })
+
+function goCreateAnotherDepartment() {
+  const id = selectedDepartmentId.value || authStore.activeDepartmentId
+  if (!id) return
+  void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
+}
 
 /** Reines Mitglied «u»: nur Liste; L1–L3 und MW/DC: volle Verwaltung. Grossanlass: nur MW. */
 const membersReadOnly = computed(() => {
@@ -1014,6 +1030,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+.create-dept-btn {
+  margin-top: 4px;
+  font-size: 0.8125rem;
 }
 
 .header-section h1 {

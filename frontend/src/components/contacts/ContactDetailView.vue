@@ -1281,7 +1281,11 @@ function getInitials(c: Address): string {
 }
 
 function goBack() {
-  if (createdFromPin.value && contact.value) {
+  if (contact.value && createdFromPin.value) {
+    emit('created', contact.value)
+    return
+  }
+  if (asModal.value && contact.value && props.mode === 'create') {
     emit('created', contact.value)
     return
   }

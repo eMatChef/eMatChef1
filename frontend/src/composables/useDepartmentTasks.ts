@@ -9,7 +9,12 @@ import {
 } from '@/api/joinRequests'
 import { getPublicFoundMessages, type PublicFoundItemMessage } from '@/api/publicFoundMessages'
 import { listAcquisitionFollowups, type AccountingAcquisitionFollowUp } from '@/api/accountingAcquisitionFollowups'
+import {
+  getGrossanlassMyEinsaetze,
+  type GaUebersichtEinsatz,
+} from '@/api/grossanlassUebersicht'
 import { departmentHasAccountingRole } from '@/composables/useCostBookingFollowUp'
+import { useAuthStore } from '@/stores/auth'
 
 const ACCOUNTING_IN_PROGRESS_STORAGE_KEY = 'ematchef-task-accounting-in-progress'
 
@@ -71,6 +76,9 @@ export type DepartmentTaskKind =
   | 'grossanlass_round_opened'
   | 'activity_invite'
   | 'accounting_followup'
+  | 'ga_einsatz'
+  | 'ga_fahrauftrag'
+  | 'ga_bauauftrag'
 export type DepartmentTaskStatus = 'open' | 'in_progress' | 'done'
 
 export interface DepartmentTaskItem {
@@ -86,6 +94,7 @@ export interface DepartmentTaskItem {
   grossanlassRoundOpened?: GrossanlassRoundOpenedNotification
   activityInvite?: PendingDepartmentActivityInvite
   accounting?: AccountingAcquisitionFollowUp
+  gaEinsatz?: GaUebersichtEinsatz
 }
 
 export function taskOpenQuery(kind: DepartmentTaskKind, id: string): string {
@@ -99,10 +108,30 @@ export function parseTaskOpenQuery(raw: unknown): { kind: DepartmentTaskKind; id
   const kind = s.slice(0, i) as DepartmentTaskKind
   const id = s.slice(i + 1)
   if (!id) return null
-  if (!['qr_found', 'department_invite', 'grossanlass_mw_assigned', 'grossanlass_round_opened', 'activity_invite', 'accounting_followup'].includes(kind)) {
+  if (!['qr_found', 'department_invite', 'grossanlass_mw_assigned', 'grossanlass_round_opened', 'activity_invite', 'accounting_followup', 'ga_einsatz', 'ga_fahrauftrag', 'ga_bauauftrag'].includes(kind)) {
     return null
   }
   return { kind, id }
+}
+
+function helperEinsatzTaskStatus(row: GaUebersichtEinsatz): DepartmentTaskStatus {
+  if (row.status === 'returned' || row.status === 'issued') return 'done'
+  if (row.task_kind === 'fahrauftrag' && row.chauffeur_user_id) {
+    if (row.packed && !row.trip_released) return 'in_progress'
+    if (row.trip_released) return 'in_progress'
+  }
+  return 'open'
+}
+
+function helperEinsatzTaskKind(row: GaUebersichtEinsatz): DepartmentTaskKind {
+  if (row.task_kind === 'fahrauftrag') return 'ga_fahrauftrag'
+  if (row.task_kind === 'bauauftrag') return 'ga_bauauftrag'
+  return 'ga_einsatz'
+}
+
+function helperEinsatzTaskPreview(row: GaUebersichtEinsatz): string {
+  const parts = [row.ressort, row.who].filter(Boolean)
+  return parts.join(' · ') || row.object_name
 }
 
 export async function loadDepartmentTasks(
@@ -110,9 +139,33 @@ export async function loadDepartmentTasks(
   options: {
     isUserRole: boolean
     canManageQrContact: boolean
+    isGrossanlassHelper?: boolean
   },
 ): Promise<DepartmentTaskItem[]> {
   const items: DepartmentTaskItem[] = []
+  const authStore = useAuthStore()
+  const memberDepartmentIds = new Set(authStore.departments.map((d) => d.department_id))
+
+  if (options.isGrossanlassHelper) {
+    try {
+      const mine = await getGrossanlassMyEinsaetze(departmentId)
+      const rows = [...mine.einsaetze, ...mine.fahrauftraege, ...mine.bauauftraege]
+      for (const row of rows) {
+        items.push({
+          id: `ga-${row.id}`,
+          kind: helperEinsatzTaskKind(row),
+          status: helperEinsatzTaskStatus(row),
+          createdAt: row.from,
+          title: row.object_name,
+          preview: helperEinsatzTaskPreview(row),
+          gaEinsatz: row,
+        })
+      }
+    } catch {
+      return []
+    }
+    return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
 
   const deptInvPromise = getReceivedDepartmentInvites({ bucket: 'all', limit: 200 }).catch(() => ({
     items: [] as ReceivedDepartmentInviteNotification[],
@@ -186,6 +239,12 @@ export async function loadDepartmentTasks(
       })
       continue
     }
+    if (inv.type !== 'department_invite') {
+      continue
+    }
+    if (memberDepartmentIds.has(inv.department_id)) {
+      continue
+    }
     items.push({
       id: `dept-${inv.id}`,
       kind: 'department_invite',
@@ -238,7 +297,7 @@ export async function loadDepartmentTasks(
 
 export function useDepartmentTasksLoader(
   departmentId: Ref<string>,
-  options: Ref<{ isUserRole: boolean; canManageQrContact: boolean }>,
+  options: Ref<{ isUserRole: boolean; canManageQrContact: boolean; isGrossanlassHelper?: boolean }>,
 ) {
   const tasks = ref<DepartmentTaskItem[]>([])
   const isLoading = ref(false)

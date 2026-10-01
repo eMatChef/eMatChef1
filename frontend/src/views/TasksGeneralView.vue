@@ -1,5 +1,19 @@
 <template>
   <div class="tasks-general-panel">
+    <section v-if="isGrossanlass && pickups.length" class="pickup-tasks">
+      <h2 class="pickup-tasks__title">{{ t('tasksGeneral.pickupsTitle') }}</h2>
+      <p class="pickup-tasks__hint">{{ t('tasksGeneral.pickupsHint') }}</p>
+      <ul>
+        <li v-for="row in pickups" :key="`${row.source}-${row.id}`">
+          <strong>{{ row.quantity }}× {{ row.label }}</strong>
+          <span>{{ row.group_name }}<template v-if="row.pickup_place"> · {{ row.pickup_place }}</template></span>
+          <span>{{ row.pickup_need === 'must' ? t('grossanlass.planung.ressorts.materialPickupMust') : t('grossanlass.planung.ressorts.materialPickupCan') }}</span>
+          <EButton variant="secondary" size="x-small" @click="openPickupJob(row.group_id)">
+            {{ t('grossanlass.planung.openAuftrag') }}
+          </EButton>
+        </li>
+      </ul>
+    </section>
     <v-tabs v-model="statusTab" class="tasks-general-tabs" color="primary">
       <v-tab v-for="tab in statusTabs" :key="tab.key" :value="tab.key">
         {{ tab.label }}
@@ -108,6 +122,11 @@
               {{ t('tasksGeneral.actionAccountingView') }}
             </EButton>
           </template>
+          <template v-else-if="task.gaEinsatz">
+            <EButton variant="primary" size="small" @click="openGaEinsatzTask(task)">
+              {{ t('tasksGeneral.actionOpenEinsatz') }}
+            </EButton>
+          </template>
         </div>
       </article>
     </div>
@@ -139,6 +158,7 @@ import { useToast } from '@/composables/useToast'
 import { useDepartmentMemberRole } from '@/composables/useDepartmentMemberRole'
 import { useHeaderNotificationsStore } from '@/stores/headerNotifications'
 import { useAuthStore } from '@/stores/auth'
+import { getPartnerPickups, type GaPartnerPickup } from '@/api/grossanlassWishes'
 import { useDepartmentRoleLabelsStore } from '@/stores/departmentRoleLabels'
 import {
   acceptDepartmentInvite,
@@ -171,6 +191,7 @@ import {
 } from '@/composables/useDepartmentTasks'
 import { useUnsavedLeaveGuard } from '@/composables/useUnsavedLeaveGuard'
 import { grossanlassOpenRoundWishRoute } from '@/utils/grossanlassNavigation'
+import { gaIsGrossanlassHelper } from '@/utils/grossanlassAccess'
 
 type StatusTab = DepartmentTaskStatus
 
@@ -185,9 +206,31 @@ const { confirmLeaveIfDirty } = useUnsavedLeaveGuard()
 const { isUserRole, canManageQrContact } = useDepartmentMemberRole()
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
+const isGrossanlass = computed(() => authStore.isDepartmentGrossanlass(departmentId.value))
+const pickups = ref<GaPartnerPickup[]>([])
+
+async function loadPickups() {
+  if (!departmentId.value || !isGrossanlass.value) {
+    pickups.value = []
+    return
+  }
+  try {
+    pickups.value = await getPartnerPickups(departmentId.value)
+  } catch {
+    pickups.value = []
+  }
+}
+
+function openPickupJob(groupId: string) {
+  if (!departmentId.value) return
+  void router.push(`/${departmentId.value}/planung/bauauftraege?project=${groupId}`)
+}
 const roleOptions = computed(() => ({
   isUserRole: isUserRole.value,
   canManageQrContact: canManageQrContact.value,
+  isGrossanlassHelper:
+    gaIsGrossanlassHelper(authStore.currentDepartmentRole) &&
+    authStore.isDepartmentGrossanlass(departmentId.value),
 }))
 
 const { tasks, isLoading, error, reload } = useDepartmentTasksLoader(departmentId, roleOptions)
@@ -254,6 +297,12 @@ function taskKindLabel(kind: DepartmentTaskKind): string {
       return t('tasksGeneral.kindCampInvite')
     case 'accounting_followup':
       return t('tasksGeneral.kindAccounting')
+    case 'ga_einsatz':
+      return t('tasksGeneral.kindGaEinsatz')
+    case 'ga_fahrauftrag':
+      return t('tasksGeneral.kindGaFahrauftrag')
+    case 'ga_bauauftrag':
+      return t('tasksGeneral.kindGaBauauftrag')
     default:
       return ''
   }
@@ -373,6 +422,12 @@ async function openGrossanlassPlanung(note: GrossanlassRoundOpenedNotification) 
       ? grossanlassOpenRoundWishRoute(note.department_id, note.round_id)
       : (note.planung_url || `/${note.department_id}/planung`),
   )
+}
+
+function openGaEinsatzTask(task: DepartmentTaskItem) {
+  const id = departmentId.value
+  if (!id) return
+  void router.push(`/${id}/meine-einsaetze`)
 }
 
 function goToMessageForDeptInvite(inv: ReceivedDepartmentInviteNotification) {
@@ -546,10 +601,12 @@ watch(tasks, () => {
 
 onMounted(() => {
   void reload()
+  void loadPickups()
 })
 
 watch(departmentId, () => {
   void reload()
+  void loadPickups()
 })
 
 watch(
@@ -591,6 +648,22 @@ watch(
   border-radius: 10px;
 }
 
+.pickup-tasks {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+.pickup-tasks__title { margin: 0 0 4px; font-size: 1rem; }
+.pickup-tasks__hint { margin: 0 0 10px; color: #64748b; font-size: 0.88rem; }
+.pickup-tasks ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pickup-tasks li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
 .task-row--flash {
   animation: task-flash 2s ease;
 }

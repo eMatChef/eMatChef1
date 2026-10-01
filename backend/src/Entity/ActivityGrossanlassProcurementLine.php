@@ -19,6 +19,16 @@ class ActivityGrossanlassProcurementLine
     public const STATUS_TEILWEISE = 'teilweise_erhalten';
     public const STATUS_ERHALTEN = 'erhalten';
 
+    public const SOURCE_FROM_WISH = 'from_wish';
+    public const SOURCE_DIRECT = 'direct';
+
+    public const SUPPLY_OPEN = 'open';
+    public const SUPPLY_PARTNER = 'partner';
+    public const SUPPLY_BUY = 'buy';
+
+    /** @var list<string> */
+    public const SUPPLY_MODES = [self::SUPPLY_OPEN, self::SUPPLY_PARTNER, self::SUPPLY_BUY];
+
     #[ORM\Id]
     #[ORM\Column(type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $id;
@@ -49,6 +59,10 @@ class ActivityGrossanlassProcurementLine
     #[ORM\Column(name: 'quantity_asked', type: 'integer', nullable: true)]
     private ?int $quantityAsked = null;
 
+    /** @var list<string> */
+    #[ORM\Column(name: 'asked_wish_ids', type: 'json', nullable: true)]
+    private ?array $askedWishIds = null;
+
     #[ORM\Column(type: 'string', length: 255)]
     private string $location;
 
@@ -64,6 +78,27 @@ class ActivityGrossanlassProcurementLine
 
     #[ORM\Column(type: 'string', length: 32)]
     private string $status = self::STATUS_BEDARF;
+
+    #[ORM\Column(type: 'string', length: 20, options: ['default' => self::SOURCE_FROM_WISH])]
+    private string $source = self::SOURCE_FROM_WISH;
+
+    #[ORM\Column(name: 'supply_mode', type: 'string', length: 16, options: ['default' => self::SUPPLY_OPEN])]
+    private string $supplyMode = self::SUPPLY_OPEN;
+
+    #[ORM\Column(name: 'self_organized', type: 'boolean', options: ['default' => false])]
+    private bool $selfOrganized = false;
+
+    #[ORM\Column(name: 'pickup_need', type: 'string', length: 8, nullable: true)]
+    private ?string $pickupNeed = null;
+
+    #[ORM\Column(name: 'pickup_place', type: 'string', length: 255, nullable: true)]
+    private ?string $pickupPlace = null;
+
+    #[ORM\Column(name: 'return_needed', type: 'boolean', options: ['default' => false])]
+    private bool $returnNeeded = false;
+
+    #[ORM\Column(name: 'quantity_unit', type: 'string', length: 8, options: ['default' => 'Stk'])]
+    private string $quantityUnit = 'Stk';
 
     #[ORM\Column(name: 'created_by_user_id', type: 'string', length: 12, columnDefinition: 'CHARACTER(12) NOT NULL')]
     private string $createdByUserId;
@@ -180,6 +215,24 @@ class ActivityGrossanlassProcurementLine
         return $this;
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getAskedWishIds(): array
+    {
+        return array_values($this->askedWishIds ?? []);
+    }
+
+    /**
+     * @param list<string> $askedWishIds
+     */
+    public function setAskedWishIds(array $askedWishIds): self
+    {
+        $this->askedWishIds = array_values($askedWishIds);
+
+        return $this;
+    }
+
     public function getLocation(): string
     {
         return $this->location;
@@ -230,6 +283,90 @@ class ActivityGrossanlassProcurementLine
     public function setStatus(string $status): self
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    public function getSource(): string
+    {
+        return $this->source;
+    }
+
+    public function setSource(string $source): self
+    {
+        $this->source = $source;
+
+        return $this;
+    }
+
+    public function getSupplyMode(): string
+    {
+        return $this->supplyMode;
+    }
+
+    public function setSupplyMode(string $supplyMode): self
+    {
+        $this->supplyMode = $supplyMode;
+
+        return $this;
+    }
+
+    public function isSelfOrganized(): bool
+    {
+        return $this->selfOrganized;
+    }
+
+    public function setSelfOrganized(bool $selfOrganized): self
+    {
+        $this->selfOrganized = $selfOrganized;
+
+        return $this;
+    }
+
+    public function getPickupNeed(): ?string
+    {
+        return $this->pickupNeed;
+    }
+
+    public function setPickupNeed(?string $pickupNeed): self
+    {
+        $this->pickupNeed = $pickupNeed;
+
+        return $this;
+    }
+
+    public function getPickupPlace(): ?string
+    {
+        return $this->pickupPlace;
+    }
+
+    public function setPickupPlace(?string $pickupPlace): self
+    {
+        $this->pickupPlace = $pickupPlace;
+
+        return $this;
+    }
+
+    public function isReturnNeeded(): bool
+    {
+        return $this->returnNeeded;
+    }
+
+    public function setReturnNeeded(bool $returnNeeded): self
+    {
+        $this->returnNeeded = $returnNeeded;
+
+        return $this;
+    }
+
+    public function getQuantityUnit(): string
+    {
+        return $this->quantityUnit !== '' ? $this->quantityUnit : 'Stk';
+    }
+
+    public function setQuantityUnit(?string $quantityUnit): self
+    {
+        $this->quantityUnit = strtolower(trim((string) $quantityUnit)) === 'm' ? 'm' : 'Stk';
 
         return $this;
     }

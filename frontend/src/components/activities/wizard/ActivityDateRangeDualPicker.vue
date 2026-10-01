@@ -108,6 +108,8 @@ type PickerControls = {
 const props = defineProps<{
   modelValue: Date[] | null
   min?: Date
+  /** Kalender-Monat, wenn noch kein Datum gewählt */
+  viewDate?: Date | null
   allowedDates?: (date: unknown) => boolean
   /** Menü geöffnet — Anker-Monat neu setzen */
   menuOpen?: boolean
@@ -121,10 +123,12 @@ const emit = defineEmits<{
 function dualPaneAnchorFromRange(
   range: Date[] | null | undefined,
   min?: Date,
+  viewDate?: Date | null,
 ): { leftMonth: number; leftYear: number; rightMonth: number; rightYear: number } {
   const start = range?.[0]
   const end = range && range.length >= 2 ? range[1] : start
-  const fallback = min ?? new Date()
+  const fallback =
+    (viewDate && Number.isFinite(viewDate.getTime()) ? viewDate : null) ?? min ?? new Date()
 
   if (!start || !Number.isFinite(start.getTime())) {
     const lm = fallback.getMonth()
@@ -156,7 +160,7 @@ function dualPaneAnchorFromRange(
   return { leftMonth: lm, leftYear: ly, rightMonth: next.month, rightYear: next.year }
 }
 
-const initialAnchor = dualPaneAnchorFromRange(props.modelValue, props.min)
+const initialAnchor = dualPaneAnchorFromRange(props.modelValue, props.min, props.viewDate)
 const leftMonth = ref(initialAnchor.leftMonth)
 const leftYear = ref(initialAnchor.leftYear)
 const rightMonth = ref(initialAnchor.rightMonth)
@@ -198,7 +202,7 @@ function syncLeftFromRight() {
 }
 
 function anchorFromSelection() {
-  const next = dualPaneAnchorFromRange(props.modelValue, props.min)
+  const next = dualPaneAnchorFromRange(props.modelValue, props.min, props.viewDate)
   leftMonth.value = next.leftMonth
   leftYear.value = next.leftYear
   rightMonth.value = next.rightMonth
@@ -206,8 +210,8 @@ function anchorFromSelection() {
 }
 
 watch(
-  () => props.menuOpen,
-  (open) => {
+  () => [props.menuOpen, props.viewDate] as const,
+  ([open]) => {
     if (open) anchorFromSelection()
   },
   { immediate: true },

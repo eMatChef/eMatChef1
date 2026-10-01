@@ -26,5 +26,7 @@ declare module 'vue-router' {
     denyDepartmentRoles?: string[]
     /** Bei denyDepartmentRoles: Ziel-Route statt Dashboard (z. B. TasksGeneral) */
     denyRedirectTo?: { name: string }
+    materialUebersichtTab?: string
+    lageKind?: 'einsatz' | 'fahrauftrag' | 'bauauftrag'
   }
 }

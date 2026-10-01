@@ -1,3 +1,6 @@
+import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
+import { gaBuildStatusI18nKey, resolveBuildStatus } from '@/utils/grossanlassBuildStatus'
+
 export type GaEinsatzStatus = 'planned' | 'pending_approval' | 'issued' | 'returned'
 export type GaEinsatzBarRole = 'einsatz' | 'handover' | 'giveback' | 'service' | 'unreleased' | 'fixed'
 export type GaEinsatzResourceRingId = 'fleet' | 'tools' | 'consumable'
@@ -21,8 +24,12 @@ export type GaPreviewEinsatz = {
   ressort: string
   bauprojekt?: string
   groupId?: string | null
+  orgRingKey?: string
   status: GaEinsatzStatus
   who: string
+  description?: string
+  /** Aufgabe am Bauauftrag, kein Material-Einsatz. */
+  source?: 'task'
   conflictId?: string
   barRole?: GaEinsatzBarRole
   delivery?: 'trip' | 'pickup'
@@ -71,6 +78,7 @@ export type GaEinsatzCategoryBlock = {
   ringId: GaEinsatzRingId
   ringLabel: string
   label: string
+  groupId?: string
   resources: Array<GaEinsatzResource & {
     bookings: GaPreviewEinsatz[]
     lanes: number
@@ -81,6 +89,12 @@ export type GaEinsatzCategoryBlock = {
 export type GaEinsatzRingBlock = {
   id: string
   label: string
+  depth?: number
+  parentId?: string
+  status?: string
+  statusKind?: string
+  groupId?: string
+  windowText?: string
   skipCategory?: boolean
   blocks: GaEinsatzCategoryBlock[]
 }
@@ -90,6 +104,9 @@ export type GaEinsatzOrgGroup = {
   name: string
   parent_id: string | null
   node_type: string
+  window_start?: string | null
+  window_end?: string | null
+  build_status?: string | null
 }
 
 export type GaFixedDatePeriod = {
@@ -642,6 +659,51 @@ export function isOrgEinsatz(row: GaPreviewEinsatz): boolean {
   return (row.barRole ?? 'einsatz') === 'einsatz'
 }
 
+export function isUsageWindowEinsatz(row: GaPreviewEinsatz): boolean {
+  return row.id.startsWith('usage-') || row.objectId.startsWith('usage-')
+}
+
+function orgUsageResource(
+  group: GaEinsatzOrgGroup,
+  ringKey: string,
+  t: Translate,
+): GaEinsatzCategoryBlock['resources'][number] | null {
+  const from = (group.window_start || '').slice(0, 10)
+  const to = (group.window_end || '').slice(0, 10)
+  if (!from && !to) return null
+  const fromIso = `${from || to}T00:00:00`
+  const toIso = `${to || from}T23:59:59`
+  const span = formatBauprojektWindow(from, to)
+  const booking: GaPreviewEinsatz = {
+    id: `usage-${group.id}`,
+    objectId: `usage-${group.id}`,
+    objectName: t('grossanlass.materialUebersicht.usageWindowRow'),
+    kind: 'unique',
+    qty: 1,
+    stock: 1,
+    fromIso,
+    toIso,
+    fromLabel: span || from || to,
+    toLabel: span || to || from,
+    ressort: group.name,
+    status: 'planned',
+    who: '',
+    barRole: 'fixed',
+  }
+  return {
+    id: `org:${ringKey}:usage`,
+    name: t('grossanlass.materialUebersicht.usageWindowRow'),
+    family: 'material',
+    stayMode: 'stay',
+    categoryId: 'infra',
+    kind: 'unique',
+    stock: 1,
+    bookings: [booking],
+    lanes: 1,
+    laneOf: { [booking.id]: 0 },
+  }
+}
+
 export function enrichEinsatzFromGroups(
   row: GaPreviewEinsatz,
   groups: GaEinsatzOrgGroup[],
@@ -661,14 +723,15 @@ export function enrichEinsatzFromGroups(
   }
   const root = ancestors[ancestors.length - 1]
   const bauprojektNode = ancestors.find((item) => item.node_type === 'bauprojekt')
-  const unter = ancestors.find((item) => item.node_type === 'unterressort')
+  const bereichNode = ancestors.find((item) => item.node_type === 'unterressort')
   const ressortNode = ancestors.find((item) => item.node_type === 'ressort') || root
-  const sub = bauprojektNode?.name || (unter && unter.id !== ressortNode?.id ? unter.name : '')
+  const ringNode = bereichNode || ressortNode
 
   return {
     ...row,
-    ressort: ressortNode?.name || row.ressort,
-    bauprojekt: sub || undefined,
+    ressort: ringNode?.name || row.ressort,
+    bauprojekt: bauprojektNode?.name || undefined,
+    orgRingKey: ringNode?.id || undefined,
   }
 }
 
@@ -759,46 +822,209 @@ export function buildFixedDateCalendarRing(
   }
 }
 
+function orgProjectCategoryLabel(
+  project: string,
+  rows: GaPreviewEinsatz[],
+  groups: GaEinsatzOrgGroup[],
+  named: boolean,
+  noProject: string,
+  ringLabel: string,
+  t: Translate,
+): string {
+  const base = project || (named ? noProject : ringLabel)
+  const groupId = rows.find((row) => row.groupId)?.groupId
+  const projectGroup = groupId
+    ? groups.find((group) => group.id === groupId)
+    : groups.find((group) => group.node_type === 'bauprojekt' && group.name === project)
+  if (!projectGroup) return base
+  const status = t(gaBuildStatusI18nKey(resolveBuildStatus(projectGroup)))
+  return `${base} · ${status}`
+}
+
 export function buildOrgCalendarRings(
   resources: GaEinsatzResource[],
   bookings: GaPreviewEinsatz[],
   t: Translate,
+  groups: GaEinsatzOrgGroup[] = [],
 ): GaEinsatzRingBlock[] {
   const orgBookings = bookings.filter(isOrgEinsatz)
-  if (!orgBookings.length) return []
   const unassigned = t('grossanlass.materialUebersicht.bookProjectUnassigned')
   const noProject = t('grossanlass.materialUebersicht.orgNoProject')
-  const byRessort = new Map<string, Map<string, GaPreviewEinsatz[]>>()
-  for (const row of orgBookings) {
-    const ressort = row.ressort.trim() || unassigned
-    const project = row.bauprojekt?.trim() || ''
-    const projects = byRessort.get(ressort) ?? new Map<string, GaPreviewEinsatz[]>()
-    const list = projects.get(project) ?? []
-    list.push(row)
-    projects.set(project, list)
-    byRessort.set(ressort, projects)
+  const byId = new Map(groups.map((group) => [group.id, group]))
+
+  type Bucket = {
+    id: string
+    label: string
+    group?: GaEinsatzOrgGroup
+    projects: Map<string, GaPreviewEinsatz[]>
   }
-  return [...byRessort.entries()]
-    .sort(([a], [b]) => a.localeCompare(b, 'de'))
-    .map(([ressort, projects]) => {
-      const named = [...projects.keys()].some((key) => key !== '')
-      const skipCategory = !named
-      const blocks: GaEinsatzCategoryBlock[] = [...projects.entries()]
-        .sort(([a], [b]) => a.localeCompare(b, 'de'))
-        .map(([project, rows]) => ({
-          id: `org:${ressort}::${project}`,
-          ringId: 'org' as const,
-          ringLabel: ressort,
-          label: project || (named ? noProject : ressort),
-          resources: withPackedResources(rowsByObjectId(rows), resources, `org:${ressort}::${project}:`),
-        }))
-      return {
-        id: `org:${ressort}`,
-        label: ressort,
-        skipCategory,
-        blocks,
-      }
+
+  function chainOf(groupId?: string | null): GaEinsatzOrgGroup[] {
+    const chain: GaEinsatzOrgGroup[] = []
+    const seen = new Set<string>()
+    let cursor = groupId ? byId.get(groupId) : undefined
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id)
+      chain.push(cursor)
+      cursor = cursor.parent_id ? byId.get(cursor.parent_id) : undefined
+    }
+    return chain
+  }
+
+  const ressorts = new Map<string, Bucket & { children: Map<string, Bucket> }>()
+
+  function ensureRessort(id: string, label: string, group?: GaEinsatzOrgGroup) {
+    const existing = ressorts.get(id)
+    if (existing) {
+      if (group) existing.group = group
+      return existing
+    }
+    const created = {
+      id,
+      label,
+      group,
+      projects: new Map<string, GaPreviewEinsatz[]>(),
+      children: new Map<string, Bucket>(),
+    }
+    ressorts.set(id, created)
+    return created
+  }
+
+  function ensureChild(parent: Bucket & { children: Map<string, Bucket> }, id: string, label: string, group?: GaEinsatzOrgGroup) {
+    const existing = parent.children.get(id)
+    if (existing) {
+      if (group) existing.group = group
+      return existing
+    }
+    const created: Bucket = { id, label, group, projects: new Map() }
+    parent.children.set(id, created)
+    return created
+  }
+
+  for (const group of groups) {
+    if (group.node_type === 'ressort') ensureRessort(group.id, group.name, group)
+    if (group.node_type !== 'unterressort') continue
+    const chain = chainOf(group.id)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    if (!ressort) {
+      ensureRessort(group.id, group.name, group)
+      continue
+    }
+    const parent = ensureRessort(ressort.id, ressort.name, ressort)
+    ensureChild(parent, group.id, group.name, group)
+  }
+  for (const group of groups) {
+    if (group.node_type !== 'bauprojekt') continue
+    const chain = chainOf(group.id)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    const bereich = chain.find((item) => item.node_type === 'unterressort')
+    const parent = ensureRessort(ressort?.id || group.parent_id || group.id, ressort?.name || group.name, ressort)
+    const bucket = bereich ? ensureChild(parent, bereich.id, bereich.name, bereich) : parent
+    if (!bucket.projects.has(group.name)) bucket.projects.set(group.name, [])
+  }
+
+  for (const row of orgBookings) {
+    const chain = chainOf(row.groupId)
+    const ressort = chain.find((item) => item.node_type === 'ressort')
+    const bereich = chain.find((item) => item.node_type === 'unterressort')
+    const project = row.bauprojekt?.trim() || ''
+    const ressortId = ressort?.id || row.orgRingKey || row.ressort.trim() || unassigned
+    const ressortLabel = ressort?.name || row.ressort.trim() || unassigned
+    const parent = ensureRessort(ressortId, ressortLabel, ressort)
+    const bucket = bereich ? ensureChild(parent, bereich.id, bereich.name, bereich) : parent
+    const list = bucket.projects.get(project) ?? []
+    list.push(row)
+    bucket.projects.set(project, list)
+  }
+
+  function toRing(bucket: Bucket, depth: number, parentId?: string): GaEinsatzRingBlock {
+    const projectEntries = [...bucket.projects.entries()].filter(([project, rows]) => {
+      if (rows.length > 0) return true
+      const projectGroup = groups.find((group) =>
+        group.node_type === 'bauprojekt'
+        && group.name === project
+        && (group.parent_id === bucket.group?.id || group.parent_id === bucket.id),
+      )
+      return Boolean(projectGroup && (projectGroup.window_start || projectGroup.window_end))
     })
+    const named = projectEntries.some(([project]) => project !== '')
+    const usage = bucket.group && bucket.group.node_type !== 'ressort'
+      ? orgUsageResource(bucket.group, bucket.id, t)
+      : null
+    const skipCategory = !named
+    const blocks: GaEinsatzCategoryBlock[] = projectEntries
+      .sort(([a], [b]) => a.localeCompare(b, 'de'))
+      .map(([project, rows]) => {
+        const packed = withPackedResources(rowsByObjectId(rows), resources, `org:${bucket.id}::${project}:`)
+        const projectGroup = groups.find((group) =>
+          group.node_type === 'bauprojekt'
+          && group.name === project
+          && (group.parent_id === bucket.group?.id || group.parent_id === bucket.id),
+        )
+        const projectUsage = projectGroup ? orgUsageResource(projectGroup, projectGroup.id, t) : null
+        return {
+          id: `org:${bucket.id}::${project}`,
+          ringId: 'org' as const,
+          ringLabel: bucket.label,
+          label: orgProjectCategoryLabel(project, rows, groups, named, noProject, bucket.label, t),
+          groupId: projectGroup?.id,
+          resources: projectUsage ? [projectUsage, ...packed] : packed,
+        }
+      })
+    if (usage) {
+      if (skipCategory && blocks.length === 1) {
+        blocks[0].resources = [usage, ...blocks[0].resources]
+      } else if (skipCategory && blocks.length === 0) {
+        blocks.push({
+          id: `org:${bucket.id}::usage`,
+          ringId: 'org',
+          ringLabel: bucket.label,
+          label: bucket.label,
+          resources: [usage],
+        })
+      } else {
+        blocks.unshift({
+          id: `org:${bucket.id}::usage`,
+          ringId: 'org',
+          ringLabel: bucket.label,
+          label: t('grossanlass.materialUebersicht.usageWindowRow'),
+          resources: [usage],
+        })
+      }
+    }
+    const showMeta = bucket.group && bucket.group.node_type !== 'ressort'
+    const windowText = showMeta
+      ? formatBauprojektWindow(bucket.group?.window_start, bucket.group?.window_end)
+      : ''
+    const statusKind = showMeta && bucket.group ? resolveBuildStatus(bucket.group) : undefined
+    return {
+      id: `org:${bucket.id}`,
+      label: bucket.label,
+      depth,
+      parentId,
+      status: statusKind ? t(gaBuildStatusI18nKey(statusKind)) : undefined,
+      statusKind,
+      groupId: bucket.group?.id,
+      windowText: windowText || undefined,
+      skipCategory,
+      blocks,
+    }
+  }
+
+  const rings: GaEinsatzRingBlock[] = []
+  const sortedRessorts = [...ressorts.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+  for (const ressort of sortedRessorts) {
+    const children = [...ressort.children.values()].sort((a, b) => a.label.localeCompare(b.label, 'de'))
+    const childRings = children.map((child) => toRing(child, 1, `org:${ressort.id}`))
+    const hasOwnContent = ressort.projects.size > 0 || ressort.group?.node_type === 'unterressort'
+    if (!hasOwnContent && childRings.length > 0) {
+      rings.push(...childRings.map((child) => ({ ...child, depth: 0, parentId: undefined })))
+      continue
+    }
+    const own = toRing(ressort, 0)
+    rings.push(own, ...childRings)
+  }
+  return rings
 }
 
 export function buildEinsatzCalendarBlocks(

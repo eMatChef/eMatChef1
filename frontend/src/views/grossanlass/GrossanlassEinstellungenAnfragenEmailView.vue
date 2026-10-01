@@ -1,9 +1,70 @@
 <template>
   <div class="ga-mail-settings">
-    <p class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
+    <p v-if="statusLoading" class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
+    <p v-else-if="gmailIsReady" class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.intro') }}</p>
+    <p v-else class="intro">{{ t('grossanlass.einstellungen.anfragenEmail.introDisconnected') }}</p>
 
-    <section class="panel templates-panel">
-      <h2>{{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}</h2>
+    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
+      <v-expansion-panel value="gmail">
+        <v-expansion-panel-title>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
+              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
+                {{ gmailIsReady
+                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
+                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
+              </span>
+              <span v-if="canConnectGmail" class="mailbox-options" @click.stop>
+                <EButton
+                  v-if="!status?.connected"
+                  variant="primary"
+                  size="x-small"
+                  :disabled="!status?.oauth_configured"
+                  @click="connect"
+                >
+                  {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
+                </EButton>
+                <EButton v-else variant="secondary" size="x-small" :loading="disconnecting" @click="disconnect">
+                  {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
+                </EButton>
+                <span class="dev-button">
+                  <EButton variant="secondary" size="x-small" disabled>
+                    {{ t('grossanlass.einstellungen.anfragenEmail.outlookConnect') }}
+                  </EButton>
+                  <span class="dev-button__flag">{{ t('grossanlass.einstellungen.anfragenEmail.outlookDevBadge') }}</span>
+                </span>
+              </span>
+            </span>
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
+          <p v-else-if="status?.connected" class="ok">
+            {{ status.provider_label
+              ? t('grossanlass.einstellungen.anfragenEmail.connectedVia', { email: status.email || '', provider: status.provider_label })
+              : t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
+          </p>
+          <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
+          <p v-if="status?.redirect_uri" class="muted">
+            {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="status && !status.oauth_configured" class="warn">
+            {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
+          </p>
+          <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
+          <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+      <v-expansion-panel value="templates">
+        <v-expansion-panel-title>
+          <span class="panel-head">
+            <span class="panel-head__label">
+              {{ t('grossanlass.einstellungen.anfragenEmail.templatesTitle') }}
+            </span>
+          </span>
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
       <p class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.templatesHint') }}</p>
 
       <div class="zeitraum-block">
@@ -15,16 +76,16 @@
           :label="t('grossanlass.einstellungen.anfragenEmail.zeitraumTitle')"
           :placeholder="t('grossanlass.einstellungen.anfragenEmail.zeitraumPlaceholder')"
           :rows="4"
-          :disabled="zeitraumSuggesting"
+          :disabled="!canEditMailTemplates || zeitraumSuggesting"
           span-class="zeitraum-autosave"
           :save="saveZeitraumField"
           @update:model-value="onZeitraumModel"
         />
         <div class="actions">
-          <EButton variant="secondary" size="small" :loading="zeitraumSuggesting" @click="fillZeitraumFromDates">
+          <EButton variant="secondary" size="small" :disabled="!canEditMailTemplates" :loading="zeitraumSuggesting" @click="fillZeitraumFromDates">
             {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumFromDates') }}
           </EButton>
-          <EButton variant="text" size="small" :disabled="zeitraumSuggesting" @click="resetZeitraumToDefault">
+          <EButton variant="text" size="small" :disabled="!canEditMailTemplates || zeitraumSuggesting" @click="resetZeitraumToDefault">
             {{ t('grossanlass.einstellungen.anfragenEmail.zeitraumReset') }}
           </EButton>
         </div>
@@ -46,7 +107,7 @@
               <span>{{ file.original_filename }}</span>
               <span class="mail-file-open-action">{{ t('grossanlass.einstellungen.anfragenEmail.attachmentsView') }}</span>
             </button>
-            <EButton variant="text" size="small" :disabled="attachmentBusy" @click="removeMailAttachment(file.id)">
+            <EButton v-if="canEditMailTemplates" variant="text" size="small" :disabled="attachmentBusy" @click="removeMailAttachment(file.id)">
               {{ t('common.delete') }}
             </EButton>
           </li>
@@ -64,7 +125,7 @@
             variant="secondary"
             size="small"
             :loading="attachmentBusy"
-            :disabled="mailAttachments.length >= 8"
+            :disabled="!canEditMailTemplates || mailAttachments.length >= 8"
             @click="attachmentInputRef?.click()"
           >
             {{ t('grossanlass.einstellungen.anfragenEmail.attachmentsAdd') }}
@@ -84,7 +145,7 @@
           {{ kindLabel(row.kind) }}
         </button>
         <EButton
-          v-if="unusedKinds.length"
+          v-if="canEditMailTemplates && unusedKinds.length"
           variant="secondary"
           size="small"
           @click="showAddPicker = true"
@@ -98,6 +159,7 @@
         v-if="activeTemplate"
         v-model="activeTemplate.subject"
         :label="t('grossanlass.einstellungen.anfragenEmail.subject')"
+        :disabled="!canEditMailTemplates"
         hide-details
         class="mb-3"
       />
@@ -109,6 +171,7 @@
           v-model="activeTemplate.body"
           :placeholder="t('grossanlass.einstellungen.anfragenEmail.bodyPlaceholder')"
           :insert-tokens="insertTokens"
+          :disabled="!canEditMailTemplates"
           allow-custom-tokens
           @add-custom-token="openCustomTokenDialog"
         />
@@ -124,7 +187,7 @@
       </div>
       <div class="actions">
         <EButton
-          v-if="activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
+          v-if="canEditMailTemplates && activeKind !== 'anfrage' && activeKind !== 'praezisieren'"
           variant="secondary"
           size="small"
           @click="removeActiveTemplate"
@@ -134,7 +197,7 @@
         <EButton variant="secondary" size="small" @click="loadPreview">
           {{ t('grossanlass.einstellungen.anfragenEmail.previewAction') }}
         </EButton>
-        <EButton variant="primary" size="small" :loading="saving" @click="save(false)">
+        <EButton v-if="canEditMailTemplates" variant="primary" size="small" :loading="saving" @click="save(false)">
           {{ t('common.save') }}
         </EButton>
       </div>
@@ -145,54 +208,10 @@
           {{ t('grossanlass.beschaffung.anfragen.previewAttachment', { name }) }}
         </p>
       </div>
-    </section>
-
-    <v-expansion-panels v-model="openSetupPanels" multiple class="e-accordions">
-      <v-expansion-panel value="gmail">
-        <v-expansion-panel-title>
-          <span class="panel-head">
-            <span class="panel-head__label">
-              {{ t('grossanlass.einstellungen.anfragenEmail.gmailTitle') }}
-              <span class="setup-badge" :class="gmailIsReady ? 'is-done' : 'is-open'">
-                {{ gmailIsReady
-                  ? t('grossanlass.einstellungen.anfragenEmail.gmailDoneBadge')
-                  : t('grossanlass.einstellungen.anfragenEmail.setupOpenBadge') }}
-              </span>
-            </span>
-          </span>
-        </v-expansion-panel-title>
-        <v-expansion-panel-text>
-          <p v-if="statusLoading" class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.connectionLoading') }}</p>
-          <p v-else-if="status?.connected" class="ok">
-            {{ t('grossanlass.einstellungen.anfragenEmail.connectedAs', { email: status.email || '' }) }}
-          </p>
-          <p v-else class="muted">{{ t('grossanlass.einstellungen.anfragenEmail.disconnected') }}</p>
-          <p v-if="status?.redirect_uri" class="muted">
-            {{ t('grossanlass.einstellungen.anfragenEmail.gmailRedirectHint', { uri: status.redirect_uri }) }}
-          </p>
-          <p v-if="status && !status.oauth_configured" class="warn">
-            {{ t('grossanlass.einstellungen.anfragenEmail.notConfigured', { uri: status.redirect_uri }) }}
-          </p>
-          <p v-if="gmailQuery === 'ok'" class="ok">{{ t('grossanlass.einstellungen.anfragenEmail.connectOk') }}</p>
-          <p v-else-if="gmailQuery === 'error'" class="warn">{{ t('grossanlass.einstellungen.anfragenEmail.connectError') }}</p>
-          <div v-if="canConnectGmail" class="actions">
-            <EButton
-              v-if="!status?.connected"
-              variant="primary"
-              size="small"
-              :disabled="!status?.oauth_configured"
-              @click="connect"
-            >
-              {{ t('grossanlass.beschaffung.anfragen.gmailConnect') }}
-            </EButton>
-            <EButton v-else variant="secondary" size="small" :loading="disconnecting" @click="disconnect">
-              {{ t('grossanlass.einstellungen.anfragenEmail.disconnect') }}
-            </EButton>
-          </div>
         </v-expansion-panel-text>
       </v-expansion-panel>
 
-      <v-expansion-panel value="routing">
+      <v-expansion-panel v-if="gmailIsReady" value="routing">
         <v-expansion-panel-title>
           <span class="panel-head">
             <span class="panel-head__label">
@@ -404,7 +423,7 @@ import TiptapEditor from '@/components/site/TiptapEditor.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
-import { gaCanConnectGmail } from '@/utils/grossanlassAccess'
+import { gaCanConnectGmail, gaCanWorkMailbox } from '@/utils/grossanlassAccess'
 import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
   deleteGrossanlassMailAttachment,
@@ -445,6 +464,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const canConnectGmail = computed(() => gaCanConnectGmail(authStore.currentDepartmentRole))
+const canEditMailTemplates = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
 const { t } = useI18n()
 const toast = useToast()
 const confirm = useConfirm()
@@ -452,7 +472,7 @@ const confirm = useConfirm()
 const departmentId = computed(
   () => (route.params.departmentId as string) || authStore.activeDepartmentId || '',
 )
-const gmailQuery = computed(() => String(route.query.gmail || ''))
+const gmailQuery = computed(() => String(route.query.gmail || route.query.outlook || ''))
 
 const status = ref<GrossanlassGmailStatus | null>(null)
 const statusLoading = ref(true)
@@ -578,7 +598,7 @@ const unusedKinds = computed(() =>
   GROSSANLASS_MAIL_OPTIONAL_KINDS.filter((kind) => !templates.value.some((row) => row.kind === kind)),
 )
 
-const openSetupPanels = ref<string[]>(['gmail', 'routing'])
+const openSetupPanels = ref<string[]>(['templates'])
 
 const gmailIsReady = computed(() => !!status.value?.connected)
 
@@ -592,8 +612,9 @@ const routingIsReady = computed(
 
 function applySetupPanels() {
   const open: string[] = []
-  if (!gmailIsReady.value) open.push('gmail')
-  if (!routingIsReady.value) open.push('routing')
+  if (openSetupPanels.value.includes('templates')) open.push('templates')
+  if (openSetupPanels.value.includes('gmail')) open.push('gmail')
+  if (gmailIsReady.value && !routingIsReady.value) open.push('routing')
   openSetupPanels.value = open
 }
 
@@ -1196,6 +1217,26 @@ onUnmounted(() => {
   background: #ffedd5;
   color: #9a3412;
 }
+.dev-button {
+  position: relative;
+  display: inline-flex;
+}
+.dev-button__flag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  transform: translate(42%, -50%);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1.3;
+  pointer-events: none;
+  white-space: nowrap;
+}
 .panel {
   background: #fff;
   border: 1px solid #e5e7eb;
@@ -1284,7 +1325,21 @@ onUnmounted(() => {
 }
 .ok { color: #166534; font-size: 0.9rem; }
 .warn { color: #9a3412; font-size: 0.85rem; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 6px; overflow: visible; }
+.actions--stack { flex-direction: column; align-items: flex-start; gap: 14px; }
+.mailbox-options {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+.mailbox-options :deep(.v-btn) {
+  height: 26px;
+  min-height: 26px;
+  font-size: 0.75rem;
+  padding-inline: 10px;
+}
 .mb-3 { margin-bottom: 12px; }
 .template-tabs {
   display: flex;

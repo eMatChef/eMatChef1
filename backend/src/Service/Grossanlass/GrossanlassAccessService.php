@@ -2,7 +2,9 @@
 
 namespace App\Service\Grossanlass;
 
+use App\Entity\ActivityGrossanlassProcurementLine;
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassGroupShare;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
@@ -28,12 +30,38 @@ class GrossanlassAccessService
         }
     }
 
+    /** Status setzt der Materialwart überall, die OK-Leitung nur an ihrem Ressort. */
+    public function canSetBuildStatus(User $user, Department $department, ?Group $group = null): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+
+        $role = GrossanlassAccessRoles::normalize($this->gaRole($user, $department));
+        if (GrossanlassAccessRoles::isOneOf($role, ['mw', 'cmw'])) {
+            return true;
+        }
+        if ($role !== 'dc' || !$group instanceof Group) {
+            return false;
+        }
+
+        return $this->isLeaderOfGroupOrAncestor($user, $group);
+    }
+
     /**
-     * Struktur anlassweit: MW, CMW, OK-Leitung (dc). Nicht Gmail, nicht Beschaffung.
+     * Planung anlassweit: MW/CMW (nicht OK-Leitung, nicht Bereichsleitung).
      */
     public function canManagePlanung(User $user, Department $department): bool
     {
         if (!$department->isGrossanlass()) {
+            return false;
+        }
+
+        $role = GrossanlassAccessRoles::normalize($this->gaRole($user, $department));
+        if (GrossanlassAccessRoles::isOneOf($role, ['mw', 'cmw'])) {
+            return true;
+        }
+        if ($role === 'dc') {
             return false;
         }
 
@@ -70,6 +98,41 @@ class GrossanlassAccessService
         return GrossanlassAccessRoles::canApproveEinsatz($this->gaRole($user, $department));
     }
 
+    public function submitsEinsatzDirectlyFree(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::submitsEinsatzDirectlyFree($this->gaRole($user, $department));
+    }
+
+    /** Bereichsleitung: membership.role = bl. Stern (group leader) ist nur Chef-Flag. */
+    public function isBereichsleitung(User $user, Department $department): bool
+    {
+        if (!$department->isGrossanlass()) {
+            return false;
+        }
+
+        return GrossanlassAccessRoles::isBereichsleitung($this->gaRole($user, $department));
+    }
+
+    public function isInAssignedBranch(User $user, Department $department, Group $group): bool
+    {
+        if ($group->getDepartmentId() !== $department->getId()) {
+            return false;
+        }
+
+        return in_array(
+            $group->getId(),
+            $this->resolveAssignedGroupBranchIds($user, $department->getId()),
+            true,
+        );
+    }
+
+    /** Materialübersicht: anlassweit (MW/CMW/OK) oder Bereichsleitung. */
+    public function canSeeMaterialUebersicht(User $user, Department $department): bool
+    {
+        return $this->canSeeAnlassOverview($user, $department)
+            || $this->isBereichsleitung($user, $department);
+    }
+
     public function canReleaseTrip(User $user, Department $department): bool
     {
         return GrossanlassAccessRoles::canReleaseTrip($this->gaRole($user, $department));
@@ -85,6 +148,52 @@ class GrossanlassAccessService
         return GrossanlassAccessRoles::canSeeAnlassOverview($this->gaRole($user, $department));
     }
 
+    public function canManageStruktur(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canManageStruktur($this->gaRole($user, $department));
+    }
+
+    public function canSeeMailSettings(User $user, Department $department): bool
+    {
+        return GrossanlassAccessRoles::canSeeMailSettings($this->gaRole($user, $department));
+    }
+
+    public function isGrossanlassHelper(User $user, Department $department): bool
+    {
+        return ($this->membershipRole($user, $department) ?? '') === 'u';
+    }
+
+    public function canSeeOwnEinsaetze(User $user, Department $department): bool
+    {
+        return $this->isGrossanlassHelper($user, $department);
+    }
+
+    public function canOperateAssignedEinsatz(User $user, Department $department, \App\Entity\DepartmentGrossanlassEinsatz $row): bool
+    {
+        if ($this->canSeeAnlassOverview($user, $department)) {
+            return true;
+        }
+        if (!$this->isGrossanlassHelper($user, $department)) {
+            return false;
+        }
+        if ($row->getChauffeurUserId() === $user->getId()) {
+            return true;
+        }
+        if ($row->getIssuedToUserId() === $user->getId()) {
+            return true;
+        }
+        $groupId = $row->getGroupId();
+        if ($groupId === null || $groupId === '') {
+            return false;
+        }
+        $assignedBranchIds = array_fill_keys(
+            $this->resolveAssignedGroupBranchIds($user, $department->getId()),
+            true,
+        );
+
+        return isset($assignedBranchIds[$groupId]);
+    }
+
     public function canOperateAusgabe(User $user, Department $department): bool
     {
         return GrossanlassAccessRoles::canOperateAusgabe($this->gaRole($user, $department));
@@ -96,7 +205,7 @@ class GrossanlassAccessService
     }
 
     /**
-     * Leader am Knoten reicht ein; MW/CMW/OK-L sind direkt frei.
+     * MW/CMW/OK sind direkt frei. Bereichsleitung reicht im eigenen Ast ein.
      */
     public function canSubmitEinsatz(User $user, Department $department, ?Group $group = null): bool
     {
@@ -107,10 +216,13 @@ class GrossanlassAccessService
             return true;
         }
         if ($group === null) {
-            return false;
+            return $this->isBereichsleitung($user, $department);
+        }
+        if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $group)) {
+            return true;
         }
 
-        return $this->groupAccess->isGroupLeaderOfGroup($user, $group->getId());
+        return $this->isLeaderOfGroupOrAncestor($user, $group);
     }
 
     /** Nur Materialwart (nicht CMW/DC): Formular-Builder bearbeiten. */
@@ -168,7 +280,7 @@ class GrossanlassAccessService
 
     public function canCreateRootRessort(User $user, Department $department): bool
     {
-        return $this->canManagePlanung($user, $department);
+        return $this->canManageStruktur($user, $department);
     }
 
     public function canCreateChildGroup(User $user, Department $department, Group $parent, bool $leaderOnly = false): bool
@@ -176,14 +288,17 @@ class GrossanlassAccessService
         if (!$department->isGrossanlass()) {
             return false;
         }
-        if ($this->canManagePlanung($user, $department)) {
+        if ($this->canManageStruktur($user, $department)) {
+            return true;
+        }
+        if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $parent)) {
             return true;
         }
         if ($leaderOnly) {
             return $this->groupAccess->isGroupLeaderOfGroup($user, $parent->getId());
         }
 
-        return $this->userIsMemberInRessortBranch($user, $department->getId(), $parent);
+        return $this->isLeaderOfGroupOrAncestor($user, $parent);
     }
 
     public function canSelectRessortForWish(User $user, Department $department, Group $group, bool $leaderOnly = false): bool
@@ -218,14 +333,96 @@ class GrossanlassAccessService
         return $this->groupAccess->isGroupLeaderOfGroup($user, $group->getId());
     }
 
-    public function canEditGroup(User $user, Department $department): bool
+    public function canEditGroup(User $user, Department $department, ?Group $group = null): bool
     {
-        return $this->canManagePlanung($user, $department);
+        if ($this->canManageStruktur($user, $department)) {
+            return true;
+        }
+        if ($group instanceof Group && $group->getDepartmentId() === $department->getId()) {
+            if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $group)) {
+                return true;
+            }
+
+            return $this->isLeaderOfGroupOrAncestor($user, $group)
+                || $this->canPlanSharedGroup($user, $department, $group);
+        }
+
+        return false;
     }
 
-    public function canDeleteGroup(User $user, Department $department): bool
+    /** Heimat-Leitung darf teilen; Empfänger dürfen die Teilung nicht weitergeben. */
+    public function canShareGroup(User $user, Department $department, Group $group): bool
     {
-        return $this->canManagePlanung($user, $department);
+        if ($this->canManageStruktur($user, $department)) {
+            return true;
+        }
+        if ($group->getDepartmentId() !== $department->getId()) {
+            return false;
+        }
+        if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $group)) {
+            return true;
+        }
+
+        return $this->isLeaderOfGroupOrAncestor($user, $group);
+    }
+
+    public function canUnshareGroup(User $user, Department $department, Group $source, Group $target): bool
+    {
+        if ($this->canShareGroup($user, $department, $source)) {
+            return true;
+        }
+
+        return $this->isLeaderOfGroupOrAncestor($user, $target);
+    }
+
+    /**
+     * Geteiltes Projekt/Bereich: Leader am Ziel-Ressort (oder Vorfahr) darf mitplanen.
+     */
+    public function canPlanSharedGroup(User $user, Department $department, Group $group): bool
+    {
+        $assigned = $this->resolveAssignedGroupBranchIds($user, $department->getId());
+        if ($assigned === []) {
+            return false;
+        }
+
+        $shares = $this->entityManager->getRepository(DepartmentGrossanlassGroupShare::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        foreach ($shares as $share) {
+            if (!$share instanceof DepartmentGrossanlassGroupShare) {
+                continue;
+            }
+            if (!in_array($share->getTargetGroupId(), $assigned, true)) {
+                continue;
+            }
+            $sharedBranch = $this->hierarchy->expandWithDescendants($department->getId(), [$share->getGroupId()]);
+            if (!in_array($group->getId(), $sharedBranch, true)) {
+                continue;
+            }
+            $target = $this->entityManager->getRepository(Group::class)->find($share->getTargetGroupId());
+            if ($target instanceof Group && $this->isLeaderOfGroupOrAncestor($user, $target)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function canDeleteGroup(User $user, Department $department, ?Group $group = null): bool
+    {
+        if ($this->canManageStruktur($user, $department)) {
+            return true;
+        }
+        if (!$group instanceof Group || $group->getDepartmentId() !== $department->getId()) {
+            return false;
+        }
+        if ($group->getParentId() === null) {
+            return false;
+        }
+        if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $group)) {
+            return true;
+        }
+
+        return $this->isLeaderOfGroupOrAncestor($user, $group);
     }
 
     public function canManageGroupMembers(User $user, Department $department, Group $group): bool
@@ -233,14 +430,101 @@ class GrossanlassAccessService
         if (!$department->isGrossanlass()) {
             return false;
         }
-        if ($this->canManagePlanung($user, $department)) {
+        if ($this->canManageStruktur($user, $department)) {
+            return true;
+        }
+        if ($this->isBereichsleitung($user, $department) && $this->isInAssignedBranch($user, $department, $group)) {
             return true;
         }
         if ($this->groupAccess->isGroupLeaderOfGroup($user, $group->getId())) {
             return true;
         }
 
-        return $this->userIsMemberInRessortBranch($user, $department->getId(), $group);
+        return false;
+    }
+
+    /**
+     * Gruppen-IDs, in denen der User Direkt-Beschaffung anlegen/die Offerten pflegen darf
+     * (MW/DC: alle Gruppen des Depts; sonst: can_procure-Mitgliedschaft + Nachfahren).
+     *
+     * @return list<string>|null null = kein Limit (MW sieht alles)
+     */
+    public function resolveProcurementGroupScope(User $user, Department $department): ?array
+    {
+        $this->assertGrossanlassDepartment($department);
+        if ($this->canManageProcurement($user, $department)) {
+            return null;
+        }
+
+        /** @var list<GroupMembership> $memberships */
+        $memberships = $this->entityManager->getRepository(GroupMembership::class)
+            ->createQueryBuilder('gm')
+            ->innerJoin('gm.group', 'g')
+            ->where('gm.userId = :userId')
+            ->andWhere('g.departmentId = :departmentId')
+            ->andWhere('gm.canProcure = true')
+            ->setParameter('userId', $user->getId())
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getResult();
+
+        $visible = [];
+        foreach ($memberships as $membership) {
+            if (!$membership instanceof GroupMembership) {
+                continue;
+            }
+            $branch = $this->hierarchy->expandWithDescendants($department->getId(), [$membership->getGroupId()]);
+            foreach ($branch as $id) {
+                $visible[$id] = true;
+            }
+        }
+
+        return array_keys($visible);
+    }
+
+    public function canProcureInGroup(User $user, Department $department, Group $group): bool
+    {
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+        if ($this->isLeaderOfGroupOrAncestor($user, $group)) {
+            return true;
+        }
+
+        $scope = $this->resolveProcurementGroupScope($user, $department);
+        if ($scope === null) {
+            return true;
+        }
+
+        return in_array($group->getId(), $scope, true);
+    }
+
+    public function canManageDirectProcurementLine(User $user, Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+        if ($line->getSource() !== ActivityGrossanlassProcurementLine::SOURCE_DIRECT || !$line->isSelfOrganized()) {
+            return false;
+        }
+
+        return $this->canProcureInGroup($user, $department, $line->getGroup());
+    }
+
+    public function canEditQuotesForLine(User $user, Department $department, ActivityGrossanlassProcurementLine $line): bool
+    {
+        return $this->canManageDirectProcurementLine($user, $department, $line);
+    }
+
+    public function userHasProcurementDelegateSomewhere(User $user, Department $department): bool
+    {
+        $this->assertGrossanlassDepartment($department);
+        if ($this->canManageProcurement($user, $department)) {
+            return true;
+        }
+        $scope = $this->resolveProcurementGroupScope($user, $department);
+
+        return $scope !== null && $scope !== [];
     }
 
     public function userIsMemberInRessortBranch(User $user, string $departmentId, Group $group): bool
@@ -294,6 +578,32 @@ class GrossanlassAccessService
         }
 
         return array_keys($visible);
+    }
+
+    private function isLeaderOfGroupOrAncestor(User $user, Group $group): bool
+    {
+        $current = $group;
+        $seen = [];
+        while (true) {
+            if (isset($seen[$current->getId()])) {
+                break;
+            }
+            $seen[$current->getId()] = true;
+            if ($this->groupAccess->isGroupLeaderOfGroup($user, $current->getId())) {
+                return true;
+            }
+            $parentId = $current->getParentId();
+            if ($parentId === null || $parentId === '') {
+                break;
+            }
+            $parent = $this->entityManager->getRepository(Group::class)->find($parentId);
+            if (!$parent instanceof Group) {
+                break;
+            }
+            $current = $parent;
+        }
+
+        return false;
     }
 
     public function findRootRessortId(Group $group): string

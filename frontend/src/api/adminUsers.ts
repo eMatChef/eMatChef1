@@ -59,6 +59,12 @@ export interface AdminOrgOverviewUser {
   id: string
   name: string
   email: string
+  first_name?: string | null
+  last_name?: string | null
+  nickname?: string | null
+  avatar_initials?: string | null
+  background_color?: string | null
+  text_color?: string | null
   global_admin_role: GlobalAdminRole | string
   memberships: AdminUserMembership[]
   organisation_ids: string[]

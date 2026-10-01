@@ -1,7 +1,7 @@
 import { onBeforeUnmount, watch, type ComponentPublicInstance, type MaybeRefOrGetter, type Ref, toValue } from 'vue'
 
 const DEFAULT_INSIDE_SELECTOR =
-  '.activity-date-picker-menu, .activity-date-picker-bottom-sheet__content, .activity-date-picker-menu__shell'
+  '.activity-date-picker-menu__shell, .activity-date-picker-bottom-sheet__content, .v-time-picker'
 
 function resolveActivatorEl(
   activator: ComponentPublicInstance | HTMLElement | null | undefined,

@@ -91,6 +91,7 @@ class PublicLookupController extends AbstractController
     }
 
     #[Route('/p/{publicCode}', name: 'ga_place', methods: ['GET'])]
+    #[Route('/ga/{publicCode}', name: 'ga_place_canonical', methods: ['GET'])]
     public function gaPlace(string $publicCode): JsonResponse
     {
         $result = $this->grossanlassPlaces->resolvePublic($publicCode);

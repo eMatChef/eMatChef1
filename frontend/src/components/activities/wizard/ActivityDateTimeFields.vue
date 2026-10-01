@@ -26,6 +26,7 @@
         :show-markers="showMarkers"
         :allow-past="allowPast"
         :preset-mode="presetMode"
+        :dual-calendar="dualCalendar"
       />
     </template>
     <template v-if="showTime" #timeFrom>
@@ -75,6 +76,8 @@ const props = withDefaults(
     labelTo: string
     ariaLabel?: string
     layout?: 'auto' | 'pill' | 'stacked'
+    /** Zwei Monate nebeneinander im Zeitraum-Kalender; undefined = wenn Platz reicht */
+    dualCalendar?: boolean
   }>(),
   {
     departmentId: null,
@@ -87,6 +90,7 @@ const props = withDefaults(
     blockedUsageRange: null,
     presetMode: 'range',
     layout: 'auto',
+    dualCalendar: undefined,
   },
 )
 

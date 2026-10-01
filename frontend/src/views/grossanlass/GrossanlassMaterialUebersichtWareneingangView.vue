@@ -176,6 +176,7 @@ import {
 } from '@/api/grossanlassProcurement'
 import { useGaCommitmentCatalog } from '@/views/grossanlass/gaCommitmentCatalog'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
+import { gaBestandArtikelPath } from '@/views/grossanlass/gaBestandPaths'
 import {
   commitmentStemKey,
   expectedAtIso,
@@ -304,7 +305,7 @@ function needsOf(row: GrossanlassCommitment): NeedLink[] {
         n: einsatz.qty,
       }),
       action: t('grossanlass.materialUebersicht.wareneingang.openEinsatz'),
-      to: `/${departmentId.value}/material-uebersicht/einsaetze`,
+      to: `/${departmentId.value}/planung/belegung`,
     })
   }
   for (const pack of uebersicht.data.value?.pack ?? []) {
@@ -330,7 +331,7 @@ function openArticle(row: GrossanlassCommitment) {
   const id = departmentId.value
   if (!id) return
   void router.push({
-    path: `/${id}/materialien/artikel/${row.id}`,
+    ...gaBestandArtikelPath(id, row.id, 'uebersicht'),
     query: { from: 'uebersicht', tab: 'stock' },
   })
 }
@@ -339,7 +340,7 @@ function openHistory(row: GrossanlassCommitment) {
   const id = departmentId.value
   if (!id) return
   void router.push({
-    path: `/${id}/materialien/artikel/${row.id}`,
+    ...gaBestandArtikelPath(id, row.id, 'uebersicht'),
     query: { from: 'uebersicht', tab: 'usage' },
   })
 }
@@ -399,7 +400,13 @@ function inboundEinsatzId(row: GrossanlassCommitment): string | undefined {
 async function onInboundAction(row: GrossanlassCommitment) {
   const latest = catalog.commitments.value.find((item) => item.id === row.id) ?? row
   if (inboundEinsatzId(latest)) {
-    void router.push(`/${departmentId.value}/material-uebersicht/einsaetze`)
+    const booked = uebersicht.bookingRows().find((row) => row.id === inboundEinsatzId(latest))
+    const loosePickup = inboundMode(latest) === 'pickup' && booked && !booked.groupId
+    void router.push(
+      loosePickup
+        ? `/${departmentId.value}/tasks/allgemein`
+        : `/${departmentId.value}/planung/belegung`,
+    )
     return
   }
   await createInbound(latest)

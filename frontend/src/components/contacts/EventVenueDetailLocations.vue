@@ -16,7 +16,7 @@
           {{ acceptVenueLabel }}
         </EButton>
         <button
-          v-else-if="!createPinMode"
+          v-else-if="!createPinMode && !extraEditablePinId && !extraFocusPinId"
           type="button"
           class="event-venue-map-edit-btn"
           :aria-label="t('common.edit')"
@@ -26,7 +26,7 @@
         </button>
       </div>
     </div>
-    <div v-else-if="!readOnly" class="event-venue-detail-locations-header event-venue-detail-locations-header--actions-only">
+    <div v-else-if="!readOnly && (editingVenue || (!extraEditablePinId && !extraFocusPinId))" class="event-venue-detail-locations-header event-venue-detail-locations-header--actions-only">
       <div class="event-venue-detail-locations-actions">
         <EButton
           v-if="editingVenue && !createPinMode"
@@ -39,7 +39,7 @@
           {{ acceptVenueLabel }}
         </EButton>
         <button
-          v-else-if="!createPinMode"
+          v-else-if="!createPinMode && !extraEditablePinId && !extraFocusPinId"
           type="button"
           class="event-venue-map-edit-btn"
           :aria-label="t('common.edit')"
@@ -54,55 +54,66 @@
       {{ createPinMode ? t('activities.venueLocations.createPinHint') : t('contacts.detail.mapEditHint') }}
     </p>
 
-    <ActivityDualLocationMap
-      ref="overviewMapRef"
-      :pins="displayPins"
-      height="280px"
-      :interactive="editingVenue"
-      :editable-pin-id="editingVenue ? 'venue' : null"
-      :prefer-swiss-map="true"
-      :show-layer-control="true"
-      @pin-moved="onVenuePinMoved"
-      @map-click="onVenueMapClick"
-    />
-
-    <div class="event-venue-detail-accordion-list">
+    <div class="event-venue-detail-map-layout">
+      <div class="event-venue-detail-accordion-list">
+      <template v-for="item in sidebarListItems" :key="item.key">
       <div
-        v-for="site in accordionSites"
-        :key="site.id"
+        v-if="item.type === 'site'"
         class="event-venue-detail-accordion"
-        :class="{ 'is-highlighted': highlightPulseId === site.id }"
+        :data-site-id="item.site.id"
+        :class="{ 'is-highlighted': highlightPulseId === item.site.id }"
       >
         <div class="event-venue-detail-accordion-row">
           <button
             type="button"
             class="event-venue-detail-accordion-toggle"
-            :aria-expanded="expandedId === site.id"
-            @click="toggleSite(site.id)"
+            :aria-expanded="expandedId === item.site.id"
+            @click="toggleSite(item.site.id)"
           >
             <span class="event-venue-detail-accordion-chevron" aria-hidden="true">
-              {{ expandedId === site.id ? '▾' : '▸' }}
+              {{ expandedId === item.site.id ? '▾' : '▸' }}
             </span>
             <span
               class="event-venue-detail-accordion-dot"
-              :style="{ background: site.color }"
+              :style="{ background: item.site.color }"
               aria-hidden="true"
             />
-            <span class="event-venue-detail-accordion-label">{{ site.label }}</span>
-            <span v-if="site.summary" class="event-venue-detail-accordion-summary">{{ site.summary }}</span>
+            <span class="event-venue-detail-accordion-label">{{ item.site.label }}</span>
+            <span v-if="item.site.summary" class="event-venue-detail-accordion-summary">{{ item.site.summary }}</span>
           </button>
           <button
-            v-if="!readOnly && !createPinMode && expandedId !== site.id"
+            v-if="showSiteStar(item.site)"
+            type="button"
+            class="event-venue-accordion-star-btn"
+            :class="{ 'is-on': item.site.starred }"
+            :aria-label="t('activities.venueLocations.starToggle')"
+            :title="t('activities.venueLocations.starToggle')"
+            @click.stop.prevent="emit('toggle-extra-star', item.site.id)"
+          >
+            <v-icon :icon="item.site.starred ? 'mdi-star' : 'mdi-star-outline'" size="16" />
+          </button>
+          <button
+            v-if="showSitePencil(item.site)"
             type="button"
             class="event-venue-accordion-edit-btn"
             :aria-label="t('common.edit')"
-            @click.stop.prevent="site.onEdit()"
+            @click.stop.prevent="item.site.onEdit()"
           >
             <v-icon icon="mdi-pencil-outline" size="16" />
           </button>
+          <button
+            v-if="showSiteTrash(item.site)"
+            type="button"
+            class="event-venue-accordion-edit-btn event-venue-accordion-delete-btn"
+            :aria-label="t('activities.venueLocations.deleteSite')"
+            :title="t('activities.venueLocations.deleteSite')"
+            @click.stop.prevent="item.site.onDelete?.()"
+          >
+            <v-icon icon="mdi-delete-outline" size="16" />
+          </button>
         </div>
-        <div v-show="expandedId === site.id" class="event-venue-detail-accordion-body">
-          <template v-if="createPinMode && site.id === 'venue'">
+        <div v-show="expandedId === item.site.id" class="event-venue-detail-accordion-body">
+          <template v-if="createPinMode && item.site.id === 'venue'">
             <ETextField
               v-model="createName"
               :label="t('activities.venueLocations.createNameLabel')"
@@ -132,24 +143,99 @@
               </EButton>
             </div>
           </template>
+          <template v-else-if="isAreaDrawSite(item.site)">
+            <p class="field-hint text-muted">
+              {{ extraPlaceHintText || t('grossanlass.planung.ressorts.areaMapHint') }}
+            </p>
+            <p v-if="areaPointCount(item.site) >= 3" class="field-hint text-muted">
+              {{ t('grossanlass.einstellungen.placesPolygonReady', { count: areaPointCount(item.site) }) }}
+            </p>
+            <p class="field-hint text-muted">{{ t('grossanlass.planung.ressorts.areaSaveHint') }}</p>
+            <div class="event-venue-detail-accordion-actions">
+              <EButton
+                variant="secondary"
+                size="small"
+                type="button"
+                :disabled="areaPointCount(item.site) === 0"
+                @click.stop.prevent="emit('undo-polygon')"
+              >
+                {{ t('grossanlass.planung.ressorts.areaUndoPoint') }}
+              </EButton>
+              <EButton
+                variant="secondary"
+                size="small"
+                type="button"
+                :disabled="areaPointCount(item.site) === 0"
+                @click.stop.prevent="emit('redraw-polygon')"
+              >
+                {{ t('grossanlass.planung.ressorts.areaRedraw') }}
+              </EButton>
+              <EButton
+                variant="primary"
+                size="small"
+                type="button"
+                @click.stop.prevent="emit('save-area')"
+              >
+                {{ t('common.save') }}
+              </EButton>
+            </div>
+          </template>
           <template v-else>
-            <p class="field-hint text-muted">{{ site.hint || site.summary || '—' }}</p>
-            <p v-if="site.address && !site.pin" class="field-hint text-muted">
+            <p class="field-hint text-muted">
+              {{
+                isExtraEditingSite(item.site)
+                  ? extraPlaceHintText || item.site.hint || item.site.summary || '—'
+                  : item.site.hint || item.site.summary || '—'
+              }}
+            </p>
+            <p v-if="item.site.address && !item.site.pin" class="field-hint text-muted">
               {{ t('activities.venueLocations.noCoordsForAddress') }}
             </p>
+            <p v-else-if="item.site.extra && !item.site.pin && !isAreaSite(item.site)" class="field-hint text-muted">
+              {{ t('activities.venueLocations.extraNoCoords') }}
+            </p>
             <div class="event-venue-detail-accordion-actions">
+              <EButton
+                v-if="canEditSite(item.site) && item.site.extra && !item.site.pin && !isAreaSite(item.site)"
+                variant="secondary"
+                size="small"
+                @click.stop.prevent="item.site.onEdit()"
+              >
+                {{ t('grossanlass.einstellungen.placesSetLocation') }}
+              </EButton>
               <button
-                v-if="!readOnly"
+                v-if="canEditSite(item.site)"
                 type="button"
                 class="event-venue-accordion-edit-btn"
                 :aria-label="t('common.edit')"
-                @click.stop.prevent="site.onEdit()"
+                @click.stop.prevent="item.site.onEdit()"
               >
                 <v-icon icon="mdi-pencil-outline" size="16" />
               </button>
-              <template v-if="site.pin">
+              <a
+                v-if="item.site.qrUrl"
+                :href="item.site.qrUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline btn-sm"
+              >
+                {{ t('activities.venueLocations.extraQr') }}
+              </a>
+              <button
+                v-if="item.site.groupLinkKind"
+                type="button"
+                class="btn btn-outline btn-sm"
+                @click.stop.prevent="emit('open-linked-group', item.site.id)"
+              >
+                {{
+                  item.site.groupLinkKind === 'bauprojekt'
+                    ? t('activities.venueLocations.openLinkedBauprojekt')
+                    : t('activities.venueLocations.openLinkedBereich')
+                }}
+              </button>
+              <template v-if="item.site.pin">
                 <a
-                  :href="googleMapsLinkFor(site.pin)"
+                  :href="googleMapsLinkFor(item.site.pin)"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="btn btn-outline btn-sm"
@@ -157,7 +243,7 @@
                   {{ t('components.mapView.openGoogleMaps') }}
                 </a>
                 <a
-                  :href="swisstopoLinkFor(site.pin)"
+                  :href="swisstopoLinkFor(item.site.pin)"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="btn btn-outline btn-sm"
@@ -171,7 +257,21 @@
       </div>
 
       <button
-        v-if="!readOnly && allowChildren && !createPinMode"
+        v-else-if="!readOnly && !createPinMode"
+        type="button"
+        class="event-venue-detail-add-row"
+        :data-onboarding="item.onboarding"
+        :class="{ 'is-highlighted': highlightPulseId === item.key }"
+        @click="item.onClick()"
+      >
+        <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
+        <span>{{ item.label }}</span>
+      </button>
+      </template>
+
+      <template v-if="!coreLocationMode">
+      <button
+        v-if="!readOnly && allowChildren && !createPinMode && (allowPoiChildren || !deliveryAddress)"
         type="button"
         class="event-venue-detail-add-row"
         data-onboarding="activity-venue-delivery-add"
@@ -181,9 +281,54 @@
         <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
         <span>{{ addChildButtonLabel }}</span>
       </button>
+      <button
+        v-if="!readOnly && allowExtraSites && allowCreateExtra && !createPinMode"
+        type="button"
+        class="event-venue-detail-add-row"
+        @click="startExtraPlace"
+      >
+        <span class="event-venue-detail-add-plus" aria-hidden="true">+</span>
+        <span>{{ extraAddLabel }}</span>
+      </button>
+      <p
+        v-else-if="!readOnly && allowExtraSites && extraCreateLockedHint && !createPinMode"
+        class="field-hint text-muted event-venue-detail-extra-locked"
+      >
+        {{ extraCreateLockedHint }}
+      </p>
+      </template>
+      </div>
+
+      <div class="event-venue-detail-map-panel">
+        <ActivityDualLocationMap
+          ref="overviewMapRef"
+          v-model:plan-visible="planVisible"
+          :pins="displayPins"
+          :polygons="displayPolygons"
+          height="var(--ev-map-height, 360px)"
+          :interactive="mapInteractive"
+          :editable-pin-id="polygonDrawMode ? null : mapEditablePinId"
+          :editable-polygon-id="polygonDrawMode ? extraEditablePinId : null"
+          :polygon-draw-mode="polygonDrawMode"
+          :prefer-swiss-map="true"
+          :show-layer-control="true"
+          :overlay="overlay"
+          :overlay-editable="overlayEditable"
+          :scroll-wheel-zoom="scrollWheelZoom"
+          :scroll-wheel-zoom-require-ctrl="scrollWheelZoomRequireCtrl"
+          :show-location-search="mapShowLocationSearch"
+          @pin-moved="onMapPinMoved"
+          @map-click="onVenueMapClick"
+          @polygon-change="onPolygonChange"
+          @overlay-bounds-change="(bounds) => emit('overlay-bounds-change', bounds)"
+        />
+        <p v-if="scrollWheelZoomRequireCtrl" class="field-hint text-muted event-venue-map-zoom-hint">
+          {{ t('grossanlass.beschaffung.anfragen.mapZoomHint') }}
+        </p>
+      </div>
     </div>
 
-    <p v-if="!createPinMode && allowChildren" class="field-hint text-muted">{{ t('activities.venueLocations.overviewHint') }}</p>
+    <p v-if="!createPinMode && (allowChildren || allowExtraSites) && !lockCoreAdds" class="field-hint text-muted">{{ overviewHintText }}</p>
     <p v-else-if="!createPinMode && !allowChildren" class="field-hint text-muted">
       {{ t('activities.venueLocations.venueMapEditHint') }}
     </p>
@@ -196,13 +341,34 @@ import { useI18n } from 'vue-i18n'
 import type { Address } from '@/api/addresses'
 import { updateAddress } from '@/api/addresses'
 import { EButton, ETextField } from '@/components/form/base'
-import ActivityDualLocationMap, { type ActivityLocationPin } from '@/components/activities/ActivityDualLocationMap.vue'
+import ActivityDualLocationMap, {
+  type ActivityLocationPin,
+  type ActivityMapOverlay,
+  type ActivityMapPolygon,
+} from '@/components/activities/ActivityDualLocationMap.vue'
+import type { GaPolygonPoint } from '@/api/grossanlassLogistics'
 import { googleMapsCoordinatesUrl, swisstopoMapUrl } from '@/utils/mapExternalLinks'
 import { useToast } from '@/composables/useToast'
 
 const VENUE_COLOR = '#2563eb'
 const DELIVERY_COLOR = '#ea580c'
+const STORAGE_COLOR = '#7c3aed'
 const POI_FALLBACK_COLOR = '#16a34a'
+
+export type VenueExtraSite = {
+  id: string
+  label: string
+  summary?: string
+  hint?: string
+  color: string
+  pin: ActivityLocationPin | null
+  polygon?: GaPolygonPoint[] | null
+  qrUrl?: string | null
+  starred?: boolean
+  detailOnly?: boolean
+  canDelete?: boolean
+  groupLinkKind?: 'bereich' | 'bauprojekt' | null
+}
 
 type AccordionSite = {
   id: string
@@ -212,7 +378,14 @@ type AccordionSite = {
   color: string
   address: Address | null
   pin: ActivityLocationPin | null
+  extra?: boolean
+  starred?: boolean
+  qrUrl?: string | null
+  polygon?: GaPolygonPoint[] | null
+  canDelete?: boolean
+  groupLinkKind?: 'bereich' | 'bauprojekt' | null
   onEdit: () => void
+  onDelete?: () => void
 }
 
 const props = withDefaults(
@@ -232,6 +405,33 @@ const props = withDefaults(
     highlightDelivery?: boolean
     /** Bezeichnung von oben (Kontaktformular) — vorausfüllen / synchron halten. */
     suggestedName?: string
+    extraSites?: VenueExtraSite[]
+    allowExtraSites?: boolean
+    allowCreateExtra?: boolean
+    allowStarExtra?: boolean
+    /** Nach dem Zustellpunkt weitere Address-POIs — beim Grossanlass aus, dort sind Extra-Punkte GA-Orte. */
+    allowPoiChildren?: boolean
+    extraEditablePinId?: string | null
+    extraFocusPinId?: string | null
+    extraPlaceHint?: string
+    addExtraButtonLabel?: string
+    overviewHint?: string
+    extraCreateLockedHint?: string
+    /** Grossanlass: feste Reihenfolge Eventstandort → Zustellpunkt → Lagerstandort → GA-Orte. */
+    coreLocationMode?: boolean
+    /** Keine +-Zeilen für Kernstandorte/GA (Stammdaten-Übersicht). */
+    lockCoreAdds?: boolean
+    hasStorageLocation?: boolean
+    storageSummary?: string
+    storageLatitude?: number | null
+    storageLongitude?: number | null
+    /** Ortschaft-Suche auf der Karte (Standard: nur im Erfassungsmodus). */
+    showLocationSearch?: boolean
+    overlay?: ActivityMapOverlay | null
+    overlayEditable?: boolean
+    /** Mausrad-Zoom — auf Stammdaten Strg+Scroll, damit die Seite sonst scrollt. */
+    scrollWheelZoom?: boolean
+    scrollWheelZoomRequireCtrl?: boolean
   }>(),
   {
     eventAddress: null,
@@ -243,6 +443,27 @@ const props = withDefaults(
     hideTitle: false,
     highlightDelivery: false,
     suggestedName: '',
+    extraSites: () => [],
+    allowExtraSites: false,
+    allowCreateExtra: true,
+    allowStarExtra: false,
+    allowPoiChildren: true,
+    extraEditablePinId: null,
+    extraFocusPinId: null,
+    extraPlaceHint: '',
+    addExtraButtonLabel: '',
+    overviewHint: '',
+    extraCreateLockedHint: '',
+    coreLocationMode: false,
+    lockCoreAdds: false,
+    hasStorageLocation: false,
+    storageSummary: '',
+    storageLatitude: null,
+    storageLongitude: null,
+    overlay: null,
+    overlayEditable: false,
+    scrollWheelZoom: true,
+    scrollWheelZoomRequireCtrl: false,
   },
 )
 
@@ -253,6 +474,23 @@ const emit = defineEmits<{
   'venue-updated': [address: Address]
   'pin-accepted': [payload: { latitude: number; longitude: number; name: string }]
   'update:suggestedName': [name: string]
+  'edit-extra': [id: string]
+  'delete-extra': [id: string]
+  'create-extra': []
+  'create-storage': []
+  'edit-storage': []
+  'delete-storage': []
+  'delete-venue': []
+  'delete-child': [address: Address]
+  'toggle-extra-star': [id: string]
+  'extra-pin-moved': [payload: { id: string; latitude: number; longitude: number }]
+  'extra-map-click': [payload: { id: string; latitude: number; longitude: number }]
+  'polygon-change': [payload: { id: string; points: GaPolygonPoint[] }]
+  'overlay-bounds-change': [bounds: ActivityMapOverlay]
+  'undo-polygon': []
+  'redraw-polygon': []
+  'save-area': []
+  'open-linked-group': [id: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -263,6 +501,8 @@ const expandedId = ref<string | null>(null)
 const highlightPulseId = ref<string | null>(null)
 let highlightClearTimer: ReturnType<typeof setTimeout> | null = null
 const overviewMapRef = ref<InstanceType<typeof ActivityDualLocationMap> | null>(null)
+const planVisible = defineModel<boolean>('planVisible', { default: true })
+let mapLayoutObserver: ResizeObserver | null = null
 
 const editingVenue = ref(false)
 const isSavingVenue = ref(false)
@@ -316,6 +556,39 @@ const addChildButtonLabel = computed(() =>
     : t('activities.venueLocations.addDeliveryAddressButton'),
 )
 
+const extraAddLabel = computed(
+  () => props.addExtraButtonLabel || t('activities.venueLocations.addExtraGaPlaceButton'),
+)
+
+const extraPlaceHintText = computed(
+  () => props.extraPlaceHint || t('activities.venueLocations.extraPlaceHint'),
+)
+
+const overviewHintText = computed(
+  () => props.overviewHint || t('activities.venueLocations.overviewHint'),
+)
+
+const polygonDrawMode = computed(() => {
+  if (!props.extraEditablePinId || props.readOnly) return false
+  const site = props.extraSites.find((row) => row.id === props.extraEditablePinId)
+  return site?.polygon != null
+})
+
+const mapInteractive = computed(
+  () =>
+    props.lockCoreAdds
+    || editingVenue.value
+    || (!!props.extraEditablePinId && !props.readOnly)
+    || (!!props.overlayEditable && !props.readOnly)
+    || (props.allowExtraSites && !props.readOnly)
+    || polygonDrawMode.value,
+)
+
+const mapEditablePinId = computed(() => {
+  if (editingVenue.value) return 'venue'
+  return props.extraEditablePinId
+})
+
 const canAcceptVenue = computed(() => {
   if (draftLat.value == null || draftLng.value == null) return false
   if (props.createPinMode && !createName.value.trim()) return false
@@ -363,6 +636,24 @@ const venuePinBase = computed(() =>
   ),
 )
 
+const storagePinBase = computed((): ActivityLocationPin | null => {
+  const lat = props.storageLatitude
+  const lng = props.storageLongitude
+  if (lat == null || lng == null) return null
+  return {
+    id: 'storage',
+    label: t('grossanlass.einstellungen.coreStepStorage'),
+    latitude: lat,
+    longitude: lng,
+    variant: 'poi',
+    color: STORAGE_COLOR,
+  }
+})
+
+const mapShowLocationSearch = computed(
+  () => props.showLocationSearch ?? props.createPinMode,
+)
+
 const accordionSites = computed((): AccordionSite[] => {
   // Erfassen: Accordion schon sichtbar, auch ohne gespeicherte Adresse
   if (props.createPinMode && !props.eventAddress) {
@@ -396,48 +687,162 @@ const accordionSites = computed((): AccordionSite[] => {
       hint: t('activities.venueLocations.venueMapEditHint'),
       color: VENUE_COLOR,
       address: props.eventAddress,
-      pin: venuePinBase.value,
-      // Stift → Eventstandort/Treffpunkt bearbeiten (nicht Kind anlegen)
-      onEdit: () => emit('edit-venue-details'),
-    },
-  ]
+        pin: venuePinBase.value,
+        // Stift → Eventstandort/Treffpunkt bearbeiten (nicht Kind anlegen)
+        canDelete: props.coreLocationMode && !props.readOnly && !props.lockCoreAdds,
+        onEdit: () => emit('edit-venue-details'),
+        onDelete: () => emit('delete-venue'),
+      },
+    ]
 
-  if (!props.allowChildren) return sites
+  if (props.allowChildren) {
+    const delivery = deliveryAddress.value
+    if (delivery) {
+      sites.push({
+        id: delivery.id,
+        label: t('activities.venueLocations.accordionDelivery'),
+        summary: addressSummary(delivery),
+        hint: t('activities.venueLocations.deliveryManageHint'),
+        color: DELIVERY_COLOR,
+        address: delivery,
+        pin: pinFromAddress(
+          delivery.id,
+          t('activities.venueLocations.deliveryPinLabel'),
+          delivery,
+          'delivery',
+        ),
+        canDelete: !props.readOnly && !props.lockCoreAdds,
+        onEdit: () => emit('edit-child', delivery),
+        onDelete: () => emit('delete-child', delivery),
+      })
+    }
 
-  const delivery = deliveryAddress.value
-  if (delivery) {
-    sites.push({
-      id: delivery.id,
-      label: t('activities.venueLocations.accordionDelivery'),
-      summary: addressSummary(delivery),
-      hint: t('activities.venueLocations.deliveryManageHint'),
-      color: DELIVERY_COLOR,
-      address: delivery,
-      pin: pinFromAddress(
-        delivery.id,
-        t('activities.venueLocations.deliveryPinLabel'),
-        delivery,
-        'delivery',
-      ),
-      onEdit: () => emit('edit-child', delivery),
-    })
+    for (const poi of poiAddresses.value) {
+      const color = poi.pin_color || POI_FALLBACK_COLOR
+      const label = poi.name || t('activities.venueLocations.poiFallbackLabel')
+      sites.push({
+        id: poi.id,
+        label,
+        summary: addressSummary(poi),
+        color,
+        address: poi,
+        pin: pinFromAddress(poi.id, label, poi, 'poi', color),
+        canDelete: !props.readOnly && !props.lockCoreAdds,
+        onEdit: () => emit('edit-child', poi),
+        onDelete: () => emit('delete-child', poi),
+      })
+    }
   }
 
-  for (const poi of poiAddresses.value) {
-    const color = poi.pin_color || POI_FALLBACK_COLOR
-    const label = poi.name || t('activities.venueLocations.poiFallbackLabel')
+  for (const extra of props.extraSites) {
+    const pin = extra.pin
+    const polygon = extra.polygon ?? null
+    const pointCount = polygon?.length ?? 0
     sites.push({
-      id: poi.id,
-      label,
-      summary: addressSummary(poi),
-      color,
-      address: poi,
-      pin: pinFromAddress(poi.id, label, poi, 'poi', color),
-      onEdit: () => emit('edit-child', poi),
+      id: extra.id,
+      label: extra.label,
+      summary:
+        polygon != null && pointCount > 0
+          ? t('grossanlass.einstellungen.placesPolygonReady', { count: pointCount })
+          : extra.summary || (pin ? formatCoords(pin.latitude, pin.longitude) : t('activities.venueLocations.siteMissing')),
+      hint: extra.hint,
+      color: extra.color,
+      address: null,
+      pin,
+      extra: true,
+      starred: extra.starred === true,
+      qrUrl: extra.qrUrl ?? null,
+      polygon,
+      canDelete: extra.canDelete === true,
+      groupLinkKind: extra.groupLinkKind ?? null,
+      onEdit: () => emit('edit-extra', extra.id),
+      onDelete: () => emit('delete-extra', extra.id),
     })
   }
 
   return sites
+})
+
+type SidebarAddItem = {
+  type: 'add'
+  key: string
+  label: string
+  onboarding?: string
+  onClick: () => void
+}
+
+type SidebarSiteItem = {
+  type: 'site'
+  key: string
+  site: AccordionSite
+}
+
+type SidebarItem = SidebarAddItem | SidebarSiteItem
+
+const sidebarListItems = computed((): SidebarItem[] => {
+  if (!props.coreLocationMode) {
+    return accordionSites.value.map((site) => ({ type: 'site', key: site.id, site }))
+  }
+
+  const items: SidebarItem[] = []
+  const sites = accordionSites.value
+  const venue = sites.find((site) => site.id === 'venue')
+  if (venue) items.push({ type: 'site', key: venue.id, site: venue })
+
+  const delivery = deliveryAddress.value
+  if (delivery) {
+    const deliverySite = sites.find((site) => site.id === delivery.id)
+    if (deliverySite) items.push({ type: 'site', key: deliverySite.id, site: deliverySite })
+  } else if (!props.readOnly && props.allowChildren && !props.lockCoreAdds) {
+    items.push({
+      type: 'add',
+      key: 'add-delivery',
+      label: t('activities.venueLocations.addCoreDeliveryButton'),
+      onboarding: 'activity-venue-delivery-add',
+      onClick: () => emit('create-child'),
+    })
+  }
+
+  if (props.hasStorageLocation) {
+    items.push({
+      type: 'site',
+      key: 'storage',
+      site: {
+        id: 'storage',
+        label: t('grossanlass.einstellungen.coreStepStorage'),
+        summary: props.storageSummary || t('activities.venueLocations.siteMissing'),
+        hint: t('grossanlass.einstellungen.lagerHint'),
+        color: STORAGE_COLOR,
+        address: null,
+        pin: storagePinBase.value,
+        canDelete: !props.readOnly && !props.lockCoreAdds,
+        onEdit: () => emit('edit-storage'),
+        onDelete: () => emit('delete-storage'),
+      },
+    })
+  } else if (!props.readOnly && !props.lockCoreAdds) {
+    items.push({
+      type: 'add',
+      key: 'add-storage',
+      label: t('settings.storage.addStorageLocation'),
+      onClick: () => emit('create-storage'),
+    })
+  }
+
+  for (const site of sites.filter((row) => row.extra)) {
+    items.push({ type: 'site', key: site.id, site })
+  }
+
+  if (!props.readOnly && props.allowExtraSites && props.allowCreateExtra && !props.createPinMode) {
+    items.push({
+      type: 'add',
+      key: 'add-ga',
+      label: extraAddLabel.value,
+      onClick: () => startExtraPlace(),
+    })
+  }
+
+  return items
 })
 
 const childPins = computed((): ActivityLocationPin[] =>
@@ -449,6 +854,9 @@ const childPins = computed((): ActivityLocationPin[] =>
 
 const displayPins = computed((): ActivityLocationPin[] => {
   const pins = [...childPins.value]
+  if (storagePinBase.value) {
+    pins.push(storagePinBase.value)
+  }
   if (editingVenue.value && draftLat.value != null && draftLng.value != null) {
     pins.unshift({
       id: 'venue',
@@ -461,8 +869,25 @@ const displayPins = computed((): ActivityLocationPin[] => {
   } else if (venuePinBase.value) {
     pins.unshift(venuePinBase.value)
   }
-  return pins
+  return pins.map((pin) => {
+    const extra = props.extraSites.find((row) => row.id === pin.id)
+    if (!extra) return pin
+    return { ...pin, detailOnly: extra.detailOnly === true }
+  })
 })
+
+const displayPolygons = computed((): ActivityMapPolygon[] =>
+  props.extraSites
+    .filter((row) => row.polygon != null)
+    .map((row) => ({
+      id: row.id,
+      label: row.label,
+      color: row.color,
+      points: row.polygon ?? [],
+      starred: row.starred === true,
+      detailOnly: row.detailOnly === true,
+    })),
+)
 
 function mapLinkLang(): string {
   return locale.value.split('-')[0] || 'de'
@@ -481,9 +906,92 @@ function toggleSite(id: string) {
   void refreshMaps()
 }
 
+function focusedExtraId(): string | null {
+  return props.extraEditablePinId || props.extraFocusPinId || null
+}
+
+function isFocusedExtraSite(site: AccordionSite): boolean {
+  const focusId = focusedExtraId()
+  return !focusId || site.id === focusId
+}
+
+function canEditSite(site: AccordionSite): boolean {
+  if (props.readOnly || props.createPinMode) return false
+  if (props.lockCoreAdds && site.extra) return false
+  if (!isFocusedExtraSite(site)) return false
+  return true
+}
+
+function showSiteStar(site: AccordionSite): boolean {
+  return Boolean(
+    !props.readOnly
+    && !props.createPinMode
+    && site.extra
+    && props.allowStarExtra
+    && isFocusedExtraSite(site),
+  )
+}
+
+function showSitePencil(site: AccordionSite): boolean {
+  if (!canEditSite(site)) return false
+  if (isAreaDrawSite(site) || isExtraEditingSite(site)) return false
+  return true
+}
+
+function showSiteTrash(site: AccordionSite): boolean {
+  if (props.readOnly || props.createPinMode || props.lockCoreAdds) return false
+  if (!site.canDelete || !site.onDelete) return false
+  if (props.extraEditablePinId || props.extraFocusPinId) return false
+  return true
+}
+
+function isAreaSite(site: AccordionSite): boolean {
+  return site.polygon != null
+}
+
+function isAreaDrawSite(site: AccordionSite): boolean {
+  return Boolean(
+    !props.readOnly
+    && props.extraEditablePinId
+    && site.id === props.extraEditablePinId
+    && isAreaSite(site),
+  )
+}
+
+function isExtraEditingSite(site: AccordionSite): boolean {
+  return Boolean(
+    site.extra
+    && !props.readOnly
+    && props.extraEditablePinId
+    && site.id === props.extraEditablePinId,
+  )
+}
+
+function areaPointCount(site: AccordionSite): number {
+  return site.polygon?.length ?? 0
+}
+
+function expandSite(id: string) {
+  expandedId.value = id
+  void nextTick(() => {
+    rootRef.value
+      ?.querySelector(`[data-site-id="${id}"]`)
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+}
+
+function openEditableExtraSite(id: string) {
+  expandSite(id)
+}
+
 async function refreshMaps() {
   await nextTick()
   overviewMapRef.value?.invalidateSize()
+}
+
+function startExtraPlace() {
+  editingVenue.value = false
+  emit('create-extra')
 }
 
 function startVenueEdit() {
@@ -501,17 +1009,34 @@ function startVenueEdit() {
   }
 }
 
-function onVenuePinMoved(payload: { id: string; latitude: number; longitude: number }) {
-  if (payload.id !== 'venue') return
-  draftLat.value = payload.latitude
-  draftLng.value = payload.longitude
+function onMapPinMoved(payload: { id: string; latitude: number; longitude: number }) {
+  if (payload.id === 'venue') {
+    draftLat.value = payload.latitude
+    draftLng.value = payload.longitude
+    return
+  }
+  emit('extra-pin-moved', payload)
 }
 
 function onVenueMapClick(payload: { latitude: number; longitude: number }) {
-  if (!editingVenue.value) return
-  draftLat.value = payload.latitude
-  draftLng.value = payload.longitude
-  expandedId.value = 'venue'
+  if (editingVenue.value) {
+    draftLat.value = payload.latitude
+    draftLng.value = payload.longitude
+    expandedId.value = 'venue'
+    return
+  }
+  if (polygonDrawMode.value) return
+  if (props.extraEditablePinId) {
+    emit('extra-map-click', {
+      id: props.extraEditablePinId,
+      latitude: payload.latitude,
+      longitude: payload.longitude,
+    })
+  }
+}
+
+function onPolygonChange(payload: { id: string; points: GaPolygonPoint[] }) {
+  emit('polygon-change', payload)
 }
 
 async function acceptVenueDraft() {
@@ -597,6 +1122,7 @@ watch(expandedId, () => {
 watch(
   displayPins,
   () => {
+    if (polygonDrawMode.value) return
     void refreshMaps()
   },
   { deep: true },
@@ -631,9 +1157,17 @@ onMounted(() => {
     applySuggestedName(props.suggestedName, true)
     startVenueEdit()
   }
+  if (typeof ResizeObserver !== 'undefined' && rootRef.value) {
+    mapLayoutObserver = new ResizeObserver(() => {
+      overviewMapRef.value?.invalidateSize()
+    })
+    mapLayoutObserver.observe(rootRef.value)
+  }
 })
 
 onBeforeUnmount(() => {
+  mapLayoutObserver?.disconnect()
+  mapLayoutObserver = null
   document.removeEventListener('pointerdown', onOutsidePointerDown, true)
   if (highlightClearTimer) {
     clearTimeout(highlightClearTimer)
@@ -646,6 +1180,16 @@ watch(
   (on) => {
     if (on) void focusDeliveryHighlight()
   },
+)
+
+watch(
+  () => [props.extraEditablePinId, props.extraSites.map((site) => site.id).join('|')] as const,
+  ([id]) => {
+    if (!id) return
+    if (!props.extraSites.some((site) => site.id === id)) return
+    openEditableExtraSite(id)
+  },
+  { immediate: true },
 )
 
 async function focusDeliveryHighlight() {
@@ -668,7 +1212,8 @@ async function focusDeliveryHighlight() {
   const root = rootRef.value
   const target =
     highlightPulseId.value === 'add-delivery'
-      ? root?.querySelector('.event-venue-detail-add-row')
+      ? root?.querySelector('.event-venue-detail-add-row.is-highlighted')
+        ?? root?.querySelector('[data-onboarding="activity-venue-delivery-add"]')
       : root?.querySelector('.event-venue-detail-accordion.is-highlighted')
   target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   highlightClearTimer = setTimeout(() => {
@@ -677,14 +1222,86 @@ async function focusDeliveryHighlight() {
   }, 3200)
 }
 
-defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight })
+function getBounds(): { north: number; south: number; east: number; west: number } | null {
+  return overviewMapRef.value?.getBounds() ?? null
+}
+
+function getOverlayBounds(): ActivityMapOverlay | null {
+  return overviewMapRef.value?.getOverlayBounds() ?? null
+}
+
+function fitOverlayBounds(bounds: Pick<ActivityMapOverlay, 'north' | 'south' | 'east' | 'west'>) {
+  overviewMapRef.value?.fitOverlayBounds(bounds)
+}
+
+function refreshOverlayEditUi() {
+  overviewMapRef.value?.refreshOverlayEditUi()
+}
+
+defineExpose({
+  refreshMaps,
+  startVenueEdit,
+  expandSite,
+  focusDeliveryHighlight,
+  getBounds,
+  getOverlayBounds,
+  fitOverlayBounds,
+  refreshOverlayEditUi,
+  togglePlanVisible() {
+    overviewMapRef.value?.togglePlanVisible()
+  },
+  setPlanVisible(visible: boolean) {
+    overviewMapRef.value?.setPlanVisible(visible)
+  },
+})
 </script>
 
 <style scoped>
 .event-venue-detail-locations {
+  --ev-map-height: 360px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.event-venue-detail-map-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-venue-detail-map-panel {
+  min-width: 0;
+}
+
+.event-venue-map-zoom-hint {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+}
+
+.event-venue-detail-map-panel :deep(.activity-dual-location-map__stage),
+.event-venue-detail-map-panel :deep(.activity-dual-location-map__canvas) {
+  height: var(--ev-map-height, 360px);
+  min-height: var(--ev-map-height, 360px);
+}
+
+@media (min-width: 768px) {
+  .event-venue-detail-locations {
+    --ev-map-height: 520px;
+  }
+
+  .event-venue-detail-map-layout {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 1.65fr);
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .event-venue-detail-accordion-list {
+    max-height: var(--ev-map-height, 520px);
+    overflow-y: auto;
+    padding-right: 2px;
+  }
 }
 
 .event-venue-detail-locations-header {
@@ -791,6 +1408,34 @@ defineExpose({ refreshMaps, startVenueEdit, focusDeliveryHighlight })
   background: #f3f4f6;
   color: #111827;
   border-color: #d1d5db;
+}
+
+.event-venue-accordion-delete-btn:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.event-venue-accordion-star-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.event-venue-accordion-star-btn:hover,
+.event-venue-accordion-star-btn.is-on {
+  color: #d97706;
+  border-color: #fbbf24;
+  background: #fffbeb;
 }
 
 .event-venue-detail-accordion-chevron {

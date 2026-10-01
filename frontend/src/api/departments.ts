@@ -22,6 +22,7 @@ export interface Department {
   parent_id?: string | null
   users: DepartmentUser[]
   is_grossanlass?: boolean
+  grossanlass_config?: GrossanlassConfig
 }
 
 /**

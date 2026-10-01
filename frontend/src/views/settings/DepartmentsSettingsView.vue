@@ -20,7 +20,7 @@
           </template>
           <v-list density="compact">
             <v-list-item :title="t('settings.departments.addDepartment')" @click="openAddModal" />
-            <v-list-item :title="t('settings.departments.addGrossanlass')" @click="openGrossanlassWizard" />
+            <v-list-item :title="t('settings.departments.addGrossanlass')" @click="openGrossanlassWizard()" />
           </v-list>
         </v-menu>
         <EButton
@@ -54,6 +54,8 @@
         :header-label="t('common.name')"
         :selected-items="selectedItems"
         :expanded-items="expandedItems"
+        :allow-add-grossanlass="canCreateGrossanlass"
+        :allow-manage-users="canManageStructureUsers"
         @update:selected-items="selectedItems = $event"
         @update:expanded-items="handleExpandChange"
         @selection-change="handleSelectionChange"
@@ -62,6 +64,8 @@
         @show-details="handleShowOrganisationDetails"
         @show-department-details="handleShowDepartmentDetails"
         @add-department="handleAddDepartment"
+        @add-grossanlass="handleAddGrossanlass"
+        @manage-users="handleManageUsers"
       />
     </div>
 
@@ -84,8 +88,10 @@
       :department="editingDepartment"
       :preselected-organisation-id="preselectedOrganisationId"
       :preselected-parent-id="preselectedParentId"
+      :initial-focus="departmentModalFocus"
       @close="closeModal"
       @saved="handleDepartmentSaved"
+      @users-changed="handleUsersChanged"
     />
 
     <GrossanlassCreateWizard
@@ -94,6 +100,17 @@
       :preselected-parent-id="preselectedParentId"
       @close="closeGrossanlassWizard"
       @created="handleGrossanlassCreated"
+    />
+
+    <DepartmentUsersModal
+      :is-open="isUsersModalOpen"
+      :department-id="usersModalDepartmentId"
+      :organisation-id="usersModalOrganisationId"
+      :organisation-name="usersModalOrganisationName"
+      :department-name="usersModalDepartmentName"
+      :departments="allDepartments"
+      @close="closeUsersModal"
+      @changed="handleUsersChanged"
     />
 
     <!-- Organisation Details Modal -->
@@ -121,11 +138,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { useI18n } from 'vue-i18n'
 import TreeList, { type TreeItemData } from '@/components/TreeList.vue'
 import DepartmentModal from '@/components/DepartmentModal.vue'
 import GrossanlassCreateWizard from '@/components/GrossanlassCreateWizard.vue'
+import DepartmentUsersModal from '@/components/DepartmentUsersModal.vue'
 import OrganisationModal from '@/components/OrganisationModal.vue'
 import OrganisationDetailsModal from '@/components/OrganisationDetailsModal.vue'
 import DepartmentDetailsModal from '@/components/DepartmentDetailsModal.vue'
@@ -159,6 +177,9 @@ const canCreateGrossanlass = computed(() =>
   authStore.userRoles.includes('ROLE_SUBORGCHEF')
 )
 
+/** Benutzer in Organisation/Department-Struktur verwalten */
+const canManageStructureUsers = computed(() => canCreateGrossanlass.value)
+
 const isSuperAdmin = computed(() =>
   (authStore.userRoles || []).includes('ROLE_SUPERADMIN')
 )
@@ -171,12 +192,20 @@ const isLoading = ref(false)
 const error = ref<string | null>(null)
 
 const treeItems = ref<TreeItemData[]>([])
+const allDepartments = ref<Department[]>([])
 const selectedItems = ref<string[]>([])
 const expandedItems = ref<string[]>([])
+
+const departmentModalFocus = ref<'stammdaten' | 'users'>('stammdaten')
 
 // Modal State
 const isModalOpen = ref(false)
 const isGrossanlassWizardOpen = ref(false)
+const isUsersModalOpen = ref(false)
+const usersModalDepartmentId = ref<string | null>(null)
+const usersModalOrganisationId = ref<string | null>(null)
+const usersModalOrganisationName = ref('')
+const usersModalDepartmentName = ref('')
 const editingDepartment = ref<Department | null>(null)
 const preselectedOrganisationId = ref<string | null>(null)
 const preselectedParentId = ref<string | null>(null)
@@ -229,7 +258,10 @@ function convertToTreeItems(organisations: Organisation[], departments: Departme
       children: children.length > 0 ? children : undefined,
       data: {
         departmentId: deptId,
-        hasSubDepartments: childrenDepts.length > 0
+        organisationId: dept.organisation_id,
+        hasSubDepartments: childrenDepts.length > 0,
+        isGrossanlass: Boolean(dept.is_grossanlass),
+        nodeKind: dept.is_grossanlass ? 'grossanlass' : 'department',
       }
     }
   }
@@ -248,10 +280,22 @@ function convertToTreeItems(organisations: Organisation[], departments: Departme
       type: 'group' as const,
       children: orgChildren.length > 0 ? orgChildren : undefined,
       data: {
-        organisationId: org.id
+        organisationId: org.id,
+        nodeKind: 'organisation',
       }
     }
   })
+}
+
+function collectTreeItemIds(items: TreeItemData[]): string[] {
+  const ids: string[] = []
+  for (const item of items) {
+    ids.push(item.id)
+    if (item.children?.length) {
+      ids.push(...collectTreeItemIds(item.children))
+    }
+  }
+  return ids
 }
 
 /**
@@ -276,12 +320,16 @@ async function loadDepartments() {
 
     const visibleDepts = filterDepartmentsByAccessibleIds(depts, authStore.accessibleDepartmentIds)
     const visibleOrgIds = new Set(visibleDepts.map((d) => d.organisation_id))
-    const visibleOrgs = orgs.filter((o) => visibleOrgIds.has(o.id))
+    // Org auch ohne Departments anzeigen (neu angelegt, noch leer)
+    const visibleOrgs = orgs.filter(
+      (o) => visibleOrgIds.has(o.id) || authStore.canAccessOrganisation(o.id),
+    )
 
+    allDepartments.value = visibleDepts
     treeItems.value = convertToTreeItems(visibleOrgs, visibleDepts)
-    
-    // KEINE Items standardmäßig expanded (User werden erst bei Bedarf geladen)
-    expandedItems.value = []
+
+    const validIds = new Set(collectTreeItemIds(treeItems.value))
+    expandedItems.value = expandedItems.value.filter((id) => validIds.has(id))
     
   } catch (err: any) {
     error.value = err.response?.data?.error || t('settings.departments.loadError')
@@ -462,16 +510,88 @@ function handleSelectionChange(selectedIds: string[]) {
 
 function openAddModal() {
   editingDepartment.value = null
+  departmentModalFocus.value = 'stammdaten'
   preselectedOrganisationId.value = null
   preselectedParentId.value = null
   isModalOpen.value = true
 }
 
-function openGrossanlassWizard() {
+function openGrossanlassWizard(
+  organisationId: string | null = null,
+  parentId: string | null = null,
+) {
   editingDepartment.value = null
-  preselectedOrganisationId.value = null
-  preselectedParentId.value = null
+  preselectedOrganisationId.value = organisationId
+  preselectedParentId.value = parentId
   isGrossanlassWizardOpen.value = true
+}
+
+async function handleAddGrossanlass(item: TreeItemData) {
+  if (item.type !== 'group') return
+
+  if (item.id.startsWith('org-')) {
+    const organisationId = item.data?.organisationId ?? item.id.replace('org-', '')
+    openGrossanlassWizard(organisationId, null)
+    return
+  }
+
+  if (item.id.startsWith('dept-')) {
+    const departmentId = item.data?.departmentId ?? item.id.replace('dept-', '')
+    let organisationId = item.data?.organisationId as string | undefined
+    if (!organisationId) {
+      try {
+        const dept = await getDepartment(departmentId)
+        organisationId = dept.organisation_id
+      } catch {
+        error.value = t('settings.departments.loadDepartmentError')
+        return
+      }
+    }
+    openGrossanlassWizard(organisationId, departmentId)
+  }
+}
+
+function handleManageUsers(item: TreeItemData) {
+  if (item.type !== 'group') return
+
+  if (item.id.startsWith('org-')) {
+    const organisationId = item.data?.organisationId ?? item.id.replace('org-', '')
+    const org = organisations.value.find((o) => o.id === organisationId)
+    usersModalOrganisationId.value = organisationId
+    usersModalOrganisationName.value = org?.name ?? item.label
+    usersModalDepartmentId.value = null
+    usersModalDepartmentName.value = ''
+    isUsersModalOpen.value = true
+    return
+  }
+
+  if (item.id.startsWith('dept-')) {
+    const departmentId = item.data?.departmentId ?? item.id.replace('dept-', '')
+    void openDepartmentModal(departmentId, 'users')
+  }
+}
+
+async function openDepartmentModal(departmentId: string, focus: 'stammdaten' | 'users' = 'stammdaten') {
+  try {
+    const department = await getDepartment(departmentId)
+    editingDepartment.value = department
+    departmentModalFocus.value = focus
+    isModalOpen.value = true
+  } catch {
+    error.value = t('settings.departments.loadDepartmentError')
+  }
+}
+
+function closeUsersModal() {
+  isUsersModalOpen.value = false
+  usersModalDepartmentId.value = null
+  usersModalOrganisationId.value = null
+  usersModalOrganisationName.value = ''
+  usersModalDepartmentName.value = ''
+}
+
+async function handleUsersChanged() {
+  await loadDepartments()
 }
 
 function closeGrossanlassWizard() {
@@ -525,20 +645,14 @@ async function handleEditItem(item: TreeItemData) {
   // Finde das Department aus den geladenen Daten
   if (item.type === 'group' && item.id.startsWith('dept-')) {
     const departmentId = item.id.replace('dept-', '')
-    try {
-      // Lade vollständige Department-Daten
-      const department = await getDepartment(departmentId)
-      editingDepartment.value = department
-      isModalOpen.value = true
-    } catch (err: any) {
-      error.value = t('settings.departments.loadDepartmentError')
-    }
+    void openDepartmentModal(departmentId, 'stammdaten')
   }
 }
 
 function closeModal() {
   isModalOpen.value = false
   editingDepartment.value = null
+  departmentModalFocus.value = 'stammdaten'
   preselectedOrganisationId.value = null
   preselectedParentId.value = null
 }
@@ -548,8 +662,12 @@ async function handleDepartmentSaved() {
   await loadDepartments()
 }
 
-// Beim Mounten Daten laden
+// Beim Mounten / erneutem Öffnen des Tabs Daten laden
 onMounted(() => {
+  loadDepartments()
+})
+
+onActivated(() => {
   loadDepartments()
 })
 </script>

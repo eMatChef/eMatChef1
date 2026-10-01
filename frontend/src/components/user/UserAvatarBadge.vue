@@ -5,7 +5,6 @@
     :class="[
       `user-avatar-badge--${variant}`,
       `user-avatar-badge--${size}`,
-      { 'user-avatar-badge--leader': showLeaderStar && variant === 'badge' },
     ]"
     @mouseenter="showFloatingTooltip"
     @mouseleave="hideFloatingTooltip"
@@ -13,7 +12,12 @@
     @focusout="hideFloatingTooltip"
   >
     <span class="user-avatar-badge__avatar" :style="avatarStyle">
-      <span v-if="showLeaderStar && variant === 'badge'" class="user-avatar-badge__star" aria-hidden="true">★</span>
+      <span
+        v-if="showLeaderStar && variant === 'badge'"
+        class="user-avatar-badge__stage user-avatar-badge__stage--leader"
+        :title="t('common.userAvatar.ressortChef')"
+        aria-hidden="true"
+      >★</span>
       <span
         v-if="showPrimaryHome && variant === 'badge'"
         class="user-avatar-badge__home"
@@ -21,8 +25,17 @@
         aria-hidden="true"
       >⌂</span>
       <span
+        v-if="showProcure && variant === 'badge'"
+        class="user-avatar-badge__procure"
+        :title="t('common.userAvatar.procureAllowed')"
+        aria-hidden="true"
+      >
+        <v-icon icon="mdi-cart-outline" size="9" />
+      </span>
+      <span
         v-if="stageBadge && variant === 'badge'"
         class="user-avatar-badge__stage"
+        :class="{ 'user-avatar-badge__stage--wide': stageBadge.short.length > 2 }"
         :title="t(`common.userAvatar.deptStage.${stageBadge.role}`)"
         aria-hidden="true"
       >{{ stageBadge.short }}</span>
@@ -70,6 +83,8 @@ const props = withDefaults(
     size?: UserAvatarSize
     showLeaderStar?: boolean
     showPrimaryHome?: boolean
+    /** Beschaffung freigegeben (can_procure) im Ressort. */
+    showProcure?: boolean
     deptStageRole?: string | null
     showTooltip?: boolean
   }>(),
@@ -78,6 +93,7 @@ const props = withDefaults(
     size: 'sm',
     showLeaderStar: false,
     showPrimaryHome: false,
+    showProcure: false,
     deptStageRole: null,
     showTooltip: true,
   }

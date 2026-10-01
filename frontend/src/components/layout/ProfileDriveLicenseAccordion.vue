@@ -1,5 +1,5 @@
 <template>
-  <details class="profile-accordion" :open="open || undefined">
+  <details class="profile-accordion">
     <summary class="profile-accordion__summary">{{ t('layout.profileModal.driveSection') }}</summary>
     <div class="profile-accordion__body">
       <p class="drive-hint">{{ t('layout.profileModal.driveHint') }}</p>

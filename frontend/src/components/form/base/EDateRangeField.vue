@@ -17,6 +17,7 @@
           :show-presets="showPresets"
           :show-markers="showMarkers"
           :preset-mode="presetMode"
+          :view-date="viewDateModel"
         />
       </div>
     </div>
@@ -42,6 +43,8 @@ const props = withDefaults(
     showPresets?: boolean
     showMarkers?: boolean
     presetMode?: 'range' | 'fixed-periods'
+    /** API-Format yyyy-mm-dd — Kalender startet hier, wenn das Feld leer ist */
+    viewDate?: string
     errorMessages?: string | readonly string[]
   }>(),
   {
@@ -52,11 +55,13 @@ const props = withDefaults(
     showPresets: false,
     showMarkers: true,
     presetMode: 'range',
+    viewDate: '',
   },
 )
 
 const start = defineModel<string>('start', { default: '' })
 const end = defineModel<string>('end', { default: '' })
+const viewDateModel = computed(() => isoDateStringToLocalDate(props.viewDate || ''))
 
 const generatedId = useId()
 const fieldId = computed(() => props.id ?? generatedId)

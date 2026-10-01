@@ -23,6 +23,7 @@
           :multiple="multiple"
           :clearable="clearable"
           :hide-details="hideDetails"
+          v-model:menu="menuOpen"
           :menu-props="mergedMenuProps"
           class="e-select"
           @update:model-value="onUpdate"
@@ -67,6 +68,7 @@ const props = withDefaults(
 )
 
 const model = defineModel<unknown>({ default: null })
+const menuOpen = defineModel<boolean>('menu', { default: false })
 const attrs = useAttrs()
 const generatedId = useId()
 const fieldId = computed(() => props.id ?? generatedId)
@@ -101,4 +103,10 @@ const hasError = computed(() => {
 function onUpdate(value: unknown) {
   model.value = value
 }
+
+function closeMenu() {
+  menuOpen.value = false
+}
+
+defineExpose({ closeMenu })
 </script>

@@ -1,8 +1,17 @@
 import apiClient from './apiClient'
 import type { GroupMember } from './groups'
+import type { GaPlace, GaPolygonPoint } from './grossanlassLogistics'
 
-export type GrossanlassGroupKind = 'ressort' | 'teilbereich'
+export type GrossanlassGroupKind = 'ressort' | 'bereich' | 'teilbereich'
 export type GrossanlassNodeType = 'ressort' | 'unterressort' | 'bauprojekt'
+
+export type GrossanlassGroupShare = {
+  id: string
+  target_group_id?: string
+  target_name?: string
+  group_id?: string
+  group_name?: string
+}
 
 export interface GrossanlassGroup {
   id: string
@@ -13,10 +22,19 @@ export interface GrossanlassGroup {
   level: number
   kind: GrossanlassGroupKind
   node_type: GrossanlassNodeType
+  window_start?: string | null
+  window_end?: string | null
+  build_status?: string | null
+  procurement_progress?: 'quoted' | 'build' | 'use' | null
+  description?: string | null
+  place?: GaPlace | null
+  include_on_map?: boolean
   member_count: number
   leader_count: number
   members: GroupMember[]
   leaders: GroupMember[]
+  shared_with?: GrossanlassGroupShare[]
+  shared_from?: GrossanlassGroupShare[]
   created_at: string
   updated_at: string
 }
@@ -35,6 +53,12 @@ export async function createGrossanlassGroup(
     parent_id?: string | null
     kind?: GrossanlassGroupKind
     sort_order?: number
+    window_start?: string | null
+    window_end?: string | null
+    build_status?: string | null
+    description?: string | null
+    include_on_map?: boolean
+    polygon?: GaPolygonPoint[] | null
   },
 ): Promise<GrossanlassGroup> {
   const response = await apiClient.post<GrossanlassGroup>(
@@ -52,6 +76,12 @@ export async function updateGrossanlassGroup(
     parent_id?: string | null
     kind?: GrossanlassGroupKind
     sort_order?: number
+    window_start?: string | null
+    window_end?: string | null
+    build_status?: string | null
+    description?: string | null
+    include_on_map?: boolean
+    polygon?: GaPolygonPoint[] | null
   },
 ): Promise<GrossanlassGroup> {
   const response = await apiClient.put<GrossanlassGroup>(
@@ -65,6 +95,28 @@ export async function deleteGrossanlassGroup(departmentId: string, groupId: stri
   await apiClient.delete(`/api/departments/${departmentId}/grossanlass/groups/${groupId}`)
 }
 
+export async function shareGrossanlassGroup(
+  departmentId: string,
+  groupId: string,
+  targetGroupId: string,
+): Promise<GrossanlassGroupShare> {
+  const { data } = await apiClient.post<GrossanlassGroupShare>(
+    `/api/departments/${departmentId}/grossanlass/groups/${groupId}/shares`,
+    { target_group_id: targetGroupId },
+  )
+  return data
+}
+
+export async function unshareGrossanlassGroup(
+  departmentId: string,
+  groupId: string,
+  shareId: string,
+): Promise<void> {
+  await apiClient.delete(
+    `/api/departments/${departmentId}/grossanlass/groups/${groupId}/shares/${shareId}`,
+  )
+}
+
 export async function addGrossanlassGroupMember(
   departmentId: string,
   groupId: string,
@@ -72,6 +124,7 @@ export async function addGrossanlassGroupMember(
     user_id: string
     role?: string
     is_primary?: boolean
+    can_procure?: boolean
   },
 ): Promise<GroupMember> {
   const response = await apiClient.post<GroupMember>(
@@ -88,6 +141,7 @@ export async function updateGrossanlassGroupMember(
   data: {
     role?: string
     is_primary?: boolean
+    can_procure?: boolean
   },
 ): Promise<GroupMember> {
   const response = await apiClient.patch<GroupMember>(

@@ -7,6 +7,7 @@ use App\Entity\Activity;
 use App\Entity\Department;
 use App\Entity\DepartmentSetting;
 use App\Entity\InboxMessage;
+use App\Entity\Membership;
 use App\Entity\User;
 use App\Util\IdGenerator;
 
@@ -234,6 +235,43 @@ trait InboxMessageKindsTrait
     public function removeDepartmentInvite(string $departmentId, string $userId, string $inviteId): void
     {
         $this->deleteDepartmentInviteByInviteId($departmentId, $userId, $inviteId);
+    }
+
+    /** Entfernt offene Einladungs-Inbox-Einträge, wenn der User bereits Mitglied ist. */
+    public function pruneDepartmentInvitesForExistingMember(User $user, Department $department): void
+    {
+        $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+            'userId' => $user->getId(),
+            'departmentId' => $department->getId(),
+        ]);
+        if (!$membership instanceof Membership) {
+            return;
+        }
+
+        $rows = $this->entityManager->createQueryBuilder()
+            ->select('m')
+            ->from(InboxMessage::class, 'm')
+            ->where('m.recipientUserId = :userId')
+            ->andWhere('IDENTITY(m.department) = :deptId')
+            ->andWhere('m.category = :cat')
+            ->andWhere('m.workflowStatus = :pending')
+            ->setParameter('userId', $user->getId())
+            ->setParameter('deptId', $department->getId())
+            ->setParameter('cat', InboxMessage::CATEGORY_DEPARTMENT_INVITE)
+            ->setParameter('pending', InboxMessage::WORKFLOW_PENDING)
+            ->getQuery()
+            ->getResult();
+
+        if ($rows === []) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            if ($row instanceof InboxMessage) {
+                $this->entityManager->remove($row);
+            }
+        }
+        $this->entityManager->flush();
     }
 
     /** MW löscht oder ersetzt eine Einladung: alle Aufgaben-Karten dazu weg. */
@@ -1144,6 +1182,19 @@ trait InboxMessageKindsTrait
             if (!isset($openIdsByDept[$deptId])) {
                 $openIdsByDept[$deptId] = $this->openPendingInviteIds($deptId);
             }
+            $recipientId = (string) ($row->getRecipientUserId() ?? '');
+            if ($recipientId !== '') {
+                $membership = $this->entityManager->getRepository(Membership::class)->findOneBy([
+                    'userId' => $recipientId,
+                    'departmentId' => $deptId,
+                ]);
+                if ($membership instanceof Membership) {
+                    $this->entityManager->remove($row);
+                    $dirty = true;
+                    continue;
+                }
+            }
+
             $inviteId = (string) $row->getSourceRefId();
             if ($inviteId !== '' && isset($openIdsByDept[$deptId][$inviteId])) {
                 $kept[] = $row;

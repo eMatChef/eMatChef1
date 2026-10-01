@@ -3,6 +3,9 @@
 namespace App\Service\Grossanlass;
 
 use App\Entity\Department;
+use App\Entity\DepartmentGrossanlassCost;
+use App\Entity\DepartmentGrossanlassGroupShare;
+use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
@@ -20,6 +23,8 @@ class GrossanlassGroupService
         private GrossanlassAccessService $access,
         private GroupAccessService $groupAccess,
         private GroupHierarchyService $hierarchy,
+        private GrossanlassPlaceService $places,
+        private GrossanlassProcurementProgress $procurementProgress,
     ) {}
 
     /**
@@ -40,10 +45,25 @@ class GrossanlassGroupService
 
         $groupIds = array_map(static fn (Group $g) => $g->getId(), $groups);
         $membershipsByGroup = $this->loadMembershipsByGroup($groupIds);
+        $placesByGroup = $this->loadPlacesByGroup($department);
+        $shares = $this->loadShares($department);
+        $procurementProgress = $this->procurementProgress->buildProgressByGroup($department->getId());
+        $namesById = [];
+        foreach ($groups as $group) {
+            $namesById[$group->getId()] = $group->getName();
+        }
 
         $result = [];
         foreach ($groups as $group) {
-            $result[] = $this->serializeGroup($department, $group, $membershipsByGroup[$group->getId()] ?? []);
+            $result[] = $this->serializeGroup(
+                $department,
+                $group,
+                $membershipsByGroup[$group->getId()] ?? [],
+                $placesByGroup[$group->getId()] ?? null,
+                $shares,
+                $namesById,
+                $procurementProgress[$group->getId()] ?? null,
+            );
         }
 
         return $result;
@@ -66,7 +86,7 @@ class GrossanlassGroupService
         if (!empty($data['parent_id'])) {
             $parent = $this->findGroupInDepartment($department, (string) $data['parent_id']);
             if (!$this->access->canCreateChildGroup($user, $department, $parent)) {
-                throw new \RuntimeException('Keine Berechtigung, Bauprojekt anzulegen');
+                throw new \RuntimeException('Keine Berechtigung, Kind anzulegen');
             }
             $parentDepth = $this->hierarchy->computeDepth($department->getId(), $parent->getId());
             if ($parentDepth >= self::MAX_DEPTH) {
@@ -84,18 +104,20 @@ class GrossanlassGroupService
         $group->setName(trim((string) $data['name']));
         if ($parent !== null) {
             $group->setParent($parent);
-            $group->setGrossanlassKind($this->resolveKindForCreate($parent, $data));
-        } else {
-            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
         }
+        $group->setGrossanlassKind($this->kindFromChoice($parent, $data['kind'] ?? null));
         if (isset($data['sort_order'])) {
             $group->setSortOrder((int) $data['sort_order']);
         }
+        $this->applyWindow($group, $data);
+        $this->applyBuildStatus($department, $user, $group, $data);
+        $this->applyDescription($group, $data);
 
         $this->entityManager->persist($group);
         $this->entityManager->flush();
+        $place = $this->syncPlaceForGroup($department, $group, $data);
 
-        return $this->serializeGroup($department, $group, []);
+        return $this->serializeGroup($department, $group, [], $place);
     }
 
     /**
@@ -108,7 +130,7 @@ class GrossanlassGroupService
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
-        if (!$this->access->canEditGroup($user, $department)) {
+        if (!$this->access->canEditGroup($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung, Ressort zu bearbeiten');
         }
 
@@ -120,7 +142,7 @@ class GrossanlassGroupService
             $group->setName($name);
         }
 
-        if (array_key_exists('parent_id', $data)) {
+        if (array_key_exists('parent_id', $data) && $this->access->canManageStruktur($user, $department)) {
             if (empty($data['parent_id'])) {
                 $group->setParent(null);
             } else {
@@ -146,22 +168,18 @@ class GrossanlassGroupService
             $group->setSortOrder((int) $data['sort_order']);
         }
 
-        if (array_key_exists('kind', $data)) {
-            $this->applyKindChange($group, $data['kind'] ?? null);
-        } elseif ($group->getGrossanlassKind() === null) {
-            $group->setGrossanlassKind(
-                $group->getParentId() === null
-                    ? Group::GROSSANLASS_KIND_RESSORT
-                    : Group::GROSSANLASS_KIND_TEILBEREICH,
-            );
-        }
+        $this->applyStructuralKind($group, $data['kind'] ?? $group->getGrossanlassKind());
+        $this->applyWindow($group, $data);
+        $this->applyBuildStatus($department, $user, $group, $data);
+        $this->applyDescription($group, $data);
 
         $group->updateTimestamps();
         $this->entityManager->flush();
+        $place = $this->syncPlaceForGroup($department, $group, $data);
 
         $members = $this->loadMembershipsByGroup([$group->getId()])[$group->getId()] ?? [];
 
-        return $this->serializeGroup($department, $group, $members);
+        return $this->serializeGroup($department, $group, $members, $place);
     }
 
     public function deleteGroup(Department $department, User $user, Group $group): void
@@ -169,7 +187,7 @@ class GrossanlassGroupService
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
-        if (!$this->access->canDeleteGroup($user, $department)) {
+        if (!$this->access->canDeleteGroup($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung, Ressort zu löschen');
         }
 
@@ -178,11 +196,87 @@ class GrossanlassGroupService
             throw new \RuntimeException('Löschen nicht möglich: Im Subtree sind noch Mitglieder zugewiesen');
         }
 
-        if ($this->hasWishReferences($subtreeIds)) {
+        $isBauprojekt = $this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_TEILBEREICH;
+        if (!$isBauprojekt && $this->hasWishReferences($subtreeIds)) {
             throw new \RuntimeException('Löschen nicht möglich: Es bestehen noch Wunsch-Referenzen auf Knoten im Subtree');
         }
 
         $this->deleteSubtreeGroups($department->getId(), $group->getId());
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    public function shareGroup(Department $department, User $user, Group $group, array $data): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $this->assertGroupBelongsToDepartment($group, $department);
+        if (!$this->access->canShareGroup($user, $department, $group)) {
+            throw new \RuntimeException('Keine Berechtigung, zu teilen');
+        }
+
+        $targetId = trim((string) ($data['target_group_id'] ?? ''));
+        if ($targetId === '') {
+            throw new \InvalidArgumentException('target_group_id ist erforderlich');
+        }
+        $target = $this->findGroupInDepartment($department, $targetId);
+        $targetKind = $this->resolveStoredKind($target);
+        $targetIsBauprojekt = $this->resolveNodeType($target, $targetKind) === 'bauprojekt';
+        $reason = GrossanlassGroupShareRules::forbiddenReason(
+            $group->getId(),
+            $target->getId(),
+            $this->hierarchy->expandWithDescendants($department->getId(), [$group->getId()]),
+            $this->hierarchy->expandWithDescendants($department->getId(), [$target->getId()]),
+            $targetIsBauprojekt,
+        );
+        if ($reason !== null) {
+            throw new \InvalidArgumentException($reason);
+        }
+
+        $existing = $this->entityManager->getRepository(DepartmentGrossanlassGroupShare::class)->findOneBy([
+            'groupId' => $group->getId(),
+            'targetGroupId' => $target->getId(),
+        ]);
+        if ($existing instanceof DepartmentGrossanlassGroupShare) {
+            return $this->serializeShare($existing, $group, $target);
+        }
+
+        $row = new DepartmentGrossanlassGroupShare();
+        $row->setId(GrossanlassIdGenerator::unique(
+            $this->entityManager,
+            GrossanlassIdGenerator::GROUP_SHARE,
+            DepartmentGrossanlassGroupShare::class,
+        ));
+        $row->setDepartment($department);
+        $row->setGroupId($group->getId());
+        $row->setTargetGroupId($target->getId());
+        $this->entityManager->persist($row);
+        $this->entityManager->flush();
+
+        return $this->serializeShare($row, $group, $target);
+    }
+
+    public function unshareGroup(Department $department, User $user, Group $group, string $shareId): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        $this->assertGroupBelongsToDepartment($group, $department);
+
+        $row = $this->entityManager->getRepository(DepartmentGrossanlassGroupShare::class)->find($shareId);
+        if (!$row instanceof DepartmentGrossanlassGroupShare
+            || $row->getDepartmentId() !== $department->getId()
+            || $row->getGroupId() !== $group->getId()
+        ) {
+            throw new \InvalidArgumentException('Teilung nicht gefunden');
+        }
+        $target = $this->findGroupInDepartment($department, $row->getTargetGroupId());
+        if (!$this->access->canUnshareGroup($user, $department, $group, $target)) {
+            throw new \RuntimeException('Keine Berechtigung, die Teilung aufzuheben');
+        }
+
+        $this->entityManager->remove($row);
+        $this->entityManager->flush();
     }
 
     /**
@@ -221,7 +315,7 @@ class GrossanlassGroupService
         }
 
         $leaderOnly = $this->groupAccess->isGroupLeaderOnlyManager($user, $group)
-            && !$this->access->canManagePlanung($user, $department);
+            && !$this->access->canManageStruktur($user, $department);
 
         $role = $data['role'] ?? 'member';
         if (!in_array($role, ['leader', 'member'], true)) {
@@ -256,7 +350,7 @@ class GrossanlassGroupService
         $this->access->assertGrossanlassDepartment($department);
         $this->assertGroupBelongsToDepartment($group, $department);
 
-        if (!$this->access->canManagePlanung($user, $department)) {
+        if (!$this->access->canManageGroupMembers($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung, Gruppenmitglieder zu bearbeiten');
         }
 
@@ -278,6 +372,9 @@ class GrossanlassGroupService
         }
         if (isset($data['is_primary'])) {
             $membership->setIsPrimary((bool) $data['is_primary']);
+        }
+        if (array_key_exists('can_procure', $data)) {
+            $membership->setCanProcure((bool) $data['can_procure']);
         }
 
         $this->entityManager->flush();
@@ -367,15 +464,48 @@ class GrossanlassGroupService
 
     /**
      * @param list<array<string, mixed>> $members
+     * @param array<string, mixed>|null  $place
+     * @param list<DepartmentGrossanlassGroupShare> $shares
+     * @param array<string, string> $namesById
      *
      * @return array<string, mixed>
      */
-    private function serializeGroup(Department $department, Group $group, array $members): array
-    {
+    private function serializeGroup(
+        Department $department,
+        Group $group,
+        array $members,
+        ?array $place = null,
+        array $shares = [],
+        array $namesById = [],
+        ?string $procurementProgress = null,
+    ): array {
         $level = $this->hierarchy->computeDepth($department->getId(), $group->getId());
         $leaders = array_values(array_filter($members, static fn (array $m) => $m['is_leader']));
         $kind = $this->resolveStoredKind($group);
         $nodeType = $this->resolveNodeType($group, $kind);
+        $names = $namesById;
+
+        $sharedWith = [];
+        $sharedFrom = [];
+        foreach ($shares as $share) {
+            if (!$share instanceof DepartmentGrossanlassGroupShare) {
+                continue;
+            }
+            if ($share->getGroupId() === $group->getId()) {
+                $sharedWith[] = [
+                    'id' => $share->getId(),
+                    'target_group_id' => $share->getTargetGroupId(),
+                    'target_name' => $names[$share->getTargetGroupId()] ?? $share->getTargetGroupId(),
+                ];
+            }
+            if ($share->getTargetGroupId() === $group->getId()) {
+                $sharedFrom[] = [
+                    'id' => $share->getId(),
+                    'group_id' => $share->getGroupId(),
+                    'group_name' => $names[$share->getGroupId()] ?? $share->getGroupId(),
+                ];
+            }
+        }
 
         return [
             'id' => $group->getId(),
@@ -386,13 +516,186 @@ class GrossanlassGroupService
             'level' => $level,
             'kind' => $kind,
             'node_type' => $nodeType,
+            'window_start' => $group->getWindowStart()?->format('Y-m-d'),
+            'window_end' => $group->getWindowEnd()?->format('Y-m-d'),
+            'build_status' => $group->getBuildStatus(),
+            'procurement_progress' => $procurementProgress,
+            'description' => $group->getDescription(),
+            'place' => $place,
+            'include_on_map' => is_array($place) && ($place['kind'] ?? '') === GrossanlassPlaceCodes::KIND_AREA,
             'member_count' => count($members),
             'leader_count' => count($leaders),
             'members' => array_values($members),
             'leaders' => $leaders,
+            'shared_with' => $sharedWith,
+            'shared_from' => $sharedFrom,
             'created_at' => $group->getCreatedAt()->format('c'),
             'updated_at' => $group->getUpdatedAt()->format('c'),
         ];
+    }
+
+    /**
+     * @return list<DepartmentGrossanlassGroupShare>
+     */
+    private function loadShares(Department $department): array
+    {
+        /** @var list<DepartmentGrossanlassGroupShare> $rows */
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassGroupShare::class)
+            ->findBy(['departmentId' => $department->getId()]);
+
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function serializeShare(DepartmentGrossanlassGroupShare $row, Group $source, Group $target): array
+    {
+        return [
+            'id' => $row->getId(),
+            'group_id' => $source->getId(),
+            'group_name' => $source->getName(),
+            'target_group_id' => $target->getId(),
+            'target_name' => $target->getName(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyWindow(Group $group, array $data): void
+    {
+        if (!array_key_exists('window_start', $data) && !array_key_exists('window_end', $data)) {
+            return;
+        }
+        $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));
+        if ($nodeType === 'ressort') {
+            $group->setWindowStart(null);
+            $group->setWindowEnd(null);
+
+            return;
+        }
+
+        $start = $this->parseOptionalDate($data['window_start'] ?? null, 'window_start');
+        $end = $this->parseOptionalDate($data['window_end'] ?? null, 'window_end');
+        if ($start !== null && $end !== null && $end < $start) {
+            throw new \InvalidArgumentException('Zeitfenster Ende muss nach Start liegen');
+        }
+        $group->setWindowStart($start);
+        $group->setWindowEnd($end);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyBuildStatus(Department $department, User $user, Group $group, array $data): void
+    {
+        if (!array_key_exists('build_status', $data)) {
+            return;
+        }
+        if (!$this->access->canSetBuildStatus($user, $department, $group)) {
+            return;
+        }
+        $nodeType = $this->resolveNodeType($group, $this->resolveStoredKind($group));
+        if ($nodeType === 'ressort') {
+            $group->setBuildStatus(null);
+
+            return;
+        }
+        $raw = $data['build_status'];
+        if ($raw === null || $raw === '') {
+            $group->setBuildStatus(null);
+
+            return;
+        }
+        $status = strtolower(trim((string) $raw));
+        if (!in_array($status, Group::BUILD_STATUSES, true)) {
+            throw new \InvalidArgumentException('Ungültiger Bauvorhaben-Status');
+        }
+        $group->setBuildStatus($status);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function applyDescription(Group $group, array $data): void
+    {
+        if (!array_key_exists('description', $data)) {
+            return;
+        }
+        $raw = $data['description'];
+        $group->setDescription($raw === null ? null : (string) $raw);
+    }
+
+    private function parseOptionalDate(mixed $value, string $field): ?\DateTime
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if ($value instanceof \DateTimeInterface) {
+            return \DateTime::createFromInterface($value)->setTime(0, 0);
+        }
+        $raw = substr(trim((string) $value), 0, 10);
+        if ($raw === '') {
+            return null;
+        }
+        $dt = \DateTime::createFromFormat('Y-m-d', $raw);
+        if ($dt === false) {
+            throw new \InvalidArgumentException('Ungültiges Datum: ' . $field);
+        }
+        $dt->setTime(0, 0);
+
+        return $dt;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>|null
+     */
+    private function syncPlaceForGroup(Department $department, Group $group, array $data): ?array
+    {
+        if ($this->resolveStoredKind($group) === Group::GROSSANLASS_KIND_TEILBEREICH) {
+            return $this->places->serialize($this->places->ensureForBauprojekt($department, $group));
+        }
+
+        $existing = $this->places->findForGroup($department, $group->getId());
+        $include = array_key_exists('include_on_map', $data)
+            ? filter_var($data['include_on_map'], FILTER_VALIDATE_BOOLEAN)
+            : ($existing instanceof DepartmentGrossanlassPlace
+                && $existing->getKind() === GrossanlassPlaceCodes::KIND_AREA);
+        if (!$include) {
+            $this->places->detachOrgPlaceForGroup($department, $group);
+
+            return null;
+        }
+
+        $row = $this->places->ensureForArea($department, $group);
+        if (array_key_exists('polygon', $data)) {
+            $this->places->applyPolygonData($row, $data['polygon']);
+            $this->entityManager->flush();
+        }
+
+        return $this->places->serialize($row);
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function loadPlacesByGroup(Department $department): array
+    {
+        $out = [];
+        foreach ($this->places->rows($department) as $row) {
+            $groupId = $row->getGroupId();
+            if ($groupId === null || $groupId === '') {
+                continue;
+            }
+            if (isset($out[$groupId]) && $row->getKind() !== GrossanlassPlaceCodes::KIND_BAUPROJEKT) {
+                continue;
+            }
+            $out[$groupId] = $this->places->serialize($row);
+        }
+
+        return $out;
     }
 
     /**
@@ -417,6 +720,7 @@ class GrossanlassGroupService
             'role_label' => $membership->getRoleLabel(),
             'is_leader' => $membership->isLeader(),
             'is_primary' => $membership->getIsPrimary(),
+            'can_procure' => $membership->getCanProcure(),
         ];
     }
 
@@ -464,6 +768,41 @@ class GrossanlassGroupService
                 <=> $this->hierarchy->computeDepth($departmentId, $a);
         });
 
+        if ($subtreeIds === []) {
+            return;
+        }
+
+        $places = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)
+            ->createQueryBuilder('p')
+            ->where('p.departmentId = :departmentId')
+            ->andWhere('p.groupId IN (:groupIds)')
+            ->setParameter('departmentId', $departmentId)
+            ->setParameter('groupIds', $subtreeIds)
+            ->getQuery()
+            ->getResult();
+        foreach ($places as $place) {
+            if (!$place instanceof DepartmentGrossanlassPlace) {
+                continue;
+            }
+            if ($place->getKind() === GrossanlassPlaceCodes::KIND_AREA) {
+                $this->entityManager->remove($place);
+                continue;
+            }
+            $place->setGroupId(null);
+        }
+
+        $costs = $this->entityManager->getRepository(DepartmentGrossanlassCost::class)
+            ->createQueryBuilder('c')
+            ->where('c.payerGroupId IN (:groupIds)')
+            ->setParameter('groupIds', $subtreeIds)
+            ->getQuery()
+            ->getResult();
+        foreach ($costs as $cost) {
+            if ($cost instanceof DepartmentGrossanlassCost) {
+                $cost->setPayerGroup(null);
+            }
+        }
+
         foreach ($subtreeIds as $groupId) {
             $group = $this->entityManager->getRepository(Group::class)->find($groupId);
             if ($group !== null) {
@@ -473,32 +812,27 @@ class GrossanlassGroupService
         $this->entityManager->flush();
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function resolveKindForCreate(Group $parent, array $data): string
+    private function applyStructuralKind(Group $group, mixed $requested): void
     {
-        $kind = isset($data['kind']) ? strtolower(trim((string) $data['kind'])) : Group::GROSSANLASS_KIND_TEILBEREICH;
-        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
-            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
-        }
-
-        return $kind;
+        $group->setGrossanlassKind($this->kindFromChoice($group->getParent(), $requested));
     }
 
-    private function applyKindChange(Group $group, mixed $kindRaw): void
+    private function kindFromChoice(?Group $parent, mixed $requested): string
     {
-        if ($group->getParentId() === null) {
-            $group->setGrossanlassKind(Group::GROSSANLASS_KIND_RESSORT);
-
-            return;
+        $kind = strtolower(trim((string) ($requested ?? '')));
+        if ($kind === Group::GROSSANLASS_KIND_BEREICH || $kind === 'unterressort') {
+            return Group::GROSSANLASS_KIND_BEREICH;
+        }
+        if ($kind === Group::GROSSANLASS_KIND_RESSORT) {
+            return Group::GROSSANLASS_KIND_RESSORT;
+        }
+        if ($kind === Group::GROSSANLASS_KIND_TEILBEREICH) {
+            return Group::GROSSANLASS_KIND_TEILBEREICH;
         }
 
-        $kind = strtolower(trim((string) ($kindRaw ?? '')));
-        if (!in_array($kind, [Group::GROSSANLASS_KIND_RESSORT, Group::GROSSANLASS_KIND_TEILBEREICH], true)) {
-            throw new \InvalidArgumentException('kind muss ressort (Unterressort) oder teilbereich (Bauprojekt) sein');
-        }
-        $group->setGrossanlassKind($kind);
+        return $parent instanceof Group
+            ? Group::GROSSANLASS_KIND_BEREICH
+            : Group::GROSSANLASS_KIND_RESSORT;
     }
 
     private function resolveStoredKind(Group $group): string
@@ -515,10 +849,12 @@ class GrossanlassGroupService
 
     private function resolveNodeType(Group $group, string $kind): string
     {
-        if ($group->getParentId() === null) {
-            return 'ressort';
-        }
+        unset($group);
 
-        return $kind === Group::GROSSANLASS_KIND_RESSORT ? 'unterressort' : 'bauprojekt';
+        return match (strtolower($kind)) {
+            Group::GROSSANLASS_KIND_TEILBEREICH => 'bauprojekt',
+            Group::GROSSANLASS_KIND_BEREICH => 'unterressort',
+            default => 'ressort',
+        };
     }
 }

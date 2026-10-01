@@ -33,8 +33,14 @@ final class GrossanlassIdGenerator
     public const COST = 'cost';
     public const BUDGET = 'budget';
     public const PLACE = 'place';
+    /** Öffentlicher QR-Code für GA-Orte (`/i/ga/…`). Interne ID bleibt PLACE (`pl`). */
+    public const PLACE_PUBLIC = 'place_public';
+    public const MAP = 'map';
     public const PACK = 'pack';
     public const PACK_LINE = 'pack_line';
+    public const TASK = 'task';
+    public const VEHICLE_NEED = 'vehicle_need';
+    public const GROUP_SHARE = 'group_share';
 
     /** @var array<string, string> */
     public const PREFIXES = [
@@ -59,8 +65,13 @@ final class GrossanlassIdGenerator
         self::COST => 'ko',
         self::BUDGET => 'kb',
         self::PLACE => 'pl',
+        self::PLACE_PUBLIC => 'ga',
+        self::MAP => 'gm',
         self::PACK => 'pk',
         self::PACK_LINE => 'pn',
+        self::TASK => 'gt',
+        self::VEHICLE_NEED => 'gv',
+        self::GROUP_SHARE => 'gl',
     ];
 
     public static function prefix(string $kind): string

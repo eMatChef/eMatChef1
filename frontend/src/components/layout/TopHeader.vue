@@ -308,7 +308,12 @@
         </div>
 
         <div v-if="showUserDropdown" class="user-dropdown">
-        <div class="user-info">
+        <button
+          type="button"
+          class="user-info"
+          :title="t('layout.userMenu.editProfile')"
+          @click="editProfile"
+        >
           <UserAvatarBadge
             :user="headerAvatarUser"
             variant="profile"
@@ -319,7 +324,7 @@
             <div class="user-name-full">{{ userFullName }}</div>
             <div class="user-email">{{ userEmail }}</div>
           </div>
-        </div>
+        </button>
         <div class="dropdown-divider"></div>
         <div data-onboarding="header-dept-switch">
         <button v-if="authStore.departments.length > 1" class="dropdown-item dropdown-item--section" disabled>
@@ -364,6 +369,18 @@
           </span>
         </button>
         </div>
+        <div v-if="showAbteilungsmatLink" class="dropdown-divider"></div>
+        <button
+          v-if="showAbteilungsmatLink"
+          type="button"
+          class="dropdown-item"
+          @click="goAbteilungsmat"
+        >
+          <svg class="item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ t('layout.userMenu.manageDepartmentMaterial') }}
+        </button>
         <div class="dropdown-divider"></div>
         <button
           type="button"
@@ -864,7 +881,13 @@ const devicesHomeUrl = computed(() => {
   const url = getDevicesHomeUrl(id)
   return url.startsWith('http') ? url : ''
 })
-const { isUserRole, canManageQrContact, canManageMaterials } = useDepartmentMemberRole()
+const {
+  isUserRole,
+  canManageQrContact,
+  canManageMaterials,
+  canSeeDepartmentManagerInbox,
+  canSeeInviteAcceptedInbox,
+} = useDepartmentMemberRole()
 const { fromActivityMw, fromDepartmentInvite, fromPublicFound, fromUserMessage } =
   useNotificationSender()
 const { bellLine, bellSubtitle } = useActivityNotificationText()
@@ -1620,20 +1643,19 @@ async function loadDepartmentInvites() {
       items: [] as UserDirectMessage[],
     }))
 
-    const campInvitesPromise = isUserRole.value
-      ? Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
-      : getPendingDepartmentActivityInvites(deptId).catch(() => ({
+    const campInvitesPromise = canSeeDepartmentManagerInbox.value
+      ? getPendingDepartmentActivityInvites(deptId).catch(() => ({
           count: 0,
           items: [] as PendingDepartmentActivityInvite[],
         }))
+      : Promise.resolve({ count: 0, items: [] as PendingDepartmentActivityInvite[] })
 
-    const foundPromise =
-      !isUserRole.value && canManageQrContact.value
-        ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
-            unread_count: 0,
-            items: [] as PublicFoundItemMessage[],
-          }))
-        : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
+    const foundPromise = canSeeDepartmentManagerInbox.value
+      ? getPublicFoundMessages(deptId, { bucket: 'open', limit: 5 }).catch(() => ({
+          unread_count: 0,
+          items: [] as PublicFoundItemMessage[],
+        }))
+      : Promise.resolve({ unread_count: 0, items: [] as PublicFoundItemMessage[] })
 
     const activityMwPromise = canManageMaterials.value
       ? getActivityMwNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => ({
@@ -1652,7 +1674,7 @@ async function loadDepartmentInvites() {
         ? listAcquisitionFollowups(deptId, 'pending').catch(() => [])
         : Promise.resolve([])
 
-    const inviteAcceptedPromise = !isUserRole.value
+    const inviteAcceptedPromise = canSeeInviteAcceptedInbox.value
       ? getInviteNotifications(deptId, { bucket: 'unread', limit: 5 }).catch(() => [] as InviteAcceptedNotification[])
       : Promise.resolve([] as InviteAcceptedNotification[])
 
@@ -1728,9 +1750,8 @@ async function loadDepartmentInvites() {
 
     const taskCount = accountingInBell
 
-    const qrUnread =
-      !isUserRole.value && canManageQrContact.value
-        ? typeof foundResult.unread_count === 'number'
+    const qrUnread = canSeeDepartmentManagerInbox.value
+      ? typeof foundResult.unread_count === 'number'
           ? foundResult.unread_count
           : publicFoundPreview.value.filter((m) => m.status === 'open').length
         : 0
@@ -1832,6 +1853,19 @@ async function decideInvite(invite: PendingDepartmentActivityInvite, decision: '
     toast.error(err?.response?.data?.error || t('layout.toast.decisionSaveFailed'))
     void loadDepartmentInvites()
   }
+}
+
+const showAbteilungsmatLink = computed(() => {
+  const fromRoute = typeof route.params.departmentId === 'string' ? route.params.departmentId : ''
+  const id = fromRoute || authStore.activeDepartmentId || ''
+  return id !== '' && authStore.isDepartmentGrossanlass(id)
+})
+
+function goAbteilungsmat() {
+  const id = authStore.activeDepartmentId
+  if (!id) return
+  showUserDropdown.value = false
+  void router.push({ name: 'GrossanlassAbteilungsmat', params: { departmentId: id } })
 }
 
 function editProfile() {
@@ -2922,8 +2956,19 @@ watch(
 .user-info {
   display: flex;
   align-items: center;
+  width: 100%;
   padding: 16px;
   gap: 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.user-info:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .user-details {

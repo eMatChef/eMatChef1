@@ -16,7 +16,7 @@ type Translate = (key: string) => string
 
 export function commitmentTabs(row: GrossanlassCommitment): GaMaterialsTabId[] {
   if (row.family === 'vehicle') {
-    return ['fahrzeuge', 'uebersicht', row.origin === 'loan' ? 'leihweise' : 'eigen']
+    return ['fahrzeuge']
   }
   return [row.origin === 'loan' ? 'leihweise' : 'eigen', 'uebersicht']
 }

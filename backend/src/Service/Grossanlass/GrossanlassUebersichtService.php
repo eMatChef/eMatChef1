@@ -12,8 +12,10 @@ use App\Entity\Department;
 use App\Entity\DepartmentGrossanlassCommitment;
 use App\Entity\DepartmentGrossanlassEinsatz;
 use App\Entity\DepartmentGrossanlassPack;
+use App\Entity\DepartmentGrossanlassPlace;
 use App\Entity\Group;
 use App\Entity\User;
+use App\Service\GroupHierarchyService;
 use App\Util\GrossanlassIdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -26,6 +28,8 @@ final class GrossanlassUebersichtService
         private GrossanlassCommitmentService $commitments,
         private GrossanlassPackService $packs,
         private GrossanlassPlaceService $places,
+        private GroupHierarchyService $hierarchy,
+        private GrossanlassProcurementService $procurement,
     ) {}
 
     /**
@@ -125,11 +129,17 @@ final class GrossanlassUebersichtService
                 $row->setGroup($group);
             }
         }
+        if ($row->getDestinationPlaceId() === null && $group instanceof Group) {
+            $place = $this->places->findForGroup($department, $group->getId());
+            if ($place instanceof DepartmentGrossanlassPlace) {
+                $row->setDestinationPlaceId($place->getId());
+            }
+        }
         if (!$this->access->canSubmitEinsatz($user, $department, $group)) {
             throw new \RuntimeException('Keine Berechtigung für Einsätze');
         }
         $pending = !empty($data['pending']) || !empty($data['has_conflict']);
-        if (!$this->access->canApproveEinsatz($user, $department)) {
+        if (!$this->access->submitsEinsatzDirectlyFree($user, $department)) {
             $pending = true;
         }
         $row->setStatus($pending
@@ -157,8 +167,12 @@ final class GrossanlassUebersichtService
         $this->syncPlaceFromPack($row);
         $this->packs->ensureDefaultPack($row);
         $this->entityManager->flush();
+        $wishLineId = trim((string) $row->getWishLineId());
+        if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+            $this->procurement->syncUncoveredWishDemand($department, $user, $wishLineId);
+        }
 
-        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             return ['einsatz' => $this->serializeEinsatz($row)];
         }
 
@@ -215,15 +229,175 @@ final class GrossanlassUebersichtService
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Helfer: Einsätze / Fahraufträge / Bauaufträge im eigenen Baum bzw. als Chauffeur.
+     *
+     * @return array<string, mixed>
+     */
+    public function myEinsaetze(Department $department, User $user): array
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeOwnEinsaetze($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für eigene Einsätze');
+        }
+
+        $groupsById = $this->groupsById($department);
+        $destinationPlaceNames = $this->destinationPlaceNames($department);
+
+        $einsaetze = [];
+        $fahrauftraege = [];
+        $bauauftraege = [];
+        foreach ($this->allEinsatzRows($department) as $row) {
+            if (!$this->access->canOperateAssignedEinsatz($user, $department, $row)) {
+                continue;
+            }
+            $serialized = $this->serializeHelperEinsatz($department, $user, $row, $groupsById, $destinationPlaceNames);
+            $taskKind = $serialized['task_kind'];
+            if ($taskKind === 'fahrauftrag') {
+                $fahrauftraege[] = $serialized;
+            } elseif ($taskKind === 'bauauftrag') {
+                $bauauftraege[] = $serialized;
+            } else {
+                $einsaetze[] = $serialized;
+            }
+        }
+
+        return [
+            'einsaetze' => $einsaetze,
+            'fahrauftraege' => $fahrauftraege,
+            'bauauftraege' => $bauauftraege,
+            'cards' => $this->cards->listCards($department),
+        ];
+    }
+
+    /**
+     * Helfer-Scan: alle Einsätze am GA-Ort (ressortübergreifend), mit operable-Flag für eigene Aufträge.
+     *
+     * @return array<string, mixed>
+     */
+    public function helperScanContext(
+        Department $department,
+        User $user,
+        ?string $placeId = null,
+        ?string $einsatzId = null,
+    ): array {
+        $this->access->assertGrossanlassDepartment($department);
+        if (!$this->access->canSeeOwnEinsaetze($user, $department)) {
+            throw new \RuntimeException('Keine Berechtigung für Helfer-Scan');
+        }
+
+        $place = null;
+        if ($placeId !== null && $placeId !== '') {
+            $candidate = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)->find($placeId);
+            if (!$candidate instanceof DepartmentGrossanlassPlace || $candidate->getDepartmentId() !== $department->getId()) {
+                throw new \InvalidArgumentException('Ort nicht gefunden');
+            }
+            $place = $candidate;
+        }
+
+        $anchor = null;
+        if ($einsatzId !== null && $einsatzId !== '') {
+            $anchor = $this->findEinsatz($department, $einsatzId);
+        }
+
+        if ($place === null && $anchor === null) {
+            throw new \InvalidArgumentException('place_id oder einsatz_id erforderlich');
+        }
+
+        $groupsById = $this->groupsById($department);
+        $destinationPlaceNames = $this->destinationPlaceNames($department);
+        $groupBranch = [];
+        if ($place !== null && $place->getGroupId() !== null && $place->getGroupId() !== '') {
+            $groupBranch = array_fill_keys(
+                $this->hierarchy->expandWithDescendants($department->getId(), [$place->getGroupId()]),
+                true,
+            );
+        }
+
+        $matched = [];
+        foreach ($this->allEinsatzRows($department) as $row) {
+            if (!$row instanceof DepartmentGrossanlassEinsatz) {
+                continue;
+            }
+            if ($anchor !== null && $row->getId() === $anchor->getId()) {
+                $matched[$row->getId()] = $row;
+                continue;
+            }
+            if ($anchor !== null) {
+                $anchorDest = $anchor->getDestinationPlaceId();
+                if ($anchorDest !== null && $anchorDest !== '' && $row->getDestinationPlaceId() === $anchorDest) {
+                    $matched[$row->getId()] = $row;
+                    continue;
+                }
+            }
+            if ($place !== null && $this->einsatzMatchesPlace($row, $place, $groupBranch)) {
+                $matched[$row->getId()] = $row;
+            }
+        }
+
+        $einsaetze = [];
+        $fahrauftraege = [];
+        $bauauftraege = [];
+        foreach ($matched as $row) {
+            $serialized = $this->serializeHelperEinsatz($department, $user, $row, $groupsById, $destinationPlaceNames);
+            $taskKind = $serialized['task_kind'];
+            if ($taskKind === 'fahrauftrag') {
+                $fahrauftraege[] = $serialized;
+            } elseif ($taskKind === 'bauauftrag') {
+                $bauauftraege[] = $serialized;
+            } else {
+                $einsaetze[] = $serialized;
+            }
+        }
+
+        return [
+            'place' => $place instanceof DepartmentGrossanlassPlace ? $this->places->serialize($place) : null,
+            'einsaetze' => $einsaetze,
+            'fahrauftraege' => $fahrauftraege,
+            'bauauftraege' => $bauauftraege,
+            'cards' => $this->cards->listCards($department),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function updateEinsatz(Department $department, User $user, string $id, array $data): array
     {
-        $this->assertSee($department, $user);
         $row = $this->findEinsatz($department, $id);
+        $this->assertSeeOrOwn($department, $user, $row);
+        $helperOwns = $this->access->canOperateAssignedEinsatz($user, $department, $row)
+            && !$this->access->canSeeMaterialUebersicht($user, $department);
+        if ($helperOwns) {
+            $allowedKeys = ['packed'];
+            foreach (array_keys($data) as $key) {
+                if (!in_array($key, $allowedKeys, true)) {
+                    throw new \RuntimeException('Keine Berechtigung für diese Aktion');
+                }
+            }
+        }
+        if (array_key_exists('commitment_id', $data) || array_key_exists('object_id', $data)) {
+            if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
+                throw new \RuntimeException('Keine Berechtigung für diese Aktion');
+            }
+            $commitmentId = trim((string) ($data['commitment_id'] ?? $data['object_id'] ?? ''));
+            $existing = $row->getCommitment();
+            if ($existing instanceof DepartmentGrossanlassCommitment
+                && $existing->getFamily() !== DepartmentGrossanlassCommitment::FAMILY_VEHICLE
+                && $commitmentId !== ''
+                && $commitmentId !== $existing->getId()
+            ) {
+                throw new \InvalidArgumentException('Dieser Auftrag hat schon Material. Das Fahrzeug entsteht über den Fahrzeugwunsch.');
+            }
+            if ($commitmentId === '') {
+                $row->setCommitment(null);
+            } else {
+                $row->setCommitment($this->findCommitment($department, $commitmentId));
+            }
+        }
         if (array_key_exists('packed', $data) || array_key_exists('pack_phase', $data)) {
-            $this->assertAusgabe($department, $user);
+            if (!$helperOwns) {
+                $this->assertAusgabe($department, $user);
+            }
         }
         if (array_key_exists('trip_released', $data)) {
             $this->access->assertGrossanlassDepartment($department);
@@ -295,6 +469,15 @@ final class GrossanlassUebersichtService
         if (array_key_exists('qty', $data)) {
             $row->setQty((int) $data['qty']);
         }
+        if (array_key_exists('kind', $data)) {
+            $nextKind = (string) $data['kind'];
+            if ($nextKind !== DepartmentGrossanlassEinsatz::KIND_EINSATZ
+                || $row->getKind() !== DepartmentGrossanlassEinsatz::KIND_ORDER
+            ) {
+                throw new \InvalidArgumentException('Nur eine Notiz ohne Zeitraum kann zum Einsatz werden');
+            }
+            $row->setKind(DepartmentGrossanlassEinsatz::KIND_EINSATZ);
+        }
         $fromInput = $data['from'] ?? $data['fromIso'] ?? null;
         $toInput = $data['to'] ?? $data['toIso'] ?? null;
         if ($fromInput !== null || $toInput !== null) {
@@ -315,8 +498,16 @@ final class GrossanlassUebersichtService
         }
         $this->syncPlaceFromPack($row);
         $this->entityManager->flush();
+        $wishLineId = trim((string) $row->getWishLineId());
+        if ($wishLineId !== '' && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+            $this->procurement->syncUncoveredWishDemand($department, $user, $wishLineId);
+        }
 
-        return $this->overview($department, $user);
+        if ($this->access->canSeeMaterialUebersicht($user, $department)) {
+            return $this->overview($department, $user);
+        }
+
+        return $this->myEinsaetze($department, $user);
     }
 
     /**
@@ -623,6 +814,38 @@ final class GrossanlassUebersichtService
             ->getQuery()
             ->getResult();
 
+        $seenWishIds = [];
+        foreach ($lines as $line) {
+            if ($line instanceof ActivityGrossanlassWishLine) {
+                $seenWishIds[] = $line->getId();
+            }
+        }
+        $vehicleQuery = $this->entityManager->getRepository(ActivityGrossanlassWishLine::class)
+            ->createQueryBuilder('w')
+            ->innerJoin('w.round', 'r')
+            ->innerJoin('r.activity', 'a')
+            ->innerJoin('w.group', 'g')
+            ->addSelect('g', 'r')
+            ->where('a.departmentId = :departmentId')
+            ->andWhere('w.status != :discarded')
+            ->andWhere('r.formPurpose != :companyTip')
+            ->andWhere('w.wishKind IN (:vehicleKinds)')
+            ->setParameter('departmentId', $department->getId())
+            ->setParameter('discarded', ActivityGrossanlassWishLine::STATUS_DISCARDED)
+            ->setParameter('companyTip', ActivityGrossanlassRound::PURPOSE_COMPANY_TIP)
+            ->setParameter('vehicleKinds', [
+                ActivityGrossanlassWishLine::KIND_FAHRZEUG,
+                ActivityGrossanlassWishLine::KIND_BEIDES,
+            ])
+            ->orderBy('w.createdAt', 'DESC');
+        if ($seenWishIds !== []) {
+            $vehicleQuery->andWhere('w.id NOT IN (:seenIds)')
+                ->setParameter('seenIds', $seenWishIds);
+        }
+        foreach ($vehicleQuery->getQuery()->getResult() as $line) {
+            $lines[] = $line;
+        }
+
         $lineMap = $this->procurementLineIdByWish($department);
         $out = [];
         foreach ($lines as $line) {
@@ -645,6 +868,7 @@ final class GrossanlassUebersichtService
                 'ressort' => $line->getGroup()->getName(),
                 'group_id' => $line->getGroupId(),
                 'who' => $line->getCreatedByUser()->getProfile()?->getDisplayName() ?? '',
+                'wish_kind' => $line->getWishKind(),
                 'round_id' => $line->getRoundId(),
                 'form_purpose' => $line->getRound()->getFormPurpose(),
                 'last_stage' => $line->getLastStage(),
@@ -750,6 +974,7 @@ final class GrossanlassUebersichtService
             'id' => $row->getId(),
             'kind' => $row->getKind(),
             'object_id' => $row->getCommitmentId() ?? '',
+            'object_family' => $commitment?->getFamily() ?? '',
             'object_name' => $commitment?->getName() ?? $row->getWho(),
             'einsatz_kind' => ($commitment && $commitment->getQuantity() > 1) ? 'quantity' : 'unique',
             'qty' => $row->getQty(),
@@ -860,9 +1085,142 @@ final class GrossanlassUebersichtService
     private function assertSee(Department $department, User $user): void
     {
         $this->access->assertGrossanlassDepartment($department);
-        if (!$this->access->canSeeAnlassOverview($user, $department)) {
+        if (!$this->access->canSeeMaterialUebersicht($user, $department)) {
             throw new \RuntimeException('Keine Berechtigung für die Materialübersicht');
         }
+    }
+
+    private function assertSeeOrOwn(Department $department, User $user, DepartmentGrossanlassEinsatz $row): void
+    {
+        $this->access->assertGrossanlassDepartment($department);
+        if ($this->access->canSeeMaterialUebersicht($user, $department)) {
+            return;
+        }
+        if (!$this->access->canOperateAssignedEinsatz($user, $department, $row)) {
+            throw new \RuntimeException('Keine Berechtigung für diesen Einsatz');
+        }
+    }
+
+    /**
+     * @param array<string, Group> $groupsById
+     * @param array<string, string> $destinationPlaceNames
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeHelperEinsatz(
+        Department $department,
+        User $user,
+        DepartmentGrossanlassEinsatz $row,
+        array $groupsById,
+        array $destinationPlaceNames,
+    ): array {
+        $serialized = $this->serializeEinsatz($row);
+        $destId = $serialized['destination_place_id'];
+        if (is_string($destId) && $destId !== '') {
+            $serialized['destination_place_name'] = $destinationPlaceNames[$destId] ?? '';
+        }
+        $serialized['task_kind'] = $this->resolveHelperTaskKind($row, $groupsById);
+        $serialized['operable'] = $this->access->canOperateAssignedEinsatz($user, $department, $row);
+
+        return $serialized;
+    }
+
+    /**
+     * @return array<string, Group>
+     */
+    private function groupsById(Department $department): array
+    {
+        $groupsById = [];
+        foreach ($this->entityManager->getRepository(Group::class)->findBy(['departmentId' => $department->getId()]) as $group) {
+            if ($group instanceof Group) {
+                $groupsById[$group->getId()] = $group;
+            }
+        }
+
+        return $groupsById;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function destinationPlaceNames(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassPlace::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        $names = [];
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassPlace) {
+                $names[$row->getId()] = $row->getName();
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<DepartmentGrossanlassEinsatz>
+     */
+    private function allEinsatzRows(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassEinsatz::class)
+            ->findBy(['departmentId' => $department->getId()], ['startsAt' => 'ASC']);
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row instanceof DepartmentGrossanlassEinsatz
+                && $row->getKind() === DepartmentGrossanlassEinsatz::KIND_EINSATZ) {
+                $out[] = $row;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string, true> $groupBranch
+     */
+    private function einsatzMatchesPlace(
+        DepartmentGrossanlassEinsatz $row,
+        DepartmentGrossanlassPlace $place,
+        array $groupBranch,
+    ): bool {
+        $destId = $row->getDestinationPlaceId();
+        if ($destId !== null && $destId !== '' && $destId === $place->getId()) {
+            return true;
+        }
+        $groupId = $row->getGroupId();
+        $placeGroupId = $place->getGroupId();
+        if ($groupId === null || $groupId === '' || $placeGroupId === null || $placeGroupId === '') {
+            return false;
+        }
+        if ($groupId === $placeGroupId) {
+            return true;
+        }
+
+        return isset($groupBranch[$groupId]);
+    }
+
+    /**
+     * @param array<string, Group> $groupsById
+     */
+    private function resolveHelperTaskKind(DepartmentGrossanlassEinsatz $row, array $groupsById): string
+    {
+        if ($row->isTrip()) {
+            return 'fahrauftrag';
+        }
+        $groupId = $row->getGroupId();
+        if ($groupId !== null && isset($groupsById[$groupId])) {
+            $group = $groupsById[$groupId];
+            $kind = strtolower(trim((string) ($group->getGrossanlassKind() ?? '')));
+            if ($group->getParentId() !== null && $group->getParentId() !== ''
+                && $kind !== Group::GROSSANLASS_KIND_RESSORT
+                && $kind !== Group::GROSSANLASS_KIND_BEREICH
+                && $kind !== Group::GROSSANLASS_KIND_TEILBEREICH
+            ) {
+                return 'bauauftrag';
+            }
+        }
+
+        return 'einsatz';
     }
 
     private function assertAusgabe(Department $department, User $user): void

@@ -42,7 +42,8 @@ final class MediaCompressionProfile
         return match ($context) {
             MediaStorageService::CONTEXT_MATERIAL_ITEM => self::catalog(),
             MediaStorageService::CONTEXT_WORKSHOP_TICKET,
-            MediaStorageService::CONTEXT_ISSUE_REPORT => self::workshop(),
+            MediaStorageService::CONTEXT_ISSUE_REPORT,
+            MediaStorageService::CONTEXT_GROSSANLASS_MAP => self::workshop(),
             default => self::default(),
         };
     }

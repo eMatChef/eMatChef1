@@ -8,7 +8,12 @@
         class="ga-js__search"
         :label="t('grossanlass.materials.js.search')"
       />
-      <EButton variant="primary" size="small" @click="openAnfragen">
+      <EButton
+        v-if="canOpenAnfragen"
+        variant="primary"
+        size="small"
+        @click="openAnfragen"
+      >
         {{ t('grossanlass.materials.js.openAnfragen') }}
       </EButton>
     </div>
@@ -77,6 +82,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { gaCanWorkMailbox } from '@/utils/grossanlassAccess'
 import { EButton, ESearchField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -92,6 +99,8 @@ const { t } = useI18n()
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const canOpenAnfragen = computed(() => gaCanWorkMailbox(authStore.currentDepartmentRole))
 const query = ref('')
 const loading = ref(false)
 const payload = ref<GaGaestePayload | null>(null)

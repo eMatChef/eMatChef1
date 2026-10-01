@@ -81,15 +81,28 @@
         class="mb-3"
       />
 
-      <ETextField
-        v-else-if="field.system_key === 'quantity'"
-        v-model="local.quantity"
-        type="number"
-        min="1"
-        :label="fieldLabel(field)"
-        hide-details="auto"
-        class="mb-3"
-      />
+      <div v-else-if="field.system_key === 'quantity'" class="wish-qty-row mb-3">
+        <ETextField
+          v-model="local.quantity"
+          type="number"
+          min="1"
+          :label="fieldLabel(field)"
+          hide-details="auto"
+          class="wish-qty-row__amount"
+        />
+        <div class="ga-mat-unit" role="group" :aria-label="t('grossanlass.bauprojekt.materialUnit')">
+          <button
+            v-for="unit in unitOptions"
+            :key="unit"
+            type="button"
+            class="ga-mat-unit__btn"
+            :class="{ 'is-active': local.quantityUnit === unit }"
+            @click="local.quantityUnit = unit"
+          >
+            {{ unit }}
+          </button>
+        </div>
+      </div>
 
       <ETextField
         v-else-if="field.system_key === 'location'"
@@ -271,6 +284,8 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()
+const emit = defineEmits<{ 'project-change': [id: string | null] }>()
+const unitOptions = ['Stk', 'm'] as const
 
 const local = reactive({
   groupMode: 'existing' as 'existing' | 'new',
@@ -281,6 +296,7 @@ const local = reactive({
   wishKind: 'material' as GrossanlassWishKind,
   label: '',
   quantity: '1',
+  quantityUnit: 'Stk',
   location: '',
   notes: '',
 })
@@ -681,6 +697,7 @@ function buildPayload(): CreateGrossanlassWishPayload {
   }
   if (hasSystemField('quantity')) {
     payload.quantity = parseInt(local.quantity, 10) || 0
+    payload.quantity_unit = local.quantityUnit === 'm' ? 'm' : 'Stk'
   }
   if (hasSystemField('location')) {
     payload.location = local.location.trim()
@@ -801,6 +818,8 @@ async function loadFromWish(wish: GrossanlassWishLine) {
 
 function resetAfterSubmit() {
   local.label = ''
+  local.quantity = '1'
+  local.quantityUnit = 'Stk'
   local.location = ''
   local.notes = ''
   customNeedPeriod.value = false
@@ -965,10 +984,51 @@ function applyPhasePeriodToPicker() {
   periodField()?.setRange(range.from, range.to)
 }
 
-defineExpose({ buildPayload, resetAfterSubmit, loadFromWish })
+watch(
+  () => (local.groupMode === 'existing' ? local.groupId : null),
+  (id) => emit('project-change', id),
+  { immediate: true },
+)
+
+function selectExistingProject(id: string) {
+  local.groupMode = 'existing'
+  local.groupId = id
+  const selected = findBauprojekt(id)
+  if (selected) bauprojektSearch.value = selected.name
+}
+
+defineExpose({ buildPayload, resetAfterSubmit, loadFromWish, selectExistingProject })
 </script>
 
 <style scoped>
+.wish-qty-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.wish-qty-row__amount { flex: 1; min-width: 0; }
+.ga-mat-unit {
+  display: flex;
+  height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+.ga-mat-unit__btn {
+  min-width: 48px;
+  border: 0;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0 12px;
+}
+.ga-mat-unit__btn + .ga-mat-unit__btn { border-left: 1px solid #d1d5db; }
+.ga-mat-unit__btn.is-active {
+  background: var(--color-primary, #059669);
+  color: #fff;
+}
 .form-intro {
   margin: 0 0 14px;
   color: #4b5563;

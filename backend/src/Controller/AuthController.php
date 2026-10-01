@@ -19,6 +19,7 @@ use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
+use App\Service\UserEmailAliasService;
 use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
 use App\Service\VerificationEmailService;
@@ -62,6 +63,7 @@ class AuthController extends AbstractController
         private AdminCapabilityChecker $adminCapabilityChecker,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
         private SupplierCompanyAccessService $supplierCompanyAccessService,
+        private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
@@ -315,7 +317,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Ungueltige Sprache'], 400);
         }
 
-        if ($this->profileRepository->findOneBy(['email' => $email])) {
+        if ($this->profileRepository->findOneBy(['email' => $email]) || $this->emailAliases->isEmailTaken($email)) {
             return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits registriert'], 409);
         }
 
@@ -609,6 +611,10 @@ class AuthController extends AbstractController
             if ($existing && $existing->getId() !== $user->getProfileId()) {
                 return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits vergeben'], 409);
             }
+            if ($this->emailAliases->isEmailTaken(strtolower($pendingEmail), $user)) {
+                return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits vergeben'], 409);
+            }
+            $this->emailAliases->releaseAlias($user, strtolower($pendingEmail));
 
             $profile = $user->getProfile();
             if (!$profile) {

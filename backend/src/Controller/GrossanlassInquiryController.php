@@ -5,13 +5,16 @@ namespace App\Controller;
 use App\Entity\Department;
 use App\Entity\User;
 use App\Service\Auth\GoogleOAuthException;
+use App\Entity\DepartmentGrossanlassInquiry;
 use App\Service\Grossanlass\GrossanlassGmailAccountService;
+use App\Service\Grossanlass\GrossanlassInquiryMaterialPdf;
 use App\Service\Grossanlass\GrossanlassInquiryService;
 use App\Service\GroupAccessService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -21,6 +24,7 @@ class GrossanlassInquiryController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GrossanlassInquiryService $inquiries,
+        private GrossanlassInquiryMaterialPdf $materialPdf,
         private GrossanlassGmailAccountService $gmail,
         private GroupAccessService $groupAccess,
     ) {}
@@ -103,8 +107,13 @@ class GrossanlassInquiryController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
         $ids = is_array($data['ids'] ?? null) ? $data['ids'] : [];
+        $manual = ($data['manual'] ?? false) === true;
+        $via = isset($data['via']) ? (string) $data['via'] : null;
 
-        return $this->handle($departmentId, fn (Department $department, User $user) => $this->inquiries->markSent($department, $user, $ids));
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->markSent($department, $user, $ids, $manual, $via !== '' ? $via : null),
+        );
     }
 
     #[Route('/create-drafts', name: 'create_drafts', methods: ['POST'])]
@@ -145,6 +154,44 @@ class GrossanlassInquiryController extends AbstractController
     public function syncGmail(string $departmentId): JsonResponse
     {
         return $this->handle($departmentId, fn (Department $department, User $user) => $this->gmail->syncInbox($department, $user));
+    }
+
+    #[Route('/{inquiryId}/material-pdf', name: 'material_pdf', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function materialPdf(string $departmentId, string $inquiryId): Response
+    {
+        $department = $this->entityManager->getRepository(Department::class)->find($departmentId);
+        if (!$department instanceof Department) {
+            return new JsonResponse(['error' => 'Department nicht gefunden'], 404);
+        }
+        if (!$department->isGrossanlass()) {
+            return new JsonResponse(['error' => 'Kein Grossanlass-Department'], 400);
+        }
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 401);
+        }
+        if (!$this->groupAccess->userHasDepartmentMembership($user->getId(), $departmentId)) {
+            return new JsonResponse(['error' => 'Kein Zugriff auf diese Abteilung'], 403);
+        }
+        $inquiry = $this->entityManager->getRepository(DepartmentGrossanlassInquiry::class)->find($inquiryId);
+        if (!$inquiry instanceof DepartmentGrossanlassInquiry || $inquiry->getDepartmentId() !== $department->getId()) {
+            return new JsonResponse(['error' => 'Anfrage nicht gefunden'], 404);
+        }
+        try {
+            $pdf = $this->materialPdf->attachmentFor($department, $inquiry, null);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], 403);
+        }
+        if ($pdf === null) {
+            return new JsonResponse(['error' => 'Keine Positionen für diese Liste'], 404);
+        }
+        $filename = str_replace(['"', "\r", "\n"], '', $pdf['filename']);
+
+        return new Response($pdf['content'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
     }
 
     #[Route('/{inquiryId}/conversation', name: 'conversation', methods: ['GET'])]
@@ -209,6 +256,18 @@ class GrossanlassInquiryController extends AbstractController
         return $this->handle(
             $departmentId,
             fn (Department $department, User $user) => $this->gmail->createReplyDraft($department, $user, $inquiryId, $kind),
+        );
+    }
+
+    #[Route('/{inquiryId}/channel-note', name: 'channel_note', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function channelNote(string $departmentId, string $inquiryId, Request $request): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        return $this->handle(
+            $departmentId,
+            fn (Department $department, User $user) => $this->inquiries->recordChannelNote($department, $user, $inquiryId, is_array($data) ? $data : []),
         );
     }
 

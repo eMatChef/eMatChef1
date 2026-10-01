@@ -39,6 +39,16 @@
         </v-alert>
 
         <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
+          <v-alert
+            v-if="claimingExistingAccount && inviteEmailLabel"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="login-alert mb-3"
+          >
+            {{ t('login.inviteClaimHint', { email: inviteEmailLabel }) }}
+          </v-alert>
+
           <ETextField
             id="email"
             v-model="email"
@@ -383,7 +393,19 @@
             {{ t('login.registerButton') }}
           </EButton>
 
-          <div class="form-footer">
+          <EButton
+            v-if="inviteFlowActive && inviteEmailLabel"
+            type="button"
+            variant="secondary"
+            block
+            class="btn-submit btn-existing-account"
+            :disabled="isLoading"
+            @click="useExistingAccountForInvite"
+          >
+            {{ t('login.useExistingAccount') }}
+          </EButton>
+
+          <div v-if="!inviteFlowActive" class="form-footer">
             <p class="help-text">
               {{ t('login.haveAccount') }}
               <EButton variant="text" size="small" class="link-btn" :disabled="isLoading" @click="setMode('login')">
@@ -433,6 +455,7 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const mode = ref<'login' | 'register' | 'forgot'>('login')
+const claimingExistingAccount = ref(false)
 const email = ref('')
 const password = ref('')
 const {
@@ -512,11 +535,12 @@ const inviteRedirect = computed(() => {
 })
 const inviteFlowActive = computed(() => !!extractJoinCodeFromPath(inviteRedirect.value || ''))
 const inviteJoinCode = computed(() => extractJoinCodeFromPath(inviteRedirect.value || ''))
-const inviteEmailLocked = computed(() => {
+const inviteEmailLabel = computed(() => {
   const fromQuery = queryParamFirst(route.query.email).trim().toLowerCase()
   const fromRedirect = extractInviteEmailFromPath(inviteRedirect.value || '')
-  return inviteFlowActive.value && (!!fromQuery || !!fromRedirect)
+  return fromQuery || fromRedirect
 })
+const inviteEmailLocked = computed(() => inviteFlowActive.value && !!inviteEmailLabel.value)
 const inviteOrganisationLocked = computed(() => {
   if (mode.value !== 'register' || !inviteFlowActive.value) return false
   const orgId = inviteOrganisationId.value.trim()
@@ -547,6 +571,9 @@ const cardSubtitle = computed(() => {
     return forgotStep.value === 'confirm'
       ? t('login.subtitleForgotConfirm')
       : t('login.subtitleForgotRequest')
+  }
+  if (claimingExistingAccount.value && inviteEmailLabel.value) {
+    return t('login.subtitleLoginInviteClaim', { email: inviteEmailLabel.value })
   }
   return t('login.subtitleLogin')
 })
@@ -954,7 +981,17 @@ function hideRevealedPasswords() {
   hideRegisterPasswordConfirm()
 }
 
+function useExistingAccountForInvite() {
+  claimingExistingAccount.value = true
+  email.value = ''
+  password.value = ''
+  setMode('login')
+}
+
 function setMode(nextMode: 'login' | 'register' | 'forgot') {
+  if (nextMode === 'register') {
+    claimingExistingAccount.value = false
+  }
   const previousMode = mode.value
   mode.value = nextMode
   hideRevealedPasswords()
@@ -1074,6 +1111,7 @@ async function handleRegister() {
     resetRegisterForm()
   } catch (err: any) {
     if (err?.response?.status === 409 && inviteFlowActive.value) {
+      claimingExistingAccount.value = false
       mode.value = 'login'
       email.value = registerEmail.value.trim()
       error.value = t('login.inviteEmailAlreadyRegistered')
@@ -1195,19 +1233,17 @@ watch(
 
 <style scoped>
 .login-page {
-  min-height: calc(100dvh - 36px);
+  min-height: calc(100dvh - var(--emc-dev-system-bar-height, 0px));
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
   background: linear-gradient(160deg, #f1f5f9 0%, #e2e8f0 100%);
   padding: 24px;
+  overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .login-page--register {
-  align-items: flex-start;
-  min-height: calc(100dvh - 36px);
-  height: auto;
-  overflow: visible;
   padding-top: 16px;
   padding-bottom: 24px;
 }
@@ -1215,6 +1251,13 @@ watch(
 .login-container {
   width: 100%;
   max-width: 560px;
+  margin-top: auto;
+  margin-bottom: auto;
+  flex-shrink: 0;
+}
+
+.login-page--register .login-container {
+  margin-top: 0;
 }
 
 .login-header {
@@ -1364,6 +1407,10 @@ watch(
 
 .btn-submit {
   font-size: 18px;
+}
+
+.btn-existing-account {
+  margin-top: 10px;
 }
 
 .login-or-divider {

@@ -82,6 +82,20 @@ class DepartmentGrossanlassInquiry
     #[ORM\Column(name: 'category_ids', type: 'json')]
     private array $categoryIds = [];
 
+    /** @var list<string>|null */
+    #[ORM\Column(name: 'line_ids', type: 'json', nullable: true)]
+    private ?array $lineIds = null;
+
+    #[ORM\Column(name: 'asked_via', type: 'string', length: 16, nullable: true)]
+    private ?string $askedVia = null;
+
+    #[ORM\Column(name: 'asked_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $askedAt = null;
+
+    /** @var list<array{id: string, label: string, quantity: int}>|null */
+    #[ORM\Column(name: 'asked_lines', type: 'json', nullable: true)]
+    private ?array $askedLines = null;
+
     #[ORM\Column(type: 'string', length: 20)]
     private string $status = self::STATUS_ENTWURF;
 
@@ -350,6 +364,66 @@ class DepartmentGrossanlassInquiry
         return $this;
     }
 
+    /**
+     * @return list<string>
+     */
+    public function getLineIds(): array
+    {
+        return array_values($this->lineIds ?? []);
+    }
+
+    /**
+     * @param list<string> $lineIds
+     */
+    public function setLineIds(array $lineIds): self
+    {
+        $this->lineIds = array_values($lineIds);
+
+        return $this;
+    }
+
+    public function getAskedVia(): ?string
+    {
+        return $this->askedVia;
+    }
+
+    public function setAskedVia(?string $askedVia): self
+    {
+        $this->askedVia = $askedVia;
+
+        return $this;
+    }
+
+    public function getAskedAt(): ?\DateTime
+    {
+        return $this->askedAt;
+    }
+
+    public function setAskedAt(?\DateTime $askedAt): self
+    {
+        $this->askedAt = $askedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return list<array{id: string, label: string, quantity: int}>
+     */
+    public function getAskedLines(): array
+    {
+        return array_values($this->askedLines ?? []);
+    }
+
+    /**
+     * @param list<array{id: string, label: string, quantity: int}> $askedLines
+     */
+    public function setAskedLines(array $askedLines): self
+    {
+        $this->askedLines = array_values($askedLines);
+
+        return $this;
+    }
+
     public function isReadyForMail(): bool
     {
         return $this->email !== '' && $this->categoryIds !== [];
@@ -431,6 +505,17 @@ class DepartmentGrossanlassInquiry
     {
         $entry['at'] = $entry['at'] ?? (new \DateTime())->format(\DateTimeInterface::ATOM);
         $this->thread[] = $entry;
+        $this->updatedAt = new \DateTime();
+
+        return $this;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $thread
+     */
+    public function setThread(array $thread): self
+    {
+        $this->thread = array_values($thread);
         $this->updatedAt = new \DateTime();
 
         return $this;

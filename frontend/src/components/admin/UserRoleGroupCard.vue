@@ -1,6 +1,12 @@
 <template>
   <div class="user-role-group" :class="plain ? 'plain' : `frame-${group.frameLevel}`">
     <div class="group-top">
+      <UserAvatarBadge
+        :user="avatarUser"
+        size="sm"
+        :show-tooltip="true"
+        class="group-avatar"
+      />
       <button
         type="button"
         class="group-name"
@@ -42,6 +48,8 @@ import {
   type RoleBadge,
   type UserRoleGroup,
 } from '@/utils/userRoleDisplay'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import { toOverviewAvatarFields } from '@/utils/userOrgScope'
 
 const props = withDefaults(
   defineProps<{
@@ -61,6 +69,8 @@ defineEmits<{
 const { t } = useI18n()
 
 const preferredKind = computed(() => preferredEditKind(props.group))
+
+const avatarUser = computed(() => toOverviewAvatarFields(props.group.user))
 
 const nameEditTitle = computed(() =>
   preferredKind.value === 'global_scope'
@@ -120,6 +130,10 @@ function roleEditTitle(kind: OverviewKind): string {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.35rem;
+}
+
+.group-avatar {
+  flex-shrink: 0;
 }
 
 .group-name {

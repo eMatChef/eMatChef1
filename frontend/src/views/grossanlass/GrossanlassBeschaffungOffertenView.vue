@@ -1,6 +1,14 @@
 <template>
   <div class="beschaffung-offerten">
-    <p class="tab-intro">{{ t('grossanlass.beschaffung.offerten.intro') }}</p>
+    <p class="tab-intro">
+      {{ canManageProcurement ? t('grossanlass.beschaffung.offerten.intro') : t('grossanlass.beschaffung.offerten.introDelegate') }}
+    </p>
+
+    <GrossanlassDirectProcurePanel
+      v-if="!canManageProcurement"
+      :department-id="departmentId()"
+      @created="load"
+    />
 
     <ELoadingState v-if="isLoading" variant="list" :message="t('common.loading')" />
 
@@ -9,7 +17,7 @@
       variant="default"
       icon="mdi-file-document-outline"
       :title="t('grossanlass.beschaffung.offerten.emptyTitle')"
-      :description="t('grossanlass.beschaffung.offerten.emptyDescription')"
+      :description="canManageProcurement ? t('grossanlass.beschaffung.offerten.emptyDescription') : t('grossanlass.beschaffung.offerten.emptyDescriptionDelegate')"
     />
 
     <div v-else class="lines-list">
@@ -28,6 +36,7 @@
             <li v-for="quote in line.quotes" :key="quote.id" class="quote-row" :class="{ 'is-selected': quote.selected }">
               <div>
                 <strong>{{ quote.supplier }}</strong>
+                <span v-if="quoteSource(quote)" class="quote-source">{{ quoteSource(quote) }}</span>
                 <span v-if="quote.supplier_address?.city_line" class="quote-supplier-meta">
                   · {{ quote.supplier_address.city_line }}
                 </span>
@@ -36,7 +45,7 @@
                   · {{ quoteSchedule(quote) }}
                   <span v-if="quoteIsLate(line, quote)" class="quote-late">{{ t('grossanlass.beschaffung.offerten.deliveryLate') }}</span>
                 </span>
-                <p v-if="quote.notes" class="quote-notes">{{ quote.notes }}</p>
+                <p v-if="quoteNoteText(quote)" class="quote-notes">{{ quoteNoteText(quote) }}</p>
                 <a
                   v-if="quote.pdf_url"
                   :href="resolvePdfUrl(quote.pdf_url)"
@@ -49,7 +58,7 @@
               </div>
               <div class="quote-actions">
                 <EButton
-                  v-if="!quote.selected && canEditQuotes(line)"
+                  v-if="!quote.selected && canSelectQuote(line)"
                   variant="primary"
                   size="small"
                   :loading="selectingId === quote.id"
@@ -68,7 +77,7 @@
                     : t('grossanlass.beschaffung.zusagen.viewQuote') }}
                 </EButton>
                 <EButton
-                  v-if="quote.selected"
+                  v-if="quote.selected && canManageProcurement"
                   variant="secondary"
                   size="small"
                   @click="goToOrder(line)"
@@ -133,8 +142,11 @@ import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
 import GrossanlassProcurementQuoteDialog from '@/components/grossanlass/GrossanlassProcurementQuoteDialog.vue'
+import GrossanlassDirectProcurePanel from '@/components/grossanlass/GrossanlassDirectProcurePanel.vue'
 import { EButton } from '@/components/form/base'
 import { resolveMediaPreviewUrl } from '@/api/media'
+import { getGrossanlassGroups } from '@/api/grossanlassGroups'
+import { useGrossanlassProcurementScope } from '@/composables/useGrossanlassProcurementScope'
 import { formatGaDateLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import {
   deleteGrossanlassProcurementQuote,
@@ -160,6 +172,26 @@ const quoteDialogOpen = ref(false)
 const quoteDialogLine = ref<GrossanlassProcurementLine | null>(null)
 const quoteDialogQuote = ref<GrossanlassProcurementQuote | null>(null)
 
+const groups = ref<Awaited<ReturnType<typeof getGrossanlassGroups>>>([])
+const groupsRef = computed(() => groups.value)
+const { canManageProcurement, canEditQuotesForLine, canSelectQuoteForLine } =
+  useGrossanlassProcurementScope(groupsRef)
+
+function quoteSource(quote: GrossanlassProcurementQuote): string {
+  const notes = quote.notes || ''
+  if (notes.startsWith('Vom Telefon')) return t('grossanlass.beschaffung.offerten.fromPhone')
+  if (notes.startsWith('Von der Mail')) return t('grossanlass.beschaffung.offerten.fromMail')
+  return ''
+}
+
+function quoteNoteText(quote: GrossanlassProcurementQuote): string {
+  return (quote.notes || '')
+    .split('\n')
+    .filter((line) => line !== 'Vom Telefon' && line !== 'Von der Mail' && !line.startsWith('anfrage:'))
+    .join('\n')
+    .trim()
+}
+
 function quoteSchedule(quote: GrossanlassProcurementQuote): string {
   const parts: string[] = []
   if (quote.delivery_at) {
@@ -170,6 +202,16 @@ function quoteSchedule(quote: GrossanlassProcurementQuote): string {
   if (quote.lead_days != null) {
     parts.push(t('grossanlass.beschaffung.offerten.leadDaysShort', { count: quote.lead_days }))
   }
+  if (quote.inbound_mode === 'pickup') {
+    parts.push(t('grossanlass.materials.zusage.inboundPickup'))
+  } else if (quote.inbound_mode === 'delivery') {
+    parts.push(t('grossanlass.materials.zusage.inboundDelivery'))
+  }
+  if (quote.return_needed) {
+    parts.push(quote.return_at
+      ? `${t('grossanlass.beschaffung.offerten.returnNeeded')} ${formatGaDateLabel(quote.return_at, locale.value)}`
+      : t('grossanlass.beschaffung.offerten.returnNeeded'))
+  }
   return parts.join(' · ')
 }
 
@@ -179,7 +221,12 @@ function quoteIsLate(line: GrossanlassProcurementLine, quote: GrossanlassProcure
 }
 
 function canEditQuotes(line: GrossanlassProcurementLine): boolean {
-  return line.status !== 'erhalten'
+  if (line.status === 'erhalten') return false
+  return canEditQuotesForLine(line)
+}
+
+function canSelectQuote(line: GrossanlassProcurementLine): boolean {
+  return canSelectQuoteForLine(line)
 }
 
 function resolvePdfUrl(url: string): string {
@@ -210,7 +257,11 @@ async function load() {
   if (!departmentId()) return
   isLoading.value = true
   try {
-    const all = await listGrossanlassProcurementLines(departmentId())
+    groups.value = await getGrossanlassGroups(departmentId())
+    const all = await listGrossanlassProcurementLines(
+      departmentId(),
+      canManageProcurement.value ? undefined : { scope: 'direct' },
+    )
     lines.value = all.filter((l) => l.status !== 'erhalten')
     await nextTick()
     if (focusLineId.value) {
@@ -298,6 +349,15 @@ onMounted(load)
 .quote-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 6px; }
 .quote-row.is-selected { border-color: #93c5fd; background: #eff6ff; }
 .quote-amount { margin-left: 8px; font-weight: 600; }
+.quote-source {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0e7490;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
 .quote-schedule { font-size: 0.78rem; color: #475569; }
 .quote-schedule.is-late { color: #b45309; font-weight: 600; }
 .quote-late { margin-left: 4px; font-size: 0.72rem; }

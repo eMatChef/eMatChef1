@@ -108,7 +108,7 @@
                 </p>
                 <div class="loan-card__actions">
                   <EButton
-                    v-if="row.status === 'offered'"
+                    v-if="canManageGuests && row.status === 'offered'"
                     variant="primary"
                     size="small"
                     @click="acceptLoan(row.id)"
@@ -138,7 +138,7 @@
 
     <template v-else-if="view === 'sale'">
       <p class="section-hint">{{ t('grossanlass.materials.gaeste.saleHint') }}</p>
-      <div class="sale-form">
+      <div v-if="canManageGuests" class="sale-form">
         <ESelect
           v-model="saleGuestId"
           :label="t('grossanlass.materials.gaeste.saleGuest')"
@@ -200,6 +200,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
+import { gaCanManagePlanung } from '@/utils/grossanlassAccess'
 import { EButton, ESearchField, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -221,6 +223,8 @@ type GaesteView = 'bestand' | 'loan' | 'sale'
 
 const { t } = useI18n()
 const toast = useToast()
+const authStore = useAuthStore()
+const canManageGuests = computed(() => gaCanManagePlanung(authStore.currentDepartmentRole))
 
 function tr(key: string, values?: Record<string, string | number>): string {
   return values ? String(t(key, values)) : String(t(key))

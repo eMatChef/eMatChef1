@@ -75,7 +75,7 @@ export function navigateToAppGrossanlassCards(
   router: Router,
   departmentId: string,
 ): void {
-  const path = `/${departmentId}/einstellungen/karten`
+  const path = `/${departmentId}/settings/user-karten`
   const linkOrigin = resolvePublicLinkOrigin()
 
   if (linkOrigin && isQrPublicHost()) {

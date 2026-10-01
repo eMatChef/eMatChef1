@@ -75,3 +75,28 @@ export function resolveUserCardPublicUrl(
   if (fromApi) return fromApi
   return buildUserCardPublicUrl(String(publicCode || ''))
 }
+
+/** Öffentliche GA-Ort-Ansicht (`/i/ga/{code}`) auf dem QR-Host. */
+export function buildGaPlacePublicUrl(placeCode: string): string {
+  const code = String(placeCode || '').trim()
+  if (!code) return ''
+  return `${resolvePublicQrOrigin()}/i/ga/${encodeURIComponent(code)}`
+}
+
+export function resolveGaPlacePublicUrl(
+  qrUrl: string | null | undefined,
+  publicCode: string | null | undefined,
+): string {
+  const code = String(publicCode || '').trim()
+  if (code) return buildGaPlacePublicUrl(code)
+  const fromApi = String(qrUrl || '').trim()
+  if (!fromApi) return ''
+  try {
+    const path = new URL(fromApi, 'https://qr.ematchef.ch').pathname
+    const match = path.match(/\/i\/(?:ga|p)\/([^/]+)/i)
+    if (match?.[1]) return buildGaPlacePublicUrl(match[1])
+  } catch {
+    /* relative or invalid URL */
+  }
+  return fromApi
+}

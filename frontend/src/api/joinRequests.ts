@@ -140,6 +140,7 @@ export interface ReceivedDepartmentInvitesResponse {
   count: number
   unread_count: number
   items: ReceivedUserInboxNotification[]
+  repaired_memberships?: Array<{ department_id: string; department_name: string }>
 }
 
 export interface CreateJoinRequestResponse {

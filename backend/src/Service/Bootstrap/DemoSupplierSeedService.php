@@ -6,6 +6,7 @@ namespace App\Service\Bootstrap;
 
 use App\Command\CreateRoleUsersCommand;
 use App\Entity\Profile;
+use App\Util\DemoUserNames;
 use App\Entity\SupplierCompany;
 use App\Entity\SupplierMembership;
 use App\Entity\User;
@@ -50,9 +51,9 @@ final class DemoSupplierSeedService
             $profile->setEmail(self::EMAIL);
             $this->entityManager->persist($profile);
         }
-        $profile->setFirstName('Supplier');
-        $profile->setLastName('User');
-        $profile->setNickname('Supplier');
+        $profile->setFirstName(DemoUserNames::firstNameForEmail(self::EMAIL));
+        $profile->setLastName('Lieferant');
+        $profile->setNickname(DemoUserNames::firstNameForEmail(self::EMAIL));
         $profile->setRoles(['ROLE_USER']);
 
         $user = $this->entityManager->getRepository(User::class)->findOneBy(['profileId' => $profile->getId()]);

@@ -12,13 +12,17 @@ import {
   getDeptRoleColor,
   getDeptRoleShort,
   hasGlobalAdminPrivilege,
+  normalizeDeptRole,
 } from '@/utils/departmentMemberRoles'
 
 /**
  * Zentrale Mitglieder-Verwaltung: Rechte, Entfernen mit Warnung, Rollen-Labels.
  * Nutzen: Benutzer-Tabelle, Ressorts-Mitglieder, Detail-Dialog.
  */
-export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>) {
+export function useDepartmentMemberAdmin(
+  departmentId: MaybeRefOrGetter<string>,
+  isGrossanlassOverride?: MaybeRefOrGetter<boolean | null | undefined>,
+) {
   const { t } = useI18n()
   const authStore = useAuthStore()
   const toast = useToast()
@@ -29,7 +33,12 @@ export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>)
 
   const isGlobalAdmin = computed(() => hasGlobalAdminPrivilege(authStore.userRoles || []))
 
-  const isGrossanlass = computed(() => authStore.isDepartmentGrossanlass(deptId.value))
+  const isGrossanlass = computed(() => {
+    const forced = toValue(isGrossanlassOverride)
+    if (forced === true) return true
+    if (forced === false) return false
+    return authStore.isDepartmentGrossanlass(deptId.value)
+  })
 
   function canManageMember(member: Pick<DepartmentMember, 'user_id' | 'role'>): boolean {
     return canManageDepartmentMember({
@@ -58,11 +67,24 @@ export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>)
   }
 
   const editRoleSelectItems = computed(() =>
-    Object.entries(assignableRoles.value).map(([key, cfg]) => ({
-      title: `${cfg?.short ?? key} – ${getRoleLabel(key)}`,
+    Object.entries(assignableRoles.value).map(([key]) => ({
+      title: `${getDeptRoleShort(key, isGrossanlass.value)} – ${getRoleLabel(key)}`,
       value: key,
     })),
   )
+
+  /** Zuweisbare Rollen plus aktuelle Rolle, damit das Select den Stand immer anzeigt. */
+  function roleSelectItemsFor(currentRole?: string | null) {
+    const items = [...editRoleSelectItems.value]
+    const current = currentRole ? normalizeDeptRole(currentRole) : ''
+    if (current && !items.some((item) => item.value === current)) {
+      items.unshift({
+        title: `${getDeptRoleShort(current, isGrossanlass.value)} – ${getRoleLabel(current)}`,
+        value: current,
+      })
+    }
+    return items
+  }
 
   async function removeFromDepartment(member: DepartmentMember): Promise<boolean> {
     if (!canManageMember(member)) {
@@ -95,6 +117,7 @@ export function useDepartmentMemberAdmin(departmentId: MaybeRefOrGetter<string>)
     canManageMember,
     assignableRoles,
     editRoleSelectItems,
+    roleSelectItemsFor,
     getRoleLabel,
     getRoleColor: getDeptRoleColor,
     getRoleShort: (role: string) => getDeptRoleShort(role, isGrossanlass.value),

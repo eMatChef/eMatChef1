@@ -6,6 +6,7 @@ export type GaUebersichtEinsatz = {
   id: string
   kind: 'einsatz' | 'order'
   object_id: string
+  object_family?: string
   object_name: string
   einsatz_kind: 'unique' | 'quantity'
   qty: number
@@ -25,9 +26,12 @@ export type GaUebersichtEinsatz = {
   trip_released: boolean
   trip_released_at: string | null
   destination_place_id: string | null
+  destination_place_name?: string
   packs?: GaLogisticsPack[]
   bar_role: 'einsatz'
   conflict_id?: string
+  task_kind?: 'einsatz' | 'fahrauftrag' | 'bauauftrag'
+  operable?: boolean
 }
 
 export type GaUebersichtConflict = {
@@ -85,6 +89,7 @@ export type GaUebersichtWish = {
   ressort: string
   group_id: string
   who: string
+  wish_kind?: 'material' | 'fahrzeug' | 'beides' | string
   round_id?: string
   form_purpose?: string
   last_stage?: 'grob' | 'fein' | string
@@ -114,6 +119,17 @@ export type GaSubmitBoard = {
   places: GaPlace[]
   einsaetze: GaUebersichtEinsatz[]
   cards: GrossanlassUserCard[]
+}
+
+export type GaMyEinsaetzePayload = {
+  einsaetze: GaUebersichtEinsatz[]
+  fahrauftraege: GaUebersichtEinsatz[]
+  bauauftraege: GaUebersichtEinsatz[]
+  cards: GrossanlassUserCard[]
+}
+
+export type GaHelperScanContextPayload = GaMyEinsaetzePayload & {
+  place: GaPlace | null
 }
 
 export type GaUebersichtCreatePayload = {
@@ -160,6 +176,24 @@ export async function getGrossanlassSubmitBoard(departmentId: string): Promise<G
   return response.data
 }
 
+export async function getGrossanlassMyEinsaetze(departmentId: string): Promise<GaMyEinsaetzePayload> {
+  const response = await apiClient.get<GaMyEinsaetzePayload>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/meine-einsaetze`,
+  )
+  return response.data
+}
+
+export async function getGrossanlassHelperScanContext(
+  departmentId: string,
+  params: { placeId?: string; einsatzId?: string },
+): Promise<GaHelperScanContextPayload> {
+  const response = await apiClient.get<GaHelperScanContextPayload>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/scan-context`,
+    { params: { place_id: params.placeId, einsatz_id: params.einsatzId } },
+  )
+  return response.data
+}
+
 export async function updateGrossanlassEinsatz(
   departmentId: string,
   id: string,
@@ -171,12 +205,14 @@ export async function updateGrossanlassEinsatz(
     trip_released?: boolean
     chauffeur_user_id?: string | null
     destination_place_id?: string | null
+    commitment_id?: string | null
     from?: string
     to?: string
     qty?: number
+    kind?: 'einsatz'
   },
-): Promise<GaUebersichtPayload> {
-  const response = await apiClient.patch<GaUebersichtPayload>(
+): Promise<GaUebersichtPayload | GaMyEinsaetzePayload> {
+  const response = await apiClient.patch<GaUebersichtPayload | GaMyEinsaetzePayload>(
     `/api/departments/${departmentId}/grossanlass/uebersicht/einsaetze/${id}`,
     data,
   )

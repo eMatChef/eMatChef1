@@ -15,6 +15,10 @@ parameters:
     env(GOOGLE_OAUTH_CLIENT_SECRET): ''
     env(GOOGLE_OAUTH_REDIRECT_URI): ''
     env(GOOGLE_GMAIL_REDIRECT_URI): ''
+    env(MICROSOFT_OAUTH_CLIENT_ID): ''
+    env(MICROSOFT_OAUTH_CLIENT_SECRET): ''
+    env(MICROSOFT_OAUTH_TENANT): 'common'
+    env(MICROSOFT_OUTLOOK_REDIRECT_URI): ''
     # Sprachen: de|fr|it|en|ch-rm = Hauptsprachen; de|fr|it × pfadi|cevi|jubla = Org-Deltas — siehe docs/TRANSLATION.md
     app.supported_languages: ['de', 'de-pfadi', 'de-cevi', 'de-jubla', 'en', 'fr', 'fr-pfadi', 'fr-cevi', 'fr-jubla', 'it', 'it-pfadi', 'it-cevi', 'it-jubla', 'ch-rm']
     app.default_language: 'de'

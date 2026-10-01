@@ -198,6 +198,7 @@ import GrossanlassArticleEinsatzPanel from '@/views/grossanlass/GrossanlassArtic
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
 } from '@/views/grossanlass/GrossanlassEinsatzBookPreviewDialog.vue'
+import { gaBestandListPath } from '@/views/grossanlass/gaBestandPaths'
 import '@/styles/materials-view.css'
 
 defineOptions({ name: 'GrossanlassMaterialsPreviewDetail' })
@@ -438,16 +439,15 @@ async function addService() {
 }
 
 function listPath(tab: string): string {
-  const id = departmentId.value
-  if (tab === 'eigen' || tab === 'leihweise') {
-    return `/${id}/materialien/${tab}`
-  }
-  if (tab === 'fahrzeuge') return `/${id}/materialien/eigen?family=vehicle`
-  if (tab === 'wareneingang') return `/${id}/material-uebersicht/wareneingang`
-  return `/${id}/material-uebersicht`
+  return gaBestandListPath(departmentId.value, tab)
 }
 
 function goBack() {
+  const id = departmentId.value
+  if (route.name === 'GrossanlassFahrzeugArtikel' || String(route.query.from || '') === 'fahrzeuge') {
+    void router.push(`/${id}/fahrzeuge`)
+    return
+  }
   const from = String(route.query.from || '') as GaMaterialsTabId | ''
   void router.push(listPath(from))
 }

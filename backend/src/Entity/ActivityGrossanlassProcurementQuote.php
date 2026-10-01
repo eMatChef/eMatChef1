@@ -45,6 +45,16 @@ class ActivityGrossanlassProcurementQuote
     #[ORM\Column(name: 'lead_days', type: 'integer', nullable: true)]
     private ?int $leadDays = null;
 
+    /** pickup = wir holen ab, delivery = Firma bringt es. */
+    #[ORM\Column(name: 'inbound_mode', type: 'string', length: 16, nullable: true)]
+    private ?string $inboundMode = null;
+
+    #[ORM\Column(name: 'return_needed', type: 'boolean', options: ['default' => false])]
+    private bool $returnNeeded = false;
+
+    #[ORM\Column(name: 'return_at', type: 'datetime', nullable: true)]
+    private ?\DateTime $returnAt = null;
+
     #[ORM\Column(type: 'boolean')]
     private bool $selected = false;
 
@@ -176,6 +186,42 @@ class ActivityGrossanlassProcurementQuote
     public function setLeadDays(?int $leadDays): self
     {
         $this->leadDays = $leadDays;
+
+        return $this;
+    }
+
+    public function getInboundMode(): ?string
+    {
+        return $this->inboundMode;
+    }
+
+    public function setInboundMode(?string $inboundMode): self
+    {
+        $this->inboundMode = $inboundMode;
+
+        return $this;
+    }
+
+    public function isReturnNeeded(): bool
+    {
+        return $this->returnNeeded;
+    }
+
+    public function setReturnNeeded(bool $returnNeeded): self
+    {
+        $this->returnNeeded = $returnNeeded;
+
+        return $this;
+    }
+
+    public function getReturnAt(): ?\DateTime
+    {
+        return $this->returnAt;
+    }
+
+    public function setReturnAt(?\DateTime $returnAt): self
+    {
+        $this->returnAt = $returnAt;
 
         return $this;
     }

@@ -16,6 +16,7 @@ final class GrossanlassAccessRoles
         return match ($value) {
             'matwart' => 'mw',
             'depchef' => 'dc',
+            'bereichsleitung' => 'bl',
             default => $value,
         };
     }
@@ -73,6 +74,18 @@ final class GrossanlassAccessRoles
         return self::isOneOf($role, ['mw', 'cmw', 'dc']);
     }
 
+    /** Ressorts/Bauprojekte und Mitglieder anlassweit — nicht Planung/Postfach. */
+    public static function canManageStruktur(string $role): bool
+    {
+        return self::isOneOf($role, ['mw', 'cmw', 'dc']);
+    }
+
+    /** Standard-Mailtexte lesen: Postfach oder OK-Überblick. */
+    public static function canSeeMailSettings(string $role): bool
+    {
+        return self::canWorkMailbox($role) || self::canSeeAnlassOverview($role);
+    }
+
     public static function canOperateAusgabe(string $role): bool
     {
         return self::isOneOf($role, ['mw', 'cmw']);
@@ -83,7 +96,13 @@ final class GrossanlassAccessRoles
         return self::isOneOf($role, ['mw', 'cmw']);
     }
 
-    /** MW/CMW/OK-L reichen Einsatz direkt frei; Leader nur einreichen (pending). */
+    /** Bereichsleitung: Systemrolle `bl`, nicht der Leader-Stern. */
+    public static function isBereichsleitung(string $role): bool
+    {
+        return self::normalize($role) === 'bl';
+    }
+
+    /** MW/CMW/OK legen geplant an. Bereichsleitung reicht ein (pending). */
     public static function submitsEinsatzDirectlyFree(string $role): bool
     {
         return self::isOneOf($role, ['mw', 'cmw', 'dc']);

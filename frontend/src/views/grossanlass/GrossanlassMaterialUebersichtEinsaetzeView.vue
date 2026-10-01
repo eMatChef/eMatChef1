@@ -1,7 +1,5 @@
 <template>
   <div class="ga-preview-page">
-    <p class="ga-preview-intro">{{ t('grossanlass.materialUebersicht.einsaetzeIntro') }}</p>
-
     <section v-if="pendingRows.length && canApproveEinsatz" class="ga-approval-queue">
       <h3>{{ t('grossanlass.materialUebersicht.approvalQueueTitle') }}</h3>
       <ul>
@@ -22,34 +20,59 @@
       </ul>
     </section>
 
-    <ul v-if="orders.length" class="wish-book__orders">
-      <li v-for="order in orders" :key="order.id">
-        <strong>{{ order.object_name }}</strong>
-        <span>{{ t('grossanlass.materialUebersicht.qty', { n: order.qty }) }} · {{ order.ressort }}</span>
-        <em>{{ t('grossanlass.materialUebersicht.orderNoted') }}</em>
-      </li>
-    </ul>
+    <v-expansion-panels
+      v-if="unscheduledJobs.length"
+      v-model="unscheduledOpen"
+      class="e-accordions unscheduled"
+    >
+      <v-expansion-panel value="open">
+        <v-expansion-panel-title>
+          {{ t('grossanlass.planung.unscheduledTitle', { n: unscheduledJobs.length }) }}
+        </v-expansion-panel-title>
+        <v-expansion-panel-text>
+          <p class="unscheduled__hint">{{ t('grossanlass.planung.unscheduledHint') }}</p>
+          <ul class="unscheduled__list">
+            <li v-for="job in unscheduledJobs" :key="job.id">
+              <button type="button" class="unscheduled__row" @click="openAuftrag(job)">
+                <strong>{{ job.name }}</strong>
+                <span v-if="parentName(job)" class="unscheduled__meta">{{ parentName(job) }}</span>
+              </button>
+              <EButton variant="secondary" size="x-small" @click="openAuftrag(job)">
+                {{ t('grossanlass.planung.openAuftrag') }}
+              </EButton>
+            </li>
+          </ul>
+        </v-expansion-panel-text>
+      </v-expansion-panel>
+    </v-expansion-panels>
 
-    <p v-if="tripsOnly" class="ga-trips-filter-hint">{{ t('grossanlass.materialUebersicht.tripsFilterHint') }}</p>
+    <v-tabs v-model="calendarMode" class="materials-view-tabs einsatz-view-tabs" color="primary">
+      <v-tab value="gantt">{{ t('grossanlass.planung.calTabGantt') }}</v-tab>
+      <v-tab value="calendar">{{ t('grossanlass.planung.calTabCalendar') }}</v-tab>
+    </v-tabs>
 
-    <GrossanlassFahrauftragList
-      v-if="tripRows.length"
-      :rows="tripRows"
-      :busy-id="busyTripId"
-      :can-start-trip="canStartTrip"
-      @toggle-packed="onTogglePacked"
-      @release="onReleaseTrip"
-      @issue="onIssueTrip"
+    <GrossanlassEinsatzProgrammCalendar
+      v-if="calendarMode === 'calendar'"
+      :department-id="String(route.params.departmentId || '')"
+      :groups="groups"
+      :trips="calendarTrips"
+      :vehicles="calendarVehicles"
+      @open="openCalendarBlock"
     />
 
-    <ELoadingState v-if="uebersicht.loading.value" variant="inline" :message="t('common.loading')" />
+    <ELoadingState v-else-if="uebersicht.loading.value" variant="inline" :message="t('common.loading')" />
     <GrossanlassEinsatzPreviewPanel
-      v-else-if="resources.length || displayRows.length"
+      v-else-if="resources.length || displayRows.length || groups.length"
+      show-create
       :rows="displayRows"
       :resources="resources"
       :groups="groups"
       :focus-iso="calendarFocusIso"
       :focus-object-id="calendarFocusObjectId"
+      :reload-key="belegungReload"
+      @create="createOpen = true"
+      @open-project="openProjectFromBelegung"
+      @edit-window="openWindowFromBelegung"
     />
     <EEmptyState
       v-else
@@ -68,26 +91,82 @@
       :chauffeurs="chauffeurs"
       :places="places"
       :groups="groups"
+      :preset-wish-id="presetWishId"
+      :preset-group-id="presetGroupId"
+      :preset-place-id="presetPlaceId"
       :default-scope="bookDefaultScope"
       @confirm="onConfirm"
       @confirm-many="onConfirmMany"
       @order="onOrder"
       @place-created="uebersicht.addPlace"
     />
+
+    <EDialog
+      v-model="showProject"
+      :max-width="1400"
+      :title="projectTitle"
+      :retain-focus="false"
+      :before-close="() => bauprojektPanelRef?.confirmClose() ?? true"
+      highlight-outside
+    >
+      <GrossanlassBauprojektPanel
+        v-if="projectGroup"
+        ref="bauprojektPanelRef"
+        :department-id="String(route.params.departmentId || '')"
+        :group-id="projectGroup.id"
+        :initial-open="projectSections"
+        @meta-saved="onProjectMetaSaved"
+      />
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="closeBauprojekt">
+          {{ t('settings.groups.close') }}
+        </EButton>
+      </template>
+    </EDialog>
+
+    <GrossanlassHelperAssignmentDetailDialog
+      v-model="tripDetailOpen"
+      :assignment="tripAssignment"
+      :cards="tripCards"
+      :can-toggle-packed="false"
+    />
+
+    <EDialog
+      v-model="createOpen"
+      :title="t('grossanlass.planung.createEntryTitle')"
+      max-width="420"
+    >
+      <div class="create-choices">
+        <EButton variant="secondary" @click="createKind('einsatz')">
+          {{ t('grossanlass.planung.createEntryEinsatz') }}
+        </EButton>
+        <EButton variant="secondary" @click="createKind('bau')">
+          {{ t('grossanlass.planung.createEntryBau') }}
+        </EButton>
+        <EButton variant="secondary" @click="createKind('transport')">
+          {{ t('grossanlass.planung.createEntryTransport') }}
+        </EButton>
+      </div>
+    </EDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { EButton } from '@/components/form/base'
+import { EButton, EDialog } from '@/components/form/base'
 import { gaCanApproveEinsatz, gaIsMaterialwart } from '@/utils/grossanlassAccess'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import GrossanlassEinsatzPreviewPanel from '@/views/grossanlass/GrossanlassEinsatzPreviewPanel.vue'
-import GrossanlassFahrauftragList from '@/views/grossanlass/GrossanlassFahrauftragList.vue'
+import GrossanlassEinsatzProgrammCalendar from '@/views/grossanlass/GrossanlassEinsatzProgrammCalendar.vue'
+import GrossanlassBauprojektPanel from '@/components/grossanlass/GrossanlassBauprojektPanel.vue'
+import { useBauprojektPanelClose } from '@/composables/useBauprojektPanelClose'
+import GrossanlassHelperAssignmentDetailDialog from '@/views/grossanlass/GrossanlassHelperAssignmentDetailDialog.vue'
+import { groupsToOrgGroups, toHelperAssignment, type GaHelperAssignment } from '@/views/grossanlass/grossanlassHelperAssignment'
+import '@/styles/views/materials-view-tabs.css'
 import GrossanlassEinsatzBookPreviewDialog, {
   type GaBookPreviewDraft,
   type GaBookPreviewMode,
@@ -104,6 +183,7 @@ import type { GaUebersichtCreatePayload } from '@/api/grossanlassUebersicht'
 
 const { t, locale } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const { articles } = useGaCommitmentCatalog()
@@ -131,18 +211,11 @@ const freePicks = computed(() =>
     }),
 )
 const wishes = computed(() => uebersicht.wishTemplates.value)
-const orders = computed(() => uebersicht.data.value?.orders ?? [])
 const occupancy = computed(() => zusageOccupancyBars(articles.value, tr, locale.value))
-const tripsOnly = computed(() => String(route.query.delivery || '') === 'trip')
-const tripRows = computed(() =>
-  uebersicht.bookingRows().filter(
-    (row) => row.delivery === 'trip' && row.status !== 'returned',
-  ),
-)
-const displayRows = computed(() => {
-  if (tripsOnly.value) return tripRows.value
-  return [...uebersicht.bookingRows(), ...occupancy.value]
-})
+const unscheduledOpen = ref<string | undefined>('open')
+const createOpen = ref(false)
+const calendarMode = ref<'gantt' | 'calendar'>('gantt')
+const displayRows = computed(() => [...uebersicht.bookingRows(), ...occupancy.value])
 const pendingRows = computed(() =>
   uebersicht.bookingRows().filter((row) => row.status === 'pending_approval'),
 )
@@ -161,13 +234,97 @@ const chauffeurs = computed(() =>
 )
 const places = computed(() => uebersicht.data.value?.places ?? [])
 
-function canStartTrip(row: GaPreviewEinsatz): boolean {
-  if (!row.destinationPlaceId || !row.chauffeurUserId) return false
-  const card = (uebersicht.data.value?.cards ?? []).find((item) => item.user_id === row.chauffeurUserId)
-  return !!card?.may_drive
+const groups = ref<GrossanlassGroup[]>([])
+const vehicleIds = computed(() => new Set(
+  articles.value.filter((article) => article.family === 'vehicle').map((article) => article.id),
+))
+const calendarVehicles = computed(() =>
+  articles.value
+    .filter((article) => article.family === 'vehicle')
+    .map((article) => ({
+      id: article.id,
+      name: article.name,
+      from: article.presentFromIso || '',
+      to: article.presentToIso || article.presentFromIso || '',
+    })),
+)
+const calendarTrips = computed(() =>
+  (uebersicht.data.value?.einsaetze ?? [])
+    .filter((row) => row.task_kind === 'fahrauftrag' || row.delivery === 'trip')
+    .map((row) => ({
+      id: row.id,
+      name: row.object_name || row.who || '',
+      detail: row.destination_place_name || row.who || '',
+      from: row.from,
+      to: row.to,
+      groupId: row.group_id,
+      vehicle: !!row.object_id && vehicleIds.value.has(row.object_id),
+    })),
+)
+const unscheduledJobs = computed(() =>
+  groups.value.filter((group) =>
+    group.node_type === 'bauprojekt' && !group.window_start && !group.window_end,
+  ),
+)
+
+function parentName(job: GrossanlassGroup): string {
+  if (!job.parent_id) return ''
+  return groups.value.find((group) => group.id === job.parent_id)?.name || ''
 }
 
-const groups = ref<GrossanlassGroup[]>([])
+const showProject = ref(false)
+const { panelRef: bauprojektPanelRef, requestClose: closeBauprojekt } = useBauprojektPanelClose(showProject)
+const belegungReload = ref(0)
+const projectGroup = ref<GrossanlassGroup | null>(null)
+const projectSections = ref<string[]>(['material', 'tasks'])
+const tripDetailOpen = ref(false)
+const tripAssignment = ref<GaHelperAssignment | null>(null)
+const tripCards = computed(() => uebersicht.data.value?.cards ?? [])
+const projectTitle = computed(() => {
+  const group = projectGroup.value
+  if (!group) return t('grossanlass.planung.ressorts.openProject')
+  if (group.node_type === 'unterressort') {
+    return t('grossanlass.planung.ressorts.bereichTitle', { name: group.name })
+  }
+  return t('grossanlass.planung.ressorts.projectTitle', { name: group.name })
+})
+
+function openProjectFromBelegung(id: string) {
+  projectSections.value = ['material', 'tasks']
+  openCalendarBlock({ kind: 'bau', id })
+}
+
+function openWindowFromBelegung(id: string) {
+  projectSections.value = ['window']
+  openCalendarBlock({ kind: 'bau', id })
+}
+
+function openCalendarBlock(payload: { kind: 'bau' | 'fahrt'; id: string }) {
+  if (payload.kind === 'fahrt') {
+    const row = (uebersicht.data.value?.einsaetze ?? []).find((item) => item.id === payload.id)
+    if (!row) return
+    tripAssignment.value = toHelperAssignment(row, locale.value, 'fahrauftrag', groupsToOrgGroups(groups.value))
+    tripDetailOpen.value = true
+    return
+  }
+  const group = groups.value.find((item) => item.id === payload.id)
+  if (!group) return
+  projectGroup.value = group
+  showProject.value = true
+}
+
+function onProjectMetaSaved(group: { id: string; window_start?: string | null; window_end?: string | null; build_status?: string | null }) {
+  groups.value = groups.value.map((row) => (row.id === group.id ? { ...row, ...group } : row))
+  if (projectGroup.value?.id === group.id) {
+    projectGroup.value = { ...projectGroup.value, ...group }
+  }
+}
+
+function openAuftrag(job: GrossanlassGroup) {
+  const id = String(route.params.departmentId || '')
+  if (!id) return
+  void router.push(`/${id}/planung/bauauftraege?project=${job.id}`)
+}
 const mode = ref<GaBookPreviewMode>('einsatz')
 const dialogOpen = ref(false)
 const draft = ref<GaBookPreviewDraft | null>(null)
@@ -175,6 +332,24 @@ const calendarFocusIso = ref<string | null>(null)
 const calendarFocusObjectId = ref<string | null>(null)
 const bookDefaultScope = computed(() =>
   gaIsMaterialwart(authStore.currentDepartmentRole) ? 'single' : 'project',
+)
+const presetWishId = computed(() => String(route.query.wish || '') || null)
+const presetGroupId = computed(() => String(route.query.group || '') || null)
+const presetPlaceId = computed(() => String(route.query.place || '') || null)
+
+watch(
+  [() => uebersicht.loading.value, presetWishId, presetGroupId, () => String(route.query.book || '')],
+  ([loading]) => {
+    if (loading || dialogOpen.value) return
+    const book = String(route.query.book || '') === '1'
+    if (!presetWishId.value && !presetGroupId.value && !book) return
+    mode.value = 'einsatz'
+    dialogOpen.value = true
+    if (book) {
+      const { book: _removed, ...rest } = route.query
+      void router.replace({ query: rest })
+    }
+  },
 )
 
 function revealEinsatz(fromIso?: string, objectId?: string) {
@@ -209,15 +384,43 @@ function openModal(next: GaBookPreviewMode) {
   dialogOpen.value = true
 }
 
+function createKind(kind: 'einsatz' | 'bau' | 'transport') {
+  createOpen.value = false
+  const id = String(route.params.departmentId || '')
+  if (kind === 'einsatz') {
+    openModal('einsatz')
+    return
+  }
+  if (!id) return
+  void router.push(`/${id}/planung/${kind === 'bau' ? 'bauauftraege' : 'transporte'}?create=1`)
+}
+
 const composer = inject(gaEinsatzComposerKey, null)
+async function softReloadBelegung() {
+  const dept = String(route.params.departmentId || '')
+  await uebersicht.load({ silent: true }).catch(() => {})
+  if (!dept) return
+  const rows = await getGrossanlassGroups(dept).catch(() => null)
+  if (rows) groups.value = rows
+  belegungReload.value += 1
+}
+
+let belegungTimer = 0
 onMounted(() => {
   if (composer) composer.open = openModal
   const dept = String(route.params.departmentId || '')
-  if (!dept) return
-  void getGrossanlassGroups(dept).then((rows) => { groups.value = rows }).catch(() => { groups.value = [] })
+  if (dept) {
+    void getGrossanlassGroups(dept).then((rows) => { groups.value = rows }).catch(() => { groups.value = [] })
+  }
+  belegungTimer = window.setInterval(() => { void softReloadBelegung() }, 15000)
 })
 onBeforeUnmount(() => {
   if (composer) composer.open = () => {}
+  if (belegungTimer) window.clearInterval(belegungTimer)
+})
+
+watch(showProject, (open) => {
+  if (!open) void softReloadBelegung()
 })
 
 async function onConfirm(current: GaBookPreviewDraft) {
@@ -276,20 +479,6 @@ async function withTrip(row: GaPreviewEinsatz, fn: () => Promise<void>) {
   }
 }
 
-async function onTogglePacked(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.updateEinsatz(row.id, { packed: !row.packed }))
-}
-
-async function onReleaseTrip(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.updateEinsatz(row.id, { trip_released: true }))
-  toast.success(t('grossanlass.materialUebersicht.tripsReleasedToast'))
-}
-
-async function onIssueTrip(row: GaPreviewEinsatz) {
-  await withTrip(row, () => uebersicht.issue(row.id, row.chauffeurUserId || undefined))
-  toast.success(t('grossanlass.materialUebersicht.tripsIssuedToast'))
-}
-
 async function onApproveEinsatz(row: GaPreviewEinsatz) {
   await withTrip(row, () => uebersicht.updateEinsatz(row.id, { status: 'planned' }))
   toast.success(t('grossanlass.materialUebersicht.approveEinsatzToast'))
@@ -325,21 +514,29 @@ async function onApproveEinsatz(row: GaPreviewEinsatz) {
   gap: 8px;
   font-size: 0.88rem;
 }
-.wish-book__orders {
-  list-style: none;
-  margin: 0 0 16px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  background: #fff;
-  display: grid;
+.create-choices {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
-.wish-book__orders li { display: flex; flex-direction: column; gap: 2px; }
-.ga-trips-filter-hint {
-  margin: 0 0 12px;
-  font-size: 0.85rem;
-  color: #0f766e;
+.unscheduled { margin: 0 0 16px; }
+.unscheduled__hint { margin: 0 0 10px; color: #64748b; font-size: 0.88rem; }
+.unscheduled__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.unscheduled__list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
-.wish-book__orders span, .wish-book__orders em { font-size: 0.8rem; color: #64748b; font-style: normal; }
+.unscheduled__row {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.unscheduled__meta { display: block; color: #64748b; font-size: 0.8rem; }
 </style>

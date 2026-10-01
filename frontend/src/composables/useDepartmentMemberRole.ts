@@ -64,6 +64,16 @@ export function useDepartmentMemberRole() {
   /** MW/DC: Material anlegen, Druckkorb, QR-Kontakt-Verwaltung, Fixe Daten, … */
   const canManageMaterials = computed(() => isDepartmentMwOrDcRole(departmentRole.value))
 
+  /** Wie ActivityController / PublicFoundItemMessageController: nur Abteilungsleitung. */
+  const canSeeDepartmentManagerInbox = computed(() =>
+    ['mw', 'matwart', 'dc', 'depchef', 'org', 'sub', 'sa'].includes(departmentRole.value),
+  )
+
+  /** Wie JoinRequestController::MANAGER_ROLES für angenommene Einladungen. */
+  const canSeeInviteAcceptedInbox = computed(() =>
+    ['mw', 'matwart', 'dc', 'depchef', 'cmw'].includes(departmentRole.value),
+  )
+
   /** QR-Kontakt / Abteilungs-Druckkorb: nicht für reine User-Rolle */
   const canManageQrContact = computed(() => !isUserRole.value)
 
@@ -85,6 +95,8 @@ export function useDepartmentMemberRole() {
     canSelectDepartmentGroupLevel,
     canManageMaterials,
     isMaterialwart,
+    canSeeDepartmentManagerInbox,
+    canSeeInviteAcceptedInbox,
     canManageQrContact,
     canManageContacts,
     canUserCreateContacts,

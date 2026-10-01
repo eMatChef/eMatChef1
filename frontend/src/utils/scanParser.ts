@@ -91,7 +91,11 @@ export function parseScanInput(raw: string): ScanParseResult {
     }
   }
 
-  const placeMatch = path.match(/\/i\/p\/([^/]+)\/?$/i) || path.match(/^i\/p\/([^/]+)\/?$/i)
+  const placeMatch =
+    path.match(/\/i\/ga\/([^/]+)\/?$/i) ||
+    path.match(/^i\/ga\/([^/]+)\/?$/i) ||
+    path.match(/\/i\/p\/([^/]+)\/?$/i) ||
+    path.match(/^i\/p\/([^/]+)\/?$/i)
   if (placeMatch?.[1]) {
     return {
       type: 'ga_place',
@@ -110,7 +114,7 @@ export function isScanLikeInput(raw: string): boolean {
   const parsed = parseScanInput(trimmed)
   if (parsed.type !== 'unknown') return true
   if (/^https?:\/\//i.test(trimmed)) return true
-  if (/\/i\/(m|a|w|l|r|s|c|k|p)\//i.test(trimmed)) return true
+  if (/\/i\/(m|a|w|l|r|s|c|k|p|ga)\//i.test(trimmed)) return true
   return false
 }
 

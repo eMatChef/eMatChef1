@@ -5,10 +5,15 @@
 .e-accordions.v-expansion-panels {
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
+  width: 100%;
   gap: 10px;
 }
 
 .e-accordions > .v-expansion-panel {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid #e5e7eb;
   border-radius: 12px !important;
   overflow: hidden;

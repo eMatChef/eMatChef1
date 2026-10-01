@@ -202,6 +202,27 @@ class GrossanlassWishController extends AbstractController
         return new JsonResponse(['success' => true]);
     }
 
+    #[Route('/abholen', name: 'pickups', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function listPickups(string $departmentId): JsonResponse
+    {
+        $department = $this->resolveGrossanlassDepartment($departmentId);
+        if ($department instanceof JsonResponse) {
+            return $department;
+        }
+
+        $currentUser = $this->requireMember($departmentId);
+        if ($currentUser instanceof JsonResponse) {
+            return $currentUser;
+        }
+
+        try {
+            return new JsonResponse($this->wishService->listPartnerPickups($department, $currentUser));
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => 'Fehler beim Laden: ' . $e->getMessage()], 500);
+        }
+    }
+
     #[Route('/mein-ressort/wishes', name: 'mine', methods: ['GET'])]
     #[IsGranted('ROLE_USER')]
     public function listMine(string $departmentId): JsonResponse

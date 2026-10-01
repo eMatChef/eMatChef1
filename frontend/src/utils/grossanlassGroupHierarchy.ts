@@ -131,3 +131,25 @@ export function grossanlassGroupSelectTitle(
   }
   return base
 }
+
+export function parentForcesBauprojekt(
+  parent: { node_type?: string | null } | null | undefined,
+): boolean {
+  return parent?.node_type === 'bauprojekt'
+}
+
+export function defaultKindForParent(
+  parent: { node_type?: string | null } | null | undefined,
+): 'ressort' | 'bereich' | 'teilbereich' {
+  if (parentForcesBauprojekt(parent)) return 'teilbereich'
+  if (!parent) return 'ressort'
+  return 'bereich'
+}
+
+export function nodeTypeForKind(
+  kind: string | null | undefined,
+): 'ressort' | 'unterressort' | 'bauprojekt' {
+  if (kind === 'teilbereich') return 'bauprojekt'
+  if (kind === 'bereich') return 'unterressort'
+  return 'ressort'
+}

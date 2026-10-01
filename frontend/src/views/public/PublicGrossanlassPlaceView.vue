@@ -11,7 +11,7 @@
       <p v-if="loading" class="muted">{{ t('public.lookup.loading') }}</p>
       <p v-else-if="error" class="error">{{ error }}</p>
       <template v-else-if="data">
-        <p class="hint">{{ t('public.lookup.placeScanHint') }}</p>
+        <p class="hint">{{ t('public.lookup.placeBriefingHint') }}</p>
         <section class="public-card">
           <h1>{{ data.name }}</h1>
           <p class="code">{{ data.public_code }}</p>
@@ -36,6 +36,20 @@
           </EButton>
           <p v-else class="muted">{{ arriveHint }}</p>
         </section>
+
+        <section v-if="briefing" class="public-card briefing-card">
+          <p v-if="windowText" class="status">{{ windowText }}</p>
+          <GrossanlassHelferauftragSheet :briefing="briefing" />
+          <p v-if="briefing.packs.length" class="status">
+            {{ t('public.lookup.placePacks') }}:
+            {{ briefing.packs.map((p) => p.public_code).join(', ') }}
+          </p>
+          <EButton variant="secondary" class="print-btn" @click="printSheet">
+            {{ t('public.lookup.placePrint') }}
+          </EButton>
+        </section>
+        <p v-else-if="authStore.isLoggedIn && briefingError" class="muted">{{ briefingError }}</p>
+        <p v-else-if="!authStore.isLoggedIn" class="muted">{{ t('public.lookup.placeLoginBriefing') }}</p>
       </template>
     </main>
     <PublicSiteFooter />
@@ -50,15 +64,18 @@ import { EButton } from '@/components/form/base'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import PublicSiteFooter from '@/components/public/PublicSiteFooter.vue'
+import GrossanlassHelferauftragSheet from '@/components/grossanlass/GrossanlassHelferauftragSheet.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { getPublicGaPlaceByCode } from '@/api/public/publicLookup'
+import { getGrossanlassPlaceBriefing, type GaBauprojektBriefing } from '@/api/grossanlassBauprojekt'
 import {
   clearActivePack,
   readActivePack,
   scanArriveGrossanlassPack,
   type GaPlace,
 } from '@/api/grossanlassLogistics'
+import { formatBauprojektWindow } from '@/utils/grossanlassBauprojektWindow'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -70,8 +87,11 @@ const error = ref<string | null>(null)
 const data = ref<GaPlace | null>(null)
 const busy = ref(false)
 const activePack = ref(readActivePack())
+const briefing = ref<GaBauprojektBriefing | null>(null)
+const briefingError = ref<string | null>(null)
 
 const placeCode = computed(() => String(route.params.placeCode || '').trim())
+const wantPrint = computed(() => String(route.query.print || '') === '1')
 const publicHomeUrl = computed(() => {
   const host = window.location.hostname.toLowerCase()
   if (host.includes('localhost') || host.includes('127.0.0.1')) return window.location.origin
@@ -88,6 +108,32 @@ const arriveHint = computed(() => {
   return t('public.lookup.placeLoginHint')
 })
 
+const windowText = computed(() =>
+  formatBauprojektWindow(briefing.value?.window_start, briefing.value?.window_end),
+)
+
+const placeDepartmentId = computed(() => {
+  const extra = data.value as (GaPlace & { department?: { id?: string } }) | null
+  return extra?.department?.id || ''
+})
+
+async function loadBriefing() {
+  briefing.value = null
+  briefingError.value = null
+  const place = data.value
+  const deptId = placeDepartmentId.value
+  if (!authStore.isLoggedIn || !place?.id || !deptId) return
+  try {
+    briefing.value = await getGrossanlassPlaceBriefing(deptId, place.id)
+    if (wantPrint.value) {
+      requestAnimationFrame(() => window.print())
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    briefingError.value = err.response?.data?.error || t('public.lookup.placeNoProject')
+  }
+}
+
 async function load() {
   if (!placeCode.value) return
   loading.value = true
@@ -95,6 +141,7 @@ async function load() {
   activePack.value = readActivePack()
   try {
     data.value = await getPublicGaPlaceByCode(placeCode.value)
+    await loadBriefing()
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     error.value = err.response?.data?.error || t('public.lookup.notFound')
@@ -113,6 +160,7 @@ async function arrive() {
     clearActivePack()
     activePack.value = null
     toast.success(t('public.lookup.placeArrived'))
+    await loadBriefing()
   } catch (e: unknown) {
     const err = e as { response?: { data?: { error?: string } } }
     toast.error(err.response?.data?.error || t('public.lookup.wrongPlace'))
@@ -121,7 +169,12 @@ async function arrive() {
   }
 }
 
+function printSheet() {
+  window.print()
+}
+
 watch(placeCode, () => { void load() })
+watch(() => authStore.isLoggedIn, () => { void loadBriefing() })
 onMounted(load)
 </script>
 
@@ -129,9 +182,18 @@ onMounted(load)
 .public-layout { min-height: 100vh; display: flex; flex-direction: column; background: #f8fafc; }
 .public-header { display: flex; align-items: center; padding: 12px 16px; background: #fff; border-bottom: 1px solid #e5e7eb; }
 .public-brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; font-weight: 700; }
-.public-page { flex: 1; padding: 24px 16px; max-width: 480px; margin: 0 auto; width: 100%; }
+.public-page { flex: 1; padding: 24px 16px; max-width: 720px; margin: 0 auto; width: 100%; }
 .public-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+.briefing-card { margin-top: 16px; }
 h1 { margin: 0 0 8px; font-size: 1.15rem; }
 .code, .status, .hint, .muted { color: #64748b; font-size: 0.88rem; }
 .error { color: #b91c1c; }
+.print-btn { margin-top: 12px; }
+@media print {
+  .public-header, .hint, .print-btn, :deep(.plt-footer) { display: none !important; }
+  .public-layout { background: #fff; }
+  .public-page { max-width: none; padding: 0; }
+  .public-card { border: 0; padding: 0; }
+  .briefing-card { margin-top: 12px; }
+}
 </style>

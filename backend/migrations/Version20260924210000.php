@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace DoctrineMigrations;
+
+use Doctrine\DBAL\Schema\Schema;
+use Doctrine\Migrations\AbstractMigration;
+
+final class Version20260924210000 extends AbstractMigration
+{
+    public function getDescription(): string
+    {
+        return 'Grossanlass: Zeitblöcke an Bauauftrags-Aufgaben';
+    }
+
+    public function up(Schema $schema): void
+    {
+        $this->addSql('ALTER TABLE department_grossanlass_task ADD COLUMN IF NOT EXISTS starts_at TIMESTAMP DEFAULT NULL');
+        $this->addSql('ALTER TABLE department_grossanlass_task ADD COLUMN IF NOT EXISTS duration_minutes INT DEFAULT NULL');
+    }
+
+    public function down(Schema $schema): void
+    {
+        $this->addSql('ALTER TABLE department_grossanlass_task DROP COLUMN IF EXISTS starts_at');
+        $this->addSql('ALTER TABLE department_grossanlass_task DROP COLUMN IF EXISTS duration_minutes');
+    }
+}

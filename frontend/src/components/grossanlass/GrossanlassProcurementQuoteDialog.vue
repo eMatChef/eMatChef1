@@ -72,6 +72,53 @@
         hide-details="auto"
       />
 
+      <div v-if="dealInquiryId" class="deal-fields mt-3">
+        <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.quoteDealHint') }}</p>
+        <div class="deal-pair">
+          <ETextField
+            v-model="deal.count"
+            type="number"
+            min="0"
+            step="1"
+            :label="t('grossanlass.beschaffung.anfragen.channelItemCount')"
+            hide-details="auto"
+          />
+          <div>
+            <p class="form-label">{{ t('grossanlass.beschaffung.anfragen.channelItemUnit') }}</p>
+            <div class="unit-toggle">
+              <button
+                type="button"
+                class="unit-toggle__btn"
+                :class="{ 'is-on': deal.unit === 'Stk' }"
+                @click="deal.unit = 'Stk'"
+              >
+                {{ t('grossanlass.beschaffung.anfragen.channelUnitPiece') }}
+              </button>
+              <button
+                type="button"
+                class="unit-toggle__btn"
+                :class="{ 'is-on': deal.unit === 'm' }"
+                @click="deal.unit = 'm'"
+              >
+                {{ t('grossanlass.beschaffung.anfragen.channelUnitMeter') }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <ETextField
+          v-model="deal.size"
+          class="mt-3"
+          :label="t('grossanlass.beschaffung.anfragen.channelItemSize')"
+          hide-details="auto"
+        />
+        <ETextField
+          v-model="deal.note"
+          class="mt-3"
+          :label="t('grossanlass.beschaffung.anfragen.channelItemNote')"
+          hide-details="auto"
+        />
+      </div>
+
       <ETextField
         v-model="form.amount_chf"
         class="mt-3"
@@ -93,6 +140,48 @@
         <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.deliveryAtHint') }}</p>
       </div>
 
+      <div class="form-group mt-3">
+        <label class="form-label">{{ t('grossanlass.beschaffung.offerten.logisticsTitle') }}</label>
+        <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.logisticsHint') }}</p>
+        <div class="logistics-toggle" role="tablist" :aria-label="t('grossanlass.materials.zusage.inboundHow')">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="form.inbound_mode === 'pickup'"
+            class="logistics-toggle__btn"
+            :class="{ 'is-on': form.inbound_mode === 'pickup' }"
+            @click="form.inbound_mode = 'pickup'"
+          >
+            {{ t('grossanlass.materials.zusage.inboundPickup') }}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="form.inbound_mode === 'delivery'"
+            class="logistics-toggle__btn"
+            :class="{ 'is-on': form.inbound_mode === 'delivery' }"
+            @click="form.inbound_mode = 'delivery'"
+          >
+            {{ t('grossanlass.materials.zusage.inboundDelivery') }}
+          </button>
+        </div>
+        <ECheckbox
+          v-model="form.return_needed"
+          :label="t('grossanlass.beschaffung.offerten.returnNeeded')"
+          hide-details
+        />
+        <div v-if="form.return_needed" class="mt-3">
+          <EDateField
+            v-model="form.return_at"
+            :department-id="departmentId"
+            :label="t('grossanlass.beschaffung.offerten.returnAt')"
+            :view-date="form.delivery_at || needFromDate"
+            allow-past
+          />
+          <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.returnAtHint') }}</p>
+        </div>
+      </div>
+
       <ETextField
         v-model="form.lead_days"
         class="mt-3"
@@ -105,6 +194,7 @@
       <p class="field-hint">{{ t('grossanlass.beschaffung.offerten.leadDaysHint') }}</p>
 
       <ETextField
+        v-if="!dealInquiryId"
         v-model="form.notes"
         class="mt-3"
         :label="t('grossanlass.beschaffung.offerten.notes')"
@@ -163,7 +253,7 @@ import AddressModal from '@/components/AddressModal.vue'
 import DepartmentAddressAutocomplete from '@/components/addresses/DepartmentAddressAutocomplete.vue'
 import GrossanlassProcurementLineSummary from '@/components/grossanlass/GrossanlassProcurementLineSummary.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
-import { EButton, EDateField, EDialog, ETextField } from '@/components/form/base'
+import { EButton, ECheckbox, EDateField, EDialog, ETextField } from '@/components/form/base'
 import { formatAddressSelectionLabel } from '@/utils/departmentAddressSearch'
 
 const props = defineProps<{
@@ -198,7 +288,25 @@ const errorMessage = ref('')
 
 const supplierAddressId = ref<string | null>(null)
 const selectedInquiryId = ref<string | null>(null)
-const form = ref({ supplier: '', amount_chf: '', notes: '', delivery_at: '', lead_days: '' })
+const form = ref({
+  supplier: '',
+  amount_chf: '',
+  notes: '',
+  delivery_at: '',
+  lead_days: '',
+  inbound_mode: 'delivery' as 'pickup' | 'delivery',
+  return_needed: false,
+  return_at: '',
+})
+
+const dealInquiryId = ref<string | null>(null)
+const deal = ref({
+  count: '',
+  unit: 'Stk' as 'Stk' | 'm',
+  size: '',
+  note: '',
+  source: 'Vom Telefon',
+})
 
 const needFromDate = computed(() => (props.line.need_from || '').slice(0, 10))
 
@@ -244,6 +352,70 @@ function matchInquiryFromSupplierName() {
   selectedInquiryId.value = hit?.id ?? null
 }
 
+function defaultInboundMode(): 'pickup' | 'delivery' {
+  if (props.quote?.inbound_mode === 'pickup' || props.quote?.inbound_mode === 'delivery') {
+    return props.quote.inbound_mode
+  }
+  return props.line.pickup_need === 'can' || props.line.pickup_need === 'must' ? 'pickup' : 'delivery'
+}
+
+function parseLinkedDeal(notes: string) {
+  const marker = notes.match(/anfrage:([A-Za-z0-9]+)/)
+  const lines = notes.split('\n').map((line) => line.trim()).filter(Boolean)
+  const source = lines.find((line) => line === 'Vom Telefon' || line === 'Von der Mail') ?? 'Vom Telefon'
+  const detail = lines.find((line) => /^\d+\s+(Stk|m)\b/.test(line)) ?? ''
+  const countMatch = detail.match(/^(\d+)\s+(Stk|m)\b/)
+  const sizeMatch = detail.match(/Grösse\s+(.+)$/)
+  dealInquiryId.value = marker?.[1] ?? null
+  deal.value = {
+    count: countMatch?.[1] ?? '',
+    unit: countMatch?.[2] === 'm' ? 'm' : 'Stk',
+    size: sizeMatch?.[1]?.trim() ?? '',
+    note: '',
+    source,
+  }
+}
+
+function applyAgreementItem() {
+  const inquiryId = dealInquiryId.value
+  if (!inquiryId) return
+  const firm = inquiries.value.find((item) => item.id === inquiryId)
+  const entry = [...(firm?.thread ?? [])].reverse().find((row) => row.agreement?.collaborate === true)
+  const item = entry?.agreement?.items.find((row) => row.id === props.line.id)
+  if (!item) return
+  deal.value = {
+    ...deal.value,
+    count: item.count ? String(item.count) : deal.value.count,
+    unit: item.unit === 'm' ? 'm' : 'Stk',
+    size: item.size || deal.value.size,
+    note: item.note || '',
+  }
+  if (!form.value.delivery_at && item.delivery_at) {
+    form.value.delivery_at = item.delivery_at.slice(0, 10)
+  }
+  if (!props.quote?.inbound_mode && (item.inbound_mode === 'pickup' || item.inbound_mode === 'delivery')) {
+    form.value.inbound_mode = item.inbound_mode
+  }
+  if (!props.quote?.return_needed && item.return_needed) {
+    form.value.return_needed = true
+    form.value.return_at = (item.return_at || '').slice(0, 10)
+  }
+  if (!form.value.lead_days && item.lead_days != null && item.lead_days !== '') {
+    form.value.lead_days = String(item.lead_days)
+  }
+}
+
+function linkedQuoteNotes(): string {
+  const count = Number(deal.value.count) || 0
+  const bits: string[] = []
+  if (count > 0) bits.push(`${count} ${deal.value.unit}`)
+  const size = deal.value.size.trim()
+  if (size) bits.push(`Grösse ${size}`)
+  return [deal.value.source, bits.join(' · '), `anfrage:${dealInquiryId.value}`]
+    .filter(Boolean)
+    .join('\n')
+}
+
 function resetForm() {
   const q = props.quote
   supplierAddressId.value = q?.supplier_address_id ?? null
@@ -254,7 +426,11 @@ function resetForm() {
     notes: q?.notes ?? '',
     delivery_at: q?.delivery_at ? q.delivery_at.slice(0, 10) : '',
     lead_days: q?.lead_days != null ? String(q.lead_days) : '',
+    inbound_mode: defaultInboundMode(),
+    return_needed: q ? !!q.return_needed : !!props.line.return_needed,
+    return_at: q?.return_at ? q.return_at.slice(0, 10) : '',
   }
+  parseLinkedDeal(q?.notes ?? '')
   pdfFile.value = null
   pdfPreview.value = q?.pdf_filename ? q.pdf_filename : ''
   extractHint.value = ''
@@ -271,6 +447,7 @@ async function loadAddresses() {
     addresses.value = data.addresses
     inquiries.value = firms
     matchInquiryFromSupplierName()
+    applyAgreementItem()
   } finally {
     isLoadingAddresses.value = false
   }
@@ -417,9 +594,30 @@ async function submit() {
       supplier,
       supplier_address_id: supplierAddressId.value,
       amount_chf: Number(form.value.amount_chf),
-      notes: form.value.notes.trim() || null,
+      notes: dealInquiryId.value ? linkedQuoteNotes() : (form.value.notes.trim() || null),
       delivery_at: form.value.delivery_at ? `${form.value.delivery_at}T12:00:00` : null,
       lead_days: form.value.lead_days === '' ? null : Number(form.value.lead_days),
+      inbound_mode: form.value.inbound_mode,
+      return_needed: form.value.return_needed,
+      return_at: form.value.return_needed && form.value.return_at
+        ? `${form.value.return_at}T12:00:00`
+        : null,
+      ...(dealInquiryId.value
+        ? {
+            agreement_item: {
+              count: Number(deal.value.count) || 0,
+              unit: deal.value.unit,
+              size: deal.value.size.trim(),
+              note: deal.value.note.trim(),
+              price: form.value.amount_chf.trim(),
+              delivery_at: form.value.delivery_at,
+              inbound_mode: form.value.inbound_mode,
+              return_needed: form.value.return_needed,
+              return_at: form.value.return_at,
+              lead_days: form.value.lead_days,
+            },
+          }
+        : {}),
     }
 
     let saved: GrossanlassProcurementQuote
@@ -467,8 +665,49 @@ async function submit() {
   margin-top: 6px; padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.82rem;
 }
 .pdf-clear { border: none; background: none; font-size: 1.1rem; cursor: pointer; color: #64748b; }
+.logistics-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 8px 0;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.logistics-toggle__btn {
+  min-height: 44px;
+  padding: 8px;
+  border: 0;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+.logistics-toggle__btn + .logistics-toggle__btn { border-left: 1px solid #e5e7eb; }
+.logistics-toggle__btn.is-on { background: #0f766e; color: #fff; }
 .extract-hint { margin: 6px 0 0; font-size: 0.75rem; color: #0369a1; }
 .supplier-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .quote-dialog-error { margin: 12px 0 0; color: #dc2626; font-size: 0.82rem; }
+.deal-fields { display: flex; flex-direction: column; gap: 4px; }
+.deal-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
+.unit-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.unit-toggle__btn {
+  min-height: 36px;
+  border: 0;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+}
+.unit-toggle__btn + .unit-toggle__btn { border-left: 1px solid #e5e7eb; }
+.unit-toggle__btn.is-on { background: #0f766e; color: #fff; }
 .mt-3 { margin-top: 12px; }
 </style>

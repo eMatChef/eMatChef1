@@ -40,7 +40,12 @@
         {{ t('settings.userOrgOverview.onlyAssigned') }}
       </label>
       <div v-if="viewMode === 'tree'" class="tree-actions">
-        <button type="button" class="btn btn-secondary btn-sm" @click="expandMyBranch">
+        <button
+          v-if="branchRootIds.length > 0"
+          type="button"
+          class="btn btn-secondary btn-sm"
+          @click="expandMyBranch"
+        >
           {{ t('settings.userOrgOverview.expandMyBranch') }}
         </button>
         <button type="button" class="btn btn-secondary btn-sm" @click="collapseAll">
@@ -79,59 +84,35 @@
             <span class="org-assignment-count">{{ countOrgAssignments(org) }}</span>
           </button>
           <div v-show="expandedOrgIds.includes(org.id)" class="org-accordion-panel">
-            <div
-              v-if="hasOrgWideScope(org.id)"
-              class="org-wide-frame admin-scope-frame"
-              :class="`scope-frame-${orgGlobalFrameLevel(org.id)}`"
-            >
-              <div class="scope-frame-banner">
-                {{ t('settings.userOrgOverview.scopeFrameOrgWide', { name: org.name }) }}
-              </div>
-              <div class="org-wide-frame-body">
-                <div class="org-global-strip">
-                  <div class="section-label">{{ t('settings.userOrgOverview.globalRolesSection') }}</div>
-                  <div class="org-global-cards">
-                    <UserRoleGroupCard
-                      v-for="group in orgGlobalGroups(org.id)"
-                      :key="`org-${org.id}-${group.user.id}`"
-                      :group="group"
-                      :scope-label="orgGlobalScopeLabel(group)"
-                      plain
-                      :format-dept-role="formatDeptRole"
-                      :format-global-role="formatGlobalRole"
-                      @edit-user="(userId, kind) => openUserEdit(userId, kind)"
-                    />
-                  </div>
-                </div>
-                <DeptOverviewNode
-                  v-for="node in org.children"
-                  :key="node.id"
-                  :node="node"
-                  :scope-root-ids="scopeRootIdSet"
-                  :branch-root-ids="branchRootIdSet"
-                  :dept-name-by-id="deptNameById"
-                  :org-name-by-id="orgNameById"
+            <div v-if="orgGlobalGroups(org.id).length > 0" class="org-wide-admin-strip">
+              <div class="section-label">{{ t('settings.userOrgOverview.orgWideAdminsSection') }}</div>
+              <div class="org-wide-admin-cards">
+                <UserRoleGroupCard
+                  v-for="group in orgGlobalGroups(org.id)"
+                  :key="`org-strip-${org.id}-${group.user.id}`"
+                  :group="group"
+                  :scope-label="orgGlobalScopeLabel(group)"
+                  plain
                   :format-dept-role="formatDeptRole"
                   :format-global-role="formatGlobalRole"
-                  :inside-admin-scope="true"
-                  @edit-user="openUserEdit"
+                  @edit-user="(userId, kind) => openUserEdit(userId, kind)"
                 />
               </div>
             </div>
-            <template v-else>
-              <DeptOverviewNode
-                v-for="node in org.children"
-                :key="node.id"
-                :node="node"
-                :scope-root-ids="scopeRootIdSet"
-                :branch-root-ids="branchRootIdSet"
-                :dept-name-by-id="deptNameById"
-                :org-name-by-id="orgNameById"
-                :format-dept-role="formatDeptRole"
-                :format-global-role="formatGlobalRole"
-                @edit-user="openUserEdit"
-              />
-            </template>
+            <DeptOverviewNode
+              v-for="node in org.children"
+              :key="node.id"
+              :node="node"
+              :scope-root-ids="scopeRootIdSet"
+              :org-admin-scope-root-ids="orgAdminScopeRootIdsForOrg(org.id)"
+              :org-wide-admin-groups="orgWideGroupsForOrg(org.id)"
+              :branch-root-ids="branchRootIdSet"
+              :dept-name-by-id="deptNameById"
+              :org-name-by-id="orgNameById"
+              :format-dept-role="formatDeptRole"
+              :format-global-role="formatGlobalRole"
+              @edit-user="openUserEdit"
+            />
           </div>
         </div>
         <div v-if="orgTrees.length === 0" class="state-card">{{ t('settings.userOrgOverview.empty') }}</div>
@@ -207,6 +188,9 @@ import {
 } from '@/utils/userRoleDisplay'
 import { useAuthStore } from '@/stores/auth'
 import { filterDepartmentsByAccessibleIds } from '@/utils/adminCapabilities'
+import {
+  orgWideAdminScopeRootIds,
+} from '@/utils/userOrgScope'
 import {
   filterDepartmentsForAdminScope,
   filterOrganisationsForAdminScope,
@@ -318,14 +302,12 @@ function orgGlobalGroups(orgId: string): UserRoleGroup[] {
   return groupAssignments(buildOrgGlobalAssignments(orgId))
 }
 
-function hasOrgWideScope(orgId: string): boolean {
-  return buildOrgGlobalAssignments(orgId).length > 0
+function orgAdminScopeRootIdsForOrg(orgId: string): Set<string> {
+  return orgWideAdminScopeRootIds(orgId, filteredUsers.value, departments.value)
 }
 
-function orgGlobalFrameLevel(orgId: string): 'org' | 'sub' {
-  const assignments = buildOrgGlobalAssignments(orgId)
-  if (assignments.some((a) => a.role === 'org')) return 'org'
-  return 'sub'
+function orgWideGroupsForOrg(orgId: string): UserRoleGroup[] {
+  return orgGlobalGroups(orgId)
 }
 
 function buildAssignmentsByDept(): Map<string, DeptAssignment[]> {
@@ -468,16 +450,14 @@ function computeSubtreeRoots(deptIds: string[]): string[] {
 }
 
 function computeMyBranchRootIds(): string[] {
+  // Superadmin ist org-/dept-übergreifend — kein «Mein Zweig».
+  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
+    return []
+  }
+
   const scopeRoots = authStore.adminCapabilities?.scope?.department_root_ids || []
   if (scopeRoots.length > 0) {
     return scopeRoots.filter((id) => departments.value.some((d) => d.id === id))
-  }
-
-  if (authStore.userRoles.includes('ROLE_SUPERADMIN')) {
-    const primary = authStore.departments.find((d) => d.is_primary)
-    if (primary) return [primary.department_id]
-    if (authStore.activeDepartmentId) return [authStore.activeDepartmentId]
-    return []
   }
 
   if (authStore.hasGlobalAdminAccess()) {
@@ -572,16 +552,12 @@ function kanbanOtherLinks(group: UserRoleGroup, colDeptId: string): string[] {
 }
 
 function openUserEdit(userId: string, kind: OverviewKind) {
-  if (kind === 'global_scope') {
-    void router.push({
-      path: '/admin-dashboard/verwaltung/global-admin-roles',
-      query: { edit: userId },
-    })
-    return
-  }
   void router.push({
     path: '/admin-dashboard/verwaltung/users',
-    query: { edit: userId },
+    query: {
+      edit: userId,
+      ...(kind === 'global_scope' ? { focus: 'verwaltung' } : {}),
+    },
   })
 }
 
@@ -796,50 +772,13 @@ onMounted(() => {
   padding: 0.5rem 0.75rem 0.75rem;
 }
 
-.org-wide-frame {
-  margin-bottom: 0.5rem;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.org-wide-frame.scope-frame-org {
-  border: 2px solid #f59e0b;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.12);
-}
-
-.org-wide-frame.scope-frame-sub {
-  border: 2px solid #8b5cf6;
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.1);
-}
-
-.org-wide-frame .scope-frame-banner {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.org-wide-frame.scope-frame-org .scope-frame-banner {
-  background: linear-gradient(90deg, #fef3c7, #fffbeb);
-  color: #92400e;
-}
-
-.org-wide-frame.scope-frame-sub .scope-frame-banner {
-  background: linear-gradient(90deg, #ede9fe, #f5f3ff);
-  color: #5b21b6;
-}
-
-.org-wide-frame-body {
-  padding: 0.5rem 0.65rem 0.65rem;
-  background: #fff;
-}
-
-.org-global-strip {
+.org-wide-admin-strip {
   margin-bottom: 0.65rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.org-global-strip .section-label {
+.org-wide-admin-strip .section-label {
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -848,7 +787,7 @@ onMounted(() => {
   margin-bottom: 0.35rem;
 }
 
-.org-global-cards {
+.org-wide-admin-cards {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;

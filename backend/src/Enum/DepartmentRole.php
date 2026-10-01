@@ -12,6 +12,7 @@ namespace App\Enum;
  * 4. matwart             - Materialchef des Departments
  * 4b. cmw                - Co-Materialchef (Grossanlass)
  * 5. depchef             - Chef des Departments (Grossanlass: OK-Leitung)
+ * 5a. bl                 - Bereichsleitung (Grossanlass, eigener Ast)
  * 5b. komm / spon        - Kommunikation / Sponsoring (Grossanlass, Postfach)
  * 6. leader1             - Hierarchische Leiter-Funktion (Ebene 1)
  * 7. leader2             - Hierarchische Leiter-Funktion (Ebene 2)
@@ -28,6 +29,7 @@ enum DepartmentRole: string
     case MATWART = 'mw';
     case CO_MATWART = 'cmw';
     case DEPCHEF = 'dc';
+    case BEREICHSLEITUNG = 'bl';
     case KOMMUNIKATION = 'komm';
     case SPONSORING = 'spon';
     case LEADER1 = 'l1';
@@ -54,6 +56,7 @@ enum DepartmentRole: string
             self::MATWART => 3,
             self::CO_MATWART => 4,
             self::DEPCHEF => 5,
+            self::BEREICHSLEITUNG => 6,
             self::KOMMUNIKATION => 6,
             self::SPONSORING => 6,
             self::LEADER1 => 7,
@@ -93,6 +96,7 @@ enum DepartmentRole: string
             self::MATWART => 'ROLE_MATWART',
             self::CO_MATWART => 'ROLE_CO_MATWART',
             self::DEPCHEF => 'ROLE_DEPCHEF',
+            self::BEREICHSLEITUNG => 'ROLE_BEREICHSLEITUNG',
             self::KOMMUNIKATION => 'ROLE_KOMMUNIKATION',
             self::SPONSORING => 'ROLE_SPONSORING',
             self::LEADER1 => 'ROLE_LEADER1',
@@ -111,6 +115,7 @@ enum DepartmentRole: string
             self::MATWART => 'matwart',
             self::CO_MATWART => 'co_matwart',
             self::DEPCHEF => 'depchef',
+            self::BEREICHSLEITUNG => 'bereichsleitung',
             self::KOMMUNIKATION => 'kommunikation',
             self::SPONSORING => 'sponsoring',
             self::LEADER1 => 'leader1',
@@ -129,6 +134,7 @@ enum DepartmentRole: string
             self::MATWART => 'Materialchef',
             self::CO_MATWART => 'Co-Materialchef',
             self::DEPCHEF => 'Departmentchef',
+            self::BEREICHSLEITUNG => 'Bereichsleitung',
             self::KOMMUNIKATION => 'Kommunikation',
             self::SPONSORING => 'Sponsoring',
             self::LEADER1 => 'Leader 1',

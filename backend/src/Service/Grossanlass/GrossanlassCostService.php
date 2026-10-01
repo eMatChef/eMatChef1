@@ -150,6 +150,48 @@ class GrossanlassCostService
         return $this->serializeBudget($row);
     }
 
+    /**
+     * @return array<string, string>
+     */
+    public function mainKindsForDepartment(Department $department): array
+    {
+        $rows = $this->entityManager->getRepository(DepartmentGrossanlassCost::class)
+            ->findBy(['departmentId' => $department->getId()]);
+        $map = [];
+        foreach ($rows as $row) {
+            if (!$row instanceof DepartmentGrossanlassCost || !$row->isMainKind()) {
+                continue;
+            }
+            $lineId = $row->getProcurementLineId();
+            if ($lineId === null || $lineId === '') {
+                continue;
+            }
+            $map[$lineId] = $row->getCostKind();
+        }
+
+        return $map;
+    }
+
+    public function mainKindForLine(ActivityGrossanlassProcurementLine $line): ?string
+    {
+        $row = $this->findMainForLine($line);
+
+        return $row instanceof DepartmentGrossanlassCost ? $row->getCostKind() : null;
+    }
+
+    public function setMainKind(ActivityGrossanlassProcurementLine $line, string $kind): void
+    {
+        $allowed = [
+            DepartmentGrossanlassCost::KIND_PURCHASE,
+            DepartmentGrossanlassCost::KIND_RENTAL,
+            DepartmentGrossanlassCost::KIND_LOAN,
+        ];
+        if (!in_array($kind, $allowed, true)) {
+            throw new \InvalidArgumentException('Ungültige Beschaffungsart');
+        }
+        $this->ensureMainForLine($line, ['cost_kind' => $kind]);
+    }
+
     public function ensureMainForLine(ActivityGrossanlassProcurementLine $line, array $data = []): DepartmentGrossanlassCost
     {
         $existing = $this->findMainForLine($line);

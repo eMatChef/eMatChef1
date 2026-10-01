@@ -67,6 +67,9 @@ class GrossanlassPlanningRoundService
         if (!in_array($formPurpose, ActivityGrossanlassRound::FORM_PURPOSES, true)) {
             throw new \InvalidArgumentException('Ungültiger Formular-Zweck');
         }
+        if ($formPurpose === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular ist fest und wird nicht neu angelegt');
+        }
         $materialStage = GrossanlassMaterialStage::normalize($formPurpose, $data['material_stage'] ?? null);
 
         $opensAt = $this->parseOptionalDateTime($data['opens_at'] ?? null);
@@ -94,6 +97,50 @@ class GrossanlassPlanningRoundService
     }
 
     /**
+     * Container for project-level material wishes. Bereichsleitung can fill the
+     * list without waiting for Planung to open a round.
+     */
+    public function ensureOpenMaterialWishRound(Department $department, User $user): ActivityGrossanlassRound
+    {
+        $activity = $this->resolveMainActivity($department);
+        $this->applyAutoSchedule($department, $activity);
+
+        $existing = $this->entityManager->getRepository(ActivityGrossanlassRound::class)
+            ->createQueryBuilder('r')
+            ->where('r.activityId = :activityId')
+            ->andWhere('r.formPurpose = :purpose')
+            ->andWhere('r.status = :status')
+            ->setParameter('activityId', $activity->getId())
+            ->setParameter('purpose', ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH)
+            ->setParameter('status', ActivityGrossanlassRound::STATUS_OPEN)
+            ->orderBy('r.createdAt', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($existing instanceof ActivityGrossanlassRound) {
+            return $existing;
+        }
+
+        $round = new ActivityGrossanlassRound();
+        $round->setId(GrossanlassIdGenerator::unique($this->entityManager, GrossanlassIdGenerator::ROUND, ActivityGrossanlassRound::class));
+        $round->setActivity($activity);
+        $round->setName('Material am Projekt');
+        $round->setRoundType(ActivityGrossanlassRound::TYPE_RESSORT_WUENSCHE);
+        $round->setFormPurpose(ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH);
+        $round->setMaterialStage(GrossanlassMaterialStage::GROB);
+        $round->setStatus(ActivityGrossanlassRound::STATUS_OPEN);
+        $round->setOpenedAt(new \DateTime());
+        $round->setCreatedByUser($user);
+
+        $this->entityManager->persist($round);
+        $this->formService->createDefaultFormForRound($round);
+        $this->entityManager->flush();
+
+        return $round;
+    }
+
+    /**
      * @param array<string, mixed> $data
      *
      * @return array<string, mixed>
@@ -105,6 +152,9 @@ class GrossanlassPlanningRoundService
         }
 
         $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular ist fest und lässt sich nicht bearbeiten');
+        }
         if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
             throw new \InvalidArgumentException('Geschlossene Runden können nicht bearbeitet werden');
         }
@@ -177,6 +227,9 @@ class GrossanlassPlanningRoundService
         }
 
         $round = $this->findRoundForDepartment($department, $roundId);
+        if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
+            throw new \InvalidArgumentException('Das Materialformular bleibt offen');
+        }
         if ($round->getStatus() === ActivityGrossanlassRound::STATUS_CLOSED) {
             return $this->toArray($round);
         }
@@ -230,6 +283,9 @@ class GrossanlassPlanningRoundService
         $changed = false;
         foreach ($rounds as $round) {
             if (!$round instanceof ActivityGrossanlassRound) {
+                continue;
+            }
+            if ($round->getFormPurpose() === ActivityGrossanlassRound::PURPOSE_MATERIAL_WISH) {
                 continue;
             }
             if (

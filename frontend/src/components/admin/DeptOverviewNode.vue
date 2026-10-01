@@ -1,11 +1,79 @@
 <template>
   <div class="dept-node" :class="{ 'is-branch-root': isBranchRoot && !insideAdminScope }">
     <div
-      v-if="isScopeZoneRoot"
+      v-if="isOrgScopeZoneRoot"
+      class="admin-scope-frame org-admin-scope-frame"
+      :class="`scope-frame-${orgScopeFrameLevel}`"
+    >
+      <div class="scope-frame-banner org-scope-banner">
+        <span class="org-scope-banner-text">
+          {{ t('settings.userOrgOverview.scopeFrameOrgWide', { name: node.name }) }}
+        </span>
+        <div v-if="orgWideAdminGroups.length > 0" class="scope-banner-avatars">
+          <button
+            v-for="group in orgWideAdminGroups"
+            :key="`org-scope-avatar-${group.user.id}`"
+            type="button"
+            class="scope-banner-avatar-btn"
+            :title="group.user.name"
+            @click="emit('edit-user', group.user.id, 'global_scope')"
+          >
+            <UserAvatarBadge :user="toOverviewAvatarFields(group.user)" size="sm" />
+          </button>
+        </div>
+      </div>
+      <div class="scope-frame-body">
+        <DeptNodeBody
+          :node="node"
+          :global-groups="[]"
+          :membership-groups="membershipGroups"
+          :dept-name-by-id="deptNameById"
+          :org-name-by-id="orgNameById"
+          :format-dept-role="formatDeptRole"
+          :format-global-role="formatGlobalRole"
+          :hide-scope-on-cards="true"
+          @edit-user="(userId, kind) => emit('edit-user', userId, kind)"
+        />
+        <div v-if="node.children.length > 0" class="dept-children">
+          <DeptOverviewNode
+            v-for="child in node.children"
+            :key="child.id"
+            :node="child"
+            :scope-root-ids="scopeRootIds"
+            :org-admin-scope-root-ids="orgAdminScopeRootIds"
+            :org-wide-admin-groups="orgWideAdminGroups"
+            :inside-admin-scope="true"
+            :branch-root-ids="branchRootIds"
+            :dept-name-by-id="deptNameById"
+            :org-name-by-id="orgNameById"
+            :format-dept-role="formatDeptRole"
+            :format-global-role="formatGlobalRole"
+            @edit-user="(userId, kind) => emit('edit-user', userId, kind)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div
+      v-else-if="isScopeZoneRoot"
       class="admin-scope-frame"
       :class="`scope-frame-${scopeFrameLevel}`"
     >
-      <div class="scope-frame-banner">{{ scopeFrameTitle }}</div>
+      <div class="scope-frame-banner org-scope-banner">
+        <span class="org-scope-banner-text">{{ scopeFrameTitle }}</span>
+        <div v-if="globalGroups.length > 0" class="scope-banner-avatars">
+          <button
+            v-for="group in globalGroups"
+            :key="`dept-scope-avatar-${group.user.id}`"
+            type="button"
+            class="scope-banner-avatar-btn"
+            :title="group.user.name"
+            @click="emit('edit-user', group.user.id, 'global_scope')"
+          >
+            <UserAvatarBadge :user="toOverviewAvatarFields(group.user)" size="sm" />
+          </button>
+        </div>
+      </div>
       <div class="scope-frame-body">
         <DeptNodeBody
           :node="node"
@@ -24,6 +92,8 @@
             :key="child.id"
             :node="child"
             :scope-root-ids="scopeRootIds"
+            :org-admin-scope-root-ids="orgAdminScopeRootIds"
+            :org-wide-admin-groups="orgWideAdminGroups"
             :inside-admin-scope="true"
             :branch-root-ids="branchRootIds"
             :dept-name-by-id="deptNameById"
@@ -54,6 +124,8 @@
           :key="child.id"
           :node="child"
           :scope-root-ids="scopeRootIds"
+          :org-admin-scope-root-ids="orgAdminScopeRootIds"
+          :org-wide-admin-groups="orgWideAdminGroups"
           :inside-admin-scope="insideAdminScope"
           :branch-root-ids="branchRootIds"
           :dept-name-by-id="deptNameById"
@@ -71,7 +143,9 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import DeptNodeBody from '@/components/admin/DeptNodeBody.vue'
-import { groupAssignments, type OverviewKind } from '@/utils/userRoleDisplay'
+import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
+import { groupAssignments, type OverviewKind, type UserRoleGroup } from '@/utils/userRoleDisplay'
+import { orgWideFrameLevel, toOverviewAvatarFields } from '@/utils/userOrgScope'
 import type { AdminOrgOverviewUser } from '@/api/adminUsers'
 
 export type { OverviewKind } from '@/utils/userRoleDisplay'
@@ -94,6 +168,8 @@ export interface DeptTreeNode {
 const props = defineProps<{
   node: DeptTreeNode
   scopeRootIds: Set<string>
+  orgAdminScopeRootIds: Set<string>
+  orgWideAdminGroups: UserRoleGroup[]
   insideAdminScope?: boolean
   branchRootIds: Set<string>
   deptNameById: Map<string, string>
@@ -110,7 +186,11 @@ const { t } = useI18n()
 
 const insideAdminScope = computed(() => props.insideAdminScope === true)
 const isScopeZoneRoot = computed(() => props.scopeRootIds.has(props.node.id))
+const isOrgScopeZoneRoot = computed(
+  () => !isScopeZoneRoot.value && props.orgAdminScopeRootIds.has(props.node.id),
+)
 const isBranchRoot = computed(() => props.branchRootIds.has(props.node.id))
+const orgScopeFrameLevel = computed(() => orgWideFrameLevel(props.orgWideAdminGroups.map((g) => g.user)))
 
 const globalAssignments = computed(() =>
   props.node.assignments.filter((a) => a.kind === 'global_scope')
@@ -213,5 +293,38 @@ export default defineComponent({ name: 'DeptOverviewNode' })
 .scope-frame-body {
   padding: 0.35rem 0.65rem 0.65rem;
   background: #fff;
+}
+
+.org-scope-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.org-scope-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.scope-banner-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.scope-banner-avatar-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 6px;
+  line-height: 0;
+}
+
+.scope-banner-avatar-btn:hover {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 1px;
 }
 </style>

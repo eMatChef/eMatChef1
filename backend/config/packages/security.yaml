@@ -28,6 +28,11 @@ security:
             pattern: ^/api/auth/google
             stateless: true
             security: false
+
+        microsoft_oauth:
+            pattern: ^/api/auth/microsoft
+            stateless: true
+            security: false
         
         login:
             pattern: ^/api/auth/login_check
@@ -77,6 +82,7 @@ security:
         - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/google, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/microsoft, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }
         - { path: ^/api/health, roles: PUBLIC_ACCESS }

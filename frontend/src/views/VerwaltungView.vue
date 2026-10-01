@@ -82,6 +82,12 @@ const canManageGlobalAddresses = computed(() => authStore.canAdmin('global_addre
 const canManageMail = computed(() => authStore.canAdmin('mail.settings'))
 const canManageIntegrations = computed(() => authStore.canAdmin('integrations.manage'))
 
+const canEditPublicWebsite = computed(
+  () =>
+    authStore.userRoles.includes('ROLE_SUPERADMIN') ||
+    authStore.userRoles.includes('ROLE_WEBADMIN'),
+)
+
 function getVerwaltungLink(suffix: string): string {
   if (isAdminDashboardRoute.value) return `/admin-dashboard/verwaltung${suffix}`
   if (!departmentId.value) return '#'
@@ -90,7 +96,7 @@ function getVerwaltungLink(suffix: string): string {
 
 function resolveItemTo(item: MenuItem): string {
   if (item.to) return item.to
-  if (item.id === 'global-addresses') return getVerwaltungLink('')
+  if (item.id === 'global-addresses') return getVerwaltungLink('/global-addresses')
   if (item.id === 'mail') return getVerwaltungLink('/mail/versand')
   if (item.id === 'security-monitoring') return getVerwaltungLink('/security-monitoring')
   return getVerwaltungLink(`/${item.id}`)
@@ -100,6 +106,9 @@ function isActiveItem(item: MenuItem): boolean {
   const target = resolveItemTo(item)
   const p = route.path.replace(/\/$/, '') || '/'
   const t = target.replace(/\/$/, '') || '/'
+  if (item.id === 'website-content') {
+    return p === '/site-inhalt' || p.startsWith('/site-inhalt/')
+  }
   // Root „Globale Adressen“ = …/verwaltung ohne weiteres Segment — kein startsWith, sonst wäre z. B. …/users immer mit aktiv
   if (item.id === 'global-addresses') {
     return p === t
@@ -120,18 +129,58 @@ type MenuItem = {
 }
 
 const visibleMenuItems = computed((): MenuItem[] => {
-  const start: MenuItem[] = []
-  if (canManageGlobalAddresses.value) {
-    start.push({ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), mdiIcon: 'mdi-earth' })
+  const leadingItems: MenuItem[] = []
+  if (canEditPublicWebsite.value) {
+    leadingItems.push({
+      id: 'website-content',
+      label: t('verwaltung.nav.websiteContent'),
+      mdiIcon: 'mdi-web',
+      to: '/site-inhalt',
+    })
   }
+  if (canManageGlobalAddresses.value) {
+    leadingItems.push({ id: 'global-addresses', label: t('verwaltung.nav.globalAddresses'), mdiIcon: 'mdi-earth' })
+  }
+
+  const orgStructureItems: MenuItem[] = []
+  if (canViewOrganisations.value) {
+    orgStructureItems.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), mdiIcon: 'mdi-domain' })
+  }
+  if (canViewDepartments.value) {
+    orgStructureItems.push({
+      id: 'departments',
+      label: isAdminDashboardRoute.value
+        ? t('verwaltung.nav.departments')
+        : t('verwaltung.nav.allDepartments'),
+      mdiIcon: 'mdi-office-building-outline',
+    })
+  }
+  if (canManageGlobalUsers.value) {
+    orgStructureItems.push({
+      id: 'users',
+      label: t('verwaltung.nav.users'),
+      mdiIcon: 'mdi-account-group',
+      ...(isAdminDashboardRoute.value ? {} : { to: '/admin-dashboard/verwaltung/users' }),
+    })
+  }
+  if (isAdminDashboardRoute.value && isSuperAdminUser.value) {
+    orgStructureItems.push({
+      id: 'user-org-overview',
+      label: t('verwaltung.nav.userOrgOverview'),
+      mdiIcon: 'mdi-account-search',
+      to: '/admin-dashboard/verwaltung/user-org-overview',
+    })
+  }
+
+  const secondaryItems: MenuItem[] = []
   if (isSuperAdminUser.value) {
-    start.push({
+    secondaryItems.push({
       id: 'supplier-global-review',
       label: t('verwaltung.nav.supplierGlobalReview'),
       mdiIcon: 'mdi-clipboard-check-outline',
       to: '/admin-dashboard/verwaltung/supplier-global-review',
     })
-    start.push({
+    secondaryItems.push({
       id: 'js-leihkatalog',
       label: t('verwaltung.nav.jsLeihkatalog'),
       mdiIcon: 'mdi-tent',
@@ -139,48 +188,27 @@ const visibleMenuItems = computed((): MenuItem[] => {
     })
   }
   if (canEditGlobalTemplates.value) {
-    start.push({
+    secondaryItems.push({
       id: 'print-catalog',
       label: t('verwaltung.nav.printCatalog'),
       mdiIcon: 'mdi-printer-outline',
     })
   }
   const jobsItem: MenuItem = { id: 'jobs', label: t('verwaltung.nav.systemJobs'), mdiIcon: 'mdi-briefcase-outline' }
-  const mid: MenuItem[] = canAssignSupport.value
-    ? [{ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), mdiIcon: 'mdi-lifebuoy' }]
-    : []
-  const core: MenuItem[] = [
-    ...start,
-    ...(canViewSystemJobs.value ? [jobsItem] : []),
-    ...mid,
-  ]
+  if (canViewSystemJobs.value) {
+    secondaryItems.push(jobsItem)
+  }
+  if (canAssignSupport.value) {
+    secondaryItems.push({ id: 'support-requests', label: t('verwaltung.nav.supportRequests'), mdiIcon: 'mdi-lifebuoy' })
+  }
 
   if (isAdminDashboardRoute.value) {
-    const sa: MenuItem[] = []
-    if (canViewOrganisations.value) {
-      sa.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), mdiIcon: 'mdi-domain' })
-    }
-    if (canViewDepartments.value) {
-      sa.push({ id: 'departments', label: t('verwaltung.nav.departments'), mdiIcon: 'mdi-office-building-outline' })
-    }
-    if (canManageGlobalUsers.value) {
-      sa.push({ id: 'users', label: t('verwaltung.nav.users'), mdiIcon: 'mdi-account-group' })
-    }
-    if (isSuperAdminUser.value) {
-      sa.push({
-        id: 'global-admin-roles',
-        label: t('verwaltung.nav.globalAdminRoles'),
-        mdiIcon: 'mdi-shield-account',
-      })
-      sa.push({
-        id: 'user-org-overview',
-        label: t('verwaltung.nav.userOrgOverview'),
-        mdiIcon: 'mdi-account-search',
-        to: '/admin-dashboard/verwaltung/user-org-overview',
-      })
-    }
     const integrations: MenuItem = { id: 'integrations', label: t('verwaltung.nav.integrations'), mdiIcon: 'mdi-api' }
-    const securityMonitoring: MenuItem = { id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), mdiIcon: 'mdi-shield-alert-outline' }
+    const securityMonitoring: MenuItem = {
+      id: 'security-monitoring',
+      label: t('verwaltung.nav.securityMonitoring'),
+      mdiIcon: 'mdi-shield-alert-outline',
+    }
     const mail: MenuItem = { id: 'mail', label: t('verwaltung.nav.mail'), mdiIcon: 'mdi-email-outline' }
     const perm: MenuItem = { id: 'permissions', label: t('verwaltung.nav.permissions'), mdiIcon: 'mdi-lock-outline' }
     const materialTemplates: MenuItem = {
@@ -189,8 +217,9 @@ const visibleMenuItems = computed((): MenuItem[] => {
       mdiIcon: 'mdi-file-document-multiple-outline',
     }
     return [
-      ...core,
-      ...sa,
+      ...leadingItems,
+      ...orgStructureItems,
+      ...secondaryItems,
       ...(canEditGlobalTemplates.value ? [materialTemplates] : []),
       ...(canManageIntegrations.value ? [integrations] : []),
       ...(canViewSecurityMonitoring.value ? [securityMonitoring] : []),
@@ -199,37 +228,24 @@ const visibleMenuItems = computed((): MenuItem[] => {
     ]
   }
 
-  const saUsersGlobal: MenuItem = {
-    id: 'users-global',
-    label: t('verwaltung.nav.users'),
-    mdiIcon: 'mdi-account-group',
-    to: '/admin-dashboard/verwaltung/users'
-  }
-
   if (!canManageOrganisations.value) {
-    return canManageGlobalUsers.value ? [...core, saUsersGlobal] : core
+    return [...leadingItems, ...orgStructureItems, ...secondaryItems]
   }
 
-  const orgItems: MenuItem[] = []
-  if (canViewOrganisations.value) {
-    orgItems.push({ id: 'organisations', label: t('verwaltung.nav.organisations'), mdiIcon: 'mdi-domain' })
-  }
-  if (canViewDepartments.value) {
-    orgItems.push({ id: 'departments', label: t('verwaltung.nav.allDepartments'), mdiIcon: 'mdi-office-building-outline' })
-  }
+  const tailItems: MenuItem[] = [...secondaryItems]
   if (canViewSecurityMonitoring.value) {
-    orgItems.push({ id: 'security-monitoring', label: t('verwaltung.nav.securityMonitoring'), mdiIcon: 'mdi-shield-alert-outline' })
+    tailItems.push({
+      id: 'security-monitoring',
+      label: t('verwaltung.nav.securityMonitoring'),
+      mdiIcon: 'mdi-shield-alert-outline',
+    })
   }
-  orgItems.push({ id: 'permissions', label: t('verwaltung.nav.permissions'), mdiIcon: 'mdi-lock-outline' })
-
-  const items = [...core, ...orgItems]
+  tailItems.push({ id: 'permissions', label: t('verwaltung.nav.permissions'), mdiIcon: 'mdi-lock-outline' })
   if (canManageMail.value) {
-    items.push({ id: 'mail', label: t('verwaltung.nav.mail'), mdiIcon: 'mdi-email-outline' })
+    tailItems.push({ id: 'mail', label: t('verwaltung.nav.mail'), mdiIcon: 'mdi-email-outline' })
   }
-  if (canManageGlobalUsers.value) {
-    items.push(saUsersGlobal)
-  }
-  return items
+
+  return [...leadingItems, ...orgStructureItems, ...tailItems]
 })
 </script>
 
