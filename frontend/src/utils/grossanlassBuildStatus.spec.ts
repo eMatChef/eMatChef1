@@ -85,12 +85,12 @@ describe('resolveBuildStatus', () => {
     ])).toBe('planned')
   })
 
-  it('falls back to the window when empty', () => {
+  it('stays planned inside the window when no calendar period is active', () => {
     expect(resolveBuildStatus({
       build_status: '',
       window_start: '2026-10-28',
       window_end: '2026-11-13',
-    }, '2026-11-01')).toBe('use')
+    }, '2026-11-01')).toBe('planned')
   })
 })
 
