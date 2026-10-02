@@ -1,0 +1,44 @@
+# Hinweis auf Release-PRs. Dieser Workflow merged nicht und deployed nicht.
+# Ein roter Required Check wäre hier falsch: der Fast-Forward prüft selbst
+# den Check "CI ok". Ein zusätzlicher Pflicht-Check, der rot bliebe, würde
+# die Promotion blockieren. Deshalb nur ein Kommentar, kein Check-Run.
+name: Release PR guard
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review]
+    branches:
+      - staging
+      - prod
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  notice:
+    name: Hinweis Fast-Forward
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        (github.event.pull_request.base.ref == 'staging' && github.event.pull_request.head.ref == 'develop') ||
+        (github.event.pull_request.base.ref == 'prod' && github.event.pull_request.head.ref == 'staging')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kommentar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/${REPO}/issues/${PR}/comments" -f body="$(cat <<'EOF'
+          Dieser Pull Request dient Review und CI.
+
+          Abschliessen ausschliesslich mit dem Kommentar `/fast-forward`.
+          Squash, Merge-Commit und Rebase sind für diese Promotion nicht erlaubt.
+          Der Workflow setzt den Zielbranch nur dann auf den Head-Commit, wenn der Zielbranch ein echter Vorfahre ist und der Check `CI ok` am Head-SHA erfolgreich ist.
+
+          Dieser Hinweis merged nicht und startet kein Deployment.
+          EOF
+          )"

@@ -31,7 +31,7 @@ Dieses Dokument hält fest, **was im Cutover-Chat passiert ist**, was **jetzt gi
 - Prod: Marketing ≠ App (`ematchef.ch` vs. `app.ematchef.ch`).
 - `app.dev` / `app.staging` waren Übergangsnamen; Canonical ist der bare Host. Ohne Cloudflare-A für `app.dev` → **NXDOMAIN** (alte Bookmarks / gecachte 301er beachten).
 
-Release-Kette: `develop` → `staging` → `prod` per **`/fast-forward`** (kein Squash auf diesen PRs).
+Release-Kette: Feature/Fix/Chore per PR nach `develop`. Danach Release-PR `develop` → `staging` und Production-PR `staging` → `prod`. Beide werden nur mit **`/fast-forward`** abgeschlossen, nicht mit Squash, Merge-Commit oder Rebase. Der Push auf den Zielbranch startet das Deployment.
 
 ---
 
