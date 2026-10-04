@@ -305,6 +305,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { copyTextToClipboard } from '@/utils/clipboard'
+import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import { EButton, ECheckbox, EDialog, ESelect, ETextField, ETextarea } from '@/components/form/base'
@@ -684,8 +685,7 @@ async function onDepartmentChange() {
   await authStore.setActiveDepartment(newDeptId)
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
-    window.location.assign(newPath)
+    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
     return
   }
   await loadScreens(newDeptId)

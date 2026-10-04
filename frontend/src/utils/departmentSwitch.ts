@@ -1,4 +1,5 @@
 import type { UserDepartmentResponse } from '@/api/auth'
+import { isValidEntityId } from '@/utils/entityId'
 
 export function isGrossanlassDepartment(dept: UserDepartmentResponse): boolean {
   return Boolean(dept.department?.is_grossanlass)
@@ -33,5 +34,8 @@ export function departmentDisplayName(
 
 /** Ziel nach Dept-Wechsel: Grossanlass- und Pfadi-Home ist /{deptId} (Dashboard). */
 export function departmentHomePath(departmentId: string): string {
+  if (!isValidEntityId(departmentId)) {
+    return '/'
+  }
   return `/${departmentId}`
 }

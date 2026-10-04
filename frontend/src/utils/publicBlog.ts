@@ -1,3 +1,5 @@
+import { htmlToPlainText } from '@/utils/sanitizeHtml'
+
 export type BlogLocale = 'de' | 'en' | 'fr'
 
 export interface PublicBlogPost {
@@ -37,17 +39,8 @@ function datePrefix(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
 function makeExcerpt(bodyHtml: string, max = 170): string {
-  const plain = stripHtml(bodyHtml)
+  const plain = htmlToPlainText(bodyHtml, 'compact')
   if (plain.length <= max) return plain
   return `${plain.slice(0, max).trimEnd()}…`
 }

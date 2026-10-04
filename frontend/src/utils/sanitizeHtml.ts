@@ -83,13 +83,6 @@ function ensureMailStyleHook(): void {
   })
 }
 
-function fallbackStripTags(html: string): string {
-  return String(html || '')
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<[^>]+>/g, '')
-}
-
 const PLAIN_TEXT_STRIP_CONFIG: Config = {
   ALLOWED_TAGS: [],
   ALLOWED_ATTR: [],
@@ -130,7 +123,9 @@ function plainTextFromSanitizedHtml(sanitized: string, layout: 'compact' | 'mail
     return ''
   }
   if (layout === 'compact') {
-    return sanitized.replace(/\s+/g, ' ').trim()
+    const doc = new DOMParser().parseFromString(`<div>${sanitized}</div>`, 'text/html')
+    const text = doc.body.textContent ?? ''
+    return text.replace(/\s+/g, ' ').trim()
   }
   const doc = new DOMParser().parseFromString(`<div>${sanitized}</div>`, 'text/html')
   const parts: string[] = []
@@ -156,11 +151,6 @@ export function htmlToPlainText(html: string, layout: 'compact' | 'mail' = 'comp
     return ''
   }
 
-  if (typeof window === 'undefined') {
-    const stripped = fallbackStripTags(s)
-    return layout === 'compact' ? stripped.replace(/\s+/g, ' ').trim() : stripped.trim()
-  }
-
   const config = layout === 'mail' ? MAIL_PLAIN_TEXT_STRUCTURE_CONFIG : PLAIN_TEXT_STRIP_CONFIG
   const sanitized = DOMPurify.sanitize(s, config)
   return plainTextFromSanitizedHtml(sanitized, layout)
@@ -173,10 +163,6 @@ export function sanitizePublicHtml(html: string): string {
     return ''
   }
 
-  if (typeof window === 'undefined') {
-    return fallbackStripTags(s)
-  }
-
   ensureLinkHooks()
   return DOMPurify.sanitize(s, PURIFY_CONFIG)
 }
@@ -186,10 +172,6 @@ export function sanitizeMailHtml(html: string): string {
   const s = String(html || '').trim()
   if (!s) {
     return ''
-  }
-
-  if (typeof window === 'undefined') {
-    return fallbackStripTags(s)
   }
 
   ensureLinkHooks()

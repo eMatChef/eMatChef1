@@ -80,6 +80,7 @@ import { deletePendingInvite, getDepartmentInvite, getPendingInvites, regenerate
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import { EButton, ESelect } from '@/components/form/base'
 import QRCode from 'qrcode'
+import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -198,8 +199,7 @@ async function onDepartmentChange() {
   await authStore.setActiveDepartment(newDeptId)
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
-    window.location.assign(newPath)
+    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
     return
   }
   await loadInviteCode(newDeptId)

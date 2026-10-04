@@ -1,3 +1,5 @@
+import { htmlToPlainText } from '@/utils/sanitizeHtml'
+
 export type InquiryMailPositionCheck = {
   mentioned: string[]
   omitted: string[]
@@ -8,19 +10,7 @@ export type InquiryMailPositionCheck = {
 const MIN_NAME_LEN = 3
 
 export function htmlToPlainForMatch(html: string): string {
-  const withBreaks = html.replace(
-    /<br\s*\/?>|<\/p>|<\/div>|<\/li>|<\/h2>|<\/h3>|<\/strong>/gi,
-    '\n',
-  )
-  const stripped = withBreaks.replace(/<[^>]+>/g, ' ')
-  const decoded = stripped
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/g, "'")
-  return decoded.replace(/\s+/g, ' ').trim()
+  return htmlToPlainText(html, 'mail').replace(/\s+/g, ' ').trim()
 }
 
 export function isMatchablePositionName(name: string): boolean {
