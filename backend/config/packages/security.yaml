@@ -29,6 +29,11 @@ security:
             stateless: true
             security: false
 
+        midata_oauth:
+            pattern: ^/api/auth/midata
+            stateless: true
+            security: false
+
         microsoft_oauth:
             pattern: ^/api/auth/microsoft
             stateless: true
@@ -82,6 +87,7 @@ security:
         - { path: ^/api/auth/password-reset/confirm, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/logout, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/google, roles: PUBLIC_ACCESS }
+        - { path: ^/api/auth/midata, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth/microsoft, roles: PUBLIC_ACCESS }
         - { path: ^/api/token/refresh, roles: PUBLIC_ACCESS }
         - { path: ^/api/public, roles: PUBLIC_ACCESS }

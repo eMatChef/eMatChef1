@@ -43,9 +43,9 @@ Stateless JWT (Lexik) plus Refresh-Token (`gesdinet/jwt-refresh-token-bundle`).
 
 - Login: `POST /api/auth/login_check` (E-Mail + Passwort), Throttling.
 - Refresh: `/api/token/refresh`.
-- Öffentlich ohne JWT: `/api/auth/*` (Register, Verify, Passwort-Reset, Google, Microsoft), `/api/public`, `/api/health`, `/api/token/refresh`.
+- Öffentlich ohne JWT: Registrierung, Verify, Passwort-Reset und OAuth-Login/-Callback unter `/api/auth/`, `/api/public`, `/api/health` und `/api/token/refresh`. MiData-Verknüpfung (`/api/auth/link/midata`) erfordert einen eingeloggten User.
 - Übrige `/api`- und `/media`-Routen: `ROLE_USER`.
-- Google und Microsoft haben eigene Firewalls (`/api/auth/google`, `/api/auth/microsoft`).
+- Google, MiData und Microsoft haben eigene Firewalls (`/api/auth/google`, `/api/auth/midata`, `/api/auth/microsoft`). MiData verwendet OIDC-Discovery und speichert nur `(provider, sub)` als ExternalIdentity; Provider-Tokens bleiben transient.
 - Passwort-Hashing: Symfony `auto` auf `User`.
 
 Department-Rechte kommen nicht aus dem JWT allein, sondern aus `Membership.role` im angefragten Department. Katalog: `DepartmentRole`, Zuweisungslogik `MembershipRoleCatalog`.

@@ -208,6 +208,15 @@ export function googleAuthStartUrl(redirectPath?: string | null): string {
   return absoluteApiUrl(`/api/auth/google${query ? `?${query}` : ''}`)
 }
 
+export function midataAuthStartUrl(redirectPath?: string | null): string {
+  const params = new URLSearchParams()
+  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+    params.set('redirect', redirectPath)
+  }
+  const query = params.toString()
+  return absoluteApiUrl(`/api/auth/midata${query ? `?${query}` : ''}`)
+}
+
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const response = await apiClient.post<LoginResponse>('/api/auth/login_check', { email, password })
   const raw: unknown = response.data

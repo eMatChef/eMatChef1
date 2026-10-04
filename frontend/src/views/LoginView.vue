@@ -423,7 +423,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { confirmPasswordReset, googleAuthStartUrl, register as apiRegister, requestPasswordReset, resendVerification } from '@/api/auth'
+import {
+  confirmPasswordReset,
+  googleAuthStartUrl,
+  midataAuthStartUrl,
+  register as apiRegister,
+  requestPasswordReset,
+  resendVerification,
+} from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import EmcLogoMark from '@/components/brand/EmcLogoMark.vue'
 import { EButton, ECard, ECheckbox, EOtpInput, ESelect, ETextField } from '@/components/form/base'
@@ -506,6 +513,7 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const socialProviders = [
   { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
+  { id: 'midata' as const, icon: 'mdi-account-group', labelKey: 'login.socialMiData' },
 ]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
@@ -748,7 +756,7 @@ onMounted(() => {
   applyRegisterPrefillFromQuery()
   applyForgotPrefillFromQuery()
   applyDemoLoginPrefill()
-  void completeGoogleOAuthReturn()
+  void completeExternalOAuthReturn()
   window.addEventListener('emc-demo-login', applyDemoLoginPrefill)
 })
 
@@ -789,33 +797,38 @@ function clearMessages() {
   authStore.clearError()
 }
 
-function onSocialLogin(provider: 'google') {
-  if (provider !== 'google') return
+function onSocialLogin(provider: 'google' | 'midata') {
   const redirect =
     parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
   isRedirecting.value = true
-  window.location.assign(googleAuthStartUrl(redirect))
+  window.location.assign(
+    provider === 'google' ? googleAuthStartUrl(redirect) : midataAuthStartUrl(redirect)
+  )
 }
 
-function oauthErrorMessage(reason: string): string {
+function oauthErrorMessage(reason: string, provider: string): string {
+  const prefix = provider === 'midata' ? 'login.midataOauth' : 'login.oauth'
   const keys: Record<string, string> = {
-    not_configured: 'login.oauthNotConfigured',
-    denied: 'login.oauthDenied',
-    invalid_state: 'login.oauthInvalidState',
-    no_email: 'login.oauthNoEmail',
-    unverified_email: 'login.oauthUnverifiedEmail',
-    inactive: 'login.oauthInactive',
-    failed: 'login.oauthFailed',
+    not_configured: `${prefix}NotConfigured`,
+    denied: `${prefix}Denied`,
+    invalid_state: `${prefix}InvalidState`,
+    no_email: `${prefix}NoEmail`,
+    unverified_email: `${prefix}UnverifiedEmail`,
+    email_conflict: `${prefix}EmailConflict`,
+    link_conflict: `${prefix}LinkConflict`,
+    inactive: `${prefix}Inactive`,
+    failed: `${prefix}Failed`,
   }
-  return t(keys[reason] || 'login.oauthFailed')
+  return t(keys[reason] || `${prefix}Failed`)
 }
 
-async function completeGoogleOAuthReturn() {
+async function completeExternalOAuthReturn() {
   const oauth = typeof route.query.oauth === 'string' ? route.query.oauth : ''
   if (!oauth) return
+  const provider = typeof route.query.provider === 'string' ? route.query.provider : 'google'
   if (oauth === 'error') {
     const reason = typeof route.query.reason === 'string' ? route.query.reason : 'failed'
-    error.value = oauthErrorMessage(reason)
+    error.value = oauthErrorMessage(reason, provider)
     return
   }
   if (oauth !== 'ok') return
