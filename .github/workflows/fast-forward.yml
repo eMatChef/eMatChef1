@@ -10,7 +10,7 @@ on:
     types: [created]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   checks: read
 
@@ -30,9 +30,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Release-App-Token
+        id: release-app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
       - name: Promote by fast-forward
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_APP_TOKEN: ${{ steps.release-app.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: node scripts/release-fast-forward.mjs
