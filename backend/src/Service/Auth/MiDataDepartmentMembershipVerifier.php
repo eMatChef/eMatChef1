@@ -57,24 +57,32 @@ class MiDataDepartmentMembershipVerifier
         try {
             $roles = $this->roleLookup->getRolesForPerson('midata', $session->accessToken, $identity->getExternalUserId());
             $today = new \DateTimeImmutable('today');
+            $verifiedRoles = [];
             foreach ($roles as $role) {
                 if ($role->personId !== $identity->getExternalUserId() || !$role->isActiveOn($today)) {
                     continue;
                 }
-                if (
-                    $role->groupId === $mappings[0]->getExternalGroupId()
+                $isInDepartment = $role->groupId === $mappings[0]->getExternalGroupId()
                     || $this->parentChainResolver->isDescendantOrSelfForVerification(
                         'midata',
                         $role->groupId,
                         $mappings[0]->getExternalGroupId(),
                         $session->accessToken,
-                    )
-                ) {
-                    return new MiDataDepartmentVerificationResult(
-                        MiDataDepartmentVerificationStatus::CONFIRMED,
-                        $role,
                     );
+                if ($isInDepartment) {
+                    $verifiedRoles[$role->groupId] ??= $role;
                 }
+            }
+            if ($verifiedRoles !== []) {
+                $verifiedRoles = array_values($verifiedRoles);
+
+                return new MiDataDepartmentVerificationResult(
+                    MiDataDepartmentVerificationStatus::CONFIRMED,
+                    $verifiedRoles[0],
+                    $verifiedRoles,
+                    $mappings[0]->getExternalGroupId(),
+                    $identity->getExternalUserId(),
+                );
             }
         } catch (HitobitoApiException) {
             return new MiDataDepartmentVerificationResult(MiDataDepartmentVerificationStatus::UNAVAILABLE);

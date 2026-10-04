@@ -22,6 +22,7 @@ final class DepartmentJoinFlowService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly MiDataDepartmentMembershipVerifier $membershipVerifier,
+        private readonly MiDataGroupMembershipSynchronizer $groupMembershipSynchronizer,
         private readonly AuditLogger $auditLogger,
         private readonly JoinRequestNotifier $notifications,
         private readonly LoggerInterface $logger,
@@ -165,12 +166,25 @@ final class DepartmentJoinFlowService
         }
         $this->entityManager->flush();
 
+        $groupMembershipSync = null;
+        try {
+            $groupMembershipSync = $this->groupMembershipSynchronizer->sync($user, $department, $verification);
+        } catch (\Throwable $exception) {
+            $this->logger->error('MiData group membership synchronization failed', [
+                'user_id' => $user->getId(),
+                'department_id' => $department->getId(),
+                'exception' => $exception,
+            ]);
+            $groupMembershipSync = new MiDataGroupMembershipSyncResult(errors: ['synchronization_failed']);
+        }
+
         return new DepartmentJoinOutcome(
             $existingMembership === null
                 ? DepartmentJoinOutcomeStatus::MEMBERSHIP_CONFIRMED
                 : DepartmentJoinOutcomeStatus::ALREADY_MEMBER,
             $department,
             $request,
+            $groupMembershipSync,
         );
     }
 

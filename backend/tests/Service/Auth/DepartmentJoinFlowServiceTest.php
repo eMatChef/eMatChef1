@@ -16,6 +16,8 @@ use App\Service\Auth\HitobitoOAuthSession;
 use App\Service\Auth\MiDataDepartmentMembershipVerifier;
 use App\Service\Auth\MiDataDepartmentVerificationResult;
 use App\Service\Auth\MiDataDepartmentVerificationStatus;
+use App\Service\Auth\MiDataGroupMembershipSynchronizer;
+use App\Service\Auth\MiDataGroupMembershipSyncResult;
 use App\Service\JoinRequestNotifier;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\EntityRepository;
@@ -28,6 +30,10 @@ final class DepartmentJoinFlowServiceTest extends TestCase
     public function testConfirmedJoinCreatesUserMembershipAndReviewerlessApprovedRequest(): void
     {
         $fixture = $this->flowFixture(MiDataDepartmentVerificationStatus::CONFIRMED);
+        $fixture['groupMembershipSynchronizer']->expects(self::once())
+            ->method('sync')
+            ->with($fixture['user'], $fixture['department'], $fixture['verification'])
+            ->willReturn(new MiDataGroupMembershipSyncResult(created: ['grp-00000001']));
         $fixture['entityManager']->expects(self::exactly(2))->method('persist')
             ->willReturnCallback(static function (object $entity) use (&$fixture): void {
                 $fixture['persisted'][] = $entity;
@@ -234,6 +240,9 @@ final class DepartmentJoinFlowServiceTest extends TestCase
             null,
             $approvedRequest,
         );
+        $fixture['groupMembershipSynchronizer']->expects(self::once())
+            ->method('sync')
+            ->willReturn(new MiDataGroupMembershipSyncResult());
         $fixture['entityManager']->expects(self::never())->method('persist');
         $fixture['entityManager']->expects(self::once())->method('flush');
 
@@ -282,19 +291,31 @@ final class DepartmentJoinFlowServiceTest extends TestCase
             static fn (string $entityClass): EntityRepository => $repositories[$entityClass],
         );
         $verifier = $this->createMock(MiDataDepartmentMembershipVerifier::class);
-        $verifier->method('verify')->willReturn(new MiDataDepartmentVerificationResult($verificationStatus));
+        $verification = new MiDataDepartmentVerificationResult($verificationStatus);
+        $verifier->method('verify')->willReturn($verification);
+        $groupMembershipSynchronizer = $this->createMock(MiDataGroupMembershipSynchronizer::class);
+        $groupMembershipSynchronizer->method('sync')->willReturn(new MiDataGroupMembershipSyncResult());
         $auditLogger = $this->createMock(AuditLogger::class);
         $notifier = $this->createMock(JoinRequestNotifier::class);
         $logger = $this->createMock(LoggerInterface::class);
         $persisted = [];
 
         return [
-            'service' => new DepartmentJoinFlowService($entityManager, $verifier, $auditLogger, $notifier, $logger),
+            'service' => new DepartmentJoinFlowService(
+                $entityManager,
+                $verifier,
+                $groupMembershipSynchronizer,
+                $auditLogger,
+                $notifier,
+                $logger,
+            ),
             'user' => $user,
             'department' => $department,
             'entityManager' => $entityManager,
             'auditLogger' => $auditLogger,
             'notifier' => $notifier,
+            'groupMembershipSynchronizer' => $groupMembershipSynchronizer,
+            'verification' => $verification,
             'persisted' => &$persisted,
         ];
     }

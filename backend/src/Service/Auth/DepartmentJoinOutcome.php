@@ -13,5 +13,6 @@ final readonly class DepartmentJoinOutcome
         public DepartmentJoinOutcomeStatus $status,
         public ?Department $department = null,
         public ?JoinRequest $joinRequest = null,
+        public ?MiDataGroupMembershipSyncResult $groupMembershipSync = null,
     ) {}
 }

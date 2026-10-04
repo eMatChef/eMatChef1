@@ -113,6 +113,43 @@ final class MiDataDepartmentMembershipVerifierTest extends TestCase
         );
     }
 
+    public function testConfirmedVerificationReturnsOnlyActiveRolesWithinTheDepartment(): void
+    {
+        $user = $this->user();
+        $department = $this->department();
+        $roles = $this->createMock(HitobitoRoleLookup::class);
+        $roles->method('getRolesForPerson')->willReturn([
+            $this->role('111'),
+            $this->role('100'),
+            $this->role('999'),
+        ]);
+        $groups = $this->createMock(HitobitoGroupLookup::class);
+        $groups->method('getGroup')->willReturnCallback(
+            static fn (string $provider, string $token, string $id): ?HitobitoGroup => match ($id) {
+                '111' => new HitobitoGroup('111', '100', 'Group::Woelfe', 'Mandi'),
+                '999' => new HitobitoGroup('999', null, 'Group::Abteilung', 'Andere Abteilung'),
+                default => null,
+            },
+        );
+        $verifier = $this->verifier(
+            $user,
+            $this->identity($user),
+            [$this->mapping($department)],
+            $roles,
+            $groups,
+        );
+
+        $result = $verifier->verify($user, $department, $this->session());
+
+        self::assertSame(MiDataDepartmentVerificationStatus::CONFIRMED, $result->status);
+        self::assertSame('100', $result->externalDepartmentGroupId);
+        self::assertSame('person-1', $result->externalPersonId);
+        self::assertSame(['111', '100'], array_map(
+            static fn (HitobitoRole $role): string => $role->groupId,
+            $result->verifiedRoles,
+        ));
+    }
+
     public function testDeeplyNestedActiveRoleConfirmsThroughTheParentChain(): void
     {
         $user = $this->user();
