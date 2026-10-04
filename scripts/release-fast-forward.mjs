@@ -3,7 +3,9 @@
  * Abschluss nur develop → staging und staging → prod.
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const MESSAGES = {
@@ -18,6 +20,7 @@ const MESSAGES = {
   'not-forward': 'Head und Base sind identisch. Es gibt nichts vorwärts zu bewegen.',
   ancestor: 'Der Zielbranch ist kein Vorfahre des Head-Commits oder die History ist divergent.',
   moved: 'Head oder Base haben sich zwischen Prüfung und Push geändert. Abbruch.',
+  token: 'Release-App-Token fehlt.',
 }
 
 export function ciOkConclusion(runs) {
@@ -63,7 +66,36 @@ export function pushArguments(refspec) {
   if (!/^[0-9a-f]{40}:refs\/heads\/(staging|prod)$/.test(refspec)) {
     throw new Error('Ungültige Fast-Forward-Refspec.')
   }
-  return ['push', 'origin', refspec]
+  return ['push', refspec]
+}
+
+export function promotionRemote(repo) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
+    throw new Error('Ungültiges Repository.')
+  }
+  return `https://github.com/${repo}.git`
+}
+
+export function promotionPushGitArgs(repo, refspec) {
+  const ref = pushArguments(refspec)[1]
+  const args = [
+    '-c',
+    'credential.helper=',
+    '-c',
+    'http.https://github.com/.extraheader=',
+    'push',
+    promotionRemote(repo),
+    ref,
+  ]
+  if (args.some((arg) => arg === '--force' || arg === '--force-with-lease' || arg.startsWith('+'))) {
+    throw new Error('Force-Push ist keine Promotion.')
+  }
+  return args
+}
+
+export function redact(text, secret) {
+  if (!secret) return String(text)
+  return String(text).split(secret).join('[redacted]')
 }
 
 function deny(code) {
@@ -74,8 +106,34 @@ function gh(args) {
   return execFileSync('gh', args, { encoding: 'utf8' })
 }
 
-function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8' })
+function git(args, env) {
+  const options = { encoding: 'utf8' }
+  if (env) options.env = env
+  return execFileSync('git', args, options)
+}
+
+function pushWithReleaseApp(repo, refspec, token) {
+  const directory = mkdtempSync(join(tmpdir(), 'release-app-'))
+  const askpass = join(directory, 'askpass.sh')
+  writeFileSync(
+    askpass,
+    '#!/bin/sh\ncase "$1" in\n*[Uu]sername*) printf "%s\\n" "x-access-token" ;;\n*) printf "%s\\n" "$RELEASE_APP_TOKEN" ;;\nesac\n',
+    { mode: 0o700 },
+  )
+  try {
+    git(promotionPushGitArgs(repo, refspec), {
+      ...process.env,
+      GIT_ASKPASS: askpass,
+      GIT_TERMINAL_PROMPT: '0',
+      RELEASE_APP_TOKEN: token,
+    })
+  } catch (error) {
+    const detail = redact(`${error.stderr || ''}\n${error.message || ''}`, token)
+    console.error(detail)
+    throw new Error('Push abgelehnt.')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
 }
 
 function isAncestor(baseSha, headSha) {
@@ -183,7 +241,13 @@ function main() {
   })
   if (!stable.ok) fail(repo, number, MESSAGES.moved)
 
-  git(pushArguments(decision.refspec))
+  const releaseToken = process.env.RELEASE_APP_TOKEN || ''
+  if (!releaseToken) fail(repo, number, MESSAGES.token)
+  try {
+    pushWithReleaseApp(repo, decision.refspec, releaseToken)
+  } catch {
+    fail(repo, number, 'Push abgelehnt.')
+  }
   commentOnPullRequest(
     repo,
     number,

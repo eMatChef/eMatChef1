@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ciOkConclusion, confirmStable, evaluatePromotion, pushArguments } from './release-fast-forward.mjs'
+import {
+  ciOkConclusion,
+  confirmStable,
+  evaluatePromotion,
+  promotionPushGitArgs,
+  redact,
+} from './release-fast-forward.mjs'
 
 const SHA_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const SHA_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -102,11 +108,15 @@ test('fremdes Repository wird abgelehnt', () => {
   assert.equal(result.code, 'repository')
 })
 
-test('Push-Argumente enthalten kein force', () => {
-  const args = pushArguments(`${SHA_B}:refs/heads/staging`)
-  assert.deepEqual(args, ['push', 'origin', `${SHA_B}:refs/heads/staging`])
+test('Push-Argumente enthalten kein force und kein Token', () => {
+  const secret = 'ghs_example_token_value'
+  const args = promotionPushGitArgs('eMatChef/eMatChef1', `${SHA_B}:refs/heads/staging`)
   assert.equal(args.includes('--force'), false)
   assert.equal(args.includes('--force-with-lease'), false)
+  assert.equal(args.includes('origin'), false)
+  assert.equal(args.at(-1), `${SHA_B}:refs/heads/staging`)
+  assert.equal(args.some((arg) => arg.includes(secret)), false)
+  assert.equal(redact(`denied ${secret}`, secret), 'denied [redacted]')
 })
 
 test('Head-Wechsel zwischen Prüfung und Push bricht ab', () => {

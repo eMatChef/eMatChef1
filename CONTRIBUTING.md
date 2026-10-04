@@ -123,7 +123,7 @@ Optional danach ein Release-Tag setzen (z. B. `v1.0.0`).
   - Kommentar **`/fast-forward`**: nur `develop` → `staging` oder `staging` → `prod`
   - Nur Personen mit **Maintain** oder **Admin**
   - Pflicht: offener PR, kein Draft, Check **CI ok** erfolgreich, Ziel-SHA ist Vorfahre des Head-SHA, Head unveraendert bis zum Push
-  - Push ohne `--force`: `<head-sha>:refs/heads/<ziel>`
+  - Push ohne `--force`: `<head-sha>:refs/heads/<ziel>`, authentifiziert mit dem kurzlebigen Token der Release-App (`RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`)
 - `Release PR guard` in `.github/workflows/release-pr-guard.yml`
   - Kommentar auf Release-PRs. Merged nicht, deployed nicht, ist kein Required Check
 - Übersetzungen: self-hosted [Weblate](https://translate.ematchef.ch) — Setup und erlaubte Sprachen in [docs/TRANSLATION.md](docs/TRANSLATION.md)
