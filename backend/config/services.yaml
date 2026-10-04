@@ -57,3 +57,8 @@ services:
         arguments:
             $supportedLanguages: '%app.supported_languages%'
             $defaultLanguage: '%app.default_language%'
+
+    App\Service\Auth\HitobitoApiClient:
+        arguments:
+            $providerIssuers:
+                midata: '%env(MIDATA_OAUTH_ISSUER)%'

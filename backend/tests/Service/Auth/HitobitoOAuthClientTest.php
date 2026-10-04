@@ -78,6 +78,11 @@ final class HitobitoOAuthClientTest extends TestCase
                 'email_verified' => true,
                 'given_name' => 'Ada',
                 'family_name' => 'Lovelace',
+                'roles' => [[
+                    'group_id' => 376803389,
+                    'role_class' => 'Group::BottomLayer::Member',
+                    'permissions' => ['layer_and_below_read', 'finance'],
+                ]],
             ])),
         ];
         $http = new MockHttpClient(static function (string $method, string $url, array $options) use (&$requests, &$responses): MockResponse {
@@ -86,13 +91,23 @@ final class HitobitoOAuthClientTest extends TestCase
             return array_shift($responses);
         });
 
-        $info = $this->client($http)->fetchUserInfo('authorization-code', 'pkce-verifier', $nonce);
+        $session = $this->client($http)->fetchUserInfo('authorization-code', 'pkce-verifier', $nonce);
+        $info = $session->userInfo;
 
+        self::assertSame('midata', $session->provider);
+        self::assertSame('transient-access-token', $session->accessToken);
         self::assertSame('midata-sub-42', $info->subject);
         self::assertSame('person@example.com', $info->email);
         self::assertTrue($info->emailVerified);
         self::assertSame('Ada', $info->firstName);
         self::assertSame('Lovelace', $info->lastName);
+        self::assertCount(1, $info->roles);
+        self::assertSame('midata-sub-42', $info->roles[0]->personId);
+        self::assertSame('376803389', $info->roles[0]->groupId);
+        self::assertSame('Group::BottomLayer::Member', $info->roles[0]->type);
+        self::assertSame(['layer_and_below_read', 'finance'], $info->roles[0]->permissions);
+        self::assertNull($info->roles[0]->startOn);
+        self::assertNull($info->roles[0]->endOn);
         self::assertCount(4, $requests);
         self::assertSame('GET', $requests[0][0]);
         self::assertSame('POST', $requests[1][0]);

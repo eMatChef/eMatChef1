@@ -64,7 +64,7 @@ final class MiDataOAuthController extends AbstractController
         }
 
         try {
-            $info = $this->oauthClient->fetchUserInfo(
+            $session = $this->oauthClient->fetchUserInfo(
                 $code,
                 $verifiedState['code_verifier'],
                 $verifiedState['nonce'],
@@ -76,7 +76,7 @@ final class MiDataOAuthController extends AbstractController
                 throw new MiDataOAuthException('link_conflict', 'The account to link no longer exists');
             }
 
-            $user = $this->accountService->resolveOrCreate($info, $linkUser);
+            $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
             $authResponse = $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
         } catch (MiDataOAuthException $exception) {
             return $this->finishWithClearedState('error', $exception->reason);

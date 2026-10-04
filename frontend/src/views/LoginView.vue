@@ -123,6 +123,29 @@
             <span class="login-or-divider__line" />
           </div>
 
+          <div class="external-provider-grid">
+            <button
+              v-for="provider in externalLoginProviders"
+              :key="provider.key"
+              type="button"
+              class="external-provider-card"
+              :class="[`external-provider-card--${provider.key}`, { 'external-provider-card--disabled': !provider.enabled }]"
+              :disabled="isLoading || !provider.enabled"
+              :aria-label="provider.enabled ? `${provider.label} · ${provider.organisation}` : t('login.socialSoon', { provider: provider.label })"
+              :title="provider.enabled ? `${provider.label} · ${provider.organisation}` : t('login.socialSoon', { provider: provider.label })"
+              @click="onExternalProviderLogin(provider.key)"
+            >
+              <span class="external-provider-card__logo">
+                <img :src="provider.icon" alt="" loading="lazy">
+              </span>
+              <span class="external-provider-card__label">{{ provider.label }}</span>
+              <span class="external-provider-card__organisation">{{ provider.organisation }}</span>
+              <span v-if="!provider.enabled" class="external-provider-card__status">
+                {{ t('login.socialSoon', { provider: provider.label }) }}
+              </span>
+            </button>
+          </div>
+
           <div class="social-login">
             <button
               v-for="provider in socialProviders"
@@ -132,7 +155,7 @@
               :disabled="isLoading"
               :aria-label="t(provider.labelKey)"
               :title="t(provider.labelKey)"
-              @click="onSocialLogin(provider.id)"
+              @click="onSocialLogin"
             >
               <v-icon :icon="provider.icon" size="22" />
             </button>
@@ -445,6 +468,7 @@ import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicke
 import { setLocale, SUPPORTED_LOCALES } from '@/i18n'
 import { consumeDemoLogin } from '@/utils/demoLogins'
 import { parseInternalRedirectPath } from '@/utils/appHomeRedirect'
+import { externalLoginProviders, type ExternalLoginProviderKey } from '@/config/externalLoginProviders'
 
 /** Site-Key nur wenn nicht bewusst per VITE_TURNSTILE_SKIP übersprungen (lokal testen) */
 const turnstileSiteKey = computed(() => {
@@ -513,7 +537,6 @@ const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
 const socialProviders = [
   { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
-  { id: 'midata' as const, icon: 'mdi-account-group', labelKey: 'login.socialMiData' },
 ]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
@@ -797,13 +820,20 @@ function clearMessages() {
   authStore.clearError()
 }
 
-function onSocialLogin(provider: 'google' | 'midata') {
+function onSocialLogin() {
   const redirect =
     parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
   isRedirecting.value = true
-  window.location.assign(
-    provider === 'google' ? googleAuthStartUrl(redirect) : midataAuthStartUrl(redirect)
-  )
+  window.location.assign(googleAuthStartUrl(redirect))
+}
+
+function onExternalProviderLogin(provider: ExternalLoginProviderKey) {
+  if (provider !== 'midata') return
+
+  const redirect =
+    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+  isRedirecting.value = true
+  window.location.assign(midataAuthStartUrl(redirect))
 }
 
 function oauthErrorMessage(reason: string, provider: string): string {
@@ -1485,6 +1515,101 @@ watch(
   opacity: 0.55;
 }
 
+.external-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.external-provider-card {
+  display: flex;
+  min-width: 0;
+  min-height: 126px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  text-align: center;
+}
+
+.external-provider-card:hover:not(:disabled),
+.external-provider-card:focus-visible {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.external-provider-card:focus-visible {
+  outline: 2px solid var(--color-primary, #059669);
+  outline-offset: 2px;
+}
+
+.external-provider-card:disabled {
+  cursor: not-allowed;
+}
+
+.external-provider-card--disabled {
+  color: #6b7280;
+  background: #f9fafb;
+}
+
+.external-provider-card__logo {
+  display: flex;
+  width: 100%;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.external-provider-card--midata .external-provider-card__logo {
+  background: #4b2a68;
+}
+
+.external-provider-card--cevidb .external-provider-card__logo {
+  background: #6488d5;
+}
+
+.external-provider-card--jubladb .external-provider-card__logo {
+  background: #fff;
+}
+
+.external-provider-card__logo img {
+  display: block;
+  max-width: 92%;
+  max-height: 38px;
+  object-fit: contain;
+}
+
+.external-provider-card--jubladb .external-provider-card__logo img {
+  filter: grayscale(1);
+}
+
+.external-provider-card__label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.external-provider-card__organisation {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.external-provider-card__status {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
 .form-footer {
   text-align: center;
   margin-top: 8px;
@@ -1502,6 +1627,15 @@ watch(
 
   .card-title {
     font-size: 36px;
+  }
+
+  .external-provider-grid {
+    gap: 6px;
+  }
+
+  .external-provider-card {
+    min-height: 132px;
+    padding-inline: 4px;
   }
 }
 </style>

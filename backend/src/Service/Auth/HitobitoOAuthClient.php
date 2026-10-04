@@ -80,7 +80,7 @@ final class HitobitoOAuthClient
         ]);
     }
 
-    public function fetchUserInfo(string $code, string $codeVerifier, string $expectedNonce): MiDataOAuthUserInfo
+    public function fetchUserInfo(string $code, string $codeVerifier, string $expectedNonce): HitobitoOAuthSession
     {
         if (!$this->isConfigured()) {
             throw new MiDataOAuthException('not_configured', 'MiData OAuth is not configured');
@@ -140,13 +140,36 @@ final class HitobitoOAuthClient
         }
         $firstName = trim((string) ($userinfo['given_name'] ?? $userinfo['first_name'] ?? $userinfo['with_roles_first_name'] ?? ''));
         $lastName = trim((string) ($userinfo['family_name'] ?? $userinfo['last_name'] ?? $userinfo['with_roles_last_name'] ?? ''));
+        $roles = $userinfo['roles'] ?? null;
+        if (!is_array($roles) || !array_is_list($roles)) {
+            throw new MiDataOAuthException('failed', 'MiData userinfo roles are malformed');
+        }
+        try {
+            $normalizedRoles = array_map(
+                static function (mixed $role) use ($subject): HitobitoRole {
+                    if (!is_array($role)) {
+                        throw new \UnexpectedValueException('MiData userinfo role is malformed');
+                    }
 
-        return new MiDataOAuthUserInfo(
-            $subject,
-            $email,
-            filter_var($userinfo['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            $firstName !== '' ? $firstName : null,
-            $lastName !== '' ? $lastName : null,
+                    return HitobitoRole::fromUserInfo($role, $subject);
+                },
+                $roles,
+            );
+        } catch (\UnexpectedValueException $exception) {
+            throw new MiDataOAuthException('failed', 'MiData userinfo roles are malformed', previous: $exception);
+        }
+
+        return new HitobitoOAuthSession(
+            'midata',
+            $accessToken,
+            new MiDataOAuthUserInfo(
+                $subject,
+                $email,
+                filter_var($userinfo['email_verified'] ?? false, FILTER_VALIDATE_BOOLEAN),
+                $firstName !== '' ? $firstName : null,
+                $lastName !== '' ? $lastName : null,
+                $normalizedRoles,
+            ),
         );
     }
 
