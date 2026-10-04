@@ -411,6 +411,7 @@ import {
   type PublicFoundContactDelivery,
 } from '@/api/departmentSettings'
 import { buildOnboardingDoneKey, buildOnboardingPausedKey, buildOnboardingStateKey } from '@/utils/departmentOnboarding'
+import { assignPathAfterDepartmentSwitch } from '@/utils/departmentRoute'
 import { departmentDisplayName, departmentHomePath, isGrossanlassDepartment } from '@/utils/departmentSwitch'
 import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
@@ -700,8 +701,7 @@ async function onDepartmentChange() {
 
   const oldDeptId = route.params.departmentId as string | undefined
   if (oldDeptId && oldDeptId !== newDeptId) {
-    const newPath = route.path.replace(`/${oldDeptId}`, `/${newDeptId}`)
-    window.location.assign(newPath)
+    assignPathAfterDepartmentSwitch(route.path, oldDeptId, newDeptId)
     return
   }
   window.location.reload()

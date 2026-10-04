@@ -57,7 +57,7 @@ const showDemoLogins = computed(() => show.value && !authStore.isLoggedIn)
 const demoOpen = ref(false)
 
 function fillDemoLogin(account: DemoLogin) {
-  stashDemoLogin(account.email, account.password)
+  stashDemoLogin(account.email)
   demoOpen.value = false
   if (router.currentRoute.value.path === '/login') {
     // LoginView liest sessionStorage beim Mount / via Event

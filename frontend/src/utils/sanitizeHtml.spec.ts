@@ -19,4 +19,8 @@ describe('htmlToPlainText', () => {
   it('decodes HTML entities in mail layout', () => {
     expect(htmlToPlainText('A&amp;B&nbsp;C', 'mail')).toBe('A&B C')
   })
+
+  it('decodes entities in compact layout', () => {
+    expect(htmlToPlainText('Sanitär &amp; Wasser', 'compact')).toBe('Sanitär & Wasser')
+  })
 })

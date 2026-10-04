@@ -111,6 +111,7 @@ import 'proj4leaflet'
 import type { ActivityMapOverlay } from '@/components/activities/ActivityDualLocationMap.vue'
 import { googleMapsCoordinatesUrl, swisstopoMapUrl, openStreetMapUrl, geoAdminZoomFromLv95LeafletZoom } from '@/utils/mapExternalLinks'
 import { gaMapOverlayOpacity } from '@/utils/grossanlassGaMap'
+import { stripGeoSearchLabel } from '@/utils/geoSearch'
 import 'leaflet/dist/leaflet.css'
 
 void proj4
@@ -730,7 +731,7 @@ async function reverseGeocode(lat: number, lng: number) {
         const data = await response.json()
         
         if (data.results && data.results.length > 0) {
-          const label = data.results[0].attrs?.label?.replace(/<[^>]*>/g, '') || ''
+          const label = stripGeoSearchLabel(String(data.results[0].attrs?.label ?? ''))
           if (label) {
             foundAddress.value = label
           }
@@ -807,7 +808,7 @@ async function searchAddress() {
       emit('update:latitude', lat)
       emit('update:longitude', lng)
       emit('coordinates-changed', lat, lng)
-      foundAddress.value = result.label?.replace(/<[^>]*>/g, '') || props.address
+      foundAddress.value = stripGeoSearchLabel(String(result.label ?? '')) || props.address
       hasCoordinates.value = true
       return
     }

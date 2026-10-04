@@ -33,9 +33,12 @@ export const DEMO_LOGINS: DemoLogin[] = [
 
 const SESSION_KEY = 'emc_demo_login'
 
-export function stashDemoLogin(email: string, password: string): void {
+/** Speichert nur die E-Mail — Passwort kommt aus dem festen Demo-Konto (kein Klartext in sessionStorage). */
+export function stashDemoLogin(email: string): void {
   if (typeof sessionStorage === 'undefined') return
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ email, password }))
+  const trimmed = email.trim()
+  if (!trimmed) return
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify({ email: trimmed }))
 }
 
 export function consumeDemoLogin(): { email: string; password: string } | null {
@@ -44,11 +47,10 @@ export function consumeDemoLogin(): { email: string; password: string } | null {
   if (!raw) return null
   sessionStorage.removeItem(SESSION_KEY)
   try {
-    const parsed = JSON.parse(raw) as { email?: unknown; password?: unknown }
+    const parsed = JSON.parse(raw) as { email?: unknown }
     const email = typeof parsed.email === 'string' ? parsed.email.trim() : ''
-    const password = typeof parsed.password === 'string' ? parsed.password : ''
-    if (!email || !password) return null
-    return { email, password }
+    if (!email) return null
+    return { email, password: DEMO_LOGIN_PASSWORD }
   } catch {
     return null
   }
