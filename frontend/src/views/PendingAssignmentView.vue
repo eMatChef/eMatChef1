@@ -195,6 +195,15 @@
       />
 
       <v-alert
+        v-if="info"
+        type="info"
+        variant="tonal"
+        density="compact"
+        class="pending-alert"
+      >
+        {{ info }}
+      </v-alert>
+      <v-alert
         v-if="error"
         type="error"
         variant="tonal"
@@ -203,6 +212,14 @@
       >
         {{ error }}
       </v-alert>
+      <EButton
+        v-if="showMidataVerificationRetry"
+        variant="secondary"
+        :disabled="loading || !joinCode.trim()"
+        @click="retryMiDataVerification"
+      >
+        {{ t('pendingAssignment.retryMidataVerification') }}
+      </EButton>
 
       <v-alert
         v-if="success"
@@ -293,6 +310,7 @@ import { useTurnstile } from '@/composables/useTurnstile'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { midataLinkStartUrl } from '@/api/auth'
 import {
   createAdminJoinRequest,
   createJoinRequest,
@@ -356,12 +374,21 @@ const adminModalLoading = ref(false)
 const adminModalError = ref<string | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
+const info = ref<string | null>(null)
 const success = ref<string | null>(null)
+const showMidataVerificationRetry = ref(false)
 const requests = ref<MyJoinRequest[]>([])
 const openRequests = computed(() => requests.value.filter((r) => r.status === 'pending'))
 const requestHistory = computed(() => requests.value.filter((r) => r.status !== 'pending'))
 const scannerActive = ref(false)
 const displayedDepartmentResults = computed(() => departmentResults.value.slice(0, 4))
+const miDataManualDepartmentId = ref('')
+const miDataManualFallbackCode = ref('')
+const isMiDataManualFallback = computed(
+  () =>
+    miDataManualDepartmentId.value !== '' &&
+    joinCode.value.trim().toUpperCase() === miDataManualFallbackCode.value.toUpperCase()
+)
 const organisationsFiltered = computed(() => filterOrganisationsForUserPickers(organisations.value))
 const organisationSelectItems = computed(() =>
   organisationsFiltered.value.map((org) => ({
@@ -486,12 +513,17 @@ async function submitRequest() {
 
   loading.value = true
   error.value = null
+  info.value = null
   success.value = null
+  showMidataVerificationRetry.value = false
 
   try {
     const created = await createJoinRequest({
-      departmentId: selectedDepartment.value?.id,
-      joinCode: selectedDepartment.value ? undefined : joinCode.value.trim(),
+      departmentId:
+        selectedDepartment.value?.id ||
+        (isMiDataManualFallback.value ? miDataManualDepartmentId.value : undefined),
+      joinCode:
+        selectedDepartment.value || isMiDataManualFallback.value ? undefined : joinCode.value.trim(),
       message: message.value.trim() || undefined,
       requestedRole: inviteRole.value,
       turnstileToken,
@@ -507,6 +539,7 @@ async function submitRequest() {
     } else {
       success.value = t('pendingAssignment.successRequestSent')
     }
+    info.value = null
     joinCode.value = ''
     selectedDepartment.value = null
     departmentQuery.value = ''
@@ -515,6 +548,12 @@ async function submitRequest() {
     await loadMine()
   } catch (err: any) {
     const deptError = err?.response?.data?.error
+    if (err?.response?.data?.code === 'midata_verification_unavailable') {
+      error.value = t('pendingAssignment.midataVerificationUnavailable')
+      showMidataVerificationRetry.value = true
+      resetTurnstile()
+      return
+    }
     const canTrySupplierJoin =
       !selectedDepartment.value &&
       joinCode.value.trim() &&
@@ -542,6 +581,15 @@ async function submitRequest() {
   } finally {
     loading.value = false
   }
+}
+
+function retryMiDataVerification() {
+  const code = joinCode.value.trim()
+  if (!code) return
+
+  const query = new URLSearchParams({ join_code: code })
+  const redirect = `/pending-assignment?${query.toString()}`
+  window.location.assign(midataLinkStartUrl(redirect))
 }
 
 function parentPayload(pick: ParentDepartmentPickerValue | null) {
@@ -655,6 +703,44 @@ onMounted(() => {
   if (typeof incomingCode === 'string' && incomingCode.trim().length > 0) {
     joinCode.value = incomingCode.trim().toUpperCase()
   }
+  const midataJoinResult =
+    typeof route.query.midata_join_result === 'string' ? route.query.midata_join_result : ''
+  const joinResultMessages: Record<string, () => void> = {
+    joined: () => {
+      success.value = t('pendingAssignment.midataJoinConfirmed')
+      void authStore.loadDepartments()
+    },
+    already_member: () => {
+      success.value = t('pendingAssignment.midataAlreadyMember')
+    },
+    request_created: () => {
+      success.value = t('pendingAssignment.successRequestSent')
+    },
+    request_pending: () => {
+      success.value = t('pendingAssignment.midataRequestAlreadyPending')
+    },
+    request_required: () => {
+      miDataManualDepartmentId.value =
+        typeof route.query.midata_join_department_id === 'string'
+          ? route.query.midata_join_department_id.trim()
+          : ''
+      miDataManualFallbackCode.value =
+        typeof route.query.join_code === 'string' ? route.query.join_code.trim() : ''
+      info.value = t('pendingAssignment.midataManualRequestRequired')
+    },
+    unavailable: () => {
+      error.value = t('pendingAssignment.midataVerificationUnavailable')
+      showMidataVerificationRetry.value = true
+    },
+    invalid_code: () => {
+      error.value = t('pendingAssignment.midataJoinInvalidCode')
+    },
+    failed: () => {
+      error.value = t('pendingAssignment.midataJoinFailed')
+    },
+  }
+  joinResultMessages[midataJoinResult]?.()
+
   const incomingRole = route.query.invite_role
   if (typeof incomingRole === 'string' && incomingRole.trim().length > 0) {
     const normalized = incomingRole.trim().toLowerCase()

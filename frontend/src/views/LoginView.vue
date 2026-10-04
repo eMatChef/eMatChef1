@@ -144,20 +144,18 @@
                 {{ t('login.socialSoon', { provider: provider.label }) }}
               </span>
             </button>
-          </div>
-
-          <div class="social-login">
             <button
-              v-for="provider in socialProviders"
-              :key="provider.id"
               type="button"
-              class="social-login-btn"
+              class="external-provider-card external-provider-card--google"
               :disabled="isLoading"
-              :aria-label="t(provider.labelKey)"
-              :title="t(provider.labelKey)"
+              :aria-label="t('login.socialGoogle')"
+              :title="t('login.socialGoogle')"
               @click="onSocialLogin"
             >
-              <v-icon :icon="provider.icon" size="22" />
+              <span class="external-provider-card__logo">
+                <v-icon icon="mdi-google" size="30" />
+              </span>
+              <span class="external-provider-card__label">Google</span>
             </button>
           </div>
 
@@ -535,9 +533,6 @@ const registerLoading = ref(false)
 const isRedirecting = ref(false) // Verhindert Doppelklick nach erfolgreichem Login
 const error = ref<string | null>(null)
 const successMessage = ref<string | null>(null)
-const socialProviders = [
-  { id: 'google' as const, icon: 'mdi-google', labelKey: 'login.socialGoogle' },
-]
 const INVITE_REDIRECT_STORAGE_KEY = 'pending_invite_redirect'
 const isLoading = computed(() => authStore.loadingUser || registerLoading.value || isRedirecting.value)
 const RESEND_VERIFICATION_ERROR_MARKERS = ['bestaetig', 'confirm your email', 'verify your email', 'verif']
@@ -822,7 +817,7 @@ function clearMessages() {
 
 function onSocialLogin() {
   const redirect =
-    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+    inviteRedirect.value || parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
   isRedirecting.value = true
   window.location.assign(googleAuthStartUrl(redirect))
 }
@@ -831,7 +826,7 @@ function onExternalProviderLogin(provider: ExternalLoginProviderKey) {
   if (provider !== 'midata') return
 
   const redirect =
-    parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
+    inviteRedirect.value || parseInternalRedirectPath(route.query.redirect) || getStoredInviteRedirect()
   isRedirecting.value = true
   window.location.assign(midataAuthStartUrl(redirect))
 }
@@ -876,7 +871,7 @@ async function completeExternalOAuthReturn() {
 async function redirectAfterSuccessfulLogin() {
   const routeRedirect = parseInternalRedirectPath(route.query.redirect)
   const storedInviteRedirect = getStoredInviteRedirect()
-  const redirectTarget = routeRedirect || storedInviteRedirect
+  const redirectTarget = inviteRedirect.value || routeRedirect || storedInviteRedirect
   if (redirectTarget) {
     localStorage.removeItem(INVITE_REDIRECT_STORAGE_KEY)
     await router.replace(redirectTarget)
@@ -1476,48 +1471,9 @@ watch(
   line-height: 1;
 }
 
-.social-login {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-
-.social-login-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin: 0;
-  padding: 0;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
-  background: #fff;
-  color: #111827;
-  cursor: pointer;
-}
-
-.social-login-btn:hover:not(:disabled),
-.social-login-btn:focus-visible {
-  border-color: #9ca3af;
-  background: #f3f4f6;
-}
-
-.social-login-btn:focus-visible {
-  outline: 2px solid var(--color-primary, #059669);
-  outline-offset: 2px;
-}
-
-.social-login-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 .external-provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -1525,7 +1481,7 @@ watch(
 .external-provider-card {
   display: flex;
   min-width: 0;
-  min-height: 126px;
+  height: 144px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1559,6 +1515,10 @@ watch(
   background: #f9fafb;
 }
 
+.external-provider-card--google .external-provider-card__logo {
+  color: #111827;
+}
+
 .external-provider-card__logo {
   display: flex;
   width: 100%;
@@ -1571,11 +1531,15 @@ watch(
 }
 
 .external-provider-card--midata .external-provider-card__logo {
-  background: #4b2a68;
+  background: #fff;
 }
 
 .external-provider-card--cevidb .external-provider-card__logo {
-  background: #6488d5;
+  background: #fff;
+}
+
+.external-provider-card--cevidb .external-provider-card__logo img {
+  filter: grayscale(1);
 }
 
 .external-provider-card--jubladb .external-provider-card__logo {
@@ -1606,7 +1570,7 @@ watch(
 
 .external-provider-card__status {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1.2;
 }
 
@@ -1631,10 +1595,11 @@ watch(
 
   .external-provider-grid {
     gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .external-provider-card {
-    min-height: 132px;
+    height: 144px;
     padding-inline: 4px;
   }
 }

@@ -7,7 +7,7 @@ namespace App\Service\Auth;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-final class HitobitoApiClient implements HitobitoGroupLookup
+final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
 {
     private const MAX_ROLE_PAGES = 100;
 

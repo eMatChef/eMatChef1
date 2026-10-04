@@ -6,6 +6,9 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Repository\UserRepository;
+use App\Service\Auth\DepartmentJoinFlowService;
+use App\Service\Auth\DepartmentJoinOutcome;
+use App\Service\Auth\DepartmentJoinOutcomeStatus;
 use App\Service\Auth\HitobitoOAuthClient;
 use App\Service\Auth\MiDataOAuthAccountService;
 use App\Service\Auth\MiDataOAuthException;
@@ -28,6 +31,7 @@ final class MiDataOAuthController extends AbstractController
         private readonly HitobitoOAuthClient $oauthClient,
         private readonly MiDataOAuthState $oauthState,
         private readonly MiDataOAuthAccountService $accountService,
+        private readonly DepartmentJoinFlowService $departmentJoinFlow,
         private readonly UserRepository $userRepository,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
@@ -63,6 +67,8 @@ final class MiDataOAuthController extends AbstractController
             return $this->finishWithClearedState('error', 'invalid_state');
         }
 
+        $joinResult = null;
+        $joinDepartmentId = null;
         try {
             $session = $this->oauthClient->fetchUserInfo(
                 $code,
@@ -78,6 +84,23 @@ final class MiDataOAuthController extends AbstractController
 
             $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
             $authResponse = $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
+            $joinCode = $this->oauthState->extractDepartmentJoinCodeIntent($verifiedState['redirect']);
+            if ($joinCode !== null) {
+                try {
+                    $joinOutcome = $this->departmentJoinFlow->verifyJoinCodeForOAuthCallback(
+                        $user,
+                        $joinCode,
+                        $session,
+                    );
+                    $joinResult = $this->joinResultCode($joinOutcome);
+                    if ($joinOutcome->status === DepartmentJoinOutcomeStatus::MANUAL_REQUEST_REQUIRED) {
+                        $joinDepartmentId = $joinOutcome->department?->getId();
+                    }
+                } catch (\Throwable $exception) {
+                    $this->logger->error('MiData department join processing failed', ['exception' => $exception]);
+                    $joinResult = 'failed';
+                }
+            }
         } catch (MiDataOAuthException $exception) {
             return $this->finishWithClearedState('error', $exception->reason);
         } catch (\Throwable $exception) {
@@ -90,6 +113,9 @@ final class MiDataOAuthController extends AbstractController
         $frontendPath = $verifiedState['redirect'] !== ''
             ? $verifiedState['redirect']
             : '/login';
+        if ($joinResult !== null) {
+            $frontendPath = $this->withJoinResult($frontendPath, $joinResult, $joinDepartmentId);
+        }
         $target = $this->frontendUrl($frontendPath);
         if (
             $isLinkFlow
@@ -176,6 +202,36 @@ final class MiDataOAuthController extends AbstractController
     private function appendQuery(string $url, array $query): string
     {
         return $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($query);
+    }
+
+    private function joinResultCode(DepartmentJoinOutcome $outcome): string
+    {
+        return match ($outcome->status) {
+            DepartmentJoinOutcomeStatus::MEMBERSHIP_CONFIRMED => 'joined',
+            DepartmentJoinOutcomeStatus::ALREADY_MEMBER => 'already_member',
+            DepartmentJoinOutcomeStatus::MANUAL_REQUEST_REQUIRED => 'request_required',
+            DepartmentJoinOutcomeStatus::REQUEST_CREATED => 'request_created',
+            DepartmentJoinOutcomeStatus::REQUEST_ALREADY_PENDING => 'request_pending',
+            DepartmentJoinOutcomeStatus::VERIFICATION_UNAVAILABLE => 'unavailable',
+            DepartmentJoinOutcomeStatus::DEPARTMENT_NOT_FOUND => 'invalid_code',
+        };
+    }
+
+    private function withJoinResult(string $redirect, string $result, ?string $departmentId): string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || ($parts['path'] ?? null) !== '/pending-assignment') {
+            return $redirect;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        unset($query['auto_join']);
+        $query['midata_join_result'] = $result;
+        if ($result === 'request_required' && $departmentId !== null) {
+            $query['midata_join_department_id'] = $departmentId;
+        }
+
+        return $parts['path'] . '?' . http_build_query($query);
     }
 
     private function stateCookie(string $value, int $expires): Cookie

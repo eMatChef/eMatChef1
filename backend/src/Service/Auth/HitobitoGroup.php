@@ -30,6 +30,7 @@ final readonly class HitobitoGroup
         if (
             ($resource['type'] ?? null) !== 'groups'
             || $id === null
+            || !array_key_exists('parent_id', $attributes)
             || !is_string($type)
             || $type === ''
             || !is_string($name)

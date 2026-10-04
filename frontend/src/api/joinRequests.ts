@@ -5,7 +5,7 @@ export interface MyJoinRequest {
   id: string
   request_kind?: 'admin' | 'department_join'
   status: 'pending' | 'approved' | 'rejected' | 'assigned'
-  /** Join-Code: sofort beigetreten, keine Freigabe durch MW/DC nötig. */
+  /** Membership was created from a verified join, without a manager review. */
   auto_joined?: boolean
   department_id?: string | null
   department_name: string

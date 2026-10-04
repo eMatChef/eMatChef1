@@ -62,3 +62,6 @@ services:
         arguments:
             $providerIssuers:
                 midata: '%env(MIDATA_OAUTH_ISSUER)%'
+
+    App\Service\JoinRequestNotifier:
+        alias: App\Service\JoinRequestManagerNotificationService

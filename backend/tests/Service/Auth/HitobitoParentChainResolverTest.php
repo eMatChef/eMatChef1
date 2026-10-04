@@ -116,6 +116,25 @@ final class HitobitoParentChainResolverTest extends TestCase
         $this->resolver($api)->isDescendantOrSelf('midata', '111', '100', 'token');
     }
 
+    public function testStrictVerificationTreatsMissingParentGroupAsUnavailable(): void
+    {
+        $api = $this->createMock(HitobitoGroupLookup::class);
+        $api->method('getGroup')->willReturn(null);
+
+        $this->expectException(HitobitoApiException::class);
+        $this->resolver($api)->isDescendantOrSelfForVerification('midata', '111', '100', 'token');
+    }
+
+    public function testStrictVerificationTreatsCyclicHierarchyAsUnavailable(): void
+    {
+        $api = $this->api([
+            '111' => new HitobitoGroup('111', '111', 'Group::Pfadi', 'Self'),
+        ]);
+
+        $this->expectException(HitobitoApiException::class);
+        $this->resolver($api)->isDescendantOrSelfForVerification('midata', '111', '100', 'token');
+    }
+
     public function testUsesMappedExternalIdentityAndRejectsWrongProvider(): void
     {
         $mapping = (new ExternalStructureIdentity())

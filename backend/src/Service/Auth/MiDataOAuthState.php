@@ -114,6 +114,23 @@ final class MiDataOAuthState
         return $path;
     }
 
+    public function extractDepartmentJoinCodeIntent(string $redirect): ?string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || ($parts['path'] ?? null) !== '/pending-assignment') {
+            return null;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        if (array_key_exists('invite_id', $query) || !is_string($query['join_code'] ?? null)) {
+            return null;
+        }
+
+        $joinCode = trim($query['join_code']);
+
+        return $joinCode !== '' ? $joinCode : null;
+    }
+
     private function sign(string $payload): string
     {
         return hash_hmac('sha256', $payload, $this->appSecret);

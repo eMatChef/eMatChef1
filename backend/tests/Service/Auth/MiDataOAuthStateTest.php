@@ -45,4 +45,18 @@ final class MiDataOAuthStateTest extends TestCase
         self::assertNull($state->sanitizeRedirect('//evil.example'));
         self::assertNull($state->sanitizeRedirect('/\\evil.example'));
     }
+
+    public function testExtractsOnlyPendingAssignmentJoinIntent(): void
+    {
+        $state = new MiDataOAuthState('test-secret');
+
+        self::assertSame(
+            'AB12CD34',
+            $state->extractDepartmentJoinCodeIntent('/pending-assignment?join_code=AB12CD34&auto_join=1'),
+        );
+        self::assertNull($state->extractDepartmentJoinCodeIntent('/dashboard?join_code=AB12CD34'));
+        self::assertNull($state->extractDepartmentJoinCodeIntent('/pending-assignment?invite_id=invite-1&join_code=AB12CD34'));
+        self::assertNull($state->extractDepartmentJoinCodeIntent('/pending-assignment?join_code[]=AB12CD34'));
+        self::assertNull($state->extractDepartmentJoinCodeIntent('/pending-assignment'));
+    }
 }

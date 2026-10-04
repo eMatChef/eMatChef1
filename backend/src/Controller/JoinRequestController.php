@@ -20,6 +20,9 @@ use App\Service\OrganisationUserPickerFilter;
 use App\Service\DepartmentRoleLabelService;
 use App\Service\InboxMessageService;
 use App\Service\JoinRequestManagerNotificationService;
+use App\Service\Auth\DepartmentJoinFlowService;
+use App\Service\Auth\DepartmentJoinOutcome;
+use App\Service\Auth\DepartmentJoinOutcomeStatus;
 use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
@@ -52,6 +55,7 @@ class JoinRequestController extends AbstractController
         private MailTemplateContentStore $mailTemplateContent,
         private UserDepartmentInviteNotificationService $userDepartmentInviteNotifications,
         private JoinRequestManagerNotificationService $joinRequestManagerNotifications,
+        private DepartmentJoinFlowService $departmentJoinFlow,
         private TurnstileVerifier $turnstileVerifier,
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
@@ -86,6 +90,42 @@ class JoinRequestController extends AbstractController
         $event->setAction($action);
         $event->setPayload($payload);
         $this->entityManager->persist($event);
+    }
+
+    private function joinOutcomeResponse(DepartmentJoinOutcome $outcome): JsonResponse
+    {
+        if ($outcome->status === DepartmentJoinOutcomeStatus::VERIFICATION_UNAVAILABLE) {
+            return new JsonResponse([
+                'code' => 'midata_verification_unavailable',
+                'error' => 'Die MiData-Mitgliedschaft konnte momentan nicht geprüft werden. Bitte versuche es später erneut.',
+            ], 503);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::DEPARTMENT_NOT_FOUND) {
+            return new JsonResponse(['error' => 'Kein Department fuer diesen Join-Code gefunden'], 404);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::ALREADY_MEMBER) {
+            return new JsonResponse(['error' => 'Sie sind bereits Mitglied dieses Departments'], 409);
+        }
+        if ($outcome->status === DepartmentJoinOutcomeStatus::REQUEST_ALREADY_PENDING) {
+            return new JsonResponse(['error' => 'Es existiert bereits eine offene Anfrage fuer dieses Department'], 409);
+        }
+
+        $department = $outcome->department;
+        $joinRequest = $outcome->joinRequest;
+        if (!$department instanceof Department || !$joinRequest instanceof JoinRequest) {
+            throw new \LogicException('Department join outcome is missing its persisted result');
+        }
+        $autoJoined = $outcome->status === DepartmentJoinOutcomeStatus::MEMBERSHIP_CONFIRMED;
+
+        return new JsonResponse([
+            'id' => $joinRequest->getId(),
+            'status' => $joinRequest->getStatus(),
+            'department_id' => $department->getId(),
+            'department_name' => $department->getName(),
+            'assigned_role' => $autoJoined ? 'u' : null,
+            'auto_joined' => $autoJoined,
+            'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ], 201);
     }
 
     #[Route('', name: 'create', methods: ['POST'])]
@@ -140,82 +180,12 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Diese Rolle ist in diesem Department nicht erlaubt'], 400);
         }
 
-        $existingMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $department->getId(),
-        ]);
-        if ($existingMembership) {
-            return new JsonResponse(['error' => 'Sie sind bereits Mitglied dieses Departments'], 409);
-        }
-
-        $existingPending = $this->entityManager->getRepository(JoinRequest::class)->findOneBy([
-            'userId' => $currentUser->getId(),
-            'departmentId' => $department->getId(),
-            'status' => 'pending',
-        ]);
-        if ($existingPending) {
-            return new JsonResponse(['error' => 'Es existiert bereits eine offene Anfrage fuer dieses Department'], 409);
-        }
-
         $viaJoinCode = $departmentId === '' && $joinCode !== '';
-        $autoJoined = false;
-        $assignedRole = null;
+        $outcome = $viaJoinCode
+            ? $this->departmentJoinFlow->submitForDepartment($currentUser, $department, null, $message)
+            : $this->departmentJoinFlow->createManualRequest($currentUser, $department, $message);
 
-        if ($viaJoinCode) {
-            $profileEmail = strtolower(trim((string) ($currentUser->getProfile()?->getEmail() ?? '')));
-            $pendingInvite = $profileEmail !== ''
-                ? $this->findPendingInviteForEmail($department->getId(), $profileEmail)
-                : null;
-            if ($pendingInvite !== null) {
-                try {
-                    $this->applyDepartmentInviteMembership($currentUser, $department, $pendingInvite);
-                } catch (\RuntimeException $e) {
-                    return new JsonResponse(['error' => $e->getMessage()], 409);
-                }
-                $this->finalizeInviteAccepted($department, $pendingInvite, $currentUser);
-                $autoJoined = true;
-                $inviteRole = strtolower(trim((string) ($pendingInvite['role'] ?? 'u')));
-                $assignedRole = MembershipRoleCatalog::isAllowed($department, $inviteRole) ? $inviteRole : 'u';
-            } else {
-                $this->createMembershipForUser($currentUser, $department, 'u', $currentUser);
-                $autoJoined = true;
-                $assignedRole = 'u';
-            }
-        }
-
-        $joinRequest = new JoinRequest();
-        $joinRequest->setId(IdGenerator::generateUnique($this->entityManager, JoinRequest::class));
-        $joinRequest->setUser($currentUser);
-        $joinRequest->setDepartment($department);
-        $joinRequest->setMessage($message !== '' ? $message : null);
-        // Join-Code: sofort Mitglied. Abteilung per Suche / persoenliche Einladung: MW/DC-Freigabe.
-        if ($autoJoined) {
-            $joinRequest->setStatus('approved');
-            $joinRequest->setReviewedBy($currentUser);
-        } else {
-            $joinRequest->setStatus('pending');
-        }
-
-        $this->entityManager->persist($joinRequest);
-        $this->entityManager->flush();
-
-        if (!$autoJoined) {
-            try {
-                $this->joinRequestManagerNotifications->notifyJoinRequestCreated($joinRequest);
-            } catch (\Throwable) {
-                // Anfrage bleibt gueltig auch wenn Mail fehlschlaegt
-            }
-        }
-
-        return new JsonResponse([
-            'id' => $joinRequest->getId(),
-            'status' => $joinRequest->getStatus(),
-            'department_id' => $department->getId(),
-            'department_name' => $department->getName(),
-            'assigned_role' => $assignedRole,
-            'auto_joined' => $autoJoined,
-            'created_at' => $joinRequest->getCreatedAt()->format(\DateTimeInterface::ATOM),
-        ], 201);
+        return $this->joinOutcomeResponse($outcome);
     }
 
     #[Route('/admin-request', name: 'admin_request_create', methods: ['POST'])]
@@ -830,7 +800,8 @@ class JoinRequestController extends AbstractController
                 'id' => $jr->getId(),
                 'request_kind' => 'department_join',
                 'status' => $jr->getStatus(),
-                'auto_joined' => $jr->getStatus() === 'approved' && $jr->getReviewedById() === $jr->getUserId(),
+                'auto_joined' => $jr->getStatus() === 'approved'
+                    && ($jr->getReviewedById() === null || $jr->getReviewedById() === $jr->getUserId()),
                 'department_id' => $jr->getDepartmentId(),
                 'department_name' => $dept?->getName(),
                 'organisation_name' => $dept?->getOrganisation()?->getName(),
@@ -2366,30 +2337,6 @@ class JoinRequestController extends AbstractController
                 $knownKeys[$key] = true;
             }
         }
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function findPendingInviteForEmail(string $departmentId, string $email): ?array
-    {
-        $normalized = strtolower(trim($email));
-        if ($normalized === '') {
-            return null;
-        }
-        foreach ($this->readPendingInvites($departmentId) as $invite) {
-            if (!is_array($invite)) {
-                continue;
-            }
-            if (($invite['status'] ?? 'pending') !== 'pending') {
-                continue;
-            }
-            if (strtolower(trim((string) ($invite['email'] ?? ''))) === $normalized) {
-                return $invite;
-            }
-        }
-
-        return null;
     }
 
     private function findUserByEmail(string $email): ?User

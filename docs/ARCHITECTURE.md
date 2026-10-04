@@ -48,7 +48,8 @@ Stateless JWT (Lexik) plus Refresh-Token (`gesdinet/jwt-refresh-token-bundle`).
 - Google, MiData und Microsoft haben eigene Firewalls (`/api/auth/google`, `/api/auth/midata`, `/api/auth/microsoft`). MiData verwendet OIDC-Discovery und speichert nur `(provider, sub)` als ExternalIdentity; Provider-Tokens bleiben transient.
 - Die MiData-OAuth-Anforderung umfasst `openid email with_roles groups people`. `with_roles` liefert Rollen mit Gruppen-ID, Typ und Berechtigungen; Aktivitätsdaten wie `start_on`/`end_on` kommen aus der read-only Hitobito JSON:API. Der kurzlebige OAuth-Access-Token bleibt im Callback-Speicher und wird nicht persistiert.
 - `HitobitoApiClient` verwendet Symfony HttpClient und provider-keyed Issuer-Konfiguration. `GET /api/groups/{id}` und `GET /api/roles?filter[person_id]=…` werden als JSON:API gelesen; Rollenlisten folgen sicheren same-origin-Paginierungslinks. Die Parent-Chain-Prüfung vergleicht nur externe IDs, stoppt nach höchstens 64 Ebenen und bestätigt bei Lücken, Zyklen oder unbekannten Gruppen keine Zugehörigkeit. API-/Berechtigungsfehler bleiben explizite Fehler.
-- `PbsGroupTypeClassifier` klassifiziert bekannte PBS-Gruppentypen nur als Organisations-, Department- oder Group-Kandidaten. Er erzeugt keine eMatChef-Strukturen und ändert keine Mitgliedschaften oder Rollen. Der Login zeigt CeviDB und JublaDB als „demnächst“; für sie sind keine OAuth-Flows eingerichtet. Join-Code/MiData-Verifikation ist noch nicht implementiert.
+- `PbsGroupTypeClassifier` klassifiziert bekannte PBS-Gruppentypen nur als Organisations-, Department- oder Group-Kandidaten. Er erzeugt keine eMatChef-Strukturen und ändert keine Mitgliedschaften oder Rollen. Der Login zeigt CeviDB und JublaDB als „demnächst“; für sie sind keine OAuth-Flows eingerichtet.
+- Ein Department-Join-Code identifiziert nur das Department. Beim MiData-OAuth-Callback wird ein aus dem HMAC-signierten OAuth-State wiederhergestellter Join-Code serverseitig erneut aufgelöst und mit dem kurzlebigen Access-Token geprüft: Eine aktive MiData-Rolle muss exakt der gemappten MiData-Abteilung entsprechen oder nachweisbar darunter liegen. Bei Bestätigung wird eine fehlende Membership mit Rolle `u` erstellt; vorhandene Membership-Rollen bleiben unverändert. Ein vorhandener offener JoinRequest wird ohne erfundenen menschlichen Reviewer abgeschlossen. Ohne MiData-Identität oder Department-Mapping sowie bei erfolgreich geprüften Rollen ohne Treffer legt der Callback keine manuelle Anfrage an; diese wird erst durch die erneute Formularübermittlung mit der bestehenden Turnstile-Prüfung erstellt. Technische Verifikationsfehler erzeugen weder Membership noch JoinRequest und liefern eine generische temporäre Fehlerantwort mit MiData-Wiederholungsmöglichkeit. OAuth-Tokens bleiben transient und werden weder gespeichert noch an das Frontend gegeben. Dieser Flow erzeugt keine GroupMembership.
 - Passwort-Hashing: Symfony `auto` auf `User`.
 
 Department-Rechte kommen nicht aus dem JWT allein, sondern aus `Membership.role` im angefragten Department. Katalog: `DepartmentRole`, Zuweisungslogik `MembershipRoleCatalog`.
@@ -65,7 +66,7 @@ Lokal über Nginx und `*.ematchef.test` (`APP_FRONTEND_URL`, `APP_PUBLIC_QR_URL`
 | Weblate | App-UI-Locales — [TRANSLATION.md](./TRANSLATION.md) |
 | Google OAuth | Login |
 | Microsoft OAuth | Login |
-| Cloudflare Turnstile | Registrierung (`TURNSTILE_SKIP_VERIFY` nur lokal) |
+| Cloudflare Turnstile | Registrierung und Join-Anfragen (`TURNSTILE_SKIP_VERIFY` nur lokal) |
 | Gmail- und Outlook-OAuth-Callback-Controller | Grossanlass-Postfach (`GrossanlassGmail*`, `GrossanlassOutlook*`) |
 | `GET /api/health` | Uptime ohne JWT |
 

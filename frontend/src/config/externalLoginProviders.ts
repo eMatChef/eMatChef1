@@ -20,7 +20,7 @@ export const externalLoginProviders: readonly ExternalLoginProvider[] = [
     key: 'cevidb',
     label: 'CeviDB',
     organisation: 'Cevi',
-    icon: '/provider-logos/cevi.png',
+    icon: '/provider-logos/cevi.svg',
     enabled: false,
   },
   {

@@ -25,7 +25,30 @@ final class HitobitoParentChainResolver
         string $expectedAncestorGroupId,
         string $accessToken,
     ): bool {
+        return $this->resolve($provider, $candidateGroupId, $expectedAncestorGroupId, $accessToken, false);
+    }
+
+    public function isDescendantOrSelfForVerification(
+        string $provider,
+        string $candidateGroupId,
+        string $expectedAncestorGroupId,
+        string $accessToken,
+    ): bool {
+        return $this->resolve($provider, $candidateGroupId, $expectedAncestorGroupId, $accessToken, true);
+    }
+
+    private function resolve(
+        string $provider,
+        string $candidateGroupId,
+        string $expectedAncestorGroupId,
+        string $accessToken,
+        bool $strict,
+    ): bool {
         if ($candidateGroupId === '' || $expectedAncestorGroupId === '' || $accessToken === '') {
+            if ($strict) {
+                throw new HitobitoApiException('hierarchy_unavailable', 'Hitobito hierarchy inputs are missing');
+            }
+
             return false;
         }
 
@@ -35,13 +58,38 @@ final class HitobitoParentChainResolver
             if ($currentId === $expectedAncestorGroupId) {
                 return true;
             }
-            if (isset($visited[$currentId]) || $depth === $this->maxDepth) {
+            if (isset($visited[$currentId])) {
+                if ($strict) {
+                    throw new HitobitoApiException('hierarchy_cycle', 'Hitobito hierarchy contains a cycle');
+                }
+
+                return false;
+            }
+            if ($depth === $this->maxDepth) {
+                if ($strict) {
+                    throw new HitobitoApiException('hierarchy_depth_limit', 'Hitobito hierarchy exceeded the safety limit');
+                }
+
                 return false;
             }
             $visited[$currentId] = true;
 
             $group = $this->apiClient->getGroup($provider, $accessToken, $currentId);
-            if ($group === null || $group->id !== $currentId || $group->parentId === null) {
+            if ($group === null) {
+                if ($strict) {
+                    throw new HitobitoApiException('group_not_found', 'A required Hitobito group could not be loaded', 404);
+                }
+
+                return false;
+            }
+            if ($group->id !== $currentId) {
+                if ($strict) {
+                    throw new HitobitoApiException('malformed_hierarchy', 'Hitobito returned a different group id');
+                }
+
+                return false;
+            }
+            if ($group->parentId === null) {
                 return false;
             }
             $currentId = $group->parentId;

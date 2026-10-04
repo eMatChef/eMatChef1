@@ -18,7 +18,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 /**
  * E-Mail an MW/DC und Org-Admins bei offenen Join-/Support-Anfragen.
  */
-final class JoinRequestManagerNotificationService
+final class JoinRequestManagerNotificationService implements JoinRequestNotifier
 {
     private const MANAGER_ROLES = ['mw', 'dc'];
 
