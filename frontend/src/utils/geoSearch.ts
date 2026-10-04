@@ -1,3 +1,5 @@
+import { htmlToPlainText } from '@/utils/sanitizeHtml'
+
 export type GeoSearchResult = {
   label: string
   lat: number
@@ -8,7 +10,7 @@ const SWISS_SEARCH_URL = 'https://api3.geo.admin.ch/rest/services/api/SearchServ
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search'
 
 export function stripGeoSearchLabel(raw: string): string {
-  return raw.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim()
+  return htmlToPlainText(raw, 'compact')
 }
 
 function parseSwisstopoResults(data: unknown, limit: number): GeoSearchResult[] {

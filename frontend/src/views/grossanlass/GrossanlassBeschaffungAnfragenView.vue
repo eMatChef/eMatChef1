@@ -1661,7 +1661,7 @@ import {
 import { listDepartmentCalendarPeriods, type DepartmentCalendarPeriod } from '@/api/calendarPeriods'
 import { resolveWishNeedPeriod } from '@/utils/grossanlassWishPeriod'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
-import { sanitizeMailHtml } from '@/utils/sanitizeHtml'
+import { htmlToPlainText, sanitizeMailHtml } from '@/utils/sanitizeHtml'
 import {
   isPackageProcurementCategory,
   leafIdsOfProcurementCategorySelection,
@@ -3269,17 +3269,6 @@ function seedChannelAgreement(firma: GrossanlassInquiry) {
   })
 }
 
-function plainMail(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
 function openChannelFromEdit(mode: 'phone' | 'mail') {
   const base = editFirma.value ?? previewFirma.value
   if (!base) return
@@ -3314,7 +3303,7 @@ async function openChannel(firma: GrossanlassInquiry, mode: 'phone' | 'mail') {
       inquiry_id: firma.id,
     })
     channelMailSubject.value = preview.subject?.trim() || ''
-    channelMailText.value = plainMail(preview.body || '')
+    channelMailText.value = htmlToPlainText(preview.body || '', 'mail')
   } catch {
     channelMailText.value = ''
   }
