@@ -6840,6 +6840,14 @@
     }
   },
   "supportRequests": {
+    "kindUnassignedUser": "Unassigned",
+    "unassignedUserTitle": "User without assignment",
+    "unassignedUserHint": "This user has no department yet and has not submitted a request. Origin and department are not verified.",
+    "dismissUnassigned": "Hide",
+    "dismissUnassignedConfirmTitle": "Hide user?",
+    "dismissUnassignedConfirmMessage": "{name} will no longer appear under “Users without assignment”. Requests the user submits will still appear.",
+    "toastDismissed": "User hidden.",
+    "dismissFailed": "The user could not be hidden.",
     "title": "Support requests",
     "subtitle": "Open requests from new users who could not be matched to a department.",
     "tabOpen": "Open",

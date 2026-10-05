@@ -751,6 +751,14 @@
     }
   },
   "supportRequests": {
+    "kindUnassignedUser": "Senza assegnazione",
+    "unassignedUserTitle": "Utente senza assegnazione",
+    "unassignedUserHint": "Questo utente non ha ancora un reparto e non ha inviato richieste. Provenienza e reparto non sono verificati.",
+    "dismissUnassigned": "Nascondi",
+    "dismissUnassignedConfirmTitle": "Nascondere l’utente?",
+    "dismissUnassignedConfirmMessage": "{name} non apparirà più in «Utenti senza assegnazione». Le richieste inviate dall’utente restano visibili.",
+    "toastDismissed": "Utente nascosto.",
+    "dismissFailed": "Impossibile nascondere l’utente.",
     "title": "Richieste di supporto",
     "subtitle": "Richieste aperte da nuovi utenti senza reparto trovato.",
     "tabOpen": "Aperti",

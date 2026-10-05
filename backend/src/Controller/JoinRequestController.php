@@ -15,6 +15,7 @@ use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\Admin\AdminJoinRequestManagerScope;
+use App\Service\Support\UnassignedUserSupportQueue;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
@@ -30,7 +31,6 @@ use App\Service\UserDepartmentInviteNotificationService;
 use App\Service\UserEmailAliasConflictException;
 use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
-use App\Util\E2eSmokeUser;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -61,6 +61,7 @@ class JoinRequestController extends AbstractController
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
         private AdminJoinRequestManagerScope $adminJoinRequestScope,
+        private UnassignedUserSupportQueue $unassignedUserQueue,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private UserEmailAliasService $emailAliases,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
@@ -306,60 +307,6 @@ class JoinRequestController extends AbstractController
 
         $pendingStatus = 'pending';
 
-        // Auto-create support requests for users without any department membership.
-        // Department managers never trigger it: these requests have no organisation and are outside their scope.
-        $usersWithoutDepartment = !$isGlobalAdmin ? [] : $this->entityManager->getRepository(User::class)
-            ->createQueryBuilder('u')
-            ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
-            ->leftJoin(
-                AdminJoinRequest::class,
-                'existing',
-                'WITH',
-                'existing.userId = u.id AND existing.status = :pendingStatus'
-            )
-            ->leftJoin(
-                JoinRequest::class,
-                'existingJoin',
-                'WITH',
-                'existingJoin.userId = u.id AND existingJoin.status = :pendingStatus'
-            )
-            ->where('m.userId IS NULL')
-            ->andWhere('existing.id IS NULL')
-            ->andWhere('existingJoin.id IS NULL')
-            ->andWhere('u.state = :activeState')
-            ->setParameter('pendingStatus', $pendingStatus)
-            ->setParameter('activeState', 'active')
-            ->setMaxResults(200)
-            ->getQuery()
-            ->getResult();
-
-        foreach ($usersWithoutDepartment as $userWithoutDepartment) {
-            if (!$userWithoutDepartment instanceof User) {
-                continue;
-            }
-            if ($userWithoutDepartment->hasSuperAdminProfile()) {
-                continue;
-            }
-            $profile = $userWithoutDepartment->getProfile();
-            if ($profile && E2eSmokeUser::isExcluded($profile->getEmail())) {
-                continue;
-            }
-
-            $autoRequest = new AdminJoinRequest();
-            $autoRequest->setId(IdGenerator::generateUnique($this->entityManager, AdminJoinRequest::class));
-            $autoRequest->setUser($userWithoutDepartment);
-            $autoRequest->setRequestedDepartmentName('Unbekannte Abteilung');
-            $autoRequest->setMessage('Automatisch erstellt: Benutzer ohne Department-Zuordnung.');
-            $autoRequest->setStatus($pendingStatus);
-            $this->entityManager->persist($autoRequest);
-            $this->logAdminJoinRequestEvent($autoRequest, $currentUser, 'auto_created', [
-                'requested_department_name' => 'Unbekannte Abteilung',
-            ]);
-        }
-        if (count($usersWithoutDepartment) > 0) {
-            $this->entityManager->flush();
-        }
-
         $qb = $this->entityManager->getRepository(AdminJoinRequest::class)
             ->createQueryBuilder('ajr')
             ->innerJoin('ajr.user', 'u')
@@ -369,6 +316,8 @@ class JoinRequestController extends AbstractController
             ->setParameter('status', $pendingStatus)
             ->orderBy('ajr.createdAt', 'ASC')
             ->setMaxResults(50);
+        // System-created requests are represented by the read-only "Benutzer ohne Zuordnung" queue below.
+        $this->unassignedUserQueue->excludeSystemRequests($qb, 'ajr');
 
         $isSuperAdmin = $this->adminCapabilityChecker->isSuperAdmin($currentUser);
         $managedOrgIds = null;
@@ -389,8 +338,6 @@ class JoinRequestController extends AbstractController
         }
 
         $requests = $qb->getQuery()->getResult();
-
-        $this->removeStaleAutoAdminRequestsForUsersWithPendingJoin($requests);
 
         $result = [];
         foreach ($requests as $req) {
@@ -449,6 +396,13 @@ class JoinRequestController extends AbstractController
             }
         }
 
+        // The queue has no organisation or department, so only global admins see it (never mw/dc).
+        if ($isGlobalAdmin) {
+            foreach ($this->unassignedUserQueue->findUnassignedUsers() as $unassignedUser) {
+                $result[] = $this->serializeUnassignedUser($unassignedUser);
+            }
+        }
+
         usort($result, static fn (array $a, array $b): int => strcmp($a['created_at'], $b['created_at']));
 
         return new JsonResponse($result);
@@ -472,6 +426,11 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Anfrage wurde bereits bearbeitet'], 409);
         }
 
+        return $this->performAdminRequestAssignment($adminRequest, $request, $currentUser);
+    }
+
+    private function performAdminRequestAssignment(AdminJoinRequest $adminRequest, Request $request, User $currentUser): JsonResponse
+    {
         $actingDepartmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
@@ -738,6 +697,13 @@ class JoinRequestController extends AbstractController
         if ($managerScope !== null && !$this->adminJoinRequestScope->contains($adminRequest, $managerScope)) {
             return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
+        if ($isGlobalAdmin && !$this->adminCapabilityChecker->isSuperAdmin($currentUser)) {
+            $managedOrgIds = $this->getManagedOrganisationIds($currentUser);
+            $requestOrganisationId = $adminRequest->getRequestedOrganisationId();
+            if ($managedOrgIds !== null && $requestOrganisationId !== null && !in_array($requestOrganisationId, $managedOrgIds, true)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung für diese Organisation'], 403);
+            }
+        }
 
         $data = json_decode($request->getContent(), true) ?: [];
         $decision = strtolower(trim((string) ($data['status'] ?? '')));
@@ -752,6 +718,53 @@ class JoinRequestController extends AbstractController
 
         return new JsonResponse([
             'success' => true,
+            'status' => $adminRequest->getStatus(),
+        ]);
+    }
+
+    /**
+     * Explicit admin action on a "Benutzer ohne Zuordnung" queue entry: assign like a support request.
+     */
+    #[Route('/unassigned-users/{userId}/assign', name: 'unassigned_user_assign', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function assignUnassignedUser(string $userId, Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $unassignedUser = $this->resolveUnassignedQueueUser($currentUser, $userId);
+        if ($unassignedUser instanceof JsonResponse) {
+            return $unassignedUser;
+        }
+
+        // Persisted only together with a successful assignment.
+        $adminRequest = $this->unassignedUserQueue->claimSystemRequest($unassignedUser, $currentUser);
+
+        return $this->performAdminRequestAssignment($adminRequest, $request, $currentUser);
+    }
+
+    /**
+     * Explicit admin action: hide a queue entry permanently (stored as rejected support request).
+     */
+    #[Route('/unassigned-users/{userId}/dismiss', name: 'unassigned_user_dismiss', methods: ['POST'])]
+    #[IsGranted('ROLE_USER')]
+    public function dismissUnassignedUser(string $userId): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $unassignedUser = $this->resolveUnassignedQueueUser($currentUser, $userId);
+        if ($unassignedUser instanceof JsonResponse) {
+            return $unassignedUser;
+        }
+
+        $adminRequest = $this->unassignedUserQueue->dismiss($unassignedUser, $currentUser);
+
+        return new JsonResponse([
+            'success' => true,
+            'id' => $adminRequest->getId(),
             'status' => $adminRequest->getStatus(),
         ]);
     }
@@ -848,7 +861,16 @@ class JoinRequestController extends AbstractController
             ['createdAt' => 'DESC'],
             20
         );
+        $hiddenSystemRequestIds = $this->unassignedUserQueue->hasVerifiedAlternative($currentUser)
+            ? $this->unassignedUserQueue->systemRequestIds(array_values(array_filter(
+                $adminRequests,
+                static fn (AdminJoinRequest $adminRequest): bool => $adminRequest->getStatus() === 'pending',
+            )))
+            : [];
         foreach ($adminRequests as $adminRequest) {
+            if (in_array($adminRequest->getId(), $hiddenSystemRequestIds, true)) {
+                continue;
+            }
             $displayStatus = $adminRequest->getStatus();
             if ($displayStatus === 'assigned') {
                 $displayStatus = 'approved';
@@ -1688,41 +1710,45 @@ class JoinRequestController extends AbstractController
         ];
     }
 
-    /**
-     * @param list<AdminJoinRequest> $adminRequests
-     */
-    private function removeStaleAutoAdminRequestsForUsersWithPendingJoin(array $adminRequests): void
+    private function resolveUnassignedQueueUser(User $currentUser, string $userId): User|JsonResponse
     {
-        $removed = false;
-        foreach ($adminRequests as $adminRequest) {
-            if (!$adminRequest instanceof AdminJoinRequest) {
-                continue;
-            }
-            if (!$this->isAutoUnknownAdminRequest($adminRequest)) {
-                continue;
-            }
-            $pendingJoin = $this->entityManager->getRepository(JoinRequest::class)->findOneBy([
-                'userId' => $adminRequest->getUserId(),
-                'status' => 'pending',
-            ]);
-            if ($pendingJoin instanceof JoinRequest) {
-                $this->entityManager->remove($adminRequest);
-                $removed = true;
-            }
+        if (!$this->hasGlobalAdminRole($currentUser)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
-        if ($removed) {
-            $this->entityManager->flush();
+        $user = $this->entityManager->getRepository(User::class)->find($userId);
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Benutzer nicht gefunden'], 404);
         }
+        if (!$this->unassignedUserQueue->isUnassigned($user)) {
+            return new JsonResponse(['error' => 'Benutzer ist nicht mehr ohne Zuordnung'], 409);
+        }
+
+        return $user;
     }
 
-    private function isAutoUnknownAdminRequest(AdminJoinRequest $adminRequest): bool
+    /**
+     * Read-only queue entry; it has no AdminJoinRequest ID until an admin acts on it.
+     *
+     * @return array<string, mixed>
+     */
+    private function serializeUnassignedUser(User $user): array
     {
-        if ($adminRequest->getRequestedDepartmentName() !== 'Unbekannte Abteilung') {
-            return false;
-        }
-        $message = $adminRequest->getMessage() ?? '';
+        $profile = $user->getProfile();
 
-        return str_starts_with($message, 'Automatisch erstellt:');
+        return [
+            'id' => null,
+            'request_kind' => 'unassigned_user',
+            'user_id' => $user->getId(),
+            'name' => $profile ? $profile->getDisplayName() : 'Unbekannt',
+            'email' => $profile?->getEmail(),
+            'requested_department_name' => null,
+            'requested_affiliation' => null,
+            'requested_organisation_id' => null,
+            'requested_parent_department_name' => null,
+            'message' => null,
+            'status' => 'unassigned',
+            'created_at' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+        ];
     }
 
     /**

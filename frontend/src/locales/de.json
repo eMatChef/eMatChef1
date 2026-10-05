@@ -5918,6 +5918,14 @@
           "edit": "Departments bearbeiten"
         },
         "supportRequests": {
+          "kindUnassignedUser": "Ohne Zuordnung",
+          "unassignedUserTitle": "Benutzer ohne Zuordnung",
+          "unassignedUserHint": "Dieser Benutzer hat noch keine Abteilung und selbst keine Anfrage gestellt. Herkunft und Abteilung sind nicht verifiziert.",
+          "dismissUnassigned": "Ausblenden",
+          "dismissUnassignedConfirmTitle": "Benutzer ausblenden?",
+          "dismissUnassignedConfirmMessage": "{name} erscheint danach nicht mehr unter „Benutzer ohne Zuordnung“. Eigene Anfragen des Benutzers erscheinen weiterhin.",
+          "toastDismissed": "Benutzer ausgeblendet.",
+          "dismissFailed": "Benutzer konnte nicht ausgeblendet werden.",
           "assign": "Support-Anfragen zuweisen"
         },
         "users": {

@@ -847,6 +847,14 @@
     }
   },
   "supportRequests": {
+    "kindUnassignedUser": "Sans attribution",
+    "unassignedUserTitle": "Utilisateur sans attribution",
+    "unassignedUserHint": "Cet utilisateur n’a pas encore de département et n’a fait aucune demande. Son origine et son département ne sont pas vérifiés.",
+    "dismissUnassigned": "Masquer",
+    "dismissUnassignedConfirmTitle": "Masquer l’utilisateur ?",
+    "dismissUnassignedConfirmMessage": "{name} n’apparaîtra plus sous « Utilisateurs sans attribution ». Les demandes envoyées par l’utilisateur restent visibles.",
+    "toastDismissed": "Utilisateur masqué.",
+    "dismissFailed": "Impossible de masquer l’utilisateur.",
     "title": "Demandes de support",
     "subtitle": "Demandes ouvertes de nouveaux utilisateurs sans département trouvé.",
     "tabOpen": "Ouvert",

@@ -154,18 +154,19 @@ export interface CreateJoinRequestResponse {
 }
 
 export interface PendingAdminJoinRequest {
-  id: string
-  request_kind?: 'admin' | 'department_join'
+  /** null bei berechneten Einträgen „Benutzer ohne Zuordnung“ (noch keine gespeicherte Anfrage) */
+  id: string | null
+  request_kind?: 'admin' | 'department_join' | 'unassigned_user'
   user_id: string
   name: string
   email?: string | null
-  requested_department_name: string
+  requested_department_name: string | null
   target_department_id?: string | null
   target_department_name?: string | null
   organisation_name?: string | null
   requested_affiliation?: string | null
   message?: string | null
-  status?: 'pending' | 'assigned' | 'rejected' | 'approved'
+  status?: 'pending' | 'assigned' | 'rejected' | 'approved' | 'unassigned'
   created_at: string
   updated_at?: string
   reviewed_by_name?: string | null
@@ -407,6 +408,27 @@ export async function assignAdminJoinRequest(
     { params: { department_id: departmentId } }
   )
   return data
+}
+
+/** Explizite Admin-Aktion auf einen Eintrag „Benutzer ohne Zuordnung“ (nur globale Support-Admins). */
+export async function assignUnassignedUser(
+  userId: string,
+  targetDepartmentId: string,
+  targetRole?: string
+): Promise<AssignAdminJoinRequestResponse> {
+  const { data } = await apiClient.post<AssignAdminJoinRequestResponse>(
+    `/api/join-requests/unassigned-users/${encodeURIComponent(userId)}/assign`,
+    {
+      target_department_id: targetDepartmentId,
+      target_role: targetRole || 'u'
+    }
+  )
+  return data
+}
+
+/** Blendet einen Eintrag „Benutzer ohne Zuordnung“ dauerhaft aus (gespeichert als abgelehnte Anfrage). */
+export async function dismissUnassignedUser(userId: string): Promise<void> {
+  await apiClient.post(`/api/join-requests/unassigned-users/${encodeURIComponent(userId)}/dismiss`)
 }
 
 export async function getAdminJoinRequestHistory(departmentId: string): Promise<PendingAdminJoinRequest[]> {

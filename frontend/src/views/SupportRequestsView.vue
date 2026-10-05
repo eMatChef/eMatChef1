@@ -27,20 +27,26 @@
     </div>
 
     <div v-else class="list">
-      <div v-for="req in requests" :key="`${req.request_kind || 'admin'}-${req.id}`" class="card">
+      <div v-for="req in requests" :key="`${req.request_kind || 'admin'}-${req.id ?? req.user_id}`" class="card">
         <div class="title-row">
           <span v-if="req.request_kind === 'department_join'" class="request-kind-badge request-kind-badge--join">
             {{ t('supportRequests.kindDepartmentJoin') }}
           </span>
+          <span v-else-if="isUnassignedUser(req)" class="request-kind-badge request-kind-badge--unassigned">
+            {{ t('supportRequests.kindUnassignedUser') }}
+          </span>
           <span v-else class="request-kind-badge request-kind-badge--admin">
             {{ t('supportRequests.kindAdminRequest') }}
           </span>
-          <div class="title">{{ req.requested_department_name }}</div>
+          <div class="title">
+            {{ isUnassignedUser(req) ? t('supportRequests.unassignedUserTitle') : req.requested_department_name }}
+          </div>
         </div>
         <div class="meta">
           <span>{{ req.name }}</span>
           <span v-if="req.email"> · {{ req.email }}</span>
         </div>
+        <div v-if="isUnassignedUser(req)" class="meta">{{ t('supportRequests.unassignedUserHint') }}</div>
         <div v-if="req.request_kind === 'department_join' && req.organisation_name" class="meta">
           {{ t('supportRequests.organisation', { name: req.organisation_name }) }}
         </div>
@@ -76,13 +82,23 @@
             <button
               class="btn btn-success btn-sm"
               :disabled="loading"
-              @click="decideDepartmentJoin(req.id, 'approved')"
+              @click="req.id && decideDepartmentJoin(req.id, 'approved')"
             >
               {{ t('supportRequests.approveJoin') }}
             </button>
-            <button class="btn btn-danger btn-sm" :disabled="loading" @click="decideDepartmentJoin(req.id, 'rejected')">
+            <button class="btn btn-danger btn-sm" :disabled="loading" @click="req.id && decideDepartmentJoin(req.id, 'rejected')">
               {{ t('supportRequests.reject') }}
             </button>
+          </template>
+          <template v-else-if="isUnassignedUser(req)">
+            <template v-if="canHandleUnassignedUsers">
+              <button class="btn btn-success btn-sm" :disabled="loading" @click="openAssignModal(req)">
+                {{ t('supportRequests.assign') }}
+              </button>
+              <button class="btn btn-danger btn-sm" :disabled="loading" @click="dismissUnassigned(req)">
+                {{ t('supportRequests.dismissUnassigned') }}
+              </button>
+            </template>
           </template>
           <template v-else>
             <template v-if="canAssignSupportRequests">
@@ -94,7 +110,7 @@
                 {{ t('supportRequests.assign') }}
               </button>
             </template>
-            <button class="btn btn-danger btn-sm" :disabled="loading" @click="decideAdmin(req.id)">
+            <button class="btn btn-danger btn-sm" :disabled="loading" @click="req.id && decideAdmin(req.id)">
               {{ t('supportRequests.reject') }}
             </button>
           </template>
@@ -129,7 +145,7 @@
               <span>{{ selectedRequest.requested_department_name || '–' }}</span>
             </div>
             <p
-              v-if="selectedRequest.requested_department_name === unknownDepartmentName"
+              v-if="isUnassignedUser(selectedRequest) || selectedRequest.requested_department_name === unknownDepartmentName"
               class="assign-request-details-hint"
             >
               {{ t('supportRequests.unknownDeptHint') }}
@@ -329,6 +345,7 @@ import { flattenDepartmentsWithLevel } from '@/utils/departmentHierarchy'
 import { levenshtein } from '@/utils/stringSimilarity'
 import { useRoute } from 'vue-router'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
 import { createDepartment, departmentHasManager, getDepartments, type Department } from '@/api/departments'
 import { getOrganisations, type Organisation } from '@/api/organisations'
@@ -338,8 +355,10 @@ import {
 } from '@/utils/organisationUserPicker'
 import {
   assignAdminJoinRequest,
+  assignUnassignedUser,
   decideAdminJoinRequest,
   decideJoinRequest,
+  dismissUnassignedUser,
   getAdminJoinRequestHistory,
   getPendingAdminJoinRequests,
   type PendingAdminJoinRequest
@@ -348,6 +367,7 @@ import {
 const route = useRoute()
 const { t, locale } = useI18n()
 const toast = useToast()
+const confirm = useConfirm()
 const authStore = useAuthStore()
 
 /** Backend liefert diesen Platzhalter für fehlende Abteilung (Sprache API). */
@@ -370,6 +390,8 @@ const canAssignSupportRequests = computed(() => {
   if (authStore.canAdmin('support_requests.assign')) return true
   return (authStore.currentDepartmentRole || '').toLowerCase() === 'mw' && !!departmentId.value
 })
+/** „Benutzer ohne Zuordnung“ haben keinen Bereich und sind nur für globale Support-Admins (wie Backend). */
+const canHandleUnassignedUsers = computed(() => authStore.canAdmin('support_requests.assign'))
 const assignModalOpen = ref(false)
 const selectedRequest = ref<PendingAdminJoinRequest | null>(null)
 const selectedAssignmentDepartmentId = ref('')
@@ -515,6 +537,35 @@ async function decideDepartmentJoin(id: string, status: 'approved' | 'rejected')
   }
 }
 
+function isUnassignedUser(req: PendingAdminJoinRequest): boolean {
+  return req.request_kind === 'unassigned_user'
+}
+
+async function dismissUnassigned(req: PendingAdminJoinRequest) {
+  const confirmed = await confirm.confirm({
+    title: t('supportRequests.dismissUnassignedConfirmTitle'),
+    message: t('supportRequests.dismissUnassignedConfirmMessage', { name: req.name }),
+    confirmText: t('supportRequests.dismissUnassigned'),
+    cancelText: t('common.cancel'),
+    variant: 'warning',
+  })
+  if (!confirmed) return
+  loading.value = true
+  error.value = null
+  try {
+    await dismissUnassignedUser(req.user_id)
+    toast.success(t('supportRequests.toastDismissed'))
+    await loadRequests()
+  } catch (err) {
+    const apiError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+    const msg = apiError || t('supportRequests.dismissFailed')
+    error.value = msg
+    toast.error(msg)
+  } finally {
+    loading.value = false
+  }
+}
+
 function isAdminSupportRequest(req: PendingAdminJoinRequest): boolean {
   return req.request_kind !== 'department_join'
 }
@@ -530,7 +581,7 @@ async function openAssignModal(req: PendingAdminJoinRequest) {
   createDepartmentMode.value = false
   newDepartmentOrganisationId.value = ''
   newDepartmentParentId.value = ''
-  newDepartmentName.value = req.requested_department_name === unknownDepartmentName
+  newDepartmentName.value = !req.requested_department_name || req.requested_department_name === unknownDepartmentName
     ? ''
     : req.requested_department_name
   assignModalOpen.value = true
@@ -659,17 +710,15 @@ function switchToCreateMode() {
   assignRole.value = 'mw'
 }
 
-async function assignToDepartment(id: string, targetDepartmentId: string, role?: string) {
+async function assignToDepartment(req: PendingAdminJoinRequest, targetDepartmentId: string, role?: string) {
   if (!targetDepartmentId) return
   assignLoading.value = true
   assignError.value = null
   try {
-    const res = await assignAdminJoinRequest(
-      departmentId.value || '',
-      id,
-      targetDepartmentId,
-      role || assignRole.value
-    )
+    const targetRole = role || assignRole.value
+    const res = isUnassignedUser(req)
+      ? await assignUnassignedUser(req.user_id, targetDepartmentId, targetRole)
+      : await assignAdminJoinRequest(departmentId.value || '', req.id ?? '', targetDepartmentId, targetRole)
     toast.success(t('supportRequests.toastAssigned', { role: res.assigned_role }))
     if (res.role_forced_to_mw_warning) {
       toast.warning(res.role_forced_to_mw_warning)
@@ -687,7 +736,7 @@ async function assignToDepartment(id: string, targetDepartmentId: string, role?:
 
 async function assignSelectedDepartment() {
   if (!selectedRequest.value || !selectedAssignmentDepartmentId.value) return
-  await assignToDepartment(selectedRequest.value.id, selectedAssignmentDepartmentId.value, assignRole.value)
+  await assignToDepartment(selectedRequest.value, selectedAssignmentDepartmentId.value, assignRole.value)
 }
 
 async function createAndAssignDepartment() {
@@ -705,7 +754,7 @@ async function createAndAssignDepartment() {
       parent_id: newDepartmentParentId.value || null
     })
     await loadAssignableDepartments()
-    await assignToDepartment(selectedRequest.value.id, created.id, assignRole.value)
+    await assignToDepartment(selectedRequest.value, created.id, assignRole.value)
   } catch (err: any) {
     const msg = err?.response?.data?.error || t('supportRequests.errors.createDeptFailed')
     error.value = msg
@@ -788,6 +837,11 @@ watch(activeTab, loadRequests)
 .request-kind-badge--admin {
   background: #fef3c7;
   color: #92400e;
+}
+
+.request-kind-badge--unassigned {
+  background: #f3f4f6;
+  color: #374151;
 }
 
 .title { font-weight: 700; color: #111827; }
