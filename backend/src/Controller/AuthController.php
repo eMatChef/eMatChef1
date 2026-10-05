@@ -7,17 +7,16 @@ use App\Entity\AdminJoinRequest;
 use App\Entity\Department;
 use App\Entity\DepartmentSetting;
 use App\Entity\JoinRequest;
-use App\Entity\Membership;
 use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
-use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
 use App\Service\Auth\RefreshTokenRevoker;
+use App\Service\Auth\SessionContextResolver;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\UserEmailAliasService;
@@ -67,6 +66,7 @@ class AuthController extends AbstractController
         private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
         private RefreshTokenRevoker $refreshTokenRevoker,
+        private SessionContextResolver $sessionContextResolver,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -119,50 +119,8 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Profil nicht gefunden'], 404);
         }
 
-        $memberships = $this->entityManager->getRepository(Membership::class)
-            ->createQueryBuilder('m')
-            ->innerJoin('m.department', 'd')
-            ->leftJoin('d.grossanlassConfig', 'gc')
-            ->addSelect('d', 'gc')
-            ->where('m.userId = :userId')
-            ->setParameter('userId', $user->getId())
-            ->getQuery()
-            ->getResult();
-
-        $departments = [];
-        $primaryDepartment = null;
-        foreach ($memberships as $m) {
-            $department = $m->getDepartment();
-            $deptSerialized = GrossanlassDepartmentSerializer::serializeDepartmentForMembership($department);
-            $deptData = [
-                'id' => $deptSerialized['id'],
-                'name' => $deptSerialized['name'],
-                'organisation_id' => $deptSerialized['organisation_id'],
-                'role' => $m->getRole(),
-                'is_primary' => $m->getIsPrimary(),
-                'is_grossanlass' => $deptSerialized['is_grossanlass'],
-            ];
-            if (isset($deptSerialized['grossanlass_config'])) {
-                $deptData['grossanlass_config'] = $deptSerialized['grossanlass_config'];
-            }
-            $departments[] = $deptData;
-            if ($m->getIsPrimary() || !$primaryDepartment) {
-                $primaryDepartment = $deptData;
-            }
-        }
-
-        if (!$primaryDepartment && \count($departments) > 0) {
-            $primaryDepartment = $departments[0];
-        }
-
-        $allowedIds = array_map(static fn (array $d): string => $d['id'], $departments);
-        $storedLastUsedId = $user->getLastUsedDepartmentId();
-        $lastUsedResolved = null;
-        if ($storedLastUsedId !== null && \in_array($storedLastUsedId, $allowedIds, true)) {
-            $lastUsedResolved = $storedLastUsedId;
-        } elseif ($primaryDepartment !== null) {
-            $lastUsedResolved = $primaryDepartment['id'];
-        }
+        $context = $this->sessionContextResolver->resolve($user);
+        $lastUsedResolved = $context['last_used_department'];
 
         $capData = $this->adminCapabilityChecker->serializeForApi($user);
 
@@ -196,8 +154,8 @@ class AuthController extends AbstractController
                 'background_color' => $profile->getBackgroundColor() ?? null,
                 'text_color' => $profile->getTextColor() ?? null,
             ],
-            'departments' => $departments,
-            'primary_department' => $primaryDepartment ? $primaryDepartment['id'] : null,
+            'departments' => $context['departments'],
+            'primary_department' => $context['primary_department'],
             'last_used_department' => $lastUsedResolved,
             'supplier_companies' => $supplierCompanies,
             'last_used_supplier_company' => $lastUsedSupplierCompany,
