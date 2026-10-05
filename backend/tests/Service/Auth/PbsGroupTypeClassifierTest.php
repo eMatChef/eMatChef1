@@ -9,18 +9,21 @@ use PHPUnit\Framework\TestCase;
 
 final class PbsGroupTypeClassifierTest extends TestCase
 {
-    public function testClassifiesBundAndKantonalverbandAsOrganisationCandidates(): void
+    public function testTechnicalRootIsIgnored(): void
     {
-        $classifier = new PbsGroupTypeClassifier();
-
-        self::assertSame(PbsGroupTypeClassifier::ORGANISATION, $classifier->classify('Group::Bund'));
-        self::assertSame(PbsGroupTypeClassifier::ORGANISATION, $classifier->classify('Group::Kantonalverband'));
+        self::assertSame(PbsGroupTypeClassifier::IGNORED, (new PbsGroupTypeClassifier())->classify('Group::Root'));
     }
 
-    public function testClassifiesRegionAndAbteilungAsDepartmentCandidates(): void
+    public function testClassifiesBundAsOrganisationCandidate(): void
+    {
+        self::assertSame(PbsGroupTypeClassifier::ORGANISATION, (new PbsGroupTypeClassifier())->classify('Group::Bund'));
+    }
+
+    public function testClassifiesKantonalverbandRegionAndAbteilungAsDepartmentCandidates(): void
     {
         $classifier = new PbsGroupTypeClassifier();
 
+        self::assertSame(PbsGroupTypeClassifier::DEPARTMENT, $classifier->classify('Group::Kantonalverband'));
         self::assertSame(PbsGroupTypeClassifier::DEPARTMENT, $classifier->classify('Group::Region'));
         self::assertSame(PbsGroupTypeClassifier::DEPARTMENT, $classifier->classify('Group::Abteilung'));
     }

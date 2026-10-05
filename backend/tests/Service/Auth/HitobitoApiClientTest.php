@@ -6,7 +6,11 @@ namespace App\Tests\Service\Auth;
 
 use App\Service\Auth\HitobitoApiClient;
 use App\Service\Auth\HitobitoApiException;
+use App\Service\Auth\HitobitoGroup;
+use App\Service\Auth\HitobitoGroupParseException;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
 use Symfony\Component\HttpClient\Response\MockResponse;
 
@@ -43,6 +47,323 @@ final class HitobitoApiClientTest extends TestCase
         self::assertSame('Bearer short-lived-token', $this->headerValue($requests[0][2]['headers'], 'Authorization'));
         self::assertSame('application/vnd.api+json', $this->headerValue($requests[0][2]['headers'], 'Accept'));
         self::assertSame(0, $requests[0][2]['max_redirects']);
+    }
+
+    public function testNormalizesGroupsUsingHitobitoJsonApiRelationships(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'data' => [
+                    'type' => 'groups',
+                    'id' => '111',
+                    'attributes' => ['group_type' => 'Pfadi-Abteilung', 'name' => 'Pfadi Zytturm'],
+                    'relationships' => [
+                        'parent' => ['data' => ['type' => 'groups', 'id' => '100']],
+                        'layer_group' => ['data' => ['type' => 'groups', 'id' => '1']],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $group = $this->client($http)->getGroup('midata', 'token', '111');
+
+        self::assertNotNull($group);
+        self::assertSame('100', $group->parentId);
+        self::assertSame('Pfadi-Abteilung', $group->type);
+        self::assertSame('Pfadi Zytturm', $group->name);
+        self::assertSame('1', $group->layerGroupId);
+    }
+
+    public function testNormalizesRootGroupWithNullParentRelationship(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'data' => [
+                    'type' => 'groups',
+                    'id' => '1',
+                    'attributes' => ['group_type' => 'Root', 'name' => 'Root'],
+                    'relationships' => [
+                        'parent' => ['data' => null],
+                        'layer_group' => ['data' => null],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $group = $this->client($http)->getGroup('midata', 'token', '1');
+
+        self::assertNotNull($group);
+        self::assertNull($group->parentId);
+        self::assertNull($group->layerGroupId);
+    }
+
+    public function testParsesPbsZytturmGroupResponseWithAttributeIdsAndMetaOnlyRelationships(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+                'parent_id' => 50,
+                'layer_group_id' => 51,
+            ],
+            'relationships' => [
+                'parent' => ['meta' => ['included' => false]],
+                'layer_group' => ['meta' => ['included' => false]],
+            ],
+        ]);
+
+        self::assertSame('51', $group->id);
+        self::assertSame('Pfadi Zytturm', $group->name);
+        self::assertSame('Group::Abteilung', $group->type);
+        self::assertSame('50', $group->parentId);
+        self::assertSame('51', $group->layerGroupId);
+    }
+
+    public function testFetchGroupParsesFullJsonApiDocumentWithMetaOnlyRelationshipsLikeLiveResponse(): void
+    {
+        $http = new MockHttpClient([
+            new MockResponse(json_encode([
+                'data' => [
+                    'type' => 'groups',
+                    'id' => '51',
+                    'attributes' => [
+                        'name' => 'Pfadi Zytturm',
+                        'type' => 'Group::Abteilung',
+                        'parent_id' => 50,
+                        'layer_group_id' => 51,
+                    ],
+                    'relationships' => [
+                        'parent' => ['meta' => ['included' => false]],
+                        'layer_group' => ['meta' => ['included' => false]],
+                    ],
+                ],
+                'meta' => [],
+            ], JSON_THROW_ON_ERROR), ['http_code' => 200]),
+        ]);
+
+        $group = $this->client($http)->getGroup('midata', 'token', '51');
+
+        self::assertNotNull($group);
+        self::assertSame('51', $group->id);
+        self::assertSame('Pfadi Zytturm', $group->name);
+        self::assertSame('Group::Abteilung', $group->type);
+        self::assertSame('50', $group->parentId);
+        self::assertSame('51', $group->layerGroupId);
+    }
+
+    public function testMetaOnlyRelationshipsWithoutAttributeIdsNormalizeToNull(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+            ],
+            'relationships' => [
+                'parent' => ['meta' => ['included' => false]],
+                'layer_group' => ['meta' => ['included' => false]],
+            ],
+        ]);
+
+        self::assertNull($group->parentId);
+        self::assertNull($group->layerGroupId);
+    }
+
+    public function testMetaAndNullRelationshipDataUseAttributeIds(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+                'parent_id' => 50,
+                'layer_group_id' => 51,
+            ],
+            'relationships' => [
+                'parent' => ['meta' => ['included' => false], 'data' => null],
+                'layer_group' => ['meta' => ['included' => false], 'data' => null],
+            ],
+        ]);
+
+        self::assertSame('50', $group->parentId);
+        self::assertSame('51', $group->layerGroupId);
+    }
+
+    public function testAcceptsMatchingAttributeAndRelationshipIds(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+                'parent_id' => 50,
+                'layer_group_id' => 51,
+            ],
+            'relationships' => [
+                'parent' => ['meta' => ['included' => true], 'data' => ['type' => 'groups', 'id' => '50']],
+                'layer_group' => ['meta' => ['included' => true], 'data' => ['type' => 'groups', 'id' => '51']],
+            ],
+        ]);
+
+        self::assertSame('50', $group->parentId);
+        self::assertSame('51', $group->layerGroupId);
+    }
+
+    public function testUsesRelationshipIdsWhenAttributesAreAbsent(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+            ],
+            'relationships' => [
+                'parent' => ['data' => ['type' => 'groups', 'id' => '50']],
+                'layer_group' => ['data' => ['type' => 'groups', 'id' => '51']],
+            ],
+        ]);
+
+        self::assertSame('50', $group->parentId);
+        self::assertSame('51', $group->layerGroupId);
+    }
+
+    public function testRejectsConflictingAttributeAndRelationshipIds(): void
+    {
+        try {
+            $this->fetchGroup([
+                'type' => 'groups',
+                'id' => '51',
+                'attributes' => [
+                    'name' => 'Pfadi Zytturm',
+                    'type' => 'Group::Abteilung',
+                    'parent_id' => 50,
+                    'layer_group_id' => 51,
+                ],
+                'relationships' => [
+                    'parent' => ['meta' => ['included' => true], 'data' => ['type' => 'groups', 'id' => '49']],
+                    'layer_group' => ['meta' => ['included' => true], 'data' => ['type' => 'groups', 'id' => '51']],
+                ],
+            ]);
+            self::fail('Expected conflicting parent ids to be rejected');
+        } catch (HitobitoApiException $exception) {
+            self::assertSame('malformed_response', $exception->reason);
+            self::assertSame('parent_id_conflict', $exception->getPrevious()?->reasonCode);
+        }
+    }
+
+    public function testRejectsPresentButInvalidRelationshipData(): void
+    {
+        try {
+            $this->fetchGroup([
+                'type' => 'groups',
+                'id' => '51',
+                'attributes' => [
+                    'name' => 'Pfadi Zytturm',
+                    'type' => 'Group::Abteilung',
+                    'parent_id' => 50,
+                ],
+                'relationships' => [
+                    'parent' => ['meta' => ['included' => true], 'data' => 'invalid'],
+                ],
+            ]);
+            self::fail('Expected invalid parent relationship data to be rejected');
+        } catch (HitobitoApiException $exception) {
+            self::assertSame('malformed_response', $exception->reason);
+            self::assertInstanceOf(HitobitoGroupParseException::class, $exception->getPrevious());
+            self::assertSame('invalid_parent_relationship', $exception->getPrevious()->reasonCode);
+        }
+    }
+
+    public function testAllowsNullParentAndLayerGroupWhenBothSourcesAreNull(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+                'parent_id' => null,
+                'layer_group_id' => null,
+            ],
+            'relationships' => [
+                'parent' => ['data' => null],
+                'layer_group' => ['data' => null],
+            ],
+        ]);
+
+        self::assertNull($group->parentId);
+        self::assertNull($group->layerGroupId);
+    }
+
+    public function testAllowsParentAndLayerGroupWhenBothSourcesAreAbsent(): void
+    {
+        $group = $this->fetchGroup([
+            'type' => 'groups',
+            'id' => '51',
+            'attributes' => [
+                'name' => 'Pfadi Zytturm',
+                'type' => 'Group::Abteilung',
+            ],
+        ]);
+
+        self::assertNull($group->parentId);
+        self::assertNull($group->layerGroupId);
+    }
+
+    public function testMalformedGroupLogsOnlyAConciseParserWarning(): void
+    {
+        $logger = $this->createMock(LoggerInterface::class);
+        $warnings = [];
+        $logger->expects(self::never())->method('info');
+        $logger->expects(self::once())->method('warning')->willReturnCallback(
+            static function (string $message, array $context = []) use (&$warnings): void {
+                $warnings[] = $message . json_encode($context);
+            },
+        );
+        $response = [
+            'meta' => ['trace_id' => 'must-not-be-logged'],
+            'data' => [
+                'type' => 'group',
+                'id' => '51',
+                'attributes' => [
+                    'name' => 'Pfadi Zytturm',
+                    'group_type' => 'Group::Abteilung',
+                    'parent_id' => null,
+                    'layer_group_id' => 1,
+                    'private_attribute' => 'must-not-be-logged',
+                ],
+                'relationships' => [
+                    'parent' => ['data' => ['type' => 'groups', 'id' => '20']],
+                    'layer_group' => ['data' => ['type' => 'groups', 'id' => '1']],
+                ],
+            ],
+        ];
+        $client = new HitobitoApiClient(
+            new MockHttpClient([new MockResponse(json_encode($response, JSON_THROW_ON_ERROR))]),
+            ['midata' => 'https://db.scout.ch'],
+            $logger,
+        );
+
+        try {
+            $client->getGroup('midata', 'secret-token-not-to-log', '51');
+            self::fail('Expected an invalid resource type to fail validation');
+        } catch (HitobitoApiException $exception) {
+            self::assertSame('malformed_response', $exception->reason);
+        }
+
+        self::assertCount(1, $warnings);
+        self::assertStringContainsString('MiData group parser failed', $warnings[0]);
+        self::assertStringContainsString('requested_group_id=51', $warnings[0]);
+        self::assertStringContainsString('parser_reason=invalid_resource_type', $warnings[0]);
+        self::assertStringNotContainsString('must-not-be-logged', $warnings[0]);
+        self::assertStringNotContainsString('secret-token-not-to-log', $warnings[0]);
+        self::assertStringNotContainsString('Pfadi Zytturm', $warnings[0]);
     }
 
     public function testGroup404IsReturnedAsUnknownGroup(): void
@@ -156,6 +477,39 @@ final class HitobitoApiClientTest extends TestCase
         self::assertSame('Bearer token', $this->headerValue($requests[1][2]['headers'], 'Authorization'));
     }
 
+    public function testNormalizesRolesUsingHitobitoJsonApiRelationshipsAndAttributes(): void
+    {
+        $resource = [
+            'type' => 'roles',
+            'id' => 'role-123',
+            'attributes' => [
+                'role_type' => 'Leitung',
+                'role_class' => 'Group::Leader',
+                'label' => 'Stufenleiter*in PTA',
+                'start_on' => '2025-01-01',
+                'end_on' => null,
+            ],
+            'relationships' => [
+                'group' => ['data' => ['type' => 'groups', 'id' => '111']],
+            ],
+        ];
+        $http = new MockHttpClient([
+            new MockResponse(json_encode(['data' => [$resource]], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $roles = $this->client($http)->getRolesForPerson('midata', 'token', '1131');
+
+        self::assertCount(1, $roles);
+        self::assertSame('1131', $roles[0]->personId);
+        self::assertSame('role-123', $roles[0]->id);
+        self::assertSame('111', $roles[0]->groupId);
+        self::assertSame('Group::Leader', $roles[0]->type);
+        self::assertSame('Leitung', $roles[0]->roleType);
+        self::assertSame('Stufenleiter*in PTA', $roles[0]->label);
+        self::assertSame('2025-01-01', $roles[0]->startOn?->format('Y-m-d'));
+        self::assertNull($roles[0]->endOn);
+    }
+
     public function testRejectsPaginationLinkToAnotherHost(): void
     {
         $http = new MockHttpClient([
@@ -175,7 +529,21 @@ final class HitobitoApiClientTest extends TestCase
 
     private function client(MockHttpClient $http): HitobitoApiClient
     {
-        return new HitobitoApiClient($http, ['midata' => 'https://db.scout.ch']);
+        return new HitobitoApiClient($http, ['midata' => 'https://db.scout.ch'], new NullLogger());
+    }
+
+    /**
+     * @param array<string, mixed> $resource
+     */
+    private function fetchGroup(array $resource): HitobitoGroup
+    {
+        $client = $this->client(new MockHttpClient([
+            new MockResponse(json_encode(['data' => $resource], JSON_THROW_ON_ERROR)),
+        ]));
+        $group = $client->getGroup('midata', 'token', (string) $resource['id']);
+        self::assertNotNull($group);
+
+        return $group;
     }
 
     /**

@@ -37,6 +37,48 @@ final class HitobitoOAuthClientTest extends TestCase
         self::assertArrayNotHasKey('profile', array_flip(explode(' ', $query['scope'])));
     }
 
+    public function testAuthorizationUrlHasNoPromptByDefault(): void
+    {
+        $url = $this->client(new MockHttpClient([new MockResponse($this->json($this->discoveryDocument()))]))
+            ->buildAuthorizationUrl(['token' => 'state-value', 'nonce' => 'oidc-nonce', 'codeVerifier' => 'verifier']);
+
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        self::assertArrayNotHasKey('prompt', $query);
+    }
+
+    public function testPromptLoginKeepsStateNoncePkceAndRedirect(): void
+    {
+        $url = $this->client(new MockHttpClient([new MockResponse($this->json($this->discoveryDocument()))]))
+            ->buildAuthorizationUrl(
+                ['token' => 'state-value', 'nonce' => 'oidc-nonce', 'codeVerifier' => 'test-code-verifier'],
+                HitobitoOAuthClient::PROMPT_LOGIN,
+            );
+
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+        self::assertSame('login', $query['prompt']);
+        self::assertSame('state-value', $query['state']);
+        self::assertSame('oidc-nonce', $query['nonce']);
+        self::assertSame('code', $query['response_type']);
+        self::assertSame('midata-client', $query['client_id']);
+        self::assertSame('https://app.ematchef.test/api/auth/midata/callback', $query['redirect_uri']);
+        self::assertSame('S256', $query['code_challenge_method']);
+        self::assertSame(
+            rtrim(strtr(base64_encode(hash('sha256', 'test-code-verifier', true)), '+/', '-_'), '='),
+            $query['code_challenge']
+        );
+    }
+
+    public function testUnsupportedPromptValueIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->client(new MockHttpClient([new MockResponse($this->json($this->discoveryDocument()))]))
+            ->buildAuthorizationUrl(
+                ['token' => 'state-value', 'nonce' => 'oidc-nonce', 'codeVerifier' => 'verifier'],
+                'select_account',
+            );
+    }
+
     public function testFetchUserInfoValidatesIdTokenAndMatchesUserinfoSubject(): void
     {
         $privateKey = openssl_pkey_new([
@@ -78,9 +120,14 @@ final class HitobitoOAuthClientTest extends TestCase
                 'email_verified' => true,
                 'given_name' => 'Ada',
                 'family_name' => 'Lovelace',
+                'nickname' => 'Enchantress',
+                'primary_group_id' => 376803389,
                 'roles' => [[
                     'group_id' => 376803389,
+                    'group_name' => 'Bottom One',
+                    'role' => 'Group::BottomLayer::Member',
                     'role_class' => 'Group::BottomLayer::Member',
+                    'role_name' => 'Member',
                     'permissions' => ['layer_and_below_read', 'finance'],
                 ]],
             ])),
@@ -101,10 +148,16 @@ final class HitobitoOAuthClientTest extends TestCase
         self::assertTrue($info->emailVerified);
         self::assertSame('Ada', $info->firstName);
         self::assertSame('Lovelace', $info->lastName);
+        self::assertSame('Enchantress', $info->nickname);
+        self::assertSame('376803389', $info->primaryGroupId);
         self::assertCount(1, $info->roles);
         self::assertSame('midata-sub-42', $info->roles[0]->personId);
         self::assertSame('376803389', $info->roles[0]->groupId);
         self::assertSame('Group::BottomLayer::Member', $info->roles[0]->type);
+        self::assertSame('Group::BottomLayer::Member', $info->roles[0]->roleClass);
+        self::assertSame('Group::BottomLayer::Member', $info->roles[0]->role);
+        self::assertSame('Bottom One', $info->roles[0]->groupName);
+        self::assertSame('Member', $info->roles[0]->roleName);
         self::assertSame(['layer_and_below_read', 'finance'], $info->roles[0]->permissions);
         self::assertNull($info->roles[0]->startOn);
         self::assertNull($info->roles[0]->endOn);

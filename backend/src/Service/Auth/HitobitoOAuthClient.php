@@ -11,6 +11,12 @@ final class HitobitoOAuthClient
 {
     private const SCOPES = ['openid', 'email', 'with_roles', 'groups', 'people'];
 
+    /**
+     * OIDC prompt=login: Hitobito signs out an existing MiData browser session and shows its login form.
+     * Other prompt values are not configured by Hitobito (select_account fails there).
+     */
+    public const PROMPT_LOGIN = 'login';
+
     private readonly string $issuer;
     private readonly string $clientId;
     private readonly string $clientSecret;
@@ -58,17 +64,21 @@ final class HitobitoOAuthClient
 
     /**
      * @param array{token: string, nonce: string, codeVerifier: string} $state
+     * @param string|null $prompt only {@see self::PROMPT_LOGIN} is supported
      */
-    public function buildAuthorizationUrl(array $state): string
+    public function buildAuthorizationUrl(array $state, ?string $prompt = null): string
     {
         if (!$this->isConfigured()) {
             throw new MiDataOAuthException('not_configured', 'MiData OAuth is not configured');
+        }
+        if ($prompt !== null && $prompt !== self::PROMPT_LOGIN) {
+            throw new \InvalidArgumentException('Unsupported MiData OIDC prompt value');
         }
 
         $discovery = $this->getDiscoveryDocument();
         $challenge = rtrim(strtr(base64_encode(hash('sha256', $state['codeVerifier'], true)), '+/', '-_'), '=');
 
-        return $this->requiredEndpoint($discovery, 'authorization_endpoint') . '?' . http_build_query([
+        $query = [
             'client_id' => $this->clientId,
             'redirect_uri' => $this->redirectUri,
             'response_type' => 'code',
@@ -77,7 +87,12 @@ final class HitobitoOAuthClient
             'nonce' => $state['nonce'],
             'code_challenge' => $challenge,
             'code_challenge_method' => 'S256',
-        ]);
+        ];
+        if ($prompt !== null) {
+            $query['prompt'] = $prompt;
+        }
+
+        return $this->requiredEndpoint($discovery, 'authorization_endpoint') . '?' . http_build_query($query);
     }
 
     public function fetchUserInfo(string $code, string $codeVerifier, string $expectedNonce): HitobitoOAuthSession
@@ -169,8 +184,22 @@ final class HitobitoOAuthClient
                 $firstName !== '' ? $firstName : null,
                 $lastName !== '' ? $lastName : null,
                 $normalizedRoles,
+                is_string($userinfo['nickname'] ?? null) ? $userinfo['nickname'] : null,
+                self::normalizeOptionalId($userinfo['primary_group_id'] ?? null),
             ),
         );
+    }
+
+    private static function normalizeOptionalId(mixed $value): ?string
+    {
+        if (is_int($value) && $value > 0) {
+            return (string) $value;
+        }
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        return null;
     }
 
     /**

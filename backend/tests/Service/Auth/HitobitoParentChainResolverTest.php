@@ -48,6 +48,54 @@ final class HitobitoParentChainResolverTest extends TestCase
         self::assertTrue($this->resolver($this->api($groups))->isDescendantOrSelf('midata', '1', '100', 'token'));
     }
 
+    public function testReturnsParentChainUsingTheConfiguredDepthLimit(): void
+    {
+        $api = $this->api([
+            '111' => new HitobitoGroup('111', '110', 'Group::Woelfe', 'Meute'),
+            '110' => new HitobitoGroup('110', '100', 'Group::Abteilung', 'Abteilung'),
+            '100' => new HitobitoGroup('100', null, 'Group::Kantonalverband', 'Kanton'),
+        ]);
+
+        $chain = $this->resolver($api, 3)->getParentChain('midata', '111', 'token');
+
+        self::assertSame(['111', '110', '100'], array_map(
+            static fn (HitobitoGroup $group): string => $group->id,
+            $chain,
+        ));
+    }
+
+    public function testResolvesPbsZytturmByStableExternalIdsToTopmostReachableGroup(): void
+    {
+        $api = $this->api([
+            '51' => new HitobitoGroup('51', '50', 'Group::Abteilung', 'Pfadi Zytturm', '51'),
+            '50' => new HitobitoGroup('50', '20', 'Group::Region', 'Region Zürich', '50'),
+            '20' => new HitobitoGroup('20', '1', 'Group::Kantonalverband', 'PBS Kanton Zürich', '20'),
+            '1' => new HitobitoGroup('1', null, 'Group::Bund', 'Pfadibewegung Schweiz', '1'),
+        ]);
+
+        $chain = $this->resolver($api)->getParentChain('midata', '51', 'token');
+
+        self::assertSame(['51', '50', '20', '1'], array_map(
+            static fn (HitobitoGroup $group): string => $group->id,
+            $chain,
+        ));
+    }
+
+    public function testParentChainFailsWhenItExceedsConfiguredDepth(): void
+    {
+        $api = $this->api([
+            '111' => new HitobitoGroup('111', '110', 'Group::Woelfe', 'Meute'),
+            '110' => new HitobitoGroup('110', '100', 'Group::Abteilung', 'Abteilung'),
+        ]);
+
+        try {
+            $this->resolver($api, 2)->getParentChain('midata', '111', 'token');
+            self::fail('Expected parent chain depth to be limited');
+        } catch (HitobitoApiException $exception) {
+            self::assertSame('hierarchy_depth_limit', $exception->reason);
+        }
+    }
+
     public function testUnrelatedGroupIsNotADescendant(): void
     {
         $api = $this->api([

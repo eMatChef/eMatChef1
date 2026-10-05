@@ -6,10 +6,20 @@ namespace App\Service\Auth;
 
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Symfony\Contracts\Service\ResetInterface;
+use Psr\Log\LoggerInterface;
 
-final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
+final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup, ResetInterface
 {
     private const MAX_ROLE_PAGES = 100;
+
+    /**
+     * Groups already loaded in this request, keyed by provider, token and group ID.
+     * Parent chains share their upper levels, so each group is fetched at most once per request.
+     *
+     * @var array<string, HitobitoGroup|null>
+     */
+    private array $groupCache = [];
 
     /**
      * @param array<string, string> $providerIssuers
@@ -17,6 +27,7 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
     public function __construct(
         private readonly HttpClientInterface $httpClient,
         private readonly array $providerIssuers,
+        private readonly LoggerInterface $logger,
     ) {}
 
     public function getGroup(string $provider, string $accessToken, string $groupId): ?HitobitoGroup
@@ -25,6 +36,21 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
             throw new HitobitoApiException('invalid_group_id', 'Hitobito group id is missing');
         }
 
+        $cacheKey = $provider . "\0" . hash('sha256', $accessToken) . "\0" . $groupId;
+        if (array_key_exists($cacheKey, $this->groupCache)) {
+            return $this->groupCache[$cacheKey];
+        }
+
+        return $this->groupCache[$cacheKey] = $this->fetchGroup($provider, $accessToken, $groupId);
+    }
+
+    public function reset(): void
+    {
+        $this->groupCache = [];
+    }
+
+    private function fetchGroup(string $provider, string $accessToken, string $groupId): ?HitobitoGroup
+    {
         $document = $this->getDocument(
             $accessToken,
             $this->providerBaseUrl($provider) . '/api/groups/' . rawurlencode($groupId),
@@ -35,17 +61,25 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
 
         try {
             $resource = $document['data'] ?? null;
-            if (!is_array($resource)) {
-                throw new \UnexpectedValueException('Hitobito group data is missing');
+            if (!is_array($resource) || array_is_list($resource)) {
+                throw new HitobitoGroupParseException('missing_data', 'Hitobito group data is missing');
             }
 
             $group = HitobitoGroup::fromJsonApi($resource);
             if ($group->id !== $groupId) {
-                throw new \UnexpectedValueException('Hitobito returned a different group id');
+                throw new HitobitoGroupParseException(
+                    'response_id_mismatch',
+                    'Hitobito returned a different group id',
+                );
             }
 
             return $group;
         } catch (\UnexpectedValueException $exception) {
+            $this->logger->warning(sprintf(
+                'MiData group parser failed: requested_group_id=%s parser_reason=%s',
+                $groupId,
+                $exception instanceof HitobitoGroupParseException ? $exception->reasonCode : 'unexpected_value',
+            ));
             throw new HitobitoApiException('malformed_response', 'Hitobito group response is malformed', 200, $exception);
         }
     }
@@ -118,7 +152,7 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
                     throw new HitobitoApiException('malformed_response', 'Hitobito role entry is malformed', 200);
                 }
                 try {
-                    $role = HitobitoRole::fromJsonApi($resource);
+                    $role = HitobitoRole::fromJsonApi($resource, $personId);
                 } catch (\UnexpectedValueException $exception) {
                     throw new HitobitoApiException('malformed_response', 'Hitobito role entry is malformed', 200, $exception);
                 }

@@ -64,13 +64,20 @@ final class HitobitoRoleTest extends TestCase
     {
         $role = HitobitoRole::fromUserInfo([
             'group_id' => 111,
+            'group_name' => 'Test Group',
+            'role' => 'Group::Member',
             'role_class' => 'Group::Member',
+            'role_name' => 'Member',
             'permissions' => ['layer_and_below_read'],
         ], 'person-42');
 
         self::assertSame('person-42', $role->personId);
         self::assertSame('111', $role->groupId);
         self::assertSame('Group::Member', $role->type);
+        self::assertSame('Group::Member', $role->roleClass);
+        self::assertSame('Group::Member', $role->role);
+        self::assertSame('Member', $role->roleName);
+        self::assertSame('Test Group', $role->groupName);
         self::assertSame(['layer_and_below_read'], $role->permissions);
         self::assertNull($role->startOn);
         self::assertNull($role->endOn);

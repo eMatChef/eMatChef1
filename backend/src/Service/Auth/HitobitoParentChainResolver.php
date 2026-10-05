@@ -115,4 +115,48 @@ final class HitobitoParentChainResolver
             $accessToken,
         );
     }
+
+    /**
+     * @return list<HitobitoGroup>
+     */
+    public function getParentChain(
+        string $provider,
+        string $candidateGroupId,
+        string $accessToken,
+        ?HitobitoGroup $initialGroup = null,
+    ): array {
+        if ($candidateGroupId === '' || $accessToken === '') {
+            throw new HitobitoApiException('hierarchy_unavailable', 'Hitobito hierarchy inputs are missing');
+        }
+        if ($initialGroup !== null && $initialGroup->id !== $candidateGroupId) {
+            throw new HitobitoApiException('malformed_hierarchy', 'Initial Hitobito group does not match the requested id');
+        }
+
+        $chain = [];
+        $visited = [];
+        $currentId = $candidateGroupId;
+        for ($depth = 0; $depth < $this->maxDepth; $depth++) {
+            if (isset($visited[$currentId])) {
+                throw new HitobitoApiException('hierarchy_cycle', 'Hitobito hierarchy contains a cycle');
+            }
+            $visited[$currentId] = true;
+            $group = $depth === 0 && $initialGroup !== null
+                ? $initialGroup
+                : $this->apiClient->getGroup($provider, $accessToken, $currentId);
+            if ($group === null) {
+                throw new HitobitoApiException('group_not_found', 'A required Hitobito group could not be loaded', 404);
+            }
+            if ($group->id !== $currentId) {
+                throw new HitobitoApiException('malformed_hierarchy', 'Hitobito returned a different group id');
+            }
+
+            $chain[] = $group;
+            if ($group->parentId === null) {
+                return $chain;
+            }
+            $currentId = $group->parentId;
+        }
+
+        throw new HitobitoApiException('hierarchy_depth_limit', 'Hitobito hierarchy exceeded the safety limit');
+    }
 }

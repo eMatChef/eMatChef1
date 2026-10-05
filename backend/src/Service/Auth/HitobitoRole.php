@@ -16,22 +16,44 @@ final readonly class HitobitoRole
         public ?\DateTimeImmutable $startOn,
         public ?\DateTimeImmutable $endOn,
         public array $permissions = [],
+        public ?string $id = null,
+        public ?string $label = null,
+        public ?string $roleType = null,
+        public ?string $groupName = null,
+        public ?string $roleName = null,
+        public ?string $role = null,
+        public ?string $roleClass = null,
     ) {}
 
     /**
      * @param array<string, mixed> $resource
      */
-    public static function fromJsonApi(array $resource): self
+    public static function fromJsonApi(array $resource, ?string $expectedPersonId = null): self
     {
         $attributes = $resource['attributes'] ?? null;
         if (($resource['type'] ?? null) !== 'roles' || !is_array($attributes)) {
             throw new \UnexpectedValueException('Hitobito role response is malformed');
         }
 
-        $personId = self::normalizeId($attributes['person_id'] ?? null);
-        $groupId = self::normalizeId($attributes['group_id'] ?? null);
-        $type = $attributes['type'] ?? null;
-        if ($personId === null || $groupId === null || !is_string($type) || $type === '') {
+        $personId = self::normalizeId($attributes['person_id'] ?? null)
+            ?? self::normalizeRelationshipId($resource, 'person')
+            ?? $expectedPersonId;
+        $groupId = self::normalizeId($attributes['group_id'] ?? null)
+            ?? self::normalizeRelationshipId($resource, 'group');
+        $type = $attributes['role_class'] ?? $attributes['type'] ?? $attributes['role_type'] ?? null;
+        $roleClass = $attributes['role_class'] ?? null;
+        $id = self::normalizeId($resource['id'] ?? null);
+        $label = $attributes['label'] ?? null;
+        $roleType = $attributes['role_type'] ?? null;
+        if (
+            $personId === null
+            || ($expectedPersonId !== null && $personId !== $expectedPersonId)
+            || $groupId === null
+            || !is_string($type)
+            || $type === ''
+            || ($label !== null && !is_string($label))
+            || ($roleType !== null && !is_string($roleType))
+        ) {
             throw new \UnexpectedValueException('Hitobito role is missing required attributes');
         }
 
@@ -41,6 +63,14 @@ final readonly class HitobitoRole
             $type,
             self::parseDate($attributes['start_on'] ?? null),
             self::parseDate($attributes['end_on'] ?? null),
+            [],
+            $id,
+            $label,
+            $roleType,
+            null,
+            null,
+            null,
+            is_string($roleClass) ? $roleClass : null,
         );
     }
 
@@ -51,6 +81,10 @@ final readonly class HitobitoRole
     {
         $groupId = self::normalizeId($role['group_id'] ?? null);
         $type = $role['role_class'] ?? $role['type'] ?? $role['role'] ?? null;
+        $groupName = $role['group_name'] ?? null;
+        $roleName = $role['role_name'] ?? null;
+        $roleValue = $role['role'] ?? null;
+        $roleClass = $role['role_class'] ?? null;
         $permissions = $role['permissions'] ?? [];
         if (
             $personId === ''
@@ -59,6 +93,10 @@ final readonly class HitobitoRole
             || $type === ''
             || !is_array($permissions)
             || array_filter($permissions, static fn (mixed $permission): bool => !is_string($permission)) !== []
+            || ($groupName !== null && !is_string($groupName))
+            || ($roleName !== null && !is_string($roleName))
+            || ($roleValue !== null && !is_string($roleValue))
+            || ($roleClass !== null && !is_string($roleClass))
         ) {
             throw new \UnexpectedValueException('Hitobito userinfo role is malformed');
         }
@@ -70,6 +108,13 @@ final readonly class HitobitoRole
             self::parseDate($role['start_on'] ?? null),
             self::parseDate($role['end_on'] ?? null),
             array_values($permissions),
+            self::normalizeId($role['id'] ?? null),
+            is_string($role['label'] ?? null) ? $role['label'] : null,
+            is_string($role['role_type'] ?? null) ? $role['role_type'] : null,
+            $groupName,
+            $roleName,
+            $roleValue,
+            $roleClass,
         );
     }
 
@@ -92,6 +137,27 @@ final readonly class HitobitoRole
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $resource
+     */
+    private static function normalizeRelationshipId(array $resource, string $name): ?string
+    {
+        $relationships = $resource['relationships'] ?? null;
+        if (!is_array($relationships)) {
+            return null;
+        }
+        $relationship = $relationships[$name] ?? null;
+        if (!is_array($relationship)) {
+            return null;
+        }
+        $data = $relationship['data'] ?? null;
+        if (!is_array($data)) {
+            return null;
+        }
+
+        return self::normalizeId($data['id'] ?? null);
     }
 
     private static function parseDate(mixed $value): ?\DateTimeImmutable

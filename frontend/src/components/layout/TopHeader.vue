@@ -640,6 +640,7 @@
             </details>
 
             <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
+            <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
 
             <details
               class="profile-accordion"
@@ -781,6 +782,7 @@ import {
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
+import ProfileMiDataMembershipsAccordion from '@/components/layout/ProfileMiDataMembershipsAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {
   useDetailTabsStore,

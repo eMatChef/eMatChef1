@@ -16,5 +16,7 @@ final readonly class MiDataOAuthUserInfo
         public ?string $firstName,
         public ?string $lastName,
         public array $roles = [],
+        public ?string $nickname = null,
+        public ?string $primaryGroupId = null,
     ) {}
 }

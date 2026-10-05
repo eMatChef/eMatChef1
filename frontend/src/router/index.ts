@@ -44,6 +44,7 @@ import {
 } from '@/utils/grossanlassAccess'
 import { gaHomePath, gaResolveHomePath } from '@/utils/grossanlassHome'
 import { resolveVerwaltungLandingPath } from '@/utils/verwaltungNavigation'
+import { isMiDataOnboardingLanding } from '@/utils/midataOnboarding'
 
 /** Login-Redirect ohne Tour-Query (sonst nach Relogin Tour-URL statt Dashboard). */
 function loginAuthRedirectQuery(fullPath: string): Record<string, string> {
@@ -2550,7 +2551,7 @@ router.beforeEach(async (to, from, next) => {
     }
 
     // Wenn User inzwischen Department hat, Pending-Seite verlassen
-    if (to.path === '/pending-assignment' && primaryDepartmentId && !departmentInviteLandingPath(to)) {
+    if (to.path === '/pending-assignment' && primaryDepartmentId && !departmentInviteLandingPath(to) && !isMiDataOnboardingLanding(to.query)) {
       if (isSuperAdmin()) {
         return next('/dashboard')
       }

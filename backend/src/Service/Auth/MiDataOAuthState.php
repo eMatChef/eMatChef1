@@ -131,6 +131,40 @@ final class MiDataOAuthState
         return $joinCode !== '' ? $joinCode : null;
     }
 
+    /**
+     * Returns the onboarding offer the user wants to complete; it is only a reference, never authorization.
+     */
+    public function extractDepartmentOnboardingIntent(string $redirect): ?string
+    {
+        return $this->extractPendingAssignmentId($redirect, 'midata_onboarding');
+    }
+
+    /**
+     * Returns the search-mode candidate the user selected; it is only a reference, never authorization.
+     */
+    public function extractMembershipCandidateIntent(string $redirect): ?string
+    {
+        return $this->extractPendingAssignmentId($redirect, 'midata_candidate');
+    }
+
+    private function extractPendingAssignmentId(string $redirect, string $parameter): ?string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || ($parts['path'] ?? null) !== '/pending-assignment') {
+            return null;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $id = $query[$parameter] ?? null;
+        if (!is_string($id)) {
+            return null;
+        }
+
+        $id = trim($id);
+
+        return preg_match('/^[a-f0-9]{12}$/', $id) === 1 ? $id : null;
+    }
+
     private function sign(string $payload): string
     {
         return hash_hmac('sha256', $payload, $this->appSecret);

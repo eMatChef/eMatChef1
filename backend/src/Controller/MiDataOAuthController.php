@@ -10,6 +10,7 @@ use App\Service\Auth\DepartmentJoinFlowService;
 use App\Service\Auth\DepartmentJoinOutcome;
 use App\Service\Auth\DepartmentJoinOutcomeStatus;
 use App\Service\Auth\HitobitoOAuthClient;
+use App\Service\Auth\MiDataDepartmentOnboardingService;
 use App\Service\Auth\MiDataOAuthAccountService;
 use App\Service\Auth\MiDataOAuthException;
 use App\Service\Auth\MiDataOAuthState;
@@ -32,6 +33,7 @@ final class MiDataOAuthController extends AbstractController
         private readonly MiDataOAuthState $oauthState,
         private readonly MiDataOAuthAccountService $accountService,
         private readonly DepartmentJoinFlowService $departmentJoinFlow,
+        private readonly MiDataDepartmentOnboardingService $departmentOnboarding,
         private readonly UserRepository $userRepository,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
@@ -69,6 +71,8 @@ final class MiDataOAuthController extends AbstractController
 
         $joinResult = null;
         $joinDepartmentId = null;
+        $onboardingResult = null;
+        $onboardingDepartmentId = null;
         try {
             $session = $this->oauthClient->fetchUserInfo(
                 $code,
@@ -83,9 +87,25 @@ final class MiDataOAuthController extends AbstractController
             }
 
             $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
-            $authResponse = $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
+            // Verknüpfen ist kein Login: die bestehende Sitzung des eingeloggten Users bleibt, keine neuen Tokens.
+            $authResponse = $linkUser instanceof User
+                ? null
+                : $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
+            $onboardingId = $this->oauthState->extractDepartmentOnboardingIntent($verifiedState['redirect']);
+            $candidateId = $this->oauthState->extractMembershipCandidateIntent($verifiedState['redirect']);
             $joinCode = $this->oauthState->extractDepartmentJoinCodeIntent($verifiedState['redirect']);
-            if ($joinCode !== null) {
+            if ($onboardingId !== null || $candidateId !== null) {
+                try {
+                    $onboardingOutcome = $onboardingId !== null
+                        ? $this->departmentOnboarding->completeFromOAuthCallback($user, $onboardingId, $session)
+                        : $this->departmentOnboarding->completeCandidateFromOAuthCallback($user, (string) $candidateId, $session);
+                    $onboardingResult = $onboardingOutcome->status->value;
+                    $onboardingDepartmentId = $onboardingOutcome->department?->getId();
+                } catch (\Throwable $exception) {
+                    $this->logger->error('MiData department onboarding failed', ['exception' => $exception]);
+                    $onboardingResult = 'failed';
+                }
+            } elseif ($joinCode !== null) {
                 try {
                     $joinOutcome = $this->departmentJoinFlow->verifyJoinCodeForOAuthCallback(
                         $user,
@@ -99,6 +119,12 @@ final class MiDataOAuthController extends AbstractController
                 } catch (\Throwable $exception) {
                     $this->logger->error('MiData department join processing failed', ['exception' => $exception]);
                     $joinResult = 'failed';
+                }
+            } else {
+                try {
+                    $this->departmentOnboarding->offerFromOAuthCallback($user, $session);
+                } catch (\Throwable $exception) {
+                    $this->logger->warning('MiData department onboarding offer failed', ['exception' => $exception]);
                 }
             }
         } catch (MiDataOAuthException $exception) {
@@ -116,6 +142,9 @@ final class MiDataOAuthController extends AbstractController
         if ($joinResult !== null) {
             $frontendPath = $this->withJoinResult($frontendPath, $joinResult, $joinDepartmentId);
         }
+        if ($onboardingResult !== null) {
+            $frontendPath = $this->withOnboardingResult($frontendPath, $onboardingResult, $onboardingDepartmentId);
+        }
         $target = $this->frontendUrl($frontendPath);
         if (
             $isLinkFlow
@@ -128,7 +157,7 @@ final class MiDataOAuthController extends AbstractController
             ]);
         }
         $response = new RedirectResponse($target);
-        foreach ($authResponse->headers->getCookies() as $cookie) {
+        foreach ($authResponse?->headers->getCookies() ?? [] as $cookie) {
             $response->headers->setCookie($cookie);
         }
         $response->headers->setCookie($this->stateCookie('', 1));
@@ -155,8 +184,11 @@ final class MiDataOAuthController extends AbstractController
 
         $redirect = $this->oauthState->sanitizeRedirect($request->query->get('redirect'));
         $issued = $this->oauthState->issue($redirect, $linkToUser?->getId());
+        // A normal login must never silently take over an existing MiData browser session.
+        // Link and onboarding flows verify the MiData subject against the linked identity instead.
+        $prompt = $linkToUser === null ? HitobitoOAuthClient::PROMPT_LOGIN : null;
         try {
-            $url = $this->oauthClient->buildAuthorizationUrl($issued);
+            $url = $this->oauthClient->buildAuthorizationUrl($issued, $prompt);
         } catch (MiDataOAuthException $exception) {
             $this->logger->error('MiData OAuth start failed', ['reason' => $exception->reason, 'exception' => $exception]);
 
@@ -229,6 +261,23 @@ final class MiDataOAuthController extends AbstractController
         $query['midata_join_result'] = $result;
         if ($result === 'request_required' && $departmentId !== null) {
             $query['midata_join_department_id'] = $departmentId;
+        }
+
+        return $parts['path'] . '?' . http_build_query($query);
+    }
+
+    private function withOnboardingResult(string $redirect, string $result, ?string $departmentId): string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || ($parts['path'] ?? null) !== '/pending-assignment') {
+            return $redirect;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        unset($query['midata_onboarding'], $query['midata_candidate']);
+        $query['midata_onboarding_result'] = $result;
+        if ($departmentId !== null) {
+            $query['midata_onboarding_department_id'] = $departmentId;
         }
 
         return $parts['path'] . '?' . http_build_query($query);

@@ -27,6 +27,18 @@ class ExternalStructureIdentityRepository extends ServiceEntityRepository
     }
 
     /**
+     * Serializes structure changes below one external group until the surrounding transaction ends.
+     * Mappings that do not exist yet cannot be row-locked, so this uses a PostgreSQL transaction advisory lock.
+     */
+    public function lockExternalGroupForStructureChange(string $provider, string $externalGroupId): void
+    {
+        $this->getEntityManager()->getConnection()->executeStatement(
+            'SELECT pg_advisory_xact_lock(hashtext(:lockKey))',
+            ['lockKey' => 'external_structure:' . $provider . ':' . $externalGroupId],
+        );
+    }
+
+    /**
      * @return list<ExternalStructureIdentity>
      */
     public function findByDepartment(Department $department): array

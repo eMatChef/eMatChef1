@@ -25,6 +25,8 @@ use App\Service\JoinRequestManagerNotificationService;
 use App\Service\Auth\DepartmentJoinFlowService;
 use App\Service\Auth\DepartmentJoinOutcome;
 use App\Service\Auth\DepartmentJoinOutcomeStatus;
+use App\Service\Auth\MiDataDepartmentOnboardingService;
+use App\Repository\ExternalStructureIdentityRepository;
 use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
 use App\Service\UserDepartmentInviteNotificationService;
@@ -64,6 +66,8 @@ class JoinRequestController extends AbstractController
         private UnassignedUserSupportQueue $unassignedUserQueue,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private UserEmailAliasService $emailAliases,
+        private MiDataDepartmentOnboardingService $miDataDepartmentOnboarding,
+        private ExternalStructureIdentityRepository $structureIdentities,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
     )
     {
@@ -809,6 +813,70 @@ class JoinRequestController extends AbstractController
                 'id' => $department->getId(),
                 'name' => $department->getName(),
                 'organisation_name' => $department->getOrganisation()->getName(),
+            ];
+        }
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * Open verified MiData Materialwart offers and whether the search mode is needed (many candidates).
+     * Display data only: no external IDs or role classes are accepted from or sent to the browser.
+     */
+    #[Route('/midata-onboarding', name: 'midata_onboarding_offers', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function miDataOnboardingOffers(): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+
+        $result = [];
+        foreach ($this->miDataDepartmentOnboarding->listOpenOffers($currentUser) as $offer) {
+            $result[] = [
+                'id' => $offer->getId(),
+                'department_name' => $offer->getDepartmentName(),
+                'region_name' => $offer->getRegionName(),
+                'kantonalverband_name' => $offer->getKantonalverbandName(),
+                'role' => 'materialwart',
+                'department_exists' => $this->structureIdentities->findOneByProviderAndExternalGroupId(
+                    'midata',
+                    $offer->getExternalDepartmentGroupId(),
+                ) !== null,
+                'expires_at' => $offer->getExpiresAt()->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        return new JsonResponse([
+            'offers' => $result,
+            'search_required' => $this->miDataDepartmentOnboarding->isSearchRequired($currentUser),
+        ]);
+    }
+
+    /**
+     * Search in the current user's own unverified MiData candidates (search mode). A hit authorizes nothing;
+     * selecting it starts a fresh MiData login that verifies role and structure.
+     */
+    #[Route('/midata-onboarding/candidates', name: 'midata_onboarding_candidates', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function miDataOnboardingCandidates(Request $request): JsonResponse
+    {
+        $currentUser = $this->getUser();
+        if (!$currentUser instanceof User) {
+            return new JsonResponse(['error' => 'Nicht authentifiziert'], 403);
+        }
+        $query = trim((string) $request->query->get('q', ''));
+        if (mb_strlen($query) < 2) {
+            return new JsonResponse([]);
+        }
+
+        $result = [];
+        foreach ($this->miDataDepartmentOnboarding->searchCandidates($currentUser, $query) as $candidate) {
+            $result[] = [
+                'id' => $candidate->getId(),
+                'department_name' => $candidate->getDisplayName(),
+                'role' => 'materialwart',
             ];
         }
 

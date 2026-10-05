@@ -15,6 +15,7 @@ Department 1—* Group (Baum über Group.parent) 1—* GroupMembership *—1 Use
 - `GroupMembership.role` ist nur `leader` (Gruppenchef) oder `member`.
 - `User` ist die reale eMatChef-Person. `ExternalIdentity` ist die externe Login-Identität bei einem Provider (aktuell Google und MiData); `Membership` beschreibt Department-Zugehörigkeit und Rollen, `GroupMembership` die Gruppenzugehörigkeit.
 - `ExternalStructureIdentity` verknüpft `(provider, external_group_id)` stabil mit genau einer eMatChef-Organisation, einem Department oder einer Group. Provider-Typ, Name und Parent-ID sind Metadaten; Namen sind kein Mapping-Schlüssel. Die Entity persistiert keine Provider-Tokens.
+- `MiDataDepartmentOnboarding` ist ein befristetes Angebot an einen User, eine per MiData bestätigte PBS-Abteilung einzurichten. Es autorisiert nichts selbst; die Einrichtung prüft Rolle und Struktur erneut. Die PBS-Zuordnung lautet Bund → `Organisation` (nur administrativ gemappt), Kantonalverband, Region und Abteilung → `Department`; der technische Root wird nie zugeordnet.
 - `User` hat `Profile`, optionales `lastUsedDepartment` und optionales `lastUsedSupplierCompany`. Ein User kann mehrere Department-Memberships haben.
 - `Department.isGrossanlass` markiert ein Grossanlass-Department; optionale `DepartmentGrossanlassConfig` (1:1).
 - `ExternalIdentity` ist kein Rollen-/Department- oder Provider-Token-Container. Es hält nur den Provider-Namen, die externe User-ID und optionale E-Mail-Metadaten; Email ist kein Identitätsschlüssel.

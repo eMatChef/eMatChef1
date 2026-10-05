@@ -231,6 +231,43 @@ export async function getMyJoinRequests(): Promise<MyJoinRequest[]> {
   return data
 }
 
+/** MiData-bestätigte, noch einzurichtende Abteilung (nur Anzeige; Autorisierung erfolgt serverseitig). */
+export interface MiDataDepartmentOnboardingOffer {
+  id: string
+  department_name: string
+  /** Region-Ebenen von oben nach unten, für die Anzeige zusammengefasst */
+  region_name: string | null
+  kantonalverband_name: string
+  role: 'materialwart'
+  department_exists: boolean
+  expires_at: string
+}
+
+/** Verifizierte Angebote; bei vielen MiData-Zugehörigkeiten zusätzlich der Suchmodus. */
+export interface MiDataDepartmentOnboardingStatus {
+  offers: MiDataDepartmentOnboardingOffer[]
+  search_required: boolean
+}
+
+/** Ungeprüfter Suchtreffer aus den eigenen MiData-Zugehörigkeiten; autorisiert nichts. */
+export interface MiDataMembershipCandidate {
+  id: string
+  department_name: string
+  role: 'materialwart'
+}
+
+export async function getMiDataDepartmentOnboardingOffers(): Promise<MiDataDepartmentOnboardingStatus> {
+  const { data } = await apiClient.get<MiDataDepartmentOnboardingStatus>('/api/join-requests/midata-onboarding')
+  return data
+}
+
+export async function searchMiDataMembershipCandidates(query: string): Promise<MiDataMembershipCandidate[]> {
+  const { data } = await apiClient.get<MiDataMembershipCandidate[]>('/api/join-requests/midata-onboarding/candidates', {
+    params: { q: query }
+  })
+  return data
+}
+
 export async function getPendingJoinRequests(departmentId: string): Promise<PendingJoinRequest[]> {
   const { data } = await apiClient.get<PendingJoinRequest[]>('/api/join-requests/pending', {
     params: { department_id: departmentId }

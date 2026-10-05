@@ -1,5 +1,10 @@
 <template>
   <div class="pending-page">
+    <ECard v-show="miDataOffersAvailable" class="pending-card" variant="elevated">
+      <h2 class="pending-subtitle">{{ t('pendingAssignment.midataOnboardingTitle') }}</h2>
+      <MiDataMembershipOffers @availability="miDataOffersAvailable = $event" />
+    </ECard>
+
     <ECard class="pending-card" variant="elevated">
       <h1 class="pending-title">{{ t('pendingAssignment.title') }}</h1>
       <p class="pending-intro">
@@ -328,6 +333,7 @@ import ParentDepartmentPicker, {
 import { filterOrganisationsForUserPickers } from '@/utils/organisationUserPicker'
 import { extractJoinCodeFromScan } from '@/utils/joinCodeFromScan'
 import BarcodeScannerPanel from '@/components/common/BarcodeScannerPanel.vue'
+import MiDataMembershipOffers from '@/components/auth/MiDataMembershipOffers.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import {
@@ -377,6 +383,7 @@ const error = ref<string | null>(null)
 const info = ref<string | null>(null)
 const success = ref<string | null>(null)
 const showMidataVerificationRetry = ref(false)
+const miDataOffersAvailable = ref(false)
 const requests = ref<MyJoinRequest[]>([])
 const openRequests = computed(() => requests.value.filter((r) => r.status === 'pending'))
 const requestHistory = computed(() => requests.value.filter((r) => r.status !== 'pending'))
@@ -583,6 +590,18 @@ async function submitRequest() {
   }
 }
 
+async function openMiDataOnboardedDepartment(message: string) {
+  success.value = message
+  const departmentId =
+    typeof route.query.midata_onboarding_department_id === 'string'
+      ? route.query.midata_onboarding_department_id.trim()
+      : ''
+  await authStore.loadDepartments()
+  if (/^[a-f0-9]{12}$/.test(departmentId)) {
+    window.location.href = `/${departmentId}`
+  }
+}
+
 function retryMiDataVerification() {
   const code = joinCode.value.trim()
   if (!code) return
@@ -740,6 +759,33 @@ onMounted(() => {
     },
   }
   joinResultMessages[midataJoinResult]?.()
+
+  const midataOnboardingResult =
+    typeof route.query.midata_onboarding_result === 'string' ? route.query.midata_onboarding_result : ''
+  const onboardingResultMessages: Record<string, () => void> = {
+    created: () => void openMiDataOnboardedDepartment(t('pendingAssignment.midataOnboardingCreated')),
+    joined: () => void openMiDataOnboardedDepartment(t('pendingAssignment.midataOnboardingJoined')),
+    already_member: () => void openMiDataOnboardedDepartment(t('pendingAssignment.midataOnboardingAlreadyMember')),
+    denied: () => {
+      error.value = t('pendingAssignment.midataOnboardingDenied')
+    },
+    expired: () => {
+      error.value = t('pendingAssignment.midataOnboardingExpired')
+    },
+    conflict: () => {
+      error.value = t('pendingAssignment.midataOnboardingConflict')
+    },
+    unsupported_structure: () => {
+      error.value = t('pendingAssignment.midataOnboardingUnsupported')
+    },
+    unavailable: () => {
+      error.value = t('pendingAssignment.midataVerificationUnavailable')
+    },
+    failed: () => {
+      error.value = t('pendingAssignment.midataOnboardingFailed')
+    },
+  }
+  onboardingResultMessages[midataOnboardingResult]?.()
 
   const incomingRole = route.query.invite_role
   if (typeof incomingRole === 'string' && incomingRole.trim().length > 0) {
