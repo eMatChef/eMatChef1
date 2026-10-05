@@ -15,6 +15,7 @@ use App\Service\Admin\AdminUserUpdateDeniedException;
 use App\Service\Admin\AdminUserUpdatePolicy;
 use App\Service\SystemScopeVisibility;
 use App\Service\AuditLogger;
+use App\Service\Auth\RefreshTokenRevoker;
 use App\Service\MembershipRoleCatalog;
 use App\Util\E2eSmokeUser;
 use Doctrine\ORM\EntityManagerInterface;
@@ -35,6 +36,7 @@ class UserController extends AbstractController
         private AdminCapabilityChecker $adminCapabilityChecker,
         private AdminUserUpdatePolicy $adminUserUpdatePolicy,
         private AdminUserEmailChangeRequester $adminUserEmailChangeRequester,
+        private RefreshTokenRevoker $refreshTokenRevoker,
     ) {}
 
     private function isGlobalAdmin(User $user): bool
@@ -366,6 +368,7 @@ class UserController extends AbstractController
                 $profileChanges['nickname'] = ['old' => $oldNickname, 'new' => $newNickname];
             }
         }
+        $previousState = $user->getState();
         if (array_key_exists('state', $data)) {
             $user->setState((string) $data['state']);
         }
@@ -587,6 +590,9 @@ class UserController extends AbstractController
         } catch (UniqueConstraintViolationException) {
             return new JsonResponse(['error' => 'E-Mail ist bereits vergeben'], 409);
         }
+
+        // Deaktiviert: Refresh-Tokens widerrufen; laufende JWTs sperrt der UserChecker.
+        $this->refreshTokenRevoker->revokeIfDeactivated($user, $previousState);
 
         return $this->getAdminDetail($id);
     }

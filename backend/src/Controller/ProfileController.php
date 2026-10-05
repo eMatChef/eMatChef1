@@ -7,11 +7,13 @@ use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
+use App\Service\Auth\RefreshTokenRevoker;
 use App\Service\Grossanlass\GrossanlassDriveLicenseService;
 use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
+use Gesdinet\JWTRefreshTokenBundle\Request\Extractor\ExtractorInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,6 +33,8 @@ class ProfileController extends AbstractController
         private UserPasswordHasherInterface $passwordHasher,
         private GrossanlassDriveLicenseService $driveLicenses,
         private UserEmailAliasService $emailAliases,
+        private RefreshTokenRevoker $refreshTokenRevoker,
+        private ExtractorInterface $refreshTokenExtractor,
     ) {}
 
     /**
@@ -348,6 +352,12 @@ class ProfileController extends AbstractController
             ]
         );
         $this->entityManager->flush();
+
+        // Andere Sessions abmelden: alle Refresh-Tokens ausser dem der laufenden Session (eigenes Konto).
+        $keepToken = $user->getId() === $currentUser->getId()
+            ? $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token')
+            : null;
+        $this->refreshTokenRevoker->revokeAllForUser($user, $keepToken);
 
         return new JsonResponse([
             'success' => true,

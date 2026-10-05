@@ -16,6 +16,7 @@ security:
             pattern: ^/api/token/refresh
             stateless: true
             provider: app_user_provider
+            user_checker: App\Security\UserChecker
             refresh_jwt:
                 check_path: /api/token/refresh
         
@@ -42,6 +43,7 @@ security:
         login:
             pattern: ^/api/auth/login_check
             stateless: true
+            user_checker: App\Security\UserChecker
             json_login:
                 check_path: /api/auth/login_check
                 username_path: email
@@ -74,6 +76,8 @@ security:
         api:
             pattern: ^/(api|media)
             stateless: true
+            # Account-State bei jedem JWT-Request prüfen (deaktivierte User sofort sperren).
+            user_checker: App\Security\UserChecker
             jwt: ~
 
     access_control:

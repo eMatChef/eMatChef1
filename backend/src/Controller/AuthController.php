@@ -17,6 +17,7 @@ use App\Service\Grossanlass\GrossanlassDepartmentSerializer;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
+use App\Service\Auth\RefreshTokenRevoker;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\UserEmailAliasService;
@@ -65,6 +66,7 @@ class AuthController extends AbstractController
         private SupplierCompanyAccessService $supplierCompanyAccessService,
         private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
+        private RefreshTokenRevoker $refreshTokenRevoker,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -835,6 +837,8 @@ class AuthController extends AbstractController
             ]
         );
         $this->entityManager->flush();
+        // Alle Refresh-Tokens ungültig machen; bestehende JWTs laufen bis zu ihrer TTL aus (UserSession folgt).
+        $this->refreshTokenRevoker->revokeAllForUser($user);
 
         return new JsonResponse([
             'success' => true,
