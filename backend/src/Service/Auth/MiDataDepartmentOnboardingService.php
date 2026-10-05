@@ -20,11 +20,13 @@ use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * Offers verified MiData Materialwarte to set up or join their Abteilung, also when they already have memberships.
+ * Offers verified MiData Abteilungen (Materialwart → mw, Abteilungsleitung → dc) to set up or join, also when the
+ * user already has memberships.
  *
  * The OAuth callback stores scoped offers (verified) and, for the search mode, unverified candidates taken from
- * userinfo. Setting up an Abteilung always happens in a later OAuth callback with a fresh access token, so role
- * and structure are verified again. /api/roles is loaded at most once per callback.
+ * userinfo, one per Abteilung with its best supported role. Setting up an Abteilung always happens in a later OAuth
+ * callback with a fresh access token, so role and structure are verified again. /api/roles is loaded at most once
+ * per callback.
  */
 final class MiDataDepartmentOnboardingService
 {
@@ -54,38 +56,46 @@ final class MiDataDepartmentOnboardingService
             return 0;
         }
 
-        // Userinfo only nominates candidates; the verifier decides with the JSON:API.
+        // Userinfo only nominates candidates (one per Abteilung, best supported role); the verifier decides with the JSON:API.
         $personId = $session->userInfo->subject;
-        $candidateNames = [];
+        $candidates = [];
         foreach ($session->userInfo->roles as $role) {
-            if (
-                $role->personId === $personId
-                && MiDataMaterialwartVerifier::isMaterialwartRole($role)
-                && !isset($candidateNames[$role->groupId])
-                && !$this->isMemberOfMappedDepartment($user, $role->groupId)
-            ) {
-                $candidateNames[$role->groupId] = (string) $role->groupName;
+            if ($role->personId !== $personId || !MiDataSupportedRoleCatalog::isSupported($role->type)) {
+                continue;
+            }
+            $current = $candidates[$role->groupId] ?? null;
+            if ($current === null && $this->isMemberOfMappedDepartment($user, $role->groupId)) {
+                continue;
+            }
+            if ($current === null || MiDataSupportedRoleCatalog::outranks($role->type, $current['role_class'])) {
+                $candidates[$role->groupId] = ['role_class' => $role->type, 'name' => (string) $role->groupName];
             }
         }
-        $this->refreshCandidates($user, $candidateNames);
+        $this->refreshCandidates($user, $candidates);
 
-        if (count($candidateNames) > self::DIRECT_OFFER_LIMIT) {
-            // Search mode: only the candidate the user selects is verified, in its own MiData login.
-            $this->entityManager->flush();
-
-            return 0;
+        // Up to the limit every Abteilung is verified. Beyond it the search mode applies; only a manageable number
+        // of top-priority (mw) Abteilungen is still verified directly, never the long tail of dc roles.
+        $direct = array_keys($candidates);
+        if (count($candidates) > self::DIRECT_OFFER_LIMIT) {
+            $direct = array_keys(array_filter(
+                $candidates,
+                static fn (array $candidate): bool => MiDataSupportedRoleCatalog::membershipRole($candidate['role_class']) === 'mw',
+            ));
+            if (count($direct) > self::DIRECT_OFFER_LIMIT) {
+                $direct = [];
+            }
         }
 
         $offered = 0;
         $roles = null;
-        if ($candidateNames !== []) {
+        if ($direct !== []) {
             try {
                 $roles = $this->verifier->loadRoles($session, $personId);
             } catch (HitobitoApiException) {
                 $this->logOfferSkipped($user, '*', 'roles_unavailable');
             }
         }
-        foreach ($roles === null ? [] : array_keys($candidateNames) as $groupId) {
+        foreach ($roles === null ? [] : $direct as $groupId) {
             $verification = $this->verifier->verify($session, $personId, (string) $groupId, null, $roles);
             $blocker = $this->verifiedOfferBlocker($verification);
             if ($blocker !== null) {
@@ -102,19 +112,29 @@ final class MiDataDepartmentOnboardingService
     }
 
     /**
-     * Verified offers the user may still act on; departments the user already belongs to are left out.
+     * Verified offers the user may still act on, mw before dc and then by name; departments the user already
+     * belongs to are left out.
      *
      * @return list<MiDataDepartmentOnboarding>
      */
     public function listOpenOffers(User $user): array
     {
-        return array_values(array_filter(
+        $offers = array_values(array_filter(
             $this->onboardings->findOpenForUser($user, new \DateTime()),
             fn (MiDataDepartmentOnboarding $offer): bool => !$this->isMemberOfMappedDepartment(
                 $user,
                 $offer->getExternalDepartmentGroupId(),
             ),
         ));
+        usort($offers, static fn (MiDataDepartmentOnboarding $a, MiDataDepartmentOnboarding $b): int => [
+            MiDataSupportedRoleCatalog::priority($a->getExternalRoleClass()),
+            self::normalizeForSearch($a->getDepartmentName()),
+        ] <=> [
+            MiDataSupportedRoleCatalog::priority($b->getExternalRoleClass()),
+            self::normalizeForSearch($b->getDepartmentName()),
+        ]);
+
+        return $offers;
     }
 
     public function isSearchRequired(User $user): bool
@@ -141,10 +161,13 @@ final class MiDataDepartmentOnboardingService
                 $needle,
             ),
         ));
-        usort($hits, static fn (MiDataMembershipCandidate $a, MiDataMembershipCandidate $b): int => strcmp(
+        usort($hits, static fn (MiDataMembershipCandidate $a, MiDataMembershipCandidate $b): int => [
+            MiDataSupportedRoleCatalog::priority($a->getExternalRoleClass()),
             self::normalizeForSearch($a->getDisplayName()),
+        ] <=> [
+            MiDataSupportedRoleCatalog::priority($b->getExternalRoleClass()),
             self::normalizeForSearch($b->getDisplayName()),
-        ));
+        ]);
 
         return array_slice($hits, 0, self::SEARCH_RESULT_LIMIT);
     }
@@ -196,7 +219,7 @@ final class MiDataDepartmentOnboardingService
             !$candidate instanceof MiDataMembershipCandidate
             || $candidate->getUserId() !== $user->getId()
             || $candidate->getProvider() !== 'midata'
-            || $candidate->getExternalRoleClass() !== MiDataMaterialwartVerifier::MATERIALWART_ROLE_CLASS
+            || !MiDataSupportedRoleCatalog::isSupported($candidate->getExternalRoleClass())
         ) {
             return $this->denied('candidate_not_found');
         }
@@ -208,7 +231,15 @@ final class MiDataDepartmentOnboardingService
             return $this->denied('identity_mismatch');
         }
 
-        $verification = $this->verifier->verify($session, $personId, $candidate->getExternalGroupId());
+        // The selected role must still be active; the verified (possibly higher) role then decides the membership.
+        $verification = $this->verifier->verify(
+            $session,
+            $personId,
+            $candidate->getExternalGroupId(),
+            null,
+            null,
+            $candidate->getExternalRoleClass(),
+        );
         $failure = $this->verificationFailure($verification);
         if ($failure !== null) {
             return $failure;
@@ -232,7 +263,7 @@ final class MiDataDepartmentOnboardingService
         try {
             $result = $this->provisioner->provision($user, $verification, $onboarding);
         } catch (MiDataStructureConflictException $exception) {
-            $this->logger->warning('MiData Materialwart onboarding stopped by a structure conflict', [
+            $this->logger->warning('MiData department onboarding stopped by a structure conflict', [
                 'user_id' => $user->getId(),
                 'reason' => $exception->reason,
                 'external_group_id' => $exception->externalGroupId,
@@ -243,7 +274,7 @@ final class MiDataDepartmentOnboardingService
                 reason: $exception->reason,
             );
         } catch (UniqueConstraintViolationException) {
-            $this->logger->warning('MiData Materialwart onboarding lost a concurrent structure change', [
+            $this->logger->warning('MiData department onboarding lost a concurrent structure change', [
                 'user_id' => $user->getId(),
                 'external_group_id' => $onboarding->getExternalDepartmentGroupId(),
             ]);
@@ -269,7 +300,7 @@ final class MiDataDepartmentOnboardingService
             ]);
         }
 
-        $this->logger->info('MiData Materialwart onboarding completed', [
+        $this->logger->info('MiData department onboarding completed', [
             'user_id' => $user->getId(),
             'department_id' => $result->department->getId(),
             'status' => $status->value,
@@ -338,13 +369,13 @@ final class MiDataDepartmentOnboardingService
     /**
      * Replaces the user's candidates with the current userinfo nomination; other users are never touched.
      *
-     * @param array<string, string> $displayNamesByGroupId
+     * @param array<string, array{role_class: string, name: string}> $candidatesByGroupId
      */
-    private function refreshCandidates(User $user, array $displayNamesByGroupId): void
+    private function refreshCandidates(User $user, array $candidatesByGroupId): void
     {
         $existingByGroupId = [];
         foreach ($this->candidates->findAllForUser($user) as $candidate) {
-            if (!array_key_exists($candidate->getExternalGroupId(), $displayNamesByGroupId)) {
+            if (!array_key_exists($candidate->getExternalGroupId(), $candidatesByGroupId)) {
                 $this->entityManager->remove($candidate);
                 continue;
             }
@@ -352,7 +383,7 @@ final class MiDataDepartmentOnboardingService
         }
 
         $expiresAt = new \DateTime('+' . self::OFFER_TTL_SECONDS . ' seconds');
-        foreach ($displayNamesByGroupId as $groupId => $displayName) {
+        foreach ($candidatesByGroupId as $groupId => $nominated) {
             $candidate = $existingByGroupId[(string) $groupId] ?? null;
             if (!$candidate instanceof MiDataMembershipCandidate) {
                 $candidate = new MiDataMembershipCandidate();
@@ -362,8 +393,8 @@ final class MiDataDepartmentOnboardingService
                 $candidate->setExternalGroupId((string) $groupId);
                 $this->entityManager->persist($candidate);
             }
-            $candidate->setExternalRoleClass(MiDataMaterialwartVerifier::MATERIALWART_ROLE_CLASS);
-            $candidate->setDisplayName(mb_substr(trim($displayName), 0, 255));
+            $candidate->setExternalRoleClass($nominated['role_class']);
+            $candidate->setDisplayName(mb_substr(trim($nominated['name']), 0, 255));
             $candidate->setExpiresAt($expiresAt);
         }
     }
@@ -424,7 +455,7 @@ final class MiDataDepartmentOnboardingService
 
     private function logOfferSkipped(User $user, string $externalGroupId, string $reason): void
     {
-        $this->logger->info('MiData Materialwart onboarding offer skipped', [
+        $this->logger->info('MiData department onboarding offer skipped', [
             'user_id' => $user->getId(),
             'external_group_id' => $externalGroupId,
             'reason' => $reason,

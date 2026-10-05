@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace App\Service\Auth;
 
 /**
- * Confirms an active direct PBS Materialwart role for exactly one MiData Abteilung
- * and resolves its structure Abteilung → Region* → Kantonalverband → Bund (→ Root, ignored).
+ * Confirms an active direct supported PBS role ({@see MiDataSupportedRoleCatalog}: Materialwart, Abteilungsleitung)
+ * for exactly one MiData Abteilung and resolves its structure Abteilung → Region* → Kantonalverband → Bund (→ Root, ignored).
  *
  * Only the Hitobito JSON:API is trusted here: userinfo role claims, role/group names
  * and browser input are never authorization inputs.
  */
 class MiDataMaterialwartVerifier
 {
-    public const MATERIALWART_ROLE_CLASS = 'Group::Abteilung::Materialwart';
+    public const MATERIALWART_ROLE_CLASS = MiDataSupportedRoleCatalog::MATERIALWART;
     public const DEPARTMENT_GROUP_TYPE = 'Group::Abteilung';
     public const REGION_GROUP_TYPE = 'Group::Region';
     public const KANTONALVERBAND_GROUP_TYPE = 'Group::Kantonalverband';
@@ -48,6 +48,9 @@ class MiDataMaterialwartVerifier
     }
 
     /**
+     * The verified role is the highest-priority active supported role in that group; a stored offer's role class
+     * is only intent. With $requiredRoleClass, exactly that role must also be active (search-mode selection).
+     *
      * @param list<HitobitoRole>|null $roles roles from {@see loadRoles()} of the same session; loaded here when null
      */
     public function verify(
@@ -56,6 +59,7 @@ class MiDataMaterialwartVerifier
         string $externalDepartmentGroupId,
         ?\DateTimeImmutable $today = null,
         ?array $roles = null,
+        ?string $requiredRoleClass = null,
     ): MiDataMaterialwartVerification {
         if (
             $session->provider !== 'midata'
@@ -69,13 +73,21 @@ class MiDataMaterialwartVerifier
 
         $today ??= new \DateTimeImmutable('today');
         try {
-            $role = $this->findActiveMaterialwartRole(
+            $activeRoles = $this->findActiveSupportedRoles(
                 $roles ?? $this->roleLookup->getRolesForPerson('midata', $session->accessToken, $externalPersonId),
                 $externalPersonId,
                 $externalDepartmentGroupId,
                 $today,
             );
-            if ($role === null) {
+            $role = $activeRoles[0] ?? null;
+            if (
+                $role === null
+                || ($requiredRoleClass !== null && !in_array(
+                    $requiredRoleClass,
+                    array_map(static fn (HitobitoRole $active): string => $active->type, $activeRoles),
+                    true,
+                ))
+            ) {
                 return new MiDataMaterialwartVerification(MiDataMaterialwartVerificationStatus::NOT_CONFIRMED);
             }
 
@@ -83,7 +95,7 @@ class MiDataMaterialwartVerifier
             if (
                 $department === null
                 || $department->id !== $externalDepartmentGroupId
-                || $department->type !== self::DEPARTMENT_GROUP_TYPE
+                || $department->type !== MiDataSupportedRoleCatalog::expectedGroupType($role->type)
             ) {
                 return new MiDataMaterialwartVerification(MiDataMaterialwartVerificationStatus::NOT_CONFIRMED);
             }
@@ -156,26 +168,34 @@ class MiDataMaterialwartVerifier
         return $role->type === self::MATERIALWART_ROLE_CLASS;
     }
 
+    public static function isSupportedRole(HitobitoRole $role): bool
+    {
+        return MiDataSupportedRoleCatalog::isSupported($role->type);
+    }
+
     /**
+     * Active supported roles of the person in exactly this group, best priority first.
+     *
      * @param list<HitobitoRole> $roles
+     *
+     * @return list<HitobitoRole>
      */
-    private function findActiveMaterialwartRole(
+    private function findActiveSupportedRoles(
         array $roles,
         string $externalPersonId,
         string $externalDepartmentGroupId,
         \DateTimeImmutable $today,
-    ): ?HitobitoRole {
-        foreach ($roles as $role) {
-            if (
-                $role->personId === $externalPersonId
+    ): array {
+        $active = array_values(array_filter(
+            $roles,
+            static fn (HitobitoRole $role): bool => $role->personId === $externalPersonId
                 && $role->groupId === $externalDepartmentGroupId
-                && self::isMaterialwartRole($role)
-                && $role->isActiveOn($today)
-            ) {
-                return $role;
-            }
-        }
+                && self::isSupportedRole($role)
+                && $role->isActiveOn($today),
+        ));
+        usort($active, static fn (HitobitoRole $a, HitobitoRole $b): int => MiDataSupportedRoleCatalog::priority($a->type)
+            <=> MiDataSupportedRoleCatalog::priority($b->type));
 
-        return null;
+        return $active;
     }
 }

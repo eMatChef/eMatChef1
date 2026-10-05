@@ -69,8 +69,11 @@ class MiDataDepartmentStructureProvisioner
         ?MiDataDepartmentOnboarding $onboarding = null,
     ): MiDataDepartmentProvisioningResult {
         if (!$verification->isConfirmed()) {
-            throw new \LogicException('MiData department provisioning requires a confirmed Materialwart verification');
+            throw new \LogicException('MiData department provisioning requires a confirmed role verification');
         }
+        // The freshly verified role decides the membership role (mw, dc), never a stored intent or a role name.
+        $membershipRole = MiDataSupportedRoleCatalog::membershipRole($verification->role->type)
+            ?? throw new \LogicException('Verified MiData role is not supported');
         $externalDepartment = $verification->department;
         $externalRegions = $verification->regions;
         $externalKantonalverband = $verification->kantonalverband;
@@ -83,6 +86,7 @@ class MiDataDepartmentStructureProvisioner
             $externalKantonalverband,
             $externalBund,
             $onboarding,
+            $membershipRole,
         ): MiDataDepartmentProvisioningResult {
             // Every structure created by this flow lies below one Kantonalverband.
             $this->structureIdentities->lockExternalGroupForStructureChange(self::PROVIDER, $externalKantonalverband->id);
@@ -97,7 +101,7 @@ class MiDataDepartmentStructureProvisioner
             $department = $this->resolveDepartment($externalDepartment, $organisation, $parent, $createdExternalGroupIds);
             $departmentCreated = count($createdExternalGroupIds) > $createdBeforeDepartment;
 
-            $membershipCreated = $this->ensureMaterialwartMembership($user, $department);
+            $membershipCreated = $this->ensureMembership($user, $department, $membershipRole);
             $onboarding?->setCompletedAt(new \DateTime());
             $this->entityManager->flush();
 
@@ -162,9 +166,9 @@ class MiDataDepartmentStructureProvisioner
     }
 
     /**
-     * Adds the verified Materialwart as `mw`. An existing membership is never changed.
+     * Adds the verified role (mw, dc). An existing membership is never changed, so nothing is downgraded.
      */
-    private function ensureMaterialwartMembership(User $user, Department $department): bool
+    private function ensureMembership(User $user, Department $department, string $role): bool
     {
         $memberships = $this->entityManager->getRepository(Membership::class);
         if ($memberships->findOneBy(['userId' => $user->getId(), 'departmentId' => $department->getId()]) instanceof Membership) {
@@ -174,7 +178,7 @@ class MiDataDepartmentStructureProvisioner
         $membership = new Membership();
         $membership->setUser($user);
         $membership->setDepartment($department);
-        $membership->setRole('mw');
+        $membership->setRole($role);
         $membership->setIsPrimary($memberships->count(['userId' => $user->getId()]) === 0);
         $this->auditLogger->log(
             'membership',
@@ -184,7 +188,7 @@ class MiDataDepartmentStructureProvisioner
             $user,
             $department,
             [
-                'role' => ['old' => null, 'new' => 'mw'],
+                'role' => ['old' => null, 'new' => $role],
                 'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
                 'source' => ['old' => null, 'new' => 'midata_materialwart_onboarding'],
             ],

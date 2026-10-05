@@ -14,7 +14,7 @@
         <dt>{{ t('pendingAssignment.midataOnboardingKantonalverband') }}</dt>
         <dd>{{ offer.kantonalverband_name }}</dd>
         <dt>{{ t('pendingAssignment.midataOnboardingRole') }}</dt>
-        <dd>{{ t('pendingAssignment.midataOnboardingRoleMaterialwart') }}</dd>
+        <dd>{{ roleLabel(offer.role) }}</dd>
       </dl>
       <p class="midata-offers__hint">
         {{
@@ -33,6 +33,7 @@
     </div>
 
     <div v-if="searchRequired" class="midata-offers__search">
+      <p v-if="offers.length > 0" class="midata-offers__subtitle">{{ t('layout.profileModal.midataSection') }}</p>
       <ESearchField
         v-model="query"
         :label="t('pendingAssignment.midataSearchLabel')"
@@ -43,7 +44,7 @@
       <div v-for="candidate in results" :key="candidate.id" class="midata-offers__hit">
         <div>
           <p class="midata-offers__name">{{ candidate.department_name }}</p>
-          <p class="midata-offers__role">{{ t('pendingAssignment.midataOnboardingRoleMaterialwart') }}</p>
+          <p class="midata-offers__role">{{ roleLabel(candidate.role) }}</p>
         </div>
         <EButton variant="secondary" :disabled="starting" @click="start('candidate', candidate.id)">
           {{ t('pendingAssignment.midataSearchSelect') }}
@@ -62,6 +63,7 @@ import {
   searchMiDataMembershipCandidates,
   type MiDataDepartmentOnboardingOffer,
   type MiDataMembershipCandidate,
+  type MiDataMembershipRole,
 } from '@/api/joinRequests'
 import { midataOnboardingStartUrl } from '@/utils/midataOnboarding'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
@@ -97,6 +99,12 @@ async function load() {
     searchRequired.value = false
   }
   emit('availability', hasContent.value)
+}
+
+function roleLabel(role: MiDataMembershipRole): string {
+  return role === 'abteilungsleitung'
+    ? t('pendingAssignment.midataOnboardingRoleAbteilungsleitung')
+    : t('pendingAssignment.midataOnboardingRoleMaterialwart')
 }
 
 function clearSearch() {
@@ -205,5 +213,10 @@ onUnmounted(() => {
 
 .midata-offers__search {
   margin-top: 16px;
+}
+
+.midata-offers__subtitle {
+  margin: 0 0 8px;
+  font-weight: 600;
 }
 </style>

@@ -980,6 +980,7 @@
     "midataOnboardingKantonalverband": "Association cantonale",
     "midataOnboardingRole": "Rôle",
     "midataOnboardingRoleMaterialwart": "Responsable du matériel",
+    "midataOnboardingRoleAbteilungsleitung": "Chef de département",
     "midataOnboardingSetup": "Configurer le département",
     "midataOnboardingJoin": "Reprendre le département",
     "midataOnboardingRedirectHint": "Vous serez brièvement redirigé vers MiData. Votre rôle y est vérifié à nouveau avant la configuration du département.",

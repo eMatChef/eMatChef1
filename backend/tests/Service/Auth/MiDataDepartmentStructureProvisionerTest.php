@@ -208,6 +208,24 @@ final class MiDataDepartmentStructureProvisionerTest extends TestCase
         self::assertCount(1, $this->memberships);
     }
 
+    public function testVerifiedAbteilungsleitungCreatesDcMembership(): void
+    {
+        $verification = $this->verification();
+        $dc = new MiDataMaterialwartVerification(
+            MiDataMaterialwartVerificationStatus::CONFIRMED,
+            '1131',
+            $verification->department,
+            $verification->regions,
+            $verification->kantonalverband,
+            $verification->bund,
+            new HitobitoRole('1131', '51', 'Group::Abteilung::Abteilungsleitung', null, null),
+        );
+
+        $this->provisioner()->provision($this->user, $dc);
+
+        self::assertSame('dc', $this->memberships[0]->getRole());
+    }
+
     public function testAdditionalMembershipIsNotPrimary(): void
     {
         $this->memberships[] = (new Membership())->setUser($this->user)->setDepartment($this->departments[0])->setRole('u')->setIsPrimary(true);

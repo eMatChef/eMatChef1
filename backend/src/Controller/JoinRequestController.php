@@ -26,6 +26,7 @@ use App\Service\Auth\DepartmentJoinFlowService;
 use App\Service\Auth\DepartmentJoinOutcome;
 use App\Service\Auth\DepartmentJoinOutcomeStatus;
 use App\Service\Auth\MiDataDepartmentOnboardingService;
+use App\Service\Auth\MiDataSupportedRoleCatalog;
 use App\Repository\ExternalStructureIdentityRepository;
 use App\Service\MembershipRoleCatalog;
 use App\Service\TurnstileVerifier;
@@ -820,7 +821,7 @@ class JoinRequestController extends AbstractController
     }
 
     /**
-     * Open verified MiData Materialwart offers and whether the search mode is needed (many candidates).
+     * Open verified MiData offers (Materialwart, Abteilungsleitung) and whether the search mode is needed (many candidates).
      * Display data only: no external IDs or role classes are accepted from or sent to the browser.
      */
     #[Route('/midata-onboarding', name: 'midata_onboarding_offers', methods: ['GET'])]
@@ -839,7 +840,7 @@ class JoinRequestController extends AbstractController
                 'department_name' => $offer->getDepartmentName(),
                 'region_name' => $offer->getRegionName(),
                 'kantonalverband_name' => $offer->getKantonalverbandName(),
-                'role' => 'materialwart',
+                'role' => MiDataSupportedRoleCatalog::label($offer->getExternalRoleClass()) ?? 'materialwart',
                 'department_exists' => $this->structureIdentities->findOneByProviderAndExternalGroupId(
                     'midata',
                     $offer->getExternalDepartmentGroupId(),
@@ -876,7 +877,7 @@ class JoinRequestController extends AbstractController
             $result[] = [
                 'id' => $candidate->getId(),
                 'department_name' => $candidate->getDisplayName(),
-                'role' => 'materialwart',
+                'role' => MiDataSupportedRoleCatalog::label($candidate->getExternalRoleClass()) ?? 'materialwart',
             ];
         }
 

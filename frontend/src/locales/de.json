@@ -8948,6 +8948,7 @@
     "midataOnboardingKantonalverband": "Kantonalverband",
     "midataOnboardingRole": "Rolle",
     "midataOnboardingRoleMaterialwart": "Materialwart",
+    "midataOnboardingRoleAbteilungsleitung": "Abteilungsleiter",
     "midataOnboardingSetup": "Abteilung einrichten",
     "midataOnboardingJoin": "Abteilung übernehmen",
     "midataOnboardingRedirectHint": "Du wirst kurz zu MiData weitergeleitet. Dort wird deine Rolle erneut geprüft, bevor die Abteilung eingerichtet wird.",

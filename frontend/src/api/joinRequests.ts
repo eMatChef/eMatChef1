@@ -231,6 +231,9 @@ export async function getMyJoinRequests(): Promise<MyJoinRequest[]> {
   return data
 }
 
+/** Fachliche MiData-Rolle (Materialwart → mw, Abteilungsleitung → dc); keine technische Rollenklasse. */
+export type MiDataMembershipRole = 'materialwart' | 'abteilungsleitung'
+
 /** MiData-bestätigte, noch einzurichtende Abteilung (nur Anzeige; Autorisierung erfolgt serverseitig). */
 export interface MiDataDepartmentOnboardingOffer {
   id: string
@@ -238,7 +241,7 @@ export interface MiDataDepartmentOnboardingOffer {
   /** Region-Ebenen von oben nach unten, für die Anzeige zusammengefasst */
   region_name: string | null
   kantonalverband_name: string
-  role: 'materialwart'
+  role: MiDataMembershipRole
   department_exists: boolean
   expires_at: string
 }
@@ -253,7 +256,7 @@ export interface MiDataDepartmentOnboardingStatus {
 export interface MiDataMembershipCandidate {
   id: string
   department_name: string
-  role: 'materialwart'
+  role: MiDataMembershipRole
 }
 
 export async function getMiDataDepartmentOnboardingOffers(): Promise<MiDataDepartmentOnboardingStatus> {

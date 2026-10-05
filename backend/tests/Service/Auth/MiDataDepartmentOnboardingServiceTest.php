@@ -29,6 +29,7 @@ use App\Service\Auth\MiDataMaterialwartVerificationStatus;
 use App\Service\Auth\MiDataMaterialwartVerifier;
 use App\Service\Auth\MiDataOAuthUserInfo;
 use App\Service\Auth\MiDataStructureConflictException;
+use App\Service\Auth\MiDataSupportedRoleCatalog;
 use App\Service\Support\UnassignedUserSupportQueue;
 use Doctrine\DBAL\Driver\Exception as DriverException;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
@@ -373,7 +374,7 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
     {
         $this->givenIdentity('1131');
         $this->candidate('cand0foreign', 'Fremd', (new User())->setId('user00000002'));
-        $this->candidate('cand0badrole', 'Rolle', roleClass: 'Group::Abteilung::Abteilungsleitung');
+        $this->candidate('cand0badrole', 'Rolle', roleClass: 'Group::Abteilung::AbteilungsleitungStv');
         $this->verifier->expects(self::never())->method('verify');
         $this->provisioner->expects(self::never())->method('provision');
 
@@ -584,6 +585,99 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
         self::assertSame('concurrent_change', $service->completeFromOAuthCallback($this->user, 'offer0000001', $this->session())->reason);
     }
 
+    public function testSameAbteilungWithMaterialwartAndAbteilungsleitungYieldsOneMwCandidate(): void
+    {
+        $this->givenMappedBund();
+        $this->givenVerifierConfirmsEveryGroup();
+        $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [
+            $this->userInfoRole('1641', MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG, 'Schneckenberg'),
+            $this->userInfoRole('1641', MiDataSupportedRoleCatalog::MATERIALWART, 'Schneckenberg'),
+            $this->userInfoRole('1642', 'Group::Abteilung::AbteilungsleitungStv', 'Stellvertretung'),
+            ...$this->dcRoles(10),
+        ]));
+
+        $byGroup = [];
+        foreach ($this->candidates as $candidate) {
+            $byGroup[$candidate->getExternalGroupId()] = $candidate->getExternalRoleClass();
+        }
+        self::assertSame(MiDataSupportedRoleCatalog::MATERIALWART, $byGroup['1641']);
+        self::assertArrayNotHasKey('1642', $byGroup, 'Stellvertretung is not supported');
+        self::assertCount(11, $byGroup);
+    }
+
+    public function testManyDcRolesUseSearchModeButMwIsStillVerifiedDirectly(): void
+    {
+        $this->givenMappedBund();
+        $this->givenVerifierConfirmsEveryGroup();
+
+        $offered = $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [
+            $this->userInfoRole('1641', MiDataSupportedRoleCatalog::MATERIALWART, 'Schneckenberg'),
+            ...$this->dcRoles(38),
+        ]));
+
+        self::assertSame(1, $offered);
+        self::assertSame(['1641'], $this->verifiedGroups, 'no dc hierarchy is verified at login');
+        self::assertSame(1, $this->roleLoads);
+        self::assertCount(39, $this->candidates);
+        self::assertTrue($this->service()->isSearchRequired($this->user));
+    }
+
+    public function testUpToTenMixedAbteilungenAreAllVerified(): void
+    {
+        $this->givenMappedBund();
+        $this->givenVerifierConfirmsEveryGroup();
+
+        $offered = $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [
+            $this->userInfoRole('1641', MiDataSupportedRoleCatalog::MATERIALWART, 'Schneckenberg'),
+            ...$this->dcRoles(9),
+        ]));
+
+        self::assertSame(10, $offered);
+        self::assertSame(1, $this->roleLoads);
+    }
+
+    public function testRoleNameDoesNotMakeAnUnsupportedRoleACandidate(): void
+    {
+        $role = new HitobitoRole('1131', '51', 'Group::Abteilung::Coach', null, null, groupName: 'Pfadi', roleName: 'Abteilungsleiter*in', roleClass: 'Group::Abteilung::Coach');
+        $this->verifier->expects(self::never())->method('loadRoles');
+
+        $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [$role]));
+
+        self::assertSame([], $this->candidates);
+    }
+
+    public function testSelectedDcCandidateRequiresThatRoleFreshlyAndSetsUpDc(): void
+    {
+        $this->givenMappedBund();
+        $this->givenIdentity('1131');
+        $this->candidate('cand00000052', 'Pfadi Dc', groupId: '52', roleClass: MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG);
+        $verification = $this->confirmed('52', MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG);
+        $this->verifier->expects(self::once())->method('verify')
+            ->with(self::anything(), '1131', '52', null, null, MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG)
+            ->willReturn($verification);
+        $this->provisioner->expects(self::once())->method('provision')
+            ->with($this->user, $verification, self::anything())
+            ->willReturn(new MiDataDepartmentProvisioningResult((new Department())->setId('dep000000052'), true, ['52'], true));
+
+        $outcome = $this->service()->completeCandidateFromOAuthCallback($this->user, 'cand00000052', $this->session());
+
+        self::assertSame(MiDataDepartmentOnboardingOutcomeStatus::CREATED, $outcome->status);
+        self::assertSame(MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG, $this->offers()[0]->getExternalRoleClass());
+    }
+
+    public function testOffersAreListedMwFirstThenByName(): void
+    {
+        $this->onboardings->method('findOpenForUser')->willReturn([
+            $this->offer('offerdc000a1', '61')->setDepartmentName('Alpha')->setExternalRoleClass(MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG),
+            $this->offer('offermw000z1', '62')->setDepartmentName('Zeta'),
+            $this->offer('offermw000b1', '63')->setDepartmentName('Beta'),
+        ]);
+
+        $ids = array_map(static fn (MiDataDepartmentOnboarding $offer): ?string => $offer->getId(), $this->service()->listOpenOffers($this->user));
+
+        self::assertSame(['offermw000b1', 'offermw000z1', 'offerdc000a1'], $ids);
+    }
+
     public function testSearchNormalizationHandlesCaseAndAccents(): void
     {
         self::assertSame('zurich', MiDataDepartmentOnboardingService::normalizeForSearch('  ZÜRICH '));
@@ -683,7 +777,18 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
             ->setExpiresAt(new \DateTime('+1 hour'));
     }
 
-    private function confirmed(string $groupId): MiDataMaterialwartVerification
+    /**
+     * @return list<HitobitoRole>
+     */
+    private function dcRoles(int $count): array
+    {
+        return array_map(
+            fn (int $index): HitobitoRole => $this->userInfoRole((string) (200 + $index), MiDataSupportedRoleCatalog::ABTEILUNGSLEITUNG, sprintf('Dc %02d', $index)),
+            range(1, $count),
+        );
+    }
+
+    private function confirmed(string $groupId, string $roleClass = MiDataSupportedRoleCatalog::MATERIALWART): MiDataMaterialwartVerification
     {
         return new MiDataMaterialwartVerification(
             MiDataMaterialwartVerificationStatus::CONFIRMED,
@@ -692,7 +797,7 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
             [new HitobitoGroup('50', '49', 'Group::Region', 'Corps Musegg', '50')],
             new HitobitoGroup('49', '1', 'Group::Kantonalverband', 'Pfadi Luzern', '49'),
             new HitobitoGroup('1', '1113', 'Group::Bund', 'Pfadibewegung Schweiz', '1'),
-            new HitobitoRole('1131', $groupId, MiDataMaterialwartVerifier::MATERIALWART_ROLE_CLASS, null, null),
+            new HitobitoRole('1131', $groupId, $roleClass, null, null),
         );
     }
 
