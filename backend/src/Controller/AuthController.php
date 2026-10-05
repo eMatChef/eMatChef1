@@ -15,8 +15,12 @@ use App\Repository\UserRepository;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
 use App\Service\Auth\CrossSubdomainAuthCookies;
-use App\Service\Auth\RefreshTokenRevoker;
 use App\Service\Auth\SessionContextResolver;
+use App\Service\Auth\UserSessionManager;
+use App\EventSubscriber\JwtSessionSubscriber;
+use App\Entity\RefreshToken;
+use App\Repository\UserSessionRepository;
+use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
 use App\Service\UserEmailAliasService;
@@ -65,8 +69,10 @@ class AuthController extends AbstractController
         private SupplierCompanyAccessService $supplierCompanyAccessService,
         private UserEmailAliasService $emailAliases,
         private LoggerInterface $logger,
-        private RefreshTokenRevoker $refreshTokenRevoker,
         private SessionContextResolver $sessionContextResolver,
+        private UserSessionManager $userSessionManager,
+        private UserSessionRepository $userSessionRepository,
+        private JWTTokenManagerInterface $jwtManager,
         #[Autowire('%kernel.secret%')]
         private string $appSecret,
     ) {}
@@ -82,18 +88,34 @@ class AuthController extends AbstractController
     }
 
     /**
-     * Logout – invalidiert Refresh-Token auf dem Server (da LogoutEvent bei security: false nicht ausgelöst wird)
+     * Logout – widerruft die aktuelle UserSession samt Refresh-Tokens (damit auch das ausgestellte JWT);
+     * eigener Endpoint, da LogoutEvent bei security: false nicht ausgelöst wird.
      */
     #[Route('/logout', name: 'logout', methods: ['POST'])]
     public function logout(Request $request): JsonResponse
     {
         $tokenString = $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token');
+        $refreshToken = null !== $tokenString ? $this->refreshTokenManager->get($tokenString) : null;
 
-        if (null !== $tokenString) {
-            $refreshToken = $this->refreshTokenManager->get($tokenString);
-            if (null !== $refreshToken) {
-                $this->refreshTokenManager->delete($refreshToken);
+        $session = $refreshToken instanceof RefreshToken ? $refreshToken->getSession() : null;
+        if ($session === null) {
+            // Refresh-Token fehlt/abgelaufen: Sitzung aus dem (gültigen) JWT-Cookie.
+            $jwt = (string) $request->cookies->get('BEARER', '');
+            if ($jwt !== '') {
+                try {
+                    $sid = $this->jwtManager->parse($jwt)[JwtSessionSubscriber::CLAIM] ?? null;
+                    $session = \is_string($sid) ? $this->userSessionRepository->findOneById($sid) : null;
+                } catch (\Throwable) {
+                    $session = null;
+                }
             }
+        }
+
+        if ($session !== null && !$session->isRevoked()) {
+            $this->userSessionManager->revokeSession($session, UserSessionManager::REASON_LOGOUT);
+        } elseif (null !== $refreshToken) {
+            // Legacy-Token ohne Sitzung
+            $this->refreshTokenManager->delete($refreshToken);
         }
 
         $response = new JsonResponse([
@@ -794,9 +816,11 @@ class AuthController extends AbstractController
                 'source' => ['old' => null, 'new' => 'password_reset_code'],
             ]
         );
-        $this->entityManager->flush();
-        // Alle Refresh-Tokens ungültig machen; bestehende JWTs laufen bis zu ihrer TTL aus (UserSession folgt).
-        $this->refreshTokenRevoker->revokeAllForUser($user);
+        // Passwort und Widerruf aller Sitzungen (inkl. Refresh-Tokens, damit auch ausgestellter JWTs) atomar.
+        $this->entityManager->wrapInTransaction(function () use ($user): void {
+            $this->entityManager->flush();
+            $this->userSessionManager->revokeAllForUser($user, UserSessionManager::REASON_PASSWORD_RESET);
+        });
 
         return new JsonResponse([
             'success' => true,

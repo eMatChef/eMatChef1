@@ -7,7 +7,8 @@ use App\Entity\User;
 use App\Repository\ProfileRepository;
 use App\Repository\UserRepository;
 use App\Service\AuditLogger;
-use App\Service\Auth\RefreshTokenRevoker;
+use App\Service\Auth\CurrentAuthSession;
+use App\Service\Auth\UserSessionManager;
 use App\Service\Grossanlass\GrossanlassDriveLicenseService;
 use App\Service\UserEmailAliasService;
 use App\Service\VerificationEmailService;
@@ -33,7 +34,8 @@ class ProfileController extends AbstractController
         private UserPasswordHasherInterface $passwordHasher,
         private GrossanlassDriveLicenseService $driveLicenses,
         private UserEmailAliasService $emailAliases,
-        private RefreshTokenRevoker $refreshTokenRevoker,
+        private UserSessionManager $userSessionManager,
+        private CurrentAuthSession $currentAuthSession,
         private ExtractorInterface $refreshTokenExtractor,
     ) {}
 
@@ -351,13 +353,19 @@ class ProfileController extends AbstractController
                 'source' => ['old' => null, 'new' => 'profile_change'],
             ]
         );
-        $this->entityManager->flush();
-
-        // Andere Sessions abmelden: alle Refresh-Tokens ausser dem der laufenden Session (eigenes Konto).
-        $keepToken = $user->getId() === $currentUser->getId()
-            ? $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token')
-            : null;
-        $this->refreshTokenRevoker->revokeAllForUser($user, $keepToken);
+        // Andere Sitzungen beenden, die laufende (eigenes Konto) behalten; atomar mit dem Passwort.
+        $ownAccount = $user->getId() === $currentUser->getId();
+        $keepSession = $ownAccount ? $this->currentAuthSession->getAuthenticated() : null;
+        $keepToken = $ownAccount ? $this->refreshTokenExtractor->getRefreshToken($request, 'refresh_token') : null;
+        $this->entityManager->wrapInTransaction(function () use ($user, $keepSession, $keepToken): void {
+            $this->entityManager->flush();
+            $this->userSessionManager->revokeAllForUser(
+                $user,
+                UserSessionManager::REASON_PASSWORD_CHANGE,
+                $keepSession,
+                $keepToken
+            );
+        });
 
         return new JsonResponse([
             'success' => true,

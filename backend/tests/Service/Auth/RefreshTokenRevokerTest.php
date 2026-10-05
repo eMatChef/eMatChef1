@@ -50,34 +50,26 @@ final class RefreshTokenRevokerTest extends TestCase
         self::assertSame(['username' => 'profile_1'], $this->parameters);
     }
 
-    public function testDeactivationToInactiveRevokesTokens(): void
+    public function testKeepsTokensOfCurrentSessionAndCurrentLegacyToken(): void
     {
-        self::assertTrue($this->revoker(4)->revokeIfDeactivated($this->user('inactive'), 'active'));
-        self::assertSame(1, $this->executions);
+        $this->revoker(5)->revokeAllForUser($this->user('active'), 'legacy-token', 'session-1');
+
+        self::assertSame(
+            ['DELETE FROM ' . RefreshToken::class . ' r WHERE r.username = :username'
+                . ' AND r.refreshToken <> :keepToken AND (r.session IS NULL OR r.session <> :keepSessionId)'],
+            $this->dql
+        );
+        self::assertSame(
+            ['username' => 'profile_1', 'keepToken' => 'legacy-token', 'keepSessionId' => 'session-1'],
+            $this->parameters
+        );
     }
 
-    public function testDeactivationToDisabledRevokesTokens(): void
+    public function testRevokesTokensOfOneSession(): void
     {
-        self::assertTrue($this->revoker(4)->revokeIfDeactivated($this->user('disabled'), 'active'));
-        self::assertSame(1, $this->executions);
-    }
-
-    public function testUnchangedActiveStateDoesNotRevoke(): void
-    {
-        self::assertFalse($this->revoker(0)->revokeIfDeactivated($this->user('active'), 'active'));
-        self::assertSame(0, $this->executions);
-    }
-
-    public function testReactivationDoesNotRevoke(): void
-    {
-        self::assertFalse($this->revoker(0)->revokeIfDeactivated($this->user('active'), 'disabled'));
-        self::assertSame(0, $this->executions);
-    }
-
-    public function testUnchangedInactiveStateDoesNotRevokeAgain(): void
-    {
-        self::assertFalse($this->revoker(0)->revokeIfDeactivated($this->user('inactive'), 'inactive'));
-        self::assertSame(0, $this->executions);
+        self::assertSame(2, $this->revoker(2)->revokeForSession('session-1'));
+        self::assertSame(['DELETE FROM ' . RefreshToken::class . ' r WHERE r.session = :sessionId'], $this->dql);
+        self::assertSame(['sessionId' => 'session-1'], $this->parameters);
     }
 
     private function revoker(int $deletedRows): RefreshTokenRevoker
