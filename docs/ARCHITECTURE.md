@@ -54,6 +54,8 @@ Stateless JWT (Lexik) plus Refresh-Token (`gesdinet/jwt-refresh-token-bundle`).
 
 Department-Rechte kommen nicht aus dem JWT allein, sondern aus `Membership.role` im angefragten Department. Katalog: `DepartmentRole`, Zuweisungslogik `MembershipRoleCatalog`.
 
+Support-Anfragen (`AdminJoinRequest`): Department-Manager (`mw`/`dc` ohne globale Admin-Rolle) sehen offene Anfragen und Verlauf, lehnen ab und weisen zu (Zuweisung nur `mw`) ausschliesslich für Anfragen ihrer Organisation, deren gewünschtes Parent-Department ihr Department oder ein Unter-Department ist (`AdminJoinRequestManagerScope`). Anfragen ohne Organisation oder ohne Parent-Department bleiben globalen Admins vorbehalten. Zuweisungen durch Manager müssen im eigenen Teilbaum liegen und `MembershipRoleCatalog::isAllowed`/`canAssign` erfüllen; der Fallback „Ziel ohne mw/dc → zugewiesener User wird mw“ gilt nur für globale Admins. Nur globale Admins lösen die automatische Erzeugung von Support-Anfragen für User ohne Department aus.
+
 ## Hosts (lokal / produktiv)
 
 Lokal über Nginx und `*.ematchef.test` (`APP_FRONTEND_URL`, `APP_PUBLIC_QR_URL`, `VITE_DEVICES_HOST`). Produktiv getrennte Flächen, u. a. App, QR (`qr.ematchef.ch`), Geräte (`devices.ematchef.ch`), Nutzerhilfe (`docs.ematchef.ch`), Weblate (`translate.ematchef.ch`). Marketing-Site und App-Deploy sind getrennte Workflows — siehe CONTRIBUTING, nicht hier nachbauen.

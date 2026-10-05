@@ -14,6 +14,7 @@ use App\Entity\Organisation;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Service\Admin\AdminCapabilityChecker;
+use App\Service\Admin\AdminJoinRequestManagerScope;
 use App\Service\AuditLogger;
 use App\Service\Mail\MailTemplateContentStore;
 use App\Service\OrganisationUserPickerFilter;
@@ -59,6 +60,7 @@ class JoinRequestController extends AbstractController
         private TurnstileVerifier $turnstileVerifier,
         private InboxMessageService $inboxMessages,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private AdminJoinRequestManagerScope $adminJoinRequestScope,
         private DepartmentRoleLabelService $departmentRoleLabelService,
         private UserEmailAliasService $emailAliases,
         #[Autowire('%env(APP_FRONTEND_URL)%')] private string $frontendUrl
@@ -287,15 +289,17 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
@@ -303,7 +307,8 @@ class JoinRequestController extends AbstractController
         $pendingStatus = 'pending';
 
         // Auto-create support requests for users without any department membership.
-        $usersWithoutDepartment = $this->entityManager->getRepository(User::class)
+        // Department managers never trigger it: these requests have no organisation and are outside their scope.
+        $usersWithoutDepartment = !$isGlobalAdmin ? [] : $this->entityManager->getRepository(User::class)
             ->createQueryBuilder('u')
             ->leftJoin(Membership::class, 'm', 'WITH', 'm.userId = u.id')
             ->leftJoin(
@@ -377,6 +382,10 @@ class JoinRequestController extends AbstractController
             } else {
                 $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
+        }
+
+        if ($managerScope !== null) {
+            $this->adminJoinRequestScope->restrictQuery($qb, 'ajr', $managerScope);
         }
 
         $requests = $qb->getQuery()->getResult();
@@ -466,16 +475,21 @@ class JoinRequestController extends AbstractController
         $actingDepartmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($actingDepartmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $actingDepartmentId,
-            ]);
-            if (!$myMembership || $myMembership->getRole() !== 'mw') {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $actingDepartmentId,
+                AdminJoinRequestManagerScope::ASSIGN_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Nur Superadmin/OrgChef/SubOrgChef oder Abteilungsleiter (mw) darf eine Department-Zuordnung ausfuehren'], 403);
+            }
+            if (!$this->adminJoinRequestScope->contains($adminRequest, $managerScope)) {
+                return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
 
@@ -505,6 +519,12 @@ class JoinRequestController extends AbstractController
         if ($isGlobalAdmin && !$this->adminCapabilityChecker->canAccessDepartment($currentUser, $targetDepartmentId)) {
             return new JsonResponse(['error' => 'Keine Berechtigung für dieses Department'], 403);
         }
+        if ($managerScope !== null) {
+            $denial = $this->adminJoinRequestScope->assignmentDenial($managerScope, $targetDepartment, $requestedRole);
+            if ($denial !== null) {
+                return new JsonResponse(['error' => $denial['error']], $denial['status']);
+            }
+        }
 
         $hasMwOrDc = (int) $this->entityManager->createQuery(
             'SELECT COUNT(m.userId) FROM App\Entity\Membership m WHERE m.departmentId = :deptId AND (m.role = :mw OR m.role = :dc)'
@@ -515,7 +535,7 @@ class JoinRequestController extends AbstractController
 
         $assignedRole = $requestedRole;
         $roleForcedToMwWarning = null;
-        if (!$hasMwOrDc && $requestedRole === 'u') {
+        if ($isGlobalAdmin && !$hasMwOrDc && $requestedRole === 'u') {
             $assignedRole = 'mw';
             $roleForcedToMwWarning = 'Department hat keinen Materialchef (mw) oder Departmentchef (dc). User wurde automatisch als Materialchef (mw) zugeordnet.';
         }
@@ -607,15 +627,17 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
         }
@@ -643,6 +665,10 @@ class JoinRequestController extends AbstractController
             } else {
                 $qb->andWhere('ajr.requestedOrganisationId IS NULL');
             }
+        }
+
+        if ($managerScope !== null) {
+            $this->adminJoinRequestScope->restrictQuery($qb, 'ajr', $managerScope);
         }
 
         $requests = $qb->getQuery()->getResult();
@@ -694,17 +720,23 @@ class JoinRequestController extends AbstractController
         $departmentId = trim((string) $request->query->get('department_id', ''));
         $isGlobalAdmin = $this->hasGlobalAdminRole($currentUser);
 
+        $managerScope = null;
         if (!$isGlobalAdmin) {
             if ($departmentId === '') {
                 return new JsonResponse(['error' => 'department_id ist erforderlich'], 400);
             }
-            $myMembership = $this->entityManager->getRepository(Membership::class)->findOneBy([
-                'userId' => $currentUser->getId(),
-                'departmentId' => $departmentId,
-            ]);
-            if (!$myMembership || !in_array($myMembership->getRole(), ['mw', 'dc'], true)) {
+            $managerScope = $this->adminJoinRequestScope->resolve(
+                $currentUser,
+                $departmentId,
+                AdminJoinRequestManagerScope::VIEW_ROLES,
+            );
+            if ($managerScope === null) {
                 return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
             }
+        }
+
+        if ($managerScope !== null && !$this->adminJoinRequestScope->contains($adminRequest, $managerScope)) {
+            return new JsonResponse(['error' => 'Keine Berechtigung'], 403);
         }
 
         $data = json_decode($request->getContent(), true) ?: [];
