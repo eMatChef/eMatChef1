@@ -529,6 +529,12 @@
     "languageRestrictedHint": "Le choix est limite aux langues de cette organisation."
   },
   "settings": {
+    "adminUsers": {
+      "toastEmailVerificationSent": "Lien de confirmation envoyé à {email}. L’adresse e-mail actuelle reste active jusqu’à la confirmation.",
+      "emailReadOnlyHint": "Seul un superadmin peut modifier l’e-mail de connexion.",
+      "emailChangeVerificationHint": "Une adresse e-mail modifiée ne devient active qu’après confirmation via le lien envoyé.",
+      "emailPendingHint": "Confirmation en attente pour {email}."
+    },
     "groups": {
       "title": "Groupes",
       "subtitle": "Gerer les groupes et les chefs",

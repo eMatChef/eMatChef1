@@ -5863,6 +5863,10 @@
       "departmentsLoadError": "Departments konnten nicht geladen werden",
       "detailsLoadError": "Benutzerdetails konnten nicht geladen werden",
       "toastUpdated": "Benutzer wurde aktualisiert",
+      "toastEmailVerificationSent": "Bestätigungslink an {email} gesendet. Die bisherige E-Mail-Adresse bleibt bis zur Bestätigung aktiv.",
+      "emailReadOnlyHint": "Die Login-E-Mail kann nur ein Superadmin ändern.",
+      "emailChangeVerificationHint": "Eine geänderte E-Mail-Adresse wird erst aktiv, wenn sie über den zugesandten Link bestätigt wurde.",
+      "emailPendingHint": "Bestätigung ausstehend für {email}.",
       "saveError": "Fehler beim Speichern",
       "roles": {
         "mw": "MW - Materialchef",

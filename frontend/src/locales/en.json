@@ -4434,6 +4434,10 @@
       }
     },
     "adminUsers": {
+      "toastEmailVerificationSent": "Confirmation link sent to {email}. The current email address stays active until it is confirmed.",
+      "emailReadOnlyHint": "Only a superadmin can change the login email.",
+      "emailChangeVerificationHint": "A changed email address only becomes active once it has been confirmed via the link sent to it.",
+      "emailPendingHint": "Confirmation pending for {email}.",
       "roles": {
         "mw": "MW – materials lead",
         "cmw": "CMW – co materials lead",
