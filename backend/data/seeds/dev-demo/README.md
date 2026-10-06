@@ -1,9 +1,12 @@
 # Dev-Demo Seeds
 
-Rollen-User und Banner-Logins kommen aus `app:create-role-users` / `app:dev-demo:reset`
-(`*@ematchef.ch` / Passwort `test!ematchef`), inkl. `supplier@ematchef.ch` (Testfirma, Supplier-Bereich)
+Demo-Konten kommen aus `app:create-role-users` / `app:dev-demo:reset` (nur mit `EMATCHEF_DEV_TOOLS`, nie Production).
+Einzige Quelle ist [`demo-accounts.json`](./demo-accounts.json): Adressen `<rolle>@demo.ematchef.ch`, Passwort `test!ematchef`,
+fixe Test-TOTP-Secrets für `superadmin`, `orgchef`, `suborgchef` (Reseed ändert sie nicht). Dieselbe Datei erzeugt die Seite
+`docs.ematchef.ch → Anleitung → Entwicklung → Testumgebung` (Login, Rolle, QR, Setup-Key). Bestehende `*@ematchef.ch`-Konten werden beim Reseed umgestellt.
+Dazu `supplier@demo.ematchef.ch` (Testfirma, Supplier-Bereich)
 und Grossanlass-Rollen in der Abteilung **Demo Grossanlass**:
-`ga-mw@`, `ga-cmw@`, `ga-ok@`, `ga-komm@`, `ga-spon@`, `ga-bereich@` (Leader), `ga-helfer@`.
+`ga-mw@`, `ga-cmw@`, `ga-ok@`, `ga-komm@`, `ga-spon@`, `ga-bereich@` (Leader), `ga-helfer@` (jeweils `@demo.ematchef.ch`).
 
 ## Grossanlass-Demo-Szenario (PFF-inspiriert)
 

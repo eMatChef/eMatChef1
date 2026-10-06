@@ -19,11 +19,21 @@
 eMatChef ist ein Tool zur Materialverwaltung und Vermietung von Material.
 Es unterstützt den Bestand, Bewegungen und Rollenrechte in einem Vue-Frontend mit Symfony-Backend.
 
+## Dokumentation: [docs.ematchef.ch](https://docs.ematchef.ch)
+
+Die zentrale Dokumentation ist **[docs.ematchef.ch](https://docs.ematchef.ch)**:
+
+- **Anleitung → Hilfe**: Benutzer-/Anwenderdokumentation
+- **Anleitung → Entwicklung → [Testumgebung](https://docs.ematchef.ch/de/entwicklung/testumgebung)**: Umgebungen, Demo-Konten, Test-TOTP, Test-Mails
+- **Technische Projektdokumentation** (Architektur, Domäne, Entwicklung, Deploy): [docs/](docs/README.md) in diesem Repository
+
+Das GitHub-Wiki ist nur ein Einstieg und verweist auf docs.ematchef.ch; Inhalte werden dort nicht doppelt gepflegt.
+
 ### Wie kann ich helfen?
 
 Vielen Dank für Ihre Unterstützung! Es gibt verschiedene Möglichkeiten, mitzumachen.
 
-- Besuchen Sie unsere Testumgebung unter [https://dev.ematchef.ch](https://dev.ematchef.ch). Sollten Sie einen Fehler entdecken, [eröffnen Sie bitte ein neues Issue](https://github.com/eMatChef/eMatChef1/issues/new).
+- Besuchen Sie unsere Testumgebung unter [https://dev.ematchef.ch](https://dev.ematchef.ch) (Testzugänge: [docs.ematchef.ch → Testumgebung](https://docs.ematchef.ch/de/entwicklung/testumgebung)). Sollten Sie einen Fehler entdecken, [eröffnen Sie bitte ein neues Issue](https://github.com/eMatChef/eMatChef1/issues/new).
 
 - Um uns bei der Übersetzung von eMatChef in weitere Sprachen zu unterstützen, nutzen Sie bitte unser [Übersetzungstool](https://translate.ematchef.ch).
 
@@ -41,5 +51,5 @@ Bevor Sie mit dem Programmieren beginnen, lesen Sie bitte unsere [Richtlinien f�
 
 Technischer Einstieg für Entwicklung (Architektur, Domäne, lokale Commands): [docs/README.md](docs/README.md).
 
-- Machen Sie sich mit der [Dokumentation im Wiki](https://github.com/eMatChef/eMatChef1/wiki) vertraut.
+- Machen Sie sich mit der [Dokumentation auf docs.ematchef.ch](https://docs.ematchef.ch) vertraut.
 - Wählen Sie ein [Problem mit der Bezeichnung „gutes erstes Problem“](https://github.com/eMatChef/eMatChef1/issues) und versuchen Sie, es zu lösen.
