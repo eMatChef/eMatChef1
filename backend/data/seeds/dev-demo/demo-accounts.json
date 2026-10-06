@@ -1,0 +1,164 @@
+{
+  "_comment": "TESTDATEN für Development/Staging. Einzige Quelle für Demo-Konten (Seeds, Doku docs.ematchef.ch). Die TOTP-Secrets sind bewusst öffentliche Testwerte und gelten nie für echte Konten. Nie in Production seeden.",
+  "publicDocumentation": true,
+  "domain": "demo.ematchef.ch",
+  "password": "test!ematchef",
+  "totpIssuer": "eMatChef Demo",
+  "accounts": [
+    {
+      "key": "superadmin",
+      "email": "superadmin@demo.ematchef.ch",
+      "legacyEmail": "superadmin@ematchef.ch",
+      "label": "Superadmin",
+      "role": "sa",
+      "group": "global",
+      "totpSecret": "57KQ47BTORN4R3VBTCLJOX7AM7ZJXNGG"
+    },
+    {
+      "key": "orgchef",
+      "email": "orgchef@demo.ematchef.ch",
+      "legacyEmail": "organisationschef@ematchef.ch",
+      "label": "Organisationschef",
+      "role": "org",
+      "group": "global",
+      "totpSecret": "2F5IT4W3IALRT2I4OPGDGZ4VGVEF3BVU"
+    },
+    {
+      "key": "suborgchef",
+      "email": "suborgchef@demo.ematchef.ch",
+      "legacyEmail": "suborgchef@ematchef.ch",
+      "label": "Suborgchef",
+      "role": "sub",
+      "group": "global",
+      "totpSecret": "HCSIT3ASF7Y5ZEKUCGZUS7NO3ADFC3RO"
+    },
+    {
+      "key": "matwart",
+      "email": "matwart@demo.ematchef.ch",
+      "legacyEmail": "matwart@ematchef.ch",
+      "label": "Materialchef",
+      "role": "mw",
+      "group": "department"
+    },
+    {
+      "key": "depchef",
+      "email": "depchef@demo.ematchef.ch",
+      "legacyEmail": "depchef@ematchef.ch",
+      "label": "Departmentchef",
+      "role": "dc",
+      "group": "department"
+    },
+    {
+      "key": "leader1",
+      "email": "leader1@demo.ematchef.ch",
+      "legacyEmail": "leader1@ematchef.ch",
+      "label": "Leader 1",
+      "role": "l1",
+      "group": "department"
+    },
+    {
+      "key": "leader2",
+      "email": "leader2@demo.ematchef.ch",
+      "legacyEmail": "leader2@ematchef.ch",
+      "label": "Leader 2",
+      "role": "l2",
+      "group": "department"
+    },
+    {
+      "key": "leader3",
+      "email": "leader3@demo.ematchef.ch",
+      "legacyEmail": "leader3@ematchef.ch",
+      "label": "Leader 3",
+      "role": "l3",
+      "group": "department"
+    },
+    {
+      "key": "user",
+      "email": "user@demo.ematchef.ch",
+      "legacyEmail": "user@ematchef.ch",
+      "label": "User",
+      "role": "u",
+      "group": "department"
+    },
+    {
+      "key": "ga-mw",
+      "email": "ga-mw@demo.ematchef.ch",
+      "legacyEmail": "ga-mw@ematchef.ch",
+      "label": "GA · Materialchef",
+      "role": "mw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-cmw",
+      "email": "ga-cmw@demo.ematchef.ch",
+      "legacyEmail": "ga-cmw@ematchef.ch",
+      "label": "GA · Co-Materialchef",
+      "role": "cmw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-ok",
+      "email": "ga-ok@demo.ematchef.ch",
+      "legacyEmail": "ga-ok@ematchef.ch",
+      "label": "GA · OK-Leitung",
+      "role": "dc",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-komm",
+      "email": "ga-komm@demo.ematchef.ch",
+      "legacyEmail": "ga-komm@ematchef.ch",
+      "label": "GA · Kommunikation",
+      "role": "komm",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-spon",
+      "email": "ga-spon@demo.ematchef.ch",
+      "legacyEmail": "ga-spon@ematchef.ch",
+      "label": "GA · Sponsoring",
+      "role": "spon",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-lw",
+      "email": "ga-lw@demo.ematchef.ch",
+      "legacyEmail": "ga-lw@ematchef.ch",
+      "label": "GA · Logistikwart",
+      "role": "lw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-clw",
+      "email": "ga-clw@demo.ematchef.ch",
+      "legacyEmail": "ga-clw@ematchef.ch",
+      "label": "GA · Co-Logistikwart",
+      "role": "clw",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-bereich",
+      "email": "ga-bereich@demo.ematchef.ch",
+      "legacyEmail": "ga-bereich@ematchef.ch",
+      "label": "GA · Bereichsleitung",
+      "role": "bl",
+      "group": "grossanlass"
+    },
+    {
+      "key": "ga-helfer",
+      "email": "ga-helfer@demo.ematchef.ch",
+      "legacyEmail": "ga-helfer@ematchef.ch",
+      "label": "GA · Helfer",
+      "role": "u",
+      "group": "grossanlass"
+    },
+    {
+      "key": "supplier",
+      "email": "supplier@demo.ematchef.ch",
+      "legacyEmail": "supplier@ematchef.ch",
+      "label": "Lieferant",
+      "role": "supplier",
+      "group": "supplier"
+    }
+  ]
+}
