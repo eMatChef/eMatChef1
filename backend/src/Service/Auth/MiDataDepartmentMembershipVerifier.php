@@ -54,6 +54,7 @@ class MiDataDepartmentMembershipVerifier
             return new MiDataDepartmentVerificationResult(MiDataDepartmentVerificationStatus::UNAVAILABLE);
         }
 
+        $skippedFailure = null;
         try {
             $roles = $this->roleLookup->getRolesForPerson('midata', $session->accessToken, $identity->getExternalUserId());
             $today = new \DateTimeImmutable('today');
@@ -62,15 +63,31 @@ class MiDataDepartmentMembershipVerifier
                 if ($role->personId !== $identity->getExternalUserId() || !$role->isActiveOn($today)) {
                     continue;
                 }
-                $isInDepartment = $role->groupId === $mappings[0]->getExternalGroupId()
-                    || $this->parentChainResolver->isDescendantOrSelfForVerification(
-                        'midata',
-                        $role->groupId,
-                        $mappings[0]->getExternalGroupId(),
-                        $session->accessToken,
-                    );
+                try {
+                    $isInDepartment = $role->groupId === $mappings[0]->getExternalGroupId()
+                        || $this->parentChainResolver->isDescendantOrSelfForVerification(
+                            'midata',
+                            $role->groupId,
+                            $mappings[0]->getExternalGroupId(),
+                            $session->accessToken,
+                        );
+                } catch (HitobitoApiException $exception) {
+                    // A failing lookup of a supported department role (mw, dc) always makes the result unavailable.
+                    if (MiDataSupportedRoleCatalog::isSupported($role->type)) {
+                        throw $exception;
+                    }
+                    // Any other role is skipped; the failure only matters if no other role confirms the membership.
+                    $skippedFailure ??= $exception;
+                    continue;
+                }
                 if ($isInDepartment) {
-                    $verifiedRoles[$role->groupId] ??= $role;
+                    $current = $verifiedRoles[$role->groupId] ?? null;
+                    if (
+                        $current === null
+                        || MiDataSupportedRoleCatalog::outranks($role->type, $current->type)
+                    ) {
+                        $verifiedRoles[$role->groupId] = $role;
+                    }
                 }
             }
             if ($verifiedRoles !== []) {
@@ -83,6 +100,9 @@ class MiDataDepartmentMembershipVerifier
                     $mappings[0]->getExternalGroupId(),
                     $identity->getExternalUserId(),
                 );
+            }
+            if ($skippedFailure !== null) {
+                throw $skippedFailure;
             }
         } catch (HitobitoApiException) {
             return new MiDataDepartmentVerificationResult(MiDataDepartmentVerificationStatus::UNAVAILABLE);

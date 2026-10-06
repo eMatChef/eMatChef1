@@ -8,12 +8,20 @@
           {{ groupsSubtitle }}
         </p>
       </div>
+      <EButton v-if="midataImportAvailable" variant="secondary" @click="openMiDataImport">
+        <v-icon icon="mdi-download" start size="20" />
+        {{ midataButtonLabel }}
+      </EButton>
       <EButton v-if="canFullyManageGroups" variant="primary" @click="openCreateModal()">
         <v-icon icon="mdi-plus" start size="20" />
         {{ t('settings.groups.newGroup') }}
       </EButton>
     </div>
     <div v-else-if="canFullyManageGroups" class="embedded-toolbar">
+      <EButton v-if="midataImportAvailable" variant="secondary" size="small" @click="openMiDataImport">
+        <v-icon icon="mdi-download" start size="18" />
+        {{ midataButtonLabel }}
+      </EButton>
       <EButton variant="primary" size="small" @click="openCreateModal()">
         <v-icon icon="mdi-plus" start size="18" />
         {{ t('settings.groups.newGroup') }}
@@ -149,6 +157,52 @@
         </tbody>
       </table>
     </div>
+
+    <EDialog v-model="showMiDataImport" :max-width="560" :title="midataHasMappings ? t('settings.groups.midataImport.titleUpdate') : t('settings.groups.midataImport.title')">
+      <p class="settings-description">{{ t('settings.groups.midataImport.devNote') }}</p>
+      <div v-if="midataState === 'loading'" class="midata-import-state">
+        <v-progress-circular indeterminate size="24" />
+        <span>{{ t('settings.groups.midataImport.loading') }}</span>
+      </div>
+      <div v-else-if="midataState === 'reauth_required'" class="midata-import-state">
+        <span>{{ t('settings.groups.midataImport.reauthHint') }}</span>
+        <EButton variant="primary" size="small" @click="startMiDataImport">{{ t('settings.groups.midataImport.reauthButton') }}</EButton>
+      </div>
+      <div v-else-if="midataState === 'error'" class="midata-import-state">
+        <span>{{ midataError }}</span>
+        <EButton variant="secondary" size="small" @click="loadMiDataPreview">{{ t('settings.groups.midataImport.retry') }}</EButton>
+      </div>
+      <template v-else>
+        <p v-if="midataTree.length === 0" class="settings-description">{{ t('settings.groups.midataImport.empty') }}</p>
+        <ul v-else class="midata-import-tree">
+          <li v-for="row in midataRows" :key="row.node.external_group_id" :style="{ paddingLeft: `${row.depth * 20}px` }">
+            <label>
+              <input
+                type="checkbox"
+                :disabled="row.node.imported"
+                :checked="row.node.imported || midataSelected.has(row.node.external_group_id)"
+                @change="toggleMiDataNode(row.node.external_group_id)"
+              />
+              {{ row.node.name }}
+              <em v-if="row.node.imported">✓ {{ t('settings.groups.midataImport.alreadyImported') }}</em>
+              <em v-else>{{ t('settings.groups.midataImport.statusNew') }}</em>
+            </label>
+          </li>
+        </ul>
+      </template>
+      <template #actions>
+        <EButton variant="secondary" size="small" @click="showMiDataImport = false">{{ t('common.cancel') }}</EButton>
+        <EButton
+          variant="primary"
+          size="small"
+          :disabled="midataState !== 'ready' || midataSelected.size === 0 || midataImporting"
+          :loading="midataImporting"
+          @click="runMiDataImport"
+        >
+          {{ t('settings.groups.midataImport.submit') }}
+        </EButton>
+      </template>
+    </EDialog>
 
     <EDialog
       v-model="showGroupModal"
@@ -303,7 +357,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { midataLinkStartUrl } from '@/api/auth'
+import { getMiDataGroupImport, importMiDataGroups, type MiDataImportNode } from '@/api/midataGroupImport'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -345,6 +401,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 const confirm = useConfirm()
@@ -633,16 +690,139 @@ async function handleRemoveMember(member: GroupMember) {
   }
 }
 
+
+// === MiData-Gruppenimport ===
+const midataImportAvailable = ref(false)
+const showMiDataImport = ref(false)
+const midataTree = ref<MiDataImportNode[]>([])
+const midataSelected = ref(new Set<string>())
+const midataImporting = ref(false)
+const midataState = ref<'loading' | 'ready' | 'reauth_required' | 'error'>('loading')
+const midataError = ref('')
+const midataHasMappings = ref(false)
+const midataButtonLabel = computed(() =>
+  midataHasMappings.value ? t('settings.groups.midataImport.buttonUpdate') : t('settings.groups.midataImport.button'),
+)
+
+const midataRows = computed(() => {
+  const depthOf = new Map<string, number>()
+  return midataTree.value.map((node) => {
+    const depth = (depthOf.get(node.parent_external_group_id) ?? -1) + 1
+    depthOf.set(node.external_group_id, depth)
+    return { node, depth }
+  })
+})
+
+async function loadMiDataImportState() {
+  if (!departmentId.value) return
+  try {
+    const state = await getMiDataGroupImport(departmentId.value)
+    midataImportAvailable.value = state.available
+    midataHasMappings.value = state.has_mappings
+  } catch {
+    midataImportAvailable.value = false
+  }
+}
+
+function openMiDataImport() {
+  showMiDataImport.value = true
+  void loadMiDataPreview()
+}
+
+// Es wird kein MiData-Token gespeichert: ohne gültigen Snapshot ist eine interaktive Anmeldung (inkl. 2FA) nötig.
+async function loadMiDataPreview() {
+  midataState.value = 'loading'
+  midataSelected.value = new Set()
+  try {
+    const state = await getMiDataGroupImport(departmentId.value)
+    midataImportAvailable.value = state.available
+    midataHasMappings.value = state.has_mappings
+    if (!state.available) {
+      midataError.value = t('settings.groups.midataImport.result.denied')
+      midataState.value = 'error'
+    } else if (state.tree) {
+      midataTree.value = state.tree
+      midataState.value = 'ready'
+    } else {
+      midataState.value = 'reauth_required'
+    }
+  } catch (err: any) {
+    midataError.value = err.response?.data?.error || t('settings.groups.midataImport.error')
+    midataState.value = 'error'
+  }
+}
+
+function startMiDataImport() {
+  // Frischer MiData-Login nötig: der Server lädt die Untergruppen im OAuth-Callback.
+  window.location.assign(midataLinkStartUrl(`${route.path}?midata_group_import=${encodeURIComponent(departmentId.value)}`))
+}
+
+// Parent an-/abwählen wirkt rekursiv auf alle noch nicht importierten Nachkommen; ein Child allein lässt den Parent unberührt.
+function toggleMiDataNode(id: string) {
+  const next = new Set(midataSelected.value)
+  const select = !next.has(id)
+  const childrenByParent = new Map<string, MiDataImportNode[]>()
+  for (const node of midataTree.value) {
+    const siblings = childrenByParent.get(node.parent_external_group_id) ?? []
+    siblings.push(node)
+    childrenByParent.set(node.parent_external_group_id, siblings)
+  }
+  const apply = (nodeId: string) => {
+    if (select) next.add(nodeId)
+    else next.delete(nodeId)
+    for (const child of childrenByParent.get(nodeId) ?? []) {
+      if (!child.imported) apply(child.external_group_id)
+    }
+  }
+  apply(id)
+  midataSelected.value = next
+}
+
+async function runMiDataImport() {
+  midataImporting.value = true
+  try {
+    const result = await importMiDataGroups(departmentId.value, [...midataSelected.value])
+    toast.success(t('settings.groups.midataImport.done', { count: result.imported }))
+    showMiDataImport.value = false
+    await Promise.all([loadGroups(), loadMiDataImportState()])
+  } catch (err: any) {
+    toast.error(err.response?.data?.error || t('settings.groups.midataImport.error'))
+  } finally {
+    midataImporting.value = false
+  }
+}
+
+async function handleMiDataImportReturn() {
+  const result = route.query.midata_group_import_result
+  await loadMiDataImportState()
+  if (typeof result !== 'string') return
+  const { midata_group_import_result: _r, midata_group_import: _i, ...rest } = route.query
+  await router.replace({ query: rest })
+  if (result === 'ok') {
+    openMiDataImport()
+    return
+  }
+  showMiDataImport.value = true
+  midataError.value = t(`settings.groups.midataImport.result.${['denied', 'unavailable'].includes(result) ? result : 'failed'}`)
+  midataState.value = 'error'
+}
+
 // === Lifecycle ===
 
 watch(departmentId, () => loadGroups())
 
 onMounted(() => {
   loadGroups()
+  if (props.embedded) handleMiDataImportReturn()
 })
 </script>
 
 <style scoped>
+.midata-import-state { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+
+.midata-import-tree { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.midata-import-tree em { opacity: 0.7; margin-left: 4px; }
+
 /* ========================================
    Layout & Header
    ======================================== */

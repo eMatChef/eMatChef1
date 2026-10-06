@@ -12,6 +12,8 @@ use Psr\Log\LoggerInterface;
 final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup, ResetInterface
 {
     private const MAX_ROLE_PAGES = 100;
+    /** Group attributes read by HitobitoGroup::fromJsonApi (type, name, parent_id); the id is top-level. */
+    private const CHILD_GROUP_FIELDS = 'name,type,parent_id';
 
     /**
      * Groups already loaded in this request, keyed by provider, token and group ID.
@@ -42,6 +44,62 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
         }
 
         return $this->groupCache[$cacheKey] = $this->fetchGroup($provider, $accessToken, $groupId);
+    }
+
+    /**
+     * Direct child groups of one group, read only. Entries whose parent is not exactly $parentId are dropped.
+     *
+     * @return list<HitobitoGroup>
+     */
+    public function getChildGroups(string $provider, string $accessToken, string $parentId): array
+    {
+        if ($parentId === '') {
+            throw new HitobitoApiException('invalid_group_id', 'Hitobito group id is missing');
+        }
+
+        $baseUrl = $this->providerBaseUrl($provider);
+        // Sparse fieldset: only what HitobitoGroup::fromJsonApi needs. MiData fails serializing groups with an empty
+        // zip_code (Integer typecast), so the address attributes must not be requested.
+        $url = $baseUrl . '/api/groups?' . http_build_query([
+            'filter' => ['parent_id' => $parentId],
+            'fields' => ['groups' => self::CHILD_GROUP_FIELDS],
+        ]);
+        $seenUrls = [];
+        $children = [];
+
+        for ($page = 0; $url !== null; $page++) {
+            if ($page >= self::MAX_ROLE_PAGES) {
+                throw new HitobitoApiException('pagination_limit', 'Hitobito groups pagination exceeded the safety limit');
+            }
+            if (isset($seenUrls[$url])) {
+                throw new HitobitoApiException('pagination_cycle', 'Hitobito groups pagination contains a cycle');
+            }
+            $seenUrls[$url] = true;
+
+            $document = $this->getDocument($accessToken, $url);
+            $resources = $document['data'] ?? null;
+            if ($document === null || !is_array($resources) || !array_is_list($resources)) {
+                throw new HitobitoApiException('malformed_response', 'Hitobito groups response is malformed', 200);
+            }
+            foreach ($resources as $resource) {
+                try {
+                    $group = HitobitoGroup::fromJsonApi(is_array($resource) ? $resource : []);
+                } catch (HitobitoGroupParseException $exception) {
+                    throw new HitobitoApiException('malformed_response', 'Hitobito group entry is malformed', 200, $exception);
+                }
+                if ($group->parentId === $parentId) {
+                    $children[$group->id] = $group;
+                }
+            }
+
+            $next = $document['links']['next'] ?? null;
+            if (is_array($next)) {
+                $next = $next['href'] ?? null;
+            }
+            $url = is_string($next) && $next !== '' ? $this->resolvePaginationUrl($baseUrl, $next, '/api/groups') : null;
+        }
+
+        return array_values($children);
     }
 
     public function reset(): void
@@ -248,12 +306,12 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
         return rtrim($issuer, '/');
     }
 
-    private function resolvePaginationUrl(string $baseUrl, string $next): string
+    private function resolvePaginationUrl(string $baseUrl, string $next, string $endpointPath = '/api/roles'): string
     {
         if (str_starts_with($next, 'https://')) {
             $resolved = $next;
         } elseif (str_starts_with($next, '?')) {
-            $resolved = $baseUrl . '/api/roles' . $next;
+            $resolved = $baseUrl . $endpointPath . $next;
         } elseif (str_starts_with($next, '/')) {
             $resolved = $baseUrl . $next;
         } else {
@@ -268,7 +326,7 @@ final class HitobitoApiClient implements HitobitoGroupLookup, HitobitoRoleLookup
             || ($nextParts['scheme'] ?? null) !== 'https'
             || ($nextParts['host'] ?? null) !== ($baseParts['host'] ?? null)
             || ($nextParts['port'] ?? null) !== ($baseParts['port'] ?? null)
-            || ($nextParts['path'] ?? null) !== '/api/roles'
+            || ($nextParts['path'] ?? null) !== $endpointPath
             || isset($nextParts['user'])
             || isset($nextParts['pass'])
             || isset($nextParts['fragment'])

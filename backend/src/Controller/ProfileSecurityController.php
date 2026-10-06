@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\ExternalIdentity;
 use App\Entity\User;
 use App\Entity\UserSession;
 use App\Repository\UserSessionRepository;
+use App\Service\AuditLogger;
 use App\Service\Auth\CurrentAuthSession;
 use App\Service\Auth\SecurityActivityService;
 use App\Service\Auth\TrustedDeviceService;
 use App\Service\Auth\UserSessionManager;
 use App\Util\UserAgentSummary;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,6 +35,8 @@ final class ProfileSecurityController extends AbstractController
         private readonly CurrentAuthSession $currentSession,
         private readonly TrustedDeviceService $trustedDevices,
         private readonly SecurityActivityService $activity,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly AuditLogger $auditLogger,
     ) {
     }
 
@@ -88,6 +93,54 @@ final class ProfileSecurityController extends AbstractController
         $this->sessionManager->revokeOtherSessionByUser($user, $target, $current);
 
         return $this->noStore(new JsonResponse(['sessions' => $this->serializeSessions($user)]));
+    }
+
+    /** Verbundene externe Identitäten (nur Provider und Zeitpunkt; keine Tokens, keine externe User-ID). */
+    #[Route('/external-identities', name: 'external_identities', methods: ['GET'])]
+    public function externalIdentities(string $id): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+
+        return $this->noStore(new JsonResponse(['identities' => $this->serializeExternalIdentities($user)]));
+    }
+
+    /**
+     * Trennt ausschliesslich die ExternalIdentity des Providers. Memberships, Departments und Gruppen bleiben unberührt.
+     * Nur MiData ist trennbar; das Konto darf sich dabei nicht aussperren.
+     */
+    #[Route('/external-identities/{provider}', name: 'external_identity_disconnect', methods: ['DELETE'])]
+    public function disconnectExternalIdentity(string $id, string $provider): JsonResponse
+    {
+        $user = $this->requireOwnUser($id);
+        if ($user instanceof JsonResponse) {
+            return $user;
+        }
+        if ($provider !== 'midata') {
+            return new JsonResponse(['error' => 'Dieser Anbieter kann hier nicht getrennt werden'], 400);
+        }
+
+        $identity = $this->findIdentity($user, $provider);
+        if (!$identity instanceof ExternalIdentity) {
+            return new JsonResponse(['error' => 'Verbindung nicht gefunden'], 404);
+        }
+        if (!$this->canDisconnect($user, $identity)) {
+            return new JsonResponse([
+                'error' => 'last_login_method',
+                'message' => 'MiData ist deine einzige Anmeldemöglichkeit. Bestätige zuerst deine E-Mail-Adresse oder verbinde einen anderen Anbieter.',
+            ], 409);
+        }
+
+        $user->getExternalIdentities()->removeElement($identity);
+        $this->entityManager->remove($identity);
+        $this->auditLogger->log('user', $user->getId(), 'external_identity_unlinked', $user, $user, null, [
+            'provider' => ['old' => $provider, 'new' => null],
+        ]);
+        $this->entityManager->flush();
+
+        return $this->noStore(new JsonResponse(['identities' => $this->serializeExternalIdentities($user)]));
     }
 
     #[Route('/trusted-devices', name: 'trusted_devices', methods: ['GET'])]
@@ -194,5 +247,50 @@ final class ProfileSecurityController extends AbstractController
         }
 
         return $user;
+    }
+
+    private function findIdentity(User $user, string $provider): ?ExternalIdentity
+    {
+        foreach ($user->getExternalIdentities() as $identity) {
+            if ($identity->getProvider() === $provider) {
+                return $identity;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Passwörter von Konten, die über einen Anbieter angelegt wurden, sind zufällig und unbekannt. Trennen ist deshalb
+     * nur erlaubt, wenn eine andere Anmeldung bleibt: ein anderer Anbieter oder eine bestätigte E-Mail-Adresse
+     * (Passwort-Zurücksetzen).
+     */
+    private function canDisconnect(User $user, ExternalIdentity $identity): bool
+    {
+        foreach ($user->getExternalIdentities() as $other) {
+            if ($other !== $identity) {
+                return true;
+            }
+        }
+
+        return $user->isEmailVerified();
+    }
+
+    /** @return list<array{provider: string, label: string, linked_at: string, can_disconnect: bool}> */
+    private function serializeExternalIdentities(User $user): array
+    {
+        $labels = ['midata' => 'MiData / db.scout.ch', 'google' => 'Google'];
+        $result = [];
+        foreach ($user->getExternalIdentities() as $identity) {
+            $provider = $identity->getProvider();
+            $result[] = [
+                'provider' => $provider,
+                'label' => $labels[$provider] ?? $provider,
+                'linked_at' => $identity->getCreatedAt()->format('c'),
+                'can_disconnect' => $provider === 'midata' && $this->canDisconnect($user, $identity),
+            ];
+        }
+
+        return $result;
     }
 }

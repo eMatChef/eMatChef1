@@ -87,6 +87,7 @@ final class MiDataDepartmentOnboardingService
         }
 
         $offered = 0;
+        $verifiedOffers = [];
         $roles = null;
         if ($direct !== []) {
             try {
@@ -103,12 +104,53 @@ final class MiDataDepartmentOnboardingService
                 continue;
             }
 
-            $this->upsertOffer($user, $verification);
+            $verifiedOffers[] = [$this->upsertOffer($user, $verification), $verification];
             $offered++;
         }
         $this->entityManager->flush();
+        $this->autoAssignUnassignedUser($user, $session, $verifiedOffers);
 
         return $offered;
+    }
+
+    /**
+     * A user without any membership is assigned directly when exactly one verified offer has the best role priority
+     * (one mw, or a single dc when no mw exists). Several equal offers stay a manual choice; the search mode and the
+     * long tail of dc roles never reach this point because they are not verified at login.
+     *
+     * @param list<array{0: MiDataDepartmentOnboarding, 1: MiDataMaterialwartVerification}> $verifiedOffers
+     */
+    private function autoAssignUnassignedUser(User $user, HitobitoOAuthSession $session, array $verifiedOffers): void
+    {
+        if (
+            $verifiedOffers === []
+            || !$this->identityMatchesSession($user, $session, $session->userInfo->subject)
+            || $this->entityManager->getRepository(Membership::class)->count(['userId' => $user->getId()]) > 0
+        ) {
+            return;
+        }
+
+        $best = min(array_map(
+            static fn (array $offer): int => MiDataSupportedRoleCatalog::priority($offer[1]->role->type),
+            $verifiedOffers,
+        ));
+        $top = array_values(array_filter(
+            $verifiedOffers,
+            static fn (array $offer): bool => MiDataSupportedRoleCatalog::priority($offer[1]->role->type) === $best,
+        ));
+        if (count($top) !== 1) {
+            $this->logOfferSkipped($user, '*', 'auto_assign_ambiguous');
+
+            return;
+        }
+
+        [$onboarding, $verification] = $top[0];
+        $outcome = $this->provisionVerifiedOffer($user, $onboarding, $verification);
+        $this->logger->info('MiData auto-assignment finished', [
+            'user_id' => $user->getId(),
+            'status' => $outcome->status->value,
+            'reason' => $outcome->reason,
+        ]);
     }
 
     /**

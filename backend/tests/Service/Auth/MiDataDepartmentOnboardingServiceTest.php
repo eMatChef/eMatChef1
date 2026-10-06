@@ -62,6 +62,7 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
     /** @var list<object> */
     private array $removed = [];
     private int $roleLoads = 0;
+    private int $existingMemberships = 0;
     /** @var list<string> */
     private array $verifiedGroups = [];
 
@@ -75,6 +76,7 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
             $this->memberOf,
             true,
         ) ? new Membership() : null);
+        $memberships->method('count')->willReturnCallback(fn (): int => $this->existingMemberships);
         $generic = $this->createMock(EntityRepository::class);
         $generic->method('findOneBy')->willReturn(null);
         $this->entityManager->method('getRepository')->willReturnCallback(
@@ -152,6 +154,43 @@ final class MiDataDepartmentOnboardingServiceTest extends TestCase
         self::assertSame('Pfadi Luzern', $offer->getKantonalverbandName());
         self::assertFalse($offer->isExpired(new \DateTime('+23 hours')));
         self::assertTrue($offer->isExpired(new \DateTime('+25 hours')));
+    }
+
+    public function testUnassignedUserWithOneVerifiedMaterialwartIsAssignedDirectly(): void
+    {
+        $this->givenMappedBund();
+        $this->givenIdentity('1131');
+        $this->givenVerifierConfirmsEveryGroup();
+        $this->provisioner->expects(self::once())->method('provision')
+            ->willReturnCallback(fn (): MiDataDepartmentProvisioningResult => new MiDataDepartmentProvisioningResult(
+                (new Department())->setId('dep000000051'),
+                true,
+                ['51'],
+                true,
+            ));
+
+        $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [$this->userInfoRole('51')]));
+    }
+
+    public function testSeveralEquallyRankedAbteilungenAreNotAssignedAutomatically(): void
+    {
+        $this->givenMappedBund();
+        $this->givenIdentity('1131');
+        $this->givenVerifierConfirmsEveryGroup();
+        $this->provisioner->expects(self::never())->method('provision');
+
+        $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: $this->materialwartRoles(2)));
+    }
+
+    public function testUserWithAnExistingMembershipIsNeverAssignedAutomatically(): void
+    {
+        $this->givenMappedBund();
+        $this->givenIdentity('1131');
+        $this->givenVerifierConfirmsEveryGroup();
+        $this->existingMemberships = 1;
+        $this->provisioner->expects(self::never())->method('provision');
+
+        $this->service()->offerFromOAuthCallback($this->user, $this->session(roles: [$this->userInfoRole('51')]));
     }
 
     public function testSeveralAbteilungenGetOneOfferEachWithASingleRolesLoad(): void

@@ -69,3 +69,24 @@ export async function getSecurityActivity(profileId: string, limit = 20): Promis
   })
   return data.events
 }
+
+export type ExternalIdentitySummary = {
+  provider: string
+  label: string
+  linked_at: string
+  can_disconnect: boolean
+}
+
+export async function getExternalIdentities(profileId: string): Promise<ExternalIdentitySummary[]> {
+  const { data } = await apiClient.get<{ identities: ExternalIdentitySummary[] }>(
+    `/api/profiles/${profileId}/security/external-identities`,
+  )
+  return data.identities
+}
+
+export async function disconnectExternalIdentity(profileId: string, provider: string): Promise<ExternalIdentitySummary[]> {
+  const { data } = await apiClient.delete<{ identities: ExternalIdentitySummary[] }>(
+    `/api/profiles/${profileId}/security/external-identities/${encodeURIComponent(provider)}`,
+  )
+  return data.identities
+}

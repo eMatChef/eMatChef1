@@ -2238,6 +2238,17 @@
     },
       "title": "Edit profile",
       "securitySection": "Security",
+        "externalIdentities": {
+          "title": "Connected sign-ins",
+          "hint": "External accounts you can use to sign in to eMatChef.",
+          "linkedAt": "Connected since {date}",
+          "disconnect": "Disconnect",
+          "confirmTitle": "Disconnect from MiData?",
+          "confirmMessage": "You will no longer be able to sign in with MiData. Your departments, roles and groups in eMatChef stay unchanged.",
+          "lastMethod": "MiData is your only way to sign in. Verify your email address or connect another provider first.",
+          "disconnected": "Disconnected.",
+          "error": "Could not disconnect."
+        },
       "sessions": {
         "title": "Devices & sessions",
         "hint": "See where you are signed in. End sessions you don't recognise.",
@@ -4774,6 +4785,28 @@
       "loading": "Loading groups…",
       "emptyTitle": "No groups yet",
       "emptyDescription": "Create your first group to organise members.",
+      "midataImport": {
+        "loading": "Loading groups from MiData …",
+        "reauthHint": "Accessing the MiData groups requires signing in to MiData again.",
+        "reauthButton": "Sign in to MiData",
+        "retry": "Try again",
+        "devNote": "This MiData import feature is still under development.",
+        "buttonUpdate": "Update from MiData (development)",
+        "titleUpdate": "Update groups from MiData",
+        "statusNew": "New",
+        "button": "Import from MiData (development)",
+        "title": "Import groups from MiData",
+        "empty": "No importable sub-groups found.",
+        "alreadyImported": "already imported",
+        "submit": "Import selected groups",
+        "done": "{count} group(s) imported.",
+        "error": "Import failed.",
+        "result": {
+          "denied": "You may not import MiData groups for this department.",
+          "unavailable": "MiData is currently unavailable.",
+          "failed": "MiData import failed."
+        }
+      },
       "firstGroup": "Create first group",
       "colLeaders": "Leaders",
       "colMembers": "Members",

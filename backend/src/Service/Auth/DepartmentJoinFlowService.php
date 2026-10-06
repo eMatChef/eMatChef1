@@ -132,7 +132,8 @@ final class DepartmentJoinFlowService
             $membership = new Membership();
             $membership->setUser($user);
             $membership->setDepartment($department);
-            $membership->setRole('u');
+            $role = $this->verifiedMembershipRole($verification);
+            $membership->setRole($role);
             $membership->setIsPrimary($this->entityManager->getRepository(Membership::class)->count(['userId' => $user->getId()]) === 0);
             $this->auditLogger->log(
                 'membership',
@@ -142,7 +143,7 @@ final class DepartmentJoinFlowService
                 $user,
                 $department,
                 [
-                    'role' => ['old' => null, 'new' => 'u'],
+                    'role' => ['old' => null, 'new' => $role],
                     'is_primary' => ['old' => null, 'new' => $membership->getIsPrimary()],
                 ],
             );
@@ -186,6 +187,28 @@ final class DepartmentJoinFlowService
             $request,
             $groupMembershipSync,
         );
+    }
+
+    /**
+     * mw/dc only for an exact, active supported role directly in the mapped Abteilung group; otherwise the
+     * join-code semantics (u) apply. Role names are never used.
+     */
+    private function verifiedMembershipRole(MiDataDepartmentVerificationResult $verification): string
+    {
+        $best = null;
+        foreach ($verification->verifiedRoles as $role) {
+            if (
+                $role->groupId !== $verification->externalDepartmentGroupId
+                || !MiDataSupportedRoleCatalog::isSupported($role->type)
+            ) {
+                continue;
+            }
+            if ($best === null || MiDataSupportedRoleCatalog::outranks($role->type, $best)) {
+                $best = $role->type;
+            }
+        }
+
+        return ($best !== null ? MiDataSupportedRoleCatalog::membershipRole($best) : null) ?? 'u';
     }
 
     private function resolveDepartment(string $joinCode): ?Department

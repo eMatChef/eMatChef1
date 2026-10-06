@@ -155,6 +155,8 @@ final class ProfileSecurityControllerTest extends TestCase
         self::assertSame(404, $this->controller()->revokeTrustedDevice('p_me', 'dX', new Request())->getStatusCode());
     }
 
+    private \Doctrine\ORM\EntityManagerInterface $entityManager;
+
     private function controller(): ProfileSecurityController
     {
         $manager = $this->createMock(UserSessionManager::class);
@@ -185,7 +187,15 @@ final class ProfileSecurityControllerTest extends TestCase
         $activity = $this->createMock(SecurityActivityService::class);
         $trusted = $this->trusted ?? $this->createMock(TrustedDeviceService::class);
 
-        $controller = new ProfileSecurityController($manager, $sessions, $this->currentHolder, $trusted, $activity);
+        $controller = new ProfileSecurityController(
+            $manager,
+            $sessions,
+            $this->currentHolder,
+            $trusted,
+            $activity,
+            $this->entityManager = $this->createMock(\Doctrine\ORM\EntityManagerInterface::class),
+            $this->createMock(\App\Service\AuditLogger::class),
+        );
         $storage = new TokenStorage();
         $storage->setToken(new UsernamePasswordToken($this->me, 'api', ['ROLE_USER']));
         $container = new Container();
@@ -193,6 +203,51 @@ final class ProfileSecurityControllerTest extends TestCase
         $controller->setContainer($container);
 
         return $controller;
+    }
+
+    private function midataIdentity(User $user, string $provider = 'midata'): \App\Entity\ExternalIdentity
+    {
+        $identity = (new \App\Entity\ExternalIdentity())->setProvider($provider)->setExternalUserId('ext-' . $provider);
+        $user->addExternalIdentity($identity);
+
+        return $identity;
+    }
+
+    public function testMiDataCannotBeDisconnectedWhenItIsTheOnlyLoginMethod(): void
+    {
+        $this->me->setEmailVerified(false);
+        $this->midataIdentity($this->me);
+        $controller = $this->controller();
+
+        $response = $controller->disconnectExternalIdentity($this->me->getProfileId(), 'midata');
+
+        self::assertSame(409, $response->getStatusCode());
+        self::assertCount(1, $this->me->getExternalIdentities());
+    }
+
+    public function testDisconnectRemovesOnlyTheMiDataIdentity(): void
+    {
+        $this->me->setEmailVerified(true);
+        $midata = $this->midataIdentity($this->me);
+        $google = $this->midataIdentity($this->me, 'google');
+        $controller = $this->controller();
+        $removed = [];
+        $this->entityManager->method('remove')->willReturnCallback(function (object $o) use (&$removed): void {
+            $removed[] = $o;
+        });
+
+        $response = $controller->disconnectExternalIdentity($this->me->getProfileId(), 'midata');
+
+        self::assertSame(200, $response->getStatusCode());
+        self::assertSame([$midata], $removed);
+        self::assertSame([$google], array_values($this->me->getExternalIdentities()->toArray()));
+    }
+
+    public function testOnlyMiDataCanBeDisconnectedHere(): void
+    {
+        $this->midataIdentity($this->me, 'google');
+
+        self::assertSame(400, $this->controller()->disconnectExternalIdentity($this->me->getProfileId(), 'google')->getStatusCode());
     }
 
     private function user(string $id, string $profileId): User

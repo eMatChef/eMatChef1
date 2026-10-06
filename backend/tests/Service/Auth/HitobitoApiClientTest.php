@@ -49,6 +49,30 @@ final class HitobitoApiClientTest extends TestCase
         self::assertSame(0, $requests[0][2]['max_redirects']);
     }
 
+    public function testChildGroupsRequestUsesSparseFieldsetAndFollowsNextLink(): void
+    {
+        $urls = [];
+        $child = static fn (string $id): array => [
+            'type' => 'groups',
+            'id' => $id,
+            'attributes' => ['type' => 'Group::Pfadi', 'name' => 'Stufe ' . $id, 'parent_id' => 100],
+        ];
+        $http = new MockHttpClient(static function (string $method, string $url) use (&$urls, $child): MockResponse {
+            $urls[] = $url;
+
+            return new MockResponse(json_encode(count($urls) === 1
+                ? ['data' => [$child('201')], 'links' => ['next' => 'https://db.scout.ch/api/groups?page%5Bnumber%5D=2']]
+                : ['data' => [$child('202')]], JSON_THROW_ON_ERROR));
+        });
+
+        $children = $this->client($http)->getChildGroups('midata', 'token', '100');
+
+        self::assertSame(['201', '202'], array_map(static fn ($g): string => $g->id, $children));
+        self::assertStringContainsString('filter%5Bparent_id%5D=100', $urls[0]);
+        self::assertStringContainsString('fields%5Bgroups%5D=name%2Ctype%2Cparent_id', $urls[0]);
+        self::assertSame('https://db.scout.ch/api/groups?page%5Bnumber%5D=2', $urls[1]);
+    }
+
     public function testNormalizesGroupsUsingHitobitoJsonApiRelationships(): void
     {
         $http = new MockHttpClient([

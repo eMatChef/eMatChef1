@@ -147,6 +147,28 @@ final class MiDataOAuthState
         return $this->extractPendingAssignmentId($redirect, 'midata_candidate');
     }
 
+    /**
+     * Returns the department whose MiData group import the user started; only a reference, never authorization.
+     */
+    public function extractGroupImportDepartmentIntent(string $redirect): ?string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || !self::isMyDepartmentPath($parts['path'] ?? null)) {
+            return null;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $id = $query['midata_group_import'] ?? null;
+
+        return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,32}$/', $id) === 1 ? $id : null;
+    }
+
+    /** The department-scoped settings page, with its optional single-segment department prefix. */
+    public static function isMyDepartmentPath(mixed $path): bool
+    {
+        return is_string($path) && preg_match('#^(/[A-Za-z0-9_-]+)?/settings/my-department$#', $path) === 1;
+    }
+
     private function extractPendingAssignmentId(string $redirect, string $parameter): ?string
     {
         $parts = parse_url($redirect);

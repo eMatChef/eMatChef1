@@ -7,6 +7,8 @@ use App\Entity\Group;
 use App\Entity\GroupMembership;
 use App\Entity\User;
 use App\Service\GroupAccessService;
+use App\Service\GroupDeletionService;
+use App\Service\GroupNotDeletableException;
 use App\Util\IdGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -21,6 +23,7 @@ class GroupController extends AbstractController
     public function __construct(
         private EntityManagerInterface $entityManager,
         private GroupAccessService $groupAccess,
+        private GroupDeletionService $groupDeletion,
     ) {}
 
     // ========================================
@@ -320,15 +323,11 @@ class GroupController extends AbstractController
             return new JsonResponse(['error' => 'Keine Berechtigung, Gruppen zu verwalten'], 403);
         }
 
-        // Kinder-Gruppen auf null setzen (werden zu Root-Gruppen)
-        $children = $this->entityManager->getRepository(Group::class)
-            ->findBy(['parentId' => $id]);
-        foreach ($children as $child) {
-            $child->setParent(null);
+        try {
+            $this->groupDeletion->delete($group);
+        } catch (GroupNotDeletableException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage(), 'reason' => $exception->reason], 409);
         }
-
-        $this->entityManager->remove($group);
-        $this->entityManager->flush();
 
         return new JsonResponse(['success' => true]);
     }

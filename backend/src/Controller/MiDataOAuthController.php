@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\Department;
 use App\Entity\User;
 use App\Repository\UserRepository;
 use App\Service\Auth\DepartmentJoinFlowService;
@@ -11,9 +12,11 @@ use App\Service\Auth\DepartmentJoinOutcome;
 use App\Service\Auth\DepartmentJoinOutcomeStatus;
 use App\Service\Auth\HitobitoOAuthClient;
 use App\Service\Auth\MiDataDepartmentOnboardingService;
+use App\Service\Auth\MiDataGroupImportService;
 use App\Service\Auth\MiDataOAuthAccountService;
 use App\Service\Auth\MiDataOAuthException;
 use App\Service\Auth\MiDataOAuthState;
+use Doctrine\ORM\EntityManagerInterface;
 use App\Enum\AuthMethod;
 use App\Service\Auth\MfaChallengeService;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler;
@@ -37,6 +40,8 @@ final class MiDataOAuthController extends AbstractController
         private readonly DepartmentJoinFlowService $departmentJoinFlow,
         private readonly MiDataDepartmentOnboardingService $departmentOnboarding,
         private readonly UserRepository $userRepository,
+        private readonly MiDataGroupImportService $groupImport,
+        private readonly EntityManagerInterface $entityManager,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
         private readonly LoggerInterface $logger,
@@ -76,6 +81,7 @@ final class MiDataOAuthController extends AbstractController
         $joinDepartmentId = null;
         $onboardingResult = null;
         $onboardingDepartmentId = null;
+        $groupImportResult = null;
         $mfa = null;
         try {
             $session = $this->oauthClient->fetchUserInfo(
@@ -100,7 +106,21 @@ final class MiDataOAuthController extends AbstractController
             $onboardingId = $this->oauthState->extractDepartmentOnboardingIntent($verifiedState['redirect']);
             $candidateId = $this->oauthState->extractMembershipCandidateIntent($verifiedState['redirect']);
             $joinCode = $this->oauthState->extractDepartmentJoinCodeIntent($verifiedState['redirect']);
-            if ($onboardingId !== null || $candidateId !== null) {
+            $groupImportDepartmentId = $linkUser instanceof User
+                ? $this->oauthState->extractGroupImportDepartmentIntent($verifiedState['redirect'])
+                : null;
+            if ($groupImportDepartmentId !== null) {
+                // Only loads a snapshot of importable sub-groups; the actual import is a separate, authorized API call.
+                try {
+                    $department = $this->entityManager->getRepository(Department::class)->find($groupImportDepartmentId);
+                    $groupImportResult = $department instanceof Department
+                        ? $this->groupImport->loadSnapshotFromOAuthCallback($user, $department, $session)
+                        : 'denied';
+                } catch (\Throwable $exception) {
+                    $this->logger->error('MiData group import snapshot failed', ['exception' => $exception]);
+                    $groupImportResult = 'failed';
+                }
+            } elseif ($onboardingId !== null || $candidateId !== null) {
                 try {
                     $onboardingOutcome = $onboardingId !== null
                         ? $this->departmentOnboarding->completeFromOAuthCallback($user, $onboardingId, $session)
@@ -150,6 +170,9 @@ final class MiDataOAuthController extends AbstractController
         }
         if ($onboardingResult !== null) {
             $frontendPath = $this->withOnboardingResult($frontendPath, $onboardingResult, $onboardingDepartmentId);
+        }
+        if ($groupImportResult !== null) {
+            $frontendPath = $this->withGroupImportResult($frontendPath, $groupImportResult);
         }
         if ($mfa !== null) {
             // Challenge im Fragment: erreicht weder Server-Logs noch Referer.
@@ -298,6 +321,19 @@ final class MiDataOAuthController extends AbstractController
         if ($departmentId !== null) {
             $query['midata_onboarding_department_id'] = $departmentId;
         }
+
+        return $parts['path'] . '?' . http_build_query($query);
+    }
+
+    private function withGroupImportResult(string $redirect, string $result): string
+    {
+        $parts = parse_url($redirect);
+        if (!is_array($parts) || !MiDataOAuthState::isMyDepartmentPath($parts['path'] ?? null)) {
+            return $redirect;
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $query);
+        $query['midata_group_import_result'] = $result;
 
         return $parts['path'] . '?' . http_build_query($query);
     }

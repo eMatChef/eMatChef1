@@ -393,6 +393,17 @@
     },
     "profileModal": {
       "securitySection": "Sécurité",
+        "externalIdentities": {
+          "title": "Connexions liées",
+          "hint": "Comptes externes avec lesquels vous pouvez vous connecter à eMatChef.",
+          "linkedAt": "Lié depuis le {date}",
+          "disconnect": "Déconnecter",
+          "confirmTitle": "Déconnecter MiData ?",
+          "confirmMessage": "Vous ne pourrez plus vous connecter avec MiData. Vos départements, rôles et groupes dans eMatChef restent inchangés.",
+          "lastMethod": "MiData est votre seul moyen de connexion. Confirmez d'abord votre adresse e-mail ou liez un autre fournisseur.",
+          "disconnected": "Connexion supprimée.",
+          "error": "Impossible de déconnecter."
+        },
       "sessions": {
         "title": "Appareils et sessions",
         "hint": "Vois où tu es connecté. Termine les sessions que tu ne reconnais pas.",
@@ -706,6 +717,28 @@
       "title": "Groupes",
       "subtitle": "Gerer les groupes et les chefs",
       "newGroup": "Nouveau groupe",
+      "midataImport": {
+        "loading": "Chargement des groupes depuis MiData …",
+        "reauthHint": "L'accès aux groupes MiData nécessite une nouvelle connexion à MiData.",
+        "reauthButton": "Se connecter à MiData",
+        "retry": "Réessayer",
+        "devNote": "Cette fonction d'import MiData est encore en développement.",
+        "buttonUpdate": "Mettre à jour avec MiData (développement)",
+        "titleUpdate": "Mettre à jour les groupes avec MiData",
+        "statusNew": "Nouveau",
+        "button": "Importer depuis MiData (développement)",
+        "title": "Importer des groupes depuis MiData",
+        "empty": "Aucun sous-groupe importable trouvé.",
+        "alreadyImported": "déjà importé",
+        "submit": "Importer les groupes sélectionnés",
+        "done": "{count} groupe(s) importé(s).",
+        "error": "Échec de l'import.",
+        "result": {
+          "denied": "Vous n'êtes pas autorisé à importer des groupes MiData pour ce département.",
+          "unavailable": "MiData est actuellement indisponible.",
+          "failed": "Échec de l'import MiData."
+        }
+      },
       "statGroups": "Groupes",
       "statMembers": "Membres",
       "statLeaders": "Chefs",

@@ -1006,6 +1006,20 @@ onMounted(() => {
   // Setze initiales Department auf das aktive Department
   selectedDepartmentId.value = authStore.activeDepartmentId || 
     (userDepartments.value[0]?.department_id ?? null)
+
+  // Rückkehr vom MiData-Gruppenimport: Gruppenbereich öffnen, damit das Import-Modal erscheint.
+  if (typeof route.query.midata_group_import_result === 'string') {
+    openAccordion.value = 'groups'
+    groupsPanelMounted.value = true
+    // Der Snapshot gehört zum Department, für das der Import gestartet wurde – nicht zwingend zum aktiven.
+    const importDepartmentId = route.query.midata_group_import
+    if (
+      typeof importDepartmentId === 'string' &&
+      userDepartments.value.some((d) => d.department_id === importDepartmentId)
+    ) {
+      selectedDepartmentId.value = importDepartmentId
+    }
+  }
   
   if (selectedDepartmentId.value) {
     loadDepartment(selectedDepartmentId.value)

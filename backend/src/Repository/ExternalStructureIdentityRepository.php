@@ -61,4 +61,20 @@ class ExternalStructureIdentityRepository extends ServiceEntityRepository
     {
         return $this->findBy(['organisation' => $organisation]);
     }
+
+    /**
+     * Number of provider group mappings whose internal group belongs to the department.
+     */
+    public function countGroupMappingsForDepartment(string $provider, Department $department): int
+    {
+        return (int) $this->createQueryBuilder('m')
+            ->select('COUNT(m.id)')
+            ->join('m.group', 'g')
+            ->andWhere('m.provider = :provider')
+            ->andWhere('g.departmentId = :departmentId')
+            ->setParameter('provider', $provider)
+            ->setParameter('departmentId', $department->getId())
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }

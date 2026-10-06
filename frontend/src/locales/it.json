@@ -297,6 +297,17 @@
     },
     "profileModal": {
       "securitySection": "Sicurezza",
+        "externalIdentities": {
+          "title": "Accessi collegati",
+          "hint": "Account esterni con cui puoi accedere a eMatChef.",
+          "linkedAt": "Collegato dal {date}",
+          "disconnect": "Scollega",
+          "confirmTitle": "Scollegare MiData?",
+          "confirmMessage": "Non potrai più accedere con MiData. I tuoi reparti, ruoli e gruppi in eMatChef restano invariati.",
+          "lastMethod": "MiData è il tuo unico modo di accesso. Conferma prima il tuo indirizzo e-mail o collega un altro provider.",
+          "disconnected": "Collegamento rimosso.",
+          "error": "Impossibile scollegare."
+        },
       "sessions": {
         "title": "Dispositivi e sessioni",
         "hint": "Vedi dove sei collegato. Termina le sessioni che non riconosci.",
@@ -610,6 +621,28 @@
       "title": "Gruppi",
       "subtitle": "Gestisci gruppi e capi",
       "newGroup": "Nuovo gruppo",
+      "midataImport": {
+        "loading": "Caricamento dei gruppi da MiData …",
+        "reauthHint": "Per accedere ai gruppi MiData è necessario accedere di nuovo a MiData.",
+        "reauthButton": "Accedi a MiData",
+        "retry": "Riprova",
+        "devNote": "Questa funzione di importazione MiData è ancora in sviluppo.",
+        "buttonUpdate": "Aggiorna con MiData (sviluppo)",
+        "titleUpdate": "Aggiorna i gruppi con MiData",
+        "statusNew": "Nuovo",
+        "button": "Importa da MiData (sviluppo)",
+        "title": "Importa gruppi da MiData",
+        "empty": "Nessun sottogruppo importabile trovato.",
+        "alreadyImported": "già importato",
+        "submit": "Importa i gruppi selezionati",
+        "done": "{count} gruppo/i importato/i.",
+        "error": "Importazione non riuscita.",
+        "result": {
+          "denied": "Non puoi importare gruppi MiData per questo reparto.",
+          "unavailable": "MiData al momento non è raggiungibile.",
+          "failed": "Importazione MiData non riuscita."
+        }
+      },
       "statGroups": "Gruppi",
       "statMembers": "Membri",
       "statLeaders": "Capi",

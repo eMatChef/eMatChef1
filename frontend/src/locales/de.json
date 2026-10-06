@@ -2382,6 +2382,17 @@
     },
       "title": "Profil bearbeiten",
       "securitySection": "Sicherheit",
+        "externalIdentities": {
+          "title": "Verbundene Anmeldungen",
+          "hint": "Externe Konten, über die du dich bei eMatChef anmelden kannst.",
+          "linkedAt": "Verbunden seit {date}",
+          "disconnect": "Verbindung trennen",
+          "confirmTitle": "Verbindung zu MiData trennen?",
+          "confirmMessage": "Du kannst dich danach nicht mehr mit MiData anmelden. Deine Abteilungen, Rollen und Gruppen in eMatChef bleiben unverändert.",
+          "lastMethod": "MiData ist deine einzige Anmeldemöglichkeit. Bestätige zuerst deine E-Mail-Adresse oder verbinde einen anderen Anbieter.",
+          "disconnected": "Verbindung getrennt.",
+          "error": "Verbindung konnte nicht getrennt werden."
+        },
       "sessions": {
         "title": "Geräte & Sitzungen",
         "hint": "Hier siehst du, wo du angemeldet bist. Beende Sitzungen, die du nicht kennst.",
@@ -6391,6 +6402,28 @@
       "loading": "Gruppen werden geladen…",
       "emptyTitle": "Noch keine Gruppen",
       "emptyDescription": "Erstelle deine erste Gruppe, um Mitglieder zu organisieren.",
+        "midataImport": {
+          "loading": "Gruppen werden aus MiData geladen …",
+          "reauthHint": "Für den Zugriff auf die MiData-Gruppen ist eine erneute Anmeldung bei MiData erforderlich.",
+          "reauthButton": "Bei MiData anmelden",
+          "retry": "Erneut versuchen",
+          "devNote": "Diese MiData-Importfunktion befindet sich noch in Entwicklung.",
+          "buttonUpdate": "Mit MiData aktualisieren (Entwicklung)",
+          "titleUpdate": "Gruppen mit MiData aktualisieren",
+          "statusNew": "Neu",
+          "button": "Aus MiData importieren (Entwicklung)",
+          "title": "Gruppen aus MiData importieren",
+          "empty": "Keine importierbaren Untergruppen gefunden.",
+          "alreadyImported": "bereits importiert",
+          "submit": "Ausgewählte Gruppen importieren",
+          "done": "{count} Gruppe(n) importiert.",
+          "error": "Import fehlgeschlagen.",
+          "result": {
+            "denied": "Du darfst für diese Abteilung keine MiData-Gruppen importieren.",
+            "unavailable": "MiData ist aktuell nicht erreichbar.",
+            "failed": "MiData-Import fehlgeschlagen."
+          }
+        },
       "firstGroup": "Erste Gruppe erstellen",
       "colLeaders": "Gruppenchefs",
       "colMembers": "Mitglieder",
