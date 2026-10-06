@@ -10,6 +10,7 @@ use App\Enum\AuthMethod;
 use App\Util\IdGenerator;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Zweiter Faktor beim Login: statt Sitzung und Tokens gibt es nach der primären Authentifizierung
@@ -32,15 +33,22 @@ class MfaChallengeService
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly TotpService $totpService,
+        private readonly TrustedDeviceService $trustedDevices,
+        private readonly TrustedDevicePolicy $trustPolicy,
     ) {}
 
     /**
-     * @return array{mfa_required: true, challenge: string, methods: list<string>, expires_in: int}|null
-     *         null = kein zweiter Faktor nötig (kein aktives TOTP oder belastbar bestätigte Provider-MFA)
+     * @return array{mfa_required: true, challenge: string, methods: list<string>, expires_in: int, trust_days: int}|null
+     *         null = kein zweiter Faktor nötig (kein aktives TOTP, belastbar bestätigte Provider-MFA oder
+     *         gültiges Trusted Device dieses Users im $request)
      */
-    public function issueIfRequired(User $user, AuthMethod $authMethod, bool $providerMfaConfirmed = false): ?array
+    public function issueIfRequired(User $user, AuthMethod $authMethod, bool $providerMfaConfirmed = false, ?Request $request = null): ?array
     {
         if ($providerMfaConfirmed || !$this->totpService->isEnabled($user)) {
+            return null;
+        }
+        // Trusted Device überspringt nur diese Login-MFA, nie ein Step-up.
+        if ($request instanceof Request && $this->trustedDevices->authenticate($user, $request) !== null) {
             return null;
         }
 
@@ -61,6 +69,7 @@ class MfaChallengeService
             'challenge' => $token,
             'methods' => [self::METHOD_TOTP, self::METHOD_RECOVERY_CODE],
             'expires_in' => self::TTL_SECONDS,
+            'trust_days' => $this->trustPolicy->daysFor($user),
         ];
     }
 

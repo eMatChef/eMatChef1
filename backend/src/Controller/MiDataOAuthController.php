@@ -93,7 +93,7 @@ final class MiDataOAuthController extends AbstractController
             $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
             // Verknüpfen ist kein Login: die bestehende Sitzung des eingeloggten Users bleibt, keine neuen Tokens.
             // MiData liefert keinen belastbaren MFA-Nachweis (kein amr/acr/auth_time): aktives eMatChef-TOTP wird verlangt.
-            $mfa = $linkUser instanceof User ? null : $this->mfaChallenges->issueIfRequired($user, AuthMethod::MIDATA);
+            $mfa = $linkUser instanceof User ? null : $this->mfaChallenges->issueIfRequired($user, AuthMethod::MIDATA, false, $request);
             $authResponse = $linkUser instanceof User || $mfa !== null
                 ? null
                 : $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
@@ -157,7 +157,7 @@ final class MiDataOAuthController extends AbstractController
             if ($frontendPath !== '/login' && !str_starts_with($frontendPath, '/login?')) {
                 $query['next'] = $frontendPath;
             }
-            $response = new RedirectResponse($this->appendQuery($this->frontendUrl('/login'), $query) . '#challenge=' . $mfa['challenge']);
+            $response = new RedirectResponse($this->appendQuery($this->frontendUrl('/login'), $query) . '#challenge=' . $mfa['challenge'] . '&trust_days=' . $mfa['trust_days']);
             $response->headers->setCookie($this->stateCookie('', 1));
             $response->headers->set('Cache-Control', 'no-store');
 

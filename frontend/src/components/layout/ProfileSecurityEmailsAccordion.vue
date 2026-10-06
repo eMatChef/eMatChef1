@@ -87,6 +87,8 @@
       </form>
 
       <ProfileSecurityTotpSection :open="open" />
+      <ProfileSecuritySessionsSection :open="open" />
+      <ProfileSecurityActivitySection :open="open" />
     </div>
   </details>
 </template>
@@ -96,6 +98,8 @@ import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { EButton, ETextField } from '@/components/form/base'
 import ProfileSecurityTotpSection from '@/components/layout/ProfileSecurityTotpSection.vue'
+import ProfileSecuritySessionsSection from '@/components/layout/ProfileSecuritySessionsSection.vue'
+import ProfileSecurityActivitySection from '@/components/layout/ProfileSecurityActivitySection.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'

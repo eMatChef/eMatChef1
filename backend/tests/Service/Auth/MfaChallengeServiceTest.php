@@ -11,6 +11,8 @@ use App\Service\Auth\MfaChallengeService;
 use App\Service\Auth\MfaException;
 use App\Service\Auth\TotpException;
 use App\Service\Auth\TotpService;
+use App\Service\Auth\TrustedDevicePolicy;
+use App\Service\Auth\TrustedDeviceService;
 use Doctrine\ORM\EntityManager;
 use Doctrine\ORM\EntityRepository;
 use PHPUnit\Framework\TestCase;
@@ -28,6 +30,8 @@ final class MfaChallengeServiceTest extends TestCase
 
     private int $verifyCalls = 0;
 
+    private ?\App\Entity\TrustedDevice $trustedDevice = null;
+
     private MfaChallengeService $service;
 
     protected function setUp(): void
@@ -37,6 +41,7 @@ final class MfaChallengeServiceTest extends TestCase
         $this->codeValid = true;
         $this->locked = false;
         $this->verifyCalls = 0;
+        $this->trustedDevice = null;
 
         $totp = $this->createMock(TotpService::class);
         $totp->method('isEnabled')->willReturnCallback(fn (): bool => $this->totpEnabled);
@@ -70,7 +75,12 @@ final class MfaChallengeServiceTest extends TestCase
         });
         $em->method('wrapInTransaction')->willReturnCallback(static fn (callable $f) => $f());
 
-        $this->service = new MfaChallengeService($em, $totp);
+        $trusted = $this->createMock(TrustedDeviceService::class);
+        $trusted->method('authenticate')->willReturnCallback(fn () => $this->trustedDevice);
+        $policy = $this->createMock(TrustedDevicePolicy::class);
+        $policy->method('daysFor')->willReturn(90);
+
+        $this->service = new MfaChallengeService($em, $totp, $trusted, $policy);
     }
 
     public function testNoChallengeWithoutActiveTotpOrWithConfirmedProviderMfa(): void
@@ -82,6 +92,25 @@ final class MfaChallengeServiceTest extends TestCase
         $this->totpEnabled = true;
         self::assertNull($this->service->issueIfRequired($this->user(), AuthMethod::MIDATA, true));
         self::assertSame([], $this->challenges);
+    }
+
+    public function testTrustedDeviceSkipsTheChallengeOnlyWhenARequestIsGiven(): void
+    {
+        $this->trustedDevice = new \App\Entity\TrustedDevice('d1', $this->user(), str_repeat('a', 64), 'Chrome', new \DateTime('+1 day'));
+        $user = $this->user();
+
+        self::assertNull($this->service->issueIfRequired($user, AuthMethod::PASSWORD, false, new \Symfony\Component\HttpFoundation\Request()));
+        self::assertSame([], $this->challenges);
+        // ohne Request (kein Cookie lesbar) bleibt die Challenge Pflicht
+        self::assertNotNull($this->service->issueIfRequired($user, AuthMethod::PASSWORD));
+    }
+
+    public function testNoTrustedDeviceMeansChallengeWithTrustDays(): void
+    {
+        $challenge = $this->service->issueIfRequired($this->user(), AuthMethod::GOOGLE, false, new \Symfony\Component\HttpFoundation\Request());
+
+        self::assertSame(90, $challenge['trust_days']);
+        self::assertCount(1, $this->challenges);
     }
 
     public function testChallengeIsRandomShortLivedAndStoredHashedOnly(): void

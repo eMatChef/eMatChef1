@@ -44,6 +44,7 @@ class TotpService
         private readonly AuditLogger $auditLogger,
         #[Autowire('%kernel.secret%')]
         private readonly string $appSecret,
+        private readonly ?TrustedDeviceService $trustedDevices = null,
     ) {}
 
     /** Globale Security-Adminrolle: TOTP verpflichtend. */
@@ -150,6 +151,9 @@ class TotpService
             return $this->replaceRecoveryCodes($user);
         });
         $this->audit($user, $reset ? 'totp_reset' : 'totp_enabled', ['totp' => ['old' => $reset, 'new' => true]]);
+        if ($reset) {
+            $this->trustedDevices?->revokeAllForUser($user, TrustedDeviceService::REASON_TOTP_CHANGED);
+        }
 
         return $codes;
     }
@@ -174,6 +178,7 @@ class TotpService
             $this->entityManager->flush();
         });
         $this->audit($user, 'totp_disabled', ['totp' => ['old' => true, 'new' => false]]);
+        $this->trustedDevices?->revokeAllForUser($user, TrustedDeviceService::REASON_TOTP_CHANGED);
     }
 
     /**

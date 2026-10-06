@@ -32,7 +32,7 @@ final class LoginSuccessHandler implements AuthenticationSuccessHandlerInterface
     {
         $user = $token->getUser();
         if ($user instanceof User) {
-            $challenge = $this->mfaChallenges->issueIfRequired($user, AuthMethod::PASSWORD);
+            $challenge = $this->mfaChallenges->issueIfRequired($user, AuthMethod::PASSWORD, false, $request);
             if ($challenge !== null) {
                 $response = new JsonResponse($challenge);
                 $response->headers->set('Cache-Control', 'no-store');

@@ -52,6 +52,17 @@
             :disabled="isLoading"
             autofocus
           />
+          <ECheckbox
+            v-model="mfaTrustDevice"
+            :label="t('login.mfa.trustDevice')"
+            :disabled="isLoading"
+            hide-details
+            data-testid="trust-device"
+          />
+          <p class="login-mfa-hint login-mfa-hint--small">
+            {{ t('login.mfa.trustHint', { days: authStore.pendingMfa?.trustDays ?? 90 }) }}
+            {{ t('login.mfa.trustNote') }}
+          </p>
           <EButton variant="primary" type="submit" block :loading="isLoading" :disabled="!mfaCode.trim()">
             {{ t('login.mfa.submit') }}
           </EButton>
@@ -885,10 +896,12 @@ async function completeExternalOAuthReturn() {
   }
   if (oauth === 'mfa') {
     // Challenge steht im URL-Fragment (nicht in Logs/Referer); sofort aus der Adresszeile entfernen.
-    const challenge = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('challenge') || ''
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const challenge = hashParams.get('challenge') || ''
+    const trustDays = Number.parseInt(hashParams.get('trust_days') || '', 10)
     window.history.replaceState(null, '', window.location.pathname + window.location.search)
     if (challenge) {
-      authStore.beginMfa(challenge)
+      authStore.beginMfa(challenge, trustDays === 30 || trustDays === 90 ? trustDays : 90)
     } else {
       error.value = t('login.mfa.failed')
     }
@@ -1085,6 +1098,7 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
 
 const mfaMethod = ref<'totp' | 'recovery_code'>('totp')
 const mfaCode = ref('')
+const mfaTrustDevice = ref(false)
 
 function toggleMfaMethod() {
   mfaMethod.value = mfaMethod.value === 'totp' ? 'recovery_code' : 'totp'
@@ -1096,12 +1110,13 @@ function cancelMfa() {
   authStore.cancelMfa()
   mfaMethod.value = 'totp'
   mfaCode.value = ''
+  mfaTrustDevice.value = false
   clearMessages()
 }
 
 async function handleMfaSubmit() {
   clearMessages()
-  const ok = await authStore.completeMfa(mfaMethod.value, mfaCode.value)
+  const ok = await authStore.completeMfa(mfaMethod.value, mfaCode.value, mfaTrustDevice.value)
   mfaCode.value = ''
   if (!ok) {
     error.value = authStore.error || t('login.mfa.failed')
@@ -1347,6 +1362,11 @@ watch(
   margin: 0 0 0.75rem;
   font-size: 0.875rem;
   opacity: 0.8;
+}
+
+.login-mfa-hint--small {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.78rem;
 }
 
 .login-mfa-links {

@@ -232,6 +232,8 @@ export interface MfaChallengeResponse {
   challenge: string
   methods: MfaMethod[]
   expires_in: number
+  /** Dauer des Geräte-Vertrauens in Tagen (30 für globale Admins, sonst 90) */
+  trust_days?: number
 }
 
 export type MfaMethod = 'totp' | 'recovery_code'
@@ -247,8 +249,18 @@ export async function login(email: string, password: string): Promise<LoginRespo
 }
 
 /** Challenge + TOTP- oder Recovery-Code einlösen; Antwort wie ein normaler Login (Tokens als HttpOnly-Cookies). */
-export async function verifyMfa(challenge: string, method: MfaMethod, code: string): Promise<LoginResponse> {
-  const response = await apiClient.post<LoginResponse>('/api/auth/mfa/verify', { challenge, method, code })
+export async function verifyMfa(
+  challenge: string,
+  method: MfaMethod,
+  code: string,
+  trustDevice = false,
+): Promise<LoginResponse> {
+  const response = await apiClient.post<LoginResponse>('/api/auth/mfa/verify', {
+    challenge,
+    method,
+    code,
+    ...(trustDevice ? { trust_device: true } : {}),
+  })
   const parsed = parseLoginResponse(response)
   if (isMfaChallenge(parsed)) {
     throw new Error('Unerwartete MFA-Antwort')

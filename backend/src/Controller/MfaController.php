@@ -8,6 +8,7 @@ use App\Security\UserChecker;
 use App\Service\Auth\CurrentAuthSession;
 use App\Service\Auth\MfaChallengeService;
 use App\Service\Auth\MfaException;
+use App\Service\Auth\TrustedDeviceService;
 use App\Service\Auth\UserSessionManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler;
@@ -29,12 +30,13 @@ final class MfaController extends AbstractController
         private readonly UserSessionManager $sessionManager,
         private readonly CurrentAuthSession $currentSession,
         private readonly EntityManagerInterface $entityManager,
+        private readonly TrustedDeviceService $trustedDevices,
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
     ) {
     }
 
-    /** Body: {"challenge": "...", "method": "totp"|"recovery_code", "code": "..."} */
+    /** Body: {"challenge": "...", "method": "totp"|"recovery_code", "code": "...", "trust_device": bool (optional)} */
     #[Route('/verify', name: 'verify', methods: ['POST'])]
     public function verify(Request $request): Response
     {
@@ -43,6 +45,7 @@ final class MfaController extends AbstractController
         $challenge = \is_string($data['challenge'] ?? null) ? $data['challenge'] : '';
         $method = \is_string($data['method'] ?? null) ? $data['method'] : '';
         $code = \is_string($data['code'] ?? null) ? $data['code'] : '';
+        $trustDevice = ($data['trust_device'] ?? false) === true;
 
         try {
             $verified = $this->mfaChallenges->verify($challenge, $method, $code);
@@ -61,11 +64,22 @@ final class MfaController extends AbstractController
 
         // Neue Sitzung für diesen Login; die MFA-Bestätigung gilt nur für sie (nie aus einer alten Sitzung übernommen).
         $session = $this->sessionManager->startSession($user, $verified->getAuthMethod());
-        $session->markMfaVerified();
+        $session->markMfaVerified($method);
+        $trustCookie = null;
+        if ($trustDevice) {
+            // Nur nach tatsächlich bestandener MFA (TOTP oder Recovery Code) und ausdrücklicher Wahl des Users.
+            ['device' => $device, 'cookie' => $trustCookie] = $this->trustedDevices->grant($user, $request);
+            $session->setTrustedDevice($device);
+        }
         $this->entityManager->flush();
         $this->currentSession->setIssued($session);
 
-        return $this->noStore($this->authenticationSuccessHandler->handleAuthenticationSuccess($user));
+        $response = $this->noStore($this->authenticationSuccessHandler->handleAuthenticationSuccess($user));
+        if ($trustCookie !== null) {
+            $response->headers->setCookie($trustCookie);
+        }
+
+        return $response;
     }
 
     private function noStore(Response $response): Response

@@ -30,7 +30,18 @@ class AdminMfaGuard
      */
     public function denialReason(User $user, ?UserSession $session, string $level, ?\DateTime $now = null): ?string
     {
-        if (!$this->adminCapabilityChecker->hasGlobalAdminRole($user)) {
+        $isAdmin = $this->adminCapabilityChecker->hasGlobalAdminRole($user);
+        if ($level === AdminMfaPolicy::LEVEL_SELF_STEP_UP) {
+            if ($isAdmin) {
+                $level = AdminMfaPolicy::LEVEL_STEP_UP;
+            } else {
+                // Normaler User: nur mit aktivem TOTP gibt es etwas zu bestätigen.
+                return $this->totpService->isEnabled($user) && ($session === null || !$session->hasFreshStepUp(StepUpService::FRESHNESS_SECONDS, $now))
+                    ? self::STEP_UP_REQUIRED
+                    : null;
+            }
+        }
+        if (!$isAdmin) {
             return null;
         }
         if (!$this->totpService->isEnabled($user)) {

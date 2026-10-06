@@ -40,6 +40,14 @@ class UserSession
     #[ORM\Column(name: 'mfa_verified_at', type: 'datetime', nullable: true)]
     private ?\DateTime $mfaVerifiedAt = null;
 
+    /** Womit die Sitzung MFA-verifiziert wurde: totp, recovery_code oder trusted_device (nie ein Step-up). */
+    #[ORM\Column(name: 'mfa_source', type: 'string', length: 24, nullable: true)]
+    private ?string $mfaSource = null;
+
+    #[ORM\ManyToOne(targetEntity: TrustedDevice::class)]
+    #[ORM\JoinColumn(name: 'trusted_device_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?TrustedDevice $trustedDevice = null;
+
     #[ORM\Column(name: 'step_up_at', type: 'datetime', nullable: true)]
     private ?\DateTime $stepUpAt = null;
 
@@ -117,9 +125,40 @@ class UserSession
     }
 
     /** Beim Login mit bestandener MFA-Challenge gesetzt; gilt nur für diese Sitzung. */
-    public function markMfaVerified(): self
+    public function markMfaVerified(?string $source = null): self
     {
         $this->mfaVerifiedAt = new \DateTime();
+        $this->mfaSource = $source;
+
+        return $this;
+    }
+
+    /**
+     * Login ohne MFA-Challenge dank Trusted Device: gilt als MFA-verifiziert (für den Admin-Guard),
+     * ist aber als solcher erkennbar und setzt nie step_up_at.
+     */
+    public function markMfaViaTrustedDevice(TrustedDevice $device): self
+    {
+        $this->mfaVerifiedAt = new \DateTime();
+        $this->mfaSource = 'trusted_device';
+        $this->trustedDevice = $device;
+
+        return $this;
+    }
+
+    public function getMfaSource(): ?string
+    {
+        return $this->mfaSource;
+    }
+
+    public function getTrustedDevice(): ?TrustedDevice
+    {
+        return $this->trustedDevice;
+    }
+
+    public function setTrustedDevice(?TrustedDevice $device): self
+    {
+        $this->trustedDevice = $device;
 
         return $this;
     }

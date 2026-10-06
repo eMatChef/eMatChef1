@@ -54,6 +54,20 @@ describe('auth store MFA', () => {
     expect(store.pendingMfa).toBeNull()
   })
 
+  it('passes the trust-device choice to the verification and keeps the trust days of the challenge', async () => {
+    apiLogin.mockResolvedValue({ ...challenge, trust_days: 30 })
+    apiVerifyMfa.mockRejectedValue({ response: { status: 400, data: { code: 'invalid_code', error: 'x' } } })
+    const store = useAuthStore()
+    await store.login('a@b.test', 'pw')
+
+    expect(store.pendingMfa?.trustDays).toBe(30)
+    await store.completeMfa('totp', '123456', true)
+    await store.completeMfa('totp', '123456')
+
+    expect(apiVerifyMfa).toHaveBeenNthCalledWith(1, 'abc', 'totp', '123456', true)
+    expect(apiVerifyMfa).toHaveBeenNthCalledWith(2, 'abc', 'totp', '123456', false)
+  })
+
   it('cancelMfa clears the challenge', () => {
     const store = useAuthStore()
     store.beginMfa('xyz')

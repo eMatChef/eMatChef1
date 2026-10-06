@@ -8,8 +8,11 @@ use App\Entity\RefreshToken;
 use App\Entity\User;
 use App\Entity\UserSession;
 use App\Enum\AuthMethod;
+use App\Entity\TrustedDevice;
+use App\Service\AuditLogger;
 use App\Service\Auth\LegacySessionCutoff;
 use App\Service\Auth\RefreshTokenRevoker;
+use App\Service\Auth\TrustedDeviceService;
 use App\Service\Auth\UserSessionManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Query;
@@ -35,6 +38,12 @@ final class UserSessionManagerTest extends TestCase
     private array $revokerCalls = [];
 
     private bool $legacyAllowed = false;
+
+    /** @var list<string> reasons of TrustedDeviceService::revokeAllForUser */
+    private array $trustRevocations = [];
+
+    /** @var list<string> */
+    private array $audits = [];
 
     public function testStartSessionPersistsOneSessionWithUserAgent(): void
     {
@@ -193,6 +202,87 @@ final class UserSessionManagerTest extends TestCase
         self::assertGreaterThan(new \DateTime('-1 minute'), $session->getLastSeenAt());
     }
 
+    public function testLoginIsAuditedButLegacySessionsAreNot(): void
+    {
+        $manager = $this->manager();
+        $manager->startSession($this->user('u1'), AuthMethod::GOOGLE);
+        $manager->startSession($this->user('u1'), AuthMethod::LEGACY);
+
+        self::assertSame(['login_success'], $this->audits);
+    }
+
+    public function testPasswordChangeResetAndDeactivationRevokeTrustedDevices(): void
+    {
+        $manager = $this->manager();
+        $user = $this->user('u1');
+
+        $manager->revokeAllForUser($user, UserSessionManager::REASON_PASSWORD_CHANGE);
+        $manager->revokeAllForUser($user, UserSessionManager::REASON_PASSWORD_RESET);
+        $manager->revokeAllIfDeactivated($this->user('u2', 'inactive'), 'active');
+
+        self::assertSame(
+            [TrustedDeviceService::REASON_PASSWORD, TrustedDeviceService::REASON_PASSWORD, TrustedDeviceService::REASON_ACCOUNT_DISABLED],
+            $this->trustRevocations
+        );
+    }
+
+    public function testRevokingOtherSessionsKeepsTrustedDevices(): void
+    {
+        $user = $this->user('u1');
+        $current = new UserSession($user, AuthMethod::PASSWORD);
+
+        $this->manager()->revokeOtherSessionsByUser($user, $current);
+
+        self::assertSame([], $this->trustRevocations);
+        self::assertSame(['other_sessions_revoked'], $this->audits);
+        self::assertSame('s.id <> :keepId', substr($this->dql[0], -15));
+        self::assertSame($current->getId(), $this->parameters[0]['keepId']);
+    }
+
+    public function testUserCanRevokeAnotherOwnSessionButNeverTheCurrentOne(): void
+    {
+        $user = $this->user('u1');
+        $current = new UserSession($user, AuthMethod::PASSWORD);
+        $other = new UserSession($user, AuthMethod::GOOGLE);
+        $manager = $this->manager();
+
+        $manager->revokeOtherSessionByUser($user, $other, $current);
+
+        self::assertTrue($other->isRevoked());
+        self::assertSame(UserSessionManager::REASON_USER_REVOKED, $other->getRevokedReason());
+        self::assertFalse($current->isRevoked());
+        self::assertContains('session_revoked', $this->audits);
+        self::assertSame(['revokeForSession', $other->getId()], $this->revokerCalls[0]);
+
+        $this->expectException(\LogicException::class);
+        $manager->revokeOtherSessionByUser($user, $current, $current);
+    }
+
+    public function testForeignSessionIsNotRevoked(): void
+    {
+        $user = $this->user('u1');
+        $foreign = new UserSession($this->user('u2'), AuthMethod::PASSWORD);
+
+        $this->manager()->revokeOtherSessionByUser($user, $foreign, new UserSession($user, AuthMethod::PASSWORD));
+
+        self::assertFalse($foreign->isRevoked());
+        self::assertSame([], $this->revokerCalls);
+    }
+
+    public function testTrustedDeviceLoginMarksMfaWithoutStepUp(): void
+    {
+        $user = $this->user('u1');
+        $session = $this->manager()->startSession($user, AuthMethod::PASSWORD);
+        $device = new TrustedDevice('d1', $user, str_repeat('a', 64), 'Chrome / Windows', new \DateTime('+30 days'));
+
+        $this->manager()->markTrustedDeviceLogin($session, $device);
+
+        self::assertNotNull($session->getMfaVerifiedAt());
+        self::assertSame('trusted_device', $session->getMfaSource());
+        self::assertSame($device, $session->getTrustedDevice());
+        self::assertNull($session->getStepUpAt());
+    }
+
     private function manager(?string $userAgent = null): UserSessionManager
     {
         $entityManager = $this->createMock(EntityManagerInterface::class);
@@ -239,7 +329,18 @@ final class UserSessionManagerTest extends TestCase
         }
         $requestStack->push($request);
 
-        return new UserSessionManager($entityManager, $revoker, $cutoff, $requestStack);
+        $trusted = $this->createMock(TrustedDeviceService::class);
+        $trusted->method('revokeAllForUser')->willReturnCallback(function (User $user, string $reason): int {
+            $this->trustRevocations[] = $reason;
+
+            return 1;
+        });
+        $audit = $this->createMock(AuditLogger::class);
+        $audit->method('log')->willReturnCallback(function (string $type, string $id, string $action): void {
+            $this->audits[] = $action;
+        });
+
+        return new UserSessionManager($entityManager, $revoker, $cutoff, $requestStack, $trusted, $audit);
     }
 
     private function user(string $id, string $state = 'active'): User

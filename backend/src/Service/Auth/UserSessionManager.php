@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Service\Auth;
 
 use App\Entity\RefreshToken;
+use App\Entity\TrustedDevice;
 use App\Entity\User;
 use App\Entity\UserSession;
 use App\Enum\AuthMethod;
+use App\Service\AuditLogger;
+use App\Util\UserAgentSummary;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Security\Core\Exception\CustomUserMessageAuthenticationException;
@@ -22,6 +25,8 @@ class UserSessionManager
     public const REASON_PASSWORD_CHANGE = 'password_change';
     public const REASON_PASSWORD_RESET = 'password_reset';
     public const REASON_ACCOUNT_DISABLED = 'account_disabled';
+    public const REASON_USER_REVOKED = 'user_revoked';
+    public const REASON_USER_REVOKED_OTHERS = 'user_revoked_others';
 
     /** last_seen_at höchstens alle 5 Minuten schreiben. */
     public const LAST_SEEN_THROTTLE_SECONDS = 300;
@@ -31,6 +36,8 @@ class UserSessionManager
         private readonly RefreshTokenRevoker $refreshTokenRevoker,
         private readonly LegacySessionCutoff $legacyCutoff,
         private readonly RequestStack $requestStack,
+        private readonly TrustedDeviceService $trustedDevices,
+        private readonly AuditLogger $auditLogger,
     ) {
     }
 
@@ -39,9 +46,68 @@ class UserSessionManager
         $userAgent = $this->requestStack->getCurrentRequest()?->headers->get('User-Agent');
         $session = new UserSession($user, $authMethod, $userAgent);
         $this->entityManager->persist($session);
+        if ($authMethod !== AuthMethod::LEGACY) {
+            $this->auditLogger->log('user', $user->getId(), 'login_success', $user, $user, null, [
+                'auth_method' => ['old' => null, 'new' => $authMethod->value],
+            ]);
+        }
         $this->entityManager->flush();
 
         return $session;
+    }
+
+    /** Login ohne MFA-Challenge dank Trusted Device: Sitzung als so MFA-verifiziert kennzeichnen (kein Step-up). */
+    public function markTrustedDeviceLogin(UserSession $session, TrustedDevice $device): void
+    {
+        $session->markMfaViaTrustedDevice($device);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Aktive (nicht widerrufene) Sitzungen des Users, zuletzt aktive zuerst.
+     *
+     * @return list<UserSession>
+     */
+    public function listActiveForUser(User $user): array
+    {
+        /** @var list<UserSession> $sessions */
+        $sessions = $this->entityManager->getRepository(UserSession::class)
+            ->findBy(['user' => $user, 'revokedAt' => null], ['lastSeenAt' => 'DESC'], 50);
+
+        return $sessions;
+    }
+
+    /**
+     * Der User beendet eine seiner anderen Sitzungen. Die aktuelle Sitzung ist hier nie widerrufbar (dafür gibt es Logout).
+     *
+     * @throws \LogicException wenn $target die aktuelle Sitzung ist
+     */
+    public function revokeOtherSessionByUser(User $user, UserSession $target, UserSession $current): void
+    {
+        if ($target->getId() === $current->getId()) {
+            throw new \LogicException('Die aktuelle Sitzung kann hier nicht beendet werden.');
+        }
+        if ($target->getUser()->getId() !== $user->getId() || $target->isRevoked()) {
+            return;
+        }
+        $label = UserAgentSummary::describe($target->getUserAgent())['label'];
+        $this->revokeSession($target, self::REASON_USER_REVOKED);
+        $this->auditLogger->log('user', $user->getId(), 'session_revoked', $user, $user, null, [
+            'session' => ['old' => $label, 'new' => null],
+        ]);
+        $this->entityManager->flush();
+    }
+
+    /** @return int Anzahl beendeter Sitzungen (die aktuelle bleibt) */
+    public function revokeOtherSessionsByUser(User $user, UserSession $current, ?string $keepRefreshToken = null): int
+    {
+        $count = $this->revokeAllForUser($user, self::REASON_USER_REVOKED_OTHERS, $current, $keepRefreshToken);
+        $this->auditLogger->log('user', $user->getId(), 'other_sessions_revoked', $user, $user, null, [
+            'count' => ['old' => $count, 'new' => 0],
+        ]);
+        $this->entityManager->flush();
+
+        return $count;
     }
 
     /**
@@ -108,6 +174,16 @@ class UserSessionManager
         $revoked = (int) $query->execute();
 
         $this->refreshTokenRevoker->revokeAllForUser($user, $keepRefreshToken, $keep?->getId());
+
+        // Passwortwechsel/-reset und Deaktivierung: auch das Login-MFA-Vertrauen aller Geräte endet.
+        $trustReason = match ($reason) {
+            self::REASON_PASSWORD_CHANGE, self::REASON_PASSWORD_RESET => TrustedDeviceService::REASON_PASSWORD,
+            self::REASON_ACCOUNT_DISABLED => TrustedDeviceService::REASON_ACCOUNT_DISABLED,
+            default => null,
+        };
+        if ($trustReason !== null) {
+            $this->trustedDevices->revokeAllForUser($user, $trustReason);
+        }
 
         return $revoked;
     }

@@ -438,7 +438,36 @@ final class TotpServiceTest extends TestCase
         }));
     }
 
-    private function buildService(): TotpService
+    public function testDisableAndReEnrollmentRevokeAllTrustedDevices(): void
+    {
+        $revoked = [];
+        $trusted = $this->createMock(\App\Service\Auth\TrustedDeviceService::class);
+        $trusted->method('revokeAllForUser')->willReturnCallback(function ($user, string $reason) use (&$revoked): int {
+            $revoked[] = $reason;
+
+            return 1;
+        });
+        $service = $this->buildService($trusted);
+        $user = $this->user();
+
+        // Ersteinrichtung: noch nichts zu widerrufen
+        $first = $service->startEnrollment($user);
+        $codes = $service->confirmEnrollment($user, $this->code($first['secret']));
+        self::assertSame([], $revoked);
+
+        // Neueinrichtung (Reset)
+        $second = $service->startEnrollment($user, $codes[0]);
+        $service->confirmEnrollment($user, $this->codeAtOffset($second['secret'], 0));
+        self::assertSame(['totp_changed'], $revoked);
+
+        // Deaktivieren
+        $newCodes = $this->all(UserRecoveryCode::class);
+        self::assertCount(3, $newCodes);
+        $service->disable($user, TOTP::createFromSecret($second['secret'])->at((intdiv(time(), 30) + 1) * 30));
+        self::assertSame(['totp_changed', 'totp_changed'], $revoked);
+    }
+
+    private function buildService(?\App\Service\Auth\TrustedDeviceService $trusted = null): TotpService
     {
         $em = $this->createMock(EntityManager::class);
         $em->method('getRepository')->willReturnCallback(function (string $class): EntityRepository {
@@ -465,6 +494,6 @@ final class TotpServiceTest extends TestCase
 
         $checker = (new \ReflectionClass(AdminCapabilityChecker::class))->newInstanceWithoutConstructor();
 
-        return new TotpService($em, $this->box, $checker, $audit, self::APP_SECRET);
+        return new TotpService($em, $this->box, $checker, $audit, self::APP_SECRET, $trusted);
     }
 }

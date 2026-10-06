@@ -122,6 +122,67 @@ final class AdminMfaGuardTest extends TestCase
         self::assertNull($this->guard->denialReason($user, $first, AdminMfaPolicy::LEVEL_STEP_UP));
     }
 
+    public function testSelfStepUpAppliesToNormalUsersOnlyWhenTotpIsActive(): void
+    {
+        $user = $this->user([]);
+        $session = $this->session($user, true);
+
+        $this->totpEnabled = false;
+        self::assertNull($this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_STEP_UP));
+
+        $this->totpEnabled = true;
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_STEP_UP));
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, null, AdminMfaPolicy::LEVEL_SELF_STEP_UP));
+
+        $session->markStepUp();
+        self::assertNull($this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_STEP_UP));
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_STEP_UP, new \DateTime('+601 seconds')));
+    }
+
+    public function testTrustedDeviceSessionCountsAsMfaButNeverAsStepUp(): void
+    {
+        $user = $this->user(['ROLE_ORGANISATIONSCHEF']);
+        $session = $this->session($user);
+        $device = new \App\Entity\TrustedDevice('d1', $user, str_repeat('a', 64), 'Chrome', new \DateTime('+30 days'));
+        $session->markMfaViaTrustedDevice($device);
+
+        self::assertNull($session->getStepUpAt());
+        self::assertNull($this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_ADMIN));
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_STEP_UP));
+        self::assertSame(AdminMfaGuard::STEP_UP_REQUIRED, $this->guard->denialReason($user, $session, AdminMfaPolicy::LEVEL_SELF_STEP_UP));
+    }
+
+    public function testRevokingASingleSessionNeedsStepUpOnlyWithActiveTotp(): void
+    {
+        $user = $this->user([]);
+        $current = new CurrentAuthSession();
+        $session = $this->session($user, true);
+        $current->setAuthenticated($session);
+        $subscriber = $this->subscriber($user, $current);
+
+        $this->totpEnabled = false;
+        $withoutTotp = $this->event('DELETE', '/api/profiles/p1/security/sessions/abc');
+        $subscriber->onRequest($withoutTotp);
+        self::assertNull($withoutTotp->getResponse());
+
+        $this->totpEnabled = true;
+        $withTotp = $this->event('DELETE', '/api/profiles/p1/security/sessions/abc');
+        $subscriber->onRequest($withTotp);
+        self::assertSame('step_up_required', json_decode((string) $withTotp->getResponse()?->getContent(), true)['error']);
+
+        // Trusted Device ersetzt das Step-up nicht
+        $session->markMfaViaTrustedDevice(new \App\Entity\TrustedDevice('d1', $user, str_repeat('a', 64), 'Chrome', new \DateTime('+90 days')));
+        $trusted = $this->event('DELETE', '/api/profiles/p1/security/sessions/abc');
+        $subscriber->onRequest($trusted);
+        self::assertSame('step_up_required', json_decode((string) $trusted->getResponse()?->getContent(), true)['error']);
+
+        // Frisches Step-up: erlaubt
+        $session->markStepUp();
+        $fresh = $this->event('DELETE', '/api/profiles/p1/security/sessions/abc');
+        $subscriber->onRequest($fresh);
+        self::assertNull($fresh->getResponse());
+    }
+
     public function testSubscriberAnswers403WithMachineReadableErrorAndLeavesOtherRoutesAlone(): void
     {
         $user = $this->user(['ROLE_SUPERADMIN']);

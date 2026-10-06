@@ -74,7 +74,7 @@ final class GoogleOAuthController extends AbstractController
             $info = $this->googleOAuthClient->fetchUserInfo($code);
             $user = $this->googleOAuthAccountService->resolveOrCreate($info);
             // Google liefert für diesen Login keinen belastbaren MFA-Nachweis: aktives eMatChef-TOTP wird verlangt.
-            $mfa = $this->mfaChallenges->issueIfRequired($user, AuthMethod::GOOGLE);
+            $mfa = $this->mfaChallenges->issueIfRequired($user, AuthMethod::GOOGLE, false, $request);
             $authResponse = $mfa === null ? $this->authenticationSuccessHandler->handleAuthenticationSuccess($user) : null;
         } catch (GoogleOAuthException $e) {
             return $this->finishWithClearedState('error', $e->reason);
@@ -85,7 +85,8 @@ final class GoogleOAuthController extends AbstractController
         if ($mfa !== null) {
             // Challenge im Fragment: erreicht weder Server-Logs noch Referer.
             $next = $internalRedirect !== '' && !str_starts_with($internalRedirect, '/login') ? '&next=' . rawurlencode($internalRedirect) : '';
-            $response = new RedirectResponse($this->frontendUrl('/login?oauth=mfa&provider=google' . $next . '#challenge=' . $mfa['challenge']));
+            $trust = '&trust_days=' . $mfa['trust_days'];
+            $response = new RedirectResponse($this->frontendUrl('/login?oauth=mfa&provider=google' . $next . '#challenge=' . $mfa['challenge'] . $trust));
             $response->headers->setCookie($this->stateCookie('', 1));
             $response->headers->set('Cache-Control', 'no-store');
 

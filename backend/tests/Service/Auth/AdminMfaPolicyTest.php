@@ -36,6 +36,10 @@ final class AdminMfaPolicyTest extends TestCase
         yield 'mail settings change needs step-up' => ['PATCH', '/api/mail/settings', '{}', AdminMfaPolicy::LEVEL_STEP_UP];
         yield 'integration change needs step-up' => ['PUT', '/api/admin/integrations/fcal', '{}', AdminMfaPolicy::LEVEL_STEP_UP];
         yield 'integration read is admin level' => ['GET', '/api/admin/integrations/fcal', '', AdminMfaPolicy::LEVEL_ADMIN];
+        yield 'revoke other sessions needs self step-up' => ['POST', '/api/profiles/p1/security/sessions/revoke-others', '', AdminMfaPolicy::LEVEL_SELF_STEP_UP];
+        yield 'listing sessions is a normal function' => ['GET', '/api/profiles/p1/security/sessions', '', null];
+        yield 'revoking one session needs self step-up' => ['DELETE', '/api/profiles/p1/security/sessions/abc', '', AdminMfaPolicy::LEVEL_SELF_STEP_UP];
+        yield 'revoking trust is normal' => ['DELETE', '/api/profiles/p1/security/trusted-devices/d1', '', null];
         yield 'reserved admin 2FA reset path' => ['POST', '/api/admin/security/users/u1/totp-reset', '', AdminMfaPolicy::LEVEL_STEP_UP];
     }
 

@@ -290,25 +290,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /** Offene MFA-Challenge (nur im Speicher): Login ist erst mit zweitem Faktor abgeschlossen. */
-  const pendingMfa = ref<{ challenge: string; expiresAt: number } | null>(null)
+  const pendingMfa = ref<{ challenge: string; expiresAt: number; trustDays: number } | null>(null)
 
   /** Challenge aus einem externen Login (Google/MiData) übernehmen. */
-  function beginMfa(challenge: string, expiresInSeconds = 300): void {
+  function beginMfa(challenge: string, trustDays = 90, expiresInSeconds = 300): void {
     error.value = null
-    pendingMfa.value = { challenge, expiresAt: Date.now() + expiresInSeconds * 1000 }
+    pendingMfa.value = { challenge, expiresAt: Date.now() + expiresInSeconds * 1000, trustDays }
   }
 
   function cancelMfa(): void {
     pendingMfa.value = null
   }
 
-  async function completeMfa(method: MfaMethod, code: string): Promise<boolean> {
+  async function completeMfa(method: MfaMethod, code: string, trustDevice = false): Promise<boolean> {
     const pending = pendingMfa.value
     if (!pending) return false
     try {
       loadingUser.value = true
       error.value = null
-      const response = await apiVerifyMfa(pending.challenge, method, code.trim())
+      const response = await apiVerifyMfa(pending.challenge, method, code.trim(), trustDevice)
       pendingMfa.value = null
       await applyLoginResponse(response)
       return true
@@ -340,7 +340,11 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await apiLogin(email, password)
       if (isMfaChallenge(response)) {
         // Noch keine Sitzung: erst der zweite Faktor schliesst den Login ab.
-        pendingMfa.value = { challenge: response.challenge, expiresAt: Date.now() + response.expires_in * 1000 }
+        pendingMfa.value = {
+          challenge: response.challenge,
+          expiresAt: Date.now() + response.expires_in * 1000,
+          trustDays: response.trust_days ?? 90,
+        }
         return false
       }
       await applyLoginResponse(response)

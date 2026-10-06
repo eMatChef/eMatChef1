@@ -133,6 +133,13 @@ final class JwtSessionSubscriber implements EventSubscriberInterface
         $session = $this->sessionManager->startSession($user, $authMethod);
         $this->currentSession->setIssued($session);
 
+        // Login-MFA entfiel dank Trusted Device (nur dieses Users): Sitzung entsprechend kennzeichnen.
+        $trusted = $this->currentSession->getPendingTrustedDevice();
+        if ($trusted !== null && $trusted->getUser()->getId() === $user->getId()) {
+            $this->sessionManager->markTrustedDeviceLogin($session, $trusted);
+        }
+        $this->currentSession->setPendingTrustedDevice(null);
+
         return $session;
     }
 

@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\Request;
  * - LEVEL_ADMIN: für globale Security-Admins (superadmin/orgchef/suborgchef) nur mit aktivem TOTP
  *   und MFA-verifizierter Sitzung.
  * - LEVEL_STEP_UP: zusätzlich frische MFA-Bestätigung (StepUpService::FRESHNESS_SECONDS).
+ * - LEVEL_SELF_STEP_UP: Step-up am eigenen Konto für jeden User mit aktivem TOTP.
  *
  * Die Regeln gelten nur für globale Admins; alle anderen Benutzer und alle nicht aufgeführten Routen bleiben
  * unberührt. Rollen- und Scope-Prüfungen bleiben in den Controllern/AdminCapabilityChecker.
@@ -21,6 +22,12 @@ final class AdminMfaPolicy
 {
     public const LEVEL_ADMIN = 'admin';
     public const LEVEL_STEP_UP = 'step_up';
+
+    /**
+     * Sicherheitskritische Aktion am eigenen Konto: frisches Step-up für jeden User mit aktivem TOTP
+     * (ohne TOTP gibt es nichts zu bestätigen); für globale Admins gilt wie LEVEL_STEP_UP.
+     */
+    public const LEVEL_SELF_STEP_UP = 'self_step_up';
 
     /**
      * @var list<array{methods: list<string>|null, pattern: string, level: string, bodyKeys?: list<string>}>
@@ -33,6 +40,10 @@ final class AdminMfaPolicy
         ['methods' => ['PATCH', 'PUT', 'POST'], 'pattern' => '#^/api/mail/settings$#', 'level' => self::LEVEL_STEP_UP],
         ['methods' => ['PUT', 'POST', 'PATCH', 'DELETE'], 'pattern' => '#^/api/admin/integrations/#', 'level' => self::LEVEL_STEP_UP],
         ['methods' => null, 'pattern' => '#^/api/admin/security/#', 'level' => self::LEVEL_STEP_UP],
+
+        // Eigenes Konto: andere Sitzungen beenden (einzeln oder alle)
+        ['methods' => ['POST'], 'pattern' => '#^/api/profiles/[^/]+/security/sessions/revoke-others$#', 'level' => self::LEVEL_SELF_STEP_UP],
+        ['methods' => ['DELETE'], 'pattern' => '#^/api/profiles/[^/]+/security/sessions/[^/]+$#', 'level' => self::LEVEL_SELF_STEP_UP],
 
         // Adminfunktionen
         ['methods' => null, 'pattern' => '#^/api/admin/#', 'level' => self::LEVEL_ADMIN],
