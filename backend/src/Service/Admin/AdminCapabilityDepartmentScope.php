@@ -59,6 +59,27 @@ final class AdminCapabilityDepartmentScope
     }
 
     /**
+     * Organisationen, zu denen die angegebenen Departments gehören.
+     *
+     * @param list<string> $departmentIds
+     *
+     * @return list<string>
+     */
+    public function organisationIdsForDepartments(array $departmentIds): array
+    {
+        $this->ensureDepartmentMaps();
+        $organisationIds = [];
+        foreach ($departmentIds as $id) {
+            $department = $this->departmentById[$id] ?? null;
+            if ($department !== null) {
+                $organisationIds[$department->getOrganisationId()] = true;
+            }
+        }
+
+        return array_map('strval', array_keys($organisationIds));
+    }
+
+    /**
      * @param list<string>|null $organisationIds null = keine Org-Einschränkung
      *
      * @return list<string>

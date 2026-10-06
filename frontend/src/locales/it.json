@@ -284,6 +284,17 @@
       "logout": "Esci"
     },
     "totpRequiredNotice": "L'autenticazione a due fattori è obbligatoria per il tuo ruolo di amministratore. Configurala in Profilo → Sicurezza, altrimenti le funzioni amministrative restano bloccate.",
+    "stepUp": {
+      "title": "Conferma di sicurezza",
+      "totpHint": "Questa azione richiede una nuova conferma. Inserisci il codice a 6 cifre della tua app di autenticazione.",
+      "recoveryHint": "Inserisci uno dei tuoi codici di recupero. Ogni codice funziona una sola volta.",
+      "codeLabel": "Codice a 6 cifre",
+      "recoveryLabel": "Codice di recupero",
+      "useRecovery": "Usa un codice di recupero",
+      "useTotp": "Usa il codice dell'app",
+      "confirm": "Conferma",
+      "failed": "Conferma non riuscita."
+    },
     "profileModal": {
       "securitySection": "Sicurezza",
       "totp": {

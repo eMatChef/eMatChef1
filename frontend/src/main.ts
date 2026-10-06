@@ -33,7 +33,8 @@ import { syncDocumentHead } from './composables/usePageHead'
 import { createPinia } from 'pinia'
 import { useAuthStore } from './stores/auth'
 import { useToastStore } from './stores/toast'
-import { setSessionExpiredHandler, setApiSuccessRefreshCallback } from './api/apiClient'
+import { setSessionExpiredHandler, setApiSuccessRefreshCallback, setAdminMfaHandlers } from './api/apiClient'
+import { useStepUpStore } from './stores/stepUp'
 import { shouldProbeUserSession, shouldSkipLoginRedirect, loginRedirectUrl } from './api/unauthorizedRedirect'
 import { applyCrossSubdomainLogoutSync } from './utils/authCrossOrigin'
 import { purgeLegacyAuthSecrets } from './utils/authStorage'
@@ -76,6 +77,15 @@ setSessionExpiredHandler(async () => {
   useToastStore().warning(i18n.global.t('errors.sessionExpired'), 5000)
   await useAuthStore().logout()
   await redirectToLoginAfterSessionEnd()
+})
+
+// Admin-MFA: Step-up-Dialog bzw. Hinweis auf die TOTP-Einrichtung (Profil → Sicherheit)
+setAdminMfaHandlers({
+  stepUp: () => useStepUpStore().request(),
+  setupRequired: (message) => {
+    useToastStore().warning(message || i18n.global.t('layout.totpRequiredNotice'), 8000)
+    window.dispatchEvent(new CustomEvent('emc-open-profile-security'))
+  },
 })
 
 function syncCrossSubdomainLogoutToStore(): boolean {

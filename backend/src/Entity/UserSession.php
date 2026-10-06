@@ -97,6 +97,25 @@ class UserSession
         return $this->userAgent;
     }
 
+    /**
+     * Frische MFA-Bestätigung innerhalb dieser Sitzung (Step-up). Hat die Sitzung noch keinen MFA-Nachweis,
+     * gilt derselbe Faktor auch als MFA-Nachweis der Sitzung. Gilt nur für diese Sitzung.
+     */
+    public function markStepUp(): self
+    {
+        $now = new \DateTime();
+        $this->stepUpAt = $now;
+        $this->mfaVerifiedAt ??= clone $now;
+
+        return $this;
+    }
+
+    public function hasFreshStepUp(int $seconds, ?\DateTime $now = null): bool
+    {
+        return $this->stepUpAt !== null
+            && $this->stepUpAt >= (clone ($now ?? new \DateTime()))->modify('-' . $seconds . ' seconds');
+    }
+
     /** Beim Login mit bestandener MFA-Challenge gesetzt; gilt nur für diese Sitzung. */
     public function markMfaVerified(): self
     {

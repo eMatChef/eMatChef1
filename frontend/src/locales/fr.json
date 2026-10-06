@@ -380,6 +380,17 @@
       "logout": "Se déconnecter"
     },
     "totpRequiredNotice": "L'authentification à deux facteurs est obligatoire pour ton rôle d'administrateur. Configure-la sous Profil → Sécurité, sinon les fonctions d'administration restent bloquées.",
+    "stepUp": {
+      "title": "Confirmation de sécurité",
+      "totpHint": "Cette action nécessite une nouvelle confirmation. Saisis le code à 6 chiffres de ton application d'authentification.",
+      "recoveryHint": "Saisis un de tes codes de récupération. Chaque code ne fonctionne qu'une fois.",
+      "codeLabel": "Code à 6 chiffres",
+      "recoveryLabel": "Code de récupération",
+      "useRecovery": "Utiliser un code de récupération",
+      "useTotp": "Utiliser le code de l'application",
+      "confirm": "Confirmer",
+      "failed": "Échec de la confirmation."
+    },
     "profileModal": {
       "securitySection": "Sécurité",
       "totp": {

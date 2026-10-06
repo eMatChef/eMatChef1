@@ -7,6 +7,9 @@ namespace App\Tests\Service\Auth;
 use App\Entity\Profile;
 use App\Entity\User;
 use App\Entity\UserRecoveryCode;
+use App\Entity\UserSession;
+use App\Enum\AuthMethod;
+use App\Service\Auth\StepUpService;
 use App\Entity\UserTotp;
 use App\Service\Admin\AdminCapabilityChecker;
 use App\Service\AuditLogger;
@@ -254,7 +257,7 @@ final class TotpServiceTest extends TestCase
         $this->service->verifySecondFactor($user, 'AAAAA-BBBBB');
     }
 
-    public function testRealEnrollmentUsesRandom160BitSecrets(): void
+    public function testRealEnrollmentStillUsesRandomSecrets(): void
     {
         $secrets = [];
         foreach ([$this->user(), $this->user()] as $user) {
@@ -263,6 +266,114 @@ final class TotpServiceTest extends TestCase
 
         self::assertNotSame($secrets[0], $secrets[1]);
         self::assertMatchesRegularExpression('/^[A-Z2-7]{32}$/', $secrets[0]);
+    }
+
+    public function testStepUpWithTotpSetsStepUpAndMfaOnAFreshSession(): void
+    {
+        [$user, $session, $secret] = $this->enrolledUserWithSession();
+        $step = $this->stepUpService();
+
+        $step->confirm($user, $session, $this->codeAtOffset($secret, 1));
+
+        self::assertNotNull($session->getStepUpAt());
+        self::assertNotNull($session->getMfaVerifiedAt());
+        self::assertTrue($this->service->isEnabled($user));
+        self::assertContains('step_up_success', array_column($this->audits, 0));
+    }
+
+    public function testStepUpWithRecoveryCodeConsumesItOnceAndKeepsTotp(): void
+    {
+        [$user, $session, , $recovery] = $this->enrolledUserWithSession();
+        $step = $this->stepUpService();
+
+        $step->confirm($user, $session, $recovery[0]);
+
+        self::assertNotNull($session->getStepUpAt());
+        self::assertTrue($this->service->isEnabled($user));
+        self::assertSame(2, $this->service->status($user)['recovery_codes_remaining']);
+        $actions = array_column($this->audits, 0);
+        self::assertSame(1, \count(array_keys($actions, 'recovery_code_used', true)), 'Recovery-Nutzung wird nicht doppelt geloggt');
+        self::assertSame(1, \count(array_keys($actions, 'step_up_success', true)));
+
+        $other = new UserSession($user, AuthMethod::PASSWORD, null);
+        try {
+            $step->confirm($user, $other, $recovery[0]);
+            self::fail('recovery code reused');
+        } catch (TotpException $e) {
+            self::assertSame(TotpException::INVALID_CODE, $e->reason);
+        }
+        self::assertNull($other->getStepUpAt());
+    }
+
+    public function testWrongCodeAndReplayDoNotStepUp(): void
+    {
+        [$user, $session, $secret] = $this->enrolledUserWithSession();
+        $step = $this->stepUpService();
+
+        try {
+            $step->confirm($user, $session, '000000');
+            self::fail('wrong code accepted');
+        } catch (TotpException $e) {
+            self::assertSame(TotpException::INVALID_CODE, $e->reason);
+        }
+        self::assertNull($session->getStepUpAt());
+        self::assertContains('step_up_failure', array_column($this->audits, 0));
+
+        $code = $this->codeAtOffset($secret, 1);
+        $step->confirm($user, $session, $code);
+        $replay = new UserSession($user, AuthMethod::GOOGLE, null);
+        try {
+            $step->confirm($user, $replay, $code);
+            self::fail('replay accepted');
+        } catch (TotpException $e) {
+            self::assertSame(TotpException::INVALID_CODE, $e->reason);
+        }
+        self::assertNull($replay->getStepUpAt(), 'Step-up gilt nur für die eigene Sitzung');
+    }
+
+    public function testStepUpWithoutActiveTotpIsRejected(): void
+    {
+        $user = $this->user(['ROLE_ORGANISATIONSCHEF']);
+        $session = new UserSession($user, AuthMethod::PASSWORD, null);
+
+        try {
+            $this->stepUpService()->confirm($user, $session, '123456');
+            self::fail('step-up without totp');
+        } catch (TotpException $e) {
+            self::assertSame(TotpException::NOT_ACTIVE, $e->reason);
+        }
+        self::assertNull($session->getStepUpAt());
+        self::assertNull($session->getMfaVerifiedAt());
+    }
+
+    /**
+     * @return array{User, UserSession, string, list<string>}
+     */
+    private function enrolledUserWithSession(): array
+    {
+        $user = $this->user(['ROLE_ORGANISATIONSCHEF']);
+        $setup = $this->service->startEnrollment($user);
+        $recovery = $this->service->confirmEnrollment($user, $this->code($setup['secret']));
+        // Sitzung, die vor der TOTP-Aktivierung entstand: kein MFA-Nachweis
+        $session = new UserSession($user, AuthMethod::PASSWORD, null);
+
+        return [$user, $session, $setup['secret'], $recovery];
+    }
+
+    private function codeAtOffset(string $secret, int $offsetSteps): string
+    {
+        return TOTP::createFromSecret($secret)->at((intdiv(time(), 30) + $offsetSteps) * 30);
+    }
+
+    private function stepUpService(): StepUpService
+    {
+        $em = $this->createMock(EntityManager::class);
+        $audit = $this->createMock(AuditLogger::class);
+        $audit->method('log')->willReturnCallback(function (string $type, string $id, string $action, $actor, $target, $dept, array $changes): void {
+            $this->audits[] = [$action, $changes];
+        });
+
+        return new StepUpService($this->service, $em, $audit);
     }
 
     private function code(string $secret): string

@@ -1,5 +1,5 @@
 <template>
-  <details class="profile-accordion" data-onboarding="profile-security">
+  <details class="profile-accordion" data-onboarding="profile-security" :open="expanded || undefined">
     <summary class="profile-accordion__summary">{{ t('layout.profileModal.securitySection') }}</summary>
     <div class="profile-accordion__body">
       <h4 class="mb-1 mt-3 text-[0.82rem] font-bold text-slate-700">{{ t('layout.profileModal.emails.title') }}</h4>
@@ -109,7 +109,7 @@ import {
   type ProfileEmails,
 } from '@/api/profileEmails'
 
-const props = defineProps<{ open?: boolean }>()
+const props = defineProps<{ open?: boolean; expanded?: boolean }>()
 
 const { t, locale } = useI18n()
 const authStore = useAuthStore()

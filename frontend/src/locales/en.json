@@ -2225,6 +2225,17 @@
     "profileModal": {
       "midataSection": "More MiData memberships",
     "totpRequiredNotice": "Two-factor authentication is required for your admin role. Set it up under Profile → Security, otherwise administrative functions stay locked.",
+    "stepUp": {
+      "title": "Security confirmation",
+      "totpHint": "This action needs a fresh confirmation. Enter the 6-digit code from your authenticator app.",
+      "recoveryHint": "Enter one of your recovery codes. Each code works only once.",
+      "codeLabel": "6-digit code",
+      "recoveryLabel": "Recovery code",
+      "useRecovery": "Use a recovery code",
+      "useTotp": "Use authenticator code",
+      "confirm": "Confirm",
+      "failed": "Confirmation failed."
+    },
       "title": "Edit profile",
       "securitySection": "Security",
       "totp": {

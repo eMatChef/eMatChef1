@@ -84,16 +84,44 @@ final class AdminUserUpdatePolicyTest extends TestCase
     }
 
     /**
-     * AdminCapabilityChecker: Scope nur aus Department-Roots (organisation_ids = []) bedeutet
-     * Organisationszugriff null = alle. Der Sub hat damit mehr Org-Zugriff als ein auf org_1
-     * begrenzter Org — auch wenn sein Root in org_1 liegt.
+     * Scope nur aus Department-Roots (organisation_ids = []): Organisationszugriff = Organisationen der
+     * Wurzeln (hier org_1), nicht «alle». Liegt der Root in org_1, darf der auf org_1 begrenzte Org den Sub bearbeiten.
      */
-    public function testOrganisationScopedOrgMayNotEditRootOnlySubEvenWhenRootIsInsideOrganisation(): void
+    public function testOrganisationScopedOrgMayEditRootOnlySubWhenRootIsInsideOrganisation(): void
     {
         $actor = $this->orgChef('org_actor', [], ['org_1']);
         $target = $this->subOrgChef('sub_target', ['dep_a1']);
 
-        $this->assertDenied(403, fn () => $this->policy()->assertUpdateAllowed($actor, $target, [], []));
+        $this->policy()->assertUpdateAllowed($actor, $target, ['nickname' => 'X'], []);
+        $this->addToAssertionCount(1);
+    }
+
+    public function testRootOnlySubHasNoOrganisationAccessOutsideItsRoots(): void
+    {
+        $checker = $this->checker();
+        $sub = $this->subOrgChef('sub_target', ['dep_a1']);
+
+        self::assertSame(['org_1'], $checker->getAccessibleOrganisationIds($sub));
+        self::assertTrue($checker->canAccessOrganisation($sub, 'org_1'));
+        self::assertFalse($checker->canAccessOrganisation($sub, 'org_2'));
+        self::assertTrue($checker->canAccessDepartment($sub, 'dep_a1'));
+        self::assertFalse($checker->canAccessDepartment($sub, 'dep_b'));
+    }
+
+    public function testRootOnlyScopeWithUnknownRootFailsClosed(): void
+    {
+        $sub = $this->subOrgChef('sub_ghost', ['dep_missing']);
+
+        self::assertSame([], $this->checker()->getAccessibleOrganisationIds($sub));
+        self::assertFalse($this->checker()->canAccessOrganisation($sub, 'org_1'));
+    }
+
+    public function testCompletelyEmptyScopeStaysUnrestricted(): void
+    {
+        $org = $this->orgChef('org_open', [], []);
+
+        self::assertNull($this->checker()->getAccessibleOrganisationIds($org));
+        self::assertTrue($this->checker()->canAccessOrganisation($org, 'org_2'));
     }
 
     public function testOrganisationScopedOrgMayEditSubWithSameOrganisationAndRootInside(): void
@@ -354,6 +382,11 @@ final class AdminUserUpdatePolicyTest extends TestCase
 
     private function policy(): AdminUserUpdatePolicy
     {
+        return new AdminUserUpdatePolicy($this->checker());
+    }
+
+    private function checker(): AdminCapabilityChecker
+    {
         $entityManager = $this->createMock(EntityManagerInterface::class);
 
         $departments = [
@@ -377,9 +410,7 @@ final class AdminUserUpdatePolicyTest extends TestCase
             static fn (string $class) => $class === Department::class ? $departmentRepository : $membershipRepository
         );
 
-        return new AdminUserUpdatePolicy(
-            new AdminCapabilityChecker($entityManager, new AdminCapabilityDepartmentScope($entityManager))
-        );
+        return new AdminCapabilityChecker($entityManager, new AdminCapabilityDepartmentScope($entityManager));
     }
 
     /**
