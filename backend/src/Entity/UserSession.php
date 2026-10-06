@@ -97,6 +97,14 @@ class UserSession
         return $this->userAgent;
     }
 
+    /** Beim Login mit bestandener MFA-Challenge gesetzt; gilt nur für diese Sitzung. */
+    public function markMfaVerified(): self
+    {
+        $this->mfaVerifiedAt = new \DateTime();
+
+        return $this;
+    }
+
     public function getMfaVerifiedAt(): ?\DateTime
     {
         return $this->mfaVerifiedAt;

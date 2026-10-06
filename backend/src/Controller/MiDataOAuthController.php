@@ -14,6 +14,8 @@ use App\Service\Auth\MiDataDepartmentOnboardingService;
 use App\Service\Auth\MiDataOAuthAccountService;
 use App\Service\Auth\MiDataOAuthException;
 use App\Service\Auth\MiDataOAuthState;
+use App\Enum\AuthMethod;
+use App\Service\Auth\MfaChallengeService;
 use Lexik\Bundle\JWTAuthenticationBundle\Security\Http\Authentication\AuthenticationSuccessHandler;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -38,6 +40,7 @@ final class MiDataOAuthController extends AbstractController
         #[Autowire(service: 'lexik_jwt_authentication.handler.authentication_success')]
         private readonly AuthenticationSuccessHandler $authenticationSuccessHandler,
         private readonly LoggerInterface $logger,
+        private readonly MfaChallengeService $mfaChallenges,
         #[Autowire('%env(bool:AUTH_COOKIE_SECURE)%')]
         private readonly bool $authCookieSecure = false,
         #[Autowire('%env(default::AUTH_COOKIE_DOMAIN)%')]
@@ -73,6 +76,7 @@ final class MiDataOAuthController extends AbstractController
         $joinDepartmentId = null;
         $onboardingResult = null;
         $onboardingDepartmentId = null;
+        $mfa = null;
         try {
             $session = $this->oauthClient->fetchUserInfo(
                 $code,
@@ -88,7 +92,9 @@ final class MiDataOAuthController extends AbstractController
 
             $user = $this->accountService->resolveOrCreate($session->userInfo, $linkUser);
             // Verknüpfen ist kein Login: die bestehende Sitzung des eingeloggten Users bleibt, keine neuen Tokens.
-            $authResponse = $linkUser instanceof User
+            // MiData liefert keinen belastbaren MFA-Nachweis (kein amr/acr/auth_time): aktives eMatChef-TOTP wird verlangt.
+            $mfa = $linkUser instanceof User ? null : $this->mfaChallenges->issueIfRequired($user, AuthMethod::MIDATA);
+            $authResponse = $linkUser instanceof User || $mfa !== null
                 ? null
                 : $this->authenticationSuccessHandler->handleAuthenticationSuccess($user);
             $onboardingId = $this->oauthState->extractDepartmentOnboardingIntent($verifiedState['redirect']);
@@ -145,6 +151,19 @@ final class MiDataOAuthController extends AbstractController
         if ($onboardingResult !== null) {
             $frontendPath = $this->withOnboardingResult($frontendPath, $onboardingResult, $onboardingDepartmentId);
         }
+        if ($mfa !== null) {
+            // Challenge im Fragment: erreicht weder Server-Logs noch Referer.
+            $query = ['oauth' => 'mfa', 'provider' => 'midata'];
+            if ($frontendPath !== '/login' && !str_starts_with($frontendPath, '/login?')) {
+                $query['next'] = $frontendPath;
+            }
+            $response = new RedirectResponse($this->appendQuery($this->frontendUrl('/login'), $query) . '#challenge=' . $mfa['challenge']);
+            $response->headers->setCookie($this->stateCookie('', 1));
+            $response->headers->set('Cache-Control', 'no-store');
+
+            return $response;
+        }
+
         $target = $this->frontendUrl($frontendPath);
         if (
             $isLinkFlow

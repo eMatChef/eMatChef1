@@ -243,7 +243,8 @@ final class TotpServiceTest extends TestCase
         $setup = $this->service->startEnrollment($user);
         $this->service->confirmEnrollment($user, $this->code($setup['secret']));
 
-        // der bei der Bestätigung verbrauchte Code ist nicht erneut verwendbar
+        // Der Bestätigungscode verbraucht keinen Auth-Schritt: einmal für den ersten Login nutzbar, dann gesperrt.
+        self::assertTrue($this->service->verifySecondFactor($user, $this->code($setup['secret'])));
         self::assertFalse($this->service->verifySecondFactor($user, $this->code($setup['secret'])));
 
         for ($i = 0; $i < 4; ++$i) {

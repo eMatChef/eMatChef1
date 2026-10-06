@@ -2368,6 +2368,7 @@
     },
     "profileModal": {
       "midataSection": "Weitere MiData-Zugehörigkeiten",
+    "totpRequiredNotice": "Für deine Adminrolle ist die Zwei-Faktor-Authentifizierung verpflichtend. Richte sie unter Profil → Sicherheit ein, sonst bleiben administrative Funktionen gesperrt.",
       "title": "Profil bearbeiten",
       "securitySection": "Sicherheit",
       "totp": {
@@ -2614,6 +2615,18 @@
     "midataOauthNotConfigured": "MiData-Anmeldung ist auf diesem Server noch nicht eingerichtet.",
     "midataOauthDenied": "MiData-Anmeldung wurde abgebrochen.",
     "midataOauthInvalidState": "MiData-Anmeldung ist abgelaufen. Bitte erneut versuchen.",
+    "mfa": {
+      "title": "Zwei-Faktor-Bestätigung",
+      "totpHint": "Gib den 6-stelligen Code aus deiner Authenticator-App ein.",
+      "recoveryHint": "Gib einen deiner Recovery Codes ein. Jeder Code funktioniert nur einmal.",
+      "codeLabel": "6-stelliger Code",
+      "recoveryLabel": "Recovery Code",
+      "submit": "Bestätigen",
+      "useRecovery": "Recovery Code verwenden",
+      "useTotp": "Authenticator-Code verwenden",
+      "cancel": "Abbrechen",
+      "failed": "Bestätigung fehlgeschlagen. Bitte melde dich erneut an."
+    },
     "midataOauthNoEmail": "Das MiData-Konto hat keine verwendbare E-Mail-Adresse.",
     "midataOauthUnverifiedEmail": "Die MiData-E-Mail-Adresse ist nicht bestätigt.",
     "midataOauthEmailConflict": "Diese E-Mail-Adresse gehört bereits zu einem eMatChef-Konto. Melde dich mit diesem Konto an; MiData wird nicht automatisch verknüpft.",

@@ -151,6 +151,7 @@ final class MiDataOAuthControllerStartTest extends TestCase
             $this->createMock(UserRepository::class),
             $this->createMock(AuthenticationSuccessHandler::class),
             $this->createMock(LoggerInterface::class),
+            $this->createMock(\App\Service\Auth\MfaChallengeService::class),
         );
 
         $tokenStorage = new TokenStorage();

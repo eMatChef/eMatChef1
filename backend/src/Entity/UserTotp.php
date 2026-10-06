@@ -120,8 +120,12 @@ class UserTotp
         return $this;
     }
 
-    /** Pending-Secret wird das aktive Secret; ein früheres Secret ist damit ungültig. */
-    public function activatePending(int $step): self
+    /**
+     * Pending-Secret wird das aktive Secret; ein früheres Secret ist damit ungültig.
+     * $step = Zeitschritt, der als verbraucht gilt. Die Bestätigung bei der Einrichtung übergibt keinen:
+     * sie beweist nur den Besitz und soll den ersten Login im selben Zeitfenster nicht blockieren.
+     */
+    public function activatePending(?int $step = null): self
     {
         $this->secretEncrypted = $this->pendingSecretEncrypted;
         $this->pendingSecretEncrypted = null;

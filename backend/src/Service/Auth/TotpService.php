@@ -143,8 +143,9 @@ class TotpService
         }
 
         $reset = $totp->isActive();
-        $codes = $this->entityManager->wrapInTransaction(function () use ($user, $totp, $step): array {
-            $totp->activatePending($step);
+        $codes = $this->entityManager->wrapInTransaction(function () use ($user, $totp): array {
+            // Bestätigung verbraucht keinen Auth-Zeitschritt; Replay-Schutz gilt ab dem ersten Login/Step-up.
+            $totp->activatePending();
 
             return $this->replaceRecoveryCodes($user);
         });

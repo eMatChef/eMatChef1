@@ -379,6 +379,7 @@
       "switchDepartment": "Changer de département",
       "logout": "Se déconnecter"
     },
+    "totpRequiredNotice": "L'authentification à deux facteurs est obligatoire pour ton rôle d'administrateur. Configure-la sous Profil → Sécurité, sinon les fonctions d'administration restent bloquées.",
     "profileModal": {
       "securitySection": "Sécurité",
       "totp": {
@@ -574,6 +575,18 @@
     "oauthInactive": "Ce compte est desactive.",
     "oauthFailed": "La connexion Google a echoue. Veuillez reessayer.",
     "validationEmailPassword": "Veuillez entrer l'e-mail et le mot de passe",
+    "mfa": {
+      "title": "Vérification à deux facteurs",
+      "totpHint": "Saisis le code à 6 chiffres de ton application d'authentification.",
+      "recoveryHint": "Saisis un de tes codes de récupération. Chaque code ne fonctionne qu'une fois.",
+      "codeLabel": "Code à 6 chiffres",
+      "recoveryLabel": "Code de récupération",
+      "submit": "Confirmer",
+      "useRecovery": "Utiliser un code de récupération",
+      "useTotp": "Utiliser le code de l'application",
+      "cancel": "Annuler",
+      "failed": "Échec de la vérification. Reconnecte-toi."
+    },
     "validationNameRequired": "Le prenom et le nom sont obligatoires",
     "validationOrganisationRequired": "Veuillez choisir une organisation",
     "validationDepartmentRequired": "Veuillez indiquer le nom de votre departement",

@@ -2224,6 +2224,7 @@
     },
     "profileModal": {
       "midataSection": "More MiData memberships",
+    "totpRequiredNotice": "Two-factor authentication is required for your admin role. Set it up under Profile → Security, otherwise administrative functions stay locked.",
       "title": "Edit profile",
       "securitySection": "Security",
       "totp": {
@@ -2435,6 +2436,18 @@
     "midataOauthNotConfigured": "MiData sign-in is not set up on this server yet.",
     "midataOauthDenied": "MiData sign-in was cancelled.",
     "midataOauthInvalidState": "MiData sign-in expired. Please try again.",
+    "mfa": {
+      "title": "Two-factor verification",
+      "totpHint": "Enter the 6-digit code from your authenticator app.",
+      "recoveryHint": "Enter one of your recovery codes. Each code works only once.",
+      "codeLabel": "6-digit code",
+      "recoveryLabel": "Recovery code",
+      "submit": "Confirm",
+      "useRecovery": "Use a recovery code",
+      "useTotp": "Use authenticator code",
+      "cancel": "Cancel",
+      "failed": "Verification failed. Please sign in again."
+    },
     "midataOauthNoEmail": "The MiData account has no usable email address.",
     "midataOauthUnverifiedEmail": "The MiData email address is not verified.",
     "midataOauthEmailConflict": "This email address already belongs to an eMatChef account. Sign in to that account; MiData is not linked automatically.",

@@ -38,7 +38,34 @@
           {{ successMessage }}
         </v-alert>
 
-        <form v-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
+        <form v-if="authStore.pendingMfa" class="login-form" @submit.prevent="handleMfaSubmit">
+          <h2 class="login-mfa-title">{{ t('login.mfa.title') }}</h2>
+          <p class="login-mfa-hint">
+            {{ mfaMethod === 'totp' ? t('login.mfa.totpHint') : t('login.mfa.recoveryHint') }}
+          </p>
+          <ETextField
+            id="mfa-code"
+            v-model="mfaCode"
+            :label="mfaMethod === 'totp' ? t('login.mfa.codeLabel') : t('login.mfa.recoveryLabel')"
+            :inputmode="mfaMethod === 'totp' ? 'numeric' : 'text'"
+            autocomplete="one-time-code"
+            :disabled="isLoading"
+            autofocus
+          />
+          <EButton variant="primary" type="submit" block :loading="isLoading" :disabled="!mfaCode.trim()">
+            {{ t('login.mfa.submit') }}
+          </EButton>
+          <div class="login-mfa-links">
+            <EButton variant="text" size="small" type="button" :disabled="isLoading" @click="toggleMfaMethod">
+              {{ mfaMethod === 'totp' ? t('login.mfa.useRecovery') : t('login.mfa.useTotp') }}
+            </EButton>
+            <EButton variant="text" size="small" type="button" :disabled="isLoading" @click="cancelMfa">
+              {{ t('login.mfa.cancel') }}
+            </EButton>
+          </div>
+        </form>
+
+        <form v-else-if="mode === 'login'" class="login-form" @submit.prevent="handleSubmit">
           <v-alert
             v-if="claimingExistingAccount && inviteEmailLabel"
             type="info"
@@ -856,6 +883,17 @@ async function completeExternalOAuthReturn() {
     error.value = oauthErrorMessage(reason, provider)
     return
   }
+  if (oauth === 'mfa') {
+    // Challenge steht im URL-Fragment (nicht in Logs/Referer); sofort aus der Adresszeile entfernen.
+    const challenge = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('challenge') || ''
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    if (challenge) {
+      authStore.beginMfa(challenge)
+    } else {
+      error.value = t('login.mfa.failed')
+    }
+    return
+  }
   if (oauth !== 'ok') return
   isRedirecting.value = true
   const ok = await authStore.loadUserSessionFromCookie(true)
@@ -869,7 +907,7 @@ async function completeExternalOAuthReturn() {
 }
 
 async function redirectAfterSuccessfulLogin() {
-  const routeRedirect = parseInternalRedirectPath(route.query.redirect)
+  const routeRedirect = parseInternalRedirectPath(route.query.redirect) || parseInternalRedirectPath(route.query.next)
   const storedInviteRedirect = getStoredInviteRedirect()
   const redirectTarget = inviteRedirect.value || routeRedirect || storedInviteRedirect
   if (redirectTarget) {
@@ -1043,6 +1081,35 @@ function setMode(nextMode: 'login' | 'register' | 'forgot') {
     })
   }
   clearMessages()
+}
+
+const mfaMethod = ref<'totp' | 'recovery_code'>('totp')
+const mfaCode = ref('')
+
+function toggleMfaMethod() {
+  mfaMethod.value = mfaMethod.value === 'totp' ? 'recovery_code' : 'totp'
+  mfaCode.value = ''
+  clearMessages()
+}
+
+function cancelMfa() {
+  authStore.cancelMfa()
+  mfaMethod.value = 'totp'
+  mfaCode.value = ''
+  clearMessages()
+}
+
+async function handleMfaSubmit() {
+  clearMessages()
+  const ok = await authStore.completeMfa(mfaMethod.value, mfaCode.value)
+  mfaCode.value = ''
+  if (!ok) {
+    error.value = authStore.error || t('login.mfa.failed')
+    return
+  }
+  setLocale(authStore.profile?.language || 'de')
+  isRedirecting.value = true
+  await redirectAfterSuccessfulLogin()
 }
 
 async function handleSubmit() {
@@ -1270,6 +1337,26 @@ watch(
 </script>
 
 <style scoped>
+.login-mfa-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.login-mfa-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  opacity: 0.8;
+}
+
+.login-mfa-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .login-page {
   min-height: calc(100dvh - var(--emc-dev-system-bar-height, 0px));
   display: flex;
