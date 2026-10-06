@@ -257,6 +257,27 @@ final class TotpServiceTest extends TestCase
         $this->service->verifySecondFactor($user, 'AAAAA-BBBBB');
     }
 
+    public function testFixedDemoSecretIsReproducibleAndReseedKeepsItUntouched(): void
+    {
+        $user = $this->user(['ROLE_ORGANISATIONSCHEF']);
+        $secret = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+
+        self::assertTrue($this->service->provisionFixedSecret($user, $secret));
+        self::assertTrue($this->service->isEnabled($user));
+        self::assertSame(3, $this->service->status($user)['recovery_codes_remaining']);
+        self::assertTrue($this->service->verifySecondFactor($user, $this->code($secret)));
+        $hashes = array_map(static fn (UserRecoveryCode $r): string => $r->getCodeHash(), $this->all(UserRecoveryCode::class));
+        /** @var UserTotp $row */
+        $row = $this->all(UserTotp::class)[0];
+        $encrypted = $row->getSecretEncrypted();
+
+        // Reseed mit demselben Secret: nichts ändert sich
+        self::assertFalse($this->service->provisionFixedSecret($user, $secret));
+        self::assertSame($encrypted, $row->getSecretEncrypted());
+        self::assertSame($hashes, array_map(static fn (UserRecoveryCode $r): string => $r->getCodeHash(), $this->all(UserRecoveryCode::class)));
+        self::assertSame(1, $this->rows(UserTotp::class));
+    }
+
     public function testRealEnrollmentStillUsesRandomSecrets(): void
     {
         $secrets = [];

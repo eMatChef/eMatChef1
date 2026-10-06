@@ -14,7 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
 /**
- * Fixe Dev-Vorlage: Rollen-User (@ematchef.ch / test!ematchef) + E2E-Smoke ohne Department.
+ * Fixe Dev-Vorlage: Demo-User (@demo.ematchef.ch, siehe data/seeds/dev-demo/demo-accounts.json) + E2E-Smoke ohne Department.
  * Nur wenn EMATCHEF_DEV_TOOLS aktiv (bzw. nicht APP_ENV=prod ohne Override).
  */
 #[AsCommand(

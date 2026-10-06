@@ -16,11 +16,11 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * Dev-Demo: Testfirma + supplier@ematchef.ch (kein Department, Zugang zum Supplier-Bereich).
+ * Dev-Demo: Testfirma + supplier@demo.ematchef.ch (kein Department, Zugang zum Supplier-Bereich).
  */
 final class DemoSupplierSeedService
 {
-    public const EMAIL = 'supplier@ematchef.ch';
+    public const EMAIL = 'supplier@demo.ematchef.ch';
     public const MANUFACTURER_KEY = 'ematchef-demo';
     public const COMPANY_NAME = 'Demo Lieferant';
 
