@@ -85,6 +85,19 @@ Optional danach ein Release-Tag setzen (z. B. `v1.0.0`).
 - Beschreibe kurz, warum die Aenderung noetig ist.
 - Fasse zusammen, was getestet wurde.
 - Wenn moeglich, verlinke Issues oder Aufgaben.
+- Pruefe die Dokumentation gemaess Abschnitt „Dokumentation pflegen“.
+
+## Dokumentation pflegen
+
+Es gibt zwei Dokumentationsquellen. Nach jeder Aenderung wird geprueft, welche betroffen ist:
+
+- **A – Technische, dauerhafte Entwicklerdokumentation** (Architektur, Domain-Modell, Security, technische Entscheidungen, Entwicklungsregeln): `docs/` in diesem Repository (`eMatChef/eMatChef1`).
+- **B – Oeffentliche Benutzer- und Entwicklerdokumentation** (Bedienung, Workflows, Rollen aus Nutzersicht, Integrationen, Testumgebung, Demo-Konten): Repository [`eMatChef/documentation`](https://github.com/eMatChef/documentation), veroeffentlicht unter [docs.ematchef.ch](https://docs.ematchef.ch).
+- **C – Betrifft eine Aenderung beide Ebenen:** beide Repositories aktualisieren.
+
+Nur die tatsaechlich betroffenen Dokumente anpassen und technische Details nicht in die oeffentliche Dokumentation kopieren. Die Demo-Konten der Testumgebungsseite stammen aus `backend/data/seeds/dev-demo/demo-accounts.json` (einzige Quelle, keine zweite Kopie).
+
+Das GitHub-Wiki ist nur ein Wegweiser auf diese Orte und enthaelt keine eigene, doppelte Dokumentation.
 
 ## Schutz von Branches (GitHub)
 
