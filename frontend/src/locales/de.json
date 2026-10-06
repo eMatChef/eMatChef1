@@ -2366,8 +2366,6 @@
       "versionTitle": "App-Version",
       "versionAria": "App-Version {version}"
     },
-    "profileModal": {
-      "midataSection": "Weitere MiData-Zugehörigkeiten",
     "totpRequiredNotice": "Für deine Adminrolle ist die Zwei-Faktor-Authentifizierung verpflichtend. Richte sie unter Profil → Sicherheit ein, sonst bleiben administrative Funktionen gesperrt.",
     "stepUp": {
       "title": "Sicherheitsbestätigung",
@@ -2380,7 +2378,7 @@
       "confirm": "Bestätigen",
       "failed": "Bestätigung fehlgeschlagen."
     },
-      "title": "Profil bearbeiten",
+    "profileModal": {
       "securitySection": "Sicherheit",
         "externalIdentities": {
           "title": "Verbundene Anmeldungen",
@@ -2524,6 +2522,8 @@
       },
       "closeAria": "Dialog schließen",
       "lastName": "Nachname",
+      "midataSection": "Weitere MiData-Zugehörigkeiten",
+      "title": "Profil bearbeiten",
       "firstName": "Vorname",
       "email": "E-Mail",
       "editEmailTitle": "E-Mail bearbeiten",

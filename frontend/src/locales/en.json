@@ -2222,8 +2222,6 @@
       "versionTitle": "App version",
       "versionAria": "App version {version}"
     },
-    "profileModal": {
-      "midataSection": "More MiData memberships",
     "totpRequiredNotice": "Two-factor authentication is required for your admin role. Set it up under Profile → Security, otherwise administrative functions stay locked.",
     "stepUp": {
       "title": "Security confirmation",
@@ -2236,7 +2234,7 @@
       "confirm": "Confirm",
       "failed": "Confirmation failed."
     },
-      "title": "Edit profile",
+    "profileModal": {
       "securitySection": "Security",
         "externalIdentities": {
           "title": "Connected sign-ins",
@@ -2380,6 +2378,8 @@
       },
       "closeAria": "Close dialog",
       "lastName": "Last name",
+      "midataSection": "More MiData memberships",
+      "title": "Edit profile",
       "firstName": "First name",
       "email": "Email",
       "editEmailTitle": "Edit email",
