@@ -23,6 +23,7 @@ use App\Repository\UserSessionRepository;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use App\Service\OrganisationUserPickerFilter;
 use App\Service\Supplier\SupplierCompanyAccessService;
+use App\Service\UserEmailAliasConflictException;
 use App\Service\UserEmailAliasService;
 use App\Service\TurnstileVerifier;
 use App\Service\JoinRequestManagerNotificationService;
@@ -579,6 +580,21 @@ class AuthController extends AbstractController
 
         $user = $this->userRepository->findOneBy(['emailVerificationToken' => $token]);
         if (!$user) {
+            // Bestätigung einer zusätzlichen E-Mail-Adresse
+            try {
+                $alias = $this->emailAliases->verifyByToken($token);
+            } catch (\DomainException $e) {
+                return new JsonResponse(['error' => 'Verifikationslink ist abgelaufen'], 410);
+            } catch (UserEmailAliasConflictException) {
+                return new JsonResponse(['error' => 'Diese E-Mail-Adresse ist bereits vergeben'], 409);
+            }
+            if ($alias !== null) {
+                return new JsonResponse([
+                    'success' => true,
+                    'message' => 'E-Mail-Adresse bestaetigt. Sie ist jetzt mit deinem Konto verknuepft.',
+                ]);
+            }
+
             return new JsonResponse(['error' => 'Ungueltiger Verifikationslink'], 400);
         }
 
@@ -681,12 +697,8 @@ class AuthController extends AbstractController
             return new JsonResponse(['success' => true, 'message' => $publicMessage]);
         }
 
-        $profile = $this->profileRepository->findOneBy(['email' => $email]);
-        if (!$profile) {
-            return new JsonResponse(['success' => true, 'message' => $publicMessage]);
-        }
-
-        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        // Jede verifizierte Login-Adresse (Primary oder zusätzliche) startet den Reset; Code geht an die Primary.
+        $user = $this->emailAliases->findLoginUserByEmail($email);
         if (!$user) {
             return new JsonResponse(['success' => true, 'message' => $publicMessage]);
         }
@@ -718,7 +730,7 @@ class AuthController extends AbstractController
         $code = strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
         $expiresAt = (clone $now)->modify('+' . self::PASSWORD_RESET_CODE_TTL_MINUTES . ' minutes');
 
-        $user->setPasswordResetCodeHash($this->hashPasswordResetCode($email, $code));
+        $user->setPasswordResetCodeHash($this->hashPasswordResetCode($this->primaryEmail($user), $code));
         $user->setPasswordResetExpiresAt($expiresAt);
         $user->setPasswordResetLastRequestedAt(clone $now);
         $user->setPasswordResetAttemptCount(0);
@@ -753,12 +765,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Das Passwort muss mindestens 8 Zeichen lang sein'], 400);
         }
 
-        $profile = $this->profileRepository->findOneBy(['email' => $email]);
-        if (!$profile) {
-            return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
-        }
-
-        $user = $this->userRepository->findOneBy(['profileId' => $profile->getId()]);
+        $user = $this->emailAliases->findLoginUserByEmail($email);
         if (!$user) {
             return new JsonResponse(['error' => 'Code ungueltig oder abgelaufen'], 400);
         }
@@ -783,7 +790,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Zu viele Fehlversuche. Bitte neuen Code anfordern.'], 429);
         }
 
-        $providedHash = $this->hashPasswordResetCode($email, $code);
+        $providedHash = $this->hashPasswordResetCode($this->primaryEmail($user), $code);
         if (!hash_equals($storedHash, $providedHash)) {
             $attempts = $user->getPasswordResetAttemptCount() + 1;
             $user->setPasswordResetAttemptCount($attempts);
@@ -826,6 +833,11 @@ class AuthController extends AbstractController
             'success' => true,
             'message' => 'Passwort wurde erfolgreich zurueckgesetzt.'
         ]);
+    }
+
+    private function primaryEmail(User $user): string
+    {
+        return strtolower((string) ($user->getProfile()?->getEmail() ?? ''));
     }
 
     private function hashPasswordResetCode(string $email, string $code): string

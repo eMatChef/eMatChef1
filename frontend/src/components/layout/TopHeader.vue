@@ -639,6 +639,7 @@
               </div>
             </details>
 
+            <ProfileSecurityEmailsAccordion :open="showEditProfileModal" />
             <ProfileDriveLicenseAccordion :open="showEditProfileModal" />
             <ProfileMiDataMembershipsAccordion :open="showEditProfileModal" />
 
@@ -782,6 +783,7 @@ import {
 import GlobalSearchInput from '../common/GlobalSearchInput.vue'
 import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import ProfileDriveLicenseAccordion from '@/components/layout/ProfileDriveLicenseAccordion.vue'
+import ProfileSecurityEmailsAccordion from '@/components/layout/ProfileSecurityEmailsAccordion.vue'
 import ProfileMiDataMembershipsAccordion from '@/components/layout/ProfileMiDataMembershipsAccordion.vue'
 import type { UserAvatarFields } from '@/utils/userAvatar'
 import {

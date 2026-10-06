@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Repository\ExternalIdentityRepository;
 use App\Repository\ProfileRepository;
 use App\Service\AuditLogger;
+use App\Service\UserEmailAliasService;
 use App\Util\IdGenerator;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\ORM\EntityManagerInterface;
@@ -25,6 +26,7 @@ final class MiDataOAuthAccountService
         private readonly UserPasswordHasherInterface $passwordHasher,
         private readonly LanguageConfig $languageConfig,
         private readonly AuditLogger $auditLogger,
+        private readonly UserEmailAliasService $emailAliases,
     ) {}
 
     public function resolveOrCreate(MiDataOAuthUserInfo $info, ?User $linkToUser = null): User
@@ -71,8 +73,9 @@ final class MiDataOAuthAccountService
             throw new MiDataOAuthException('no_email', 'MiData account has no usable email address');
         }
 
+        // Neuanlage nur, wenn die Adresse keinem Konto gehört (auch nicht als zusätzliche Adresse); kein Merge.
         $existingProfile = $this->profileRepository->findOneBy(['email' => $info->email]);
-        if ($existingProfile instanceof Profile) {
+        if ($existingProfile instanceof Profile || $this->emailAliases->isEmailTaken($info->email)) {
             $this->auditLogger->log(
                 'user',
                 '',

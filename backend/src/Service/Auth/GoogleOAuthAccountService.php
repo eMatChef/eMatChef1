@@ -95,6 +95,23 @@ final class GoogleOAuthAccountService
 
             throw new GoogleOAuthException('failed', 'Profile without user');
         }
+        // Neuanlage nur, wenn die Adresse keinem Konto gehört (auch nicht als zusätzliche Adresse); kein Merge.
+        if ($this->emailAliases->isEmailTaken($info->email)) {
+            $this->auditLogger->log(
+                'user',
+                '',
+                'external_identity_email_conflict',
+                null,
+                null,
+                null,
+                [
+                    'provider' => ['old' => null, 'new' => $provider],
+                    'external_user_id' => ['old' => null, 'new' => $info->googleId],
+                    'email' => ['old' => null, 'new' => $info->email],
+                ]
+            );
+            throw new GoogleOAuthException('failed', 'Email already linked to another account');
+        }
 
         $profile = new Profile();
         $profile->setId(IdGenerator::generateUnique($this->entityManager, Profile::class));

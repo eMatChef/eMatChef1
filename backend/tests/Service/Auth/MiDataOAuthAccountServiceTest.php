@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Repository\ExternalIdentityRepository;
 use App\Repository\ProfileRepository;
 use App\Service\AuditLogger;
+use App\Service\UserEmailAliasService;
 use App\Service\Auth\MiDataOAuthAccountService;
 use App\Service\Auth\MiDataOAuthException;
 use App\Service\Auth\MiDataOAuthUserInfo;
@@ -139,6 +140,7 @@ final class MiDataOAuthAccountServiceTest extends TestCase
             $passwordHasher,
             new LanguageConfig(['de', 'en'], 'de'),
             $this->createMock(AuditLogger::class),
+            $this->createMock(UserEmailAliasService::class),
         );
     }
 
