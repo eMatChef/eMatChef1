@@ -4,7 +4,9 @@ Spezifikation zum Abarbeiten. Ergänzt [README §3.7](./README.md#37-beschaffung
 
 **Stand der Entscheidungen:** 28. August 2026. **Umsetzung:** Phasen K1–K6 unten sind abgehakt und im Code (Cost, Budget, Kosten-Route). Ist-Überblick: [README §0.5](./README.md#05-beschaffung-anfragen-wareneingang-kosten). Der Tab «Erhalten» existiert nicht mehr; der Eingang ist der Wareneingang.
 
-**Verwandt:** [README.md](./README.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [accounting.md](../accounting.md) (nur Abgrenzung — **nicht** anbinden)
+**Zentrale Spezifikation:** [materialfluss.md](./materialfluss.md) beschreibt den kompletten Grossanlass-Materialfluss mit Herkunft, Übergabe, Wareneingang, Rückbau und Rückgabe, auf den die Kostenlogik fachlich aufsetzt.
+
+**Verwandt:** [README.md](./README.md) · [materialfluss.md](./materialfluss.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [accounting.md](../accounting.md) (nur Abgrenzung — **nicht** anbinden)
 
 ---
 

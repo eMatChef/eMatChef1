@@ -6,7 +6,7 @@ Aktuelle Ist-Dokumentation für department-übergreifende Grossanlässe (PFF, Ka
 
 **Leseregel:** [§0](#0-ist-stand) beschreibt, was der Code heute tut. Absätze mit **PLANNED** oder **FUTURE** sind nicht gebaut. [MVP.md](./MVP.md) und [20260823_New_concept.md](./20260823_New_concept.md) sind historische Planungsstände und keine zweite Ist-Quelle. Wo ein älterer Satz in dieser Datei §0 widerspricht, gilt §0.
 
-**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) (Bauprojekt, GA-Ort, Aufgaben & Material) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [material-pipeline.md](../activities/material-pipeline.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
+**Verwandt:** [20260823_New_concept.md](./20260823_New_concept.md) (Partneranfragen, Grob/Fein, Gmail) · [materialfluss.md](./materialfluss.md) (Grossanlass-Materialfluss, Herkunft, Übergabe, Bestand, Rückbau) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) (Rollen MW/CMW/OK-L, Postfach `eMatChef`, Fahrten/Pack) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) (Bauprojekt, GA-Ort, Aufgaben & Material) · [kosten.md](./kosten.md) (Kostenübersicht Material & Logistik) · [status.md](../activities/status.md) · [pack-workflow-rules.md](../activities/pack-workflow-rules.md) · [js-material/README.md](../activities/js-material/README.md) · [newUI/SPEC §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) (Fuhrpark) · [wiederverwendbare-komponenten.md](../wiederverwendbare-komponenten.md) · [ui/vuetify-standards.md](../ui/vuetify-standards.md) · [nachrichtenzentrale.md](../nachrichtenzentrale.md)
 
 ---
 
@@ -129,7 +129,7 @@ Postfach: gemeinsames Konto, Label-Wurzel `eMatChef`, Anbieter-Feld `gmail` (Def
 
 Mail-Adressen: `user_email_alias` (weitere Adressen am User) und `membership.notification_email` (Empfängeradresse dieser Department-Mitgliedschaft). Die Gmail-Öffnen-URL einer Anfrage bezieht sich auf das Department der Anfrage.
 
-Wareneingang: Liefertermin an Bestellung und Offerte (Lieferzeit in Tagen). Route `/{deptId}/material-uebersicht/wareneingang`. `POST …/lines/{id}/received` bleibt die API zum Erfassen des Eingangs.
+Wareneingang (**IST**, mengenbasiert): Liefertermin an Bestellung und Offerte (Lieferzeit in Tagen). Route `/{deptId}/material-uebersicht/wareneingang` bucht Teil- oder Restmengen pro Charge als Bewegung `received` (Menge, Annahmeort, Notiz, Person, Zeitpunkt); erhaltene Menge und Fehlmenge werden berechnet, Überlieferung wird abgelehnt. `POST …/lines/{id}/received` bucht über dieselbe Charge-Bewegung; erhaltene Mengen je Wunsch und Positionsstatus werden daraus abgeleitet. Abhol-/Liefer-Einsatz an der Charge (`pickup_einsatz_id` / `delivery_einsatz_id`) ist noch kein Fahrauftrag. Details: [materialfluss.md §5–6, §14](./materialfluss.md#6-wareneingang-ist-mengenbasiert).
 
 Kosten-Ledger (Einkauf, Miete, Leih, Weiterverkauf, Zahler): [kosten.md](./kosten.md), Phasen K1–K6 umgesetzt. API `…/beschaffung/costs` und `…/budgets`.
 
@@ -181,7 +181,7 @@ Nicht mit dem Ist vermischen:
 12. [J+S](#12-js)
 13. [Lebenszyklus & Archivierung](#13-lebenszyklus--archivierung)
 14. [Datenmodell](#14-datenmodell)
-15. [API (Ziel)](#15-api-ziel)
+15. [API](#15-api)
 16. [Implementierungsphasen](#16-implementierungsphasen)
 17. [Berechtigungs-Matrix](#17-berechtigungs-matrix)
 18. [Offene Fragen](#18-offene-fragen)
@@ -1112,31 +1112,27 @@ Menü **Materialien** = **Stammdaten**, activity-unabhängig.
 ### 10.1 Tabs
 
 
-| Tab           | Modell                 | Beschreibung                                                                                           |
-| ------------- | ---------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Eigen**     | `MaterialItem`         | Gehört Grossanlass-Dept (Zentrallager)                                                                 |
-| **Leihweise** | `material_usage_grant` | Nutzung **von–bis**, fremder Owner                                                                     |
-| **Fahrzeuge** | `department_vehicle`   | Fuhrpark — siehe [newUI §19.3](../activities/newUI/SPEC.md#193-transport--touren--department-fuhrpark) |
+**Ist:** Der GA-Bestand besteht aus **Chargen** (`department_grossanlass_commitment`), nicht aus `MaterialItem` des Grossanlass-Departments. Kernmodell Artikel → Charge → Einsatz → Pack → Ort: [materialfluss.md §2](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
+
+| Tab           | Modell                                         | Beschreibung                                                                                           |
+| ------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Eigen**     | Charge `origin` = `buy` / `buy_resale` / `own` / `donation` | Gekauft, vorhandener GA-Bestand oder Schenkung — bleibt beim Grossanlass                     |
+| **Leihweise** | Charge `origin` = `loan`                       | Leihe von Firma oder Department; Zeitfenster an der Charge                                             |
+| **Gäste**     | `department_grossanlass_guest_share` → Charge | Freigabe einer Gast-Abteilung, nach Übernahme Leih-Charge (§10.2)                                      |
+| **Fahrzeuge** | Charge `family` = `vehicle`                    | Eigener Menüpunkt `/{deptId}/fahrzeuge` (§10.3)                                                        |
 
 
 ### 10.2 Leihweise
 
-```
-material_usage_grant
-  department_id           Grossanlass-Dept (Nutzer)
-  source_type             department | organisation | external
-  source_department_id    nullable
-  source_label            «Pfadi Winterthur», «Garage XY»
-  valid_from, valid_to    Pflicht
-  material_item_id        nullable — Verknüpfung wenn im System
-  name, quantity          ad hoc
-```
+**Ist:** Leihmaterial ist eine Charge mit `origin=loan` (Firma: aus Anfrage/Zusage; Department: aus der Gast-Freigabe `department_grossanlass_guest_share` `kind=offer`, nach Übernahme durch den Grossanlass). Details und Lücken (Eigentümer, Mengen, Rückmeldung): [materialfluss.md §9](./materialfluss.md#9-department--camp--grossanlass).
 
-Verfügbar nur im Nutzungsfenster. Nicht Eigentum — erscheint in Verfügbarkeit wie Bestand.
+Das frühere Zielmodell `material_usage_grant` ist **nicht gebaut und wird nicht gebaut** — GuestShare und Charge ersetzen es. Keine dritte Materialfreigabe daneben.
 
 ### 10.3 Fahrzeuge
 
-Stammdaten im Grossanlass-Dept; Leih-Fahrzeuge von Partner-Dept mit `lending_department_id` + Zeitraum (analog Leihweise).
+**Ist:** Fahrzeuge im Grossanlass sind Chargen mit `family=vehicle` (Menü `/{deptId}/fahrzeuge`), mit Herkunft und Zeitfenster wie Material; Fahrzeugwünsche über `department_grossanlass_vehicle_need`. Der Department-Fuhrpark `department_vehicle` und die Activity-Transporttouren werden im Grossanlass nicht verwendet; es gibt keine Kopplung an die Activity-Transportpipeline.
+
+**SOLL:** Fahrzeug eines anderen Departments leihweise für den Grossanlass bereitstellen, mit Herkunft/Eigentümer und Zeitraum. Das technische Modell (Feldnamen, ggf. Erweiterung bestehender Strukturen) wird erst anhand der GA-Fahrzeug-Chargen und der Department-Übergabe (GuestShare, §10.2) entschieden.
 
 ---
 
@@ -1173,27 +1169,27 @@ Ressort «Bau»
 
 ### 11.3 Workflow
 
-1. Nach Freigabe: CM öffnet Runde `ressort_wuensche`
-2. RL wünscht pro Ressort/Teilbereich (Material + Fahrzeuge)
-3. Runde `grossanlass_central`: CM weist zu → **Zugewiesen**
-4. Pack/Ausgabe an Activity, optional pro Teilbereich → **Draussen**
+**Ist:**
 
-Daten: `activity_grossanlass_ressort_line` (+ Progress) Phase 2+; v1 minimal: Zuweisung + Pack-Status.
+1. Ressorts / Bauprojekte erfassen Wünsche (Material + Fahrzeuge) über das Material-Formular (§9.1).
+2. Zuweisung = **Einsatz** auf eine Charge, pro Ressort/Bauprojekt und Zeitraum → **Zugewiesen** (`place=assigned`). Bereichsleitungen reichen Einsätze ein, MW/CMW/OK-Leitung geben frei.
+3. Pack / Fahrt / Selbstabholung → **Draussen** (`place=out`); Einsatz-Status `returned` → **Im Lager** (Backend; keine Rücknahme-UI für Einsätze).
 
-**Soll (Einsatz, keine Doppelbuchung):** Liste und Zeitachse pro Material/Fahrzeug × Ressort/Bauprojekt — [Konzept §12.3](./20260823_New_concept.md#123-einsatzliste-ressort--bauprojekt-keine-doppelbuchung). User buchen vor/während dem Anlass im gleichen Tool; Mehrbedarf / Verbrauch / Rückgabe — [§12.4](./20260823_New_concept.md#124-wer-bucht--und-wenn-mehr--weniger--verbraucht-wird). Unikate: überlappende Fenster blockieren. Mengen: Summe ≤ Bestand. Wunsch-Zeitraum ≠ Einsatz, bis gebucht.
+Liste und Zeitachse pro Charge × Ressort/Bauprojekt (Planung → Belegung, Konflikte). Konfliktprüfung: Unikate (Menge ≤ 1, Fahrzeuge) bei überlappenden Fenstern, Mengen bei Summe > Charge-Menge, Einsatz ausserhalb des Partnerfensters. Wunsch-Zeitraum ≠ Einsatz, bis gebucht. Details: [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md), [materialfluss.md §2, §7](./materialfluss.md#2-kernmodell-artikel--charge--einsatz--pack--ort-ist).
+
+Die Status in §11.1 gelten pro Einsatz für die ganze Einsatzmenge.
+
+**SOLL:** Mehrbedarf, Verbrauch und Rückgabe als Teilmengen ([Konzept §12.4](./20260823_New_concept.md#124-wer-bucht--und-wenn-mehr--weniger--verbraucht-wird), [materialfluss.md §10, §14](./materialfluss.md#10-rückbau-und-rücknahme-partial)).
 
 ---
 
 ## 12. J+S
 
-Siehe [js-material/README.md](../activities/js-material/README.md). Runde `js_vorgabe` am Haupt-`anlass`:
+**PLANNED / SOLL** — keine bestehende Implementierung (siehe auch §0.8).
 
-```
-je Pfadi-Dept: activity_grossanlass_js_submission
-→ CM aggregiert → activity_js_order → Zentrallager
-```
+**Ist:** Bestand-Tab J+S und die J+S-Übersicht im Gäste-Bereich zeigen den J+S-Leihkatalog und die J+S-Bestellungen (`activity_js_order`) der Gast-Aktivitäten. Allgemeiner J+S-Prozess: [js-material/README.md](../activities/js-material/README.md).
 
-Cross-Link in js-material-Spec ergänzen bei Implementierung.
+**SOLL (fachlich):** Der Grossanlass gibt den teilnehmenden Departments eine J+S-Vorgabe; jedes Department meldet seinen J+S-Bedarf; Material & Logistik fasst zusammen und bestellt zentral fürs Zentrallager. Datenmodell, Rundentyp und API sind noch nicht festgelegt.
 
 ---
 
@@ -1316,36 +1312,40 @@ Ressorts: `**Group**` + `GroupMembership` — siehe §4, §14.2.
 ### 14.5 Material
 
 ```
-material_item                           — Eigen (bestehend)
-material_usage_grant                    — Leihweise (neu)
-department_vehicle                      — Fahrzeuge (newUI §19.3)
+department_grossanlass_commitment       — Charge (Eigen: buy/buy_resale, Leihweise: loan;
+                                          family material | vehicle)
+department_grossanlass_guest_share      — Freigabe Gast-Department → Charge
+department_grossanlass_einsatz / _pack  — Einsatz, Pack/Palette
+department_grossanlass_vehicle_need     — Fahrzeugwunsch am Bauprojekt
 ```
 
 ---
 
-## 15. API (Ziel)
+## 15. API
 
+Präfix `…` = `/api/departments/{departmentId}/grossanlass`. Status gegen Code geprüft (5. Oktober 2026). Bei **PLANNED** ohne beschlossenen Vertrag steht «noch nicht festgelegt» — vor einer Umsetzung zuerst die bestehenden Endpunkte prüfen, keinen zweiten Pfad daneben anlegen.
 
-| Methode             | Pfad                                                          | Beschreibung                          |
-| ------------------- | ------------------------------------------------------------- | ------------------------------------- |
-| POST                | `/api/departments/grossanlass`                                | Dept + auto `anlass` §2.3–2.4         |
-| POST                | `/api/departments/{id}/grossanlass/publish`                   | **Ist:** Freigabe §0.7                |
-| GET                 | `/api/departments/{id}/grossanlass/dashboard`                 | Widget-Daten §3.2                     |
-| GET/POST/PUT/DELETE | `/api/departments/{id}/grossanlass/groups`                    | Ressort-Baum §4.4                     |
-| POST/DELETE         | `…/grossanlass/groups/{groupId}/members`                      | Mitglieder §4                         |
-| GET/PATCH           | `/api/departments/{id}/grossanlass/planung`                   | **Ist:** Planung inkl. Struktur, Teilnehmer, Unterlager §0.7 |
-| GET/POST/PUT        | `/api/departments/{id}/grossanlass/planung/rounds`            | Runden §9                             |
-| POST                | `…/planung/rounds/{roundId}/open`                             | Runde öffnen                          |
-| POST                | `…/planung/rounds/{roundId}/close`                            | Runde schliessen                      |
-| GET/POST/PUT/DELETE | `…/planung/rounds/{roundId}/wishes`                           | Wunsch-Zeilen §9.1                    |
-| GET                 | `…/grossanlass/beschaffung/overview`                          | **Ist** Übersicht; Cash/Netto/Zahler: [kosten.md](./kosten.md) |
-| CRUD                | `…/grossanlass/beschaffung/lines` (+ quotes, order, received) | **Ist** Beschaffung §0.5. `received` schreibt den Wareneingang |
-| CRUD                | `…/grossanlass/beschaffung/costs` + `budgets`              | Ledger + Rahmen pro Zahler [kosten.md](./kosten.md) |
-| POST                | `/api/activities`                                             | `grossanlass` + `grossanlass_role` §6 |
-| GET                 | `/api/departments/{id}/grossanlass/material-uebersicht`       | §11                                   |
-| CRUD                | `/api/departments/{id}/material-usage-grants`                 | Leihweise §10                         |
-| POST                | `…/grossanlass/participants/{id}/respond`                     | accept/reject §8                      |
-| PATCH               | `…/grossanlass/participants/{id}`                             | `guest_group_id`                      |
+| Status | Methode | Pfad | Beschreibung |
+| --- | --- | --- | --- |
+| IST | POST | `/api/departments/grossanlass` | Dept + auto `anlass` §2.3–2.4 |
+| IST | POST | `…/publish` | Freigabe §0.7 |
+| IST | — | kein eigener Endpunkt | Dashboard §3.2 lädt die bestehenden Endpunkte (`uebersicht`, `planung`, `planung/rounds`, `groups`, `beschaffung/…`, Anfragen) |
+| IST | GET/POST · PUT/DELETE | `…/groups` · `…/groups/{groupId}` | Ressort-Baum §4.4 |
+| IST | POST · PATCH/DELETE | `…/groups/{groupId}/members` · `…/groups/{groupId}/members/{userId}` | Mitglieder §4 |
+| IST | GET/PATCH | `…/planung` | Planung inkl. Struktur, Teilnehmer, Unterlager §0.7 |
+| IST | GET/POST · PUT | `…/planung/rounds` · `…/planung/rounds/{roundId}` | Runden §9 |
+| IST | POST | `…/planung/rounds/{roundId}/open` · `/close` · `/reopen` | Runde öffnen / schliessen / wieder öffnen |
+| IST | GET/POST · PUT/DELETE · POST | `…/planung/rounds/{roundId}/wishes` · `…/wishes/{wishId}` · `…/wishes/{wishId}/accept` | Wunsch-Zeilen §9.1 |
+| IST | GET | `…/beschaffung/overview` | Übersicht; Cash/Netto/Zahler: [kosten.md](./kosten.md) |
+| IST | GET/POST · PUT/DELETE · … | `…/beschaffung/lines` · `…/lines/{lineId}` (+ `quotes`, `order`, `received`) | Beschaffung §0.5. `received` bucht die Differenz als Bewegung an der Kauf-Charge ([materialfluss.md §6](./materialfluss.md#6-wareneingang-ist-mengenbasiert)) |
+| IST | GET/POST · PATCH/DELETE · POST | `…/beschaffung/zusagen` · `…/zusagen/{commitmentId}` · `…/zusagen/from-inquiry/{inquiryId}` | Zusagen / Chargen inkl. Herkunft, Eigentümer, Rückgabepflicht ([materialfluss.md §2.1](./materialfluss.md#21-charge-ist)) |
+| IST | GET/POST | `…/beschaffung/zusagen/{commitmentId}/movements` | Charge-Bewegungen; buchbar heute nur `received` ([materialfluss.md §14](./materialfluss.md#14-charge-bewegungen)) |
+| IST | GET/POST · PATCH/PUT/DELETE · GET/PUT | `…/beschaffung/costs` · `…/costs/{costId}` · `…/beschaffung/budgets` | Ledger + Rahmen pro Zahler [kosten.md](./kosten.md) |
+| IST | POST | `…/planung/activities` | weitere Grossanlass-Activity mit `grossanlass_role` §6 |
+| IST | GET · POST · PATCH | `…/uebersicht` · `…/uebersicht/einsaetze` · `…/uebersicht/einsaetze/{einsatzId}` | Materialübersicht, Einsätze §11 ([materialfluss.md](./materialfluss.md)) |
+| IST | POST | `…/invites/{participantId}/respond` | Gast-Einladung annehmen / ablehnen §8 |
+| IST | PATCH · DELETE | `…/planung/participants/{participantId}` | Teilnehmer ändern (`unterlager_id`) / entfernen |
+| PLANNED | — | noch nicht festgelegt | J+S-Vorgabe und -Rückmeldung §12 |
 
 
 Berechtigungen: [§17](#17-berechtigungs-matrix).
@@ -1367,7 +1367,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 | **6**  | **PLANNED:** eigener Rundentyp `detailplanung`. Grob/Fein ist Ist als Stufe am Wunsch §9.2                     | nicht als zweiter Typ                         |
 | **7**  | **Ist:** `publish` + Gast-Inbox + accept                                                                        | §0.7, §7.2, §8                                |
 | **8**  | **Ist:** Materialübersicht (Bestand, Wareneingang, Ausgabe, Pack, Retour)                                       | §0.6, §11                                     |
-| **9**  | **Ist:** Bestand Eigen/Leihweise/Gäste/J+S und Menü Fahrzeuge. Fuhrpark-Stammdaten `department_vehicle` bleiben die Fuhrpark-Spec | §0.1, §10                          |
+| **9**  | **Ist:** Bestand Eigen/Leihweise/Gäste/J+S (Chargen, GuestShare) und Menü Fahrzeuge: Charge `family=vehicle`, Bedarf über `department_grossanlass_vehicle_need`. `department_vehicle` und Activity-Transporttouren gehören nicht zum GA-Fahrzeugmodell. **SOLL:** Fahrzeug leihweise von anderem Department — Modell offen (Bausteine: Fahrzeug-Charge, GuestShare) | §0.1, §10 |
 | **10** | Activities Phasen, J+S, Pack                                                                                    | §6, §12                                       |
 
 
@@ -1375,7 +1375,7 @@ Berechtigungen: [§17](#17-berechtigungs-matrix).
 
 ## 17. Berechtigungs-Matrix
 
-**Soll (Aug 2026):** MW, CMW, OK-Leitung (`dc`), Bereichsleitung, Komm/Spon, Helfer; Postfach und Fahrten — [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md). Die Tabelle darunter ist der ältere Schnitt (CM = MW/DC).
+**Soll (Aug 2026):** MW, CMW, OK-Leitung (`dc`), Bereichsleitung, Komm/Spon, LW/CLW (nur Rolle, noch keine Rechte), Helfer; Postfach und Fahrten — [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md). Die Tabelle darunter ist der ältere Schnitt (CM = MW/DC).
 
 
 | Kürzel | Bedeutung                      |

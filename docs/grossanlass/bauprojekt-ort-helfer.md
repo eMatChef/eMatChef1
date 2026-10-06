@@ -4,7 +4,9 @@ Produktklärung 18.09.2026. **Dieses Dokument gilt** für Projektplanung am Baup
 
 **Status:** Phasen P0–P8 in [§8](#8-phasen) sind umgesetzt. Ist-Ergänzungen, die nach diesem Dokument dazukamen: [README §0.2](./README.md#02-baum-ressort-bereich-bauprojekt) und [§0.3](./README.md#03-bauprojekt-karte-aufgaben-fahrzeugwunsch) (Bauvorhaben-Status, gespeichertes `grossanlass_kind = bereich`, Teilen, Polygon, Aufgaben-Zeitblock/Beschrieb/Verantwortliche, Fahrzeugwunsch mit Kategorie und Beschaffungsposition).
 
-**Verwandt:** [README.md](./README.md) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) · [qr/link-schema.md](../qr/link-schema.md)
+**Zentrale Spezifikation:** [materialfluss.md](./materialfluss.md) beschreibt den kompletten Grossanlass-Materialfluss (Herkunft, Übergabe, Bestand, Bauprojektzuweisung, Rückbau, Rückgabe).
+
+**Verwandt:** [README.md](./README.md) · [materialfluss.md](./materialfluss.md) · [rollen-postfach-fahrten.md](./rollen-postfach-fahrten.md) · [qr/link-schema.md](../qr/link-schema.md)
 
 ---
 

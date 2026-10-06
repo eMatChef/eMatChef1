@@ -4,7 +4,9 @@ Produktklärung 30.08.2026. **Dieses Dokument gilt**, wo es von [README §3.6 / 
 
 **Status:** Soll — Phase R1–R7 umgesetzt. Checkboxen in [§11](#11-phasen-abarbeiten) abhaken.
 
-**Verwandt:** [README.md](./README.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) · [kosten.md](./kosten.md)
+**Zentrale Spezifikation:** [materialfluss.md](./materialfluss.md) beschreibt den kompletten Grossanlass-Materialfluss, inklusive Übergabe, Wareneingang, Bauprojektzuweisung, Rückbau und Rückgabe.
+
+**Verwandt:** [README.md](./README.md) · [materialfluss.md](./materialfluss.md) · [20260823_New_concept.md](./20260823_New_concept.md) · [bauprojekt-ort-helfer.md](./bauprojekt-ort-helfer.md) · [kosten.md](./kosten.md)
 
 ---
 
@@ -18,7 +20,7 @@ Am Grossanlass arbeiten nicht nur Materialwart und Ressort-Mitglieder. Es brauch
 
 | Ebene | Werte | Speicherung |
 | --- | --- | --- |
-| **Zugriffsstufe** | MW, CMW, OK-Leitung, Kommunikation, Sponsoring, Helfer | `membership.role` |
+| **Zugriffsstufe** | MW, CMW, LW, CLW, OK-Leitung, Kommunikation, Sponsoring, Helfer | `membership.role` |
 | **Bereich** | Bereichsleitung (Leader) oder Mitglied am Knoten | `group_membership.role` = `leader` \| `member` am Ressort / Unterressort / Bauprojekt |
 | **Fahren** | keine Rolle | Profil (Ausweise) + User-Karte (Freigabe **dieser** Anlass) |
 
@@ -76,6 +78,14 @@ Kein Material-Kommando. **Dept-Rolle**, nicht «Helfer im Ressort Kommunikation�
 - Ablegen / Labels
 - **Kein** Nehmen, **kein** Senden, **kein** Wellen-Draft, **kein** OAuth, **kein** Firma-nehmen
 
+### 3.5a Logistikwart (`lw`) / Co-Logistikwart (`clw`)
+
+Department-Rollen wie MW/CMW (`membership.role`, keine Group-Rollen). **Mehrere** LW und CLW pro Anlass sind möglich. Vergeben unter Einstellungen → Benutzer durch MW / CMW / OK-Leitung. Fahrer bleibt eine separate Fähigkeit (Profil + Karte), kein Teil der Rolle.
+
+**Stand:** nur Rolle, Anzeige und Vergabe (Katalog, Labels, Mini-Icon «LW» / «CLW»). **Noch keine** Logistikrechte, Sidebar-Punkte oder Logistikfunktionen — die Rechte-Matrix behandelt LW/CLW wie Helfer ohne Postfach (Home: Dashboard). Rechte folgen in einer späteren Phase.
+
+Dev-Login (`app:create-role-users --with-ga-demo`): `ga-lw@demo.ematchef.ch`, `ga-clw@demo.ematchef.ch`.
+
 ### 3.6 Helfer (`u` + Group-Membership)
 
 Sieht nur den Baum, dem er zugeteilt ist. Eigene Schichten, eigene Fahrten (wenn zugewiesen), QR-Karte. Keine Einsätze einreichen.
@@ -109,7 +119,7 @@ Soll:
 
 **B — Einstellungen → Benutzer** (Bleistift am User) = Zugriffsstufe für den **ganzen** Anlass
 
-Eine `membership.role`: MW, CMW, OK-Leitung, Kommunikation, Sponsoring, Helfer (`u`). Accordion «Mitgliedschaft» wie heute Rolle + Primary-Dept.
+Eine `membership.role`: MW, CMW, LW, CLW, OK-Leitung, Kommunikation, Sponsoring, Helfer (`u`). Accordion «Mitgliedschaft» wie heute Rolle + Primary-Dept.
 
 Diese Stufen **nicht** pro Ressort wählen (sonst wäre jemand in Bau CMW und in Küche Helfer).
 
