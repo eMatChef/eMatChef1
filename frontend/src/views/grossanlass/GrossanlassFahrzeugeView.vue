@@ -68,6 +68,7 @@ import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import type { GaZusageCreateDraft } from '@/views/grossanlass/grossanlassZusagePreviewStore'
 import { gaCanManageProcurement } from '@/utils/grossanlassAccess'
+import { originLabelKey } from '@/views/grossanlass/gaCharge'
 
 const route = useRoute()
 const router = useRouter()
@@ -103,9 +104,7 @@ function windowText(from: string | null | undefined, to: string | null | undefin
 }
 
 function originLabel(origin: GrossanlassCommitment['origin']): string {
-  if (origin === 'buy') return t('grossanlass.materials.lifecycle.reusable')
-  if (origin === 'buy_resale') return t('grossanlass.materials.lifecycle.buy_resale')
-  return t('grossanlass.materials.lifecycle.loan')
+  return t(originLabelKey(origin))
 }
 
 function serviceText(vehicle: GrossanlassCommitment): string {

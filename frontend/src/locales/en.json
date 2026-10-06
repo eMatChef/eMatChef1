@@ -9248,12 +9248,16 @@
         "reusable": "Owned stock",
         "cut_consumable": "Single-use / cut",
         "loan": "Loan",
-        "buy_resale": "Buy / resell"
+        "buy_resale": "Buy / resell",
+        "own": "Event stock",
+        "donation": "Donation / sponsoring"
       },
       "originBadge": {
         "loan": "Loan",
         "buy": "Buy",
-        "buy_resale": "Resale"
+        "buy_resale": "Resale",
+        "own": "Event stock",
+        "donation": "Donation"
       },
       "chargeIntro": "One charge per origin — loan from the agreement, buy from the order. The QR sits on the charge, not the stem.",
       "chargeCount": "{count} charges",
@@ -9333,6 +9337,7 @@
         "fieldFrom": "From",
         "fieldTo": "To",
         "fieldRelease": "Release for deployments",
+        "returnRequired": "Must be returned to the owner",
         "fieldReleaseHint": "Until you release it, projects can see the article but cannot book it. Handover and return stay blocked.",
         "sectionService": "Yard service (vehicles)",
         "serviceHint": "Cleaning, greasing and similar jobs occupy the vehicle — no deployment in that slot.",
@@ -9352,6 +9357,21 @@
         "releasedShort": "Released",
         "heldShort": "Committed, not released yet"
       }
+    },
+    "materialProgress": {
+      "title": "Material progress",
+      "required": "{n} needed",
+      "covered": "{n} covered",
+      "open": "{n} open",
+      "received": "{n} received",
+      "allocated": "{n} allocated",
+      "packed": "{n} packed",
+      "ready_for_transport": "{n} ready to ship",
+      "in_transit": "{n} in transit",
+      "at_place": "{n} on site",
+      "return_open": "{n} to bring back",
+      "returned": "{n} returned",
+      "disposed": "{n} disposed/used"
     },
     "materialUebersicht": {
       "title": "Material overview",
@@ -9398,12 +9418,17 @@
         "deliveryCreated": "Delivery planned as a deployment",
         "pickupCreateError": "Agreement saved, but the pickup deployment could not be created.",
         "inboundCreateError": "Agreement saved, but the inbound deployment could not be created.",
-        "markHere": "On site — stick QR",
-        "markedHere": "Charge is on site",
+        "markedHere": "Charge fully received",
+        "receivedPartial": "Partial receipt booked: {received} of {expected}",
+        "receivedProgress": "Received {received} of {expected} · open {missing}",
+        "receiveQty": "Quantity",
+        "receivePlace": "Receiving location",
+        "receiveNote": "Note",
+        "receiveSubmit": "Book receipt",
+        "receiveQtyInvalid": "Enter a whole quantity greater than 0.",
         "orderedQty": "Ordered {n} pcs",
         "thisDelivery": "This delivery {n} pcs",
         "orderedCheck": "Ordered {n} pcs — tick off",
-        "orderedProgress": "Received {received} / {ordered}",
         "openPdf": "Order PDF",
         "openOrder": "Open order",
         "openHistory": "History"

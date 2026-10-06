@@ -1,4 +1,5 @@
 import apiClient from './apiClient'
+import type { GaMaterialProgressItem } from './grossanlassUebersicht'
 import type { GrossanlassGroup } from './grossanlassGroups'
 import type { GrossanlassWishLine } from './grossanlassWishes'
 import type { GaLogisticsPack, GaMap, GaPlace } from './grossanlassLogistics'
@@ -46,6 +47,8 @@ export type GaBauprojektBriefing = {
   tasks: GaBauprojektTask[]
   vehicles?: GaBauprojektVehicleNeed[]
   material: GrossanlassWishLine[]
+  /** Mengenfortschritt je Materialposition (Wunsch-ID bzw. Direkt-Bedarf-ID). */
+  material_progress?: GaMaterialProgressItem[]
   direct_material?: Array<{
     id: string
     label: string

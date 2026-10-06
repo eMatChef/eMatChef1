@@ -218,6 +218,7 @@ import {
 } from '@/api/grossanlassGaeste'
 import { useGaUebersicht } from '@/views/grossanlass/gaUebersicht'
 import { resourceToPickTemplate, type GaEinsatzResource } from '@/views/grossanlass/grossanlassEinsatzPreviewData'
+import { originLabelKey } from '@/views/grossanlass/gaCharge'
 
 type GaesteView = 'bestand' | 'loan' | 'sale'
 
@@ -319,9 +320,7 @@ const saleStockItems = computed(() =>
 )
 
 function originLabel(origin: string): string {
-  if (origin === 'buy_resale') return String(t('grossanlass.materials.lifecycle.buy_resale'))
-  if (origin === 'buy') return String(t('grossanlass.materials.lifecycle.reusable'))
-  return String(t('grossanlass.materials.lifecycle.loan'))
+  return String(t(originLabelKey(origin)))
 }
 
 const canSell = computed(() => {

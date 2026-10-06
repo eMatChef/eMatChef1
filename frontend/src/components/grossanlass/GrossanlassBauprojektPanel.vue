@@ -457,6 +457,10 @@
                 >
                   <p class="ga-mat-read__main">{{ row.quantity }} {{ stockUnitLabel(row.unit) }} × {{ row.label }}</p>
                   <p class="muted">{{ materialExtra(row) }}</p>
+                  <GrossanlassMaterialProgressLine
+                    v-if="progressFor(row)"
+                    :item="progressFor(row)!"
+                  />
                 </div>
                 <div v-if="briefing.can_edit" class="ga-mat-entry__side ga-mat-entry__side--row">
                   <span
@@ -591,6 +595,8 @@ import UserAvatarBadge from '@/components/user/UserAvatarBadge.vue'
 import GaBuildMetaFields from '@/components/grossanlass/GaBuildMetaFields.vue'
 import GrossanlassVehicleCategoryField from '@/components/grossanlass/GrossanlassVehicleCategoryField.vue'
 import GrossanlassPlacePreviewMap from '@/components/grossanlass/GrossanlassPlacePreviewMap.vue'
+import GrossanlassMaterialProgressLine from '@/components/grossanlass/GrossanlassMaterialProgressLine.vue'
+import { findMaterialProgress } from '@/utils/grossanlassMaterialProgress'
 import MaterialLookupInput from '@/components/common/MaterialLookupInput.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -1509,6 +1515,10 @@ function addMaterialRow() {
     pickupPlace: '',
     saving: false,
   })
+}
+
+function progressFor(row: MatDraft) {
+  return findMaterialProgress(briefing.value?.material_progress, row.id)
 }
 
 function materialExtra(row: MatDraft): string {

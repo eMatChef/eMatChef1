@@ -66,12 +66,48 @@
             :disabled="busyId === row.id"
             @update:model-value="toggleQtyChecked(row, Boolean($event))"
           />
-          <p v-if="isBuyOrder(row) && orderLineOf(row)" class="inbound-progress">
-            {{ t('grossanlass.materialUebersicht.wareneingang.orderedProgress', {
-              received: orderLineOf(row)?.received_quantity_sum ?? 0,
-              ordered: orderedQty(row),
+          <p class="inbound-progress" :class="`inbound-progress--${inboundState(row)}`">
+            {{ t('grossanlass.materialUebersicht.wareneingang.receivedProgress', {
+              received: receivedQty(row),
+              expected: row.quantity,
+              missing: missingQty(row),
             }) }}
           </p>
+        </div>
+        <div v-if="missingQty(row) > 0" class="inbound-receive">
+          <ETextField
+            v-model="receiveQty[row.id]"
+            type="number"
+            min="1"
+            :max="missingQty(row)"
+            :label="t('grossanlass.materialUebersicht.wareneingang.receiveQty')"
+            hide-details
+            density="compact"
+          />
+          <ESelect
+            v-model="receivePlace[row.id]"
+            :items="placeItems"
+            item-title="title"
+            item-value="value"
+            :label="t('grossanlass.materialUebersicht.wareneingang.receivePlace')"
+            clearable
+            hide-details
+            density="compact"
+          />
+          <ETextField
+            v-model="receiveNote[row.id]"
+            :label="t('grossanlass.materialUebersicht.wareneingang.receiveNote')"
+            hide-details
+            density="compact"
+          />
+          <EButton
+            variant="primary"
+            size="small"
+            :loading="busyId === row.id"
+            @click="receive(row)"
+          >
+            {{ t('grossanlass.materialUebersicht.wareneingang.receiveSubmit') }}
+          </EButton>
         </div>
         <div class="inbound-docs">
           <a
@@ -140,16 +176,7 @@
               ? t('grossanlass.materialUebersicht.wareneingang.setPickup')
               : t('grossanlass.materialUebersicht.wareneingang.setDelivery') }}
           </EButton>
-          <EButton
-            v-if="inboundStatus(row) !== 'here'"
-            variant="primary"
-            size="small"
-            :loading="busyId === row.id"
-            @click="markHere(row)"
-          >
-            {{ t('grossanlass.materialUebersicht.wareneingang.markHere') }}
-          </EButton>
-          <span v-else class="inbound-here">{{ t('grossanlass.materials.chargeFlag.here') }}</span>
+          <span v-if="inboundState(row) === 'complete'" class="inbound-here">{{ t('grossanlass.materials.chargeFlag.here') }}</span>
           <EButton variant="text" size="small" @click="openArticle(row)">
             {{ t('grossanlass.beschaffung.zusagen.openArticle') }}
           </EButton>
@@ -163,13 +190,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { EButton, ECheckbox } from '@/components/form/base'
+import { EButton, ECheckbox, ESelect, ETextField } from '@/components/form/base'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import PublicQrTag from '@/components/common/PublicQrTag.vue'
 import { useToast } from '@/composables/useToast'
 import { resolveMediaPreviewUrl } from '@/api/media'
-import { updateGrossanlassCommitment, type GrossanlassCommitment } from '@/api/grossanlassCommitments'
+import {
+  recordGrossanlassChargeMovement,
+  updateGrossanlassCommitment,
+  type GrossanlassCommitment,
+} from '@/api/grossanlassCommitments'
 import {
   listGrossanlassProcurementLines,
   type GrossanlassProcurementLine,
@@ -181,8 +212,11 @@ import {
   commitmentStemKey,
   expectedAtIso,
   inboundMode,
+  inboundState,
   inboundStatus,
+  missingQty,
   originBadgeKey,
+  receivedQty,
 } from '@/views/grossanlass/gaCharge'
 import { formatGaIsoLabel } from '@/views/grossanlass/grossanlassZusagePreviewData'
 import { ensureInboundEinsatz } from '@/views/grossanlass/gaPickupEinsatz'
@@ -201,6 +235,16 @@ const busyId = ref<string | null>(null)
 const range = ref<RangeId>('expected')
 const modeFilter = ref<ModeId>('all')
 const procurementLines = ref<GrossanlassProcurementLine[]>([])
+const receiveQty = ref<Record<string, string | number>>({})
+const receivePlace = ref<Record<string, string | null>>({})
+const receiveNote = ref<Record<string, string>>({})
+
+/** Annahmeort: Lager (Matplatz) und Unterlager zuerst, sonst alle GA-Orte. */
+const placeItems = computed(() => {
+  const places = uebersicht.data.value?.places ?? []
+  const storage = places.filter((place) => place.kind === 'matplatz' || place.kind === 'unterlager')
+  return (storage.length ? storage : places).map((place) => ({ title: place.name, value: place.id }))
+})
 
 const departmentId = computed(() => String(route.params.departmentId || ''))
 
@@ -259,7 +303,7 @@ const lineById = computed(() => {
 })
 
 function orderLineOf(row: GrossanlassCommitment): GrossanlassProcurementLine | undefined {
-  const id = row.item_details?.from_line_id
+  const id = row.procurement_line_id || row.item_details?.from_line_id
   return id ? lineById.value.get(id) : undefined
 }
 
@@ -442,17 +486,52 @@ async function createInbound(row: GrossanlassCommitment) {
   }
 }
 
-async function markHere(row: GrossanlassCommitment) {
-  const ok = await patchDetails(row, { inbound_status: 'here', inbound_mode: inboundMode(row) })
-  if (ok) toast.success(t('grossanlass.materialUebersicht.wareneingang.markedHere'))
+async function receive(row: GrossanlassCommitment) {
+  const id = departmentId.value
+  if (!id) return
+  const raw = receiveQty.value[row.id]
+  const quantity = Number(raw === undefined || raw === '' ? missingQty(row) : raw)
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    toast.error(t('grossanlass.materialUebersicht.wareneingang.receiveQtyInvalid'))
+    return
+  }
+  busyId.value = row.id
+  try {
+    const result = await recordGrossanlassChargeMovement(id, row.id, {
+      quantity,
+      place_id: receivePlace.value[row.id] || null,
+      note: receiveNote.value[row.id]?.trim() || null,
+    })
+    catalog.upsert(result.commitment)
+    delete receiveQty.value[row.id]
+    receiveNote.value[row.id] = ''
+    toast.success(
+      result.inbound.state === 'complete'
+        ? t('grossanlass.materialUebersicht.wareneingang.markedHere')
+        : t('grossanlass.materialUebersicht.wareneingang.receivedPartial', {
+          received: result.inbound.received,
+          expected: result.inbound.expected,
+        }),
+    )
+    if (result.commitment.procurement_line_id) void loadProcurementLines()
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { error?: string } } }
+    toast.error(err.response?.data?.error || t('grossanlass.beschaffung.zusagen.loadError'))
+  } finally {
+    busyId.value = null
+  }
+}
+
+function loadProcurementLines() {
+  const id = departmentId.value
+  if (!id) return Promise.resolve()
+  return listGrossanlassProcurementLines(id)
+    .then((rows) => { procurementLines.value = rows })
+    .catch(() => { procurementLines.value = [] })
 }
 
 onMounted(() => {
-  const id = departmentId.value
-  if (!id) return
-  void listGrossanlassProcurementLines(id)
-    .then((rows) => { procurementLines.value = rows })
-    .catch(() => { procurementLines.value = [] })
+  void loadProcurementLines()
 })
 </script>
 
@@ -511,4 +590,15 @@ onMounted(() => {
 .inbound-need li { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .inbound-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .inbound-here { font-size: 0.82rem; font-weight: 700; color: #166534; }
+.inbound-progress--partial { color: #b45309; }
+.inbound-progress--complete { color: #166534; }
+.inbound-receive {
+  display: grid;
+  grid-template-columns: minmax(90px, 120px) minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .inbound-receive { grid-template-columns: 1fr; }
+}
 </style>

@@ -242,3 +242,61 @@ export async function updateGrossanlassUebersichtCommitment(
   )
   return response.data
 }
+
+/** Mengen einer Materialposition (Server berechnet, nichts gespeichert). */
+export type GaMaterialProgressQuantities = {
+  required: number
+  covered: number
+  open: number
+  received: number
+  allocated: number
+  packed: number
+  ready_for_transport: number
+  in_transit: number
+  at_place: number
+  return_open: number
+  returned: number
+  disposed: number
+}
+
+export type GaMaterialProgressItem = GaMaterialProgressQuantities & {
+  /** Wunsch-ID bzw. bei Direkt-Bedarf die Bedarfsposition. */
+  id: string
+  type: 'wish' | 'line'
+  wish_line_id: string | null
+  procurement_line_id: string | null
+  group_id: string
+  group_name: string
+  label: string
+  unit: string
+  covered_by_requester: boolean
+}
+
+export type GaMaterialProgressGroup = {
+  group_id: string
+  group_name: string
+  items: number
+  open_items: number
+  /** Summen je Einheit (Stk und m nicht vermischt). */
+  totals: Record<string, GaMaterialProgressQuantities>
+}
+
+export type GaMaterialProgressPayload = {
+  items: GaMaterialProgressItem[]
+  groups: GaMaterialProgressGroup[]
+}
+
+/** Materialfortschritt des Anlasses, optional für einen Bereich / ein Bauprojekt inkl. Unterknoten. */
+export async function getGrossanlassMaterialProgress(
+  departmentId: string,
+  groupId?: string | null,
+): Promise<GaMaterialProgressPayload> {
+  const response = await apiClient.get<GaMaterialProgressPayload>(
+    `/api/departments/${departmentId}/grossanlass/uebersicht/progress`,
+    { params: groupId ? { group_id: groupId } : undefined },
+  )
+  return {
+    items: response.data?.items ?? [],
+    groups: response.data?.groups ?? [],
+  }
+}
