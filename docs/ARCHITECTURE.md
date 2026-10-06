@@ -10,7 +10,7 @@ Stand: Code im Repository. Betriebliche Details: [CONTRIBUTING.md](../CONTRIBUTI
 | API | Symfony 6.4, PHP ≥ 8.1, Doctrine ORM | `backend/` |
 | DB | PostgreSQL 16 | Service `db` in `docker-compose.yml` |
 | Lokal | Docker Compose: `db`, `backend` (:8081), `frontend` (:5173), `nginx` (:80), Adminer (:8082) | Repo-Root |
-| Nutzerhilfe | VitePress | `user-docs/` |
+| Öffentliche Dokumentation | VitePress | separates Repository [eMatChef/documentation](https://github.com/eMatChef/documentation) (`docs.ematchef.ch`) |
 
 Die HTTP-API sind Symfony-Controller mit `#[Route('/api/…')]` (`backend/config/routes.yaml`). `api-platform/core` ist installiert und unter `/api` geroutet; Entities haben keine `ApiResource`-Attribute. Neue Endpunkte als Controller anlegen, nicht als zweite API-Platform-Schicht.
 
