@@ -1,6 +1,6 @@
 # Entwicklung
 
-Git, Branches, PR, CI/CD: [CONTRIBUTING.md](../CONTRIBUTING.md). Übersetzungen: [TRANSLATION.md](./TRANSLATION.md). Diese Datei nur für den lokalen Arbeitsablauf.
+Git, Branches, PR, CI/CD: [CONTRIBUTING.md](../CONTRIBUTING.md). Übersetzungen: [TRANSLATION.md](./TRANSLATION.md). Diese Datei nur für den lokalen Arbeitsablauf. Öffentliche Benutzer- und Entwickleranleitung (Testumgebung, Demo-Konten): [docs.ematchef.ch](https://docs.ematchef.ch), Quelle im Repository `eMatChef/documentation`.
 
 ## Struktur
 
@@ -8,7 +8,6 @@ Git, Branches, PR, CI/CD: [CONTRIBUTING.md](../CONTRIBUTING.md). Übersetzungen:
 frontend/     Vue-SPA
 backend/      Symfony-API, Entities, Migrationen, PHPUnit
 docs/         Entwicklerdoku (dieses Verzeichnis)
-user-docs/    öffentliche Hilfe (VitePress)
 deploy/       Droplet, Caddy, Server-Updates
 docker/       Nginx, lokale Certs
 scripts/      Locales, Migrationstest, Deploy-Builds, Git-Hooks

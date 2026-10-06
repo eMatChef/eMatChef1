@@ -1,6 +1,6 @@
 # eMatChef — Projektdokumentation
 
-eMatChef verwaltet Materialbestand, Ausleihe (Aktivitäten) und Department-Rollen. Technisch: Vue-Frontend, Symfony-API, PostgreSQL. Die öffentliche Nutzerhilfe liegt getrennt in `user-docs/` (`docs.ematchef.ch`) und ist keine Entwicklerdoku.
+eMatChef verwaltet Materialbestand, Ausleihe (Aktivitäten) und Department-Rollen. Technisch: Vue-Frontend, Symfony-API, PostgreSQL. Diese Dokumentation beschreibt, wie eMatChef intern gebaut ist. Die öffentliche Benutzer- und Entwickleranleitung (Bedienung, Testumgebung, Demo-Konten) liegt im Repository [eMatChef/documentation](https://github.com/eMatChef/documentation) und wird als [docs.ematchef.ch](https://docs.ematchef.ch) veröffentlicht. Technische Details werden dort nicht dupliziert.
 
 Neuer Chat: diese Datei lesen, dann höchstens die eine fachliche Datei zur Aufgabe. `docs/` nicht vollständig einlesen.
 
@@ -12,6 +12,17 @@ Neuer Chat: diese Datei lesen, dann höchstens die eine fachliche Datei zur Aufg
 | Fachliche Beziehungen | [DOMAIN-MODEL.md](./DOMAIN-MODEL.md) |
 | Entwickeln, Tests, Commands | [DEVELOPMENT.md](./DEVELOPMENT.md) |
 | Git, Branches, CI/CD | [../CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Testumgebung, Demo-Konten, Test-TOTP, Benutzeranleitung | [docs.ematchef.ch](https://docs.ematchef.ch/de/entwicklung/testumgebung); Quelle der Demo-Konten: `backend/data/seeds/dev-demo/demo-accounts.json` |
+
+## Dokumentationsquellen
+
+| Frage | Ort |
+| --- | --- |
+| Wie ist eMatChef intern gebaut? (Architektur, Domain-Modell, Security, Entwicklungsregeln) | `docs/` in diesem Repository |
+| Wie benutze, entwickle oder teste ich eMatChef? | [eMatChef/documentation](https://github.com/eMatChef/documentation) → [docs.ematchef.ch](https://docs.ematchef.ch) |
+| Wo finde ich was? | GitHub-Wiki: nur Wegweiser, keine eigenen Inhalte |
+
+Ändert sich dauerhaftes technisches Wissen, wird `docs/` aktualisiert. Ändert sich sichtbares Benutzerverhalten oder ein Workflow, wird die öffentliche Dokumentation im Repository `eMatChef/documentation` aktualisiert. Betrifft es beides, werden beide aktualisiert.
 
 ## Fachdoku (gezielt)
 
