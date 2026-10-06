@@ -554,6 +554,15 @@
     "languageRestrictedHint": "Le choix est limite aux langues de cette organisation."
   },
   "settings": {
+    "myDepartment": {
+      "notificationEmail": {
+        "label": "Adresse de notification",
+        "hint": "Les notifications du département et du grand événement sont envoyées à cette adresse. Seules tes adresses confirmées peuvent être choisies ; la connexion et l'adresse principale ne changent pas.",
+        "usePrimary": "Utiliser l'adresse principale ({email})",
+        "saved": "Les notifications sont désormais envoyées à {email}.",
+        "saveError": "Impossible d'enregistrer l'adresse de notification."
+      }
+    },
     "adminUsers": {
       "toastEmailVerificationSent": "Lien de confirmation envoyé à {email}. L’adresse e-mail actuelle reste active jusqu’à la confirmation.",
       "emailReadOnlyHint": "Seul un superadmin peut modifier l’e-mail de connexion.",

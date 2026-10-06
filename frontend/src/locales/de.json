@@ -4996,6 +4996,13 @@
       "identityBelongsTo": "Zugehörigkeit",
       "statsTitle": "Statistiken",
       "noMembers": "Keine Mitglieder in diesem Department.",
+      "notificationEmail": {
+        "label": "Benachrichtigungsadresse",
+        "hint": "Department- und Grossanlass-Benachrichtigungen gehen an diese Adresse. Zur Auswahl stehen nur deine bestätigten Adressen; Login und Hauptadresse ändern sich dadurch nicht.",
+        "usePrimary": "Hauptadresse verwenden ({email})",
+        "saved": "Benachrichtigungen gehen jetzt an {email}.",
+        "saveError": "Benachrichtigungsadresse konnte nicht gespeichert werden."
+      },
       "dbResetTitle": "DB zurücksetzen",
       "activitiesResetTitle": "Aktivitäten löschen",
       "activitiesResetDescription": "Löscht alle Aktivitäten dieses Departments inkl. Packlisten, Materialzeilen und Historie.",

@@ -326,6 +326,11 @@ class UserEmailAliasService
             throw new \InvalidArgumentException('Adresse nicht gefunden.');
         }
 
+        foreach ($user->getMemberships() as $membership) {
+            if ($membership->getNotificationEmail() === $alias->getEmail()) {
+                $membership->setNotificationEmail(null);
+            }
+        }
         $this->log($user, 'profile_email_removed', ['email' => ['old' => $alias->getEmail(), 'new' => null]]);
         $this->entityManager->remove($alias);
         $this->entityManager->flush();

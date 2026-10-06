@@ -458,6 +458,15 @@
     "languageRestrictedHint": "La scelta e limitata alle lingue di questa organizzazione."
   },
   "settings": {
+    "myDepartment": {
+      "notificationEmail": {
+        "label": "Indirizzo di notifica",
+        "hint": "Le notifiche del dipartimento e del grande evento vengono inviate a questo indirizzo. Si possono scegliere solo i tuoi indirizzi confermati; login e indirizzo principale non cambiano.",
+        "usePrimary": "Usa l'indirizzo principale ({email})",
+        "saved": "Le notifiche ora vanno a {email}.",
+        "saveError": "Impossibile salvare l'indirizzo di notifica."
+      }
+    },
     "adminUsers": {
       "toastEmailVerificationSent": "Link di conferma inviato a {email}. L’indirizzo e-mail attuale resta attivo fino alla conferma.",
       "emailReadOnlyHint": "Solo un superadmin può modificare l’e-mail di accesso.",

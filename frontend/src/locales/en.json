@@ -4414,6 +4414,15 @@
     }
   },
   "settings": {
+    "myDepartment": {
+      "notificationEmail": {
+        "label": "Notification address",
+        "hint": "Department and large-event notifications are sent to this address. Only your verified addresses can be chosen; login and primary address are not affected.",
+        "usePrimary": "Use primary address ({email})",
+        "saved": "Notifications now go to {email}.",
+        "saveError": "Could not save the notification address."
+      }
+    },
     "nav": {
       "workshop": "Workshop",
       "accounting": "Accounting",

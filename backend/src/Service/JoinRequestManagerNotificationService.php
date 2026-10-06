@@ -26,6 +26,7 @@ final class JoinRequestManagerNotificationService implements JoinRequestNotifier
         private EntityManagerInterface $entityManager,
         private VerificationEmailService $verificationEmailService,
         private AdminCapabilityChecker $adminCapabilityChecker,
+        private MembershipNotificationEmailResolver $notificationEmails,
         private LoggerInterface $logger,
         #[Autowire('%env(APP_FRONTEND_URL)%')]
         private string $frontendUrl,
@@ -138,10 +139,10 @@ final class JoinRequestManagerNotificationService implements JoinRequestNotifier
             }
             $user = $membership->getUser();
             $profile = $user?->getProfile();
-            if (!$profile || $profile->getEmail() === '') {
+            $email = $this->notificationEmails->effectiveEmail($membership);
+            if (!$profile || $email === '') {
                 continue;
             }
-            $email = strtolower($profile->getEmail());
             $recipients[$email] = [
                 'email' => $email,
                 'name' => $profile->getDisplayName(),

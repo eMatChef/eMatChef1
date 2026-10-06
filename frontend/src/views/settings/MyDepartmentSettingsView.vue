@@ -69,6 +69,7 @@
           <span class="dept-identity__label">{{ t('settings.myDepartment.identityBelongsTo') }}</span>
           <span class="dept-identity__value">{{ departmentHierarchyLabel }}</span>
         </p>
+        <DepartmentNotificationEmailPanel :department-id="department.id" />
       </div>
 
       <details
@@ -417,6 +418,7 @@ import { isDevToolsEnvironment } from '@/utils/devEnvironmentBanner'
 import QRCode from 'qrcode'
 import ELoadingState from '@/components/layout/ELoadingState.vue'
 import EEmptyState from '@/components/layout/EEmptyState.vue'
+import DepartmentNotificationEmailPanel from '@/components/settings/DepartmentNotificationEmailPanel.vue'
 import DepartmentAddressKindPanel from '@/components/settings/DepartmentAddressKindPanel.vue'
 import UsersSettingsView from '@/views/settings/UsersSettingsView.vue'
 import GroupsSettingsView from '@/views/settings/GroupsSettingsView.vue'
