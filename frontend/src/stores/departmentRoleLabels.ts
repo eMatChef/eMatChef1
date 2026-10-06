@@ -14,6 +14,8 @@ const ROLE_ALIASES: Record<string, string> = {
   bereichsleitung: 'bl',
   kommunikation: 'komm',
   sponsoring: 'spon',
+  logistikwart: 'lw',
+  co_logistikwart: 'clw',
   leader1: 'l1',
   leader2: 'l2',
   leader3: 'l3',
@@ -110,7 +112,7 @@ export const useDepartmentRoleLabelsStore = defineStore('departmentRoleLabels', 
       }
     }
 
-    if (['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'l1', 'l2', 'l3', 'u'].includes(code)) {
+    if (['mw', 'cmw', 'dc', 'bl', 'komm', 'spon', 'lw', 'clw', 'l1', 'l2', 'l3', 'u'].includes(code)) {
       return t(`settings.${ns}.roles.${code}`)
     }
 

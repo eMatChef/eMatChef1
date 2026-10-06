@@ -159,7 +159,7 @@ class JoinRequestController extends AbstractController
             $requestedRole = 'u';
         }
         if (!in_array($requestedRole, self::VALID_MEMBER_ROLES, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, lw, clw, l1, l2, l3, u'], 400);
         }
         if ($joinCode === '' && $departmentId === '') {
             return new JsonResponse(['error' => 'Join-Code oder department_id ist erforderlich'], 400);
@@ -469,7 +469,7 @@ class JoinRequestController extends AbstractController
             $requestedRole = 'u';
         }
         if (!in_array($requestedRole, $validRoles, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, lw, clw, l1, l2, l3, u'], 400);
         }
 
         $targetDepartment = $this->entityManager->getRepository(Department::class)->find($targetDepartmentId);
@@ -1087,7 +1087,7 @@ class JoinRequestController extends AbstractController
             return new JsonResponse(['error' => 'Ungueltige E-Mail-Adresse'], 400);
         }
         if (!in_array($requestedRole, self::VALID_MEMBER_ROLES, true)) {
-            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, l1, l2, l3, u'], 400);
+            return new JsonResponse(['error' => 'Ungueltige Rolle. Erlaubt: mw, cmw, dc, komm, spon, lw, clw, l1, l2, l3, u'], 400);
         }
 
         $department = $this->entityManager->getRepository(Department::class)->find($departmentId);

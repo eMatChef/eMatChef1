@@ -826,6 +826,8 @@
         "bl": "Bereichsleitung",
         "komm": "Kommunikation",
         "spon": "Sponsoring",
+        "lw": "Logistikwart",
+        "clw": "Co-Logistikwart",
         "u": "Helfer"
       }
     },
@@ -6054,6 +6056,8 @@
         "uGa": "Helfer",
         "komm": "Komm - Kommunikation",
         "spon": "Spon - Sponsoring",
+        "lw": "LW - Logistikwart",
+        "clw": "CLW - Co-Logistikwart",
         "l1": "L1 - Leader 1",
         "l2": "L2 - Leader 2",
         "l3": "L3 - Leader 3",
@@ -6348,6 +6352,8 @@
         "blGa": "Bereichsleitung",
         "komm": "Kommunikation",
         "spon": "Sponsoring",
+        "lw": "Logistikwart",
+        "clw": "Co-Logistikwart",
         "l1": "Leader 1",
         "l2": "Leader 2",
         "l3": "Leader 3",
@@ -8928,6 +8934,8 @@
       "cmw": "Co-Materialchef (cmw)",
       "komm": "Kommunikation (komm)",
       "spon": "Sponsoring (spon)",
+      "lw": "Logistikwart (lw)",
+      "clw": "Co-Logistikwart (clw)",
       "mw": "Materialchef (mw)"
     },
     "errors": {

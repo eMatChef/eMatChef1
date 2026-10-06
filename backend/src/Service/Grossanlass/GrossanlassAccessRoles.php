@@ -17,6 +17,8 @@ final class GrossanlassAccessRoles
             'matwart' => 'mw',
             'depchef' => 'dc',
             'bereichsleitung' => 'bl',
+            'logistikwart' => 'lw',
+            'co_logistikwart' => 'clw',
             default => $value,
         };
     }

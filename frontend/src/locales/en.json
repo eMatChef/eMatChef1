@@ -720,6 +720,8 @@
         "dc": "Event lead",
         "komm": "Communications",
         "spon": "Sponsoring",
+        "lw": "Logistics lead",
+        "clw": "Co logistics lead",
         "u": "Helper",
         "bl": "Area lead"
       }
@@ -4623,6 +4625,8 @@
         "dcGa": "Event lead (OK)",
         "komm": "Communications",
         "spon": "Sponsoring",
+        "lw": "Logistics lead",
+        "clw": "Co logistics lead",
         "l1": "L1 – leader 1",
         "l2": "L2 – leader 2",
         "l3": "L3 – leader 3",
@@ -4733,6 +4737,8 @@
         "dcGa": "Event lead (OK)",
         "komm": "Communications",
         "spon": "Sponsoring",
+        "lw": "Logistics lead",
+        "clw": "Co logistics lead",
         "l1": "Leader 1",
         "l2": "Leader 2",
         "l3": "Leader 3",
@@ -7098,6 +7104,8 @@
       "cmw": "Co materials lead (cmw)",
       "komm": "Communications (komm)",
       "spon": "Sponsoring (spon)",
+      "lw": "Logistics lead (lw)",
+      "clw": "Co logistics lead (clw)",
       "mw": "Materials lead (mw)"
     },
     "errors": {

@@ -341,6 +341,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
                 'dc' => 'ROLE_DEPCHEF',
                 'komm' => 'ROLE_KOMMUNIKATION',
                 'spon' => 'ROLE_SPONSORING',
+                'lw' => 'ROLE_LOGISTIKWART',
+                'clw' => 'ROLE_CO_LOGISTIKWART',
                 'l1' => 'ROLE_LEADER1',
                 'l2' => 'ROLE_LEADER2',
                 'l3' => 'ROLE_LEADER3',
